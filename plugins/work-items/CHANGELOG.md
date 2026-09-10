@@ -3,6 +3,38 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.7]
+
+### Changed
+
+- **Every markdown surface in the plugin passes `/ai-slop:audit`.** Em dashes in the plugin's
+  own prose (the README, this changelog, the references, every skill body and its actions,
+  contexts, and references, the templates, the tracker contract, and the adapter READMEs) are
+  rewritten as a comma, a period, a colon, or a restructured sentence; headings that carried
+  one take the colon form, and every link or quoted reference to a renamed heading follows.
+  Reflexive `load-bearing` and `seam` become the concrete word each stood for; the
+  work-item-tracker seam the contract defines keeps its name. One quoted autonomy
+  admission-policy sentence keeps its em dash inside an ignore marker. No verb, state, label,
+  or exit code changed. The purge gate now defends the whole plugin tree.
+- **Changelog, in-place wording corrections to released entries:** the same em-dash and jargon
+  rewrite was applied inside `[0.40.1]`, `[0.39.62]`, `[0.39.61]`, `[0.39.60]`, `[0.39.58]`,
+  `[0.39.35]`, `[0.39.21]`, `[0.39.20]`, `[0.39.19]`, `[0.39.17]`, `[0.39.16]`, `[0.39.10]`,
+  `[0.39.9]`, `[0.39.7]`, `[0.39.6]`, `[0.39.5]`, `[0.39.4]`, `[0.39.3]`, `[0.39.2]`,
+  `[0.39.1]`, `[0.39.0]`, `[0.38.0]`, `[0.37.0]`, `[0.36.3]`, `[0.36.2]`, `[0.36.1]`,
+  `[0.36.0]`, `[0.35.31]`, `[0.35.30]`, `[0.35.26]`, `[0.35.25]`, `[0.35.23]`, `[0.35.21]`,
+  `[0.35.20]`, `[0.35.19]`, `[0.35.17]`, `[0.35.16]`, `[0.35.13]`, `[0.35.12]`, `[0.35.7]`,
+  `[0.35.5]`, `[0.35.3]`, `[0.35.2]`, `[0.35.1]`, `[0.35.0]`, `[0.34.3]`, `[0.34.2]`,
+  `[0.33.0]`, `[0.32.0]`, `[0.31.3]`, `[0.31.2]`, `[0.31.1]`, `[0.31.0]`, `[0.30.3]`,
+  `[0.30.2]`, `[0.30.1]`, `[0.30.0]`, `[0.29.0]`, `[0.28.0]`, `[0.27.0]`, `[0.26.1]`,
+  `[0.26.0]`, `[0.25.4]`, `[0.25.3]`, `[0.25.2]`, `[0.25.1]`, `[0.25.0]`, `[0.24.7]`,
+  `[0.24.6]`, `[0.24.5]`, `[0.24.3]`, `[0.24.2]`, `[0.24.0]`, `[0.23.0]`, `[0.22.1]`,
+  `[0.22.0]`, `[0.21.4]`, `[0.21.3]`, `[0.21.2]`, `[0.21.1]`, `[0.21.0]`, `[0.20.0]`,
+  `[0.19.0]`, `[0.18.2]`, `[0.18.1]`, `[0.18.0]`, `[0.17.1]`, `[0.17.0]`, `[0.16.1]`,
+  `[0.16.0]`, `[0.15.0]`, `[0.14.4]`, `[0.14.3]`, `[0.14.2]`, `[0.14.1]`, `[0.14.0]`,
+  `[0.13.1]`, `[0.13.0]`, `[0.12.3]`, `[0.12.0]`, `[0.11.0]`, `[0.10.0]`, `[0.9.0]`,
+  `[0.8.0]`, `[0.7.0]`, `[0.6.0]`, `[0.5.0]`, `[0.3.0]`, `[0.2.0]`, and `[0.1.0]`. Wording
+  only; every entry's facts are unchanged.
+
 ## [0.40.6]
 
 ### Fixed

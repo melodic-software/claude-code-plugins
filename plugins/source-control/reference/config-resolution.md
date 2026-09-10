@@ -16,52 +16,52 @@ surface carries two key families: the tracked commit-subject / PR-title conventi
 loop-lane keys, read by `/source-control:babysit-loop`. Every consumer reads this one document; none
 bakes its own layering rules, and the three layers and per-key merge below govern both families.
 
-Implements the tracked-rich-config seam in
+Implements the tracked-rich-config extensibility contract in
 [`docs/MIGRATION-PLAYBOOK.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/MIGRATION-PLAYBOOK.md).
 
 ## The config surface
 
 Markdown, one `## <key>` H2 per key, the value as the section body:
 
-- `subject_pattern` — required; the literal keyword `Conventional Commits`, or an anchored regex
-  (`^…`-style). Exactly one value, never a list and never a plain-language description — a convention
+- `subject_pattern`: required; the literal keyword `Conventional Commits`, or an anchored regex
+  (`^…`-style). Exactly one value, never a list and never a plain-language description. A convention
   with several accepted shapes is expressed as alternation inside the one regex
   (`^(?:feat|fix): .+|^[A-Z]+-\d+: .+`), which every consumer already evaluates correctly. A list form
   would need a serialization grammar and an any-matches rule that nothing here defines, and a reader
   handing a multi-line value straight to a matcher would reject valid subjects or build an invalid
   regex.
-- `type_list` — the type vocabulary; meaningful only when `subject_pattern` is
+- `type_list`: the type vocabulary; meaningful only when `subject_pattern` is
   Conventional-Commits-shaped, omitted otherwise.
-- `pr_title_pattern` — the PR-title shape, or the deferral marker spelled exactly
+- `pr_title_pattern`: the PR-title shape, or the deferral marker spelled exactly
   `` Same as `subject_pattern`. `` (capital S, backticked key, trailing period). The match is literal:
   any other casing or punctuation is treated as a pattern in its own right.
-- `trailer_policy` — the attribution-trailer template, or `none`. Absent means the `/source-control:commit` default
+- `trailer_policy`: the attribution-trailer template, or `none`. Absent means the `/source-control:commit` default
   trailer applies.
-- `pr_body_attribution` — the attribution line `/source-control:pull-request create` appends to the PR body, or
+- `pr_body_attribution`: the attribution line `/source-control:pull-request create` appends to the PR body, or
   `none`. Absent means the default `🤖 Generated with [Claude Code](https://claude.com/claude-code)`
   line applies. This is the PR-body analogue of `trailer_policy`, and a separate key on purpose: the
   two govern different surfaces (a commit `Co-authored-by:` trailer vs a Markdown PR-body line), so a
   consumer setting `trailer_policy: none` keeps the PR-body line unless they also set this to `none`.
-- `pr_body_required_sections` — the PR-body section scaffold: a flat Markdown bullet list (`- <H2
+- `pr_body_required_sections`: the PR-body section scaffold, a flat Markdown bullet list (`- <H2
   heading>` per line, one heading per bullet) naming every `## <heading>` section
   `/source-control:pull-request create` must both draft and pre-check for before `gh pr create`, or
-  the literal keyword `none` — no required sections: the draft emits no section scaffold and the
+  the literal keyword `none`, meaning no required sections: the draft emits no section scaffold and the
   pre-create gate requires nothing. Absent everywhere → the bundled portable default, `Summary` and
-  `Test plan` only — see
+  `Test plan` only. See
   [`docs/conventions/pr-body-convention/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-body-convention/README.md)
-  for the default's rationale and the seam's full contract. Like `type_list`, and unlike the single
+  for the default's rationale and the convention's full contract. Like `type_list`, and unlike the single
   scalar `subject_pattern`, this key is a **closed list**: a winning layer's list is taken whole,
   never unioned or ordered against an earlier layer's list (per-key override applies to the entire
-  value, per "Merge semantics" below) — the same reasoning `type_list` already documents, applied to
+  value, per "Merge semantics" below), the same reasoning `type_list` already documents, applied to
   headings instead of type names. `none` participates in that same per-key override as a **resolved
-  value, not an absence** — exactly like its sibling keys `trailer_policy` and `pr_body_attribution`:
+  value, not an absence**, exactly like its sibling keys `trailer_policy` and `pr_body_attribution`:
   a layer declaring `none` replaces a lower layer's list (a team file requiring `Summary`/`Test plan`
   is overridden to zero sections by a local overlay's `none`), while a key absent from every layer
   still falls through to the portable default.
 
 Absent sections are absent, never empty.
 
-- `convention_source` — optional, **honored in the team-tracked layer only**: a repo-relative
+- `convention_source`: optional, **honored in the team-tracked layer only**. A repo-relative
   forward-slash path to a neutral flat-scalar YAML file, the tool-agnostic convention SSOT other
   consumers (commit-msg hooks, CI, other agents) read too. When declared, the neutral file is
   authoritative for the machine keys it carries (`subject_pattern`, `pr_title_pattern`, optionally
@@ -71,11 +71,11 @@ Absent sections are absent, never empty.
   identically in the neutral file. User-global and local-overlay layers are unchanged and still
   merge per key on top. **The neutral file is resolved by a three-rung precedence, identical on the
   drafting and enforcement surfaces:** (1) an explicit `convention_source` pointer (the relocation
-  override — path stays repo-owned); absent one, (2) the **well-known default path**
+  override, where the path stays repo-owned); absent one, (2) the **well-known default path**
   `docs/conventions/source-control/commit-convention.yml` **when that file is git-tracked** (the
-  common case — read ONE tool-agnostic file, no pointer needed); absent both, (3) the team markdown
+  common case, reading ONE tool-agnostic file with no pointer needed); absent both, (3) the team markdown
   H2 sections (legacy / back-compat). The rung-2 **git-tracked requirement is a policy floor shared by
-  both surfaces**: an untracked or gitignored file at the default path must NOT drive resolution — it
+  both surfaces**: an untracked or gitignored file at the default path must NOT drive resolution. It
   is a generated/local artifact, not team convention, and honoring it would let drafting diverge from
   the enforcement gate (which enforces the same floor). Verify with
   `git ls-files --error-unmatch docs/conventions/source-control/commit-convention.yml`; if it is
@@ -83,13 +83,13 @@ Absent sections are absent, never empty.
   file is resolved via rung 1 or 2 it is authoritative and the fail-closed broken-file contract
   applies; a key it omits still falls back per key to the markdown H2. Value grammar, pointer safety rules, and the fail-closed
   broken-pointer contract are owned by the
-  [commit-convention seam](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/commit-convention/README.md)
-  — drafting honors the same contract (a declared-but-broken pointer is surfaced as a config error,
+  [commit-convention enforcement README](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/commit-convention/README.md).
+  Drafting honors the same contract (a declared-but-broken pointer is surfaced as a config error,
   never silently re-read from markdown values a migration may have retired).
 
 ## Loop-lane keys (`babysit_loop_*`)
 
-The same surface carries the repo-scoped configuration for the `/source-control:babysit-loop` lane —
+The same surface carries the repo-scoped configuration for the `/source-control:babysit-loop` lane:
 which stop shape, autonomy tier, and per-dimension overrides a repository's merge lane runs under.
 These are repository policy, not personal scalars: whether a repo drains or stands, and how much
 merge authority its lane holds, are properties of the target repository, which the plugin's
@@ -99,42 +99,42 @@ babysit-prs mechanic documents (watched owners, self logins, engine thresholds);
 the lane policy a team reviews and tracks. Loop keys carry the `babysit_loop_` prefix so the two key
 families sharing one file stay distinguishable.
 
-One `## <key>` H2 per key, exactly like the convention keys above; every value is a scalar — except
-`babysit_loop_trusted_internal_bot_logins`, a closed bullet list like `pr_body_required_sections` —
+One `## <key>` H2 per key, exactly like the convention keys above. Every value is a scalar except
+`babysit_loop_trusted_internal_bot_logins`, a closed bullet list like `pr_body_required_sections`,
 so the per-key override semantics below apply unchanged (a closed list is taken whole from its one
 binding layer, never unioned).
 
 | Key | Value | Default when absent |
 |---|---|---|
 | `babysit_loop_stop_mode` | `standing` or `drain` | `standing` |
-| `babysit_loop_tier` | a `/source-control:babysit-prs` tier name (`safe`, `worker`, `autopilot`) — the named preset over the autonomy dimensions | `safe` |
-| `babysit_loop_discovery_scope` | tier name — overrides dimension 1 (which PRs enter the queue) out of the preset | preset value |
-| `babysit_loop_fixing` | tier name — dimension 2 (branch-owned CI/review fix authority) | preset value |
-| `babysit_loop_thread_resolution` | tier name — dimension 3 (review-thread resolution) | preset value |
-| `babysit_loop_draft_elevation` | tier name — dimension 4 (draft handling / ready-marking) | preset value |
-| `babysit_loop_barrier_overrides` | tier name — dimension 5 (blocker handling: escalate vs attempt-with-research) | preset value |
-| `babysit_loop_merge` | an autonomy-ladder rung, ordered `human-only` < `c2-mechanical` < `c3-autonomous` < `full-autonomy` — dimension 6 (merge authority) | `human-only` with no tracked adoption; `c2-mechanical` (the loop-lane convention's baseline) once the team-tracked layer carries loop-lane keys — see baseline activation below |
-| `babysit_loop_escalation` | tier name — dimension 7 (escalation posture); the escalation *surface* is fixed by the loop-lane convention, never by config | preset value |
-| `babysit_loop_grace_window_minutes` | positive integer — the concurrency-safety activity grace window | `30` |
-| `babysit_loop_cycle_budget` | positive integer — cycles per session before the budget-hit stop | none — no per-session budget |
-| `babysit_loop_no_progress_threshold` | positive integer — consecutive no-progress cycles (open PRs in view, none merged, materially changed, or escalated; cycles held by the rate-limit guard are not counted) before the lane raises its stall escalation; it escalates and keeps looping, never stops | `3` |
-| `babysit_loop_trusted_internal_bot_logins` | flat Markdown bullet list (`- <login>` per line) of exact GitHub App bot logins the repository attests as its own internal automation — the C5 trust test's reviewed internal-bot trust signal; **honored in the team-tracked layer only** ("the C5 trust test's one reviewed widening" below) | none — empty set: the trust test accepts `OWNER`/`MEMBER` only |
+| `babysit_loop_tier` | a `/source-control:babysit-prs` tier name (`safe`, `worker`, `autopilot`), the named preset over the autonomy dimensions | `safe` |
+| `babysit_loop_discovery_scope` | tier name, overriding dimension 1 (which PRs enter the queue) out of the preset | preset value |
+| `babysit_loop_fixing` | tier name for dimension 2 (branch-owned CI/review fix authority) | preset value |
+| `babysit_loop_thread_resolution` | tier name for dimension 3 (review-thread resolution) | preset value |
+| `babysit_loop_draft_elevation` | tier name for dimension 4 (draft handling / ready-marking) | preset value |
+| `babysit_loop_barrier_overrides` | tier name for dimension 5 (blocker handling: escalate vs attempt-with-research) | preset value |
+| `babysit_loop_merge` | an autonomy-ladder rung for dimension 6 (merge authority), ordered `human-only` < `c2-mechanical` < `c3-autonomous` < `full-autonomy` | `human-only` with no tracked adoption; `c2-mechanical` (the loop-lane convention's baseline) once the team-tracked layer carries loop-lane keys. See baseline activation below |
+| `babysit_loop_escalation` | tier name for dimension 7 (escalation posture); the escalation *surface* is fixed by the loop-lane convention, never by config | preset value |
+| `babysit_loop_grace_window_minutes` | positive integer, the concurrency-safety activity grace window | `30` |
+| `babysit_loop_cycle_budget` | positive integer, cycles per session before the budget-hit stop | none, meaning no per-session budget |
+| `babysit_loop_no_progress_threshold` | positive integer, consecutive no-progress cycles (open PRs in view, none merged, materially changed, or escalated; cycles held by the rate-limit guard are not counted) before the lane raises its stall escalation; it escalates and keeps looping, never stops | `3` |
+| `babysit_loop_trusted_internal_bot_logins` | flat Markdown bullet list (`- <login>` per line) of exact GitHub App bot logins the repository attests as its own internal automation, the C5 trust test's reviewed internal-bot trust signal; **honored in the team-tracked layer only** ("the C5 trust test's one reviewed widening" below) | none, the empty set: the trust test accepts `OWNER`/`MEMBER` only |
 
-Dimension semantics — what each tier value grants per dimension — are owned by the babysit-prs
+Dimension semantics, what each tier value grants per dimension, are owned by the babysit-prs
 autonomy table (`/source-control:babysit-prs`, "Autonomy tiers (per action class)") and are not
 restated here. The merge dimension's rung semantics are owned by the loop-lane convention's autonomy
 ladder ([`docs/conventions/loop-lane/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/loop-lane/README.md)
 §1 in the marketplace repository).
 
-**Precedence: invocation arguments win — except the two policy-floor keys.** For every loop key
+**Precedence: invocation arguments win, except for the two policy-floor keys.** For every loop key
 above but `babysit_loop_merge` and `babysit_loop_trusted_internal_bot_logins`, an invocation
 argument overrides all three layers, exactly as an explicit skill argument outranks stored config
 everywhere else in this plugin. `babysit_loop_trusted_internal_bot_logins` is the stricter of the
-two: it binds from the target repository's team-tracked layer **only** — an invocation argument or
+two: it binds from the target repository's team-tracked layer **only**. An invocation argument or
 any other layer supplying it, in any direction, is ignored and reported, never merged, never
 honored (its own section below owns the full rule). `babysit_loop_merge` is the other policy-floor
 key on this surface (the consumer-config layering convention's sanctioned policy-floor
-class, declared here next to its key): **raises bind from the team-tracked layer only** — every
+class, declared here next to its key): **raises bind from the team-tracked layer only**. Every
 increase in *standing* merge authority is a reviewable, versioned config change, per the loop-lane
 convention's "Merge-rung raises are seam-only" rule. The user-global layer, the local overlay, and an
 invocation argument may each select a *lower* (safer) rung than the effective team-tracked value,
@@ -152,7 +152,7 @@ next invocation that doesn't type the pair reverts to whatever `babysit_loop_mer
 through the normal precedence above. It requires baseline adoption (next paragraph) exactly like
 every other rung.
 
-**The exception lifts the raise restriction only — a safer argument still wins, and is mutually
+**The exception lifts the raise restriction only. A safer argument still wins, and is mutually
 exclusive with the raise by grammar.** The sentence above ("an invocation argument may each select
 a *lower* (safer) rung … never a higher one") keeps its lower half intact for every `--merge` value
 other than `c3-this-run`, so `autopilot --merge human-only` merges nothing. The order is tracked
@@ -163,21 +163,21 @@ tokens on the invocation line and nothing else: `babysit_loop_tier: autopilot` i
 layers resolves the *tier* (dimensions 1-5 and 7) without widening the merge dimension, the tier
 default never supplies it, `c3-this-run` is not a rung name and is invalid as a
 `babysit_loop_merge` value in any layer (an appearance there is reported and ignored, never
-honored), and `babysit_default_tier` — the `userConfig` scalar governing a bare
-`/source-control:babysit-prs` invocation's tier — is not a loop-lane key and never supplies this
+honored), and `babysit_default_tier`, the `userConfig` scalar governing a bare
+`/source-control:babysit-prs` invocation's tier, is not a loop-lane key and never supplies this
 lane's tier at all. If either token did not appear on this invocation's own argument line, the
 merge dimension resolves through the normal precedence above with no widening. The raise token is
 also never composed on the caller's behalf: a model-routed launch of the lane runs without it or
 asks the operator, so a drain or merge phrasing never becomes a merge-authority raise by inference.
 
-**Baseline activation is tracked adoption.** The convention's baseline rung — human merge for
-everything except gate-proven C2-mechanical PRs — is the value a repository gets by *adopting* the
+**Baseline activation is tracked adoption.** The convention's baseline rung, human merge for
+everything except gate-proven C2-mechanical PRs, is the value a repository gets by *adopting* the
 lane, and adoption itself must be a recorded change: no lane ever auto-merges without a reviewed
 change having enabled it (loop-lane convention, "Autonomy ladder (merge authority)"). Concretely:
 while the target repository's team-tracked `.claude/source-control.md` carries no `babysit_loop_*`
 keys, the merge dimension resolves to `human-only`, and the explicit-`autopilot` exception above does
-not apply either — it requires the same adoption every other rung does. Landing loop-lane keys in
-that tracked file — a reviewable PR in the target repository — is the recorded, human-ratified
+not apply either. It requires the same adoption every other rung does. Landing loop-lane keys in
+that tracked file, a reviewable PR in the target repository, is the recorded, human-ratified
 lane-enabling act, after which an absent merge key defaults to the `c2-mechanical` baseline. A
 merge-capable tier supplied by an invocation keyword or any other layer never substitutes for the
 tracked adoption: with the tier merge-capable but no tracked adoption, merges stay `human-only` and
@@ -185,46 +185,46 @@ the lane reports why.
 
 **Promotion-evidence gate (#1695).** A tracked rung is a ceiling, not autonomous-merge permission:
 before the rung partition admits a C2 or C3 PR, the lane resolves `C2-auto-merge` /
-`C3-auto-merge` effective state through the trusted promotion-evidence seam, fail-closing to
+`C3-auto-merge` effective state through the trusted promotion-evidence resolution, fail-closing to
 unpromoted when evidence is unavailable or unqualified
 (`${CLAUDE_PLUGIN_ROOT}/skills/babysit-loop/reference/promotion-evidence-resolution.md`).
-Until that seam qualifies, C2/C3 classes stay off the merge-eligible set regardless of
+Until that resolution qualifies the evidence, C2/C3 classes stay off the merge-eligible set regardless of
 `babysit_loop_merge`; operators keep `--merge human-only` on launch lines.
 
-**C4/C5 floor, unconditional.** No rung, no seam config, no invocation argument — including the
-explicit-`autopilot` exception above — ever grants merge authority over a `work-class: structural`
+**C4/C5 floor, unconditional.** No rung, no config key, and no invocation argument, including the
+explicit-`autopilot` exception above, ever grants merge authority over a `work-class: structural`
 (C4) or `work-class: untrusted-provenance` (C5) item. This is not a `babysit_loop_merge` value; it is
 a ceiling the resolved rung composes under, always, per the autonomy matrix's "never promotes" cells
 (`work-classes.md#suggested-default-predicates`). Both classes are decided from the pull request,
-not the class stamped on the item it closes: C5 from the code's own provenance — a cross-repository
-head, or a failed trust test (`authorAssociation` other than `OWNER`/`MEMBER` and no
+not the class stamped on the item it closes. C5 comes from the code's own provenance, because
+provenance "dominates every other property" (`work-classes.md`, `C5`): a cross-repository head, or
+a failed trust test (`authorAssociation` other than `OWNER`/`MEMBER` and no
 `babysit_loop_trusted_internal_bot_logins` match, per the trust-signal section below), each failing
-closed to C5 when its field is unavailable — because provenance "dominates every other
-property" (`work-classes.md`, `C5`), and C4 from the diff's blast radius, with a class/diff mismatch
-failing closed. **Never derive C5 by testing the PR author's login against `babysit_watched_owners`**
-— that key is a repository-owner allowlist, not a trusted-author list, so on an organization-owned
+closed to C5 when its field is unavailable. C4 comes from the diff's blast radius, with a class/diff
+mismatch failing closed. **Never derive C5 by testing the PR author's login against
+`babysit_watched_owners`.** That key is a repository-owner allowlist, not a trusted-author list, so on an organization-owned
 repository it would classify every internally authored PR as C5.
 
-**`babysit_loop_trusted_internal_bot_logins` — the C5 trust test's one reviewed widening,
+**`babysit_loop_trusted_internal_bot_logins`: the C5 trust test's one reviewed widening,
 team-tracked layer only.** Repository-owned GitHub App bot identities are never organization
 `MEMBER` accounts (a Dependabot PR reports `CONTRIBUTOR`), so with no further signal the C5 trust
-test classifies the org's own automation as untrusted provenance — even though `work-classes.md`
+test classifies the org's own automation as untrusted provenance, even though `work-classes.md`
 places org-owned automation's mechanical output in C2. This key is the recorded trust signal that
 reconciles the two, and every rule below is fail-closed:
 
 - **Value grammar.** A flat Markdown bullet list, one exact GitHub App bot login per bullet (e.g.
-  `- my-lane-bot[bot]`) — the same closed-list grammar as `pr_body_required_sections`, taken whole
+  `- my-lane-bot[bot]`), the same closed-list grammar as `pr_body_required_sections`, taken whole
   from the binding layer. Matching is exact and ASCII case-insensitive (GitHub logins are
   case-insensitive); no globs, prefixes, aliases, or suffix inference.
-- **Team-tracked layer only, target repository, default branch — always.** Like
-  `convention_source`, the key is honored **only** in the team-tracked layer — and that layer is
+- **Team-tracked layer only, target repository, default branch, always.** Like
+  `convention_source`, the key is honored **only** in the team-tracked layer, and that layer is
   the TARGET repository's tracked `.claude/source-control.md` read from its **default branch**
   (`gh api` contents), on every resolution, even when the current checkout is that repository.
   This is deliberately stricter than the merge rung's checkout-aware read: an ambient working-tree
   read follows the checkout's current branch, and a checkout sitting on a bot-authored branch
   would let the very PR under classification supply its own trust grant. Never read this key from
   any working tree. A trust grant is a recorded, reviewable, versioned config change, exactly like
-  every other trust grant on this seam; an appearance in the user-global layer, the local overlay,
+  every other trust grant on this surface; an appearance in the user-global layer, the local overlay,
   or an invocation argument is ignored and reported (see the precedence exception above), and a PR
   branch editing the tracked file can never self-grant, because resolution never reads any branch
   but the default.
@@ -232,13 +232,13 @@ reconciles the two, and every rule below is fail-closed:
   trust test is exactly the `OWNER`/`MEMBER` test. No fallback, no inference, no partial parse of a
   malformed list.
 - **The match arm requires a structural bot.** A listed login matches only when the snapshot author
-  is structurally a bot — the `[bot]` login suffix (which no user account can carry: GitHub
+  is structurally a bot: the `[bot]` login suffix (which no user account can carry: GitHub
   usernames cannot contain brackets) or the provider's `Bot` type. A listed non-bot login never
   matches and is reported as inert: ordinary machine-user accounts belong in org membership, not on
   this key.
 - **The trust test with the key set.** A PR passes when either arm **positively** succeeds:
   `authorAssociation` is `OWNER` or `MEMBER`, or the author is a structural bot whose login matches
-  a listed entry. Neither arm positively passing — including when a field is missing or unreadable —
+  a listed entry. Neither arm positively passing, including when a field is missing or unreadable,
   is C5, fail closed.
 - **The fork test is untouched.** The key widens the trust test only: a listed bot authoring from a
   cross-repository head is still C5. A same-repository head requires push access to the base
@@ -248,33 +248,33 @@ reconciles the two, and every rule below is fail-closed:
   babysit-prs cross-tier hold-merge invariant (built-in dependabot/renovate plus
   `babysit_extra_dependency_manager_logins`) affects *merge execution* and is never weakened by it.
   A login on both lists partitions on its item's recorded work class and is still never merged
-  autonomously — it lands on the merge-ready report. The two keys are never unified: they answer
+  autonomously. It lands on the merge-ready report. The two keys are never unified: they answer
   different questions (who is attested to have written this code vs. does this author ship
   third-party dependency payloads).
 - **Consumed by the rung partition's trust test, the drain issue-author provenance test, and
   nowhere else.** The value is never forwarded as
   `--self-logins`, `--extra-bot-logins`, discovery scope, or any write or resolution authority, and
-  a trust match never establishes C2 — it only removes the categorical C5 bar. The PR still needs a
+  a trust match never establishes C2. It only removes the categorical C5 bar. The PR still needs a
   close-linked item with a recorded classification, and still faces the C4 diff veto, the rung
   comparison, and every other withholding in the partition.
 
 ## The three layers
 
-Resolve every read from the repo root — `${CLAUDE_PROJECT_DIR}` when set, otherwise
+Resolve every read from the repo root: `${CLAUDE_PROJECT_DIR}` when set, otherwise
 `git rev-parse --show-toplevel`. A cwd-relative read from a nested directory finds
 `<subdir>/.claude/source-control.md`, misses the repo-root config, and silently degrades.
 
-Layer, in resolution order — a later layer refines an earlier one:
+Layers, in resolution order, where a later layer refines an earlier one:
 
-1. **`~/.claude/source-control.md`** — user-global. The operator's own preference, following them
+1. **`~/.claude/source-control.md`**: user-global. The operator's own preference, following them
    across repos and machines. Their home directory, not consumer repository data.
-2. **`${REPO_ROOT}/.claude/source-control.md`** — team, tracked. The shared convention; the layer
+2. **`${REPO_ROOT}/.claude/source-control.md`**: team, tracked. The shared convention; the layer
    `/source-control:setup apply` writes by default.
-3. **`${REPO_ROOT}/.claude/source-control.local.md`** — personal overlay, gitignored. A per-machine
+3. **`${REPO_ROOT}/.claude/source-control.local.md`**: personal overlay, gitignored. A per-machine
    or per-operator deviation from team policy, never committed.
 
 Each layer is optional, and **fall-through is per key, not per file**. A key absent from every layer
-is unresolved even when some layer exists — a user-global file contributing only `trailer_policy`
+is unresolved even when some layer exists. A user-global file contributing only `trailer_policy`
 leaves `subject_pattern` exactly as unresolved as no file at all. Each unresolved key falls through
 independently to the repo's own `CLAUDE.md`/rules/commit-msg hook, then the bundled Conventional
 Commits default. Never gate that fall-through on file presence.
@@ -284,19 +284,19 @@ Commits default. Never gate that fall-through on file presence.
 **A later layer replaces an earlier layer's value key by key, and never drops the base layer
 wholesale.** A key absent from a later layer keeps the earlier layer's value.
 
-This is a deliberate deviation from the seam's concatenating default, recorded rather than silent.
+This is a deliberate deviation from the layering convention's concatenating default, recorded rather than silent.
 Concatenation is right for the first-party `security-guidance` precedent, whose layers are prose
 blocks that genuinely accumulate. Every key here is a scalar or a closed list: two `subject_pattern`
 regexes cannot concatenate into a third valid regex, and a concatenated `trailer_policy` would emit
-two trailers. This is the seam's sanctioned per-key case.
+two trailers. This is the layering convention's sanctioned per-key case.
 
-Worked example — user-global sets `trailer_policy: none`, team sets `subject_pattern` to a
-ticket-prefix regex and leaves `trailer_policy` unset, local overlay sets nothing: the effective
+Worked example: user-global sets `trailer_policy: none`, team sets `subject_pattern` to a
+ticket-prefix regex and leaves `trailer_policy` unset, local overlay sets nothing. The effective
 config is the team `subject_pattern` with the user-global `trailer_policy: none`.
 
 **`type_list` is bound to the effective `subject_pattern`, not merged independently.** It is a
 property of a Conventional-Commits-shaped pattern, so after the layers merge, an inherited
-`type_list` is dropped whenever the *effective* `subject_pattern` is a custom regex — even when the
+`type_list` is dropped whenever the *effective* `subject_pattern` is a custom regex, even when the
 layer supplying that pattern said nothing about `type_list`. A user-global `Conventional Commits`
 plus its type list, overridden by a team ticket-prefix regex, resolves to the team pattern with **no**
 `type_list`; retaining it per key would leave `/source-control:commit` pre-checking against a vocabulary the
@@ -308,15 +308,15 @@ no `type_list` in any layer resolves to the bundled 11-type list.
 
 ## Drafting vs enforcement
 
-This document owns **drafting** resolution — how `/source-control:commit` and `/source-control:pull-request`
+This document owns **drafting** resolution: how `/source-control:commit` and `/source-control:pull-request`
 compose a compliant subject/title, reading all three layers with the per-key merge above. A separate
-concern owns **enforcement** — how a zero-dependency guardrails hook decides whether an
+concern owns **enforcement**: how a zero-dependency guardrails hook decides whether an
 *already-formed* subject/title is allowed. The two read the same `.claude/source-control.md` file but
 differ deliberately: enforcement reads the **team-tracked layer only** (a gitignored `*.local.md`
 must never weaken a blocking gate), resolves to **POSIX ERE only**, and treats an unresolved key as
-**no enforcement** — never the bundled Conventional Commits default. That contract, the regex-dialect
+**no enforcement**, never the bundled Conventional Commits default. That contract, the regex-dialect
 normalization, and the resolver (`lib/resolve-convention-pattern.sh`) live in the
-[commit-convention enforcement seam](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/commit-convention/README.md).
+[commit-convention enforcement README](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/commit-convention/README.md).
 
 ## Consumer `.gitignore`
 
@@ -326,7 +326,7 @@ The overlay convention needs one line in the consuming repo:
 .claude/**/*.local.*
 ```
 
-No skill in this plugin writes the consumer's root `.gitignore` — `/source-control:setup` recommends
+No skill in this plugin writes the consumer's root `.gitignore`. `/source-control:setup` recommends
 the line and leaves the edit to the consumer.
 
 ## Failure modes

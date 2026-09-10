@@ -1,29 +1,29 @@
 # Shared per-PR review discipline
 
-Plugin-scope seam: the canonical, detailed home of the review discipline shared by
+Plugin-scope shared reference: the canonical, detailed home of the review discipline shared by
 `/source-control:pull-request` (single-PR monitor) and `/source-control:babysit-prs` (all-PR
 fleet loop). Both skills' always-loaded checklists are compact skeletons that cite this file;
 the rules here are the single committed copy. Workers dispatched by either skill cite this file
-directly — never a sibling skill's router.
+directly, never a sibling skill's router.
 
 Restating a clause of this file elsewhere is a declared act: the copy carries a
 `contract-restatement` marker naming the clause, and CI holds that passage to this file's
 qualifiers within its own bounds. This file declares the same markers around the passages it
 owns, so the rule is measured where it is written rather than anywhere in the file. An untagged
-copy is reported. Reducing a restatement to a pointer here is always the stronger answer — the
+copy is reported. Reducing a restatement to a pointer here is always the stronger answer. The
 marker exists so a NEW copy is visible enough to argue about, not to make copying cheap. The
 clause set and its qualifiers live in the marketplace's own
 `scripts/contract-clause-registry.json`.
 
 The deterministic companion scripts live beside this file:
 
-- `${CLAUDE_PLUGIN_ROOT}/scripts/fetch-all-pr-comments.sh <pr>` — fetches every comment from all
+- `${CLAUDE_PLUGIN_ROOT}/scripts/fetch-all-pr-comments.sh <pr>`: fetches every comment from all
   3 GitHub API surfaces (issue-level, review-level, inline review comments) as one JSON array
   sorted by `created_at`, each object carrying `type` (`general` | `review` | `inline`),
-  `author`, `body`, `path`, `line`, `id`. Never select API surfaces by judgment — an agent that
+  `author`, `body`, `path`, `line`, `id`. Never select API surfaces by judgment. An agent that
   picked `gh pr view --json comments,reviews` missed inline findings and declared "no comments
   to address".
-- `${CLAUDE_PLUGIN_ROOT}/scripts/babysit-readiness-gate.sh <pr>` — mechanical under-decomposition
+- `${CLAUDE_PLUGIN_ROOT}/scripts/babysit-readiness-gate.sh <pr>`: mechanical under-decomposition
   gate (§2).
 
 ## Contents
@@ -34,29 +34,29 @@ The deterministic companion scripts live beside this file:
 
 ## 1. Evidence-based comment state
 
-GitHub is the source of truth — not model memory, not prior-iteration state, not comment counts.
+GitHub is the source of truth, not model memory, not prior-iteration state, not comment counts.
 Compaction loses classification state; comment-count heuristics miss edits, deletions, and
 multi-finding comments. Every pass re-derives comment state from GitHub:
 
 1. **Filter out own prior replies.** Comments authored by your own posting identities
-   (`gh api user --jq .login`, plus any project bot identity — the same set the readiness gate's
+   (`gh api user --jq .login`, plus any project bot identity, the same set the readiness gate's
    `--self` / `--extra-self` covers) that ARE classification replies (contain the
-   `| # | Finding | Classification |` table pattern) are NOT findings — skip them. Own follow-up
+   `| # | Finding | Classification |` table pattern) are NOT findings. Skip them. Own follow-up
    replies citing commit SHAs are also not findings. Only comments from OTHER authors are
    potential finding sources.
 2. **Classify each remaining comment** as addressed or unaddressed by checking GitHub for
    evidence:
-   - **Addressed (skip)** — the comment has a substantive reply (from ANY author) containing
+   - **Addressed (skip):** the comment has a substantive reply (from ANY author) containing
      BOTH: (a) a classification token (VALID, INCORRECT, or UNCERTAIN), AND (b) evidence (code
      reference, test output, or reasoning).
-   - **Unaddressed (process)** — no reply meeting both criteria. "Noted" or "will fix" without
+   - **Unaddressed (process):** no reply meeting both criteria. "Noted" or "will fix" without
      classification + evidence does NOT count.
-3. **Extract findings** per §2 — one comment may contain multiple work items.
+3. **Extract findings** per §2. One comment may contain multiple work items.
 
 ## 2. Structured finding extraction
 
 AI review summaries (claude[bot], codex, cursor, etc.) and detailed human reviews often pack
-multiple findings into a single comment — markdown tables, numbered severity items,
+multiple findings into a single comment: markdown tables, numbered severity items,
 multi-paragraph analyses. Each finding is a separate work item requiring its own §3 cycle.
 
 **Extraction rules:**
@@ -64,7 +64,7 @@ multi-paragraph analyses. Each finding is a separate work item requiring its own
 - One comment with N findings = N entries in the work-item list
 - Each finding gets its own D1–D7 cycle (read, explore, validate, classify, reply, fix,
   follow-up)
-- Findings are tracked individually — addressing 3 of 5 findings in a comment means 2 remain
+- Findings are tracked individually. Addressing 3 of 5 findings in a comment means 2 remain
   unaddressed
 - Reply with a per-finding classification table (not one blanket reply for the whole comment)
 
@@ -80,13 +80,13 @@ multi-paragraph analyses. Each finding is a separate work item requiring its own
 ```text
 | # | Finding | Classification | Evidence | Reacted |
 |---|---------|---------------|----------|---------|
-| 1 | <summary> | VALID — fixing | <evidence> | 👍 |
+| 1 | <summary> | VALID: fixing | <evidence> | 👍 |
 | 2 | <summary> | INCORRECT | <evidence why wrong> | 👎 |
 | 3 | <summary> | VALID (defer) | <reason for deferral> | 👍 |
 ```
 
 The reaction is per-comment (GitHub allows one reaction type per user per comment). Post the
-reaction BEFORE the reply — reviewers scanning a PR see 👍/👎 at a glance without expanding
+reaction BEFORE the reply, so reviewers scanning a PR see 👍/👎 at a glance without expanding
 threads.
 
 **MANDATORY subagent dispatch for multi-finding comments (≥3 findings):**
@@ -94,11 +94,11 @@ threads.
 When a single PR comment packs 3+ findings, dispatch a finding-extractor subagent rather than
 attempting inline extraction. The subagent:
 
-1. Preserves main session context — large comment bodies + per-finding investigation evidence
+1. Preserves main session context. Large comment bodies + per-finding investigation evidence
    stay in the subagent's context window; only the structured ledger returns
-2. Structurally enforces the per-finding work-item shape — the subagent returns a fixed-schema
+2. Structurally enforces the per-finding work-item shape. The subagent returns a fixed-schema
    ledger; missing entries trigger main-session escalation
-3. Is scope-fenced — ALLOWED: read PR-branch files + `gh api` against the specific PR;
+3. Is scope-fenced. ALLOWED: read PR-branch files + `gh api` against the specific PR;
    FORBIDDEN: edits, commits, pushes, reactions, replies on GitHub (those stay in the main
    session)
 
@@ -114,11 +114,11 @@ ALLOWED scope (read-only on PR branch <BRANCH>):
 - `gh api repos/<owner>/<repo>/issues/<PR>/comments` and per-id endpoints
 - `gh api repos/<owner>/<repo>/pulls/<PR>/{comments,reviews}` and per-id endpoints
 - `Read` / `Grep` / `Glob` against the repo working tree at the PR's assigned
-  worktree — every path is absolute under `<absolute-worktree-path>` (or an
+  worktree. Every path is absolute under `<absolute-worktree-path>` (or an
   explicit absolute `${CLAUDE_PLUGIN_ROOT}/…` path for bundled plugin references);
   never a bare relative path that resolves against the session's default checkout
 - `Bash` for git inspection (`git -C "<absolute-worktree-path>" show`, `git -C
-  "<absolute-worktree-path>" log`, `git -C "<absolute-worktree-path>" diff`) — NEVER
+  "<absolute-worktree-path>" log`, `git -C "<absolute-worktree-path>" diff`). NEVER
   state-mutating and NEVER bare `git` without `-C "<absolute-worktree-path>"`
 
 FORBIDDEN:
@@ -131,15 +131,15 @@ Return a SINGLE markdown ledger with this exact shape (one row per finding):
 
 | # | Severity | File:Line | Finding (≤120 chars) | Validation status | Evidence | Suggested classification |
 |---|---|---|---|---|---|---|
-| 1 | CRITICAL | path/to/file.cs:42 | <one-line summary> | VERIFIED — code matches claim | <quote 1-3 lines of code OR test output OR doc text> | VALID — fix now |
-| 2 | IMPORTANT | path/to/file.cs:73 | <one-line summary> | INCORRECT — code already does X | <counter-evidence> | INCORRECT |
-| 3 | SUGGESTION | path/to/file.md:12 | <one-line summary> | UNCERTAIN — behavior depends on Y | <what's missing> | UNCERTAIN |
+| 1 | CRITICAL | path/to/file.cs:42 | <one-line summary> | VERIFIED: code matches claim | <quote 1-3 lines of code OR test output OR doc text> | VALID (fix now) |
+| 2 | IMPORTANT | path/to/file.cs:73 | <one-line summary> | INCORRECT: code already does X | <counter-evidence> | INCORRECT |
+| 3 | SUGGESTION | path/to/file.md:12 | <one-line summary> | UNCERTAIN: behavior depends on Y | <what's missing> | UNCERTAIN |
 
 CRITICAL constraints on the ledger:
 - Severity column MUST match the parent comment's severity labels verbatim (CRITICAL / IMPORTANT / SUGGESTION / P1 / P2 / P3)
 - Validation status MUST come from your own code reading, not a paraphrase of the bot claim
 - Evidence MUST cite line numbers + verbatim snippets (≤3 lines) OR direct command output
-- Suggested classification MUST be one of: VALID — fix now | VALID (defer) | INCORRECT | UNCERTAIN
+- Suggested classification MUST be one of: VALID (fix now) | VALID (defer) | INCORRECT | UNCERTAIN
 - One row per finding. If the parent comment has 6 findings, the ledger has 6 rows. No collapsing.
 
 If the parent comment is genuinely single-finding, return a 1-row ledger anyway.
@@ -151,19 +151,19 @@ Report ONLY the ledger + a one-line summary count ("Extracted N findings: X CRIT
 
 1. Receive the ledger. Verify the row count matches the source comment's finding count
    (independent count via grep on the parent comment body for severity markers)
-2. For each ledger row, the main session runs D4.5 (react) + D4.6 (ground any `VALID (defer)` —
+2. For each ledger row, the main session runs D4.5 (react) + D4.6 (ground any `VALID (defer)`:
    provenance test first; tracker item filed and verified BEFORE the D5 reply cites it) + D5
-   (reply with the per-finding sub-row from the ledger) + D6 (fix if VALID — fix now) + D7
+   (reply with the per-finding sub-row from the ledger) + D6 (fix if `VALID (fix now)`) + D7
    (follow-up SHA) with verification gates between each step. A subagent ledger row saying
-   `VALID (defer)` is a classification, not a grounding — D4.6 runs on it like any other
+   `VALID (defer)` is a classification, not a grounding. D4.6 runs on it like any other
 3. The subagent ledger is the D1–D4 work product. The main session NEVER skips D4.5–D7 by
-   trusting the ledger alone — the ledger feeds the work, it doesn't replace it
+   trusting the ledger alone. The ledger feeds the work, it doesn't replace it
 
 **Single-finding comments** (1-2 findings): inline extraction in the main session is fine;
 subagent overhead is not warranted.
 
 **Why a subagent for ≥3 findings:** empirically, multi-finding comments treated as single work
-items in the main session produce near-zero per-finding D1–D7 cycles — dozens of findings
+items in the main session produce near-zero per-finding D1–D7 cycles, with dozens of findings
 glossed in one pass. Subagent dispatch structurally forces the per-finding shape because the
 ledger contract demands it.
 
@@ -172,7 +172,7 @@ under-decomposed in practice. So enforcement is a gate:
 `bash "${CLAUDE_PLUGIN_ROOT}/scripts/babysit-readiness-gate.sh" <pr>` counts source findings
 (severity markers in reviewer comments) vs classification rows (VALID/INCORRECT/UNCERTAIN in
 your replies) and exits non-zero when rows < findings. The subagent-dispatch rule above tells
-you HOW to decompose; the gate enforces THAT you did — an iteration cannot be completed while it
+you HOW to decompose; the gate enforces THAT you did. An iteration cannot be completed while it
 reports `READINESS_BLOCKED`. It says nothing about whether the PR can merge; that is the merge
 gate's `ready` field alone
 (`${CLAUDE_PLUGIN_ROOT}/skills/babysit-prs/reference/safety.md`
@@ -183,27 +183,27 @@ gate's `ready` field alone
 D steps operate **per-finding**, not per-comment. One comment with 5 findings = 5 individual
 D1–D7 cycles. Exploration and validation must run on the PR's head branch.
 
-- [ ] D1 — Read full finding context (parent comment body + surrounding findings)
-- [ ] D2 — Explore referenced code on the PR branch
-- [ ] D3 — **Validate the claim** — verify against actual code before trusting. Research
+- [ ] D1, Read full finding context (parent comment body + surrounding findings)
+- [ ] D2, Explore referenced code on the PR branch
+- [ ] D3, **Validate the claim**. Verify against actual code before trusting. Research
   non-trivial claims. Never implement a fix based solely on a bot's assertion
-- [ ] D4 — Classify with evidence: VALID (fix now) / VALID (defer) / INCORRECT / UNCERTAIN.
+- [ ] D4, Classify with evidence: VALID (fix now) / VALID (defer) / INCORRECT / UNCERTAIN.
   Classification MUST cite evidence from D2–D3
-- [ ] D4.5 — React to the parent comment via `gh api .../reactions`. One reaction per comment
+- [ ] D4.5, React to the parent comment via `gh api .../reactions`. One reaction per comment
   (not per finding). **Tiebreaker for mixed-finding comments:** `+1` if ANY finding is VALID
   (signals action taken), `-1` only when ALL are INCORRECT, `eyes` when all UNCERTAIN or a mix
   of UNCERTAIN + INCORRECT with zero VALID
   - [ ] **verify reaction exists:** GET the same reactions endpoint filtered by your posting
-    identities — non-zero confirms. Use `pulls/comments/<id>/reactions` for inline review
-    comments. **Exemption:** PR review BODIES have no reactions endpoint in the REST API — skip
+    identities. Non-zero confirms. Use `pulls/comments/<id>/reactions` for inline review
+    comments. **Exemption:** PR review BODIES have no reactions endpoint in the REST API, so skip
     the reaction there; the D5 reply is the audit signal
-- [ ] D4.6 — **Ground a `VALID (defer)`.** <!-- contract-restatement-begin: D4.6-deferral-grounding --> A deferral ships the change without the fix, so it
+- [ ] D4.6, **Ground a `VALID (defer)`.** <!-- contract-restatement-begin: D4.6-deferral-grounding --> A deferral ships the change without the fix, so it
   counts as a disposition only when it is durable and someone else can find it: file a tracker
-  item carrying the finding's own evidence — the reviewer's claim, your D2–D3 validation, and
-  the file and line it lands on — and cite that item's id in the D5 reply. A deferral whose only
+  item carrying the finding's own evidence, meaning the reviewer's claim, your D2–D3 validation, and
+  the file and line it lands on, and cite that item's id in the D5 reply. A deferral whose only
   record is prose in a review thread is a dropped finding, and the thread stays open.
   **No reachable tracker removes the deferral, never the reply.** A consumer with no tracker
-  integration, or a creation attempt that fails, cannot produce that durable record — so
+  integration, or a creation attempt that fails, cannot produce that durable record, so
   `VALID (defer)` is simply not an available disposition there. It does not stall D5 and it does
   not stall the phase: fix the finding now instead, and when the fix genuinely does not belong in
   this change, post the D5 reply saying exactly that, leave the thread unresolved, and surface the
@@ -212,7 +212,7 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
   <!-- contract-restatement-end: D4.6-deferral-grounding -->
   - [ ] **Never defer a finding this change introduced.** <!-- contract-restatement-begin: D4.6-deferral-provenance --> The discriminator is the behavior on
     the base branch, never the file the finding surfaced in: if the defect did not reproduce
-    before this change, this change introduced it, and it is `VALID (fix now)` — fix it, or
+    before this change, this change introduced it, and it is `VALID (fix now)`. Fix it, or
     revert the cause. That covers a contract this change altered breaking an unchanged caller;
     the caller's file being untouched is evidence about provenance, never a qualifier that
     licenses deferral. `VALID (defer)` is available only for a defect that already reproduced on
@@ -223,27 +223,27 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
     addressed: an autonomously-drainable class is a materially stronger deferral candidate than
     a human-gated one, whose latency is unbounded
   - [ ] **verify the item exists:** re-query it by id and confirm it is filed and open before
-    the D5 reply cites it — a cited id that does not resolve is the dropped finding this step
+    the D5 reply cites it. A cited id that does not resolve is the dropped finding this step
     exists to prevent
-- [ ] D5 — Reply with the per-finding classification table + evidence (before fixing). Table
-  format per §2 — includes the Reacted column. **Route the reply by comment type — REQUIRED,
-  not interchangeable:** inline review comments (diff-anchored, `pulls/comments`) MUST reply
+- [ ] D5, Reply with the per-finding classification table + evidence (before fixing). Table
+  format per §2, which includes the Reacted column. **Route the reply by comment type, REQUIRED
+  and not interchangeable:** inline review comments (diff-anchored, `pulls/comments`) MUST reply
   THREADED via `gh api repos/{owner}/{repo}/pulls/<pr>/comments/<comment-id>/replies -f
-  body='...'` so the reply lands under the source thread — NEVER a detached `pr comment`.
+  body='...'` so the reply lands under the source thread, NEVER a detached `pr comment`.
   Issue-level / review-level comments (no thread) → `gh pr comment <pr> --body '...'`. Use the
   project's bot-identity wrapper for these writes when it has one; plain `gh` otherwise.
   Answering an inline finding with a detached issue comment orphans the reply from the thread
-  the reviewer tracks — a routing error, not a style choice
-  - [ ] **verify reply exists — on the surface it was posted to:** inline threaded replies →
+  the reviewer tracks. That is a routing error, not a style choice
+  - [ ] **verify reply exists, on the surface it was posted to:** inline threaded replies →
     `gh api --paginate "repos/{owner}/{repo}/pulls/<pr>/comments?per_page=100" --jq '.[] |
     select(.in_reply_to_id == <original-id>)'`; issue-level → `gh api --paginate
     "repos/{owner}/{repo}/issues/<pr>/comments?per_page=100" --jq '.[].body'`. Querying only
     issues/comments false-fails a correctly posted inline reply; so does dropping `--paginate`,
     since these endpoints return 30 per page oldest-first and your reply is the newest item
-- [ ] D6 — Fix if VALID (fix now) → edit, `git add <specific-files>` (never `-A` or `.`),
+- [ ] D6, Fix if VALID (fix now) → edit, `git add <specific-files>` (never `-A` or `.`),
   commit, push
   - [ ] **verify commit pushed:** `REMOTE=$(bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/resolve-remote.sh" --push <branch>) &&
-    git fetch "$REMOTE" <branch> && git merge-base --is-ancestor <fix-sha> FETCH_HEAD` — exit 0
+    git fetch "$REMOTE" <branch> && git merge-base --is-ancestor <fix-sha> FETCH_HEAD`. Exit 0
     means the fix commit is on the PR branch as just fetched from the resolved push remote;
     non-zero means it is not. Resolve the push remote (the same resolver `push-branch.sh` pushed
     through), never a hardcoded `origin`: a triangular/fork checkout pushes elsewhere, so `origin`
@@ -253,24 +253,24 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
     turns into a false "missing", and never a repository-scoped `commits/<fix-sha>` lookup alone,
     which answers "does this object exist anywhere in the repo?" and can pass when the commit was
     force-pushed off the PR branch
-- [ ] D7 — Post a follow-up reply citing the fix commit SHA
-  - [ ] **verify follow-up reply posted — same surface routing as D5:** inline thread →
+- [ ] D7, Post a follow-up reply citing the fix commit SHA
+  - [ ] **verify follow-up reply posted, same surface routing as D5:** inline thread →
     `pulls/<pr>/comments` filtered by `in_reply_to_id`; issue-level → `gh api --paginate
     "repos/{owner}/{repo}/issues/<pr>/comments?per_page=100" --jq '.[] |
     select((.body | contains("<sha>")) and .user.login == "<posting-identity>") | .body'`.
     Constrain on BOTH the SHA and the posting identity, and never on `.[-1]`. `.[-1]` is wrong
     because these endpoints return oldest-first, so on an unpaginated list it is the 30th-oldest
     comment. SHA alone is wrong because this is a control gate you act on: anyone else quoting the
-    fix SHA — a reviewer, another bot — satisfies it, and the check reports your reply as posted
+    fix SHA, a reviewer or another bot, satisfies it, and the check reports your reply as posted
     when the write failed. `<posting-identity>` is the login you posted as (the bot-identity
     wrapper's account when the project has one, your own otherwise)
-- [ ] D7.5 — Resolve review thread — **author- and classification-conditional, inline review
+- [ ] D7.5, Resolve review thread. **Author- and classification-conditional, inline review
   comments only** (this section is the canonical policy). <!-- contract-restatement-begin: D7.5-thread-eligibility --> **Resolution is a thread-level act
   while dispositions are per-finding, so eligibility is a property of the whole thread:** every
-  finding extracted from it per §2 must carry one of three recorded dispositions — `VALID (fix
+  finding extracted from it per §2 must carry one of three recorded dispositions: `VALID (fix
   now)` with the fix pushed and cited (D6–D7); `VALID (defer)` grounded per D4.6 with the item id
   cited; or `INCORRECT` with the counter-evidence posted. One dispositioned finding does not make
-  a multi-finding thread eligible. `UNCERTAIN` is never resolved — it escalates, and a single
+  a multi-finding thread eligible. `UNCERTAIN` is never resolved. It escalates, and a single
   `UNCERTAIN` holds its whole thread open. Resolving early is not a cosmetic error: a resolved
   thread drops every comment it carries out of the readiness denominator
   (`babysit_classify.py::thread_is_open`), so a still-unaddressed finding inside it disappears
@@ -280,17 +280,17 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
   those three records for every finding present, never the absence of one.
   <!-- contract-restatement-end: D7.5-thread-eligibility -->
   **What a tier may act on is bounded by its own
-  tooling, and this list never overrides that** — a disposition making a thread eligible here does
+  tooling, and this list never overrides that.** A disposition making a thread eligible here does
   not by itself authorize a resolve the invoking tier's guards refuse (see the tier notes below).
-  The author conditions apply in full — this narrows the eligible set and never widens it. Resolve
+  The author conditions apply in full. This narrows the eligible set and never widens it. Resolve
   ONLY threads whose OPENING comment is authored by a
-  BOT reviewer that you addressed. NEVER resolve HUMAN-authored threads — the human resolves
+  BOT reviewer that you addressed. NEVER resolve HUMAN-authored threads. The human resolves
   their own after verifying the fix. NEVER resolve your OWN threads (any of your posting
-  identities — same self set as §1 step 1). Skip issue-level comments (no thread). **Thread
+  identities, the same self set as §1 step 1). Skip issue-level comments (no thread). **Thread
   author = login of the THREAD-OPENING comment** (replying into it does not change the author).
   (The `source-control:babysit-prs` worker and autopilot tiers run their thread resolution through
-  that skill's guarded `source-control-babysit-resolve-thread` wrapper — which adds an
-  `--allowed-owners` allowlist, bot-vs-human classification, and a JSON receipt — rather than the
+  that skill's guarded `source-control-babysit-resolve-thread` wrapper, which adds an
+  `--allowed-owners` allowlist, bot-vs-human classification, and a JSON receipt, rather than the
   raw-GraphQL form below. Each tier sets its own resolve author-scope: the worker tier matches this
   bot-only rule; the autopilot tier deliberately extends to addressed human threads
   (`--include-human`), as documented in
@@ -299,7 +299,7 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
   where bot authors have `author.__typename == "Bot"` and `login` omits the `[bot]` suffix;
   REST surfaces show the suffix. When fetching the threadId, also select
   `author{__typename login}` to apply the conditional in one query
-  - [ ] **verify thread resolved:** query the thread node via `gh api graphql` — `isResolved`
+  - [ ] **verify thread resolved:** query the thread node via `gh api graphql`. `isResolved`
     must be `true`
 
 <!-- contract-restatement-begin: D7.5-merge-authorization -->
@@ -307,14 +307,14 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
 **Who authorizes a resolution that ships no fix.** In a merge-capable tier, a `VALID (defer)`
 resolution on a PR the same session intends to merge is not that session's call. The requirement
 is a property, not one mechanism: the context adjudicating the deferral must not be the context
-trying to merge. Where the invocation has an independent resolution dispatch, it goes there —
+trying to merge. Where the invocation has an independent resolution dispatch, it goes there.
 `${CLAUDE_PLUGIN_ROOT}/skills/babysit-prs/reference/independent-resolution.md` owns that contract,
 and two invocations reach it: any `babysit-prs` run whose orchestrator can dispatch a fresh
 subagent, and `babysit-loop`'s explicit `autopilot` + `--merge c3-this-run` widening
 (`${CLAUDE_PLUGIN_ROOT}/skills/babysit-loop/reference/pre-escalation-dispatch.md`).
-Where it has none — no subagent tools, or a bound the dispatch cannot cross — the session neither
+Where it has none, meaning no subagent tools or a bound the dispatch cannot cross, the session neither
 resolves the thread nor merges on it: report the PR with
-the grounded deferral named and leave the call to the user. Fail closed — a path with no
+the grounded deferral named and leave the call to the user. Fail closed. A path with no
 independent authorization available has no self-authorized route to merge over its own deferral.
 Outside a merge-capable tier the classification stands alone, because nothing merges on it.
 
@@ -322,17 +322,17 @@ Outside a merge-capable tier the classification stands alone, because nothing me
 
 **Non-outdated threads in an autonomous tier route the same way, for the same reason.** The
 guarded resolver's `--autonomous` mode resolves only a thread GitHub reports `isOutdated`, because
-that is the one deterministic "addressed" signal it can check — otherwise the actor is, in the
+that is the one deterministic "addressed" signal it can check. Otherwise the actor is, in the
 script's own words, "signing its own permission slip" on the merge gate's zero-unresolved-threads
 predicate. Prose fixes frequently satisfy a finding by rewriting elsewhere, leaving the anchored
 lines untouched and the thread current, so a genuinely addressed finding is routinely
 non-outdated. That is not a licence to widen the guard: **worker-side self-resolution stays
 outdated-only, exactly as the script enforces.** A current bot thread whose finding is addressed
-goes to the independent resolution dispatch, which verifies the D7.5 disposition — fix pushed and
-cited, deferral grounded per D4.6, or `INCORRECT` with counter-evidence — and resolves it through
+goes to the independent resolution dispatch, which verifies the D7.5 disposition, whether fix pushed and
+cited, deferral grounded per D4.6, or `INCORRECT` with counter-evidence, and resolves it through
 the wrapper. The merging worker never resolves it, and neither does the orchestrator that dispatches
-the resolver — it holds the merge decision. Where no independent dispatch is reachable — the same
-limit as above — the identical fail-closed fallback applies: leave the thread unresolved, do not
+the resolver, which holds the merge decision. Where no independent dispatch is reachable, the same
+limit as above, the identical fail-closed fallback applies: leave the thread unresolved, do not
 merge, and report the PR with the addressed-but-unresolvable thread named. An unreachable authorization
 is never a licence to self-resolve. Never reach past the wrapper to raw
 `resolveReviewThread` to get around this; that bypasses every guard the wrapper exists to apply,
@@ -340,5 +340,5 @@ and bulk loops over it are refused by design.
 
 **"Done" means GitHub shows evidence.** A per-finding work item is addressed only when the
 verification sub-step confirms the action landed on GitHub. Model memory of "I posted a reply"
-or "I pushed the fix" is not evidence — compaction can lose that state between iterations.
+or "I pushed the fix" is not evidence. Compaction can lose that state between iterations.
 Re-query the API.

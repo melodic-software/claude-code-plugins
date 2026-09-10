@@ -3,6 +3,46 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.73]
+
+### Changed
+
+- **Every markdown surface in the plugin passes `/ai-slop:audit`.** Em dashes in the plugin's
+  own prose (the README, this changelog, the plugin-scope references, every skill body, the
+  babysit-prs and babysit-loop references, the commit, pull-request, setup, worktree, and
+  resolve-conflicts references, templates, fixtures, and the generated guard contract) are
+  rewritten as a comma, a period, a colon, or a restructured sentence; headings that carried one
+  take the colon form, and every link or quoted reference to a renamed heading follows.
+  Reflexive `load-bearing` and `seam` become the concrete thing each stood for (a config key,
+  a gate, a hook contract, a helper); the babysit trusted seam and the loop-lane convention
+  names keep their defined wording. One quoted autonomy admission-policy sentence keeps its
+  em dash inside an ignore marker; backticked literals that tests assert are untouched. The
+  babysit-prs contract test asserts the renamed conflict-worker heading. No rule, step, gate,
+  or exit code changed. The purge gate now defends the whole plugin tree.
+- **Changelog, in-place wording corrections to released entries:** the same em-dash and jargon
+  rewrite was applied inside `[0.55.62]`, `[0.55.53]`, `[0.55.50]`, `[0.55.34]`, `[0.55.23]`,
+  `[0.55.17]`, `[0.55.12]`, `[0.55.11]`, `[0.55.7]`, `[0.55.2]`, `[0.55.1]`, `[0.55.0]`,
+  `[0.54.13]`, `[0.54.9]`, `[0.54.6]`, `[0.54.5]`, `[0.54.4]`, `[0.54.2]`, `[0.54.1]`,
+  `[0.53.24]`, `[0.53.23]`, `[0.53.20]`, `[0.53.14]`, `[0.53.2]`, `[0.53.1]`, `[0.53.0]`,
+  `[0.52.0]`, `[0.51.17]`, `[0.51.16]`, `[0.51.15]`, `[0.51.13]`, `[0.51.12]`, `[0.51.11]`,
+  `[0.51.10]`, `[0.51.9]`, `[0.51.8]`, `[0.51.7]`, `[0.51.6]`, `[0.51.5]`, `[0.51.4]`,
+  `[0.51.3]`, `[0.51.2]`, `[0.51.1]`, `[0.51.0]`, `[0.50.0]`, `[0.49.3]`, `[0.49.2]`,
+  `[0.49.0]`, `[0.48.2]`, `[0.48.1]`, `[0.48.0]`, `[0.47.2]`, `[0.47.1]`, `[0.47.0]`,
+  `[0.46.2]`, `[0.46.0]`, `[0.45.1]`, `[0.45.0]`, `[0.44.1]`, `[0.44.0]`, `[0.43.0]`,
+  `[0.42.3]`, `[0.42.2]`, `[0.42.1]`, `[0.42.0]`, `[0.41.0]`, `[0.40.2]`, `[0.40.1]`,
+  `[0.40.0]`, `[0.39.0]`, `[0.38.0]`, `[0.37.0]`, `[0.36.0]`, `[0.35.1]`, `[0.35.0]`,
+  `[0.34.0]`, `[0.33.3]`, `[0.33.2]`, `[0.33.1]`, `[0.33.0]`, `[0.32.1]`, `[0.32.0]`,
+  `[0.31.8]`, `[0.31.7]`, `[0.31.6]`, `[0.31.5]`, `[0.31.4]`, `[0.31.3]`, `[0.31.2]`,
+  `[0.31.1]`, `[0.31.0]`, `[0.30.0]`, `[0.29.1]`, `[0.29.0]`, `[0.28.0]`, `[0.26.12]`,
+  `[0.26.11]`, `[0.26.10]`, `[0.26.9]`, `[0.26.8]`, `[0.26.7]`, `[0.26.6]`, `[0.26.4]`,
+  `[0.26.3]`, `[0.26.2]`, `[0.26.0]`, `[0.25.1]`, `[0.25.0]`, `[0.24.0]`, `[0.23.0]`,
+  `[0.22.0]`, `[0.21.0]`, `[0.20.0]`, `[0.19.0]`, `[0.18.0]`, `[0.17.1]`, `[0.17.0]`,
+  `[0.16.2]`, `[0.16.1]`, `[0.16.0]`, `[0.15.9]`, `[0.15.8]`, `[0.15.7]`, `[0.15.6]`,
+  `[0.15.5]`, `[0.15.4]`, `[0.15.3]`, `[0.15.2]`, `[0.15.1]`, `[0.15.0]`, `[0.14.0]`,
+  `[0.13.4]`, `[0.13.3]`, `[0.13.2]`, `[0.13.1]`, `[0.13.0]`, `[0.12.0]`, `[0.11.0]`,
+  `[0.10.0]`, `[0.9.3]`, `[0.9.2]`, `[0.9.1]`, `[0.9.0]`, `[0.8.1]`, `[0.8.0]`, `[0.6.0]`,
+  `[0.5.2]`, `[0.4.0]`, and `[0.3.0]`. Wording only; every entry's facts are unchanged.
+
 ## [0.55.72]
 
 ### Changed
