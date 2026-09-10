@@ -89,7 +89,7 @@ Ubiquitous Language stickies are session artifacts. The terms they resolve shoul
 
 **The glue is the most important thing.** Don't save money on cheap stickies that fall off the wall during your big boss's workshop.
 
-Recommended: **3M Super Sticky**, which adheres reliably to paper rolls and walls.
+Recommended: **3M Super Sticky**, which sticks reliably to paper rolls and walls.
 
 **Required colors:**
 
