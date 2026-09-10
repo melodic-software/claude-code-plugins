@@ -173,7 +173,22 @@ plugins/improvement/skills/*/SKILL.md
 plugins/instruction-placement/README.md
 plugins/instruction-placement/skills/*/SKILL.md
 plugins/kindle-dedrm/README.md
-plugins/knowledge/README.md
+# The knowledge plugin was purged whole. The globs stop short of
+# plugins/knowledge/vendor/**: that tree is vendored third-party material, and a
+# re-vendor from upstream would reintroduce the character and break this gate
+# through no fault of the campaign.
+plugins/knowledge/*.md
+plugins/knowledge/reference/*.md
+plugins/knowledge/skills/*/SKILL.md
+plugins/knowledge/skills/*/context/*.md
+plugins/knowledge/skills/*/reference/*.md
+plugins/knowledge/skills/*/reference/*/*.md
+plugins/knowledge/skills/*/templates/*.md
+plugins/knowledge/skills/*/templates/*/*.md
+plugins/knowledge/skills/map-corpus/discovery/*.md
+plugins/knowledge/skills/map-corpus/extraction/*.md
+plugins/knowledge/skills/map-corpus/verification/*.md
+plugins/knowledge/skills/video-digest/extraction/liveness/*.md
 plugins/machine-health/README.md
 plugins/markdown-format/README.md
 plugins/miro/README.md

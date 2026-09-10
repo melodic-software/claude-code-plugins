@@ -3,7 +3,7 @@
 This document owns the deferred-with-trigger records that outlived the
 `docpage-digest` contract-slice Brief (the Brief governed `map-corpus` authoring;
 the slice pruned after the skill shipped). None of these is actionable until its
-named trigger fires. Re-check each trigger — and re-measure item 3's cost —
+named trigger fires. Re-check each trigger, and re-measure item 3's cost,
 before treating an item as actionable.
 
 Operational surfaces (`map-corpus` Phase 1 stop behavior, gate messages, non-goals)
@@ -11,7 +11,7 @@ state what a run must do today. This document is the durable record of *why* tho
 surfaces stop short, and of the three Broader ingest questions the Brief also
 deferred. Source: GitHub issue #2707 (filed so the records survive Brief prune).
 
-## 1. Discovery rung 3 (in-page link extraction) and the `firecrawl` seam
+## 1. Discovery rung 3 (in-page link extraction) and the `firecrawl` call
 
 **Label (authoring):** Q19. **Arbiter:** USER-RESERVED.
 
@@ -41,8 +41,8 @@ hand.
 ## 3. Renaming `docpage-digest`
 
 Deliberately out of scope for the mapper: the skill keeps its name and its
-`docpage-digest-checklist.md` filename, which is load-bearing for run identity —
-a rename makes every existing work slice present as "no URL recorded", and the
+`docpage-digest-checklist.md` filename, which run identity depends on.
+A rename makes every existing work slice present as "no URL recorded", and the
 skill's collision check then permanently refuses to resume them.
 
 **Trigger:** an orchestrator that justifies the cost. **Cost measured at the time
@@ -57,7 +57,7 @@ live path; and an explicit migration of 14 live work slices.
 Retrofitting `video-digest`, `course-digest`, and `book-distill` to a shared
 ingest-slice contract was rejected for now on evidence, not preference: their
 input contracts, human-interaction points, terminal artifacts, and git posture
-diverge — `video-digest`'s slice artifacts are a committed durable substrate,
+diverge. `video-digest`'s slice artifacts are a committed durable base,
 the opposite of the mapper's untracked, self-ignoring root.
 
 **Trigger:** a shared web-scoped ingest-slice contract existing first (item 5's

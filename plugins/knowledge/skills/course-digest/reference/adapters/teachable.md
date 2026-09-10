@@ -2,13 +2,13 @@
 
 Platform-specific extraction logic for Teachable-hosted courses using the Hotmart video player.
 
-**Implementation:** `extraction/adapters/teachable.js` — all Teachable/Hotmart-specific iframe interaction, HLS subtitle extraction, resource detection, and auth flow. Implements `CourseExtractAdapter` contract defined in `adapters/adapter-contract.js`.
+**Implementation:** `extraction/adapters/teachable.js`, holding all Teachable/Hotmart-specific iframe interaction, HLS subtitle extraction, resource detection, and auth flow. Implements `CourseExtractAdapter` contract defined in `adapters/adapter-contract.js`.
 
 ## Video player
 
 Teachable uses **Hotmart video player** (`player.hotmart.com`) embedded in a cross-origin iframe. Player is built on **Video.js** with **VHS** (Video.js HTTP Streaming) for HLS playback. Videos are AES-128 encrypted HLS streams hosted on `vod-akm.play.hotmart.com`.
 
-Hotmart player is NOT directly accessible from parent Teachable page — all interaction must go through Playwright's `page.frames()` to access iframe's DOM and JavaScript context.
+Hotmart player is NOT directly accessible from parent Teachable page. All interaction must go through Playwright's `page.frames()` to access iframe's DOM and JavaScript context.
 
 **Key technical facts:**
 
@@ -18,7 +18,7 @@ Hotmart player is NOT directly accessible from parent Teachable page — all int
 - Subtitle tracks: accessible via VHS `master.mediaGroups.SUBTITLES`
 - Subtitles delivered as chunked WebVTT segments (~6s each) via HLS
 - 17 subtitle languages available (Arabic, German, English, French, Hindi, Italian, Japanese, Korean, Polish, Portuguese BR/PT, Russian, Spanish, Turkish, Ukrainian, Chinese)
-- ffmpeg accesses HLS streams without Referer header — AES-128 key URL is inline in manifest
+- ffmpeg accesses HLS streams without Referer header, because the AES-128 key URL is inline in manifest
 
 ## Course structure extraction (Phase 1)
 
@@ -96,7 +96,7 @@ ffmpeg works directly with HLS master URL from Video.js player:
 ffmpeg -y -i "MASTER_M3U8_URL" -ss 30 -frames:v 1 -update 1 output.png
 ```
 
-No Referer header needed — AES-128 encryption key URL is embedded in manifest with inline auth tokens.
+No Referer header needed. The AES-128 encryption key URL is embedded in manifest with inline auth tokens.
 
 ## Authentication
 
@@ -139,8 +139,8 @@ The `attachment_id` is available from Hotmart player container's `data-attachmen
 2. **`launchPersistentContext` vs `browser.launch`:** persistent contexts may behave differently with cross-origin iframe event handling. Adapter was developed and tested with `browser.launch` + `newContext`
 3. **Video autoplay:** Hotmart videos autoplay when lesson page loads (even in Playwright's Chromium). Use `--autoplay-policy=no-user-gesture-required` for reliability
 4. **VJS player access:** Video.js player instance is on `.video-js` container element's `.player` property (not `__vjs_player__`). Tech must be accessed with `{ IWillNotUseThisInPlugins: true }` flag
-5. **Subtitle token expiry:** WebVTT segment URLs from manifest include `hdntl` auth tokens. Fetch all segments immediately after getting manifest — tokens may expire
-6. **React-rendered curriculum:** Enrolled page uses Next.js/React (`jsx-*` classes). Standard `document.querySelectorAll('h2, a')` works but DOM may not be ready on `domcontentloaded` — wait 3-5 seconds
+5. **Subtitle token expiry:** WebVTT segment URLs from manifest include `hdntl` auth tokens. Fetch all segments immediately after getting manifest, because tokens may expire
+6. **React-rendered curriculum:** Enrolled page uses Next.js/React (`jsx-*` classes). Standard `document.querySelectorAll('h2, a')` works but DOM may not be ready on `domcontentloaded`, so wait 3-5 seconds
 7. **Module ordering:** Module headings are `<h2>` elements interleaved with lesson `<a>` links. Parse sequentially to maintain correct module-lesson grouping
 8. **Non-video lessons:** Resource pages (Slides, Source Code, SQL, Postman) have NO Hotmart iframe. `prepareLessonPage` detects this via `hasHotmart: false` and skips video-related setup
 9. **Duplicate transcripts from WebVTT overlap:** HLS subtitle segments overlap by ~6s. VTT parser deduplicates by `startTime + text` key, but some sentence fragments may still appear duplicated at segment boundaries. Known limitation of HLS subtitle chunking

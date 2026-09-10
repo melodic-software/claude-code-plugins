@@ -19,15 +19,15 @@
 Eight phases executed in order. Each phase produces artifacts consumed by subsequent phases.
 
 **Critical ordering rule:** ALL context must be gathered before summarization begins. Module
-summaries generated from transcripts alone are incomplete — they miss code syntax, visual
+summaries generated from transcripts alone are incomplete. They miss code syntax, visual
 diagrams, repo patterns. Full sequence: Extract → Process Frames → Analyze Code
 Repo → Validate → THEN Synthesize.
 
 **Completeness markers:** Module summaries should note their context sources:
 
-- `[transcript-only]` — generated without frames or code repo (acceptable for initial pass)
-- `[transcript+frames]` — includes frame analysis (better)
-- `[full-context]` — transcript + frames + code repo analysis (best)
+- `[transcript-only]`: generated without frames or code repo (acceptable for initial pass)
+- `[transcript+frames]`: includes frame analysis (better)
+- `[full-context]`: transcript + frames + code repo analysis (best)
 
 ## Phase 1: Discover
 
@@ -44,10 +44,10 @@ Repo → Validate → THEN Synthesize.
    - Download button (course files)
    - GitHub repository link
    - Course description / prerequisites
-5. Extract instructor name from **landing page** (JSON-LD `author` field or visible "Meet Your Instructor" section). Never guess — each platform hosts multiple instructors
+5. Extract instructor name from **landing page** (JSON-LD `author` field or visible "Meet Your Instructor" section). Never guess. Each platform hosts multiple instructors
 6. Write `course.json` with full structure
 
-**Output:** `course.json` — metadata + complete module/lesson tree
+**Output:** `course.json`, with metadata + complete module/lesson tree
 
 **Checkpoint:** Present course structure to user. Ask which modules to process (or confirm "all"). Only mandatory user interaction gate.
 
@@ -58,11 +58,11 @@ Repo → Validate → THEN Synthesize.
 **Per lesson, in order:**
 
 1. **Navigate** to lesson URL
-2. **Transcript** — read from platform's transcript panel (adapter-specific). Save as `transcript.md` with timestamps preserved
-3. **Screenshots** — capture frames per [screenshot strategy](../reference/screenshot-strategy.md). Only for lessons with visual content (code demos, slides, architecture diagrams). Save to `screenshots/` subdirectory
-4. **Lesson notes** — check if platform provides written notes or supplementary text. Save as `notes.md` if available
-5. **Code references** — extract any code shown in the lesson (from transcript context, screenshots, or linked resources). Save as `code-snippets.md`
-6. **Progress** — update `course.json` with extraction status for this lesson
+2. **Transcript**: read from platform's transcript panel (adapter-specific). Save as `transcript.md` with timestamps preserved
+3. **Screenshots**: capture frames per [screenshot strategy](../reference/screenshot-strategy.md). Only for lessons with visual content (code demos, slides, architecture diagrams). Save to `screenshots/` subdirectory
+4. **Lesson notes**: check if platform provides written notes or supplementary text. Save as `notes.md` if available
+5. **Code references**: extract any code shown in the lesson (from transcript context, screenshots, or linked resources). Save as `code-snippets.md`
+6. **Progress**: update `course.json` with extraction status for this lesson
 
 **Pacing:**
 
@@ -79,10 +79,10 @@ Repo → Validate → THEN Synthesize.
 
 **Steps (sequential):**
 
-1. `node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/run.mjs" classify-frames.js --course-dir <path> --phase contact-sheets` — generate labeled thumbnail grids
-2. `node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/run.mjs" classify-frames.js --course-dir <path> --phase dedup` — near-duplicate detection
-3. `node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/run.mjs" generate-manifests.js --course-dir <path>` — curate frame sets per lesson
-4. `node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/run.mjs" classify-frames.js --course-dir <path> --phase summary` — print frame inventory
+1. `node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/run.mjs" classify-frames.js --course-dir <path> --phase contact-sheets`: generate labeled thumbnail grids
+2. `node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/run.mjs" classify-frames.js --course-dir <path> --phase dedup`: near-duplicate detection
+3. `node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/run.mjs" generate-manifests.js --course-dir <path>`: curate frame sets per lesson
+4. `node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/run.mjs" classify-frames.js --course-dir <path> --phase summary`: print frame inventory
 
 **Output:** Contact sheets, dedup report, manifests per lesson.
 
@@ -99,9 +99,9 @@ Postman collections, etc.) so they're available locally for Phase 3 analysis.
 
 1. Scan all `resources.json` files for download URLs (hosted on CDN, not behind auth)
 2. For each URL category:
-   - **Source code ZIPs** → download to `code/downloads/` — replaces Phase 2c GitHub clone when no companion repo exists
-   - **PDF slides** → download to `slides/` — referenced during visual analysis
-   - **SQL scripts, Postman collections, OpenAPI specs** → download to `resources/` — referenced during code analysis
+   - **Source code ZIPs** → download to `code/downloads/`, replacing the Phase 2c GitHub clone when no companion repo exists
+   - **PDF slides** → download to `slides/`, referenced during visual analysis
+   - **SQL scripts, Postman collections, OpenAPI specs** → download to `resources/`, referenced during code analysis
 3. Verify downloads: check file sizes, validate ZIP integrity, confirm PDF readability
 4. Build download manifest (`downloads.json`) mapping lesson → downloaded files
 
@@ -110,7 +110,7 @@ Postman collections, etc.) so they're available locally for Phase 3 analysis.
 **Provider patterns:**
 
 - **Dometrain**: "Download course files" button triggers ZIP download. GitHub repo link for code
-- **Teachable**: Per-lesson download URLs in `resources.json` (`uploads.teachablecdn.com`). Often provides both "Initial" and "Final" ZIPs per coding lesson — delta between them shows exactly what the lesson teaches
+- **Teachable**: Per-lesson download URLs in `resources.json` (`uploads.teachablecdn.com`). Often provides both "Initial" and "Final" ZIPs per coding lesson. The delta between them shows exactly what the lesson teaches
 
 **When a course has BOTH GitHub repo AND downloadable ZIPs** (like Teachable courses with per-lesson ZIPs):
 use ZIPs for per-lesson code state, GitHub for final/latest state. ZIPs capture
@@ -129,13 +129,13 @@ downloaded source code ZIPs. If neither exists, skip.
 
 **Steps (GitHub repo path):**
 
-1. `node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/run.mjs" analyze-code-repo.js --course-dir <path>` — clone to temp, detect structure, write metadata
+1. `node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/run.mjs" analyze-code-repo.js --course-dir <path>`: clone to temp, detect structure, write metadata
 2. Clone again to `code/repo/` for Phase 3 access: `git clone --depth 1 --single-branch <url> code/repo/`
 3. Review `code/analysis.json` for repo structure (per-section vs single-state)
-4. Build section-to-module mapping table — which repo sections correspond to which course modules
+4. Build section-to-module mapping table: which repo sections correspond to which course modules
 5. For per-section repos: section diffs show what code changed module-to-module
 
-**Steps (ZIP-only path — no GitHub repo):**
+**Steps (ZIP-only path, no GitHub repo):**
 
 1. Extract "Final" ZIP (latest complete state) to `code/repo/` for Phase 3 access
 2. If per-lesson Initial/Final ZIPs exist, extract each Final to `code/repo/{module-slug}/`
@@ -145,21 +145,21 @@ downloaded source code ZIPs. If neither exists, skip.
 
 **Output:** `code/analysis.json`, `code/README.md`, `code/repo/` (gitignored, local only)
 
-**Security note:** Never commit `code/repo/` — may contain third-party copyrighted code.
+**Security note:** Never commit `code/repo/`. It may contain third-party copyrighted code.
 Gitignore pattern `**/courses/**/code/*` blocks everything except `analysis.json` and `README.md`.
-Verify clone URLs are clean public URLs — never embed PATs or tokens in `course.json`.
+Verify clone URLs are clean public URLs, and never embed PATs or tokens in `course.json`.
 
-**Freshness caveat:** Course companion repos may be updated after publication — authors sometimes
+**Freshness caveat:** Course companion repos may be updated after publication. Authors sometimes
 fix bugs, update packages, or refactor code post-recording. When Phase 3 finds discrepancies
 between transcript and code, classify as:
 
-- **Post-publication update** (likely) — newer package versions, renamed properties, added features
-- **Recording-time bug** (possible) — logic errors, missing implementations
-- **Intentional simplification** (possible) — transcript describes ideal, code takes shortcuts
+- **Post-publication update** (likely): newer package versions, renamed properties, added features
+- **Recording-time bug** (possible): logic errors, missing implementations
+- **Intentional simplification** (possible): transcript describes ideal, code takes shortcuts
 
 Check repo's git log (`git log --oneline -20`) and last commit date against course
 publication date to assess which discrepancies are updates vs original issues. Note: `--depth 1`
-clones lose history — if freshness matters, clone without `--depth` for investigation phase
+clones lose history. If freshness matters, clone without `--depth` for investigation phase
 only, then discard.
 
 ## Phase 2d: Validate
@@ -170,8 +170,8 @@ only, then discard.
 
 **Steps:**
 
-1. `node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/run.mjs" validate-extraction.js --course-dir <path>` — run all quality checks
-2. Review `validation-report.json` — fix any FAIL items before proceeding
+1. `node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/run.mjs" validate-extraction.js --course-dir <path>`: run all quality checks
+2. Review `validation-report.json` and fix any FAIL items before proceeding
 3. On re-runs: compare against previous `validation-report.json` for regressions
 
 **Output:** `validation-report.json` (serves as baseline for future runs)
@@ -181,7 +181,7 @@ only, then discard.
 ## Phase 3: Synthesize
 
 **Goal:** Produce per-module summaries combining all three knowledge modalities into a unified
-analysis. A `[full-context]` summary is NOT just transcripts with metadata — it synthesizes what
+analysis. A `[full-context]` summary is NOT just transcripts with metadata. It synthesizes what
 the instructor says, what's shown on screen, what the actual code does.
 
 **Three modalities (all required for `[full-context]`):**
@@ -196,15 +196,15 @@ the instructor says, what's shown on screen, what the actual code does.
 
 Each module gets parallel agents, then a synthesis pass:
 
-1. **Transcript agent** — reads all `transcript.md` files for the module. Extracts concepts,
+1. **Transcript agent**: reads all `transcript.md` files for the module. Extracts concepts,
    arguments, anti-patterns, tools mentioned, lesson structure
-2. **Visual agent** — views actual frame images (PNG files from `screenshots/`) and contact sheets.
+2. **Visual agent**: views actual frame images (PNG files from `screenshots/`) and contact sheets.
    Reads code shown on screen, identifies architecture diagrams, captures visual content not
    described in the transcript. Use Read tool on images for multimodal analysis
-3. **Code exploration agent(s)** — reads actual source files from matching `code/repo/`
+3. **Code exploration agent(s)**: reads actual source files from matching `code/repo/`
    section(s). Understands implementation: `Program.cs`, tool classes, DI registration,
    project references, Dockerfiles. For larger sections, use multiple agents to divide and conquer
-4. **Synthesis agent** — takes outputs from agents 1-3 and existing `module-summary.md`
+4. **Synthesis agent**: takes outputs from agents 1-3 and existing `module-summary.md`
    (if any). Produces final combined summary noting where modalities agree, disagree, or
    complement each other
 
@@ -277,11 +277,11 @@ Build this table during Phase 2c. Example from per-section repo:
 
 ## Phase 6: Store (continuous)
 
-Runs throughout all phases — not a separate step. See [storage-schema.md](storage-schema.md) for complete directory structure.
+Runs throughout all phases, not a separate step. See [storage-schema.md](storage-schema.md) for complete directory structure.
 
 **Rules:**
 
-- Write artifacts as they're produced — don't buffer
+- Write artifacts as they're produced, don't buffer
 - Update `course.json` status after each lesson/module
 - All paths relative to `data/courses/<slug>/`
 
@@ -309,7 +309,7 @@ lessons. Do NOT parallelize DOM interactions, browser contexts, lesson navigatio
 | 2b (Process Frames) | Partially | Contact sheets + dedup are CPU-bound, can parallelize across modules |
 | 2c (Code Repo) | Yes | Git clone + analysis is independent of browser state |
 | 2d (Validate) | Yes | Pure filesystem analysis, no browser |
-| 3 (Synthesize) | **Yes** | Per-module summaries are independent — no DOM interaction, pure LLM |
+| 3 (Synthesize) | **Yes** | Per-module summaries are independent: no DOM interaction, pure LLM |
 | 4 (Analyze) | No | Depends on all module summaries |
 | 5 (Recommend) | No | Depends on course summary |
 
@@ -317,7 +317,7 @@ lessons. Do NOT parallelize DOM interactions, browser contexts, lesson navigatio
 
 - Navigate between lessons at ~1.5-2s intervals (current default via `page.waitForTimeout(1500)`)
 - Faster navigation risks bot detection and session invalidation
-- Slower is unnecessary — the platform serves pages in <1s
+- Slower is unnecessary, since the platform serves pages in <1s
 
 **Long-running extraction strategy:**
 
@@ -329,9 +329,9 @@ lessons. Do NOT parallelize DOM interactions, browser contexts, lesson navigatio
 
 **Before integrating any action item from `repo-candidates.md` into the repository:**
 
-1. **Invoke `/discovery:explore` via the Skill tool** on relevant codebase area — verify current state matches what the
+1. **Invoke `/discovery:explore` via the Skill tool** on relevant codebase area to verify current state matches what the
    action item assumes. Codebase may have changed since course was digested
-2. **Invoke `/discovery:research` via the Skill tool** on specific library/framework/pattern — verify recommendation is
+2. **Invoke `/discovery:research` via the Skill tool** on specific library/framework/pattern to verify recommendation is
    current. Course content has a recorded-at date but no guarantee of currency:
    - NuGet/npm package versions may have changed (pre-release → stable, or breaking changes)
    - Framework APIs may have evolved
