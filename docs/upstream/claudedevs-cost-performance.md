@@ -122,11 +122,18 @@ the article's six anti-pattern families:
 | Contradictory rules | I15 plus `conflict-scan.sh` |
 | Dated configuration | I17 family, I25, I21 |
 
+Native-first gate row, decided at interview 2026-09-10: the (bundled claude-api,
+`claude-config:audit-instructions`) pair is recorded **complementary** in
+`docs/native-surfaces/records.json` with a composite posture: wrap or point to the bundled
+subcommand where it fits the use case, run our own processes where they fit; no on-paper
+routing restriction. Recheck fires with the store row's trigger (subcommand set changes, or
+the public repo / docs page gains hillclimb).
+
 | Article claim / practice | Ours | Verdict | Reasoning, basis, as-of |
 |---|---|---|---|
-| Six anti-pattern families hobble frontier models; audit and remove them | `audit-instructions` catalog + executed fleet-wide prompt-audit | PENDING (rec: COVERED with evidence, for Claude Code surfaces) | Explore mapping re-verified against criteria.md TOC and rows, 2026-09-09; anti-patterns verified documented in `optimizing-for-cost-and-intelligence` and skill `prompt-audit.md`, 2026-09-09 |
-| prompt-audit also covers prompts in application code calling the Claude API | No repo skill audits app-code prompts; `audit-instructions` scope is deliberately Claude Code surfaces | PENDING (rec: REJECT scope-widening; the bundled prompt-audit owns that surface) | prompt-audit.md Step 0-1 inventory includes request-building code, verified source-as-spec 2026-09-09 |
-| Manual thinking budgets rejected outright by the API on newer models | I17 family covers the instruction-surface version | PENDING (rec: COVERED) | Verified (400 rejection documented) 2026-09-09 |
+| Six anti-pattern families hobble frontier models; audit and remove them | `audit-instructions` catalog + executed fleet-wide prompt-audit | COVERED (Claude Code surfaces; decided 2026-09-10) | Explore mapping re-verified against criteria.md TOC and rows, 2026-09-09; anti-patterns verified documented in `optimizing-for-cost-and-intelligence` and skill `prompt-audit.md`, 2026-09-09; ADR-0028's repeat-per-model-change lane is the standing remedy |
+| prompt-audit also covers prompts in application code calling the Claude API | No repo skill audits app-code prompts; `audit-instructions` scope is deliberately Claude Code surfaces | REJECT scope-widening (decided 2026-09-10) | The bundled prompt-audit owns the app-code surface; the skill's scope boundary is deliberate. prompt-audit.md Step 0-1 inventory includes request-building code, verified source-as-spec 2026-09-09. Revisit only if marketplace-native app-code coverage is wanted later |
+| Manual thinking budgets rejected outright by the API on newer models | I17 family covers the instruction-surface version | COVERED (decided 2026-09-10) | Verified (400 rejection documented) 2026-09-09 |
 
 ## Lane T3: effort calibration
 
@@ -159,10 +166,14 @@ cost). Batch API, output bounding as a cost lever, and the usage/cost Admin API 
 
 ## Lane M: record and gating meta-decisions
 
+Decided at interview, 2026-09-10:
+
 | Question | Verdict | Reasoning, basis, as-of |
 |---|---|---|
-| Native-overlap gate before any new skill: the article's guidance IS the bundled claude-api skill | PENDING (rec: record a Native-first gate row per topic; expected outcome COVERED/TRACK for the three procedures themselves, adoption limited to catalog rows, chapter updates, and doctrine pointers) | PLUGIN-PHILOSOPHY Native-first section; ADR-0028 vendor-procedure-over-local-reinvention precedent, 2026-09-09 |
-| Record shape | This file follows the aihero-course row schema; confirmed at interview or restructured | aihero-course.md, upstream-drift README, 2026-09-09 |
+| Record shape | DECIDED: keep this file's shape. Only the row-schema FORMAT is borrowed from aihero-course.md (four-part rows, verdict vocabulary); this source is unrelated to AI Hero and this record stands alone | Owner interview, 2026-09-10 |
+| Native-overlap gate before any new skill: the article's guidance IS the bundled claude-api skill | DECIDED: run `/claude-ops:audit-native-overlap` against the four topics first and record its verdicts as gate rows; adoption scope is NOT pre-restricted on paper. The owner receives full information per topic and decides at each lane interview | Owner interview, 2026-09-10; PLUGIN-PHILOSOPHY Native-first section; ADR-0028 precedent |
+| Vendor-internal numbers and beta features | DECIDED: adopt mechanisms only; cite figures as vendor-reported and unreproduced; every adopted line touching a beta feature carries its beta qualifier and GA/model-list boundary | Owner interview, 2026-09-10 |
+| Citing hillclimb while the public repo lags | DECIDED: cite it as a bundled Claude Code command with a four-part record noting the public-repo lag; recheck trigger fires when the anthropics/skills repo or the skill's docs page gains the subcommand | Owner interview, 2026-09-10 |
 
 ## Interview queue
 
