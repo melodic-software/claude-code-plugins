@@ -15,6 +15,8 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 # shellcheck source=guardrails-test-helpers.sh
 source "$HOOK_DIR/guardrails-test-helpers.sh"
 
+GUARD_UNDER_TEST="$HOOK"
+
 # A lease expectation is judged against the hash width of the repository the
 # push would run in, so every case that carries one needs a KNOWN working
 # directory — the ambient one is whatever invoked the suite. Fixtures: a SHA-1
@@ -60,10 +62,7 @@ run_in() {
 run_split() {
   local pcwd="$1" proc="$2" label="$3" command="$4" expected="$5"
   shift 5
-  local rc
-  (cd "$proc" && env "$@" bash "$HOOK" <<<"$(command_json_cwd "$command" "$pcwd")" >/dev/null 2>&1)
-  rc=$?
-  assert_exit "$label" "$expected" "$rc"
+  expect "$label" "$expected" --command "$command" --cwd "$pcwd" --chdir "$proc" -- "$@"
 }
 
 # run_nocwd <process-cwd> <label> <command> <expected-exit> [env ...]
@@ -71,10 +70,7 @@ run_split() {
 run_nocwd() {
   local proc="$1" label="$2" command="$3" expected="$4"
   shift 4
-  local rc
-  (cd "$proc" && env "$@" bash "$HOOK" <<<"$(command_json "$command")" >/dev/null 2>&1)
-  rc=$?
-  assert_exit "$label" "$expected" "$rc"
+  expect "$label" "$expected" --command "$command" --chdir "$proc" -- "$@"
 }
 
 # run <label> <command> <expected-exit> [extra-env NAME=VAL ...]
@@ -109,11 +105,9 @@ run_in "$NOT_A_REPO" "git push --force-with-lease=main:<40-hex> outside a reposi
 run_stderr_in() {
   local dir="$1" label="$2" command="$3" expected="$4"
   shift 4
-  local rc err
-  err="$(cd "$dir" && env "$@" bash "$HOOK" <<<"$(command_json_cwd "$command" "$dir")" 2>&1 >/dev/null)"
-  rc=$?
-  assert_exit "$label" "$expected" "$rc"
-  printf '%s' "$err"
+  guard_invoke --command "$command" --cwd "$dir" --chdir "$dir" -- "$@"
+  assert_exit "$label" "$expected" "$GUARD_RC"
+  printf '%s' "$GUARD_ERR"
 }
 
 err="$(run_stderr_in "$NOT_A_REPO" "width-undeterminable block names the git failure, not abbreviation" "git push --force-with-lease=main:$SHA1_OID origin main" 2)"
@@ -728,27 +722,19 @@ fi
 # Same payload-cwd discipline as run_in: a PowerShell payload carries `cwd` too,
 # and the lease case below is width-judged, so leaving it out would measure
 # CLAUDE_PROJECT_DIR — whatever repository the ambient session happens to be in.
-pwsh_command_json_cwd() {
-  MSYS_NO_PATHCONV=1 jq -n --arg c "$1" --arg d "$2" \
-    '{tool_name:"PowerShell",tool_input:{command:$c},cwd:$d}'
-}
 run_pwsh() {
   local label="$1" command="$2" expected="$3"
   shift 3
-  local rc
-  (cd "$REPO_SHA1" && env "$@" bash "$HOOK" <<<"$(pwsh_command_json_cwd "$command" "$REPO_SHA1")" >/dev/null 2>&1)
-  rc=$?
-  assert_exit "$label" "$expected" "$rc"
+  expect "$label" "$expected" --tool PowerShell --command "$command" \
+    --cwd "$REPO_SHA1" --chdir "$REPO_SHA1" -- "$@"
 }
 # The tool name is the third jq field. A payload MISSING cwd must still read it
 # from the right slot, or a PowerShell command
 # would silently be classified as Bash and the PowerShell-specific fail-closed
 # sinks would never fire.
 run_pwsh_nocwd() {
-  local label="$1" command="$2" expected="$3" rc
-  (cd "$REPO_SHA1" && bash "$HOOK" <<<"$(pwsh_command_json "$command")" >/dev/null 2>&1)
-  rc=$?
-  assert_exit "$label" "$expected" "$rc"
+  local label="$1" command="$2" expected="$3"
+  expect "$label" "$expected" --tool PowerShell --command "$command" --chdir "$REPO_SHA1"
 }
 run_pwsh_nocwd "PS: git --% reset --hard with NO cwd in the payload (tool name still reads as PowerShell, fail-closed block)" \
   "git --% reset --hard" 2
@@ -1142,8 +1128,12 @@ pin_sink_trigger "classify: \$out=pwsh \$script still enters launcher sink" \
 # The sink is possibly-git (iex / computed call / computed launcher can fire with
 # no git token). Assert the softened headline on both the no-git-token path and a
 # genuine unparsable-git path.
+# The hook's exit code is the function's, so a caller can still take it with
+# `out="$(pwsh_stderr …)" || rc=$?`.
 pwsh_stderr() {
-  (cd "$REPO_SHA1" && bash "$HOOK" <<<"$(pwsh_command_json_cwd "$1" "$REPO_SHA1")" 2>&1 >/dev/null)
+  guard_invoke --tool PowerShell --command "$1" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1"
+  printf '%s' "$GUARD_ERR"
+  return "$GUARD_RC"
 }
 # shellcheck disable=SC2016
 iex_rc=0
@@ -1229,12 +1219,13 @@ assert_exit "malformed JSON payload (blocked)" 2 "$malformed_rc"
 # A NUL cannot live in a shell variable, so the payload is assembled inside jq:
 # `[0] | implode` is the one-character NUL string, which jq re-emits as a NUL
 # escape on the wire — the form the harness would deliver.
+nul_payload() {
+  jq -n --arg h "$1" --arg t "$2" \
+    '{tool_name:"Bash",tool_input:{command:($h + ([0] | implode) + $t)}}'
+}
 run_nul() {
-  local label="$1" head="$2" tail="$3" expected="$4" rc
-  (cd "$REPO_SHA1" && bash "$HOOK" <<<"$(jq -n --arg h "$head" --arg t "$tail" \
-    '{tool_name:"Bash",tool_input:{command:($h + ([0] | implode) + $t)}}')" >/dev/null 2>&1)
-  rc=$?
-  assert_exit "$label" "$expected" "$rc"
+  local label="$1" head="$2" tail="$3" expected="$4"
+  expect "$label" "$expected" --payload "$(nul_payload "$head" "$tail")" --chdir "$REPO_SHA1"
 }
 run_nul "NUL after --hard (blocked)" "git reset --hard" "" 2
 run_nul "NUL splitting the flag itself (blocked)" "git reset --ha" "rd" 2
@@ -1250,8 +1241,9 @@ run_nul "NUL in an otherwise harmless command (blocked)" "git status" "; echo by
 # one and not the other is exactly the drift neither file would otherwise catch.
 # Exit-code-only coverage cannot see it — the verdict is identical either way.
 nul_stderr() {
-  bash "$HOOK" <<<"$(jq -n --arg h "$1" --arg t "$2" \
-    '{tool_name:"Bash",tool_input:{command:($h + ([0] | implode) + $t)}}')" 2>&1 >/dev/null
+  guard_invoke --payload "$(nul_payload "$1" "$2")"
+  printf '%s' "$GUARD_ERR"
+  return "$GUARD_RC"
 }
 assert_contains "NUL msg: names the byte" "$(nul_stderr 'git reset --hard' 'x')" "NUL byte"
 assert_contains "NUL msg: gives the fix" "$(nul_stderr 'git reset --hard' 'x')" \
@@ -1460,5 +1452,28 @@ if command -v strace >/dev/null 2>&1 && strace -o /dev/null -e trace=execve true
 else
   echo "ok: process-creation pins skipped (no working strace on this host)"
 fi
+
+# --- The same verdicts under the dispatcher ----------------------------------
+# The census above drives run-guards.sh but discards stdout and asserts a
+# process count, never a verdict. hooks.json ships this guard under the
+# dispatcher, where `.tool_input.command`, `.tool_name` and `.cwd` all arrive
+# from the dispatcher's primed jq cache rather than the guard's own jq call —
+# and this guard reads `.cwd` to pick the repository whose hash width judges a
+# lease, so a cache that answered the wrong field would change the verdict.
+expect_both "dispatched parity: git push --force blocks" 2 \
+  --command "git push --force" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1"
+expect_both "dispatched parity: git push origin main allowed" 0 \
+  --command "git push origin main" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1"
+expect_both "dispatched parity: lease pinned to a full SHA-1 object id allowed" 0 \
+  --command "git push --force-with-lease=main:$SHA1_OID origin main" \
+  --cwd "$REPO_SHA1" --chdir "$REPO_SHA1"
+expect_both "dispatched parity: the same lease is a ref name in a SHA-256 repo" 2 \
+  --command "git push --force-with-lease=main:$SHA1_OID origin main" \
+  --cwd "$REPO_SHA256" --chdir "$REPO_SHA256"
+expect_both "dispatched parity: git reset --hard blocks" 2 \
+  --command "git reset --hard" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1"
+expect_both "dispatched parity: PowerShell git push --force blocks" 2 \
+  --tool PowerShell --lib lib/powershell/ps-command.sh \
+  --command "git push --force" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1"
 
 report

@@ -27,14 +27,13 @@ newrepo() {
   printf '%s' "$d"
 }
 
+GUARD_UNDER_TEST="$HOOK"
+
 # run <label> <repo> <command> <expected-exit> [tool]
 run() {
-  local label="$1" repo="$2" command="$3" expected="$4" tool="${5:-Bash}" rc json
-  json=$(jq -n --arg t "$tool" --arg c "$command" --arg d "$repo" \
-    '{tool_name:$t,tool_input:{command:$c},cwd:$d}')
-  CLAUDE_PROJECT_DIR="$repo" bash "$HOOK" <<<"$json" >/dev/null 2>&1
-  rc=$?
-  assert_exit "$label" "$expected" "$rc"
+  local label="$1" repo="$2" command="$3" expected="$4" tool="${5:-Bash}"
+  expect "$label" "$expected" --tool "$tool" --command "$command" --cwd "$repo" \
+    -- "CLAUDE_PROJECT_DIR=$repo"
 }
 
 TICKET=$'## subject_pattern\n^[A-Z]+-[0-9]+: .+\n\n## pr_title_pattern\nSame as `subject_pattern`.'
@@ -327,12 +326,9 @@ assert_exit "kill switch off: violating subject allowed" 0 $?
 
 # cache_run <repo> <plugin-data> <command> -> exit code in $CACHE_RC
 cache_run() {
-  local json
-  json=$(jq -n --arg c "$3" --arg d "$1" \
-    '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}')
-  CACHE_RC=0
-  CLAUDE_PROJECT_DIR="$1" CLAUDE_PLUGIN_DATA="$2" bash "$HOOK" <<<"$json" >/dev/null 2>&1 ||
-    CACHE_RC=$?
+  guard_invoke --command "$3" --cwd "$1" \
+    -- "CLAUDE_PROJECT_DIR=$1" "CLAUDE_PLUGIN_DATA=$2"
+  CACHE_RC=$GUARD_RC
 }
 
 VIOLATING=$'git commit -F - <<\'EOF\'\nnot a ticket subject\nEOF\n'
@@ -600,5 +596,21 @@ else
   BUDGET_ROWS="$(trace_sites "$TRACE_LOG")"
   assert_site alias-probe "$BUDGET_ROWS"
 fi
+
+# --- The same verdicts under the dispatcher ----------------------------------
+# hooks.json ships this guard under run-guards.sh, where stdin is read once and
+# re-served, and `.tool_input.command` / `.cwd` arrive from the dispatcher's
+# primed jq cache instead of the guard's own jq call. Nothing above asserts a
+# verdict on that path; a resolution that only works standalone would pass.
+rd="$(newrepo "$TICKET")"
+expect_both "dispatched parity: violating subject blocked" 2 \
+  --command "$BAD_COMMIT" --cwd "$rd" -- "CLAUDE_PROJECT_DIR=$rd"
+expect_both "dispatched parity: conforming subject allowed" 0 \
+  --command "$GOOD_COMMIT" --cwd "$rd" -- "CLAUDE_PROJECT_DIR=$rd"
+expect_both "dispatched parity: git status is not a commit" 0 \
+  --command "git status --short" --cwd "$rd" -- "CLAUDE_PROJECT_DIR=$rd"
+rn="$(newrepo "")"
+expect_both "dispatched parity: no team file, no enforcement" 0 \
+  --command "$BAD_COMMIT" --cwd "$rn" -- "CLAUDE_PROJECT_DIR=$rn"
 
 report

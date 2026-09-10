@@ -6,6 +6,13 @@
 # byte-identical fallback, every guard run to completion, exit aggregation,
 # and the merge of several stdout documents into one.
 #
+# Stub guards isolate each of those mechanics, but a mechanic asserted only
+# against a stub is asserted against a stand-in for the thing it serves, so the
+# merge, the no-jq arbitration and the exit aggregation are each also driven
+# with SHIPPED guards, whose documents this file does not write. The guards'
+# own decisions stay covered by their own *.test.sh, which now assert those
+# decisions on both paths (`expect_both` in guardrails-test-helpers.sh).
+#
 # The stub guard bodies below are single-quoted on purpose: they are written
 # verbatim into stub scripts, so their `$` must not expand here.
 # shellcheck disable=SC2016
@@ -67,13 +74,39 @@ stub ask.sh 'printf "%s\n" "{\"hookSpecificOutput\":{\"hookEventName\":\"PreTool
 
 PAYLOAD=$(jq -n '{session_id:"s-1",tool_name:"Bash",cwd:"/x",tool_input:{command:"git status --short"}}')
 
-run() { # run <stdin-string> <guard>... -> stdout captured, stderr to $ERR, rc in $RC
+# run <stdin-string> [--lib <path>]... <guard>... -> OUT, ERR, RC.
+#
+# The invocation itself is the shared driver's (guardrails-test-helpers.sh), so
+# this suite and every guard suite reach the dispatcher through one code path;
+# what is left here is the translation from this suite's positional guard list
+# to the driver's `--hook` / `--also` / `--lib`.
+run() {
   local input="$1"
   shift
   : >"$SEEN"
-  RC=0
-  OUT=$(bash "$DISPATCH" "$@" <<<"$input" 2>"$TEST_TMPDIR/err") || RC=$?
-  ERR=$(cat "$TEST_TMPDIR/err")
+  local -a opts=()
+  local first=1
+  while (($#)); do
+    case "$1" in
+    --lib)
+      opts+=(--lib "$2")
+      shift 2
+      ;;
+    *)
+      if ((first)); then
+        opts+=(--hook "$1")
+        first=0
+      else
+        opts+=(--also "$1")
+      fi
+      shift
+      ;;
+    esac
+  done
+  guard_invoke --via dispatched --payload "$input" ${opts[@]+"${opts[@]}"}
+  OUT="$GUARD_OUT"
+  ERR="$GUARD_ERR"
+  RC="$GUARD_RC"
 }
 
 # --- benign payload, one allowing guard ---------------------------------------
@@ -173,7 +206,6 @@ assert_absent "stalled stdin: no cut-short diagnostic" "$ERR" "cut short"
 assert_contains "stalled stdin: block.sh was sourced (its BLOCKED line is on stderr)" "$ERR" "BLOCKED: stub"
 assert_eq "stalled stdin: the notice-only exit was not taken (no JSON document on stdout)" "0" "$(jq -s 'length' <<<"$OUT")"
 
-
 # --- jq cache: a NUL-bearing payload bypasses the cache ----------------------
 nul_payload=$(jq -n '{tool_name:"Bash",tool_input:{command:("git " + ([0] | implode) + "x")}}')
 run "$nul_payload" "$TEST_TMPDIR/nul.sh"
@@ -200,16 +232,16 @@ assert_eq "dirname inside a dispatched guard is the external command" "file /" "
 # suite. `./run-guards.sh` makes `${BASH_SOURCE[0]%/*}` answer `.` (a relative
 # dir); a bare filename makes the strip a no-op and takes the `=` fallback.
 # Both must still source the sibling library and serve the jq cache.
+# The spelling under test is the dispatcher path the driver invokes, so it is
+# passed by overriding GUARD_DISPATCH for this call's dynamic extent.
 run_from_hooks_dir() {
-  local spelling="$1"
+  local GUARD_DISPATCH="$1"
   shift
   : >"$SEEN"
-  RC=0
-  OUT=$(
-    cd "$HOOK_DIR" || exit 1
-    bash "$spelling" "$@" <<<"$PAYLOAD" 2>"$TEST_TMPDIR/err"
-  ) || RC=$?
-  ERR=$(cat "$TEST_TMPDIR/err")
+  guard_invoke --via dispatched --payload "$PAYLOAD" --chdir "$HOOK_DIR" --hook "$1"
+  OUT="$GUARD_OUT"
+  ERR="$GUARD_ERR"
+  RC="$GUARD_RC"
 }
 run_from_hooks_dir ./run-guards.sh "$TEST_TMPDIR/allow.sh"
 assert_exit "relative ./run-guards.sh exits 0" 0 "$RC"
@@ -318,6 +350,30 @@ else
   run_nojq "$PAYLOAD" "$TEST_TMPDIR/ctx1.sh" "$TEST_TMPDIR/ctx2.sh"
   assert_eq "no jq: with no blocking document the first one is emitted" "$standalone" "$OUT"
   assert_contains "no jq: the second context document is dropped to stderr" "$ERR" "ctx two"
+
+  # The arbitration above runs on documents this file writes. With jq gone, two
+  # SHIPPED guards each emit their own prerequisite notice on the same payload,
+  # so the same code path can be asserted on documents the guards wrote — the
+  # shape an operator without jq actually meets.
+  NOJQ_CMD=$(command_json 'cat > foo.txt && git commit -m x')
+  run_nojq "$NOJQ_CMD" block-hook-bypass.sh block-noncanonical-commit.sh
+  assert_exit "no jq, real guards: the advisory notices exit 0" 0 "$RC"
+  assert_eq "no jq, real guards: exactly one JSON document on stdout" \
+    "1" "$(grep -c '^{' <<<"$OUT")"
+  assert_contains "no jq, real guards: the first guard's notice is the one emitted" \
+    "$OUT" "guardrails-block-hook-bypass: jq not found on PATH"
+  assert_contains "no jq, real guards: the second guard's notice is dropped, prefixed" \
+    "$ERR" "run-guards: dropped without jq:"
+  assert_contains "no jq, real guards: the dropped notice names its guard" \
+    "$ERR" "guardrails-block-noncanonical-commit: jq not found on PATH"
+  assert_absent "no jq, real guards: the emitted notice is not also dropped" \
+    "$ERR" "run-guards: dropped without jq: {\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"additionalContext\":\"guardrails-block-hook-bypass"
+  # A guard that denies on a missing prerequisite still denies through the
+  # arbitration, and its reason still reaches stderr beside the dropped notice.
+  run_nojq "$NOJQ_CMD" block-hook-bypass.sh block-no-verify.sh
+  assert_exit "no jq, real guards: a fail-closed guard still wins the exit code" 2 "$RC"
+  assert_contains "no jq, real guards: the fail-closed reason survives arbitration" \
+    "$ERR" "the required prerequisite \`jq\` is not on PATH"
 fi
 
 # --- an unknown guard is reported, the rest still run ------------------------
@@ -334,6 +390,60 @@ run "$bypass" --lib lib/powershell/ps-command.sh block-no-verify.sh block-danger
 assert_exit "real guard blocks through the dispatcher" 2 "$RC"
 assert_eq "real guard: same exit alone and dispatched" "$alone_rc" "$RC"
 assert_eq "real guard: same stderr alone and dispatched" "$alone_err" "$ERR"
+
+# --- two REAL guards, one merged document ------------------------------------
+# The merge above is asserted with stub guards, whose documents this file writes
+# itself. The PostToolUse lane is where two SHIPPED guards emit on the same
+# payload: a markdown file citing both a deleted path (stale-path-verify) and an
+# unresolvable skill command (skill-reference-verify). Claude Code reads exactly
+# one JSON document per hook process, so the two findings have to arrive merged
+# into one additionalContext, in dispatch order — which is what these guards
+# delivered as two separate hooks.
+POST_REPO="$TEST_TMPDIR/post-lane"
+mkdir -p "$POST_REPO/docs" "$POST_REPO/plugins/alpha/.claude-plugin" \
+  "$POST_REPO/plugins/alpha/skills/setup"
+git -C "$POST_REPO" init -q
+jq -n '{name:"alpha",version:"0.1.0"}' >"$POST_REPO/plugins/alpha/.claude-plugin/plugin.json"
+printf -- '---\nname: setup\ndescription: x\n---\n' >"$POST_REPO/plugins/alpha/skills/setup/SKILL.md"
+printf 'x\n' >"$POST_REPO/docs/gone.md"
+git -C "$POST_REPO" -c user.email=t@t.test -c user.name=t add -A >/dev/null 2>&1
+git -C "$POST_REPO" -c user.email=t@t.test -c user.name=t commit -qm seed >/dev/null 2>&1
+git -C "$POST_REPO" -c user.email=t@t.test -c user.name=t rm -q "docs/gone.md" >/dev/null 2>&1
+git -C "$POST_REPO" -c user.email=t@t.test -c user.name=t commit -qm delete >/dev/null 2>&1
+POST_TARGET="$POST_REPO/notes.md"
+: >"$POST_TARGET"
+POST_PAYLOAD=$(write_json "$POST_TARGET" \
+  'See `docs/gone.md` and run `/alpha:nosuch` for details.')
+POST_ENV=("CLAUDE_PROJECT_DIR=$POST_REPO" "CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=30")
+
+guard_invoke --via dispatched --payload "$POST_PAYLOAD" \
+  --hook stale-path-verify.sh --also skill-reference-verify.sh -- "${POST_ENV[@]}"
+assert_exit "two real emitters: advisory lane still exits 0" 0 "$GUARD_RC"
+assert_eq "two real emitters: exactly one JSON document on stdout" \
+  "1" "$(jq -s 'length' <<<"$GUARD_OUT")"
+POST_CTX=$(jq -r '.hookSpecificOutput.additionalContext' <<<"$GUARD_OUT")
+POST_CTX="${POST_CTX//$'\r'/}" # the Windows jq build writes CRLF
+assert_contains "two real emitters: the stale path is in the merged context" \
+  "$POST_CTX" "STALE_PATH: docs/gone.md"
+assert_contains "two real emitters: the unresolved skill is in the merged context" \
+  "$POST_CTX" "UNRESOLVED_SKILL: /alpha:nosuch"
+assert_eq "two real emitters: merged hookEventName kept" \
+  "PostToolUse" "$(jq -r '.hookSpecificOutput.hookEventName' <<<"$GUARD_OUT")"
+# Dispatch order decides the order of the merged blocks, as it decided the order
+# of the two documents when these were separate hooks.
+if [[ "${POST_CTX%%$'\n'*}" == stale-path-verify* ]]; then
+  ok "two real emitters: merged in dispatch order"
+else
+  bad "two real emitters: merged out of dispatch order: ${POST_CTX%%$'\n'*}"
+fi
+
+# Each guard alone must say the same thing it said inside the merge.
+for one in stale-path-verify skill-reference-verify; do
+  guard_invoke --payload "$POST_PAYLOAD" --hook "$HOOK_DIR/$one.sh" -- "${POST_ENV[@]}"
+  assert_eq "$one alone: one document" "1" "$(jq -s 'length' <<<"$GUARD_OUT")"
+  assert_contains "merged context contains what $one says alone" "$POST_CTX" \
+    "$(jq -r '.hookSpecificOutput.additionalContext' <<<"$GUARD_OUT" | tr -d '\r' | head -2 | tail -1)"
+done
 
 # --- hooks.json wires every guard through the dispatcher by file name ---------
 for g in secret-pattern-detection hardcoded-path-check block-no-verify block-dangerous-git \
