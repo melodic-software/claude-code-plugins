@@ -41,9 +41,14 @@ Print the script's output verbatim. It is already the deliverable. Do not
 re-query the sections by hand.
 
 When the header reports unreadable sections, say which sections were lost and why
-(each `UNREADABLE:` line carries the cause), name the remedy (run the brief from a
-local checkout, or pass `--repo`), and stop. A section rebuilt from other tools is
-not the brief: it costs a slow, unverified pass and its shape differs run to run.
+(each `UNREADABLE:` line carries the cause), name the remedy the cause calls for, and
+stop. The remedy follows the cause, never a fixed line: a repo that could not be
+resolved (exit 4) wants a checkout with a GitHub `origin` remote or `--repo`; a
+GraphQL refusal ("not enabled for this session") wants a run from a host that serves
+`gh`'s GraphQL, and the REST-served sections already carry what this host can read;
+an authentication error wants `gh auth status`; a rate limit or a 5xx wants a re-run
+after the window the error names. A section rebuilt from other tools is not the
+brief: it costs a slow, unverified pass and its shape differs run to run.
 
 ## Degraded sections
 
@@ -58,10 +63,31 @@ The `gh` subcommands ride GraphQL. When the host serves only a pinned set of
 GraphQL operations (an HTTP 403 saying the query is "not enabled for this
 session"), sections 1-4 are re-read from repository-scoped REST endpoints and the
 header names the transport. Two consequences: the merge-ready list reports
-`review=n/a` (review decisions are GraphQL-only) and reads merge state for at most
-`--pr-limit` open PRs (default 50), saying so when capped; and the stranded-findings
-section renders `UNREADABLE`, because review threads have no REST read. That section
-never renders an all-clear it did not read.
+`review=n/a` and reads merge state for at most `--pr-limit` open PRs (default 50),
+saying so when capped or when GitHub has not finished computing a PR's mergeability;
+and the stranded-findings section renders `UNREADABLE`, because review threads have
+no REST read. That section never renders an all-clear it did not read.
+
+Two upstream facts the script restates, each with its verification record:
+
+- **The refusal shape the script keys the transport switch on.** Basis: the body
+  `gh api graphql` returned in a Claude Code cloud session, `{"message":"This GraphQL
+  query is not enabled for this session ... only the pinned set of PR-review operations
+  is served. ..."}` with HTTP 403, whose `documentation_url` points at
+  <https://docs.anthropic.com/en/docs/claude-code/github-actions>. Observed 2026-09-08
+  and again 2026-09-10 in that session. The switch is runtime detection, so a host
+  that never sends this shape never switches. Recheck when a cloud session refuses
+  a GraphQL query with a different message, or that page names the served GraphQL set.
+- **The REST pull schema carries no review-decision field, so the REST path reports
+  `n/a`.** Basis: the "Get a pull request" response schema at
+  <https://docs.github.com/en/rest/pulls/pulls#get-a-pull-request>, which lists
+  `requested_reviewers` and `review_comments` and no `review_decision`; the same page
+  says of `mergeable` that "If the value is null, then GitHub has started a background
+  job to compute the mergeability. After giving the job time to complete, resubmit
+  the request", which is the retry the script performs. `reviewDecision` and
+  `mergeStateStatus` are `gh pr list --json` fields (gh 2.98.0 lists them client-side).
+  Verified 2026-09-10 against that page as fetched that day. Recheck when the REST
+  pull schema gains a review-decision field, or gh drops either `--json` field.
 
 ## What each section reports
 

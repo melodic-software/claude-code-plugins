@@ -625,7 +625,7 @@ run_stub() {
   # run_stub MODE args... — runs the brief with the gh double on PATH.
   local mode="$1"
   shift
-  PATH="$GH_STUB_DIR:$PATH" MB_GH_MODE="$mode" MB_GH_FIXTURES="$TMP/rest" \
+  PATH="$GH_STUB_DIR:$PATH" MB_GH_MODE="$mode" MB_GH_FIXTURES="${MB_GH_FIXTURES:-$TMP/rest}" \
     bash "$BRIEF" --now "$NOW" --stale-hours 6 --repo "$FIXTURE_REPO" "$@" 2>&1
 }
 
@@ -731,13 +731,13 @@ cat >"$REST/$(rest_key "$R/pulls?state=open&per_page=100").json" <<'EOF'
 [{"number": 9, "title": "blocked one"}, {"number": 8, "title": "draft one"}, {"number": 7, "title": "clean one"}]
 EOF
 cat >"$REST/$(rest_key "$R/pulls/7").json" <<'EOF'
-{"number": 7, "title": "clean one", "html_url": "http://x/7", "draft": false, "mergeable_state": "clean"}
+{"number": 7, "title": "clean one", "html_url": "http://x/7", "draft": false, "mergeable": true, "mergeable_state": "clean"}
 EOF
 cat >"$REST/$(rest_key "$R/pulls/8").json" <<'EOF'
-{"number": 8, "title": "draft one", "html_url": "http://x/8", "draft": true, "mergeable_state": "clean"}
+{"number": 8, "title": "draft one", "html_url": "http://x/8", "draft": true, "mergeable": true, "mergeable_state": "clean"}
 EOF
 cat >"$REST/$(rest_key "$R/pulls/9").json" <<'EOF'
-{"number": 9, "title": "blocked one", "html_url": "http://x/9", "draft": false, "mergeable_state": "blocked"}
+{"number": 9, "title": "blocked one", "html_url": "http://x/9", "draft": false, "mergeable": true, "mergeable_state": "blocked"}
 EOF
 cat >"$REST/$(rest_key "$R/issues?state=open&per_page=100").json" <<'EOF'
 [{"number": 51, "title": "unrelated"},
@@ -806,6 +806,23 @@ if [[ "$TEL_REST" == "$TEL_SAME" ]]; then
 else
   fail "rest and gh paths render telemetry identically past the source line" "$TEL_SAME" "$TEL_REST"
 fi
+
+# A pull whose mergeability GitHub has not finished computing (`mergeable: null`,
+# `mergeable_state: "unknown"`) is retried once, then reported as inconclusive,
+# never rendered as "not clean".
+UNCOMPUTED="$TMP/rest-uncomputed"
+mkdir -p "$UNCOMPUTED"
+cp "$REST/"*.json "$UNCOMPUTED/"
+cat >"$UNCOMPUTED/$(rest_key "$R/pulls?state=open&per_page=100").json" <<'EOF'
+[{"number": 7, "title": "clean one"}, {"number": 10, "title": "still computing"}]
+EOF
+cat >"$UNCOMPUTED/$(rest_key "$R/pulls/10").json" <<'EOF'
+{"number": 10, "title": "still computing", "html_url": "http://x/10", "draft": false, "mergeable": null, "mergeable_state": "unknown"}
+EOF
+OUT_UNCOMPUTED="$(MB_GH_FIXTURES="$UNCOMPUTED" MORNING_BRIEF_MERGE_STATE_RETRY_SECS=0 run_stub rest)"
+assert_contains "rest: an uncomputed merge state is reported as inconclusive" "$OUT_UNCOMPUTED" "PARTIAL: merge state not yet computed by GitHub for #10"
+assert_contains "rest: the computed PR beside it still renders" "$OUT_UNCOMPUTED" "#7 clean one"
+assert_not_contains "rest: the uncomputed PR is never listed as merge-ready" "$OUT_UNCOMPUTED" "#10 still computing"
 
 # The per-PR merge-state read is capped, and a capped read says so.
 OUT_CAP="$(run_stub rest --pr-limit 1)"

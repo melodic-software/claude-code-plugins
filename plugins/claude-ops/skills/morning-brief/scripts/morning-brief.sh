@@ -642,23 +642,49 @@ fetch_prs_gql() {
     --json number,title,url,isDraft,mergeStateStatus,reviewDecision
 }
 
-PR_TRUNCATED=""
+PR_PARTIAL=()
+# A REST pull carries `mergeable: null` (and `mergeable_state: "unknown"`) while
+# GitHub is still computing mergeability in the background; the documented
+# remedy is to resubmit the request after giving the job time. One retry per
+# batch, after MERGE_STATE_RETRY_SECS, then any PR still uncomputed is reported
+# as inconclusive rather than rendered as "not clean".
+MERGE_STATE_RETRY_SECS="${MORNING_BRIEF_MERGE_STATE_RETRY_SECS:-2}"
+
+merge_state_uncomputed() {
+  jq -e '(.mergeable == null) or ((.mergeable_state // "unknown") == "unknown")' "$1" >/dev/null 2>&1
+}
+
 fetch_prs_rest() {
   # The list endpoint carries no merge state; each PR costs one more GET for
   # `mergeable_state`, so the read is capped. A capped read is reported as
   # partial rather than rendered as the whole queue.
-  local out="$1" total i number
+  local out="$1" total i number retry=() uncomputed=()
   rest_paginate_array "$WORK/prs.rest" "repos/$REPO/pulls?state=open&per_page=100" || return 1
   total="$(jq 'length' "$WORK/prs.rest")"
-  PR_TRUNCATED=""
-  ((total > PR_LIMIT)) && PR_TRUNCATED="$total open PRs; merge state read for the first $PR_LIMIT only (raise --pr-limit)"
+  PR_PARTIAL=()
+  ((total > PR_LIMIT)) && PR_PARTIAL+=("$total open PRs; merge state read for the first $PR_LIMIT only (raise --pr-limit)")
   : >"$WORK/prs.detail"
   for ((i = 0; i < total && i < PR_LIMIT; i++)); do
     number="$(jq -r ".[$i].number" "$WORK/prs.rest")"
-    gh_read "$WORK/pr.one" api "repos/$REPO/pulls/$number" || return 1
-    cat "$WORK/pr.one" >>"$WORK/prs.detail"
+    gh_read "$WORK/pr.$number" api "repos/$REPO/pulls/$number" || return 1
+    merge_state_uncomputed "$WORK/pr.$number" && retry+=("$number")
   done
-  # Review decision is a GraphQL-only field; the REST path reports it as n/a.
+  if ((${#retry[@]} > 0)); then
+    sleep "$MERGE_STATE_RETRY_SECS"
+    for number in "${retry[@]}"; do
+      gh_read "$WORK/pr.$number" api "repos/$REPO/pulls/$number" || return 1
+      merge_state_uncomputed "$WORK/pr.$number" && uncomputed+=("#$number")
+    done
+  fi
+  for ((i = 0; i < total && i < PR_LIMIT; i++)); do
+    number="$(jq -r ".[$i].number" "$WORK/prs.rest")"
+    cat "$WORK/pr.$number" >>"$WORK/prs.detail"
+  done
+  if ((${#uncomputed[@]} > 0)); then
+    PR_PARTIAL+=("merge state not yet computed by GitHub for ${uncomputed[*]}; inconclusive, re-run shortly")
+  fi
+  # The REST pull schema carries no review-decision field; the REST path
+  # reports it as n/a.
   jq -s '[ .[] | {number, title, url: .html_url, isDraft: .draft,
                   mergeStateStatus: ((.mergeable_state // "unknown") | ascii_upcase),
                   reviewDecision: "n/a"} ]' "$WORK/prs.detail" >"$out"
@@ -687,7 +713,10 @@ print_merge_ready() {
   else
     echo "  (none clean right now)"
   fi
-  [[ -n "$PR_TRUNCATED" ]] && echo "  PARTIAL: $PR_TRUNCATED"
+  local note
+  for note in "${PR_PARTIAL[@]}"; do
+    echo "  PARTIAL: $note"
+  done
   echo "  authoritative merge gate: /source-control:babysit-prs"
   echo
 }
