@@ -99,7 +99,7 @@ enforceability verdict changes.
   the enumeration short. Found by an adversarial verifier reading the scripts, not the row.
 - **`rule-negation-hard-guardrail`'s `Auto-applicable` cell led with `n/a`.** This contract states
   four permitted lead forms and `n/a` is not one; its three sibling non-emitting rows all use
-  `Not applicable — no row`. Corrected, argument unchanged.
+  `Not applicable, no row`. Corrected, argument unchanged.
 - **Two counts inside the new adopter row were wrong on the day it was written.** The row said
   its detector "marks six shapes" with "the other five" declined.
   `plugins/docs-hygiene/skills/audit-noise/scripts/lib/noise-shapes.sh` marks
