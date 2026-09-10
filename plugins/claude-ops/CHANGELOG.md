@@ -3,7 +3,7 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.45.4]
+## [0.45.5]
 
 ### Fixed
 
@@ -19,6 +19,17 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 
 - **`lib/state-key.sh`:** replica synced with the canonical copy. The non-repository rung now
   hashes the physical working directory, so one directory reached through two spellings keys once.
+
+## [0.45.4]
+
+### Fixed
+
+- **`observability`'s pre-compute pipeline line prints no option tier.** The line could carry no
+  option value (a `${user_config.*}` never rides inside shell-executing content), so its sixth
+  line printed manifest defaults a reader could take for the effective state. The pre-compute
+  line now runs the probe with `--observed`: the sixth line carries the envelope count and names
+  the section 2.6 re-run, which is fed the options the skill body renders as plain content and
+  is the one place the options render.
 
 ## [0.45.3]
 
