@@ -36,22 +36,18 @@ HOOK_DIR="${BASH_SOURCE[0]%/*}"
 # shellcheck source=hook-utils.sh
 source "$HOOK_DIR/hook-utils.sh"
 
-# Emit this run's telemetry envelope: $1 status, $2 findings JSON array.
-# Two guards: the high-res start stamp (empty on bash before 5.0, where
-# telemetry is skipped so the hook still formats rather than aborting) and the
-# sink opt-in. The data payload costs a jq subprocess, so it is built here
-# after both guards — never on the unwired path.
-#
 # MD_CHANGED is set on the path that ran the fix pass ("true" when
 # markdownlint-cli2 reported fixes written, "false" otherwise) and stays empty
 # on every skip arm, where the key is omitted rather than guessed.
 MD_CHANGED=""
-emit_tel() {
-  [[ -n "$start" ]] || return 0
-  hook::telemetry_enabled || return 0
-  local data=""
-  hook::data_json_to data "$TOOL" "$FILE_REL" "$MD_CHANGED" findings array "$2"
-  hook::emit_telemetry "markdown-format" "PostToolUse" "$1" "$start" "$data" "$REPO_ROOT"
+
+# Every arm exits through hook::finish: telemetry first, then the one JSON
+# document. This hook never rewrites behind the rewrite guard —
+# markdownlint-cli2's own fix count is authoritative — so the verdict arrives
+# on --changed, and a skip arm that passes none omits the key rather than
+# guessing one.
+emit_skipped() {
+  hook::finish skipped findings array '[]'
 }
 
 # Consumer opt-in gate (#1809's single-writer decision): the run requires a
@@ -74,44 +70,52 @@ emit_tel() {
 # runs from $1's directory up to the repo root $2 — the same span the lint
 # run's own discovery covers for that file.
 #
-# Both `dirname` calls this walk used are parameter expansions, for the reason
-# given at the source line above: this hook runs on every Markdown Write and
-# Edit, and the walk's exec count grows with the file's depth below the repo
-# root. $1 names an existing regular file, so it carries no trailing slash and
-# the strip is exact; a path with no separator at all leaves the strip a no-op,
+# The `dirname` this gate used is a parameter expansion, for the reason given
+# at the source line above: this hook runs on every Markdown Write and Edit.
+# $1 names an existing regular file, so it carries no trailing slash and the
+# strip is exact; a path with no separator at all leaves the strip a no-op,
 # which the `.` fallback covers, and a file directly under the filesystem root
 # leaves it empty, which the `/` fallback covers (bash rejects `cd ""` as a
 # null directory, so an empty start would fail the walk closed and skip a
-# root-level file that a root config opts in). In the walk, an emptied strip
-# means the parent is the filesystem root. The walk terminates at the repo root
-# two lines above the step in every reachable case, so the root arm is defense,
-# not a path anything here takes.
+# root-level file that a root config opts in).
+# shellcheck disable=SC2329  # invoked by name, as hook::walk_up_to's predicate
+markdownlint_config_here() {
+  local candidate
+  for candidate in \
+    .markdownlint-cli2.jsonc .markdownlint-cli2.yaml \
+    .markdownlint-cli2.cjs .markdownlint-cli2.mjs \
+    .markdownlint.jsonc .markdownlint.json \
+    .markdownlint.yaml .markdownlint.yml \
+    .markdownlint.cjs .markdownlint.mjs; do
+    [[ -f "$1/$candidate" ]] && return 0
+  done
+  return 1
+}
+
 markdownlint_config_discoverable() {
-  local dir root candidate parent start
+  local root start
+  # shellcheck disable=SC2034  # the gate reads the walk's verdict, not which directory carried the config
+  local hit=""
   start="${1%/*}"
   [[ "$start" == "$1" ]] && start=.
   [[ -n "$start" ]] || start=/
-  dir="$(cd "$start" 2>/dev/null && pwd -P)" || return 1
-  # Fail CLOSED when the root cannot be resolved: an empty root would never
-  # terminate the equality check below and the walk would run to the
-  # filesystem root — scanning directories above the repository that the lint
-  # run's own discovery never reads.
+  start="$(cd "$start" 2>/dev/null && pwd -P)" || return 1
+  # Fail CLOSED when the root cannot be resolved — an unresolvable ceiling is
+  # hook::walk_up_to's own fail-closed case too, and both mean the same thing
+  # here: a walk that ran past the repository would scan directories above it
+  # that the lint run's own discovery never reads, and adopt their config as
+  # this repository's opt-in.
   root="$(cd "$2" 2>/dev/null && pwd -P)" || return 1
-  while :; do
-    for candidate in \
-      .markdownlint-cli2.jsonc .markdownlint-cli2.yaml \
-      .markdownlint-cli2.cjs .markdownlint-cli2.mjs \
-      .markdownlint.jsonc .markdownlint.json \
-      .markdownlint.yaml .markdownlint.yml \
-      .markdownlint.cjs .markdownlint.mjs; do
-      [[ -f "$dir/$candidate" ]] && return 0
-    done
-    [[ "$dir" == "$root" ]] && return 1
-    parent="${dir%/*}"
-    [[ -n "$parent" ]] || parent=/
-    [[ "$parent" != "$dir" ]] || return 1
-    dir="$parent"
-  done
+  hook::walk_up_to hit "$start" "$root" markdownlint_config_here
+}
+
+# A `.git` entry, accepted as a directory (ordinary clone) or as a FILE, which
+# is what a linked worktree and a submodule write instead — the two shapes git's
+# own discovery accepts (https://git-scm.com/docs/gitrepository-layout,
+# "$GIT_DIR", fetched 2026-08-09).
+# shellcheck disable=SC2329  # invoked by name, as hook::walk_up_to's predicate
+git_dir_entry_here() {
+  [[ -e "$1/.git" ]]
 }
 
 # Resolve the working-tree root for a path WITHOUT requiring git.
@@ -167,17 +171,16 @@ resolve_repo_root_to() {
   # Physical, matching CONFIG_ROOT and markdownlint_config_discoverable, which
   # both compare `pwd -P` results: a lexically-spelled root would never compare
   # equal to the walk's cursor and the search would run past the repository.
+  #
+  # `/` is this walk's ceiling, and deliberately so: it is looking FOR the
+  # repository root, so it has no narrower one to stop at, and passing the
+  # filesystem root states that rather than leaving the ceiling unset (which
+  # hook::walk_up_to reads as an unresolved ceiling and fails closed on).
   if dir="$(cd "$hint" 2>/dev/null && pwd -P)"; then
-    while :; do
-      if [[ -e "$dir/.git" ]]; then
-        printf -v "$__md_dest" '%s' "$dir"
-        return 0
-      fi
-      parent="${dir%/*}"
-      [[ -n "$parent" ]] || parent=/
-      [[ "$parent" == "$dir" ]] && break
-      dir="$parent"
-    done
+    if hook::walk_up_to parent "$dir" / git_dir_entry_here; then
+      printf -v "$__md_dest" '%s' "$parent"
+      return 0
+    fi
   fi
   if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
     printf -v "$__md_dest" '%s' "$CLAUDE_PROJECT_DIR"
@@ -351,8 +354,7 @@ fi
 # above only decides whether the jq notice may be emitted; this is where a
 # config-less repository actually stops.
 if ! markdownlint_config_discoverable "$FILE" "$REPO_ROOT"; then
-  emit_tel "skipped" '[]'
-  exit 0
+  emit_skipped
 fi
 
 # Path-scope escape, the half the 0.9.0 config gate (#1809) did not cover: a
@@ -433,8 +435,7 @@ if ((LINT_GITIGNORED == 0)) && file_is_gitignored; then
   # the context the skip exists to save. The skip is still observable: the
   # telemetry envelope below records it, and README documents the rule and its
   # markdown_format_lint_gitignored opt-out.
-  emit_tel "skipped" '[]'
-  exit 0
+  emit_skipped
 fi
 
 # Resolve the consuming repository's pinned npm binary without invoking a
@@ -705,8 +706,7 @@ else
       "markdown-format: markdownlint-cli2 was not found on this hook's PATH or as a contained repository-local node_modules/.bin executable — Markdown lint skipped for this edit (probe re-runs on every Markdown edit; only this notice latches once per session — there is no skip latch). $(markdownlint_skip_remediation)
 PATH probed: $(format_probed_path)"
   fi
-  emit_tel "skipped" '[]'
-  exit 0
+  emit_skipped
 fi
 
 # markdownlint-cli2 configuration can cross a code-execution boundary. Its
@@ -1147,8 +1147,7 @@ if ((${#RISK_CONFIGS[@]} > 0)); then
       hook::emit_skip_notice PostToolUse \
         "markdown-format trust gate: Markdown lint/format skipped — this repository's markdownlint configuration can execute repository-supplied code ($RISK_LIST). $APPROVE_HINT"
     fi
-    emit_tel "skipped" '[]'
-    exit 0
+    emit_skipped
   fi
 fi
 
@@ -1342,7 +1341,6 @@ fi
 # every string derived from it — this report, the user-channel message, and the
 # telemetry findings array — is clean without a per-string strip.
 CTX="${CTX%"${CTX##*[![:space:]]}"}"
-hook::emit_channels PostToolUse "$CTX" "$SYSMSG"
 
 # Build the findings array in one jq pass (one JSON string per matched line).
 # The telemetry payload is NOT capped — a sink is a machine, and the cap exists
@@ -1352,5 +1350,5 @@ if [[ -n "$findings_raw" ]]; then
   FINDINGS_JSON=$(printf '%s' "$findings_raw" | jq -R . | jq -s . 2>/dev/null) || FINDINGS_JSON='[]'
 fi
 
-emit_tel "ok" "$FINDINGS_JSON"
-exit 0
+hook::finish --context "$CTX" --message "$SYSMSG" --changed "$MD_CHANGED" \
+  ok findings array "$FINDINGS_JSON"

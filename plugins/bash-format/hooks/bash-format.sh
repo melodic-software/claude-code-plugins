@@ -31,19 +31,6 @@ source "$HOOK_DIR/hook-utils.sh"
 # shellcheck source=rewrite-guard.sh
 source "$HOOK_DIR/rewrite-guard.sh"
 
-# Emit this run's telemetry envelope: $1 status, $2 findings JSON array.
-# Two guards: the high-res start stamp (empty on bash before 5.0, where
-# telemetry is skipped so the hook still lints and formats rather than
-# aborting) and the sink opt-in. The data payload costs a jq subprocess, so it
-# is built here after both guards — never on the unwired path.
-emit_tel() {
-  [[ -n "$start" ]] || return 0
-  hook::telemetry_enabled || return 0
-  local data=""
-  hook::data_json_to data "$TOOL" "$FILE_REL" "${HOOK_REWRITE_CHANGED:-}" findings array "$2"
-  hook::emit_telemetry "bash-format" "PostToolUse" "$1" "$start" "$data" "$REPO_ROOT"
-}
-
 # The whole prologue: the start stamp, the buffered payload, the jq-free
 # applicability filter, the jq gate, the parsed path with its basename and
 # directory, the file-anchored repo root (which bounds the .editorconfig
@@ -62,6 +49,7 @@ hook::begin bash-format PostToolUse '*.sh' '*.bash'
 # are also excluded — matching those correctly means reimplementing EditorConfig
 # globbing, and the safe bias is to leave files untouched when unsure. $1 is the
 # text inside the brackets.
+# shellcheck disable=SC2329  # called from the walk predicate below, which hook::walk_up_to invokes by name
 section_applies_to_shell() {
   local h="$1"
   [[ "$h" =~ \*\.(sh|bash)([^[:alnum:]]|$) ]] && return 0
@@ -73,47 +61,49 @@ section_applies_to_shell() {
 # (not merely the presence of any .editorconfig — a repo whose .editorconfig
 # only configures other languages, or only a bare `[*]` for line endings, must
 # not have its shell files rewritten to shfmt's built-in defaults). Walks up
-# from the file to the repo root, stopping at a `root = true` config per
-# EditorConfig search semantics. This gate is the whole formatting opt-in.
+# from the file to the repo root. This gate is the whole formatting opt-in, so
+# it inherits hook::walk_up_to's fail-closed ceiling: a repo root that is not a
+# directory leaves shell files unformatted rather than reading an .editorconfig
+# from above the repository.
+#
+# The predicate answers 2 for a `root = true` config that names no shell
+# section: EditorConfig's own search semantics end the search at such a file, so
+# a shell section further up must not be consulted.
+# shellcheck disable=SC2329  # invoked by name, as hook::walk_up_to's predicate
+editorconfig_shell_section_here() {
+  local cfg="$1/.editorconfig" line is_root=0
+  [[ -f "$cfg" ]] || return 1
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line%$'\r'}"
+    if [[ "$line" =~ ^[[:space:]]*\[(.+)\][[:space:]]*$ ]]; then
+      section_applies_to_shell "${BASH_REMATCH[1]}" && return 0
+    elif [[ "$line" =~ ^[[:space:]]*[Rr][Oo][Oo][Tt][[:space:]]*=[[:space:]]*[Tt][Rr][Uu][Ee][[:space:]]*$ ]]; then
+      is_root=1
+    fi
+  done <"$cfg"
+  ((is_root)) && return 2
+  return 1
+}
+
 shell_editorconfig_opt_in() {
-  local dir root cfg line is_root parent file_dir
+  # shellcheck disable=SC2034  # the gate reads the walk's verdict, not which directory carried the config
+  local file_dir root="" hit=""
   file_dir="${FILE%/*}"
   [[ "$file_dir" == "$FILE" ]] && file_dir=.
   [[ -n "$file_dir" ]] || file_dir=/
   [[ -d "$file_dir" ]] || return 1
-  dir="$file_dir"
   # Existence check is a builtin; the previous `$(cd && pwd)` forked a subshell
   # (and pwd) on every fire to canonicalize a path git already answered as
   # absolute. Relative hints still walk from the spelling `cd` would have used.
-  root=""
   [[ -d "$REPO_ROOT" ]] && root="$REPO_ROOT"
-  while :; do
-    cfg="$dir/.editorconfig"
-    if [[ -f "$cfg" ]]; then
-      is_root=0
-      while IFS= read -r line || [[ -n "$line" ]]; do
-        line="${line%$'\r'}"
-        if [[ "$line" =~ ^[[:space:]]*\[(.+)\][[:space:]]*$ ]]; then
-          section_applies_to_shell "${BASH_REMATCH[1]}" && return 0
-        elif [[ "$line" =~ ^[[:space:]]*[Rr][Oo][Oo][Tt][[:space:]]*=[[:space:]]*[Tt][Rr][Uu][Ee][[:space:]]*$ ]]; then
-          is_root=1
-        fi
-      done <"$cfg"
-      [[ $is_root -eq 1 ]] && return 1 # root config, no shell section → stop
-    fi
-    [[ -n "$root" && "$dir" == "$root" ]] && return 1
-    parent="${dir%/*}"
-    [[ -n "$parent" ]] || parent=/
-    [[ "$parent" == "$dir" ]] && return 1 # reached filesystem root
-    dir="$parent"
-  done
+  hook::walk_up_to hit "$file_dir" "$root" editorconfig_shell_section_here
 }
 
 ran_any=0
 
 # Missing-tool notice accumulator: a run can lack shfmt AND shellcheck, and can
 # carry ShellCheck findings alongside a pending shfmt notice — everything must
-# compose into the single JSON document emitted at the end (hook::emit_channels).
+# compose into the single JSON document hook::finish emits at the end.
 NOTICE=""
 append_notice() {
   [[ -n "$NOTICE" ]] && NOTICE+=" "
@@ -184,10 +174,6 @@ if shell_editorconfig_opt_in; then
       else
         append_notice "bash-format: shfmt capability probe failed unexpectedly (${probe_err%%$'\n'*}) — formatting skipped for this file, opt-outs preserved."
       fi
-      # Taken here, EMITTED at the single emission point below: the rewrite
-      # disclosure and any lint findings/notice must compose into one JSON
-      # document (#3406, #3409).
-      hook::rewrite_take_disclosure "$_fmt_target" "bash-format: reformatted $FILE_BASE via shfmt (structural layout only)."
       ran_any=1
     fi
   elif hook::notice_once "bash-format-shfmt" "$INPUT"; then
@@ -250,27 +236,18 @@ elif hook::notice_once "bash-format-shellcheck" "$INPUT"; then
 PATH probed: ${PATH:-<unset>}"
 fi
 
-# Single emission point: findings on the agent channel, missing-tool notice on
-# both channels, rewrite disclosure on the user channel — composed into one
-# JSON document (#3406).
+# hook::finish is the exit: it takes the shfmt disclosure (settling data.changed
+# and releasing the snapshot whether or not shfmt ever ran), emits telemetry
+# with that verdict, and composes the one JSON document — findings on the agent
+# channel, missing-tool notice on both, rewrite disclosure on the user channel.
 CTX="${CTX%$'\n'}"
-SYSMSG="$HOOK_REWRITE_MESSAGE"
 if [[ -n "$NOTICE" ]]; then
   [[ -n "$CTX" ]] && CTX+=$'\n'
   CTX+="$NOTICE"
-  [[ -n "$SYSMSG" ]] && SYSMSG+=$'\n'
-  SYSMSG+="$NOTICE"
 fi
-hook::emit_channels PostToolUse "$CTX" "$SYSMSG"
-
-# Settle the data.changed verdict for the telemetry emit below. On a run where
-# shfmt formatted, the take inside that branch already recorded it and this
-# call keeps it; on a run where shfmt never ran (no .editorconfig opt-in, no
-# binary), no snapshot was ever taken and the verdict is false: this hook did
-# not rewrite the file. The message this resets was consumed above.
-hook::rewrite_take_disclosure "$FILE" ""
 
 status="ok"
 [[ $ran_any -eq 0 ]] && status="skipped"
-emit_tel "$status" "$FINDINGS_JSON"
-exit 0
+hook::finish --context "$CTX" --message "$NOTICE" \
+  --disclose "bash-format: reformatted $FILE_BASE via shfmt (structural layout only)." \
+  "$status" findings array "$FINDINGS_JSON"

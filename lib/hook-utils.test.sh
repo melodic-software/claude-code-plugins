@@ -4366,6 +4366,363 @@ fi
 
 rm -rf "$BG_WORK"
 
+# --- hook::ctx_flush composes through the fork-free emitter -------------------
+# The accumulator's flush and the direct emitter build the SAME document: one
+# builder, so a change to the document shape cannot reach one channel and miss
+# the other. The trailing `X` defends the comparison against `$( )` stripping
+# trailing newlines from both sides equally and hiding a difference there.
+hook::ctx_reset
+hook::ctx_append "first line"
+hook::ctx_append "  second line"
+cf_flush=$(
+  hook::ctx_flush PostToolUse
+  printf X
+)
+cf_direct=$(
+  hook::emit_channels PostToolUse "first line"$'\n'"  second line" ""
+  printf X
+)
+if [[ "$cf_flush" == "$cf_direct" ]]; then
+  ok "ctx_flush: byte-identical to emit_channels for the same context"
+else
+  fail "ctx_flush: [$cf_flush] != emit_channels [$cf_direct]"
+fi
+hook::ctx_reset
+cf_empty=$(
+  hook::ctx_flush PostToolUse
+  printf X
+)
+if [[ "$cf_empty" == "X" ]]; then
+  ok "ctx_flush: an empty buffer emits nothing, as emit_channels does"
+else
+  fail "ctx_flush empty buffer: [$cf_empty]"
+fi
+
+# Spawn census: the flush used to fork `jq -n` to build a document the builtin
+# emitter already builds, on hooks that run on every edit.
+cf_shim="$(mktemp -d)"
+cf_log="$cf_shim/log"
+cf_real_jq=$(command -v jq) || cf_real_jq=""
+if [[ -n "$cf_real_jq" ]]; then
+  cat >"$cf_shim/jq" <<EOF
+#!/usr/bin/env bash
+printf 'JQ\\n' >>"$cf_log"
+exec "$cf_real_jq" "\$@"
+EOF
+  chmod +x "$cf_shim/jq"
+  hook::ctx_reset
+  hook::ctx_append "census line"
+  PATH="$cf_shim:$PATH" hook::ctx_flush PostToolUse >/dev/null
+  if [[ -f "$cf_log" ]]; then
+    fail "ctx_flush spawned jq ($(grep -c . "$cf_log") times)"
+  else
+    ok "ctx_flush: builds the document in-shell, spawns no jq"
+  fi
+else
+  fail "ctx_flush jq census: no real jq on PATH to wrap"
+fi
+rm -rf "$cf_shim"
+
+# --- hook::finish: one call owns every exit arm ------------------------------
+# Each arm runs in a CHILD shell because hook::finish exits, and under an
+# isolated TMPDIR so the guard's snapshot release is observable: a directory
+# still holding a file after the arm returned is a leaked snapshot, the failure
+# class the EXIT trap and the take exist to close.
+FIN_WORK="$(mktemp -d)"
+# shellcheck disable=SC2016  # the child shell's own program text: $1..$4 are ITS positional parameters
+FIN_PROG='
+set -uo pipefail
+source "$1"
+source "$2"
+start="${EPOCHREALTIME:-}"
+TOOL=Write
+FILE_REL="a.txt"
+REPO_ROOT=""
+HOOK_PLUGIN=fixture
+HOOK_EVENT=PostToolUse
+fin_target="$3"
+fin_mode="$4"
+shift 4
+case "$fin_mode" in
+armed) hook::rewrite_guard_begin "$fin_target" ;;
+rewrote)
+  hook::rewrite_guard_begin "$fin_target"
+  printf "rewritten by the tool\n" >"$fin_target"
+  ;;
+unarmed) : ;;
+esac
+hook::finish "$@"
+printf "REACHED PAST FINISH\n"
+'
+
+# fin_arm <mode> <telemetry-file> <finish-arg...> — run one arm, leaving its
+# stdout in fin_out, its status in fin_rc and any leaked snapshot count in
+# fin_leaked. <mode> is armed (guard armed, file untouched), rewrote (armed,
+# file changed) or unarmed (the guard never ran). Called directly rather than
+# through `$( )` so those three answers land in THIS shell.
+fin_rc=0
+fin_leaked=0
+fin_out=""
+fin_arm() {
+  local mode="$1" tel="$2"
+  shift 2
+  local scratch="$FIN_WORK/scratch.$RANDOM"
+  local target="$FIN_WORK/target.$RANDOM"
+  mkdir -p "$scratch"
+  printf 'original\n' >"$target"
+  fin_out=$(
+    TMPDIR="$scratch" TMP="$scratch" TEMP="$scratch" HOOK_TELEMETRY_SINK="$tel" \
+      bash -c "$FIN_PROG" _ "$HOOK_DIR/hook-utils.sh" "$HOOK_DIR/rewrite-guard.sh" \
+      "$target" "$mode" "$@"
+  )
+  fin_rc=$?
+  # The sink is a backgrounded pipeline inside the child, so the envelope lands
+  # after the arm has already exited. Poll for it rather than assuming it is
+  # there: a single spawn on this host has been measured between 93 ms and
+  # 3.2 s (see the buffer_stdin timing notes above), so a fixed pause sized for
+  # the fast case turns a slow-forking host into a flaky suite. The wait costs
+  # nothing when the file is already there, which is the ordinary case.
+  local waited=0
+  while [[ ! -s "$tel" ]] && ((waited < 150)); do
+    sleep 0.1
+    waited=$((waited + 1))
+  done
+  fin_leaked=$(find "$scratch" -mindepth 1 2>/dev/null | wc -l | tr -cd '0-9')
+  rm -rf "$scratch" "$target"
+}
+
+# fin_check <label> <expected-doc-count> <expected-changed> — assert the shared
+# invariants every arm owes: exit 0, at most one JSON document on stdout, the
+# data.changed verdict, and no leaked snapshot.
+fin_check() {
+  local label="$1" want_docs="$2" want_changed="$3" tel="$4"
+  local out="$fin_out" docs=0
+  [[ -n "$out" ]] && docs=$(printf '%s\n' "$out" | grep -c .)
+  if ((fin_rc == 0)); then
+    ok "finish/$label: exit 0"
+  else
+    fail "finish/$label: exit $fin_rc"
+  fi
+  if ((docs == want_docs)) && { ((docs == 0)) || printf '%s' "$out" | jq -e . >/dev/null 2>&1; }; then
+    ok "finish/$label: exactly $want_docs JSON document(s) on stdout"
+  else
+    fail "finish/$label: $docs document(s), want $want_docs: $out"
+  fi
+  local got_changed
+  got_changed=$(jq -r 'if (.data | has("changed")) then (.data.changed | tostring) else "absent" end' "$tel" 2>/dev/null) ||
+    got_changed="unreadable"
+  if [[ "$got_changed" == "$want_changed" ]]; then
+    ok "finish/$label: data.changed $want_changed"
+  else
+    fail "finish/$label: data.changed $got_changed, want $want_changed"
+  fi
+  if [[ "${fin_leaked:-1}" == "0" ]]; then
+    ok "finish/$label: snapshot released (isolated TMPDIR empty)"
+  else
+    fail "finish/$label: leaked ${fin_leaked:-?} snapshot file(s)"
+  fi
+}
+
+fin_tel="$FIN_WORK/tel.json"
+fin_sink="$(make_sink "$fin_tel")"
+
+# Clean: the tool ran to judgment, nothing changed, nothing to say.
+: >"$fin_tel"
+fin_arm armed "$fin_sink" --disclose "fixture: reformatted a.txt." ok findings array '[]'
+fin_check clean 0 false "$fin_tel"
+
+# Clean after a rewrite: the disclosure is the whole document.
+: >"$fin_tel"
+fin_arm rewrote "$fin_sink" --disclose "fixture: reformatted a.txt." ok findings array '[]'
+fin_check clean-rewrote 1 true "$fin_tel"
+if [[ "$(printf '%s' "$fin_out" | jq -r '.systemMessage // empty')" == "fixture: reformatted a.txt." ]] &&
+  [[ -z "$(printf '%s' "$fin_out" | jq -r '.hookSpecificOutput.additionalContext // empty')" ]]; then
+  ok "finish/clean-rewrote: disclosure on the user channel alone"
+else
+  fail "finish/clean-rewrote: $fin_out"
+fi
+
+# Findings AND a rewrite: both channels, ONE document.
+: >"$fin_tel"
+fin_arm rewrote "$fin_sink" --context "fixture: a.txt has findings:" \
+  --disclose "fixture: reformatted a.txt." ok findings array '["one","two"]'
+fin_check findings 1 true "$fin_tel"
+if [[ "$(printf '%s' "$fin_out" | jq -r '.hookSpecificOutput.additionalContext // empty')" == "fixture: a.txt has findings:" ]] &&
+  [[ "$(printf '%s' "$fin_out" | jq -r '.systemMessage // empty')" == "fixture: reformatted a.txt." ]] &&
+  [[ "$(jq -c '.data.findings' "$fin_tel" 2>/dev/null)" == '["one","two"]' ]]; then
+  ok "finish/findings: both channels in one document, findings on the envelope"
+else
+  fail "finish/findings: $fin_out / $(jq -c '.data.findings' "$fin_tel" 2>/dev/null)"
+fi
+
+# Consumer-ignored: the tool declined the file, so nothing was rewritten and
+# nothing is said — but the verdict is a known false, not an omitted key.
+: >"$fin_tel"
+fin_arm armed "$fin_sink" --disclose "fixture: reformatted a.txt." skipped findings array '[]'
+fin_check consumer-ignored 0 false "$fin_tel"
+if [[ "$(jq -r '.status' "$fin_tel" 2>/dev/null)" == "skipped" ]]; then
+  ok "finish/consumer-ignored: status skipped"
+else
+  fail "finish/consumer-ignored: status $(jq -r '.status' "$fin_tel" 2>/dev/null)"
+fi
+
+# Tool break AFTER a rewrite: the break does not swallow the disclosure, and
+# data.changed still records the rewrite the break left on disk.
+: >"$fin_tel"
+fin_arm rewrote "$fin_sink" --context "fixture: the tool broke:" \
+  --disclose "fixture: reformatted a.txt." skipped findings array '[]'
+fin_check tool-break 1 true "$fin_tel"
+if [[ "$(printf '%s' "$fin_out" | jq -r '.systemMessage // empty')" == "fixture: reformatted a.txt." ]] &&
+  [[ "$(jq -r '.status' "$fin_tel" 2>/dev/null)" == "skipped" ]]; then
+  ok "finish/tool-break: disclosure survives the break, status skipped"
+else
+  fail "finish/tool-break: $fin_out / $(jq -r '.status' "$fin_tel" 2>/dev/null)"
+fi
+
+# Skipped before the guard was ever armed: no rewrite was attempted, so the
+# verdict is false and there is nothing to release.
+: >"$fin_tel"
+fin_arm unarmed "$fin_sink" skipped findings array '[]'
+fin_check skipped 0 false "$fin_tel"
+
+# A caller that decides the verdict itself overrides the guard's, and an empty
+# one omits the key rather than guessing.
+: >"$fin_tel"
+fin_arm armed "$fin_sink" --changed true ok findings array '[]'
+fin_check changed-override 0 true "$fin_tel"
+: >"$fin_tel"
+fin_arm unarmed "$fin_sink" --changed "" ok findings array '[]'
+fin_check changed-unknown 0 absent "$fin_tel"
+
+# The user-channel message the caller composed follows the disclosure, on its
+# own line, in ONE document with the agent channel.
+: >"$fin_tel"
+fin_arm rewrote "$fin_sink" --context "ctx" --message "notice text" \
+  --disclose "fixture: reformatted a.txt." ok findings array '[]'
+if [[ "$(printf '%s' "$fin_out" | jq -r '.systemMessage // empty')" == "fixture: reformatted a.txt."$'\n'"notice text" ]]; then
+  ok "finish: the caller's message follows the disclosure on the user channel"
+else
+  fail "finish message compose: $(printf '%s' "$fin_out" | jq -c '.systemMessage')"
+fi
+
+# --id names the telemetry hook id when it is not the hook::begin label.
+: >"$fin_tel"
+fin_arm unarmed "$fin_sink" --id other-id ok findings array '[]'
+if [[ "$(jq -r '.hook' "$fin_tel" 2>/dev/null)" == "other-id" ]]; then
+  ok "finish: --id overrides HOOK_PLUGIN as the telemetry hook id"
+else
+  fail "finish --id: hook_id $(jq -r '.hook' "$fin_tel" 2>/dev/null)"
+fi
+
+rm -f "$fin_sink"
+rm -rf "$FIN_WORK"
+
+# --- hook::walk_up_to: one terminator for every upward walk ------------------
+WU_WORK="$(mktemp -d)"
+mkdir -p "$WU_WORK/repo/a/b/c"
+: >"$WU_WORK/repo/MARK"
+: >"$WU_WORK/repo/a/MARK"
+: >"$WU_WORK/MARK" # above the ceiling: never a legitimate answer
+
+wu_calls=""
+wu_mark_here() {
+  wu_calls+="$1"$'\n'
+  [[ -f "$1/MARK" ]]
+}
+wu_never() {
+  wu_calls+="$1"$'\n'
+  return 1
+}
+wu_stop_at_b() {
+  wu_calls+="$1"$'\n'
+  [[ "${1##*/}" == "b" ]] && return 2
+  [[ -f "$1/MARK" ]]
+}
+
+# Each row: label | start | ceiling | predicate | mode | expected dest |
+# expected return status.
+wu_case() {
+  local label="$1" start="$2" ceiling="$3" pred="$4" mode="$5" want="$6" want_rc="$7"
+  wu_calls=""
+  local got=""
+  hook::walk_up_to got "$start" "$ceiling" "$pred" "$mode"
+  local rc=$?
+  if [[ "$got" == "$want" ]] && ((rc == want_rc)); then
+    ok "walk_up_to/$label: $got (rc $rc)"
+  else
+    fail "walk_up_to/$label: got '$got' rc $rc, want '$want' rc $want_rc (visited: ${wu_calls//$'\n'/ })"
+  fi
+}
+
+wu_case "first hit" "$WU_WORK/repo/a/b/c" "$WU_WORK/repo" wu_mark_here first "$WU_WORK/repo/a" 0
+wu_case "topmost hit" "$WU_WORK/repo/a/b/c" "$WU_WORK/repo" wu_mark_here topmost "$WU_WORK/repo" 0
+wu_case "default mode is first" "$WU_WORK/repo/a/b/c" "$WU_WORK/repo" wu_mark_here "" "$WU_WORK/repo/a" 0
+wu_case "stops at the ceiling" "$WU_WORK/repo/a/b/c" "$WU_WORK/repo/a/b" wu_mark_here first "" 1
+wu_case "predicate rc 2 stops without accepting" "$WU_WORK/repo/a/b/c" "$WU_WORK/repo" wu_stop_at_b first "" 1
+wu_case "unresolvable ceiling fails closed" "$WU_WORK/repo/a/b/c" "" wu_mark_here first "" 1
+wu_case "empty start fails closed" "" "$WU_WORK/repo" wu_mark_here first "" 1
+
+# The ceiling that stops at the ceiling must have walked past nothing above it:
+# the MARK at $WU_WORK is the one a ceiling-less walk would have found.
+wu_calls=""
+# shellcheck disable=SC2034  # these rows assert which directories the walk visited, not its destination
+wu_hit=""
+hook::walk_up_to wu_hit "$WU_WORK/repo/a/b/c" "$WU_WORK/repo" wu_never first
+if [[ "$wu_calls" != *"$WU_WORK"$'\n'* ]] && [[ "$wu_calls" == *"$WU_WORK/repo"$'\n'* ]]; then
+  ok "walk_up_to: the ceiling directory is visited and its parent is not"
+else
+  fail "walk_up_to ceiling bound: visited ${wu_calls//$'\n'/ }"
+fi
+
+# A fail-closed ceiling must not even ask the predicate.
+wu_calls=""
+# shellcheck disable=SC2034  # these rows assert which directories the walk visited, not its destination
+wu_hit=""
+hook::walk_up_to wu_hit "$WU_WORK/repo/a" "" wu_never first
+if [[ -z "$wu_calls" ]]; then
+  ok "walk_up_to: an unresolvable ceiling walks nowhere, asking nothing"
+else
+  fail "walk_up_to unresolvable ceiling asked: ${wu_calls//$'\n'/ }"
+fi
+
+# The filesystem root terminates a `/`-ceilinged walk instead of looping: `/`'s
+# own parent strip is empty, which the `/` fallback then makes `/` again.
+wu_calls=""
+# shellcheck disable=SC2034  # these rows assert which directories the walk visited, not its destination
+wu_hit=""
+hook::walk_up_to wu_hit / / wu_never first
+if [[ "$wu_calls" == "/"$'\n' ]]; then
+  ok "walk_up_to: a start of / asks exactly once and stops"
+else
+  fail "walk_up_to start /: visited ${wu_calls//$'\n'/ }"
+fi
+
+# A bare relative name has no separator, so the strip is a no-op and the
+# self-comparison is what ends the walk.
+wu_calls=""
+# shellcheck disable=SC2034  # these rows assert which directories the walk visited, not its destination
+wu_hit=""
+hook::walk_up_to wu_hit . "$WU_WORK/repo" wu_never first
+if [[ "$wu_calls" == "."$'\n' ]]; then
+  ok "walk_up_to: a start of . asks exactly once and stops"
+else
+  fail "walk_up_to start .: visited ${wu_calls//$'\n'/ }"
+fi
+
+# With `/` as the ceiling the walk reaches the filesystem root and terminates
+# there rather than spinning on it.
+wu_calls=""
+# shellcheck disable=SC2034  # these rows assert which directories the walk visited, not its destination
+wu_hit=""
+hook::walk_up_to wu_hit "$WU_WORK/repo/a/b/c" / wu_never first
+if [[ "$wu_calls" == *$'\n'"/"$'\n' ]]; then
+  ok "walk_up_to: a / ceiling walks to the filesystem root and stops there"
+else
+  fail "walk_up_to filesystem root: visited ${wu_calls//$'\n'/ }"
+fi
+
+rm -rf "$WU_WORK"
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]

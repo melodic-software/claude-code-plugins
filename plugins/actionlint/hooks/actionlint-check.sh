@@ -27,21 +27,12 @@ HOOK_DIR="${BASH_SOURCE[0]%/*}"
 # shellcheck source=hook-utils.sh
 source "$HOOK_DIR/hook-utils.sh"
 
-# Emit this run's telemetry envelope: $1 status, $2 findings JSON array.
-# Two guards: the high-res start stamp (empty on bash before 5.0, where
-# telemetry is skipped so the hook still lints rather than aborting) and the
-# sink opt-in. The data payload costs a jq subprocess, so it is built here
-# after both guards — never on the unwired path. This hook never rewrites the
-# file, so HOOK_REWRITE_CHANGED is never set and the builder leaves the
-# `changed` key off rather than guessing a verdict.
-emit_tel() {
-  [[ -n "$start" ]] || return 0
-  hook::telemetry_enabled || return 0
-  local data=""
-  hook::data_json_to data "$TOOL" "$FILE_REL" "${HOOK_REWRITE_CHANGED:-}" findings array "$2"
-  hook::emit_telemetry "actionlint-check" "PostToolUse" "$1" "$start" "$data" "$REPO_ROOT"
-}
-
+# Every arm exits through hook::finish: telemetry first, then the one JSON
+# document. `--id` because the telemetry hook id is the script's name, not the
+# `actionlint` label the skip notices carry. This hook never rewrites the file
+# and never sources the rewrite guard, so no verdict is passed and the builder
+# leaves the `changed` key off rather than guessing one.
+#
 # The whole prologue: the start stamp, the buffered payload, the workflow-file
 # filter (applied before the jq gate on the raw payload text, so a non-workflow
 # edit never triggers the jq notice, and again on the parsed path), the jq
@@ -69,12 +60,11 @@ hook::begin --no-membership --relative actionlint PostToolUse \
 # both channels (agent + user). Telemetry (opt-in) also records a "skipped"
 # status so a consumer sink can observe the coverage gap.
 if ! command -v actionlint >/dev/null 2>&1; then
-  emit_tel "skipped" '[]'
   if hook::notice_once "actionlint-missing" "$INPUT"; then
     hook::emit_skip_notice PostToolUse "actionlint: 'actionlint' was not found on this hook's PATH — workflow lint skipped for this edit (probe re-runs on every matching edit; only this notice latches once per session — there is no skip latch). Hook processes inherit Claude Code's own environment, not the interactive shell's profile, so a version-manager install the Bash tool can see may be invisible here. Install: https://github.com/rhysd/actionlint/blob/main/docs/install.md
 PATH probed: ${PATH:-<unset>}"
   fi
-  exit 0
+  hook::finish --id actionlint-check skipped findings array '[]'
 fi
 
 # -shellcheck= and -pyflakes= disable actionlint's external run-block linters
@@ -88,8 +78,7 @@ fi
 # clean-workflow telemetry (status ok, findings []), indistinguishable from a
 # real pass. Changing this process's cwd is safe -- the hook exits below.
 if ! cd "$REPO_ROOT" 2>/dev/null; then
-  emit_tel "error" '[]'
-  exit 0
+  hook::finish --id actionlint-check error findings array '[]'
 fi
 # The lint target is the repo-relative path so diagnostics echo it, but only
 # when it IS repo-relative. A degraded FILE_REL is a bare basename redacted for
@@ -123,11 +112,11 @@ if [[ "$AL_STATUS" -ge 2 ]]; then
   if [[ -n "$AL_OUTPUT" ]] && hook::telemetry_enabled; then
     FINDINGS_JSON=$(printf '%s' "$AL_OUTPUT" | jq -R . | jq -s . 2>/dev/null) || FINDINGS_JSON='[]'
   fi
-  emit_tel "error" "$FINDINGS_JSON"
-  exit 0
+  hook::finish --id actionlint-check error findings array "$FINDINGS_JSON"
 fi
 
 FINDINGS_JSON='[]'
+AL_CTX=""
 if [[ -n "$AL_OUTPUT" ]]; then
   hook::ctx_reset
   hook::ctx_append "actionlint: $FILE_BASE has findings:"
@@ -137,7 +126,7 @@ if [[ -n "$AL_OUTPUT" ]]; then
     hook::ctx_append "  $line"
     findings_raw+="$line"$'\n'
   done <<<"$AL_OUTPUT"
-  hook::ctx_flush PostToolUse
+  hook::ctx_take_to AL_CTX
 
   # Behind the sink opt-in, and the two-process jq shape kept, for the reasons
   # recorded at the AL_STATUS >= 2 branch above.
@@ -146,5 +135,4 @@ if [[ -n "$AL_OUTPUT" ]]; then
   fi
 fi
 
-emit_tel "ok" "$FINDINGS_JSON"
-exit 0
+hook::finish --id actionlint-check --context "$AL_CTX" ok findings array "$FINDINGS_JSON"

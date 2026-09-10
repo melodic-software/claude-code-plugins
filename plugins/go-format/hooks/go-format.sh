@@ -50,19 +50,6 @@ source "$HOOK_DIR/hook-utils.sh"
 # shellcheck source=rewrite-guard.sh
 source "$HOOK_DIR/rewrite-guard.sh"
 
-# Emit this run's telemetry envelope: $1 status, $2 findings JSON array.
-# Two guards: the high-res start stamp (empty on bash before 5.0, where
-# telemetry is skipped so the hook still formats rather than aborting) and the
-# sink opt-in. The data payload costs a jq subprocess, so it is built here
-# after both guards — never on the unwired path.
-emit_tel() {
-  [[ -n "$start" ]] || return 0
-  hook::telemetry_enabled || return 0
-  local data=""
-  hook::data_json_to data "$TOOL" "$FILE_REL" "${HOOK_REWRITE_CHANGED:-}" findings array "$2"
-  hook::emit_telemetry "go-format" "PostToolUse" "$1" "$start" "$data" "$REPO_ROOT"
-}
-
 # The whole prologue: the start stamp, the buffered payload, the jq-free
 # applicability filter, the jq gate, the parsed path with its basename and
 # directory, the file-anchored repo root, and the telemetry-only TOOL and
@@ -71,9 +58,11 @@ emit_tel() {
 # it decides before the jq gate so a non-Go edit never triggers the jq notice.
 hook::begin go-format PostToolUse '*.go'
 
+# Every arm exits through hook::finish, which takes the rewrite disclosure
+# (settling data.changed and releasing the guard's snapshot), emits telemetry
+# with that verdict, and emits the one JSON document — in that order.
 emit_skipped() {
-  emit_tel "skipped" '[]'
-  exit 0
+  hook::finish skipped findings array '[]'
 }
 
 # Generated-file guard: skip files carrying Go's canonical generated-code
@@ -198,13 +187,9 @@ RC=$?
 
 if [[ $RC -eq 0 ]]; then
   # Clean, or fixed silently (formatting/import changes carry no advisory
-  # noise — same posture as a successful ruff/typos autofix pass). The take
-  # precedes the telemetry emit so data.changed carries its verdict; the
-  # disclosure is still one systemMessage-only document, or nothing.
-  hook::rewrite_take_disclosure "$FILE" "$GO_REWRITE_MESSAGE"
-  emit_tel "ok" '[]'
-  [[ -z "$HOOK_REWRITE_MESSAGE" ]] || hook::emit_channels PostToolUse "" "$HOOK_REWRITE_MESSAGE"
-  exit 0
+  # noise — same posture as a successful ruff/typos autofix pass): the
+  # disclosure is the whole document, or there is none.
+  hook::finish --disclose "$GO_REWRITE_MESSAGE" ok findings array '[]'
 fi
 
 if [[ $RC -eq 2 && -n "$STDERR" ]]; then
@@ -223,13 +208,9 @@ if [[ $RC -eq 2 && -n "$STDERR" ]]; then
   if [[ -n "$findings_raw" ]]; then
     FINDINGS_JSON=$(printf '%s' "$findings_raw" | jq -R . | jq -s . 2>/dev/null) || FINDINGS_JSON='[]'
   fi
-  # Findings AND a rewrite disclosure compose into one document (#3406 class);
-  # the take also releases the snapshot this arm would otherwise leak (#3405),
-  # and precedes the telemetry emit so data.changed carries its verdict.
-  hook::rewrite_take_disclosure "$FILE" "$GO_REWRITE_MESSAGE"
-  emit_tel "ok" "$FINDINGS_JSON"
-  hook::emit_channels PostToolUse "$GO_CTX" "$HOOK_REWRITE_MESSAGE"
-  exit 0
+  # Findings AND a rewrite disclosure compose into one document (#3406 class).
+  hook::finish --context "$GO_CTX" --disclose "$GO_REWRITE_MESSAGE" \
+    ok findings array "$FINDINGS_JSON"
 fi
 
 # goimports broke for non-syntax reasons (internal error, unexpected exit
@@ -241,11 +222,8 @@ while IFS= read -r line; do
   [[ -n "$line" ]] || continue
   GO_CTX+=$'\n'"  $line"
 done <<<"$STDERR"
-# goimports may have written the file before breaking; take the disclosure
-# (which also releases the snapshot this arm would otherwise leak, #3405) and
-# compose it with the tool-break context as one document. Taken before the
-# telemetry emit so data.changed records the rewrite the break left behind.
-hook::rewrite_take_disclosure "$FILE" "$GO_REWRITE_MESSAGE"
-emit_tel "skipped" '[]'
-hook::emit_channels PostToolUse "$GO_CTX" "$HOOK_REWRITE_MESSAGE"
-exit 0
+# goimports may have written the file before breaking, so the disclosure is
+# still owed and composes with the tool-break context as one document; the take
+# inside hook::finish is also what records that rewrite in data.changed.
+hook::finish --context "$GO_CTX" --disclose "$GO_REWRITE_MESSAGE" \
+  skipped findings array '[]'

@@ -43,19 +43,6 @@ source "$HOOK_DIR/hook-utils.sh"
 # shellcheck source=rewrite-guard.sh
 source "$HOOK_DIR/rewrite-guard.sh"
 
-# Emit this run's telemetry envelope: $1 status, $2 findings JSON array.
-# Two guards: the high-res start stamp (empty on bash before 5.0, where
-# telemetry is skipped so the hook still formats and lints rather than
-# aborting) and the sink opt-in. The data payload costs a jq subprocess, so it
-# is built here after both guards — never on the unwired path.
-emit_tel() {
-  [[ -n "$start" ]] || return 0
-  hook::telemetry_enabled || return 0
-  local data=""
-  hook::data_json_to data "$TOOL" "$FILE_REL" "${HOOK_REWRITE_CHANGED:-}" findings array "$2"
-  hook::emit_telemetry "ruff-format" "PostToolUse" "$1" "$start" "$data" "$REPO_ROOT"
-}
-
 # The whole prologue: the start stamp, the buffered payload, the jq-free
 # applicability filter, the jq gate, the parsed path with its basename and
 # directory, the file-anchored repo root (which bounds the config opt-in walk
@@ -72,9 +59,11 @@ emit_tel() {
 # FILE_REL_DEGRADED to know which of the two it holds.
 hook::begin --relative ruff-format PostToolUse '*.py' '*.pyi'
 
+# Every arm exits through hook::finish, which takes the rewrite disclosure
+# (settling data.changed and releasing the guard's snapshot), emits telemetry
+# with that verdict, and emits the one JSON document — in that order.
 emit_skipped() {
-  emit_tel "skipped" '[]'
-  exit 0
+  hook::finish skipped findings array '[]'
 }
 
 # Existence check is a builtin; the previous `$(cd && pwd)` forked a subshell
@@ -104,46 +93,43 @@ root=""
 # appear in any order under `[tool]`), and a multi-pass grep risks a false
 # positive from an unrelated `ruff = "..."` key in a different table or a
 # commented-out line.
-CONFIG_FOUND=""
-dir="$FILE_DIR_POSIX"
-while [[ -n "$dir" ]]; do
+#
+# The walk's ceiling is the repo root and it fails closed without one
+# (hook::walk_up_to): the gate decides whether this repository's Python files
+# get rewritten, so an unresolvable root leaves them alone rather than adopting
+# a config from above the repository.
+# shellcheck disable=SC2329  # invoked by name, as hook::walk_up_to's predicate
+ruff_config_here() {
+  local dir="$1" name
   for name in .ruff.toml ruff.toml; do
-    [[ -f "$dir/$name" ]] && CONFIG_FOUND="$dir/$name" && break
+    [[ -f "$dir/$name" ]] && return 0
   done
-  if [[ -z "$CONFIG_FOUND" && -f "$dir/pyproject.toml" ]] &&
-    grep -qE '^[[:space:]]*\[tool\.ruff(\]|[.])' "$dir/pyproject.toml" 2>/dev/null; then
-    CONFIG_FOUND="$dir/pyproject.toml"
-  fi
-  [[ -n "$CONFIG_FOUND" ]] && break
-  [[ -n "$root" && "$dir" == "$root" ]] && break
-  parent="${dir%/*}"
-  [[ -n "$parent" ]] || parent=/
-  [[ "$parent" == "$dir" ]] && break # reached filesystem root
-  dir="$parent"
-done
-
-[[ -n "$CONFIG_FOUND" ]] || emit_skipped
+  [[ -f "$dir/pyproject.toml" ]] &&
+    grep -qE '^[[:space:]]*\[tool\.ruff(\]|[.])' "$dir/pyproject.toml" 2>/dev/null
+}
+# shellcheck disable=SC2034  # the gate reads the walk's verdict, not which directory carried the config
+CONFIG_DIR=""
+hook::walk_up_to CONFIG_DIR "$FILE_DIR_POSIX" "$root" ruff_config_here || emit_skipped
 
 # Resolve the Ruff binary from the repo's own virtual environment (.venv,
 # walking up from the file; bin/ on POSIX, Scripts/ on Windows) or PATH — never
 # `uvx`/`pipx run`, which would download Ruff on a per-edit hook. Absent -> skip
 # (the repo opted into config but Ruff is not installed; nothing to run).
 RUFF_BIN=""
-dir="$FILE_DIR_POSIX"
-while [[ -n "$dir" ]]; do
-  for cand in "$dir/.venv/bin/ruff" "$dir/.venv/Scripts/ruff.exe"; do
+# shellcheck disable=SC2329  # invoked by name, as hook::walk_up_to's predicate
+ruff_venv_bin_here() {
+  local cand
+  for cand in "$1/.venv/bin/ruff" "$1/.venv/Scripts/ruff.exe"; do
     if [[ -x "$cand" ]]; then
       RUFF_BIN="$cand"
-      break
+      return 0
     fi
   done
-  [[ -n "$RUFF_BIN" ]] && break
-  [[ -n "$root" && "$dir" == "$root" ]] && break
-  parent="${dir%/*}"
-  [[ -n "$parent" ]] || parent=/
-  [[ "$parent" == "$dir" ]] && break
-  dir="$parent"
-done
+  return 1
+}
+# shellcheck disable=SC2034  # the caller reads RUFF_BIN, which the predicate sets
+venv_dir=""
+hook::walk_up_to venv_dir "$FILE_DIR_POSIX" "$root" ruff_venv_bin_here || true
 if [[ -z "$RUFF_BIN" ]]; then
   # `command -v` is a builtin; capturing it with `$( )` was a leftover subshell
   # just to learn the path. The later exec looks the name up on PATH itself.
@@ -216,12 +202,8 @@ OUTPUT=$(cd "$RUN_DIR" && "$RUFF_BIN" check --no-fix --output-format concise "${
 RC=$?
 
 if [[ $RC -eq 0 ]]; then
-  # Take before the telemetry emit so data.changed carries the byte verdict;
-  # the disclosure is still one systemMessage-only document, or nothing.
-  hook::rewrite_take_disclosure "$FILE" "$RUFF_REWRITE_MESSAGE"
-  emit_tel "ok" '[]'
-  [[ -z "$HOOK_REWRITE_MESSAGE" ]] || hook::emit_channels PostToolUse "" "$HOOK_REWRITE_MESSAGE"
-  exit 0
+  # Clean: the disclosure is the whole document, or there is none.
+  hook::finish --disclose "$RUFF_REWRITE_MESSAGE" ok findings array '[]'
 fi
 
 if [[ $RC -eq 1 && -n "$OUTPUT" ]]; then
@@ -233,9 +215,6 @@ if [[ $RC -eq 1 && -n "$OUTPUT" ]]; then
     findings_raw+="$line"$'\n'
   done <<<"$OUTPUT"
   # Findings AND a rewrite disclosure compose into one document (#3406).
-  hook::rewrite_take_disclosure "$FILE" "$RUFF_REWRITE_MESSAGE"
-  hook::emit_channels PostToolUse "$RUFF_CTX" "$HOOK_REWRITE_MESSAGE"
-
   FINDINGS_JSON='[]'
   if [[ -n "$findings_raw" ]]; then
     FINDINGS_JSON=$(printf '%s' "$findings_raw" | jq -R . | jq -s . 2>/dev/null) || FINDINGS_JSON='[]'
@@ -243,8 +222,8 @@ if [[ $RC -eq 1 && -n "$OUTPUT" ]]; then
   # Status "ok" — the linter RAN and produced a judgment (findings live in
   # data.findings), mirroring the sibling formatter plugins where status
   # reflects whether the tool ran, not whether it was clean.
-  emit_tel "ok" "$FINDINGS_JSON"
-  exit 0
+  hook::finish --context "$RUFF_CTX" --disclose "$RUFF_REWRITE_MESSAGE" \
+    ok findings array "$FINDINGS_JSON"
 fi
 
 # Ruff broke for non-lint reasons (config parse error, internal error) — no
@@ -258,10 +237,8 @@ while IFS= read -r line; do
   RUFF_CTX+=$'\n'"  $line"
 done <<<"$OUTPUT"
 # The fix/format passes may already have rewritten the file before the verify
-# pass broke; take the disclosure and compose it with the tool-break context
-# as one document (#3406). Taken before the telemetry emit so data.changed
-# records that rewrite too.
-hook::rewrite_take_disclosure "$FILE" "$RUFF_REWRITE_MESSAGE"
-emit_tel "skipped" '[]'
-hook::emit_channels PostToolUse "$RUFF_CTX" "$HOOK_REWRITE_MESSAGE"
-exit 0
+# pass broke, so the disclosure is still owed and composes with the tool-break
+# context as one document (#3406); the take inside hook::finish is also what
+# records that rewrite in data.changed.
+hook::finish --context "$RUFF_CTX" --disclose "$RUFF_REWRITE_MESSAGE" \
+  skipped findings array '[]'

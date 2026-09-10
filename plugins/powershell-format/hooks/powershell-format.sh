@@ -41,19 +41,6 @@ source "$HOOK_DIR/hook-utils.sh"
 # shellcheck source=rewrite-guard.sh
 source "$HOOK_DIR/rewrite-guard.sh"
 
-# Emit this run's telemetry envelope: $1 status, $2 findings JSON array.
-# Two guards: the high-res start stamp (empty on bash before 5.0, where
-# telemetry is skipped so the hook still formats and lints rather than
-# aborting) and the sink opt-in. The data payload costs a jq subprocess, so it
-# is built here after both guards — never on the unwired path.
-emit_tel() {
-  [[ -n "$start" ]] || return 0
-  hook::telemetry_enabled || return 0
-  local data=""
-  hook::data_json_to data "$TOOL" "$FILE_REL" "${HOOK_REWRITE_CHANGED:-}" findings array "$2"
-  hook::emit_telemetry "powershell-format" "PostToolUse" "$1" "$start" "$data" "$REPO_ROOT"
-}
-
 # The whole prologue: the start stamp, the buffered payload, the jq-free
 # applicability filter, the jq gate, the parsed path with its basename and
 # directory, the file-anchored repo root (which bounds the settings opt-in walk
@@ -65,9 +52,11 @@ emit_tel() {
 # not a gap.
 hook::begin powershell-format PostToolUse '*.ps1' '*.psm1' '*.psd1'
 
+# Every arm exits through hook::finish, which takes the rewrite disclosure
+# (settling data.changed and releasing the guard's snapshot), emits telemetry
+# with that verdict, and emits the one JSON document — in that order.
 emit_skipped() {
-  emit_tel "skipped" '[]'
-  exit 0
+  hook::finish skipped findings array '[]'
 }
 
 # Resolve the file's directory and walk anchors as physical paths — same
@@ -107,21 +96,22 @@ fi
 # (closest) settings file — a monorepo may keep per-module settings, and the
 # closest one is the one that should govern this file. Absence of any settings
 # file is the opt-out: the file is left untouched.
+#
+# The ceiling is required and the walk fails closed without one
+# (hook::walk_up_to): the gate decides whether PSScriptAnalyzer rewrites this
+# repository's files and loads its rule modules, so an unresolvable ceiling
+# leaves them alone rather than adopting settings from above the project.
 SETTINGS_FOUND=""
-dir="$FILE_DIR_POSIX"
-while [[ -n "$dir" ]]; do
-  if [[ -f "$dir/PSScriptAnalyzerSettings.psd1" ]]; then
-    SETTINGS_FOUND="$dir/PSScriptAnalyzerSettings.psd1"
-    break
-  fi
-  [[ -n "$CEILING" && "$dir" == "$CEILING" ]] && break
-  parent="${dir%/*}"
-  [[ -n "$parent" ]] || parent=/
-  [[ "$parent" == "$dir" ]] && break # reached filesystem root
-  dir="$parent"
-done
-
-[[ -n "$SETTINGS_FOUND" ]] || emit_skipped
+# shellcheck disable=SC2329  # invoked by name, as hook::walk_up_to's predicate
+pssa_settings_here() {
+  [[ -f "$1/PSScriptAnalyzerSettings.psd1" ]] || return 1
+  SETTINGS_FOUND="$1/PSScriptAnalyzerSettings.psd1"
+  return 0
+}
+# shellcheck disable=SC2034  # the caller reads SETTINGS_FOUND, which the predicate sets
+settings_dir=""
+hook::walk_up_to settings_dir "$FILE_DIR_POSIX" "$CEILING" pssa_settings_here ||
+  emit_skipped
 
 # Resolve pwsh from PATH — never downloaded. Absent -> clean skip (a pwsh-less
 # contributor box, or a Linux cloud session without PowerShell). CI's PowerShell
@@ -611,10 +601,9 @@ PWSH_EXIT=$?
 
 case $PWSH_EXIT in
 0)
-  # Clean — the analyzer ran to judgment with no findings.
-  hook::rewrite_disclose PostToolUse "$FILE" "$PS_REWRITE_MESSAGE_TEXT"
-  emit_tel "ok" '[]'
-  exit 0
+  # Clean — the analyzer ran to judgment with no findings, so the disclosure
+  # is the whole document, or there is none.
+  hook::finish --disclose "$PS_REWRITE_MESSAGE_TEXT" ok findings array '[]'
   ;;
 1)
   # Findings — advisory context, exit 0. Status "ok": the analyzer RAN and
@@ -634,12 +623,9 @@ case $PWSH_EXIT in
   fi
   # Findings AND a rewrite disclosure compose into one document. Emitting the
   # context and the systemMessage as two objects would break the single-JSON-doc
-  # stdout contract, which is what hook::emit_channels exists to prevent. The
-  # take precedes the telemetry emit so data.changed carries its verdict.
-  hook::rewrite_take_disclosure "$FILE" "$PS_REWRITE_MESSAGE_TEXT"
-  emit_tel "ok" "$FINDINGS_JSON"
-  hook::emit_channels PostToolUse "$PS_CTX" "$HOOK_REWRITE_MESSAGE"
-  exit 0
+  # stdout contract, which is what hook::finish exists to uphold.
+  hook::finish --context "$PS_CTX" --disclose "$PS_REWRITE_MESSAGE_TEXT" \
+    ok findings array "$FINDINGS_JSON"
   ;;
 3)
   # PSScriptAnalyzer module not installed — the repo opted into a settings file
@@ -731,13 +717,9 @@ case $PWSH_EXIT in
   done <<<"$PSSA_OUTPUT"
   # Invoke-Formatter writes back BEFORE Invoke-ScriptAnalyzer runs, and both sit
   # inside the same try/catch that raises exit 4 — so a rewrite can already be on
-  # disk when pwsh breaks. Take the disclosure (which also releases the snapshot
-  # on the changed and unchanged paths alike) and emit it WITH the tool-break
-  # context as one document, rather than exiting on a silent rewrite. Taken
-  # before the telemetry emit so data.changed records that rewrite too.
-  hook::rewrite_take_disclosure "$FILE" "$PS_REWRITE_MESSAGE_TEXT"
-  emit_tel "skipped" '[]'
-  hook::emit_channels PostToolUse "$PS_CTX" "$HOOK_REWRITE_MESSAGE"
-  exit 0
+  # disk when pwsh breaks. The disclosure is still owed and composes with the
+  # tool-break context as one document, rather than exiting on a silent rewrite.
+  hook::finish --context "$PS_CTX" --disclose "$PS_REWRITE_MESSAGE_TEXT" \
+    skipped findings array '[]'
   ;;
 esac

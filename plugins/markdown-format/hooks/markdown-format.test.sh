@@ -2846,9 +2846,15 @@ fi
 # call, because it depends on whether this host's `/` carries a config. The
 # control call on a file under a directory that does carry one proves the
 # lifted function and the shim work together.
+#
+# The gate delegates the walk itself to hook::walk_up_to and asks
+# markdownlint_config_here about each directory, so both are lifted alongside it
+# and the library is sourced first — the shim shadows `cd` only after that, and
+# neither the library nor the sourcing calls `cd`.
 DISC_FN="$(awk '/^markdownlint_config_discoverable\(\) \{/ { p = 1 } p { print } p && /^}/ { exit }' "$HOOK")"
-if [[ -z "$DISC_FN" ]]; then
-  fail "root-level walk: markdownlint_config_discoverable not found in $(basename "$HOOK")"
+DISC_PRED="$(awk '/^markdownlint_config_here\(\) \{/ { p = 1 } p { print } p && /^}/ { exit }' "$HOOK")"
+if [[ -z "$DISC_FN" || -z "$DISC_PRED" ]]; then
+  fail "root-level walk: markdownlint_config_discoverable/markdownlint_config_here not found in $(basename "$HOOK")"
 else
   WALK_DIR="$WORK/root-walk"
   mkdir -p "$WALK_DIR"
@@ -2862,7 +2868,10 @@ else
     }
   }
   : >"$CD_LOG"
-  (cd "$UNRELATED" && eval "$DISC_FN" && cd_logging_shim && markdownlint_config_discoverable "$WALK_DIR/README.md" "$WALK_DIR")
+  # shellcheck source=hook-utils.sh
+  (cd "$UNRELATED" && source "$HOOK_DIR/hook-utils.sh" && eval "$DISC_PRED" &&
+    eval "$DISC_FN" && cd_logging_shim &&
+    markdownlint_config_discoverable "$WALK_DIR/README.md" "$WALK_DIR")
   RC_CTL=$?
   CTL_FIRST="$(head -n 1 "$CD_LOG")"
   if [[ "$RC_CTL" -eq 0 && "$CTL_FIRST" == "$WALK_DIR" ]]; then
@@ -2871,7 +2880,10 @@ else
     fail "root-level walk: control rc=$RC_CTL first cd='$CTL_FIRST', want rc=0 and '$WALK_DIR'"
   fi
   : >"$CD_LOG"
-  (cd "$UNRELATED" && eval "$DISC_FN" && cd_logging_shim && markdownlint_config_discoverable /README.md "$WALK_DIR") || :
+  # shellcheck source=hook-utils.sh
+  (cd "$UNRELATED" && source "$HOOK_DIR/hook-utils.sh" && eval "$DISC_PRED" &&
+    eval "$DISC_FN" && cd_logging_shim &&
+    markdownlint_config_discoverable /README.md "$WALK_DIR") || :
   ROOT_FIRST="$(head -n 1 "$CD_LOG")"
   if [[ "$ROOT_FIRST" == "/" ]]; then
     ok "root-level walk: /README.md anchors the walk on /"

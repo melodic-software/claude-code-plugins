@@ -1322,6 +1322,65 @@ hook::repo_root() {
   return "$__hu_rr_st"
 }
 
+# Walk from <start> toward the filesystem root, asking <predicate> about each
+# directory, and write the directory it accepted into <dest>. Returns 0 when
+# one was accepted, 1 when none was. Every consumer opt-in gate and repo-local
+# binary probe in this marketplace is this walk; only the predicate differs.
+#
+#   hook::walk_up_to <dest> <start> <ceiling> <predicate> [first|topmost]
+#
+# <predicate> is called as `<predicate> <dir>` and answers with an exit status:
+#
+#   0  accept this directory
+#   1  keep walking
+#   2  stop the walk here, without accepting this directory — for a search
+#      whose own rules end it above a hit, such as EditorConfig's `root = true`
+#
+# <mode> is `first` (default: the closest accepted directory, the answer a
+# file-anchored tool resolves) or `topmost` (keep walking past a hit and answer
+# with the highest one, the answer a CWD-anchored tool that treats the outermost
+# config as the orchestrator resolves).
+#
+# THE CEILING IS REQUIRED, AND AN UNRESOLVED CEILING FAILS CLOSED: an empty
+# <ceiling> accepts nothing and walks nowhere. These walks decide whether a
+# repository opted into having its files rewritten, and a walk that runs past
+# the repository reads configuration from directories the consuming repository
+# does not own — a home directory, a build agent's workspace root — and answers
+# "yes, format this" on their say-so. A missed opt-in is a file left alone; a
+# ceiling-less walk is somebody else's config governing an edit. To walk to the
+# filesystem root deliberately, pass `/`, which is a resolved ceiling and stops
+# the walk in the same place.
+#
+# The terminator is the whole reason this is one function: `${dir%/*}` leaves an
+# empty string for a directory directly under the filesystem root and leaves the
+# string unchanged for a bare relative name, so the `/` fallback and the
+# self-comparison are both load-bearing, and eight hand-rolled copies of them
+# were eight places for one of the two to go missing.
+hook::walk_up_to() {
+  local __hu_wu_dest="$1" __hu_wu_dir="$2" __hu_wu_ceiling="$3"
+  local __hu_wu_pred="$4" __hu_wu_mode="${5:-first}"
+  local __hu_wu_hit="" __hu_wu_parent __hu_wu_rc
+  printf -v "$__hu_wu_dest" '%s' ""
+  [[ -n "$__hu_wu_dir" && -n "$__hu_wu_ceiling" ]] || return 1
+  while :; do
+    "$__hu_wu_pred" "$__hu_wu_dir"
+    __hu_wu_rc=$?
+    if ((__hu_wu_rc == 0)); then
+      __hu_wu_hit="$__hu_wu_dir"
+      [[ "$__hu_wu_mode" == topmost ]] || break
+    elif ((__hu_wu_rc != 1)); then
+      break
+    fi
+    [[ "$__hu_wu_dir" == "$__hu_wu_ceiling" ]] && break
+    __hu_wu_parent="${__hu_wu_dir%/*}"
+    [[ -n "$__hu_wu_parent" ]] || __hu_wu_parent=/
+    [[ "$__hu_wu_parent" == "$__hu_wu_dir" ]] && break
+    __hu_wu_dir="$__hu_wu_parent"
+  done
+  printf -v "$__hu_wu_dest" '%s' "$__hu_wu_hit"
+  [[ -n "$__hu_wu_hit" ]]
+}
+
 # Repo-relative form of <file> under <repo-root> — the shape the telemetry
 # schema requires of `data.file` ("relative to the consuming repo root").
 #
@@ -2096,6 +2155,8 @@ hook::data_json_to() {
 #                      reaches telemetry; resolved when a sink is wired, or
 #                      always under --relative
 #   FILE_REL_DEGRADED  1 when that degrade happened
+#   HOOK_PLUGIN        <plugin>, the default telemetry hook id at hook::finish
+#   HOOK_EVENT         <event>, the event hook::finish emits under
 #
 # and EXITS 0 itself on every path where the hook has nothing to do: stdin
 # empty, malformed, or cut short mid-document (hook::buffer_stdin_to rc 1, 2
@@ -2151,6 +2212,10 @@ hook::begin() {
   done
   local __hu_bg_plugin="$1" __hu_bg_event="$2"
   shift 2
+  # The label and the event, kept for hook::finish so the exit arm restates
+  # neither. HOOK_PLUGIN doubles as the default telemetry hook id.
+  HOOK_PLUGIN="$__hu_bg_plugin"
+  HOOK_EVENT="$__hu_bg_event"
 
   # EPOCHREALTIME is Bash 5.0+; on older bash it is unset, so default to empty
   # — referencing it bare under `set -u` would abort before the advisory
@@ -2246,6 +2311,115 @@ hook::begin() {
   return 0
 }
 
+# ============================================================================
+# hook::finish — the exit arm as ONE call
+# ============================================================================
+#
+# The bookend to hook::begin. Every arm a file-edit hook can exit on owes the
+# same three steps, and the ORDER is the load-bearing part:
+#
+#   1. take the rewrite disclosure — that is also what settles the byte
+#      verdict data.changed reports and what releases the guard's snapshot;
+#   2. emit telemetry, so the envelope carries the verdict step 1 just settled;
+#   3. emit the ONE stdout document — Claude Code parses a hook's whole stdout
+#      as a single JSON document, so an arm that both rewrote the file and has
+#      findings composes both channels here instead of printing twice.
+#
+#   hook::finish [<flag>...] <status> [<key> <kind> <value>]...
+#
+# <status> is the telemetry status the arm reports ("ok" when the tool ran to
+# judgment, "skipped" when it never did, "error"). The trailing triples are the
+# telemetry data keys, passed through to hook::data_json_to unchanged.
+#
+# EXITS 0. There is no arm after the arm that finishes, and an exiting finish
+# is what makes "exactly one document" structural rather than a rule each hook
+# has to keep.
+#
+# Flags:
+#   --context <text>  the agent channel (additionalContext): findings, a tool
+#                     break diagnostic, whatever the model is owed
+#   --message <text>  the user channel (systemMessage) the caller composed. The
+#                     rewrite disclosure, when there is one, goes FIRST and
+#                     this follows on its own line
+#   --disclose <text> the disclosure to take: emitted on the user channel when
+#                     the file differs from the snapshot hook::rewrite_guard_begin
+#                     took, dropped silently when it does not. Omit it on an arm
+#                     that cannot have rewritten anything — the take still runs,
+#                     because settling data.changed and releasing the snapshot
+#                     are owed on every arm
+#   --changed <v>     the data.changed verdict for a hook that decides it from
+#                     its tool's own report rather than from a byte comparison
+#                     ("true"/"false", or empty to omit the key). Overrides the
+#                     guard's verdict
+#   --id <hook-id>    the telemetry hook id, when it is not the label
+#                     hook::begin was given
+#
+# TOOL, FILE_REL, REPO_ROOT, start, HOOK_PLUGIN and HOOK_EVENT are hook::begin's
+# outputs, read here rather than restated by every caller.
+hook::finish() {
+  local __hu_fi_ctx="" __hu_fi_msg="" __hu_fi_disclose="" __hu_fi_changed=""
+  local __hu_fi_changed_set=0 __hu_fi_id="${HOOK_PLUGIN:-}"
+  while (($#)); do
+    case "$1" in
+    --context)
+      __hu_fi_ctx="$2"
+      shift
+      ;;
+    --message)
+      __hu_fi_msg="$2"
+      shift
+      ;;
+    --disclose)
+      __hu_fi_disclose="$2"
+      shift
+      ;;
+    --changed)
+      __hu_fi_changed="$2"
+      __hu_fi_changed_set=1
+      shift
+      ;;
+    --id)
+      __hu_fi_id="$2"
+      shift
+      ;;
+    *) break ;;
+    esac
+    shift
+  done
+  local __hu_fi_status="$1"
+  shift
+
+  # Only a hook that can rewrite the edited file sources rewrite-guard.sh, so
+  # the take is conditional on the companion lib being loaded. `declare -F` is
+  # a builtin: the probe costs no process on the hooks that never rewrite.
+  local __hu_fi_sysmsg=""
+  if declare -F hook::rewrite_take_disclosure >/dev/null 2>&1; then
+    hook::rewrite_take_disclosure "" "$__hu_fi_disclose"
+    # shellcheck disable=SC2154  # the take's two outputs, assigned in rewrite-guard.sh
+    __hu_fi_sysmsg="$HOOK_REWRITE_MESSAGE"
+    ((__hu_fi_changed_set)) || __hu_fi_changed="${HOOK_REWRITE_CHANGED:-}"
+  fi
+  if [[ -n "$__hu_fi_msg" ]]; then
+    [[ -n "$__hu_fi_sysmsg" ]] && __hu_fi_sysmsg+=$'\n'
+    __hu_fi_sysmsg+="$__hu_fi_msg"
+  fi
+
+  # Two guards, the same two every hand-rolled emit_tel carried: the high-res
+  # start stamp (empty on bash before 5.0, where telemetry is skipped so the
+  # hook still formats rather than aborting) and the sink opt-in. The data
+  # payload costs a jq process, so it is built behind both — never on the
+  # unwired path.
+  if [[ -n "${start:-}" ]] && hook::telemetry_enabled; then
+    local __hu_fi_data=""
+    hook::data_json_to __hu_fi_data "${TOOL:-}" "${FILE_REL:-}" "$__hu_fi_changed" "$@"
+    hook::emit_telemetry "$__hu_fi_id" "${HOOK_EVENT:-}" "$__hu_fi_status" \
+      "$start" "$__hu_fi_data" "${REPO_ROOT:-}"
+  fi
+
+  hook::emit_channels "${HOOK_EVENT:-}" "$__hu_fi_ctx" "$__hu_fi_sysmsg"
+  exit 0
+}
+
 # Reduce a tool + optional Bash command to a privacy-safe subject label. For
 # Bash, returns "Bash:<first-token>" (leading sudo / VAR=val prefixes stripped,
 # basename applied) — never the full command. For any other tool, returns the
@@ -2327,7 +2501,8 @@ hook::append_jsonl() {
 }
 
 # Per-hook stdout context accumulator. ctx_reset at entry, ctx_append per line,
-# ctx_flush once at exit with the hook event name.
+# then either ctx_take_to (handing the agent channel to hook::finish, which
+# owns the emit) or ctx_flush once at exit with the hook event name.
 _HOOK_CTX_BUFFER=""
 
 hook::ctx_reset() {
@@ -2338,13 +2513,23 @@ hook::ctx_append() {
   _HOOK_CTX_BUFFER+="$1"$'\n'
 }
 
-# Emit the accumulated context as hookSpecificOutput JSON, then clear the buffer.
-hook::ctx_flush() {
-  local event_name="$1"
-  local trimmed="${_HOOK_CTX_BUFFER%"${_HOOK_CTX_BUFFER##*[![:space:]]}"}"
-  trimmed="${trimmed#"${trimmed%%[![:space:]]*}"}"
-  hook::emit_additional_context "$event_name" "$trimmed"
+# Write the accumulated context, whitespace-trimmed, into <dest> and clear the
+# buffer — for a hook whose exit arm hands the agent channel to hook::finish,
+# which owns the emit and must not have a second document printed under it.
+hook::ctx_take_to() {
+  local __hu_ct_trimmed="${_HOOK_CTX_BUFFER%"${_HOOK_CTX_BUFFER##*[![:space:]]}"}"
+  __hu_ct_trimmed="${__hu_ct_trimmed#"${__hu_ct_trimmed%%[![:space:]]*}"}"
   hook::ctx_reset
+  printf -v "$1" '%s' "$__hu_ct_trimmed"
+}
+
+# Emit the accumulated context as hookSpecificOutput JSON, then clear the buffer.
+# Composes through hook::emit_channels: one builder for the document, and the
+# agent channel of an always-on hook costs no process to write.
+hook::ctx_flush() {
+  local __hu_cf_trimmed=""
+  hook::ctx_take_to __hu_cf_trimmed
+  hook::emit_channels "$1" "$__hu_cf_trimmed" ""
 }
 
 # Cheap telemetry opt-in probe — true iff a consumer wired a sink. Producers
@@ -2608,20 +2793,17 @@ hook::emit_telemetry() {
   printf '%s\n' "$envelope" | ("$sink" >/dev/null 2>&1) &
 }
 
-# Print cross-host hook JSON to stdout (exit 0). No-op when context is empty.
-# Shape: { hookSpecificOutput: { hookEventName[, additionalContext] } }.
+# Agent-channel-only spelling of hook::emit_channels, for a hook that has no
+# user-channel message to compose. No-op when context is empty. Shape:
+# { hookSpecificOutput: { hookEventName, additionalContext } }.
+#
+# The document is built by hook::emit_channels, so it costs no process and it
+# is emitted whether or not jq is installed. A `jq -n` twin of this builder
+# stood here and returned 0 in silence on a host without jq — a feature that
+# skips itself is a defect, and on an always-on PostToolUse hook the fork was
+# charged to every run that had anything to say.
 hook::emit_additional_context() {
-  local event_name="$1"
-  local context="$2"
-  [[ -n "$context" ]] || return 0
-  command -v jq >/dev/null 2>&1 || return 0
-  jq -n \
-    --arg event "$event_name" \
-    --arg ctx "$context" \
-    '{hookSpecificOutput: (
-      {hookEventName: $event}
-      + (if $ctx != "" then {additionalContext: $ctx} else {} end)
-    )}'
+  hook::emit_channels "$1" "$2" ""
 }
 
 # ---------------------------------------------------------------------------

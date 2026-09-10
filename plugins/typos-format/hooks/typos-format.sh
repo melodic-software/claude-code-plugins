@@ -85,24 +85,6 @@ HOOK_DIR="${BASH_SOURCE[0]%/*}"
 # shellcheck source=hook-utils.sh
 source "$HOOK_DIR/hook-utils.sh"
 
-# Emit this run's telemetry envelope: $1 status, $2 residual-findings JSON
-# array, optional $3 applied-corrections JSON array, optional $4 the rewrite
-# verdict for data.changed ("true" when typos applied at least one correction,
-# "false" when it ran and applied none, empty on a skip arm, where the key is
-# omitted rather than guessed).
-# Two guards: the high-res start stamp (empty on bash before 5.0, where
-# telemetry is skipped so the hook still fixes typos rather than aborting) and
-# the sink opt-in. The data payload costs a jq subprocess, so it is built here
-# after both guards — never on the unwired path.
-emit_tel() {
-  [[ -n "$start" ]] || return 0
-  hook::telemetry_enabled || return 0
-  local data=""
-  hook::data_json_to data "$TOOL" "$FILE_REL" "${4:-}" \
-    findings array "$2" applied array "${3:-[]}"
-  hook::emit_telemetry "typos-format" "PostToolUse" "$1" "$start" "$data" "$REPO_ROOT"
-}
-
 # The whole prologue: the start stamp, the buffered payload, the jq gate, the
 # parsed path with its basename and directory, the repo root (the CWD typos
 # runs in), and the telemetry-only TOOL behind the sink opt-in. Exits 0 itself
@@ -128,9 +110,13 @@ emit_tel() {
 # FILE_REL_DEGRADED to know which of the two it holds.
 hook::begin --relative --notebook typos-format PostToolUse
 
+# Every arm exits through hook::finish: telemetry first, then the one JSON
+# document. This hook never rewrites behind the rewrite guard — typos' own
+# report is authoritative for what it applied — so the data.changed verdict
+# arrives on --changed, and a skip arm that passes none omits the key rather
+# than guessing one.
 emit_skipped() {
-  emit_tel "skipped" '[]'
-  exit 0
+  hook::finish skipped findings array '[]' applied array '[]'
 }
 
 # Existence check is a builtin; the previous `$(cd && pwd)` forked a subshell
@@ -301,22 +287,20 @@ SCAN_RC=$?
 emit_tool_break() {
   hook::ctx_reset
   hook::ctx_append "typos-format: typos failed for $FILE_BASE (no diagnostics; tool break, not a finding):"
-  local line
+  local line ctx=""
   while IFS= read -r line; do
     [[ -n "$line" ]] || continue
     hook::ctx_append "  $line"
   done <<<"$1"
-  hook::ctx_flush PostToolUse
-  emit_tel "skipped" '[]'
-  exit 0
+  hook::ctx_take_to ctx
+  hook::finish --context "$ctx" skipped findings array '[]' applied array '[]'
 }
 
 if [[ $SCAN_RC -eq 0 ]]; then
   # Clean, or excluded by the repo's own typos config. Nothing was changed and
   # there is nothing to disclose; typos ran, so the rewrite verdict is a
   # known false rather than an omitted key.
-  emit_tel "ok" '[]' '[]' false
-  exit 0
+  hook::finish --changed false ok findings array '[]' applied array '[]'
 fi
 
 if [[ $SCAN_RC -ne 2 || -z "$SCAN_OUTPUT" ]]; then
@@ -479,9 +463,9 @@ if [[ -z "$CLASSIFIED" ]]; then
   # better answer than nothing.
   hook::ctx_reset
   hook::ctx_append "typos-format ran on $FILE_BASE and its findings could not be summarized (internal parse failure). If the file was rewritten, review it — this run cannot say what changed."
-  hook::ctx_flush PostToolUse
-  emit_tel "skipped" '[]'
-  exit 0
+  UNSUMMARIZED_CTX=""
+  hook::ctx_take_to UNSUMMARIZED_CTX
+  hook::finish --context "$UNSUMMARIZED_CTX" skipped findings array '[]' applied array '[]'
 fi
 
 # Unpack the classification in ONE jq process (hook::jq_fields), not seven. The
@@ -617,13 +601,11 @@ truncate_to() {
 SYSMSG=$(truncate_to "$SYSMSG" 4000)
 CTX=$(truncate_to "$CTX" 8000)
 
-hook::emit_channels PostToolUse "$CTX" "$SYSMSG"
-
 # Status "ok" — typos RAN and produced a judgment (findings live in
 # data.findings, applied rewrites in data.applied), mirroring the sibling
 # formatter plugins where status reflects whether the tool ran, not whether it
 # was clean.
 TYPOS_CHANGED="false"
 ((APPLIED_COUNT > 0)) && TYPOS_CHANGED="true"
-emit_tel "ok" "$FINDINGS_JSON" "$APPLIED_JSON" "$TYPOS_CHANGED"
-exit 0
+hook::finish --context "$CTX" --message "$SYSMSG" --changed "$TYPOS_CHANGED" \
+  ok findings array "$FINDINGS_JSON" applied array "$APPLIED_JSON"

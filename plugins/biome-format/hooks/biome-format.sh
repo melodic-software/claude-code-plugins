@@ -35,19 +35,6 @@ source "$HOOK_DIR/hook-utils.sh"
 # shellcheck source=rewrite-guard.sh
 source "$HOOK_DIR/rewrite-guard.sh"
 
-# Emit this run's telemetry envelope: $1 status, $2 findings JSON array.
-# Two guards: the high-res start stamp (empty on bash before 5.0, where
-# telemetry is skipped so the hook still formats and lints rather than
-# aborting) and the sink opt-in. The data payload costs a jq subprocess, so it
-# is built here after both guards — never on the unwired path.
-emit_tel() {
-  [[ -n "$start" ]] || return 0
-  hook::telemetry_enabled || return 0
-  local data=""
-  hook::data_json_to data "$TOOL" "$FILE_REL" "${HOOK_REWRITE_CHANGED:-}" findings array "$2"
-  hook::emit_telemetry "biome-format" "PostToolUse" "$1" "$start" "$data" "$REPO_ROOT"
-}
-
 # The whole prologue: the start stamp, the buffered payload, the jq-free
 # applicability filter, the jq gate, the parsed path with its basename and
 # directory, the file-anchored repo root (which bounds the biome-config opt-in
@@ -58,9 +45,11 @@ emit_tel() {
 hook::begin biome-format PostToolUse \
   '*.ts' '*.tsx' '*.js' '*.jsx' '*.mjs' '*.cjs' '*.mts' '*.cts' '*.json' '*.jsonc'
 
+# Every arm exits through hook::finish, which takes the rewrite disclosure
+# (settling data.changed and releasing the guard's snapshot), emits telemetry
+# with that verdict, and emits the one JSON document — in that order.
 emit_skipped() {
-  emit_tel "skipped" '[]'
-  exit 0
+  hook::finish skipped findings array '[]'
 }
 
 # Existence check is a builtin; the previous `$(cd && pwd)` forked a subshell
@@ -86,38 +75,37 @@ root=""
 # opt-in exists to prevent. Gating on the names every supported Biome discovers keeps
 # the gate in lockstep with discovery across versions. Dotted-config support is
 # deferred behind a Biome>=2.4 probe.
-CONFIG_DIR=""
-dir="$FILE_DIR_POSIX"
-while [[ -n "$dir" ]]; do
+#
+# `topmost` is what makes this the root config rather than the closest one, and
+# the walk's ceiling is the repo root: with none that resolves it fails closed
+# (hook::walk_up_to) and the file is left alone, rather than being reformatted
+# under a config from above the repository.
+# shellcheck disable=SC2329  # invoked by name, as hook::walk_up_to's predicate
+biome_config_here() {
+  local name
   for name in biome.json biome.jsonc; do
-    [[ -f "$dir/$name" ]] && CONFIG_DIR="$dir" && break
+    [[ -f "$1/$name" ]] && return 0
   done
-  [[ -n "$root" && "$dir" == "$root" ]] && break
-  parent="${dir%/*}"
-  [[ -n "$parent" ]] || parent=/
-  [[ "$parent" == "$dir" ]] && break # reached filesystem root
-  dir="$parent"
-done
-
-[[ -n "$CONFIG_DIR" ]] || emit_skipped
+  return 1
+}
+CONFIG_DIR=""
+hook::walk_up_to CONFIG_DIR "$FILE_DIR_POSIX" "$root" biome_config_here topmost ||
+  emit_skipped
 
 # Resolve the Biome binary from the repo's own install (node_modules/.bin/biome,
 # walking up from the file) or PATH — never `npx`, which would download Biome on
 # a per-edit hook. Absent -> skip (the repo opted into config but Biome is not
 # installed; nothing to run).
 BIOME_BIN=""
-dir="$FILE_DIR_POSIX"
-while [[ -n "$dir" ]]; do
-  if [[ -f "$dir/node_modules/.bin/biome" ]]; then
-    BIOME_BIN="$dir/node_modules/.bin/biome"
-    break
-  fi
-  [[ -n "$root" && "$dir" == "$root" ]] && break
-  parent="${dir%/*}"
-  [[ -n "$parent" ]] || parent=/
-  [[ "$parent" == "$dir" ]] && break
-  dir="$parent"
-done
+# shellcheck disable=SC2329  # invoked by name, as hook::walk_up_to's predicate
+biome_local_bin_here() {
+  [[ -f "$1/node_modules/.bin/biome" ]] || return 1
+  BIOME_BIN="$1/node_modules/.bin/biome"
+  return 0
+}
+# shellcheck disable=SC2034  # the caller reads BIOME_BIN, which the predicate sets
+node_modules_dir=""
+hook::walk_up_to node_modules_dir "$FILE_DIR_POSIX" "$root" biome_local_bin_here || true
 if [[ -z "$BIOME_BIN" ]]; then
   # `command -v` is a builtin; capturing it with `$( )` was a leftover subshell
   # just to learn the path. The later exec looks the name up on PATH itself.
@@ -170,15 +158,9 @@ BIOME_REWRITE_MESSAGE="biome-format: auto-fixed and/or reformatted $FILE_BASE vi
 hook::rewrite_guard_begin "$FILE"
 
 if OUTPUT=$(cd "$CONFIG_DIR" && env -u BIOME_CONFIG_PATH "$BIOME_BIN" check --write --error-on-warnings --reporter=github "$BIOME_ARG" 2>&1); then
-  # Take before the telemetry emit so data.changed carries the byte verdict;
-  # the disclosure itself is still one systemMessage-only document, or nothing.
-  hook::rewrite_take_disclosure "$FILE" "$BIOME_REWRITE_MESSAGE"
-  emit_tel "ok" '[]'
-  [[ -z "$HOOK_REWRITE_MESSAGE" ]] || hook::emit_channels PostToolUse "" "$HOOK_REWRITE_MESSAGE"
-  exit 0
+  # Clean: the disclosure is the whole document, or there is none.
+  hook::finish --disclose "$BIOME_REWRITE_MESSAGE" ok findings array '[]'
 fi
-
-hook::rewrite_take_disclosure "$FILE" "$BIOME_REWRITE_MESSAGE"
 
 # Non-zero exit. The github reporter emits one `::warning`/`::error`/`::notice`
 # line per diagnostic; their presence is the unambiguous signal that Biome made a
@@ -212,10 +194,9 @@ if [[ -n "$FINDINGS" ]]; then
   if [[ -n "$findings_raw" ]] && hook::telemetry_enabled; then
     FINDINGS_JSON=$(printf '%s' "$findings_raw" | jq -R . | jq -s . 2>/dev/null) || FINDINGS_JSON='[]'
   fi
-  emit_tel "ok" "$FINDINGS_JSON"
   # Findings AND a rewrite disclosure compose into one document (#3406).
-  hook::emit_channels PostToolUse "$BIOME_CTX" "$HOOK_REWRITE_MESSAGE"
-  exit 0
+  hook::finish --context "$BIOME_CTX" --disclose "$BIOME_REWRITE_MESSAGE" \
+    ok findings array "$FINDINGS_JSON"
 fi
 
 # No findings, but the file was deliberately ignored by the consumer's Biome
@@ -224,11 +205,10 @@ fi
 # not a finding and not a break, so skip silently without nagging via context.
 # (Biome 2.x respects files.includes ignores even for explicitly-passed paths.)
 if grep -qE 'No files were processed|provided but ignored' <<<"$OUTPUT"; then
-  # An ignored file was not rewritten, so the taken disclosure is empty and
-  # this emits nothing; kept unconditional so a surprising rewrite would
-  # still be disclosed rather than swallowed.
-  hook::emit_channels PostToolUse "" "$HOOK_REWRITE_MESSAGE"
-  emit_skipped
+  # An ignored file was not rewritten, so the disclosure is empty and this
+  # emits nothing; the disclosure is still passed so a surprising rewrite
+  # would be disclosed rather than swallowed.
+  hook::finish --disclose "$BIOME_REWRITE_MESSAGE" skipped findings array '[]'
 fi
 
 # Biome broke for non-lint reasons (config parse error, panic, ENOENT) — no
@@ -241,8 +221,7 @@ while IFS= read -r line; do
   [[ -n "$line" ]] || continue
   BIOME_CTX+=$'\n'"  $line"
 done <<<"$OUTPUT"
-emit_tel "skipped" '[]'
-# The --write pass may already have rewritten the file before Biome broke;
-# compose the taken disclosure with the tool-break context as one document.
-hook::emit_channels PostToolUse "$BIOME_CTX" "$HOOK_REWRITE_MESSAGE"
-exit 0
+# The --write pass may already have rewritten the file before Biome broke, so
+# the disclosure composes with the tool-break context as one document.
+hook::finish --context "$BIOME_CTX" --disclose "$BIOME_REWRITE_MESSAGE" \
+  skipped findings array '[]'
