@@ -93,16 +93,21 @@ cache caveat, `audit-instructions` criteria row I17-b, the playbooks fable-5
 (`plugins/docs-hygiene/skills/extract-ssot/context/anti-patterns.md`). API-application cache
 authoring guidance has no incumbent.
 
+Decided at interview, 2026-09-10: the adopted API-side practices land as **one new
+prompt-caching reference chapter in the playbooks plugin**, beside the model-adaptation
+chapters: four-part pointer rows citing each docs anchor, beta qualifiers carried,
+session-side coverage cross-referenced. One work item covers the chapter.
+
 | Article claim / practice | Ours | Verdict | Reasoning, basis, as-of |
 |---|---|---|---|
-| Monitor cache hit rate; diagnose misses via the cache diagnostics API (miss reasons: messages / system / tools / model changed) | `claude-ops:observability` covers Claude Code sessions only | PENDING (rec: ADOPT as pointer rows, API-beta qualified; Console half TRACK until verified) | Verified against `platform.claude.com/docs/en/build-with-claude/cache-diagnostics`, 2026-09-09; Console UI unverified (finding 2) |
-| Keep volatile values (timestamps, IDs) out of the prefix; stable-first request layout; tool definitions render first and any change breaks cache | `extract-ssot` anti-patterns record states the byte-identical-prefix rule (verified 2026-08-04); no authoring-rule surface for request-building code | PENDING (rec: ADOPT as doctrine rows where an owner exists) | Verified against `prompt-caching#structuring-your-prompt`, 2026-09-09 |
-| defer_loading rarely used tools; tool search appends them without breaking cache | `context-budget` levers.json engages defer_loading for Claude Code MCP tools only | PENDING (rec: ADOPT as pointer) | Verified against `tool-use-with-prompt-caching#defer-loading-and-cache-preservation`, 2026-09-09 |
-| Apply system-prompt updates as mid-conversation messages (cache-preserving; certain models) | No coverage | PENDING (rec: ADOPT as pointer, GA six-model list, not Sonnet 5) | Verified against `mid-conversation-system-messages`, 2026-09-09 |
-| Batch model/effort changes into already-broken-cache moments (compaction) | PLUGIN-PHILOSOPHY cache caveat carries the session-side version | PENDING (rec: COVERED session-side; ADOPT API-side sentence) | Article; corroborated by Cognition devin-fusion post, 2026-06-29 |
-| Move breakpoints as conversation grows; automatic caching pins the last cacheable block | No coverage | PENDING (rec: ADOPT as pointer) | Verified against `prompt-caching#automatic-caching`, 2026-09-09 |
-| Pre-warm with `max_tokens: 0` plus explicit breakpoint at session start | No coverage | PENDING (rec: ADOPT as pointer) | Verified against prompt-caching doc and skill source, 2026-09-09 |
-| 5-minute TTL counts from request start; long tool calls expire the parent cache; use 1-hour TTL (2x write rate) | fable-5 `orchestration.md:97` carries the Claude Code subagent version (re-verified 2026-09-06) | PENDING (rec: COVERED session-side; ADOPT API-side rows) | Verified against `prompt-caching#ttl-support` and pricing page, 2026-09-09 |
+| Monitor cache hit rate; diagnose misses via the cache diagnostics API (miss reasons: messages / system / tools / model changed) | `claude-ops:observability` covers Claude Code sessions only | ADOPT API half (chapter row, beta-qualified) + TRACK Console half; also ADOPT one boundary-pointer line in the observability skill's cache-health context (decided 2026-09-10) | Verified against `platform.claude.com/docs/en/build-with-claude/cache-diagnostics`, 2026-09-09. Console UI unverified (finding 2); TRACK trigger: a Console-access check or a docs page confirming the request-comparison UI |
+| Keep volatile values (timestamps, IDs) out of the prefix; stable-first request layout; tool definitions render first and any change breaks cache | `extract-ssot` anti-patterns record states the byte-identical-prefix rule (verified 2026-08-04); no authoring-rule surface for request-building code | ADOPT (chapter rows; decided 2026-09-10) | Verified against `prompt-caching#structuring-your-prompt`, 2026-09-09 |
+| defer_loading rarely used tools; tool search appends them without breaking cache | `context-budget` levers.json engages defer_loading for Claude Code MCP tools only | ADOPT (chapter row; decided 2026-09-10) | Verified against `tool-use-with-prompt-caching#defer-loading-and-cache-preservation`, 2026-09-09 |
+| Apply system-prompt updates as mid-conversation messages (cache-preserving; certain models) | No coverage | ADOPT (chapter row; GA six-model list, not Sonnet 5; decided 2026-09-10) | Verified against `mid-conversation-system-messages`, 2026-09-09 |
+| Batch model/effort changes into already-broken-cache moments (compaction) | PLUGIN-PHILOSOPHY cache caveat carries the session-side version | COVERED session-side; API-side sentence joins the chapter (decided 2026-09-10) | Article; corroborated by Cognition devin-fusion post, 2026-06-29 |
+| Move breakpoints as conversation grows; automatic caching pins the last cacheable block | No coverage | ADOPT (chapter row; decided 2026-09-10) | Verified against `prompt-caching#automatic-caching`, 2026-09-09 |
+| Pre-warm with `max_tokens: 0` plus explicit breakpoint at session start | No coverage | ADOPT (chapter row; decided 2026-09-10) | Verified against prompt-caching doc and skill source, 2026-09-09; the rejection list (streaming, extended thinking, structured outputs, forced tool_choice, batches) rides along |
+| 5-minute TTL counts from request start; long tool calls expire the parent cache; use 1-hour TTL (2x write rate) | fable-5 `orchestration.md:97` carries the Claude Code subagent version (re-verified 2026-09-06) | COVERED session-side; API-side rows join the chapter (decided 2026-09-10) | Verified against `prompt-caching#ttl-support` and pricing page, 2026-09-09 |
 
 ## Lane T2: prompt instruction anti-patterns
 
@@ -144,10 +149,10 @@ economics and sweep tooling.
 
 | Article claim / practice | Ours | Verdict | Reasoning, basis, as-of |
 |---|---|---|---|
-| Effort miscalibration cuts both ways (over-thinking degrades quality; under-thinking answers from partial evidence) | PLUGIN-PHILOSOPHY Effort tiers; opus-5 chapter overthinking guidance; fable-5-1 low-effort recall caveat | PENDING (rec: COVERED) | Explore evidence re-verified 2026-09-09; effort semantics verified against the effort doc |
-| Test stronger models at lower effort (Fable 5.1 low matches Fable 5 high at a third of the cost; cache reads $0.25/M vs $1.00/M) | Nowhere; adaptation chapters deliberately carry no pricing | PENDING (rec: ADOPT the mechanism as a chapter/doctrine line, numbers vendor-reported; pricing stays pointer-resolved) | Pricing verified against the pricing page and API release notes 2026-09-01 entry, fetched 2026-09-09; benchmark comparison is vendor-internal (finding 3) |
-| Sweep effort levels on a non-saturated eval; flat curve means not thinking-bound | `evals` plugin has zero effort content | PENDING (rec: ADOPT as an evals-plugin note or TRACK on the bundled hillclimb) | Verified against `optimizing-for-cost-and-intelligence#tune-effort`, 2026-09-09 |
-| Only select models change effort mid-conversation without breaking cache | PLUGIN-PHILOSOPHY cache caveat + criteria I17-b carry the session-side version | PENDING (rec: COVERED session-side; beta qualifier owed on the API-side model list) | Verified against `effort#change-effort-mid-conversation-beta` (Fable 5.1, Mythos 5.1, Opus 5), 2026-09-09 |
+| Effort miscalibration cuts both ways (over-thinking degrades quality; under-thinking answers from partial evidence) | PLUGIN-PHILOSOPHY Effort tiers; opus-5 chapter overthinking guidance; fable-5-1 low-effort recall caveat | COVERED, plus a sharpening ADOPT (decided 2026-09-10) | Explore evidence re-verified 2026-09-09; effort semantics verified against the effort doc. Work item: fold the article's sharpest phrasings (deliberation only helps while there is evidence to find; the answer looks finished but is built on partial information) into the existing surfaces |
+| Test stronger models at lower effort (Fable 5.1 low matches Fable 5 high at a third of the cost; cache reads $0.25/M vs $1.00/M) | Nowhere; adaptation chapters deliberately carry no pricing | ADOPT (decided 2026-09-10) | Land as a pricing-free section in the fable-5-1 model-adaptation chapter plus a one-line pointer in PLUGIN-PHILOSOPHY Effort tiers; numbers cited vendor-reported; pricing stays pointer-resolved through the claude-api skill. Pricing verified against the pricing page and API release notes 2026-09-01 entry, fetched 2026-09-09 |
+| Sweep effort levels on a non-saturated eval; flat curve means not thinking-bound | `evals` plugin has zero effort content | ADOPT (decided 2026-09-10) | Land as an effort-axis note in the evals plugin citing the bundled hillclimb per the Lane M posture (bundled-only, public-repo lag noted). Verified against `optimizing-for-cost-and-intelligence#tune-effort`, 2026-09-09 |
+| Only select models change effort mid-conversation without breaking cache | PLUGIN-PHILOSOPHY cache caveat + criteria I17-b carry the session-side version | COVERED session-side (decided 2026-09-10) | The API-side model list (Fable 5.1, Mythos 5.1, Opus 5, beta header; Fable 5 returns 400) lands only inside whatever T1/T3 adoptions get written, per the Lane M beta posture; no separate surface. Verified against `effort#change-effort-mid-conversation-beta`, 2026-09-09 |
 
 ## Lane T4: API cost optimization and profiling
 
@@ -158,11 +163,11 @@ cost). Batch API, output bounding as a cost lever, and the usage/cost Admin API 
 
 | Article claim / practice | Ours | Verdict | Reasoning, basis, as-of |
 |---|---|---|---|
-| cost-optimize profiles spend (Admin API, else logged `usage` objects, else code estimate), ranks levers, measures against an eval | No incumbent for API-application profiling | PENDING (rec: TRACK on the bundled cost-optimize; defer any new plugin to a second need; taxonomy has no clean category) | Verified source-as-spec (`shared/cost-optimization.md`), 2026-09-09; nuance: it proposes rather than silently applies |
-| hillclimb searches cost/performance over models and effort with train/test split | No incumbent; `evals` owns eval design without a cost axis | PENDING (rec: TRACK on the public repo gaining the command; see finding 1 before citing it anywhere) | Verified from the bundled skill source extracted from the binary, 2026-09-09; absent from public repo HEAD |
-| Batch unattended work (50 percent discount, stacks with cache multipliers) | Absent (sole mention is a routines.md disclaimer) | PENDING (rec: ADOPT as pointer where an owner exists) | Verified against the pricing page batch section, 2026-09-09 |
-| Bound output to save cost (SWE-bench case: concise-output constraint) | In tension with prompt-audit Group 1f, which removes numeric output ceilings from skill bodies | PENDING (rec: record as scope-disjoint: instruction-surface hygiene vs API-request cost lever) | Article; tension identified by explore, 2026-09-09 |
-| Usage and Cost Admin API for org spend profiling | Absent | PENDING (rec: ADOPT as pointer alongside the cost-optimize TRACK row) | Verified against `manage-claude/usage-cost-api`, 2026-09-09 |
+| cost-optimize profiles spend (Admin API, else logged `usage` objects, else code estimate), ranks levers, measures against an eval | No incumbent for API-application profiling | TRACK on the bundled cost-optimize, plus one mention in the new playbooks chapter as the automation for its levers (decided 2026-09-10) | Verified source-as-spec (`shared/cost-optimization.md`), 2026-09-09; nuance: it proposes rather than silently applies. New-plugin question deferred to a second real need |
+| hillclimb searches cost/performance over models and effort with train/test split | No incumbent; `evals` owns eval design without a cost axis | Cited per the Lane M posture: bundled-only, public-repo lag noted (decided 2026-09-10); the evals effort-axis note carries the citation | Verified from the bundled skill source extracted from the binary, 2026-09-09; absent from public repo HEAD. Recheck: the repo or docs page gains the subcommand |
+| Batch unattended work (50 percent discount, stacks with cache multipliers) | Absent (sole mention is a routines.md disclaimer) | ADOPT (chapter row; decided 2026-09-10) | Verified against the pricing page batch section, 2026-09-09 |
+| Bound output to save cost (SWE-bench case: concise-output constraint) | In tension with prompt-audit Group 1f, which removes numeric output ceilings from skill bodies | Recorded scope-disjoint (decided 2026-09-10): output bounding is an API-request cost lever, never a skill-body instruction pattern; one sentence in the chapter says so | Article; tension identified by explore, 2026-09-09 |
+| Usage and Cost Admin API for org spend profiling | Absent | ADOPT (chapter row; decided 2026-09-10) | Verified against `manage-claude/usage-cost-api`, 2026-09-09 |
 
 ## Lane M: record and gating meta-decisions
 
@@ -177,20 +182,16 @@ Decided at interview, 2026-09-10:
 
 ## Interview queue
 
-One interview per lane, in order. Questions each carry the recommended default above; the
-research run added the cross-cutting ones marked (R).
+All five lanes interviewed and decided 2026-09-10, in order M, T2, T3, T1, T4; verdicts are
+in each lane's section above. Execution decision: implement the accepted adoptions on this
+branch in this effort (one branch, one draft PR), with the ADOPT rows above serving as the
+work list:
 
-1. **Lane M first** (record shape; native-first gating posture; (R) benchmark-number posture;
-   (R) beta-qualifier posture; (R) whether to cite hillclimb anywhere while the public repo
-   lags).
-2. **Lane T2** (expected fastest: largely COVERED; decide the app-code scope REJECT and the
-   dated-config COVERED rows).
-3. **Lane T3** (the cross-model economics ADOPT is the substantive decision; where it lands:
-   model-adaptation chapter vs PLUGIN-PHILOSOPHY vs evals note).
-4. **Lane T1** (the largest candidate set; decide pointer-vs-doctrine per row and where
-   API-side cache guidance lives; (R) Console-half TRACK).
-5. **Lane T4** (landing-spot question; output-bounding tension row; Batch/Admin API pointers).
-
-After each lane's interview: write the verdicts into this file, file work items for ADOPT
-rows, hand off (`/session-flow:handoff`), and continue on this branch. One PR at the end,
-opened as draft per repo convention.
+1. New playbooks prompt-caching reference chapter (T1 chapter rows + T4 Batch/Admin/
+   cost-optimize-mention/output-bounding rows), beta qualifiers carried.
+2. fable-5-1 model-adaptation chapter: pricing-free cross-model economics section, plus a
+   one-line pointer in PLUGIN-PHILOSOPHY Effort tiers (T3).
+3. evals plugin effort-axis note citing the bundled hillclimb (T3).
+4. Sharpening pass folding the article's two phrasings into the existing effort surfaces
+   (T3).
+5. Observability cache-health boundary pointer to the cache diagnostics API (T1).
