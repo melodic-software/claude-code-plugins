@@ -92,6 +92,7 @@ assert_contains "record: it carries a generated-on date" "$out" '"generated_on":
 assert_contains "record: the discovery source defaults to the explicit list" "$out" '"discovery_source": "explicit list"'
 assert_contains "record: remote is off unless asked for" "$out" '"remote": "not used"'
 assert_contains "record: the repository's facts are embedded whole" "$out" '{"name":"hub",'
+assert_not_contains "record: minus the local checkout path, which is not architecture" "$out" '"path":'
 assert_contains "record: so are the edges" "$out" '"to":"fixture-owner/ci-workflows"'
 assert_contains "record: including the weaker cites edge" "$out" '"to":"fixture-owner/standards"'
 
@@ -157,10 +158,20 @@ out="$(bash "$SCRIPT" "$repo" --drift-against "$TEST_TMPDIR/fact-drift.json")"
 assert_equals "drift: a changed fact exits 3 too" "$?" "3"
 assert_contains "drift: it names the field, the old value and the new" "$out" 'changed fact on hub: runtime: "rust" -> "shell"'
 
-sed 's|"path":"[^"]*"|"path":"/somewhere/else"|' \
+# A record written by an earlier version still carries `path`; comparing against
+# one must not report the local checkout location as architecture drift.
+sed 's|{"name":"hub",|{"name":"hub","path":"/somewhere/else",|' \
   "$TEST_TMPDIR/committed.json" >"$TEST_TMPDIR/path-drift.json"
 out="$(bash "$SCRIPT" "$repo" --drift-against "$TEST_TMPDIR/path-drift.json")"
 assert_equals "drift: a moved checkout is not architecture drift" "$?" "0"
+
+# A repository anyone is working in moves its HEAD constantly, so the timestamp
+# is reported and never gated on: a check lane red on every commit gets muted.
+sed 's|"last_touched":"[^"]*"|"last_touched":"2020-01-01T00:00:00+00:00"|' \
+  "$TEST_TMPDIR/committed.json" >"$TEST_TMPDIR/time-drift.json"
+out="$(bash "$SCRIPT" "$repo" --drift-against "$TEST_TMPDIR/time-drift.json")"
+assert_equals "drift: a newer HEAD does not fail the check" "$?" "0"
+assert_contains "drift: but it is still reported" "$out" "moved on hub: last_touched"
 
 # A repository that left the record, and one that joined it.
 out="$(bash "$SCRIPT" "$repo" "$quiet" --edges-from "$repo" \

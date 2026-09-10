@@ -3,6 +3,42 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.0]
+
+### Added
+
+- **`map-landscape`:** a bare invocation now charts the current repository plus every repository its
+  tracked files reference, one hop out. `--repos` and `--root` stay as explicit overrides, and the
+  working directory is still never walked for nested repositories.
+- **`map-landscape`:** `reference-edges.sh` extracts typed, counted edges from one repository's
+  tracked files. Each type trusts one syntax: `uses-workflow` a workflow `uses:` step,
+  `installs-plugin` a marketplace source, `depends-on` a module path, and `cites` a github.com URL
+  or a bare `owner/repo` whose owner matches the subject's own. Every edge carries the files that
+  support it.
+- **`map-landscape`:** `landscape-record.sh` assembles both collectors into a committed
+  `landscape.json` (schema_version 1) and compares a fresh collection against it. The drift report
+  names repositories and edges added or removed, facts whose value changed, and cited evidence files
+  that no longer exist; `--check` runs the comparison, writes nothing, and exits non-zero on drift.
+- **`map-landscape`:** `render-landscape.sh` renders both dialects and the portfolio table from the
+  record, so the same record and flags produce byte-identical artifacts. It does only work the
+  record decides; prose lives in a `landscape-notes.md` the script appends and never overwrites.
+- **`map-landscape`:** `--out <dir>` overrides the declared architecture home for one run, and
+  `--remote` / `--remote=all` opt in to facts for referenced repositories that are not checked out
+  locally. Both are off by default, and an unflagged run makes no network call.
+- **`map-landscape`:** a fixed closing report: artifacts, repositories charted, edges by type,
+  unknown count, discovery source, remote state, and drift.
+
+### Changed
+
+- **`map-landscape`:** relationships are the extractor's output rather than the model's judgment.
+  An edge is drawn because a script matched a string in a tracked file, and its label is the edge
+  type and reference count.
+- **`map-landscape`:** an other-owner repository renders as an external system and is read-only in
+  every mode. Nothing is written to it, and nothing is fetched from it unless `--remote=all`.
+- **`map-landscape`:** the description leads with single-repository-plus-references, and routes
+  module-level questions, fleet hygiene, organisation settings, and in-repo doc drift to the skills
+  that own them by name.
+
 ## [0.8.6]
 
 ### Changed

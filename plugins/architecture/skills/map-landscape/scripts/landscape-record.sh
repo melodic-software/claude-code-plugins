@@ -35,13 +35,17 @@
 #   }
 #
 # One object per line is deliberate: it keeps the record diffable in review and
-# parseable here without a JSON library.
+# parseable here without a JSON library. The collector's `path` field is dropped
+# on the way in: it records where a checkout happens to sit on one machine, which
+# is not a fact about the architecture and would make the committed record differ
+# on every machine that regenerates it.
 #
 # Output with --drift-against: a plain-text report naming repositories added or
 # removed, edges added or removed, facts whose value changed, and cited evidence
-# files that no longer exist. `path` is excluded from fact comparison because it
-# records where a checkout happens to sit on one machine, which is not a fact
-# about the architecture.
+# files that no longer exist. `path` is excluded from fact comparison too, so a
+# record written before it was dropped still compares clean. A `last_touched`
+# that moved is reported but never gated on: the subject repository advances its
+# own HEAD on every commit, and a check lane that went red for that gets muted.
 #
 # Nothing here fetches and nothing is written: the record goes to stdout, and the
 # caller decides where it lands.
@@ -258,7 +262,22 @@ if [[ -z "$compare_to" ]]; then
   printf '  "generated_on": "%s",\n' "$(date -u +%Y-%m-%d)"
   printf '  "discovery_source": "%s",\n' "$(json_escape "$source_text")"
   printf '  "remote": "%s",\n' "$(json_escape "$remote_text")"
-  emit_array repositories "$facts_out" ","
+  # `path` is dropped on the way in. It records where a checkout happened to sit
+  # on one machine at one moment, which is not a fact about the architecture and
+  # would make the committed record differ on every machine that regenerates it.
+  emit_array repositories "$(printf '%s\n' "$facts_out" | awk "$SPLIT_AWK"'
+    NF {
+      n = split_object($0, k, v)
+      out = "{"
+      first = 1
+      for (i = 1; i <= n; i++) {
+        if (k[i] == "path") continue
+        out = out (first ? "" : ",") "\"" k[i] "\":" v[i]
+        first = 0
+      }
+      print out "}"
+    }
+  ')" ","
   emit_array edges "$edges_out" ""
   printf '}\n'
   exit 0
@@ -277,9 +296,16 @@ old_edges="$(sed -n 's/^[[:space:]]*\({"from":.*}\),\{0,1\}$/\1/p' "$compare_to"
 
 drift=0
 report=""
+notes=""
 say() {
   report="$report$1"$'\n'
   drift=1
+}
+# A timestamp moving forward is expected of any repository anyone is working in,
+# so it is reported and never gated on: a `--check` lane that went red on every
+# commit to the subject repository would be turned off within a week.
+note() {
+  notes="$notes$1"$'\n'
 }
 
 compare_set() {
@@ -341,7 +367,10 @@ compare_fields() {
     ')"
     while IFS= read -r c; do
       [[ -n "$c" ]] || continue
-      say "  changed $label on $id: $c"
+      case "$c" in
+      last_touched:*) note "  moved on $id: $c" ;;
+      *) say "  changed $label on $id: $c" ;;
+      esac
     done <<<"$changed"
   done <<<"$4"
 }
@@ -379,8 +408,10 @@ done <<<"$missing"
 
 if [[ "$drift" -eq 0 ]]; then
   printf 'Landscape drift: none. The committed record matches a fresh collection.\n'
+  [[ -z "$notes" ]] || printf '%s' "$notes"
   exit 0
 fi
 
 printf '%s' "$report"
+[[ -z "$notes" ]] || printf '%s' "$notes"
 exit 3

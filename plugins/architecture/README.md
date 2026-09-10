@@ -37,19 +37,38 @@ module's purpose without traversing the whole import graph.
 ## Across repositories
 
 A second lens works one altitude up, over a *set* of repositories rather than
-inside one codebase. `map-landscape` discovers the set, collects facts from a
-tested script (owner, runtime, target framework, dependencies, last touched),
-draws only the relationships a cited fact supports, and writes two artifacts
-into the architecture directory your repository declares: a C4 System Landscape
-view (Structurizr `systemLandscape`, or a mermaid `C4Context` block) and an
-application-portfolio table. Anything no probe could derive stays `unknown`
-rather than becoming a plausible guess.
+inside one codebase. Run `/architecture:map-landscape` with no arguments and it
+charts the repository you are in plus every repository its tracked files name,
+one hop out. Your workflows, marketplace sources, module paths, and docs already
+say which systems you build against; the skill reads them rather than requiring
+every neighbour to be checked out beside you.
 
-Discovery is selected by argument. `--repos` charts exactly the repositories you
-list. `--root` discovers, delegating to the `repo-fleet-hygiene` plugin when it
-is installed and falling back to an announced bundled walk when it is not.
-Neither argument stops and names both forms; the session's working directory is
-never scanned.
+Two tested scripts do the collecting. `portfolio-facts.sh` derives owner,
+runtime, target framework, dependencies, tooling, and last touched, each with the
+file it came from. `reference-edges.sh` extracts typed, counted edges, and each
+type trusts exactly one syntax: a workflow `uses:` step, a marketplace source, a
+module path, or a plain citation. Anything no probe could derive stays `unknown`
+rather than becoming a plausible guess, and a repository nobody names produces no
+edge.
+
+The answer is committed, not just printed. `landscape.json` holds the facts and
+edges; `landscape.md` (mermaid `C4Context`) or `landscape.dsl` (Structurizr
+`systemLandscape`) and `portfolio.md` are rendered from it, so two runs on the
+same facts produce byte-identical files. A later run compares before it writes
+and reports what moved: systems added or removed, edges gained or lost, facts
+changed, evidence files gone. `--check` runs that comparison, writes nothing, and
+exits non-zero, which is the shape a CI lane wants.
+
+Scope is overridable. `--repos` charts exactly the repositories you list.
+`--root` discovers, delegating to the `repo-fleet-hygiene` plugin when it is
+installed and falling back to an announced bundled walk when it is not. `--out`
+redirects one run's output without touching your declared home. The working
+directory is never walked for nested repositories under any of them.
+
+Nothing reaches the network unless you pass `--remote`, which fills facts for
+referenced repositories that are not checked out here. A repository outside your
+own owner is read-only reference in every mode: it is drawn and recorded, never
+written to.
 
 ## Record a decision
 
