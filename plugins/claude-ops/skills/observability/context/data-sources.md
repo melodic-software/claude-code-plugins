@@ -211,7 +211,8 @@ shows what the pipeline is doing rather than what the reader assumes. The values
 options the skill body rendered as plain content, passed as flags from this Bash call; an
 unrendered placeholder or an empty value reads as the manifest default. The skill's pre-compute
 probe line passes no option (a `${user_config.*}` value never rides inside shell-executing
-content), so it shows the defaults; this call is the one that reflects a configured option.
+content) and runs with `--observed`, so its sixth line carries the envelope count and no option
+tier; this call is the one place the options render.
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/skills/observability/scripts/probe-observability-state.sh" --pipeline \
