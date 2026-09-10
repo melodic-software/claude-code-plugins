@@ -5,13 +5,13 @@ lands change in an adopting org.
 
 ## WIRE
 
-Setup WIRES a target — writes the change itself — when the surface is machine-editable, local,
+Setup WIRES a target, writing the change itself, when the surface is machine-editable, local,
 and reviewable: repository files, settings files, pipeline definitions, infrastructure code.
 Wiring always lands as reviewable changes; silent mutation of any surface is a defect.
 
 ## ADVISE
 
-Setup ADVISES — emits the steps and surfaces the cost, but does not write — when the surface
+Setup ADVISES, emitting the steps and surfacing the cost but not writing, when the surface
 is org-external, entitlement-gated, paid, or GUI-only.
 
 ## Paid is always advisory first

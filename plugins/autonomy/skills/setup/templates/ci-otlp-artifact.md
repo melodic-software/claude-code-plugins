@@ -1,7 +1,7 @@
 # CI OTLP file-artifact templates
 
 Snippet shapes the telemetry slice wires on the file-artifact free default. Everything below
-is surface-class parameterized — `<...>` placeholders are resolved from the binding at wire
+is surface-class parameterized. `<...>` placeholders are resolved from the binding at wire
 time; no org, fleet, or vendor value is baked in. All output lands in ONE artifact directory
 per run (`<artifact-dir>`), uploaded as a build artifact; the OTLP JSON encoding uses
 lowerCamelCase keys (`resourceSpans`, `schemaUrl`).
@@ -9,7 +9,7 @@ lowerCamelCase keys (`resourceSpans`, `schemaUrl`).
 ## Pipeline-span writer (JSON-lines)
 
 Emit one pipeline/task span per run as a single OTLP JSON line appended to
-`<artifact-dir>/pipeline.jsonl` — no dependency beyond a shell and the platform's own run
+`<artifact-dir>/pipeline.jsonl`, with no dependency beyond a shell and the platform's own run
 metadata. When a traced trigger already ran, the inbound `TRACEPARENT`
 (`00-<trace-id>-<parent-span-id>-<flags>`) supplies BOTH the shared trace ID and the
 `parentSpanId`, so the pipeline span joins the trigger's tree instead of rooting a second
@@ -42,7 +42,7 @@ export TRACEPARENT="00-$trace_id-$span_id-01"
 ```
 
 Whether the agent CLI's own native session emissions honor that context is
-surface-specific — verify empirically (some read it only behind an opt-in flag, and a
+surface-specific, so verify empirically (some read it only behind an opt-in flag, and a
 default surface may start a fresh root). A session that does not join the trace still
 attaches query-side through the `autonomy.work_item.url` resource attribute, which the
 dispatching step injects via `OTEL_RESOURCE_ATTRIBUTES`:
@@ -51,7 +51,7 @@ dispatching step injects via `OTEL_RESOURCE_ATTRIBUTES`:
 export OTEL_RESOURCE_ATTRIBUTES="autonomy.work_item.url=<canonical-item-url>"
 ```
 
-Keep exporting `TRACEPARENT` regardless — a surface that honors inbound context joins the
+Keep exporting `TRACEPARENT` regardless. A surface that honors inbound context joins the
 tree directly with no wiring change.
 
 ## Ephemeral per-job collector (agent-session capture)
@@ -84,7 +84,7 @@ capture shape.
 ## Session env block (work-item-dispatched)
 
 `export` each variable (or set them in the platform's step-level `env:` map) so the launched
-agent process inherits them — plain `sh` assignments stay shell-local and the session would
+agent process inherits them. Plain `sh` assignments stay shell-local and the session would
 emit nothing:
 
 ```sh

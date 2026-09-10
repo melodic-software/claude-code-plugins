@@ -42,7 +42,7 @@ identity. The governing posture is the autonomy plugin's admission policy
 ([`admission-policy.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/autonomy/reference/guardrails/admission-policy.md)):
 
 <!-- ai-slop-ignore-start: verbatim quotation of the autonomy plugin's admission-policy.md -->
-> "No repo-local (agent-writable) surface may supply any admission input — rules, caps, or the work
+> "No repo-local (agent-writable) surface may supply any admission input: rules, caps, or the work
 > class used for admission"
 <!-- ai-slop-ignore-end -->
 

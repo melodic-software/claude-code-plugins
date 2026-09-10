@@ -10,6 +10,9 @@ Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 ### Changed
 
 - **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
+- **Two links to the `upstream-drift` convention are repointed.** That convention's fetch-route
+  heading lost its doubled anchor separator when its em dash went, so this changelog and
+  `sweep-all/reference/batched-pass.md` now cite `#reading-the-basis-the-fetch-route`.
 
 ## [0.14.2]
 
@@ -360,7 +363,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   from a same-day verbatim mirror, labelled it one rung below a primary read, and stated its own
   retirement condition: "any env-vars fetch that reaches the `CLAUDE_CODE_MAX_*` range, which
   retires the mirror basis for a primary one". A verbatim end-to-end read of the page on 2026-08-10
-  through the new [`.md` fetch route](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#reading-the-basis--the-fetch-route)
+  through the new [`.md` fetch route](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#reading-the-basis-the-fetch-route)
   reached it. The row is **unchanged** — "Maximum number of read-only tools and subagents that can
   execute in parallel (default: 10)" — so no cited value moves; what changes is the standing of the
   citation, from mirror-corroborated to primary, which is the whole point of writing a retirement

@@ -105,7 +105,7 @@ task, your output destination, or the main session's sink and confirm gate.
    **outside the evidence packet** — a fetched page is working material, not a packet artifact —
    then search that file locally with `grep`. That route, the rung ladder, and the identity and absence
    checks a read must pass are owned by
-   [`docs/conventions/upstream-drift`](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#reading-the-basis--the-fetch-route),
+   [`docs/conventions/upstream-drift`](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#reading-the-basis-the-fetch-route),
    which names rung 1 the default and is the owning record — read it for the full text when this
    repo is on disk or reachable, but the rules you need are stated here so this step stands alone
    from a plugin cache. `WebFetch` is rung 2, which that convention calls degraded because it

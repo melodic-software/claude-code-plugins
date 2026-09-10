@@ -105,7 +105,17 @@ plugins/ai-slop/skills/*/SKILL.md
 plugins/ai-slop/skills/audit/context/*.md
 plugins/ai-slop/skills/audit/reference/*.md
 plugins/architecture/README.md
-plugins/autonomy/README.md
+# The autonomy plugin was purged whole. Its two setup fixture trees hold
+# markdown a script parses as input, so they are declared by directory rather
+# than by one recursive glob.
+plugins/autonomy/*.md
+plugins/autonomy/reference/*.md
+plugins/autonomy/reference/guardrails/*.md
+plugins/autonomy/reference/routines/*.md
+plugins/autonomy/reference/runner/*.md
+plugins/autonomy/skills/*/SKILL.md
+plugins/autonomy/skills/setup/context/*.md
+plugins/autonomy/skills/setup/templates/*.md
 plugins/bash-format/README.md
 plugins/biome-format/README.md
 plugins/bugs/README.md
@@ -222,7 +232,16 @@ plugins/repo-fleet-hygiene/README.md
 plugins/repo-hygiene/README.md
 plugins/review/README.md
 plugins/ruff-format/README.md
-plugins/session-flow/README.md
+# The session-flow plugin was purged whole. The globs stop short of
+# plugins/session-flow/scripts/tests/fixtures/**, whose handoff files are parsed
+# test input rather than prose, and of the keep-going vendor tree.
+plugins/session-flow/*.md
+plugins/session-flow/output-styles/*.md
+plugins/session-flow/reference/*.md
+plugins/session-flow/skills/*/SKILL.md
+plugins/session-flow/skills/*/context/*.md
+plugins/session-flow/skills/*/reference/*.md
+plugins/session-flow/skills/*/templates/*.md
 plugins/skill-quality/README.md
 # The songwriting plugin was purged whole. The research and template trees carry
 # verbatim Pattison quotations inside ignore markers, which the gate honours.

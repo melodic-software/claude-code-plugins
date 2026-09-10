@@ -10,6 +10,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Changed
 
 - **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
+- **The auditor agent's link to the `upstream-drift` convention is repointed.** That convention's
+  fetch-route heading lost its doubled anchor separator when its em dash went, so the agent now
+  cites `#reading-the-basis-the-fetch-route`.
 
 ## [0.7.12]
 

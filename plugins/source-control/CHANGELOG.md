@@ -3869,7 +3869,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   permission on the base repository, which made the item self-certifying and contradicted the
   autonomy plugin's admission policy:
   <!-- ai-slop-ignore-start: quoted autonomy plugin admission-policy wording -->
-  "No repo-local (agent-writable) surface may supply any admission input — rules, caps, or the work class used for admission."
+  "No repo-local (agent-writable) surface may supply any admission input: rules, caps, or the work class used for admission."
   <!-- ai-slop-ignore-end -->
   Applying a label takes
   triage or write permission, the same permission surface the C5 trust test already keys on.

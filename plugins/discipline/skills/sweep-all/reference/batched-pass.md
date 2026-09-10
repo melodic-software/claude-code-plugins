@@ -69,7 +69,7 @@ unchanged and bind every member.
    <https://code.claude.com/docs/en/env-vars>, and
    <https://code.claude.com/docs/en/whats-new/2026-w32>, read verbatim end to
    end through the `.md` fetch route
-   ([upstream-drift](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#reading-the-basis--the-fetch-route))
+   ([upstream-drift](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#reading-the-basis-the-fetch-route))
    on 2026-08-10. The env-vars rows read: `CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY`
    "Maximum number of read-only tools and subagents that can execute in
    parallel (default: 10)"; `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` "default:
