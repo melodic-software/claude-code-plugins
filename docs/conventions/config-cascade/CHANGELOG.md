@@ -25,7 +25,7 @@ adding an optional layer or relaxing a rule additively is a minor bump.
   `brand.json` are profile files in the selected team directory, not personal overlays. No
   contract rule change, so no version bump.
 
-## 1.2, 2026-09-01
+## [1.2] - 2026-09-01
 
 - **Expression doctrine (additive, minor).** A second sanctioned expression form joins the
   dedicated file: team-shared prose configuration is expressed as a natural-language convention
@@ -98,7 +98,7 @@ references updated; historical topic docs and CHANGELOGs retain the former name 
   overlay; team layer over bundled default, with personal variation limited to lane names the team
   does not track (uncommitted team-path lane file never added to the index). No contract rule change
 
-## 1.1, 2026-07-20
+## [1.1] - 2026-07-20
 
 Additive relaxation (minor bump): ratified a named exception class. Default precedence is unchanged for
 every surface; the change carves out one surface class that may invert precedence direction on conflict.
@@ -109,7 +109,7 @@ every surface; the change carves out one surface class that may invert precedenc
   reported. Such a surface is conformant, not a tolerated deviation. `standards` is the exemplar; ruled
   in #649.
 
-## 1.0, 2026-07-20
+## [1.0] - 2026-07-20
 
 Initial published contract, extracted from the tracked-rich-config section in `docs/MIGRATION-PLAYBOOK.md`
 so fleet audits have a Convention registry row to check. No rule changed in the extraction.

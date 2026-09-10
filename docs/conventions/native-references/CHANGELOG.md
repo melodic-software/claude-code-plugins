@@ -6,7 +6,7 @@ major change; additive guidance is minor; clarification is a patch. The doc ship
 unnumbered, which this file reads as **1.0**; the entry below is the first recorded change and lands
 the changelog the README said would arrive with it.
 
-## 1.0.1, 2026-08-28
+## [1.0.1] - 2026-08-28
 
 Clarification patch: no required part of the description phrase moves, the canonical gate token is
 unchanged, and no enforceability verdict changes. Three citations of another plugin's skill

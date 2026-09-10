@@ -4,7 +4,7 @@ Notable changes to the liveness-assertion contract (SemVer). Changing the core c
 row's conformance bar, or an enforceability verdict is a major bump; additive guidance or new
 instance rows is a minor bump; docs-only clarification is a patch.
 
-## 1.1.0, 2026-08-28
+## [1.1.0] - 2026-08-28
 
 Additive, minor. It adds a new instance row. The core contract, every taxonomy row's conformance
 bar, and the enforceability verdict are unchanged.
@@ -18,7 +18,7 @@ bar, and the enforceability verdict are unchanged.
   a hand-maintained list of what to check is itself a surface that can go green over a copy nobody
   added to it.
 
-## 1.0.0, 2026-08-13
+## [1.0.0] - 2026-08-13
 
 Initial published contract, peel 1 of
 [#532](https://github.com/melodic-software/claude-code-plugins/issues/532) (docs-only; umbrella

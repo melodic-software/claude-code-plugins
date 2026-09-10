@@ -6,7 +6,7 @@ independently by [config cascade](../config-cascade/README.md). Adding or removi
 changing what an existing key means, is a major bump; adding an optional key or relaxing a rule
 additively is a minor bump.
 
-## 1.0, 2026-07-24
+## [1.0] - 2026-07-24
 
 Initial published contract, landing with its first adopter (`claude-config`'s `audit-pass` skill).
 

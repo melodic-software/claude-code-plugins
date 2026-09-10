@@ -1,10 +1,10 @@
-# Changelog — upstream-drift convention
+# Changelog for the upstream-drift convention
 
 Notable changes to the upstream-drift contract (SemVer). Changing a required part, the canonical
 name, or an enforceability verdict is a major bump; additive guidance is a minor bump; docs-only
 clarification is a patch.
 
-## 1.6.3 — 2026-09-01
+## [1.6.3] - 2026-09-01
 
 Recorded near-miss evidence ADJACENT to the content-hashing deferral; docs-only, the deferral's
 verdict does not change and its trigger has NOT fired.
@@ -17,7 +17,7 @@ found the live
 anthropic.com/research/building-effective-agents page silently revised after publication: the
 page still says "Published Dec 19, 2024" while its body now names models and products that
 post-date that date, so any citation of "the December 2024 post" at that URL quotes post-hoc
-edits. This is the failure class a stored content hash would flag — but the deferral's recheck
+edits. This is the failure class a stored content hash would flag, but the deferral's recheck
 trigger ("a stale stamp causes a real defect a stored hash would have flagged, or a fleet audit
 completes without re-fetching every stamped claim") has not fired: no committed stamp on that
 page exists, so no stale stamp caused a defect in a tracked record. Recorded here as adjacent
@@ -25,7 +25,7 @@ evidence for the eventual designed issue the deferral itself prescribes ("a hash
 its own designed issue, not an inline addition here"); that issue is filed as a tracker item by
 the integration effort. The deferral stays as written.
 
-## 1.6.2 — 2026-08-31
+## [1.6.2] - 2026-08-31
 
 Recorded firing of the no-adoption-gate decision's recheck trigger; docs-only under this contract's
 own rule (the enforceability verdict does not change).
@@ -33,19 +33,19 @@ own rule (the enforceability verdict does not change).
 The 2026-08-12 recorded decision ("no CI gate is built for adoption of this convention") names as
 its trigger "a third unstamped upstream-fact carrier reaches `main`". The skill-frontmatter
 alignment sweep's verified census found eleven prose surfaces restating frontmatter facts with no
-stamp and no trigger, plus three constant-encoding scripts with undated stamps, all on `main` — the
+stamp and no trigger, plus three constant-encoding scripts with undated stamps, all on `main`. The
 trigger has fired, several times over. Re-derived outcome: the decision is **upheld**. Its premise
-is unchanged — classifying a sentence as an upstream restatement is reasoning-only under the tiers
+is unchanged: classifying a sentence as an upstream restatement is reasoning-only under the tiers
 doc, and a harness-vocabulary grep still fires on every correct citation, so a gate would train
 authors to suppress it. The remedy that actually ran is editorial: the same sweep converted all
 eleven surfaces to pointers or four-part records and dated the scripts' stamps. The candidate
 detector shape the decision's second reopen condition asks for ("a detector that separates an
 upstream restatement from an in-repo one without a suppression list") is now tracked as a proposed
-redesign of the `provenance` plugin — an LLM nomination lens for restated upstream facts, with this
-sweep's census as its golden corpus — rather than a CI gate; that proposal's fate is that issue's,
+redesign of the `provenance` plugin rather than as a CI gate: an LLM nomination lens for restated
+upstream facts, with this sweep's census as its golden corpus. That proposal's fate is that issue's,
 and this decision stays as written until its trigger fires again.
 
-## 1.6.1 — 2026-08-28
+## [1.6.1] - 2026-08-28
 
 Docs-only clarification; patch under this contract's own rule. No required part, canonical name, or
 enforceability verdict changes.
@@ -55,26 +55,26 @@ surfaces named one of them by a path into a skill-private file and the other by 
 a single sentence. Both now use the slash form, which is what ADR 0018 requires of `docs/**` and
 what the sibling clause already demonstrated.
 
-## 1.6.0 — 2026-08-21
+## [1.6.0] - 2026-08-21
 
 New adopter row: `docs-hygiene:write-for-humans`' source records, four four-part records over the
 external writing standards that skill falls back to (Diátaxis, Google developer documentation style,
-ASD-STE100, Global English). Three carry a publication-event trigger — an STE issue, a Global
-English edition, a Diátaxis revision — because those are versioned publications. The Google record
+ASD-STE100, Global English). Three carry a publication-event trigger because those are versioned
+publications: an STE issue, a Global English edition, a Diátaxis revision. The Google record
 carries a page-content divergence instead, since that guide is a continuously-edited site with no
 edition to pin; the contract admits either shape, and the row says which record uses which rather
 than flattening all four to one description. Tabled only after confirming all four conform, per the
 rule that a known-unstamped carrier belongs in an issue rather than a row. Additive; minor under
 this contract's own rule.
 
-## 1.5.0 — 2026-08-17
+## [1.5.0] - 2026-08-17
 
 New adopter row: the `ai-slop` tell catalog's revision-pinned record over Wikipedia's
 "Signs of AI writing" page, with a recurring recheck trigger (each `ai-slop` release and each
 fleet audit) and a recorded fetch-gap note the trigger covers. Additive; minor under this
 contract's own rule.
 
-## 1.4.0 — 2026-08-12
+## [1.4.0] - 2026-08-12
 
 Closes the **adoption** gap rather than a design one: the contract already owned verification
 stamps, recheck triggers, and the rule that the name binds on touch, but plugins restating upstream
@@ -92,37 +92,38 @@ guidance; no required part, canonical name, or enforceability verdict changed.
 - **The fleet's open carriers are recorded where that rule sends them.** A sweep of `plugins/**` for
   surfaces stating an upstream harness behaviour with no source, date, or trigger found 12 carriers
   across 11 plugins, filed with quoted lines at
-  [#2297](https://github.com/melodic-software/claude-code-plugins/issues/2297) — along with the
+  [#2297](https://github.com/melodic-software/claude-code-plugins/issues/2297), along with the
   files checked and found *conforming*, and the sweep's own limitation (a file-level citation gate
   under-represents mixed files, so the list is a lower bound and says so). None is tabled here.
 - **An adoption CI gate is deferred, recorded as a decision with its own trigger.** The
-  load-bearing finding is that the check §Enforceability already names — flag a `Verified <date>`
-  with no trigger — **would not have caught the case that prompted the question**
+  decisive finding is that the check §Enforceability already names, which flags a `Verified <date>`
+  carrying no trigger, **would not have caught the case that prompted the question**
   ([#2207](https://github.com/melodic-software/claude-code-plugins/issues/2207)): that surface
   carried no stamp at all, so a stamp-anchored grep had nothing to match. The named check is shaped
   for a half-conforming record; the failure that ships is the zero-part one, and separating an
-  upstream restatement from an in-repo fact is a judgment about meaning — reasoning-only under the
+  upstream restatement from an in-repo fact is a judgment about meaning, reasoning-only under the
   tiers doc. A harness-vocabulary grep fires on every correct citation too, and a gate that forces
-  routine suppression trains authors to bypass it. Recorded with a basis and an event trigger — a
-  third unstamped carrier reaching `main`, or a demonstrated detector needing no suppression list —
-  so the deferral expires on evidence rather than on a date. The existing named-not-built check and
+  routine suppression trains authors to bypass it. Recorded with a basis and an event trigger,
+  either a third unstamped carrier reaching `main` or a demonstrated detector needing no suppression
+  list, so the deferral expires on evidence rather than on a date. The existing named-not-built check and
   its own build trigger are unchanged.
 
-## 1.3.0 — 2026-08-11
+## [1.3.0] - 2026-08-11
 
-Closes two holes in [§Reading the basis — the fetch route](README.md#reading-the-basis--the-fetch-route)
+Closes two holes in [§Reading the basis: the fetch route](README.md#reading-the-basis--the-fetch-route)
 that 1.2.0 left open, both found by the fleet using it. Additive guidance; no required part,
 canonical name, or enforceability verdict changed.
 
 - **A `200` does not mean you got the page you asked for, and 1.2.0's rung 1 implied it did.** The
   rung guarded against truncation and against a channel that 404s, but not against a channel that
-  succeeds with the wrong page. A retired slug is silently aliased to its successor — no redirect,
-  no `Location`, no notice in the body: `slash-commands.md` returns `200` with 82,668 bytes titled
+  succeeds with the wrong page. A retired slug is silently aliased to its successor with no
+  redirect, no `Location`, and no notice in the body: `slash-commands.md` returns `200` with
+  82,668 bytes titled
   "Extend Claude with skills", **byte-identical to `skills.md`** (both SHA-256 `a833dd5c…`), with
   `0` redirects reported (verified 2026-08-11). An invented slug still `404`s, so the aliasing is
   specific to slugs that once existed. This failure outranks truncation: a term the *requested*
   page owns comes back missing from a full, healthy-looking body, so the false absence carries
-  every outward sign of a good read. Identity is now part of rung 1, with two cheap checks —
+  every outward sign of a good read. Identity is now part of rung 1, with two cheap checks:
   confirm the slug against `llms.txt` (across ten slugs, the nine live ones appear as
   `docs/en/<slug>.md` and only the aliased one does not), and read the body's first heading before
   quoting it. A missing slug is a prompt to find the successor in the index and cite **that** slug.
@@ -131,11 +132,11 @@ canonical name, or enforceability verdict changed.
   one page supports no claim about the product. Two moves break it: widening the subject (searching
   `hooks`, concluding "Claude Code has no X"), and searching a phrase rather than the capability.
   It joins the binding list at the top of the section, which now states **three** rules rather than
-  two — the count is part of the normative text, so a reader can tell a binding rule from an
+  two. The count is part of the normative text, so a reader can tell a binding rule from an
   explanatory aside.
   Worked instance, verified on `hooks.md`: "verbose hooks" appears **zero** times while the same
   page documents enabling verbose mode with `Ctrl+O` or `--verbose` for async hook notifications,
-  and `CLAUDE_CODE_DEBUG_LOG_LEVEL=verbose` for matcher counts — so a phrase search licenses a
+  and `CLAUDE_CODE_DEBUG_LOG_LEVEL=verbose` for matcher counts, so a phrase search licenses a
   false nonexistence claim from a complete read of the right page. An absence claim states the
   corpus and the terms tried.
 - **Stated as its own rule because it is the reason to care: a sound conclusion on a false premise
@@ -145,28 +146,28 @@ canonical name, or enforceability verdict changed.
 
 Both holes were found by the 2026-08-11 stamp re-verification
 ([#2187](https://github.com/melodic-software/claude-code-plugins/pull/2187)) applying 1.2.0 at
-scale — the convention's own recheck discipline surfacing gaps in the convention, one release after
+scale, the convention's own recheck discipline surfacing gaps in the convention, one release after
 it shipped.
 
-## 1.2.0 — 2026-08-10
+## [1.2.0] - 2026-08-10
 
-Adds [§Reading the basis — the fetch route](README.md#reading-the-basis--the-fetch-route): a rung
+Adds [§Reading the basis: the fetch route](README.md#reading-the-basis--the-fetch-route): a rung
 ladder for reading an upstream page the firing procedure already tells you to re-fetch. No required
-part, canonical name, or enforceability verdict changed — the four parts and the observability bar
+part, canonical name, or enforceability verdict changed. The four parts and the observability bar
 are untouched; this says how the basis is read, which every firing already depended on and no
 surface owned.
 
 - **The failure the rung ladder closes is a false negative, not a fetch error.** A summarizing fetch
   of a long page truncates, and a summarizer then answers "what does this page contain" from the
-  truncated span — an answer indistinguishable from genuine absence. `env-vars` produced exactly
+  truncated span, an answer indistinguishable from genuine absence. `env-vars` produced exactly
   that on three independent fetches. Two rules bind every read regardless of rung: no verbatim
   quote, no claim; and a truncated read supports no absence claim, ever.
-- **Rung 1 — `curl` the `.md` channel and search the file locally — is the default**, verified
+- **Rung 1 is the default: `curl` the `.md` channel and search the file locally**, verified
   against `env-vars` on 2026-08-10 (361,797 bytes, 458 lines, 315 variable rows including the
   `CLAUDE_CODE_MAX_*` range that had truncated away three times; two fetches, identical SHA-256).
   Rung 2 is a summarizing fetch, admissible only when the read shows the page arrived whole. Rung 3
   is a verbatim mirror.
-- **The route is hoisted, not invented — from two surfaces that derived it independently.**
+- **The route is hoisted, not invented: two surfaces derived it independently.**
   `claude-ops`'s `changelog` skill carried it page-scoped; `knowledge`'s `docpage-digest` publisher
   profile carried it claim-scoped, binding absence-establishing fetches to `curl` on the raw `.md`
   channel after two of its own runs asserted a false absence. Two independent derivations is the
@@ -179,11 +180,11 @@ surface owned.
   bar: corroborate against a fact the page's own content can only carry after a known upstream
   change, never against the mirror's self-reported sync time. A mirror-based record says on its face
   it is one rung below primary and states retirement of that basis in its trigger.
-- **Currency of a rung-1 read is fixed at what the docs actually support** — the fetch date and
+- **Currency of a rung-1 read is fixed at what the docs actually support**: the fetch date and
   nothing more, because the endpoints publish no per-page content date. The 2026-08-10 fetch
   independently re-confirmed that 1.0.0 header finding: `Last-Modified` came back equal to `Date`.
 
-## 1.1.0 — 2026-08-10
+## [1.1.0] - 2026-08-10
 
 Adopters registry gains a row for
 [`PLUGIN-PHILOSOPHY` recorded gate runs](../../PLUGIN-PHILOSOPHY.md#recorded-gate-runs)
@@ -195,7 +196,7 @@ canonical name, or enforceability verdict changed.
   divergence-at-fetch trigger the component-stances and `OFFICIAL-DOCS` rows share. The row says so,
   so a reader does not carry the wrong firing rule across from the sibling table.
 
-## 1.0.0 — 2026-07-26
+## [1.0.0] - 2026-07-26
 
 Initial published contract
 ([#1638](https://github.com/melodic-software/claude-code-plugins/issues/1638)): one name (recheck
@@ -210,7 +211,7 @@ from upstream-owned sources.
   stated; date-is-never-authority rule stated.
 - Firing procedure stated per record kind: four-part records re-fetch their cited basis and refresh
   their date; named triggers on in-repo decisions re-derive from the state the trigger names.
-  Read-time validation is distinguished from a firing — a lookup that finds no drift obliges no
+  Read-time validation is distinguished from a firing: a lookup that finds no drift obliges no
   edit; divergence at fetch is what fires.
 - Drift-signal finding recorded: no `ETag` and no per-page `Last-Modified` on the official docs'
   raw-markdown endpoints (verified 2026-07-26 by header inspection), so content hashing is the only

@@ -5,7 +5,7 @@ Notable changes to the hook-telemetry envelope contract. The envelope is version
 compatibility"). Removal, rename, or type-change of a field is a major `schema_version` bump; a field is
 marked deprecated here for one minor cycle before removal.
 
-## 1.1, 2026-09-05
+## [1.1] - 2026-09-05
 
 Additive minor: four optional correlation keys on the envelope spine (#3758, closing the thread #930
 opened).
@@ -25,7 +25,7 @@ opened).
 - No field removed, renamed, or type-changed; a 1.0 consumer ignores the four keys under the
   tolerate-unknown rule.
 
-## 1.0, 2026-06-24
+## [1.0] - 2026-06-24
 
 Initial published contract.
 
