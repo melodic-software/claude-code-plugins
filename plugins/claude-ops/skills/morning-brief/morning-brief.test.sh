@@ -6,6 +6,11 @@
 
 set -uo pipefail
 
+# The git-remote fallback case builds a throwaway repository. An inherited
+# absolute GIT_DIR would redirect that fixture's writes into the caller's
+# clone, so the inherited git environment is cleared before anything runs.
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BRIEF="$SCRIPT_DIR/scripts/morning-brief.sh"
 

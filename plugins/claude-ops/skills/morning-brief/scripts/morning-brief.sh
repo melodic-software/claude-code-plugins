@@ -58,6 +58,7 @@
 #   4  prerequisite missing (gh or jq), or repo could not be resolved
 #   5  every section was unreadable; the brief carries no data
 
+# shellcheck disable=SC2329  # the per-section fetch functions are dispatched by name through gql_or_rest, which ShellCheck cannot follow
 set -uo pipefail
 
 # --- Queue labels (melodic-software defaults; overridable / filtered live) ------
