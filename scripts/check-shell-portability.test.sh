@@ -22,6 +22,10 @@ set -uo pipefail
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SELF_DIR/.." && pwd)"
 SCRIPT="$SELF_DIR/check-shell-portability.sh"
+# The scanner engine the gate runs with `awk -f`. Named here so the cases at
+# the foot of this file can drive it on its own two operands, without the gate
+# around it, and so a syntax error in it fails a test rather than only a scan.
+SCAN_AWK="$SELF_DIR/lib/shell-portability-scan.awk"
 
 REAL_TOKENS="$REPO_ROOT/scripts/shell-portability-tokens.txt"
 . "$SELF_DIR/test-git-helpers.sh"
@@ -3052,6 +3056,59 @@ else
   fail "empty pattern set did not fail closed: rc=$rc out=$out"
 fi
 rm -f "$TOK" "$f"
+
+# =============================================================================
+# The scanner engine as a file -- scripts/lib/shell-portability-scan.awk.
+# Everything above drives it THROUGH the gate, which is where its behaviour is
+# pinned. These three cases address the program itself: that it compiles, that
+# its two-operand interface is the whole interface, and that the gate refuses
+# to run without it.
+# =============================================================================
+
+# --- the program COMPILES. awk parses a `-f` program in full before executing
+# any of it, so reaching END is proof the whole file parsed: a syntax error
+# anywhere aborts with awk's own diagnostic and never runs a rule. Driven with
+# /dev/null as the only operand, the loading pass reads nothing and END takes
+# the empty-pattern-set branch, which is the observable that says END ran. ---
+out="$(awk -f "$SCAN_AWK" /dev/null 2>&1)"
+rc=$?
+if [[ $rc -eq 2 && "$out" == *"no active patterns"* ]]; then
+  ok "the scanner program compiles and reaches END (awk -f, /dev/null)"
+else
+  fail "scanner program did not compile or did not reach END: rc=$rc out=$out"
+fi
+
+# --- the program is addressable on its OWN two operands: token list, then the
+# file to scan. Its stdout contract is `LINE: token -> text`; the
+# `PORTABILITY: <file>:` prefix belongs to the gate, which is what makes this a
+# different assertion from every one above rather than the same one twice. ---
+tok="$(one_token_list 'grep[[:space:]]+-P')"
+f="$(mktemp --suffix=.sh)"
+printf 'echo first\ngrep -P x\n' >"$f"
+out="$(awk -f "$SCAN_AWK" "$tok" "$f" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 && "$out" == '2: grep[[:space:]]+-P -> grep -P x' ]]; then
+  ok "the scanner program runs on its two operands alone and prints LINE: token -> text"
+else
+  fail "direct two-operand run: rc=$rc out=$out"
+fi
+rm -f "$tok" "$f"
+
+# --- and the gate FAILS CLOSED when the program is not there. Reported here,
+# naming the path, rather than as a bare non-zero awk status once per scanned
+# file: a scanner that cannot run is never a clean corpus. ---
+fixture_tree::build TREE --sut "$SCRIPT"
+rm -f "$TREE/scripts/lib/shell-portability-scan.awk"
+f="$(tmpsh 'grep -P x')"
+out="$(bash "$TREE/scripts/check-shell-portability.sh" --paths "$f" 2>&1)"
+rc=$?
+if [[ $rc -eq 2 && "$out" == *"scanner program not found"* ]]; then
+  ok "a missing scanner program fails the gate closed, naming the path"
+else
+  fail "missing scanner program did not fail closed: rc=$rc out=$out"
+fi
+rm -rf "$TREE"
+rm -f "$f"
 
 # =============================================================================
 # Shell spellings the token classes must not let past -- #1544. All reach the
