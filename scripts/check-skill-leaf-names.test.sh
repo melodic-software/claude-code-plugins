@@ -10,19 +10,16 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SUT_SRC="$SCRIPT_DIR/check-skill-leaf-names.sh"
 
-fails=0
-pass() { printf 'ok   - %s\n' "$1"; }
-fail() {
-  printf 'FAIL - %s\n' "$1" >&2
-  fails=$((fails + 1))
-}
+# shellcheck source=lib/test-harness.sh
+. "$SCRIPT_DIR/lib/test-harness.sh"
+# shellcheck source=lib/fixture-tree.sh
+. "$SCRIPT_DIR/lib/fixture-tree.sh"
 
-TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT
+# The builder assigns through a nameref, which shellcheck cannot follow;
+# declaring the out-vars here is what tells it (SC2154) the names are written.
+TMP="" CLEAN=""
 
-mkdir -p "$TMP/scripts/lib"
-cp "$SUT_SRC" "$TMP/scripts/check-skill-leaf-names.sh"
-cp "$SCRIPT_DIR/lib/read-list.sh" "$TMP/scripts/lib/"
+fixture_tree::build TMP --sut "$SUT_SRC" --plugins
 SUT="$TMP/scripts/check-skill-leaf-names.sh"
 REGISTRY="$TMP/scripts/skill-leaf-name-registry.txt"
 
@@ -45,21 +42,21 @@ make_skill gamma shared
 # 1. discover lists a collision with all its owners.
 out="$(run)"
 if grep -q 'shared' <<<"$out" && grep -q '3 plugins' <<<"$out"; then
-  pass "discover lists a collision with its owner count"
+  ok "discover lists a collision with its owner count"
 else
   fail "discover should list shared across 3 plugins: $out"
 fi
 
 # 2. A leaf name owned by only one plugin is not a collision.
 if ! grep -q 'solo' <<<"$out"; then
-  pass "single-owner leaf name is not reported"
+  ok "single-owner leaf name is not reported"
 else
   fail "solo should not be reported as a collision: $out"
 fi
 
 # 3. A directory without SKILL.md is not counted as a skill.
 if ! grep -q 'not-a-skill' <<<"$out"; then
-  pass "directory without SKILL.md is not counted"
+  ok "directory without SKILL.md is not counted"
 else
   fail "not-a-skill should be ignored: $out"
 fi
@@ -69,7 +66,7 @@ fi
 out="$(run --check)"
 rc=$?
 if [[ $rc -eq 1 ]] && grep -q 'is not registered' <<<"$out"; then
-  pass "unregistered collision fails --check"
+  ok "unregistered collision fails --check"
 else
   fail "unregistered collision should fail (rc=$rc): $out"
 fi
@@ -80,7 +77,7 @@ printf '# a comment\n\n  shared alpha,beta,gamma  # trailing comment\n' >"$REGIS
 out="$(run --check)"
 rc=$?
 if [[ $rc -eq 0 ]] && grep -q 'are registered' <<<"$out"; then
-  pass "registered collision passes --check (comments and whitespace ignored)"
+  ok "registered collision passes --check (comments and whitespace ignored)"
 else
   fail "registered collision should pass (rc=$rc): $out"
 fi
@@ -90,7 +87,7 @@ printf 'shared gamma,alpha,beta\n' >"$REGISTRY"
 out="$(run --check)"
 rc=$?
 if [[ $rc -eq 0 ]]; then
-  pass "owner set comparison is order-independent"
+  ok "owner set comparison is order-independent"
 else
   fail "reordered owner set should pass (rc=$rc): $out"
 fi
@@ -101,7 +98,7 @@ printf 'shared alpha,beta\n' >"$REGISTRY"
 out="$(run --check)"
 rc=$?
 if [[ $rc -eq 1 ]] && grep -q 'is registered for' <<<"$out"; then
-  pass "a new owner joining a registered collision fails"
+  ok "a new owner joining a registered collision fails"
 else
   fail "grown owner set should fail (rc=$rc): $out"
 fi
@@ -112,7 +109,7 @@ printf 'shared\n' >"$REGISTRY"
 out="$(run --check)"
 rc=$?
 if [[ $rc -eq 1 ]] && grep -q 'without an owner set' <<<"$out"; then
-  pass "registration without an owner set is rejected"
+  ok "registration without an owner set is rejected"
 else
   fail "bare-name entry should fail (rc=$rc): $out"
 fi
@@ -123,7 +120,7 @@ printf 'shared *\n' >"$REGISTRY"
 out="$(run --check)"
 rc=$?
 if [[ $rc -eq 0 ]] && grep -q 'are registered' <<<"$out"; then
-  pass "wildcard owner set accepts any owners (literal, not glob-expanded)"
+  ok "wildcard owner set accepts any owners (literal, not glob-expanded)"
 else
   fail "wildcard entry should pass (rc=$rc): $out"
 fi
@@ -134,12 +131,12 @@ printf 'shared\nvanished\n' >"$REGISTRY"
 out="$(run --check)"
 rc=$?
 if [[ $rc -eq 1 ]] && grep -q 'no longer carried by 2+ plugins' <<<"$out"; then
-  pass "stale registry entry fails --check"
+  ok "stale registry entry fails --check"
 else
   fail "stale entry should fail (rc=$rc): $out"
 fi
 if grep -q "STALE BASELINE: .*: 'vanished'" <<<"$out"; then
-  pass "the stale diagnostic carries the shared STALE BASELINE prefix"
+  ok "the stale diagnostic carries the shared STALE BASELINE prefix"
 else
   fail "stale diagnostic should carry the shared prefix: $out"
 fi
@@ -152,7 +149,7 @@ printf 'shared alpha,beta,gamma' >"$REGISTRY"
 out="$(run --check)"
 rc=$?
 if [[ $rc -eq 0 ]]; then
-  pass "a final registry entry with no trailing newline is loaded"
+  ok "a final registry entry with no trailing newline is loaded"
 else
   fail "unterminated final entry should be loaded (rc=$rc): $out"
 fi
@@ -165,7 +162,7 @@ make_skill beta newdupe
 out="$(run --check)"
 rc=$?
 if [[ $rc -eq 1 ]] && grep -q 'newdupe' <<<"$out"; then
-  pass "a newly introduced collision fails while existing ones stay registered"
+  ok "a newly introduced collision fails while existing ones stay registered"
 else
   fail "new collision should fail (rc=$rc): $out"
 fi
@@ -174,17 +171,15 @@ fi
 #     declared but never assigned is unbound, so a bare ${#a[@]}/${!a[@]} aborts
 #     here — and this is precisely the state the stale-entry guard exists to
 #     shepherd the repo into, so it must not be the one state that crashes.
-CLEAN="$(mktemp -d)"
-mkdir -p "$CLEAN/scripts/lib" "$CLEAN/plugins/solo/skills/only"
-cp "$SUT_SRC" "$CLEAN/scripts/check-skill-leaf-names.sh"
-cp "$SCRIPT_DIR/lib/read-list.sh" "$CLEAN/scripts/lib/"
+fixture_tree::build CLEAN --sut "$SUT_SRC" --plugins
+mkdir -p "$CLEAN/plugins/solo/skills/only"
 printf -- '---\nname: only\ndescription: "fixture"\n---\n' >"$CLEAN/plugins/solo/skills/only/SKILL.md"
 : >"$CLEAN/scripts/skill-leaf-name-registry.txt"
 
 out="$(bash "$CLEAN/scripts/check-skill-leaf-names.sh" --check 2>&1)"
 rc=$?
 if [[ $rc -eq 0 ]] && ! grep -q 'unbound variable' <<<"$out"; then
-  pass "zero collisions with an empty registry passes --check"
+  ok "zero collisions with an empty registry passes --check"
 else
   fail "zero-collision state should pass (rc=$rc): $out"
 fi
@@ -192,7 +187,7 @@ fi
 out="$(bash "$CLEAN/scripts/check-skill-leaf-names.sh" 2>&1)"
 rc=$?
 if [[ $rc -eq 0 ]] && grep -q 'No cross-plugin skill leaf-name collisions' <<<"$out"; then
-  pass "zero collisions reports cleanly in discover mode"
+  ok "zero collisions reports cleanly in discover mode"
 else
   fail "zero-collision discover should report cleanly (rc=$rc): $out"
 fi
@@ -202,13 +197,9 @@ rm -rf "$CLEAN"
 bash "$SUT" --bogus >/dev/null 2>&1
 rc=$?
 if [[ $rc -eq 2 ]]; then
-  pass "unknown mode exits 2"
+  ok "unknown mode exits 2"
 else
   fail "unknown mode should exit 2 (rc=$rc)"
 fi
 
-if [[ $fails -ne 0 ]]; then
-  printf '%d assertion(s) failed\n' "$fails" >&2
-  exit 1
-fi
-printf 'all assertions passed\n'
+test_harness::report

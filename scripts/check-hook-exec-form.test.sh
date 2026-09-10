@@ -13,18 +13,19 @@ REQUIREMENTS="$SELF_DIR/../.github/requirements-ci.txt"
 
 # shellcheck source=lib/test-harness.sh
 . "$SELF_DIR/lib/test-harness.sh"
+# shellcheck source=lib/fixture-tree.sh
+. "$SELF_DIR/lib/fixture-tree.sh"
 
-new_fixture() {
-  local dir
-  dir="$(mktemp -d)"
-  mkdir -p "$dir/scripts" "$dir/plugins" "$dir/.github"
-  cp "$SCRIPT" "$dir/scripts/check-hook-exec-form.sh"
-  cp "$READER" "$dir/scripts/check-hook-exec-form-frontmatter.py"
-  chmod +x "$dir/scripts/check-hook-exec-form.sh" "$dir/scripts/check-hook-exec-form-frontmatter.py"
+# The builder assigns through a nameref, which shellcheck cannot follow;
+# declaring the out-var here is what tells it (SC2154) the name is written.
+f=""
+
+new_fixture() { # <out-var>
+  fixture_tree::build "$1" --sut "$SCRIPT" --sut "$READER" --plugins || return 1
   # The gate reads the pyyaml pin from here for its uv fallback; copy the real
   # file so a fixture run resolves the same version CI installs.
-  cp "$REQUIREMENTS" "$dir/.github/requirements-ci.txt"
-  printf '%s' "$dir"
+  mkdir -p "${!1}/.github"
+  cp "$REQUIREMENTS" "${!1}/.github/requirements-ci.txt"
 }
 
 # plugin_file <fixture> <plugin> <relpath> <content>
@@ -101,7 +102,7 @@ ROOTED_EXEC_HOOKS='{
 }'
 
 # --- the regression this gate exists for: pre-#2570 shape fails -------------
-f="$(new_fixture)"
+new_fixture f
 plugin_file "$f" disk-hygiene hooks/hooks.json "$PRE_2570_HOOKS"
 if out="$(run_check "$f" 2>&1)"; then
   fail "pre-#2570 exec-form bash hooks should fail, got success: $out"
@@ -116,7 +117,7 @@ fi
 rm -rf "$f"
 
 # --- the #2570 fix passes: shell form with a leading bare `bash` ------------
-f="$(new_fixture)"
+new_fixture f
 plugin_file "$f" disk-hygiene hooks/hooks.json "$SHELL_FORM_HOOKS"
 if out="$(run_check "$f" 2>&1)"; then
   ok "shell form with a leading bare bash passes (args presence is the discriminator)"
@@ -126,7 +127,7 @@ fi
 rm -rf "$f"
 
 # --- exec form with a ${CLAUDE_PLUGIN_ROOT}-rooted command passes -----------
-f="$(new_fixture)"
+new_fixture f
 plugin_file "$f" alpha hooks/hooks.json "$ROOTED_EXEC_HOOKS"
 if out="$(run_check "$f" 2>&1)"; then
   ok "exec form with a rooted command path passes"
@@ -136,7 +137,7 @@ fi
 rm -rf "$f"
 
 # --- exec form with an absolute Windows path passes -------------------------
-f="$(new_fixture)"
+new_fixture f
 plugin_file "$f" alpha hooks/hooks.json '{"hooks":[{"hooks":[{"type":"command","command":"C:\\Program Files\\nodejs\\node.exe","args":["x.mjs"]}]}]}'
 if out="$(run_check "$f" 2>&1)"; then
   ok "exec form with an absolute Windows path passes"
@@ -146,7 +147,7 @@ fi
 rm -rf "$f"
 
 # --- the allowlist: `node` passes, the shimmed names do not -----------------
-f="$(new_fixture)"
+new_fixture f
 plugin_file "$f" alpha hooks/hooks.json '{"hooks":[{"hooks":[{"type":"command","command":"node","args":["${CLAUDE_PLUGIN_ROOT}/hooks/x.mjs"]}]}]}'
 if out="$(run_check "$f" 2>&1)"; then
   ok "allowlisted bare name (node) passes"
@@ -156,7 +157,7 @@ fi
 rm -rf "$f"
 
 for name in bash sh python python3 py pwsh deno; do
-  f="$(new_fixture)"
+  new_fixture f
   plugin_file "$f" alpha hooks/hooks.json "{\"hooks\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"$name\",\"args\":[\"x\"]}]}]}"
   if run_check "$f" >/dev/null 2>&1; then
     fail "bare exec-form command '$name' should fail"
@@ -176,7 +177,7 @@ else
 fi
 
 # --- an empty args array is still exec form ---------------------------------
-f="$(new_fixture)"
+new_fixture f
 plugin_file "$f" alpha hooks/hooks.json '{"hooks":[{"hooks":[{"type":"command","command":"bash","args":[]}]}]}'
 if run_check "$f" >/dev/null 2>&1; then
   fail "an empty args array is still exec form and must fail"
@@ -188,7 +189,7 @@ rm -rf "$f"
 # --- a matcher entry is not itself a hook object ----------------------------
 # The outer object carries `matcher` and a nested `hooks` list but no command;
 # only the inner dirty entry may be flagged, and the clean sibling must not be.
-f="$(new_fixture)"
+new_fixture f
 plugin_file "$f" alpha hooks/hooks.json '{"hooks":[{"matcher":"Bash","hooks":[
   {"type":"command","command":"${CLAUDE_PLUGIN_ROOT}/bin/ok","args":["--x"]},
   {"type":"command","command":"python3","args":["y.py"]}]}]}'
@@ -205,7 +206,7 @@ fi
 rm -rf "$f"
 
 # --- manifest string-path hook config is scanned ----------------------------
-f="$(new_fixture)"
+new_fixture f
 plugin_file "$f" alpha .claude-plugin/plugin.json '{"name":"alpha","hooks":"./config/extra-hooks.json"}'
 plugin_file "$f" alpha config/extra-hooks.json "$PRE_2570_HOOKS"
 if out="$(run_check "$f" 2>&1)"; then
@@ -220,7 +221,7 @@ fi
 rm -rf "$f"
 
 # --- manifest array of hook paths: the offending element fails --------------
-f="$(new_fixture)"
+new_fixture f
 plugin_file "$f" alpha .claude-plugin/plugin.json '{"name":"alpha","hooks":["./hooks/hooks.json","./config/extra-hooks.json"]}'
 plugin_file "$f" alpha hooks/hooks.json "$SHELL_FORM_HOOKS"
 plugin_file "$f" alpha config/extra-hooks.json "$PRE_2570_HOOKS"
@@ -232,7 +233,7 @@ fi
 rm -rf "$f"
 
 # --- inline manifest hooks object is scanned --------------------------------
-f="$(new_fixture)"
+new_fixture f
 plugin_file "$f" alpha .claude-plugin/plugin.json '{"name":"alpha","hooks":{"PreToolUse":[{"hooks":[{"type":"command","command":"bash","args":["x"]}]}]}}'
 if out="$(run_check "$f" 2>&1)"; then
   fail "inline manifest hooks object should fail, got success: $out"
@@ -246,7 +247,7 @@ fi
 rm -rf "$f"
 
 # --- an exec-form-looking object OUTSIDE the manifest hooks key is ignored ---
-f="$(new_fixture)"
+new_fixture f
 plugin_file "$f" alpha .claude-plugin/plugin.json '{"name":"alpha","mcpServers":{"svc":{"command":"npx","args":["-y","pkg"]}},"hooks":{"PreToolUse":[]}}'
 if out="$(run_check "$f" 2>&1)"; then
   ok "an MCP server command/args pair outside the hooks key is out of scope"
@@ -256,7 +257,7 @@ fi
 rm -rf "$f"
 
 # --- unreferenced hooks/*.json sibling is not scanned -----------------------
-f="$(new_fixture)"
+new_fixture f
 plugin_file "$f" alpha hooks/hooks.json "$SHELL_FORM_HOOKS"
 plugin_file "$f" alpha hooks/unreferenced.json "$PRE_2570_HOOKS"
 if out="$(run_check "$f" 2>&1)"; then
@@ -267,7 +268,7 @@ fi
 rm -rf "$f"
 
 # --- out-of-tree manifest hooks path is skipped, visibly --------------------
-f="$(new_fixture)"
+new_fixture f
 plugin_file "$f" alpha .claude-plugin/plugin.json '{"name":"alpha","hooks":"../../outside.json"}'
 printf '%s\n' "$PRE_2570_HOOKS" >"$f/outside.json"
 if out="$(run_check "$f" 2>&1)"; then
@@ -282,7 +283,7 @@ fi
 rm -rf "$f"
 
 # --- unparsable manifest does not crash the gate ----------------------------
-f="$(new_fixture)"
+new_fixture f
 plugin_file "$f" alpha .claude-plugin/plugin.json '{not json'
 plugin_file "$f" alpha hooks/hooks.json "$SHELL_FORM_HOOKS"
 if out="$(run_check "$f" 2>&1)"; then
@@ -343,7 +344,7 @@ shell: bash
 # Body
 '
 
-f="$(new_fixture)"
+new_fixture f
 skill_md "$f" disk-hygiene skills/clean/SKILL.md "$FM_EXEC_PYTHON"
 if out="$(run_check "$f" 2>&1)"; then
   fail "frontmatter exec-form python3 should fail, got success: $out"
@@ -357,7 +358,7 @@ else
 fi
 rm -rf "$f"
 
-f="$(new_fixture)"
+new_fixture f
 skill_md "$f" repo-hygiene skills/clean/SKILL.md "$FM_SHELL_FORM"
 if out="$(run_check "$f" 2>&1)"; then
   ok "frontmatter shell form with a leading bare bash passes"
@@ -367,7 +368,7 @@ fi
 rm -rf "$f"
 
 # --- frontmatter: clean and dirty hook objects in one matcher ---------------
-f="$(new_fixture)"
+new_fixture f
 skill_md "$f" alpha skills/x/SKILL.md '---
 hooks:
   PreToolUse:
@@ -396,7 +397,7 @@ fi
 rm -rf "$f"
 
 # --- frontmatter: an unquoted command with a trailing comment ---------------
-f="$(new_fixture)"
+new_fixture f
 skill_md "$f" alpha skills/x/SKILL.md '---
 hooks:
   PreToolUse:
@@ -422,7 +423,7 @@ rm -rf "$f"
 # nested under some other key is data, not a hook registration, and must not be
 # walked as one -- every markdown file reaches the walk now, so a nested match
 # would be a false positive rather than extra coverage.
-f="$(new_fixture)"
+new_fixture f
 skill_md "$f" alpha skills/x/SKILL.md '---
 description: "x"
 metadata:
@@ -444,7 +445,7 @@ rm -rf "$f"
 # --- frontmatter: a sequence at the key's own indentation stays in block ----
 # YAML permits a block sequence to sit at the mapping key's indentation, so a
 # zero-indent `- ` under a zero-indent `hooks:` must not close the block.
-f="$(new_fixture)"
+new_fixture f
 skill_md "$f" alpha skills/x/SKILL.md '---
 hooks:
   PreToolUse:
@@ -463,7 +464,7 @@ fi
 rm -rf "$f"
 
 # --- frontmatter: CRLF line endings ----------------------------------------
-f="$(new_fixture)"
+new_fixture f
 mkdir -p "$f/plugins/alpha/skills/x"
 printf '%s\r\n' '---' 'hooks:' '  PreToolUse:' '    - hooks:' '        - type: command' '        # a comment' '          command: "bash"' '          args: ["x"]' '---' 'body' \
   >"$f/plugins/alpha/skills/x/SKILL.md"
@@ -475,7 +476,7 @@ fi
 rm -rf "$f"
 
 # --- frontmatter: flow style is the same document, and is walked ------------
-f="$(new_fixture)"
+new_fixture f
 skill_md "$f" alpha skills/x/SKILL.md '---
 hooks:
   PreToolUse:
@@ -497,7 +498,7 @@ rm -rf "$f"
 # A block-sequence `args` entry may legitimately be a JSON-ish string. Reading
 # YAML as text made that look like a flow mapping and red-lined a valid file;
 # a real parser cannot make that mistake.
-f="$(new_fixture)"
+new_fixture f
 skill_md "$f" alpha skills/x/SKILL.md '---
 hooks:
   PreToolUse:
@@ -525,7 +526,7 @@ rm -rf "$f"
 # shellcheck disable=SC1003  # a lone backslash IS the intended value here
 BS='\'
 for spelling in '"hooks":' "'hooks':" 'hooks :' "\"${BS}u0068ooks\":" "\"${BS}U00000068ooks\":" "\"${BS}x68ooks\":" '"hooks" :'; do
-  f="$(new_fixture)"
+  new_fixture f
   skill_md "$f" alpha skills/x/SKILL.md "---
 description: \"x\"
 $spelling
@@ -549,7 +550,7 @@ body"
 done
 
 # --- frontmatter: a whole declaration on the key line is walked -------------
-f="$(new_fixture)"
+new_fixture f
 skill_md "$f" alpha skills/x/SKILL.md '---
 "hooks": {PreToolUse: [{hooks: [{type: command, command: bash, args: ["x"]}]}]}
 ---
@@ -569,7 +570,7 @@ rm -rf "$f"
 # PyYAML's loader keeps the last value; js-yaml rejects the document. A gate
 # must not pick the reading that clears the file, and #1492 already proved a
 # duplicate key can ship through a green suite.
-f="$(new_fixture)"
+new_fixture f
 skill_md "$f" alpha skills/x/SKILL.md '---
 hooks: {}
 hooks:
@@ -592,7 +593,7 @@ fi
 rm -rf "$f"
 
 # --- frontmatter: a duplicate key inside a hook object is ambiguous ----------
-f="$(new_fixture)"
+new_fixture f
 skill_md "$f" alpha skills/x/SKILL.md '---
 hooks:
   PreToolUse:
@@ -617,7 +618,7 @@ rm -rf "$f"
 # --- frontmatter: a duplicate arriving through a merge key is still caught --
 # A merged mapping contributes its keys to the hook object, so checking only
 # the keys written at the hook object itself would leave `<<` as the way in.
-f="$(new_fixture)"
+new_fixture f
 skill_md "$f" alpha skills/x/SKILL.md '---
 base: &base
   command: node
@@ -643,7 +644,7 @@ rm -rf "$f"
 # --- frontmatter: unparsable YAML fails closed ------------------------------
 # The one thing a real parser still cannot clear. A file the gate cannot read
 # is a file it must not pass.
-f="$(new_fixture)"
+new_fixture f
 skill_md "$f" alpha skills/x/SKILL.md '---
 hooks:
   PreToolUse:
@@ -665,7 +666,7 @@ rm -rf "$f"
 # --- frontmatter: a trailing comment on the hooks key is not a value --------
 # `hooks:  # why` opens a block like any other; treating the comment as an
 # inline declaration would be a false positive on ordinary YAML.
-f="$(new_fixture)"
+new_fixture f
 skill_md "$f" alpha skills/x/SKILL.md '---
 hooks:  # the skill-scoped belt
   PreToolUse:
@@ -691,7 +692,7 @@ rm -rf "$f"
 # keys inside the hooks block. This is the shape that removed the last
 # violation from this repository; a gate that flagged its own remedy would
 # leave the defect no correct way out.
-f="$(new_fixture)"
+new_fixture f
 skill_md "$f" disk-hygiene skills/clean/SKILL.md '---
 description: "x"
 hooks:
@@ -722,7 +723,7 @@ rm -rf "$f"
 # `hooks:` whose value is `*shared` expands to the anchored mapping. The old
 # text walk matched neither a sequence nor a mapping key on that line and
 # skipped it, so an anchored exec-form hook cleared the gate.
-f="$(new_fixture)"
+new_fixture f
 skill_md "$f" alpha skills/x/SKILL.md '---
 shared: &shared
   PreToolUse:
@@ -745,7 +746,7 @@ fi
 rm -rf "$f"
 
 # --- frontmatter: an anchor on a value inside the block is walked -----------
-f="$(new_fixture)"
+new_fixture f
 skill_md "$f" alpha skills/x/SKILL.md '---
 hooks:
   PreToolUse: &pre
@@ -769,7 +770,7 @@ rm -rf "$f"
 # --- frontmatter: a merge key is expanded ----------------------------------
 # `<<: *base` makes the merged mapping's keys the hook object's keys, so the
 # exec-form pair arrives through the merge and must still be seen.
-f="$(new_fixture)"
+new_fixture f
 skill_md "$f" alpha skills/x/SKILL.md '---
 base: &base
   type: command
@@ -793,7 +794,7 @@ fi
 rm -rf "$f"
 
 # --- frontmatter: an explicit key wins over a merged one --------------------
-f="$(new_fixture)"
+new_fixture f
 skill_md "$f" alpha skills/x/SKILL.md '---
 base: &base
   command: bash
@@ -813,7 +814,7 @@ fi
 rm -rf "$f"
 
 # --- frontmatter: a block scalar command is read as its content -------------
-f="$(new_fixture)"
+new_fixture f
 skill_md "$f" alpha skills/x/SKILL.md '---
 hooks:
   PreToolUse:
@@ -839,7 +840,7 @@ rm -rf "$f"
 # Every markdown file under plugins/ reaches the reader, so shapes elsewhere in
 # the frontmatter must stay inert -- otherwise the gate would red-line ordinary
 # skills for YAML that has nothing to do with hooks.
-f="$(new_fixture)"
+new_fixture f
 skill_md "$f" alpha skills/x/SKILL.md '---
 description: |
   A folded description that mentions hooks: and a list
@@ -863,7 +864,7 @@ rm -rf "$f"
 # --- an unparsable hook config fails closed ---------------------------------
 # A file the gate cannot read is a file the gate cannot clear; skipping it
 # silently would recreate the no-op-that-looks-green failure it exists to stop.
-f="$(new_fixture)"
+new_fixture f
 plugin_file "$f" alpha hooks/hooks.json '{"hooks": [ this is not json'
 if out="$(run_check "$f" 2>&1)"; then
   fail "an unparsable hooks.json should fail closed, got success: $out"
@@ -877,7 +878,7 @@ fi
 rm -rf "$f"
 
 # --- frontmatter: a ${...} placeholder is not mistaken for flow style -------
-f="$(new_fixture)"
+new_fixture f
 skill_md "$f" alpha skills/x/SKILL.md '---
 hooks:
   PreToolUse:
@@ -895,7 +896,7 @@ fi
 rm -rf "$f"
 
 # --- markdown without frontmatter, and without hooks, is inert --------------
-f="$(new_fixture)"
+new_fixture f
 mkdir -p "$f/plugins/alpha/skills/x"
 printf '%s\n' '# Not frontmatter' '' 'hooks:' '  PreToolUse:' '    - hooks:' '        - type: command' '          command: bash' '          args: ["x"]' \
   >"$f/plugins/alpha/skills/x/SKILL.md"
@@ -907,7 +908,7 @@ fi
 rm -rf "$f"
 
 # --- a frontmatter block with no hooks: key at all passes -------------------
-f="$(new_fixture)"
+new_fixture f
 skill_md "$f" alpha skills/x/SKILL.md '---
 description: "x"
 allowed-tools:
@@ -922,7 +923,7 @@ fi
 rm -rf "$f"
 
 # --- an agent frontmatter hook is covered too -------------------------------
-f="$(new_fixture)"
+new_fixture f
 skill_md "$f" alpha agents/reviewer.md '---
 name: reviewer
 hooks:
@@ -945,7 +946,7 @@ fi
 rm -rf "$f"
 
 # --- a fully clean tree passes with a positive statement --------------------
-f="$(new_fixture)"
+new_fixture f
 plugin_file "$f" alpha hooks/hooks.json "$SHELL_FORM_HOOKS"
 skill_md "$f" alpha skills/x/SKILL.md "$FM_SHELL_FORM"
 if out="$(run_check "$f" 2>&1)"; then

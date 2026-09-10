@@ -23,20 +23,20 @@ SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SELF_DIR/.." && pwd)"
 SCRIPT="$SELF_DIR/check-shell-portability.sh"
 
-# A fixture runs a COPY of the gate, so it must also carry the shared
-# libraries that copy sources (scripts/lib/*.sh). Staging them here keeps the
-# fixture a faithful copy; without it the copied gate dies on a missing
-# source at line 1 and every assertion below turns into the same opaque
-# failure. See #2914.
-stage_libs() {
-  mkdir -p "$1/lib"
-  cp "$SELF_DIR/lib/changed-files.sh" "$SELF_DIR/lib/token-scan.sh" "$SELF_DIR/lib/read-list.sh" "$1/lib/"
-}
 REAL_TOKENS="$REPO_ROOT/scripts/shell-portability-tokens.txt"
 . "$SELF_DIR/test-git-helpers.sh"
 
 # shellcheck source=lib/test-harness.sh
 . "$SELF_DIR/lib/test-harness.sh"
+# A fixture runs a COPY of the gate, so the builder stages scripts/lib/ with it:
+# without those, the copy dies on a missing source at line 1 and every assertion
+# below turns into the same opaque failure.
+# shellcheck source=lib/fixture-tree.sh
+. "$SELF_DIR/lib/fixture-tree.sh"
+
+# The builder assigns through a nameref, which shellcheck cannot follow;
+# declaring the out-vars here is what tells it (SC2154) the names are written.
+fx="" TREE=""
 
 # scan_paths <tokens-file> <file>... — run the gate over explicit paths.
 scan_paths() {
@@ -1457,10 +1457,7 @@ rm -f "$f" "$tok"
 # =============================================================================
 
 tok="$(one_token_list '\\b')"
-fx="$(mktemp -d)"
-mkdir -p "$fx/scripts"
-cp "$SCRIPT" "$fx/scripts/"
-stage_libs "$fx/scripts"
+fixture_tree::build fx --sut "$SCRIPT"
 printf 'grep -Eq "\\bfoo\\b" "$file"\n' >"$fx/FOO=bar.sh"
 out="$(cd "$fx" && SHELL_PORTABILITY_TOKENS="$tok" bash scripts/check-shell-portability.sh --paths "FOO=bar.sh" 2>&1)"
 rc=$?
@@ -1484,10 +1481,7 @@ rm -rf "$fx" "$tok"
 # and an absolute path begins with `/`, which awk can only read as a filename.
 # =============================================================================
 tok="$(one_token_list '\\b')"
-fx="$(mktemp -d)"
-mkdir -p "$fx/scripts"
-cp "$SCRIPT" "$fx/scripts/"
-stage_libs "$fx/scripts"
+fixture_tree::build fx --sut "$SCRIPT"
 cp "$tok" "$fx/t=custom.txt"
 cp "$tok" "$fx/plain-tokens.txt"
 printf 'grep -Eq "\\bfoo\\b" "$file"\n' >"$fx/plain.sh"
@@ -1558,11 +1552,9 @@ fi
 # Scope resolution: --all excludes vendor/evals; skill .md is in scope (#2704)
 # =============================================================================
 
-fx="$(mktemp -d)"
-mkdir -p "$fx/scripts" "$fx/plugins/alpha/vendor" "$fx/plugins/alpha/skills/demo/evals" \
+fixture_tree::build fx --sut "$SCRIPT"
+mkdir -p "$fx/plugins/alpha/vendor" "$fx/plugins/alpha/skills/demo/evals" \
   "$fx/plugins/alpha/skills/demo/context"
-cp "$SCRIPT" "$fx/scripts/"
-stage_libs "$fx/scripts"
 printf '%s\n' 'grep -Eq "\\bfoo\\b" "$file"' >"$fx/plugins/alpha/gate.sh"
 printf '%s\n' 'grep -Eq "\\bfoo\\b" "$file"' >"$fx/plugins/alpha/vendor/upstream.sh"
 printf '%s\n' 'grep -Eq "\\bfoo\\b" "$file"' >"$fx/plugins/alpha/notes.md" # non-skill .md stays out
@@ -1582,10 +1574,7 @@ else
 fi
 rm -rf "$fx"
 
-fx="$(mktemp -d)"
-mkdir -p "$fx/scripts"
-cp "$SCRIPT" "$fx/scripts/"
-stage_libs "$fx/scripts"
+fixture_tree::build fx --sut "$SCRIPT"
 if (cd "$fx" && SHELL_PORTABILITY_TOKENS="$(one_token_list '\\b')" bash scripts/check-shell-portability.sh --all >/dev/null 2>&1); then
   ok "an empty tree passes"
 else
@@ -1594,10 +1583,8 @@ fi
 rm -rf "$fx"
 
 # --- diff-mode gates a changed skill markdown file (#2704) -----------------
-fx="$(mktemp -d)"
-mkdir -p "$fx/scripts" "$fx/plugins/alpha/skills/demo/context"
-cp "$SCRIPT" "$fx/scripts/"
-stage_libs "$fx/scripts"
+fixture_tree::build fx --sut "$SCRIPT"
+mkdir -p "$fx/plugins/alpha/skills/demo/context"
 out="$(
   cd "$fx" &&
     git_init_test_repo "$fx" &&
@@ -1617,10 +1604,8 @@ fi
 rm -rf "$fx"
 
 # --- skill-md baseline grandfathers backlog; --paths still sees it (#2704) -
-fx="$(mktemp -d)"
-mkdir -p "$fx/scripts" "$fx/plugins/alpha/skills/demo"
-cp "$SCRIPT" "$fx/scripts/"
-stage_libs "$fx/scripts"
+fixture_tree::build fx --sut "$SCRIPT"
+mkdir -p "$fx/plugins/alpha/skills/demo"
 printf '%s\n' 'grep -Eq "\\bfoo\\b" "$file"' >"$fx/plugins/alpha/skills/demo/SKILL.md"
 printf '%s\n' 'plugins/alpha/skills/demo/SKILL.md' >"$fx/scripts/shell-portability-skill-md-baseline.txt"
 out="$(
@@ -1689,10 +1674,7 @@ fi
 rm -rf "$fx"
 
 # --- diff-mode reads a Git-quoted (non-ASCII) changed path -----------------
-fx="$(mktemp -d)"
-mkdir -p "$fx/scripts"
-cp "$SCRIPT" "$fx/scripts/"
-stage_libs "$fx/scripts"
+fixture_tree::build fx --sut "$SCRIPT"
 quoted_name="$(printf 'quoted-\303\251.sh')" # trailing U+00E9 byte -- non-ASCII, triggers Git quoting
 out="$(
   cd "$fx" &&
@@ -3004,10 +2986,8 @@ rm -f "$f"
 # pins cwd to its own repo root, so the sandbox gets its own copy of the
 # script plus a one-line registry, exercising --all against a synthetic tree --
 TOK="$(one_token_list 'grep[[:space:]]+-P')"
-TREE="$(mktemp -d)"
-mkdir -p "$TREE/scripts" "$TREE/plugins/demo/hooks"
-cp "$SCRIPT" "$TREE/scripts/"
-stage_libs "$TREE/scripts"
+fixture_tree::build TREE --sut "$SCRIPT"
+mkdir -p "$TREE/plugins/demo/hooks"
 printf 'hooks/hook-utils.sh\n' >"$TREE/scripts/cross-plugin-source-registry.txt"
 printf 'grep -P x\n' >"$TREE/plugins/demo/hooks/hook-utils.sh"
 printf 'grep -P x\n' >"$TREE/plugins/demo/hooks/not-registered.sh"
@@ -3027,10 +3007,8 @@ rm -f "$TOK"
 # portability scan — a gate widening itself by a typo. The RHS is quoted, so
 # the entry matches only its own literal path; this pins that. ---
 TOK="$(one_token_list 'grep[[:space:]]+-P')"
-TREE="$(mktemp -d)"
-mkdir -p "$TREE/scripts" "$TREE/plugins/demo/hooks"
-cp "$SCRIPT" "$TREE/scripts/"
-stage_libs "$TREE/scripts"
+fixture_tree::build TREE --sut "$SCRIPT"
+mkdir -p "$TREE/plugins/demo/hooks"
 printf 'hooks/*.sh\n' >"$TREE/scripts/cross-plugin-source-registry.txt"
 printf 'grep -P x\n' >"$TREE/plugins/demo/hooks/hook-utils.sh"
 out="$(SHELL_PORTABILITY_TOKENS="$TOK" bash "$TREE/scripts/check-shell-portability.sh" --all 2>&1)"
@@ -3047,7 +3025,7 @@ rm -f "$TOK"
 # must still be opened as a file. Parsed as `tokens = "custom.txt"` instead, the
 # loading pass never runs, no class is active, every file reports clean and awk
 # still exits 0 — a silent fail-open in the gate itself.
-TREE="$(mktemp -d)"
+fixture_tree::build TREE --label shell-portability-tree
 printf 'grep[[:space:]]+-P\n' >"$TREE/tokens=custom.txt"
 f="$(tmpsh 'grep -P x')"
 if (

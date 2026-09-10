@@ -9,25 +9,24 @@ SCRIPT="$SELF_DIR/check-skill-precompute-compose.sh"
 
 # shellcheck source=lib/test-harness.sh
 . "$SELF_DIR/lib/test-harness.sh"
+# shellcheck source=lib/fixture-tree.sh
+. "$SELF_DIR/lib/fixture-tree.sh"
 
-new_fixture() {
-  local dir
-  dir="$(mktemp -d)"
-  mkdir -p "$dir/scripts/lib" "$dir/plugins/demo/skills/sample"
-  cp "$SCRIPT" "$dir/scripts/check-skill-precompute-compose.sh"
-  cp "$SELF_DIR/lib/changed-files.sh" "$dir/scripts/lib/"
-  chmod +x "$dir/scripts/check-skill-precompute-compose.sh"
-  printf '%s' "$dir"
+# The builder assigns through a nameref, which shellcheck cannot follow;
+# declaring the out-var here is what tells it (SC2154) the name is written.
+f=""
+
+new_fixture() { # <out-var>
+  fixture_tree::build "$1" --sut "$SCRIPT" --plugins || return 1
+  mkdir -p "${!1}/plugins/demo/skills/sample"
 }
 
 # Git-backed fixture for <base-ref> / --strict <base-ref> parser paths. Those
 # invocations drain the while-loop via the *) fall-through (no --all/--paths
 # break), so they assert the $# -gt 0 termination the --paths suite never hits.
-new_git_fixture() {
-  local dir
-  dir="$(new_fixture)"
-  git_init_safe "$dir"
-  printf '%s' "$dir"
+new_git_fixture() { # <out-var>
+  new_fixture "$1" || return 1
+  git_init_safe "${!1}"
 }
 
 skill_md() {
@@ -41,7 +40,7 @@ run_check() (
 )
 
 # --- single git precompute line passes ---------------------------------------
-f="$(new_fixture)"
+new_fixture f
 skill_md "$f" $'---\ndescription: test\n---\n\n## Pre-computed context\n\nBranch: !`git branch --show-current`\n\n## Body\n'
 if out="$(run_check "$f" --paths "plugins/demo/skills/sample/SKILL.md" 2>&1)"; then
   if echo "$out" | grep -q '0 violation'; then
@@ -55,7 +54,7 @@ fi
 rm -rf "$f"
 
 # --- two precompute lines without git passes ---------------------------------
-f="$(new_fixture)"
+new_fixture f
 skill_md "$f" $'---\ndescription: test\n---\n\n## Pre-computed context\n\nA: !`date`\nB: !`pwd`\n\n## Body\n'
 if out="$(run_check "$f" --paths "plugins/demo/skills/sample/SKILL.md" 2>&1)"; then
   if echo "$out" | grep -q '0 violation'; then
@@ -69,7 +68,7 @@ fi
 rm -rf "$f"
 
 # --- two precompute lines with git warns by default --------------------------
-f="$(new_fixture)"
+new_fixture f
 skill_md "$f" $'---\ndescription: test\n---\n\n## Pre-computed context\n\nA: !`git branch --show-current`\nB: !`git status --porcelain`\n\n## Body\n'
 if out="$(run_check "$f" --paths "plugins/demo/skills/sample/SKILL.md" 2>&1)"; then
   if echo "$out" | grep -q 'VIOLATION:' && echo "$out" | grep -q 'Warn-only'; then
@@ -83,7 +82,7 @@ fi
 rm -rf "$f"
 
 # --- strict mode fails -------------------------------------------------------
-f="$(new_fixture)"
+new_fixture f
 skill_md "$f" $'---\ndescription: test\n---\n\n## Pre-computed context\n\nA: !`git branch --show-current`\nB: !`git status --porcelain`\n\n## Body\n'
 if out="$(run_check "$f" --strict --paths "plugins/demo/skills/sample/SKILL.md" 2>&1)"; then
   fail "strict mode should fail on violation"
@@ -97,7 +96,7 @@ fi
 rm -rf "$f"
 
 # --- no precompute section passes --------------------------------------------
-f="$(new_fixture)"
+new_fixture f
 skill_md "$f" $'---\ndescription: test\n---\n\n## Body\n\nNo precompute here.\n'
 if out="$(run_check "$f" --paths "plugins/demo/skills/sample/SKILL.md" 2>&1)"; then
   ok "missing precompute section passes"
@@ -117,7 +116,7 @@ rm -rf "$f"
 # =============================================================================
 
 # --- no args -> usage, exit 2 ------------------------------------------------
-f="$(new_fixture)"
+new_fixture f
 out="$(run_check "$f" 2>&1)" && rc=0 || rc=$?
 if [[ "$rc" -eq 2 ]] && echo "$out" | grep -q '^usage:'; then
   ok "no args prints usage and exits 2"
@@ -127,7 +126,7 @@ fi
 rm -rf "$f"
 
 # --- --help / -h -> usage, exit 2 --------------------------------------------
-f="$(new_fixture)"
+new_fixture f
 out="$(run_check "$f" --help 2>&1)" && rc=0 || rc=$?
 if [[ "$rc" -eq 2 ]] && echo "$out" | grep -q '^usage:'; then
   ok "--help prints usage and exits 2"
@@ -143,7 +142,7 @@ fi
 rm -rf "$f"
 
 # --- --strict alone -> usage, exit 2 (drains via --strict then empty) --------
-f="$(new_fixture)"
+new_fixture f
 out="$(run_check "$f" --strict 2>&1)" && rc=0 || rc=$?
 if [[ "$rc" -eq 2 ]] && echo "$out" | grep -q '^usage:'; then
   ok "--strict alone prints usage and exits 2"
@@ -153,7 +152,7 @@ fi
 rm -rf "$f"
 
 # --- bare <base-ref> reaches scan via *) drain (no --all/--paths break) ------
-f="$(new_git_fixture)"
+new_git_fixture f
 skill_md "$f" $'---\ndescription: test\n---\n\n## Pre-computed context\n\nBranch: !`git branch --show-current`\n\n## Body\n'
 git_test_config "$f" add -A >/dev/null
 git_test_config "$f" commit -qm base >/dev/null
@@ -172,7 +171,7 @@ fi
 rm -rf "$f"
 
 # --- --strict <base-ref> drains --strict then *) and reaches scan ------------
-f="$(new_git_fixture)"
+new_git_fixture f
 skill_md "$f" $'---\ndescription: test\n---\n\n## Pre-computed context\n\nA: !`git branch --show-current`\nB: !`git status --porcelain`\n\n## Body\n'
 git_test_config "$f" add -A >/dev/null
 git_test_config "$f" commit -qm base >/dev/null
@@ -202,7 +201,7 @@ rm -rf "$f"
 # shallow clone missing the ref therefore read as "nothing to gate": the error
 # text went to stderr, but the exit code CI gates on said success, in exactly
 # the case this validation exists to catch.
-f="$(new_git_fixture)"
+new_git_fixture f
 skill_md "$f" $'---\ndescription: test\n---\n\n## Body\n\nNo precompute here.\n'
 git_test_config "$f" add -A >/dev/null
 git_test_config "$f" commit -qm base >/dev/null
@@ -226,7 +225,7 @@ rm -rf "$f"
 # gated nothing. The fixture reproduces that class exactly by deleting the base
 # commit's `plugins` tree object: `<base>^{commit}` still resolves (the commit
 # object is intact), and `git diff <base>` cannot read the tree.
-f="$(new_git_fixture)"
+new_git_fixture f
 skill_md "$f" $'---\ndescription: test\n---\n\n## Body\n\nNo precompute here.\n'
 git_test_config "$f" add -A >/dev/null
 git_test_config "$f" commit -qm base >/dev/null
@@ -256,7 +255,7 @@ rm -rf "$f"
 # The #3377 fix hoists `git rev-parse` into the parent, so the mode dispatch
 # that keeps --all and --paths out of that check is now load-bearing: a fixture
 # with no git repository at all must still scan.
-f="$(new_fixture)"
+new_fixture f
 skill_md "$f" $'---\ndescription: test\n---\n\n## Pre-computed context\n\nA: !`git branch --show-current`\nB: !`git status --porcelain`\n\n## Body\n'
 out="$(run_check "$f" --all 2>&1)" && rc=0 || rc=$?
 if [[ "$rc" -eq 0 ]] && echo "$out" | grep -q '1 skill(s) scanned, 1 violation'; then

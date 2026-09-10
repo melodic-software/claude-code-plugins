@@ -13,17 +13,17 @@ SCRIPT="$SELF_DIR/check-cross-plugin-source-drift.sh"
 
 # shellcheck source=lib/test-harness.sh
 . "$SELF_DIR/lib/test-harness.sh"
+# shellcheck source=lib/fixture-tree.sh
+. "$SELF_DIR/lib/fixture-tree.sh"
 
-# new_fixture → prints the path to a fresh <tmp>/scripts + <tmp>/plugins tree
-# with the script copied in, ready for callers to populate.
-new_fixture() {
-  local dir
-  dir="$(mktemp -d)"
-  mkdir -p "$dir/scripts/lib" "$dir/plugins"
-  cp "$SCRIPT" "$dir/scripts/check-cross-plugin-source-drift.sh"
-  cp "$SELF_DIR/lib/read-list.sh" "$dir/scripts/lib/"
-  chmod +x "$dir/scripts/check-cross-plugin-source-drift.sh"
-  printf '%s' "$dir"
+# The builder assigns through a nameref, which shellcheck cannot follow;
+# declaring the out-var here is what tells it (SC2154) the name is written.
+f=""
+
+# new_fixture <out-var> → a fresh <tmp>/scripts + <tmp>/plugins tree with the
+# script and the shared libraries it sources copied in, ready to populate.
+new_fixture() { # <out-var>
+  fixture_tree::build "$1" --sut "$SCRIPT" --plugins
 }
 
 # plugin_file <fixture> <plugin> <relpath> <content>
@@ -48,7 +48,7 @@ run_discover() (
 )
 
 # --- an identical cluster that's registered passes -------------------------
-f="$(new_fixture)"
+new_fixture f
 plugin_file "$f" alpha hooks/shared.sh "same content"
 plugin_file "$f" beta hooks/shared.sh "same content"
 registry "$f" "hooks/shared.sh"
@@ -60,7 +60,7 @@ fi
 rm -rf "$f"
 
 # --- an identical cluster with NO registry entry fails ----------------------
-f="$(new_fixture)"
+new_fixture f
 plugin_file "$f" alpha hooks/new-shared.sh "same content"
 plugin_file "$f" beta hooks/new-shared.sh "same content"
 if out="$(run_check "$f" 2>&1)"; then
@@ -75,7 +75,7 @@ fi
 rm -rf "$f"
 
 # --- a registered cluster that has drifted (copies no longer match) fails --
-f="$(new_fixture)"
+new_fixture f
 plugin_file "$f" alpha hooks/shared.sh "version one"
 plugin_file "$f" beta hooks/shared.sh "version two -- drifted"
 registry "$f" "hooks/shared.sh"
@@ -91,7 +91,7 @@ fi
 rm -rf "$f"
 
 # --- a registered cluster that dropped below 2 copies fails as stale -------
-f="$(new_fixture)"
+new_fixture f
 plugin_file "$f" alpha hooks/shared.sh "only one copy left"
 registry "$f" "hooks/shared.sh"
 if out="$(run_check "$f" 2>&1)"; then
@@ -109,7 +109,7 @@ rm -rf "$f"
 # The hand-rolled reader this replaced used a bare `while IFS= read -r`, whose
 # last iteration returns non-zero even after filling the variable, so an
 # unterminated final entry was dropped and its cluster reported UNREGISTERED.
-f="$(new_fixture)"
+new_fixture f
 plugin_file "$f" alpha hooks/shared.sh "identical"
 plugin_file "$f" beta hooks/shared.sh "identical"
 printf 'hooks/shared.sh' >"$f/scripts/cross-plugin-source-registry.txt"
@@ -121,7 +121,7 @@ fi
 rm -rf "$f"
 
 # --- files that legitimately differ per plugin are never flagged -----------
-f="$(new_fixture)"
+new_fixture f
 plugin_file "$f" alpha SKILL.md "alpha's own content"
 plugin_file "$f" beta SKILL.md "beta's own, totally different"
 plugin_file "$f" alpha README.md "alpha readme"
@@ -134,7 +134,7 @@ fi
 rm -rf "$f"
 
 # --- discover mode lists both IDENTICAL and DIFFERS clusters, with [registered] tag
-f="$(new_fixture)"
+new_fixture f
 plugin_file "$f" alpha hooks/shared.sh "same"
 plugin_file "$f" beta hooks/shared.sh "same"
 plugin_file "$f" alpha reference/per-plugin.md "alpha version"
@@ -154,7 +154,7 @@ fi
 rm -rf "$f"
 
 # --- a single plugin carrying a file is not a cluster (no 2+ occurrence) ---
-f="$(new_fixture)"
+new_fixture f
 plugin_file "$f" alpha hooks/only-here.sh "content"
 if out="$(run_check "$f" 2>&1)"; then
   ok "a file carried by only one plugin is never treated as a cluster"
@@ -172,7 +172,7 @@ rm -rf "$f"
 # truncated name, which is fatal under this script's `set -e`. A space-bearing
 # path therefore iterated wrongly with no error signal, in the one mode whose
 # job is showing a human the cluster inventory.
-f="$(new_fixture)"
+new_fixture f
 plugin_file "$f" alpha "hooks/shared file.sh" "same"
 plugin_file "$f" beta "hooks/shared file.sh" "same"
 registry "$f" "hooks/shared file.sh"
@@ -202,7 +202,7 @@ rm -rf "$f"
 # the loop a single EMPTY key, which dies on `${cluster_entries[]}` under
 # `set -u`. The old unquoted `$(...)` was accidentally safe here, so a fix that
 # only addressed word-splitting would trade one silent bug for a loud one.
-f="$(new_fixture)"
+new_fixture f
 plugin_file "$f" alpha hooks/only-here.sh "content"
 if out="$(run_discover "$f" 2>&1)"; then
   if [[ -z "$out" ]]; then

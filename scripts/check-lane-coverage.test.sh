@@ -16,16 +16,16 @@ set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SCRIPT="$ROOT/scripts/check-lane-coverage.sh"
-failures=0
 
-ok() { printf 'ok - %s\n' "$1"; }
-fail() {
-  printf 'not ok - %s\n' "$1" >&2
-  failures=$((failures + 1))
-}
+# shellcheck source=lib/test-harness.sh
+. "$ROOT/scripts/lib/test-harness.sh"
+# shellcheck source=lib/fixture-tree.sh
+. "$ROOT/scripts/lib/fixture-tree.sh"
 
-scratch="$(mktemp -d)"
-trap 'rm -rf "$scratch"' EXIT
+# The builder assigns through a nameref, which shellcheck cannot follow;
+# declaring the out-var here is what tells it (SC2154) the name is written.
+scratch=""
+fixture_tree::build scratch --label lane-coverage
 
 NONE="$scratch/no-optouts.txt"
 : >"$NONE"
@@ -429,9 +429,4 @@ expect "the repository's own ci.yml is fully covered" 0 "reachable from ci-statu
 expect "every gate step in the repository's own ci.yml is fed or opted out" 0 \
   "gate step(s) fed to the aggregator" --check
 
-if [[ $failures -eq 0 ]]; then
-  echo "ALL PASS"
-  exit 0
-fi
-echo "$failures failure(s)" >&2
-exit 1
+test_harness::report
