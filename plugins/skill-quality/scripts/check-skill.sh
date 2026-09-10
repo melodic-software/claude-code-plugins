@@ -71,7 +71,7 @@
 #   8. vendor/ byte-identical vs HEAD, unless paired with an upstream-version
 #      bump (a legitimate maintainer-run sync) (vendor-backed skills only)
 #   9. Stale-tracking metadata keys preserved vs HEAD (upstream-version/synced/upstream-sha)
-#  10. SKILL.md <= 200 lines soft target (WARN; progressive disclosure)
+#  10. (retired slot; numbering kept stable so later checks keep their names)
 #  11. Gotchas surface present (WARN; inline `## Gotchas` or context|reference/gotchas.md)
 #  12. description carries "Use when" trigger phrasing, single-quoted (WARN)
 #  13. No committed cache/build artifacts (__pycache__, *.pyc, node_modules) (FAIL)
@@ -220,7 +220,7 @@ if [[ "$HAVE_GIT" == 1 ]]; then
   SKILL_REL="${SKILL_REL%/}"
 fi
 
-# Tunables (listing description cap; description field cap; SKILL.md line caps;
+# Tunables (listing description cap; description field cap; SKILL.md line cap;
 # vendor sync age).
 # DESC_CHAR_CAP restates the harness's documented per-entry listing cap, the
 # default of skillListingMaxDescChars ("truncated at 1,536 characters in the
@@ -260,7 +260,6 @@ DESC_FIELD_WARN_MARGIN=32
 # default, and every consumer repo) means no downgrades at all.
 DESC_FIELD_BASELINE="${CHECK_SKILL_DESC_FIELD_BASELINE:-}"
 LINE_HARD_CAP=500
-LINE_SOFT_CAP=200
 SYNCED_MAX_AGE_DAYS=180
 
 FAILED=0
@@ -766,12 +765,6 @@ elif [[ "$HAVE_BASE_FM" == 1 ]]; then
         err "metadata key '$key' present at $BASE_REF but dropped (stale-tracking metadata for a vendored skill)"
     fi
   done
-fi
-
-# --- Check 10: SKILL.md soft line target (progressive disclosure) ----------
-
-if ((LINE_COUNT > LINE_SOFT_CAP && LINE_COUNT < LINE_HARD_CAP)); then
-  warn "SKILL.md is $LINE_COUNT lines (soft target $LINE_SOFT_CAP — consider pushing detail to progressive-disclosure spokes)"
 fi
 
 # --- Check 11: Gotchas surface present --------------------------------------

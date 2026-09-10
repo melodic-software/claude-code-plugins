@@ -41,7 +41,7 @@ the reviewer to confirm the description still names that intent, or to restore t
 - Trigger-keyword preservation vs `HEAD` (advisory: a dropped phrase warns naming it and never
   fails the run; a phrase moved to a sibling skill warns naming the host; skipped for a new,
   uncommitted skill).
-- `SKILL.md` under 500 lines (hard) / 200 lines (soft, advisory).
+- `SKILL.md` under 500 lines, the cap the official skill-authoring guidance sets.
 - Backtick- and link-cited skill-internal supporting files resolve. When a path that misses instead
   resolves under a sibling skill, the finding names that sibling and the
   `${CLAUDE_PLUGIN_ROOT}/skills/<sibling>/...` cross-skill form, while keeping the hand-verify
@@ -133,7 +133,7 @@ stands alone.
   identity, stale metadata, committed artifacts) skip with a note outside a repo so
   marketplace plugin-cache installs (plain trees) still run the rest of the gate.
 - `npx` (Node) is optional; without it the markdownlint check downgrades to a warning and the other
-  twenty-four still gate.
+  twenty-three still gate.
 
 ## Configuration
 
