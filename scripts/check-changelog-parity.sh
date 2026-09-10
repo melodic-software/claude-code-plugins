@@ -96,6 +96,13 @@
 # Fail-closed: a versioned plugin with neither a CHANGELOG.md nor a baseline
 # entry fails. CHANGELOG_PARITY_BASELINE overrides the baseline path (test
 # injection).
+#
+# Exit 0 clean, 1 findings, 2 environment or usage; findings on stderr. That is
+# the whole family's contract, stated once in README.md, "The check-script
+# contract", and held by scripts/check-script-contract.test.sh. The 128 and 141
+# below are git's and SIGPIPE's, never this script's: each is a failure mode the
+# code converts into an exit 2 or reads correctly, which is why they are
+# discussed here and never emitted.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2

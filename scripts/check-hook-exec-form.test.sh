@@ -945,6 +945,23 @@ else
 fi
 rm -rf "$f"
 
+# --- a reader that cannot complete is an environment failure, not a finding --
+# The two unreadable classes are graded apart on purpose: a file the reader
+# PARSED and rejected is a finding about the tree (exit 1, above), while a reader
+# that never ran to completion means nothing was inspected at all. Under
+# README.md, "The check-script contract", that is exit 2.
+new_fixture f
+plugin_file "$f" alpha hooks/hooks.json "$SHELL_FORM_HOOKS"
+printf '%s\n' 'import sys' 'sys.exit(2)' >"$f/scripts/check-hook-exec-form-frontmatter.py"
+out="$(run_check "$f" 2>&1)"
+rc=$?
+if ((rc == 2)) && echo "$out" | grep -q 'the frontmatter reader did not complete'; then
+  ok "a frontmatter reader that did not complete exits 2, never clearing plugins/"
+else
+  fail "expected exit 2 and the reader-did-not-complete line (rc=$rc): $out"
+fi
+rm -rf "$f"
+
 # --- a fully clean tree passes with a positive statement --------------------
 new_fixture f
 plugin_file "$f" alpha hooks/hooks.json "$SHELL_FORM_HOOKS"

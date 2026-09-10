@@ -24,16 +24,20 @@
 # (`required:true` + argv, no unset case) adoption per the convention's
 # Open-gaps probe. An allowlist entry whose file is missing or clean is stale
 # and fails the gate, so the list can only shrink back to reality.
+#
+# Exit 0 clean, 1 findings, 2 environment or usage; findings on stderr. That is
+# the whole family's contract, stated once in README.md, "The check-script
+# contract", and held by scripts/check-script-contract.test.sh.
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR/.."
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
+cd "$SCRIPT_DIR/.." || exit 2
 # shellcheck source=lib/read-list.sh
-. "$SCRIPT_DIR/lib/read-list.sh"
+. "$SCRIPT_DIR/lib/read-list.sh" || exit 2
 
 if ! command -v jq >/dev/null 2>&1; then
   echo "check-hook-userconfig-argv: jq is required but not installed" >&2
-  exit 1
+  exit 2
 fi
 
 ALLOWLIST="scripts/hook-userconfig-argv-allowlist.txt"
