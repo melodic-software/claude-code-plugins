@@ -27,6 +27,12 @@ only after that version increases.
   `[0.4.0]`, `[0.3.2]`, `[0.3.1]`, `[0.3.0]`, `[0.2.0]`, and `[0.1.0]`. Wording only; every
   entry's facts are unchanged.
 
+## [0.9.10]
+
+### Fixed
+
+- `reference/model-adaptation/CLAUDE.md` shim added beside the chapter conventions `AGENTS.md`, so the conventions load when Claude reads a chapter (Claude Code reads `CLAUDE.md`, not `AGENTS.md`).
+
 ## [0.9.9]
 
 ### Added

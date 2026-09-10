@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.6]
+
+### Fixed
+
+- `skills/work-loop/CLAUDE.md` shim added beside the skill's contributor `AGENTS.md`, so the conventions load when Claude reads the skill (Claude Code reads `CLAUDE.md`, not `AGENTS.md`).
+
 ## [0.40.5]
 
 ### Added
