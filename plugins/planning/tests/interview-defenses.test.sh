@@ -498,7 +498,7 @@ pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolv
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "804ad08ee5c2e3bb59a6123f9051133524e705be18a423c9988be3031950aa3a"
+  "0487d5eef535d2f84b1d68da7a4f9a19c3f7c6c6f2a8dd3bfd30a82de7a89544"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -533,7 +533,7 @@ pin_section "SKILL.md Step 4 section is unchanged (the Brief's assumption machin
   "$SKILL" \
   "### Step 4. Persist the contract" \
   "### Step 5. Hand off" \
-  "aed36fd4e6192feec5135d764fbe15e4fb94d2b719b5cac74f4d7aecf43e6a25"
+  "853b3aca0949a146a6c49f7763473e339f4e444507f232ea58c2e6e3611fb8d1"
 pin_section "SKILL.md Step 1.5 section is unchanged (auto-guard + unattended + \`lock\` routing live here)" \
   "$SKILL" \
   "### Step 1.5. Auto-detect (default action only)" \
@@ -562,7 +562,7 @@ pin_section "SKILL.md Step 3 section is unchanged (the confirmation-gate exempti
   "$SKILL" \
   "### Step 3. Recognize the stop condition" \
   "### Step 4. Persist the contract" \
-  "db75eb6a2196538a77af6f21f30734d0570f84dcb1e2a0373a9e61eaeb931d7b"
+  "19c77079938f6298c38af59b1139a0cebaffbd4a63cca246684305af1853e145"
 pin_section "SKILL.md \"does NOT do\" section is unchanged (the fudge prohibition lives here)" \
   "$SKILL" \
   "## What this skill does NOT do" \
@@ -606,16 +606,16 @@ pin_case_digest "case 1 still resolves codebase-answerable questions without ask
 
 pin_file "case A fixture: the task context still plants the open decision" \
   "$FIXTURES/lock-stop-on-gap/task-context.md" \
-  "b2452dfca23a4b50619e101ae68e77b9e63e656b8c1f918ae527c72218c5e176"
+  "27ffc38bf30b3fcc6cfea643f24acbfe808a8e8dce16e9d32cadc633ec15bb1c"
 pin_file "case A fixture: the survey still leaves the plant unanswerable from the codebase" \
   "$FIXTURES/lock-stop-on-gap/codebase-survey.md" \
-  "8a95e4b7159084837213da054cc40809312669b706f514c2bee1e29d247f5fa1"
+  "b296189dba1e3d4a81bf8bbf3f49ddae3d51bde9be8e8bf955f3c292e73a9961"
 pin_file "case B fixture: the task context still carries exactly one interactive residue" \
   "$FIXTURES/auto-guard-residue/task-context.md" \
-  "06348abeb11eb53dd96e4b141f2cfd7b7becb8ae02cd3048e52baf9a0d52b843"
+  "18e4cc465e8e4f5eb1fe7c8f2ba4ff78e852b9ed90ecc5cdb5545d6a3303d859"
 pin_file "case B fixture: the survey still closes four decisions and not the fifth" \
   "$FIXTURES/auto-guard-residue/codebase-survey.md" \
-  "5c16e0ea2e5226182dd0316df922e0c8555a3db26f8d2703ca12cc8334a956fb"
+  "5ea7bfd889b75562e662ed5a951bee32ac16d6f4d7013538daacc595df853f06"
 
 # ===========================================================================
 # CASE A — STOP-on-gap: `lock` halts on a genuinely-open decision
