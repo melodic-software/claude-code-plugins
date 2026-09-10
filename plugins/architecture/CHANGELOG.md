@@ -38,11 +38,6 @@ All notable changes to the `architecture` plugin are documented here. Format fol
 - **`map-landscape`:** the description leads with single-repository-plus-references, and routes
   module-level questions, fleet hygiene, organisation settings, and in-repo doc drift to the skills
   that own them by name.
-
-## [0.8.6]
-
-### Changed
-
 - **`map-landscape`:** `portfolio-facts.sh` separates runtime scope from development scope. The
   record gains `tooling` and `dev_dependencies` beside `runtime` and `dependencies`, each with its
   own evidence; `target_framework` follows the primary runtime only. Cache and build dot-directories
@@ -51,6 +46,26 @@ All notable changes to the `architecture` plugin are documented here. Format fol
   section is `devDependencies` reports tooling rather than a runtime, and a root-level manifest now
   beats a deeper one instead of whichever sorted first. The portfolio table gains a `Tooling`
   column.
+
+## [0.8.7]
+
+### Fixed
+
+- **`lib/resolve-convention-home.sh`:** synced from claude-config. A UTF-8 BOM immediately before
+  the BEGIN marker is stripped when scanning the marker line, so a Windows-authored pointer region
+  still resolves.
+
+## [0.8.6]
+
+### Changed
+
+- **`reference/config.md`:** maps this plugin's `landscape_dialect` (C4 system landscape from
+  `/architecture:map-landscape`, mermaid default) against `authoring-formats`'s
+  `diagram_dialect.system` (opt-in C4 container view from `/planning:design`, no default). The two
+  keys stay separate. The mermaid-C4 experimental record and recheck trigger stay in
+  authoring-formats; this document cites that record instead of adding a second stamp (#3910).
+  The shared trigger also fires when mermaid documents a dedicated landscape type, and
+  `map-landscape` points at this document rather than carrying its own dated stamp.
 
 ## [0.8.5]
 

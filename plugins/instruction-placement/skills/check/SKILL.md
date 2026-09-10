@@ -46,11 +46,15 @@ Wire it into CI beside the linters. It is fast, deterministic, and has no judgme
 | Glob not over-broad | same | Advisory. The rule loads so often it saves nothing |
 | Index in sync | `render-index.sh check` | Deferred surfaces are unreachable from subagents |
 | Index target loaded at all | `render-index.sh reachable` | The index exists and Claude Code never reads it |
+| Nested AGENTS.md wired | `render-index.sh wiring` | An indexed nested surface never loads: no sibling `CLAUDE.md` imports it |
 
-The last one is the least obvious. Claude Code reads `CLAUDE.md`, not `AGENTS.md`. A
+The last two are the least obvious. Claude Code reads `CLAUDE.md`, not `AGENTS.md`. A
 repository carrying both with no import between them gets a perfectly-generated, perfectly-in-sync
 index that never enters context, the entire subagent-gap mitigation doing nothing while every other
-check reports green. Sync and reachability are independent questions; ask both.
+check reports green. The same silence repeats one level down: a nested `AGENTS.md` is indexed as a
+surface that loads when Claude reads its directory, and that is true only when a `CLAUDE.md` or
+`CLAUDE.local.md` beside it imports or symlinks it. Sync, reachability, and wiring are independent
+questions; ask all three.
 
 Over-broad is the one **warning** rather than a failure: breadth is a judgment about whether a
 demotion was worth making, not a statement that the rule is broken. Everything else is a hard fail.
@@ -61,7 +65,12 @@ demotion was worth making, not a statement that the rule is broken. Everything e
 "${CLAUDE_PLUGIN_ROOT}/scripts/glob-tools.sh" rules
 "${CLAUDE_PLUGIN_ROOT}/scripts/render-index.sh" check --file <index-file>
 "${CLAUDE_PLUGIN_ROOT}/scripts/render-index.sh" reachable --file <index-file>
+"${CLAUDE_PLUGIN_ROOT}/scripts/render-index.sh" wiring
 ```
+
+`wiring` takes no file: it walks every nested `AGENTS.md` the index would list and prints one
+`WIRED` or `UNWIRED` row per file, exiting 1 on any `UNWIRED`. The fix for an unwired file is a
+one-line `@AGENTS.md` `CLAUDE.md` beside it, never removing the row.
 
 `<index-file>` is a precedence order, not a procedure. Take the first that exists:
 

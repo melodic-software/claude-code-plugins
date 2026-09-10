@@ -235,6 +235,26 @@ long="$(printf 'x%.0s' $(seq 1 5000))"
 run "$r"
 assert_exit "case 21: token past the cap is not seen -> region reads empty -> exit 1" 1 "$RC"
 
+# --- Case 22: UTF-8 BOM immediately before BEGIN still matches ----------------
+# POSIX [:space:] does not include U+FEFF. A UTF-8 BOM (bytes EF BB BF)
+# immediately before the BEGIN marker would otherwise leave the line unmatched
+# and the file would be reported as carrying no region (exit 1).
+bom=$(printf '\357\273\277')
+r="$(mkrepo bom-absent)"
+{ region "$(pointer docs/conventions)"; } >"$r/AGENTS.md"
+run "$r"
+assert_exit "case 22a: same fixture without BOM resolves" 0 "$RC"
+assert_eq "case 22a: without BOM prints the home" "docs/conventions" "$OUT"
+
+r="$(mkrepo bom-present)"
+{
+  printf '%s' "$bom"
+  region "$(pointer docs/conventions)"
+} >"$r/AGENTS.md"
+run "$r"
+assert_exit "case 22b: same fixture with BOM immediately before BEGIN resolves" 0 "$RC"
+assert_eq "case 22b: with BOM prints the home" "docs/conventions" "$OUT"
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
   exit 0

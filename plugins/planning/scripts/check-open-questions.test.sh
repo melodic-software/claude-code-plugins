@@ -115,6 +115,41 @@ _No questions asked yet._
 EOF
 )"
 expect_exit "empty register -> 2" 2 --ledger "$empty"
+empty_err="$(bash "$SUT" --ledger "$empty" 2>&1 >/dev/null || true)"
+if [[ "$empty_err" == *"rows inside a fenced block are ignored by design"* ]]; then
+  fail "empty register without a fence keeps the generic zero-rows message (stderr: '$empty_err')"
+else
+  pass "empty register without a fence keeps the generic zero-rows message"
+fi
+
+# 10b. Rows only inside a fence are documentation, so the register is empty
+#      and the error names that cause.
+fence_only="$(
+  mkledger <<'EOF'
+```text
+- Q1 | answered | round 1 | Who writes? | admin
+```
+EOF
+)"
+expect_exit "fence-only register -> 2" 2 --ledger "$fence_only"
+fence_only_err="$(bash "$SUT" --ledger "$fence_only" 2>&1 >/dev/null || true)"
+if [[ "$fence_only_err" == *"rows inside a fenced block are ignored by design"* && "$fence_only_err" == *"register rows must be unfenced"* ]]; then
+  pass "zero-rows error names fenced-block cause"
+else
+  fail "zero-rows error names fenced-block cause (stderr: '$fence_only_err')"
+fi
+
+# 10c. Copying the checklist template's register section is gradeable: the
+#      template carries unfenced example rows, so the gate sees data (exit 0
+#      or 1), never an empty-register exit 2.
+template="$SCRIPT_DIR/../skills/interview/templates/checklist.md"
+bash "$SUT" --ledger "$template" >/dev/null 2>&1
+template_rc=$?
+if [[ "$template_rc" -eq 0 || "$template_rc" -eq 1 ]]; then
+  pass "copied checklist template is gradeable (exit $template_rc)"
+else
+  fail "copied checklist template is gradeable (want exit 0 or 1, got $template_rc)"
+fi
 
 # 11. Unknown status -> ungradeable. A typo'd status must not be counted as
 #     resolved by falling through.
