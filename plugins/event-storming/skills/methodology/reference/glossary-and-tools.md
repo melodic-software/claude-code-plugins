@@ -9,29 +9,29 @@
 | Term | Definition |
 |------|-----------|
 | **Domain Event** | An orange sticky note with a verb at past tense, referring to something that happened in the domain. In DDD, a software pattern; in EventStorming, a conversation enabler. Originally defined by Martin Fowler (2005), popularized by Greg Young with Event Sourcing and CQRS. |
-| **Command** | A blue sticky note representing a user intention, action, or decision. Written in present/imperative tense. Does not imply completion — events contain the outcome. |
-| **Aggregate** | A pale yellow sticky note. Unit of consistency within the domain model — a group of objects that change together but always expose consistency as a whole. From DDD by Eric Evans. |
+| **Command** | A blue sticky note representing a user intention, action, or decision. Written in present/imperative tense. Does not imply completion. Events contain the outcome. |
+| **Aggregate** | A pale yellow sticky note. Unit of consistency within the domain model: a group of objects that change together but always expose consistency as a whole. From DDD by Eric Evans. |
 | **Policy** | A lilac sticky note sitting between an event and a command. Reactive logic: "Whenever [event] then [command]." The flexible glue between building blocks. |
 | **Read Model** | A large yellow/green sticky note. Information a person needs to make a decision (issue a command). |
-| **Actor / Person** | A small yellow sticky note representing a human role. Intentionally fuzzy — can be User, Role, Persona, or specific named person. |
+| **Actor / Person** | A small yellow sticky note representing a human role. Intentionally fuzzy: can be User, Role, Persona, or specific named person. |
 | **External System** | A large pink sticky note. "Whatever we can put the blame on." Software, organizations, departments, regulatory bodies, or even "Bad Luck." |
 | **Hot Spot** | A magenta/purple sticky note with exclamation marks. Problems, questions, conflicts, risks, or unresolved issues. |
 | **Opportunity** | A green sticky note representing value, improvement ideas, or positive outcomes. |
 | **Pivotal Event** | A particularly significant event marking transition between business phases. Marked with colored tape. Usually 4-5 per flow. |
-| **Bounded Context** | A DDD concept — a specific model tailored around a specific purpose. Different contexts have different models even for concepts with the same name. |
-| **Event Model** | The physical outcome of an EventStorming session — the paper roll, a picture of it, or its digital translation. |
+| **Bounded Context** | A DDD concept: a specific model tailored around a specific purpose. Different contexts have different models even for concepts with the same name. |
+| **Event Model** | The physical outcome of an EventStorming session: the paper roll, a picture of it, or its digital translation. |
 | **Ubiquitous Language** | The precise meaning of a term in a specific context. Captured on special sticky notes below the flow. |
 
 ### Specialized Terms
 
 | Term | Definition |
 |------|-----------|
-| **CQRS** | Command-Query Responsibility Segregation — architectural style enforcing separation between commands (actions) and queries (data access). |
+| **CQRS** | Command-Query Responsibility Segregation. An architectural style enforcing separation between commands (actions) and queries (data access). |
 | **Event Sourcing** | Storing the history of state changes as a sequence of events, rather than just the current state. |
 | **Event-Driven Architecture** | Architecture where system components communicate through events. |
-| **Hypocrite Modeling** | Modeling a system with strict validation rules that can't be fulfilled in the real world — everyone finds a way to cheat. |
+| **Hypocrite Modeling** | Modeling a system with strict validation rules that can't be fulfilled in the real world. Everyone finds a way to cheat. |
 | **Impact Mapping** | A strategic planning technique (by Gojko Adzic) that connects goals to deliverables through actors and impacts. |
-| **Model Storming** | The radical approach to modeling big stuff when you have no idea what you're doing — "the meta-process that lets you collaboratively model virtually everything without having an idea of how it will look like at the end." Extreme incremental notation. |
+| **Model Storming** | The radical approach to modeling big stuff when you have no idea what you're doing: "the meta-process that lets you collaboratively model virtually everything without having an idea of how it will look like at the end." Extreme incremental notation. |
 | **Theory of Constraints** | Focuses on finding the main system constraint (bottleneck). Improving around the bottleneck yields major improvements; improving elsewhere leads to negligible results or worse. Brandolini: "once you spot the bottleneck, every little improvement counts." From Goldratt's "The Goal." |
 | **Blink Modelling** | A format where you model a domain with an expert you've never met in under 2 hours. Demonstrates "Rush to the Goal" pattern. Coined at DDD Europe 2020. |
 
@@ -49,10 +49,10 @@
 
 ### Graduating Workshop Terms into the Project Glossary
 
-Ubiquitous Language stickies are session artifacts — the terms they resolve should not be. At workshop wrap-up, offer each resolved term for graduation into the consumer repo's committed project glossary:
+Ubiquitous Language stickies are session artifacts. The terms they resolve should not be. At workshop wrap-up, offer each resolved term for graduation into the consumer repo's committed project glossary:
 
 - One entry per term: the term, a 1–2 sentence definition of what it IS, and a plain `Avoid:` line listing the rejected synonyms the workshop ruled out
-- Project-context terms only — EventStorming mechanics vocabulary (the tables above) stays out
+- Project-context terms only. EventStorming mechanics vocabulary (the tables above) stays out
 - If the repo keeps no committed glossary yet, offer discovery-first lazy creation: infer placement
   and shape from consumer conventions; ask when ambiguous; never prescribe a universal filename
 - When `/domain-driven-design:curate-language` is available in the current session, delegate
@@ -67,19 +67,19 @@ Ubiquitous Language stickies are session artifacts — the terms they resolve sh
 
 ### Modeling Surfaces
 
-**Paper Roll** — The icon of EventStorming. Provides the "unlimited modeling surface" illusion.
+**Paper Roll**: the icon of EventStorming. Provides the "unlimited modeling surface" illusion.
 
-- **Guerrilla workshop**: IKEA Måla paper roll (kids area) — cheap, fits in a backpack, yellowish, limited width (need double-decker)
-- **Prepared workshop**: Professional plotter paper roll — 60cm (fits in airline trolley) or 90cm (car transport)
-- Paper roll has never been mandatory — it exists because most workplaces don't have unlimited wall space
+- **Guerrilla workshop**: IKEA Måla paper roll (kids area). Cheap, fits in a backpack, yellowish, limited width (need double-decker)
+- **Prepared workshop**: Professional plotter paper roll, 60cm (fits in airline trolley) or 90cm (car transport)
+- Paper roll has never been mandatory. It exists because most workplaces don't have unlimited wall space
 
-**Writable Walls** — The ideal solution. Apply special whiteboard paint on existing walls. Every wall becomes a modeling surface.
+**Writable Walls**: the ideal solution. Apply special whiteboard paint on existing walls. Every wall becomes a modeling surface.
 
 ### Markers
 
-**One Man One Marker rule** — Provide enough working markers for everyone.
+**One Man One Marker rule**: provide enough working markers for everyone.
 
-- **On stickies**: BIC Marking Pocket 1445 or Sharpie Fine Point permanent marker — regular whiteboard markers are too big, regular pens aren't visible enough
+- **On stickies**: BIC Marking Pocket 1445 or Sharpie Fine Point permanent marker. Regular whiteboard markers are too big, regular pens aren't visible enough
 - **On flip charts** (facilitator): Round tip for beginners, chisel tip for visual scribing pros
 - **On whiteboards**: Standard whiteboard markers
 
@@ -89,27 +89,27 @@ Ubiquitous Language stickies are session artifacts — the terms they resolve sh
 
 **The glue is the most important thing.** Don't save money on cheap stickies that fall off the wall during your big boss's workshop.
 
-Recommended: **3M Super Sticky** — reliable adhesion on paper rolls and walls.
+Recommended: **3M Super Sticky**, which adheres reliably to paper rolls and walls.
 
 **Required colors:**
 
-- Orange (standard size) — Domain Events (the most consumed)
-- Blue (square) — Commands
-- Lilac/Purple (standard or rectangular) — Policies
-- Small Yellow — Actors/People
-- Large Yellow or Green — Read Models
-- Large Pink — External Systems
-- Magenta/Hot Pink — Hot Spots
-- Green — Opportunities / Value
-- Pale Yellow — Aggregates (Design-Level only)
+- Orange (standard size): Domain Events (the most consumed)
+- Blue (square): Commands
+- Lilac/Purple (standard or rectangular): Policies
+- Small Yellow: Actors/People
+- Large Yellow or Green: Read Models
+- Large Pink: External Systems
+- Magenta/Hot Pink: Hot Spots
+- Green: Opportunities / Value
+- Pale Yellow: Aggregates (Design-Level only)
 
 ### Other Supplies
 
-- **Removable labeling/covering tape** — For labeling areas (subdomains, bounded contexts) without writing directly on the paper (which is irreversible). White sticky tape that can be rewritten or moved.
-- **Colored label tape** — For marking pivotal events as boundaries between phases
-- **Flip chart** — For the visible legend
-- **Timer** — For time-boxed phases
-- **Camera/phone** — For recording results (take pictures!)
+- **Removable labeling/covering tape**: for labeling areas (subdomains, bounded contexts) without writing directly on the paper (which is irreversible). White sticky tape that can be rewritten or moved.
+- **Colored label tape**: for marking pivotal events as boundaries between phases
+- **Flip chart**: for the visible legend
+- **Timer**: for time-boxed phases
+- **Camera/phone**: for recording results (take pictures!)
 
 ### Static Pads
 

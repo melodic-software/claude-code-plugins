@@ -1,4 +1,4 @@
-# Task context — idempotency keys on `POST /charges` (eval fixture)
+# Task context: idempotency keys on `POST /charges` (eval fixture)
 
 The task as stated, plus the surrounding context. Raw material only: it does not sort the open items
 into facts and decisions, and it does not say what the interview should do with any of them.

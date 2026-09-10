@@ -2,15 +2,16 @@
 
 Why a stopped lane needs an out-of-harness reader, how the consumer binds to lane
 telemetry, and the operator steps that put it on a schedule. The executable
-contract — actions, options, exit codes, the relaunch predicate — lives in the
-`--help` header of [`scripts/restart-consumer.sh`](../scripts/restart-consumer.sh);
-this file is the operator- and reviewer-facing rationale, not a copy of it.
+contract lives in the `--help` header of
+[`scripts/restart-consumer.sh`](../scripts/restart-consumer.sh): actions, options,
+exit codes, and the relaunch predicate. This file is the operator- and
+reviewer-facing rationale, not a copy of it.
 
 ## The gap
 
 A loop lane that hits its per-session cycle budget or the `/loop` seven-day expiry
 writes a restart ask into the `restart_request` field of its telemetry state block
-and stops cleanly — a running loop cannot relaunch itself, and `SKILL.md` documents
+and stops cleanly. A running loop cannot relaunch itself, and `SKILL.md` documents
 that a relaunch is the only fresh-context reset a lane gets. Nothing in the harness
 reads that field, so without a reader every budget or expiry hit is a terminal
 manual-restart state. The
@@ -32,7 +33,7 @@ The discriminating question is *what survives the failure it remediates*:
   same seven-day expiry, cycle budget, and crash risk it exists to remediate.
   Nothing restarts the restarter.
 - A **Stop hook** is non-circular and event-driven, but it structurally cannot
-  fire when the failed thing is the process or the machine — and those are two of
+  fire when the failed thing is the process or the machine, and those are two of
   the three failure modes the gap is about. **Deferred, not discarded**: revisit
   if Stop-hook input gains a session discriminator or lane bodies mandate
   `ScheduleWakeup(stop: true)`, and then only as a latency layer on top of the OS
@@ -61,7 +62,7 @@ effort, and settings all come from the operator's local lane config, and nothing
 read from a comment is interpolated into a command or path. A telemetry comment
 can never name a lane the operator has not configured.
 
-## Operator setup — registering the schedule
+## Operator setup: registering the schedule
 
 Registration is an **operator action**; neither the script nor the skill ever
 registers, edits, or deletes a scheduled task. Run `print-schedule` for commands
@@ -75,16 +76,16 @@ It emits, for Windows first (matching the `ClaudeCodeOtelPrune` precedent in the
 observability skill, which owns the same `schtasks` posture):
 
 - a `schtasks /Create ... /SC MINUTE /MO <interval>` poll task and a
-  `/SC ONLOGON` companion for cold start after reboot — both `/RU "%USERNAME%"
+  `/SC ONLOGON` companion for cold start after reboot, both `/RU "%USERNAME%"
   /IT /RL LIMITED`: run as the logged-on user, no elevation, no stored
-  password. The `/TR` payload carries `consume-restarts run` — `run` is
-  load-bearing, because the script's default action is the read-only `check`
+  password. The `/TR` payload carries `consume-restarts run`, and `run` is
+  required, because the script's default action is the read-only `check`
   and a schedule registered without it would report forever and relaunch
   nothing;
 - the matching `schtasks /Delete` reversals;
 - the cron/launchd/systemd-user equivalent for macOS/Linux.
 
-Run every `schtasks` line from **cmd.exe**, each on one line as printed — not
+Run every `schtasks` line from **cmd.exe**, each on one line as printed, and not from
 Git Bash, whose MSYS path conversion rewrites `/`-style options (`schtasks
 /Query` becomes an invalid `C:/Program Files/Git/Query` argument). The emitted
 `/TR` paths are Windows-form (`cygpath -w`), since cmd.exe cannot use the
@@ -95,14 +96,14 @@ Consumer"`, then `schtasks /Run /TN "ClaudeOps Lane Restart Consumer"` and
 confirm a fresh `last-cycle:` on the consumer's **telemetry comment**. That one
 signal, and not a local-file alternative, is the whole check: `last-cycle:` is
 written only by `upsert_own_telemetry`, which returns early unless the action is
-`run` — so a fresh timestamp proves the registered task carries the load-bearing
+`run`, so a fresh timestamp proves the registered task carries the required
 `run` token, which is exactly the defect a registration can silently have.
 
 The local run ledger is deliberately **not** an accepted alternative here: it
 answers "did something run", where this step must answer "did a **`run`** run".
 `append_ledger` is likewise gated on the action being `run`, resolving that in
 favour of the `--help` contract's read-only `check` rather than the other way
-round — a `check` an operator runs by hand must never move the circuit breaker's
+round. A `check` an operator runs by hand must never move the circuit breaker's
 memory, and a ledger that a `check` could write would satisfy the very check
 above on the failure it exists to catch.
 **Reversal:** the `schtasks /Delete /TN ... /F` lines `print-schedule` prints,
@@ -110,15 +111,15 @@ from cmd.exe.
 
 Two scheduled forms, different trade-offs:
 
-- **Headless skill form** — `claude -p "/claude-ops:lanes consume-restarts run"`.
+- **Headless skill form**: `claude -p "/claude-ops:lanes consume-restarts run"`.
   Survives plugin updates (the skill resolves `${CLAUDE_PLUGIN_ROOT}` freshly at
   each invocation, so the task never embeds a plugin cache path that rots), but
   each tick is a paid model turn. Bound the spend: `claude` supports `--model`
-  and `--max-budget-usd` (verified on this machine, claude 2.1.220) — pin a
+  and `--max-budget-usd` (verified on this machine, claude 2.1.220), so pin a
   cheap model and a hard cap on the scheduled command.
-- **Offline script form** — `bash <abs-path>/restart-consumer.sh run`. Zero
+- **Offline script form**: `bash <abs-path>/restart-consumer.sh run`. Zero
   model cost (the reader is deterministic), but the embedded absolute path
-  points into the plugin cache, which **changes on plugin updates** — the same
+  points into the plugin cache, which **changes on plugin updates**, the same
   caveat the `ClaudeCodeOtelPrune` precedent documents. Re-run `print-schedule`
   and re-register after updating the plugin, or keep an operator-owned shim that
   resolves the current plugin root at run time. If the path stops resolving the
@@ -133,14 +134,14 @@ parity claim.
 
 - **Fully-logged-off operation.** `/IT` runs the task only while the user is
   logged on (a locked session qualifies). Running logged-off needs the S4U form
-  (`/RU <user> /NP`), which is **UNVERIFIED** here — nothing was registered on
+  (`/RU <user> /NP`), which is **UNVERIFIED** here, since nothing was registered on
   the authoring machine. Until verified, treat coverage as "logged on or
   locked", not "always".
 - **Whether a `claude --bg` lane launched from a scheduler-spawned process
   outlives that process on Windows** (job-object process-tree kill is the
   hazard). **UNVERIFIED.** The consumer degrades safely rather than assuming:
   after each relaunch it re-polls `claude agents --json` and records a `failed`
-  row (exit 5, flagged in its telemetry) when the lane never appears — so if
+  row (exit 5, flagged in its telemetry) when the lane never appears, so if
   the assumption is false the symptom is loud, attributable, and rate-limited
   by the circuit breaker instead of a silent restart storm.
 
@@ -156,18 +157,18 @@ parity claim.
   tools are pinned to it (each has a `--telemetry-issue`). When the comment
   lands on the brief's issue, the consumer appears in
   `/claude-ops:morning-brief` with no reader change and inherits its
-  `STALE (>Nh)` detection — a consumer whose schedule stops firing surfaces as
+  `STALE (>Nh)` detection. A consumer whose schedule stops firing surfaces as
   a stale lane, which is exactly the failure a run log alone would miss. With
   no resolvable issue at all, the run degrades loudly to ledger-only with a
   warning naming the fix.
 - **Run ledger.** A `run` appends a JSONL row under
   `<data-dir>/lanes/<repo-key>/restart-consumer.jsonl` for each lane whose
-  decision is an **incident** (`restarted`, `failed`, `error`, `api-error`) —
-  the detail layer, and the circuit breaker's memory (default: max 3 relaunch
+  decision is an **incident** (`restarted`, `failed`, `error`, `api-error`).
+  That file is the detail layer, and the circuit breaker's memory (default: max 3 relaunch
   ATTEMPTS per lane per rolling 24 h; a tripped breaker exits 5 and flags the
   telemetry). The breaker counts attempts, not successes: `restarted` and
-  `failed` both spend budget, so a launcher that keeps failing — or that returns
-  success while the background lane never appears, the Windows hazard above —
+  `failed` both spend budget, so a launcher that keeps failing, or that returns
+  success while the background lane never appears (the Windows hazard above),
   stops after the configured number instead of re-attempting a pull, a
   marketplace refresh, and a launch on every tick forever. The pre-launch read
   failures (`error`, `api-error`) are ledgered but deliberately not counted, so
@@ -176,7 +177,7 @@ parity claim.
   but are not ledgered: on a 15-minute schedule they would add hundreds of rows
   a day, forever, to a file the breaker re-reads once per lane per tick, and
   none of them can change a breaker verdict. The file therefore grows with
-  incidents rather than with the polling interval, and stays append-only — a
+  incidents rather than with the polling interval, and stays append-only. A
   rewrite-the-file pruner would put the breaker's own memory at the mercy of a
   bug in the pruner.
 - **The breaker fails closed.** A ledger that does not parse reports the budget
@@ -189,13 +190,13 @@ parity claim.
   observability prune's `.prune-in-progress` established) across the whole
   read → decide → relaunch → append span. This is not theoretical: the
   registration above is **two** scheduled tasks, and at logon the poll and the
-  `ONLOGON` companion both fire — Task Scheduler's instance policy is per task,
+  `ONLOGON` companion both fire, and Task Scheduler's instance policy is per task,
   so it cannot serialize them. Unsynchronized, both read the same breaker count,
   both relaunch, and one lane name ends up with two `claude --bg` sessions and
   two `restarted` rows for one effective restart. A run that cannot take the
   lock skips cleanly: exit 0, a `lock-held` flag, nothing launched and nothing
   written. A lock left by a hard-killed run (no EXIT trap) is reclaimed so an
-  unattended schedule cannot wedge permanently — but **age alone never
+  unattended schedule cannot wedge permanently, but **age alone never
   reclaims**: the holder records its PID *and a boot identity*, the one-hour
   bound only decides when to ask, and a lock whose owner is still alive stays
   held however old it is. The boot identity matters because `kill -0` proves
@@ -203,7 +204,7 @@ parity claim.
   reused; a lock from a previous boot is reclaimed whoever holds its PID now,
   and where no boot identity is available a live PID only defers the reclaim to
   a hard 24-hour ceiling. That
-  matters because a legitimate run can outlive any bound — `lane-launcher.sh`
+  matters because a legitimate run can outlive any bound: `lane-launcher.sh`
   does an unbounded `git pull --ff-only` and marketplace update before launch.
   Failing to create the lock is separated from losing the race: an unusable lock
   **store** (mistyped path, permissions, unavailable volume) exits 4 loudly
@@ -211,7 +212,7 @@ parity claim.
   consumer log healthy ticks forever while processing nothing. `check` and
   `--dry-run` mutate nothing and never contend.
 - **Exit codes are honest.** A relaunch that fails, never comes up, trips the
-  breaker, or a lane whose telemetry could not be READ (`api-error` — never
+  breaker, or a lane whose telemetry could not be READ (`api-error`, never
   conflated with `no-state`, which means "the lane did not ask") exits 5; Task
   Scheduler history shows the non-zero result. A tick skipped for the lock is
   exit 0: it is a correctly-serialized no-op, not a failure.
@@ -226,7 +227,7 @@ defaulting to the consumer's `--target-repo`). A bound `marker` names a lane
 **type** and matches every writer instance of it, since a live comment's marker
 carries the loop-lane convention's `@<instance>` writer suffix; pin one instance
 with `instance`, or by writing the suffix into `marker` itself. Unpinned, a
-suffixed writer's request is observed but never consumed — it reports as
+suffixed writer's request is observed but never consumed. It reports as
 `unbound-instance` and relaunches nothing, since a sibling machine's ask must
 not start this machine's lane; only the legacy un-suffixed comment is
 actionable without a pin. Full semantics: the script's `--help` header.

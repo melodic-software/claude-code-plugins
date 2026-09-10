@@ -1,9 +1,9 @@
-# `/claude-ops:observability` data sources — JSONL + ccusage query catalog
+# `/claude-ops:observability` data sources: JSONL + ccusage query catalog
 
 jq pipelines and CLI invocations for the **hook log root** and **ccusage**. OTEL store
 (DuckDB) and Aspire: [read-routing.md](read-routing.md) + [otel-queries.md](otel-queries.md).
 
-## Setup — common variables
+## Setup: common variables
 
 The hook log root is the plugin's `session_event_log_dir` option, project-relative, default
 `.observability/claude`. Its rendered value is the `root` entry on the skill body's "Rendered
@@ -56,9 +56,9 @@ HOOK_NORM='map(. + {event: (.event // .hook_event_name)})'
 | per-session envelope (`source: "envelope"`) | `sessions/<id>.jsonl` | the legacy keys with `hook_event_name` for `event`, plus `session_id`, and `changed` (boolean) when the producer sent one |
 | per-session event log (`source: "event-log"`) | `sessions/<id>.jsonl` | `ts session_id hook_event_name category status duration_ms` plus `prompt_id tool_use_id agent_id tool_name file_path reason traceparent` when present; no `hook`, and `duration_ms` is the logger's own cost, not a hook's |
 
-Cross-platform: `date -u -d "..."` is GNU. macOS BSD date uses `date -u -v-7d`. Skill detects platform — see fallback in implementation.
+Cross-platform: `date -u -d "..."` is GNU. macOS BSD date uses `date -u -v-7d`. Skill detects platform. See fallback in implementation.
 
-## 1. ccusage — token + cost
+## 1. ccusage: token + cost
 
 **Preferred path: MCP** (instant, no shell-out per call).
 
@@ -96,7 +96,7 @@ npx -y ccusage blocks --json | jq '.blocks[] | select(.isActive==true) | {start:
 
 Empty / missing: emit `"ccusage not installed — npm install -g ccusage or wire MCP"` warning; skip section.
 
-## 2. Hook event log — latency outliers
+## 2. Hook event log: latency outliers
 
 **p50 / p95 / p99 / max per `(hook, event)`:**
 
@@ -232,11 +232,11 @@ pre-prune command is not finishing, and `/claude-ops:observability clean` sweeps
 `guard: operator-edited` line is a HIGH finding: the hooks are refusing to write. The probe
 never heals the guard; `/claude-ops:setup apply` does.
 
-## 3. Tool call decisions — which calls were denied, and why
+## 3. Tool call decisions: which calls were denied, and why
 
 **Not in hook-events.jsonl or session transcripts.** Permission and policy outcomes are
 emitted as OTEL log events (`claude_code.tool_decision`, stored as `event_name='tool_decision'`
-in the DuckDB store). Query the OTEL store — do not grep `history.jsonl`, session JSON, or
+in the DuckDB store). Query the OTEL store. Do not grep `history.jsonl`, session JSON, or
 `~/.claude/sessions/*.json`.
 
 **What it answers:** for each tool invocation, whether it was accepted or rejected and what
@@ -245,7 +245,7 @@ mechanism drove the decision.
 | Field (promoted column) | Values | Meaning |
 |---|---|---|
 | `decision` | `accept` / `reject` | Outcome |
-| `source` | `config`, … | Bucket for the deciding mechanism — see [Claude Code monitoring docs](https://code.claude.com/docs/en/monitoring-usage) |
+| `source` | `config`, … | Bucket for the deciding mechanism. See [Claude Code monitoring docs](https://code.claude.com/docs/en/monitoring-usage) |
 
 **Column mapping:** the OTEL attribute on `tool_decision` events is `source` (official name).
 `tool_result` events emit `decision_source` for the same bucket; the DuckDB projection
@@ -254,7 +254,7 @@ mechanism drove the decision.
 A `reject` with `source='config'` is a configuration-driven denial (settings,
 allow/deny rules, managed policy, `--allowedTools`/`--disallowedTools`, permission mode,
 session grants, inherently-safe tools, etc.). **Attribution caveat:** `config` is one bucket
-over many mechanisms — a `reject`+`config` count is an **upper bound** on deny-rule firings
+over many mechanisms, so a `reject`+`config` count is an **upper bound** on deny-rule firings
 and cannot be pinned to an individual rule. Per-rule attribution is upstream.
 
 DuckDB queries: [otel-queries.md](otel-queries.md) § "Tool decisions".
@@ -278,7 +278,7 @@ for k, v in ngrams.most_common(10):
 '
 ```
 
-**Failed-then-fixed sequences:** detect adjacent `exit_code != 0` followed by same-hook `exit_code == 0` — implies user/agent re-edited and same hook fired green.
+**Failed-then-fixed sequences:** detect adjacent `exit_code != 0` followed by same-hook `exit_code == 0`, which implies user/agent re-edited and same hook fired green.
 
 ```bash
 jq -s "$HOOK_NORM"' | map(select(.hook != null)) | sort_by(.ts) as $e
@@ -292,7 +292,7 @@ jq -s "$HOOK_NORM"' | map(select(.hook != null)) | sort_by(.ts) as $e
 
 ## 4.5 Hallucination-guard catches (`cli-flag-verify` violations)
 
-`cli-flag-verify` PostToolUse hook (advisory exit 1) emits one `PostToolUse` event per unverifiable `<bin> --<flag>` pair detected in a Write/Edit, discriminated from other `PostToolUse` writers via the `hook` field. Subject format: `<bin>:<sha16>` — bin in clear (groupable), sha16 = first 16 hex of `sha256("<bin> <flag>")` (flag content protected). Schema: whatever envelope the consumer's hook emitter writes; the fields used here are `hook` and `subject`. Per-period count + per-binary breakdown calibrates the verifier (false-positive rate, hallucination hot-spots) and gates the future advisory→blocking exit-2 graduation.
+`cli-flag-verify` PostToolUse hook (advisory exit 1) emits one `PostToolUse` event per unverifiable `<bin> --<flag>` pair detected in a Write/Edit, discriminated from other `PostToolUse` writers via the `hook` field. Subject format: `<bin>:<sha16>`, with bin in clear (groupable) and sha16 = first 16 hex of `sha256("<bin> <flag>")` (flag content protected). Schema: whatever envelope the consumer's hook emitter writes; the fields used here are `hook` and `subject`. Per-period count + per-binary breakdown calibrates the verifier (false-positive rate, hallucination hot-spots) and gates the future advisory→blocking exit-2 graduation.
 
 **Per-period count + per-binary breakdown:**
 
@@ -321,8 +321,8 @@ jq -s --arg since "$SINCE_ISO" "$HOOK_NORM"'
 
 **Flag rules:**
 
-- HIGH: same `<bin>:<sha16>` appearing 3+ times (recurring agent confusion — escalation candidate for blocking exit 2 once FP rate < 1%)
-- MEDIUM: per-binary count > 5 in window (binary's `--help` may be non-exhaustive — candidate for the guardrails `cli_flag_verify_skip_bins` option)
+- HIGH: same `<bin>:<sha16>` appearing 3+ times (recurring agent confusion, an escalation candidate for blocking exit 2 once FP rate < 1%)
+- MEDIUM: per-binary count > 5 in window (binary's `--help` may be non-exhaustive, a candidate for the guardrails `cli_flag_verify_skip_bins` option)
 - INFO: total count, unique-pair count, per-binary distribution
 
 Empty: `"no cli-flag-verify violations — verifier may be advisory-clean OR the consumer's telemetry sink is not wired/enabled"`.
@@ -345,7 +345,7 @@ grep -oE '`[a-zA-Z0-9_./-]+\.(cs|sh|ts|py|md|json)`' .claude/rules/*.md \
 
 Function and symbol references are out of scope; the check covers file paths only.
 
-## 6. Calibration signal — dismissed observations
+## 6. Calibration signal: dismissed observations
 
 If the consumer project has a rule that surfaces side observations, user dismissals are signal that its noise threshold needs tightening. Source: `~/.claude/projects/<slug>/memory/feedback_*.md` lines mentioning "side observation" / "noticed" / "mentioned".
 
@@ -356,7 +356,7 @@ grep -l -i "side observation\|surfaced\|dismissed" \
   | wc -l
 ```
 
-INFO bucket only — not actionable per-run.
+INFO bucket only, not actionable per-run.
 
 ## 7. Git + GH activity (context for severity)
 
@@ -374,7 +374,7 @@ The queries run comfortably on a store of ordinary size, and the skill caps its 
 
 ## Cross-references
 
-- Row schemas: the three shapes in "Setup" above. The shared file is whatever the consumer's hook emitter writes — treat the fields used here (`ts`, `hook`, `tool`, `duration_ms`, `exit_code`, `subject`, `status`) as the expected shape and degrade gracefully when fields are absent; the per-session shapes are the reference sink's and `session-event-log.sh`'s (see `hooks/hook-events.registry.json` for which events the event log records)
+- Row schemas: the three shapes in "Setup" above. The shared file is whatever the consumer's hook emitter writes, so treat the fields used here (`ts`, `hook`, `tool`, `duration_ms`, `exit_code`, `subject`, `status`) as the expected shape and degrade gracefully when fields are absent; the per-session shapes are the reference sink's and `session-event-log.sh`'s (see `hooks/hook-events.registry.json` for which events the event log records)
 - The old `.claude/observability/hook-events.jsonl` location is retired (`retirements.yaml` `claude-ops-r001`); `/claude-ops:setup` detects and migrates it. The skill-usage store and the OTEL store still live under `.claude/observability/`
 - Privacy filter applied at output time: [privacy.md](privacy.md)
 - Output template: [output-format.md](output-format.md)
