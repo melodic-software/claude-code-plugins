@@ -68,12 +68,6 @@
 
 set -uo pipefail
 
-# Read inherited fd0 directly (bare cat) — NEVER `</dev/stdin`: on Windows Git
-# Bash, CC spawns hooks with stdin = a Win32 pipe that `/dev/stdin` cannot
-# resolve (ENOENT -> silent no-op). stdin is read ONCE here and fed to both
-# hook::read_file_path (file_path) and the tool_name parse below; reading fd0
-# twice would drain the pipe on the second call.
-#
 # The hook's own directory is derived with parameter expansion rather than
 # `dirname`. On the Windows Git Bash host this hook is tuned for, an exec costs
 # about a spawn and a command substitution costs half of one, and this line is
@@ -91,154 +85,48 @@ HOOK_DIR="${BASH_SOURCE[0]%/*}"
 # shellcheck source=hook-utils.sh
 source "$HOOK_DIR/hook-utils.sh"
 
-# Capture $EPOCHREALTIME immediately after kill-switch so duration_ms covers the
-# work below (pre-work exits do not emit telemetry). EPOCHREALTIME is Bash 5.0+;
-# on older bash it is unset, so default to empty — referencing it bare under
-# `set -u` would abort before the advisory exit 0, failing every edit.
-start=${EPOCHREALTIME:-}
-
 # Emit this run's telemetry envelope: $1 status, $2 residual-findings JSON
-# array, optional $3 applied-corrections JSON array.
-# Two guards: the high-res start stamp (EPOCHREALTIME is Bash 5.0+; on older
-# bash it is empty and telemetry is skipped, so the hook still fixes typos
-# rather than aborting) and the sink opt-in. The data payload costs a jq
-# subprocess, so it is built here after both guards — never on the unwired path.
+# array, optional $3 applied-corrections JSON array, optional $4 the rewrite
+# verdict for data.changed ("true" when typos applied at least one correction,
+# "false" when it ran and applied none, empty on a skip arm, where the key is
+# omitted rather than guessed).
+# Two guards: the high-res start stamp (empty on bash before 5.0, where
+# telemetry is skipped so the hook still fixes typos rather than aborting) and
+# the sink opt-in. The data payload costs a jq subprocess, so it is built here
+# after both guards — never on the unwired path.
 emit_tel() {
   [[ -n "$start" ]] || return 0
   hook::telemetry_enabled || return 0
-  hook::emit_telemetry "typos-format" "PostToolUse" "$1" "$start" "$(build_data_json "$2" "${3:-[]}" "${4:-}")" "$REPO_ROOT"
+  local data=""
+  hook::data_json_to data "$TOOL" "$FILE_REL" "${4:-}" \
+    findings array "$2" applied array "${3:-[]}"
+  hook::emit_telemetry "typos-format" "PostToolUse" "$1" "$start" "$data" "$REPO_ROOT"
 }
 
-hook::buffer_stdin_to INPUT || exit 0
-
-# NotebookEdit carries its target as tool_input.notebook_path, NOT file_path
-# (verified against the tool's own input schema), so every path-reading step
-# below — the jq-free pre-filter and hook::read_file_path alike — sees nothing
-# for a notebook edit and the hook silently no-ops. Adding NotebookEdit to the
-# matcher alone would therefore fire the hook and change nothing.
+# The whole prologue: the start stamp, the buffered payload, the jq gate, the
+# parsed path with its basename and directory, the repo root (the CWD typos
+# runs in), and the telemetry-only TOOL behind the sink opt-in. Exits 0 itself
+# on every path this hook has nothing to do on.
 #
-# The key is normalized HERE rather than in hook::read_file_path because
-# hooks/hook-utils.sh is a registered byte-identical cross-plugin cluster
-# (scripts/cross-plugin-source-registry.txt, CI job hook-utils-sync): teaching
-# the shared reader about notebooks is a nine-plugin change and belongs in its
-# own pass. Normalizing the payload keeps the shared reader — and its
-# project-membership and temp-tree scoping, which is the load-bearing part —
-# the single place a path is admitted.
-
-# jq-free applicability pre-filter: never emit the jq notice when there is no
-# target path at all (e.g. a tool_input shape this hook cannot act on
-# regardless). Mirrors hook::raw_file_path's escaped-string match for the
-# notebook key, so a NotebookEdit payload reaches the jq gate like any other.
-raw_notebook_path() {
-  [[ "$1" =~ \"notebook_path\"[[:space:]]*:[[:space:]]*\"(([^\"\\]|\\.)*)\" ]] || return 1
-  [[ -n "${BASH_REMATCH[1]}" ]] || return 1
-  printf '%s' "${BASH_REMATCH[1]}"
-}
-# shellcheck disable=SC2034  # existence-only check; scan has no extension filter
-# (typos is language-agnostic). Write mode applies its own allowlist later (#2650).
-RAW_FILE=$(hook::raw_file_path "$INPUT") || RAW_FILE=$(raw_notebook_path "$INPUT") || exit 0
-
-# jq is load-bearing for input parsing; absent → visible once-per-session skip
-# notice instead of a silent no-op (dim-9 doctrine).
-hook::require_jq PostToolUse typos-format "$INPUT"
-
-# Copy notebook_path onto file_path when only the former is present. An
-# explicit file_path always wins, so a payload carrying both is untouched; a
-# jq failure leaves $INPUT exactly as it arrived rather than emptying it.
+# No glob list: the scan has no extension filter, because typos is
+# language-agnostic. Write mode applies its own allowlist later (#2650).
 #
-# The jq runs only when the raw payload carries a non-empty notebook_path,
-# because without one the filter's own condition is false and it hands back the
-# payload unchanged. The textual pre-check is deliberately BROADER than the
-# filter's `.tool_input.notebook_path`: it matches the key anywhere, so it can
-# admit a payload the filter will no-op on, but it can never reject one the
-# filter would have acted on. Every Write and Edit reaches this line and none of
-# them is a notebook, so on the hot path this is one fewer jq and one fewer
-# pipeline, worth about a spawn and a half on the Windows Git Bash host.
-if raw_notebook_path "$INPUT" >/dev/null; then
-  NORMALIZED_INPUT=$(printf '%s' "$INPUT" | jq -c '
-    if ((.tool_input.file_path // "") == "") and ((.tool_input.notebook_path // "") != "")
-    then .tool_input.file_path = .tool_input.notebook_path
-    else . end' 2>/dev/null) && [[ -n "$NORMALIZED_INPUT" ]] && INPUT="$NORMALIZED_INPUT"
-fi
-
-FILE=$(printf '%s' "$INPUT" | hook::read_file_path) || exit 0
-# Basename via parameter expansion, not `basename(1)`: this hook fires on
-# every Write/Edit/NotebookEdit, and GNU Bash forks a subshell for
-# `$(basename "$FILE")` even though the body is a single exec (Command
-# Substitution, Bash Reference Manual;
-# https://mywiki.wooledge.org/CommandSubstitution). Trim on either separator
-# so a mixed-form Windows path still yields the final component.
-FILE_BASE="${FILE##*/}"
-FILE_BASE="${FILE_BASE##*\\}"
-
-# Telemetry-only. Parsed behind the sink opt-in so the unwired default path
-# spawns zero telemetry-only subprocesses (FILE_REL below is NOT gated — it is
-# also the path typos itself is invoked with).
-TOOL=""
-if hook::telemetry_enabled; then
-  TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
-fi
-
-# Resolve repo root early — used as the CWD typos runs in and to compute
-# the schema-required repo-relative path in data.file.
+# --notebook because NotebookEdit carries its target as
+# tool_input.notebook_path, NOT file_path (verified against the tool's own
+# input schema), so without it every path-reading step sees nothing for a
+# notebook edit and the hook silently no-ops — adding NotebookEdit to the
+# matcher alone would fire the hook and change nothing. hook::begin copies the
+# key onto file_path, which keeps the shared reader — and its
+# project-membership and temp-tree scoping, the load-bearing part — the single
+# place a path is admitted.
 #
-# The directory hint is stripped with parameter expansion rather than `dirname`,
-# for the reason given at the source line above. FILE has already cleared
-# hook::read_file_path's `-f` test, so it names an existing regular file and
-# carries no trailing slash; the fallbacks cover the two shapes where the strip
-# and dirname disagree: a bare relative filename with no separator, where
-# dirname answers `.`, and a file directly under the filesystem root, where the
-# strip leaves an empty string that hook::repo_root would read as `.` (the hook
-# process CWD) while dirname answers `/`.
-FILE_DIR="${FILE%/*}"
-[[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR=.
-[[ -n "$FILE_DIR" ]] || FILE_DIR=/
-REPO_ROOT=""
-hook::repo_root_to REPO_ROOT "$FILE_DIR"
-# Repo-relative path, serving two consumers: the schema-required data.file, and
-# the argument typos runs on from the repo root. A path the prefix strip could
-# not make relative degrades to its basename, which is right for telemetry but
-# names a DIFFERENT file when resolved against the repo root, so the tool
-# invocation below has to know which of the two it holds. `_to` writes
-# FILE_REL and HOOK_REPO_RELATIVE_DEGRADED in this shell, so the capture
-# subshell that used to hide the global is gone (Command Substitution, Bash
-# Reference Manual; https://mywiki.wooledge.org/CommandSubstitution). Status
-# remains the distinguishable channel.
-FILE_REL_DEGRADED=0
-FILE_REL=""
-hook::repo_relative_path_to FILE_REL "$FILE" "$REPO_ROOT" || FILE_REL_DEGRADED=1
-
-# Build the telemetry data object for the current TOOL/FILE_REL. $1 is the
-# residual-findings JSON array; optional $2 is the applied-corrections JSON
-# array (additive schema property, defaults to empty). jq is authoritative. The
-# fallback is a fixed empty-shape object — NOT an interpolation of
-# TOOL/FILE_REL, which could inject quotes or backslashes from a path and
-# corrupt the envelope. The fallback is essentially unreachable in practice (it
-# fires only if `jq -c` fails, and when jq is absent hook::emit_telemetry drops
-# the envelope anyway), so losing the values here is harmless and strictly
-# safer than emitting malformed JSON.
-#
-# Both arrays arrive on STDIN, never as --argjson values. They are uncapped by
-# design, and Windows caps a process command line at 32767 characters — about
-# 1,000 ordinary corrections is 45 KB of JSON, at which point `jq` cannot start
-# and the fallback below would emit an envelope reporting `applied: []` for a
-# file this hook had just rewritten. Telemetry is documented best-effort and
-# lossy, so a dropped envelope is inside contract; one that arrives claiming a
-# heavily-rewritten file was untouched is not. TOOL and FILE_REL stay as
-# arguments: both are bounded by a path length.
-# $3 is the rewrite verdict for data.changed: "true" when typos applied at
-# least one correction to the file, "false" when it ran and applied none, and
-# empty on a skip arm, where the key is omitted rather than guessed.
-build_data_json() {
-  printf '{"findings":%s,"applied":%s}' "$1" "${2:-[]}" |
-    jq -c \
-      --arg tool "$TOOL" \
-      --arg file "$FILE_REL" \
-      --arg changed "${3:-}" \
-      '{tool:$tool,file:$file,findings:.findings,applied:.applied}
-       + (if $changed == "" then {} else {changed: ($changed == "true")} end)' 2>/dev/null ||
-    printf '{"tool":"","file":"","findings":[],"applied":[]}'
-}
+# --relative because FILE_REL serves two consumers here, not just telemetry: it
+# is also the argument typos runs on from the repo root, so it is resolved with
+# or without a sink. A path the prefix strip could not make relative degrades
+# to its basename, which is right for telemetry but names a DIFFERENT file when
+# resolved against the repo root, so the invocation below reads
+# FILE_REL_DEGRADED to know which of the two it holds.
+hook::begin --relative --notebook typos-format PostToolUse
 
 emit_skipped() {
   emit_tel "skipped" '[]'

@@ -11,11 +11,6 @@
 
 set -uo pipefail
 
-# Read inherited fd0 directly (bare cat) — NEVER `</dev/stdin`: on Windows Git
-# Bash, CC spawns hooks with stdin = a Win32 pipe that `/dev/stdin` cannot
-# resolve (ENOENT -> silent no-op). stdin is read ONCE here and fed to both
-# hook::read_file_path (file_path) and the tool_name parse below; reading fd0
-# twice would drain the pipe on the second call.
 # Kill switch FIRST, before any library is sourced: a disabled hook must not
 # pay to parse hook-utils.sh to learn it is off. Same predicate as
 # hook::is_enabled; scripts/check-killswitch-hoist.sh pins the two together.
@@ -31,112 +26,44 @@ HOOK_DIR="${BASH_SOURCE[0]%/*}"
 
 # shellcheck source=hook-utils.sh
 source "$HOOK_DIR/hook-utils.sh"
-# Capture $EPOCHREALTIME immediately after the kill-switch so duration_ms covers
-# the work below (pre-work exits do not emit telemetry). EPOCHREALTIME is Bash
-# 5.0+; on older bash it is unset, so default to empty — referencing it bare
-# under `set -u` would abort before the advisory exit 0.
-start=${EPOCHREALTIME:-}
 
 # Emit this run's telemetry envelope: $1 status, $2 findings JSON array.
-# Two guards: the high-res start stamp (EPOCHREALTIME is Bash 5.0+; on older
-# bash it is empty and telemetry is skipped, so the hook still lints rather
-# than aborting) and the sink opt-in. The data payload costs a jq subprocess,
-# so it is built here after both guards — never on the unwired path.
+# Two guards: the high-res start stamp (empty on bash before 5.0, where
+# telemetry is skipped so the hook still lints rather than aborting) and the
+# sink opt-in. The data payload costs a jq subprocess, so it is built here
+# after both guards — never on the unwired path. This hook never rewrites the
+# file, so HOOK_REWRITE_CHANGED is never set and the builder leaves the
+# `changed` key off rather than guessing a verdict.
 emit_tel() {
   [[ -n "$start" ]] || return 0
   hook::telemetry_enabled || return 0
-  hook::emit_telemetry "actionlint-check" "PostToolUse" "$1" "$start" "$(build_data_json "$2")" "$REPO_ROOT"
+  local data=""
+  hook::data_json_to data "$TOOL" "$FILE_REL" "${HOOK_REWRITE_CHANGED:-}" findings array "$2"
+  hook::emit_telemetry "actionlint-check" "PostToolUse" "$1" "$start" "$data" "$REPO_ROOT"
 }
 
-hook::buffer_stdin_to INPUT || exit 0
-
-# jq-free applicability pre-filter: never emit the jq notice for an edit this
-# hook would not lint anyway (the Write|Edit matcher is broader than the
-# workflow-file filter). Slashes normalized from JSON-escaped backslashes;
-# loose on separators, tight on location + extension.
-RAW_FILE=$(hook::raw_file_path "$INPUT") || exit 0
-case "${RAW_FILE//\\//}" in
-*/.github/*workflows/*.yml | */.github/*workflows/*.yaml) ;;
-*) exit 0 ;;
-esac
-
-# jq is load-bearing for input parsing; absent → visible once-per-session skip
-# notice instead of a silent no-op (dim-9 doctrine).
-hook::require_jq PostToolUse actionlint "$INPUT"
-
-# Deliberately NOT hook::read_file_path: its CLAUDE_PROJECT_DIR membership
-# guard is wrong for an advisory PostToolUse linter. PostToolUse cannot block
-# or undo the write (the tool already ran), so the guard protects nothing --
-# every guard false-negative is a silent coverage loss. The concrete one: GNU
-# realpath under Git Bash does not expand Windows 8.3 short names, so a
-# short-form file_path (<drive>:\...\SOMEDIR~1\... form) fails the prefix
-# match against a long-form project dir and the lint silently never runs,
-# violating the prerequisite-visibility doctrine (a silently skipped feature
-# is a defect). The workflow-location filters above and below bound what gets
-# linted; membership adds nothing. Parse + existence check only (the shared
-# lib is synced fleet-wide and other consumers keep the guard).
-FILE=$(printf '%s' "$INPUT" | jq -r '(.tool_input.file_path // empty) | gsub("\r";"")' 2>/dev/null)
-[[ -n "$FILE" && -f "$FILE" ]] || exit 0
-# Basename via parameter expansion, not `basename(1)`: this hook fires on
-# every Write/Edit of a workflow file, and GNU Bash forks a subshell for
-# `$(basename "$FILE")` even though the body is a single exec (Command
-# Substitution, Bash Reference Manual;
-# https://mywiki.wooledge.org/CommandSubstitution). Trim on either separator
-# so a mixed-form Windows path still yields the final component.
-FILE_BASE="${FILE##*/}"
-FILE_BASE="${FILE_BASE##*\\}"
-# Only GitHub Actions workflow files. actionlint recognizes both .yml and .yaml
-# under .github/workflows/; other YAML is not a workflow and must be skipped.
-FILE_NORM=""
-hook::normalize_path_to FILE_NORM "$FILE"
-case "$FILE_NORM" in
-*/.github/workflows/*.yml | */.github/workflows/*.yaml) ;;
-*) exit 0 ;;
-esac
-
-# Telemetry-only. Parsed behind the sink opt-in so the unwired default path
-# spawns zero telemetry-only subprocesses (FILE_REL below is NOT gated — it is
-# the path actionlint itself is invoked with).
-TOOL=""
-if hook::telemetry_enabled; then
-  TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
-fi
-
-# Resolve repo root early — used to compute the schema-required repo-relative
-# path in data.file.
-FILE_DIR="${FILE%/*}"
-[[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR=.
-[[ -n "$FILE_DIR" ]] || FILE_DIR=/
-REPO_ROOT=""
-hook::repo_root_to REPO_ROOT "$FILE_DIR"
-# Repo-relative path, serving two consumers: the schema-required data.file, and
-# the argument actionlint runs on from the repo root. A path the prefix strip
-# could not make relative degrades to its basename, which is right for telemetry
-# but names a DIFFERENT file when resolved against the repo root, so the
-# invocation below has to know which of the two it holds. `_to` writes FILE_REL
-# and HOOK_REPO_RELATIVE_DEGRADED in this shell, so the capture subshell that
-# used to hide the global is gone (Command Substitution, Bash Reference
-# Manual; https://mywiki.wooledge.org/CommandSubstitution). Status remains the
-# distinguishable channel.
-FILE_REL_DEGRADED=0
-FILE_REL=""
-hook::repo_relative_path_to FILE_REL "$FILE" "$REPO_ROOT" || FILE_REL_DEGRADED=1
-
-# Build the telemetry data object for the current TOOL/FILE_REL. $1 is the
-# findings JSON array. jq is authoritative. The fallback is a fixed empty-shape
-# object — NOT an interpolation of TOOL/FILE_REL, which could inject quotes or
-# backslashes from a path and corrupt the envelope. The fallback is essentially
-# unreachable in practice (it fires only if `jq -n` fails, and when jq is absent
-# hook::emit_telemetry drops the envelope anyway), so losing the values here is
-# harmless and strictly safer than emitting malformed JSON.
-build_data_json() {
-  jq -n \
-    --arg tool "$TOOL" \
-    --arg file "$FILE_REL" \
-    --argjson findings "$1" \
-    '{tool:$tool,file:$file,findings:$findings}' 2>/dev/null ||
-    printf '{"tool":"","file":"","findings":[]}'
-}
+# The whole prologue: the start stamp, the buffered payload, the workflow-file
+# filter (applied before the jq gate on the raw payload text, so a non-workflow
+# edit never triggers the jq notice, and again on the parsed path), the jq
+# gate, the parsed path with its basename and directory, the file-anchored repo
+# root, and the telemetry-only TOOL behind the sink opt-in. Exits 0 itself on
+# every path this hook has nothing to do on.
+#
+# --no-membership because hook::read_file_path's CLAUDE_PROJECT_DIR guard is
+# wrong for an advisory PostToolUse linter: PostToolUse cannot block or undo
+# the write, so the guard protects nothing and every false negative is a silent
+# coverage loss. The concrete one: GNU realpath under Git Bash does not expand
+# Windows 8.3 short names, so a short-form file_path (<drive>:\...\SOMEDIR~1\...)
+# fails the prefix match against a long-form project dir and the lint silently
+# never runs. The workflow-location globs are what bound this hook's scope.
+#
+# --relative because FILE_REL is also the argument actionlint runs on from the
+# repo root, not just the schema-required data.file. A path the prefix strip
+# could not make relative degrades to its basename, which is right for
+# telemetry but names a DIFFERENT file against the repo root, so the invocation
+# below reads FILE_REL_DEGRADED to know which of the two it holds.
+hook::begin --no-membership --relative actionlint PostToolUse \
+  '*/.github/workflows/*.yml' '*/.github/workflows/*.yaml'
 
 # Graceful degrade: actionlint absent -> skip, made VISIBLE once per session on
 # both channels (agent + user). Telemetry (opt-in) also records a "skipped"

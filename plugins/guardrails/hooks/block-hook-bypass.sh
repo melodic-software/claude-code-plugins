@@ -9,22 +9,26 @@
 #   same-command staged write: <producer> > tmp && mv|cp tmp dest
 #     (effective redirect target reused as mv/cp source; #2731)
 #
-# Detection runs over the LITERAL-STRIPPED command for the executable token
-# (so prose/commit text merely MENTIONING the pattern is not a false positive),
-# and over the RAW command for the python write indicators (they legitimately
-# live inside the quoted `-c` payload the strip removes).
+# Detection runs over the PARSED command — one pass of the shared tokenizer
+# (hook::bash_parse_segments), which gives every simple command its argv words
+# AND its redirections, so the command word and the write's destination are both
+# read from the grammar rather than matched out of the text. See "The segment
+# model this guard decides on" below. The python write INDICATORS are the one
+# thing scanned on the RAW command: they legitimately live inside a quoted `-c`
+# payload or a heredoc body, neither of which is argv.
 #
 # The echo/printf redirect is PRODUCER-SCOPED (see producer_redirect_bypass): it
 # fires only when the echo/printf is itself the command whose stdout is
-# redirected into a real file, NOT when an `echo` token and a `>` token merely
-# co-occur in one compound command (`bash x.sh > out.json && echo done` — the
-# redirect's producer is `bash`) or survive only inside a quoted argument.
+# redirected into a real file, NOT when an `echo` word and a `>` merely co-occur
+# in one compound command (`bash x.sh > out.json && echo done` — the redirect's
+# producer is `bash`) or survive only inside a quoted argument.
 #
-# SCOPE (documented residual): the strip treats a quoted span as inert, so a
-# write inside a command substitution in double quotes
-# (`echo "$(python3 -c 'import pathlib ...')"`) is NOT caught — catching it needs
-# a shell parser, and neutralizing quotes re-blocks inert prose. An LLM never
-# emits this form; the deny-list plus human oversight are the adversarial layers.
+# SCOPE (documented residual): a command substitution is not evaluated, so a
+# write inside one in double quotes
+# (`echo "$(python3 -c 'import pathlib ...')"`) is NOT caught — the whole span is
+# one argv word, and running the inner command to find out is not something a
+# guard may do. An LLM never emits this form; the deny-list plus human oversight
+# are the adversarial layers.
 # The supported deliberate bypasses are the kill switch
 # (block_hook_bypass_enabled set to false) and the scratch-root exemption
 # (block_hook_bypass_scratch_roots). The option's own list is still empty by
@@ -186,357 +190,45 @@ emit_tel() {
   hook::emit_telemetry "block-hook-bypass" "PreToolUse" "$1" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
 
-# --- Redirect-operand literal marking (#2226) --------------------------------
+# --- The segment model this guard decides on ---------------------------------
 #
-# Both exemptions below are decided on the redirect TARGET, so the target must be
-# the whole operand bash would use — not a prefix of it. strip_literals KEEPS a
-# quoted write target (dropping its quotes) so the write still reads as a write,
-# but the kept text then flows into machinery that reads shell SYNTAX: the
-# segment split treats `;`, `|`, `&`, `(`, `)` and a newline as boundaries, and
-# _redir_scan's target class ends at whitespace, `>` and `|`. A quoted operand
-# carrying any of those therefore reached the exemption tests as its first
-# fragment — `echo x > "/dev/null ../../etc/pw"` was judged on the word
-# `/dev/null` and exempted, while nothing named `/dev/null` is the destination.
+# The command is tokenized ONCE, by the shared parser (hook::bash_parse_segments),
+# which hands every simple command both halves of its grammar: the argv words,
+# and the redirections bash removes from argv. This guard's subject IS the
+# redirect target, so the second half is the half that matters, and reading it
+# from the shared parse is what keeps one tokenizer in the repository instead of
+# two disagreeing ones over the same string.
 #
-# Two sentinel bytes carry the association the strip would otherwise destroy:
+# What the parse settles that a text scan could not:
 #
-#   \x03 OPAQUE — stands in for one character of operand LITERAL content whose
-#        own value would read as syntax downstream, or whose text this strip
-#        cannot reproduce faithfully (a backslash escape). It is inert to every
-#        scan in this file, so the operand survives as ONE token; its presence
-#        means the operand's exact pathname is NOT recoverable here, and NO
-#        exemption of any kind may be granted.
-#   \x04 QUOTED — emitted once where a kept quoted span opens. It records that
-#        the operand was quoted at all without hiding the text: the `/dev/null`
-#        discard compare strips it (a quoted `> "/dev/null"` is still a discard),
-#        while the scratch-root axis keeps its shipped floor of never exempting a
-#        quoted operand.
+#   - A quoted operand is ONE pathname to bash, whitespace and separators
+#     included. `echo x > "/dev/null ../../etc/pw"` yields the whole path as the
+#     target, so no fragment of it can stand in for the whole (#2226).
+#   - A quoted span anywhere else is ONE argv word, so prose or a commit message
+#     mentioning `echo > file` carries no redirection at all.
+#   - An escaped separator (`echo x \; > f`) is an argument, not a boundary, and
+#     a backslash-newline continuation joins a word rather than splitting one.
+#   - A here-doc body is stdin, not commands; a here-string is neither.
 #
-# A raw \x01-\x04 byte arriving in the command text is mapped to OPAQUE as well,
-# so a forged sentinel can only ever COST an exemption, never manufacture one.
-_MARK_OPAQUE=$'\x03'
-_MARK_QUOTE=$'\x04'
+# Every word and every target arrives with its QUOTING PROVENANCE, which is what
+# the target-scoped exemptions are keyed on: an operand whose written text is not
+# the text bash uses (it was quoted, or an escape produced it) exempts nothing,
+# and one the parse could not resolve at all is OPAQUE and exempts nothing
+# either. Case is folded on the way in, so every scan below is
+# case-insensitive — the documented residual the scratch-root axis carries.
 
-# True when the character about to be consumed belongs to a REDIRECT OPERAND —
-# the word being emitted began right after a `>`. Strip the current trailing
-# operand word (back to the last whitespace or shell metachar), then the
-# whitespace before it, and test for `>`.
-#
-# Gating every mark on this is what keeps normalize_segments, _producer_head,
-# _cat_redir and every whitespace trim in this file byte-for-byte as shipped:
-# nothing outside an operand is marked, so an escaped separator between commands
-# (`echo x \; > f`) still travels the unchanged `\x02`-to-space path, and a
-# backslash in a command WORD (`/c/Python313/python3.exe -c`) is untouched.
-_in_redirect_operand() {
-  local tail="$1"
-  tail="${tail%"${tail##*[[:space:]<>|&\;()]}"}"
-  tail="${tail%"${tail##*[![:space:]]}"}"
-  [[ "${tail: -1}" == ">" ]]
-}
-
-# True when a dropped quote span opens INSIDE a command word (`ec"xy"ho`), not as
-# a separate argument (`echo "a"`). Only the in-word case may splice falsely.
-_drop_span_in_cmd_word() {
-  local tail="$1"
-  [[ -z "$tail" ]] && return 1
-  local prev="${tail: -1}"
-  # portability-ok: bracket-pattern metachar literals, not grep word boundaries.
-  [[ "$prev" == [[:space:]] || "$prev" == [\;\|\&\(\)\<\>] ]] && return 1
-  return 0
-}
-
-# One character of KEPT operand content, into _KEEP_CHAR: itself, or the opaque
-# marker when its literal value would read as syntax downstream. Single-sourced
-# so the two kept-span emit sites cannot drift apart.
-_KEEP_CHAR=""
-_keep_char() {
-  case "$1" in
-  [[:space:]] | ';' | '|' | '&' | '(' | ')' | '<' | '>' | $'\x01' | $'\x02' | $'\x03' | $'\x04')
-    _KEEP_CHAR="$_MARK_OPAQUE"
-    ;;
-  *) _KEEP_CHAR="$1" ;;
-  esac
-}
-
-# Split $2 on newlines into the array named by $1, one element per line: the
-# lines `while IFS= read -r line; do …; done < <(printf '%s\n' "$2")` delivers,
-# in the same order, with the same trailing empty element when $2 ends in a
-# newline, and one empty element for an empty $2. Without the process
-# substitution: bash forks for `<(…)` on every call (Process Substitution, Bash
-# Reference Manual), and this guard split four times per Bash call (#3513). A
-# here-string is not the alternative: at 65536-65663 bytes bash blocks forever
-# writing it into the pipe (see lib/path-detection/hardcoded-path-patterns.sh).
-#
-# Word-splitting on IFS=<newline> alone would MERGE runs of newlines and drop a
-# leading or trailing empty line (newline is IFS whitespace), and strip_literals
-# needs every physical line, blank ones included, to keep its heredoc and
-# open-quote state aligned with the command's own lines. So each line is first
-# prefixed with one sentinel byte, which makes every field non-empty, and the
-# prefix is removed again after the split. The prefix is added and removed
-# exactly once per line, so the sentinel's own value never matters: a line that
-# already begins with it keeps that byte. Globbing is off across the split
-# (a `*` in a command must stay a `*`) and restored to what the caller had.
-split_lines_to() {
-  local -n _sl_out="$1"
-  local _sl_s=$'\x1f' _sl_text _sl_noglob=0
-  _sl_text="${_sl_s}${2//$'\n'/$'\n'"$_sl_s"}"
-  [[ $- == *f* ]] && _sl_noglob=1
-  set -f
-  local IFS=$'\n'
-  # shellcheck disable=SC2206  # the split IS the point; IFS is newline-only and globbing is off
-  _sl_out=($_sl_text)
-  ((_sl_noglob)) || set +f
-  _sl_out=("${_sl_out[@]#"$_sl_s"}")
-}
-
-# Strip single- and double-quoted literal spans so the executable-token scan
-# sees only shell syntax, not payload text. Heredoc bodies are dropped wholesale
-# (their content is data, not a command). The quote strip carries an OPEN quote
-# across physical lines, so a quoted argument spanning newlines (a `--body "..."`
-# payload whose text merely mentions `echo`/`>`) stays inert end-to-end instead
-# of leaking its tokens from the second line on. An unquoted `#` comment is dropped
-# to end-of-line without carrying quote state, so an unmatched quote inside a
-# comment cannot leak a span onto the next line (see the `#` case below).
-#
-# strip_literals_to <var> <command>: the stripped text lands in the variable
-# named by $1 rather than on stdout. A `$(strip_literals …)` at the call site
-# was one fork per Bash call for a builtin-only function (#3513); the assignment
-# through a nameref is none. The value is what the substitution produced:
-# every trailing newline removed, as `$(…)` removes them.
-strip_literals_to() {
-  local -n _sl_result="$1"
-  local cmd="$2" line result="" in_heredoc=0 delim="" trimmed
-  local -a _bbh_lines=()
-  split_lines_to _bbh_lines "$cmd"
-  # `open_quote` carries a single- or double-quote span across lines: "" outside
-  # any quote, "'" or '"' inside one that opened on an earlier line. `open_keep`
-  # carries, alongside it, whether that span is a REDIRECT OPERAND (a quoted
-  # target: the char before the opening quote is `>`) — those are kept as literal
-  # content instead of dropped, so a quoted write target survives the strip.
-  # `op_cont` is set when a line ends with a backslash INSIDE a redirect operand:
-  # bash removes the backslash-newline entirely, so the operand continues on the
-  # next line with no separator and the joining newline must not be emitted.
-  local open_quote="" open_keep="" drop_span_active=0 drop_span_nonempty=0 out i n c prev nxt op_cont
-  # `(^|[^<])` before `<<` excludes a here-string `<<<` — matching `<<` inside
-  # `<<<` would capture a bogus delimiter and strand the stripper in-heredoc,
-  # swallowing every later line (a here-string bypass). The delimiter body
-  # excludes `<` for the same reason, and `>` so a redirect glued to the
-  # delimiter (`cat <<EOF>file`) terminates the token — bash ends the delimiter
-  # word at `>`, so the `>file` is a real redirect that must reach the scan
-  # instead of being swallowed into a bogus `EOF>file` delimiter.
-  local heredoc_start_re='(^|[^<])<<-?[[:space:]]*([^[:space:]<>]+)'
-
-  for line in "${_bbh_lines[@]}"; do
-    if ((in_heredoc)); then
-      # Trim + literal compare, NOT `=~ "$delim"`: inside a bash regex the
-      # delimiter would be treated as a pattern, so a metachar delim (EOF+,
-      # BODY[1], …) would never match its own terminator — leaving in_heredoc
-      # set and silently swallowing every later line (a crafted-heredoc bypass).
-      trimmed="${line#"${line%%[![:space:]]*}"}"
-      trimmed="${trimmed%"${trimmed##*[![:space:]]}"}"
-      [[ "$trimmed" == "$delim" ]] && in_heredoc=0
-      continue
-    fi
-    # A heredoc opener is shell syntax only OUTSIDE a quoted span — a `<<EOF`
-    # that survives inside a carried multi-line quote is payload text, not an
-    # operator, and must not strand the stripper in-heredoc.
-    if [[ -z "$open_quote" && "$line" =~ $heredoc_start_re ]]; then
-      delim="${BASH_REMATCH[2]}"
-      # `<<\EOF` backslash-quotes the delimiter (same effect as `<<'EOF'`) — the
-      # terminator line is bare `EOF`, so strip the leading backslash too.
-      delim="${delim#\\}"
-      delim="${delim#\'}"
-      delim="${delim%\'}"
-      delim="${delim#\"}"
-      delim="${delim%\"}"
-      # Drop only the heredoc operator + delimiter token, keeping the text before
-      # `<<` AND any text after the delimiter on the opener line — a trailing
-      # stdout redirect (`cat <<EOF > file`) must still reach the redirect scan
-      # rather than being truncated away with the body.
-      line="${line%%<<*}${line#*"${BASH_REMATCH[0]}"}"
-      in_heredoc=1
-    fi
-    # Char-by-char literal strip honoring bash quoting, resuming from `open_quote`
-    # so a span opened on an earlier line is still inert here. Single quotes take
-    # no escapes; inside double quotes a backslash escapes the next char (so `\"`
-    # does not close). Unquoted text — command tokens, redirects, separators — is
-    # kept; quoted spans are dropped.
-    out=""
-    i=0
-    n=${#line}
-    op_cont=0
-    while ((i < n)); do
-      c="${line:i:1}"
-      if [[ "$open_quote" == "'" ]]; then
-        if [[ "$c" == "'" ]]; then
-          if [[ -z "$open_keep" && $drop_span_active -eq 1 && $drop_span_nonempty -eq 1 ]]; then
-            out+="$_MARK_OPAQUE"
-          fi
-          open_quote=""
-          open_keep=""
-          drop_span_active=0
-          drop_span_nonempty=0
-        elif [[ -n "$open_keep" ]]; then
-          _keep_char "$c"
-          out+="$_KEEP_CHAR"
-        elif ((drop_span_active)); then
-          drop_span_nonempty=1
-        fi
-        ((i += 1))
-      elif [[ "$open_quote" == '"' ]]; then
-        if [[ "$c" == $'\\' ]]; then
-          # Inside double quotes a backslash escapes the next char. In a kept
-          # redirect operand this strip cannot reproduce the result faithfully —
-          # bash RETAINS the backslash unless the escaped char is one of
-          # `$` `` ` `` `"` `\` or a newline — so the pair is marked OPAQUE
-          # rather than guessed at, and the operand loses its exemption.
-          if [[ -n "$open_keep" ]]; then
-            out+="$_MARK_OPAQUE"
-          elif ((drop_span_active)); then
-            drop_span_nonempty=1
-          fi
-          ((i += 2))
-        else
-          if [[ "$c" == '"' ]]; then
-            if [[ -z "$open_keep" && $drop_span_active -eq 1 && $drop_span_nonempty -eq 1 ]]; then
-              out+="$_MARK_OPAQUE"
-            fi
-            open_quote=""
-            open_keep=""
-            drop_span_active=0
-            drop_span_nonempty=0
-          elif [[ -n "$open_keep" ]]; then
-            _keep_char "$c"
-            out+="$_KEEP_CHAR"
-          elif ((drop_span_active)); then
-            drop_span_nonempty=1
-          fi
-          ((i += 1))
-        fi
-      else
-        case "$c" in
-        "'" | '"')
-          # Open a quote span. Keep its inner content (as a literal, quote marks
-          # dropped) ONLY when it belongs to a REDIRECT-OPERAND word — the word the
-          # quote sits in began right after a `>`. This preserves a quoted write
-          # target (`echo x > "$out"` -> `echo x > $out`, still a detectable write;
-          # partial `echo x > /dev/"null"` -> `echo x > /dev/null`, still exempt),
-          # while a quoted span anywhere else (prose, `--body "..."`, a quoted echo
-          # argument) is dropped as before so its tokens stay inert. Boundary:
-          # _in_redirect_operand. A kept span also emits the QUOTED marker, so the
-          # exemptions downstream can tell a quoted operand from a bare one
-          # instead of inferring it from quotes anywhere in the raw command.
-          open_quote="$c"
-          if _in_redirect_operand "$out"; then
-            open_keep=1
-            out+="$_MARK_QUOTE"
-            drop_span_active=0
-            drop_span_nonempty=0
-          else
-            open_keep=""
-            if _drop_span_in_cmd_word "$out"; then
-              drop_span_active=1
-              drop_span_nonempty=0
-            else
-              drop_span_active=0
-              drop_span_nonempty=0
-            fi
-          fi
-          ((i += 1))
-          ;;
-        '#')
-          # `#` starts a comment only at a word boundary — start of line, or
-          # after an unquoted blank or shell metacharacter (`;|&()<>`). The rest
-          # of the physical line is comment text and is dropped WITHOUT touching
-          # `open_quote`, so an unmatched quote inside a comment (`true # "`)
-          # cannot leak a quote span onto the next line and silently strip a real
-          # producer there. Mid-word (`echo a#b`, `${v#x}`) the `#` is literal and
-          # kept, so a genuine `a#b > file` write still reaches the scan. A
-          # backslash-escaped `#` never lands here — the `\` case above consumes it.
-          if ((i == 0)) ||
-            {
-              prev="${line:i-1:1}"
-              # portability-ok: `\<` and `\>` here are backslash-escaped literals
-              # inside a Bash bracket PATTERN, not GNU grep/sed word-boundary
-              # operators; Bash pattern matching is identical on BSD userland.
-              [[ "$prev" == [[:space:]] || "$prev" == [\;\|\&\(\)\<\>] ]]
-            }; then
-            break
-          fi
-          out+="$c"
-          ((i += 1))
-          ;;
-        $'\\')
-          nxt="${line:i+1:1}"
-          if ! _in_redirect_operand "$out"; then
-            # Outside an operand the pair is left exactly as it was:
-            # normalize_segments still needs `\<sep>` to reach its escaped-
-            # separator sentinel, and a backslash in a command word is path text.
-            out+="${line:i:2}"
-            ((i += 2))
-          elif [[ -z "$nxt" ]]; then
-            # Backslash at end of line INSIDE an operand: bash removes the
-            # backslash-newline outright, so the operand continues on the next
-            # line. Mark it and suppress the joining newline below.
-            out+="$_MARK_OPAQUE"
-            op_cont=1
-            ((i += 1))
-          else
-            # An escaped character in an operand is LITERAL content. Its own value
-            # is dropped when it would read as syntax; otherwise it is kept behind
-            # the marker, because the escape means the written text is not the
-            # pathname (`D:\jobtmp\scratch\f` is `D:jobtmpscratchf` to bash).
-            _keep_char "$nxt"
-            [[ "$_KEEP_CHAR" == "$_MARK_OPAQUE" ]] && out+="$_MARK_OPAQUE" ||
-              out+="$_MARK_OPAQUE$nxt"
-            ((i += 2))
-          fi
-          ;;
-        *)
-          # A raw sentinel byte in the command text is treated as opaque literal
-          # content, so it can never be mistaken for a mark this strip emitted.
-          case "$c" in
-          $'\x01' | $'\x02' | $'\x03' | $'\x04') out+="$_MARK_OPAQUE" ;;
-          *) out+="$c" ;;
-          esac
-          ((i += 1))
-          ;;
-        esac
-      fi
-    done
-    # A newline reached with a quote span still OPEN is not a separator: bash is
-    # inside a quoted word, so the text before the opening quote and the text
-    # after the closing quote are ONE word. Emitting the newline handed
-    # normalize_segments a boundary bash does not have, which split a producer
-    # from its own redirect (`printf 'a<newline>b' > notes.md` was allowed while
-    # the `\n`-escaped spelling blocked) and could split a command word in half.
-    #
-    # A kept operand additionally marks the join OPAQUE — its content is literal
-    # and the pathname must stop being recoverable. A DROPPED span joins with
-    # NOTHING when its content was empty (`ec""ho` → `echo`); a non-empty dropped
-    # span inside a command word marks OPAQUE on close so splicing cannot
-    # manufacture `echo` from `ec"xy"ho` (`ec\x03ho` stays distinct from `echo`).
-    # A space join would still splice `ec"<newline>"ho x > f` into `ec ho`, which
-    # bash does not run as `echo`; only an empty dropped span may join without a
-    # mark.
-    # A backslash-newline inside an operand is removed by bash outright and joins
-    # the same way.
-    if [[ -n "$open_quote" && -n "$open_keep" ]]; then
-      result+="${out}${_MARK_OPAQUE}"
-    elif [[ -n "$open_quote" ]] || ((op_cont)); then
-      result+="$out"
-    else
-      result+="${out}"$'\n'
-    fi
-  done
-  while [[ "$result" == *$'\n' ]]; do result="${result%$'\n'}"; done
-  _sl_result="$result"
-}
-
-EXECUTABLE=""
-strip_literals_to EXECUTABLE "$COMMAND"
-EXEC_LC="${EXECUTABLE,,}"
-COMMAND_LC="${COMMAND,,}"
+# One row per simple command, in source order. Words are stored flat with a
+# per-segment offset and length rather than as nested arrays, which bash has no
+# form for.
+SEG_COUNT=0
+SEG_W=()       # every segment's argv words, lowercased, concatenated
+SEG_WQ=()      # parallel quoting provenance: 0 literal, 1 partly quoted, 2 wholly quoted
+SEG_WOFF=()    # index into SEG_W where segment i's words start
+SEG_WLEN=()    # how many words segment i has
+SEG_TGT=()     # segment i's EFFECTIVE stdout target, lowercased
+SEG_TGT_Q=()   # 1 when quoting or an escape produced that target text
+SEG_TGT_OPQ=() # 1 when the target is not resolvable from this command string
+SEG_TGT_SET=() # 1 when segment i redirects stdout to a file at all
 
 # 1 when this command carries a directory change, which moves the directory a
 # RELATIVE redirect target resolves against. Only the scratch-root axis reads it,
@@ -544,110 +236,76 @@ COMMAND_LC="${COMMAND,,}"
 # _scratch_abs_target) — so an over-eager match costs an exemption, never a
 # missed block, and the failure direction is the guard's shipped behaviour.
 #
-# Matched on the literal-stripped, lowercased stream so a `cd` inside quoted
-# prose is inert, and anchored at a command-word position (start of the command
-# or just past a separator) so `git checkout -- cd` and a `--cd-to` flag do not
-# trip it. The cd TARGET is deliberately not evaluated: resolving it would mean
-# evaluating arbitrary shell word expansion, which this guard does not do (see
+# The cd TARGET is deliberately not evaluated: resolving it would mean evaluating
+# arbitrary shell word expansion, which this guard does not do (see
 # block-dangerous-git.sh's treatment of the same relocation).
 _BBH_CWD_MOVED=0
-if [[ $'\n'"${EXEC_LC//[;|&()]/$'\n'}" =~ $'\n'[[:blank:]]*(cd|pushd|popd|chdir)([[:blank:]]|$) ]]; then
-  _BBH_CWD_MOVED=1
-fi
 
-# `cat` immediately before a redirect, with or without a space (`cat>file`).
-# Scanned PER SEGMENT (see cat_redirect_bypass), so `;|&()` never reach it — the
-# leading class is kept for the pre-segmentation shape and costs nothing.
-# Two spellings, deliberately NOT collapsed into `cat[[:space:]]*1?>`: the fd
-# digit needs a COMMAND BOUNDARY before it, or `cat1>file` — an unrelated binary
-# named `cat1` with an ordinary redirect — reads as `cat` plus an fd marker and
-# blocks. `cat>file` keeps zero-space (no digit to confuse), while the explicit
-# `1>` form requires whitespace after the command word, the same word-boundary
-# discipline `_producer_head` already applies to echo/printf. Other fds cannot
-# reach either branch: `cat 2>err` matches neither `cat[[:space:]]*>` nor
-# `cat[[:space:]]+1>`.
-_cat_redir='(^|[[:space:];|&()]+)cat([[:space:]]*>|[[:space:]]+1>)'
-# Runs on a NORMALIZED segment. normalize_segments sentinels `>&` / `<&` / `&>`
-# as `\x01` (and escaped separators as `\x02`) so an fd dup is not split as a
-# control operator, then restores them before storing NORMALIZED_SEGMENTS — the
-# text both call sites read. A segment therefore reaches this scan with a literal
-# `&`, and the `&` in the target class is what keeps `cat 1>&2` and `cat 1>&-`
-# out: a dup leaves NO file target, and both consumers — cat_redirect_bypass and
-# producer_redirect_bypass — skip a segment whose target came back empty.
-# Both SENTINELS are excluded as well, and that is not redundant. The restore is
-# version-sensitive: on bash >= 5.2 an unquoted `&` in a substitution replacement
-# means "the text just matched", so a sentinel can be restored to itself and
-# survive into the segment (see the `\&` note in normalize_segments). Excluding
-# both bytes means a dup is rejected whichever one arrives, so a regression in
-# the restore cannot silently turn one into a write.
-# One stdout redirect and its target word. `[^0-9&]` before the operator keeps
-# other-fd (`2>`, `21>`) and combined (`&>`) redirects out, while the optional
-# `1` admits the EXPLICIT stdout spelling — `1>file` is stdout exactly as `>file`
-# is, and omitting it left `cat >/dev/null 1>real.txt` reading as a discard. The
-# target class excludes `&`, so an fd dup (`>&1`) is not mistaken for a file.
-# Used by set_last_stdout_target, never matched alone: the PRESENCE of a
-# `/dev/null` redirect proves nothing (see below).
-# The operand marks `\x03`/`\x04` are deliberately ADMITTED by the target class
-# where the normalization sentinels `\x01`/`\x02` are excluded: their whole point
-# is that a marked operand reaches this scan as ONE word (see the marking block
-# above strip_literals). resolve_target_marks reads them off the captured target.
-_redir_scan=$'(^|[^0-9&])1?>>?[[:space:]]*([^|&>[:space:]\x01\x02]+)'
-# A simple-command segment whose command token is `echo` or `printf` — the
-# content producers a `> file` redirect turns into a Write/Edit bypass. Anchored
-# to the segment start (see producer_redirect_bypass), so it never matches an
-# `echo`/`printf` mention buried mid-command.
-_producer_head='^(echo|printf)([[:space:]]|>)'
-# Command-prefix tokens that legitimately precede the real command word in a
+# hook::bash_parse_segments callback: record one simple command.
+#
+# Bash applies redirections LEFT TO RIGHT, so the LAST stdout-to-file one is the
+# effective target: `cat > /dev/null > real.txt` writes to real.txt, and
+# `cat > /dev/null 1>real.txt` does too. A check that exempted a segment on
+# merely CONTAINING a `/dev/null` redirect would hand an attacker a one-token
+# bypass of this whole guard — write the discard first, the real file second.
+# An fd-qualified redirect (`2>err`) is not stdout, and a dup or close (`>&2`,
+# `>&-`) names an fd rather than a file, so neither is a write.
+# shellcheck disable=SC2329  # invoked indirectly as the hook::bash_parse_segments callback
+collect_segment() {
+  local w j
+  SEG_WOFF+=("${#SEG_W[@]}")
+  SEG_WLEN+=("$#")
+  for w in "$@"; do SEG_W+=("${w,,}"); done
+  for j in "${HOOK_SEG_WORD_QUOTED[@]}"; do SEG_WQ+=("$j"); done
+  local tgt="" tset=0 tq=0 topq=0
+  for ((j = 0; j < ${#HOOK_SEG_REDIR_OP[@]}; j++)); do
+    case "${HOOK_SEG_REDIR_OP[j]}" in
+    '>' | '>>') ;;
+    *) continue ;;
+    esac
+    case "${HOOK_SEG_REDIR_FD[j]}" in
+    '' | 1) ;;
+    *) continue ;;
+    esac
+    tgt="${HOOK_SEG_REDIR_TARGET[j],,}"
+    tset=1
+    tq="${HOOK_SEG_REDIR_QUOTED[j]}"
+    topq="${HOOK_SEG_REDIR_OPAQUE[j]}"
+  done
+  SEG_TGT+=("$tgt")
+  SEG_TGT_SET+=("$tset")
+  SEG_TGT_Q+=("$tq")
+  SEG_TGT_OPQ+=("$topq")
+  ((SEG_COUNT++))
+  # Anchored at the command word, so `git checkout -- cd` and a `--cd-to` flag
+  # do not trip it.
+  case "${1,,}" in
+  cd | pushd | popd | chdir) _BBH_CWD_MOVED=1 ;;
+  *) ;; # every other command word leaves the redirect origin where it was
+  esac
+}
+
+COMMAND_LC="${COMMAND,,}"
+
+# Command-prefix words that legitimately precede the real command word in a
 # simple command: environment assignments (`FOO=bar cmd`) and the command-name
 # modifiers `command` / `builtin` / `exec` / `env`. Peeling them (see
-# producer_redirect_bypass) exposes an echo/printf hidden behind a valid prefix
+# peel_command_word) exposes an echo/printf hidden behind a valid prefix
 # (`command echo x > f`, `FOO=bar echo x > f`) so the producer scan still sees it.
 # A bare `coproc` is a command header that can precede the producer of a simple
 # command (`coproc echo x > f`), so it is peeled too. Only the bare keyword is
 # peeled: the optional NAME form is `coproc NAME compound-command`, so eating a
-# second token would swallow the real command word in `coproc echo …`.
+# second word would swallow the real command word in `coproc echo …`.
 # The compound-command header keywords / group opener / pipeline negation that put
 # a producer inside a loop, conditional, or negated command
 # (`if`/`elif`/`while`/`until`/`do`/`then`/`else`/`{`/`!`) are peeled by the same
-# pass. Peeling is safe: the `_producer_head` gate still requires echo/printf, so
+# pass. Peeling is safe: the producer gate still requires echo/printf, so
 # revealing a NON-echo command word can never cause a block.
-_cmd_prefix='^([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*|command|builtin|exec|env|coproc|if|elif|then|else|while|until|do|!|\{)([[:space:]]|$)'
-# Options of the two command-name modifiers that take options (bash built-in help:
-# `command [-pVv]`, `exec [-cl] [-a name]`). A modifier alone is peeled by
-# _cmd_prefix, but its options otherwise sit between the modifier and the producer
-# (`command -p echo x > f`, `exec -a name echo x > f`) and hide it. Peeled in the
-# same loop, on the already-lowercased segment, and ONLY when `command`/`exec` was
-# the immediately preceding modifier — `env`/`builtin` keep their bare-only floor
-# (see the SCOPE note below), so option grammar is not widened past those two.
-# `_modifier_opt_arg` covers the one value-taking option — exec's `-a name` (a
-# short-option cluster ending in `a`) — and consumes the NAME word too;
-# `_modifier_opt` covers no-argument clusters; `_modifier_optend` peels a lone `--`
-# end-of-options marker (`exec -- echo x > f` writes the file). Safe like the
-# modifier peel: `_producer_head` still gates, so exposing a non-producer word
-# never blocks. Only leading (post-modifier) options match, so a real command word
-# — which never starts with `-` — is untouched. EXCEPTION: `command -v`/`-V` (lower-
-# cased to `v`) flip `command` to DESCRIBE its argument rather than run it, so a
-# following `echo`/`printf` is a bareword being looked up, not a content producer
-# (`command -v echo > f` writes the word "echo", not echo's output) — that segment
-# is skipped, not blocked, keeping the producer-scoped contract.
-_modifier_opt_arg='^-[a-z]*a[[:space:]]+[^[:space:]]+([[:space:]]|$)'
-_modifier_opt='^-[a-z]+([[:space:]]|$)'
-_modifier_optend='^--([[:space:]]|$)'
-# A leading redirection element (`> file cmd`, `< in cmd`, `2> f cmd`, `>& n cmd`):
-# bash permits redirections before the command word, so a producer can hide behind
-# one (`> real.txt echo x`). Peeled (operator + its target word) — like _cmd_prefix
-# — to expose the producer for _producer_head, while _echo_file_out and
-# set_last_stdout_target still run on the UN-peeled segment so the redirect
-# itself remains the write signal. Not anchored to stdout-to-file: any leading
-# redirect is peeled for producer exposure; whether a real file write exists is
-# decided by _echo_file_out.
-_leading_redir='^([0-9]*(>>?|<)&?|&>>?)[[:space:]]*'
-# stdout-to-file redirect: `>` / `>>` NOT preceded by an fd digit or `&`, so
-# stderr/fd redirects (`2>/dev/null`, `2>&1`, `&>`) do not trip. A stdout discard
-# is exempt — that's not a Write/Edit bypass — but the exemption is decided by
-# set_last_stdout_target, not by this pattern: the discard must be the EFFECTIVE
-# target, not merely present somewhere in the segment.
-_echo_file_out='(^|[^0-9&])1?>>?[[:space:]]*[^|&>[:space:]]'
+#
+# A leading REDIRECTION needs no peel of its own: bash removes it from argv and
+# the shared parse does too, so `> real.txt echo x` arrives with `echo` already
+# as its command word while its redirection stays the write signal.
+_cmd_assign_re='^[A-Za-z_][A-Za-z0-9_]*='
 # python file-write indicators that are unambiguous on their own. `pathlib` /
 # `path(` are identifier-boundary anchored so they match the write-capable
 # `pathlib.Path(` producer but NOT the read-only `os.path.*path(` helpers
@@ -702,9 +360,10 @@ py_write_indicator() {
 # out of scope for a false-positive fix; the form is structurally unusual for LLM
 # output and covered by an accepted-floor test.
 #
-# SCOPE (documented residual): the command-prefix peel (see _cmd_prefix) covers
-# the bounded shell-grammar set — env assignments and `command`/`builtin`/`exec`/
-# bare `env`. External command-runner utilities that take their own options and a
+# SCOPE (documented residual): the command-prefix peel (see peel_command_word)
+# covers the bounded shell-grammar set — env assignments and
+# `command`/`builtin`/`exec`/bare `env`. External command-runner utilities that
+# take their own options and a
 # command argument — `nohup`/`nice`/`time`/`timeout N`/`sudo`/`stdbuf -oL`/`xargs`,
 # and non-bare `env` (`env -i echo …`, `/usr/bin/env echo …`) — are NOT peeled, so
 # `nohup echo x > f` and friends are not caught. Peeling them correctly requires
@@ -712,107 +371,74 @@ py_write_indicator() {
 # for this false-positive fix; the forms are structurally unusual for LLM output
 # and covered by an accepted-floor test.
 #
-# SCOPE (documented residual): only the BARE `coproc echo …` header is peeled (see
-# _cmd_prefix). The named form `coproc NAME { echo x > f; }` is not, because NAME is
+# SCOPE (documented residual): only the BARE `coproc echo …` header is peeled.
+# The named form `coproc NAME { echo x > f; }` is not, because NAME is
 # indistinguishable from a command word by prefix-peeling alone, and the redirect
 # there is group-level (same brace-group floor as above). Structurally unusual for
 # LLM output and covered by an accepted-floor test.
+
+# The command word of segment $1 (offset) / $2 (length), into PEELED_IDX as an
+# index into SEG_W. Returns 1 when the segment has no command word to judge, or
+# when it is a `command -v`/`-V` LOOKUP: those DESCRIBE the argument rather than
+# running it, so a following echo/printf is a bareword being looked up, not a
+# content producer (`command -v echo > f` writes the word "echo", not echo's
+# output) and the segment is skipped rather than blocked.
 #
-# Segmentation is shared with the `cat >` scan (cat_redirect_bypass) through
-# normalize_segments, so both lanes agree on escaped separators and on the
-# fd-duplication sentinel instead of drifting apart behind two splitters.
-NORMALIZED_SEGMENTS=()
-normalize_segments() {
-  local exec_lc="$1" seps=$';\n|&()' soh=$'\x01' esc=$'\x02' normalized s i
-  # Protect backslash-escaped separators (`echo x \; > file`, an escaped-newline
-  # line continuation `echo x \<newline> > file`) before the split: bash keeps an
-  # escaped separator inside the SAME simple command (`\;` is a literal argument,
-  # `\<newline>` is removed as a continuation), so it must not cut the producer
-  # away from its redirect. strip_literals preserves the escaping backslash, so an
-  # escaped separator reaches here as `\<sep>`. Sentinel each, then restore to an
-  # inert space after the split — its only role is to stay non-splitting; its
-  # literal value never feeds the producer/redirect scan.
-  normalized="$exec_lc"
-  for ((i = 0; i < ${#seps}; i++)); do
-    s="${seps:i:1}"
-    normalized="${normalized//\\"$s"/$esc}"
+# Options belong only to the option-taking modifiers command/exec (bash built-in
+# help: `command [-pVv]`, `exec [-cl] [-a name]`); env/builtin keep their
+# bare-only floor, so option grammar is not widened past those two. The
+# arg-taking form (exec's `-a name`, a short-option cluster ending in `a`) is
+# peeled first so its NAME word is consumed too, else the plain-cluster peel
+# would stop at `-a` and leave NAME masking the producer. `--` ends options
+# (`exec -- echo x > f`).
+PEELED_IDX=-1
+peel_command_word() {
+  local off="$1" len="$2" k=0 w prev_mod="" optw optn
+  PEELED_IDX=-1
+  while ((k < len)); do
+    w="${SEG_W[off + k]}"
+    case "$w" in
+    command | builtin | exec | env | coproc | if | elif | then | else | while | until | do | '!' | '{')
+      prev_mod="$w"
+      ((k++))
+      continue
+      ;;
+    *) ;; # not a modifier keyword; the assignment and option tests decide
+    esac
+    if [[ "$w" =~ $_cmd_assign_re ]]; then
+      prev_mod="$w"
+      ((k++))
+      continue
+    fi
+    if [[ "$prev_mod" == command || "$prev_mod" == exec ]]; then
+      optw=""
+      optn=0
+      if [[ "$w" =~ ^-[a-z]*a$ ]] && ((k + 1 < len)); then
+        optw="$w ${SEG_W[off + k + 1]}"
+        optn=2
+      elif [[ "$w" =~ ^-[a-z]+$ || "$w" == "--" ]]; then
+        optw="$w"
+        optn=1
+      fi
+      if ((optn)); then
+        [[ "$prev_mod" == command && "$optw" == *v* ]] && return 1
+        ((k += optn))
+        continue
+      fi
+    fi
+    break
   done
-  # Protect fd-duplication / both-streams redirect ampersands (`2>&1`, `>&2`,
-  # `&>file`) with a sentinel before the `&` control-operator split below, so a
-  # redirect `&` never cuts a producer away from a LATER stdout redirect —
-  # `echo x 2>&1 > file` and `echo x >&2 > file` must stay ONE segment so the
-  # trailing `> file` is still scanned as the echo's own. Restored right after the
-  # split, before the per-segment scan. `&&` and a background `&` carry no
-  # adjacent `<`/`>`, so they are untouched here and still split as separators.
-  normalized="${normalized//>&/>$soh}"
-  normalized="${normalized//<&/<$soh}"
-  normalized="${normalized//&>/$soh>}"
-  # Each remaining separator becomes a segment boundary; args cannot contain a raw
-  # separator (quoted spans are already stripped), so a segment holds at most one
-  # simple command and the redirect in it is that command's own.
-  normalized="${normalized//[$seps]/$'\n'}"
-  # `\&`, not a bare `&`: since bash 5.2 an UNQUOTED `&` in a substitution
-  # REPLACEMENT expands to the text the pattern just matched (the sed rule), so
-  # `${normalized//"$soh"/&}` restored the sentinel to itself — a silent no-op on
-  # every bash >= 5.2, while still restoring correctly on older ones. That left
-  # the surviving `\x01` for the per-segment scans to trip over, which is why
-  # _redir_scan's target class excludes the sentinel as well as `&`.
-  normalized="${normalized//"$soh"/\&}"
-  normalized="${normalized//"$esc"/ }"
-  # One segment per element, split once here. The three per-segment scans below
-  # each used to re-split the same text through a `< <(printf …)` loop, which is
-  # a fork apiece on every Bash call (#3513); iterating an array is none, and
-  # `return` / `continue 2` inside the loop bodies reach the same scopes as
-  # before because neither loop shape runs its body in a subshell.
-  split_lines_to NORMALIZED_SEGMENTS "$normalized"
+  ((k < len)) || return 1
+  PEELED_IDX=$((off + k))
+  return 0
 }
 
-# The EFFECTIVE stdout destination of a segment, into LAST_STDOUT_TARGET (empty
-# when the segment redirects stdout nowhere).
-#
-# Bash applies redirections LEFT TO RIGHT, so the last one wins: `cat >
-# /dev/null > real.txt` writes to real.txt, and `cat > /dev/null 1>real.txt`
-# does too. A check that exempted a segment on merely CONTAINING a `/dev/null`
-# redirect would hand an attacker a one-token bypass of this whole guard — write
-# the discard first, the real file second. Only the final target may exempt.
-#
-# Sets a global rather than echoing: this runs per segment on every Bash call,
-# and a command substitution would add a fork to each one.
-LAST_STDOUT_TARGET=""
-set_last_stdout_target() {
-  local rest="$1"
-  LAST_STDOUT_TARGET=""
-  while [[ "$rest" =~ $_redir_scan ]]; do
-    LAST_STDOUT_TARGET="${BASH_REMATCH[2]}"
-    # Quoted so the consumed text is stripped literally — a target may hold glob
-    # metacharacters, and an unquoted pattern would eat the wrong span.
-    rest="${rest#*"${BASH_REMATCH[0]}"}"
-  done
-}
-
-# Resolve the operand marks strip_literals attached to the effective target (see
-# the marking block above it) into the three things the exemptions need: whether
-# the operand's pathname is recoverable at all (TARGET_OPAQUE), whether it was
-# quoted (TARGET_QUOTED), and the text itself with the quote marks removed.
-# Globals, not an echo, for the same no-fork reason as set_last_stdout_target.
-TARGET_TEXT=""
-TARGET_OPAQUE=0
-TARGET_QUOTED=0
-resolve_target_marks() {
-  local t="$1"
-  TARGET_OPAQUE=0
-  TARGET_QUOTED=0
-  [[ "$t" == *"$_MARK_OPAQUE"* ]] && TARGET_OPAQUE=1
-  [[ "$t" == *"$_MARK_QUOTE"* ]] && TARGET_QUOTED=1
-  TARGET_TEXT="${t//"$_MARK_QUOTE"/}"
-}
-
-# 0 when the effective target is the stdout DISCARD. Quoting is transparent here
-# — `> "/dev/null"` and `> /dev/"null"` are the same discard — but an OPAQUE
-# operand is not: `> "/dev/null ../../etc/pw"` is one pathname to bash and it is
-# not `/dev/null`, which is exactly the bypass #2226 reported.
+# 0 when segment $1's effective stdout target is the stdout DISCARD. Quoting is
+# transparent here — `> "/dev/null"` and `> /dev/"null"` are the same discard —
+# but an OPAQUE operand is not: `> "/dev/null ../../etc/pw"` is one pathname to
+# bash and it is not `/dev/null`, which is exactly the bypass #2226 reported.
 devnull_target_exempt() {
-  ((TARGET_OPAQUE == 0)) && [[ "$TARGET_TEXT" == "/dev/null" ]]
+  ((SEG_TGT_OPQ[$1] == 0)) && [[ "${SEG_TGT[$1]}" == "/dev/null" ]]
 }
 
 # --- Scratch-root exemption (opt-in; TARGET-PATH axis) ------------------------
@@ -853,24 +479,23 @@ devnull_target_exempt() {
 # SCOPE (documented residual): normalization is LEXICAL, not filesystem
 # resolution. Symlinks are not followed — a symlink inside a configured root that
 # points outside it is exempted. Resolving them needs a subprocess per segment,
-# which this file's hot path deliberately refuses (see set_last_stdout_target),
-# and the target frequently does not exist yet. An operator naming a root is
-# accepting that root's contents.
+# which this file's hot path deliberately refuses, and the target frequently
+# does not exist yet. An operator naming a root is accepting that root's
+# contents.
 #
 # SCOPE (documented residual): the comparison is CASE-INSENSITIVE, because the
-# segment scan runs over the lowercased command (`normalize_segments "$EXEC_LC"`).
+# segment model stores every word and target lowercased (see collect_segment).
 # On a case-sensitive filesystem a sibling directory differing from a configured
 # root only in case is therefore also exempt.
 #
 # A QUOTED OR ESCAPED redirect operand is never exempt — see the fail-closed
-# tests at the top of scratch_target_exempt. Since 0.27.0 that decision is made
-# on the OPERAND, from the marks strip_literals attaches to it, not on the raw
-# command: an operand carrying whitespace, `;`, `|`, `&`, `(`, `)`, a newline or
-# a backslash escape is OPAQUE and exempts nothing, and a merely quoted one is
-# refused by this axis on its shipped floor. The truncation that made those
-# operands compare as a safe-looking prefix of themselves also reached the
-# `/dev/null` exemption and predated this axis (#2226); both are closed by the
-# same marking, and devnull_target_exempt is where the discard half decides.
+# tests at the top of scratch_target_exempt. That decision is made on the
+# OPERAND, from the provenance the shared parse carries with it, not on the raw
+# command: an operand quoting or an escape produced is refused by this axis on
+# its shipped floor, and one the parse could not resolve is refused outright.
+# The truncation that made such an operand compare as a safe-looking prefix of
+# itself also reached the `/dev/null` exemption (#2226); a whole-operand parse
+# closes both, and devnull_target_exempt is where the discard half decides.
 #
 # SCOPE: Bash lane only. The PowerShell lane classifies on cmdlet/redirect
 # CO-OCCURRENCE and never resolves a single effective target, so there is no
@@ -1102,36 +727,36 @@ _scratch_abs_target() {
   esac
 }
 
-# 0 when the EFFECTIVE stdout target lies strictly under a configured scratch
-# root. Called only after a segment has already matched a producer + real-file
-# redirect, so it adds no work to the per-call hot path, and it returns on the
-# first line when no root is configured.
+# 0 when the target <$1> lies strictly under a configured scratch root or a
+# shipped default. $2 is 1 when quoting or an escape produced that text, $3 when
+# the parse could not resolve it at all. Called only after a segment has already
+# matched a producer + real-file redirect, so it adds no work to the per-call hot
+# path, and it returns on the first line when no root is configured.
 scratch_target_exempt() {
-  local target="$1" norm_target root roots abs
+  local target="$1" tgt_quoted="$2" tgt_opaque="$3" norm_target root roots abs
   # Nothing to compare against: no configured root AND no usable project root,
   # which is the only state in which the shipped default cannot fire either.
   # Keeps the unconfigured, project-less path returning on the first line as it
   # always did.
   [[ -n "$_SCRATCH_ROOTS" || -n "$_BBH_PROJECT_NORM" ]] || return 1
   # FAIL CLOSED on an operand whose pathname is not dependably what reaches the
-  # compare, before anything else. All three tests are keyed on the OPERAND, via
-  # the marks strip_literals attached to it (see the marking block above
-  # strip_literals) — not on the raw command.
+  # compare, before anything else. All three tests are keyed on the OPERAND, from
+  # the provenance the shared parse carries with it — not on the raw command.
   #
-  #   OPAQUE  — the operand carries literal content whose value would read as
-  #             syntax, or a backslash escape this strip cannot reproduce. The
-  #             pathname is not recoverable, so no exemption may be granted:
+  #   OPAQUE  — the parse could not resolve the operand at all (a quote that
+  #             never closed, an operand a control operator cut short). The
+  #             pathname is not recoverable, so no exemption may be granted.
+  #   QUOTED  — quoting or a backslash escape produced the text. It IS recoverable
+  #             here, and this axis still refuses it: the shipped floor since
+  #             0.25.0 is that such an operand is never scratch-exempt, and
+  #             keeping it holds the grant surface to targets proven bare.
   #             `> "/tmp/scratch/a;/../../etc/passwd"` is ONE pathname to bash and
   #             exempting its `/tmp/scratch/a` prefix is precisely the one-token
   #             bypass the `/dev/null` precedent warns about.
-  #   QUOTED  — the operand was quoted at all. Its text IS recoverable here, and
-  #             this axis still refuses it: the shipped floor since 0.25.0 is that
-  #             a quoted operand is never scratch-exempt, and keeping it holds the
-  #             grant surface of this change to targets proven bare.
-  #   `\`     — a residual belt. Nothing reaching here should still carry a raw
-  #             backslash (an in-operand escape is marked OPAQUE, a single-quoted
-  #             one is marked QUOTED), and _norm_path folds `\` to `/`, so refuse
-  #             rather than compare a path that folding invented.
+  #   `\`     — a residual belt. A raw backslash survives only inside a quoted
+  #             span, which the test above already refused, and _norm_path folds
+  #             `\` to `/`, so refuse rather than compare a path that folding
+  #             invented.
   #
   # 0.25.0 could do none of this and read `${COMMAND#*>}` instead — any quote or
   # backslash after the first `>` CHARACTER, anywhere in the command. That was
@@ -1139,11 +764,11 @@ scratch_target_exempt() {
   # unrelated later segment cost an earlier unambiguous write its exemption, and
   # it was not keyed on the redirect OPERATOR, so a `>` inside quoted content
   # started the scanned tail early. Both are gone; both narrowings GRANT the
-  # exemption where it was refused, and both land only on a target the marks prove
-  # was bare — `echo x > /tmp/scratch/f && grep foo "notes.txt"` and
+  # exemption where it was refused, and both land only on a target the parse
+  # proves was bare — `echo x > /tmp/scratch/f && grep foo "notes.txt"` and
   # `echo "a > b" > /tmp/scratch/f` are exempt again.
-  ((TARGET_OPAQUE)) && return 1
-  ((TARGET_QUOTED)) && return 1
+  ((tgt_opaque)) && return 1
+  ((tgt_quoted)) && return 1
   [[ "$target" == *\\* ]] && return 1
   # Place the target absolutely before normalizing. Until #3719 this axis refused
   # every relative target outright; it now resolves one against the payload cwd
@@ -1199,13 +824,12 @@ scratch_target_exempt() {
 #
 # SCOPE (documented residual): same command string only — cross-tool-call
 # staging (write in one Bash call, move in another), variable-carried paths
-# (`t=/tmp/x; jq … > "$t"; mv "$t" dest`), quoted/opaque mv|cp source operands
-# (strip_literals drops non-redirect quotes), and other movers (`install`,
-# `rsync`, `dd`) are not seen. Path identity also runs on the lowercased
-# command stream (`EXEC_LC` / `NORMALIZED_SEGMENTS`), so on a case-sensitive
-# filesystem distinct paths that differ only by case can collide — matching
-# the rest of this guard's case-folded producer scan; preserving original
-# operand case would need a parallel case-preserved segment pass.
+# (`t=/tmp/x; jq … > "$t"; mv "$t" dest`), and other movers (`install`,
+# `rsync`, `dd`) are not seen. Path identity runs on the lowercased segment
+# model, so on a case-sensitive filesystem distinct paths that differ only by
+# case can collide — matching the rest of this guard's case-folded command-word
+# scan; preserving original operand case would need a second, case-preserved
+# collection pass.
 # A broad any-redirect-into-repo lane was assessed and rejected (blocks
 # legitimate data-processing redirects).
 #
@@ -1215,14 +839,12 @@ scratch_target_exempt() {
 
 # 0 when $1 and $2 name the same path under the same lexical rules as the
 # scratch-root axis. Absolute paths go through _norm_path; relative or
-# unnormalizable paths compare as separator-folded strings. Opaque / empty
-# operands never match (cannot establish identity → cannot block).
+# unnormalizable paths compare as separator-folded strings. An empty operand
+# never matches (cannot establish identity → cannot block), and an unresolvable
+# redirect target is never recorded as a prior staging path in the first place.
 paths_identical() {
   local a="$1" b="$2" na nb
   [[ -n "$a" && -n "$b" ]] || return 1
-  [[ "$a" == *"$_MARK_OPAQUE"* || "$b" == *"$_MARK_OPAQUE"* ]] && return 1
-  a="${a//"$_MARK_QUOTE"/}"
-  b="${b//"$_MARK_QUOTE"/}"
   if _norm_path "$a"; then
     na="$_NORM_PATH"
     if _norm_path "$b"; then
@@ -1238,82 +860,64 @@ paths_identical() {
   [[ "$a" == "$b" ]]
 }
 
-# Parse an mv|cp segment into MOVE_SOURCES (array) and MOVE_DEST.
+# Parse segment $1 (offset) / $2 (length) into MOVE_SOURCES (array), MOVE_DEST
+# and MOVE_DEST_Q (the destination's quoting provenance).
 # Supports GNU `-t DIR` / `--target-directory=DIR` (dest in the option; remaining
 # non-options are sources) and the common `sources… dest` form. Returns 1 when
 # the segment is not an mv|cp simple command or operands are incomplete.
 MOVE_SOURCES=()
 MOVE_DEST=""
+MOVE_DEST_Q=0
 parse_mv_cp_operands() {
-  # Use mv_seg (not seg): sibling scanners also local `seg`, and ShellCheck
-  # SC2178 flags reusing that name as a string after array-shaped reads elsewhere.
-  local mv_seg="$1" head tok expect_t=0 saw_cmd=0
-  local -a srcs=()
+  local off="$1" len="$2" k tok expect_t=0
+  local -a srcs=() srcq=()
   MOVE_SOURCES=()
   MOVE_DEST=""
-  head="${mv_seg#"${mv_seg%%[![:space:]]*}"}"
-  # Peel the same prefix class producer_redirect_bypass peels so
-  # `env mv /tmp/x dest` still classifies.
-  local prev_mod=""
-  while :; do
-    if [[ "$head" =~ $_cmd_prefix ]]; then
-      prev_mod="${BASH_REMATCH[1]}"
-      head="${head#"${BASH_REMATCH[1]}"}"
-      head="${head#"${head%%[![:space:]]*}"}"
-      continue
-    fi
-    if [[ "$prev_mod" == command || "$prev_mod" == exec ]]; then
-      if [[ "$head" =~ $_modifier_opt_arg || "$head" =~ $_modifier_opt ||
-        "$head" =~ $_modifier_optend ]]; then
-        [[ "$prev_mod" == command && "${BASH_REMATCH[0]}" == *v* ]] && return 1
-        head="${head#"${BASH_REMATCH[0]}"}"
-        head="${head#"${head%%[![:space:]]*}"}"
-        continue
-      fi
-    fi
-    break
-  done
-  [[ "$head" =~ ^(mv|cp)(\.exe)?([[:space:]]|$) ]] || return 1
-  head="${head#"${BASH_REMATCH[1]}"}"
-  head="${head#.exe}"
-  head="${head#"${head%%[![:space:]]*}"}"
-  saw_cmd=1
-  while [[ -n "$head" ]]; do
-    tok="${head%%[[:space:]]*}"
-    head="${head#"$tok"}"
-    head="${head#"${head%%[![:space:]]*}"}"
+  MOVE_DEST_Q=0
+  # The same prefix peel the producer lane uses, so `env mv /tmp/x dest` still
+  # classifies.
+  peel_command_word "$off" "$len" || return 1
+  k=$((PEELED_IDX - off))
+  case "${SEG_W[off + k]}" in
+  mv | cp | mv.exe | cp.exe) ;;
+  *) return 1 ;;
+  esac
+  ((k++))
+  while ((k < len)); do
+    tok="${SEG_W[off + k]}"
     if ((expect_t)); then
       MOVE_DEST="$tok"
+      MOVE_DEST_Q="${SEG_WQ[off + k]}"
       expect_t=0
+      ((k++))
       continue
     fi
     case "$tok" in
     --)
-      while [[ -n "$head" ]]; do
-        tok="${head%%[[:space:]]*}"
-        head="${head#"$tok"}"
-        head="${head#"${head%%[![:space:]]*}"}"
-        srcs+=("$tok")
+      ((k++))
+      while ((k < len)); do
+        srcs+=("${SEG_W[off + k]}")
+        srcq+=("${SEG_WQ[off + k]}")
+        ((k++))
       done
       break
       ;;
     --target-directory=* | -t=*)
       MOVE_DEST="${tok#*=}"
+      MOVE_DEST_Q="${SEG_WQ[off + k]}"
       ;;
     -t | --target-directory)
       expect_t=1
       ;;
-    -*)
-      # Short/long options without a separate dest operand (including clustered
-      # `-fv`). Value-taking options other than `-t` are not modeled — residual.
-      continue
-      ;;
+    -*) ;; # short/long options with no separate dest operand (including clustered
+    # `-fv`). Value-taking options other than `-t` are not modeled — residual.
     *)
       srcs+=("$tok")
+      srcq+=("${SEG_WQ[off + k]}")
       ;;
     esac
+    ((k++))
   done
-  ((saw_cmd)) || return 1
   ((expect_t)) && return 1 # `-t` without its directory operand
   if [[ -n "$MOVE_DEST" ]]; then
     ((${#srcs[@]} >= 1)) || return 1
@@ -1323,6 +927,7 @@ parse_mv_cp_operands() {
   # Classic form (including after `--`): last operand is dest, earlier are sources.
   ((${#srcs[@]} >= 2)) || return 1
   MOVE_DEST="${srcs[-1]}"
+  MOVE_DEST_Q="${srcq[-1]}"
   unset 'srcs[-1]'
   ((${#srcs[@]} >= 1)) || return 1
   MOVE_SOURCES=("${srcs[@]}")
@@ -1332,17 +937,17 @@ parse_mv_cp_operands() {
 # 0 when a prior effective stdout target is reused as an mv|cp SOURCE with a
 # destination that is not scratch-exempt.
 staged_write_move_bypass() {
-  local seg src dest seen="" prior rest
-  for seg in "${NORMALIZED_SEGMENTS[@]}"; do
-    [[ -n "${seg//[[:space:]]/}" ]] || continue
-    if parse_mv_cp_operands "$seg"; then
-      dest="$MOVE_DEST"
-      resolve_target_marks "$dest"
-      # Destination marks: an opaque dest cannot prove scratch containment, so
-      # treat it as outside scratch (fail closed toward blocking a staged move).
-      if ! ((TARGET_OPAQUE)) && scratch_target_exempt "$TARGET_TEXT"; then
-        :
-      else
+  local s off len src seen="" prior rest dq
+  for ((s = 0; s < SEG_COUNT; s++)); do
+    off="${SEG_WOFF[s]}"
+    len="${SEG_WLEN[s]}"
+    if parse_mv_cp_operands "$off" "$len"; then
+      # A destination whose written text is not the path that gets written
+      # cannot prove scratch containment, so it reads as outside scratch (fail
+      # closed toward blocking a staged move).
+      dq=0
+      ((MOVE_DEST_Q)) && dq=1
+      if ! scratch_target_exempt "$MOVE_DEST" "$dq" 0; then
         for src in "${MOVE_SOURCES[@]}"; do
           [[ -n "$src" ]] || continue
           rest="$seen"
@@ -1358,113 +963,100 @@ staged_write_move_bypass() {
       fi
     fi
     # Record this segment's effective stdout target for later segments.
-    set_last_stdout_target "$seg"
-    [[ -n "$LAST_STDOUT_TARGET" ]] || continue
-    resolve_target_marks "$LAST_STDOUT_TARGET"
-    # Opaque /dev/null-shaped or unrecoverable targets cannot establish identity.
-    ((TARGET_OPAQUE)) && continue
-    [[ -n "$TARGET_TEXT" ]] || continue
+    ((SEG_TGT_SET[s])) || continue
+    # An unrecoverable target cannot establish identity.
+    ((SEG_TGT_OPQ[s])) && continue
+    [[ -n "${SEG_TGT[s]}" ]] || continue
     # Discard is never a staging file worth tracking.
-    [[ "$TARGET_TEXT" == "/dev/null" ]] && continue
-    seen+="${TARGET_TEXT}"$'\n'
+    [[ "${SEG_TGT[s]}" == "/dev/null" ]] && continue
+    seen+="${SEG_TGT[s]}"$'\n'
   done
   return 1
+}
+
+# 0 when segment $1's stdout write is exempt: the DISCARD, or a scratch root.
+# Both are decided on the EFFECTIVE target, so `> /allowed/tmp/f > real.txt`
+# still blocks.
+target_exempt() {
+  devnull_target_exempt "$1" && return 0
+  scratch_target_exempt "${SEG_TGT[$1]}" "${SEG_TGT_Q[$1]}" "${SEG_TGT_OPQ[$1]}"
 }
 
 # `cat >` with no input file is content authoring redirected into a file — the
-# heredoc/typed-content Write bypass. Scanned per segment so the /dev/null
-# DISCARD exemption cannot leak across a compound command: `cat > /dev/null &&
+# heredoc/typed-content Write bypass. Per segment, so the /dev/null DISCARD
+# exemption cannot leak across a compound command: `cat > /dev/null &&
 # cat > real.txt` still blocks on its second segment.
+#
+# The lane fires when `cat` is the LAST word bash would still see between the
+# command word and the redirection — an operand after it (`cat a.txt > c.txt`)
+# makes the command a copy of that file, not stdin authoring. A wholly quoted
+# operand does NOT clear the lane: that is the shipped floor (`cat "a" > f`
+# blocks), kept as it is rather than widened here. `cat1>file` is an unrelated
+# binary with an ordinary redirect and never matches, because `cat1` is one word.
 cat_redirect_bypass() {
-  local seg
-  for seg in "${NORMALIZED_SEGMENTS[@]}"; do
-    [[ "$seg" =~ $_cat_redir ]] || continue
-    set_last_stdout_target "$seg"
-    # No FILE operand means no file write: `cat 1>&2` duplicates stdout onto
-    # stderr and `cat 1>&-` closes it. _redir_scan rejects `&` targets, so both
-    # leave the target empty — which must read as "nothing to block", never as a
-    # write. Checked before the /dev/null test so an empty value cannot fall
-    # through to `return 0`.
-    [[ -n "$LAST_STDOUT_TARGET" ]] || continue
-    resolve_target_marks "$LAST_STDOUT_TARGET"
-    devnull_target_exempt && continue
-    # Same left-to-right rule as the discard above: the exemption is decided on
-    # the EFFECTIVE target, so `cat > /allowed/tmp/f > real.txt` still blocks.
-    scratch_target_exempt "$TARGET_TEXT" && continue
+  local s off len k
+  for ((s = 0; s < SEG_COUNT; s++)); do
+    # No stdout FILE target means no file write: `cat 1>&2` duplicates stdout
+    # onto stderr and `cat 1>&-` closes it, and neither is a write.
+    ((SEG_TGT_SET[s])) || continue
+    off="${SEG_WOFF[s]}"
+    len="${SEG_WLEN[s]}"
+    for ((k = len - 1; k >= 0; k--)); do
+      ((SEG_WQ[off + k] == 2)) && continue
+      [[ "${SEG_W[off + k]}" == cat ]] || continue 2
+      break
+    done
+    ((k >= 0)) || continue
+    target_exempt "$s" && continue
     return 0
   done
   return 1
 }
 
+# 0 when the producer redirected into a real file is echo/printf authoring
+# content. The command word is the one bash would run (see peel_command_word),
+# never an `echo` mention among a segment's arguments.
 producer_redirect_bypass() {
-  local seg
-  for seg in "${NORMALIZED_SEGMENTS[@]}"; do
-    seg="${seg#"${seg%%[![:space:]]*}"}"
-    # Peel leading command-prefix tokens (see _cmd_prefix) and leading redirections
-    # (see _leading_redir) into `head` so a producer hidden behind an env assignment
-    # (`FOO=bar echo x > f`), a command-name modifier (`command echo ...`, `builtin
-    # printf ...`, `exec echo ...`, `env echo ...`, `coproc echo ...`), a
-    # compound-command header / group opener / negation (`; do echo x > f`, `if echo
-    # x > f`, `while echo ...`, `! echo ...`, `{ echo ...`), or a leading redirect
-    # (`> real.txt echo x`) is still seen as the segment's command word. The redirect
-    # itself is left in `seg`: _echo_file_out and set_last_stdout_target below decide whether a
-    # real file write exists, so a leading redirect stays the write signal.
-    local head="$seg" tgt prev_mod=""
-    while :; do
-      if [[ "$head" =~ $_cmd_prefix ]]; then
-        prev_mod="${BASH_REMATCH[1]}"
-        head="${head#"${BASH_REMATCH[1]}"}"
-        head="${head#"${head%%[![:space:]]*}"}"
-        continue
-      fi
-      if [[ "$head" =~ $_leading_redir ]]; then
-        prev_mod=""
-        head="${head#"${BASH_REMATCH[0]}"}"
-        tgt="${head%%[[:space:]]*}"
-        head="${head#"$tgt"}"
-        head="${head#"${head%%[![:space:]]*}"}"
-        continue
-      fi
-      # Options belong only to the option-taking modifiers command/exec (see
-      # _modifier_opt*); env/builtin keep their bare-only floor. The arg-taking
-      # form (exec's `-a name`) is peeled first so its NAME word is consumed too,
-      # else the plain-cluster peel would stop at `-a` and leave NAME masking the
-      # producer. `--` ends options (`exec -- echo x > f`).
-      if [[ "$prev_mod" == command || "$prev_mod" == exec ]]; then
-        if [[ "$head" =~ $_modifier_opt_arg || "$head" =~ $_modifier_opt ||
-          "$head" =~ $_modifier_optend ]]; then
-          # `command -v`/`-V` describes its argument instead of running it, so the
-          # echo/printf after it is a looked-up bareword, not a producer — skip the
-          # whole segment rather than exposing it (would be a false block).
-          [[ "$prev_mod" == command && "${BASH_REMATCH[0]}" == *v* ]] && continue 2
-          head="${head#"${BASH_REMATCH[0]}"}"
-          head="${head#"${head%%[![:space:]]*}"}"
-          continue
-        fi
-      fi
-      break
-    done
-    [[ "$head" =~ $_producer_head ]] || continue
-    [[ "$seg" =~ $_echo_file_out ]] || continue
-    # Same left-to-right rule as the cat lane: `echo x > /dev/null > real.txt`
-    # writes to real.txt. The old presence test exempted it.
-    set_last_stdout_target "$seg"
-    # Mirror of the cat lane's emptiness skip, and UNREACHABLE today by design: the
-    # two patterns differ only in that _redir_scan also excludes the normalization
-    # sentinels, so a segment _echo_file_out matched always resolves to a target
-    # here. It is kept because that equivalence is exactly what failed silently
-    # once — while the `>&` sentinel survived NORMALIZED_SEGMENTS, _echo_file_out
-    # matched the stray `\x01` and _redir_scan correctly refused it, and with no
-    # guard the empty value fell through to block `echo x >&2`. Fail toward "no
-    # file operand, nothing to block" rather than re-blocking a dup if the two
-    # target classes ever drift apart again.
-    [[ -n "$LAST_STDOUT_TARGET" ]] || continue
-    resolve_target_marks "$LAST_STDOUT_TARGET"
-    devnull_target_exempt && continue
-    # Mirror of the cat lane, and for the same reason: decided on the EFFECTIVE
-    # target, so `echo x > /allowed/tmp/f > real.txt` still blocks.
-    scratch_target_exempt "$TARGET_TEXT" && continue
+  local s head
+  for ((s = 0; s < SEG_COUNT; s++)); do
+    ((SEG_TGT_SET[s])) || continue
+    peel_command_word "${SEG_WOFF[s]}" "${SEG_WLEN[s]}" || continue
+    head="${SEG_W[PEELED_IDX]}"
+    # A command word differing from a producer name only by embedded newlines is
+    # not a runnable command, so reading it as that producer costs nothing and
+    # keeps a quote-spliced spelling (`ec"<newline>"ho x > f`) from passing as
+    # some other program.
+    head="${head//$'\n'/}"
+    [[ "$head" == echo || "$head" == printf ]] || continue
+    target_exempt "$s" && continue
     return 0
+  done
+  return 1
+}
+
+# 0 when a segment invokes an inline python program: the python FAMILY as a
+# command word — `py`/`python`/`pypy` with an optional version suffix, optionally
+# path-qualified and `.exe`-suffixed, so `notpython3`, `mypy`, `spy`, `happy` and
+# `pytest` stay inert — followed IMMEDIATELY by `-c` (inline code) or `-` (the
+# program read from stdin, the heredoc form). No gap is allowed between the two
+# except `py -3`, the Windows launcher's version selector, which cannot be a
+# script path; admitting an arbitrary option-shaped word there is what would let
+# a SCRIPT path through as one, so a script or module run (`python3 build.py`,
+# `python3 -m tool …`) that merely touches an `open(`-like path is not matched.
+py_inline_invocation() {
+  local s off len k w nxt
+  for ((s = 0; s < SEG_COUNT; s++)); do
+    off="${SEG_WOFF[s]}"
+    len="${SEG_WLEN[s]}"
+    for ((k = 0; k + 1 < len; k++)); do
+      w="${SEG_W[off + k]##*/}"
+      [[ "$w" =~ ^(pypy|python|py)[0-9]*(\.[0-9]+)*(\.exe)?$ ]] || continue
+      nxt="${SEG_W[off + k + 1]}"
+      if [[ "$nxt" =~ ^-[0-9]+(\.[0-9]+)?$ ]] && ((k + 2 < len)); then
+        nxt="${SEG_W[off + k + 2]}"
+      fi
+      [[ "$nxt" == "-c" || "$nxt" == "-" ]] && return 0
+    done
   done
   return 1
 }
@@ -1543,7 +1135,7 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   # Interpreter-producer writes (`python3 -c "<inline code that writes>"`) route
   # around Write/Edit whichever tool launches them, and ps::write_bypass models only
   # PowerShell cmdlet/redirect forms. On the BASH tool the precise `python3 -c` scan
-  # (further below) is reliable: strip_literals is genuinely quote-aware, and Bash
+  # (further below) is reliable: the shared parse is genuinely quote-aware, and Bash
   # has no `<# #>` block comments or `&{}` script blocks. PowerShell is NOT
   # faithfully bash-tokenizable, and successive review rounds proved that a precise
   # regex/normalize stack cannot keep up — each round exposed a fresh evasion
@@ -1580,10 +1172,10 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   exit 0
 fi
 
-# Split once into simple-command segments; both redirect scans below read it.
-# EXEC_LC (lowercased stripped form) gives case-insensitive command-token
-# detection.
-normalize_segments "$EXEC_LC"
+# Tokenize once into simple-command segments; every lane below reads that model
+# (see collect_segment). Words arrive lowercased, which is what makes each lane's
+# command-word test case-insensitive.
+hook::bash_parse_segments "$COMMAND" collect_segment
 
 # SCOPE (documented residual): Bash lane only. POSIX `tee` / `tee -a` pipe-to-file
 # writes are NOT caught — the guard models cat/echo/printf redirects and
@@ -1617,50 +1209,32 @@ fi
 # interpreter has its own spelling and write surface. Covered by accepted-floor
 # tests.
 #
-# Inline python code with file-write indicators. Detect the INVOCATION in the
-# literal-stripped form (EXEC_LC) so prose/commit text merely mentioning it is
-# not a false positive; scan the RAW command (COMMAND_LC) for the write
-# indicators — they legitimately live inside the quoted `-c` payload, or the
-# heredoc body, that the strip removes.
+# Inline python code with file-write indicators. The INVOCATION is decided on the
+# PARSED segments (see py_inline_invocation), so prose or commit text merely
+# mentioning it is one quoted argv word and never a command word; the write
+# INDICATORS are scanned on the RAW command (COMMAND_LC), because they
+# legitimately live inside the quoted `-c` payload or the heredoc body, neither
+# of which is argv.
 #
-# COMMAND-WORD SHAPE. The boundary admits a leading path (`/` `\` in the class)
-# and an optional `.exe`, so a path-qualified interpreter (`/usr/bin/python3`,
-# `/c/Python313/python3.exe`) is the same write. The basename was the LITERAL
-# `python3`, which made the detector a spelling floor rather than a rule:
-# `python -c`, `py -c`, `py3 -c`, `python2 -c` and `python3.11 -c` all ran the
-# same inline write and none matched (#2217). The name is now the python family
-# — `py`/`python`/`pypy` plus an optional version suffix (`3`, `2`, `3.11`) —
-# still anchored on a separator, so `notpython3`, `mypy`, `spy`, `happy` and
-# `pytest` stay inert. `py -3 -c` (the Windows launcher's version selector) is
-# admitted because a `-<digits>` token cannot be a script path; no other gap
-# between the interpreter and its flag is allowed, so a script/module run
-# (`python3 build.py`, `python3 -m tool …`) that merely touches an `open(`-like
-# path is still NOT blocked.
-_py_inline_c='(^|[[:space:];|&()/\]+)(pypy|python|py)[0-9]*(\.[0-9]+)*(\.exe)?([[:space:]]+-[0-9]+(\.[0-9]+)?)?[[:space:]]+-c'
 # REOPENED ACCEPTED RESIDUAL (#2217 / AD-12). A stdin heredoc — `python3 - <<PY
 # … PY`, no `-c` — was documented as uncovered and accepted. It is covered now,
 # on new reachability evidence: this repo's own session record shows an agent
 # reaching for exactly that form to patch a file
 # (`.work/handoffs/20260809T082720Z-handoff-post-2008-followups.md:211`,
-# `python - <<'PY'`), and widening the `-c` arm above raises the pressure toward
-# it, since a refused `python -c` write reroutes most naturally to the heredoc.
+# `python - <<'PY'`), and widening the `-c` arm raises the pressure toward it,
+# since a refused `python -c` write reroutes most naturally to the heredoc.
 #
 # The `-` (read the program from stdin) is what makes this an INLINE write: the
-# code is in the command string, not in an opaque script file. strip_literals
-# drops the heredoc operator and its body, so EXEC_LC keeps `python3 -` and the
-# body's write indicators are still visible in COMMAND_LC.
+# code is in the command string, not in an opaque script file. The parse gives
+# the heredoc body to stdin rather than to argv, so `python3 -` is the whole
+# invocation and the body's write indicators are still visible in COMMAND_LC.
 #
 # NARROWED RESIDUAL, restated at its real width: `python3 <<PY … PY` (stdin with
-# NO `-` argument) stays uncovered. Matching a bare trailing interpreter token
+# NO `-` argument) stays uncovered. Matching a bare trailing interpreter word
 # would flip `echo "pathlib" | python3` and `cat s.py | python3` to blocked —
 # verified rc=0 both before and after — so the exemption those keep costs this
-# one spelling. Same discipline as the `-c` arm above: no gap is allowed between
-# the interpreter and the `-`, so an interpreter option in between
-# (`python3 -O - <<PY`) is uncovered too. Widening to admit an arbitrary
-# option-shaped token is what would let a SCRIPT path through as one.
-_py_stdin_code='(^|[[:space:];|&()/\]+)(pypy|python|py)[0-9]*(\.[0-9]+)*(\.exe)?[[:space:]]+-([[:space:]]|$)'
-if [[ "$EXEC_LC" =~ $_py_inline_c || "$EXEC_LC" =~ $_py_stdin_code ]] &&
-  py_write_indicator "$COMMAND_LC"; then
+# one spelling.
+if py_inline_invocation && py_write_indicator "$COMMAND_LC"; then
   block_bypass "python-write" "python inline-code file write bypasses Write/Edit hooks"
 fi
 

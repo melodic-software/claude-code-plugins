@@ -3514,6 +3514,83 @@ fi
 eval "$(declare -f __pin_acd_to | sed '1s/^__pin_acd_to/hook::ansi_c_decode_to/')"
 rm -rf "$acd_pin_dir"
 
+# --- hook::bash_parse_segments: the redirection half of a segment ------------
+# argv alone is half the grammar of a simple command. A consumer whose subject
+# IS the redirect target (which file a write reaches) needs the other half, and
+# reads it from the HOOK_SEG_REDIR_* arrays instead of tokenizing the command a
+# second time. Each row states the whole parse of one command: the argv words,
+# then one `op|fd|target|quoted|opaque` record per redirection in source order.
+bps_redir_seen=()
+bps_redir_collect() {
+  local rec="ARGV:$*" j
+  for ((j = 0; j < ${#HOOK_SEG_REDIR_OP[@]}; j++)); do
+    rec+=" R:${HOOK_SEG_REDIR_OP[j]}|${HOOK_SEG_REDIR_FD[j]}|${HOOK_SEG_REDIR_TARGET[j]}"
+    rec+="|${HOOK_SEG_REDIR_QUOTED[j]}|${HOOK_SEG_REDIR_OPAQUE[j]}"
+  done
+  bps_redir_seen+=("$rec")
+}
+
+# bps_redir_case <desc> <command> <expected-record>...
+bps_redir_case() {
+  local desc="$1" cmd="$2"
+  shift 2
+  bps_redir_seen=()
+  hook::bash_parse_segments "$cmd" bps_redir_collect
+  local want="$*" got="${bps_redir_seen[*]-}"
+  if [[ "$got" == "$want" ]]; then
+    ok "bash_parse_segments redirections: $desc"
+  else
+    fail "bash_parse_segments redirections $desc: got [$got], want [$want]"
+  fi
+}
+
+# A quoted operand is ONE pathname to bash, whitespace and all, and it arrives
+# as one target word rather than as a first fragment that stands in for it.
+bps_redir_case 'quoted operand carrying whitespace stays one target' \
+  'echo x > "/dev/null ../../etc/pw"' \
+  'ARGV:echo x R:>||/dev/null ../../etc/pw|1|0'
+# A here-doc opener is a redirection whose target is the DELIMITER; a redirect
+# glued to that delimiter ends the delimiter word and is its own redirection.
+bps_redir_case 'here-doc opener with a redirect glued to the delimiter' \
+  'cat <<EOF>file' \
+  'ARGV:cat R:<<||EOF|0|0 R:>||file|0|0'
+# An fd dup names an fd, not a file, and does not consume the following word —
+# so the later stdout redirect is still recorded as its own.
+bps_redir_case 'fd dup then a stdout redirect' \
+  'echo x 2>&1 > file' \
+  'ARGV:echo x R:>&|2|1|0|0 R:>||file|0|0'
+# An escaped separator is an argument, not a segment boundary, so the producer
+# and its redirect stay in one segment.
+bps_redir_case 'escaped separator keeps the redirect in the same segment' \
+  'echo x \; > f' \
+  'ARGV:echo x ; R:>||f|0|0'
+# A here-string whose quote never closes: the operator is real, the string it
+# would carry is not recoverable, so the record is OPAQUE.
+bps_redir_case 'unterminated here-string is opaque' \
+  'read x <<<"abc' \
+  'ARGV:read x R:<<<||abc|1|1'
+# Bash allows a redirection before the command word; argv is unchanged by it.
+bps_redir_case 'redirect ahead of the command word' \
+  '>file echo x' \
+  'ARGV:echo x R:>||file|0|0'
+# Append plus a separate stderr redirect: order and fd prefixes are both kept.
+bps_redir_case 'append plus a separate stderr redirect' \
+  'echo x >>f 2>err' \
+  'ARGV:echo x R:>>||f|0|0 R:>|2|err|0|0'
+
+# Quoting provenance per argv word: 0 written literally, 1 partly produced by
+# quoting or an escape, 2 produced entirely by quoted spans.
+bps_word_q=""
+bps_word_q_collect() {
+  bps_word_q="${HOOK_SEG_WORD_QUOTED[*]}"
+}
+hook::bash_parse_segments 'cat "a" b\ c' bps_word_q_collect
+if [[ "$bps_word_q" == "0 2 1" ]]; then
+  ok "bash_parse_segments: per-word quoting provenance"
+else
+  fail "bash_parse_segments per-word quoting provenance: got [$bps_word_q], want [0 2 1]"
+fi
+
 # repo_root_to / repo_relative_path_to write in this shell (print forms wrap them).
 rr_to=""
 hook::repo_root_to rr_to "."
@@ -3986,6 +4063,308 @@ else
   fail "corr: override: $(cat "$corr_sink" 2>/dev/null)"
 fi
 rm -f "$corr_sink"
+
+# --- hook::begin: the file-edit hook prologue as one call --------------------
+# Every case drives the entry point in a CHILD shell, because hook::begin exits
+# the process itself on each early path — that is its contract, and a case run
+# in this shell would take the suite down with it.
+#
+# The driver prints the context hook::begin set, one KEY=value line each, and
+# prints nothing at all when hook::begin took an early exit. That absence is
+# what the early-path cases assert: REACHED never appears.
+BG_WORK="$(mktemp -d)"
+BG_DRIVER="$BG_WORK/begin-driver.sh"
+cat >"$BG_DRIVER" <<'BGEOF'
+#!/usr/bin/env bash
+set -uo pipefail
+# shellcheck disable=SC1090  # the suite passes the library path in
+source "$BG_LIB"
+# A stub reader makes the half of hook::begin that runs AFTER a path is
+# admitted reachable for paths no test can create: a file directly under the
+# filesystem root (needs privileges) and a spelling only Windows produces.
+if [[ -n "${BG_STUB_FILE:-}" ]]; then
+  hook::read_file_path() { printf '%s' "$BG_STUB_FILE"; }
+fi
+# A repo-root resolver whose answer is NOT an ancestor of the file, which is
+# what makes hook::repo_relative_path_to degrade to the basename.
+bg_fake_root() { printf -v "$1" '%s' "${BG_ROOT_VALUE:-}"; }
+hook::begin "$@"
+printf 'REACHED=1\nFILE=%s\nBASE=%s\nDIR=%s\nROOT=%s\nTOOL=%s\nREL=%s\nDEGRADED=%s\nSTART=%s\n' \
+  "$FILE" "$FILE_BASE" "$FILE_DIR" "$REPO_ROOT" "$TOOL" "$FILE_REL" "$FILE_REL_DEGRADED" \
+  "$(if [[ -n "$start" ]]; then printf 1; else printf 0; fi)"
+BGEOF
+chmod +x "$BG_DRIVER"
+
+bg_env=()
+# bg_run <payload> [begin args...] → the driver's stdout+stderr; rc is the
+# driver's exit status.
+bg_run() {
+  local bg_payload="$1"
+  shift
+  printf '%s' "$bg_payload" |
+    env BG_LIB="$HOOK_DIR/hook-utils.sh" ${bg_env[@]+"${bg_env[@]}"} \
+      bash "$BG_DRIVER" "$@" 2>&1
+}
+# bg_field <driver output> <key> → the value of that KEY= line, or the empty
+# string when the driver never printed it.
+bg_field() {
+  printf '%s\n' "$1" | sed -n "s/^$2=//p" | head -1
+}
+bg_payload() {
+  printf '{"session_id":"bg-1","tool_name":"%s","tool_input":{"file_path":"%s"}}' \
+    "${2:-Write}" "$1"
+}
+
+BG_REPO="$BG_WORK/consumer"
+mkdir -p "$BG_REPO/sub"
+(cd "$BG_REPO" && git init -q . && git config user.email t@e && git config user.name t) >/dev/null 2>&1
+: >"$BG_REPO/sub/a.sh"
+: >"$BG_REPO/sub/a.txt"
+BG_OUTSIDE="$BG_WORK/outside"
+mkdir -p "$BG_OUTSIDE"
+: >"$BG_OUTSIDE/b.sh"
+
+# The happy path, and the anchor every case below is a deviation from.
+bg_env=(CLAUDE_PROJECT_DIR="$BG_REPO")
+bg_out=$(bg_run "$(bg_payload "$BG_REPO/sub/a.sh")" sample PostToolUse '*.sh')
+bg_rc=$?
+if ((bg_rc == 0)) && [[ "$(bg_field "$bg_out" REACHED)" == "1" &&
+"$(bg_field "$bg_out" FILE)" == "$BG_REPO/sub/a.sh" &&
+"$(bg_field "$bg_out" BASE)" == "a.sh" &&
+"$(bg_field "$bg_out" DIR)" == "$BG_REPO/sub" &&
+"$(bg_field "$bg_out" START)" == "1" ]]; then
+  ok "begin: a matching edit yields FILE, FILE_BASE, FILE_DIR and a start stamp"
+else
+  fail "begin happy path (rc=$bg_rc): $bg_out"
+fi
+if [[ "$(bg_field "$bg_out" ROOT)" == "$BG_REPO" ]]; then
+  ok "begin: REPO_ROOT is anchored at the file, not the process CWD"
+else
+  fail "begin repo root: $(bg_field "$bg_out" ROOT) want $BG_REPO"
+fi
+
+# Telemetry-only values stay unresolved with no sink wired: TOOL empty and
+# FILE_REL still the path as it arrived. Wiring one resolves both.
+if [[ "$(bg_field "$bg_out" TOOL)" == "" &&
+"$(bg_field "$bg_out" REL)" == "$BG_REPO/sub/a.sh" ]]; then
+  ok "begin: sink unset → TOOL empty and FILE_REL unresolved"
+else
+  fail "begin sink unset: TOOL=$(bg_field "$bg_out" TOOL) REL=$(bg_field "$bg_out" REL)"
+fi
+bg_env=(CLAUDE_PROJECT_DIR="$BG_REPO" HOOK_TELEMETRY_SINK="$BG_WORK/sink-does-not-run")
+bg_sink_out=$(bg_run "$(bg_payload "$BG_REPO/sub/a.sh" Edit)" sample PostToolUse '*.sh')
+if [[ "$(bg_field "$bg_sink_out" TOOL)" == "Edit" &&
+"$(bg_field "$bg_sink_out" REL)" == "sub/a.sh" &&
+"$(bg_field "$bg_sink_out" DEGRADED)" == "0" ]]; then
+  ok "begin: sink wired → TOOL parsed and FILE_REL made repo-relative"
+else
+  fail "begin sink wired: $bg_sink_out"
+fi
+
+# --relative resolves the repo-relative path with no sink, because the hook
+# itself hands it to the tool. A root that is not an ancestor degrades it to
+# the basename and says so.
+bg_env=(CLAUDE_PROJECT_DIR="$BG_REPO" BG_ROOT_VALUE="$BG_WORK/elsewhere")
+bg_deg_out=$(bg_run "$(bg_payload "$BG_REPO/sub/a.sh")" \
+  --relative --repo-root bg_fake_root sample PostToolUse '*.sh')
+if [[ "$(bg_field "$bg_deg_out" REL)" == "a.sh" &&
+"$(bg_field "$bg_deg_out" DEGRADED)" == "1" ]]; then
+  ok "begin: --relative with an unrelated root degrades FILE_REL and flags it"
+else
+  fail "begin degrade: $bg_deg_out"
+fi
+
+# The post-read half, table-driven over path shapes no fixture can create.
+# Columns: label | file_path | want FILE_DIR | want FILE_BASE.
+bg_env=(CLAUDE_PROJECT_DIR="$BG_REPO")
+while IFS='|' read -r bg_label bg_path bg_want_dir bg_want_base; do
+  [[ -n "$bg_label" ]] || continue
+  bg_env=(CLAUDE_PROJECT_DIR="$BG_REPO" BG_STUB_FILE="$bg_path")
+  bg_row=$(bg_run "$(bg_payload "$BG_REPO/sub/a.sh")" sample PostToolUse)
+  bg_got_dir="$(bg_field "$bg_row" DIR)"
+  bg_got_base="$(bg_field "$bg_row" BASE)"
+  if [[ "$bg_got_dir" == "$bg_want_dir" && "$bg_got_base" == "$bg_want_base" ]]; then
+    ok "begin: $bg_label → FILE_DIR '$bg_got_dir', FILE_BASE '$bg_got_base'"
+  else
+    fail "begin: $bg_label → FILE_DIR '$bg_got_dir' (want '$bg_want_dir'), FILE_BASE '$bg_got_base' (want '$bg_want_base')"
+  fi
+done <<'BGTABLE'
+a file under the filesystem root|/README.md|/|README.md
+a bare relative name|README.md|.|README.md
+a nested path|/a/b.md|/a|b.md
+a deeper nested path|/a/b/c.md|/a/b|c.md
+a Windows backslash path|C:\repo\x.md|.|x.md
+a mixed-form path|/a/b\c.md|/a|c.md
+BGTABLE
+bg_env=(CLAUDE_PROJECT_DIR="$BG_REPO")
+
+# Early paths. Each one must exit 0 with the context never built.
+bg_out=$(bg_run '{"session_id":"bg-2","tool_name":"Write","tool_input":{}}' sample PostToolUse '*.sh')
+bg_rc=$?
+if ((bg_rc == 0)) && [[ "$(bg_field "$bg_out" REACHED)" != "1" ]]; then
+  ok "begin: no file_path → exit 0, no context"
+else
+  fail "begin no file_path (rc=$bg_rc): $bg_out"
+fi
+
+bg_out=$(bg_run "$(bg_payload "$BG_REPO/sub/a.txt")" sample PostToolUse '*.sh')
+bg_rc=$?
+if ((bg_rc == 0)) && [[ "$(bg_field "$bg_out" REACHED)" != "1" ]]; then
+  ok "begin: a path no glob matches → exit 0, no context"
+else
+  fail "begin non-matching glob (rc=$bg_rc): $bg_out"
+fi
+
+bg_out=$(bg_run "$(bg_payload "$BG_OUTSIDE/b.sh")" sample PostToolUse '*.sh')
+bg_rc=$?
+if ((bg_rc == 0)) && [[ "$(bg_field "$bg_out" REACHED)" != "1" ]]; then
+  ok "begin: a path outside CLAUDE_PROJECT_DIR → exit 0, no context"
+else
+  fail "begin out-of-project (rc=$bg_rc): $bg_out"
+fi
+
+# A well-formed JSON PREFIX and then a closed pipe is hook::buffer_stdin_to's
+# rc 3, the transport fault. An advisory hook allows it through: exit 0, no
+# work, and buffer_stdin's own diagnostic on stderr.
+bg_out=$(bg_run '{"session_id":"bg-3","tool_input":{"file_path":"/x/a.sh"' sample PostToolUse '*.sh')
+bg_rc=$?
+if ((bg_rc == 0)) && [[ "$(bg_field "$bg_out" REACHED)" != "1" && "$bg_out" == *"cut short"* ]]; then
+  ok "begin: stdin cut short mid-document (rc 3) → exit 0, no context"
+else
+  fail "begin cut-short stdin (rc=$bg_rc): $bg_out"
+fi
+
+# The jq gate, and the pre-filter that must run BEFORE it. Same missing-jq
+# shape the require_jq cases above use: a stub PATH carrying the coreutils
+# notice_once needs and no jq.
+BG_NOJQ="$(make_stub_bin)"
+BG_DATA="$(mktemp -d)"
+bg_run_nojq() {
+  local bg_payload_txt="$1"
+  shift
+  printf '%s' "$bg_payload_txt" |
+    BG_LIB="$HOOK_DIR/hook-utils.sh" PATH="$BG_NOJQ" HOOK_TELEMETRY_SINK="" \
+      CLAUDE_PROJECT_DIR="$BG_REPO" CLAUDE_PLUGIN_DATA="$BG_DATA" \
+      "$BASH" "$BG_DRIVER" "$@" 2>&1
+}
+bg_out=$(bg_run_nojq "$(bg_payload "$BG_REPO/sub/a.sh")" sample PostToolUse '*.sh')
+bg_rc=$?
+if ((bg_rc == 0)) && [[ "$bg_out" == *'"systemMessage"'* && "$(bg_field "$bg_out" REACHED)" != "1" ]]; then
+  ok "begin: jq absent on a matching edit → the skip notice, then exit 0"
+else
+  fail "begin jq absent (rc=$bg_rc): $bg_out"
+fi
+rm -rf "$BG_DATA"
+BG_DATA="$(mktemp -d)"
+bg_out=$(bg_run_nojq "$(bg_payload "$BG_REPO/sub/a.txt")" sample PostToolUse '*.sh')
+bg_rc=$?
+if ((bg_rc == 0)) && [[ -z "$bg_out" ]]; then
+  ok "begin: jq absent on a NON-matching edit → fully silent (pre-filter runs first)"
+else
+  fail "begin jq absent + non-matching glob (rc=$bg_rc): $bg_out"
+fi
+rm -rf "$BG_DATA" "$BG_NOJQ"
+
+# Spawn census on the same two payloads: a non-matching edit must not spend a
+# jq beyond hook::buffer_stdin_to's own payload validation, and the unwired
+# path must not spend one to build a telemetry value nothing will read.
+BG_SHIM="$(mktemp -d)"
+bg_real_jq=$(type -P jq) || bg_real_jq=""
+if [[ -n "$bg_real_jq" ]]; then
+  cat >"$BG_SHIM/jq" <<EOF
+#!/usr/bin/env bash
+printf 'JQ\\n' >>"$BG_SHIM/log"
+exec "$bg_real_jq" "\$@"
+EOF
+  chmod +x "$BG_SHIM/jq"
+  bg_jq_count() {
+    : >"$BG_SHIM/log"
+    bg_env=(CLAUDE_PROJECT_DIR="$BG_REPO" PATH="$BG_SHIM:$PATH")
+    bg_run "$@" >/dev/null 2>&1
+    grep -c . "$BG_SHIM/log" 2>/dev/null || printf 0
+  }
+  bg_n_skip=$(bg_jq_count "$(bg_payload "$BG_REPO/sub/a.txt")" sample PostToolUse '*.sh')
+  bg_n_run=$(bg_jq_count "$(bg_payload "$BG_REPO/sub/a.sh")" sample PostToolUse '*.sh')
+  if ((bg_n_skip <= 1)); then
+    ok "begin: a non-matching edit spends $bg_n_skip jq (payload validation only)"
+  else
+    fail "begin: a non-matching edit spent $bg_n_skip jq processes, ceiling 1"
+  fi
+  if ((bg_n_run <= bg_n_skip)); then
+    ok "begin: an accepted edit with no sink spends no jq beyond that ($bg_n_run)"
+  else
+    fail "begin: an accepted edit with no sink spent $bg_n_run jq processes, ceiling $bg_n_skip"
+  fi
+  bg_env=(CLAUDE_PROJECT_DIR="$BG_REPO")
+else
+  fail "begin jq census: no real jq on PATH to wrap"
+fi
+rm -rf "$BG_SHIM"
+
+# --- hook::data_json_to: one builder for every data payload ------------------
+# The `changed` key is a BOOLEAN when the caller decided, and ABSENT when it
+# did not — a skip arm that never ran the tool has no verdict to report and
+# must not guess one.
+dj=""
+hook::data_json_to dj Write "sub/a.sh" "true" findings array '["x","y"]'
+if [[ "$dj" == "$(jq -c -n '{tool:"Write",file:"sub/a.sh",findings:["x","y"],changed:true}')" ]]; then
+  ok "data_json_to: {tool,file,findings} with changed:true"
+else
+  fail "data_json_to findings+changed: $dj"
+fi
+hook::data_json_to dj Write "sub/a.sh" "" findings array '[]'
+if [[ "$dj" == "$(jq -c -n '{tool:"Write",file:"sub/a.sh",findings:[]}')" ]]; then
+  ok "data_json_to: an empty verdict omits the changed key"
+else
+  fail "data_json_to changed omitted: $dj"
+fi
+hook::data_json_to dj Write "sub/a.md" "false" findings array '[]' applied array '["a"]'
+if [[ "$dj" == "$(jq -c -n '{tool:"Write",file:"sub/a.md",findings:[],applied:["a"],changed:false}')" ]]; then
+  ok "data_json_to: extra array keys keep their declared order"
+else
+  fail "data_json_to applied: $dj"
+fi
+hook::data_json_to dj Edit "sub/a.txt" "true" action str "crlf-to-lf"
+if [[ "$dj" == "$(jq -c -n '{tool:"Edit",file:"sub/a.txt",action:"crlf-to-lf",changed:true}')" ]]; then
+  ok "data_json_to: a str-typed key is emitted as a JSON string"
+else
+  fail "data_json_to action: $dj"
+fi
+# A path carrying a quote and a backslash must survive as data, never as
+# syntax: the whole reason the values are jq arguments and not interpolated.
+hook::data_json_to dj Write 'a"b\c.sh' "" findings array '[]'
+if [[ "$(printf '%s' "$dj" | jq -r '.file')" == 'a"b\c.sh' ]]; then
+  ok "data_json_to: a quote and a backslash in the path round-trip"
+else
+  fail "data_json_to escaping: $dj"
+fi
+# The uncapped array rides on STDIN, so a payload far past a Windows command
+# line still produces a truthful envelope rather than the empty fallback.
+dj_big=$(jq -c -n '[range(4000) | "finding \(.) ................................"]')
+hook::data_json_to dj Write "sub/a.sh" "" findings array "$dj_big"
+if [[ "$(printf '%s' "$dj" | jq -r '.findings | length')" == "4000" ]]; then
+  ok "data_json_to: a ${#dj_big}-character findings array survives (stdin, not argv)"
+else
+  fail "data_json_to large array: $(printf '%s' "$dj" | head -c 200)"
+fi
+
+# --- hook::path_matches ------------------------------------------------------
+pm_win='C:\r\.github\workflows\ci.yml' # portability-ok: a quoted path literal, not a regex; \w opens `workflows`
+if hook::path_matches "/r/x.sh" '*.py' '*.sh' &&
+  ! hook::path_matches "/r/x.txt" '*.py' '*.sh' &&
+  hook::path_matches "$pm_win" '*/.github/workflows/*.yml' &&
+  ! hook::path_matches "/r/.github/actions/ci.yml" '*/.github/workflows/*.yml'; then
+  ok "path_matches: extension and path globs, on either separator"
+else
+  fail "path_matches: one of the four cases disagreed"
+fi
+if ! hook::path_matches "/r/x.sh"; then
+  ok "path_matches: no globs matches nothing (the caller checks for that first)"
+else
+  fail "path_matches: an empty glob list matched"
+fi
+
+rm -rf "$BG_WORK"
 
 echo
 echo "PASS=$PASS FAIL=$FAIL"
