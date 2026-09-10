@@ -3,7 +3,7 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.45.5]
+## [0.47.1]
 
 ### Changed
 
@@ -11,6 +11,67 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   drops the filler phrase `in order to` (`to recompute a block the caller was already holding`).
   Wording only; the entry's facts are unchanged. Found by the repo-wide `/ai-slop:audit` run
   (#3987).
+
+## [0.47.0]
+
+### Added
+
+- **`morning-brief` reads sections 1-4 from REST when the host serves only a pinned
+  set of GraphQL operations.** The `gh` subcommands ride GraphQL; on the HTTP 403 "not
+  enabled for this session" shape the script switches transport for the rest of the
+  run, names it in the header, and re-reads queue counts, the merge-ready list, parked
+  decisions, and lane telemetry from repository-scoped `gh api repos/...` endpoints.
+  The merge-ready REST path reads `mergeable_state` per open PR under a `--pr-limit`
+  cap (default 50) and reports a capped read as PARTIAL; review decisions have no REST
+  field and render `n/a`. The stranded-findings section needs review threads, which
+  have no REST read, so it renders UNREADABLE there instead of an all-clear.
+- **`morning-brief` resolves owner/repo from the checkout's `origin` remote when
+  `gh repo view` is unavailable**, and names the source in the header.
+
+### Fixed
+
+- **`morning-brief` rendered an all-clear or an absence over an unreadable source.**
+  The stranded-findings section only checked the body for an `errors` key and ignored
+  gh's exit status, so a `{"message":...}` error body (the REST and 403 shape) rendered
+  as "every merged PR in the window is clear"; the telemetry section could not tell a
+  failed search from an absent issue and printed "no telemetry issue found"; the queues
+  section printed `?`. Every section is now one of data, empty, or UNREADABLE, the
+  header counts the unreadable sections, every `gh` call checks its exit status, and
+  error detection covers both the `errors[]` and the `message` body shapes. Exit code
+  5 means every section was unreadable; a partial brief still exits 0.
+
+## [0.46.0]
+
+### Changed
+
+- **`changelog` `status` reads a read marker, never commit bodies.** The applied version comes
+  from the marker line of the repository's Claude Code ledger (`docs/upstream/claude-code.md`,
+  override `CLAUDE_OPS_CHANGELOG_LEDGER`), falling back to the highest version a Conventional
+  Commits SUBJECT of the form `address Claude Code v<A>..<B> changelog` names. The previous
+  `git log --grep` over message bodies matched every doc whose recency stamp cited a Claude Code
+  version: on this marketplace it reported 13 applies where the true count was zero.
+- **`diff` and `apply` take a range.** `vA..vB` is inclusive at both ends, `vX` is one release,
+  and no argument means every release newer than the read marker up to the newest published.
+- **`fetch` cites the upstream-drift fetch route** (`curl` the raw `.md`, slice the release
+  blocks locally, check the first heading) instead of carrying its own dated WebFetch caveats.
+  The spoke keeps only the page-specific shape: the `<Update label>` block, `[VSCode]`-tagged
+  items, and the no-change placeholder line.
+
+### Added
+
+- **`scripts/changelog-status.sh`**, the first step of every `changelog` action: marker
+  resolution, installed vs newest release, the range with its release list and core-item count,
+  and the replay cap. It fetches the changelog itself by the raw-markdown route, takes
+  `--changelog <file>` to reuse a copy, and `--no-fetch` to read the marker alone. The skill's
+  pre-computed context line runs it with `--no-fetch`, so the marker is in context on every
+  invocation. `changelog-status.test.sh` covers it.
+- **A replay cap** of ten releases or 300 core items (`--cap-releases`, `--cap-items`, or the
+  `CLAUDE_OPS_CHANGELOG_CAP_*` variables). Past it, `diff` and `apply` stop and recommend a
+  docs-conformance recheck of the components followed by a marker reset, because the current docs
+  already carry the cumulative state and replaying items past the cap costs more than it returns.
+- **Three evals with fixtures**: the marker line is read, commit-body mentions are ignored, and a
+  range past the cap stops with the recommendation. They replace the eval that asserted
+  git-history-derived status.
 
 ## [0.45.4]
 

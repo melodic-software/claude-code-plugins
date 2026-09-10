@@ -1,0 +1,15 @@
+commit 3f9c1a2
+Subject: docs(claude-config): refresh the permission stamps
+
+    Verified against Claude Code v2.1.252 changelog and the permissions page on 2026-08-20.
+
+commit 7b0e44d
+Subject: fix(guardrails): quote the worktree path in the isolation guard
+
+    The guard read the path unquoted. Recheck when Claude Code v2.1.255 changelog names the
+    worktree isolation checks.
+
+commit c81d90e
+Subject: chore(lanes): refresh the lane prompts
+
+    Prompts now cite CC v2.1.250 for the background-session flags.

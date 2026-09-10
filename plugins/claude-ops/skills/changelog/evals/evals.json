@@ -29,23 +29,25 @@
       "id": 3,
       "name": "target-version-ahead-of-installed-warns",
       "prompt": "Apply the v2.1.152 changelog — and if my installed Claude Code is older than that, warn me before applying.",
-      "expected_output": "The apply/diff flow checks the installed Claude Code version (via `claude --version`) and compares it to the target v2.1.152, grounding the comparison in the actual installed version rather than an assumed one. If the installed version is older than the target, it warns that applying newer-version changes may reference features not yet available and suggests updating first (claude update); if the installed version is equal or newer, it proceeds without that warning.",
+      "expected_output": "The apply/diff flow checks the installed Claude Code version (via `claude --version`, which the status script reports as `installed`) and compares it to the target v2.1.152, grounding the comparison in the actual installed version rather than an assumed one. If the installed version is older than the target, it warns that applying newer-version changes may reference features not yet available and suggests updating first (claude update); if the installed version is equal or newer, it proceeds without that warning.",
       "files": [],
       "expectations": [
-        "The response checks the installed Claude Code version (e.g. via `claude --version`) rather than assuming a specific installed version",
+        "The response checks the installed Claude Code version (e.g. via `claude --version` or the status script's `installed` line) rather than assuming a specific installed version",
         "If the installed version is older than the target v2.1.152, the response warns and suggests updating (e.g. `claude update`) before applying",
         "If the installed version is equal to or newer than the target, the response proceeds without emitting the ahead-version warning"
       ]
     },
     {
       "id": 4,
-      "name": "status-derives-from-git-not-tracker-file",
-      "prompt": "/claude-ops:changelog status",
-      "expected_output": "The status action derives applied versions from git history (e.g. git log --grep for CC version citations in commit messages). It does NOT create, read, or propose a persistent applied-versions tracking file — git history is the single source of truth.",
-      "files": [],
+      "name": "status-reads-the-read-marker-line",
+      "prompt": "/claude-ops:changelog status\n\nThis repository's Claude Code ledger is the fixture at evals/fixtures/ledger-marker.md, and a local copy of the raw changelog is at evals/fixtures/changelog-sample.md. Use those two files instead of the default ledger path and instead of fetching.",
+      "expected_output": "The status action runs scripts/changelog-status.sh with `--ledger evals/fixtures/ledger-marker.md --changelog evals/fixtures/changelog-sample.md` and relays its lines: last-applied 2.1.260 with source `ledger:` (the marker line `**Last audited upstream state:** changelog through `2.1.260``), latest 2.1.263, the default range 2.1.261..2.1.263 (2 releases, 6 core items, the `[VSCode]` line excluded), and cap within budget. It reads the marker from the ledger line, never from git log, and does not create or propose any tracking file other than the ledger.",
+      "files": ["evals/fixtures/ledger-marker.md", "evals/fixtures/changelog-sample.md"],
       "expectations": [
-        "The response derives applied versions from git history (e.g. `git log --grep`), not from a dedicated tracker file",
-        "The response does NOT create or propose a persistent applied-versions tracking file"
+        "The response reports last-applied 2.1.260 and attributes it to the ledger's marker line, not to git history",
+        "The response reports the default range as 2.1.261..2.1.263 with 2 releases and 6 core items",
+        "The response does NOT run a `git log --grep` over commit bodies to find applied versions",
+        "The response does NOT create or propose a persistent tracking file other than the ledger"
       ]
     },
     {
@@ -59,6 +61,32 @@
         "The pasted new setting (a capability the repo does not yet use) is classified P2 (evaluate for adoption), not silently treated as no-action",
         "The P2 item is surfaced in the impact/triage output with a short adoption rationale rather than omitted",
         "The diff analysis is read-only: no repo file is edited"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "status-ignores-commit-body-mentions",
+      "prompt": "/claude-ops:changelog status\n\nThis repository has no docs/upstream/claude-code.md and no CLAUDE_OPS_CHANGELOG_LEDGER. Its recent git log is reproduced in evals/fixtures/git-log-body-mentions.txt: three commits whose BODIES mention Claude Code v2.1.252, Claude Code v2.1.255, and CC v2.1.250, and no commit whose SUBJECT reads `address Claude Code v<range> changelog`. Use evals/fixtures/changelog-sample.md as the changelog copy instead of fetching.",
+      "expected_output": "The status action reports last-applied none with source none: the ledger is absent and no commit SUBJECT names an applied release. It does NOT report 2.1.252, 2.1.255, or 2.1.250 as applied, because those versions appear only in commit bodies, which are recency stamps on docs rather than applies. It reports the whole fixture feed as the range (2.1.257..2.1.263, 6 releases, 20 core items), cap within budget, and relays the script's recommendation to create the ledger with the marker at 2.1.263 once that range is applied.",
+      "files": ["evals/fixtures/git-log-body-mentions.txt", "evals/fixtures/changelog-sample.md"],
+      "expectations": [
+        "The response reports last-applied none and source none",
+        "The response does NOT report 2.1.252, 2.1.255, or 2.1.250 as an applied version; body mentions are never read as applies",
+        "The response reports the range 2.1.257..2.1.263 and relays the recommendation to create the ledger with the marker at 2.1.263 after that range is applied",
+        "The response does NOT run a `git log --grep` over commit bodies and does NOT propose a tracking file other than the ledger"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "range-beyond-cap-stops-with-docs-conformance-recommendation",
+      "prompt": "/claude-ops:changelog diff v2.1.257..v2.1.263\n\nFor this run the replay cap is 3 releases (CLAUDE_OPS_CHANGELOG_CAP_RELEASES=3). The ledger is evals/fixtures/ledger-marker.md and the changelog copy is evals/fixtures/changelog-sample.md; use them instead of fetching.",
+      "expected_output": "The diff runs the status script with `--range v2.1.257..v2.1.263`, which reports range 2.1.257..2.1.263 (6 releases, 20 core items) and cap exceeded (3 releases / 300 items). The diff STOPS there: no per-item triage table, no explore pass over repo surfaces, no research subagents. It relays the script's recommendation as the output: run a docs-conformance recheck of the components against the current docs, then set the marker in the ledger to 2.1.263 and diff only from there. No file is edited.",
+      "files": ["evals/fixtures/ledger-marker.md", "evals/fixtures/changelog-sample.md"],
+      "expectations": [
+        "The response reports the range 2.1.257..2.1.263 with 6 releases and states that the cap of 3 releases is exceeded",
+        "The response does NOT emit a per-item triage table and does NOT spawn research subagents over the items",
+        "The response relays the recommendation: a docs-conformance recheck of the components, then a marker set at 2.1.263 and a diff from there",
+        "The diff is read-only: no repo file is edited"
       ]
     }
   ]
