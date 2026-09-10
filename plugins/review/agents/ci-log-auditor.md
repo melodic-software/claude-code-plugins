@@ -53,7 +53,7 @@ Tool warnings that lack `##[warning]`/`##[error]` markers: compiler warnings in 
 
 `##[error]` log markers are not the same as Annotations API entries. Cross-reference `gh api --paginate "repos/<owner>/<repo>/commits/<sha>/check-runs?per_page=100"` (then each check-run's `/annotations`, paginated the same way) against the `##[error]` count from logs; flag mismatches as tooling-integration opportunities.
 
-Pagination decides the result here, and is not hygiene: both endpoints return 30 per page by default and signal nothing when they truncate, so an unpaginated fetch under-counts the check runs or annotations you compare against. It then manufactures a mismatch, or hides a real one, with no visible symptom.
+Pagination changes what this comparison sees, so it is not optional hygiene: both endpoints return 30 per page by default and signal nothing when they truncate, so an unpaginated fetch under-counts the check runs or annotations you compare against. It then manufactures a mismatch, or hides a real one, with no visible symptom.
 
 `check-runs` reports a `total_count`, so assert against it before drawing any conclusion. `--jq` runs per page, so a naive `.check_runs | length` reports one page at a time; slurp the page stream instead and require the two numbers to match:
 
