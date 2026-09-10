@@ -3,7 +3,8 @@
 #
 # Prints, for the current repo, one scannable picture: open issue counts per
 # queue label, the gh-native merge-ready PR list, parked decisions with their
-# RECOMMENDED lines, and loop-lane telemetry freshness (last-cycle age + flags).
+# RECOMMENDED lines, loop-lane telemetry freshness (last-cycle age + flags), and
+# review findings stranded on already-merged PRs.
 #
 # Read-only and gh-based: it never mutates labels, comments, issues, or PRs.
 # It runs `gh` read queries only. The authoritative merge gate lives in the
@@ -11,8 +12,22 @@
 # gh-native signal (mergeStateStatus CLEAN + non-draft) meant for a 5-second
 # glance, not a substitute for that skill's classification.
 #
-# Owner/repo is derived from `gh repo view` (the checkout's default remote),
-# never hardcoded, so the tool is reusable across repos.
+# Owner/repo is derived from `gh repo view`, or from the checkout's `origin`
+# remote when that call is unavailable; never hardcoded, so the tool is
+# reusable across repos.
+#
+# Degraded-mode contract. Every section is one of three states: data, empty,
+# or UNREADABLE. A section whose data source failed (a non-zero gh exit, or an
+# error document in the body) renders as UNREADABLE with the error's first
+# line, never with empty-state wording. The header counts the unreadable
+# sections. When every section is unreadable the script exits 5, so a caller
+# can tell "nothing to report" from "could not read"; a partial brief exits 0.
+#
+# Transport. The gh subcommands ride GraphQL. When the host serves only a
+# pinned set of GraphQL operations (the HTTP 403 "not enabled for this session"
+# shape), sections 1-4 are re-read from repository-scoped REST endpoints and
+# the header names the transport. The stranded-findings section needs
+# reviewThreads, which has no REST equivalent, so it renders UNREADABLE there.
 #
 # Usage:
 #   morning-brief.sh                          live view of the current repo
@@ -23,6 +38,7 @@
 #   morning-brief.sh --stale-hours N          age past which a lane is STALE (default 6)
 #   morning-brief.sh --stranded-days N        age window for stranded review findings (default 3)
 #   morning-brief.sh --rec-maxlen N           truncate RECOMMENDED previews (default 240; 0 = full)
+#   morning-brief.sh --pr-limit N             open PRs whose merge state the REST path checks (default 50)
 #   morning-brief.sh --help
 #
 # Fixture flags (skip the network; used by the test suite and for reuse):
@@ -37,9 +53,10 @@
 #                             stranded-findings section)
 #
 # Exit codes:
-#   0  brief rendered (a data source degrading gracefully is not a failure)
+#   0  brief rendered (at least one section carries data or a real empty state)
 #   3  invalid argument
 #   4  prerequisite missing (gh or jq), or repo could not be resolved
+#   5  every section was unreadable; the brief carries no data
 
 set -uo pipefail
 
@@ -57,10 +74,12 @@ QUEUE_LABELS_ARG=""
 DECISION_LABEL_ARG=""
 
 REPO=""
+REPO_SOURCE=""
 TELEMETRY_ISSUE=""
 REPO_LABELS_JSON=""
 STALE_HOURS="6"
 REC_MAXLEN="240"
+PR_LIMIT="50"
 NOW_ISO=""
 COUNTS_JSON=""
 PR_JSON=""
@@ -71,6 +90,13 @@ MERGED_JSON=""
 # Wide enough to cover a bot that reviews well after a merge lands, and the
 # operator-absent stretch (a weekend) during which nobody would look.
 STRANDED_DAYS="3"
+
+# Telemetry-issue discovery. The lanes skill's consumer posts to the issue this
+# search finds, so the literal is shared verbatim with that script rather than
+# through an import (the two skills install independently). The REST path
+# derives its title tokens from the same literal: every token must appear.
+TELEMETRY_SEARCH='loop-lane telemetry running per-lane status in:title'
+read -ra TELEMETRY_TITLE_TOKENS <<<"${TELEMETRY_SEARCH% in:title}"
 
 usage() {
   # Sentinel-based, not a hardcoded line range: prints every comment line after
@@ -98,7 +124,7 @@ require_file() {
   }
 }
 
-# Same shape as require_value above, for the three numeric flags. Callers then
+# Same shape as require_value above, for the numeric flags. Callers then
 # assign with `$((10#$2))`, which forces base-10 so a leading-zero value is not
 # misread as octal (08 errors outright, 010 would evaluate as 8).
 require_uint() {
@@ -114,6 +140,7 @@ while (($# > 0)); do
   --repo)
     require_value "$1" "${2:-}"
     REPO="$2"
+    REPO_SOURCE="--repo"
     shift 2
     ;;
   --telemetry-issue)
@@ -153,6 +180,12 @@ while (($# > 0)); do
     require_value "$1" "${2:-}"
     require_uint "$1" "$2"
     STRANDED_DAYS="$((10#$2))"
+    shift 2
+    ;;
+  --pr-limit)
+    require_value "$1" "${2:-}"
+    require_uint "$1" "$2"
+    PR_LIMIT="$((10#$2))"
     shift 2
     ;;
   --now)
@@ -207,29 +240,98 @@ have jq || {
   exit 4
 }
 
-# Defined here, ahead of the live-source probe below, which is this script's
-# FIRST caller — a definition further down would make that call a runtime
-# `command not found`.
-fetch_repo_label_names() {
-  local raw=""
-  if [[ -n "$REPO_LABELS_JSON" ]]; then
-    jq -e 'type == "array"' "$REPO_LABELS_JSON" >/dev/null 2>&1 || return 1
-    raw="$(jq -r '.[] | if type == "string" then . else .name end' "$REPO_LABELS_JSON" 2>/dev/null)" || return 1
-  elif [[ -n "$REPO" ]]; then
-    raw="$(gh label list "${REPO_ARGS[@]}" --limit 500 --json name -q '.[].name' 2>/dev/null | tr -d '\r')" || return 1
-  else
-    return 1
-  fi
-  jq -R -s '
-    split("\n")
-    | map(select(length > 0))
-    | unique
-  ' <<<"$raw"
+WORK="$(mktemp -d)"
+trap 'rm -rf "$WORK"' EXIT
+ERR_FILE="$WORK/stderr"
+
+# =============================================================================
+# gh invocation and error detection
+# =============================================================================
+# Every gh call goes through gh_read so that a non-zero exit and an error
+# document in the body are both surfaced to the caller as a failure. A caller
+# that captures stdout and ignores the status turns an unread API into an empty
+# result, which the rendering below would print as an all-clear; that is the
+# fail-open this file is written to prevent.
+#
+# gh_read OUTFILE gh-args...   writes stdout to OUTFILE; returns 1 on failure
+#                              with LAST_ERR set to the error's first line.
+LAST_ERR=""
+TRANSPORT="gh"
+
+first_error_line() {
+  local out="$1" err="$2" line=""
+  line="$(grep -m1 -v '^[[:space:]]*$' "$err" 2>/dev/null)"
+  [[ -n "$line" ]] || line="$(jq -r -s 'first(.[] | objects | (.errors[]?.message // .message // empty)) // empty' "$out" 2>/dev/null)"
+  line="${line#gh: }"
+  printf '%s' "$line"
 }
 
-label_exists_in_repo() {
-  local label="$1" names="$2"
-  jq -e --arg l "$label" 'index($l) != null' <<<"$names" >/dev/null 2>&1
+# An error body is either a GraphQL document carrying `errors` (with or without
+# a partial `data`), or GitHub's REST error shape: a bare object with `message`
+# beside `documentation_url`. A commit or issue body that happens to contain a
+# `message` field does not match, because those never carry documentation_url.
+body_error() {
+  jq -r -s '
+    [ .. | objects
+      | select(has("errors") or (has("message") and has("documentation_url")))
+      | (.errors[]?.message // .message) ]
+    | first // empty
+  ' "$1" 2>/dev/null
+}
+
+gh_read() {
+  local out="$1"
+  shift
+  LAST_ERR=""
+  : >"$ERR_FILE"
+  gh "$@" >"$out" 2>"$ERR_FILE"
+  local rc=$?
+  if ((rc != 0)); then
+    LAST_ERR="$(first_error_line "$out" "$ERR_FILE")"
+    [[ -n "$LAST_ERR" ]] || LAST_ERR="gh exited $rc"
+    return 1
+  fi
+  local body_err
+  body_err="$(body_error "$out")"
+  if [[ -n "$body_err" ]]; then
+    LAST_ERR="$body_err"
+    return 1
+  fi
+  return 0
+}
+
+# The host serves only a pinned set of GraphQL operations. Every other GraphQL
+# query is refused with this message shape; REST stays available.
+graphql_blocked() {
+  grep -qiE 'GraphQL query.*not enabled|pinned set of PR-review' <<<"$1"
+}
+
+# gql_or_rest OUTFILE gql_fn rest_fn
+# Runs gql_fn unless the transport already switched to REST. When gql_fn fails
+# with the blocked shape, switches the transport for the rest of the run and
+# runs rest_fn. Any other failure propagates with LAST_ERR intact.
+gql_or_rest() {
+  local out="$1" gql_fn="$2" rest_fn="$3"
+  if [[ "$TRANSPORT" == "gh" ]]; then
+    "$gql_fn" "$out" && return 0
+    graphql_blocked "$LAST_ERR" || return 1
+    TRANSPORT="rest"
+  fi
+  "$rest_fn" "$out"
+}
+
+urlencode() { jq -rn --arg s "$1" '$s | @uri'; }
+
+# gh api --paginate emits one JSON document per page. For REST array endpoints
+# that is a sequence of arrays; flatten them into one array in OUTFILE.
+rest_paginate_array() {
+  local out="$1"
+  shift
+  gh_read "$WORK/page" api --paginate "$@" || return 1
+  jq -s '[ .[][] ]' "$WORK/page" >"$out" 2>/dev/null || {
+    LAST_ERR="could not parse REST response"
+    return 1
+  }
 }
 
 # gh is only needed for live sources; a fully fixtured run (tests) must not
@@ -238,34 +340,107 @@ NEEDS_LIVE_COUNTS=0
 NEEDS_LIVE_PRS=0
 NEEDS_LIVE_DECISIONS=0
 NEEDS_LIVE_TELEMETRY=0
+NEEDS_LIVE_MERGED=0
 [[ -z "$COUNTS_JSON" ]] && NEEDS_LIVE_COUNTS=1
 [[ -z "$PR_JSON" ]] && NEEDS_LIVE_PRS=1
 [[ -z "$DECISIONS_JSON" ]] && NEEDS_LIVE_DECISIONS=1
 [[ -z "$TELEMETRY_JSON" ]] && NEEDS_LIVE_TELEMETRY=1
+[[ -z "$MERGED_JSON" ]] && NEEDS_LIVE_MERGED=1
+
+# --- Repo label inventory -------------------------------------------------------
+fetch_repo_labels_gql() {
+  gh_read "$WORK/labels.raw" label list "${REPO_ARGS[@]}" --limit 500 --json name -q '.[].name' || return 1
+  tr -d '\r' <"$WORK/labels.raw" | jq -R -s 'split("\n") | map(select(length > 0)) | unique' >"$1"
+}
+
+fetch_repo_labels_rest() {
+  rest_paginate_array "$WORK/labels.rest" "repos/$REPO/labels?per_page=100" || return 1
+  jq '[ .[].name ] | unique' "$WORK/labels.rest" >"$1"
+}
+
+# fetch_repo_label_names OUTFILE: a JSON array of label names, or 1.
+fetch_repo_label_names() {
+  local out="$1"
+  if [[ -n "$REPO_LABELS_JSON" ]]; then
+    jq -e 'type == "array"' "$REPO_LABELS_JSON" >/dev/null 2>&1 || {
+      LAST_ERR="--repo-labels-json is not an array"
+      return 1
+    }
+    jq '[ .[] | if type == "string" then . else .name end ] | unique' "$REPO_LABELS_JSON" >"$out" 2>/dev/null || {
+      LAST_ERR="--repo-labels-json could not be parsed"
+      return 1
+    }
+    return 0
+  fi
+  [[ -n "$REPO" ]] || {
+    LAST_ERR="no repo resolved"
+    return 1
+  }
+  gql_or_rest "$out" fetch_repo_labels_gql fetch_repo_labels_rest
+}
+
+label_exists_in_repo() {
+  local label="$1" names_file="$2"
+  jq -e --arg l "$label" 'index($l) != null' "$names_file" >/dev/null 2>&1
+}
+
 # Parked-decisions can short-circuit on a fixture label inventory when the
 # decision label is absent — no gh issue list needed for that probe.
 if ((NEEDS_LIVE_DECISIONS)) && [[ -n "$REPO_LABELS_JSON" ]]; then
   _probe_decision_label="${DECISION_LABEL_ARG:-$DEFAULT_DECISION_LABEL}"
-  if _probe_repo_labels="$(fetch_repo_label_names)"; then
-    label_exists_in_repo "$_probe_decision_label" "$_probe_repo_labels" || NEEDS_LIVE_DECISIONS=0
+  if fetch_repo_label_names "$WORK/probe-labels.json"; then
+    label_exists_in_repo "$_probe_decision_label" "$WORK/probe-labels.json" || NEEDS_LIVE_DECISIONS=0
   fi
 fi
-ANY_LIVE=$((NEEDS_LIVE_COUNTS || NEEDS_LIVE_PRS || NEEDS_LIVE_DECISIONS || NEEDS_LIVE_TELEMETRY))
+# The stranded section alone never forces a repo resolution: every other
+# section can be driven from fixtures, and a fixture-only run must not reach
+# for the network just to resolve a repo it was not given. With --repo, or once
+# another live section resolves one, the section is live like the rest.
+ANY_LIVE=$((NEEDS_LIVE_COUNTS || NEEDS_LIVE_PRS || NEEDS_LIVE_DECISIONS || NEEDS_LIVE_TELEMETRY || (NEEDS_LIVE_MERGED && ${#REPO} > 0)))
 if ((ANY_LIVE)) && ! have gh; then
   printf 'morning-brief: gh required for live queries (pass fixtures to run offline)\n' >&2
   exit 4
 fi
 
 # --- Resolve the target repo --------------------------------------------------
+# `gh repo view` first (the checkout's default remote as gh sees it). When that
+# call is unavailable, the `origin` remote of the current checkout is the same
+# derivation without the network round-trip.
+repo_from_git_remote() {
+  local url
+  url="$(git remote get-url origin 2>/dev/null | tr -d '\r')" || return 1
+  [[ -n "$url" ]] || return 1
+  url="${url%.git}"
+  url="${url%/}"
+  case "$url" in
+  *github.com[:/]*)
+    url="${url##*github.com[:/]}"
+    ;;
+  *) return 1 ;;
+  esac
+  [[ "$url" == */* && "$url" != */*/* ]] || return 1
+  printf '%s' "$url"
+}
+
 if [[ -z "$REPO" ]] && ((ANY_LIVE)); then
-  REPO="$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null | tr -d '\r')"
+  if gh_read "$WORK/repo" repo view --json nameWithOwner -q .nameWithOwner; then
+    REPO="$(tr -d '\r' <"$WORK/repo")"
+    REPO_SOURCE="gh repo view"
+  fi
   if [[ -z "$REPO" ]]; then
-    printf 'morning-brief: could not resolve owner/repo (run inside a gh repo or pass --repo)\n' >&2
-    exit 4
+    graphql_blocked "$LAST_ERR" && TRANSPORT="rest"
+    if REPO="$(repo_from_git_remote)"; then
+      REPO_SOURCE="git remote"
+    else
+      printf 'morning-brief: could not resolve owner/repo (run inside a checkout with a GitHub origin remote, or pass --repo)\n' >&2
+      [[ -n "$LAST_ERR" ]] && printf 'morning-brief: gh repo view: %s\n' "$LAST_ERR" >&2
+      exit 4
+    fi
   fi
 fi
 REPO_ARGS=()
 [[ -n "$REPO" ]] && REPO_ARGS=(--repo "$REPO")
+[[ -n "$REPO" ]] || NEEDS_LIVE_MERGED=0
 
 # --- Portable date handling ---------------------------------------------------
 # GNU `date -d` and BSD/macOS `date -j -f` are mutually exclusive dialects, and
@@ -341,7 +516,7 @@ fmt_age() {
 # --- Queue label resolution ---------------------------------------------------
 # Defaults match melodic-software's taxonomy. Live runs filter to labels that
 # actually exist in the target repo so a consuming repo with a different scheme
-# does not render misleading 0/? rows. Pass --queue-labels / --decision-label to
+# does not render misleading rows. Pass --queue-labels / --decision-label to
 # pin a custom set (same spirit as --telemetry-issue).
 resolve_queue_labels() {
   QUEUE_LABELS=()
@@ -365,23 +540,52 @@ resolve_decision_label() {
 resolve_queue_labels
 resolve_decision_label
 
+# --- Section state ---------------------------------------------------------
+# Sections render into files so the header, printed first, can carry the
+# unreadable count.
+SECTIONS_TOTAL=5
+UNREADABLE=0
+UNREADABLE_NAMES=()
+
+unreadable() {
+  # unreadable <section-name> <error>
+  UNREADABLE=$((UNREADABLE + 1))
+  UNREADABLE_NAMES+=("$1")
+  echo "  UNREADABLE: ${2:-data source failed}"
+  echo
+}
+
 # =============================================================================
 # Section 1 — queue label counts
 # =============================================================================
+count_label_gql() {
+  # count_label_gql OUTFILE label
+  gh_read "$WORK/count.raw" issue list "${REPO_ARGS[@]}" --state open --label "$2" \
+    --limit 1000 --json number -q 'length' || return 1
+  tr -d '\r' <"$WORK/count.raw" >"$1"
+}
+
+count_label_rest() {
+  # The issues endpoint also lists pull requests; exclude those so the count
+  # matches what `gh issue list` reports.
+  rest_paginate_array "$WORK/count.rest" \
+    "repos/$REPO/issues?state=open&per_page=100&labels=$(urlencode "$2")" || return 1
+  jq '[ .[] | select(has("pull_request") | not) ] | length' "$WORK/count.rest" >"$1"
+}
+
 print_queues() {
   echo "== Queues (open issues per label) =="
-  local counts="" repo_labels="" labels_to_show=() label n labels_available=0
-  if [[ -n "$COUNTS_JSON" ]]; then
-    counts="$(cat "$COUNTS_JSON")"
-  fi
-  if [[ -n "$REPO_LABELS_JSON" || (-z "$counts" && -n "$REPO") ]]; then
-    if repo_labels="$(fetch_repo_label_names)"; then
+  local labels_to_show=() label n labels_available=0
+  # The inventory only narrows the rows to labels that exist. When it cannot be
+  # read, the counts below still decide whether the section is readable.
+  if [[ -n "$REPO_LABELS_JSON" || (-z "$COUNTS_JSON" && -n "$REPO") ]]; then
+    if fetch_repo_label_names "$WORK/labels.json"; then
       labels_available=1
     fi
   fi
   if ((labels_available)); then
     for label in "${QUEUE_LABELS[@]}"; do
-      label_exists_in_repo "$label" "$repo_labels" && labels_to_show+=("$label")
+      label_exists_in_repo "$label" "$WORK/labels.json" && labels_to_show+=("$label")
     done
     if ((${#labels_to_show[@]} == 0)); then
       echo "  no queue labels found in this repo (nothing to report)"
@@ -396,35 +600,80 @@ print_queues() {
   else
     labels_to_show=("${QUEUE_LABELS[@]}")
   fi
+  local rows=()
   for label in "${labels_to_show[@]}"; do
-    if [[ -n "$counts" ]]; then
-      n="$(jq -r --arg l "$label" '.[$l] // 0' <<<"$counts" 2>/dev/null)"
+    if [[ -n "$COUNTS_JSON" ]]; then
+      n="$(jq -r --arg l "$label" 'if type == "object" then (.[$l] // 0) else 0 end' "$COUNTS_JSON" 2>/dev/null)"
     else
-      n="$(gh issue list "${REPO_ARGS[@]}" --state open --label "$label" \
-        --limit 1000 --json number -q 'length' 2>/dev/null | tr -d '\r')"
+      local count_fn_gql=count_label_gql count_fn_rest=count_label_rest
+      if [[ "$TRANSPORT" == "gh" ]]; then
+        if ! "$count_fn_gql" "$WORK/count" "$label"; then
+          if graphql_blocked "$LAST_ERR"; then
+            TRANSPORT="rest"
+          else
+            unreadable queues "$label: $LAST_ERR"
+            return
+          fi
+        fi
+      fi
+      if [[ "$TRANSPORT" == "rest" ]]; then
+        "$count_fn_rest" "$WORK/count" "$label" || {
+          unreadable queues "$label: $LAST_ERR"
+          return
+        }
+      fi
+      n="$(cat "$WORK/count")"
     fi
-    [[ -n "$n" ]] || n="?"
-    printf '  %-24s %s\n' "$label" "$n"
+    [[ "$n" =~ ^[0-9]+$ ]] || {
+      unreadable queues "$label: count not numeric"
+      return
+    }
+    rows+=("$(printf '  %-24s %s' "$label" "$n")")
   done
+  printf '%s\n' "${rows[@]}"
   echo
 }
 
 # =============================================================================
 # Section 2 — merge-ready PRs (gh-native: non-draft + mergeStateStatus CLEAN)
 # =============================================================================
+fetch_prs_gql() {
+  gh_read "$1" pr list "${REPO_ARGS[@]}" --state open --limit 200 \
+    --json number,title,url,isDraft,mergeStateStatus,reviewDecision
+}
+
+PR_TRUNCATED=""
+fetch_prs_rest() {
+  # The list endpoint carries no merge state; each PR costs one more GET for
+  # `mergeable_state`, so the read is capped. A capped read is reported as
+  # partial rather than rendered as the whole queue.
+  local out="$1" total i number
+  rest_paginate_array "$WORK/prs.rest" "repos/$REPO/pulls?state=open&per_page=100" || return 1
+  total="$(jq 'length' "$WORK/prs.rest")"
+  PR_TRUNCATED=""
+  ((total > PR_LIMIT)) && PR_TRUNCATED="$total open PRs; merge state read for the first $PR_LIMIT only (raise --pr-limit)"
+  : >"$WORK/prs.detail"
+  for ((i = 0; i < total && i < PR_LIMIT; i++)); do
+    number="$(jq -r ".[$i].number" "$WORK/prs.rest")"
+    gh_read "$WORK/pr.one" api "repos/$REPO/pulls/$number" || return 1
+    cat "$WORK/pr.one" >>"$WORK/prs.detail"
+  done
+  # Review decision is a GraphQL-only field; the REST path reports it as n/a.
+  jq -s '[ .[] | {number, title, url: .html_url, isDraft: .draft,
+                  mergeStateStatus: ((.mergeable_state // "unknown") | ascii_upcase),
+                  reviewDecision: "n/a"} ]' "$WORK/prs.detail" >"$out"
+}
+
 print_merge_ready() {
   echo "== Merge-ready PRs (non-draft, mergeStateStatus=CLEAN) =="
-  local prs
+  local prs_file="$WORK/prs.json"
   if [[ -n "$PR_JSON" ]]; then
-    prs="$(cat "$PR_JSON")"
+    prs_file="$PR_JSON"
   else
-    prs="$(gh pr list "${REPO_ARGS[@]}" --state open --limit 200 \
-      --json number,title,url,isDraft,mergeStateStatus,reviewDecision 2>/dev/null)"
-  fi
-  if [[ -z "$prs" ]]; then
-    echo "  (unable to read PR list)"
-    echo
-    return
+    gql_or_rest "$prs_file" fetch_prs_gql fetch_prs_rest || {
+      unreadable merge-ready "$LAST_ERR"
+      return
+    }
   fi
   local ready
   ready="$(jq -r '
@@ -432,12 +681,13 @@ print_merge_ready() {
     | sort_by(.number)
     | .[]
     | "  #\(.number) \(.title)\n    \(.url)  review=\(.reviewDecision // "" | if . == "" then "none" else . end)"
-  ' <<<"$prs" 2>/dev/null)"
+  ' "$prs_file" 2>/dev/null)"
   if [[ -n "$ready" ]]; then
     echo "$ready"
   else
     echo "  (none clean right now)"
   fi
+  [[ -n "$PR_TRUNCATED" ]] && echo "  PARTIAL: $PR_TRUNCATED"
   echo "  authoritative merge gate: /source-control:babysit-prs"
   echo
 }
@@ -445,35 +695,53 @@ print_merge_ready() {
 # =============================================================================
 # Section 3 — parked decisions (needs-decision) with their RECOMMENDED line
 # =============================================================================
+fetch_decisions_gql() {
+  # One call returns body + comments for every decision issue -- no N+1
+  # hydration loop (which also avoids `gh` draining a while-read loop's stdin).
+  gh_read "$1" issue list "${REPO_ARGS[@]}" --state open --label "$DECISION_LABEL" \
+    --limit 200 --json number,title,url,body,comments
+}
+
+fetch_decisions_rest() {
+  local out="$1" total i number
+  rest_paginate_array "$WORK/dec.rest" \
+    "repos/$REPO/issues?state=open&per_page=100&labels=$(urlencode "$DECISION_LABEL")" || return 1
+  jq '[ .[] | select(has("pull_request") | not) ] | .[:200]' "$WORK/dec.rest" >"$WORK/dec.issues"
+  total="$(jq 'length' "$WORK/dec.issues")"
+  : >"$WORK/dec.detail"
+  for ((i = 0; i < total; i++)); do
+    number="$(jq -r ".[$i].number" "$WORK/dec.issues")"
+    rest_paginate_array "$WORK/dec.comments" "repos/$REPO/issues/$number/comments?per_page=100" || return 1
+    jq -c --slurpfile c "$WORK/dec.comments" ".[$i] | {number, title, url: .html_url, body, comments: (\$c[0] | map({body}))}" \
+      "$WORK/dec.issues" >>"$WORK/dec.detail"
+  done
+  jq -s '.' "$WORK/dec.detail" >"$out"
+}
+
 print_decisions() {
   echo "== Parked decisions (${DECISION_LABEL}) with RECOMMENDED lines =="
-  local decisions repo_labels="" labels_available=0
+  local decisions_file="$WORK/decisions.json"
+  # An unreadable inventory does not decide this section; the decision read
+  # below carries its own error if it fails.
   if [[ -z "$DECISIONS_JSON" && (-n "$REPO" || -n "$REPO_LABELS_JSON") ]]; then
-    if repo_labels="$(fetch_repo_label_names)"; then
-      labels_available=1
-    fi
-    if ((labels_available)) && ! label_exists_in_repo "$DECISION_LABEL" "$repo_labels"; then
+    if fetch_repo_label_names "$WORK/labels.json" &&
+      ! label_exists_in_repo "$DECISION_LABEL" "$WORK/labels.json"; then
       echo "  (decision label not found in this repo — pass --decision-label to customize)"
       echo
       return
     fi
   fi
   if [[ -n "$DECISIONS_JSON" ]]; then
-    decisions="$(cat "$DECISIONS_JSON")"
+    decisions_file="$DECISIONS_JSON"
   else
-    # One call returns body + comments for every decision issue -- no N+1
-    # hydration loop (which also avoids `gh` draining a while-read loop's stdin).
-    decisions="$(gh issue list "${REPO_ARGS[@]}" --state open --label "$DECISION_LABEL" \
-      --limit 200 --json number,title,url,body,comments 2>/dev/null)"
-    if [[ -z "$decisions" ]]; then
-      echo "  (unable to read decision queue)"
-      echo
+    gql_or_rest "$decisions_file" fetch_decisions_gql fetch_decisions_rest || {
+      unreadable decisions "$LAST_ERR"
       return
-    fi
+    }
   fi
 
   local count
-  count="$(jq -r 'length' <<<"$decisions" 2>/dev/null || echo 0)"
+  count="$(jq -r 'length' "$decisions_file" 2>/dev/null || echo 0)"
   if [[ "${count:-0}" -eq 0 ]]; then
     echo "  (none parked)"
     echo
@@ -482,27 +750,25 @@ print_decisions() {
 
   local i number title url rec
   for ((i = 0; i < count; i++)); do
-    number="$(jq -r ".[$i].number" <<<"$decisions")"
-    title="$(jq -r ".[$i].title" <<<"$decisions")"
-    url="$(jq -r ".[$i].url // \"\"" <<<"$decisions")"
+    number="$(jq -r ".[$i].number" "$decisions_file")"
+    title="$(jq -r ".[$i].title" "$decisions_file")"
+    url="$(jq -r ".[$i].url // \"\"" "$decisions_file")"
     # RECOMMENDED marker across the body and every comment. Two-tier so the
     # deliberate uppercase marker wins over an incidental lowercase mention
     # (e.g. "not recommended"): tier 1 = the uppercase RECOMMENDED token, tier 2
-    # = a case-insensitive fallback (recorded by the process note as necessary
-    # because a case-sensitive-only scan produced false negatives). BOTH tiers
-    # require a LABELED marker — RECOMMENDED immediately followed (past optional
-    # bold/space) by a `:`/`-`/em-dash separator — not mere presence. That
-    # separator is the load-bearing discriminator on each tier independently: it
-    # accepts a real marker whether at line start or mid-line ("After review,
-    # RECOMMENDED: ...") while rejecting negated prose ("... is NOT RECOMMENDED
-    # because ...", "not recommended for ..."), where the token is followed by a
-    # word, not a separator — the false positive that otherwise renders the
-    # REJECTED option. Anchoring to line start instead would wrongly drop the
+    # = a case-insensitive fallback. BOTH tiers require a LABELED marker —
+    # RECOMMENDED immediately followed (past optional bold/space) by a
+    # `:`/`-`/em-dash separator — not mere presence. That separator is the
+    # discriminator on each tier independently: it accepts a real marker whether
+    # at line start or mid-line ("After review, RECOMMENDED: ...") while
+    # rejecting negated prose ("... is NOT RECOMMENDED because ...", "not
+    # recommended for ..."), where the token is followed by a word, not a
+    # separator. Anchoring to line start instead would wrongly drop the
     # legitimate mid-line marker form.
     local combined marker_re
     marker_re='RECOMMENDED[[:space:]]*\**[[:space:]]*[-:—]'
     combined="$(jq -r ".[$i] | (.body // \"\") + \"\n\" + ((.comments // []) | map(.body // \"\") | join(\"\n\"))" \
-      <<<"$decisions")"
+      "$decisions_file")"
     rec="$(grep -am1 -E "$marker_re" <<<"$combined")"
     [[ -n "$rec" ]] || rec="$(grep -iam1 -E "$marker_re" <<<"$combined")"
     # Strip leading list bullets / enumeration / blockquote / bold so the line reads clean.
@@ -533,32 +799,61 @@ print_decisions() {
 # =============================================================================
 # Section 4 — loop-lane telemetry freshness (per-lane telemetry-issue comments)
 # =============================================================================
-resolve_telemetry_issue() {
-  [[ -n "$TELEMETRY_ISSUE" ]] && {
-    echo "$TELEMETRY_ISSUE"
-    return
-  }
-  # Auto-discover by title. Absent in a consuming repo -> empty (caller degrades).
-  gh issue list "${REPO_ARGS[@]}" --state open \
-    --search "loop-lane telemetry running per-lane status in:title" \
-    --json number -q 'sort_by(.number) | .[0].number // empty' 2>/dev/null | tr -d '\r'
+find_telemetry_issue_gql() {
+  gh_read "$WORK/tel.raw" issue list "${REPO_ARGS[@]}" --state open \
+    --search "$TELEMETRY_SEARCH" \
+    --json number -q 'sort_by(.number) | .[0].number // empty' || return 1
+  tr -d '\r' <"$WORK/tel.raw" >"$1"
 }
 
+find_telemetry_issue_rest() {
+  rest_paginate_array "$WORK/tel.rest" "repos/$REPO/issues?state=open&per_page=100" || return 1
+  jq -r --argjson tokens "$(printf '%s\n' "${TELEMETRY_TITLE_TOKENS[@]}" | jq -R . | jq -s .)" '
+    [ .[] | select(has("pull_request") | not)
+      | select(.title as $t | $tokens | all(. as $tok | ($t | ascii_downcase | contains($tok))))
+      | .number ]
+    | sort | .[0] // empty
+  ' "$WORK/tel.rest" >"$1"
+}
+
+fetch_telemetry_comments_gql() {
+  gh_read "$1" issue view "$TELEMETRY_ISSUE_RESOLVED" "${REPO_ARGS[@]}" --json comments -q '.comments'
+}
+
+fetch_telemetry_comments_rest() {
+  rest_paginate_array "$WORK/telc.rest" "repos/$REPO/issues/$TELEMETRY_ISSUE_RESOLVED/comments?per_page=100" || return 1
+  jq 'map({body})' "$WORK/telc.rest" >"$1"
+}
+
+TELEMETRY_ISSUE_RESOLVED=""
 print_telemetry() {
   echo "== Lane telemetry freshness (last-cycle age + flags) =="
-  local comments issue
+  local comments_file="$WORK/telemetry.json"
   if [[ -n "$TELEMETRY_JSON" ]]; then
-    comments="$(cat "$TELEMETRY_JSON")"
+    comments_file="$TELEMETRY_JSON"
   else
-    issue="$(resolve_telemetry_issue)"
-    if [[ -z "$issue" ]]; then
+    if [[ -n "$TELEMETRY_ISSUE" ]]; then
+      TELEMETRY_ISSUE_RESOLVED="$TELEMETRY_ISSUE"
+    else
+      gql_or_rest "$WORK/tel.issue" find_telemetry_issue_gql find_telemetry_issue_rest || {
+        unreadable telemetry "issue search: $LAST_ERR"
+        return
+      }
+      TELEMETRY_ISSUE_RESOLVED="$(tr -d '[:space:]' <"$WORK/tel.issue")"
+    fi
+    if [[ -z "$TELEMETRY_ISSUE_RESOLVED" ]]; then
       echo "  no telemetry issue found (nothing to report)"
       echo
       return
     fi
-    comments="$(gh issue view "$issue" "${REPO_ARGS[@]}" --json comments -q '.comments' 2>/dev/null)"
-    echo "  source: issue #$issue"
+    gql_or_rest "$comments_file" fetch_telemetry_comments_gql fetch_telemetry_comments_rest || {
+      unreadable telemetry "issue #$TELEMETRY_ISSUE_RESOLVED: $LAST_ERR"
+      return
+    }
+    echo "  source: issue #$TELEMETRY_ISSUE_RESOLVED"
   fi
+  local comments
+  comments="$(cat "$comments_file")"
   if [[ -z "$comments" || "$comments" == "null" ]]; then
     echo "  no telemetry issue found (nothing to report)"
     echo
@@ -609,69 +904,68 @@ print_telemetry() {
 # =============================================================================
 # A review that lands AFTER a merge has nowhere to go: the merge gate is a
 # merge-time predicate that already passed, the babysit lane works OPEN PRs, and
-# nothing on a merged PR surfaces its open threads. Real case: six findings (one
-# P1) posted 46 seconds after #1720 merged sat unread for a day (#1777).
+# nothing on a merged PR surfaces its open threads.
 #
 # Only threads whose FIRST comment postdates the merge are reported. A thread
 # that predates it was visible to the gate, so its being open is an ordinary
 # unresolved-thread matter and not this failure mode.
-print_stranded() {
-  echo "== Findings stranded on merged PRs (last ${STRANDED_DAYS}d) =="
-  local merged
-  if [[ -n "$MERGED_JSON" ]]; then
-    merged="$(cat "$MERGED_JSON")"
-  elif [[ -z "$REPO" ]]; then
-    # Every other section can be driven entirely from fixtures, so a fixture-only
-    # run never resolves a repo. Degrade like the telemetry section does rather
-    # than making this section's live path a new requirement on those runs.
-    echo "  (no repo resolved — pass --repo or --merged-json)"
-    echo
-    return
-  else
-    # `search/issues` dates the merge; reviewThreads needs GraphQL. One paged
-    # GraphQL query does both, so this stays a single call rather than N+1.
-    # shellcheck disable=SC2016  # $owner/$name/$endCursor are GraphQL variables bound by -F, and MUST reach the server unexpanded
-    merged="$(gh api graphql --paginate -F owner="${REPO%%/*}" -F name="${REPO##*/}" -f query='
-      query($owner:String!, $name:String!, $endCursor:String) {
-        repository(owner:$owner, name:$name) {
-          pullRequests(states:MERGED, first:25, orderBy:{field:UPDATED_AT, direction:DESC}, after:$endCursor) {
-            pageInfo { hasNextPage endCursor }
-            nodes {
-              number title url mergedAt
-              # 100 is the GraphQL page maximum. --paginate follows only the
-              # OUTER cursor, so a PR with more threads than this would be
-              # truncated with no signal. hasNextPage is read below and
-              # reported, because a partial read must never render as an
-              # all-clear.
-              reviewThreads(first:100) {
-                pageInfo { hasNextPage }
-                nodes {
-                  isResolved
-                  comments(first:1) { nodes { createdAt author { login } body } }
-                }
+fetch_merged_gql() {
+  # `search/issues` dates the merge; reviewThreads needs GraphQL. One paged
+  # GraphQL query does both, so this stays a single call rather than N+1.
+  # shellcheck disable=SC2016  # $owner/$name/$endCursor are GraphQL variables bound by -F, and MUST reach the server unexpanded
+  gh_read "$1" api graphql --paginate -F owner="${REPO%%/*}" -F name="${REPO##*/}" -f query='
+    query($owner:String!, $name:String!, $endCursor:String) {
+      repository(owner:$owner, name:$name) {
+        pullRequests(states:MERGED, first:25, orderBy:{field:UPDATED_AT, direction:DESC}, after:$endCursor) {
+          pageInfo { hasNextPage endCursor }
+          nodes {
+            number title url mergedAt
+            # 100 is the GraphQL page maximum. --paginate follows only the
+            # OUTER cursor, so a PR with more threads than this would be
+            # truncated with no signal. hasNextPage is read below and
+            # reported, because a partial read must never render as an
+            # all-clear.
+            reviewThreads(first:100) {
+              pageInfo { hasNextPage }
+              nodes {
+                isResolved
+                comments(first:1) { nodes { createdAt author { login } body } }
               }
             }
           }
         }
-      }' 2>/dev/null)"
-  fi
-  if [[ -z "$merged" ]]; then
-    echo "  (unable to read merged PRs)"
+      }
+    }'
+}
+
+print_stranded() {
+  echo "== Findings stranded on merged PRs (last ${STRANDED_DAYS}d) =="
+  local merged_file="$WORK/merged.json"
+  if [[ -n "$MERGED_JSON" ]]; then
+    merged_file="$MERGED_JSON"
+    # A fixture is held to the same standard as a live read: an error document
+    # is an unreadable source, never an all-clear.
+    local fixture_err
+    fixture_err="$(body_error "$merged_file")"
+    if [[ -n "$fixture_err" ]]; then
+      unreadable stranded "$fixture_err"
+      return
+    fi
+  elif [[ -z "$REPO" ]]; then
+    # A fixture-only run resolves no repo; that is an empty state, not a failure.
+    echo "  (no repo resolved — pass --repo or --merged-json)"
     echo
     return
-  fi
-  # FAIL LOUD. A GraphQL error document is well-formed JSON that carries no
-  # `data`, so the extraction below yields an empty list and the section would
-  # print "every merged PR is clear" — reporting an unread API as an all-clear,
-  # which is the exact fail-open shape this section exists to catch. Observed
-  # live: a rate-limit error rendered as a clean window.
-  local api_err
-  api_err="$(jq -s -r '[ .. | objects | select(has("errors")) | .errors[]?.message ] | first // empty' <<<"$merged" 2>/dev/null)"
-  if [[ -n "$api_err" ]]; then
-    echo "  (unable to read merged PRs — the API returned an error, so this is NOT an all-clear)"
-    echo "    $api_err"
-    echo
+  elif [[ "$TRANSPORT" == "rest" ]]; then
+    # reviewThreads is GraphQL-only; there is no REST read for this section.
+    unreadable stranded "review threads need GraphQL, which this session does not serve"
     return
+  else
+    if ! fetch_merged_gql "$merged_file"; then
+      graphql_blocked "$LAST_ERR" && TRANSPORT="rest"
+      unreadable stranded "$LAST_ERR"
+      return
+    fi
   fi
 
   local cutoff stranded
@@ -738,7 +1032,7 @@ print_stranded() {
     | sort_by(if .sev == "--" then 99 else (.sev[1:] | tonumber) end, .pr)
     | .[]
     | "  [\(.sev)] #\(.pr) \(.title)  (\(.n) finding\(if .n == 1 then "" else "s" end))\n    \(.url)  by \(.author)"
-  ' <<<"$merged" 2>/dev/null)"
+  ' "$merged_file" 2>/dev/null)"
 
   # A truncated thread page means the read was PARTIAL, so neither a finding
   # list nor an all-clear below can be trusted to be complete. Say so.
@@ -747,7 +1041,7 @@ print_stranded() {
     [ .. | objects | select(has("data")) | .data.repository.pullRequests.nodes[]?
       | select(.reviewThreads.pageInfo.hasNextPage == true) | .number ]
     | unique | map("#\(.)") | join(", ")
-  ' <<<"$merged" 2>/dev/null)"
+  ' "$merged_file" 2>/dev/null)"
   if [[ -n "$truncated" ]]; then
     echo "  WARNING: more than 100 review threads on $truncated — this read is PARTIAL, not an all-clear"
   fi
@@ -764,10 +1058,26 @@ print_stranded() {
 # =============================================================================
 # Render
 # =============================================================================
-printf 'Morning brief — %s — %s\n\n' "${REPO:-<fixtures>}" "$(from_epoch "$NOW_EPOCH")"
-print_queues
-print_merge_ready
-print_decisions
-print_telemetry
-print_stranded
+# Each section renders into its own file first so the header can state how
+# many were unreadable before any section prints.
+print_queues >"$WORK/s1"
+print_merge_ready >"$WORK/s2"
+print_decisions >"$WORK/s3"
+print_telemetry >"$WORK/s4"
+print_stranded >"$WORK/s5"
+
+printf 'Morning brief — %s — %s\n' "${REPO:-<fixtures>}" "$(from_epoch "$NOW_EPOCH")"
+[[ "$REPO_SOURCE" == "git remote" ]] && echo "  repo resolved from the git origin remote (gh repo view unavailable)"
+[[ "$TRANSPORT" == "rest" ]] && echo "  transport: REST (this session does not serve the gh GraphQL queries)"
+if ((UNREADABLE > 0)); then
+  echo "  $UNREADABLE of $SECTIONS_TOTAL sections unreadable: ${UNREADABLE_NAMES[*]}"
+fi
+echo
+cat "$WORK/s1" "$WORK/s2" "$WORK/s3" "$WORK/s4" "$WORK/s5"
+
+# Exit 5 only when the brief carries no data at all. A partial brief, one or
+# more sections unreadable beside others that rendered, is still a brief.
+if ((UNREADABLE >= SECTIONS_TOTAL)); then
+  exit 5
+fi
 exit 0

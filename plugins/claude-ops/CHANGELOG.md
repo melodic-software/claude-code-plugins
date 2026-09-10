@@ -3,6 +3,34 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.46.0]
+
+### Added
+
+- **`morning-brief` reads sections 1-4 from REST when the host serves only a pinned
+  set of GraphQL operations.** The `gh` subcommands ride GraphQL; on the HTTP 403 "not
+  enabled for this session" shape the script switches transport for the rest of the
+  run, names it in the header, and re-reads queue counts, the merge-ready list, parked
+  decisions, and lane telemetry from repository-scoped `gh api repos/...` endpoints.
+  The merge-ready REST path reads `mergeable_state` per open PR under a `--pr-limit`
+  cap (default 50) and reports a capped read as PARTIAL; review decisions have no REST
+  field and render `n/a`. The stranded-findings section needs review threads, which
+  have no REST read, so it renders UNREADABLE there instead of an all-clear.
+- **`morning-brief` resolves owner/repo from the checkout's `origin` remote when
+  `gh repo view` is unavailable**, and names the source in the header.
+
+### Fixed
+
+- **`morning-brief` rendered an all-clear or an absence over an unreadable source.**
+  The stranded-findings section only checked the body for an `errors` key and ignored
+  gh's exit status, so a `{"message":...}` error body (the REST and 403 shape) rendered
+  as "every merged PR in the window is clear"; the telemetry section could not tell a
+  failed search from an absent issue and printed "no telemetry issue found"; the queues
+  section printed `?`. Every section is now one of data, empty, or UNREADABLE, the
+  header counts the unreadable sections, every `gh` call checks its exit status, and
+  error detection covers both the `errors[]` and the `message` body shapes. Exit code
+  5 means every section was unreadable; a partial brief still exits 0.
+
 ## [0.45.2]
 
 ### Fixed
