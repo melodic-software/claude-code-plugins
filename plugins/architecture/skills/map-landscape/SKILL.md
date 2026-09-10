@@ -117,9 +117,10 @@ longer exist. A `last_touched` that moved is reported as `moved on <repo>` and d
 code, because the subject repository advances its own HEAD on every commit. Surface the whole
 report, gating and non-gating lines alike, before the artifacts.
 
-`--check` stops there: run the comparison, print the report, write NOTHING, and end the run with the
-comparison's own exit code. That is the CI shape, and it is the only mode in which this skill writes
-no file at all when a home is declared.
+`--check` stops there: run the comparison, print the report, write NOTHING, and report the
+comparison's exit code as the run's outcome, so a lane invoking the script directly fails on drift.
+That is the CI shape, and the only mode in which this skill writes no file at all when a home is
+declared. Do not "helpfully" refresh the record so the next run is clean.
 
 ## Remote facts, only when asked
 

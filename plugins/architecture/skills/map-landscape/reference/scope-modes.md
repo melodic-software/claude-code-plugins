@@ -58,5 +58,8 @@ the record says `remote: not used`.
 - **Every remote fact names its call.** Its `evidence` entry is the API call or `gh` command that
   supplied it, and it reads `pushed_at (remote)` rather than the local-HEAD wording, so a later
   local-only run can explain why `last_touched` moved backwards.
+- **An archived repository is charted and marked.** Archiving is a fact about the system, not a
+  reason to hide it: a landscape that quietly drops archived repositories hides exactly the
+  dependencies worth acting on. Mark it in the node annotation and in the portfolio row.
 - **Externals stay read-only.** `--remote=all` reads facts about an external repository. It never
   writes to one, and it does not extend the graph a second hop.
