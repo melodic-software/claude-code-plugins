@@ -89,6 +89,27 @@ else
   fail "disjoint behind-base: rc=$rc out='$out'"
 fi
 
+# --- a rename on the base still overlaps an edit to the pre-rename path ---
+# The overlap set must carry BOTH sides of a move. Seeing only the destination
+# would report "no overlapping paths" for a PR editing the file the base just
+# renamed away, which is the squash-reverts-a-fix shape this gate exists for.
+repo="$scratch/rename"
+make_repo "$repo"
+cd "$repo" || exit 1
+git checkout -qb feature
+printf 'feature-edit\n' >shared.txt
+git add -A && git commit -qm 'feature edits shared'
+git checkout -q main
+git mv shared.txt renamed.txt
+git commit -qm 'main renames shared'
+git checkout -q feature
+out="$(bash "$SCRIPT" --check main 2>&1)" && rc=0 || rc=$?
+if [[ $rc -eq 1 && "$out" == *"shared.txt"* ]]; then
+  ok "a rename on the base overlaps an edit to the pre-rename path"
+else
+  fail "rename overlap: rc=$rc out='$out'"
+fi
+
 # --- unresolvable base ---
 repo="$scratch/badref"
 make_repo "$repo"

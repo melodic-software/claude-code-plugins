@@ -183,10 +183,10 @@ printf '%s\n' 'plugins/alpha/hooks/hooks.json' >"$f/scripts/hook-userconfig-argv
 if out="$(run_check "$f" 2>&1)"; then
   fail "stale allowlist entry should fail, got success: $out"
 else
-  if echo "$out" | grep -q 'STALE ALLOWLIST:'; then
-    ok "stale allowlist entry (clean file) fails"
+  if echo "$out" | grep -q "STALE BASELINE: .*: 'plugins/alpha/hooks/hooks.json' names no scanned hook config"; then
+    ok "stale allowlist entry (clean file) fails under the shared STALE BASELINE prefix"
   else
-    fail "expected STALE ALLOWLIST, got: $out"
+    fail "expected the shared STALE BASELINE diagnostic, got: $out"
   fi
 fi
 rm -rf "$f"

@@ -20,8 +20,9 @@ fail() {
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-mkdir -p "$TMP/scripts"
+mkdir -p "$TMP/scripts/lib"
 cp "$SUT_SRC" "$TMP/scripts/check-skill-leaf-names.sh"
+cp "$SCRIPT_DIR/lib/read-list.sh" "$TMP/scripts/lib/"
 SUT="$TMP/scripts/check-skill-leaf-names.sh"
 REGISTRY="$TMP/scripts/skill-leaf-name-registry.txt"
 
@@ -127,7 +128,8 @@ else
   fail "wildcard entry should pass (rc=$rc): $out"
 fi
 
-# 6. Stale guard: a registry entry that no longer collides fails.
+# 6. Stale guard: a registry entry that no longer collides fails, under the one
+#    STALE BASELINE prefix scripts/lib/read-list.sh owns for every list gate.
 printf 'shared\nvanished\n' >"$REGISTRY"
 out="$(run --check)"
 rc=$?
@@ -135,6 +137,24 @@ if [[ $rc -eq 1 ]] && grep -q 'no longer carried by 2+ plugins' <<<"$out"; then
   pass "stale registry entry fails --check"
 else
   fail "stale entry should fail (rc=$rc): $out"
+fi
+if grep -q "STALE BASELINE: .*: 'vanished'" <<<"$out"; then
+  pass "the stale diagnostic carries the shared STALE BASELINE prefix"
+else
+  fail "stale diagnostic should carry the shared prefix: $out"
+fi
+
+# 6b. A FINAL ENTRY WITH NO TRAILING NEWLINE is loaded. The hand-rolled reader
+#     this replaced used a bare `while IFS= read -r`, whose last iteration
+#     returns non-zero even after filling the variable, so the entry was
+#     silently dropped and the collision it registers reported as unregistered.
+printf 'shared alpha,beta,gamma' >"$REGISTRY"
+out="$(run --check)"
+rc=$?
+if [[ $rc -eq 0 ]]; then
+  pass "a final registry entry with no trailing newline is loaded"
+else
+  fail "unterminated final entry should be loaded (rc=$rc): $out"
 fi
 
 # 7. A NEW collision on an unregistered name fails even when others are
@@ -155,8 +175,9 @@ fi
 #     here — and this is precisely the state the stale-entry guard exists to
 #     shepherd the repo into, so it must not be the one state that crashes.
 CLEAN="$(mktemp -d)"
-mkdir -p "$CLEAN/scripts" "$CLEAN/plugins/solo/skills/only"
+mkdir -p "$CLEAN/scripts/lib" "$CLEAN/plugins/solo/skills/only"
 cp "$SUT_SRC" "$CLEAN/scripts/check-skill-leaf-names.sh"
+cp "$SCRIPT_DIR/lib/read-list.sh" "$CLEAN/scripts/lib/"
 printf -- '---\nname: only\ndescription: "fixture"\n---\n' >"$CLEAN/plugins/solo/skills/only/SKILL.md"
 : >"$CLEAN/scripts/skill-leaf-name-registry.txt"
 

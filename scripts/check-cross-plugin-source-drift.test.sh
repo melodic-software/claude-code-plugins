@@ -19,8 +19,9 @@ SCRIPT="$SELF_DIR/check-cross-plugin-source-drift.sh"
 new_fixture() {
   local dir
   dir="$(mktemp -d)"
-  mkdir -p "$dir/scripts" "$dir/plugins"
+  mkdir -p "$dir/scripts/lib" "$dir/plugins"
   cp "$SCRIPT" "$dir/scripts/check-cross-plugin-source-drift.sh"
+  cp "$SELF_DIR/lib/read-list.sh" "$dir/scripts/lib/"
   chmod +x "$dir/scripts/check-cross-plugin-source-drift.sh"
   printf '%s' "$dir"
 }
@@ -96,11 +97,26 @@ registry "$f" "hooks/shared.sh"
 if out="$(run_check "$f" 2>&1)"; then
   fail "registry entry with <2 copies should fail --check, got success: $out"
 else
-  if echo "$out" | grep -q "REGISTRY STALE"; then
-    ok "registry entry with <2 copies fails --check with REGISTRY STALE"
+  if echo "$out" | grep -q "STALE BASELINE: .*: 'hooks/shared.sh' no longer appears in 2+ plugins"; then
+    ok "registry entry with <2 copies fails --check under the shared STALE BASELINE prefix"
   else
-    fail "expected REGISTRY STALE in output, got: $out"
+    fail "expected the shared STALE BASELINE diagnostic in output, got: $out"
   fi
+fi
+rm -rf "$f"
+
+# --- a final registry entry with no trailing newline is still loaded -------
+# The hand-rolled reader this replaced used a bare `while IFS= read -r`, whose
+# last iteration returns non-zero even after filling the variable, so an
+# unterminated final entry was dropped and its cluster reported UNREGISTERED.
+f="$(new_fixture)"
+plugin_file "$f" alpha hooks/shared.sh "identical"
+plugin_file "$f" beta hooks/shared.sh "identical"
+printf 'hooks/shared.sh' >"$f/scripts/cross-plugin-source-registry.txt"
+if out="$(run_check "$f" 2>&1)"; then
+  ok "a final registry entry with no trailing newline is loaded"
+else
+  fail "unterminated final registry entry should be loaded, got: $out"
 fi
 rm -rf "$f"
 

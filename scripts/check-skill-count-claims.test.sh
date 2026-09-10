@@ -27,8 +27,9 @@ fail() {
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-mkdir -p "$TMP/scripts"
+mkdir -p "$TMP/scripts/lib"
 cp "$SUT_SRC" "$TMP/scripts/check-skill-count-claims.sh"
+cp "$SCRIPT_DIR/lib/read-list.sh" "$TMP/scripts/lib/"
 SUT="$TMP/scripts/check-skill-count-claims.sh"
 EXEMPTIONS="$TMP/scripts/skill-count-claim-exemptions.txt"
 : >"$EXEMPTIONS"
@@ -287,6 +288,21 @@ if grep -q 'no longer produces a mismatch' <<<"$out"; then
 else
   fail "stale exemption should fail: $out"
 fi
+if grep -q "STALE BASELINE: .*: 'plugins/beta/README.md|a sentence that is not there'" <<<"$out"; then
+  pass "the stale exemption carries the shared STALE BASELINE prefix"
+else
+  fail "expected the shared STALE BASELINE diagnostic: $out"
+fi
+
+# 11b. A final exemption row with no trailing newline is still loaded: dropping
+#      it would let the mismatch it excuses red-line a clean tree.
+printf 'plugins/beta/README.md|It ships two skills' >"$EXEMPTIONS"
+out="$(run --check)"
+if ! grep -q 'STALE BASELINE' <<<"$out"; then
+  pass "a final exemption row with no trailing newline is loaded"
+else
+  fail "unterminated final exemption row was dropped: $out"
+fi
 
 # 12. An exemption pointing at a deleted file fails with that reason named.
 printf 'plugins/omega/README.md|anything\n' >"$EXEMPTIONS"
@@ -321,8 +337,9 @@ fi
 
 # 15. A tree with no claims at all says so rather than reporting success.
 CLEAN="$(mktemp -d)"
-mkdir -p "$CLEAN/scripts" "$CLEAN/plugins/solo/skills/only"
+mkdir -p "$CLEAN/scripts/lib" "$CLEAN/plugins/solo/skills/only"
 cp "$SUT_SRC" "$CLEAN/scripts/check-skill-count-claims.sh"
+cp "$SCRIPT_DIR/lib/read-list.sh" "$CLEAN/scripts/lib/"
 printf -- '---\nname: only\n---\n' >"$CLEAN/plugins/solo/skills/only/SKILL.md"
 printf 'No counts here.\n' >"$CLEAN/plugins/solo/README.md"
 out="$( (cd "$CLEAN" && bash "$CLEAN/scripts/check-skill-count-claims.sh" 2>&1))"

@@ -59,11 +59,14 @@ allowed() {
 }
 
 errors=0
-declare -A flagged_or_allowed=()
 
 flag() {
   local file="$1" where="$2"
-  flagged_or_allowed["$file"]=1
+  # An allowlist entry naming this file is still doing its job. Marked for every
+  # flagged file, allowed or not, so the stale guard below reports only entries
+  # that name nothing the scan reached. scripts/lib/read-list.sh owns the
+  # consumed-set and the diagnostic.
+  read_list::mark_used "$file"
   # shellcheck disable=SC2310  # allowed only greps a static file; nothing inside it can fail unexpectedly
   if allowed "$file"; then
     return 0
@@ -136,11 +139,13 @@ done
 
 # Stale-allowlist guard: every entry must name a scanned hook config that still
 # carries the token; anything else is drift the list must shed.
-for entry in ${ALLOWED_ENTRIES[@]+"${ALLOWED_ENTRIES[@]}"}; do
-  if [[ -z "${flagged_or_allowed[$entry]:-}" ]]; then
-    echo "STALE ALLOWLIST: $ALLOWLIST: '$entry' names no scanned hook config carrying \${user_config.*} — remove it" >&2
-    errors=$((errors + 1))
-  fi
+stale_entries=()
+read_list::stale_to stale_entries ALLOWED_ENTRIES
+for entry in ${stale_entries[@]+"${stale_entries[@]}"}; do
+  # shellcheck disable=SC2016  # ${user_config.*} is the literal token being described
+  read_list::stale_line "$ALLOWLIST" "$entry" \
+    'names no scanned hook config carrying ${user_config.*} — remove it'
+  errors=$((errors + 1))
 done
 
 if ((errors > 0)); then

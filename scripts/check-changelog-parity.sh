@@ -102,6 +102,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
 cd "$SCRIPT_DIR/.." || exit 2
 # shellcheck source=lib/read-list.sh
 . "$SCRIPT_DIR/lib/read-list.sh" || exit 2
+# shellcheck source=lib/changed-files.sh
+. "$SCRIPT_DIR/lib/changed-files.sh" || exit 2
 
 BASELINE="${CHANGELOG_PARITY_BASELINE:-scripts/changelog-parity-baseline.txt}"
 
@@ -116,10 +118,10 @@ esac
 
 # Grandfathered plugin names (static-check exemptions).
 declare -A grandfathered
+baseline_names=()
 if [[ -f "$BASELINE" ]]; then
   # `inline`: entries are plugin names, never regexes (scripts/lib/read-list.sh
   # owns the two comment families and why they must stay distinct).
-  baseline_names=()
   read_list::into baseline_names "$BASELINE" --comments inline || exit 2
   for name in ${baseline_names[@]+"${baseline_names[@]}"}; do
     grandfathered["$name"]=1
@@ -324,7 +326,6 @@ if [[ "$mode" == "--check-order" ]]; then
 fi
 
 if [[ "$mode" == "--check" ]]; then
-  declare -A saw_debt
   missing=0
   ahead=0
   for manifest in ${manifests[@]+"${manifests[@]}"}; do
@@ -334,10 +335,11 @@ if [[ "$mode" == "--check" ]]; then
     [[ -n "$version" ]] || continue
     if [[ -f "$plugin_dir/CHANGELOG.md" ]]; then
       if [[ -n "${grandfathered[$name]:-}" ]]; then
-        echo "STALE BASELINE: '$name' in $BASELINE now has a CHANGELOG.md — remove it." >&2
+        read_list::stale_line "$BASELINE" "$name" 'now has a CHANGELOG.md — remove it.'
         missing=$((missing + 1))
-        # Mark handled so the second stale-scan loop does not re-report it.
-        saw_debt["$name"]=1
+        # Marked so the sweep below does not report the same entry a second time
+        # under its other reason. scripts/lib/read-list.sh owns the consumed-set.
+        read_list::mark_used "$name"
       fi
       # Validated for EVERY plugin that keeps a changelog, not only one with a
       # heading to compare against: an uncomparable manifest version is a defect
@@ -362,7 +364,9 @@ if [[ "$mode" == "--check" ]]; then
       continue
     fi
     if [[ -n "${grandfathered[$name]:-}" ]]; then
-      saw_debt["$name"]=1
+      # The entry still names a versioned plugin with no CHANGELOG.md, which is
+      # exactly the debt it records.
+      read_list::mark_used "$name"
       continue
     fi
     echo "MISSING CHANGELOG: $plugin_dir carries a versioned $manifest but no $plugin_dir/CHANGELOG.md." >&2
@@ -370,11 +374,12 @@ if [[ "$mode" == "--check" ]]; then
     missing=$((missing + 1))
   done
   # A baseline name that matches no versioned-and-changelog-less plugin is stale.
-  for name in "${!grandfathered[@]}"; do
-    if [[ -z "${saw_debt[$name]:-}" ]]; then
-      echo "STALE BASELINE: '$name' in $BASELINE no longer names a versioned plugin missing a CHANGELOG.md — remove it." >&2
-      missing=$((missing + 1))
-    fi
+  stale_names=()
+  read_list::stale_to stale_names baseline_names
+  for name in ${stale_names[@]+"${stale_names[@]}"}; do
+    read_list::stale_line "$BASELINE" "$name" \
+      'no longer names a versioned plugin missing a CHANGELOG.md — remove it.'
+    missing=$((missing + 1))
   done
   if ((missing > 0 || ahead > 0)); then
     ((ahead > 0)) && echo "A changelog entry must not name a version the manifest has not reached; the manifest may sit above the newest heading, never below it." >&2
@@ -394,7 +399,7 @@ if [[ -z "${2:-}" ]]; then
   exit 2
 fi
 base="$2"
-if ! git rev-parse --verify --quiet "${base}^{commit}" >/dev/null; then
+if ! changed_files::verify_base "$base"; then
   echo "check-changelog-parity: base ref '$base' is not a resolvable commit." >&2
   exit 2
 fi
@@ -417,16 +422,19 @@ declare -A shipped_changed
 # --check-preserved. Same two roots --check-order sweeps.
 touched_changelogs=()
 declare -A seen_changelog
-# Read the change set's touched paths via COMMAND substitution, not process
-# substitution: this gate is a required CI merge check, and a git failure here
-# must fail loud, never silently pass. Process substitution swallows git's exit
-# status, so a diff that genuinely cannot be computed (e.g. no common ancestor
-# between "$base" and HEAD -> "fatal: no merge base", exit 128) would yield an
-# empty result, skip every plugin's bumped_candidate guard below, and let the
-# gate exit 0 without checking anything (fail-open). Command substitution
-# propagates that non-zero status so the guard fires. A legitimate empty diff
-# ("zero files changed") succeeds with empty output and correctly leaves
-# bumped_candidate empty.
+# The change set's touched paths are read through scripts/lib/changed-files.sh,
+# whose whole reason for existing is that a git failure here must fail loud and
+# never silently pass: a diff that genuinely cannot be computed (e.g. no common
+# ancestor between "$base" and HEAD -> "fatal: no merge base", exit 128) would
+# otherwise yield an empty result, skip every plugin's bumped_candidate guard
+# below, and let the gate exit 0 having checked nothing. The library returns
+# non-zero there, and the guard fires. A legitimate empty diff ("zero files
+# changed") succeeds with no paths and correctly leaves bumped_candidate empty.
+#
+# `--include-deleted` is deliberate: this is a CLASSIFIER, not a scanner. A
+# deleted plugin file is still a change to that plugin, and a deleted CHANGELOG
+# is exactly what --check-preserved has to see; dropping either would make the
+# gate pass over the change it exists to catch.
 # The change set is THIS BRANCH's own commits: fork point to branch tip. On a
 # pull_request checkout HEAD is the event's synthetic merge commit (parent 1 =
 # base tip, parent 2 = the branch's own tip); diffing or merge-basing against
@@ -442,11 +450,12 @@ if ! merge_base="$(git merge-base "$base" "$head_commit")"; then
   echo "check-changelog-parity: 'git merge-base $base $head_commit' failed (no common ancestor, or history not fetched deeply enough); refusing to pass without checking." >&2
   exit 2
 fi
-if ! diff_paths="$(git diff --name-only "$merge_base" "$head_commit")"; then
-  echo "check-changelog-parity: 'git diff --name-only $merge_base $head_commit' failed; refusing to pass without checking." >&2
+diff_paths=()
+if ! changed_files::into diff_paths "$merge_base..$head_commit" --include-deleted; then
+  echo "check-changelog-parity: the diff from $merge_base to $head_commit failed; refusing to pass without checking." >&2
   exit 2
 fi
-while IFS= read -r path; do
+for path in ${diff_paths[@]+"${diff_paths[@]}"}; do
   case "$path" in
   plugins/*/.claude-plugin/plugin.json)
     rest="${path#plugins/}"
@@ -477,7 +486,7 @@ while IFS= read -r path; do
     ;;
   *) ;;
   esac
-done <<<"$diff_paths"
+done
 
 # ============================ --check-preserved =============================
 # Every version heading a touched changelog carried at the FORK POINT must still

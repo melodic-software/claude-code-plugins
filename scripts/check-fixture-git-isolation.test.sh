@@ -39,8 +39,9 @@ REPO=""
 new_repo() {
   seq_n=$((seq_n + 1))
   REPO="$TMP/r$seq_n"
-  mkdir -p "$REPO/scripts"
+  mkdir -p "$REPO/scripts/lib"
   cp "$SCRIPT" "$REPO/scripts/check-fixture-git-isolation.sh"
+  cp "$ROOT/scripts/lib/read-list.sh" "$REPO/scripts/lib/"
   git -C "$REPO" init -q
   git -C "$REPO" config user.email t@t.test
   git -C "$REPO" config user.name test

@@ -15,7 +15,7 @@ SCRIPT="$SELF_DIR/check-changelog-parity.sh"
 # failure. See #3161.
 stage_libs() {
   mkdir -p "$1/lib"
-  cp "$SELF_DIR/lib/read-list.sh" "$1/lib/"
+  cp "$SELF_DIR/lib/read-list.sh" "$SELF_DIR/lib/changed-files.sh" "$1/lib/"
 }
 # shellcheck source=test-git-helpers.sh
 . "$SELF_DIR/test-git-helpers.sh"

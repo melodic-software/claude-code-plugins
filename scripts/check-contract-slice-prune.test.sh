@@ -33,8 +33,9 @@ git_q() { git -c user.email=t@t -c user.name=t -c commit.gpgsign=false -c mainte
 mk_repo() {
   local dir
   dir="$(mktemp -d)"
-  mkdir -p "$dir/scripts" "$dir/lib" "$dir/docs/topics"
+  mkdir -p "$dir/scripts/lib" "$dir/lib" "$dir/docs/topics"
   cp "$SCRIPT" "$dir/scripts/check-contract-slice-prune.sh"
+  cp "$SELF_DIR/lib/read-list.sh" "$SELF_DIR/lib/changed-files.sh" "$dir/scripts/lib/"
   # The gate delegates the concern-file scalar parse to the shared helper, so a
   # fixture repo must carry it too — running against a repo without it is the
   # fail-closed case, not the normal one.
@@ -418,7 +419,10 @@ printf 'edit\n' >>"$repo/README.md"
   # that aborts the sequence. The diagnosis stays a bare echo: fail() called in
   # here would increment the subshell's own copy of FAIL and the suite would
   # still exit 0. The outer branch below is what red-lines the run.
-  git_must() { git_q "$@" || { echo "traced fixture command failed: git $*" >&2; exit 1; }; }
+  git_must() { git_q "$@" || {
+    echo "traced fixture command failed: git $*" >&2
+    exit 1
+  }; }
   git_must add -A
   git_must commit -m traced-commit
   git_must checkout -b side

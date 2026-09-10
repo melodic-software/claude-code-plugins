@@ -13,8 +13,9 @@ SCRIPT="$SELF_DIR/check-skill-precompute-compose.sh"
 new_fixture() {
   local dir
   dir="$(mktemp -d)"
-  mkdir -p "$dir/scripts" "$dir/plugins/demo/skills/sample"
+  mkdir -p "$dir/scripts/lib" "$dir/plugins/demo/skills/sample"
   cp "$SCRIPT" "$dir/scripts/check-skill-precompute-compose.sh"
+  cp "$SELF_DIR/lib/changed-files.sh" "$dir/scripts/lib/"
   chmod +x "$dir/scripts/check-skill-precompute-compose.sh"
   printf '%s' "$dir"
 }
@@ -212,6 +213,41 @@ elif [[ "$rc" -eq 0 ]]; then
   fail "an invalid base ref passed SILENTLY (rc=0), the #3377 shape: $out"
 else
   fail "an invalid base ref should exit 2 (rc=$rc): $out"
+fi
+rm -rf "$f"
+
+# --- a git diff that fails AFTER ref validation exits non-zero ---------------
+#
+# Validating the ref only covers the ref. Every other way a diff can fail -- a
+# shallow clone missing an object, a corrupt pack, an unreadable index --
+# resolves the base fine and then dies inside `git diff`, and the hand-rolled
+# `mapfile -t targets < <(git diff ...)` this replaced could not see it: the
+# parent read an empty `targets`, scanned zero files and exited 0, having
+# gated nothing. The fixture reproduces that class exactly by deleting the base
+# commit's `plugins` tree object: `<base>^{commit}` still resolves (the commit
+# object is intact), and `git diff <base>` cannot read the tree.
+f="$(new_git_fixture)"
+skill_md "$f" $'---\ndescription: test\n---\n\n## Body\n\nNo precompute here.\n'
+git_test_config "$f" add -A >/dev/null
+git_test_config "$f" commit -qm base >/dev/null
+base="$(git -C "$f" rev-parse HEAD)"
+skill_md "$f" $'---\ndescription: test\n---\n\n## Body\n\nStill no precompute.\n'
+git_test_config "$f" add -A >/dev/null
+git_test_config "$f" commit -qm tip >/dev/null
+subtree="$(git -C "$f" rev-parse "$base:plugins")"
+rm -f "$f/.git/objects/${subtree:0:2}/${subtree:2}"
+if git -C "$f" rev-parse --verify --quiet "${base}^{commit}" >/dev/null; then
+  ok "the fixture's base ref still validates (the failure is in the diff, not the ref)"
+else
+  fail "fixture setup: the base ref stopped resolving, so this asserts the wrong thing"
+fi
+out="$(run_check "$f" "$base" 2>&1)" && rc=0 || rc=$?
+if [[ "$rc" -eq 0 ]]; then
+  fail "a failed git diff passed SILENTLY (rc=0): $out"
+elif echo "$out" | grep -q 'refusing to report an empty change set'; then
+  ok "a git diff failure after ref validation exits non-zero"
+else
+  fail "expected the changed-files refusal diagnostic (rc=$rc): $out"
 fi
 rm -rf "$f"
 

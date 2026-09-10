@@ -17,7 +17,7 @@ SCRIPT="$SELF_DIR/check-changed-skills.sh"
 # failure. See #2914.
 stage_libs() {
   mkdir -p "$1/lib"
-  cp "$SELF_DIR/lib/changed-files.sh" "$1/lib/"
+  cp "$SELF_DIR/lib/changed-files.sh" "$SELF_DIR/lib/read-list.sh" "$1/lib/"
 }
 # shellcheck source=test-git-helpers.sh
 . "$SELF_DIR/test-git-helpers.sh"
@@ -357,10 +357,35 @@ printf '%s\n' 'plugins/p1/skills/skipme  # stale' >"$r/scripts/evals-warrant-exe
 commit_all "$r" base >/dev/null
 b="$(base_sha "$r")"
 add_skill "$r" p1 skipme SKILL.md
-if run "$r" "$b" >/dev/null 2>&1; then
-  fail "stale evals exemption (skill ships evals) should fail"
-else
+out="$(run "$r" "$b" 2>&1)"
+rc=$?
+if [[ $rc -ne 0 ]]; then
   ok "stale evals exemption (skill ships evals) fails"
+else
+  fail "stale evals exemption (skill ships evals) should fail"
+fi
+if [[ "$out" == *"STALE BASELINE: "*"'plugins/p1/skills/skipme' names a skill that now ships evals"* ]]; then
+  ok "the stale exemption carries the shared STALE BASELINE prefix"
+else
+  fail "expected the shared STALE BASELINE diagnostic, got: $out"
+fi
+rm -rf "$r"
+
+# --- a final exemption row with no trailing newline is still loaded --------
+# The hand-rolled reader this replaced kept such a row only because it carried
+# the `|| [[ -n "$raw" ]]` tail by hand; the shared reader owns that now, and
+# dropping the row would silently hand the skill --require-evals.
+r="$(mk_repo)"
+add_skill "$r" p1 skipme
+commit_all "$r" base >/dev/null
+b="$(base_sha "$r")"
+add_skill "$r" p1 skipme SKILL.md
+printf '%s' 'plugins/p1/skills/skipme' >"$r/scripts/evals-warrant-exemptions.txt"
+run "$r" "$b" >/dev/null 2>&1
+if ! grep -q "args=--require-evals skipme" "$r/checklog" 2>/dev/null; then
+  ok "a final exemption row with no trailing newline is loaded"
+else
+  fail "unterminated final exemption row was dropped: $(cat "$r/checklog" 2>/dev/null)"
 fi
 rm -rf "$r"
 
