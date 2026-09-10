@@ -1,9 +1,9 @@
-# Tracker mechanics — the `gh` commands
+# Tracker mechanics: the `gh` commands
 
 `/planning:wayfind` operates the map through the GitHub Issues backend directly, the same idiom as the
 sibling `/work-items` skill (backend-agnostic "work items" language, plain `gh`). All commands
 run against the current repository. Where the consuming project routes tracker **writes**
-through a bot identity or wrapper, follow that project's own rules — with one exception: the
+through a bot identity or wrapper, follow that project's own rules, with one exception: the
 claim assignment (`--add-assignee "@me"`) always runs on the session identity, never a shared
 bot, or the collision check silently breaks.
 
@@ -13,14 +13,14 @@ Native primitives (gh ≥ 2.94; the flags and the JSON shapes below were verifie
 queryable as JSON fields. **Shape gotcha:** `subIssues` and `blockedBy` are objects,
 `{"nodes": [...], "totalCount": N}`, NOT flat arrays. Use `.subIssues.nodes[]` and read blockers from
 `.blockedBy.nodes[]`; `.blockedBy | length` returns the key count (always 2), never the
-blocker count. (`assignees` and `labels` ARE flat arrays — `| length` is correct for those.)
-**A closed blocker stays in the edge set** — `blockedBy.totalCount` still counts it after it
+blocker count. (`assignees` and `labels` ARE flat arrays, so `| length` is correct for those.)
+**A closed blocker stays in the edge set:** `blockedBy.totalCount` still counts it after it
 closes. Frontier must count only **OPEN** blockers (`.blockedBy.nodes[] | select(.state=="OPEN")`),
 or every item whose blocker ever closed is stranded off the frontier forever.
 
 ## Resolve the container label (once per session, before any map read or write)
 
-The map marker is the **container label** the work-item tracker seam defines — the same
+The map marker is the **container label** the work-item tracker seam defines, the same
 `config.container_label` binding key, same shipped default (`work-items` CONTRACT.md,
 "Containers and state"). Resolving it here instead of hardcoding `work-map` keeps wayfind
 maps and decompose containers on ONE marker: a repo that remaps the label would otherwise
@@ -46,11 +46,11 @@ CONTAINER_LABEL=${CONTAINER_LABEL:-work-map}
 The snippets below use `"$CONTAINER_LABEL"`; prose that says `work-map` means the shipped
 default. Wayfind reads the binding file directly (it never routes through the seam's
 loader), so the type check above repeats the seam's rule on this path rather than assuming
-the seam already ran — on the ERROR branch, stop and report instead of creating anything.
+the seam already ran. On the ERROR branch, stop and report instead of creating anything.
 
 ## Bootstrap labels (first use in a repo)
 
-`/planning:wayfind` uses its own taxonomy — the container label (default `work-map`), `wayfind: research|interview|design|prototype|task`
+`/planning:wayfind` uses its own taxonomy: the container label (default `work-map`), `wayfind: research|interview|design|prototype|task`
 (axis labels follow the colon-space grammar so label-as-code owners with a `prefix: value` convention
 can declare them verbatim), `needs-human`. At chart-mode entry, **verify** the taxonomy is present because an unknown `--label`
 fails `gh issue create`. Read the consuming repository's instructions and configuration for label
@@ -74,7 +74,7 @@ done
 gh issue create --title "Map: <effort>" --label "$CONTAINER_LABEL" --body-file <map-body.md>
 ```
 
-A map is never assigned and never carries a claim label — it is a container, not a work item.
+A map is never assigned and never carries a claim label: it is a container, not a work item.
 
 ## Create a typed decision item (sub-issue of the map)
 
@@ -96,13 +96,13 @@ gh issue edit <item#> --add-label needs-human      # interview | design | protot
 gh issue edit <item#> --add-blocked-by <blocker#>
 ```
 
-Never invent edges to impose order — an edge means the blocker's resolution is a genuine
+Never invent edges to impose order. An edge means the blocker's resolution is a genuine
 precondition for phrasing or answering the dependent decision.
 
 ## Compute the frontier
 
 `frontier = open ∧ blocked-by count == 0 ∧ unassigned` (in non-interactive sessions, also
-`∧ NOT needs-human`). Core-side derivation over the map's sub-issues — no server-side search
+`∧ NOT needs-human`). Core-side derivation over the map's sub-issues, with no server-side search
 syntax needed:
 
 ```shell
@@ -121,11 +121,11 @@ done
 # to the per-item jq filter above.
 ```
 
-## Claim a frontier item (mirrors `/work-items` — one claim model across both skills)
+## Claim a frontier item (mirrors `/work-items`, one claim model across both skills)
 
 Optimistic locking via **claim-comment order** (the sibling's mechanism). Assignee comparison
 is NOT sufficient: two same-identity sessions both assign `@me` and resolve to one login, so
-neither can tell who won. The discriminator is the claim comment — GitHub timestamps each, and
+neither can tell who won. The discriminator is the claim comment: GitHub timestamps each, and
 the earliest wins. Embed a per-session marker in the comment so you can recognize your own.
 
 ```shell
@@ -158,7 +158,7 @@ release in a comment.
 
 In-scope close-out is atomic: comment → Decisions-so-far → close. A wrongly scoped item
 (on the tracker but not this effort) closes with one Out-of-scope line and no
-Decisions-so-far pointer — see the Decisions-so-far / Out-of-scope sections in
+Decisions-so-far pointer: see the Decisions-so-far / Out-of-scope sections in
 [`map-anatomy.md`](map-anatomy.md).
 
 ```shell

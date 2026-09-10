@@ -517,7 +517,7 @@ pin_section "loop.md Step 3 section is unchanged (it twins the confirmation-gate
   "$LOOP" \
   "## Step 3. Recognize the stop condition" \
   "## Step 4. Section guidance for the Brief" \
-  "ea3221a14c749a2f0f9c3bb0b18f56f3a2c0c9dacc8c280cb45f5560490a33ee"
+  "fa1bf9aafbcc7b0dc42b9037f620444b68c32424e0a2367ee36d4c7f55e8dd8f"
 pin_section "loop.md Step 4 section is unchanged (it twins the USER-RESERVED arbiter guidance)" \
   "$LOOP" \
   "## Step 4. Section guidance for the Brief" \

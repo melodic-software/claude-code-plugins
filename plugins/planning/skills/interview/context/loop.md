@@ -281,12 +281,12 @@ What the gate cannot prove: it grades the interview's own record, so a question 
 
 Stop when ALL hold:
 
-- The frontier is empty: every consequential unknown is **resolved** or **explicitly captured as a named assumption** with a revisit trigger
+- The frontier is empty: every unknown the task depends on is **resolved** or **explicitly captured as a named assumption** with a revisit trigger
 - The user can describe the goal in one paragraph without contradicting the constraints or acceptance criteria
 - Acceptance criteria are testable: each points at a check, observation, or measurement
 - **Confirmation gate** (`me` and `auto`): the shared understanding is restated and the user explicitly confirms it. Do not persist the contract or hand off on an empty frontier alone. `lock` is exempt: invoking it IS the confirmation (its STOP-on-gap rule still applies)
 
-Do NOT stop early because the user gets impatient. If a real consequential unknown remains, name it ("one open item: X. Willing to ship as an assumption?") and let them choose. Do NOT keep asking past the stop condition; that is its own anti-pattern.
+Do NOT stop early because the user gets impatient. If a real unknown the task depends on remains, name it ("one open item: X. Willing to ship as an assumption?") and let them choose. Do NOT keep asking past the stop condition; that is its own anti-pattern.
 
 **`me` mode:** the stop condition is an empty decision-tree ledger (every consequential branch decided) plus the confirmation gate, never a question count.
 
