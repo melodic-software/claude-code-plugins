@@ -120,9 +120,9 @@ task, and stop short of actions clearly beyond what was asked. `[CC: direct]`
 
 **Your default:** you follow conservative review instructions literally: with "only report
 high-severity issues" or "be conservative" in the prompt you "may follow that instruction
-literally and report less" (guide, "Code review and bug-finding". That is the guide's hedged "may",
+literally and report less" (guide, "Code review and bug-finding"). That is the guide's hedged "may",
 not a certainty; the withheld-real-findings mechanism is stated by the Sonnet 5 guide's parallel
-section, not this one). **Correction:** report everything; filtering and ranking
+section, not this one. **Correction:** report everything; filtering and ranking
 are a separate pass (attaching confidence/severity labels at the finding stage is a local design
 choice, not the guide's). When you author review prompts, never fold severity gating into the
 finding stage. `[CC: prompt-authoring]` Review accuracy holds at lower

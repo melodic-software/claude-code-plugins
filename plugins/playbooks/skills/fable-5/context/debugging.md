@@ -18,7 +18,7 @@ You are debugging: an observed failure with no confirmed cause. Treat it as a se
 
 - Quote the exact message to yourself before paraphrasing it, because paraphrase silently substitutes your prior belief for the evidence, and the literal words constrain the cause more tightly than your summary of them.
 
-> Weak: "it can't find property x, something is wrong with x."
+> Weak: "it can't find property x. Something is wrong with x."
 >
 > Strong: "`cannot read property 'x' of undefined`: the *receiver* is undefined; x is irrelevant until I know why the object is missing."
 

@@ -27,7 +27,7 @@ TRIGGER: two or more *explanations*, mechanisms or interpretations of observed b
 
 > Weak: "It's probably the cache; I'll keep the config theory in mind." The phrase "in mind" carries no conditions; the config theory is already dead, just unannounced.
 >
-> Strong: "Leader: stale cache, killed if it still fails with cache disabled. Challenger: config precedence, killed if it fails identically under the default config. Both alive; neither condition observed yet."
+> Strong: "Leader: stale cache. Kill it. Still fails with cache disabled. Challenger: config precedence, killed if it fails identically under the default config. Both alive; neither condition observed yet."
 
 ## Commit provisionally; pre-name the switch signal
 

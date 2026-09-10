@@ -46,14 +46,14 @@ TRIGGER: run the sort at frame time, and again any moment you catch yourself cho
 
 1. Enumerate the plausible readings, usually two or three.
 2. Sketch each in one line: which surface changes, what the completion check would be.
-3. Diff the sketches. Identical → ignorable. Any divergence → load-bearing.
+3. Diff the sketches. Identical → ignorable. Any divergence → decisive.
 
 - Ignorable → choose the conventional reading, record the assumption in one line, and proceed, because resolving it costs a round-trip and buys nothing, and a session that asks about everything trains the user to stop reading its questions. This is the same rule as the communication chapter, section "Decide, or ask" (its conventional-default path).
-- Load-bearing → exhaust evidence before opinion: many are facts the environment answers faster and more reliably than a round-trip: whether the config already exists, whether the function has other callers, what current behavior actually is. Only the residue that is genuinely preference- or intent-shaped goes to the user. Order that residue by how much downstream work each answer invalidates, not by how differently its readings read. An ambiguity that changes the shape of the work outranks one that changes a value inside it, however wide the second one's readings look. This is the same ordering the planning chapter, section "The shape of a useful plan", applies to plan-shaping versus value-filling unknowns. Resolve the top one first; its answer often dissolves the ones beneath it.
+- Decisive → exhaust evidence before opinion: many are facts the environment answers faster and more reliably than a round-trip: whether the config already exists, whether the function has other callers, what current behavior actually is. Only the residue that is genuinely preference- or intent-shaped goes to the user. Order that residue by how much downstream work each answer invalidates, not by how differently its readings read. An ambiguity that changes the shape of the work outranks one that changes a value inside it, however wide the second one's readings look. This is the same ordering the planning chapter, section "The shape of a useful plan", applies to plan-shaping versus value-filling unknowns. Resolve the top one first; its answer often dissolves the ones beneath it.
 
 > Weak: "Support both file formats" → ask the user three clarifying questions before starting.
 >
-> Strong: the format choice stays an internal parsing detail → ignorable, pick one and note it; it changes the public function signature → load-bearing, resolve first.
+> Strong: the format choice stays an internal parsing detail → ignorable, pick one and note it; it changes the public function signature → decisive, resolve first.
 
 ## Hunt the request's unknowns, quadrant by quadrant
 
@@ -68,7 +68,7 @@ The gap between the request and reality sorts into four cells; each cell has a d
 
 Scale the pass to the user's disclosed starting point: "I know this domain" narrows it to the request's silent edges; "I've never done this" widens it to the domain's whole checklist. When the starting point is undisclosed and the two poles would produce materially different pass widths, ask for it in one line before running the pass rather than guessing the width.
 
-Close the pass by re-running the ambiguity sort above over whatever the show-moves produced: they convert unknown knowns into stated ones, and a newly stated preference is load-bearing by construction. The sort fires at frame time, which is before these moves have produced anything to sort. Each cell cleared before building is a rework cycle that never ships, which is the pricing prior again at the scale of the whole pass; the falsification pass below is this section's twin, aimed at the code instead of the request.
+Close the pass by re-running the ambiguity sort above over whatever the show-moves produced: they convert unknown knowns into stated ones, and a newly stated preference is decisive by construction. The sort fires at frame time, which is before these moves have produced anything to sort. Each cell cleared before building is a rework cycle that never ships, which is the pricing prior again at the scale of the whole pass; the falsification pass below is this section's twin, aimed at the code instead of the request.
 
 ## Show a candidate when prose cannot carry the answer
 

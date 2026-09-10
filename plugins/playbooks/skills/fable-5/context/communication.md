@@ -69,7 +69,7 @@ Check these rules in order; the first that matches assigns the action:
 3. **The evidence does not settle it, but a wrong guess costs less to undo than a question round-trip → take the conventional default and flag it as an assumption.** This is the same rule as the problem-framing chapter, section "Sort ambiguities by whether the answer changes the work" (its ignorable branch). One rule, two trigger sites.
 4. **Otherwise → ask.**
 
-The four ask-categories. Check each explicitly rather than intuiting:
+Check each of the four ask-categories explicitly rather than intuiting:
 
 - **Values**: tradeoffs they weight and you cannot (speed vs. safety, simplicity vs. flexibility for this system).
 - **Cost**: anything that spends money, adds a dependency, or commits ongoing maintenance.

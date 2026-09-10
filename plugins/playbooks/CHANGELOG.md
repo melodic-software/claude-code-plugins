@@ -801,8 +801,8 @@ only after that version increases.
 - **`fable-5`'s late-session decay response could be triggered by a number, which is the
   behavior the guide it is built from tells you to suppress.**
   `skills/fable-5/context/context-economy.md` §"Detecting late-session quality decay" lists three
-  behavioral tripwires and then escalates to a hand-off, where you write the resume note and tell
-  the user a fresh session will outperform continuing. Nothing said a remaining-context count is not one of
+  behavioral tripwires and then escalates to "hand off: write the resume note and tell the user a
+  fresh session will outperform continuing". Nothing said a remaining-context count is not one of
   those tripwires, so the cheapest signal to notice, a countdown or a percentage, could enter the
   ladder in place of the three that actually measure decay. The section now carries a fourth
   bullet naming the number as a **non**-signal and bounding what it governs: only the ladder that
