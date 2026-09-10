@@ -7,6 +7,9 @@ All notable changes to the `songwriting` plugin are documented here. Format foll
 
 ### Changed
 
+- **Manifest description drops its em dashes.** Wording only; the plugin's behavior,
+  options, and defaults are unchanged. The description renders into `docs/CATALOG.md`,
+  which the repository's em-dash gate reads.
 - **Every markdown surface in the plugin passes `/ai-slop:audit`.** Em dashes in the
   plugin's own prose (the README, this changelog, the agent, every skill body, the
   Pat Pattison research and template files, and the Suno context, reference, and

@@ -297,7 +297,7 @@ class GenerateTests(unittest.TestCase):
         self.assertIn(overlap.START_MARKER, text)
         self.assertIn(overlap.END_MARKER, text)
         self.assertIn("`doctor`", text)
-        self.assertIn("never hand-edit", text)
+        self.assertIn("Never hand-edit", text)
 
     def test_generate_is_idempotent(self):
         self.repo.generate()

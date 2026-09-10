@@ -77,7 +77,7 @@ Patterns are framed for markdown extraction (the dominant case) but apply to cod
 
 **Mitigation.**
 
-1. Cite-by-name AND inline 1-line summary at every call site. Template: `per <file>.md "<heading>" — <≤80 char shape description>`
+1. Cite-by-name AND inline 1-line summary at every call site. Template: `per <file>.md "<heading>": <≤80 char shape description>`
 2. The 1-line summary should let a reader skim the caller and understand the SHAPE of the cited rule without clicking through
 3. Code: name imports for what they do, not where they live; cluster related imports; brief comment at non-obvious call sites
 4. Config: name anchors descriptively (`&dotnet-build-defaults` not `&base`); short comment above the alias if intent isn't obvious
@@ -91,7 +91,7 @@ Patterns are framed for markdown extraction (the dominant case) but apply to cod
 
 **Mitigation.**
 
-1. The SSOT file ships with a `## Stable headings — change requires sweep-references` section listing exact anchor text + dependent call sites
+1. The SSOT file ships with a `## Stable headings: change requires sweep-references` section listing exact anchor text + dependent call sites
 2. Verify before acting: when a citation says `per X.md "Y"`, the agent MUST grep X.md for the literal heading "Y" before acting on assumed content
 3. If citation-resolution hallucination becomes measurable, add resolution-time verification tooling (a hook or lint that greps the cited heading on read/write)
 

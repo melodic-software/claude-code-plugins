@@ -1,5 +1,11 @@
 # Changelog — discovery plugin
 
+## [0.19.9]
+
+### Changed
+
+- **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
+
 ## [0.19.8]
 
 ### Added

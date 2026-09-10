@@ -119,14 +119,14 @@ VIEW_HEADER = """# Native surfaces registry
 
 Generated view over the native-overlap store. The block between the markers below is rendered from
 `docs/native-surfaces/records.json` by
-`plugins/claude-ops/skills/audit-native-overlap/scripts/overlap.py generate` and kept in sync by CI
-— **never hand-edit it**. Verdicts, evidence, and recheck triggers are edited in the store; this
+`plugins/claude-ops/skills/audit-native-overlap/scripts/overlap.py generate` and kept in sync by CI.
+**Never hand-edit it.** Verdicts, evidence, and recheck triggers are edited in the store; this
 file is output.
 
 Every verdict here is a human's. Rows are recorded per overlap between a native Claude Code surface
 and a component in this repository, and each one carries the observable event that obliges
 re-deriving it. Availability is never asserted: an observation record says what was seen, where,
-and when — see [`docs/conventions/native-references/`](conventions/native-references/README.md).
+and when. See [`docs/conventions/native-references/`](conventions/native-references/README.md).
 """
 
 
@@ -531,7 +531,7 @@ def render_block(rows: list[dict[str, Any]]) -> str:
         tally: dict[str, int] = {}
         for row in lane_rows:
             tally[row["verdict"]] = tally.get(row["verdict"], 0) + 1
-        verdicts = ", ".join(f"{k} {v}" for k, v in sorted(tally.items())) or "—"
+        verdicts = ", ".join(f"{k} {v}" for k, v in sorted(tally.items())) or "none"
         lines.append(
             f"| {_escape_cell(heading)} | {len(lane_rows)} | {baked} | {_escape_cell(verdicts)} |"
         )
@@ -562,7 +562,7 @@ def render_block(rows: list[dict[str, Any]]) -> str:
             lines.append(f"### `{native['name']}` → `{target}`")
             lines.append("")
             markers = ", ".join(native.get("markers") or []) or "none"
-            lines.append(f"- **Verdict:** `{row['verdict']}` — {row['reason']}")
+            lines.append(f"- **Verdict:** `{row['verdict']}`: {row['reason']}")
             lines.append(
                 f"- **Native surface:** `{native['name']}` ({noun}; markers: {markers})"
             )
@@ -572,7 +572,7 @@ def render_block(rows: list[dict[str, Any]]) -> str:
                 lines.append(f"  - {item}")
             observation = row["observation"]
             lines.append(
-                f"- **Observation:** {observation['class']} — {observation['detail']} "
+                f"- **Observation:** {observation['class']}: {observation['detail']} "
                 f"({observation['date']})"
             )
             recheck = row["recheck"]
@@ -589,7 +589,7 @@ def render_block(rows: list[dict[str, Any]]) -> str:
             if row["budget_caveat"]:
                 lines.append(
                     "- **Budget caveat:** the baked phrase may be dropped from the skill "
-                    "listing under budget pressure — it is the best available routing "
+                    "listing under budget pressure. It is the best available routing "
                     "surface, not a guaranteed one"
                 )
             lines.append("")

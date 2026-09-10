@@ -7,6 +7,16 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 
 ### Changed
 
+- **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and
+  defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's
+  em-dash gate reads.
+- **`audit-native-overlap` renders `docs/NATIVE-SURFACES.md` without em dashes.** The generated
+  view is gated by a sync check, so its em dashes could only be fixed at the source. In
+  `scripts/overlap.py` the header prose, the verdict and observation lines, and the budget-caveat
+  sentence take a colon or a period, and the empty-tally placeholder renders `none` rather than a
+  bare dash. The reason, detail, and recheck-trigger strings in `docs/native-surfaces/records.json`
+  are reworded the same way. Every verdict, hedge, date, version string, integrity hash, and
+  surface name is unchanged; only punctuation and the wording a clean rewrite needed moved.
 - **Changelog, in-place correction to the released `## [0.42.5]` entry:** its `--from` bullet
   drops the filler phrase `in order to` (`to recompute a block the caller was already holding`).
   Wording only; the entry's facts are unchanged. Found by the repo-wide `/ai-slop:audit` run

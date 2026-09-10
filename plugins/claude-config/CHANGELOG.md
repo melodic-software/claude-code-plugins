@@ -7,6 +7,9 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 ### Changed
 
+- **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and
+  defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's
+  em-dash gate reads.
 - **Every markdown surface in the plugin passes `/ai-slop:audit`.** Em dashes in the plugin's own
   prose (the README, this changelog, every skill body, and the context, reference, and template
   files under each skill) are rewritten as a comma, a period, a colon, or a restructured

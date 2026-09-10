@@ -4,6 +4,9 @@
 
 ### Changed
 
+- **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and
+  defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's
+  em-dash gate reads.
 - **Every markdown surface in the plugin passes `/ai-slop:audit`.** Em dashes in the plugin's own
   prose (the README, this changelog, every skill body, and the context, reference, action, and
   template files under each skill) are rewritten as a comma, a period, a colon where a definition
@@ -15,11 +18,14 @@
   detector specimen in an `audit-noise` fixture: the bold-roster matcher in
   `skills/audit-noise/scripts/lib/noise-shapes.sh` matches the em dash and nothing else, so the
   fixture has to carry it for `detect.test.sh` to keep passing.
-- **`extract-ssot`'s citation form is left as it stands, and the conflict is recorded rather than
-  resolved.** That skill prescribes `— <description>` as the separator in the citation template
-  it tells consumers to write, and states it normatively. Rewriting it would change what the skill
-  requires of its users, not how the skill reads, so it is a maintainer decision. The repository's
-  house style and this skill's prescribed separator currently disagree.
+- **`extract-ssot` now prescribes a colon, not an em dash, as its citation separator.** The
+  1-line inline summary template, both worked examples, the wrapped-heading form, the
+  skill-chaining form, the execution-checklist row, and the anti-patterns template all take
+  `"<heading>": <=80 char description>`. The rationale line changed with them: it previously
+  argued the em dash was preferred over a colon for visual scanning, and now records that the
+  colon is the separator because this repository's house style admits a colon where a description
+  follows and admits no em dash at all. This changes what the skill asks its users to write, not
+  only how the skill itself reads.
 - **Changelog, in-place wording corrections to released entries:** the same em-dash and jargon
   rewrite was applied inside
   `[0.21.34]`, `[0.21.24]`, `[0.21.22]`, `[0.21.7]`, `[0.21.6]`, `[0.21.5]`, `[0.21.4]`,

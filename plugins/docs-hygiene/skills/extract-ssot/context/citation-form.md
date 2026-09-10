@@ -40,15 +40,15 @@ Three rules baked in:
 For non-trivial citations, append a 1-line summary AFTER the citation so the reader can skim the caller and understand the shape without clicking through:
 
 ```text
-<scope phrase> per `<file>.md` "<heading>" — <≤80 char shape description>.
+<scope phrase> per `<file>.md` "<heading>": <≤80 char shape description>.
 ```
 
 Examples of the shape pattern (substitute the actual rule file and heading at the call site):
 
-- A workflow step citation might look like: `<step name> per <workflow>.md "<step heading>" — short cadence/cycle description.`
-- A naming citation might look like: `<naming concern> per <style-guide>.md "<rule heading>" — short rule shape (kebab-case, 40-char cap, etc).`
+- A workflow step citation might look like: `<step name> per <workflow>.md "<step heading>": short cadence/cycle description.`
+- A naming citation might look like: `<naming concern> per <style-guide>.md "<rule heading>": short rule shape (kebab-case, 40-char cap, etc).`
 
-Summary format: `— <≤80 char description>`. Em-dash separator preferred over colon (visual scan). Aim for the SHAPE of the cited rule, not its full content.
+Summary format: `: <≤80 char description>`. The colon is the separator, not an em dash: this repository's house style admits a colon where a definition or description follows and admits no em dash at all. Aim for the SHAPE of the cited rule, not its full content.
 
 When to inline a summary:
 
@@ -74,7 +74,7 @@ part 2)">.
 
 ```text
 <scope phrase> per `<file>.md`
-"<full heading text on one line>" — <summary>.
+"<full heading text on one line>": <summary>.
 ```
 
 If the heading itself contains characters that confuse grep (parens, em-dashes, quote marks), the SSOT author should rename the heading to something simpler. Heading text should be greppable as-is.
@@ -118,7 +118,7 @@ Same shape across all: easy to grep, easy to rename, easy to skim.
 When a skill orchestrates a multi-skill flow and cites another skill's mode:
 
 ```text
-<scope phrase> per `<other-skill>/SKILL.md` "<mode name>" — <one-line description of what that mode does at a high level>.
+<scope phrase> per `<other-skill>/SKILL.md` "<mode name>": <one-line description of what that mode does at a high level>.
 ```
 
 Reader skims, sees the scope phrase, understands what the cited mode will do without clicking.

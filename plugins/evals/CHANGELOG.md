@@ -1,5 +1,11 @@
 # Changelog — evals
 
+## [0.2.3]
+
+### Changed
+
+- **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
+
 ## [0.2.2]
 
 ### Added

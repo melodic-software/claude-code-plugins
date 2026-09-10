@@ -7,6 +7,9 @@ All notable changes to the `review` plugin are documented here. Format follows
 
 ### Changed
 
+- **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and
+  defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's
+  em-dash gate reads.
 - **`ci-log-auditor` agent:** the output-format instruction drops the filler phrase `in order to`
   (`what the caller needs to act`); the instruction's meaning is unchanged. Found by the repo-wide
   `/ai-slop:audit` run (#3987).
