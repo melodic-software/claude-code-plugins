@@ -136,7 +136,20 @@ plugins/debugging/skills/*/SKILL.md
 plugins/desktop-notification/README.md
 plugins/discipline/README.md
 plugins/discovery/README.md
-plugins/docs-hygiene/README.md
+# The docs-hygiene plugin was purged whole, its eval fixtures included: those
+# fixtures specimen the plugin's OWN noise shapes, which are not em dashes, so
+# declaring them costs nothing. Two marked em dashes survive under these globs and
+# the gate honours both: a verbatim Microsoft quotation, and the audit-noise
+# bold-roster fixture whose matcher keys on the character itself.
+plugins/docs-hygiene/*.md
+plugins/docs-hygiene/context/*.md
+plugins/docs-hygiene/skills/*/SKILL.md
+plugins/docs-hygiene/skills/*/actions/*.md
+plugins/docs-hygiene/skills/*/context/*.md
+plugins/docs-hygiene/skills/*/reference/*.md
+plugins/docs-hygiene/skills/*/evals/fixtures/*.md
+plugins/docs-hygiene/skills/*/evals/fixtures/*/*.md
+plugins/docs-hygiene/skills/*/evals/fixtures/*/*/*.md
 plugins/domain-driven-design/README.md
 plugins/dometrain/README.md
 plugins/education/README.md
