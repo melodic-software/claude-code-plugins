@@ -359,8 +359,8 @@ With no argument in an interactive session, run the interview:
    shareable state. Re-run this step once the state is fixed.
 
    This skill stages but does not commit, so `git status --porcelain` legitimately keeps printing an
-   index (`X`) column of `A` or `M` with a blank worktree column for a staged-but-uncommitted file,
-   so success does **not** require porcelain to be fully empty, only that no *unstaged* changes
+   index (`X`) column of `A` or `M` with a blank worktree column for a staged-but-uncommitted file.
+   Success does **not** require porcelain to be fully empty, only that no *unstaged* changes
    remain. Prompt the user to commit the team file, since it is team-shared and must be committed to
    take effect. Only report success once both checks pass: not ignored, and no unstaged changes
    remain.

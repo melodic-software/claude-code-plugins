@@ -4368,11 +4368,10 @@ All notable changes to the `source-control` plugin are documented here. Format f
   Matching is now case-insensitive, and the token must open a table cell, optionally followed by an
   annotation introduced by punctuation. That punctuation requirement is what separates the
   disposition values `reference/review-discipline.md` documents from prose that merely starts with a
-  disposition word. Those values are
-  `VALID — fixing`, `VALID (defer)`, and `VALID — fix now`. Scanning the whole line
-  instead credited `| CI check | result is valid |`, and accepting a bare space before the
-  annotation credited `| 2 | c2 | Valid cache entries are rejected | | |`; either miss lets an
-  unclassified finding past the under-decomposition gate. The decoration allowed before the token
+  disposition word. Those values are `VALID — fixing`, `VALID (defer)`, and `VALID — fix now`.
+  Scanning the whole line instead credited `| CI check | result is valid |`, and accepting a bare
+  space before the annotation credited `| 2 | c2 | Valid cache entries are rejected | | |`; either
+  miss lets an unclassified finding past the under-decomposition gate. The decoration allowed before the token
   and the character required after it exclude word characters rather than only letters, so `valid2`,
   `2valid` and `VALID_TOKEN` no longer satisfy the token, and "invalid"/"INVALID" still does not
   false-match "valid"/"VALID". One predicate drives both the classified count and the self-row
@@ -4659,7 +4658,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   resolution to a dedicated subagent that also pushed the result. A dispatched subagent starts with
   a fresh, isolated context window and never sees the parent conversation
   (<https://code.claude.com/docs/en/sub-agents>), so a host runtime that grants mutation authority
-  only from the operator's own turn cannot observe that grant from inside one, so such a push could
+  only from the operator's own turn cannot observe that grant from inside one. Such a push could
   only ever be refused by that gate or route around it. The conflict worker now does the base fetch,
   the head assertion, the `git merge` (never rebase), the marker resolution, the local merge commit,
   and the affected-file verification, and returns one of `resolved` / `escalate` /
@@ -4667,9 +4666,8 @@ All notable changes to the `source-control` plugin are documented here. Format f
   hold the operator's turn, pushes, fail-closed: only on `resolved`, only after matching the
   worktree `HEAD` to the reported merge commit, requiring it to have two parents, re-asserting the
   live PR head against its first parent, and re-running the affected-file verification in the
-  worktree itself; by refspec, never force. A conflict worker remains a worker for every other rule,
-  meaning leases, concurrency cap, and check-in, with resolving and not-pushing its only two
-  differences.
+  worktree itself; by refspec, never force. A conflict worker remains a worker for every other rule:
+  leases, concurrency cap, and check-in. Resolving and not-pushing are its only two differences.
   Every prior invariant is preserved, now with an explicit owner. `reference/orchestration.md`
   gains the Conflict-Worker and Orchestrator contracts plus a Conflict-Worker Prompt Delta (the
   regular worker template forbids only *force*-pushing, so a conflict worker needs an affirmative
@@ -4685,9 +4683,9 @@ All notable changes to the `source-control` plugin are documented here. Format f
 ### Added
 
 - **`babysit-prs` guard semantics are now an executable contract (`#1265`).** The facts a host
-  permission classifier has to know about this lane, meaning which entry points mutate, which flags
-  gate which guard, where a refusal is enforced, and how a mutation is actually performed, were
-  restated in prose by every consumer and had nothing detecting drift. They are now a table in
+  permission classifier has to know about this lane are which entry points mutate, which flags
+  gate which guard, where a refusal is enforced, and how a mutation is actually performed. Every
+  consumer restated them in prose and nothing detected drift. They are now a table in
   `skills/babysit-prs/scripts/tests/guard_contract.py`, executed row by row against the real entry
   points by `test_guards.py`, and rendered to a citable
   `skills/babysit-prs/reference/guard-contract.md`. Every row carries the prose claim it backs, so
@@ -5026,10 +5024,10 @@ All notable changes to the `source-control` plugin are documented here. Format f
   config carries loop-lane keys, after which it defaults to the loop-lane convention's baseline rung
   (human merge for everything except gate-proven C2-mechanical PRs, a work-class test irrespective
   of author), and its raises bind from the team-tracked config layer only. That tracked file, landed
-  by a reviewable PR, is the recorded lane-enabling act. Shared cross-lane concerns, meaning
-  topology, stop shapes including the drain-terminal state, cycle-budget and expiry semantics,
-  capability tiers, and the subagent discipline preamble, are held by citation to the marketplace
-  repository's `docs/conventions/loop-lane/` convention, and the rate-limit guard's operable floor
+  by a reviewable PR, is the recorded lane-enabling act. Shared cross-lane concerns are held by
+  citation to the marketplace repository's `docs/conventions/loop-lane/` convention: topology, stop
+  shapes including the drain-terminal state, cycle-budget and expiry semantics, capability tiers,
+  and the subagent discipline preamble. The rate-limit guard's operable floor
   is inlined verbatim per that convention's inline-floor rule. `reference/config-resolution.md`
   widens accordingly: the layered `.claude/source-control.md` surface now documents the
   `babysit_loop_*` key family (stop mode, tier preset, per-dimension overrides, grace-window width,
@@ -5110,7 +5108,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Added
 
-- **`pr_body_required_sections` accepts the literal keyword `none`, meaning no required sections (#1138).**
+- **`pr_body_required_sections` accepts the literal keyword `none` for no required sections (#1138).**
   The key could previously express only a list or absence (absence yields the portable default), so
   a repo whose team convention is no PR-body sections had no way to state that in config. Real
   consumer evidence: a repo whose merged PRs are overwhelmingly empty-bodied by design. `none` now
@@ -5291,8 +5289,8 @@ All notable changes to the `source-control` plugin are documented here. Format f
     **host + owner/repo** identity, not by remote name: canonicalize the URL `git push` will actually
     use (`git remote get-url --push`, which honors a `pushurl` that can differ from the fetch URL) and
     require it to equal the head repo's own URL (`gh api repos/<nameWithOwner> --jq .html_url`), else
-    read-only. The push is fast-forward by construction, never `--force`, so a branch locked by a
-    sibling worktree is not a `git checkout` dead-end.
+    read-only. That whole refspec push is fast-forward by construction, never `--force`, so a branch
+    locked by a sibling worktree is not a `git checkout` dead-end.
   - The worker mechanics are reconciled to that contract: `reference/loop.md` §5.1.2 acquires the head
     via `gh pr checkout` and asserts `HEAD == the live headRefOid` in every checkout path (already-at-
     head, sibling-locked `--detach` reuse, and heal-via-checkout), degrading to read-only on mismatch;

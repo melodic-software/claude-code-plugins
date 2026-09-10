@@ -183,13 +183,13 @@ gate's `ready` field alone
 D steps operate **per-finding**, not per-comment. One comment with 5 findings = 5 individual
 D1–D7 cycles. Exploration and validation must run on the PR's head branch.
 
-- [ ] D1, Read full finding context (parent comment body + surrounding findings)
-- [ ] D2, Explore referenced code on the PR branch
-- [ ] D3, **Validate the claim**. Verify against actual code before trusting. Research
+- [ ] D1. Read full finding context (parent comment body + surrounding findings)
+- [ ] D2. Explore referenced code on the PR branch
+- [ ] D3. **Validate the claim**. Verify against actual code before trusting. Research
   non-trivial claims. Never implement a fix based solely on a bot's assertion
-- [ ] D4, Classify with evidence: VALID (fix now) / VALID (defer) / INCORRECT / UNCERTAIN.
+- [ ] D4. Classify with evidence: VALID (fix now) / VALID (defer) / INCORRECT / UNCERTAIN.
   Classification MUST cite evidence from D2–D3
-- [ ] D4.5, React to the parent comment via `gh api .../reactions`. One reaction per comment
+- [ ] D4.5. React to the parent comment via `gh api .../reactions`. One reaction per comment
   (not per finding). **Tiebreaker for mixed-finding comments:** `+1` if ANY finding is VALID
   (signals action taken), `-1` only when ALL are INCORRECT, `eyes` when all UNCERTAIN or a mix
   of UNCERTAIN + INCORRECT with zero VALID
@@ -197,7 +197,7 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
     identities. Non-zero confirms. Use `pulls/comments/<id>/reactions` for inline review
     comments. **Exemption:** PR review BODIES have no reactions endpoint in the REST API, so skip
     the reaction there; the D5 reply is the audit signal
-- [ ] D4.6, **Ground a `VALID (defer)`.** <!-- contract-restatement-begin: D4.6-deferral-grounding --> A deferral ships the change without the fix, so it
+- [ ] D4.6. **Ground a `VALID (defer)`.** <!-- contract-restatement-begin: D4.6-deferral-grounding --> A deferral ships the change without the fix, so it
   counts as a disposition only when it is durable and someone else can find it: file a tracker
   item carrying the finding's own evidence, meaning the reviewer's claim, your D2–D3 validation, and
   the file and line it lands on, and cite that item's id in the D5 reply. A deferral whose only
@@ -225,7 +225,7 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
   - [ ] **verify the item exists:** re-query it by id and confirm it is filed and open before
     the D5 reply cites it. A cited id that does not resolve is the dropped finding this step
     exists to prevent
-- [ ] D5, Reply with the per-finding classification table + evidence (before fixing). Table
+- [ ] D5. Reply with the per-finding classification table + evidence (before fixing). Table
   format per §2, which includes the Reacted column. **Route the reply by comment type, REQUIRED
   and not interchangeable:** inline review comments (diff-anchored, `pulls/comments`) MUST reply
   THREADED via `gh api repos/{owner}/{repo}/pulls/<pr>/comments/<comment-id>/replies -f
@@ -240,7 +240,7 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
     "repos/{owner}/{repo}/issues/<pr>/comments?per_page=100" --jq '.[].body'`. Querying only
     issues/comments false-fails a correctly posted inline reply; so does dropping `--paginate`,
     since these endpoints return 30 per page oldest-first and your reply is the newest item
-- [ ] D6, Fix if VALID (fix now) → edit, `git add <specific-files>` (never `-A` or `.`),
+- [ ] D6. Fix if VALID (fix now) → edit, `git add <specific-files>` (never `-A` or `.`),
   commit, push
   - [ ] **verify commit pushed:** `REMOTE=$(bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/resolve-remote.sh" --push <branch>) &&
     git fetch "$REMOTE" <branch> && git merge-base --is-ancestor <fix-sha> FETCH_HEAD`. Exit 0
@@ -253,7 +253,7 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
     turns into a false "missing", and never a repository-scoped `commits/<fix-sha>` lookup alone,
     which answers "does this object exist anywhere in the repo?" and can pass when the commit was
     force-pushed off the PR branch
-- [ ] D7, Post a follow-up reply citing the fix commit SHA
+- [ ] D7. Post a follow-up reply citing the fix commit SHA
   - [ ] **verify follow-up reply posted, same surface routing as D5:** inline thread →
     `pulls/<pr>/comments` filtered by `in_reply_to_id`; issue-level → `gh api --paginate
     "repos/{owner}/{repo}/issues/<pr>/comments?per_page=100" --jq '.[] |
@@ -264,7 +264,7 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
     fix SHA, a reviewer or another bot, satisfies it, and the check reports your reply as posted
     when the write failed. `<posting-identity>` is the login you posted as (the bot-identity
     wrapper's account when the project has one, your own otherwise)
-- [ ] D7.5, Resolve review thread. **Author- and classification-conditional, inline review
+- [ ] D7.5. Resolve review thread. **Author- and classification-conditional, inline review
   comments only** (this section is the canonical policy). <!-- contract-restatement-begin: D7.5-thread-eligibility --> **Resolution is a thread-level act
   while dispositions are per-finding, so eligibility is a property of the whole thread:** every
   finding extracted from it per §2 must carry one of three recorded dispositions: `VALID (fix
@@ -331,7 +331,7 @@ outdated-only, exactly as the script enforces.** A current bot thread whose find
 goes to the independent resolution dispatch, which verifies the D7.5 disposition, whether fix pushed and
 cited, deferral grounded per D4.6, or `INCORRECT` with counter-evidence, and resolves it through
 the wrapper. The merging worker never resolves it, and neither does the orchestrator that dispatches
-the resolver, which holds the merge decision. Where no independent dispatch is reachable, the same
+the resolver. The orchestrator holds the merge decision. Where no independent dispatch is reachable, the same
 limit as above, the identical fail-closed fallback applies: leave the thread unresolved, do not
 merge, and report the PR with the addressed-but-unresolvable thread named. An unreachable authorization
 is never a licence to self-resolve. Never reach past the wrapper to raw

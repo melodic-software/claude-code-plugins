@@ -652,7 +652,6 @@ with reason.
 - **One finding at a time.** Complete per-finding D1-D7 for finding N before starting finding
   N+1. Interleaving findings across comments produces partial work that looks complete but
   isn't
-- **Evidence-based state, not memory-based state.** Never say "I already replied to that"
-  without checking GitHub. Never say "I already pushed that fix" without checking the remote.
-  GitHub is the state
+- **Evidence-based state, not memory-based state.** Never say "I already replied to that".
+  Check GitHub. Never say "I already pushed that fix". Check the remote. GitHub is the state
   store; this session's memory is ephemeral

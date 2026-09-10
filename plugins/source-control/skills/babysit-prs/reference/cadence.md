@@ -39,9 +39,9 @@ Durable engine state lives under `<state-dir>`. Track:
   reports (feeds `needs_worker`'s `checks_changed` delta so a CI resolution fires a worker even
   when it does not move `updatedAt`)
 - last worker check-in time and exact head SHA per PR (feeds `needs_worker`'s `quiet_recheck_due`
-  fallback, see `orchestration.md`; this is the one thing cadence alone cannot bound, since a PR
-  can be correctly, repeatedly quiet-classified forever without ever being handed to a fresh
-  worker)
+  fallback, documented in `orchestration.md`. This is the one thing cadence alone cannot bound,
+  since a PR can be correctly, repeatedly quiet-classified forever without ever being handed to a
+  fresh worker)
 - the two cross-cycle sweep counters, the last **complete** queue sweep's `generated_at` and the
   cycles-since-full-sweep count, persisted in the engine state file and stamped only on a
   complete queue sweep (see Cross-Cycle Counters Are Persisted below)

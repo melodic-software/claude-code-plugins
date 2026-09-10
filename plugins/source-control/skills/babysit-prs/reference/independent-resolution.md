@@ -76,7 +76,7 @@ each one the disposition plus its evidence:
 
 - `VALID (fix now)`: the pushed commit SHA that fixes it, verified present on the live PR head, and
   the D7 follow-up citing it.
-- `VALID (defer)`: grounded per D4.6: the provenance test passed (the defect reproduces on the base <!-- contract-restatement-begin: D4.6-deferral-grounding -->
+- `VALID (defer)`: grounded per D4.6. The provenance test passed (the defect reproduces on the base <!-- contract-restatement-begin: D4.6-deferral-grounding -->
   branch), and the tracker item exists, carries the finding's own evidence, and its cited id
   re-queries successfully. <!-- contract-restatement-end: D4.6-deferral-grounding -->
 - `INCORRECT`: the counter-evidence, read from the code or docs at the live head rather than

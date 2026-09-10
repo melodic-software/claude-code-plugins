@@ -183,7 +183,7 @@ esac
 The loop is the rule rendered as code: `${path%/}` alone strips **one forward slash**, leaving in
 place a Windows-pasted trailing backslash, the common form on the platform the measurement above
 came from, or a doubled separator, and either survivor re-opens the bypass. The platform gate
-matters in the other direction: off Windows a trailing `\` is part of the directory's
+is decisive in the other direction: off Windows a trailing `\` is part of the directory's
 **name** (the same gated rule `scripts/worktree-create.sh` applies to its root normalization), so
 stripping it there would re-point every test below, and the reap plus `rm -rf`, at a different
 sibling path while leaving the actual candidate behind.

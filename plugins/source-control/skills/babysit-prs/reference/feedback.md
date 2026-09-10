@@ -1,10 +1,10 @@
 # Bot Feedback
 
 Classification and disposition policy for review feedback. Classify structured state before
-interpreting prose. The shared per-PR discipline, evidence-based comment state, structured
-finding extraction, and the per-finding D1-D7 verification gates, lives in the plugin-level file
-`${CLAUDE_PLUGIN_ROOT}/reference/review-discipline.md`; apply it as written and never restate it
-here. Angle-bracket slots (`<state-dir>`, `<advisory-fix-round-cap>`) are filled from the
+interpreting prose. The shared per-PR discipline lives in the plugin-level file
+`${CLAUDE_PLUGIN_ROOT}/reference/review-discipline.md`: evidence-based comment state, structured
+finding extraction, and the per-finding D1-D7 verification gates. Apply it as written and never
+restate it here. Angle-bracket slots (`<state-dir>`, `<advisory-fix-round-cap>`) are filled from the
 effective-configuration block in this skill's `SKILL.md`, which renders every key's resolved
 value and its unset fallback; `<state-dir>` is the `state/babysit-prs` subdirectory of the plugin
 data directory.

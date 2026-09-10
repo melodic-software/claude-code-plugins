@@ -185,10 +185,10 @@ the lane reports why.
 
 **Promotion-evidence gate (#1695).** A tracked rung is a ceiling, not autonomous-merge permission:
 before the rung partition admits a C2 or C3 PR, the lane resolves `C2-auto-merge` /
-`C3-auto-merge` effective state through the trusted promotion-evidence resolution, fail-closing to
+`C3-auto-merge` effective state through the trusted promotion-evidence gate, fail-closing to
 unpromoted when evidence is unavailable or unqualified
 (`${CLAUDE_PLUGIN_ROOT}/skills/babysit-loop/reference/promotion-evidence-resolution.md`).
-Until that resolution qualifies the evidence, C2/C3 classes stay off the merge-eligible set regardless of
+Until that gate returns a qualified read, C2/C3 classes stay off the merge-eligible set regardless of
 `babysit_loop_merge`; operators keep `--merge human-only` on launch lines.
 
 **C4/C5 floor, unconditional.** No rung, no config key, and no invocation argument, including the
