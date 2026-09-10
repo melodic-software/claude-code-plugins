@@ -2,6 +2,8 @@
 
 ## Brief
 
+**Spec container:** melodic-software/claude-code-plugins#4047
+
 ### TLDR
 
 - Repair the native-overlap tooling so it reports honestly on Claude Code 2.1.263: the inventory extractor's bundled-skill lane, per-lane integrity, the reverse-parity blind spot, and the seeded-pairs drift.
@@ -95,9 +97,11 @@ Literals every unit's sanity check greps for, fixed here so the grammar and the 
 - Unattended declaration: the bare argument `unattended`, following the `overengineering:audit` precedent.
 - Version bumps: "next minor at PR time" for every touched plugin; no literal numbers, because claude-ops receives unrelated PRs weekly.
 
-### Phase 0: File the parent issue and its sub-issues [TODO]
+### Phase 0: File the parent issue and its sub-issues [DONE]
 
 Executed by `/work-items:decompose` after this plan is approved; the plan fixes the shape so decompose does not re-derive it.
+
+Done 2026-09-10: container #4047; sub-issues #4048 (unit 1, tooling fix), #4049 (unit 2, policy), #4050 (claude-ops), #4051 (code-tidying), #4052 (testing), #4053 (review), #4054 (visualization), #4055 (prototype), #4056 (session-flow), each attached as a native sub-issue of #4047 and each naming its predecessor in its `## Blocked by` section. Deviation: the native blocked-by dependency edges were not written, because the session's GitHub token could not drive the tracker seam and the GitHub MCP surface exposes no dependency verb; the edges are body text only until a session with seam access runs `link-blocks` for the eight predecessor pairs.
 
 1. **Search before create.** Query open issues for `native-overlap`, `audit-native-overlap`, `native-surfaces`, and `inventory.py 2.1.263`. A match with the same scope is the pivot path: attach this Brief to it as a comment and use it as the parent instead of creating one. Record the search outcome in the sanity check.
 2. Create the parent issue: body is the Brief verbatim, followed by a `## Affected store rows` section quoting every row of `docs/native-surfaces/records.json` by native name, component, verdict, and current `integration` (or `pending` before Phase 4), and a `## Follow-up scope` section listing the improvement items from `### Out-of-scope` plus the two tooling findings the devil's-advocate pass surfaced that the tooling unit does not absorb (the registrar-export advisory's blindness to the ESM form, and phantom constant names). Sub-issue PRs cite their sub-issue with the closing keyword the PR-body contract expects; the issue body itself carries no closing keyword.
