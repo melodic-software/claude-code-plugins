@@ -107,9 +107,9 @@ evidence about either read.
 
 A project pinning an older version at `project` scope while your personal `user` scope has moved on
 is expected, common, and not itself something to "fix" silently. The rule that separates that benign
-case from an actionable one, filter on `versionsMatch == false` and never report a raw
-`divergences[].length`, is defined in
-[scope-semantics.md](scope-semantics.md#divergence-is-not-automatically-actionable). What goes
+case from an actionable one is defined in
+[scope-semantics.md](scope-semantics.md#divergence-is-not-automatically-actionable): filter on
+`versionsMatch == false`, never report a raw `divergences[].length`. What goes
 *wrong* when it is skipped is the point here: the report overstates drift with entries that need no
 action, and routes the user to `converge` for rows it would decline to change.
 

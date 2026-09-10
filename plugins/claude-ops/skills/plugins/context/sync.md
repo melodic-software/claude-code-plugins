@@ -561,8 +561,8 @@ and a process count that does not grow with the catalog.
 catalog version cannot be read is emitted as a candidate, exactly as if no pre-filter existed. That
 covers an entry whose `source` is a remote spec rather than a repo-relative path, a checkout that
 never materialized that directory, a manifest carrying no `version`, and JSON that does not parse.
-That is not a rare
-branch: across the marketplaces registered on the authoring machine (Claude Code 2.1.240) the
+That is not a rare branch: across the marketplaces registered on the authoring machine
+(Claude Code 2.1.240) the
 version resolved for every entry of some and for a small minority of others', so a marketplace where
 the pre-filter withholds nothing at all is an ordinary outcome, not a malfunction. Read a shrunken
 sweep as a bonus, never as evidence that the ids it skipped were checked.
