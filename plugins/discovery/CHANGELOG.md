@@ -495,7 +495,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 
 ### Changed
 
-- **Explore composes the toolchain ecosystem seam instead of a silent second
+- **Explore composes the toolchain ecosystem interface instead of a silent second
   signal table (#2726).** `skills/explore/reference/ecosystem-discovery.md` now
   presence-gates `/toolchain:check`'s covered-ecosystem set and
   `project-discovery` / `anchor` for shared detection and root adjacency, keeps

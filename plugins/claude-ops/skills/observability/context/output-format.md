@@ -175,11 +175,11 @@ mentions them the line reads "legacy rows, shared file, time proximity only".
 - **Currencies** always 2-decimal, prefixed `$`
 - **Durations** ms when < 1000, otherwise `Xs` with one decimal
 - **Empty sections** render with `_no data — <reason>_` not omitted (presence-of-section is itself signal)
-- **Cache health is reported, never graded** — upstream documents the read-to-creation direction but
+- **Cache health is reported, never graded.** Upstream documents the read-to-creation direction but
   publishes no threshold, so any HIGH/MEDIUM cutoff would be invented here rather than sourced. It
   is also the one section sourced from the OTEL store rather than ccusage, which is why it sits
   apart from Token / cost instead of adding columns to it
-- **The Token / cost caveat line is fixed copy** — Claude Code documents the same list-rate
+- **The Token / cost caveat line is fixed copy.** Claude Code documents the same list-rate
   limitation for its own locally computed dollar figures
   (<https://code.claude.com/docs/en/costs.md>, verified 2026-08-10)
 
@@ -209,10 +209,10 @@ That prints `${CLAUDE_PLUGIN_DATA}/reports/<state-key>/claude-observability-<dat
 
 One file per project per date is the deliberate retention shape: a same-day rerun of the same project replaces its own earlier report. Any `claude-observability-<date>.md` sitting directly under `reports/` is an unkeyed leftover from the older layout. The script names it on stderr: offer it to the operator as a file they may delete, and do not read it.
 
-Reports are working artifacts — copy one into the consumer project only if it is durably useful (rare).
+Reports are working artifacts. Copy one into the consumer project only if it is durably useful (rare).
 
 ## What this template intentionally omits
 
-- Recommendations / action items — `/claude-ops:observability` surfaces signals, user decides what to act on
-- Per-session token and cost drill-down — the per-session skeleton covers hooks and events; use ccusage MCP directly for a session's tokens
-- Cross-repo data — out of scope; observability is project-local
+- Recommendations / action items: `/claude-ops:observability` surfaces signals, user decides what to act on
+- Per-session token and cost drill-down: the per-session skeleton covers hooks and events; use ccusage MCP directly for a session's tokens
+- Cross-repo data: out of scope; observability is project-local
