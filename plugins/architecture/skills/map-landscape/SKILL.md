@@ -83,10 +83,16 @@ Facts come from the helper script, never derived by hand:
 The `${CLAUDE_SKILL_DIR}` anchor matters. A bare relative path resolves against the session's working
 directory, which is not where the script lives.
 
-It emits one JSON object per repository: `name`, `path`, `remote`, `owner`, `runtime`,
-`target_framework`, `dependencies[]`, `last_touched`, `evidence{}`. Anything no probe could derive is
-the literal `unknown`. Carry `unknown` through to the artifacts as-is; never replace it with a guess,
-and never fill it from a commit author, a directory name, or ecosystem memory.
+It emits one JSON object per repository: `name`, `path`, `remote`, `owner`, `runtime`, `tooling`,
+`target_framework`, `dependencies[]`, `dev_dependencies[]`, `last_touched`, `evidence{}`. Anything no
+probe could derive is the literal `unknown`. Carry `unknown` through to the artifacts as-is; never
+replace it with a guess, and never fill it from a commit author, a directory name, or ecosystem
+memory.
+
+`runtime` and `dependencies` are runtime scope, what the repository RUNS ON. `tooling` and
+`dev_dependencies` are development scope, what it is BUILT WITH: npm `devDependencies`, PEP 735
+dependency groups, a `requirements-ci.txt`, anything under a dot-directory. Report them as separate
+facts; a linter is not a runtime.
 
 ## Draw relationships
 
@@ -141,10 +147,11 @@ C4Context
 **Artifact two, `portfolio.md`.** A heading, a generated-on line carrying the date AND the discovery
 source (explicit list / fleet-hygiene plan / bundled walk), then one table:
 
-`Repository | Owner | Target framework | Runtime | Dependencies | Last touched (local HEAD)`
+`Repository | Owner | Target framework | Runtime | Dependencies | Tooling | Last touched (local HEAD)`
 
 One row per repository, sorted by name. Render `unknown` as-is. Comma-join dependencies, truncating
-to 10 with a trailing `(+N)`.
+to 10 with a trailing `(+N)`. `Tooling` is the record's `tooling` field, the development-scope
+families; the development-scope dependency names stay in the record rather than the table.
 
 ## What this skill does NOT do
 
@@ -169,6 +176,13 @@ to 10 with a trailing `(+N)`.
   experimental and warns the syntax may change (source: <https://mermaid.js.org/syntax/c4.html>,
   verified 2026-09-06). Recheck this entry when a mermaid release adds a landscape type or drops the
   experimental notice.
+- **A dot-directory manifest is tooling, never a runtime.** Cache and build directories (`.venv`,
+  `.mypy_cache`, `.tox`) are pruned outright; the CI and container config directories (`.github`,
+  `.gitlab`, `.circleci`, `.devcontainer`) are kept, and every manifest under one is pinned to
+  development scope whatever its content says. So a repository of shell and markdown whose CI
+  installs `ruff` reports `runtime: shell` with `tooling: python`, not a Python runtime. The same
+  rule makes a `package.json` carrying only `devDependencies` report tooling rather than a runtime,
+  which is why `target_framework` can be `unknown` while a `Tooling` entry is present.
 - **`owner` is a ladder, and commit authors are not on it.** `CODEOWNERS` (root, `.github/`, or
   `docs/`) default `*` rule's first owner, then the owner segment of the `origin` remote URL, then
   `unknown`. Who edits a repository most is not who owns it, so the script never looks at git

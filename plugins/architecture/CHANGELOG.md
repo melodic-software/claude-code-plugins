@@ -3,6 +3,19 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.6]
+
+### Changed
+
+- **`map-landscape`:** `portfolio-facts.sh` separates runtime scope from development scope. The
+  record gains `tooling` and `dev_dependencies` beside `runtime` and `dependencies`, each with its
+  own evidence; `target_framework` follows the primary runtime only. Cache and build dot-directories
+  are pruned from the manifest index, the CI and container config directories are kept, and every
+  manifest under a dot-directory is pinned to development scope. A manifest whose only dependency
+  section is `devDependencies` reports tooling rather than a runtime, and a root-level manifest now
+  beats a deeper one instead of whichever sorted first. The portfolio table gains a `Tooling`
+  column.
+
 ## [0.8.5]
 
 ### Added
