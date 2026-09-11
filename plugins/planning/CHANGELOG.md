@@ -23,6 +23,16 @@ All notable changes to the `planning` plugin are documented here. Format follows
 - **`scripts/check-open-questions.sh`:** a fenced block opened and never closed is ungradeable,
   named as the cause. Every row after such a fence was skipped as documentation, so a register with
   one answered row and an open row hidden behind a stray fence graded clean.
+- **`scripts/check-open-questions.sh`:** a fence closes only on a line of the same character, at
+  least as long as its opener, with nothing else on it. A four-backtick fence quoting a
+  three-backtick example, or a `~~~` line inside a backtick fence, toggled the fence off and read
+  the quoted example's heading as a live one. One awk function now defines "inside a fence" for
+  heading detection and section extraction, and the row loop reads the state it emits instead of
+  detecting fences a third time.
+- **`scripts/check-open-questions.sh`:** a named `--brief` is read only when the register retired
+  a `deferred` or `blocked` row. With nothing to look up the cross-check reports `brief=ok`, so an
+  unrelated unterminated fence elsewhere in a large Brief no longer fails a clean register. The
+  Brief must still exist.
 
 ## [0.39.8]
 

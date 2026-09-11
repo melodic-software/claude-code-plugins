@@ -37,7 +37,16 @@
 # A row the ledger retired but the contract never records is the same silent
 # hole this gate exists to refuse. When --brief is omitted the verdict says
 # `brief=unchecked` rather than omitting the field: a check the caller only
-# appeared to get is worse than one it knowingly skipped.
+# appeared to get is worse than one it knowingly skipped. The named Brief must
+# exist, but it is only READ when the register retired a row: with nothing to
+# look up the cross-check is satisfied (`brief=ok`), and the Brief's own
+# headings and fences are not graded, so a stray fence in an unrelated section
+# of a large planning document cannot fail a clean register.
+#
+# Fenced blocks (``` or ~~~) are documentation in both files. A fence closes
+# only on a line of the same character at least as long as its opener with
+# nothing else on it, so a four-backtick fence can quote a three-backtick
+# example and a `~~~` line inside a backtick fence is content.
 #
 # Output (stdout, greppable):
 #   `registered=<n> open=<n> deferred=<n> blocked=<n> withdrawn=<n> answered=<n> brief=<ok|unchecked> status=<clean|open|ungradeable>`
@@ -50,19 +59,45 @@ usage() {
   sed -n '/^# Mechanical/,/^#   `registered=/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
+# The one definition of "inside a fence", shared by heading_matches and
+# extract_section so the two cannot disagree about what a heading is; the row
+# loop below reads the state these emit rather than detecting fences a third
+# time. fence_line(line) returns 1 when the line is a fence delimiter (and
+# updates the `fenced` state), 0 otherwise. A fence opens on three or more
+# backticks or tildes; it closes only on a line of the SAME character, at least
+# as LONG as the opener, with nothing but whitespace after it (a trailing CR
+# counts as whitespace, so a CRLF closer closes). Any other fence-shaped line
+# while a fence is open is content: a four-backtick fence can quote a
+# three-backtick example, and `~~~` inside a backtick fence does not close it.
+# A parity toggle got both wrong and read the quoted example's heading as live.
+fence_awk='
+  function fence_line(line,    run, ch, n) {
+    if (match(line, /^[[:space:]]*(```+|~~~+)/) == 0) { return 0 }
+    run = substr(line, RSTART, RLENGTH)
+    sub(/^[[:space:]]*/, "", run)
+    ch = substr(run, 1, 1)
+    n = length(run)
+    if (!fenced) { fenced = 1; fence_ch = ch; fence_len = n; return 1 }
+    if (ch == fence_ch && n >= fence_len && substr(line, RSTART + RLENGTH) ~ /^[[:space:]]*$/) {
+      fenced = 0
+      return 1
+    }
+    return 0
+  }
+'
+
 # List the headings whose text matches `pattern` (case-insensitively, so a ledger
 # that title-cases the section still grades), one per line as
-# `<line number><TAB><heading>`. A heading-shaped line inside a fenced block
-# (``` or ~~~) is documentation, never a heading: the template's own register
-# carries a fenced bash block whose `# Step 3 ...` comment lines would otherwise
-# count. This helper and extract_section share that rule so they agree on what a
-# heading is; a fenced comment must neither bind a section nor terminate one. A
-# trailing CR is stripped so a CRLF ledger names its heading cleanly. No output
-# means no match. A fence still open at end of file exits 4: every heading after
-# it was hidden, and hiding is the silent drop this gate exists to refuse.
+# `<line number><TAB><heading>`. A heading-shaped line inside a fenced block is
+# documentation, never a heading: the template's own register carries a fenced
+# bash block whose `# Step 3 ...` comment lines would otherwise count, and a
+# fenced comment must neither bind a section nor terminate one. A trailing CR is
+# stripped so a CRLF ledger names its heading cleanly. No output means no match.
+# A fence still open at end of file exits 4: every heading after it was hidden,
+# and hiding is the silent drop this gate exists to refuse.
 heading_matches() {
-  awk -v pattern="$1" '
-    /^[[:space:]]*(```|~~~)/ { fenced = !fenced; next }
+  awk -v pattern="$1" "$fence_awk"'
+    fence_line($0) { next }
     fenced { next }
     /^#+[[:space:]]/ && tolower($0) ~ pattern {
       heading = $0
@@ -78,21 +113,24 @@ match_count() { printf '%s\n' "$1" | wc -l | tr -d '[:space:]'; }
 match_lines() { printf '%s\n' "$1" | cut -f1 | paste -sd, - | sed 's/,/, /g'; }
 
 # Print a section body: every line after `start` (the matched heading's line
-# number) up to the next unfenced heading of any level or end of file. Taking
-# the line number rather than re-matching a pattern binds the body graded to the
-# heading the caller already named in its diagnostics. A fence opened in the
-# section and never closed exits 4: the row loop would otherwise skip every row
-# after it as documentation and grade the register clean with a question hidden.
-# A caller that ran heading_matches first never sees that exit (a heading only
-# binds at even fence parity, so the whole-file check fires first); the guard is
-# for a caller that extracts by line number without it.
+# number) up to the next unfenced heading of any level or end of file, each
+# prefixed `<marker><TAB>` where the marker is `f` for a fence delimiter or a
+# line inside a fence and `.` for a live line. The marker carries the fence
+# state to the caller so no second fence detector is needed. Taking the line
+# number rather than re-matching a pattern binds the body graded to the heading
+# the caller already named in its diagnostics. A fence opened in the section and
+# never closed exits 4: the row loop would otherwise skip every row after it as
+# documentation and grade the register clean with a question hidden. A caller
+# that ran heading_matches first never sees that exit (a heading only binds
+# outside a fence, so the whole-file check fires first); the guard is for a
+# caller that extracts by line number without it.
 extract_section() {
-  awk -v start="$1" '
+  awk -v start="$1" "$fence_awk"'
     NR <= start { next }
-    /^[[:space:]]*(```|~~~)/ { fenced = !fenced; print; next }
-    fenced { print; next }
+    fence_line($0) { print "f\t" $0; next }
+    fenced { print "f\t" $0; next }
     /^#+[[:space:]]/ { exit }
-    { print }
+    { print ".\t" $0 }
     END { if (fenced) { exit 4 } }
   ' "$2"
 }
@@ -190,17 +228,15 @@ seen_ids=" "
 deferred_ids=""
 expected=1
 
-in_fence=0
 skipped_fenced_row=0
 while IFS= read -r line; do
-  # A fenced block inside the register section is documentation (the row shape,
-  # a worked example), not data. Grading it would fail a ledger for quoting its
-  # own schema.
-  if [[ "$line" =~ ^[[:space:]]*(\`\`\`|~~~) ]]; then
-    in_fence=$((1 - in_fence))
-    continue
-  fi
-  if [[ "$in_fence" -ne 0 ]]; then
+  # extract_section prefixes every line with its fence state; strip the marker
+  # before parsing. A fenced block inside the register section is documentation
+  # (the row shape, a worked example), not data. Grading it would fail a ledger
+  # for quoting its own schema.
+  marker="${line%%$'\t'*}"
+  line="${line#*$'\t'}"
+  if [[ "$marker" == "f" ]]; then
     if [[ "$line" =~ ^[[:space:]]*-[[:space:]]+[Qq][0-9]+([^0-9]|$) ]]; then
       skipped_fenced_row=1
     fi
@@ -291,7 +327,15 @@ if [[ "$registered" -eq 0 ]]; then
 fi
 
 brief_state="unchecked"
-if [[ "$brief_named" -eq 1 ]]; then
+if [[ "$brief_named" -eq 1 && -z "$deferred_ids" ]]; then
+  # Nothing was retired, so there is nothing to look up and the Brief is not
+  # read. Its headings and fences are graded only in service of the lookup: a
+  # Brief is a large planning document with its own code samples, and refusing a
+  # clean register over a stray fence in a section this gate never grades would
+  # fail the caller for a defect outside the check they asked for. The
+  # existence check above still ran; the caller named a file that must exist.
+  brief_state="ok"
+elif [[ "$brief_named" -eq 1 ]]; then
   brief_matches="$(heading_matches 'deferred questions' "$brief")"
   brief_matches_status=$?
   if [[ "$brief_matches_status" -eq 4 ]]; then
