@@ -34,5 +34,5 @@ had to remember which spelling one file used. One rule means a new name needs no
 rename never happens twice. The decision, its exemptions, and the hard-cutover consequence are
 recorded in the ADR named below.
 
-Decision record: `docs/adr/` (the ADR is written in the same pull request that adds this rule; its
-number is assigned at write time).
+Decision record:
+[ADR 0033](../../docs/adr/0033-name-docs-files-lower-kebab-case-with-conventional-exceptions.md).

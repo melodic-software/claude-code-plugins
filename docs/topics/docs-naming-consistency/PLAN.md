@@ -288,9 +288,9 @@ and `render-landscape.sh` produced byte-identical `landscape.md` and `portfolio.
 - [x] `grep -c 'docs-naming' AGENTS.md` returns 1 and `grep -c '^paths:' .claude/rules/docs-naming.md` returns 1
 - [x] `! grep -rqP '\xE2\x80\x94' .claude/rules/docs-naming.md scripts/check-docs-naming.sh scripts/check-docs-naming.test.sh` holds (no em dash in any new file)
 
-### Phase 4: ADR at the next free number [TODO]
+### Phase 4: ADR at the next free number [DONE]
 
-- [ ] Compute the number as highest existing plus one at write time (0033 as of this revision;
+- [x] Compute the number as highest existing plus one at write time (0033 as of this revision;
       recheck after the Phase 5 base sync) and write
       `docs/adr/<NNNN>-name-docs-files-lower-kebab-case-with-conventional-exceptions.md` through
       `/architecture:record-decision` in the observed shape: the rule and its exemptions; hard
@@ -299,13 +299,13 @@ and `render-landscape.sh` produced byte-identical `landscape.md` and `portfolio.
       and rule file as the enforcement pair; Consequences name the 404 window for stale installed
       plugin copies and the `stale-path-verify` hook's advisory notices on future edits citing a
       retired path
-- [ ] `.claude/rules/docs-naming.md` links the ADR
+- [x] `.claude/rules/docs-naming.md` links the ADR
 
 **Sanity Check:**
 
-- [ ] `ls docs/adr/ | grep -oE '^[0-9]{4}' | sort | uniq -d | grep -vE '^(0018|0025|0028)$'` returns empty (the new number is unique)
-- [ ] `grep -c '^- Status: accepted' docs/adr/<NNNN>-*.md` returns 1
-- [ ] `scripts/check-docs-naming.sh --check` still exits 0
+- [x] `ls docs/adr/ | grep -oE '^[0-9]{4}' | sort | uniq -d | grep -vE '^(0018|0025|0028)$'` returns empty (the new number is unique)
+- [x] `grep -c '^- Status: accepted' docs/adr/<NNNN>-*.md` returns 1
+- [x] `scripts/check-docs-naming.sh --check` still exits 0
 
 ### Phase 5: Sync, validate, publish, close out [TODO]
 
