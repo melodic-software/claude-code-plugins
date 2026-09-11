@@ -3,6 +3,129 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.51.0]
+
+### Fixed
+
+- **`audit-skill-visibility` derives the listing budget from the effective settings and a
+  model band instead of hardcoded defaults.** The report read `skillListingBudgetFraction`
+  and `skillListingMaxDescChars` from nowhere and assumed a 200k window at 4 bytes per token,
+  so a repository that tunes the fraction saw an overflow that did not exist. The script now
+  merges both keys across the user, project, local, and managed scopes (the `--settings`
+  flag scope is reported as unread, never absent), enumerates managed policy only through the
+  vendored `lib/managed-scope.sh`, honors `CLAUDE_CODE_DISABLE_1M_CONTEXT` and
+  `CLAUDE_CODE_MAX_CONTEXT_TOKENS` from the process environment, and reports a
+  window x bytes-per-token band when nothing pins the model. `--budget-fraction`,
+  `--max-desc-chars`, and `--bytes-per-token` join `--context-window`, whose silent 200k
+  default is gone. JSON schema 1.1.0, additive.
+- **`audit-skill-visibility` withholds per-skill starvation verdicts when every usage score is
+  zero.** With no observed usage the product's stable sort keeps catalog order, so "which
+  skills are starved" is a tie, not a ranking. The overflow arithmetic and the cannot-fit
+  count stay; the per-skill claim moves to the `withheld` section with its reason.
+- **`audit-skill-visibility` determines reachability in a live run.** `--installed` now reads
+  `enabledPlugins` through the same settings merge and marks a disabled plugin's skills
+  `hidden` with the scope file as evidence; `--plugins-root` says a checkout is not an install
+  instead of reporting every row `unknown`. The `skillOverrides` path is removed: plugin
+  skills are governed by `enabledPlugins`, and `skillOverrides` never applies to them, so the
+  description no longer names it as a way a plugin skill loses visibility.
+
+- **`audit-skill-visibility` honors `defaultEnabled` and keeps disabled plugins out of the listing
+  contest.** A plugin with no `enabledPlugins` entry anywhere falls back to the marketplace entry's
+  `defaultEnabled`, then the plugin's own `plugin.json` field, then enabled, with the source named as
+  evidence. A disabled plugin's skills are `exempt-hidden`: the product never loads them, so they
+  spend no budget and carry no starvation verdict.
+
+### Added
+
+- `lib/managed-scope.sh`, vendored from `claude-config` through `scripts/sync-managed-scope.sh`.
+
+## [0.50.0]
+
+### Added
+
+- **audit-performance: `operator_context`, the paragraph only a human at the machine can
+  supply, carried in the report instead of asked for beside it.** A repeatable `--note TEXT`
+  attaches one fact per flag (what was slow, how many terminals were open, what the session was
+  doing, what Task Manager showed) and `--note-source` declares who supplied them. A run with
+  none records `status: absent` with an empty list, because a silent gap reads like a clean bill
+  of health. The block states that the engine cannot verify the declared origin.
+- **audit-performance: the CLI probe reports WHICH `claude` it measured.** `cli` carries
+  `probe_path`, `resolved_path`, the statement that the search ran over the engine process PATH
+  rather than the operator's login shell, a `layout` of `documented-native`, `legacy-local-npm`,
+  or `unclassified`, and every `claude` found on PATH. Two findings name the ambiguity a bare
+  version claim hides: `cli-probe-project-local` when the resolved binary sits under the
+  containment base (the project directory when one is passed, else the working directory, both
+  reported) or inside a `node_modules` tree, and `cli-multiple-on-path` when more than one
+  install answers to the name. Both route to `claude doctor`, the first-party authority; the
+  engine observes and never adjudicates an install. `version`, `exe`, `seconds`, and
+  `slow_version_probe` keep their meanings.
+- **audit-performance: a second read allowlist, `PROC_TEXT_READS`, enforced in
+  `read_proc_text`.** On Linux the engine reads `/proc/<pid>/status` and `/proc/<pid>/stat`,
+  kernel-generated text with no user content, and the reader raises on any other name the way
+  `read_json` does, so SKILL.md's claim that the prose and the code cannot drift apart holds for
+  both surfaces. `cmdline` is deliberately absent.
+
+### Changed
+
+- **audit-performance: `processes.population.most_active` excludes the kernel's own threads on
+  Linux.** A row is dropped when every classified process behind its name carries `PF_KTHREAD`,
+  read from the `Kthread:` line of `/proc/<pid>/status` where the kernel publishes one and
+  otherwise from bit `0x00200000` of `/proc/<pid>/stat` field 9. Neither parent pid 2 nor an
+  empty `cmdline` is consulted: the kernel reparents user-space helpers onto kthreadd, and a
+  process can rewrite its own argument region. Classification walks the ranked rows until ten
+  non-kernel rows are kept, stops at `kernel_thread_read_cap` processes, and keeps any row it
+  leaves partially examined; the report carries `kernel_threads_excluded` and
+  `kernel_thread_reads`, and off Linux the count is null with the reason. An unclassifiable
+  process counts as user-space, so the failure mode is an investigable false alarm rather than a
+  hidden user-space leak.
+- **audit-performance: a name absent from the first population sample reads `appeared`, not
+  `accumulating`.** The accumulation verdict now requires a non-empty first sample, so one
+  arrival of a name nothing was running seconds earlier stops being written up as a leak.
+- **audit-performance: `orphan_attribution.candidate_names` carries a platform note.** The set
+  is unchanged and stays platform-agnostic: executable-suffixed names are inert on POSIX process
+  tables and are retained for WSL interop processes, which is the hybrid host the orphan probe
+  exists for.
+- **`known-performance-issues.md` gains the kernel-thread identification mechanism** with its
+  four-part drift record, and a gotcha on the probed binary not being the operator's daily
+  `claude`.
+
+## [0.49.0]
+
+### Added
+
+- **audit-install-state: a cloud-session tree is labelled, never graded as the operator's
+  machine.** The report opens with an `environment` block: `tree_verdict` (`remote` / `local` /
+  `indeterminate`) rests on tree signals (`launcher-settings.json`, `environment-manager/`,
+  `plugins/synced/`, root-level hook scripts as corroboration), while the documented
+  `CLAUDE_CODE_REMOTE` variable is reported as session context because `--root` can point at any
+  tree. Label only; no staleness verdict depends on it. Report schema is `claude-install-state/2`
+  and the evidence vocabulary gains `documented` and `observed-undocumented` as closed values.
+- **audit-install-state: the JSON answers "why is my install so big".** `largest_subtrees`
+  ranks directories by measured bytes under every rolled-up entry, collapsing pass-through
+  prefixes, and `node_modules` sums the bytes the product installed into the plugin cache with the
+  upstream basis in its `why`. The header records `engine_version` and the exact `invocation`.
+- **audit-install-state: `.in_use/<pid>` markers are a PID scheme.** One row per PID with a count
+  and a bounded path list replaces one row per marker; a PID that is the auditing process or an
+  ancestor is marked `self_held`. The ancestry walk reads `/proc` on Linux, one `ps` listing on
+  macOS and other POSIX hosts, and one Win32_Process listing on Windows; `self_pids_walk` names
+  which, and `parent-only` says the launching session was not seen. The unknown-name sample groups
+  by shape with a per-directory histogram, so one repeated schema file cannot fill it.
+- **audit-install-state: only the cache's version directories count as product-installed
+  `node_modules`.** A `node_modules` under a marketplace checkout or a plugin data directory is
+  measured in `elsewhere_under_plugins` and attributed to nobody. A sentinel's `content_read` is
+  true only when its bytes were actually opened, never for an absent file.
+
+### Changed
+
+- **audit-install-state: entries name what the engine read by content.** `content_read` and
+  `content_read_paths` sit on the entry rows for `settings.json`, `.last-cleanup` and
+  `plugins/.last_inuse_sweep`; surfaces are unchanged. The two sentinels are reported under
+  `sentinels` as `observed-undocumented`, and the skill body and `reference/surfaces.md` no longer
+  call `.last-cleanup` the sweep's watermark as documented fact.
+- **audit-install-state: SKILL.md gains Phase 0 (whose tree is this) and a `## Next` section, and
+  drops under the skill-quality soft line cap** by pointing at the reference files for detail the
+  hub duplicated.
+
 ## [0.48.2]
 
 ### Changed
