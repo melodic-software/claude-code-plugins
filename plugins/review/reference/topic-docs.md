@@ -1,4 +1,4 @@
-# Topic-docs placement — where review findings land
+# Topic-docs placement: where review findings land
 
 How `/review:quality-gate`, `/review:fanout`, and `/review:audit-enforceability` resolve where
 review reports and enforcement-rung proposal stubs land in a consuming repo. All three skills read
@@ -16,18 +16,18 @@ reports sit under the memory root's reserved `reviews/` name rather than inside 
 
 | Artifact | Location (default) |
 |---|---|
-| `quality-gate` findings | `.work/reviews/<branch-slug>/<UTC-timestamp>-<mode>.md` — never committed |
-| `fanout` ranked reports | `.work/reviews/<branch-slug>/<UTC-timestamp>-<topic>.md` — never committed |
-| `fanout` consumption records | `.work/reviews/<branch-slug>/<UTC-timestamp>-fix-pass-applied-<sha256-12>.md` — never committed |
-| `audit-enforceability` proposal stubs | `.work/enforceability/<branch-slug>/<rank>-<rung>-<slug>.md` — never committed |
+| `quality-gate` findings | `.work/reviews/<branch-slug>/<UTC-timestamp>-<mode>.md`, never committed |
+| `fanout` ranked reports | `.work/reviews/<branch-slug>/<UTC-timestamp>-<topic>.md`, never committed |
+| `fanout` consumption records | `.work/reviews/<branch-slug>/<UTC-timestamp>-fix-pass-applied-<sha256-12>.md`, never committed |
+| `audit-enforceability` proposal stubs | `.work/enforceability/<branch-slug>/<rank>-<rung>-<slug>.md`, never committed |
 
 Reports are process output that nothing outside this plugin enforces against, which is what makes
 them memory-tier by the convention's placement question. One artifact is read back: the `fix`
 action's consumption record is the ledger that bounds its next merge set, so losing one re-injects
-already-applied findings — durability inside the lane matters even though nothing downstream gates
+already-applied findings. Durability inside the lane matters even though nothing downstream gates
 on it. They are therefore lane-local (contract
 ≥ 2.0.0): a sibling worktree or cloud clone never sees them. Findings that must cross lanes
-graduate through the work-item tracker — the contract's cross-lane index — as tickets that point,
+graduate through the work-item tracker, the contract's cross-lane index, as tickets that point,
 never as pasted report bodies.
 
 ## Resolution (the contract's five-rung order, earlier wins)
@@ -38,11 +38,11 @@ never as pasted report bodies.
    authority).
 3. An existing conforming layout inferred from the repo (a self-ignoring memory root holding
    review reports) → confirm with the user, persist to the concern file.
-4. Ask once — one question, recommended option first; persist the answer to the concern file.
+4. Ask once, one question with the recommended option first; persist the answer to the concern file.
 5. The documented default: `.work/reviews/<branch-slug>/`.
 
 Only rung 1 and rung 5 compose `reviews/<branch-slug>` themselves. Rungs 2–4 yield whatever location
-the consumer declared, inferred, or chose — **resolve the home, never assume its shape.** A skill
+the consumer declared, inferred, or chose. **Resolve the home, never assume its shape.** A skill
 that hardcodes the default's shape reads or writes a directory the other side never touched, and the
 fanout `fix` action's failure mode for that is a clean empty-set STOP indistinguishable from "no
 findings".
@@ -76,27 +76,27 @@ its own reserved first-level name with its own ladder is the enforcement-surface
 `overengineering/<branch-slug>/`.
 
 **Non-interactive / forked mode.** Rungs 2–4 can require asking the user or persisting config. A
-context that can do neither — a forked subagent, a dispatched worker, a headless run such as
-`fanout`'s `fix --yes` — follows the contract's "Non-interactive / forked mode" section, which is
+context that can do neither, whether a forked subagent, a dispatched worker, or a headless run such
+as `fanout`'s `fix --yes`, follows the contract's "Non-interactive / forked mode" section, which is
 contract-owned and cited here rather than redefined.
 
 Both skills review a git diff; with no git repo there is nothing to review, and the skills stop
-before any write — the convention's no-project-root fallback surface never comes into play here.
+before any write. The convention's no-project-root fallback surface never comes into play here.
 
 ## Branch slug and timestamps
 
-- `<branch-slug>` — the branch name lowercased, with `/` and every other non-`[a-z0-9._-]` character
+- `<branch-slug>`: the branch name lowercased, with `/` and every other non-`[a-z0-9._-]` character
   replaced by `-`. This is the branch axis, deliberately distinct from the convention's topic-slug
   form: the mapping is lossy (`feature/foo` and `feature-foo` collide), which the fanout fix action
   compensates for with its `branch:` frontmatter check.
-- Timestamps — ISO-basic UTC `YYYYMMDDTHHMMSSZ` (`date -u +%Y%m%dT%H%M%SZ`), colon-free and
+- Timestamps: ISO-basic UTC `YYYYMMDDTHHMMSSZ` (`date -u +%Y%m%dT%H%M%SZ`), colon-free and
   Windows-safe; lexical sort equals chronological sort.
 
 ## Runtime guards
 
 - **Self-ignore guard:** the session's first memory-tier write verifies the **resolved memory
-  root** (whatever `memory_dir` names — never a hardcoded `.work`) contains a `.gitignore` with
-  `*`, creating it (announced) when absent — fresh clones heal on first write. Once per session,
+  root** (whatever `memory_dir` names, never a hardcoded `.work`) contains a `.gitignore` with
+  `*`, creating it (announced) when absent. Fresh clones heal on first write. Once per session,
   per the contract. The contract also defines **invalid roots at which the guard does not run**;
   they are enumerated in its
   [Runtime guards](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/topic-docs/README.md#runtime-guards)

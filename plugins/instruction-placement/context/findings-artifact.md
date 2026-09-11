@@ -1,12 +1,12 @@
-# Findings artifact — the audit → realign contract
+# Findings artifact: the audit → realign contract
 
-One markdown file is the whole seam between this plugin's skills. `audit` writes it and mutates
+One markdown file is the whole interface between this plugin's skills. `audit` writes it and mutates
 nothing else. `realign` is the **only writer of operator decisions** into it, and the only skill
 that acts on them; `delta` writes records into it too, never a decision, under the one reset the
-status section below fixes. `check` never reads it at all — it verifies the repository's state
+status section below fixes. `check` never reads it at all. It verifies the repository's state
 directly, so a stale artifact can never make a broken repo look healthy.
 
-`delta` reads the artifact and writes a second, smaller file — the spine baseline — whose shape this
+`delta` reads the artifact and writes a second, smaller file, the spine baseline, whose shape this
 document also owns, under "The baseline-capture obligation". Operator decisions have a third home:
 the tracked finding-suppression surface, whose keys are the marketplace's and whose constituents are
 this document's, under "Finding ids and their constituents".
@@ -26,7 +26,7 @@ that makes the plugin safe to point at a repository nobody has reviewed.
 
 Consequences, so the boundary is not re-litigated field by field: this artifact owes no
 producer-side detector contract, carries no severity vocabulary, and emits no severity crosswalk.
-Its verdict vocabulary is this plugin's own and is not a severity scale — mapping it onto one would
+Its verdict vocabulary is this plugin's own and is not a severity scale. Mapping it onto one would
 imply an auto-apply disposition that does not exist.
 
 ## Where it lives
@@ -41,7 +41,7 @@ repository. Default:
 
 **Resolve the home; never hardcode the default's shape.** The binding owns the rung order, the
 constant slug, the branch axis, and the guards. It is also where the plugin's `baselines/` slot
-lives — the shared lifecycle artifact protocol names that slot
+lives, and the shared lifecycle artifact protocol names that slot
 ([`../reference/artifact-protocol.md`](../reference/artifact-protocol.md)), and this plugin's
 baseline is its use of it.
 
@@ -54,7 +54,7 @@ Two properties the contract fixes:
   rather than depositing a timestamped sibling; the run timestamp lives in frontmatter where a
   reader and a diff can both find it.
 
-The findings artifact is **branch-scoped and checkout-local by design** — its line ranges are only
+The findings artifact is **branch-scoped and checkout-local by design**. Its line ranges are only
 true for the branch it was derived on, and a removed worktree or deleted memory root loses it. That
 is fine for evidence and classifications, which are recomputed. It is not fine for operator
 decisions, which is why a `declined` decision is also written to the tracked finding-suppression
@@ -110,7 +110,7 @@ is written by `audit` at sweep time.** Both are fields added under this document
 fields-may-be-added rule, and they exist so `realign` never recomputes an anchor. Only `audit` holds
 the detector stream the chain is derived from; `realign` has neither `detect.sh` nor a `SECTION`
 stream in its pre-computed context, so its only other route is re-reading the file with its own
-heading parse — which does not track fenced blocks and frontmatter the way the detector does. A
+heading parse, which does not track fenced blocks and frontmatter the way the detector does. A
 divergent parse there produces a well-formed entry whose constituents hash to their own key, so
 nothing reports it malformed and `delta` simply never matches it. The decline would vanish with no
 error, which is the one failure mode this record's durability exists to prevent.
@@ -118,10 +118,10 @@ error, which is the one failure mode this record's durability exists to prevent.
 `Status` moves `pending` → `accepted` | `declined` | `applied` | `blocked`, and back along exactly
 one arc, `accepted` → `pending`. **Every forward move is written by `realign` and by nothing else**,
 because every one of them records an operator's decision. The single backward move is the
-source-changed reset below, written by whichever skill re-derives the record — `audit` on a re-run,
-`delta` on its merge — and it is not a decision but the withdrawal of one whose subject is gone.
+source-changed reset below, written by whichever skill re-derives the record, `audit` on a re-run
+and `delta` on its merge, and it is not a decision but the withdrawal of one whose subject is gone.
 A `declined` finding keeps its record so a later run does not re-propose what the operator already
-rejected — re-proposing a declined move is the fastest way to train an operator to rubber-stamp.
+rejected. Re-proposing a declined move is the fastest way to train an operator to rubber-stamp.
 
 **One status is reset rather than carried, and only one: `accepted` on a finding whose source
 changed.** An acceptance is scoped to the text the operator read and to the line range they were
@@ -137,7 +137,7 @@ The other three do not move, for reasons that are not symmetric with that one:
   and where the operator gave a reason its durable form is the suppression entry, whose anchor is
   deliberately insensitive to a copy-edit. Resetting it would resurrect a decision already made. A
   decline recorded with no reason has no entry and lives in this artifact alone, so it is durable
-  only within this checkout — `realign` says so at the moment it records one, rather than leaving
+  only within this checkout. `realign` says so at the moment it records one, rather than leaving
   the operator to discover it from the next worktree.
 - **`applied` stays `applied`.** It is history, not an authorization: the move already happened and
   the repository's git history is the record. A changed source after the fact is ordinary drift.
@@ -176,12 +176,12 @@ plugin's business and nobody else's.
 
 | Constituent | For a placement finding |
 |---|---|
-| `check` | `instruction-placement/audit/<lane>` — `demote` or `promote`, the lane that raised it. |
+| `check` | `instruction-placement/audit/<lane>`, either `demote` or `promote`, the lane that raised it. |
 | `claim` | The canonical claim id with its destination bound: `narrower-scope:<destination>` on the demote lane, `unloaded-convention:<destination>` on the promote lane. Destinations are the rubric's ladder rungs (`path-scoped-rule`, `nested-agents-md`, `skill`, `linter`, `deletion`). Never free prose. |
 | `sites` | Exactly one: `surface` is the source file's repo-relative path, `anchor/v1` is the anchor below. A placement finding is about one section of one file, so a second site would describe a finding this plugin does not raise. |
 
 **`anchor/v1` is `sha256` of the `US`-joined ordered enclosing heading path of the section,
-truncated to 8 hex** — for the section `### Release checklist` under `## Deployment`, the path is
+truncated to 8 hex**: for the section `### Release checklist` under `## Deployment`, the path is
 `["Deployment", "Release checklist"]`. It is deliberately **not** a digest of the section's text and
 never a positional ordinal.
 
@@ -211,7 +211,7 @@ copy-edit. Renaming or re-nesting the heading does change it, and that is correc
 then a different one, and the convention's `OLD CLOSED, NEW OPENED` disposition reports the old entry
 stale rather than dropping it.
 
-`finding_id` is the convention's own formula over `[check, claim, surface, anchor]` — the
+`finding_id` is the convention's own formula over `[check, claim, surface, anchor]`. The
 constituents are authoritative and the key is derived from them, so an entry whose stored
 constituents do not hash to its own key is reported as malformed and suppresses nothing.
 
@@ -221,8 +221,8 @@ carries an excerpt hash; this plugin's `anchor/v1` is the heading-path hash alon
 two sections in one file sharing an enclosing heading path, a lane, and a destination collapse to
 one `finding_id`, so declining one suppresses both. That is accepted rather than mitigated. Adding
 the excerpt half back would make every copy-edit inside a declined section mint a new id and
-resurrect a decision the operator already made — the failure this plugin's whole delta lane exists
-to prevent — and the collision it avoids requires two same-named headings under the same parent,
+resurrect a decision the operator already made, the failure this plugin's whole delta lane exists
+to prevent, and the collision it avoids requires two same-named headings under the same parent,
 which is a malformed document a reader cannot navigate either. Revisit if a consumer demonstrates
 the collision on a document they consider correct; the fix would be `anchor/v2` with a
 position-independent tiebreak, not a text digest.
@@ -282,11 +282,11 @@ Four rules bind the capture:
   recorded in a file the topic-docs contract marks invisible outside its own checkout is a decline
   the next worktree never sees; that is why judgments live on the tracked surface instead.
 - **`branch:` is a gate, not provenance.** A baseline whose `branch:` does not match the resolved
-  branch identity is not this branch's spine — the comparison is refused, both names are reported,
+  branch identity is not this branch's spine. The comparison is refused, both names are reported,
   and the run proceeds as a first run on this branch. The directory alone is never the proof.
 - **The capture happens at the end of a cycle that completed its comparison.** A run that stopped
-  early — no detector output, an unrecognized `schema:`, no resolved home, no branch identity —
-  leaves the stored baseline exactly as it is and writes none. A half-captured spine reports the
+  early, whether from no detector output, an unrecognized `schema:`, no resolved home, or no branch
+  identity, leaves the stored baseline exactly as it is and writes none. A half-captured spine reports the
   missing half as movement on the next run.
 - **`type: instruction-placement-baseline`, never `review-findings`.** The reasoning is the one
   stated above for the findings artifact and it applies with more force here: nothing in this file
@@ -296,7 +296,7 @@ Four rules bind the capture:
 An unrecognized `schema:` is a stop with a visible message rather than a silent re-baseline: a run
 that quietly discards a spine reports the whole surface as movement and calls it a delta.
 
-## Stability, and what promotion to a shared seam would require
+## Stability, and what promotion to a shared convention would require
 
 This artifact is currently consumed by **three skills inside this plugin and nothing else**: `audit`
 writes it, `realign` writes operator decisions into it, `delta` reads this branch's copy for the
@@ -308,9 +308,9 @@ surface is the one home in this plugin that is not local to a checkout, and its 
 marketplace's rather than this document's.
 
 It is therefore **not** a cross-plugin convention, and there is no owner doc under
-`docs/conventions/` for it. That is deliberate. The convention registry's rule — a shared convention
-lands in an owner doc *before a second plugin adopts it* — is a deadline, not an instruction to
-publish a seam nobody shares yet. Writing one now would fix a shape against a consumer whose
+`docs/conventions/` for it. That is deliberate. The convention registry's rule, that a shared
+convention lands in an owner doc *before a second plugin adopts it*, is a deadline, not an
+instruction to publish a convention nobody shares yet. Writing one now would fix a shape against a consumer whose
 requirements are unknown, which is the failure mode of designing an interface with one
 implementation.
 
@@ -324,18 +324,18 @@ implementation.
   *added*; a reader that ignores unknown fields keeps working.
 - Identifiers are stable across runs at one resolved home and are never reused. The cross-checkout
   identity is the `finding_id` above, not this handle.
-- The location formula — memory tier, constant slug, branch segment, one stable
-  filename — is fixed within a schema version.
+- The location formula, meaning memory tier, constant slug, branch segment, and one stable
+  filename, is fixed within a schema version.
 
 **What promotion would require**, recorded so the work is not rediscovered:
 
 1. A real second consumer with stated needs. Until one exists, the shape is a guess.
 2. A decision on the auto-apply boundary. The artifact is deliberately not
    `type: review-findings`, because that type is auto-applicable by construction and every proposal
-   here is consent-gated per item. Any shared seam has to preserve that or explicitly justify
-   dropping it — and dropping it would launder the gate that makes this plugin safe to run.
+   here is consent-gated per item. Any shared convention has to preserve that or explicitly justify
+   dropping it, and dropping it would launder the gate that makes this plugin safe to run.
 3. An owner doc under `docs/conventions/`, registered in the convention registry, carrying the
-   rules, versioning, and adoption story — landing *before* the second consumer ships, per the
+   rules, versioning, and adoption story, landing *before* the second consumer ships, per the
    registry's own rule.
 
 Until then this document is the contract, and it binds only this plugin.

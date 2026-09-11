@@ -1,4 +1,4 @@
-# OTEL pipeline — collector, store, Aspire dashboard
+# OTEL pipeline: collector, store, Aspire dashboard
 
 Machine config:
 [`common/otel-collector.yaml`](https://github.com/melodic-software/provisioning/blob/main/common/otel-collector.yaml).
@@ -50,7 +50,7 @@ to the provisioning repository.
 | Fallback | Repo-relative `.claude/observability/otel` when unset (development-only) |
 
 Files are gitignored per-developer-local. Content capture (prompts, API bodies) is opt-in via
-`.claude/settings.local.json` — see operator-setup "Privacy consequence".
+`.claude/settings.local.json`. See operator-setup "Privacy consequence".
 
 ## Health checks
 
@@ -64,5 +64,5 @@ Files are gitignored per-developer-local. Content capture (prompts, API bodies) 
 ## Privacy
 
 Read [privacy.md](privacy.md) before surfacing OTEL content in reports. The OTEL store can hold
-full prompts and API bodies when content keys are on — never echo verbatim into user-visible
+full prompts and API bodies when content keys are on, so never echo verbatim into user-visible
 output unless the task explicitly requires it.

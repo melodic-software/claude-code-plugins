@@ -1,4 +1,4 @@
-# Worked example — one topic, birth to graduation
+# Worked example: one topic, birth to graduation
 
 Topic: adding token-refresh to an auth module. Derived slug:
 `auth-token-refresh` (from the Brief topic; branch
@@ -34,13 +34,13 @@ docs/topics/auth-token-refresh/     <- contract slice, committed on branch
 ```
 
 Each implementation phase commits its `PLAN.md` progress marks together
-with that phase's source changes — one commit, one story.
+with that phase's source changes. One commit, one story.
 
 ## PR time
 
 The PR description carries the approved plan and the verification
-summary in `<details>` blocks, by paste — the contract slice itself is
-about to disappear from the diff.
+summary in `<details>` blocks, by paste, because the contract slice
+itself is about to disappear from the diff.
 
 ## Graduation (before merge)
 
@@ -53,7 +53,7 @@ about to disappear from the diff.
    ("do we need per-device revocation?") files as a decision item.
 3. The prune commit deletes `docs/topics/auth-token-refresh/`. The PR
    body names the graduation targets (`docs/adr/0042`, the tracker
-   items) as the load-bearing record, and may also name the pre-prune
+   items) as the durable record, and may also name the pre-prune
    commit SHA for a best-effort Contents API recovery of the disposed
    slice.
 4. The required check confirms the net PR diff contains no

@@ -1,8 +1,8 @@
-# Worktree root convention — `worktreeroot.path`
+# Worktree root convention: `worktreeroot.path`
 
 Owner doc for the fleet's worktree-placement convention. The machine truth is
 a **git config key**, so the convention is readable by anything that can run
-`git config --get` — humans, scripts, CI, and every agent, not just this
+`git config --get`: humans, scripts, CI, and every agent, not just this
 plugin. Prose surfaces (a repository's `AGENTS.md` / `CLAUDE.md`, skill text)
 should **cite this key, never copy the path**: restating the path in several
 places is the drift a git-config-readable convention exists to prevent.
@@ -14,8 +14,8 @@ places is the drift a git-config-readable convention exists to prevent.
   path = ~/worktrees
 ```
 
-- **Name:** `worktreeroot.path`. Deliberately NOT under `worktree.*`
-  — git owns that namespace (`worktree.guessRemote`,
+- **Name:** `worktreeroot.path`. Deliberately NOT under `worktree.*`,
+  because git owns that namespace (`worktree.guessRemote`,
   `worktree.useRelativePaths`; git-worktree(1) Configuration). git-config(1)
   Variables invites third-party tools to invent their own variables, provided
   they do not collide with Git or other popular tools and are documented.
@@ -25,7 +25,7 @@ places is the drift a git-config-readable convention exists to prevent.
   this marketplace. This section is the *capability*, and it collides with
   neither Git's `worktree.*` nor git-wt's `wt.*`.
 - **Type:** path (read with `--type=path`, which expands a leading `~`).
-- **Multi-valued, last value wins** — an include can *append* rather than
+- **Multi-valued, last value wins.** An include can *append* rather than
   override, which is what makes the `includeIf` layering below work.
 - **Retired alias:** `scripts/worktree-root-legacy.sh` (not this skill) rewrites
   a leftover publisher-named key onto `worktreeroot.path` at the winning origin
@@ -48,11 +48,11 @@ Two hazards, both verified on git 2.55 in #2610 and both silent:
 - **Never pass a scope flag without `--includes`.** Per git-config(1),
   `--includes` defaults OFF "when a specific file is given (e.g., using
   `--file`, `--global`, etc)" and ON when searching all config files. A
-  scoped read silently skips every `includeIf` — the whole per-identity
+  scoped read silently skips every `includeIf`, the whole per-identity
   layer.
 - **Gate on `rev-parse --git-dir` first.** Under dubious ownership
   (`safe.directory`), `git -C <repo> config --get <key>` returns the GLOBAL
-  value as though it were the repository's answer — rc=0, no stderr, and
+  value as though it were the repository's answer: rc=0, no stderr, and
   `--show-scope` reports `global`.
 
 ## Resolution order in this plugin
@@ -60,28 +60,28 @@ Two hazards, both verified on git 2.55 in #2610 and both silent:
 `scripts/worktree-create.sh` (shared by the `/worktree create` skill and the
 `WorktreeCreate` hook) resolves the root most specific first:
 
-1. Explicit `--root` / `--root-file` — a per-invocation caller decision.
+1. Explicit `--root` / `--root-file`, a per-invocation caller decision.
 2. **`worktreeroot.path`**,
    read from the *target repository* with includes on. `includeIf` supplies
    per-identity and per-repository answers with no new machinery (below).
-3. `--fallback-root` / `--fallback-root-file` — the machine-global
+3. `--fallback-root` / `--fallback-root-file`, the machine-global
    `worktree_root` **plugin option**, ranked below the key because only this
    plugin can read the option while every consumer can read the key.
 4. The plugin data directory (`--data-root-file` → `<data-dir>/worktrees`).
-5. Absent all: refuse (exit 3). Never the in-repo `.claude/worktrees/` —
-   [the nesting invariant](../skills/worktree/SKILL.md) the `worktree` skill
+5. Absent all: refuse (exit 3). Never the in-repo `.claude/worktrees/`.
+   [The nesting invariant](../skills/worktree/SKILL.md) the `worktree` skill
    publishes owns that claim.
 
 Whatever rung supplies the root, the helper's containment guard then rejects
-a root that itself resolves inside a working tree or a git directory — a
+a root that itself resolves inside a working tree or a git directory. A
 misconfigured key is a refusal, not a licensed nesting.
 
-Enforcement seams: `hooks/worktree-create-gate.sh` (harness-driven
+Enforcement hooks: `hooks/worktree-create-gate.sh` (harness-driven
 creations) and `hooks/worktree-add-containment-gate.sh` (a raw Bash
 `git worktree add` targeting a path inside a repository, #2611).
 `EnterWorktree(name:)` is not a Bash call and lands in the in-repo default;
 the skill is contractually forbidden from calling the name form, and
-harness-driven creation is covered by the `WorktreeCreate` hook — that pair
+harness-driven creation is covered by the `WorktreeCreate` hook. That pair
 is the documented handling of the `EnterWorktree(name:)` gap.
 
 ## Per-identity and per-repository roots (#2612)
@@ -118,15 +118,15 @@ so last-wins picks it up) alongside the identity keys. Verified properties
 - **Linked worktrees classify with their repository**: a worktree's
   `$GIT_DIR` is always under its main repository, so a tree-anchored
   `gitdir:` gives every worktree of a repository the same answer. Corollary:
-  a pattern anchored at a worktree's own tree path matches nothing, ever —
-  that presents as "includeIf is broken", and it is the likely first
+  a pattern anchored at a worktree's own tree path matches nothing, ever.
+  That presents as "includeIf is broken", and it is the likely first
   misdiagnosis.
 
-### Hazards (all fail silently — rc=0, zero stderr)
+### Hazards (all fail silently: rc=0, zero stderr)
 
 - **Use `gitdir/i:` for the identity layer, not `hasconfig:`.** libgit2
   clients (gitui, TortoiseGit, git2/nodegit/pygit2) implement `gitdir:`,
-  `gitdir/i:`, `onbranch:` but NOT `hasconfig:` — and fail unrecognized
+  `gitdir/i:`, `onbranch:` but NOT `hasconfig:`, and fail unrecognized
   conditions silently; JGit and go-git resolve no `includeIf` at all.
   `hasconfig:` is fine for `worktreeroot.*`, which only CLI-shelling tools read.
 - **`gitdir:` is case-sensitive even on case-insensitive NTFS.** Only the
@@ -142,16 +142,16 @@ so last-wins picks it up) alongside the identity keys. Verified properties
 - **Bare repositories have no `/.git` suffix**, so `**/<name>/.git` patterns
   silently miss them.
 - **Per-repo exceptions belong in a name-keyed global include, not
-  `.git/config`** — repo-local config is not cloned, so the exception
+  `.git/config`**: repo-local config is not cloned, so the exception
   vanishes on re-clone (twice, for a dotfiles repo with two peer clones).
 - **Version floors:** `gitdir:`/`gitdir/i:` 2.13, `onbranch:` 2.23,
-  `hasconfig:remote.*.url:` 2.36, `worktree:`/`worktree/i:` **2.56 — unreleased as of
+  `hasconfig:remote.*.url:` 2.36, `worktree:`/`worktree/i:` **2.56, unreleased as of
   2026-08-26** (latest tag v2.55.0; the 2.55 docs do not list the condition yet, so verify it
-  shipped before authoring for it) — a config authored for 2.56 degrades silently on 2.55.
+  shipped before authoring for it). A config authored for 2.56 degrades silently on 2.55.
 - **Per-worktree overrides need `config.worktree`** behind
-  `extensions.worktreeConfig` — no `gitdir:` pattern can distinguish two
+  `extensions.worktreeConfig`, since no `gitdir:` pattern can distinguish two
   worktrees of one repository.
-- **Identity includes must set more than `user.email`** — `user.signingkey`,
+- **Identity includes must set more than `user.email`.** `user.signingkey`,
   `gpg.ssh.allowedSignersFile`, `core.sshCommand`, and `url.*.insteadOf` all
   leak from global otherwise, and a wrong SSH signing key **verifies Good
   locally** (git derives the principal from the signature; only the forge

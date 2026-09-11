@@ -62,9 +62,9 @@ dependency roots. CI consumes those manifests with `npm ci` and hash-required
 
 Do **not** trust a bare `ruff` on `PATH` for verification in this repository.
 A workstation `ruff` at a different version from the one CI installs disagrees
-with CI in both directions — it reports findings on an unmodified `main` tree
-that CI accepts, and misses findings CI raises — because a release can move a
-rule into or out of the default set, as 0.16.0 did for eighteen `E`/`F` rules.
+with CI in both directions: it reports findings on an unmodified `main` tree
+that CI accepts, and misses findings CI raises. A release can move a rule into
+or out of the default set, as 0.16.0 did for eighteen `E`/`F` rules.
 Resolve the tool from the pin instead of from `PATH`:
 
 ```shell

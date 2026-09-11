@@ -11,7 +11,7 @@ cd "$PROJECT_DIR" && uv run ruff check <files> --fix --no-unsafe-fixes --unfixab
 ```
 
 `--unfixable F401` matches the `ruff-format` hook: protects just-added imports during iterative
-editing; F401 still surfaces as a finding — only auto-deletion is suppressed.
+editing; F401 still surfaces as a finding. Only auto-deletion is suppressed.
 
 ## Format
 
@@ -31,20 +31,20 @@ cd "$PROJECT_DIR" && uv run pytest tests/ -x -q
 
 ## Type check
 
-Part of `check-cmd` (no fix mode — `fix-cmd` is format-only; `code-fix-cmd` is ruff check only):
+Part of `check-cmd`, which has no fix mode. `fix-cmd` is format-only; `code-fix-cmd` is ruff check only:
 
 ```bash
 cd "$PROJECT_DIR" && uv run pyright
 ```
 
-pyright is a **hard prerequisite** of the python default once ruff config opts the ecosystem in — it shares the single compound `check-cmd` with ruff, and tool presence is evaluated per ecosystem, not per tool. The preflight probe is satisfied by `uv`, the runner every python command is invoked through; pyright is never probed. So on a ruff-configured project with `uv` installed and pyright absent from both the project environment and `PATH`, nothing skips: the two ruff commands run and pass, then `uv run pyright` exits 2 (`error: Failed to spawn: pyright` / `program not found`) and the ecosystem reports Lint **`FAIL`** — not a missing-tool `skip`. Because `check-cmd` is one opaque string, that FAIL cannot be narrowed to pyright alone. Install pyright alongside ruff (see the ecosystem's `install-hint`), or, if the project genuinely does not want type checking, drop it by overriding `check-cmd` in the consumer's own `.claude/ecosystems/python.yaml` (ladder rung 1).
+pyright is a **hard prerequisite** of the python default once ruff config opts the ecosystem in. It shares the single compound `check-cmd` with ruff, and tool presence is evaluated per ecosystem, not per tool. The preflight probe is satisfied by `uv`, the runner every python command is invoked through; pyright is never probed. So on a ruff-configured project with `uv` installed and pyright absent from both the project environment and `PATH`, nothing skips: the two ruff commands run and pass, then `uv run pyright` exits 2 (`error: Failed to spawn: pyright` / `program not found`) and the ecosystem reports Lint **`FAIL`**, not a missing-tool `skip`. Because `check-cmd` is one opaque string, that FAIL cannot be narrowed to pyright alone. Install pyright alongside ruff (see the ecosystem's `install-hint`), or, if the project genuinely does not want type checking, drop it by overriding `check-cmd` in the consumer's own `.claude/ecosystems/python.yaml` (ladder rung 1).
 
 ## Gotchas
 
-- **Use `uv run` prefix in uv-managed projects** (a `uv.lock` is the signal) — it ensures the managed virtualenv is used. In pip/poetry projects, use that project's documented invocation instead
-- **E501 (line-too-long) is not auto-fixable** — the formatter handles code wrapping, but docstrings/comments/string literals exceeding the configured `line-length` must be shortened manually
-- **pyright runs in its default standard mode absent a `pyrightconfig.json` or `pyproject.toml [tool.pyright]`** — on an untyped or partially-typed project this can surface genuine type errors; set `typeCheckingMode` (e.g. `basic` or `off`) or add project config to tune the strictness rather than suppressing findings ad hoc
-- **Run from project directory** — each `pyproject.toml` defines an independent project root. Always `cd` to the directory containing `pyproject.toml` before running commands
+- **Use `uv run` prefix in uv-managed projects** (a `uv.lock` is the signal): it ensures the managed virtualenv is used. In pip/poetry projects, use that project's documented invocation instead
+- **E501 (line-too-long) is not auto-fixable**: the formatter handles code wrapping, but docstrings/comments/string literals exceeding the configured `line-length` must be shortened manually
+- **pyright runs in its default standard mode absent a `pyrightconfig.json` or `pyproject.toml [tool.pyright]`**: on an untyped or partially-typed project this can surface genuine type errors; set `typeCheckingMode` (e.g. `basic` or `off`) or add project config to tune the strictness rather than suppressing findings ad hoc
+- **Run from project directory**: each `pyproject.toml` defines an independent project root. Always `cd` to the directory containing `pyproject.toml` before running commands
 
 ## Project discovery
 

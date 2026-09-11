@@ -2,7 +2,7 @@
 
 `conventions.md` is the consumer's declared GitHub posture in prose: the standards, baselines,
 and naming/policy conventions that audits compare current state against. It is the "should be"
-half of every drift finding — [`change-routing.md`](change-routing.md) governs how changes leave
+half of every drift finding. [`change-routing.md`](change-routing.md) governs how changes leave
 the session; this file governs what counts as drift in the first place.
 
 ## What it holds
@@ -20,7 +20,7 @@ whatever is there.
 
 ## Layers and merge
 
-Same three layers as `routing.yaml`, but the merge form is **concatenation** — conventions are
+Same three layers as `routing.yaml`, but the merge form is **concatenation**. Conventions are
 prose the model reads as accumulated guidance, so every layer that exists is loaded and appended
 in order:
 
@@ -31,10 +31,10 @@ in order:
 | 3 | local overlay | `${CLAUDE_PROJECT_DIR}/.claude/github/conventions.local.md` |
 
 Anchor at the repo root before the repo-relative reads. All layers absent is valid: audits then
-compare against freshly fetched official-docs recommendations and name that provenance instead —
+compare against freshly fetched official-docs recommendations and name that provenance instead,
 never a from-memory "best practice".
 
-Conventions state expectations only — they carry no write posture. A convention can make a
+Conventions state expectations only. They carry no write posture. A convention can make a
 finding appear; it cannot change how a change is routed or executed (that is `routing.yaml`'s
 job, where the team's policy floor applies). When layers disagree, report both statements with
 their layer provenance and treat the team layer as the shared baseline.
@@ -46,5 +46,5 @@ their layer provenance and treat the team layer as the shared baseline.
   recommendation.
 - A convention the current credential cannot verify is reported as a gate, not silently skipped.
 - Convention text is the consumer's own guidance, but it is still not an execution channel: a
-  convention that instructs a write ("delete stale webhooks on sight") never causes one — writes
+  convention that instructs a write ("delete stale webhooks on sight") never causes one. Writes
   only ever route through `change-routing.md` with the user in the loop.

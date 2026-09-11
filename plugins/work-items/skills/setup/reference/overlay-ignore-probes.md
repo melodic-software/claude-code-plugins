@@ -10,8 +10,8 @@ The overlay must be both **ignore-matched** and **absent from the index**, and t
 independent facts that need opposite remediations. A bare `git check-ignore` cannot separate
 them: it consults the index first and reports nothing (exit 1, no output) for a path that is
 already tracked, because gitignore rules do not apply to tracked files. So its silence means
-either "no rule covers this" or "a rule covers it but the file was committed anyway" — and
-reading that silence as the former makes `apply` append an ignore line that changes nothing,
+either "no rule covers this" or "a rule covers it but the file was committed anyway".
+Reading that silence as the former makes `apply` append an ignore line that changes nothing,
 then announce it as the fix while a credential-bearing file stays in team history.
 
 Sibling `source-control` documents the same trap for its own local overlay
@@ -24,11 +24,11 @@ Run both as one Bash tool call:
 ```bash
 REPO_ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}"
 OVERLAY=".work-item-tracker.local.json"
-# Is the path IGNORED? Two flags, each load-bearing:
+# Is the path IGNORED? Two flags, and both are required:
 #   --no-index answers on gitignore's terms alone, so an already-tracked file cannot mask
 #              the answer the way it does for a bare check-ignore.
 #   NO -v here. With -v, git reports NEGATION patterns too and still exits 0, so the exit
-#              code would mean "some pattern matched", not "the path is ignored" — under a
+#              code would mean "some pattern matched", not "the path is ignored". Under a
 #              `*.json` + `!.work-item-tracker.local.json` pair the overlay is NOT ignored
 #              yet `-v` exits 0. Only the bare exit code is a truth value.
 # The overlay path does not need to exist; the rule must be in place first.
@@ -52,14 +52,14 @@ fi
 
 | `TRACKED` | `IGNORED` | verdict |
 | --- | --- | --- |
-| non-empty | either | **STOP / FAIL** — tracked overlay |
-| empty | `0` | not covered — `apply` appends the line; `check` FAILs |
-| empty | `1` | correct state — report `$IGNORE_MATCH`, change nothing |
+| non-empty | either | **STOP / FAIL**: tracked overlay |
+| empty | `0` | not covered: `apply` appends the line; `check` FAILs |
+| empty | `1` | correct state: report `$IGNORE_MATCH`, change nothing |
 
 - **Tracked** is the serious one and outranks the ignore state: the overlay is in team history
   and may carry per-user auth identity. Remediation is
   `git rm --cached .work-item-tracker.local.json`, plus rotating any credential that was
-  committed. Never append the ignore line here — it does not untrack an already-committed
+  committed. Never append the ignore line here. It does not untrack an already-committed
   file, and reporting it as the fix would paper over exactly the failure this check exists to
   catch. When both conditions hold, name the tracked one as the finding.
 - **Untracked and not covered** is the ordinary case `apply` fixes: append

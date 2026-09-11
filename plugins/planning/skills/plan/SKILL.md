@@ -108,8 +108,8 @@ Produce a structured plan using the template in [context/plan-template.md](conte
 - **Approach**: the specific steps, in order
 - **Test strategy**: how we'll verify the changes work. For which test type each kind of change needs (unit / integration / e2e / architecture / analyzer), `/testing:plan`'s file-type classification table is the SSOT **when the `testing` plugin is installed**; **invoke `/tdd:principles` via the Skill tool (if installed)** when formulating this section for authoritative guidance on what to test, which testing style fits, and when to mock; otherwise apply standard test-design judgment. TDD is the default approach. The test strategy should specify Red-Green-Refactor unless genuinely impractical. **Name the test boundaries**. The public interfaces the tests will drive, and for each whether it already exists or is being introduced (prefer driving an existing interface over introducing one for testability alone). Naming them is what lets Step 5's approval settle them, so implementation writes no test against a boundary the plan never named; on an unattended run, a boundary chosen during implementation that this section did not name is a deviation, logged for PR-time review (`DEVIATIONS.md` beside `PLAN.md` in the contract slice) rather than silently taken
 - **Files affected**: what gets created, modified, or deleted
-- **Alternatives considered**: what was rejected and why — and, per alternative, a one-line
-  switch condition: the observable fact that, if it turned up, would make this the better choice.
+- **Alternatives considered**: what was rejected and why, plus a one-line switch condition per
+  alternative: the observable fact that, if it turned up, would make this the better choice.
   A rejection with no switch condition is not revisable; the condition is what lets a reviewer
   (or a later phase) flip the decision without re-deriving the analysis
 - **Risks and mitigations**: what could go wrong
@@ -285,7 +285,7 @@ each section must contain for a cleared session to execute the plan from this fi
 
 PLAN.md is a multi-turn shared artifact: re-read it from disk before every write. Another turn or agent may have modified it. Prefer appending or refining sections over wholesale rewrites.
 
-Write the plan even for small changes. Future you or a fresh-session agent will thank you.
+Write the plan even for small changes. A cleared session or a fresh agent has only this file to work from.
 
 **Close-out (PR time).** The contract slice is branch-lived; `/planning:plan` owns describing its close-out. Read [context/close-out.md](context/close-out.md) when invoked with `close-out`. It holds the four-step procedure, the ADR admission test, and the spec-container ship ritual.
 

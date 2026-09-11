@@ -2083,7 +2083,7 @@ if [[ "$large" -ge 1 ]]; then
   pass "process budget: the trace probe actually counted something (measured $large)"
 else
   fail "process budget: the trace probe actually counted something" \
-    "measured $large — the pid-stamped PS4 did not reach the traced shell, so the ceilings below are vacuous (trace: $case_dir/trace-large.log)"
+    "measured $large: the pid-stamped PS4 did not reach the traced shell, so the ceilings below are vacuous (trace: $case_dir/trace-large.log)"
 fi
 if [[ "$large" -ge 1 && "$large" -le 12 ]]; then
   pass "process budget: a --marketplace report costs at most 12 process creations (measured $large)"

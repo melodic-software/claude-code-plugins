@@ -17,12 +17,12 @@ Draft and file GitHub issue on `anthropics/claude-code` (or specified repo) usin
 
 ## Mandatory gates (all must pass before drafting)
 
-Gates mirror preflight checklists in Anthropic's issue templates. Every gate is hard requirement — if any fails, STOP and explain why.
+Gates mirror preflight checklists in Anthropic's issue templates. Every gate is hard requirement. If any fails, STOP and explain why.
 
-**Gate 1: Fetch live template** — always fetch current template from GitHub. Never use cached content:
+**Gate 1: Fetch live template.** Always fetch current template from GitHub. Never use cached content:
 
 ```bash
-# Template filename varies per type — map explicitly, don't derive
+# Template filename varies per type, so map explicitly, don't derive
 #   bug     -> bug_report.yml
 #   feature -> feature_request.yml
 gh api repos/{repo}/contents/.github/ISSUE_TEMPLATE/{template_file} --jq '.content' | base64 -d
@@ -37,7 +37,7 @@ gh api repos/{repo}/contents/.github/ISSUE_TEMPLATE/{template_file} --jq '.conte
 
 If template can't be fetched (repo inaccessible, template renamed/removed), STOP and inform user. Template structure may change at any time and this repo keeps no cached copy to fall back on; `context/issue-templates.md` names the live source and this plugin's local field rule.
 
-**Gate 2: Version check** — verify user is on latest Claude Code version:
+**Gate 2: Version check.** Verify user is on latest Claude Code version:
 
 ```bash
 # Get installed version
@@ -47,23 +47,23 @@ claude --version 2>/dev/null
 npm view @anthropic-ai/claude-code version 2>/dev/null
 ```
 
-If not on latest, warn user — Anthropic requires this. Bug may already be fixed. Present both versions and ask whether to continue.
+If not on latest, warn user. Anthropic requires this. Bug may already be fixed. Present both versions and ask whether to continue.
 
-**Gate 3: Duplicate search** — search existing issues with similar title/keywords. Hard gate, not advisory:
+**Gate 3: Duplicate search.** Search existing issues with similar title/keywords. Hard gate, not advisory:
 
 ```bash
-# Open issues — exact and fuzzy match
+# Open issues, exact and fuzzy match
 gh search issues "<keywords>" --repo {repo} --state open --sort updated --limit 20 --json number,title,url,labels,updatedAt
 
-# Recently closed — may already be fixed
+# Recently closed, may already be fixed
 gh search issues "<keywords>" --repo {repo} --state closed --sort updated --limit 10 --json number,title,url,labels,updatedAt
 ```
 
 Present matches and ask user to confirm none cover the same issue. If match exists, suggest commenting on existing issue instead (`gh issue comment`). Only proceed on explicit "no duplicates" confirmation.
 
-**Gate 4: Single-issue check** — confirm report covers exactly ONE bug or ONE feature request. If user's description contains multiple issues, ask them to split into separate reports.
+**Gate 4: Single-issue check.** Confirm report covers exactly ONE bug or ONE feature request. If user's description contains multiple issues, ask them to split into separate reports.
 
-**Gate 5: Correct template selection** — verify issue type matches content:
+**Gate 5: Correct template selection.** Verify issue type matches content:
 
 - Bug report: something that worked before or should work but doesn't
 - Feature request: something new that doesn't exist yet
@@ -72,7 +72,7 @@ Present matches and ask user to confirm none cover the same issue. If match exis
 
 ## Process (after all gates pass)
 
-**Step 1: Gather information** — collect required fields from live template. Auto-detect what's possible:
+**Step 1: Gather information.** Collect required fields from live template. Auto-detect what's possible:
 
 | Field | Auto-detection |
 |-------|---------------|
@@ -83,14 +83,14 @@ Present matches and ask user to confirm none cover the same issue. If match exis
 
 For fields that can't be auto-detected, ask user. All fields marked `required: true` in live template must be filled.
 
-**Step 2: Draft the issue body** — construct markdown body matching template's section headers. Parse live YAML template to get field labels, types, and options. Format rules:
+**Step 2: Draft the issue body.** Construct markdown body matching template's section headers. Parse live YAML template to get field labels, types, and options. Format rules:
 
 - Each template field becomes a `### {Field Label}` section
 - Checkboxes use `- [X]` for checked items
 - Dropdown values must match an option from template exactly
 - Code blocks use language fence specified in template's `render` attribute
 
-**Step 3: Present draft for review** — show complete issue and ask for confirmation:
+**Step 3: Present draft for review.** Show complete issue and ask for confirmation:
 
 ```markdown
 ## Issue Draft (review before filing)
@@ -122,7 +122,7 @@ ISSUE_BODY
 )"
 ```
 
-**Step 5: Post-creation** — after filing:
+**Step 5: Post-creation.** After filing:
 
 1. Add new issue to `registry.json` with full metadata
 2. Present issue URL
@@ -130,11 +130,11 @@ ISSUE_BODY
 
 ## Safety
 
-- **All 5 gates must pass** — no shortcuts, no skipping
-- **Live template fetch is mandatory** — never rely on cached template structure
-- **Draft review before filing** — never file without showing draft first
-- **User must explicitly confirm** — `gh issue create` command requires "yes"
-- **Registry auto-update** — newly created issues added to registry automatically
+- **All 5 gates must pass**: no shortcuts, no skipping
+- **Live template fetch is mandatory**: never rely on cached template structure
+- **Draft review before filing**: never file without showing draft first
+- **User must explicitly confirm**: `gh issue create` command requires "yes"
+- **Registry auto-update**: newly created issues added to registry automatically
 
 ## Template reference
 

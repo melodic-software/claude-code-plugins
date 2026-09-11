@@ -1,10 +1,10 @@
-# Slide Generation — PPTX, HTML, PDF
+# Slide Generation: PPTX, HTML, PDF
 
 This file documents how to generate presentation slides from ai-briefing output.
 
 **Canonical pipeline = in-tree `output/build/*.js`** (Node ESM, pptxgenjs + playwright direct). Reproduces the deck deterministically from the active brand (default neutral tokens in `output/build/brand.js`, or a declarative profile `brand.json`). Build commands, the `slides-data.js` schema, slide types, and prerequisites: see `reference/build-pipeline.md`.
 
-The `/document-skills:pptx` skill stack is documented as a **fallback path** at the bottom of this file — only used when the in-tree pipeline cannot run.
+The `/document-skills:pptx` skill stack is documented as a **fallback path** at the bottom of this file, used only when the in-tree pipeline cannot run.
 
 ## Default brand spec
 
@@ -18,9 +18,9 @@ These tokens are defined in `output/build/brand.js` (the neutral engine default)
 | `bgAccent` | `#1C2440` | secondary fills |
 | `bgCard` | `#2B3358` | card / glow |
 | `brandIndigo` | `#23305C` | brand deep indigo |
-| `brandRed` | `#C0432E` | accent red — top accent strip |
+| `brandRed` | `#C0432E` | accent red, top accent strip |
 | `accent` | `#6E8BFF` | periwinkle |
-| `accent2` | `#F2B441` | gold — side rail, eyebrow text |
+| `accent2` | `#F2B441` | gold, side rail and eyebrow text |
 | `accent3` | `#8FB6FF` | sky |
 | `text` | `#FFFFFF` | primary text |
 | `textMuted` | `#B4BAD4` | secondary text |
@@ -68,7 +68,7 @@ when needed (pptxgenjs cannot inline SVG with `currentColor`) or skip the provid
 | microsoft | `microsoft` | |
 | xai | `x` | xAI uses X logo (corporate) |
 | meta | `meta` | |
-| deepseek | — | no upstream slug; render text-only header |
+| deepseek | none | no upstream slug; render text-only header |
 | nvidia | `nvidia` | Compute & Infrastructure |
 | tesla | `tesla` | Real-world AI |
 | bun | `bun` | |
@@ -94,13 +94,13 @@ Total typical: 35-50 slides. Order is fixed; sections may be empty (skip the sli
 | 2 | `agenda` | 9-item meeting roadmap | YES |
 | 3 | `section` | Welcome & Goals + Tips/Workflows/Show-and-Tell pills | YES |
 | 4 | `levels` | AI Generative Levels 0-5 reference | YES |
-| 5 | `open` | "Open share — anyone bring something to share?" | YES — always before news block |
+| 5 | `open` | "Open share: anyone bring something to share?" | YES, always before news block |
 | 6+ | `news` / `condensed` | Per-bucket HIGH → MED → LOW (see below) | per-bucket |
-| ... | `news` (Legal cluster) | "Legal — Musk v. Altman trial" / copyright suits | when window has legal news |
+| ... | `news` (Legal cluster) | "Legal: Musk v. Altman trial" / copyright suits | when window has legal news |
 | ... | `news` (Compute) | NVIDIA / AMD / hyperscaler / datacenter | when window has compute news |
 | ... | `news` (Real-world AI) | Tesla Robotaxi / Waymo / humanoid prod | when window has real-world news |
 | ... | `news` / `condensed` (EXTRAS) | Robotics HIGH → MED → LOW | when extras enabled |
-| N-5 | `patterns` | "Notable patterns this window" — synthesis | YES when ≥3 cross-bucket themes |
+| N-5 | `patterns` | "Notable patterns this window" synthesis | YES when ≥3 cross-bucket themes |
 | N-4 | `prompt` | "AI Tools & Techniques" prompt + note | YES |
 | N-3 | `prompt` | "AI Tips & Tricks · Show and Tell" prompt + note | YES |
 | N-2 | `prompt` | "AI Problems" prompt + note | YES |
@@ -113,17 +113,17 @@ For each bucket with items: HIGH first, then MED condensed, then LOW condensed. 
 
 1. Anthropic
 2. OpenAI
-3. **Legal cluster** (cross-provider — slot here when industry-legal news present)
+3. **Legal cluster** (cross-provider, slotted here when industry-legal news is present)
 4. Google
 5. Cursor
 6. xAI / Grok
 7. Meta / Llama
 8. DeepSeek
 9. Microsoft
-10. Other (dev tools — Bun / VS Code / LangChain / Devin / etc.)
+10. Other (dev tools: Bun / VS Code / LangChain / Devin / etc.)
 11. Compute & Infrastructure
 12. Real-world AI
-13. EXTRAS — Robotics HIGH + MED + LOW
+13. EXTRAS: Robotics HIGH + MED + LOW
 14. Patterns synthesis (when ≥3 themes)
 
 ### Split rules
@@ -140,21 +140,21 @@ For each bucket with items: HIGH first, then MED condensed, then LOW condensed. 
 - MED: eyebrow = `"AI LATEST NEWS · medium signal"`
 - LOW: eyebrow = `"AI LATEST NEWS · low signal"`
 
-Eyebrow text is small uppercase periwinkle — presenter sees the tier, audience focus stays on content.
+Eyebrow text is small uppercase periwinkle. The presenter sees the tier, and audience focus stays on content.
 
 ### URL rendering rule
 
-**EVERY bullet renders ALL its source URLs** — never drop URLs after the first. Source markdown's `" · "` separator splits multiple URLs; render each as a clickable line under the bullet body.
+**EVERY bullet renders ALL its source URLs.** Never drop URLs after the first. Source markdown's `" · "` separator splits multiple URLs; render each as a clickable line under the bullet body.
 
-`validate.js` enforces this at gate time — every URL in `slides-data.js` `bullets[].urls[]` must appear in DOM as `.news-url` anchor.
+`validate.js` enforces this at gate time. Every URL in `slides-data.js` `bullets[].urls[]` must appear in DOM as `.news-url` anchor.
 
 ### Cross-provider clusters
 
 | Slide | Provider key for logo | When include |
 |---|---|---|
-| **Legal — `<case>`** | `null` (no logo — cross-provider) | major industry-legal news in window: Musk v. Altman, copyright suits, state AGs, FTC/DOJ, EU AI Act enforcement |
+| **Legal: `<case>`** | `null` (no logo, cross-provider) | major industry-legal news in window: Musk v. Altman, copyright suits, state AGs, FTC/DOJ, EU AI Act enforcement |
 | **Compute & Infrastructure** | `nvidia` (when dominant) or `null` | chip launches, hyperscaler GPU deals, datacenter capacity |
-| **Real-world AI — autonomous vehicles** | `tesla` (when dominant) or `null` | robotaxi launches, fleet expansions, humanoid production cadence |
+| **Real-world AI: autonomous vehicles** | `tesla` (when dominant) or `null` | robotaxi launches, fleet expansions, humanoid production cadence |
 | **Patterns synthesis** | `null` | always when ≥3 cross-bucket themes detected |
 
 ### Apolitical filter
@@ -195,19 +195,19 @@ node build-pdf.js                    # → ../meetings/ai-meeting-{N}.pdf
 node validate.js                     # gate: all URLs render, 0 console errors
 ```
 
-`validate.js` is the **must-pass gate** — fails if any source URL in `slides-data.js` doesn't render in DOM, or if any console error fires.
+`validate.js` is the **must-pass gate**. It fails if any source URL in `slides-data.js` doesn't render in DOM, or if any console error fires.
 
 ## Fallback skill paths (when in-tree pipeline unavailable)
 
-These paths are documented for completeness — the in-tree `output/build/*.js` pipeline is canonical and reproduces org branding deterministically. Use a fallback skill only when the in-tree pipeline cannot run (Node unavailable or build pipeline broken). All three are graceful fallbacks, not the critical path.
+These paths are documented for completeness. The in-tree `output/build/*.js` pipeline is canonical and reproduces org branding deterministically. Use a fallback skill only when the in-tree pipeline cannot run (Node unavailable or build pipeline broken). All three are graceful fallbacks, not the critical path.
 
 ### PPTX fallback
 
-Invoke `/document-skills:pptx` via the Skill tool (marketplace `anthropic-agent-skills`) for `--format slides` when in-tree `build-pptx.js` is unavailable. It does not auto-apply org brand — you must pass theme tokens explicitly. Result deviates from the canonical look unless brand tokens are reproduced verbatim from `slides-data.js` `theme`.
+Invoke `/document-skills:pptx` via the Skill tool (marketplace `anthropic-agent-skills`) for `--format slides` when in-tree `build-pptx.js` is unavailable. It does not auto-apply org brand, so you must pass theme tokens explicitly. Result deviates from the canonical look unless brand tokens are reproduced verbatim from `slides-data.js` `theme`.
 
 ### HTML fallback
 
-Invoke `/frontend-design:frontend-design` via the Skill tool (marketplace `claude-plugins-official`) for `--format html` when in-tree `build-html.js` is unavailable, paired with `/ui-ux-pro-max:slides` for slide layout patterns. These do not include keyboard nav / `?print=1` flag / SVG provider logos out of the box — reproduce those from `build-html.js`.
+Invoke `/frontend-design:frontend-design` via the Skill tool (marketplace `claude-plugins-official`) for `--format html` when in-tree `build-html.js` is unavailable, paired with `/ui-ux-pro-max:slides` for slide layout patterns. These do not include keyboard nav / `?print=1` flag / SVG provider logos out of the box. Reproduce those from `build-html.js`.
 
 ### PDF fallback paths
 
@@ -225,9 +225,9 @@ profile brand.
 
 | Symptom | Fix |
 |---|---|
-| `validate.js` reports missing URLs | Source slides-data.js `urls[]` array not rendering — check escape + bullet template in `build-html.js` |
+| `validate.js` reports missing URLs | Source slides-data.js `urls[]` array not rendering. Check escape + bullet template in `build-html.js` |
 | Provider logo missing | Add a reviewed, pinned asset to `assets/` or use the text-only fallback |
-| Slide overflow flagged by validate.js | HIGH slide has too many bullets — split into multiple slides per "Split rules" |
+| Slide overflow flagged by validate.js | HIGH slide has too many bullets. Split into multiple slides per "Split rules" |
 | PPTX font fallback wrong | Use the supported system-font defaults or bundle an approved local font asset |
 | LibreOffice `soffice` not found (fallback PDF path) | `winget install TheDocumentFoundation.LibreOffice` (Windows) |
 | `/document-skills:pptx` not in slash menu (fallback) | `/reload-plugins`, then `/doctor` if still missing |

@@ -2,28 +2,28 @@
 
 The one mechanism every skill in this plugin uses to resolve **how** to read or (when explicitly
 routed) change a GitHub admin-plane surface. The plugin ships no endpoint tables, no scope lists,
-and no UI walk-throughs — the ladder resolves current mechanics at runtime, per invocation, from
+and no UI walk-throughs. The ladder resolves current mechanics at runtime, per invocation, from
 live `gh` state and freshly fetched official GitHub docs.
 
-## Rung 0 — Preflight
+## Rung 0: Preflight
 
 1. `gh` present? If not: stop with a concise message naming the missing prerequisite and the
    official install page (`https://cli.github.com`). Do not attempt raw REST calls without it.
-2. `gh auth status` — confirm an authenticated session and note which account/host it is for.
+2. `gh auth status`: confirm an authenticated session and note which account/host it is for.
    Never store, echo, or persist credentials.
 3. **Credential-modality diagnosis** (when an area needs it): determine what kind of credential
    the session actually holds (OAuth login, classic PAT, fine-grained PAT, GitHub App) from
-   `gh auth status` output and live probe results — not from an assumed capability table. Some
+   `gh auth status` output and live probe results, not from an assumed capability table. Some
    admin surfaces accept only specific modalities; discover that from the fetched docs for the
    area, then verify against the live session.
 
-## Rung 1 — `gh` native
+## Rung 1: `gh` native
 
 Prefer a purpose-built `gh` subcommand when one covers the surface (`gh ruleset`, `gh repo`,
 `gh org`, …). Discover availability at runtime (`gh help`, `gh <topic> --help`) rather than from
-memory — the CLI grows.
+memory. The CLI grows.
 
-## Rung 2 — `gh api` (REST)
+## Rung 2: `gh api` (REST)
 
 When no native subcommand fits, call the REST API through the user's session with `gh api`.
 Resolve the endpoint from the freshly fetched official docs for the area (REST hub:
@@ -32,22 +32,22 @@ Resolve the endpoint from the freshly fetched official docs for the area (REST h
 **Read-only contract (bare invocations).** On any invocation without an explicit apply override,
 requests must be incapable of writing:
 
-- no `-f`/`-F`/`--field`/`--raw-field`/`--input` (these imply a POST body) — with one carve-out:
+- no `-f`/`-F`/`--field`/`--raw-field`/`--input` (these imply a POST body), with one carve-out:
   `gh api graphql` requires field flags to supply the GraphQL document and its variables, so there
   the guard is the document itself (rung 3: `query` documents only, never `mutation`),
 - no `--method`/`-X` with anything other than `GET`,
 - no pagination or preview flag workaround that smuggles a body.
 
-The contract is capability-based: "no `-X POST`" alone is NOT the guard — `gh api -f` implies
+The contract is capability-based: "no `-X POST`" alone is NOT the guard. `gh api -f` implies
 POST without ever naming a method.
 
-## Rung 3 — `gh api graphql`
+## Rung 3: `gh api graphql`
 
 For surfaces only (or best) covered by GraphQL (GraphQL hub: `https://docs.github.com/en/graphql`).
-Same read-only contract: bare invocations send `query` documents only — never a `mutation`
+Same read-only contract: bare invocations send `query` documents only, never a `mutation`
 keyword in the body, and no field flags that build one.
 
-## Rung 4 — UI-only detection
+## Rung 4: UI-only detection
 
 If the fetched docs for the area show the surface is settings-UI-only (no CLI, no API), say so
 plainly. A browser-automation **offer** (never auto-fired, per-action user confirm) is the next
@@ -56,7 +56,7 @@ offer template, and read-back verification live in
 [`browser-automation.md`](browser-automation.md). Absent an integration (or with the offer
 suppressed or declined), fall through to rung 5.
 
-## Rung 5 — Guided manual steps + deep link
+## Rung 5: Guided manual steps + deep link
 
 Always available: walk the user through the change themselves, with a deep link to the exact
 settings surface resolved from the fetched docs (never a from-memory URL), and the doc citation
@@ -69,8 +69,8 @@ alongside each step.
 Before treating a fetched page as grounding, verify it is the expected canonical surface: right
 domain (`docs.github.com` or the resolved official host), right topic, content actually answers
 the question. A redirect to an unrelated page, a stub, an error page, or a blocked fetch is a
-**failed** ground. On failure: say so, and refuse to present training-data recall as grounded —
-either retry via the docs search on the live site, or report the area as unverifiable this run.
+**failed** ground. On failure: say so, and refuse to present training-data recall as grounded.
+Either retry via the docs search on the live site, or report the area as unverifiable this run.
 An explicitly-labeled unverified suggestion is permitted; blending recall into grounded findings
 is not.
 
@@ -87,7 +87,7 @@ never report any of them as "drift":
 | Genuinely unset / absent | The read succeeds elsewhere in the same family and the docs confirm the resource is optional |
 
 When the cause is a missing scope, recommend the `gh auth refresh` remediation **for the user to
-run themselves** — never auto-run a re-consent.
+run themselves**. Never auto-run a re-consent.
 
 ### Honest degradation (plan/SKU and reach)
 

@@ -5,8 +5,8 @@
 - [Core idea](#core-idea)
 - [Three bridge functions (*Essential Guide to Lyric Form and Structure* (1991), Chapter 6)](#three-bridge-functions-essential-guide-to-lyric-form-and-structure-1991-chapter-6)
 - [When a song needs a bridge](#when-a-song-needs-a-bridge)
-- [Bridge sourcing — the missing angle](#bridge-sourcing--the-missing-angle)
-- [Bridge mechanics — structure](#bridge-mechanics--structure)
+- [Bridge sourcing: the missing angle](#bridge-sourcing-the-missing-angle)
+- [Bridge mechanics: structure](#bridge-mechanics-structure)
 - [AABA homecoming principle (*Writing Better Lyrics* (2009), Chapter 23)](#aaba-homecoming-principle-writing-better-lyrics-2009-chapter-23)
 - [Transitional bridge vs full bridge](#transitional-bridge-vs-full-bridge)
 - [Bridge length](#bridge-length)
@@ -15,7 +15,7 @@
 - [Cross-references](#cross-references)
 - [When to load this file](#when-to-load-this-file)
 
-Pat Pattison — *Essential Guide to Lyric Form and Structure* (1991), Chapters
+Pat Pattison, *Essential Guide to Lyric Form and Structure* (1991), Chapters
 5-6; *Writing Better Lyrics* (2009), Chapters 22-23. The source passages below
 preserve Pattison's printed wording for bridge definitions, functions,
 diagnostics, examples, and exercises.
@@ -36,13 +36,15 @@ the larger distinction first:
 *Writing Better Lyrics* (2009), Chapter 23, on adding a bridge to a
 verse/chorus lyric (the "Love Her or Leave Her to Me" worksheet):
 
+<!-- ai-slop-ignore-start: verbatim Pattison quotation, Writing Better Lyrics (2009) Chapter 23 -->
 > Again, be careful. A bridge isn't a verse — it doesn't do the same job or
 > use the same structure. It is a contrasting section. Verses usually develop
 > plot. A chorus usually steps away from, comments on, or summarizes the
 > verses. In our lyric, the verses develop the situation, the chorus gives a
 > warning. A bridge will have to take a different angle.
+<!-- ai-slop-ignore-end -->
 
-The same warning, stated as a timing test — *Essential Guide to Lyric Form and
+The same warning, stated as a timing test in *Essential Guide to Lyric Form and
 Structure* (1991), Chapter 5, testing whether a candidate section (#1A) could
 serve as a bridge:
 
@@ -127,11 +129,13 @@ Lyric Form and Structure* (1991), Chapter 6, says:
 For verse / chorus / verse / chorus / verse / chorus, *Writing Better Lyrics*
 (2009), Chapter 23, says:
 
+<!-- ai-slop-ignore-start: verbatim Pattison quotation, Writing Better Lyrics (2009) Chapter 23 -->
 > Not a bad lyric. It chugs along nicely for two verse / chorus systems,
 > developing its ideas with light, cute structure. The third system, however,
 > seems to fall a little flat, not so much for what it says, but because we've
 > seen its structure twice before. There's nothing wrong with the form — the
 > form just doesn't help add interest.
+<!-- ai-slop-ignore-end -->
 
 <!-- unaudited: No matching statement about through-written songs was found in
 the four specified chapters. -->
@@ -158,10 +162,12 @@ Chapter 22 prints three risk-avoidance techniques.
 > some of the material in each one. So try to select the most important stuff,
 > on a sort of “best of” principle, and distill one verse from two.
 
+<!-- ai-slop-ignore-start: verbatim Pattison quotation, Writing Better Lyrics (2009) Chapter 22 -->
 > This resulting verse / verse / chorus / verse / chorus song form is more
 > streamlined. It gives the second chorus a boost by seeming to get to it early
 > — a distinct advantage. And the distilled verse is often stronger than the
 > two separate verses it came from.
+<!-- ai-slop-ignore-end -->
 
 > EXERCISE 47
 >
@@ -203,6 +209,7 @@ Chapter 22 prints three risk-avoidance techniques.
 > this means more than not skipping a space between verses on your lyric sheet.
 > It means changing the form of the verses so they don't repeat each other.
 
+<!-- ai-slop-ignore-start: verbatim Pattison quotation, Writing Better Lyrics (2009) Chapter 22 -->
 > Any of these three risk-avoidance techniques solve the problem created by the
 > verse / verse / chorus / verse / verse / chorus form. They will help structure
 > work for you, rather than risking songs that seem too long. Even if every line
@@ -210,8 +217,9 @@ Chapter 22 prints three risk-avoidance techniques.
 > delivers power rather than sags. All it takes is time, energy, and — most
 > importantly — focus on the importance of potent song form. It's worth the
 > work.
+<!-- ai-slop-ignore-end -->
 
-## Bridge sourcing — the missing angle
+## Bridge sourcing: the missing angle
 
 Pat's bridge-finding move, *Writing Better Lyrics* (2009), Chapter 23:
 
@@ -228,22 +236,26 @@ Pat's bridge-finding move, *Writing Better Lyrics* (2009), Chapter 23:
 He sets the contrast requirement first (*Writing Better Lyrics* (2009),
 Chapter 23, Option 1):
 
+<!-- ai-slop-ignore-start: verbatim Pattison quotation, Writing Better Lyrics (2009) Chapter 23 -->
 > The most obvious boredom quencher is to insert a contrasting section — a
 > bridge — between the second and third system. As usual, the contrast should
 > be significant. The structure of the bridge should be different from the
 > verse and chorus structures, including a different rhyme scheme, a different
 > number of lines, and different line lengths. It should also say something
 > different.
+<!-- ai-slop-ignore-end -->
 
 ### EXERCISE 49 (*Writing Better Lyrics* (2009), Chapter 23)
 
+<!-- ai-slop-ignore-start: verbatim Pattison quotation, Writing Better Lyrics (2009) Chapter 23, Exercise 49 -->
 > A bridge focusing on her qualities would lead smoothly into the third verse.
 > Start by making a list of her qualities — things she is, things she does.
 > Draw the list from your own experiences. Do a little object writing. For
 > example:
+<!-- ai-slop-ignore-end -->
 
 Pat's own object-writing sample for this exercise is printed verbatim in
-`song-forms.md` ("Kicking through the fallen leaves…") — not duplicated here.
+`song-forms.md` ("Kicking through the fallen leaves…"), not duplicated here.
 
 > Your object writing will create a mood and character for you to respond to.
 > Then try a few bridges. Be sure your bridge is a contrasting section. Keep it
@@ -256,7 +268,7 @@ you need a boredom breaker. The risk here, though, is that the lyric may get
 **EXERCISE 50** (Option 2, after his own bridge): "Try substituting the bridge
 you wrote for the one I wrote. Do you like how it works?"
 
-## Bridge mechanics — structure
+## Bridge mechanics: structure
 
 *Essential Guide to Lyric Form and Structure* (1991), Chapter 5, supplies this
 structural checklist:
@@ -272,12 +284,13 @@ structural checklist:
 > different kinds of lyric sections.
 
 The exact bridge-specific contrast requirement from *Writing Better Lyrics*
-(2009), Chapter 23, appears once under “Bridge sourcing — the missing angle.”
+(2009), Chapter 23, appears once under “Bridge sourcing: the missing angle.”
 The tense, line-length, line-count, and rhyme demonstration from Chapter 22
 appears once under “Second Risk-Avoidance Technique.”
 
 ## AABA homecoming principle (*Writing Better Lyrics* (2009), Chapter 23)
 
+<!-- ai-slop-ignore-start: verbatim Pattison quotations, Writing Better Lyrics (2009) Chapter 23 -->
 Pat reaches AABA as **Option 3** for the three-verse lyric: "If you can't
 translate your third verse into a bridge — say that you really need that third
 idea as a verse — try a verse form that thrives on three-idea development: the
@@ -290,6 +303,7 @@ AABA verse / refrain form."
 > home to familiar territory. It's a real homecoming, seeing the old
 > neighborhood again after a long trip. The tension created by moving away has
 > been resolved.
+<!-- ai-slop-ignore-end -->
 
 > An AABA's last system is actually bridge / verse, providing a nice contrast
 > to the opening verses, as well as sponsoring the homecoming parade.
@@ -298,6 +312,7 @@ The 1991 original of that paragraph is *Essential Guide to Lyric Form and
 Structure* (1991), Chapter 5, and it is worth having in Pat's earlier wording
 because it names the mechanism ("away from the verse structure"):
 
+<!-- ai-slop-ignore-start: verbatim Pattison quotation, Essential Guide to Lyric Form and Structure (1991) Chapter 5 -->
 > An A A B A song form is effective partly because it creates this sense of
 > resolution when it moves back to the third verse. The structure of the first
 > two verses defines "home base." Then, the Bridge takes you away from home —
@@ -305,6 +320,7 @@ because it names the mechanism ("away from the verse structure"):
 > come back home to familiar territory. It is a real homecoming, like seeing the
 > old neighborhood again after a long trip. The tension created by moving away
 > has been resolved.
+<!-- ai-slop-ignore-end -->
 
 *Essential Guide to Lyric Form and Structure* (1991), Chapter 5 then names what
 the last system is, in figure `image_rsrc327`:
@@ -329,9 +345,9 @@ return directly:
 
 These are different sections. Do not conflate.
 
-**Transitional bridge** — *Essential Guide to Lyric Form and Structure* (1991),
+**Transitional bridge**: *Essential Guide to Lyric Form and Structure* (1991),
 Chapter 5. Pat: "This is as close as I can come to an accurate name for this
-elusive little section. I have heard it called by many names" — the names live
+elusive little section. I have heard it called by many names". The names live
 only in figure `image_rsrc32E`, which prints exactly **six**, set as a
 three-column, two-row grid (reproduced here in the figure's own layout, because
 row-order and column-order readings disagree and the scan settles nothing
@@ -355,9 +371,10 @@ none of these descriptive names quite fit all of them:"
 >
 > Thus, 5. It is usually the lyric's shortest and most unbalanced section.
 
-**Bridge (full bridge)** — *Essential Guide to Lyric Form and Structure*
+**Bridge (full bridge)**: *Essential Guide to Lyric Form and Structure*
 (1991), Chapter 5:
 
+<!-- ai-slop-ignore-start: verbatim Pattison quotation, Essential Guide to Lyric Form and Structure (1991) Chapter 5 -->
 > You won't use Transitional Bridges too often unless you write dance songs, in
 > R&B and more Pop-oriented rock, where songs rely on a strong dance groove.
 > Both verse and chorus usually have the same groove, so a Transitional Bridge
@@ -366,8 +383,9 @@ none of these descriptive names quite fit all of them:"
 > just like a typical Bridge. But remember, a Transitional Bridge comes before
 > the Song System has closed down, between a Verse and a Chorus. The more
 > typical Bridge always comes after a song system has closed down.
+<!-- ai-slop-ignore-end -->
 
-**Why the full bridge sits between systems** — Chapter 5 makes the equivalence
+**Why the full bridge sits between systems**: Chapter 5 makes the equivalence
 explicit, working from the AABA case ("The Great Pretender") outward:
 
 > A bridge works exactly the same way when it is inserted AFTER TWO COMPLETE
@@ -375,8 +393,8 @@ explicit, working from the AABA case ("The Great Pretender") outward:
 > because it functions as a complete unit, works like a verse section in an
 > A A B A form.
 
-His worked case is **"HAITIAN DIVORCE"** — "Here is a fine example by Donald
-Fagen and Walter Becker of Steely Dan" — printed in full across figures
+His worked case is **"HAITIAN DIVORCE"**, introduced as "Here is a fine example
+by Donald Fagen and Walter Becker of Steely Dan" and printed in full across figures
 `image_rsrc32B` and `image_rsrc32C` as three Song Systems (Verse/Chorus,
 Verse/Chorus, Bridge → Verse/Chorus). An earlier revision of this file named the
 song "Babylon Sisters"; that is wrong, and the figures say so on every line
@@ -404,9 +422,9 @@ categories do not appear in the four specified chapters. -->
 
 Use the source passages already preserved once in this file:
 
-1. “Bridge sourcing — the missing angle” for Chapter 23's missing-piece move.
+1. “Bridge sourcing: the missing angle” for Chapter 23's missing-piece move.
 2. EXERCISE 49 for the object-writing prompt and short-effective instruction.
-3. “Bridge mechanics — structure” for the printed structural checklist and
+3. “Bridge mechanics: structure” for the printed structural checklist and
    the two worked contrast references.
 4. “AABA homecoming principle” for the return test.
 
@@ -425,13 +443,13 @@ set of diagnostic claims was found in the four specified chapters. -->
 
 ## Cross-references
 
-- `form.md` — section identification, candy bar discipline, three bridge functions origin
-- `song-forms.md` — when each form wants a bridge; four-times-a-lot warning
-- `song-forms-examples.md` — "This Bottle and Me" bridge demonstration of all three functions
-- `box-model.md` — bridge as Box 3 substitute; verse-job division
-- `point-of-view.md` — camera distance shifts for bridge perspective
-- `prosody.md` — bridge stability against verse stability
-- `repetition.md` — bridge resists repaintability (it's a one-time section)
+- `form.md`: section identification, candy bar discipline, three bridge functions origin
+- `song-forms.md`: when each form wants a bridge; four-times-a-lot warning
+- `song-forms-examples.md`: "This Bottle and Me" bridge demonstration of all three functions
+- `box-model.md`: bridge as Box 3 substitute; verse-job division
+- `point-of-view.md`: camera distance shifts for bridge perspective
+- `prosody.md`: bridge stability against verse stability
+- `repetition.md`: bridge resists repaintability (it's a one-time section)
 
 ## When to load this file
 

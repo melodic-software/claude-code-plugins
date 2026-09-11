@@ -21,7 +21,7 @@ gh search issues "<feature-name>" --repo anthropics/claude-code --state open --s
 gh search issues "<feature-name>" --repo anthropics/claude-code --state closed --sort updated --order desc --limit 10 --json number,title,state,url,labels,updatedAt,createdAt
 ```
 
-**Step 2: Triage** — read top 5-10 most relevant issues via `gh issue view` and categorize:
+**Step 2: Triage.** Read top 5-10 most relevant issues via `gh issue view` and categorize:
 
 | Category | Meaning | Action |
 | --- | --- | --- |
@@ -37,9 +37,9 @@ gh search issues "<feature-name>" --repo anthropics/claude-code --state closed -
 curl -s https://status.claude.com/ | head -200
 ```
 
-**Step 4: Cross-reference with registry and local docs** — check if issue is already tracked in `registry.json`, or documented in the consumer project's Claude Code quirks/workarounds docs (when present).
+**Step 4: Cross-reference with registry and local docs.** Check if issue is already tracked in `registry.json`, or documented in the consumer project's Claude Code quirks/workarounds docs (when present).
 
-**Step 5: Update registry** — add newly discovered relevant issues to `registry.json` with full metadata.
+**Step 5: Update registry.** Add newly discovered relevant issues to `registry.json` with full metadata.
 
 ## Output format
 

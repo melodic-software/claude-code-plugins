@@ -1,17 +1,17 @@
-# Gotchas — `/discovery:research`
+# Gotchas for `/discovery:research`
 
 Failure modes observed in real runs of this skill. Each is a way a run can look finished and be
-wrong, which is why none of them is caught by "did I do a good job?" — they are caught by the
+wrong, which is why none of them is caught by "did I do a good job?". They are caught by the
 outcome gate's artifact-grounded criteria, or not at all.
 
 - **A silent preload miss looks exactly like a good run.** A dispatched agent whose `skills:` entry
   did not resolve starts anyway, writes an artifact, and reports `coverage: complete`; the harness
   logs a warning to the debug log and nowhere else. The dated record for that harness behavior is
   [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
-  "Harness facts the dispatch design rests on". The `preload_token` echo is the seam that
+  "Harness facts the dispatch design rests on". The `preload_token` echo is the check that
   distinguishes "the discipline body reached the agent" from "it did not"; a missing or mismatched
   token discards the run rather than downgrading it. It does **not** distinguish preload from the
-  disk fallback — that is the `preload:` field. Treating a matching token as proof preload fired is
+  disk fallback. That is the `preload:` field. Treating a matching token as proof preload fired is
   unsound.
 - **Enumerating the corpus from search results.** A Phase 0 ledger built from what searching happened
   to surface inherits precisely the blind spot the ledger exists to close, and then certifies it. Use
@@ -19,16 +19,16 @@ outcome gate's artifact-grounded criteria, or not at all.
 - **Stopping at the floor while gaps remain.** Every query minimum reads "at least", never "exactly";
   the Phase 1 gap count is what sets the Phase 2 query count.
 - **A probe standing in for a fetch.** A title, an index entry, or a search snippet establishes that
-  a rung *exists* — never that it lacks the claim, because the section being chased is exactly what a
+  a rung *exists*, never that it lacks the claim, because the section being chased is exactly what a
   snippet omits. Criterion 9 grades the fetch.
 - **Treating a curated index as exhaustive.** `llms.txt` is a maintainer hand-pick and deliberately
-  partial. A miss there is silence, not evidence of absence — for a rung, for a page, or for a corpus
+  partial. A miss there is silence, not evidence of absence, for a rung, for a page, or for a corpus
   item.
 - **Treating ONE exhaustive surface as the whole artifact inventory.** The subtler half of the same
   trap, and the one the curated-vs-exhaustive framing hides: a surface is exhaustive only for the
   artifact class it indexes and the host it covers. A docs `sitemap.xml` enumerates that host's
   *pages* and is silent about PDFs it omits, an asset or download host, and a sibling first-party
-  domain — so a model card shipped as a PDF off the docs host survives a clean sitemap scan. One
+  domain, so a model card shipped as a PDF off the docs host survives a clean sitemap scan. One
   clean surface leaves the rung **unresolved**, not absent; `probed-and-not-existing` needs the
   sweep across every surface that class plausibly uses, or the publisher's own completeness
   declaration.
@@ -37,7 +37,7 @@ outcome gate's artifact-grounded criteria, or not at all.
   `verification: pending`, and an inline run hands them off rather than answering them.
 - **Reading the coverage ledger instead of running the gate.** A model cannot reliably audit its own
   checklist, and the context most motivated to call it finished is the one reading it. Criterion 11
-  cites the script's exit status; exit 2 — a ledger the script could not parse — is a FAIL, never a
+  cites the script's exit status. Exit 2, a ledger the script could not parse, is a FAIL, never a
   pass. A script that never ran is the same FAIL: taking the inline escape hatch because Bash was
   denied, then marking criterion 11 PASS from a table reading, is the silent self-grade the gate
   exists to prevent. Halt, or run the `.sh` / `.py` checker from a lane that can still invoke it.

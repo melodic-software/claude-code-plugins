@@ -3,9 +3,9 @@
 Read this only inside `fix` or `sweep`. The default `audit` action never edits, so it never
 needs this file.
 
-Only `fingerprint-confirmed` findings are fix-eligible. Everything else — a judged-similar
-passage, a suspected paraphrase, a `not-found` outcome, a split judge panel, a vetoed finding —
-reaches the human report and stops there. A finding that is not fix-eligible is not "a fix
+Only `fingerprint-confirmed` findings are fix-eligible. Everything else reaches the human report
+and stops there: a judged-similar passage, a suspected paraphrase, a `not-found` outcome, a
+split judge panel, a vetoed finding. A finding that is not fix-eligible is not "a fix
 awaiting approval"; it is a report.
 
 ## The five dispositions
@@ -22,14 +22,14 @@ Three edit. Two do not.
 
 ## Choosing between the three edits
 
-The question is not "how similar is this to the source" — the fingerprint already answered that.
+The question is not "how similar is this to the source". The fingerprint already answered that.
 The question is **what a reader loses if the local text goes away**.
 
 Ask them in this order:
 
 1. **Does the surface have to work when the source is unreachable?** If yes, it condenses to a
    stamped record. It never takes a bare `convert-to-pointer`, whatever the containment score.
-   This is the offline-load-bearing constraint and it is absolute — a pointer in a surface that
+   This is the offline-load-bearing constraint and it is absolute. A pointer in a surface that
    must function offline is a regression dressed as a fix. Surfaces that qualify: anything a
    subagent reads mid-dispatch, anything that runs in a sandbox without network, anything whose
    whole purpose is to answer without a fetch.
@@ -48,15 +48,15 @@ read often" does not make a copy acceptable, it makes a stamped record the right
 
 A stamped record carries all four parts or it is not one:
 
-1. **The claim** — what exactly is being asserted, narrow enough to check.
-2. **The basis** — the specific URL, with anchor where one exists. "Verified" with no stated
+1. **The claim**: what exactly is being asserted, narrow enough to check.
+2. **The basis**: the specific URL, with anchor where one exists. "Verified" with no stated
    basis is not re-checkable.
-3. **The as-of date** — when the derivation happened.
-4. **The recheck trigger** — the observable event that obliges re-deriving it.
+3. **The as-of date**: when the derivation happened.
+4. **The recheck trigger**: the observable event that obliges re-deriving it.
 
 A date alone is not a trigger. "Recheck periodically" is not a trigger. A trigger names an event
 someone could notice: a major version bump, a named page changing, a deprecation landing. If you
-cannot name one, that is a signal the passage wanted `convert-to-pointer` instead — a claim
+cannot name one, that is a signal the passage wanted `convert-to-pointer` instead. A claim
 nobody can say when to re-check is a claim nobody will re-check.
 
 Write the record so `check-stamps.sh` can parse it: an ISO 8601 date (`YYYY-MM-DD`) within a
@@ -127,9 +127,9 @@ Convert like this, in order:
    it is not about the sweep's convenience. A fixture holding real externally-owned prose would
    make this repository carry the exact defect this plugin exists to find, in the one tree that
    is categorically excluded from its own scan and so could never report it. Invent a fictional
-   product and rewrite the passage against it, preserving the SHAPE that produced the wrong
-   verdict — the rotation density, the citation distance, the register, the ratio of copied text
-   to host file — and nothing else. If the shape cannot survive the rewrite, the case is not
+   product and rewrite the passage against it, preserving nothing but the SHAPE that produced
+   the wrong verdict: the rotation density, the citation distance, the register, and the ratio
+   of copied text to host file. If the shape cannot survive the rewrite, the case is not
    ready; say so rather than shipping the original.
 2. **Write the verdict you adjudicated, not the verdict the run produced.** A rejected finding
    becomes a case with `negatives: true` and a note naming the carve-out or the failing criterion
@@ -158,7 +158,7 @@ Two limits on the loop, both of which matter more as the set grows:
 
 Under `sweep`, one tracked file at a time: apply the verdicts, run every guard, close the file,
 move on. **A file is closed when every finding in it carries a disposition or an explicit
-neutral outcome** — never when the interesting ones are done. Record each closure in the sweep
+neutral outcome**, never when the interesting ones are done. Record each closure in the sweep
 ledger with its dispositions and guard outcomes, so an interrupted sweep resumes without
 re-deciding files it already closed, and so the closure count is a fact rather than a memory.
 

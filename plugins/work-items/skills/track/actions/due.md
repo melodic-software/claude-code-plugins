@@ -37,11 +37,11 @@ For days-overdue computation, calculate `(today - next_due)` in days. jq lacks d
 
 1. **Cross-reference with open items.** For each due recurring item, check if one already exists
    (adapter: "List items", `--label <resolved recurring-maintenance label>`, bare read). Match against
-   the FULL expected title `[Maintenance] {schedule item title}` — never by the bare `[Maintenance]`
+   the FULL expected title `[Maintenance] {schedule item title}`, never by the bare `[Maintenance]`
    prefix alone (that would let any recurring item satisfy every due row), and never by a
    prefix/substring of the title (a shorter title would spuriously match a longer item).
 
-1. **Check for orphaned entries.** Only **due** entries can be orphaned — the recurring automation creates a tracker item only once an entry reaches `next_due <= today`, so a healthy future entry (`next_due > today`) legitimately has no open item and is NOT orphaned. Filter to due entries before flagging missing items:
+1. **Check for orphaned entries.** Only **due** entries can be orphaned. The recurring automation creates a tracker item only once an entry reaches `next_due <= today`, so a healthy future entry (`next_due > today`) legitimately has no open item and is NOT orphaned. Filter to due entries before flagging missing items:
 
 ```bash
 SCHEDULE="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.github/recurring-schedule.json"
@@ -75,4 +75,4 @@ If nothing is due: "All recurring items are current. Next due: **{item}** on **{
 
 ## Documentation freshness (optional)
 
-After presenting due items, when the user asks for a doc audit or maintenance is the focus, hand off to the consuming repo's documentation-audit tooling if it provides one (e.g. a doc-drift subagent or skill scoped to the repo's docs and rules) and surface the summary alongside the due table. Degrade gracefully — skip when no such tooling is present.
+After presenting due items, when the user asks for a doc audit or maintenance is the focus, hand off to the consuming repo's documentation-audit tooling if it provides one (e.g. a doc-drift subagent or skill scoped to the repo's docs and rules) and surface the summary alongside the due table. Degrade gracefully, skipping when no such tooling is present.

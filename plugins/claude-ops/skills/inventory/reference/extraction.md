@@ -7,8 +7,8 @@ editor needs.
 ## Why the binary is read at all
 
 Claude Code's documentation does not publish its built-in slash commands. `docs/en/slash-commands`
-now serves the skills page — the two URLs return byte-identical markdown, because commands were
-merged into skills — so no upstream page enumerates `/clear`, `/rewind`, `/artifacts`, or the rest.
+now serves the skills page. The two URLs return byte-identical markdown, because commands were
+merged into skills, so no upstream page enumerates `/clear`, `/rewind`, `/artifacts`, or the rest.
 Plugin components are on disk and need no such measure; the binary read exists only for the built-in
 and bundled surfaces, which have no other complete source.
 
@@ -35,9 +35,9 @@ appended. On the build observed while writing this (2.1.228, Windows, PE32+), th
 | CLI bundle | ~25 MB of minified JS, header `// @bun @bytecode @bun-cjs` |
 | Trailer | `\n---- Bun! ----\n` at EOF |
 
-None of those specifics are load-bearing in the script, and that is deliberate. Parsing the PE
+None of those specifics matter to the script, and that is deliberate. Parsing the PE
 section table would work on Windows and then need a Mach-O load-command reader for macOS and an ELF
-section reader for Linux — three parsers to maintain against a packer that may rename its section
+section reader for Linux, three parsers to maintain against a packer that may rename its section
 anyway. The script instead treats the file as bytes and finds the bundle by content.
 
 ## The three extraction decisions
@@ -48,7 +48,7 @@ The obvious anchor is the `// @bun` header. It fails: the header appears in seve
 chunks, and the *first* occurrence is a few hundred bytes of the wrong one, which yields a tiny
 "bundle" and zero commands.
 
-The script anchors on `registerBundledSkill` — a string that occurs only in the CLI bundle — expands
+The script anchors on `registerBundledSkill`, a string that occurs only in the CLI bundle, expands
 to the surrounding printable run, and takes the largest candidate, rejecting anything under 1 MB.
 Chunk headers remain as fallbacks in `BUNDLE_MARKERS` for a build that renames the export.
 
@@ -76,8 +76,8 @@ Minified object literals sit flush against one another:
 ```
 
 A fixed ±N-character window around `type:"local-jsx"` spans the neighbouring command and mixes its
-`description` in. `build_brace_map` tokenizes the whole bundle once — tracking string, template,
-regex, and comment states so a `{` inside a string is not counted — and records every matched pair.
+`description` in. `build_brace_map` tokenizes the whole bundle once, tracking string, template,
+regex, and comment states so a `{` inside a string is not counted, and records every matched pair.
 Each command's fields are then read from its own literal.
 
 This is the single most important correctness property in the script. A regex-only pass over this
@@ -93,7 +93,7 @@ bundle goes wrong in one of two ways: it misses `/artifacts` entirely, or it inv
 | Cloud registrar | a thin wrapper registering remote-backed commands | `ultraplan`, `ultrareview`, `teleport`, `remote-control`, `schedule`, `autofix-pr` |
 
 Names arrive two ways in the second path. Some are literals; others are hoisted constants
-(`xu({name:gme,...})` where `gme="code-review"`), which is why `build_const_map` exists — a
+(`xu({name:gme,...})` where `gme="code-review"`), which is why `build_const_map` exists: a
 literal-only scan silently drops roughly a third of the bundled skills, including `code-review`,
 `simplify`, and the artifact family.
 
@@ -120,11 +120,11 @@ one edit:
 
 | Verdict | Cause | Fix |
 |---|---|---|
-| `broken`: canary commands absent | Bundle found but parsing yields little | Confirm the bundle size looks right; if so the object shape changed — re-derive from a known command |
+| `broken`: canary commands absent | Bundle found but parsing yields little | Confirm the bundle size looks right; if so the object shape changed, so re-derive from a known command |
 | `broken`: registrar lookup failed | Export renamed upstream | Update the name passed to `discover_registrar` |
 | `broken`: no bundle found | Packer layout changed | Add the new anchor to `BUNDLE_MARKERS` |
 | `degraded`: unrecognised registrar export | A new registration path may exist | Inspect it; add to `KNOWN_REGISTRAR_EXPORTS` if it funnels into the known registrar, otherwise extract it |
-| `degraded`: computed names unresolved | Registration built its name dynamically | Usually acceptable — report as a floor. Extend `build_const_map` only if the count grows |
+| `degraded`: computed names unresolved | Registration built its name dynamically | Usually acceptable, so report as a floor. Extend `build_const_map` only if the count grows |
 
 After revalidating, bump `VALIDATED_AGAINST`. Leaving it stale is not a bug: every report then says
 its counts are believed rather than verified, which is the honest state until someone checks.

@@ -18,18 +18,17 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SUT_SRC="$SCRIPT_DIR/check-plugin-catalog-enablement.sh"
 
-fails=0
-pass() { printf 'ok   - %s\n' "$1"; }
-fail() {
-  printf 'FAIL - %s\n' "$1" >&2
-  fails=$((fails + 1))
-}
+# shellcheck source=lib/test-harness.sh
+. "$SCRIPT_DIR/lib/test-harness.sh"
+# shellcheck source=lib/fixture-tree.sh
+. "$SCRIPT_DIR/lib/fixture-tree.sh"
 
-TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT
+# The builder assigns through a nameref, which shellcheck cannot follow;
+# declaring the out-var here is what tells it (SC2154) the name is written.
+TMP=""
 
-mkdir -p "$TMP/scripts" "$TMP/.claude-plugin" "$TMP/.claude"
-cp "$SUT_SRC" "$TMP/scripts/check-plugin-catalog-enablement.sh"
+fixture_tree::build TMP --sut "$SUT_SRC"
+mkdir -p "$TMP/.claude-plugin" "$TMP/.claude"
 SUT="$TMP/scripts/check-plugin-catalog-enablement.sh"
 MARKETPLACE="$TMP/.claude-plugin/marketplace.json"
 SETTINGS="$TMP/.claude/settings.json"
@@ -123,7 +122,7 @@ printf 'alpha true\nbeta true\ngamma true\n' | write_settings
 out="$(run)"
 rc=$?
 if [[ $rc -eq 0 ]] && grep -q 'none orphaned; keys sorted' <<<"$out"; then
-  pass "catalog and enabledPlugins in agreement passes"
+  ok "catalog and enabledPlugins in agreement passes"
 else
   fail "happy path should pass (rc=$rc): $out"
 fi
@@ -134,7 +133,7 @@ printf 'alpha true\ngamma true\n' | write_settings
 out="$(run)"
 rc=$?
 if [[ $rc -eq 1 ]] && grep -q 'UNENABLED PLUGIN' <<<"$out" && grep -q "'beta'" <<<"$out"; then
-  pass "a catalogued plugin enabled neither by the fleet list nor by settings fails the gate"
+  ok "a catalogued plugin enabled neither by the fleet list nor by settings fails the gate"
 else
   fail "plugin enabled nowhere should fail (rc=$rc): $out"
 fi
@@ -148,7 +147,7 @@ printf 'beta false\n' | write_settings
 out="$(run)"
 rc=$?
 if [[ $rc -eq 0 ]]; then
-  pass "a catalog the fleet list enables passes with a deltas-only settings block"
+  ok "a catalog the fleet list enables passes with a deltas-only settings block"
 else
   fail "fleet-covered catalog should pass (rc=$rc): $out"
 fi
@@ -160,7 +159,7 @@ printf 'alpha true\n' | write_settings
 out="$(run)"
 rc=$?
 if [[ $rc -eq 1 ]] && grep -q "'beta'" <<<"$out"; then
-  pass "a fleet entry under another marketplace does not cover a catalogued plugin"
+  ok "a fleet entry under another marketplace does not cover a catalogued plugin"
 else
   fail "foreign-marketplace fleet entry must not count as coverage (rc=$rc): $out"
 fi
@@ -172,7 +171,7 @@ printf 'not json\n' >"$FLEET"
 out="$(run)"
 rc=$?
 if [[ $rc -eq 2 ]] && grep -q 'not a settings-shaped JSON object' <<<"$out"; then
-  pass "a malformed fleet list exits 2"
+  ok "a malformed fleet list exits 2"
 else
   fail "malformed fleet list should exit 2 (rc=$rc): $out"
 fi
@@ -184,7 +183,7 @@ printf 'alpha true\nbeta false\ngamma true\n' | write_settings
 out="$(run)"
 rc=$?
 if [[ $rc -eq 0 ]]; then
-  pass "a plugin explicitly disabled (false) still passes"
+  ok "a plugin explicitly disabled (false) still passes"
 else
   fail "an explicit false should pass (rc=$rc): $out"
 fi
@@ -195,7 +194,7 @@ printf 'alpha true\nbeta true\ngamma true\n' | write_settings
 out="$(run)"
 rc=$?
 if [[ $rc -eq 1 ]] && grep -q 'ORPHANED ENABLED ENTRY' <<<"$out" && grep -q "'beta@fixture'" <<<"$out"; then
-  pass "an enabledPlugins id with no catalog entry fails the gate"
+  ok "an enabledPlugins id with no catalog entry fails the gate"
 else
   fail "orphaned enabled entry should fail (rc=$rc): $out"
 fi
@@ -206,7 +205,7 @@ printf 'gamma true\nalpha true\nbeta true\n' | write_settings
 out="$(run)"
 rc=$?
 if [[ $rc -eq 1 ]] && grep -q 'UNSORTED enabledPlugins' <<<"$out"; then
-  pass "enabledPlugins keys out of byte order fail the gate"
+  ok "enabledPlugins keys out of byte order fail the gate"
 else
   fail "unsorted keys should fail (rc=$rc): $out"
 fi
@@ -232,7 +231,7 @@ write_marketplace alpha beta
 out="$(run)"
 rc=$?
 if [[ $rc -eq 0 ]]; then
-  pass "an enabledPlugins key for a different marketplace is ignored"
+  ok "an enabledPlugins key for a different marketplace is ignored"
 else
   fail "foreign-marketplace key should not fail the gate (rc=$rc): $out"
 fi
@@ -260,7 +259,7 @@ write_bootstrap 'melodic.software'
 out="$(run)"
 rc=$?
 if [[ $rc -eq 0 ]]; then
-  pass "a regex metacharacter in the marketplace name is matched literally"
+  ok "a regex metacharacter in the marketplace name is matched literally"
 else
   fail "'.' in the marketplace name must not match any character (rc=$rc): $out"
 fi
@@ -279,7 +278,7 @@ write_bootstrap old-market-name
 out="$(run)"
 rc=$?
 if [[ $rc -eq 1 ]] && grep -q 'MARKETPLACE IDENTITY MISMATCH' <<<"$out"; then
-  pass "a bootstrap naming a different marketplace fails the gate"
+  ok "a bootstrap naming a different marketplace fails the gate"
 else
   fail "bootstrap/settings marketplace mismatch should fail (rc=$rc): $out"
 fi
@@ -290,7 +289,7 @@ printf '#!/usr/bin/env bash\n# no marketplace_name assignment here\n' >"$TMP/.cl
 out="$(run)"
 rc=$?
 if [[ $rc -eq 1 ]] && grep -q 'UNREADABLE BOOTSTRAP IDENTITY' <<<"$out"; then
-  pass "a bootstrap with no marketplace_name assignment fails rather than skipping"
+  ok "a bootstrap with no marketplace_name assignment fails rather than skipping"
 else
   fail "unreadable bootstrap identity should fail (rc=$rc): $out"
 fi
@@ -299,7 +298,7 @@ rm -f "$TMP/.claude/cloud-bootstrap.sh"
 out="$(run)"
 rc=$?
 if [[ $rc -eq 2 ]] && grep -q 'cloud-bootstrap.sh not found' <<<"$out"; then
-  pass "a missing bootstrap exits 2 rather than passing silently"
+  ok "a missing bootstrap exits 2 rather than passing silently"
 else
   fail "missing bootstrap should exit 2 (rc=$rc): $out"
 fi
@@ -319,7 +318,7 @@ write_marketplace alpha
 out="$(run)"
 rc=$?
 if [[ $rc -eq 2 ]] && grep -q 'expected exactly one entry' <<<"$out"; then
-  pass "two declared marketplaces is fatal rather than a guess"
+  ok "two declared marketplaces is fatal rather than a guess"
 else
   fail "ambiguous marketplace set should exit 2 (rc=$rc): $out"
 fi
@@ -331,7 +330,7 @@ printf 'not json\n' >"$SETTINGS"
 out="$(run)"
 rc=$?
 if [[ $rc -eq 2 ]] && grep -q 'not valid JSON' <<<"$out"; then
-  pass "invalid settings JSON exits 2"
+  ok "invalid settings JSON exits 2"
 else
   fail "invalid settings JSON should exit 2 (rc=$rc): $out"
 fi
@@ -342,14 +341,9 @@ rm -f "$MARKETPLACE"
 out="$(run)"
 rc=$?
 if [[ $rc -eq 2 ]] && grep -q 'not found' <<<"$out"; then
-  pass "a missing marketplace.json exits 2"
+  ok "a missing marketplace.json exits 2"
 else
   fail "missing marketplace.json should exit 2 (rc=$rc): $out"
 fi
 
-if ((fails > 0)); then
-  printf '\n%d check(s) failed.\n' "$fails" >&2
-  exit 1
-fi
-echo
-echo "All check-plugin-catalog-enablement.sh contract checks passed."
+test_harness::report

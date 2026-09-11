@@ -3,6 +3,14 @@
 All notable changes to the `adhd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.9]
+
+### Changed
+
+- **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
+- **The plugin's prose drops its em dashes.** This changelog was rewritten. Wording only, with no change to any output-shape rule or fidelity constraint. The quoted retired and current wordings keep their quotes byte-identical, and no heading was touched. The released sections corrected in place are 0.4.1, 0.4.0, 0.3.2, 0.3.1, 0.3.0, 0.2.0, and 0.1.0: their wording changed, their facts did not.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md` alongside the README and SKILL bodies it already covered.
+
 ## [0.4.8]
 
 ### Changed
@@ -86,7 +94,7 @@ All notable changes to the `adhd` plugin are documented here. Format follows
 ### Changed
 
 - **`clarify`: the ELI5 hand-off names the Skill tool (#3002).** "hand off to `/education:explain`"
-  became "hand off by invoking `/education:explain` via the Skill tool". Wording only — the
+  became "hand off by invoking `/education:explain` via the Skill tool". Wording only. The
   routing condition, the presence gate, and the fallback are unchanged. The invocation-mode
   rubric's cross-skill phrasing rule is now unconditional; the fleet sweep retired the "new and
   edited text" scoping it used to carry.
@@ -97,7 +105,7 @@ All notable changes to the `adhd` plugin are documented here. Format follows
 
 - **The bare `/<skill>` alias for this plugin's skills.** Their `SKILL.md` files no longer
   declare a frontmatter `name`. The field is optional and defaults to the directory name, so
-  declaring it only restated the path while registering a second, unnamespaced command — which
+  declaring it only restated the path while registering a second, unnamespaced command, which
   the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
   namespaced command; the command itself is unchanged.
 
@@ -105,7 +113,7 @@ All notable changes to the `adhd` plugin are documented here. Format follows
 
 ### Changed
 
-- **`clarify`: listing description tightened (1,058 → 766 chars)** — trimmed the explanatory
+- **`clarify`: listing description tightened (1,058 → 766 chars).** Trimmed the explanatory
   prose from the frontmatter `description` toward the shared skill-listing budget
   (claude-code-plugins#2022, option 2). Every single-quoted trigger phrase is preserved verbatim
   (skill-quality check 3); the fidelity rules and structure-not-altitude contract are unchanged
@@ -117,11 +125,11 @@ All notable changes to the `adhd` plugin are documented here. Format follows
 
 - `clarify` places its local HTML file in the topic-docs **ephemeral tier**
   instead of preferring the session scratchpad. The old wording branched on
-  whether the harness injected a scratchpad path, which made placement depend
-  on how the session was launched — invisible from inside the skill — and
-  depended on an undocumented surface upstream has declined three times to
-  support. The skill now resolves one temp path deterministically, and states
-  explicitly that the file is not deleted before returning — the path is the
+  whether the harness injected a scratchpad path. That branch made placement
+  depend on how the session was launched, which is invisible from inside the
+  skill, and it depended on an undocumented surface upstream has declined three
+  times to support. The skill now resolves one temp path deterministically, and states
+  explicitly that the file is not deleted before returning. The path is the
   delivery mechanism, so it must stay readable when the reader opens it. See
   `docs/conventions/topic-docs/README.md` §"The ephemeral tier".
 
@@ -133,12 +141,12 @@ Fixes every finding from the 2026-07-23 live audit (handoff item
 ### Added
 
 - **Conflicting-shaper check at the enforcing layer (H1, L4).** The
-  caveman-style mutual-exclusion warning lived only in README/plugin.json —
-  layers the model never reads at invocation time; reproduced live as a silent
-  contradictory mix. Both SKILL.md bodies now surface an active
-  terse-for-tokens shaper before applying, name the source found in session
-  context, and ask the user to pick one. Advisory by necessity: no documented
-  skill-to-hook detection mechanism exists.
+  caveman-style mutual-exclusion warning lived only in README/plugin.json,
+  layers the model never reads at invocation time. The audit reproduced the
+  failure live as a silent contradictory mix. Both SKILL.md bodies now surface
+  an active terse-for-tokens shaper before applying, name the source found in
+  session context, and ask the user to pick one. Advisory by necessity: no
+  documented skill-to-hook detection mechanism exists.
 - **`clarify` trivial-target escape hatch (M1).** A resolved target with fewer
   than ~2 decisions gets a one-line "nothing dense here" + a question for the
   intended target instead of the full table/glossary apparatus.
@@ -160,12 +168,12 @@ Fixes every finding from the 2026-07-23 live audit (handoff item
   another skill's arguments). OS temp/scratchpad is now the primary local-file
   destination and the variable is gone from the skill body.
 - **Sibling precedence made explicit (M3, L3).** clarify's decision table is
-  exempt from shape's five-item list cap (fidelity wins over shaping) — stated
-  in both skills; clarify on already-shape-formatted output is declared a
+  exempt from shape's five-item list cap (fidelity wins over shaping), stated
+  in both skills. `clarify` on already-shape-formatted output is declared a
   no-op.
 - **`clarify` fidelity rule 2 fallback (L5).** An original with no identifiers
   gets a declared synthesized locator (sequential marker or quoted opening
-  phrase) — never a chunk with no way back to its source passage.
+  phrase), never a chunk with no way back to its source passage.
 - **README compaction caveat (L2).** The standing posture is content-based
   persistence; re-invoke after a context compaction if shaping stops.
 
@@ -176,11 +184,11 @@ decision, recorded in the audit's policy note).
 
 ### Added
 
-- **`/adhd:clarify`** — on-demand, one-shot reshape of a dense, decision-heavy
+- **`/adhd:clarify`.** An on-demand, one-shot reshape of a dense, decision-heavy
   artifact already on screen (default target: the previous assistant response;
-  an explicit target overrides). Restructures faithfully — chunks the content
-  one-decision-at-a-time, defines the session's own jargon, and surfaces exactly
-  what the reader must decide — with hard fidelity rules: operative terms of every
+  an explicit target overrides). It restructures faithfully, chunking the content
+  one-decision-at-a-time, defining the session's own jargon, and surfacing exactly
+  what the reader must decide. Hard fidelity rules apply: operative terms of every
   recommendation quoted verbatim, original item numbers kept as back-links,
   omissions listed explicitly, and a closing line that the clarification is a lens
   (validate answers against the original). Changes STRUCTURE, never altitude.
@@ -199,7 +207,7 @@ decision, recorded in the audit's policy note).
 
 ### Added
 
-- **Initial release.** `/adhd:shape` — shape the assistant's output for a
+- **Initial release.** `/adhd:shape` shapes the assistant's output for a
   reader with ADHD: lead with the concrete next action, number multi-step
   work, restate state across turns, cap and rank lists at five, give concrete
   time estimates, make finished work visible, keep a flat error tone, and cut
@@ -210,7 +218,7 @@ decision, recorded in the audit's policy note).
   message; it surfaces on plain-language request or direct invocation, and
   once invoked its rules persist as a standing instruction for the rest of the
   session.
-- Reauthored — not forked — from
+- Reauthored, not forked, from
   [ayghri/i-have-adhd](https://github.com/ayghri/i-have-adhd) (MIT): the ten
   rules' substance is preserved, the wrapper is adapted to this marketplace's
   discovery discipline (no auto-fire-on-any-message), and the prose is

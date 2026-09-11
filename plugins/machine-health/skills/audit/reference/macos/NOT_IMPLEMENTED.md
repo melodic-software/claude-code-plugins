@@ -1,4 +1,4 @@
-# machine-health — macOS is not yet implemented
+# machine-health: macOS is not yet implemented
 
 Scaffolding placeholder. When `machine-health` is invoked on a macOS host, the skill **must** emit a clear `UNKNOWN`-severity report explaining this gap and **must not** attempt to execute scripts from `scripts/windows/` on macOS.
 
@@ -18,25 +18,25 @@ Scaffolding placeholder. When `machine-health` is invoked on a macOS host, the s
 Goal is "populate two folders," not "refactor the skill." Everything under `reference/shared/` stays the same; OS-agnostic by design.
 
 1. **Read the shared references** in order:
-   - `reference/shared/severity-rubric.md` — inherits the five levels and the trend rule.
-   - `reference/shared/output-schema.md` — every macOS check must emit this exact schema.
-   - `reference/shared/report-template.md` — report renderer is already OS-agnostic.
-   - `reference/shared/discovery-guide.md` — **macOS** section lists candidate dimensions to probe (Homebrew, FileVault, Keychain expiry, smartctl/system_profiler, kernel panics, etc.).
-   - `reference/shared/remediation-philosophy.md` — posture (fail-safe, one attempt, forbidden actions) is universal.
+   - `reference/shared/severity-rubric.md`: inherits the five levels and the trend rule.
+   - `reference/shared/output-schema.md`: every macOS check must emit this exact schema.
+   - `reference/shared/report-template.md`: report renderer is already OS-agnostic.
+   - `reference/shared/discovery-guide.md`: **macOS** section lists candidate dimensions to probe (Homebrew, FileVault, Keychain expiry, smartctl/system_profiler, kernel panics, etc.).
+   - `reference/shared/remediation-philosophy.md`: posture (fail-safe, one attempt, forbidden actions) is universal.
 2. **Populate `reference/macos/`** with:
-   - `check-catalog.md` — macOS equivalent of the Windows catalog, thresholds tailored to macOS (e.g., `pmset -g batt` instead of `powercfg /batteryreport`).
-   - `remediation-policy.md` — explicit per-remediation authorization, same structure as `reference/windows/remediation-policy.md`.
+   - `check-catalog.md`: macOS equivalent of the Windows catalog, thresholds tailored to macOS (e.g., `pmset -g batt` instead of `powercfg /batteryreport`).
+   - `remediation-policy.md`: explicit per-remediation authorization, same structure as `reference/windows/remediation-policy.md`.
 3. **Populate `scripts/macos/`** with:
-   - `Invoke-MachineHealthCheck.ps1` — orchestrator, same responsibilities as Windows one. PowerShell 7 runs fine on macOS (`brew install --cask powershell` or pkg installer).
-   - `checks/Test-*.ps1` — one per catalog entry. macOS-specific commands: `softwareupdate`, `diskutil`, `fdesetup`, `pmset`, `log show`, `system_profiler`, `security find-identity`.
-   - `remediations/*.ps1` — only what the catalog authorizes.
-   - `lib/` — reuse Windows lib shapes; `Write-HealthResult.ps1` and `Read-HistoryJsonl.ps1` are essentially OS-agnostic.
+   - `Invoke-MachineHealthCheck.ps1`: orchestrator, same responsibilities as Windows one. PowerShell 7 runs fine on macOS (`brew install --cask powershell` or pkg installer).
+   - `checks/Test-*.ps1`: one per catalog entry. macOS-specific commands: `softwareupdate`, `diskutil`, `fdesetup`, `pmset`, `log show`, `system_profiler`, `security find-identity`.
+   - `remediations/*.ps1`: only what the catalog authorizes.
+   - `lib/`: reuse Windows lib shapes; `Write-HealthResult.ps1` and `Read-HistoryJsonl.ps1` are essentially OS-agnostic.
 4. **Seed `catalog/checks.jsonc`** with `os: ["macos"]` entries alongside existing Windows ones.
 5. **Validate**: dry-run on a scratch `OutputBase` exactly as the Windows implementation does (see `SKILL.md` § High-level procedure).
 
 ## Explicit prohibition
 
-**Do not attempt to execute any script under `scripts/windows/` on macOS.** Windows scripts call `Get-CimInstance Win32_*`, `powercfg`, registry paths, and PowerShell Windows-only assemblies. Running them on macOS fails in noisy, confusing ways and pollutes the run log. Detection-first, then stub-first — that's the contract.
+**Do not attempt to execute any script under `scripts/windows/` on macOS.** Windows scripts call `Get-CimInstance Win32_*`, `powercfg`, registry paths, and PowerShell Windows-only assemblies. Running them on macOS fails in noisy, confusing ways and pollutes the run log. Detection first, then stub first. That is the contract.
 
 ## When to remove this file
 

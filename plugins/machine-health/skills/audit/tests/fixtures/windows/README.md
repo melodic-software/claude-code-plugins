@@ -22,7 +22,7 @@ pwsh -File tests/helpers/New-Fixture.ps1 -Cmdlet Get-Volume -Scenario all-volume
 pwsh -File tests/helpers/New-Fixture.ps1 -Cmdlet Get-Volume -Scenario low-free-space -PreserveDriveLetter C
 ```
 
-Review output before committing — redaction is best-effort and catches common machine-specific values, but vendor-specific strings may leak.
+Review output before committing. Redaction is best-effort and catches common machine-specific values, but vendor-specific strings may leak.
 
 ## Refreshing a fixture
 

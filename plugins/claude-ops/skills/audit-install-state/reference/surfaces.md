@@ -1,6 +1,6 @@
 # What lives in a Claude Code installation directory, and who owns it
 
-Basis for every row: <https://code.claude.com/docs/en/claude-directory> — read through the raw
+Basis for every row: <https://code.claude.com/docs/en/claude-directory>, read through the raw
 markdown endpoint (`.../claude-directory.md`), not a summarizing fetch. Verified 2026-08-26.
 Recheck trigger: a release note or docs change naming `cleanupPeriodDays`, a swept path, or the
 `claude-directory` page itself.
@@ -17,7 +17,7 @@ under the swept paths below are deleted at startup once older than that window.
 Three facts about it that change how a finding should be read:
 
 - **An unparsable settings file pauses the sweep.** Upstream: Claude Code pauses retention cleanup
-  and warns in `/status` until the file is fixed — unless managed settings supply
+  and warns in `/status` until the file is fixed, unless managed settings supply
   `cleanupPeriodDays`, in which case the sweep runs at the managed value. A JSON syntax error is
   therefore a retention outage, not only a config error. The engine reports it as `error`.
 - **Managed settings can supply the value**, at a machine-scope path that varies by OS
@@ -36,9 +36,9 @@ Three facts about it that change how a finding should be read:
 | `plans/` | Plan files written during plan mode |
 | `debug/` | Per-session debug logs (`--debug` / `/debug` only) |
 | `paste-cache/` | Large pastes |
-| `image-cache/` | Attached images. **Different sweep rule:** on each sweep the directories of all *other* sessions are removed whatever their age — so an old `image-cache/<session>/` disappearing immediately is expected, never an `age-exceeds-window` signal |
+| `image-cache/` | Attached images. **Different sweep rule:** on each sweep the directories of all *other* sessions are removed whatever their age, so an old `image-cache/<session>/` disappearing immediately is expected, never an `age-exceeds-window` signal |
 | `uploads/<session>/` | Remote Control / web attachments |
-| `feedback/drafts/` | Feedback drafts — swept after `cleanupPeriodDays` **or** 30 days, whichever is shorter |
+| `feedback/drafts/` | Feedback drafts, swept after `cleanupPeriodDays` **or** 30 days, whichever is shorter |
 | `usage-data/` | `/insights` reports and cached analysis data |
 | `session-env/` | Per-session environment metadata |
 | `tasks/` | Per-session task lists |
@@ -56,7 +56,7 @@ The step from it to "the sweep is failing" is an inference, and for several of t
 wrong one:
 
 - **`file-history/`** retains the **100 most recent checkpoints**. Snapshots no retained checkpoint
-  references are deleted — *except each file's first snapshot, which is kept regardless of age.*
+  references are deleted, *except each file's first snapshot, which is kept regardless of age.*
   Old mtimes here are the documented behaviour.
 - **`projects/<session>/subagents/` and `tool-results/`** are removed *with their parent transcript*.
   A contained file's own mtime is not the unit.
@@ -83,7 +83,7 @@ Not covered by automatic cleanup; persist indefinitely.
 | `policy-limits.json` | Cached feature policy settings |
 
 Upstream adds: "Other small cache and lock files appear depending on which features you use and are
-safe to delete." That sentence is not a licence to delete anything a table does not name — see
+safe to delete." That sentence is not a licence to delete anything a table does not name. See
 "unclassified" below.
 
 ## Session-scoped, explicitly not age-swept
@@ -93,13 +93,13 @@ crashes. Claude Code removes each file when its session exits and clears crash l
 launch. **Hand-deleting these confuses concurrent-session detection.**
 
 They also churn during an audit. A file present in one listing and gone in the next is the
-documented behaviour, not a discrepancy — and it means any orphan count keyed on sessions carries a
+documented behaviour, not a discrepancy, and it means any orphan count keyed on sessions carries a
 margin of error, because a session whose record vanished mid-run is *unknown*, not *dead*.
 
 ## Never delete
 
 Upstream is explicit: don't delete `~/.claude.json`, `~/.claude/settings.json`, or
-`~/.claude/plugins/` — those hold auth, preferences, and installed plugins.
+`~/.claude/plugins/`. Those hold auth, preferences, and installed plugins.
 
 ## Home-root state, outside the swept tree
 
@@ -118,14 +118,14 @@ The largest population in a real install is state deposited by **plugins**, incl
 plugins from the same marketplace. The engine inventories these by name, size, and mtime and stops
 there:
 
-- it never parses their contents — a plugin owns its own state;
+- it never parses their contents, since a plugin owns its own state;
 - it never attributes an owner from a directory name;
 - it never infers that "not product-managed" means "disposable."
 
 `unclassified-report-only` is a statement about the *evidence*, not about the file. There is no
 upstream row, so no retention claim can be made in either direction.
 
-## Secret-bearing paths — never opened
+## Secret-bearing paths: never opened
 
 `.credentials.json`, `daemon/control.key`, `daemon/pipe.key`, `ide/*.lock` (the body carries an
 `authToken`), and the values inside `~/.claude.json` (MCP server configs can carry tokens). These

@@ -1,38 +1,38 @@
-# Operator setup — retention
+# Operator setup: retention
 
 Parent: [`operator-setup.md`](operator-setup.md). Privacy tie-in: [`operator-setup-emission-privacy.md`](operator-setup-emission-privacy.md).
 
-## Pruning the store (retention) — two tiers
+## Pruning the store (retention): two tiers
 
 The store grows unbounded otherwise, and with full capture on it holds real prompt + raw API
-bodies — so retention is also a privacy bound (see [operator-setup-emission-privacy.md](operator-setup-emission-privacy.md) "Privacy consequence").
+bodies, so retention is also a privacy bound (see [operator-setup-emission-privacy.md](operator-setup-emission-privacy.md) "Privacy consequence").
 [`../otel/prune-otel-store.sh`](../otel/prune-otel-store.sh) maintains a two-tier lifecycle:
 
-- **Hot tier** — the NDJSON files the Collector appends (`cc-logs.json` / `cc-metrics.json` /
+- **Hot tier**: the NDJSON files the Collector appends (`cc-logs.json` / `cc-metrics.json` /
   `cc-traces.json`), kept byte-compatible with Collector appends, bounded by two per-class windows (knob table
   below). Batch lines past the body window but still inside the structure window get
   **record-granular jq surgery**: their `api_*_body` logRecords are stripped while sibling
   structure records survive in place (most body-bearing lines also carry structure events, so
   whole-line dropping would forfeit one class or the other).
-- **Cold tier** — `cold/*.parquet` (ZSTD, structure-only). Lines aged past the structure
-  window are compacted to a new cold file **before** the hot trim drops them — one file per
+- **Cold tier**: `cold/*.parquet` (ZSTD, structure-only). Lines aged past the structure
+  window are compacted to a new cold file **before** the hot trim drops them, one file per
   prune run, append-only, so a failed compaction can never corrupt prior cold history and
   always aborts the trim (hot store untouched). Cold is unbounded by design (structure-only
   ≈ tens of MB/month); recheck if `cold/` exceeds ~2 GB. Content boundary: no `api_*_body`
   rows ever reach cold; `user_prompt` rows survive with `body` NULLed and the `prompt`
   attribute scrubbed unless the prompt-keep knob is on. Join keys (`session_id`, `prompt_id`,
-  `tool_use_id`, `trace_id`, `span_id`) are always retained — they bridge cold rows to
+  `tool_use_id`, `trace_id`, `span_id`) are always retained. They bridge cold rows to
   on-disk transcript lookups.
 
 ### Retention knobs
 
 | Env knob | Default | Semantics |
 |---|---|---|
-| `CC_OTEL_RETENTION_DAYS` | `7` | Hot window for structure events (everything that is not an `api_*_body` record). Older lines drop from hot — compacted to cold first. |
-| `CC_OTEL_BODY_RETENTION_DAYS` | `2` | Hot window for `api_request_body` / `api_response_body` records. Must not exceed the structure window (exit 2 — reject, not clamp). Aged body records are stripped in place; they never reach cold. |
+| `CC_OTEL_RETENTION_DAYS` | `7` | Hot window for structure events (everything that is not an `api_*_body` record). Older lines drop from hot, compacted to cold first. |
+| `CC_OTEL_BODY_RETENTION_DAYS` | `2` | Hot window for `api_request_body` / `api_response_body` records. Must not exceed the structure window (exit 2, reject rather than clamp). Aged body records are stripped in place; they never reach cold. |
 | `CC_OTEL_COLD_KEEP_USER_PROMPTS` | off | `=1` keeps `user_prompt` bodies + the `prompt` attribute un-scrubbed in the cold tier. Default scrubs both (prompt frequency/timing analytics survive either way). |
 
-`RETENTION_DAYS` alone is **not read** — set without `CC_OTEL_RETENTION_DAYS` it exits 2.
+`RETENTION_DAYS` alone is **not read**. Set without `CC_OTEL_RETENTION_DAYS` it exits 2.
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}"/skills/observability/otel/prune-otel-store.sh --dry-run   # cutoffs + per-class counts, mutates nothing
@@ -42,13 +42,13 @@ CC_OTEL_RETENTION_DAYS=14 bash "${CLAUDE_PLUGIN_ROOT}"/skills/observability/otel
 
 `--dry-run` reports per file: `kept=` / `dropped=` (whole-line drops) / `surgery=` (lines
 that would lose their body records) / `body_dropped=` (whole-line drops that carried bodies)
-/ `would_compact=` (parseable dropped lines — what the cold COPY would receive).
+/ `would_compact=` (parseable dropped lines, what the cold COPY would receive).
 
 ### Overriding the windows machine-wide (setx recipe)
 
-Two override surfaces with different reach — pick by which consumers must honor the value:
+Two override surfaces with different reach. Pick by which consumers must honor the value:
 
-- **OS user environment variables (`setx`)** — reach CC sessions AND the daily Scheduled
+- **OS user environment variables (`setx`)** reach CC sessions AND the daily Scheduled
   Task prune. The recipe for keeping raw bodies a full week and carrying prompts into cold:
 
   ```text
@@ -56,10 +56,10 @@ Two override surfaces with different reach — pick by which consumers must hono
   setx CC_OTEL_COLD_KEEP_USER_PROMPTS 1
   ```
 
-  `setx` affects **new** processes only — restart terminals (and `schtasks /run` re-picks
+  `setx` affects **new** processes only, so restart terminals (and `schtasks /run` re-picks
   the environment on its next fire).
 
-- **`.claude/settings.local.json` `env`** — reaches CC sessions only; the Scheduled Task
+- **`.claude/settings.local.json` `env`** reaches CC sessions only; the Scheduled Task
   never sees it. Use `setx` for anything the unattended prune must honor.
 
 ### Safety properties
@@ -71,8 +71,8 @@ to cold, surgically strips aged body records, verifies the trimmed temp parses (
 read_json_auto`), and only then atomically replaces the hot file. **Compact-before-trim +
 verify-before-replace**: every failure path (cold write, cold verify, surgery, hot verify)
 aborts with the hot store untouched. A crash between the cold write and the hot replace
-re-compacts the same lines next run — duplicate cold rows, never lost ones. It **dry-checks
-first** — when nothing exceeds either window it skips the stop/compact/trim/start entirely,
+re-compacts the same lines next run, producing duplicate cold rows, never lost ones. It **dry-checks
+first**: when nothing exceeds either window it skips the stop/compact/trim/start entirely,
 so a routine run on recent data never churns the Collector. On days with many aged body
 lines the jq surgery lengthens the Collector stop from seconds to ~1–2 minutes. The service has
 no independent recovery restart, so the prune owns the complete stop → trim → start cycle. Also
@@ -80,10 +80,10 @@ holds the sentinel through the restart attempt and releases it last; an unreadab
 is an error, never treated as `Stopped`, so the hot store stays untouched and cleanup attempts the
 restart. It is wired into `/claude-ops:observability clean` (one entry covering the JSONL layers + this OTEL store;
 the JSONL hook-events layer keeps its own 30-day `--keep-days` window, and the opt-in skill-usage
-layer its own 365-day `--keep-skill-usage-days` window — longer because a starvation report wants
+layer its own 365-day `--keep-skill-usage-days` window, longer because a starvation report wants
 long history and those rows carry names and branches only, no content).
 
-### Windows — per-user Scheduled Task (no admin)
+### Windows: per-user Scheduled Task (no admin)
 
 The limited runtime user must first have the scoped `SERVICE_STOP | SERVICE_START` grant
 converged by machine provisioning.
@@ -95,7 +95,7 @@ bash script, so the task must invoke `bash.exe` by full path. The script ships i
 installed plugin and sources sibling helpers, so the task must point at the plugin's own directory: resolve
 `${CLAUDE_PLUGIN_ROOT}/skills/observability/otel/prune-otel-store.sh` from a Claude Code
 session and substitute that absolute path below (`<plugin-prune-script>`). The plugin cache path
-changes on plugin updates — re-register the task after updating the plugin. Daily, off-peak
+changes on plugin updates, so re-register the task after updating the plugin. Daily, off-peak
 (minimizes overlap with the brief stop window):
 
 ```text
@@ -103,14 +103,14 @@ schtasks /create /tn "ClaudeCodeOtelPrune" /sc daily /st 04:00 /rl limited /f /t
   "\"C:\Program Files\Git\bin\bash.exe\" \"<plugin-prune-script>\""
 ```
 
-With `CC_OTEL_STORE` set (the prerequisite above) the working directory is irrelevant — every
+With `CC_OTEL_STORE` set (the prerequisite above) the working directory is irrelevant. Every
 resolved path is absolute. To override the retention windows for this task, use the `setx`
 recipe above (user env vars are the only surface the task sees).
 **Verify:** `schtasks /query /tn "ClaudeCodeOtelPrune"`;
 `schtasks /run /tn "ClaudeCodeOtelPrune"` then re-run a `--dry-run` to confirm the window held.
 **Reversal:** `schtasks /delete /tn "ClaudeCodeOtelPrune" /f`.
 
-### macOS / Linux — lifecycle integration required
+### macOS / Linux: lifecycle integration required
 
 `--dry-run` remains portable, but a mutating prune is Windows-first because its safe file-handle
 cycle targets the provisioning-owned Windows service. Do not schedule a mutating prune on macOS

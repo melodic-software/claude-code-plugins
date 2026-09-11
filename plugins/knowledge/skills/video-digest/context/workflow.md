@@ -1,6 +1,6 @@
 # Video digest watch workflow
 
-Ordered phases for `/knowledge:video-digest watch`. **Checkbox surface:** `templates/watch-checklist.md` (materialized to slice `run-state/watch-checklist.md`). **Criteria:** `quality-gates.md`. **Epic queue (optional):** `context/watch-queue.md` — `queue` / `watch` without URL before phase 0.
+Ordered phases for `/knowledge:video-digest watch`. **Checkbox surface:** `templates/watch-checklist.md` (materialized to slice `run-state/watch-checklist.md`). **Criteria:** `quality-gates.md`. **Epic queue (optional):** `context/watch-queue.md`, using `queue` / `watch` without URL before phase 0.
 
 ## Flow
 

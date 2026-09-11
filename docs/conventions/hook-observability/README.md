@@ -1,19 +1,19 @@
-# Hook observability — status, failure, and telemetry surfaces for fleet hooks
+# Hook observability: status, failure, and telemetry surfaces for fleet hooks
 
 Owner doc for the three observability surfaces every fleet hook declares or emits: a during-run
 status label, a user-visible notice when a runtime prerequisite is missing, and the fleet's
-telemetry envelope. The [plugin philosophy](../../PLUGIN-PHILOSOPHY.md) owns the posture rule —
-advisory-versus-blocking, fail-open-versus-closed; this doc owns which of the three surfaces a
+telemetry envelope. The [plugin philosophy](../../PLUGIN-PHILOSOPHY.md) owns the posture rule:
+advisory-versus-blocking, fail-open-versus-closed. This doc owns which of the three surfaces a
 given situation uses and how each is shaped.
 
 Grounded against the official Claude Code hooks reference
-(<https://code.claude.com/docs/en/hooks>, fetched 2026-08-10) — every field name, cap, and timing
+(<https://code.claude.com/docs/en/hooks>, fetched 2026-08-10). Every field name, cap, and timing
 claim below is sourced from that fetch, not from training-data recall, per this repo's own
 research-verification discipline.
 
 ## The three surfaces
 
-### 1. `statusMessage` — config, not runtime output
+### 1. `statusMessage`: config, not runtime output
 
 A static field on a `hooks.json` **handler object**, sibling of `type`/`command`/`timeout`/`if`:
 
@@ -26,54 +26,54 @@ A static field on a `hooks.json` **handler object**, sibling of `type`/`command`
 }
 ```
 
-Displayed as the UI spinner label while the hook process runs. **A hook script never emits this —
-there is no runtime JSON output field by this name.** **Rollout status: near-complete.** As of
+Displayed as the UI spinner label while the hook process runs. **A hook script never emits this.
+There is no runtime JSON output field by this name.** **Rollout status: near-complete.** As of
 2026-07-23, 30 of the 31 wired `type: "command"` handlers across the fleet's 15 hook-bearing
 plugins declare `statusMessage`; the sole remaining holdout is
 `plugins/disk-hygiene/hooks/hooks.json`. Tracked against
 melodic-software/claude-code-plugins#836 (this doc landed first per the convention-registry rule;
-adoption was the follow-up wave, now all but one site complete — close #836 once `disk-hygiene`
+adoption was the follow-up wave, now all but one site complete. Close #836 once `disk-hygiene`
 declares it or is recorded as a deliberate exception). Wording convention: a present-tense gerund
 phrase naming what the hook is doing, specific to the tool or check
 (`"Formatting Go imports..."`, `"Checking for secrets..."`, `"Recording tool-failure
-telemetry..."`) — not a generic `"Running hook..."`.
+telemetry..."`), not a generic `"Running hook..."`.
 
-### 2. `systemMessage` — user-visible, scoped by who can act on the content
+### 2. `systemMessage`: user-visible, scoped by who can act on the content
 
 An exit-0 JSON output field (`hookSpecificOutput` sibling), 10,000-character cap (an overflow to a
 file, not a truncation; see [Output caps](#output-caps-stated-by-the-reference)), shown to the
 user immediately. Composed via `hook::emit_channels` / `hook::emit_skip_notice`
-(`lib/hook-utils.sh`) alongside `additionalContext` in one JSON document — Claude Code parses a
+(`lib/hook-utils.sh`) alongside `additionalContext` in one JSON document. Claude Code parses a
 hook's entire stdout as a single document, so a hook with both agent-channel content and a
 pending notice must compose them there, never `printf` twice.
 
-**Scope — required for exactly one situation:** a missing runtime prerequisite (binary, config
+**Scope, required for exactly one situation:** a missing runtime prerequisite (binary, config
 file, `jq`) causes the hook to silently no-op instead of performing its check. Doctrine
 (`lib/hook-utils.sh`, its `Prerequisite visibility` section): *"a missing runtime prerequisite must surface to BOTH the agent
-(additionalContext) and the user (systemMessage) — a silently skipped feature is a defect."*
+(additionalContext) and the user (systemMessage) — a silently skipped feature is a defect."* <!-- ai-slop-ignore: verbatim quotation of the `lib/hook-utils.sh` Prerequisite visibility doctrine -->
 
-This is the doctrine that fleet hook scripts cite in comments as the **"dim-9 doctrine"** — the
+This is the doctrine that fleet hook scripts cite in comments as the **"dim-9 doctrine"**. The
 label names *this* visible-skip rule and nothing more, and this section is its authoritative
-definition. (The `dim-N` numbers are an informal fleet-conformance shorthand — e.g. dim-8 = the
-uniform setup-skill wave, dim-11 = seam phrasing — with no central registry defining the numbering;
+definition. (The `dim-N` numbers are an informal fleet-conformance shorthand, for example dim-8 =
+the uniform setup-skill wave and dim-11 = seam phrasing, with no central registry defining the numbering;
 giving the whole scheme a documented home is a separate follow-up, tracked outside this doc.)
 
-**Also required — a hook that CHANGED the user's file content without being asked.** An autofix hook
+**Also required: a hook that CHANGED the user's file content without being asked.** An autofix hook
 edits a file the user is working in, on the strength of an unrelated tool call, with no prompt and no
 diff. The harness's own signal for it is a generic "PostToolUse hook modified `<file>` after your
-edit (likely a formatter)" line that names no hook and shows no change — quoted from an observed
-session, not from a docs page, and load-bearing here only as an illustration of the shape such a
+edit (likely a formatter)" line that names no hook and shows no change, quoted from an observed
+session, not from a docs page, and used here only as an illustration of the shape such a
 notice takes. What the docs settle is the negative this rule actually rests on, verified against
 <https://code.claude.com/docs/en/hooks> (fetched 2026-08-10): the three documented output channels
 carry no file-change or diff surface, so a benign reflow and a wrong dictionary rewrite arrive
 identically. Recheck trigger: a Claude Code release that adds a file-change or diff surface to the
-hook output schema — a fourth output field, or such a payload on one of
-[the three](#the-three-surfaces) — which would make this rule's disclosure requirement redundant.
+hook output schema, whether a fourth output field or such a payload on one of
+[the three](#the-three-surfaces), which would make this rule's disclosure requirement redundant.
 
 The person whose file was changed is the only one who can judge whether the change was correct, so
 **the hook must name what it changed on the user channel**, not only the agent one: what
 was rewritten, to what, where, and how to prevent it. This is a *narrow* addition to the scope above,
-and its boundary is content the user did not request — a hook that only *reports* (a lint finding, a
+and its boundary is content the user did not request. A hook that only *reports* (a lint finding, a
 suggested fix, a diagnostic) still belongs on `additionalContext` alone. The same cap discipline as
 the repeat-notice rule applies: a per-item list must be bounded, with the remainder summarized as a
 count, or the disclosure becomes the noise problem it was meant to prevent.
@@ -84,21 +84,22 @@ count, or the disclosure becomes the noise problem it was meant to prevent.
   already user-visible through Claude Code's own permission-denial UI. An additional
   `systemMessage` on top of a block would be redundant, not more observable.
 - **Legitimate advisory findings *the model can act on*.** A hook that surfaces a finding to Claude
-  for it to act on (e.g. a lint result, a suggested fix) belongs on `additionalContext` only — that
+  for it to act on (e.g. a lint result, a suggested fix) belongs on `additionalContext` only. That
   is the correct channel for agent-actionable content, not a gap. This is the case the
   content-mutation clause above is deliberately distinguished from: reporting is agent-scoped,
   rewriting is not.
 
-  **The predicate is load-bearing, and it is *who can act*, not *how routine the content is*.** The
+  **The predicate is what decides this, and it is *who can act*, not *how routine the content is*.** The
   harm this bullet names is misrouting **agent-actionable** content to the user channel. Content the
-  model is *forbidden* to act on is not agent-actionable, so the bullet does not reach it — and
+  model is *forbidden* to act on is not agent-actionable, so the bullet does not reach it, and
   routing such content to `additionalContext` anyway is the mirror-image defect, because an
   instruction the model cannot act on still shapes what it does.
 
-  **Carve-out, admitted only on all three conditions together** — a conjunction, never a judgment
-  call, because a soft "when it seems important" is exactly the drift the closing bullet guards:
+  **Carve-out, admitted only on all three conditions together.** This is a conjunction, never a
+  judgment call, because a soft "when it seems important" is exactly the drift the closing bullet
+  guards:
 
-  1. the payload states a **choice among actions whose only legitimate actor is the human** —
+  1. the payload states a **choice among actions whose only legitimate actor is the human**,
      because a rule the consuming project holds forbids the model to act on it (a session-lifecycle
      or harness-command choice is the usual shape), not merely because a human might also care;
   2. the model channel **separately carries the determination the model does need**, so nothing
@@ -107,15 +108,15 @@ count, or the disclosure becomes the noise problem it was meant to prevent.
 
   **Delivery may never be asserted.** The model channel may state that a choice belongs to the
   operator; it may **never** state that the operator has seen it. No documented behavior tells a hook
-  whether an operator is present — `systemMessage` is documented only as a message shown to the user,
-  and nothing upstream describes its behavior in non-interactive runs — so a delivery claim is a fact
+  whether an operator is present. `systemMessage` is documented only as a message shown to the user,
+  and nothing upstream describes its behavior in non-interactive runs, so a delivery claim is a fact
   the hook cannot know in *any* mode, not only headless ones. Emitting to an unread operator channel
   is harmless; telling the model a human holds the choice when none does is not.
 
   **Honest limit.** The docs state that `additionalContext` is inserted into the conversation and
   saved to the transcript, and say no such thing about `systemMessage`; that the latter stays out of
   model context is *inferred from the asymmetry*, not stated. If that inference is ever falsified,
-  this carve-out collapses — content forbidden to the model would reach it either way — and the
+  this carve-out collapses, since content forbidden to the model would reach it either way, and the
   correct response is to drop the payload, not to re-route it.
 
 **Repeat-notice discipline.** A missing-prerequisite notice behind a broad matcher (every
@@ -125,13 +126,13 @@ count, or the disclosure becomes the noise problem it was meant to prevent.
 unguarded `hook::emit_skip_notice` call on a broad-matcher hook is a conformance defect.
 
 **Important exit-code caveat, grounded in the fresh fetch:** on exit 0, **stderr is never shown to
-the user or the agent** — only stdout JSON is parsed. A bare `echo "..." >&2; exit 0` skip is
+the user or the agent**, and only stdout JSON is parsed. A bare `echo "..." >&2; exit 0` skip is
 **not visible**, regardless of intent. `scripts/check-silent-skips.sh` **still treats a bare
-stderr write as a sanctioned visibility signal as of this doc's introduction** — that is incorrect
+stderr write as a sanctioned visibility signal as of this doc's introduction.** That is incorrect
 for the exit-0 skip shapes the gate inspects, and the gate does not yet enforce the rule this doc
 states. **Gate correction is pending**, scoped into the same fleet-adoption follow-up PR (against
 issue #836) that converts the 9 fleet sites currently relying on that leniency
-(`plugins/guardrails/hooks/*.sh`) — the gate and its dependent sites land together so CI never
+(`plugins/guardrails/hooks/*.sh`). The gate and its dependent sites land together so CI never
 regresses between them. Once corrected, a quiet skip must use one of the sanctioned helper calls
 or an explicit `# silent-skip-ok: <reason>` annotation.
 
@@ -198,16 +199,16 @@ that fetch, given so a re-check can find the span; the quoted text is the basis.
 
 Every wired producer hook emits one envelope per meaningful-outcome run via `hook::emit_telemetry`
 (`lib/hook-utils.sh`) to the consumer-opted-in `HOOK_TELEMETRY_SINK`. Full schema and adoption
-list: [`docs/conventions/hook-telemetry/`](../hook-telemetry/README.md) — this doc does not
+list: [`docs/conventions/hook-telemetry/`](../hook-telemetry/README.md). This doc does not
 restate that shape, only the adoption requirement: **every hook wired in a plugin's `hooks.json`
 emits it for each meaningful outcome it produces** (a check that ran and returned ok / blocked /
-skipped-for-cause) — a pure inapplicability short-circuit before any check logic runs (wrong tool
+skipped-for-cause). A pure inapplicability short-circuit before any check logic runs (wrong tool
 type, excluded path, missing prerequisite) does not need one; see the Conformance section below
 for the precise rule and why.
 
 **Why a local file sink, not a real OTel exporter.** Claude Code strips every `OTEL_*` exporter
 environment variable from hook subprocesses it spawns
-(<https://code.claude.com/docs/en/monitoring-usage#administrator-configuration>) — a hook process
+(<https://code.claude.com/docs/en/monitoring-usage#administrator-configuration>), so a hook process
 cannot emit real OpenTelemetry even if it tried. The file-sink envelope is the only telemetry
 surface available to a hook; this is a grounded constraint, not an oversight.
 
@@ -215,7 +216,7 @@ surface available to a hook; this is a grounded constraint, not an oversight.
 v2.1.196+) that matches the `prompt.id` attribute on real OpenTelemetry events, which would let
 external tooling correlate a hook's local envelope with the same turn's real OTel stream. Adding
 it is a `hook-telemetry` schema change (`schema_version` 1.0 → 1.1) touching every producer's
-`data_json` construction — out of scope for this doc's three-surface convention.
+`data_json` construction, out of scope for this doc's three-surface convention.
 melodic-software/claude-code-plugins#930 is closed: the per-session event log (`claude-ops`,
 melodic-software/claude-code-plugins#3750) records `prompt_id` per event, and the envelope-spine
 promotion is tracked at melodic-software/claude-code-plugins#3758.
@@ -229,7 +230,7 @@ promotion is tracked at melodic-software/claude-code-plugins#3758.
   human-only-choice carve-out above; over-applying it to blocking paths or to advisory findings the
   model can act on is itself a conformance defect (redundant user noise, or misrouting
   agent-actionable content to the user channel).
-- **Not a UI feature — but "no verbose surface exists" is the wrong reason.** Verbose surfaces do
+- **Not a UI feature, but "no verbose surface exists" is the wrong reason.** Verbose surfaces do
   exist and one of them carries hook output: "Async hook completion notifications are suppressed by
   default. To see them, enable verbose mode with `Ctrl+O` or start Claude Code with `--verbose`"
   (hooks reference, verified 2026-08-11). Alongside it are the `verbose` and `viewMode` settings,
@@ -242,13 +243,13 @@ promotion is tracked at melodic-software/claude-code-plugins#3758.
   `--include-hook-events` are launch flags; `verbose` and `viewMode` are settings; the debug log
   level is an environment variable. A plugin authored today cannot know which, if any, is active in
   the session its hook runs in, and a hook whose output lands only in a channel the consumer may
-  never have enabled is not observable. So the rule stands unchanged — `statusMessage` and
-  `systemMessage` are the surfaces a fleet hook writes to — resting on **a plugin cannot assume the
+  never have enabled is not observable. So the rule stands unchanged, with `statusMessage` and
+  `systemMessage` as the surfaces a fleet hook writes to, resting on **a plugin cannot assume the
   consumer's view state**, not on any claim about which surfaces exist.
 
   Recheck trigger: a Claude Code release that surfaces hook output on a channel active by default,
   or that adds a hook-output field addressed to the user or the model to the JSON output schema
-  beyond the three in [the three surfaces](#the-three-surfaces) — either would make the assumption
+  beyond the three in [the three surfaces](#the-three-surfaces). Either would make the assumption
   above false and reopen this bullet. A field addressed elsewhere does not fire it; see the firing
   record below.
 
@@ -263,14 +264,14 @@ promotion is tracked at melodic-software/claude-code-plugins#3758.
   > exists in Claude Code," verified against a `hooks`-page fetch. The literal phrase "verbose
   > hooks" appears on no page, but the word `verbose` appears across at least 13 Claude Code
   > pages including four hook-related mentions on `hooks` itself. Absence from one page is not
-  > absence — the negative was scoped to the page searched and stated about the product. See
-  > [upstream-drift, "Reading the basis"](../upstream-drift/README.md#reading-the-basis--the-fetch-route):
+  > absence. The negative was scoped to the page searched and stated about the product. See
+  > [upstream-drift, "Reading the basis"](../upstream-drift/README.md#reading-the-basis-the-fetch-route):
   > a claim of the form "X does not exist" has to name the surfaces searched.
   >
-  > The counts above are illustrative of that error, not load-bearing: nothing in this doc's rules
+  > The counts above illustrate that error and support no rule: nothing in this doc's rules
   > depends on how many pages carry the word. They are deliberately floored ("at least 13") and
-  > need no recheck — a count that only ever grows cannot falsify the point it illustrates. The
-  > one claim here that *is* load-bearing is the quoted `Ctrl+O` / `--verbose` sentence
+  > need no recheck, since a count that only ever grows cannot falsify the point it illustrates. The
+  > one claim here that the rules *do* rest on is the quoted `Ctrl+O` / `--verbose` sentence
   > (basis: <https://code.claude.com/docs/en/hooks>, rung-1 raw-markdown read, 2026-08-11), and it
   > argues **for** the rule rather than against it, so its recheck trigger is the one on the
   > paragraph above.
@@ -285,21 +286,21 @@ Fleet audits check, per wired producer hook:
   matcher.
 - Any `systemMessage` that is neither a prerequisite-skip notice nor a content-mutation notice
   satisfies all three carve-out conditions, and its model-channel counterpart asserts no operator
-  presence. Not mechanically gated — reviewed per hook. As of this writing `context-guard`'s
+  presence. Not mechanically gated, but reviewed per hook. As of this writing `context-guard`'s
   `zone-crossing-inject.sh` is the only site in the fleet admitted this way; every other call site
   is a prerequisite skip or a content-mutation notice, so a second one is a signal to re-read the
   three conditions rather than to follow the precedent.
 - Every path on which the hook rewrote file content names what it changed on the user channel,
-  bounded by a per-run cap with the remainder reported as a count. Not mechanically gated —
+  bounded by a per-run cap with the remainder reported as a count. Not mechanically gated, but
   reviewed per hook. The adopting reference is `plugins/typos-format/hooks/typos-format.sh`.
-- The hook emits the telemetry envelope for every **meaningful outcome** — a check that ran and
+- The hook emits the telemetry envelope for every **meaningful outcome**: a check that ran and
   produced a result (ok / blocked / skipped-for-cause). A pure inapplicability short-circuit
   (wrong tool type, excluded path, empty content, outside the project) that fires before any
-  check logic runs carries no diagnostic information and does not need one — this matches how
+  check logic runs carries no diagnostic information and does not need one. This matches how
   every current telemetry-emitting hook in the fleet is already shaped.
 
 `scripts/check-silent-skips.sh` mechanically enforces the second point for the `command -v`-gated
 shapes it recognizes, **once its pending gate correction lands** (see the systemMessage section
-above) — a bare stderr write does not actually satisfy the doctrine (exit-0 stderr is invisible
+above). A bare stderr write does not actually satisfy the doctrine (exit-0 stderr is invisible
 per the fresh fetch above), even though the gate does not yet reject it. After that correction, a
 quiet skip needs a sanctioned helper call or an explicit `# silent-skip-ok:` annotation.

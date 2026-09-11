@@ -1,4 +1,4 @@
-# Cloud bootstrap rollout — paste kit
+# Cloud bootstrap rollout paste kit
 
 Copy-paste material for rolling the fleet onto the split cloud-bootstrap layout: the canonical
 setup-script stub pasted once per claude.ai account, shared provisioning in the public
@@ -16,16 +16,16 @@ fleet inventory and the canonical stub's home live in
   session that ran them; they load on the *next* process start (a resume, or a fresh session
   whose environment cache pre-installed them at build time).
 - The environment **setup script** runs after the repo is cloned and before the Claude process
-  starts — the only slot where provisioning precedes registry load. The standards
+  starts, the only slot where provisioning precedes registry load. The standards
   `cloud-environment` component (which the stub fetches) runs the checked-out repo's committed
   bootstrap there; the repo's SessionStart hook runs the *same* script per session as drift
   repair. A file named and homed as "a SessionStart hook" is the wrong semantics for that shared
-  role — hence the rename to `.claude/cloud-bootstrap.sh` with two thin callers.
+  role, hence the rename to `.claude/cloud-bootstrap.sh` with two thin callers.
 - Environments are account-scoped with **no API**, so every setup-script edit is manual clicking
   multiplied by every account. The pasted stub therefore stays minimal and stable; everything
   that evolves lands in standards or in each repo by reviewed PR.
 
-Ordering: do Part 1 (standards) before Part 2 (accounts) — an account cache built before the
+Ordering: do Part 1 (standards) before Part 2 (accounts). An account cache built before the
 component change lands simply misses it until its next rebuild, because publishing a component
 change does **not** invalidate already-built caches; only a script/network edit in the account
 UI or ~7-day expiry does.
@@ -38,35 +38,35 @@ docs' Setup scripts vs SessionStart hooks or Environment caching sections change
 `docs/CLOUD-SESSIONS.md`'s "Plugins in sessions on this repo" section, which this file cites as
 ground truth, changes its verified date or verdict.
 
-## Part 1 — standards repo, once (paste into a session on `melodic-software/standards`)
+## Part 1: standards repo, once (paste into a session on `melodic-software/standards`)
 
 ```text
 Update the existing Claude Code cloud-environment component in this repo
 (components/cloud-environment/setup.sh and its README) for the fleet's
 bootstrap-rename rollout.
 
-Context (verified 2026-08-15 in melodic-software/claude-code-plugins — see its
+Context (verified 2026-08-15 in melodic-software/claude-code-plugins, in its
 docs/CLOUD-SESSIONS.md §"Plugins in sessions on this repo" and
 docs/CLOUD-FLEET-SETUP.md): Claude Code builds its plugin/command/skill
 registry at process start and never re-reads it, so plugin installs must land
-before the session process launches — i.e. in this component at environment
-cache build — to be loaded at turn one. Fleet repos are renaming their
+before the session process launches, meaning in this component at environment
+cache build, to be loaded at turn one. Fleet repos are renaming their
 committed bootstrap from .claude/hooks/session-start.sh to
 .claude/cloud-bootstrap.sh (one script, two callers: this component
 pre-launch, and the repo's SessionStart hook per session).
 
 Do this:
 1. Where the component runs the checked-out repo's bootstrap, invoke
-   .claude/cloud-bootstrap.sh when present — and only that path, no
-   session-start.sh fallback — best-effort (|| true) with
+   .claude/cloud-bootstrap.sh when present, and only that path, with no
+   session-start.sh fallback, best-effort (|| true) with
    CLAUDE_CODE_REMOTE=true and with CLAUDE_PROJECT_DIR set to the checkout
    root, so repo scripts never have to guess their root from their own path.
    A repo without the file is a clean no-op: it simply has not migrated yet,
    and its sessions rely on their SessionStart hook until it does.
 2. Update the component README (division of labor, account stub if it is
    reproduced there) to match, and restate the rebuild rule: a merged
-   component change reaches an environment only on its next cache rebuild —
-   a trivial edit to the account's script field forces one.
+   component change reaches an environment only on its next cache rebuild,
+   and a trivial edit to the account's script field forces one.
 3. shellcheck the script, keep every step best-effort and exit-0 within the
    ~5-minute cache-build budget, then commit (Conventional Commits) and
    push / open a PR per this repo's conventions.
@@ -74,7 +74,7 @@ Do this:
 Report the diff summary and anything you could not verify from this session.
 ```
 
-## Part 2 — per account, once (~2 minutes each)
+## Part 2: per account, once (~2 minutes each)
 
 For each claude.ai account, at [claude.ai/code](https://claude.ai/code) → environment selector →
 edit **Default** (one environment per account; see the rationale at the end):
@@ -84,10 +84,10 @@ edit **Default** (one environment per account; see the rationale at the end):
    already opens publish-capable package registries; the GitHub proxy, MCP connector traffic and
    the Anthropic API bypass the level at every setting; and a blocked host mid-session kills that
    session until an environment edit plus a cache rebuild. **All** removes that failure class,
-   including the `dot.net` special case —
+   including the `dot.net` special case, so
    [#2654](https://github.com/melodic-software/claude-code-plugins/issues/2654) Blocker 1 is moot
    under All. The one exception is an account that handles sensitive material: drop that account
-   back to **Custom** — and configure it in full, or the .NET SDK install is back in the failure
+   back to **Custom**, and configure it in full, or the .NET SDK install is back in the failure
    mode Blocker 1 found. In full means **Also include default list of common package managers**
    checked, plus `dot.net`, `aka.ms`, `builds.dotnet.microsoft.com`,
    `download.visualstudio.microsoft.com`.
@@ -95,7 +95,7 @@ edit **Default** (one environment per account; see the rationale at the end):
    store).
 3. **Setup script**: paste the canonical stub below (same as
    [CLOUD-FLEET-SETUP.md](../docs/CLOUD-FLEET-SETUP.md) step 1), save. Saving rebuilds the
-   environment cache, which is also how a later standards component change is picked up early —
+   environment cache, which is also how a later standards component change is picked up early:
    any trivial edit-and-save forces a rebuild.
 
    ```bash
@@ -108,16 +108,16 @@ edit **Default** (one environment per account; see the rationale at the end):
 4. **Verify**: start a fresh session on a repo that declares plugins and make the *first*
    message a plugin slash command (e.g. `/claude-config:audit` on claude-code-plugins). If it
    resolves, pre-launch install works end to end. If not: `/opt/melodic-env-setup.done` missing
-   means an interrupted cache build (#2654 Blocker 2 — force a rebuild);
+   means an interrupted cache build (#2654 Blocker 2, so force a rebuild);
    `/var/log/melodic-env-setup.log` shows what the build did; and a populated
    `~/.claude/plugins/installed_plugins.json` alongside an unloaded catalog means the snapshot's
-   `~/.claude` did not reach the session — a platform limitation to report upstream (resume is
+   `~/.claude` did not reach the session, a platform limitation to report upstream (resume is
    the standing workaround). If SessionStart alone just installed plugins and the first slash
    returns `Unknown command`, that is the harness residual documented in
    [CLOUD-SESSIONS.md](../docs/CLOUD-SESSIONS.md) (#2733): resume, or read the skill's
-   `SKILL.md` from the working tree — do not expect a plugin-side fix.
+   `SKILL.md` from the working tree. Do not expect a plugin-side fix.
 
-## Part 3 — every repo (the copy-paste migration prompt)
+## Part 3: every repo (the copy-paste migration prompt)
 
 ```text
 Migrate this repository's Claude Code cloud bootstrap from the SessionStart-hook
@@ -129,9 +129,9 @@ its plugin/command/skill registry at process start and never re-reads it, so
 anything a SessionStart hook installs is invisible to the session that ran the
 hook. Our account environments fetch the standards cloud-environment component
 at cache build; after cloning, it runs the repo's committed
-.claude/cloud-bootstrap.sh (that exact path only — no session-start.sh
-fallback) with CLAUDE_CODE_REMOTE=true BEFORE the session process launches —
-that pre-launch call is what makes plugins live at turn one, so this migration
+.claude/cloud-bootstrap.sh (that exact path only, with no session-start.sh
+fallback) with CLAUDE_CODE_REMOTE=true BEFORE the session process launches.
+That pre-launch call is what makes plugins live at turn one, so this migration
 is what switches it on for this repo. The SessionStart hook stays registered
 and runs the same script per
 session start/resume as drift repair (the environment cache can be ~7 days
@@ -142,14 +142,14 @@ Do this:
    .claude/cloud-bootstrap.sh. If the repo has no cloud bootstrap script at
    all, stop and report that instead of inventing one.
 2. Keep the script's CLAUDE_CODE_REMOTE guard, idempotency, and provisioning
-   logic intact — but audit any path-relative self-location: a fallback that
+   logic intact, but audit any path-relative self-location: a fallback that
    derives the repo root from the script's own path (e.g.
    "$(dirname "${BASH_SOURCE[0]}")/../.." from the old .claude/hooks/ depth)
    now resolves one level too high. Adjust it to the new .claude/ depth
    ("$(dirname "${BASH_SOURCE[0]}")/..") and keep CLAUDE_PROJECT_DIR as the
    preferred source of the root.
 3. Rewrite header comments that describe it as "a SessionStart hook": it is
-   the repo's cloud bootstrap with two callers — the environment cache build
+   the repo's cloud bootstrap with two callers, the environment cache build
    pre-launch (the only path that gets plugins loaded at turn one) and the
    SessionStart hook (per-session drift repair).
 4. In .claude/settings.json, point the SessionStart hook (matcher
@@ -175,8 +175,8 @@ fix, and the verification results.
 
 Yes. Environments are account-scoped and repo-agnostic, the stub is generic (all real work is
 delegated to the standards component and the checked-out repo's own script), and with 10–20
-accounts every extra environment multiplies manual UI work. Edit **Default** in place — with the
-network access from Part 2, which every account needs anyway — rather than adding a named
+accounts every extra environment multiplies manual UI work. Edit **Default** in place, with the
+network access from Part 2, which every account needs anyway, rather than adding a named
 environment; add a second environment later only when a class of work needs isolation (an account
 handling sensitive material that has to run narrower than All, or an SDK heavy enough that its
 cache churn should be contained).

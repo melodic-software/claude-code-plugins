@@ -1,4 +1,4 @@
-# Plugin topology — copied-external-content plugin
+# Plugin topology: copied-external-content plugin
 
 The structural layout the plan will build. Working name `provenance` (thread T1). The ai-slop
 plugin is the structural precedent (Q1 rationale); departures from it are flagged and argued.

@@ -119,7 +119,7 @@ function buildBlock() {
     // Link relative to the output file's directory, so the rendered links
     // resolve wherever outputPath points.
     const link = relative(dirname(outputPath), join(root, path)).split(sep).join("/");
-    byCategory.get(plugin.category).push(`- [\`${plugin.name}\`](${link}) — ${description}`);
+    byCategory.get(plugin.category).push(`- [\`${plugin.name}\`](${link}): ${description}`);
   }
 
   const sections = [];

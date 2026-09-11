@@ -32,6 +32,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$SCRIPT_DIR/lib/test-harness.sh" || exit 2
 # shellcheck source=test-git-helpers.sh
 . "$SCRIPT_DIR/test-git-helpers.sh" || exit 2
+# shellcheck source=lib/fixture-tree.sh
+. "$SCRIPT_DIR/lib/fixture-tree.sh" || exit 2
 
 SUT="$SCRIPT_DIR/check-loop-lane-floor-drift.sh"
 if [[ ! -r "$SUT" ]]; then
@@ -40,10 +42,11 @@ if [[ ! -r "$SUT" ]]; then
   exit 1
 fi
 
-TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT
-git_init_test_repo "$TMP" || {
-  fail "could not initialize the fixture repository"
+# The builder assigns through a nameref, which shellcheck cannot follow;
+# declaring the out-var here is what tells it (SC2154) the name is written.
+TMP=""
+fixture_tree::build TMP --git --label loop-lane-floor-drift || {
+  fail "could not build the fixture repository"
   test_harness::report
   exit 1
 }

@@ -1,4 +1,4 @@
-# AI Briefing — Meeting 5 (archived)
+# AI Briefing: Meeting 5 (archived)
 
 Window: 2026-06-05 to 2026-06-19 · Runs: 3 · Source classes: official vendor blogs, GitHub releases, RSS/Atom feeds, secondary reporting
 
@@ -6,8 +6,8 @@ Window: 2026-06-05 to 2026-06-19 · Runs: 3 · Source classes: official vendor b
 
 ### HIGH
 
-- **Solstice Code v3.4 ships checkpoint rewind** — restore any prior turn's file state without external version control. Source: Solstice AI Engineering Blog, <https://blog.solstice.example/code-3-4-checkpoint-rewind> (2026-06-06).
-- **Solstice model pricing cut 20%** — input/output token cost drops across all paid tiers. impact: medium — lowers per-run inference cost. Source: Solstice AI Pricing Notes, <https://blog.solstice.example/pricing-update-june> (2026-06-09).
+- **Solstice Code v3.4 ships checkpoint rewind**: restore any prior turn's file state without external version control. Source: Solstice AI Engineering Blog, <https://blog.solstice.example/code-3-4-checkpoint-rewind> (2026-06-06).
+- **Solstice model pricing cut 20%**: input/output token cost drops across all paid tiers. impact: medium. Lowers per-run inference cost. Source: Solstice AI Pricing Notes, <https://blog.solstice.example/pricing-update-june> (2026-06-09).
 
 ### MED
 
@@ -17,7 +17,7 @@ Window: 2026-06-05 to 2026-06-19 · Runs: 3 · Source classes: official vendor b
 
 ### HIGH
 
-- **Meridian Agent CLI adds MCP server support** — call local MCP tools from the terminal agent. Source: Meridian Labs Release Notes (GitHub), <https://github.com/meridian-labs/agent-cli/releases/tag/v1.8.0> (2026-06-12).
+- **Meridian Agent CLI adds MCP server support**: call local MCP tools from the terminal agent. Source: Meridian Labs Release Notes (GitHub), <https://github.com/meridian-labs/agent-cli/releases/tag/v1.8.0> (2026-06-12).
 
 ### LOW
 
@@ -27,13 +27,13 @@ Window: 2026-06-05 to 2026-06-19 · Runs: 3 · Source classes: official vendor b
 
 ### HIGH
 
-- **Northwind Cloud Agents GA** — background agents run on Northwind-hosted infrastructure and open pull requests directly. Source: Northwind Systems Blog, <https://blog.northwind.example/cloud-agents-ga> (2026-06-15).
+- **Northwind Cloud Agents GA**: background agents run on Northwind-hosted infrastructure and open pull requests directly. Source: Northwind Systems Blog, <https://blog.northwind.example/cloud-agents-ga> (2026-06-15).
 
 ## Legal & regulatory
 
 ### HIGH
 
-- **Cross-border AI-governance framework finalized** — general-purpose model obligations take effect next quarter, industry-wide compliance impact. Source: secondary reporting corroborated by the regulator's official notice, <https://gov.example/ai-framework-final> (2026-06-17).
+- **Cross-border AI-governance framework finalized**: general-purpose model obligations take effect next quarter, industry-wide compliance impact. Source: secondary reporting corroborated by the regulator's official notice, <https://gov.example/ai-framework-final> (2026-06-17).
 
 ## Other
 

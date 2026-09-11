@@ -5,22 +5,22 @@ Distilled from Anthropic's "Define success criteria and build evaluations"
 (`anthropics/claude-cookbooks` `misc/building_evals.ipynb`), both fetched 2026-08-08. Re-fetch the
 sources before treating any specific here as current.
 
-## The ladder — pick the fastest, most reliable, most scalable method that fits
+## The ladder: pick the fastest, most reliable, most scalable method that fits
 
-1. **Code-based grading** — fastest and most reliable, extremely scalable; lacks nuance for
+1. **Code-based grading**: fastest and most reliable, extremely scalable; lacks nuance for
    judgments that resist rule-based rigidity. Forms: exact match (`output == golden_answer`),
    string match (`key_phrase in output`), regex, multiple-choice keying. Prefer it whenever the
    eval can be designed to allow it.
-2. **LLM-based grading** — fast, flexible, scalable, suitable for complex judgment. TEST the
+2. **LLM-based grading**: fast, flexible, scalable, suitable for complex judgment. TEST the
    grader's reliability first, then scale.
-3. **Human grading** — most flexible and highest quality, but slow and expensive. **Avoid if
+3. **Human grading**: most flexible and highest quality, but slow and expensive. **Avoid if
    possible.** When used, give the human grader rubric-instructions as the golden answer.
 
 ## LLM-grader practice
 
 - **Detailed, clear rubrics.** E.g. "The answer should always mention 'Acme Inc.' in the first
-  sentence. If it does not, the answer is automatically graded as 'incorrect.'" One use case — or
-  even one success criterion — may need SEVERAL rubrics for holistic evaluation.
+  sentence. If it does not, the answer is automatically graded as 'incorrect.'" One use case, or
+  even one success criterion, may need SEVERAL rubrics for holistic evaluation.
 - **Empirical or specific output.** Instruct the grader to output only `correct`/`incorrect`, or a
   1–5 score. Purely qualitative open-ended judgments are hard to assess quickly at scale.
 - **Encourage reasoning, then discard it.** Have the grader think first (e.g. in `<thinking>`
@@ -37,7 +37,7 @@ sources before treating any specific here as current.
   grade your task is to try it and READ SAMPLES of its verdicts against your own judgment; only
   then scale.
 - **Binary correctness is strict by default.** An answer is correct iff it entirely meets the
-  rubric; otherwise incorrect — no partial credit unless the rubric defines a scale.
+  rubric; otherwise incorrect, with no partial credit unless the rubric defines a scale.
 
 ## Grader prompt skeleton
 

@@ -1,4 +1,4 @@
-# Instruction exception register — what a trimming pass may not delete
+# Instruction exception register: what a trimming pass may not delete
 
 Owner doc for the classes of standing instruction that survive an instruction-audit trim on
 consequence grounds, whatever a length, redundancy, or model-era check says about them.
@@ -17,8 +17,8 @@ The consequence classes this register protects are exactly the six hard-deny cla
 Gate 0: `irreversible-action`, `secret-handling`, `data-integrity`, `external-publication`,
 `legal-compliance`, `agent-authority`.
 
-**This document does not restate that table, and no other surface may fork it.** One concern keeps
-one adjudication chain: the class list has a single owner, and a second enumeration under a second
+**This document does not restate that table, and no other surface may fork it.** The class list has
+a single owner, so one concern keeps one adjudication chain. A second enumeration under a second
 name is the drift this repo has already paid for elsewhere.
 
 What this register adds is the **operation**. Gate 0 governs *relocation*: whether a rule may be
@@ -32,7 +32,7 @@ recoverable by re-promoting it while a deleted rule leaves nothing to re-promote
 
 ## Non-exhaustive, and tighten-only
 
-Two properties are load-bearing and neither is decoration:
+Both properties matter, and neither is decoration:
 
 - **Non-exhaustive.** The classes are the recognized floor, never the complete set of things worth
   keeping. **Omission from this register is not licence to delete.** A rule outside every class is
@@ -53,7 +53,7 @@ over another is style.
 | Consumer | How it uses the register |
 |---|---|
 | `claude-config:audit-instructions` | Deletion-class criteria (I1, I4, I5) hold back a candidate matching a protected class and report the hold rather than proposing the cut |
-| `claude-config:unhobble` | The bare-baseline experiment may strip a protected rule during the run, since the strip is reversible and branch-local, but Phase 4 restores it regardless of whether the ledger logged a stumble against it — a protected rule is never left deleted on the evidence of "no stumble was observed" |
+| `claude-config:unhobble` | The bare-baseline experiment may strip a protected rule during the run, since the strip is reversible and branch-local, but Phase 4 restores it regardless of whether the ledger logged a stumble against it. A protected rule is never left deleted on the evidence of "no stumble was observed" |
 | `instruction-placement:*` | Unchanged. It owns the classes and the relocation verdict; this register is the deletion counterpart and defers to it on class membership |
 
 A consumer that reads this register names it in its own criteria text. A register nothing consumes

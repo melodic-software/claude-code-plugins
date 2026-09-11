@@ -9,28 +9,26 @@ set -uo pipefail
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SELF_DIR/check-changelog-parity.sh"
 
-# A fixture runs a COPY of the gate, so it must also carry the shared libraries
-# that copy sources (scripts/lib/*.sh). Without it the copied gate dies on a
-# missing source at line 1 and every assertion below turns into the same opaque
-# failure. See #3161.
-stage_libs() {
-  mkdir -p "$1/lib"
-  cp "$SELF_DIR/lib/read-list.sh" "$1/lib/"
-}
 # shellcheck source=test-git-helpers.sh
 . "$SELF_DIR/test-git-helpers.sh"
 
 # shellcheck source=lib/test-harness.sh
 . "$SELF_DIR/lib/test-harness.sh"
+# shellcheck source=lib/fixture-tree.sh
+. "$SELF_DIR/lib/fixture-tree.sh"
 
+# The builder assigns through a nameref, which shellcheck cannot follow;
+# declaring the out-var here is what tells it (SC2154) the name is written.
+repo=""
+
+# mk_repo <out-var> [baseline-content]. A fixture runs a COPY of the gate, so
+# the builder stages scripts/lib/ with it: without those, the copy dies on a
+# missing source at line 1 and every assertion below turns into the same opaque
+# failure.
 mk_repo() {
-  local dir
-  dir="$(mktemp -d)"
-  mkdir -p "$dir/scripts"
-  cp "$SCRIPT" "$dir/scripts/check-changelog-parity.sh"
-  stage_libs "$dir/scripts"
-  printf '%s' "${1:-}" >"$dir/scripts/changelog-parity-baseline.txt"
-  printf '%s' "$dir"
+  local out="$1"
+  fixture_tree::build "$out" --sut "$SCRIPT" || return 1
+  printf '%s' "${2:-}" >"${!out}/scripts/changelog-parity-baseline.txt"
 }
 
 mk_plugin() {
@@ -44,13 +42,13 @@ mk_plugin() {
 # ============================ --check (static) =============================
 
 # versioned plugin WITH a changelog -> passes
-repo="$(mk_repo)"
+mk_repo repo
 mk_plugin "$repo" alpha 1.0.0 yes
 if (cd "$repo" && bash scripts/check-changelog-parity.sh --check >/dev/null 2>&1); then ok "versioned plugin with CHANGELOG passes --check"; else fail "versioned+changelog wrongly failed"; fi
 rm -rf "$repo"
 
 # SYNTHETIC MISSING CHANGELOG: versioned plugin, no changelog -> fails
-repo="$(mk_repo)"
+mk_repo repo
 mk_plugin "$repo" alpha 1.0.0 no
 out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check 2>&1)"
 rc=$?
@@ -58,13 +56,13 @@ if [[ $rc -ne 0 && "$out" == *"MISSING CHANGELOG"*"alpha"* ]]; then ok "versione
 rm -rf "$repo"
 
 # grandfathered plugin without a changelog -> passes
-repo="$(mk_repo $'alpha\n')"
+mk_repo repo $'alpha\n'
 mk_plugin "$repo" alpha 1.0.0 no
 if (cd "$repo" && bash scripts/check-changelog-parity.sh --check >/dev/null 2>&1); then ok "grandfathered missing-changelog passes --check"; else fail "grandfathered plugin wrongly failed"; fi
 rm -rf "$repo"
 
 # STALE baseline: grandfathered plugin that DOES have a changelog -> fails
-repo="$(mk_repo $'alpha\n')"
+mk_repo repo $'alpha\n'
 mk_plugin "$repo" alpha 1.0.0 yes
 out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check 2>&1)"
 rc=$?
@@ -79,7 +77,7 @@ rm -rf "$repo"
 # written ahead of its bump reached main unseen.
 
 # newest heading EQUALS the manifest version -> passes
-repo="$(mk_repo)"
+mk_repo repo
 mk_plugin "$repo" alpha 1.0.0 yes
 printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
 if (cd "$repo" && bash scripts/check-changelog-parity.sh --check >/dev/null 2>&1); then ok "newest heading equal to the manifest version passes --check"; else fail "equal newest heading wrongly failed"; fi
@@ -87,7 +85,7 @@ rm -rf "$repo"
 
 # manifest ABOVE the newest heading -> passes: a bump with no consumer-visible
 # change need not write a release note. Locks the check to one direction.
-repo="$(mk_repo)"
+mk_repo repo
 mk_plugin "$repo" alpha 1.1.0 yes
 printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
 if (cd "$repo" && bash scripts/check-changelog-parity.sh --check >/dev/null 2>&1); then ok "manifest above the newest heading passes --check (a bump need not write a note)"; else fail "manifest-ahead wrongly failed"; fi
@@ -95,7 +93,7 @@ rm -rf "$repo"
 
 # SYNTHETIC AHEAD-OF-MANIFEST: the docs-hygiene shape — a `## [0.9.7]` entry
 # above a 0.9.6 manifest -> fails, naming both versions.
-repo="$(mk_repo)"
+mk_repo repo
 mk_plugin "$repo" alpha 0.9.6 yes
 printf '# Changelog\n\n## [0.9.7]\n\n## [0.9.6]\n' >"$repo/plugins/alpha/CHANGELOG.md"
 out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check 2>&1)"
@@ -105,7 +103,7 @@ rm -rf "$repo"
 
 # NUMERIC, NOT LEXICAL: 0.9.0 sorts above 0.10.0 as a string. A manifest at
 # 0.10.0 with a 0.9.0 heading must pass, not red-line.
-repo="$(mk_repo)"
+mk_repo repo
 mk_plugin "$repo" alpha 0.10.0 yes
 printf '# Changelog\n\n## [0.9.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
 if (cd "$repo" && bash scripts/check-changelog-parity.sh --check >/dev/null 2>&1); then ok "reverse parity compares numerically, not lexically (0.10.0 manifest, 0.9.0 heading)"; else fail "lexical comparison leaked into --check"; fi
@@ -113,7 +111,7 @@ rm -rf "$repo"
 
 # UNBRACKETED heading form: the shared extractor reads `## 1.1.0 — date` too, so
 # dropping the brackets cannot smuggle a heading past the reverse check.
-repo="$(mk_repo)"
+mk_repo repo
 mk_plugin "$repo" alpha 1.0.0 yes
 printf '# Changelog\n\n## 1.1.0 — 2026-08-10\n' >"$repo/plugins/alpha/CHANGELOG.md"
 out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check 2>&1)"
@@ -122,7 +120,7 @@ if [[ $rc -ne 0 && "$out" == *"CHANGELOG AHEAD OF MANIFEST"*"alpha"* ]]; then ok
 rm -rf "$repo"
 
 # A changelog with no version heading at all has nothing to compare -> passes.
-repo="$(mk_repo)"
+mk_repo repo
 mk_plugin "$repo" alpha 1.0.0 yes
 printf '# Changelog\n\nNo releases yet.\n' >"$repo/plugins/alpha/CHANGELOG.md"
 if (cd "$repo" && bash scripts/check-changelog-parity.sh --check >/dev/null 2>&1); then ok "a changelog with no version heading passes --check"; else fail "heading-less changelog wrongly failed"; fi
@@ -130,7 +128,7 @@ rm -rf "$repo"
 
 # NON-SEMVER MANIFEST VERSION: must refuse loudly (exit 2) rather than feed
 # garbage to the arithmetic sort key, same as --check-bump.
-repo="$(mk_repo)"
+mk_repo repo
 mk_plugin "$repo" alpha 1.two.0 yes
 printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
 out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check 2>&1)"
@@ -141,7 +139,7 @@ rm -rf "$repo"
 # ...and refuses it EVEN WITH NO HEADING to compare against: an uncomparable
 # manifest version is a defect in its own right, so the guard must not hide
 # behind the presence of a release note.
-repo="$(mk_repo)"
+mk_repo repo
 mk_plugin "$repo" alpha 1.two.0 yes
 printf '# Changelog\n\nNo releases yet.\n' >"$repo/plugins/alpha/CHANGELOG.md"
 out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check 2>&1)"
@@ -152,7 +150,7 @@ rm -rf "$repo"
 # SEMVER BUILD METADATA above the manifest -> caught. Manifests and --check-bump
 # both accept `1.0.1+build.1`, so a heading extractor that dropped the tail would
 # leave exactly that class unchecked — a gate that silently checks nothing.
-repo="$(mk_repo)"
+mk_repo repo
 mk_plugin "$repo" alpha 1.0.0 yes
 printf '# Changelog\n\n## [1.0.1+build.1]\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
 out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check 2>&1)"
@@ -162,7 +160,7 @@ rm -rf "$repo"
 
 # ...and the matching manifest passes: the tail is stripped before comparing, so
 # an equal-core pair is not a false failure.
-repo="$(mk_repo)"
+mk_repo repo
 mk_plugin "$repo" alpha 1.0.1+build.1 yes
 printf '# Changelog\n\n## [1.0.1+build.1]\n' >"$repo/plugins/alpha/CHANGELOG.md"
 if (cd "$repo" && bash scripts/check-changelog-parity.sh --check >/dev/null 2>&1); then ok "a build-metadata heading equal to the manifest passes --check"; else fail "equal build-metadata pair wrongly failed"; fi
@@ -171,7 +169,7 @@ rm -rf "$repo"
 # FENCED EXAMPLE: a column-zero heading with a high version inside a ``` block is
 # not rendered markdown, so it must not be read as the newest release. Without
 # fence tracking this is a false FAIL in a required gate with no baseline escape.
-repo="$(mk_repo)"
+mk_repo repo
 mk_plugin "$repo" alpha 1.0.0 yes
 # shellcheck disable=SC2016  # single quotes are deliberate: the backtick fence and \n are literal changelog bytes
 printf '# Changelog\n\nHeadings look like this:\n\n```\n## [9.9.9]\n```\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
@@ -181,7 +179,7 @@ if [[ $rc -eq 0 ]]; then ok "a fenced example heading is not read as the newest 
 rm -rf "$repo"
 
 # HTML-COMMENT EXAMPLE: same, inside a multi-line <!-- --> block.
-repo="$(mk_repo)"
+mk_repo repo
 mk_plugin "$repo" alpha 1.0.0 yes
 printf '# Changelog\n\n<!--\n## [9.9.9]\n-->\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
 out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check 2>&1)"
@@ -191,7 +189,7 @@ rm -rf "$repo"
 
 # ...and the same suppression applies to --check-order, which reads changelogs
 # through the same tracker: a fenced out-of-order example must not be misordered.
-repo="$(mk_repo)"
+mk_repo repo
 mk_plugin "$repo" alpha 1.0.0 yes
 # shellcheck disable=SC2016  # single quotes are deliberate: the backtick fence and \n are literal changelog bytes
 printf '# Changelog\n\n## [2.0.0]\n\n```\n## [0.1.0]\n```\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
@@ -201,7 +199,7 @@ rm -rf "$repo"
 # ============================ --check-bump (diff) =========================
 
 # version changed AND changelog has the new version's entry -> passes
-repo="$(mk_repo)"
+mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
@@ -213,7 +211,7 @@ if (cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" >/
 rm -rf "$repo"
 
 # ABSORBED HEADING (#2324): merge-forward deletes a predecessor heading.
-repo="$(mk_repo)"
+mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 0.51.8 yes
 printf '# Changelog\n\n## [0.51.8]\n\n### Fixed\n\n- predecessor note\n\n## [0.51.7]\n' >"$repo/plugins/alpha/CHANGELOG.md"
@@ -228,7 +226,7 @@ if [[ $rc -ne 0 && "$out" == *"ABSORBED CHANGELOG HEADING"*"alpha"* && "$out" ==
 rm -rf "$repo"
 
 # ABSORBED without manifest bump (#2324 gap 2): only the changelog changed.
-repo="$(mk_repo)"
+mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 0.51.9 yes
 printf '# Changelog\n\n## [0.51.9]\n\n- nine\n\n## [0.51.8]\n\n- eight\n' >"$repo/plugins/alpha/CHANGELOG.md"
@@ -255,7 +253,7 @@ rm -rf "$repo"
 # loudly when gawk is absent rather than reporting a pass that exercised
 # nothing. The fix itself is engine-independent — the reader consumes to EOF,
 # so no writer can ever take SIGPIPE under any awk.
-repo="$(mk_repo)"
+mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
@@ -284,7 +282,7 @@ rm -rf "$repo"
 
 # SYNTHETIC MALFORMED ENTRY: version present but as an UNBRACKETED heading
 # (## 1.1.0) -> FORMAT error naming the found heading, NOT "UNDOCUMENTED BUMP".
-repo="$(mk_repo)"
+mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
@@ -300,7 +298,7 @@ rm -rf "$repo"
 # NEWLY-ADDED ENTRY: base carries an earlier `## [1.0.0]`; the bump ADDS
 # `## [1.1.0]` (present at head, absent at base) -> passes. Proves the pass
 # path accepts a genuinely new release note.
-repo="$(mk_repo)"
+mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
@@ -316,7 +314,7 @@ rm -rf "$repo"
 # changelog; the bump only edits plugin.json, adding no new release note ->
 # fails as PRE-EXISTING (not UNDOCUMENTED). Proves the gate closes the fail-open
 # where a bump reuses a heading that predates the change set.
-repo="$(mk_repo)"
+mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 printf '# Changelog\n\n## [1.1.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
@@ -332,7 +330,7 @@ rm -rf "$repo"
 # SEMVER BUILD METADATA: a version like 1.0.1+build.1 must round-trip — the
 # fixed-string heading match must not interpret "+" as a regex quantifier, so
 # a correctly-added `## [1.0.1+build.1]` entry passes the gate.
-repo="$(mk_repo)"
+mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
@@ -349,7 +347,7 @@ rm -rf "$repo"
 # the heading match is anchored, so an inline or indented mention neither
 # satisfies nor falsely pre-exists the release entry. (The fenced-block case,
 # where `## [1.1.0]` sits at column zero inside ```, is covered separately.)
-repo="$(mk_repo)"
+mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
@@ -366,7 +364,7 @@ rm -rf "$repo"
 # FENCED-BLOCK EXAMPLE: the bumped version's `## [1.1.0]` sits at column zero but
 # INSIDE a ``` fenced block, never as a real heading -> fails as UNDOCUMENTED.
 # Proves the heading match tracks fence state (column-zero alone is not enough).
-repo="$(mk_repo)"
+mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
@@ -385,7 +383,7 @@ rm -rf "$repo"
 # (a different delimiter, so NOT a close per CommonMark); a `## [1.1.0]` after it
 # is still inside the backtick fence -> fails as UNDOCUMENTED. Proves fence
 # tracking closes only on the opening delimiter, not any fence-looking line.
-repo="$(mk_repo)"
+mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
@@ -405,7 +403,7 @@ rm -rf "$repo"
 # fence per CommonMark); neither closes, so a `## [1.1.0]` after them is still
 # fenced -> fails as UNDOCUMENTED. Proves a close requires a whitespace-only
 # suffix and at-most-three-space indentation.
-repo="$(mk_repo)"
+mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
@@ -422,7 +420,7 @@ rm -rf "$repo"
 
 # HTML-COMMENT HEADING: the bumped version's heading appears only inside a
 # multi-line <!-- --> comment -> not rendered Markdown -> fails as UNDOCUMENTED.
-repo="$(mk_repo)"
+mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
@@ -439,7 +437,7 @@ rm -rf "$repo"
 # SYNTHETIC UNDOCUMENTED BUMP: version changed, changelog edited but WITHOUT an
 # entry for the new version (unrelated edit) -> fails. Proves the gate checks
 # the version's own entry, not merely that the file was touched.
-repo="$(mk_repo)"
+mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
@@ -454,7 +452,7 @@ if [[ $rc -ne 0 && "$out" == *"UNDOCUMENTED BUMP"*"alpha"* ]]; then ok "bump + u
 rm -rf "$repo"
 
 # SYNTHETIC UNDOCUMENTED BUMP: version changed, changelog untouched -> fails
-repo="$(mk_repo)"
+mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
@@ -467,7 +465,7 @@ if [[ $rc -ne 0 && "$out" == *"UNDOCUMENTED BUMP"*"alpha"* ]]; then ok "bump wit
 rm -rf "$repo"
 
 # version unchanged but plugin files changed -> fails (published version reuse, #1559)
-repo="$(mk_repo)"
+mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
@@ -480,7 +478,7 @@ if [[ $rc -ne 0 && "$out" == *"PUBLISHED VERSION REUSE"*"alpha"* ]]; then ok "un
 rm -rf "$repo"
 
 # cosmetic manifest touch (no version change) + shipped file edit -> fails (#1559 gap)
-repo="$(mk_repo)"
+mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
@@ -494,7 +492,7 @@ if [[ $rc -ne 0 && "$out" == *"PUBLISHED VERSION REUSE"*"alpha"* ]]; then ok "co
 rm -rf "$repo"
 
 # version unchanged and no plugin file edits -> passes
-repo="$(mk_repo)"
+mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
@@ -511,7 +509,7 @@ if [[ $rc -eq 0 && "$out" != *"unbound variable"* ]]; then ok "repo-only edit ex
 rm -rf "$repo"
 
 # new plugin absent at base -> --check-bump skips it (static --check owns it)
-repo="$(mk_repo)"
+mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
@@ -528,7 +526,7 @@ rm -rf "$repo"
 # alpha (it edits only beta). The base ref sees alpha at 1.1.0 and the stale branch
 # at 1.0.0, but alpha is outside the branch's own diff, so it must NOT be flagged
 # -- no re-merge treadmill. Proves the bump check is scoped to base...HEAD.
-repo="$(mk_repo)"
+mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
@@ -554,7 +552,7 @@ rm -rf "$repo"
 # main advances alpha; the PR touches only alpha's README, never alpha's manifest.
 # Plugin-root scoping would drag alpha back in and red-line it; manifest scoping
 # leaves it out -> rc=0. Locks the filter granularity to the manifest path.
-repo="$(mk_repo)"
+mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
@@ -576,7 +574,7 @@ rm -rf "$repo"
 # (untouched by the PR) AND the PR bumps beta's manifest without adding beta's
 # entry. alpha is scoped out; beta -- whose manifest the change set touched -- must
 # still fail UNDOCUMENTED. Proves diff-scoping narrows the check, not disables it.
-repo="$(mk_repo)"
+mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
@@ -602,7 +600,7 @@ rm -rf "$repo"
 # 0.21.9, bumps alpha to 0.21.10 WITH a proper new entry, but main has moved to
 # 0.25.0. Parity alone reads the pair as valid; monotonicity must fail it — the
 # merge would move the version backward.
-repo="$(mk_repo)"
+mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 0.21.9 yes
 printf '# Changelog\n\n## [0.21.9]\n' >"$repo/plugins/alpha/CHANGELOG.md"
@@ -626,7 +624,7 @@ rm -rf "$repo"
 # Comparing head against the base TIP would read head==tip as "not bumped" and
 # skip silently; the fork comparison must see the branch's own bump and fail
 # the collision loudly.
-repo="$(mk_repo)"
+mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
@@ -649,7 +647,7 @@ rm -rf "$repo"
 # but HEAD is a merge of the PR branch into the base tip — the shape CI checks
 # out. merge-base(base, HEAD) degenerates to the base tip there, which read the
 # collision as not-bumped; the gate must fork from HEAD^2 instead.
-repo="$(mk_repo)"
+mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
@@ -673,7 +671,7 @@ rm -rf "$repo"
 
 # NON-SEMVER MANIFEST VERSION: a malformed version must refuse loudly, never
 # reach the arithmetic sort key.
-repo="$(mk_repo)"
+mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
@@ -692,7 +690,7 @@ rm -rf "$repo"
 # branch bumps past it to 1.2.0 with a proper new entry -> passes. Proves
 # monotonicity compares against the base ref's CURRENT version and lets a
 # correctly renumbered branch through.
-repo="$(mk_repo)"
+mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
@@ -714,7 +712,7 @@ rm -rf "$repo"
 # NUMERIC, NOT LEXICAL: 0.10.0 outranks 0.9.0 even though it sorts below it as a
 # string. A correctly documented 0.9.0 -> 0.10.0 bump must pass, not red-line as
 # a regression.
-repo="$(mk_repo)"
+mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 0.9.0 yes
 printf '# Changelog\n\n## [0.9.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
@@ -732,7 +730,7 @@ rm -rf "$repo"
 # branch touches alpha's MANIFEST (description only) but never its version.
 # head!=base-tip, yet the branch bumped nothing — the fork comparison must scope
 # it out, not red-line it as a regression and force a merge-from-main.
-repo="$(mk_repo)"
+mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
@@ -757,7 +755,7 @@ rm -rf "$repo"
 # skip every plugin and let this required merge gate exit 0 without checking
 # anything (fail-open). This is distinct from a legitimate "zero files changed"
 # diff, which git computes successfully and which must still pass (covered above).
-repo="$(mk_repo)"
+mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
@@ -773,7 +771,7 @@ if [[ $rc -eq 2 && "$out" == *"failed"* ]]; then ok "no common ancestor -> git d
 rm -rf "$repo"
 
 # unresolvable base ref -> exit 2
-repo="$(mk_repo)"
+mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
@@ -782,14 +780,14 @@ if [[ $? -eq 2 ]]; then ok "unresolvable base ref -> exit 2"; else fail "bad bas
 rm -rf "$repo"
 
 # --check-bump with no base ref -> exit 2 (consistent with other usage errors)
-repo="$(mk_repo)"
+mk_repo repo
 mk_plugin "$repo" alpha 1.0.0 yes
 (cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump >/dev/null 2>&1)
 if [[ $? -eq 2 ]]; then ok "--check-bump without base ref -> exit 2"; else fail "missing base ref did not exit 2"; fi
 rm -rf "$repo"
 
 # bad usage -> exit 2
-repo="$(mk_repo)"
+mk_repo repo
 (cd "$repo" && bash scripts/check-changelog-parity.sh --nonsense >/dev/null 2>&1)
 if [[ $? -eq 2 ]]; then ok "bad mode -> exit 2"; else fail "bad mode did not exit 2"; fi
 rm -rf "$repo"
@@ -806,7 +804,7 @@ write_changelog() { # $1 path, $2... headings
   for h in "$@"; do printf '%s\n\nsome note\n\n' "$h" >>"$path"; done
 }
 
-repo="$(mk_repo)"
+mk_repo repo
 mk_plugin "$repo" alpha 1.0.0 no
 write_changelog "$repo/plugins/alpha/CHANGELOG.md" '## [3.0.0]' '## [2.0.0]' '## [1.0.0]'
 if out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-order 2>&1)"; then ok "descending plugin changelog passes"; else fail "descending changelog rejected: $out"; fi
@@ -866,7 +864,7 @@ rm -rf "$repo"
 
 # ABSORBED PREDECESSOR: base carries 0.51.8 and 0.51.7; head bumps to 0.51.9 and
 # folds 0.51.8's note into the new section, deleting its heading.
-repo="$(mk_repo)"
+mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 0.51.8 yes
 printf '# Changelog\n\n## [0.51.8]\n\n- eight\n\n## [0.51.7]\n\n- seven\n' >"$repo/plugins/alpha/CHANGELOG.md"
@@ -890,7 +888,7 @@ rm -rf "$repo"
 # RELABELLED PREDECESSOR: the same bad resolution renames 0.51.8's heading to
 # 0.51.9 instead of adding one. That IS a deletion of 0.51.8, and the failure
 # message must say so, so the author recognises what their resolve did.
-repo="$(mk_repo)"
+mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 0.51.8 yes
 printf '# Changelog\n\n## [0.51.8]\n\n- eight\n\n## [0.51.7]\n\n- seven\n' >"$repo/plugins/alpha/CHANGELOG.md"
@@ -907,7 +905,7 @@ rm -rf "$repo"
 # LEGITIMATE BUMP: adds a heading, preserves every predecessor -> passes. The
 # discriminating half of the pair above; a check that never passes is as useless
 # as one that never fires.
-repo="$(mk_repo)"
+mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 0.51.8 yes
 printf '# Changelog\n\n## [0.51.8]\n\n- eight\n\n## [0.51.7]\n\n- seven\n' >"$repo/plugins/alpha/CHANGELOG.md"
@@ -925,7 +923,7 @@ rm -rf "$repo"
 # branch edits its OWN changelog and never merges main forward. Compared against
 # the base TIP, every heading main added would read as deleted — a false positive
 # on a required gate. The fork point is the only correct comparison.
-repo="$(mk_repo)"
+mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 printf '# Changelog\n\n## [1.0.0]\n\n- one\n' >"$repo/plugins/alpha/CHANGELOG.md"
@@ -947,7 +945,7 @@ rm -rf "$repo"
 # to preserve. (`git cat-file -e` cannot express this — it exits 128 for a
 # missing path exactly as it does for an unusable rev — so this case is the guard
 # on the existence probe.)
-repo="$(mk_repo)"
+mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 no
 git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
@@ -961,7 +959,7 @@ rm -rf "$repo"
 
 # PLUGIN REMOVED: the changelog goes with its whole directory. That is a removal,
 # not an absorbed section.
-repo="$(mk_repo)"
+mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 mk_plugin "$repo" beta 1.0.0 yes
@@ -977,7 +975,7 @@ rm -rf "$repo"
 
 # CHANGELOG DELETED, PLUGIN KEPT: the extreme form of the same defect — every
 # released heading vanishes at once, and the plugin is still there.
-repo="$(mk_repo)"
+mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 printf '# Changelog\n\n## [1.0.0]\n\n- one\n' >"$repo/plugins/alpha/CHANGELOG.md"
@@ -997,7 +995,7 @@ rm -rf "$repo"
 # YANKED RELEASE: Keep a Changelog keeps the heading and marks it `[YANKED]`
 # rather than deleting it, so the correct treatment of a pulled release must
 # PASS. This is why the mode ships no exemption list.
-repo="$(mk_repo)"
+mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 printf '# Changelog\n\n## [1.0.0]\n\n- one\n' >"$repo/plugins/alpha/CHANGELOG.md"
@@ -1014,7 +1012,7 @@ rm -rf "$repo"
 # REFORMATTED HEADING: bracketed -> unbracketed names the same version. Matching
 # is on the VERSION, so a format change is not a deletion (--check-bump owns the
 # format concern).
-repo="$(mk_repo)"
+mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 printf '# Changelog\n\n## [1.0.0]\n\n- one\n' >"$repo/plugins/alpha/CHANGELOG.md"
@@ -1030,7 +1028,7 @@ rm -rf "$repo"
 # HEADINGLESS CHANGELOG: the shared extractor's `grep -oE` exits 1 when a file
 # declares no version heading at all. Under pipefail that status must NOT be read
 # as a failed check — a false positive on every prose-only changelog.
-repo="$(mk_repo)"
+mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
@@ -1044,7 +1042,7 @@ rm -rf "$repo"
 
 # FENCED EXAMPLE HEADING: what looks like a heading inside a code fence is not
 # one, so removing it is not a deletion. The shared extractor owns this.
-repo="$(mk_repo)"
+mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 printf '# Changelog\n\n## [1.0.0]\n\n~~~\n## [9.9.9]\n~~~\n' >"$repo/plugins/alpha/CHANGELOG.md"
@@ -1060,7 +1058,7 @@ rm -rf "$repo"
 # CONVENTION CHANGELOG: unversioned by any manifest, so --check and --check-bump
 # never look at it. Absorption is just as possible there, and --check-preserved
 # sweeps the same two roots --check-order does.
-repo="$(mk_repo)"
+mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 mkdir -p "$repo/docs/conventions/demo"
@@ -1078,7 +1076,7 @@ rm -rf "$repo"
 # lists are read through the same rendered_lines writer, so no reader in this
 # path may exit before EOF. Forced gawk for the same reason as the --check-bump
 # fixture above — mawk survives a closed pipe and would prove nothing.
-repo="$(mk_repo)"
+mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 {
@@ -1113,7 +1111,7 @@ rm -rf "$repo"
 
 # NO COMMON ANCESTOR: same fail-loud discipline as --check-bump — a git read that
 # could not be computed must never read as "nothing was deleted" and pass.
-repo="$(mk_repo)"
+mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
@@ -1128,7 +1126,7 @@ if [[ $rc -eq 2 && "$out" == *"failed"* ]]; then ok "--check-preserved fails lou
 rm -rf "$repo"
 
 # usage errors mirror --check-bump's
-repo="$(mk_repo)"
+mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
@@ -1142,7 +1140,7 @@ rm -rf "$repo"
 # changelog_versions must accept `(` after `]` so linked Keep a Changelog headings
 # are visible to --check, --check-order, and --check-preserved.
 
-repo="$(mk_repo)"
+mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 printf '# Changelog\n\n## [1.0.0](https://github.com/o/r/releases/tag/v1.0.0) - 2026-01-01\n\n- one\n' \
@@ -1161,7 +1159,7 @@ fi
 rm -rf "$repo"
 
 # Absorbed linked heading must fail --check-preserved.
-repo="$(mk_repo)"
+mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 printf '# Changelog\n\n## [1.0.0](https://github.com/o/r/releases/tag/v1.0.0)\n\n- one\n\n## [0.9.0]\n\n- nine\n' \
@@ -1181,7 +1179,7 @@ fi
 rm -rf "$repo"
 
 # Plain -> linked reformat must pass --check-preserved (not a deletion).
-repo="$(mk_repo)"
+mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 printf '# Changelog\n\n## [1.0.0]\n\n- one\n' >"$repo/plugins/alpha/CHANGELOG.md"

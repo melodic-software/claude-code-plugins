@@ -2,29 +2,31 @@
 # Self-test for scripts/check-stale-base-overlap.sh
 set -uo pipefail
 
-# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
-# redirect `git init` / `git config` into the caller's repository.
-unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
-
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SCRIPT="$ROOT/scripts/check-stale-base-overlap.sh"
-failures=0
 
-ok() { printf 'ok - %s\n' "$1"; }
-fail() {
-  printf 'not ok - %s\n' "$1" >&2
-  failures=$((failures + 1))
-}
+# shellcheck source=lib/test-harness.sh
+. "$ROOT/scripts/lib/test-harness.sh"
+# The builder clears the inherited git environment for the whole suite: an
+# inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would redirect `git init` and
+# `git config` into the caller's repository.
+# shellcheck source=lib/fixture-tree.sh
+. "$ROOT/scripts/lib/fixture-tree.sh"
 
-scratch="$(mktemp -d)"
-trap 'rm -rf "$scratch"' EXIT
+# The builder assigns through a nameref, which shellcheck cannot follow;
+# declaring the out-var here is what tells it (SC2154) the name is written.
+scratch=""
+fixture_tree::build scratch --label stale-base-overlap
 
 make_repo() {
   local dir="$1"
   mkdir -p "$dir"
-  git -C "$dir" init -q -b main
-  git -C "$dir" config user.email "test@example.com"
-  git -C "$dir" config user.name "test"
+  # git_init_test_repo owns the throwaway identity: user.email, user.name,
+  # commit.gpgsign=false and core.autocrlf=false, so a signing-enabled or
+  # CRLF-converting machine runs these cases the same way CI does.
+  git_init_test_repo "$dir"
+  # The cases below diff a feature branch against `main` by name.
+  git -C "$dir" symbolic-ref HEAD refs/heads/main
   printf 'a\n' >"$dir/shared.txt"
   printf 'x\n' >"$dir/only-main.txt"
   git -C "$dir" add -A
@@ -89,6 +91,27 @@ else
   fail "disjoint behind-base: rc=$rc out='$out'"
 fi
 
+# --- a rename on the base still overlaps an edit to the pre-rename path ---
+# The overlap set must carry BOTH sides of a move. Seeing only the destination
+# would report "no overlapping paths" for a PR editing the file the base just
+# renamed away, which is the squash-reverts-a-fix shape this gate exists for.
+repo="$scratch/rename"
+make_repo "$repo"
+cd "$repo" || exit 1
+git checkout -qb feature
+printf 'feature-edit\n' >shared.txt
+git add -A && git commit -qm 'feature edits shared'
+git checkout -q main
+git mv shared.txt renamed.txt
+git commit -qm 'main renames shared'
+git checkout -q feature
+out="$(bash "$SCRIPT" --check main 2>&1)" && rc=0 || rc=$?
+if [[ $rc -eq 1 && "$out" == *"shared.txt"* ]]; then
+  ok "a rename on the base overlaps an edit to the pre-rename path"
+else
+  fail "rename overlap: rc=$rc out='$out'"
+fi
+
 # --- unresolvable base ---
 repo="$scratch/badref"
 make_repo "$repo"
@@ -100,9 +123,4 @@ else
   fail "missing base ref: rc=$rc out='$out'"
 fi
 
-if [[ $failures -eq 0 ]]; then
-  echo "ALL PASS"
-  exit 0
-fi
-echo "$failures failure(s)" >&2
-exit 1
+test_harness::report

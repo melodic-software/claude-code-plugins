@@ -1,17 +1,17 @@
 # Issue conventions
 
-The shape of a well-formed tracker item — title, body, type, labels, close reason. This document is
+The shape of a well-formed tracker item: title, body, type, labels, close reason. This document is
 the **single source of truth for the title convention**; for the other four it **points** at the
 existing owner rather than restating it, so each of those rules stays in one place.
 
 ## Title
 
-`<prefix>: <lowercase summary>` — no trailing period. Derived from established org usage. Two prefix
+`<prefix>: <lowercase summary>`, with no trailing period. Derived from established org usage. Two prefix
 dialects are accepted:
 
-- **Area / path form** — `<plugin>`, `<plugin>/<skill>`, or `<plugin>:<skill>`
+- **Area / path form**: `<plugin>`, `<plugin>/<skill>`, or `<plugin>:<skill>`
   (e.g. `work-items/triage: reconcile state machine with live labels`).
-- **Conventional-commit form** — `<type>(<scope>)`
+- **Conventional-commit form**: `<type>(<scope>)`
   (e.g. `feat(toolchain): add pyright to python ecosystem check-cmd`).
 
 Umbrella / epic items use an `Epic:` prefix or a trailing `(umbrella)`. A child-of relationship is
@@ -19,7 +19,7 @@ recorded as a native sub-issue edge, **never** as a title suffix.
 
 When folding a member into an umbrella, treat the sequence as **one atomic action**: post the
 membership comment on the item, post the matching membership comment on the umbrella issue, record
-the `blocked-by` edge, then strip the raw marker — never stop after the item-side comment alone
+the `blocked-by` edge, then strip the raw marker. Never stop after the item-side comment alone
 (#633).
 
 Recurring maintenance items keep the `[Maintenance] {title}` shape owned by `track add --recurring`
@@ -27,18 +27,18 @@ Recurring maintenance items keep the `[Maintenance] {title}` shape owned by `tra
 
 ## Body
 
-Follows the `track add` "Build body" template — the default skeleton, or the agent-brief shape for
+Follows the `track add` "Build body" template: the default skeleton, or the agent-brief shape for
 autonomous-eligible items. See [`../skills/track/actions/add.md`](../skills/track/actions/add.md)
 "Build body" and [`agent-brief.md`](agent-brief.md); not restated here.
 
 ## Type and labels
 
 The issue type resolves through `track add`'s type-resolution step (native Issue Type on org repos,
-`type:` label otherwise) — see [`../skills/track/actions/add.md`](../skills/track/actions/add.md)
+`type:` label otherwise). See [`../skills/track/actions/add.md`](../skills/track/actions/add.md)
 "Resolve the issue type". Label axes and their grammar live in [`label-taxonomy.md`](label-taxonomy.md).
 
 ## Close reason
 
-`completed` vs `not planned` — decided-against and superseded items take `not planned`; a duplicate
-takes the provider's native `duplicate` reason where it has one, `not planned` otherwise — follows the
+`completed` vs `not planned`: decided-against and superseded items take `not planned`; a duplicate
+takes the provider's native `duplicate` reason where it has one, `not planned` otherwise. This follows the
 `done` action's close discipline: [`../skills/track/actions/done.md`](../skills/track/actions/done.md).
