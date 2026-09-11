@@ -64,11 +64,16 @@ this repository the audit reads clean apart from genuine duplication.
 ### Acceptance criteria
 
 - Running `audit-duplication.sh --json --all` on this repository with jscpd 4.3.0 and again with
-  5.2.0 yields, for every byte-identical whole-file class, the same set of instances (file and
-  line range) per group; `tokens` and instance order are excluded from the comparison because the
-  two majors tokenize differently and hub on different copies. The bash row reads `ok` under both;
-  the typescript row reads `partial` under both, naming `plugins/miro/dist/index.min.js` as the one
-  file over the 1mb cap.
+  5.2.0 yields, for every byte-identical whole-file class, the same set of instance files per
+  group; `tokens`, instance order, and the exact line range are excluded from the comparison
+  because the two majors tokenize differently and hub on different copies (5.x drops a leading
+  comment block from the clone, so a file that opens with one is reported from its first code line
+  under 5.x and from line 1 under 4.x; the verifier found one such class,
+  `resolve-hook.mjs` in two `knowledge` skills). The bash row reads `ok` under both; with the
+  repository's default `**/dist/**` scope exclusion lifted, the typescript row reads `partial`
+  under both, naming `plugins/miro/dist/index.min.js` as the one file over the 1mb cap; with the
+  exclusion in force (this repository's shipped team file) the bundle never reaches the cap and the
+  row reads `ok`.
 - `duplication.max_lines` defaults to `null` (no cap) and `duplication.max_size` to `1mb`; both are
   documented in `reference/config.md` (gated against `config-defaults.json`) and exported to the
   adapter, and the adapter's tests cover the explicit-cap argv on both majors, the `0`-means-null
@@ -121,9 +126,12 @@ this repository the audit reads clean apart from genuine duplication.
 - The jscpd adapter's docstring and `reference/collectors.md` state that 4.x and 5.x are both
   translated, pin 5.2.0, note the `kind` field, and record that the two majors tokenize differently;
   the schema reference names "intentional clones" beside "sanctioned replication".
-- `plugin.json` reads 0.1.9 and `CHANGELOG.md` carries a `[0.1.9]` entry covering every item above;
-  `scripts/affected-tests.sh --run` exits 0, or exits 3 with only Python suites listed as not run,
-  each of which then passes under pytest.
+- `plugin.json` carries the next patch version above the one on the default branch at merge time
+  (0.2.2 over 0.2.1; the Brief was drafted against 0.1.8) and `CHANGELOG.md` carries the matching
+  entry covering every item above; `scripts/affected-tests.sh --run` exits 0, or exits 3 with only
+  Python and Node suites listed as not run, each of which then passes in its own lane, or exits 1
+  only for a suite that fails identically on a detached `origin/main` worktree and touches no file
+  this change edits (named in the PR body).
 
 ### Captured assumptions
 
@@ -134,12 +142,15 @@ this repository the audit reads clean apart from genuine duplication.
   duplicated lines are totalled, and jscpd v5 is the one tool that sums per pair. Revisit if a
   standard sets a duplicated-lines definition.
 - The merge keys on identical (file, start_line, end_line) instances and equal `lines`, so only
-  byte-aligned copies join; jscpd extends a clone greedily into shared flanking lines, so offset
-  copies get ranges differing by a line and stay separate on both majors. Closure is exact only for
+  byte-aligned copies join; jscpd 5.x hubs every later copy on the first and names it with the same
+  range, so full copies at different offsets are one class, while 4.x hubs on the last input and
+  extends into shared flanking lines, so under 4.x the same copies can stay two groups (a live
+  probe of three offset copies gave one class under 5.2.0 and two groups under 4.3.0). Closure is exact only for
   type-1/type-2 clones, which is all the adapter receives because it passes no `--max-gap-lines`.
   Revisit if `similar` clones are ever enabled.
-- Merged instances are sorted by path so the first instance, and therefore `by_directory`
-  attribution, is the same under 4.x (which hubs on the last input) and 5.x (which hubs on the first).
+- Merged instances are sorted by root-relative path (`cluster-clones.py --root`) so the first
+  instance, and therefore `by_directory` attribution, is the same under 4.x (which hubs on the last
+  input) and 5.x (which hubs on the first), and the same whichever directory the run started from.
 - `rollup_depth` default 2 is the plugin's choice; no upstream sets a depth (SonarQube and Codacy
   roll up every directory). Revisit if a consuming repository's layout makes depth 2 meaningless.
 - The byte cap of 1mb aligns with jscpd 5.0.7's parser guard and SonarJS's 1000kb generated-code

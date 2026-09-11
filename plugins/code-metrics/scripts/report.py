@@ -45,9 +45,10 @@ from __future__ import annotations
 import argparse
 import datetime as _dt
 import json
-import os
 import sys
 from typing import Any
+
+from pathglob import root_relative
 
 MIN_PYTHON = (3, 9)
 SCHEMA = "code-metrics/v1"
@@ -118,20 +119,6 @@ def _over(threshold: dict[str, Any], value: Any) -> bool:
     if threshold.get("direction") == "below":
         return value < reference
     return value >= reference
-
-
-def _root_relative(path: str, root: str) -> str:
-    """The path relative to `root` with forward slashes; unchanged without a root."""
-    path = (path or "").replace("\\", "/")
-    if root:
-        absolute = path if os.path.isabs(path) else os.path.join(os.getcwd(), path)
-        try:
-            path = os.path.relpath(absolute, root).replace("\\", "/")
-        except ValueError:
-            pass
-    while path.startswith("./"):
-        path = path[2:]
-    return path
 
 
 def _ancestors(path: str) -> list[str]:
@@ -207,7 +194,7 @@ def summarize(measures: list[dict[str, Any]], root: str = "") -> dict[str, Any]:
                 if instance.get("file"):
                     files.add(instance["file"])
             _tally(by_lane, str(row.get("lane") or "*"), counted)
-            first = _root_relative(str(instances[0].get("file") or ""), root)
+            first = root_relative(str(instances[0].get("file") or ""), root)
             for directory in _ancestors(first):
                 _tally(by_directory, directory, counted)
     summary: dict[str, Any] = {

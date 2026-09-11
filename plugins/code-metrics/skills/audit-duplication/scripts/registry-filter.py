@@ -59,6 +59,7 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
 from pathglob import matches as glob_matches  # noqa: E402
+from pathglob import root_relative  # noqa: E402
 
 MIN_PYTHON = (3, 9)
 CLUSTER_MARKER = " -> "
@@ -90,16 +91,7 @@ def read_registry(path: str) -> list[Entry]:
 
 def relative(path: str, root: str) -> str:
     """The instance path root-relative, with forward slashes."""
-    path = (path or "").replace("\\", "/")
-    if root:
-        absolute = path if os.path.isabs(path) else os.path.join(os.getcwd(), path)
-        try:
-            path = os.path.relpath(absolute, root).replace("\\", "/")
-        except ValueError:
-            pass
-    while path.startswith("./"):
-        path = path[2:]
-    return path
+    return root_relative(path, root)
 
 
 def sanctions_plain(entry: str, paths: list[str]) -> bool:

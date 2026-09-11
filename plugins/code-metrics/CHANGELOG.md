@@ -27,7 +27,9 @@ All notable changes to the `code-metrics` plugin are documented here. Format fol
 - **Per-lane and per-directory rollups.** `summary.by_lane` and `summary.by_directory` (every
   ancestor of each class's first instance, cumulative) are additive `code-metrics/v1` fields,
   computed after registry exclusion; `duplication.rollup_depth` (default 2) decides how deep the
-  markdown `## Rollup` section lists. The schema reference states that readers ignore unknown keys.
+  markdown `## Rollup` section lists. A class is attributed by its first instance after a
+  root-relative sort, so the rollup reads the same from the repository root and from a
+  subdirectory. The schema reference states that readers ignore unknown keys.
 - **Run rows carry the install hint as a field.** `run[].hint` holds the first install hint a
   failed probe produced, apart from the prose reason, so a renderer can print it once.
 

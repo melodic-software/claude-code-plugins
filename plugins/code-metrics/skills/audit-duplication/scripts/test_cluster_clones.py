@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -186,8 +187,48 @@ class ClusterClonesTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn("not a JSON document", result.stderr)
 
-    def test_an_argument_is_a_usage_error(self) -> None:
+    def test_an_unknown_argument_is_a_usage_error(self) -> None:
         self.assertEqual(run(document(), "--root").returncode, 2)
+        self.assertEqual(run(document(), "--registry", "x").returncode, 2)
+
+    def test_root_sorts_instances_by_their_root_relative_path(self) -> None:
+        # From `lib/`, the dispatcher names the root copy `hook-utils.sh` and
+        # a plugin copy `../plugins/a/hooks/hook-utils.sh`, which sorts first
+        # as text; relative to the root the `lib/` copy comes first, so the
+        # rollup attributes the class the same way a root run does.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            lib = root / "lib"
+            lib.mkdir()
+            doc = document(
+                pair(
+                    ("../plugins/a/hooks/hook-utils.sh", 1, 41),
+                    ("hook-utils.sh", 1, 41),
+                ),
+                pair(
+                    ("../plugins/b/hooks/hook-utils.sh", 1, 41),
+                    ("hook-utils.sh", 1, 41),
+                ),
+            )
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT), "--root", tmp],
+                input=json.dumps(doc),
+                capture_output=True,
+                text=True,
+                cwd=lib,
+                check=False,
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        rows = measures(result)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(
+            [i["file"] for i in rows[0]["instances"]],
+            [
+                "hook-utils.sh",
+                "../plugins/a/hooks/hook-utils.sh",
+                "../plugins/b/hooks/hook-utils.sh",
+            ],
+        )
 
 
 if __name__ == "__main__":

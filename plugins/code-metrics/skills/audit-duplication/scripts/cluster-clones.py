@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Merge the clone pairs a detector reports into clone classes.
 
-    cluster-clones.py [< report.json]
+    cluster-clones.py [--root <dir>] [< report.json]
 
 Reads a `code-metrics/v1` document on stdin and prints it back with the
 two-instance clone-group rows that share an identical instance merged into one
@@ -21,6 +21,10 @@ part of the fragment) stays its own group, so a class is never widened past
 what the detector said was identical. The merged row keeps the first row's
 `values`, so the fragment's lines count once, carries the union of the
 instances sorted by `(file, start_line)`, and appends `clustered` to `labels`.
+The sort compares each file made relative to `--root` (the instance keeps the
+path the detector gave it), so the first instance, and the directory the
+report's rollup attributes the class to, is the same whichever directory the
+run started from; without `--root` the paths sort as given.
 A row with three or more instances is already a class and passes through, as
 does every row without `instances`, and every row keeps its position. Rows
 join whatever their `collector`, so a pair another detector reported merges
@@ -34,7 +38,11 @@ from __future__ import annotations
 
 import json
 import sys
+from pathlib import Path
 from typing import Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
+from pathglob import root_relative  # noqa: E402
 
 MIN_PYTHON = (3, 9)
 LABEL = "clustered"
@@ -48,9 +56,12 @@ def instance_key(instance: dict[str, Any]) -> tuple[str, Any, Any]:
     )
 
 
-def _sort_key(instance: dict[str, Any]) -> tuple[str, int]:
+def _sort_key(instance: dict[str, Any], root: str) -> tuple[str, int]:
     start = instance.get("start_line")
-    return (instance_key(instance)[0], start if isinstance(start, int) else -1)
+    return (
+        root_relative(instance_key(instance)[0], root),
+        start if isinstance(start, int) else -1,
+    )
 
 
 def _is_pair(row: dict[str, Any]) -> bool:
@@ -58,7 +69,7 @@ def _is_pair(row: dict[str, Any]) -> bool:
     return isinstance(instances, list) and len(instances) == 2
 
 
-def cluster(measures: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def cluster(measures: list[dict[str, Any]], root: str = "") -> list[dict[str, Any]]:
     """Return `measures` with pair rows that share an identical instance merged."""
     parent: dict[int, int] = {
         index: index for index, row in enumerate(measures) if _is_pair(row)
@@ -97,10 +108,10 @@ def cluster(measures: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if index not in parent:
             output.append(row)
             continue
-        root = find(index)
-        if root != index:
+        leader = find(index)
+        if leader != index:
             continue
-        group = members[root]
+        group = members[leader]
         if len(group) == 1:
             output.append(row)
             continue
@@ -109,7 +120,9 @@ def cluster(measures: list[dict[str, Any]]) -> list[dict[str, Any]]:
             for instance in measures[member]["instances"]:
                 instances.setdefault(instance_key(instance), instance)
         merged = dict(row)
-        merged["instances"] = sorted(instances.values(), key=_sort_key)
+        merged["instances"] = sorted(
+            instances.values(), key=lambda instance: _sort_key(instance, root)
+        )
         labels = [str(label) for label in row.get("labels") or []]
         if LABEL not in labels:
             labels.append(LABEL)
@@ -119,9 +132,12 @@ def cluster(measures: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def main(argv: list[str]) -> int:
-    if argv:
-        print("usage: cluster-clones.py < report.json", file=sys.stderr)
+    root = ""
+    if argv == ["--root"] or (argv and argv[0] != "--root") or len(argv) > 2:
+        print("usage: cluster-clones.py [--root <dir>] < report.json", file=sys.stderr)
         return 2
+    if argv:
+        root = argv[1]
     try:
         document = json.load(sys.stdin)
     except (json.JSONDecodeError, ValueError) as exc:
@@ -134,7 +150,7 @@ def main(argv: list[str]) -> int:
         return 2
     measures = document.get("measures")
     if isinstance(measures, list):
-        document["measures"] = cluster(measures)
+        document["measures"] = cluster(measures, root)
     print(json.dumps(document, indent=2))
     return 0
 

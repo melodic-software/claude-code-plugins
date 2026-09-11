@@ -160,7 +160,7 @@ rc=$?
 # Merge the pairs the detector reports into clone classes, exclude the declared
 # replication, recompute the totals from what survived, then state the zero the
 # recomputation drops when every group was excluded.
-"${PY[@]}" "$CLUSTER" <"$WORK/report.json" >"$WORK/clustered.json" || exit 2
+"${PY[@]}" "$CLUSTER" --root "$ROOT" <"$WORK/report.json" >"$WORK/clustered.json" || exit 2
 "${PY[@]}" "$FILTER" "${FILTER_ARGS[@]}" <"$WORK/clustered.json" >"$WORK/filtered.json" || exit 2
 "${PY[@]}" "$REPORT" resummarize --root "$ROOT" <"$WORK/filtered.json" >"$WORK/summed.json" || exit 2
 "${PY[@]}" "$FILTER" --zero-floor --root "$ROOT" <"$WORK/summed.json" >"$WORK/final.json" || exit 2
