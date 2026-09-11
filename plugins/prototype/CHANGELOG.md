@@ -3,6 +3,18 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.0]
+
+### Changed
+
+- **`explore-directions`**: the design-canvas alternative is offered, never invoked. The
+  installed client registers the bundled `design` skill with model invocation disabled, so the
+  earlier "invoke the bundled design skill" path cannot run and the skill cannot be detected in
+  the model's list; the subsection now gates the offer on the Artifact tool resolving, has the
+  user run `/design <brief>`, and keeps the HTML mockup as the default. A new `## Boundary, the
+  bundled design skill` section states the split, the mutation gate, and the availability rule,
+  with four-part records in `reference/bundled-design.md`.
+
 ## [0.10.6]
 
 ### Added
