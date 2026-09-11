@@ -761,18 +761,35 @@ done < <(
 # deliberately tight: a known internal dir token, one or more backslash-led
 # segments, and a final filename with a known extension. A prose escape (`\_`,
 # `\n`, `[--check\|--apply]`) has no such shape and never matches.
+# The scan covers SKILL.md and every markdown spoke under the routed dirs
+# (reference|references|context, at any depth): a spoke is loaded on demand and
+# its pointers resolve against the same skill root, so a backslash there ships
+# the same load-time defect, and the authoring checklist's forward-slash row
+# counts as mechanically decided only if the spokes are read too.
 # Two literal backslashes, the ERE spelling of one literal backslash.
 BS="\\\\"
 BACKSLASH_EXTS='md|sh|bash|py|json|jsonc|txt|yaml|yml|mjs|js|ts|ps1|csv|toml|xml|html'
-while IFS= read -r ref; do
-  [[ -z "$ref" ]] && continue
-  ref_line="$(grep -nF "$ref" "$SKILL_MD" 2>/dev/null | head -1 | cut -d: -f1)"
-  err "backslash path separator in skill-internal ref: $ref (cited at SKILL.md:${ref_line:-?}); a plugin component path with a backslash is rejected at load on macOS and Linux, so write it with forward slashes: ${ref//\\//}"
+while IFS= read -r bs_file; do
+  [[ -f "$bs_file" ]] || continue
+  bs_rel="${bs_file#"$SKILL_DIR"/}"
+  while IFS= read -r ref; do
+    [[ -z "$ref" ]] && continue
+    ref_line="$(grep -nF "$ref" "$bs_file" 2>/dev/null | head -1 | cut -d: -f1)"
+    err "backslash path separator in skill-internal ref: $ref (cited at ${bs_rel}:${ref_line:-?}); a plugin component path with a backslash is rejected at load on macOS and Linux, so write it with forward slashes: ${ref//\\//}"
+  done < <(
+    {
+      grep -oE "\`(\$\{CLAUDE_PLUGIN_ROOT\}[/$BS])?($INTERNAL_DIRS)(${BS}[A-Za-z0-9._-]+)*${BS}[A-Za-z0-9._-]+\.($BACKSLASH_EXTS)\`" "$bs_file" 2>/dev/null | tr -d '`'
+      grep -oE "\]\((\$\{CLAUDE_PLUGIN_ROOT\}[/$BS])?($INTERNAL_DIRS)(${BS}[A-Za-z0-9._-]+)*${BS}[A-Za-z0-9._-]+\.($BACKSLASH_EXTS)(#[^)]*)?\)" "$bs_file" 2>/dev/null |
+        sed -E 's/^\]\(//; s/\)$//; s/#.*$//'
+    } | sort -u
+  )
 done < <(
   {
-    grep -oE "\`(\$\{CLAUDE_PLUGIN_ROOT\}[/$BS])?($INTERNAL_DIRS)(${BS}[A-Za-z0-9._-]+)*${BS}[A-Za-z0-9._-]+\.($BACKSLASH_EXTS)\`" "$SKILL_MD" 2>/dev/null | tr -d '`'
-    grep -oE "\]\((\$\{CLAUDE_PLUGIN_ROOT\}[/$BS])?($INTERNAL_DIRS)(${BS}[A-Za-z0-9._-]+)*${BS}[A-Za-z0-9._-]+\.($BACKSLASH_EXTS)(#[^)]*)?\)" "$SKILL_MD" 2>/dev/null |
-      sed -E 's/^\]\(//; s/\)$//; s/#.*$//'
+    printf '%s\n' "$SKILL_MD"
+    for bs_dir in reference references context; do
+      [[ -d "$SKILL_DIR/$bs_dir" ]] || continue
+      find "$SKILL_DIR/$bs_dir" -type f -name '*.md'
+    done
   } | sort -u
 )
 
@@ -1801,23 +1818,28 @@ fi
 # A spoke long enough that its reader (the model, mid-task) cannot take in its
 # shape in one pass needs a table of contents up front, so the section it wants
 # is one anchor hop away instead of a scan. Threshold, basis, and the heuristic's
-# source: TOC_LINE_THRESHOLD above. Scoped to the top-level markdown of the
-# spoke dirs check 15 routes (reference|references|context): vendor/ is upstream
-# material this gate never lints, and a TOC is a per-file property, so the
-# finding names the file. Advisory only: a long file can be a flat catalog that
-# a TOC would not help, so a WARN is a candidate to judge, not a defect.
-for toc_dir in reference references context; do
-  [[ -d "$SKILL_DIR/$toc_dir" ]] || continue
-  for toc_md in "$SKILL_DIR/$toc_dir"/*.md; do
-    [[ -f "$toc_md" ]] || continue
-    toc_lines="$(grep -c '' "$toc_md")"
-    ((toc_lines > TOC_LINE_THRESHOLD)) || continue
-    toc_anchors="$(head -n "$TOC_HEAD_LINES" "$toc_md" | grep -o '](#' | wc -l | tr -d '[:space:]')"
-    if ((toc_anchors < TOC_MIN_ANCHORS)); then
-      warn "$toc_dir/${toc_md##*/} is $toc_lines lines with no table of contents in its first $TOC_HEAD_LINES lines (${toc_anchors:-0} in-page anchor links; $TOC_MIN_ANCHORS or more count as a TOC); add a Contents block listing its section anchors so a reader jumps instead of scanning"
-    fi
-  done
-done
+# source: TOC_LINE_THRESHOLD above. Scoped to every markdown file under the
+# spoke dirs check 15 routes (reference|references|context), at any depth,
+# because nested spoke layouts (`reference/<topic>/<file>.md`) are a supported
+# shape and a long file two levels down costs its reader the same scan.
+# vendor/ is upstream material this gate never lints. A TOC is a per-file
+# property, so the finding names the file relative to the skill root. Advisory
+# only: a long file can be a flat catalog that a TOC would not help, so a WARN
+# is a candidate to judge, not a defect.
+while IFS= read -r toc_md; do
+  [[ -f "$toc_md" ]] || continue
+  toc_lines="$(grep -c '' "$toc_md")"
+  ((toc_lines > TOC_LINE_THRESHOLD)) || continue
+  toc_anchors="$(head -n "$TOC_HEAD_LINES" "$toc_md" | grep -o '](#' | wc -l | tr -d '[:space:]')"
+  if ((toc_anchors < TOC_MIN_ANCHORS)); then
+    warn "${toc_md#"$SKILL_DIR"/} is $toc_lines lines with no table of contents in its first $TOC_HEAD_LINES lines (${toc_anchors:-0} in-page anchor links; $TOC_MIN_ANCHORS or more count as a TOC); add a Contents block listing its section anchors so a reader jumps instead of scanning"
+  fi
+done < <(
+  for toc_dir in reference references context; do
+    [[ -d "$SKILL_DIR/$toc_dir" ]] || continue
+    find "$SKILL_DIR/$toc_dir" -type f -name '*.md'
+  done | sort
+)
 
 # --- Summary ---------------------------------------------------------------
 

@@ -24,7 +24,7 @@ have checked a judgment row is misreporting.
 | SKILL.md is under 500 lines, whole file | mechanical (check 4) |
 | SKILL.md is at or under 200 lines; detail lives in spokes | mechanical (check 10) |
 | Every backtick-cited or linked skill-internal path resolves | mechanical (check 5) |
-| Every path uses forward slashes | mechanical (check 5) |
+| Every skill-internal path in SKILL.md and in every spoke uses forward slashes | mechanical (check 5) |
 | Every `reference/`, `references/`, `context/` directory is referenced from the hub | mechanical (check 15) |
 | A reference file over 300 lines opens with a `## Contents` block | mechanical (check 26) |
 | `disable-model-invocation` is written explicitly | mechanical (check 24) |

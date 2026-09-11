@@ -50,8 +50,9 @@ the reviewer to confirm the description still names that intent, or to restore t
   resolves under a sibling skill, the finding names that sibling and the
   `${CLAUDE_PLUGIN_ROOT}/skills/<sibling>/...` cross-skill form, while keeping the hand-verify
   caveat (the sibling hit is evidence, not proof: paths can collide). A cited path with a backslash
-  separator (`scripts\helper.py`) FAILs outright, naming the forward-slash form: Claude Code
-  rejects such a component path at plugin load on macOS and Linux.
+  separator (`scripts\helper.py`), in SKILL.md or in any markdown spoke under `reference/`,
+  `references/`, or `context/`, FAILs outright, naming the citing file and the forward-slash
+  form: Claude Code rejects such a component path at plugin load on macOS and Linux.
 - `markdownlint-cli2` clean (advisory-skips when `npx` is absent).
 - `scripts/*.test.sh` pass where present.
 - Vendored `vendor/` byte-identical vs `HEAD`; stale-tracking metadata keys preserved; sync age.
@@ -75,9 +76,9 @@ the reviewer to confirm the description still names that intent, or to restore t
 - Description/verb-contract polarity (advisory). The description lead contradicts the
   Naming verb contract or the body (read-only vs mutate). `--fix` in the listing is the
   compliant override shape.
-- Long spoke files carry a table of contents (advisory). A `reference/`, `references/`, or
-  `context/` markdown file over 300 lines whose first 40 lines hold fewer than three `](#`
-  in-page anchor links warns, naming the file. The threshold is the bundled skill-creator's; the
+- Long spoke files carry a table of contents (advisory). A markdown file under `reference/`,
+  `references/`, or `context/`, at any depth, over 300 lines whose first 40 lines hold fewer than
+  three `](#` in-page anchor links warns, naming the file. The threshold is the bundled skill-creator's; the
   100-to-300 band stays with `docs-hygiene:audit-progressive-disclosure`, whose TOC heuristic
   this check mirrors.
 

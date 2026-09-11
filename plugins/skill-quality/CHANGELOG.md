@@ -7,9 +7,10 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
 
 ### Added
 
-- **`check`: check 26, a table of contents in long spoke files (WARN).** A `reference/`,
-  `references/`, or `context/` markdown file over 300 lines whose first 40 lines carry fewer than
-  three `](#` in-page anchor links warns, naming the file. The threshold is the bundled
+- **`check`: check 26, a table of contents in long spoke files (WARN).** A markdown file under
+  `reference/`, `references/`, or `context/`, at any depth, over 300 lines whose first 40 lines
+  carry fewer than three `](#` in-page anchor links warns, naming the file relative to the skill
+  root. The threshold is the bundled
   skill-creator's (a TOC for reference files over 300 lines); the platform best-practices page says
   over 100, and that 100-to-300 band stays with `docs-hygiene:audit-progressive-disclosure`, whose
   `has_toc` heuristic this check mirrors so the two never disagree on what counts as a TOC (both
@@ -30,8 +31,10 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
   has no backslash), so a Windows-authored pointer skipped the check silently and shipped. Claude
   Code rejects a plugin component path containing a backslash at load on macOS and Linux
   (<https://code.claude.com/docs/en/plugins-reference>, "Path traversal limitations", verified
-  2026-09-10), so the finding names the forward-slash form. The pattern is deliberately tight, a
-  known internal dir token, backslash-led segments, and a filename with a known extension, so a
+  2026-09-10), so the finding names the forward-slash form and the citing file. The scan reads
+  SKILL.md and every markdown spoke under `reference/`, `references/`, or `context/` at any depth,
+  since a spoke's pointers resolve against the same skill root. The pattern is deliberately tight,
+  a known internal dir token, backslash-led segments, and a filename with a known extension, so a
   prose escape such as `\_`, `\n`, or `[--check\|--apply]` never matches.
 
 ### Changed

@@ -2701,6 +2701,37 @@ else
   fail "prose escapes should not trip the backslash limb (rc=$rc): $out"
 fi
 
+# 36f. The backslash limb reads the spokes too, at any depth: a pointer inside
+#      `reference/usage.md` or a nested `reference/topic/notes.md` resolves
+#      against the same skill root and ships the same load-time defect, and the
+#      authoring checklist counts the forward-slash row as mechanically decided
+#      only because the spokes are scanned. The finding names the citing file.
+mkdir -p "$SKILLS/backslash-spoke/scripts" "$SKILLS/backslash-spoke/reference/topic"
+printf 'echo helper\n' >"$SKILLS/backslash-spoke/scripts/helper.py"
+make_skill backslash-spoke '---
+description: "Clean hub over a spoke with a backslash pointer. Use when: '"'"'checking spoke backslash pointers'"'"'."
+---
+
+## Purpose
+
+See `reference/usage.md` and `reference/topic/notes.md`.
+
+## Gotchas
+
+None known.
+'
+printf '# Usage\n\nRun `scripts\\helper.py` before anything else.\n' >"$SKILLS/backslash-spoke/reference/usage.md"
+printf '# Notes\n\nDetails in [the helper](scripts\\helper.py).\n' >"$SKILLS/backslash-spoke/reference/topic/notes.md"
+out="$(run backslash-spoke 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] &&
+  grep -q 'backslash path separator in skill-internal ref: scripts\\helper.py (cited at reference/usage.md:3)' <<<"$out" &&
+  grep -q 'backslash path separator in skill-internal ref: scripts\\helper.py (cited at reference/topic/notes.md:3)' <<<"$out"; then
+  pass "a backslash pointer inside a spoke fails and names the citing file, nested spokes included"
+else
+  fail "backslash pointers inside spokes should fail and name the file (rc=$rc): $out"
+fi
+
 # 42. --require-evals FAILs on any shape without evals/evals.json.
 make_skill no-evals '---
 description: "A plain skill. Use when: '"'"'checking evals presence'"'"'."
@@ -3569,6 +3600,36 @@ if [[ $rc -eq 0 ]] && ! grep -q 'no table of contents' <<<"$out"; then
   pass "a 150-line spoke without a TOC does not warn"
 else
   fail "a 150-line spoke without a TOC should not warn (rc=$rc): $out"
+fi
+
+# 26d. Nested spoke layouts are a supported shape, so the walk is recursive: a
+#      long file at `reference/topic/details.md` is checked like one at the top
+#      of the directory, and the finding names it relative to the skill root.
+make_skill toc-nested '---
+description: "Routes to a nested long spoke. Use when: '"'"'checking the nested spoke TOC heuristic'"'"'."
+disable-model-invocation: false
+---
+
+## Purpose
+
+Read `reference/topic/details.md` for the long form.
+
+## Gotchas
+
+None known.
+'
+mkdir -p "$SKILLS/toc-nested/reference/topic"
+{
+  printf '# Nested long spoke\n\n'
+  for ((i = 1; i <= 304; i++)); do printf 'line %s\n' "$i"; done
+} >"$SKILLS/toc-nested/reference/topic/details.md"
+out="$(run toc-nested 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] &&
+  grep -q 'WARN: reference/topic/details.md is 306 lines with no table of contents in its first 40 lines' <<<"$out"; then
+  pass "a long nested spoke without a TOC warns and names its path from the skill root"
+else
+  fail "a long nested spoke without a TOC should WARN (rc=$rc): $out"
 fi
 
 # Portability guard: no ERE interval expressions in the checker's awk regexes.
