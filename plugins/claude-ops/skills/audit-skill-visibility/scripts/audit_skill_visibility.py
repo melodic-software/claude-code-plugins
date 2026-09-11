@@ -617,17 +617,23 @@ def collect_installed(
         return _load_json(os.path.join(plugins_dir, name))
 
     marketplaces = _load("known_marketplaces.json")
-    # Attach each directory-source marketplace's catalog so the resolver can
-    # honour the plugin's DECLARED source path instead of assuming a layout.
+    # Attach EVERY marketplace's catalog (`<installLocation>/.claude-plugin/
+    # marketplace.json`, the same file `plugins/scripts/fleet-state.sh`
+    # reads). A directory-source marketplace needs it so the resolver honours
+    # the plugin's DECLARED source path instead of assuming a layout; every
+    # marketplace needs it because the entry's `defaultEnabled` is the first
+    # fallback for a plugin no settings scope mentions. A missing or
+    # unparsable catalog attaches an empty list and the fallback moves on.
     for entry in marketplaces.values():
         if not isinstance(entry, dict):
             continue
         location = entry.get("installLocation")
-        if (entry.get("source") or {}).get("source") == "directory" and location:
+        if location:
             catalog = _load_json(
                 os.path.join(location, ".claude-plugin", "marketplace.json")
             )
-            entry["_catalog"] = catalog.get("plugins") or []
+            plugins = catalog.get("plugins")
+            entry["_catalog"] = plugins if isinstance(plugins, list) else []
 
     resolution = resolve_installed(
         _load("installed_plugins.json"), marketplaces, current_project
@@ -635,7 +641,13 @@ def collect_installed(
     enablement = enabled_plugins or merge_enabled_plugins([])
     denominator: list[dict] = []
     for row in resolution["plugins"]:
-        state = enablement_for(enablement, f"{row['plugin']}@{row['marketplace']}")
+        state = enablement_for(
+            enablement,
+            f"{row['plugin']}@{row['marketplace']}",
+            default_enabled_sources(
+                marketplaces.get(row["marketplace"]) or {}, row["plugin"], row["root"]
+            ),
+        )
         denominator += collect_fleet_at(
             row["root"], row["plugin"], state["value"], state["evidence"]
         )
@@ -955,22 +967,80 @@ def merge_enabled_plugins(layers: list[dict]) -> dict:
     }
 
 
-def enablement_for(merged: dict, key: str) -> dict:
+# Evidence labels for the two `defaultEnabled` fallbacks, in precedence order.
+DEFAULT_ENABLED_MARKETPLACE = "default: marketplace entry defaultEnabled"
+DEFAULT_ENABLED_MANIFEST = "default: plugin.json defaultEnabled"
+
+
+def default_enabled_sources(
+    marketplace_entry: dict, plugin: str, root: str
+) -> list[tuple[str, object]]:
+    """The `defaultEnabled` values that decide a plugin no settings scope names.
+
+    Highest precedence first: the MARKETPLACE ENTRY's `defaultEnabled` (from
+    the catalog attached as `_catalog`) outranks the plugin's own
+    `.claude-plugin/plugin.json` field, the rule this same plugin states in
+    `skills/plugins/context/sync-install-enable.md` and applies in
+    `skills/plugins/scripts/fleet-state.sh`. Only sources that carry the key
+    are returned, with the value as written, so the caller can name a
+    non-Boolean rather than silently coerce it. A catalog that could not be
+    read, a manifest that is absent or unparsable, or an entry without the key
+    contributes nothing.
+    """
+    sources: list[tuple[str, object]] = []
+    for row in marketplace_entry.get("_catalog") or []:
+        if isinstance(row, dict) and row.get("name") == plugin:
+            if "defaultEnabled" in row:
+                sources.append((DEFAULT_ENABLED_MARKETPLACE, row["defaultEnabled"]))
+            break
+    manifest_path = os.path.join(root or "", ".claude-plugin", "plugin.json")
+    try:
+        with open(manifest_path, encoding="utf-8") as handle:
+            manifest = json.load(handle)
+    except (OSError, ValueError):
+        manifest = None
+    if isinstance(manifest, dict) and "defaultEnabled" in manifest:
+        sources.append((DEFAULT_ENABLED_MANIFEST, manifest["defaultEnabled"]))
+    return sources
+
+
+def enablement_for(
+    merged: dict, key: str, defaults: list[tuple[str, object]] | None = None
+) -> dict:
     """The enablement answer for one `plugin@marketplace` key.
 
     `merged` is `merge_enabled_plugins` output. A key it names is answered
     from the scope that set it, or is `None` naming the unreadable file above
-    that scope. A key absent everywhere is the documented default, enabled,
-    with `default` as evidence; when any settings file was unreadable that
-    absence is not knowable, so the answer is `None` naming the file, never a
-    guess.
+    that scope. When any settings file was unreadable an absence is not
+    knowable, so the answer is `None` naming the file, never a guess.
+
+    A key absent from every readable scope falls back to `defaults`, the
+    `(evidence, value)` pairs `default_enabled_sources` returns in precedence
+    order: the marketplace entry's `defaultEnabled`, then the plugin's own
+    manifest field. An `enabledPlugins` entry at any scope outranks both; the
+    official plugins reference calls `defaultEnabled` "the fallback when
+    nothing else has decided the plugin's state". The first Boolean wins with
+    its label as evidence; a non-Boolean value is skipped and named in the
+    evidence of whatever decides instead. With no Boolean anywhere the answer
+    is the product's default, enabled, with `default` as evidence.
     """
     row = merged["plugins"].get(key)
     if row is not None:
         return dict(row)
     if merged["unreadable"]:
         return {"value": None, "evidence": ", ".join(merged["unreadable"])}
-    return {"value": True, "evidence": "default"}
+    ignored: list[str] = []
+    for evidence, value in defaults or []:
+        if isinstance(value, bool):
+            return {"value": value, "evidence": _with_ignored(evidence, ignored)}
+        ignored.append(
+            f"{evidence.removeprefix('default: ')} is {value!r}, not a Boolean; ignored"
+        )
+    return {"value": True, "evidence": _with_ignored("default", ignored)}
+
+
+def _with_ignored(evidence: str, ignored: list[str]) -> str:
+    return f"{evidence} ({'; '.join(ignored)})" if ignored else evidence
 
 
 def _read_settings_file(path: str) -> tuple[str, dict | None, str | None]:
@@ -1393,16 +1463,22 @@ def build_listing_inputs(
 def _eligibility(entry: dict) -> str:
     """Which skills actually contend for description budget.
 
-    Two exempt classes, and the second is easy to miss: a
+    Three exempt classes, and two are easy to miss. A
     `disable-model-invocation` skill keeps its description out of the model's
     context entirely, so it spends none of the shared budget. Locally that is 59
     of 213 skills -- counting them would inflate the overflow figure enough to
-    flip the headline verdict. `skillOverrides` is not a third class: it never
-    applies to plugin skills, the only kind this audit enumerates.
+    flip the headline verdict. A skill whose owning plugin resolves to
+    `plugin_enabled: False` is never loaded at all, so its description spends
+    nothing either; only a settled `False` exempts, because `None` (not
+    assessed, or undetermined) is not hidden and keeps competing.
+    `skillOverrides` is not a fourth class: it never applies to plugin skills,
+    the only kind this audit enumerates.
     """
     frontmatter = entry.get("frontmatter") or {}
     if entry.get("source") == "bundled":
         return "exempt-bundled"
+    if entry.get("plugin_enabled") is False:
+        return "exempt-hidden"
     if frontmatter.get("disable_model_invocation"):
         return "exempt-user-only"
     return "competing"
@@ -1461,10 +1537,10 @@ def compute_listing(
         desc_chars = _demand_chars(entry, cfg)
         chars = desc_chars if eligibility == "competing" else 0
         demand += chars
-        # A `disable-model-invocation` skill is absent from the listing
-        # ENTIRELY, so unlike the other two exempt classes it costs nothing and
-        # takes no separator.
-        if eligibility != "exempt-user-only":
+        # A `disable-model-invocation` skill and a disabled plugin's skill are
+        # absent from the listing ENTIRELY, so unlike the bundled class they
+        # cost nothing and take no separator.
+        if eligibility not in ("exempt-user-only", "exempt-hidden"):
             listed += 1
             name_chars = len(entry["qualified_name"])
             if eligibility == "exempt-bundled":
@@ -1784,9 +1860,11 @@ def reachability(entry: dict) -> dict:
             "value": "hidden",
             "causes": ["plugin-not-enabled"],
             "remedy": (
-                "The owning plugin is installed but `enabledPlugins` resolves "
-                "it to false, so none of its skills load. Set it to true in "
-                "a higher-precedence scope, or remove the entry, to enable it."
+                "The owning plugin is installed but resolves to disabled, so "
+                "none of its skills load: an `enabledPlugins` entry set it to "
+                "false, or no scope names it and its `defaultEnabled` is "
+                "false. Set `enabledPlugins` to true in a scope that outranks "
+                "the evidence, or remove a false entry, to enable it."
             ),
             "evidence": enabled_evidence,
             "provenance": "documented",
@@ -2143,7 +2221,7 @@ def _render_markdown(model: dict) -> str:
                 ]
         lines += [
             f"- Exempt from the contest: {listing['exempt_count']} "
-            f"(bundled and user-only skills spend no budget)",
+            f"(bundled, user-only, and disabled-plugin skills spend no budget)",
             "",
         ]
         if listing.get("inputs"):
@@ -2215,8 +2293,9 @@ def _render_reachability(skills: list[dict]) -> list[str]:
         bucket["skills"] += 1
     if hidden:
         lines += [
-            "Hidden: the owning plugin is installed but `enabledPlugins` "
-            "resolves it to false, so none of its skills load.",
+            "Hidden: the owning plugin is installed but resolves to disabled "
+            "(an `enabledPlugins` entry, or its `defaultEnabled` when no scope "
+            "names it), so none of its skills load.",
             "",
             "| Plugin | Skills | Evidence |",
             "|---|---|---|",

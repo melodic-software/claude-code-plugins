@@ -147,8 +147,15 @@ same settings scopes the listing budget reads, merged per `plugin@marketplace`
 key with the product's precedence: user < project < local < the `--settings`
 flag (unread from outside the session) < managed policy. A key set to `false`
 makes every skill of that plugin `hidden`, with the scope file that supplied
-the `false` as evidence; a key absent from every scope is enabled, the
-product's default. A scope file that exists but cannot be read or parsed could
+the `false` as evidence. A key absent from every scope falls back to
+`defaultEnabled`, which the plugins reference names as the fallback when
+nothing else has decided the plugin's state: first the marketplace entry's
+value, read from the marketplace's own `.claude-plugin/marketplace.json`
+(evidence `default: marketplace entry defaultEnabled`), then the plugin's
+own `.claude-plugin/plugin.json` field (evidence `default: plugin.json
+defaultEnabled`), and only with neither present the product's default,
+enabled (evidence `default`). A non-Boolean `defaultEnabled` is skipped and
+named in the evidence. A scope file that exists but cannot be read or parsed could
 have set any key at its own precedence, so plugins whose answer would come
 from below it read `unknown`, with that file named in the remedy. Only
 `--installed` assesses this: a checkout is not an install, so a
@@ -244,7 +251,8 @@ better, and it is never a synonym for unused.
 `reachability` values: `model-reachable` · `user-only` · `hidden` ·
 `misconfigured` · `unknown` · `not-assessed`. Only `model-reachable` with no
 observation is a starvation candidate. `user-only` means you type it by design,
-`hidden` means `enabledPlugins` resolves the owning plugin to `false`, and
+`hidden` means the owning plugin resolves to disabled, through an
+`enabledPlugins` entry or through `defaultEnabled` when no scope names it, and
 `misconfigured` is a fix. `unknown` is reserved for a settings file the reader
 could not parse, and `not-assessed` is the checkout-mode answer, where there is
 no install to read enablement from. Each carries its causes, evidence, and a
@@ -264,6 +272,15 @@ and naming rows would sell catalog position as preference. How many descriptions
 cannot fit is arithmetic and is still reported, as `starved_count` and as a
 count in the Markdown; the run carries one run-level `withheld` entry for the
 per-skill claim, never one per skill.
+
+`not-assessable` marks the rows that never enter the contest, with
+`starvation.eligibility` naming why: `exempt-bundled` (a bundled skill keeps
+its description unconditionally), `exempt-user-only` (`disable-model-invocation`
+keeps it out of context), and `exempt-hidden` (the owning plugin resolves to
+disabled, so the product never loads the skill). Exempt rows contribute no
+`demand_chars`, so a fleet whose only excess sits in disabled plugins reports
+`listing-fits`. Only a settled disabled plugin exempts: a `not-assessed`
+checkout row or an `unknown` one keeps competing, because unknown is not hidden.
 
 ## Counting rules that are not obvious
 

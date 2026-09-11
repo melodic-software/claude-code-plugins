@@ -323,12 +323,26 @@ class ReachabilityTest(unittest.TestCase):
         with open(path, "w", encoding="utf-8") as handle:
             json.dump(blob, handle)
 
+    _NO_KEY = object()
+
     def _installed_reach(
-        self, tmp, user=None, project=None, local=None, managed=None, raw=None
+        self,
+        tmp,
+        user=None,
+        project=None,
+        local=None,
+        managed=None,
+        raw=None,
+        catalog=_NO_KEY,
+        manifest=_NO_KEY,
     ):
         """Reachability of `alpha:one` from `alpha@mkt`, installed at user
         scope, under the given `enabledPlugins` blocks. `raw` writes literal
-        text to a scope file so a malformed one can be staged."""
+        text to a scope file so a malformed one can be staged. `catalog` is
+        the marketplace entry's `defaultEnabled` and `manifest` the plugin's
+        own `plugin.json` field; left unset, neither file carries the key.
+        The marketplace is a `github` source, not a `directory` one, so the
+        catalog read under test is the one every marketplace gets."""
         config_root = os.path.join(tmp, "config")
         project_root = os.path.join(tmp, "repo")
         os.makedirs(config_root, exist_ok=True)
@@ -350,7 +364,30 @@ class ReachabilityTest(unittest.TestCase):
         os.makedirs(skill, exist_ok=True)
         with open(os.path.join(skill, "SKILL.md"), "w", encoding="utf-8") as handle:
             handle.write('---\nname: one\ndescription: "does a"\n---\n')
+        plugin_manifest = {"name": "alpha", "version": "1.0.0"}
+        if manifest is not self._NO_KEY:
+            plugin_manifest["defaultEnabled"] = manifest
+        self._write_json(
+            os.path.join(cache, ".claude-plugin", "plugin.json"), plugin_manifest
+        )
+        marketplace_root = os.path.join(tmp, "marketplaces", "mkt")
+        catalog_entry = {"name": "alpha", "source": "./plugins/alpha"}
+        if catalog is not self._NO_KEY:
+            catalog_entry["defaultEnabled"] = catalog
+        self._write_json(
+            os.path.join(marketplace_root, ".claude-plugin", "marketplace.json"),
+            {"name": "mkt", "plugins": [catalog_entry]},
+        )
         plugins_dir = os.path.join(tmp, "plugins-config")
+        self._write_json(
+            os.path.join(plugins_dir, "known_marketplaces.json"),
+            {
+                "mkt": {
+                    "source": {"source": "github", "repo": "example/mkt"},
+                    "installLocation": marketplace_root,
+                }
+            },
+        )
         self._write_json(
             os.path.join(plugins_dir, "installed_plugins.json"),
             {
@@ -371,6 +408,13 @@ class ReachabilityTest(unittest.TestCase):
             plugins_dir, project_root, engine.merge_enabled_plugins(layers)
         )
         self.assertEqual([e["qualified_name"] for e in denominator], ["alpha:one"])
+        # The enablement answer as the collector resolved it. A hidden row
+        # carries it as reachability evidence; a reachable row's evidence is
+        # its frontmatter, so the default tests read the answer from here.
+        self.enablement = {
+            "value": denominator[0]["plugin_enabled"],
+            "evidence": denominator[0]["plugin_enabled_evidence"],
+        }
         model = self._classify_one(denominator[0])
         return model["skills"][0]["reachability"], paths
 
@@ -385,6 +429,74 @@ class ReachabilityTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             reach, _ = self._installed_reach(tmp, project={"other@mkt": False})
         self.assertEqual(reach["value"], "model-reachable")
+
+    # --- defaultEnabled, the fallback when no scope names the key ------------
+    #
+    # The official plugins reference makes `defaultEnabled` "the fallback when
+    # nothing else has decided the plugin's state", and this repository's own
+    # rule (`skills/plugins/context/sync-install-enable.md`) puts the
+    # marketplace entry's value above the plugin's own manifest field. A
+    # publisher's opt-in default used to read as enabled here, which libelled
+    # every opt-in plugin's skills as reachable.
+
+    def test_a_marketplace_default_of_false_hides_when_no_scope_names_the_key(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            reach, _ = self._installed_reach(tmp, catalog=False)
+        self.assertEqual(reach["value"], "hidden")
+        self.assertEqual(reach["causes"], ["plugin-not-enabled"])
+        self.assertEqual(reach["evidence"], engine.DEFAULT_ENABLED_MARKETPLACE)
+
+    def test_a_manifest_default_of_false_hides_when_the_catalog_is_silent(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            reach, _ = self._installed_reach(tmp, manifest=False)
+        self.assertEqual(reach["value"], "hidden")
+        self.assertEqual(reach["evidence"], engine.DEFAULT_ENABLED_MANIFEST)
+
+    def test_both_defaults_silent_is_the_product_default_with_default_evidence(
+        self,
+    ):
+        with tempfile.TemporaryDirectory() as tmp:
+            reach, _ = self._installed_reach(tmp)
+        self.assertEqual(reach["value"], "model-reachable")
+        self.assertEqual(self.enablement, {"value": True, "evidence": "default"})
+
+    def test_an_explicit_enabled_entry_outranks_a_marketplace_default_of_false(
+        self,
+    ):
+        with tempfile.TemporaryDirectory() as tmp:
+            reach, paths = self._installed_reach(
+                tmp, user={"alpha@mkt": True}, catalog=False
+            )
+        self.assertEqual(reach["value"], "model-reachable")
+        self.assertEqual(self.enablement, {"value": True, "evidence": paths["user"]})
+
+    def test_the_marketplace_default_outranks_the_manifest_default(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            reach, _ = self._installed_reach(tmp, catalog=True, manifest=False)
+        self.assertEqual(reach["value"], "model-reachable")
+        self.assertEqual(
+            self.enablement,
+            {"value": True, "evidence": engine.DEFAULT_ENABLED_MARKETPLACE},
+        )
+
+    def test_a_non_boolean_default_is_skipped_and_named(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            reach, _ = self._installed_reach(tmp, catalog="no", manifest=False)
+        self.assertEqual(reach["value"], "hidden")
+        self.assertTrue(
+            reach["evidence"].startswith(engine.DEFAULT_ENABLED_MANIFEST),
+            reach["evidence"],
+        )
+        self.assertIn("marketplace entry defaultEnabled is 'no'", reach["evidence"])
+
+    def test_an_unreadable_scope_still_outranks_a_marketplace_default(self):
+        """The unreadable file could have set the key at its own precedence,
+        so the catalog's default does not get to answer either."""
+        with tempfile.TemporaryDirectory() as tmp:
+            reach, _ = self._installed_reach(
+                tmp, raw={"project": "{not json"}, catalog=False
+            )
+        self.assertEqual(reach["value"], "unknown")
 
     def test_project_true_outranks_user_false(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1008,24 +1120,101 @@ class BudgetArithmeticTest(unittest.TestCase):
 
 
 class ExemptionTest(unittest.TestCase):
-    """Two exempt classes spend zero budget and never enter the ranking.
+    """Three exempt classes spend zero budget and never enter the ranking.
 
     `exempt-user-only` is the one plan review caught: a
     `disable-model-invocation` skill keeps its description out of the model's
     context entirely, so it spends none of the shared budget. Locally that is 59
     of 213 skills -- 28% of the fleet -- and counting them inflates the overflow
-    figure enough to flip the headline verdict.
+    figure enough to flip the headline verdict. `exempt-hidden` is the same
+    shape one level up: a disabled plugin's skills are never loaded, so their
+    descriptions cannot be what overflows the listing.
     """
 
-    def _listing(self, frontmatter, source="plugin"):
+    def _listing(self, frontmatter, source="plugin", plugin_enabled=True):
         entry = {
             "qualified_name": "a:one",
             "source": source,
             "frontmatter": frontmatter,
-            "plugin_enabled": True,
+            "plugin_enabled": plugin_enabled,
         }
         return engine.compute_listing(
             [entry], engine.ListingConfig(context_window_tokens=200_000)
+        )
+
+    def test_a_disabled_plugins_skill_contributes_zero_and_is_exempt(self):
+        listing = self._listing({"description": "x" * 1000}, plugin_enabled=False)
+        self.assertEqual(listing["demand_chars"], 0)
+        self.assertEqual(listing["competing_count"], 0)
+        self.assertEqual(listing["exempt_count"], 1)
+        row = listing["skills"][0]
+        self.assertEqual(row["eligibility"], "exempt-hidden")
+        self.assertEqual(row["verdict"], "not-assessable")
+        self.assertIsNone(row["band"])
+
+    def test_an_unassessed_plugin_keeps_competing(self):
+        """A checkout is not an install and unknown is not hidden: only a
+        settled `False` exempts, never `None`."""
+        listing = self._listing({"description": "x" * 1000}, plugin_enabled=None)
+        self.assertEqual(listing["skills"][0]["eligibility"], "competing")
+        self.assertEqual(listing["demand_chars"], 1000)
+
+    def test_overflow_made_only_of_disabled_rows_is_listing_fits(self):
+        """Ten disabled rows carry 10,000 chars against an 8,000 budget; the
+        one enabled row is all the listing actually holds."""
+        disabled = [
+            {
+                "qualified_name": f"off:s{i}",
+                "source": "plugin",
+                "frontmatter": {"description": "x" * 1000},
+                "plugin_enabled": False,
+            }
+            for i in range(10)
+        ]
+        enabled = {
+            "qualified_name": "on:one",
+            "source": "plugin",
+            "frontmatter": {"description": "y" * 500},
+            "plugin_enabled": True,
+        }
+        listing = engine.compute_listing(
+            disabled + [enabled], engine.ListingConfig(context_window_tokens=200_000)
+        )
+        self.assertEqual(listing["demand_chars"], 500)
+        self.assertEqual(listing["overflow_chars"], 0)
+        self.assertEqual(listing["verdict"], "listing-fits")
+        self.assertEqual(listing["starved_count"], 0)
+        self.assertEqual(listing["exempt_count"], 10)
+        self.assertEqual(listing["competing_count"], 1)
+        verdicts = {
+            r["verdict"]
+            for r in listing["skills"]
+            if r["eligibility"] == "exempt-hidden"
+        }
+        self.assertEqual(verdicts, {"not-assessable"})
+        self.assertFalse(engine.starvation_withheld(listing))
+
+    def test_a_disabled_row_is_exempt_in_the_rendered_report_too(self):
+        now = _utc(2026, 8, 18)
+        entry = _skill("off:one")
+        entry["frontmatter"] = {"description": "x" * 1000}
+        entry["plugin_enabled"] = False
+        entry["plugin_enabled_evidence"] = engine.DEFAULT_ENABLED_MARKETPLACE
+        model = engine.classify(
+            denominator=[entry],
+            events=[],
+            config=engine.Config(),
+            clock=now,
+            horizons={"native": now - timedelta(days=400)},
+            listing_config=engine.ListingConfig(context_window_tokens=200_000),
+        )
+        row = model["skills"][0]
+        self.assertEqual(row["reachability"]["value"], "hidden")
+        self.assertEqual(row["starvation"]["eligibility"], "exempt-hidden")
+        self.assertEqual(row["starvation"]["demand_chars"], 0)
+        self.assertEqual(model["listing"]["exempt_count"], 1)
+        self.assertIn(
+            "disabled-plugin skills spend no budget", engine._render_markdown(model)
         )
 
     def test_disable_model_invocation_contributes_zero(self):

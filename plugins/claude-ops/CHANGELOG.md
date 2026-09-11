@@ -29,6 +29,12 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   skills are governed by `enabledPlugins`, and `skillOverrides` never applies to them, so the
   description no longer names it as a way a plugin skill loses visibility.
 
+- **`audit-skill-visibility` honors `defaultEnabled` and keeps disabled plugins out of the listing
+  contest.** A plugin with no `enabledPlugins` entry anywhere falls back to the marketplace entry's
+  `defaultEnabled`, then the plugin's own `plugin.json` field, then enabled, with the source named as
+  evidence. A disabled plugin's skills are `exempt-hidden`: the product never loads them, so they
+  spend no budget and carry no starvation verdict.
+
 ### Added
 
 - `lib/managed-scope.sh`, vendored from `claude-config` through `scripts/sync-managed-scope.sh`.
