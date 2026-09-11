@@ -1371,11 +1371,16 @@ fi
 # checking any remaining visible text — do not fail-open the whole compound
 # command (Codex review on #2667: `iex '…'; git reset --hard`).
 #
-# The ~41 KB classifier is sourced only on the PowerShell lane (#2663).
+# The classifier is loaded only on the PowerShell lane (#2663), and this guard
+# names it once, in hooks/guard-requires.sh, rather than spelling the plugin
+# root and the library path here.
 if [[ "$TOOL_NAME" == "PowerShell" ]]; then
-  PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$_HOOK_SELF/.." && pwd)}"
-  # shellcheck source=../lib/powershell/ps-command.sh
-  source "$PLUGIN_ROOT/lib/powershell/ps-command.sh"
+  # The declaration first, then the library it names. Under run-guards.sh the
+  # declaration is already in this process and the library was loaded once for
+  # the whole event, so neither line opens a file.
+  # shellcheck source=guard-requires.sh
+  declare -F guard::require_libs >/dev/null || source "$_HOOK_SELF/guard-requires.sh"
+  guard::require_libs
   ps::classify_git_command "$TOOL_NAME" "$COMMAND"
   _ps_rc=$?
   _ps_sink_attempts=0

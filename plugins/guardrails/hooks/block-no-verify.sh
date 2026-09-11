@@ -279,14 +279,18 @@ if ((${#COMMAND} > MAX_COMMAND_LEN)); then
 fi
 
 # Reduce a PowerShell command to a Bash-tokenizer-faithful form, or fail closed.
-# For the Bash tool this is a no-op (COMMAND unchanged). The ~41 KB classifier
-# is sourced only on the PowerShell lane (#2663): its Bash path is `return 0`
-# after setting PS_SAFE_COMMAND, so a file-scope `source` was parse tax with
-# no behaviour.
+# For the Bash tool this is a no-op (COMMAND unchanged). The classifier is
+# loaded only on the PowerShell lane (#2663): its Bash path is `return 0` after
+# setting PS_SAFE_COMMAND, so a file-scope `source` is parse tax with no
+# behaviour. This guard names it once, in hooks/guard-requires.sh, rather than
+# spelling the plugin root and the library path here.
 if [[ "$TOOL_NAME" == "PowerShell" ]]; then
-  PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$_HOOK_SELF/.." && pwd)}"
-  # shellcheck source=../lib/powershell/ps-command.sh
-  source "$PLUGIN_ROOT/lib/powershell/ps-command.sh"
+  # The declaration first, then the library it names. Under run-guards.sh the
+  # declaration is already in this process and the library was loaded once for
+  # the whole event, so neither line opens a file.
+  # shellcheck source=guard-requires.sh
+  declare -F guard::require_libs >/dev/null || source "$_HOOK_SELF/guard-requires.sh"
+  guard::require_libs
   ps::classify_git_command "$TOOL_NAME" "$COMMAND" "readonly-ok"
   case $? in
   2)

@@ -1121,14 +1121,17 @@ block_bypass() {
 # secret-pattern and hardcoded-path CONTENT scanning of PowerShell writes stays
 # on the Write|Edit-matched guards (deferred to A2b).
 #
-# The PowerShell classifier (~41 KB) is sourced only on this lane (#2663) —
-# every ps:: call lives inside this branch, and Bash tool calls must not pay
-# the parse tax. Resolved under the plugin root (CC sets CLAUDE_PLUGIN_ROOT;
-# the BASH_SOURCE fallback keeps the contract tests working when it is unset).
+# The PowerShell classifier is loaded only on this lane (#2663) — every ps::
+# call lives inside this branch, and Bash tool calls must not pay the parse
+# tax. This guard names it once, in hooks/guard-requires.sh, which owns the one
+# plugin-root spelling (CC sets CLAUDE_PLUGIN_ROOT; the BASH_SOURCE fallback
+# keeps the contract tests working when it is unset). Under run-guards.sh the
+# declaration is already in this process and the library was loaded once for
+# the whole event, so neither line below opens a file.
 if [[ "$TOOL_NAME" == "PowerShell" ]]; then
-  PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$_HOOK_SELF/.." && pwd)}"
-  # shellcheck source=../lib/powershell/ps-command.sh
-  source "$PLUGIN_ROOT/lib/powershell/ps-command.sh"
+  # shellcheck source=guard-requires.sh
+  declare -F guard::require_libs >/dev/null || source "$_HOOK_SELF/guard-requires.sh"
+  guard::require_libs
   if ps::write_bypass "$COMMAND"; then
     block_bypass "powershell-write" "PowerShell file-write cmdlet/redirect bypasses Write/Edit hooks"
   fi

@@ -483,4 +483,241 @@ for v in cli-flag-verify skill-reference-verify stale-path-verify; do
   done
 done
 
+# --- the dispatcher and the guards declare ONE contract ----------------------
+# hooks/guard-requires.sh is where a guard states what it CONSUMES: the payload
+# fields it reads, and the libraries it calls into. Two things are compiled
+# from that declaration and nothing at run time re-derives either — the
+# dispatcher's PRIME_FILTERS, and the `--lib` arguments in hooks.json — so this
+# is where the three are held to each other, in both directions, against each
+# guard's own source rather than against a second hand-kept list.
+#
+# Both directions cost something real. The cached hook::jq_fields is
+# all-or-nothing per call, so a field a guard reads and the dispatcher does not
+# prime spends a jq process on EVERY payload of that lane; a field primed that
+# no guard reads is jq work nothing reads.
+# shellcheck source=guard-requires.sh
+source "$HOOK_DIR/guard-requires.sh"
+
+prime_filters() { # the dispatcher's compiled union, read out of its own source
+  awk -v q="'" '
+    /^PRIME_FILTERS=\(/ { inarr = 1; next }
+    inarr && /^\)/ { inarr = 0; next }
+    inarr {
+      line = $0
+      while (match(line, q "[^" q "]*" q)) {
+        print substr(line, RSTART + 1, RLENGTH - 2)
+        line = substr(line, RSTART + RLENGTH)
+      }
+    }
+  ' "$1" | sort -u
+}
+guard_reads() { # <guard.sh> -> the literal filters its source hands jq_fields
+  # The call plus its backslash continuations, single-quoted operands only: a
+  # filter built from a variable (`.tool_input.files[$i].path`) names an index
+  # the dispatcher cannot know and is never a candidate for priming.
+  awk -v q="'" '
+    /^[[:space:]]*#/ { next }
+    index($0, "hook::jq_fields \"$INPUT\"") { incall = 1 }
+    incall {
+      cont = ($0 ~ /\\$/)
+      line = $0
+      while (match(line, q "[^" q "]*" q)) {
+        tok = substr(line, RSTART + 1, RLENGTH - 2)
+        if (substr(tok, 1, 1) == ".") print tok
+        line = substr(line, RSTART + RLENGTH)
+      }
+      if (!cont) incall = 0
+    }
+  ' "$HOOK_DIR/$1" | sort -u
+}
+declared_fields() { # <guard.sh> -> its declared primed filters
+  local -a f=()
+  read -r -a f <<<"${GUARD_FIELDS[$1]-}"
+  ((${#f[@]})) && printf '%s\n' "${f[@]}" | sort -u
+  return 0
+}
+declared_unprimed() { # <guard.sh> -> its declared deliberately-unprimed filters
+  local d="${GUARD_FIELDS_UNPRIMED[$1]-}"
+  [[ -n "$d" ]] && printf '%s\n' "$d" | sort -u
+  return 0
+}
+declared_libs() { # <guard.sh> -> the libraries it declared
+  local -a l=()
+  read -r -a l <<<"${GUARD_LIBS[$1]-}"
+  ((${#l[@]})) && printf '%s\n' "${l[@]}" | sort -u
+  return 0
+}
+guards_of() { # <hooks.json command> -> the guard file names it dispatches
+  local -a toks=()
+  read -r -a toks <<<"$1"
+  local i=0 tok
+  while ((i < ${#toks[@]})); do
+    tok="${toks[i]}"
+    if [[ "$tok" == "--lib" ]]; then
+      ((i += 2))
+      continue
+    fi
+    ((i++))
+    [[ "$tok" == *.sh ]] || continue
+    tok="${tok##*/}"
+    [[ "$tok" == run-guards.sh ]] && continue
+    printf '%s\n' "$tok"
+  done
+}
+libs_of() { # <hooks.json command> -> its --lib operands
+  local -a toks=()
+  read -r -a toks <<<"$1"
+  local i=0
+  while ((i < ${#toks[@]})); do
+    if [[ "${toks[i]}" == "--lib" ]] && ((i + 1 < ${#toks[@]})); then
+      printf '%s\n' "${toks[i + 1]}"
+      ((i += 2))
+      continue
+    fi
+    ((i++))
+  done
+}
+lines_of() { # <text> -> its non-empty lines, sorted, for comm
+  printf '%s\n' "$1" | grep -v '^$' | sort -u
+}
+
+PRIMED=$(prime_filters "$DISPATCH")
+PRIMED_N=$(lines_of "$PRIMED" | wc -l | tr -d ' ')
+if ((PRIMED_N > 0)); then
+  ok "PRIME_FILTERS reads back from run-guards.sh ($PRIMED_N filters)"
+else
+  bad "PRIME_FILTERS could not be read out of run-guards.sh"
+fi
+DISPATCH_CMDS=$(jq -r '.hooks[][] | .hooks[] | .command | select(contains("run-guards.sh"))' "$HOOK_DIR/hooks.json")
+ALL_DISPATCHED=$(while IFS= read -r cmd; do guards_of "$cmd"; done <<<"$DISPATCH_CMDS" | sort -u)
+DISPATCHED_N=$(lines_of "$ALL_DISPATCHED" | wc -l | tr -d ' ')
+if ((DISPATCHED_N >= 10)); then
+  ok "hooks.json dispatches $DISPATCHED_N guards through run-guards.sh"
+else
+  bad "hooks.json yielded only $DISPATCHED_N dispatched guards; the checks below would pass vacuously"
+fi
+
+while IFS= read -r g; do
+  [[ -n "$g" ]] || continue
+  decl=$(declared_fields "$g")
+  if [[ -z "$decl" ]]; then
+    bad "$g is dispatched but declares no fields in guard-requires.sh"
+    continue
+  fi
+  known=$(printf '%s\n%s\n' "$decl" "$(declared_unprimed "$g")" | grep -v '^$' | sort -u)
+  undeclared=$(comm -23 <(guard_reads "$g") <(printf '%s\n' "$known"))
+  if [[ -z "$undeclared" ]]; then
+    ok "$g reads only fields it declares"
+  else
+    bad "$g reads undeclared field(s), a jq spawn on every payload of its lane: $(tr '\n' ' ' <<<"$undeclared")"
+  fi
+  unread=$(comm -13 <(guard_reads "$g") <(lines_of "$decl"))
+  if [[ -z "$unread" ]]; then
+    ok "$g declares only fields it reads"
+  else
+    bad "$g declares field(s) its source never reads: $(tr '\n' ' ' <<<"$unread")"
+  fi
+  unprimed=$(comm -13 <(lines_of "$PRIMED") <(lines_of "$decl"))
+  if [[ -z "$unprimed" ]]; then
+    ok "$g's declared fields are all primed by the dispatcher"
+  else
+    bad "$g declares field(s) PRIME_FILTERS does not carry: $(tr '\n' ' ' <<<"$unprimed")"
+  fi
+  # A guard calls into the classifier exactly when it declares it. Declared and
+  # unused is a ~104 KB parse for nothing; used and undeclared runs only
+  # because a sibling guard on the same row happened to pull the library in.
+  uses_ps=0
+  grep -q 'ps::' "$HOOK_DIR/$g" && uses_ps=1
+  has_lib=0
+  [[ -n "$(declared_libs "$g")" ]] && has_lib=1
+  if ((uses_ps == has_lib)); then
+    ok "$g's library declaration matches its ps:: calls"
+  elif ((uses_ps)); then
+    bad "$g calls ps:: but declares no library in guard-requires.sh"
+  else
+    bad "$g declares a library it never calls into"
+  fi
+done <<<"$ALL_DISPATCHED"
+
+# Nothing is primed that no dispatched guard — nor the dispatcher itself — asked
+# for. run-guards.sh declares the two fields it reads under its own name.
+WANTED=$(
+  {
+    declared_fields run-guards.sh
+    while IFS= read -r g; do
+      [[ -n "$g" ]] && declared_fields "$g"
+    done <<<"$ALL_DISPATCHED"
+  } | sort -u
+)
+orphan=$(comm -23 <(lines_of "$PRIMED") <(lines_of "$WANTED"))
+if [[ -z "$orphan" ]]; then
+  ok "every primed filter is declared by the dispatcher or by a guard it runs"
+else
+  bad "PRIME_FILTERS carries filter(s) no guard declares, primed on every payload for no reader: $(tr '\n' ' ' <<<"$orphan")"
+fi
+
+# Each dispatcher row's `--lib` set is the union of its guards' declarations. A
+# guard whose library is missing from a row still loads it itself, so this is a
+# budget statement rather than a correctness one: the load moves from once per
+# event to once per guard.
+while IFS= read -r cmd; do
+  [[ -n "$cmd" ]] || continue
+  row_libs=$(libs_of "$cmd" | sort -u)
+  row_declared=$(while IFS= read -r g; do
+    [[ -n "$g" ]] && declared_libs "$g"
+  done < <(guards_of "$cmd") | sort -u)
+  row_name=$(guards_of "$cmd" | head -1)
+  if [[ "$row_libs" == "$row_declared" ]]; then
+    ok "hooks.json row starting $row_name preloads exactly the libraries its guards declare"
+  else
+    bad "hooks.json row starting $row_name preloads [$(tr '\n' ' ' <<<"$row_libs")] against declarations [$(tr '\n' ' ' <<<"$row_declared")]"
+  fi
+done <<<"$DISPATCH_CMDS"
+
+# --- a primed field is read by NAME, never by position -----------------------
+# The dispatcher reads `.tool_name` to decide whether the event needs the
+# PowerShell classifier. Read by index, a filter inserted ahead of it hands
+# that decision a neighbouring field's value: the classifier is then parsed on
+# the Bash hot path and absent on the PowerShell one, with nothing at run time
+# saying so. abort-boundary.test.sh pins the same property for the event name.
+assert_absent "dispatcher reads no primed value by position" "$DISPATCH_SRC" 'RUN_GUARDS_VALUES['
+SHIFT_DIR="$TEST_TMPDIR/prime-shift"
+mkdir -p "$SHIFT_DIR/hooks" "$SHIFT_DIR/lib"
+cp "$HOOK_DIR"/*.sh "$SHIFT_DIR/hooks/"
+cp -R "$HOOK_DIR/../lib/powershell" "$SHIFT_DIR/lib/"
+awk -v q="'" '{ print } /^PRIME_FILTERS=\(/ { print "  " q ".session_id" q }' \
+  "$DISPATCH" >"$SHIFT_DIR/hooks/run-guards.sh"
+assert_eq "the shifted copy primes one filter more than the shipped dispatcher" \
+  "$((PRIMED_N + 1))" "$(prime_filters "$SHIFT_DIR/hooks/run-guards.sh" | wc -l | tr -d ' ')"
+: >"$SEEN"
+CLAUDE_PLUGIN_ROOT="$SHIFT_DIR" bash "$SHIFT_DIR/hooks/run-guards.sh" \
+  --lib lib/powershell/ps-command.sh "$TEST_TMPDIR/lib.sh" <<<"$PAYLOAD" >/dev/null
+assert_eq "a filter ahead of .tool_name: the Bash lane still skips the classifier" \
+  "ps=unset" "$(cat "$SEEN")"
+: >"$SEEN"
+CLAUDE_PLUGIN_ROOT="$SHIFT_DIR" bash "$SHIFT_DIR/hooks/run-guards.sh" \
+  --lib lib/powershell/ps-command.sh "$TEST_TMPDIR/lib.sh" <<<"$PWSH_PAYLOAD" >/dev/null
+assert_eq "a filter ahead of .tool_name: the PowerShell lane still loads it" \
+  "ps=1" "$(cat "$SEEN")"
+
+# --- a guard reaches its declared library on BOTH paths ----------------------
+# The dispatcher satisfies the declaration once for the event; alone, the guard
+# satisfies the same declaration itself. Neither arm may leave `ps::` unbound,
+# and a guard that declares no library must not gain one from a sibling.
+expect_both "declared library reaches block-dangerous-git either way" 2 \
+  --hook "$HOOK_DIR/block-dangerous-git.sh" --tool PowerShell \
+  --command 'git push --force origin main' \
+  --lib lib/powershell/ps-command.sh
+expect_both "declared library reaches block-no-verify either way" 2 \
+  --hook "$HOOK_DIR/block-no-verify.sh" --tool PowerShell \
+  --command 'git commit --no-verify -m x' \
+  --lib lib/powershell/ps-command.sh
+# With no `--lib` on the row the dispatcher preloads nothing, and the guard's
+# own declaration is what still binds `ps::`. One statement serves both paths,
+# which is why a row that forgets the cue costs a repeated load and never a
+# verdict.
+guard_invoke --via dispatched --hook "$HOOK_DIR/block-dangerous-git.sh" \
+  --tool PowerShell --command 'git push --force origin main'
+assert_exit "a dispatched row with no --lib still reaches the declared library" 2 "$GUARD_RC"
+
 report

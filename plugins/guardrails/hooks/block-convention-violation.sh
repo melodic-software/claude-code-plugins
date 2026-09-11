@@ -606,9 +606,14 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   # scanned by the classifier's own sink; rc 2 (git-shaped unparsable) is
   # `block-dangerous-git`/`block-no-verify`'s fail-closed concern, not a content
   # decision.
-  PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$_HOOK_SELF/.." && pwd)}"
-  # shellcheck source=../lib/powershell/ps-command.sh
-  source "$PLUGIN_ROOT/lib/powershell/ps-command.sh"
+  #
+  # The classifier is named once, in hooks/guard-requires.sh, rather than
+  # spelled with the plugin root here. Under run-guards.sh the declaration is
+  # already in this process and the library was loaded once for the whole
+  # event, so neither line below opens a file.
+  # shellcheck source=guard-requires.sh
+  declare -F guard::require_libs >/dev/null || source "$_HOOK_SELF/guard-requires.sh"
+  guard::require_libs
   ps::classify_git_command "$TOOL_NAME" "$COMMAND"
   ps_rc=$?
   ((ps_rc == 0)) || {

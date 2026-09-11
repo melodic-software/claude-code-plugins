@@ -929,19 +929,17 @@ check_segment() {
 # while leaving this guard on no longer blocks a git-shaped unparsable PowerShell
 # commit — the exposure that came with this deferral (#1858). The deferral emits
 # its own `form` so it stays distinguishable from an evaluated allow in telemetry.
-# The ~41 KB classifier is sourced only on the PowerShell lane (#2663); the
-# Bash path is a no-op (COMMAND unchanged).
+# The classifier is loaded only on the PowerShell lane (#2663); the Bash path
+# is a no-op (COMMAND unchanged). This guard names it once, in
+# hooks/guard-requires.sh, which also owns the plugin-root spelling and the
+# fork-free resolution that spelling exists for (#3514).
 if [[ "$TOOL_NAME" == "PowerShell" ]]; then
-  # `$_HOOK_SELF/..` names the plugin root as a path; `source` resolves it the
-  # same as the canonical spelling `$(cd … && pwd)` produced, and that
-  # substitution was a fork on every PowerShell fire when CLAUDE_PLUGIN_ROOT
-  # was unset (#3514). Nothing reads PLUGIN_ROOT but the `source` below.
-  # Tradeoff: the kernel resolves `..` physically where `cd` resolved it
-  # logically, so a `hooks/` that is itself a symlink out of the plugin root
-  # needs CLAUDE_PLUGIN_ROOT set; spaces and relative invocation are unaffected.
-  PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$_HOOK_SELF/..}"
-  # shellcheck source=../lib/powershell/ps-command.sh
-  source "$PLUGIN_ROOT/lib/powershell/ps-command.sh"
+  # The declaration first, then the library it names. Under run-guards.sh the
+  # declaration is already in this process and the library was loaded once for
+  # the whole event, so neither line opens a file.
+  # shellcheck source=guard-requires.sh
+  declare -F guard::require_libs >/dev/null || source "$_HOOK_SELF/guard-requires.sh"
+  guard::require_libs
   ps::classify_git_command "$TOOL_NAME" "$COMMAND"
   ps_rc=$?
   ((ps_rc == 0)) || {
