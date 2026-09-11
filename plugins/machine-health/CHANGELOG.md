@@ -3,6 +3,17 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.15]
+
+### Changed
+
+- **Every markdown surface in the plugin passes `/ai-slop:audit`.** Em dashes in the plugin's own
+  prose (the audit skill's README, its shared catalog overlay, discovery guide, remediation
+  philosophy, report template and severity rubric, the Windows check catalog, elevation matrix and
+  remediation policy, and the Linux and macOS not-implemented notices) are rewritten as a comma, a
+  period, a colon where a definition or list follows, or a restructured sentence. No check, severity
+  tier, elevation requirement, or remediation step changed.
+
 ## [0.12.14]
 
 ### Changed

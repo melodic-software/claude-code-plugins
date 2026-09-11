@@ -3,6 +3,16 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.10]
+
+### Changed
+
+- **`skills/setup/reference/legacy-statusline-detect.md` follows its canonical copy.** That file is
+  held byte-identical with `context-guard`'s by `scripts/sync-legacy-statusline-detect.sh`, and the
+  em-dash purge rewrote the canonical side first. Synced with that script rather than edited here,
+  so the pair matches again. The heading is the only line that moved; the classification rules are
+  unchanged.
+
 ## [0.8.9]
 
 ### Fixed

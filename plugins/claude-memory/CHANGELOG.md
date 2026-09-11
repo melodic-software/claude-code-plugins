@@ -3,6 +3,15 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.1]
+
+### Changed
+
+- **Every markdown surface in the plugin passes `/ai-slop:audit`.** Em dashes in the plugin's own
+  prose (the audit skill's criteria and official-guidance references, and its bloated-CLAUDE.md
+  eval fixture) are rewritten as a comma, a period, a colon where a definition or list follows, or
+  a restructured sentence. No criterion, threshold, or eval expectation changed.
+
 ## [0.12.0]
 
 ### Added
