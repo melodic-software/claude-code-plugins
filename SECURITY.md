@@ -1,8 +1,8 @@
 # Security Policy
 
-This marketplace distributes plugins that run code on a consumer's machine and
-can wire Claude Code to external systems. Plugins are made of skills, hooks, and agents. Security reports about a published plugin, the marketplace catalog, or
-this repository's own tooling are all in scope.
+This marketplace distributes plugins, and a plugin's skills, hooks, and agents run code on a
+consumer's machine and can wire Claude Code to external systems. Security reports about a published
+plugin, the marketplace catalog, or this repository's own tooling are all in scope.
 
 ## Reporting a Vulnerability
 

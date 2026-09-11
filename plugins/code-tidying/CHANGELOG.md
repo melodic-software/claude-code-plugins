@@ -904,8 +904,7 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   previously argued only against the weak forms (churn alone, churn weighted by file size). The
   strong form, churn weighted by a complexity or code-health measure, which is what "hotspot
   analysis" usually means, stayed unaddressed and so open in practice. It is now rejected on a
-  reason that
-  reaches the strong form: ranking answers "where should I look first", a triage question repo mode
+  reason that reaches the strong form: ranking answers "where should I look first", a triage question repo mode
   has already answered by sweeping every group and filing High-only with no cap, so reordering work
   that is all going to happen anyway has no consumer. The one condition under which reopening would
   be coherent is named: ordering only matters under truncation or resume, so a truncation knob would
@@ -957,8 +956,7 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
 - **`tidy` and `dissolve-comments` no longer describe `batch-simplify` as diff-only.** `tidy`'s
   differentiation prose named "a time-window or branch diff in waves", which is the exact
   mechanism repo mode removes, and `dissolve-comments` called it "windowed batch sweeps" in two
-  places. A
-  reciprocal documentation boundary is now stated in both `batch-simplify` and `tidy`:
+  places. A reciprocal documentation boundary is now stated in both `batch-simplify` and `tidy`:
   `batch-simplify` owns factual staleness across the whole doc set in one pass; `tidy`'s
   `docs-prose` lane owns incremental structural prose work under a scope budget.
 - The run checklist template gains repo-mode-conditional rows and states the filing tier per

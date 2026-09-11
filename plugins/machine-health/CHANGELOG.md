@@ -13,6 +13,24 @@ All notable changes to the `machine-health` plugin are documented here. Format f
   remediation policy, and the Linux and macOS not-implemented notices) are rewritten as a comma, a
   period, a colon where a definition or list follows, or a restructured sentence. No check, severity
   tier, elevation requirement, or remediation step changed.
+- **The emitted report template is rewritten with the prose around it.** The fenced ```markdown
+  block in `reference/shared/report-template.md` is not an example: `Get-ReportTemplate` in
+  `scripts/windows/Invoke-MachineHealthCheck.ps1` extracts it by regex and renders the actual
+  report from it. Its headings now read `# Machine health: {{hostname}}, {{run_id_date}}` and
+  `#### {{check.id}}: {{check.summary}}`. The fence markers and every `{{placeholder}}` are
+  unchanged, and the extraction was re-run against the edited file to confirm it still matches.
+- **Every `## N.` heading in `reference/windows/check-catalog.md` is untouched.** Those are anchors
+  that `catalog/checks.jsonc` `severity_rules` and the check scripts' header comments point at, so
+  they are addresses rather than prose. None carried an em dash.
+- **Reflexive `load-bearing` and `seam` become the concrete thing each stood for**, including in
+  two released entries that used the word to describe their own diffs.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`,** so the gate defends
+  it from here on.
+- **Changelog, in-place wording corrections to released entries:** the same rewrite was applied
+  inside
+  `[0.12.12]`, `[0.12.0]`, `[0.11.16]`, `[0.11.12]`, `[0.11.10]`, `[0.11.1]`, `[0.11.0]`,
+  `[0.10.4]`, `[0.10.2]`, `[0.10.0]`, `[0.9.0]`, `[0.8.1]`, `[0.8.0]`, `[0.7.1]`, `[0.7.0]`,
+  `[0.6.0]`, `[0.5.0]`, and `[0.2.0]`. Wording only; every entry's facts are unchanged.
 
 ## [0.12.14]
 
@@ -52,8 +70,8 @@ All notable changes to the `machine-health` plugin are documented here. Format f
   inconsistent columns; `Get-DriverStoreInventory.ps1` reads the automatic variable as `$Matches`,
   the spelling the rest of the tree uses. Whitespace and casing only: PowerShell resolves variable
   names case-insensitively, so no key, value or emitted record changed. Three agents read all 67
-  files across the audit skill and changed six lines between them; almost everything here is
-  load-bearing, including guards that only look redundant, because `@($false)` unrolls falsy and a
+  files across the audit skill and changed six lines between them; almost every line here is doing
+  work, including guards that only look redundant, because `@($false)` unrolls falsy and a
   companion `-and $x.Count -gt 0` clause is therefore not a duplicate test.
 
 ### Notes for maintainers

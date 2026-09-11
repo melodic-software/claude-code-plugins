@@ -219,7 +219,14 @@ plugins/knowledge/skills/map-corpus/discovery/*.md
 plugins/knowledge/skills/map-corpus/extraction/*.md
 plugins/knowledge/skills/map-corpus/verification/*.md
 plugins/knowledge/skills/video-digest/extraction/liveness/*.md
-plugins/machine-health/README.md
+# The machine-health plugin was purged whole, including the report template the audit
+# orchestrator extracts by regex and the Windows fixture README.
+plugins/machine-health/*.md
+plugins/machine-health/skills/*/SKILL.md
+plugins/machine-health/skills/audit/*.md
+plugins/machine-health/skills/audit/reference/*/*.md
+plugins/machine-health/skills/audit/scripts/*/*.md
+plugins/machine-health/skills/audit/tests/fixtures/windows/*.md
 plugins/markdown-format/README.md
 plugins/miro/README.md
 plugins/mutation-testing/README.md

@@ -6,7 +6,7 @@ Implements the `machine-health` Claude Code skill. `SKILL.md` is the runtime ent
 
 ```
 audit/
-├── SKILL.md                       # runtime entry; seam resolution + OS routing + procedure
+├── SKILL.md                       # runtime entry; root resolution + OS routing + procedure
 ├── README.md                      # this file
 ├── AGENTS.md                      # contributor conventions (CLAUDE.md imports it)
 ├── CLAUDE.md                      # one-line @AGENTS.md import
