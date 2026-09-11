@@ -10,6 +10,7 @@ All notable changes to the `prototype` plugin are documented here. Format follow
 - **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
 - **The plugin's prose drops its em dashes.** This changelog and `context/discipline.md` were rewritten. Wording only, with no change to any rule, boundary, or run-directory path. Rule 6's quoted phrase, which both the 0.9.0 entry and `docs/upstream/mattpocock-skills.md` cite, survives byte-identical; only the mark after it changed. No heading was touched, so the `#when-done` anchor still resolves. The released sections corrected in place are 0.9.3, 0.9.2, 0.9.0, 0.8.0, 0.7.0, 0.6.0, 0.5.0, 0.4.0, 0.3.3, 0.3.2, 0.3.0, 0.2.4, and 0.2.1: their wording changed, their facts did not.
 - **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md`, the `context/` tree, and every `skills/*/SKILL.md`.
+
 ## [0.11.0]
 
 ### Added

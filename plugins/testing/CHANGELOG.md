@@ -24,6 +24,7 @@ All notable changes to the `testing` plugin are documented here. Format follows
   `[0.6.0]`, `[0.5.1]`, `[0.5.0]`, `[0.4.0]`, `[0.3.4]`, `[0.3.3]`, `[0.3.2]`, `[0.3.1]`,
   `[0.3.0]`, `[0.2.3]`, `[0.2.2]`, `[0.2.0]`, and `[0.1.0]`. Wording only; every entry's facts are
   unchanged.
+
 ## [0.8.0]
 
 ### Added

@@ -32,6 +32,7 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   `[0.12.0]`, `[0.11.1]`, `[0.11.0]`, `[0.10.1]`, `[0.10.0]`, `[0.9.0]`, `[0.8.0]`, `[0.7.1]`,
   `[0.7.0]`, `[0.6.0]`, `[0.5.1]`, `[0.5.0]`, and `[0.4.3]`. Wording only; every entry's facts are
   unchanged.
+
 ## [0.19.0]
 
 ### Added

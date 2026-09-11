@@ -30,6 +30,7 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
   are now "the comparison that matters", which names what a reader is meant to look at.
 - **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends
   `CHANGELOG.md`, every `skills/*/SKILL.md`, and the `skills/check/reference/` tree.
+
 ## [0.22.1]
 
 ### Changed

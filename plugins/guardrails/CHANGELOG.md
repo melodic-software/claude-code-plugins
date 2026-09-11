@@ -38,6 +38,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   inside 88 released entries, from `[0.32.1]` down to `[0.6.0]`. Wording only; no fact, number,
   path, flag, version, date, or issue number changed in any of them, and the `##` heading list is
   byte-identical to the fork point's.
+
 ## [0.33.1]
 
 ### Fixed

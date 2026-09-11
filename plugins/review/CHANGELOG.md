@@ -44,6 +44,7 @@ All notable changes to the `review` plugin are documented here. Format follows
   `[0.14.0]`, `[0.12.0]`, `[0.10.0]`, `[0.9.0]`, `[0.7.0]`, `[0.4.0]`, `[0.3.0]`, and `[0.2.0]`.
   Wording only; every entry's facts are unchanged. The `[0.24.0]` entry's verbatim quotation of
   `cant-fail-scan.sh`'s rule header keeps its dashes inside an ignore marker.
+
 ## [0.28.0]
 
 ### Added

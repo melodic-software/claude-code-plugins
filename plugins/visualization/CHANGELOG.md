@@ -12,6 +12,7 @@ All notable changes to the `visualization` plugin are documented here. Format fo
 - **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
 - **The plugin's prose drops its em dashes.** This changelog and `skills/visualize/context/decision-matrix.md` were rewritten. Wording only, with no change to any form row, source, verification date, or CSP fact. Every mermaid and sparkline literal was already inside backticks or a fence and is untouched. Two headings changed anchor, and the only inbound references are plain file links carrying no anchor, so nothing broke. The released sections corrected in place are 0.3.3, 0.3.2, 0.3.0, 0.2.0, 0.1.2, 0.1.1, and 0.1.0: their wording changed, their facts did not.
 - **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md`, every `skills/*/SKILL.md`, and the `skills/visualize/context/` tree.
+
 ## [0.6.0]
 
 ### Added

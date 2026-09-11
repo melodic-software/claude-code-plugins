@@ -57,6 +57,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   drops the filler phrase `in order to` (`to recompute a block the caller was already holding`).
   Wording only; the entry's facts are unchanged. Found by the repo-wide `/ai-slop:audit` run
   (#3987).
+
 ## [0.48.0]
 
 ### Added

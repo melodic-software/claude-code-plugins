@@ -11,6 +11,7 @@ All notable changes to the `improvement` plugin are documented here. Format foll
 - **The plugin's prose drops its em dashes.** Six surfaces were rewritten: this changelog, `reference/config.md`, and the four `skills/find/context/` documents. Wording only, with no change to any ranking weight, probe ladder, exclusion default, or config key. Several headings lost a dashed separator and so changed anchor; nothing in the repository linked to any of them. The `gap:` template line in `unattended.md` keeps its dashed separators, because they are the field delimiter the emitted report uses and three inline examples instantiate that shape verbatim. The released sections corrected in place are 0.1.2, 0.1.1, and 0.1.0: their wording changed, their facts did not.
 - **Three documents say what a piece of evidence carries instead of calling it load-bearing or a seam.** `ranking.md` now follows "the weakest piece the citation rests on", `ci-health.md` names "an equivalent raw-request path", and `unattended.md` says "outside the tracker".
 - **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md`, the `reference/` tree, every `skills/*/SKILL.md`, and the `skills/find/context/` tree.
+
 ## [0.1.11]
 
 ### Changed

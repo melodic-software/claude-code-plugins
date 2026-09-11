@@ -26,6 +26,7 @@ only after that version increases.
   `[0.6.4]`, `[0.6.3]`, `[0.6.2]`, `[0.6.1]`, `[0.6.0]`, `[0.5.2]`, `[0.5.1]`, `[0.5.0]`,
   `[0.4.0]`, `[0.3.2]`, `[0.3.1]`, `[0.3.0]`, `[0.2.0]`, and `[0.1.0]`. Wording only; every
   entry's facts are unchanged.
+
 ## [0.11.0]
 
 ### Added

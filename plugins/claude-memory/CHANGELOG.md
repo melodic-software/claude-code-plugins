@@ -30,6 +30,7 @@ All notable changes to the `claude-memory` plugin are documented here. Format fo
   `[0.5.2]`, `[0.5.1]`, `[0.5.0]`, `[0.4.1]`, `[0.4.0]`, `[0.3.5]`, `[0.3.4]`, `[0.3.3]`,
   `[0.3.1]`, `[0.3.0]`, `[0.2.3]`, `[0.2.1]`, `[0.2.0]`, and `[0.1.0]`. Wording only; every entry's
   facts are unchanged.
+
 ## [0.12.1]
 
 ### Changed
