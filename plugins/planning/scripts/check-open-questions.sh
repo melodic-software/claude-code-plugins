@@ -19,9 +19,10 @@
 #
 # Exit 0 = every registered question is resolved (register is clean)
 # Exit 1 = at least one question is still `open` (the contract is not locked)
-# Exit 2 = ungradeable: no ledger, no register section, an empty register, a
-#          malformed row, an unknown status, a duplicate or non-contiguous Q id,
-#          or a named `--brief` that is missing
+# Exit 2 = ungradeable: no ledger, no register section, a duplicate register or
+#          deferred-questions heading, an unterminated fenced block, an empty
+#          register, a malformed row, an unknown status, a duplicate or
+#          non-contiguous Q id, or a named `--brief` that is missing
 #
 # Usage:
 #   bash check-open-questions.sh --ledger <interview-checklist.md> [--brief <PLAN.md>]
@@ -49,18 +50,50 @@ usage() {
   sed -n '/^# Mechanical/,/^#   `registered=/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
-# Print a markdown section's body: everything after the first heading whose text
-# matches `pattern` (matched case-insensitively, so a ledger that title-cases the
-# section still grades), up to the next heading of any level or end of file.
-# Exits 3 when no such heading exists — distinguishable from an empty section.
-extract_section() {
+# List the headings whose text matches `pattern` (case-insensitively, so a ledger
+# that title-cases the section still grades), one per line as
+# `<line number><TAB><heading>`. A heading-shaped line inside a fenced block
+# (``` or ~~~) is documentation, never a heading: the template's own register
+# carries a fenced bash block whose `# Step 3 ...` comment lines would otherwise
+# count. This helper and extract_section share that rule so they agree on what a
+# heading is; a fenced comment must neither bind a section nor terminate one. A
+# trailing CR is stripped so a CRLF ledger names its heading cleanly. No output
+# means no match. A fence still open at end of file exits 4: every heading after
+# it was hidden, and hiding is the silent drop this gate exists to refuse.
+heading_matches() {
   awk -v pattern="$1" '
-    /^#+[[:space:]]/ {
-      if (inside) { exit }
-      if (tolower($0) ~ pattern) { inside = 1; found = 1; next }
+    /^[[:space:]]*(```|~~~)/ { fenced = !fenced; next }
+    fenced { next }
+    /^#+[[:space:]]/ && tolower($0) ~ pattern {
+      heading = $0
+      sub(/\r$/, "", heading)
+      print NR "\t" heading
     }
-    inside { print }
-    END { if (!found) { exit 3 } }
+    END { if (fenced) { exit 4 } }
+  ' "$2"
+}
+
+# Count of, and comma-separated line numbers from, a heading_matches result.
+match_count() { printf '%s\n' "$1" | wc -l | tr -d '[:space:]'; }
+match_lines() { printf '%s\n' "$1" | cut -f1 | paste -sd, - | sed 's/,/, /g'; }
+
+# Print a section body: every line after `start` (the matched heading's line
+# number) up to the next unfenced heading of any level or end of file. Taking
+# the line number rather than re-matching a pattern binds the body graded to the
+# heading the caller already named in its diagnostics. A fence opened in the
+# section and never closed exits 4: the row loop would otherwise skip every row
+# after it as documentation and grade the register clean with a question hidden.
+# A caller that ran heading_matches first never sees that exit (a heading only
+# binds at even fence parity, so the whole-file check fires first); the guard is
+# for a caller that extracts by line number without it.
+extract_section() {
+  awk -v start="$1" '
+    NR <= start { next }
+    /^[[:space:]]*(```|~~~)/ { fenced = !fenced; print; next }
+    fenced { print; next }
+    /^#+[[:space:]]/ { exit }
+    { print }
+    END { if (fenced) { exit 4 } }
   ' "$2"
 }
 
@@ -115,13 +148,36 @@ if [[ "$brief_named" -eq 1 ]]; then
   [[ -f "$brief" ]] || die_ungradeable "--brief not found: $brief"
 fi
 
-section="$(extract_section 'open-question register' "$ledger")"
-awk_status=$?
+register_matches="$(heading_matches 'open-question register' "$ledger")"
+matches_status=$?
+if [[ "$matches_status" -eq 4 ]]; then
+  die_ungradeable "unterminated fenced block in: $ledger (every heading after it is hidden; close the fence)"
+elif [[ "$matches_status" -ne 0 ]]; then
+  die_ungradeable "could not read the headings of: $ledger"
+fi
+[[ -n "$register_matches" ]] || die_ungradeable "no '## Open-question register' section in: $ledger"
 
-if [[ "$awk_status" -eq 3 ]]; then
-  die_ungradeable "no '## Open-question register' section in: $ledger"
-elif [[ "$awk_status" -ne 0 ]]; then
-  die_ungradeable "could not read the register section from: $ledger"
+# The gate reads exactly one section. Binding to the first match would grade a
+# template's instructional copy (whose example rows parse as data) instead of
+# the live register below it; binding to the last would guess. Either hides the
+# ambiguity, so two matches are a refusal that names both.
+register_count="$(match_count "$register_matches")"
+if [[ "$register_count" -gt 1 ]]; then
+  die_ungradeable "$register_count headings match 'open-question register' in: $ledger (lines $(match_lines "$register_matches")); the gate reads exactly one section, so delete the template's instructional copy and keep the single live register"
+fi
+
+register_line="${register_matches%%$'\t'*}"
+register_heading="${register_matches#*$'\t'}"
+# Every register-derived error names the heading it bound to and its line, so a
+# bind to the wrong section is visible from stderr alone.
+where="register '$register_heading' at line $register_line"
+
+section="$(extract_section "$register_line" "$ledger")"
+extract_status=$?
+if [[ "$extract_status" -eq 4 ]]; then
+  die_ungradeable "unterminated fenced block in the register section; rows after it would be skipped as documentation ($where in: $ledger)"
+elif [[ "$extract_status" -ne 0 ]]; then
+  die_ungradeable "could not read the register section from: $ledger ($where)"
 fi
 
 registered=0
@@ -160,7 +216,7 @@ while IFS= read -r line; do
   [[ "$line" =~ ^[[:space:]]*-[[:space:]]+[Qq][0-9]+([^0-9]|$) ]] || continue
 
   if ! [[ "$line" =~ ^[[:space:]]*-[[:space:]]+[Qq][0-9]+[[:space:]]*\| ]]; then
-    die_ungradeable "malformed register row (needs 'Q<N> | status | round | question'): $line"
+    die_ungradeable "malformed register row (needs 'Q<N> | status | round | question'): $line ($where)"
   fi
 
   row="${line#*-}"
@@ -180,7 +236,7 @@ while IFS= read -r line; do
   # reports NF as the number of `|` separators plus one.
   separators="${row//[!|]/}"
   if [[ "${#separators}" -lt 3 ]]; then
-    die_ungradeable "malformed register row (needs 'Q<N> | status | round | question'): $line"
+    die_ungradeable "malformed register row (needs 'Q<N> | status | round | question'): $line ($where)"
   fi
 
   # No leading zeros, and no Q0. `[[ ]]` numeric comparison evaluates its
@@ -191,13 +247,13 @@ while IFS= read -r line; do
   # by the register's own contract anyway.
   num="${id#[Qq]}"
   if ! [[ "$num" =~ ^[1-9][0-9]*$ ]]; then
-    die_ungradeable "malformed question id (expected Q1, Q2, … with no leading zero): $id"
+    die_ungradeable "malformed question id (expected Q1, Q2, … with no leading zero): $id ($where)"
   fi
   # Normalize so `q3` and `Q3` collide as the same id.
   id="Q$num"
 
   case "$seen_ids" in
-  *" $id "*) die_ungradeable "duplicate question id: $id" ;;
+  *" $id "*) die_ungradeable "duplicate question id: $id ($where)" ;;
   *) ;; # not seen before — fall through and register it
   esac
   seen_ids="$seen_ids$id "
@@ -206,7 +262,7 @@ while IFS= read -r line; do
   # a gap is a row that went missing after it was written — the exact silent drop
   # this gate is here to refuse. Ungradeable, never a pass.
   if [[ "$num" -ne "$expected" ]]; then
-    die_ungradeable "non-contiguous question id: expected Q$expected, got $id"
+    die_ungradeable "non-contiguous question id: expected Q$expected, got $id ($where)"
   fi
   expected=$((expected + 1))
 
@@ -223,30 +279,48 @@ while IFS= read -r line; do
     blocked=$((blocked + 1))
     deferred_ids="$deferred_ids$id "
     ;;
-  *) die_ungradeable "unknown status '$status_field' in row: $line" ;;
+  *) die_ungradeable "unknown status '$status_field' in row: $line ($where)" ;;
   esac
 done <<<"$section"
 
 if [[ "$registered" -eq 0 ]]; then
   if [[ "$skipped_fenced_row" -eq 1 ]]; then
-    die_ungradeable "the register section holds no question rows in: $ledger (rows inside a fenced block are ignored by design; register rows must be unfenced)"
+    die_ungradeable "the register section holds no question rows in: $ledger ($where; rows inside a fenced block are ignored by design; register rows must be unfenced)"
   fi
-  die_ungradeable "the register section holds no question rows in: $ledger"
+  die_ungradeable "the register section holds no question rows in: $ledger ($where)"
 fi
-
 
 brief_state="unchecked"
 if [[ "$brief_named" -eq 1 ]]; then
-  deferred_section="$(extract_section 'deferred questions' "$brief")"
-  brief_awk=$?
-
-  if [[ "$brief_awk" -eq 3 ]]; then
+  brief_matches="$(heading_matches 'deferred questions' "$brief")"
+  brief_matches_status=$?
+  if [[ "$brief_matches_status" -eq 4 ]]; then
+    die_ungradeable "unterminated fenced block in: $brief (every heading after it is hidden; close the fence)"
+  elif [[ "$brief_matches_status" -ne 0 ]]; then
+    die_ungradeable "could not read the headings of: $brief"
+  fi
+  brief_where=""
+  if [[ -z "$brief_matches" ]]; then
     if [[ -n "$deferred_ids" ]]; then
       die_ungradeable "no '### Deferred questions' section in: $brief (register retires:${deferred_ids% })"
     fi
     deferred_section=""
-  elif [[ "$brief_awk" -ne 0 ]]; then
-    die_ungradeable "could not read the deferred-questions section from: $brief"
+  else
+    # Same one-section rule as the register: two matches are a refusal, not a guess.
+    brief_count="$(match_count "$brief_matches")"
+    if [[ "$brief_count" -gt 1 ]]; then
+      die_ungradeable "$brief_count headings match 'deferred questions' in: $brief (lines $(match_lines "$brief_matches")); the gate reads exactly one section"
+    fi
+    brief_line="${brief_matches%%$'\t'*}"
+    brief_heading="${brief_matches#*$'\t'}"
+    brief_where=" (deferred questions '$brief_heading' at line $brief_line)"
+    deferred_section="$(extract_section "$brief_line" "$brief")"
+    brief_extract_status=$?
+    if [[ "$brief_extract_status" -eq 4 ]]; then
+      die_ungradeable "unterminated fenced block in the deferred-questions section of: $brief$brief_where"
+    elif [[ "$brief_extract_status" -ne 0 ]]; then
+      die_ungradeable "could not read the deferred-questions section from: $brief$brief_where"
+    fi
   fi
 
   missing=""
@@ -269,7 +343,7 @@ if [[ "$brief_named" -eq 1 ]]; then
     fi
   done
   if [[ -n "$missing" ]]; then
-    die_ungradeable "deferred/blocked question(s) absent from the Brief's deferred questions: ${missing% }"
+    die_ungradeable "deferred/blocked question(s) absent from the Brief's deferred questions: ${missing% }$brief_where"
   fi
   brief_state="ok"
 fi

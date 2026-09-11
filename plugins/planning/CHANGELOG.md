@@ -3,6 +3,27 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.9]
+
+### Fixed
+
+- **`scripts/check-open-questions.sh`:** a ledger or Brief holding more than one heading that
+  matches the section the gate grades now exits 2 naming every matching line, instead of binding
+  silently to the first. A ledger copied from the checklist template that kept the template's own
+  `## Open-question register` (whose example rows are unfenced) above a live one was graded on the
+  example rows and reported a phantom `status=open`.
+- **`scripts/check-open-questions.sh`:** every register-derived ungradeable message (zero rows,
+  malformed row or id, duplicate or gapped id, unknown status) and the Brief's missing-id message
+  now name the heading the gate bound to and its line number, so a bind to the wrong section is
+  visible from stderr alone.
+- **`scripts/check-open-questions.sh`:** heading detection and section extraction skip fenced
+  code blocks. The template's register section carries a fenced `bash` block whose `# Step 3`
+  comment lines were read as headings, so a live row written after that fence was invisible and
+  the gate reported an empty register.
+- **`scripts/check-open-questions.sh`:** a fenced block opened and never closed is ungradeable,
+  named as the cause. Every row after such a fence was skipped as documentation, so a register with
+  one answered row and an open row hidden behind a stray fence graded clean.
+
 ## [0.39.8]
 
 ### Changed
