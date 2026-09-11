@@ -4000,7 +4000,7 @@ else
   fi
 fi
 
-# Check 26: the `## Next` successor section. Absence is INFO and never a
+# Check 27: the `## Next` successor section. Absence is INFO and never a
 # warning; a conforming section is silent; a misplaced or malformed one warns
 # and still passes (advisory).
 out="$(run good-skill 2>&1)"
