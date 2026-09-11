@@ -19,10 +19,10 @@
 #
 # Root-resolution contract, most specific first (#2610/#2612):
 #   1. an explicit --root/--root-file — a per-invocation caller decision;
-#   2. the `melodic.worktreeroot` git config key, read from the TARGET repository
-#      with includes on, so git's own includeIf machinery supplies per-identity
-#      and per-repository answers (reference/worktree-root-convention.md is the
-#      convention's owner doc);
+#   2. `worktreeroot.path`, read from the
+#      TARGET repository with includes on, so git's own includeIf machinery
+#      supplies per-identity and per-repository answers
+#      (reference/worktree-root-convention.md is the convention's owner doc);
 #   3. --fallback-root/--fallback-root-file — the machine-global worktree_root
 #      plugin option, which only this plugin can read and therefore ranks below
 #      the key every consumer can read;
@@ -56,6 +56,9 @@
 set -uo pipefail
 
 PROG=${0##*/}
+
+# shellcheck source=worktree-root-resolve.sh
+source "${BASH_SOURCE[0]%/*}/worktree-root-resolve.sh"
 
 # --- same-drive helpers (begin) — sourced by worktree-create.test.sh for unit tests ---
 # windows_drive_letter <path> — echo the drive letter (A–Z) when <path> is
@@ -117,16 +120,16 @@ check_same_drive() {
   [[ "$repo_drive" == "$wt_drive" ]] && return 0
 
   cat >&2 <<EOF
-$PROG: set \`melodic.worktreeroot\` (or the plugin's \`worktree_root\` option) to a directory on drive ${repo_drive}: — refusing a cross-drive root.
+$PROG: set \`worktreeroot.path\` (or the plugin's \`worktree_root\` option) to a directory on drive ${repo_drive}: — refusing a cross-drive root.
 
   repository: $repo_path  (drive ${repo_drive}:)
   worktree:   $wt_path  (drive ${wt_drive}:)
 
 git worktree move uses rename(), which cannot cross volumes on Windows
-(EXDEV / Improper link). The includeIf-capable \`melodic.worktreeroot\` key
+(EXDEV / Improper link). The includeIf-capable \`worktreeroot.path\` key
 is the per-repository remedy:
 
-  git config melodic.worktreeroot <same-drive-root>
+  git config worktreeroot.path <same-drive-root>
 EOF
   return 3
 }
@@ -142,9 +145,9 @@ Usage:
         [--data-root-file <path>] [--base-ref fresh|head] [--repo-dir <dir>]
 
 Root resolution, most specific first:
-  --root/--root-file (explicit, per invocation), then the melodic.worktreeroot
-  git config key read from the target repository (includes on, --type=path,
-  last value wins — includeIf supplies per-identity/per-repo answers), then
+  --root/--root-file (explicit, per invocation), then worktreeroot.path
+  read from the target repository (includes on, --type=path, last value
+  wins — includeIf supplies per-identity/per-repo answers), then
   --fallback-root/--fallback-root-file (the machine-global plugin option), then
   --data-root-file (<data-dir>/worktrees). Absent all: refuse (exit 3).
 
@@ -169,8 +172,9 @@ Options:
                       Mutually exclusive with --root-file.
   --fallback-root <dir>
                       The machine-global worktree_root PLUGIN OPTION, consulted
-                      only when neither an explicit --root/--root-file nor the
-                      melodic.worktreeroot git config key yields a value. Ranks
+                      only when neither an explicit --root/--root-file nor
+                      worktreeroot.path yields
+                      a value. Ranks
                       below the key deliberately: the key is per-repo/per-identity
                       capable and readable by every consumer, while the plugin
                       option is machine-wide and plugin-only (#2612). Same
@@ -453,7 +457,7 @@ canonicalize_root() {
 }
 
 # Unconfigured root: detected here, resolved after the repository is known below
-# (the melodic.worktreeroot rung needs the repository, and the data-dir rung
+# (the worktreeroot.path rung needs the repository, and the data-dir rung
 # stays last). root_rung tracks which resolution arm supplied the root so the
 # same-drive check (#2764/#2806) can label the refusing arm in diagnostics.
 root_unset=0
@@ -477,10 +481,13 @@ if ! toplevel=$(git -C "$repo_dir" rev-parse --show-toplevel 2>/dev/null); then
   exit 4
 fi
 
-# Rung 2 (#2610): the `melodic.worktreeroot` git config key — the machine truth
-# for worktree placement, readable by anything that can run `git config --get`,
-# and the layer where git's own includeIf machinery supplies per-identity and
-# per-repository answers (#2612). Owner doc: reference/worktree-root-convention.md.
+# Rung 2 (#2610): worktreeroot.path — the machine truth for worktree
+# placement, readable by anything that can run `git config --get`, and the
+# layer where git's own includeIf machinery supplies per-identity and
+# per-repository answers (#2612). Owner doc:
+# reference/worktree-root-convention.md. Resolution lives in
+# worktree-root-resolve.sh so every consumer shares last-wins and empty-last
+# fallthrough.
 #
 # Three reading rules, each load-bearing:
 #   * Read from $toplevel — the TARGET repository — so an includeIf condition
@@ -494,18 +501,15 @@ fi
 #     (exit 4 above), so this read can never mistake the global default for the
 #     repository's answer — the silent rc=0 fallback the convention doc warns
 #     about.
-# `--get-all | tail -n 1` is deliberate: the key is multi-valued last-wins, so
-# an includeIf-supplied value APPENDS after the plain default and wins, matching
-# the ghq.root / wt.basedir precedent. `--type=path` expands a leading `~`.
-# `tr -d '\r'` guards the CRLF a Windows git.exe emits under an MSYS shell.
 if ((root_unset)); then
-  config_root="$(git -C "$toplevel" config --get-all --type=path melodic.worktreeroot 2>/dev/null | tail -n 1 | tr -d '\r')"
-  if [[ -n "$config_root" ]]; then
-    canonicalize_root "$config_root" "melodic.worktreeroot"
+  worktree_root_resolve "$toplevel" || true
+  if [[ -n "${WORKTREE_ROOT_VALUE:-}" ]]; then
+    canonicalize_root "$WORKTREE_ROOT_VALUE" "$WORKTREE_ROOT_KEY_USED"
     root="$CANONICAL_ROOT"
     root_unset=0
     root_rung=2
-    printf '%s: worktree root resolved from the melodic.worktreeroot git config key\n' "$PROG" >&2
+    printf '%s: worktree root resolved from the %s git config key\n' \
+      "$PROG" "$WORKTREE_ROOT_KEY_USED" >&2
   fi
 fi
 
@@ -560,10 +564,10 @@ if ((root_unset)); then
     cat >&2 <<EOF
 $PROG: no worktree root available — refusing to create a worktree.
 
-Set the \`melodic.worktreeroot\` git config key to an external root (a path
+Set the \`worktreeroot.path\` git config key to an external root (a path
 OUTSIDE every repository), then retry:
 
-  git config --global melodic.worktreeroot <root>
+  git config --global worktreeroot.path <root>
 
 Any tool that can run \`git config --get\` can honor that key; the
 source-control plugin's \`worktree_root\` option (via \`/plugin\`) also works but
@@ -783,7 +787,7 @@ $PROG: worktree target is $location — refusing to create a worktree.
   target:   $worktree_path
 $detail
 
-Point the \`melodic.worktreeroot\` git config key (or the plugin's
+Point the \`worktreeroot.path\` git config key (or the plugin's
 \`worktree_root\` option) at an external root — a path OUTSIDE every repository,
 on the same drive as the repo on Windows — then retry.
 

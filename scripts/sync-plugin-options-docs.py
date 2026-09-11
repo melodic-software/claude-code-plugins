@@ -23,7 +23,11 @@ import json
 import pathlib
 import sys
 
-BEGIN = "<!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->"
+BEGIN = "<!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->"
+# The marker this one replaced. `split_block` accepts either, so a README still carrying the old
+# text is rewritten in place rather than growing a second block: `splice` only finds the region to
+# replace when it can match the marker already in the file. Drop this once no README carries it.
+LEGACY_BEGIN = "<!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->"
 END = "<!-- END GENERATED: plugin options -->"
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
@@ -43,7 +47,8 @@ def env_var(key: str) -> str:
 
 CONVENTION_PATH = "docs/conventions/plugin-reconfiguration/README.md"
 CONVENTION_URL = (
-    "https://github.com/melodic-software/claude-code-plugins/blob/main/" + CONVENTION_PATH
+    "https://github.com/melodic-software/claude-code-plugins/blob/main/"
+    + CONVENTION_PATH
 )
 
 
@@ -98,7 +103,7 @@ def render(plugin: str, marketplace: str, options: dict) -> str:
         desc = desc.replace("|", "\\|").replace("[", "\\[").replace("]", "\\]")
         if spec.get("sensitive"):
             desc = (
-                "**Sensitive** — stored in the OS keychain or protected credentials file. "
+                "**Sensitive**: stored in the OS keychain or protected credentials file. "
                 + desc
             )
         lines.append(f"| `{key}` | {typ} | {default} | `{env_var(key)}` | {desc} |")
@@ -160,9 +165,9 @@ def render(plugin: str, marketplace: str, options: dict) -> str:
         "",
         "Three supported routes, in the order most people want them:",
         "",
-        "1. **Interactively** — Claude Code prompts for declared options when you enable the",
+        "1. **Interactively.** Claude Code prompts for declared options when you enable the",
         f"   plugin. To change them later: `/plugin configure {plugin}@{marketplace}`.",
-        "2. **Headless** — repeat `--config` for each option. Replace",
+        "2. **Headless.** Repeat `--config` for each option. Replace",
         f"   `{marketplace}` with the marketplace you installed this plugin from:",
         "",
         "   ```shell",
@@ -171,7 +176,7 @@ def render(plugin: str, marketplace: str, options: dict) -> str:
         "",
         *reconfigure,
         "",
-        "3. **By hand, in settings** — add the value under `pluginConfigs` in your **user**",
+        "3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**",
         "   settings (`~/.claude/settings.json`):",
         "",
         "   ```json",
@@ -187,7 +192,7 @@ def render(plugin: str, marketplace: str, options: dict) -> str:
         "   ```",
         "",
         "   Plugin option values are read from **user**, `--settings`, and managed settings",
-        "   only — **not** from a project's `.claude/settings.json`. To vary behavior per",
+        "   only, **not** from a project's `.claude/settings.json`. To vary behavior per",
         "   repository, enable or disable the plugin in that project's `enabledPlugins`",
         "   instead of setting an option there.",
         "",
@@ -201,11 +206,11 @@ def render(plugin: str, marketplace: str, options: dict) -> str:
         # link to a stub id, but a reader following it lands on blank space, so these
         # anchors must target the live headings. A link CI accepts is not the same as a
         # link that works.
-        "- [User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration) — the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export",
-        "- [Plugin install options](https://code.claude.com/docs/en/plugins-reference#plugin-install) — the `--config` flag's reference entry",
-        "- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills) — `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`",
-        "- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect) — user vs project vs local precedence",
-        "- [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins) — enabling, disabling, `/plugin list`",
+        "- [User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration): the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export",
+        "- [Plugin install options](https://code.claude.com/docs/en/plugins-reference#plugin-install): the `--config` flag's reference entry",
+        "- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`",
+        "- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence",
+        "- [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins): enabling, disabling, `/plugin list`",
         "",
         END,
     ]
@@ -214,9 +219,12 @@ def render(plugin: str, marketplace: str, options: dict) -> str:
 
 def split_block(readme: str) -> tuple[str, str] | None:
     """Text before and after the generated block, or None when there is none."""
-    if BEGIN not in readme or END not in readme:
+    if END not in readme:
         return None
-    return readme[: readme.index(BEGIN)], readme[readme.index(END) + len(END) :]
+    begin = BEGIN if BEGIN in readme else LEGACY_BEGIN
+    if begin not in readme:
+        return None
+    return readme[: readme.index(begin)], readme[readme.index(END) + len(END) :]
 
 
 def splice(readme: str, block: str) -> str:

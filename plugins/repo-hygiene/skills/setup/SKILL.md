@@ -1,5 +1,5 @@
 ---
-description: "Verify repo-hygiene's external prerequisites on this machine — `git`, which the scan, git, stash, and tree tiers and the tracked-file guarantee all rest on, and the optional `ghq` the fleet batch actions enumerate repositories from — and report the effective destructive-guard toggle and the scope it actually applies at. Use when: 'set up repo-hygiene', 'configure repo-hygiene', 'is repo-hygiene working', 'is the destructive guard on', 'why did tree-batch find no repos', or before a first clean on a new machine. Check-only: verifies, reports, and points at each remediation; installs nothing and there is nothing setup may write here. Re-runnable and safe."
+description: "Verify repo-hygiene's external prerequisites on this machine and report the effective destructive-guard toggle and the scope it actually applies at. The prerequisites are `git`, which the scan, git, stash, and tree tiers and the tracked-file guarantee all rest on, and the optional `ghq` the fleet batch actions enumerate repositories from. Use when: 'set up repo-hygiene', 'configure repo-hygiene', 'is repo-hygiene working', 'is the destructive guard on', 'why did tree-batch find no repos', or before a first clean on a new machine. Check-only: verifies, reports, and points at each remediation; installs nothing and there is nothing setup may write here. Re-runnable and safe."
 argument-hint: "check"
 user-invocable: true
 disable-model-invocation: true
@@ -13,8 +13,8 @@ writable artifact, so `check` inspects, reports, and points at each remediation,
 offered because there is nothing it could conformingly write. The warrant is the carve-out's
 external-prerequisites class: `git`, which every git-touching tier of `/repo-hygiene:clean` and
 the tracked-file safety guarantee depend on, and the optional `ghq` the fleet batch actions
-enumerate repositories from — neither visible to a native configuration prompt, each verifiable
-only. The `clean_destructive_guard_enabled` option is a native `userConfig` toggle whose only
+enumerate repositories from. Neither is visible to a native configuration prompt; each is
+verifiable only. The `clean_destructive_guard_enabled` option is a native `userConfig` toggle whose only
 stored home is the `pluginConfigs` this contract forbids setup to write.
 
 Action routing: no argument or `check` runs the check. Non-interactive, never prompts.
@@ -78,13 +78,13 @@ after everything passes changes nothing and reports "already configured":
   (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
   which owns the verified-version record): interactive `/plugin configure repo-hygiene@<marketplace>`
   any time, or headless `claude plugin install repo-hygiene@<marketplace> -s <scope> --config clean_destructive_guard_enabled=true`
-  (repeatable per key) — against an already-installed plugin it prints `already installed` and
+  (repeatable per key). Against an already-installed plugin it prints `already installed` and
   still writes the value. Do **not** uninstall to reconfigure: that drops this plugin's entire
   stored `pluginConfigs` entry, resetting every option in the README's Options reference to its
   manifest default. `-s` defaults to `user`; pass the scope `claude plugin list` reports, and run
   from that project's directory for a `project`/`local` scope, or the write lands at a scope that
   does not load. This skill never writes user settings or `pluginConfigs`. Afterwards rerun
-  `check` in a **fresh session** — the rendered token is injected at skill load, so a same-session
+  `check` in a **fresh session**. The rendered token is injected at skill load, so a same-session
   `check` still reports the OLD value; report the observed effective toggle value, never an
   unobserved change.
 

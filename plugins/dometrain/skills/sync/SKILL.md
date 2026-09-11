@@ -1,5 +1,5 @@
 ---
-description: "Maintainer-only drift check for the grounding skill's vendored upstream content. Never model-invocable — only a human explicitly running /dometrain:sync. Use when: 'check dometrain sync drift', 'has the dometrain-grounding skill changed upstream', before a version bump, or at a scheduled fleet-conformance recheck."
+description: "Maintainer-only drift check for the grounding skill's vendored upstream content. Never model-invocable: only a human explicitly running /dometrain:sync. Use when: 'check dometrain sync drift', 'has the dometrain-grounding skill changed upstream', before a version bump, or at a scheduled fleet-conformance recheck."
 argument-hint: "check"
 user-invocable: true
 disable-model-invocation: true

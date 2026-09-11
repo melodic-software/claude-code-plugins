@@ -3,6 +3,28 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.1]
+
+### Changed
+
+- **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
+- **The plugin's prose drops its em dashes.** This changelog and `context/discipline.md` were rewritten. Wording only, with no change to any rule, boundary, or run-directory path. Rule 6's quoted phrase, which both the 0.9.0 entry and `docs/upstream/mattpocock-skills.md` cite, survives byte-identical; only the mark after it changed. No heading was touched, so the `#when-done` anchor still resolves. The released sections corrected in place are 0.9.3, 0.9.2, 0.9.0, 0.8.0, 0.7.0, 0.6.0, 0.5.0, 0.4.0, 0.3.3, 0.3.2, 0.3.0, 0.2.4, and 0.2.1: their wording changed, their facts did not.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md`, the `context/` tree, and every `skills/*/SKILL.md`.
+
+## [0.11.0]
+
+### Added
+
+- **`explore-directions`**: a `## Boundary, the bundled design skill` section stating the split
+  against the bundled `design` skill (throwaway mockup by default; the persistent, hand-editable
+  canvas offered as an explicit alternative and invoked only on the user's choice), a mutation
+  gate, and an availability rule that names the presence check: a same-named Claude Design hub
+  variant with model invocation disabled registers behind an `allow_design_sync` setting, so the
+  listed description is what distinguishes the canvas from the hub or a shadowing local skill.
+  The design-canvas subsection names that second reason for its description check. Four-part
+  records, re-verified against the installed client and the live docs, in
+  `reference/bundled-design.md`.
+
 ## [0.10.6]
 
 ### Added
@@ -173,7 +195,7 @@ All notable changes to the `prototype` plugin are documented here. Format follow
 ### Changed
 
 - Normalized fleet-wide framing this plugin restates (cross-vendor advisor
-  fallback, untrusted-content posture, attribution/idiom prose — as touched) to the canonical
+  fallback, untrusted-content posture, attribution/idiom prose, as touched) to the canonical
   SSOT wording, operable text kept inline with provenance-only citations (#2698).
 
 ## [0.9.2]
@@ -181,13 +203,13 @@ All notable changes to the `prototype` plugin are documented here. Format follow
 ### Fixed
 
 - **`explore-directions` step 6 restated the shared discipline in its pre-0.9.0 form.** 0.9.0
-  widened `context/discipline.md`'s when-done capture to record the directions that lost and — when
-  the verdict is a graft — which piece came from where, and what the discarded parts held that the
+  widened `context/discipline.md`'s when-done capture to record the directions that lost and, when
+  the verdict is a graft, which piece came from where, and what the discarded parts held that the
   graft deliberately left behind. Step 6 of `explore-directions` still said only "record which
   variant won and why", and then listed the deletions. A reader following that skill end to end
   therefore never reached the widened capture, and the bullets immediately below delete the losing
-  variants irreversibly. Step 6 now carries all three clauses — the left-behind one included, which
-  is the half the discipline argues is worth the most — and repeats the shared surface's warning
+  variants irreversibly. Step 6 now carries all three clauses, including the left-behind one, which
+  is the half the discipline argues is worth the most. It also repeats the shared surface's warning
   that whatever is not written down before those deletions is gone.
 
 ## [0.9.1]
@@ -206,15 +228,15 @@ All notable changes to the `prototype` plugin are documented here. Format follow
   Absorbed from an upstream skill this marketplace decided not to ship
   (`docs/upstream/cursor-pstack.md`, the `arena` row), whose claim that the rejection notes are the
   highest-signal part of the record had no counterpart here. `context/discipline.md`'s when-done
-  capture now asks for each direction that was tried and the reason it lost, and — when the verdict
+  capture now asks for each direction that was tried and the reason it lost. When the verdict
   is a graft rather than a single winner, which `explore-directions` step 5 already names as the
-  usual outcome ("I want the header from B with the sidebar from C") — which piece came from where
-  and what the discarded parts held that the graft deliberately left behind. The argument is that a
-  losing direction is the cheapest available answer to "why not just do it this way?" and the only
-  part of the exercise a future reader cannot reconstruct from the shipped result, while the very
-  next step deletes it irreversibly. Rule 6 changes with it: "the answer is the only thing worth
-  keeping" now says the answer is larger than the winner and points at the capture section, because
-  as written it licensed dropping exactly this.
+  usual outcome ("I want the header from B with the sidebar from C"), it also asks which piece came
+  from where and what the discarded parts held that the graft deliberately left behind. The
+  argument is that a losing direction is the cheapest available answer to "why not just do it this
+  way?" and the only part of the exercise a future reader cannot reconstruct from the shipped
+  result, while the very next step deletes it irreversibly. Rule 6 changes with it: "the answer is
+  the only thing worth keeping" now says the answer is larger than the winner and points at the
+  capture section, because as written it licensed dropping exactly this.
 
 ## [0.8.0]
 
@@ -223,10 +245,10 @@ All notable changes to the `prototype` plugin are documented here. Format follow
 - **`explore-directions`: an opt-in design-canvas alternative to the HTML mockup substrate.**
   When the intent selector lands on the HTML mockup substrate and the bundled `design` skill
   (the Claude Design canvas preview) appears in the session's skill list, the skill offers a
-  choice — the throwaway HTML mockup stays the default; the canvas drafts the variants as
+  choice: the throwaway HTML mockup stays the default, and the canvas drafts the variants as
   artboards published as an editable Artifact. The offer names the lifecycle difference
-  (published, versioned, persistent, default-private, shareable at the user's choice — vs the
-  throwaway local file), and the fallback branches on two distinct states: absent from the
+  (published, versioned, persistent, default-private, and shareable at the user's choice, versus
+  the throwaway local file), and the fallback branches on two distinct states: absent from the
   skill list → the HTML mockup, silently (never suggest `/design` to a user who lacks it);
   listed but invocation refused → suggest the user run `/design` themselves. Carries a
   four-part upstream-drift stamp (the preview is undocumented upstream; no version floor is
@@ -243,17 +265,17 @@ All notable changes to the `prototype` plugin are documented here. Format follow
 - **Both skills' ecosystem-detector grant was inert, and the fix everyone reaches for first would
   have made it dead instead.** `explore-directions` and `pressure-test` each granted
   `Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/detect-ecosystems.sh:*)`. `${CLAUDE_PLUGIN_ROOT}` is not
-  one of the substitutions Claude Code performs in `allowed-tools` — only `${CLAUDE_SKILL_DIR}` and
-  `${CLAUDE_PROJECT_DIR}` are — so the rule stayed a literal string, never matched, and the
+  one of the substitutions Claude Code performs in `allowed-tools`. Only `${CLAUDE_SKILL_DIR}` and
+  `${CLAUDE_PROJECT_DIR}` are. The rule therefore stayed a literal string, never matched, and the
   pre-computed ecosystem line fell through to a prompt or the classifier on every invocation.
 
-  The obvious repair — drop `bash` from the rule — is wrong, and that correction is the part worth
+  The obvious repair, dropping `bash` from the rule, is wrong, and that correction is the part worth
   recording. `bash` is not one of the wrappers Claude Code strips before matching a Bash rule (that
   set is `timeout`, `time`, `nice`, `nohup`, `stdbuf`, `command`, `builtin`, and `noglob`), so a rule
   without `bash` stops matching the moment the body still says `bash <path>`. Dropping it alone would
   have turned an inert grant into a dead one while making the diff look like a fix. The change is
   therefore **paired**: the body invokes the script directly, and the rule names that same string,
-  `Bash(${CLAUDE_SKILL_DIR}/scripts/detect-ecosystems.sh:*)`. Quoting is part of the pairing — an
+  `Bash(${CLAUDE_SKILL_DIR}/scripts/detect-ecosystems.sh:*)`. Quoting is part of the pairing. An
   unquoted rule does not match a body path wrapped in quotes, so the body's quotes came off too.
 
 ### Added
@@ -269,7 +291,7 @@ All notable changes to the `prototype` plugin are documented here. Format follow
 - **`scripts/allowed-tools-pairing.test.sh`**, asserting the contract the fix establishes: no
   interpreter-led grant and no `${CLAUDE_PLUGIN_ROOT}` in `allowed-tools`, every bundled-script
   invocation in skill markdown unquoted and free of a `bash` wrapper, and every granted script
-  present, executable, and actually invoked by a body — a grant nothing runs is dead weight.
+  present, executable, and actually invoked by a body. A grant nothing runs is dead weight.
 
 ## [0.6.0]
 
@@ -277,7 +299,7 @@ All notable changes to the `prototype` plugin are documented here. Format follow
 
 - **The bare `/<skill>` alias for this plugin's skills.** Their `SKILL.md` files no longer
   declare a frontmatter `name`. The field is optional and defaults to the directory name, so
-  declaring it only restated the path while registering a second, unnamespaced command — which
+  declaring it only restated the path while registering a second, unnamespaced command, which
   the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
   namespaced command; the command itself is unchanged.
 
@@ -288,19 +310,19 @@ All notable changes to the `prototype` plugin are documented here. Format follow
 - **`pressure-test` gains an audience-routed HTML demo shell.** The TUI stays the
   default; when the driver is a non-developer (a designer, PM, or domain expert)
   or no terminal fits the handoff, the disposable shell over the same portable
-  pure logic module is a single self-contained `file://` HTML page — domain-language
+  pure logic module is a single self-contained `file://` HTML page: domain-language
   labels, a labelled state panel re-rendered on every click, free-play buttons
   (one per action), and guided-walkthrough scenarios that reset to a known
   initial state. The page reuses `explore-directions`' HTML-substrate constraint
   set: restrictive CSP meta tag (no remote origins by construction), ephemeral
   placement via the platform temp primitive (`mktemp -d` private run directory /
   `%LOCALAPPDATA%\Temp`), synthetic data only, and discard after the markdown
-  capture — the validated logic module remains the only artifact that outlives
+  capture. The validated logic module remains the only artifact that outlives
   the prototype. Adapted from mattpocock/skills v1.2.3 @ `84fdeff`,
   `skills/engineering/prototype/LOGIC.md` (the shareable-HTML shell); upstream's
   throwaway-branch "primary source" capture of the prototype was rejected
-  (contradicts this plugin's delete-when-done discipline) — rejection recorded
-  in `docs/upstream/mattpocock-skills.md`.
+  (contradicts this plugin's delete-when-done discipline), with the rejection
+  recorded in `docs/upstream/mattpocock-skills.md`.
 
 ## [0.4.0]
 
@@ -310,13 +332,13 @@ All notable changes to the `prototype` plugin are documented here. Format follow
   floor ("a recolor alone is not a variant"), but the skill no longer de-scopes visual direction:
   on open-ended briefs current models settle into one default house aesthetic, and generic
   steering only swaps palettes (Sonnet 5 / Opus 4.8 prompting guides, "Design and frontend
-  defaults"). The HTML mockup substrate — which has no project styling system to pin the
-  aesthetic — now requires each variant to declare its visual direction (background hex, accent
+  defaults"). The HTML mockup substrate, which has no project styling system to pin the
+  aesthetic, now requires each variant to declare its visual direction (background hex, accent
   hex, typeface, one-line rationale) and differ from siblings on that axis as well as
   structurally; the real-stack path declares a direction wherever the project's styling system
   leaves room. Eval 3's second expectation now scores "recolors are not the only difference"
   instead of treating color variety as beneath the exercise. The flip-between-variants delivery is
-  unchanged — no propose-then-pick gate was added.
+  unchanged. No propose-then-pick gate was added.
 
 ## [0.3.3]
 
@@ -324,31 +346,31 @@ All notable changes to the `prototype` plugin are documented here. Format follow
 
 - **`explore-directions` mockup placement conforms to the topic-docs ephemeral
   tier.** The self-contained HTML mockup resolves one deterministic location via
-  the platform temp primitive — a private run directory from
+  the platform temp primitive instead of an "OS temp **or** gitignored scratch
+  location" OR-branch, whose gitignored option put the throwaway file inside the
+  repo. That location is a private run directory from
   `mktemp -d "${TMPDIR:-/tmp}/explore-directions-XXXXXX"` on Unix/Linux/Git Bash
-  with the page inside it, a user-scoped temp under `%LOCALAPPDATA%\Temp` on
-  Windows — instead of an "OS temp **or** gitignored scratch location"
-  OR-branch, whose gitignored option put the throwaway file inside the repo. The
-  handed-back path is never deleted.
+  with the page inside it, and a user-scoped temp under `%LOCALAPPDATA%\Temp` on
+  Windows. The handed-back path is never deleted.
 
   The temp root rides in the positional TEMPLATE rather than in a flag.
   `-p` (which GNU also spells `--tmpdir`) is documented in both dialects but does
   not mean the same thing: GNU treats the template as relative to that directory
   and lets the flag beat `TMPDIR`, while BSD/macOS consult it only as a fallback
-  for `-t` when `TMPDIR` is unset — so with a bare template and no `-t` the flag
-  does nothing there and the template resolves against the current directory,
-  silently writing into the consumer's repo. GNU additionally marks `-t`
-  deprecated. The `XXXXXX` is also **trailing**: BSD `mktemp` substitutes only
-  trailing Xs, so `explore-directions-XXXXXX.html` cannot be created at all on
-  macOS. Naming the page inside a generated directory is what preserves the
-  `.html` extension without an unportable suffix on the template.
+  for `-t` when `TMPDIR` is unset. With a bare template and no `-t` the flag
+  therefore does nothing there, and the template resolves against the current
+  directory, silently writing into the consumer's repo. GNU additionally
+  marks `-t` deprecated. The `XXXXXX` is also **trailing**: BSD `mktemp`
+  substitutes only trailing Xs, so `explore-directions-XXXXXX.html` cannot be
+  created at all on macOS. Naming the page inside a generated directory is what
+  preserves the `.html` extension without an unportable suffix on the template.
 
 ## [0.3.2]
 
 ### Changed
 
 - Skills with `!` dynamic-context injections now declare `shell: bash` explicitly, per
-  the pinned precompute convention — bash-only pipelines must not fall through to a
+  the pinned precompute convention. Bash-only pipelines must not fall through to a
   PowerShell host.
 
 ## [0.3.1]
@@ -364,7 +386,7 @@ All notable changes to the `prototype` plugin are documented here. Format follow
 
 ### Changed
 
-- **BREAKING: both skills renamed** (fleet conformance wave — naming grammar, verb-first
+- **BREAKING: both skills renamed** (fleet conformance wave: naming grammar, verb-first
   skill names). `/prototype:logic` is now `/prototype:pressure-test`; `/prototype:ui` is
   now `/prototype:explore-directions`. Update any saved invocations. Skill behavior,
   triggers, and evals are unchanged; only the leaf names and namespace tokens changed.
@@ -376,7 +398,7 @@ All notable changes to the `prototype` plugin are documented here. Format follow
 - README declares the Bash requirement of the bundled ecosystem-detection
   script with its Windows path (Git Bash) and documents the no-Bash degrade
   (detection reports "none detected"; the skills read the host project
-  directly) — cross-platform declaration wave.
+  directly). Part of the cross-platform declaration wave.
 
 ## [0.2.3]
 
@@ -396,8 +418,8 @@ All notable changes to the `prototype` plugin are documented here. Format follow
 ### Added
 
 - **Composition table.** The shared discipline now maps the prototype to its upstream and
-  downstream workflow skills — `/planning:prd`, `/improve-architecture:improve-architecture`,
-  `/planning:architect`, and `/implementation:implement` — each invoked only when the sibling
+  downstream workflow skills: `/planning:prd`, `/improve-architecture:improve-architecture`,
+  `/planning:architect`, and `/implementation:implement`. Each is invoked only when the sibling
   plugin is installed.
 - **Named handoff capability in the auto-invoke gate.** The gate's "checkpointing your current
   work first" now names `/session-flow:handoff` (when installed) as the checkpoint capability.

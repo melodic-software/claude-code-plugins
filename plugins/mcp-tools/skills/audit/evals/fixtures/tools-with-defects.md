@@ -1,7 +1,7 @@
 # Fixture: MCP tool source with mixed quality
 
 TypeScript MCP server excerpt (`@modelcontextprotocol/sdk`). `registerTool` is the
-annotation-carrying registration API — a tool omits the `annotations` field when it
+annotation-carrying registration API, so a tool omits the `annotations` field when it
 declares no hints. Three tools: two carry real defects, one is a well-formed generic
 CRUD tool included as a discrimination decoy.
 

@@ -41,7 +41,7 @@
 # deliberate opposite of `lib/hook-utils.sh`'s host-gated path helpers, which
 # fail OPEN because their results feed a COMPARISON - a degraded comparison
 # answers a question slightly worse, while a degraded emitted path writes real
-# bytes to the wrong place, unobserved. `hook::normalize_path` in particular is
+# bytes to the wrong place, unobserved. `hook::normalize_path_to` in particular is
 # documented as comparison-only ("the emitted path is always the caller's
 # original") and must never be used to produce a path a native consumer reads.
 #

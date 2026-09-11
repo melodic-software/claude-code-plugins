@@ -25,13 +25,15 @@ into it and no dual-read window exists.
 
 ## Resolution order, per key
 
-1. The convention home resolves (resolver exit 0) and `<home>/architecture/README.md` declares the
+1. `--out <dir>` on the invocation overrides `architecture_dir` for that run alone. It is a
+   redirect, not a declaration: it never writes the topic doc and never changes the dialect.
+2. The convention home resolves (resolver exit 0) and `<home>/architecture/README.md` declares the
    key, so that value wins.
-2. Otherwise the skill INFERS a proposal from repository evidence: an existing `*.dsl` proposes
+3. Otherwise the skill INFERS a proposal from repository evidence: an existing `*.dsl` proposes
    `landscape_dialect: structurizr`; an existing `docs/architecture/` or `architecture/` proposes
    that directory as `architecture_dir`. Inference proposes; only the operator's confirmation binds.
-3. Otherwise the skill asks once.
-4. Unanswered: `landscape_dialect` falls back to its documented default, `mermaid`.
+4. Otherwise the skill asks once.
+5. Unanswered: `landscape_dialect` falls back to its documented default, `mermaid`.
    `architecture_dir` has no fallback. Undeclared and unconfirmed, including every non-interactive
    run, `map-landscape` stops and points at `/architecture:setup`.
 
@@ -52,12 +54,43 @@ landscape_dialect: mermaid            # structurizr | mermaid
 
 | Key | Values | Default | Meaning |
 |---|---|---|---|
-| `architecture_dir` | repo-relative directory path | **none** | Where `map-landscape` writes `landscape.dsl` / `landscape.md` and `portfolio.md`. No default: an undeclared, unconfirmed value stops the skill rather than picking a directory. |
+| `architecture_dir` | repo-relative directory path | **none** | Where `map-landscape` writes `landscape.json`, `landscape.dsl` / `landscape.md`, and `portfolio.md`, and where it reads `landscape-notes.md`. No default: an undeclared, unconfirmed value stops the skill rather than picking a directory. `--out <dir>` overrides it for one run. |
 | `landscape_dialect` | `structurizr` \| `mermaid` | `mermaid` | Which landscape artifact `map-landscape` emits. `structurizr` emits `landscape.dsl` with a `systemLandscape` view; `mermaid` emits `landscape.md` with a `C4Context` block. |
 
 An unknown key, or a `landscape_dialect` value outside the two above, is reported by
 `/architecture:setup check` as a FAIL with a remediation line. It is never silently ignored and
 never coerced to the default.
+
+## C4 dialect surfaces
+
+This plugin owns one C4-shaped artifact. The authoring-formats convention owns another. They keep
+separate keys, separate allowed values, and separate defaults because they are different artifacts,
+not because they disagree about mermaid.
+
+| Artifact | Key | Owner | Allowed values | Default | Emitter |
+|---|---|---|---|---|---|
+| C4 system landscape | `landscape_dialect` | this document | `structurizr`, `mermaid` | `mermaid` | `/architecture:map-landscape` |
+| C4 container view | `diagram_dialect.system` | authoring-formats convention | `likec4`, `c4-plantuml` | none (opt-in) | `/planning:design` |
+
+`landscape_dialect` is the C4 system landscape `/architecture:map-landscape` emits once
+`architecture_dir` is set. Its mermaid default is a format choice for an artifact that skill
+already emits; it does not add a new deliverable.
+
+`diagram_dialect.system` is the opt-in C4 container view `/planning:design` emits. A default on that
+key would add an artifact a consumer never asked for, which is why the key is unset unless the team
+names a dialect.
+
+Mermaid C4 being experimental is why the authoring-formats system key refuses mermaid as a value. It
+is not a claim that mermaid is unfit for this landscape surface, whose allowed set is
+`structurizr | mermaid`.
+
+The mermaid-C4 experimental fact and its recheck trigger live in the authoring-formats convention
+([Why mermaid is not offered for the system key](../../../docs/conventions/authoring-formats/README.md#why-mermaid-is-not-offered-for-the-system-key)).
+This document does not carry a second stamp. That trigger fires when the experimental banner
+drops or when mermaid documents a dedicated landscape type. On firing, re-derive whether this
+key's mermaid default should change and whether `/architecture:map-landscape`'s mermaid output
+should use a dedicated landscape type instead of a `C4Context` diagram without a focal system,
+and record the outcomes in this plugin's `CHANGELOG.md`.
 
 ## What writes this surface
 

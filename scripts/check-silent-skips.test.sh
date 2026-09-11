@@ -11,14 +11,17 @@ SCRIPT="$SELF_DIR/check-silent-skips.sh"
 
 # shellcheck source=lib/test-harness.sh
 . "$SELF_DIR/lib/test-harness.sh"
+# shellcheck source=lib/fixture-tree.sh
+. "$SELF_DIR/lib/fixture-tree.sh"
 
-new_fixture() {
-  local dir
-  dir="$(mktemp -d)"
-  mkdir -p "$dir/scripts" "$dir/plugins"
-  cp "$SCRIPT" "$dir/scripts/check-silent-skips.sh"
-  chmod +x "$dir/scripts/check-silent-skips.sh"
-  printf '%s' "$dir"
+# The builder assigns through a nameref, which shellcheck cannot follow;
+# declaring the out-var here is what tells it (SC2154) the name is written.
+f=""
+
+# --no-lib: this gate walks the fixture's own scripts/ tree for *.test.sh, so
+# staged shared libraries would be extra files under the surface being scanned.
+new_fixture() { # <out-var>
+  fixture_tree::build "$1" --sut "$SCRIPT" --plugins --no-lib
 }
 
 hook_file() {
@@ -38,7 +41,7 @@ run_check() (
 )
 
 # --- same-line silent skip fails -------------------------------------------
-f="$(new_fixture)"
+new_fixture f
 hook_file "$f" alpha check.sh 'command -v jq >/dev/null 2>&1 || exit 0'
 if out="$(run_check "$f" 2>&1)"; then
   fail "same-line silent skip should fail, got success: $out"
@@ -52,7 +55,7 @@ fi
 rm -rf "$f"
 
 # --- same-line skip via skip-named helper fails ----------------------------
-f="$(new_fixture)"
+new_fixture f
 hook_file "$f" alpha check.sh 'command -v pwsh >/dev/null 2>&1 || emit_skipped'
 if run_check "$f" >/dev/null 2>&1; then
   fail "skip-named-helper guard should fail"
@@ -62,7 +65,7 @@ fi
 rm -rf "$f"
 
 # --- same-line skip with annotation on the line above passes ---------------
-f="$(new_fixture)"
+new_fixture f
 hook_file "$f" alpha check.sh '# silent-skip-ok: output discarded by design
 command -v jq >/dev/null 2>&1 || exit 0'
 if out="$(run_check "$f" 2>&1)"; then
@@ -73,7 +76,7 @@ fi
 rm -rf "$f"
 
 # --- annotation at the top of a multi-line comment block passes ------------
-f="$(new_fixture)"
+new_fixture f
 hook_file "$f" alpha check.sh '# silent-skip-ok: fire-and-forget sink — output discarded by the producer,
 # so no notice channel exists here.
 command -v jq >/dev/null 2>&1 || exit 0'
@@ -85,7 +88,7 @@ fi
 rm -rf "$f"
 
 # --- an annotation does not leak past intervening code ---------------------
-f="$(new_fixture)"
+new_fixture f
 hook_file "$f" alpha check.sh '# silent-skip-ok: covers only the next guard
 command -v jq >/dev/null 2>&1 || exit 0
 INPUT=$(cat)
@@ -102,7 +105,7 @@ fi
 rm -rf "$f"
 
 # --- same-line skip with annotation on the same line passes ----------------
-f="$(new_fixture)"
+new_fixture f
 hook_file "$f" alpha check.sh 'command -v jq >/dev/null 2>&1 || exit 0 # silent-skip-ok: sink is fire-and-forget'
 if run_check "$f" >/dev/null 2>&1; then
   ok "same-line annotation passes"
@@ -112,7 +115,7 @@ fi
 rm -rf "$f"
 
 # --- silent block skip fails -----------------------------------------------
-f="$(new_fixture)"
+new_fixture f
 hook_file "$f" alpha check.sh 'if ! command -v jq >/dev/null 2>&1; then
   exit 0
 fi'
@@ -130,7 +133,7 @@ rm -rf "$f"
 # --- block skip with a bare stderr notice FAILS (docs/conventions/
 # hook-observability/: exit-0 stderr is never shown to the user or the
 # agent, so a bare `>&2` write is not a sanctioned visibility signal) -------
-f="$(new_fixture)"
+new_fixture f
 hook_file "$f" alpha check.sh 'if ! command -v jq >/dev/null 2>&1; then
   echo "alpha: jq not found — advisory disabled" >&2
   exit 0
@@ -147,7 +150,7 @@ fi
 rm -rf "$f"
 
 # --- block skip with a sanctioned notice call passes -----------------------
-f="$(new_fixture)"
+new_fixture f
 hook_file "$f" alpha check.sh 'if ! command -v actionlint >/dev/null 2>&1; then
   hook::emit_skip_notice PostToolUse "alpha: actionlint not found — lint skipped"
   exit 0
@@ -160,7 +163,7 @@ fi
 rm -rf "$f"
 
 # --- block skip with an in-block annotation passes -------------------------
-f="$(new_fixture)"
+new_fixture f
 hook_file "$f" alpha check.sh 'if ! command -v jq >/dev/null 2>&1; then
   # silent-skip-ok: not-applicable classification, CI is the gate
   exit 0
@@ -173,7 +176,7 @@ fi
 rm -rf "$f"
 
 # --- nested if inside the guard block is tracked to the right fi -----------
-f="$(new_fixture)"
+new_fixture f
 hook_file "$f" alpha check.sh 'if ! command -v jq >/dev/null 2>&1; then
   if [[ -n "${VERBOSE:-}" ]]; then
     true
@@ -188,7 +191,7 @@ fi
 rm -rf "$f"
 
 # --- non-skip guards are never flagged -------------------------------------
-f="$(new_fixture)"
+new_fixture f
 hook_file "$f" alpha check.sh 'command -v cygpath >/dev/null 2>&1 || return 1
 command -v "$bin" >/dev/null 2>&1 || continue
 if command -v perl >/dev/null 2>&1; then
@@ -202,7 +205,7 @@ fi
 rm -rf "$f"
 
 # --- hook-utils.sh copies and test files are excluded ----------------------
-f="$(new_fixture)"
+new_fixture f
 hook_file "$f" alpha hook-utils.sh 'command -v jq >/dev/null 2>&1 || return 0'
 hook_file "$f" alpha check.test.sh 'command -v jq >/dev/null 2>&1 || exit 0'
 if out="$(run_check "$f" 2>&1)"; then
@@ -213,7 +216,7 @@ fi
 rm -rf "$f"
 
 # --- scripts/*.test.sh: ok "skip ..." scored as PASS fails (#2807) ---------
-f="$(new_fixture)"
+new_fixture f
 script_test_file "$f" demo.test.sh 'ok "skip historical proof (deadbeef not in this clone)"'
 if out="$(run_check "$f" 2>&1)"; then
   fail "ok skip-scored-as-pass should fail, got success: $out"
@@ -228,7 +231,7 @@ fi
 rm -rf "$f"
 
 # --- scripts/*.test.sh: inline then ok "skip ..." also fails ----------------
-f="$(new_fixture)"
+new_fixture f
 script_test_file "$f" demo.test.sh 'if anchor_missing; then ok "skip historical proof"; fi'
 if out="$(run_check "$f" 2>&1)"; then
   fail "inline then ok skip should fail, got success: $out"
@@ -243,7 +246,7 @@ fi
 rm -rf "$f"
 
 # --- scripts/*.test.sh: annotated ok "skip ..." passes ---------------------
-f="$(new_fixture)"
+new_fixture f
 script_test_file "$f" demo.test.sh "$(printf '%s\n' \
   '# silent-skip-ok: shallow clone lacks the historical anchor' \
   'ok "skip historical proof (deadbeef not in this clone)"')"
@@ -255,7 +258,7 @@ fi
 rm -rf "$f"
 
 # --- scripts/*.test.sh: same-line annotation passes ------------------------
-f="$(new_fixture)"
+new_fixture f
 script_test_file "$f" demo.test.sh 'ok "skip historical proof" # silent-skip-ok: declared soft path'
 if run_check "$f" >/dev/null 2>&1; then
   ok "same-line silent-skip-ok on ok \"skip ...\" passes"
@@ -265,7 +268,7 @@ fi
 rm -rf "$f"
 
 # --- ok messages that merely mention skip are not flagged ------------------
-f="$(new_fixture)"
+new_fixture f
 script_test_file "$f" demo.test.sh "$(printf '%s\n' \
   'ok "skip-named-helper guard (|| emit_skipped) fails"' \
   'ok "same-line silent skip fails with file:line"' \
@@ -278,7 +281,7 @@ fi
 rm -rf "$f"
 
 # --- an empty plugins tree passes ------------------------------------------
-f="$(new_fixture)"
+new_fixture f
 if run_check "$f" >/dev/null 2>&1; then
   ok "empty tree passes"
 else

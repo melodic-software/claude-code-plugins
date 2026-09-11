@@ -1,4 +1,4 @@
-# Tracker reference form — what a code comment may say about an issue
+# Tracker reference form: what a code comment may say about an issue
 
 Owner doc for how a tracker reference is written inside a **code comment**. The rule is enforced
 in CI by the `comment-hygiene` composite action, which this repository consumes from
@@ -12,7 +12,7 @@ pushing. Authors need the shape up front rather than from a red lane.
 
 ## The shape
 
-Use the **bare parenthesised form** — `(#1491)` — to attach an issue number to a comment. It is
+Use the **bare parenthesised form**, `(#1491)`, to attach an issue number to a comment. It is
 not a tracker reference by the policy's definition and is used throughout this repository.
 
 These forms are rejected in a scanned file's comments:
@@ -31,18 +31,18 @@ than in a comment that no process revisits.
 
 ## Where it applies
 
-Only to an allowlist of code extensions — at the pinned version: `.cs`, `.ts`, `.tsx`, `.js`,
-`.jsx`, `.mjs`, `.cjs`, `.mts`, `.cts`, `.py`, `.sh`, `.ps1`, `.razor`, `.cshtml`.
+Only to an allowlist of code extensions. At the pinned version that list is `.cs`, `.ts`, `.tsx`,
+`.js`, `.jsx`, `.mjs`, `.cjs`, `.mts`, `.cts`, `.py`, `.sh`, `.ps1`, `.razor`, `.cshtml`.
 
 **Markdown and YAML are not scanned**, which explains apparent counterexamples in the tree: a
 `PR #N` in a workflow comment and an `owner/repo#N` in `dependabot.yml` both sit outside the
-allowlist and pass. Do not read those as evidence the rule is lax — read them as evidence the rule
+allowlist and pass. Do not read those as evidence the rule is lax. Read them as evidence the rule
 is scoped. A skill's `SKILL.md` is likewise outside it.
 
-Two paths are excluded by configuration rather than by extension — `code-tidying`'s
-`audit-comment-residue` **`scripts/**` and `evals/**`** — because that skill is itself a comment
+Two paths are excluded by configuration rather than by extension: `code-tidying`'s
+`audit-comment-residue` **`scripts/**` and `evals/**`**. That skill is itself a comment
 linter, so its fixtures and shape library must contain the banned markers as test corpus. Both
-exclusions are load-bearing and the pair is observable: `evals/fixtures/residue-snippet.py` carries
+exclusions are necessary and the pair is observable: `evals/fixtures/residue-snippet.py` carries
 a scanned extension and a rejected form, and passes only because the `evals` tree is excluded.
 Naming just one of the two would make this doc contradict the policy it describes. The authoritative
 list is the `exclude:` input in [`ci.yml`](../../../.github/workflows/ci.yml).
@@ -58,4 +58,4 @@ list is the `exclude:` input in [`ci.yml`](../../../.github/workflows/ci.yml).
 ## Conformance
 
 Comments added to scanned files use the bare form. When adding a reference, grep the change for the
-rejected shapes first — cheaper than a CI round trip on a lane that only runs remotely.
+rejected shapes first. That is cheaper than a CI round trip on a lane that only runs remotely.

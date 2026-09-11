@@ -1,11 +1,11 @@
 # Handoff document structure + full-path write procedure
 
-Reference consulted while WRITING a full-path handoff (delivery-decision logic — STOP gate,
-launch gates, exit checklists — stays in the citing skill's `SKILL.md`; path choice and destination
-resolution live in the sibling `save-point.md` engine doc).
+Reference consulted while WRITING a full-path handoff (delivery-decision logic, meaning the STOP
+gate, the launch gates, and the exit checklists, stays in the citing skill's `SKILL.md`; path choice
+and destination resolution live in the sibling `save-point.md` engine doc).
 
-Reader is a session with NO prior context. It will act on this file. Be specific — vague handoffs
-cost the next session a re-investigation, which is the cost this document exists to avoid.
+Reader is a session with NO prior context. It will act on this file. Be specific. A vague handoff
+costs the next session a re-investigation, which is the cost this document exists to avoid.
 
 **Shape 2.** A handoff file written by this procedure carries `handoff_shape: 2` in its
 frontmatter. Every deterministic field of a shape-2 file is written by the engine script
@@ -71,8 +71,8 @@ reader who needs more.
 **Every section is always present, in this order, and `## Resume prompt` is last.** The
 validator checks all 17 headings by name and order. A section with nothing to report reads `None.`
 plus a half-line of reason. A cold reader cannot otherwise tell "nothing to report" from "the
-author forgot", and the absence is itself load-bearing — "no approaches abandoned" tells the resumer
-the ground is untrodden. **`Original goal` is the one section `None.` never satisfies:** work with
+author forgot", and the absence carries information of its own: "no approaches abandoned" tells the
+resumer the ground is untrodden. **`Original goal` is the one section `None.` never satisfies:** work with
 no statable goal is the condition this document exists to surface, so an empty §1 is a defect to
 raise with the user, not a box to tick. (Its `Amended:` line is the field that legitimately reads
 `None.`)
@@ -82,8 +82,8 @@ one level deeper than they are written.
 
 **Layering is not truncation.** No section carries a length budget except the brief. Progressive
 disclosure governs the ORDER facts are met in, never whether they survive. Sections 8, 9, and 10
-exist specifically for what a summarizer discards first — rationale, negative knowledge, and
-hard-won facts — because those read as "old" while being the most expensive to rediscover.
+exist specifically for what a summarizer discards first: rationale, negative knowledge, and
+hard-won facts. Those read as "old" while being the most expensive to rediscover.
 
 **Provenance: verified this session, or marked.** [`save-point.md`](save-point.md)'s "Claim
 provenance" rule governs every body section here (and, per that rule, prompt-only's inline bullets
@@ -98,7 +98,7 @@ Five sections are **cumulative**: §4 Constraints, §6 Side effects, §8 Decisio
 forward verbatim off disk and the writer appends. Every other section is rewritten each hop (the
 state of now).
 
-- **Every entry carries an `[hN]` tag** — `- [h3] …` — naming the hop that asserted it (`N` counts
+- **Every entry carries an `[hN]` tag**, written `- [h3] …`, naming the hop that asserted it (`N` counts
   from the root of the chain; hop 1 is `[h1]`). The tag IS this document's `UNVERIFIED (<source>)`
   marker for a carried entry: an entry tagged with an earlier hop was verified by that hop, not
   this one. **Re-verifying an entry this session re-tags it to the current hop**; leaving the
@@ -117,16 +117,16 @@ state of now).
 
 **The user's own words, quoted, and immutable across the chain.** This section owns the goal; every
 other section is subordinate to it. It is the one thing a chain of save-points loses first, because
-each writer serializes the machinery in front of them — the phase, the bundle, the checklist — and
+each writer serializes the machinery in front of them, the phase, the bundle, the checklist, and
 machinery reads as mission to the session that inherits it.
 
 - **Goal (verbatim):** the user's goal statement quoted as they wrote it, with the date they stated
-  it. Quote it; never paraphrase, condense, or "clarify" — a paraphrase is a re-derivation, and this
+  it. Quote it; never paraphrase, condense, or "clarify". A paraphrase is a re-derivation, and this
   section exists because re-derivation is what fails. Where the goal was never put in one sentence,
   quote the closest thing the user actually wrote and mark it `RECONSTRUCTED`: a reconstruction is a
   defect to settle with them, not a substitute for their words.
 - **Amended:** `None.` until the goal changes. It changes ONLY on an explicit statement from whoever
-  set it — never because the work went somewhere else. Record an amendment as a new dated verbatim
+  set it, never because the work went somewhere else. Record an amendment as a new dated verbatim
   quote with the prior goal kept above it, so the chain shows what the goal was and when it stopped
   being that. A writer never amends the goal on its own authority.
 - **Opening ask:** the user's opening message of the chain, the words the whole task started from.
@@ -136,20 +136,20 @@ machinery reads as mission to the session that inherits it.
   when the root is a shape-1 file the pointer adds `(shape-1 root, no verbatim ask recorded)`.
   The ask is stored once and never re-derived.
 - **Next action serves it by:** one sentence tying the first item of `Remaining actions, in order`
-  back to the goal. This couples to §11 deliberately — a reader who stops here has to be able to
+  back to the goal. This couples to §11 deliberately. A reader who stops here has to be able to
   tell whether the work is still pointed at the goal, and a pointer to another section cannot
   answer that.
 
 **Cannot state that sentence? That is drift, and this is where it gets said.** Write what the next
 action actually serves, then route it: re-derive an action that serves the goal, or ask whether the
-goal has changed. Staying silent is what lets drift run — nothing else in this document would have
+goal has changed. Staying silent is what lets drift run. Nothing else in this document would have
 caught it, because every other section describes the work faithfully.
 
 **A successor handoff COPIES the goal and its amendments; it never restates them.** The write
 procedure below makes that a disk read, not a recollection: `new --previous <file>` copies the
 goal quote and every amendment off the predecessor unchanged and writes the `Opening ask:`
-pointer. The drift-check line is the one part re-answered each hop — it is about the next action,
-which moved.
+pointer. The drift-check line is the one part re-answered each hop, because it is about the next
+action, which moved.
 
 ### Resumption brief
 
@@ -157,14 +157,14 @@ Six lines maximum. The one section a reader may stop at *after* the goal above i
 
 Carries: when it was written and against which branch or commit, where the work stands in one line,
 and the single next concrete action. Name the section that governs that action so a reader wanting
-more is routed rather than left searching. It does NOT restate the goal — §1 owns that, verbatim,
+more is routed rather than left searching. It does NOT restate the goal. §1 owns that, verbatim,
 and a six-line onboarding surface is exactly where a goal gets compressed into the process that was
 serving it.
 
 The brief names the FIRST action only. It always points at `Remaining actions, in order`, which owns
-the full sequence — otherwise a session that completes the one named action has nothing to go on.
+the full sequence. Otherwise a session that completes the one named action has nothing to go on.
 
-This deliberately restates facts owned below — it is an onboarding surface on a document read cold.
+This deliberately restates facts owned below, because it is an onboarding surface on a document read cold.
 The six-line cap bounds the drift, and naming each owning section keeps the pointer honest.
 
 Close it with the one obligation the brief cannot carry: an agent about to change anything reads
@@ -174,16 +174,16 @@ Close it with the one obligation the brief cannot carry: an agent about to chang
 
 One line of why the work exists, then each criterion as an observable test with a met/unmet mark.
 
-A criterion nobody can check is not a criterion — rewrite until a command or a diff settles it.
+A criterion nobody can check is not a criterion. Rewrite until a command or a diff settles it.
 
 **Each criterion names the goal-state it establishes, and keeps its observable.** A criterion reads
-as a condition the goal in §1 requires — "the repo's docs follow conventions X, Y, and Z" — never as
+as a condition the goal in §1 requires, "the repo's docs follow conventions X, Y, and Z", never as
 the process step meant to produce it ("phase 3 done", "the bundle merged"). Process framing is what
 turns a resumed session onto the machinery: it is satisfiable while the goal is no closer, and it
 reports done when the process finished rather than when the work landed.
 
 This stacks on the observability rule; it does not relax it. Goal-framed criteria are harder to
-settle mechanically, which is why writers drift to process framing — so each criterion carries
+settle mechanically, which is why writers drift to process framing. So each criterion carries
 both halves, the goal-state and the command or diff that settles it.
 
 ```markdown
@@ -200,25 +200,26 @@ section's own emitted heading, each tied to the criterion it advances.
 Invariants whose violation breaks the work. One testable assertion per line, each followed by the
 consequence of violating it.
 
-Only things that would actually break something. A preference is a decision — section 8.
+Only things that would actually break something. A preference is a decision, so it belongs in
+section 8.
 
 Before closing the section, re-scan for *but*, *except*, *unless*, "the exception is", "the corner
-case" — those words mark constraints that emerged mid-discussion and never rose to a top-line
+case". Those words mark constraints that emerged mid-discussion and never rose to a top-line
 bullet, and an omitted one is exactly what the resuming session ships as a bug.
 
-**Compaction changes what "the conversation" is.** Detect it from a concrete signal — a compaction
-notice or summary turn actually present in this conversation — never inferred from the history
-merely feeling short or discontinuous. (The citing skill's "When to invoke" — "last turn had an
-unexpected compaction" — names the common case that brings a session here, but compaction can also
+**Compaction changes what "the conversation" is.** Detect it from a concrete signal, a compaction
+notice or summary turn actually present in this conversation, never inferred from the history
+merely feeling short or discontinuous. (The citing skill's "When to invoke" entry, "last turn had an
+unexpected compaction", names the common case that brings a session here, but compaction can also
 happen mid-session without being the reason `/session-flow:handoff` was invoked, so check for the signal itself,
 not the invocation reason.) Once that signal is present, the model-visible conversation is the
 summarizer's output, not the original turns, and a scan of what remains cannot find a caveat the
 summarizer already dropped. Exactly one of the following must be true when the section closes, and
-the section must say which — silence on this point reads as the first, so it is never a third
+the section must say which. Silence on this point reads as the first, so it is never a third
 option:
 
 - The re-scan read the lossless on-disk transcript instead of, or in addition to, the model-visible
-  conversation — it stays lossless across compaction (the same record `retro`'s parser reads:
+  conversation, which stays lossless across compaction (the same record `retro`'s parser reads:
   `${CLAUDE_PLUGIN_ROOT}/skills/retro/scripts/parse_transcript.py`, paths resolved per retro's
   "Paths"; `/session-flow:running-retro`'s "2. Resolve inputs for the subagent" is a worked example
   of reading it without flooding the current context with the raw record).
@@ -236,7 +237,7 @@ option:
 Machine and session state the previous session had and this one does not. One entry per item: what
 was running, the exact command that restores it, and the observable that confirms it worked.
 
-Covers branch and worktree, services and ports, environment variables, background tasks — and the
+Covers branch and worktree, services and ports, environment variables, background tasks, and the
 in-memory task list, which `/clear` destroys completely.
 
 **TaskList.** Call `TaskList` before writing this section and render live state, not remembered
@@ -263,7 +264,7 @@ TaskCreate(subject="Full pipeline run", description="...") → status=pending (d
 ```
 ````
 
-With 0 active tasks, or all `completed`, say so — there is nothing to recreate.
+With 0 active tasks, or all `completed`, say so. There is nothing to recreate.
 
 ### Side effects already applied
 
@@ -281,17 +282,17 @@ to.
 ### File roles in this work
 
 The role each file plays, and how far its change got. One line per file: path, exactly one role, why
-it matters, and a concise summary of the change — one clause, not a transcribed diff.
+it matters, and a concise summary of the change in one clause, not a transcribed diff.
 
 Roles: modified / still to modify / specification to obey / reference for understanding / test that
 must pass / generated, do not hand-edit.
 
-**Summarize; never transcribe.** For work already committed, the commit range is the diff — name what
+**Summarize; never transcribe.** For work already committed, the commit range is the diff. Name what
 the change accomplishes in a clause and point at the branch or commit for the lines.
 
 **Uncommitted or half-finished edits are the exception, and they are why this section carries state
 at all.** There is no commit to point at, so say which part is already implemented and working and
-which part is not — that state exists nowhere else, and a resuming session that has to re-derive it
+which part is not. That state exists nowhere else, and a resuming session that has to re-derive it
 from a working tree is doing the rediscovery this document exists to prevent. `Remaining actions, in
 order` owns what to do next; this owns where the file currently stands.
 
@@ -336,7 +337,7 @@ A fact about how the system behaves belongs in section 10; a path you walked bel
 
 Non-obvious facts about the system that would be expensive to re-derive, and that are neither a
 decision nor a failed approach. One entry per finding: the fact as a one-line claim, then where it
-was observed — a file, a command's output, an error string.
+was observed: a file, a command's output, an error string.
 
 This is the section that beats compaction. Write it long.
 
@@ -347,14 +348,14 @@ This is the section that beats compaction. Write it long.
 
 ### Remaining actions, in order
 
-Every action still to take, sequenced. Not just the next one — the whole remainder, so finishing
+Every action still to take, sequenced. Not just the next one, the whole remainder, so finishing
 the first action does not leave the resuming session guessing at the second.
 
 An action is something to *do*. An unknown to resolve is section 12; something you cannot proceed
 on is section 13. Cross-reference those rather than duplicating them: an action that waits on a
 blocker is listed here in its sequence position, marked as waiting, and named once in section 13.
 
-The `Resumption brief` names only the first of these. This section owns the rest — it is the one
+The `Resumption brief` names only the first of these. This section owns the rest. It is the one
 place the full sequence exists, so it survives when the brief's single action is done.
 
 ```markdown
@@ -369,7 +370,7 @@ place the full sequence exists, so it survives when the brief's single action is
 Unknowns the resuming session can resolve on its own. One question per entry, each with the probe
 that answers it.
 
-If the session cannot answer it alone it is not a question — it is a blocker.
+If the session cannot answer it alone it is not a question. It is a blocker.
 
 ```markdown
 - Does the reader honor `CancellationToken` on the streaming path? Probe: cancel mid-enumeration in
@@ -389,7 +390,7 @@ blocker: what is stuck, who or what unblocks it, and what to do meanwhile.
 ### Suggested skills
 
 Which skills the resuming session should invoke for the remaining work, each tied to a concrete
-remaining item — not generic recommendations.
+remaining item, not generic recommendations.
 
 Use fully-qualified names (`plugin:skill`) and qualify each with "if installed": the resuming
 session may run under a different plugin set, and a missing skill degrades to doing that work
@@ -406,7 +407,7 @@ did: wrote the re-run test and got it green · left: the staging migration and t
 ```
 
 The separator is a middle dot, `·` (U+00B7), with a space either side; the validator matches
-`did: … · left: …` literally. `did` is what landed, `left` is what is still open — both past
+`did: … · left: …` literally. `did` is what landed, `left` is what is still open, both past
 tense, no "next", no imperative: this line becomes the `did/left` cell of the successor's
 `## Prior sessions` row, where it is read as a one-line record of a finished session, so a `|`
 anywhere in it breaks that table and is refused. The current hop never carries a longer summary
@@ -447,8 +448,8 @@ optional `/goal` and re-arm slots.
 
 ## How this document is referenced elsewhere
 
-The emitted resume directive points at the handoff FILE and names exactly one section — `Original
-goal`, by name and never by number — because its alignment clause has to say what the resuming
+The emitted resume directive points at the handoff FILE and names exactly one section, `Original
+goal`, by name and never by number, because its alignment clause has to say what the resuming
 session confirms; `/session-flow:keep-going`, `/session-flow:reanchor`, and the handoff enforcement
 checklist name that same section for the same reason. Renaming §1 therefore requires an edit to
 those surfaces. Three more sections are read by name: `## Resume prompt` by `save_point.py emit`,
@@ -459,7 +460,7 @@ renaming or reordering the rest still requires none, and no change here orphans 
 written to disk (shape-1 files are never rewritten).
 
 Consumers cite this section list rather than restating it. A copy of the list in another file
-drifts silently — it has before.
+drifts silently, and it has before.
 
 ## Full-path write procedure
 
@@ -592,7 +593,7 @@ write; when the glob misses, the honest `unresolved (…)` value is stored (WARN
 under `--strict-transcript`) and a later reader re-runs the same glob.
 
 `previous_handoff` (the prior file's bare name, relative to the handoff directory, never a
-`handoffs/`-prefixed path) is the backward chain pointer — the walker resolves the prior session's
+`handoffs/`-prefixed path) is the backward chain pointer. The walker resolves the prior session's
 id by reading that file's own `session_id`, so the pointer is stored once rather than in two fields
 that can disagree. `chain:` is the whole chain root-first, the predecessor's `chain:` plus this
 file; hop 1 is `[self]`, hop 2 from a shape-1 predecessor is `[predecessor, self]`. There is no
@@ -605,19 +606,19 @@ stable detection contract `/session-flow:find-handoff` keys off to recover a los
 Pass `--previous <file>` ONLY when this session actually continued that handoff's work: it resumed
 from that handoff (the resume prompt loaded it), or the task/topic clearly matches. Pass
 `--no-previous` otherwise; `new` requires exactly one of the two and never picks a file itself. A
-shared handoff directory accumulates entries from unrelated tasks — pointing at the newest file
+shared handoff directory accumulates entries from unrelated tasks, so pointing at the newest file
 regardless would splice unrelated sessions into one chain, and a later `/session-flow:retro` would
 aggregate stale transcripts and decisions as if they belonged to the current work. The first
 handoff of a NEW task is `--no-previous`, even when older, unrelated handoffs exist in the
 directory. Older entries lacking `session_id` cause chain-walkers to break cleanly at the first
 absent field.
 
-**Carrying the goal forward — read it off disk, never out of memory.** With `--previous`, `new`
+**Carrying the goal forward: read it off disk, never out of memory.** With `--previous`, `new`
 opens that file and reproduces its `Original goal` verbatim quote and every recorded amendment
 into this handoff unchanged, then the five cumulative sections and the `## Prior sessions` rows.
 Rebuilding the goal from the conversation is the drift vector itself: the conversation is what
 already lost it, and each rebuild is individually plausible, which is why the loss is invisible
-until many hops later. The prior file is on disk and one read away — a writer that did not open it
+until many hops later. The prior file is on disk and one read away. A writer that did not open it
 has not carried the goal forward, whatever its text ends up saying. Same rule as the live
 `TaskList` call: the check is that the read happened, not that the result looks right. The
 validator checks the copy: the predecessor's `chain:`, its `## Prior sessions` rows, and every
@@ -648,6 +649,6 @@ it and names it as unfinished, and `continue-in-background` cannot launch from i
 overwrites an existing target, so a re-run writes a new timestamped file beside it. Cleanup is
 user-controlled, like every other handoff file.
 
-Multiple handoffs accumulate in the directory — fine; ISO timestamps keep them ordered, and the
+Multiple handoffs accumulate in the directory, which is fine. ISO timestamps keep them ordered, and the
 newest entry is the resume point. A continuing handoff carries the prior one's unfinished work
 forward: what was still open there becomes the starting position here.

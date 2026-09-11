@@ -72,20 +72,20 @@ Deepening review rendered as self-contained HTML in the ephemeral tier: one file
 
 ## Header
 
-Repo name, date, compact legend: solid box = module, dashed line = seam, red arrow = leakage, thick dark box = deep module. No intro paragraph — straight into candidates.
+Repo name, date, compact legend: solid box = module, dashed line = seam, red arrow = leakage, thick dark box = deep module. No intro paragraph. Go straight into candidates.
 
 ## Candidate card
 
 Each candidate is one `<article>`:
 
-- **Title** — short, names the deepening ("Collapse the Order intake pipeline")
-- **Badge row** — recommendation strength (`Strong` = `.badge-strong`, olive; `Worth exploring` = `.badge-explore`, amber; `Speculative` = `.badge-speculative`, muted grey) + dependency category tag (`in-process`, `local-substitutable`, `ports & adapters`, `mock`)
-- **Files** — monospaced list, one path per line, set in `var(--mono)` a step smaller than body text
-- **Before / After diagram** — two columns, side by side. See patterns below
-- **Problem** — one sentence
-- **Solution** — one sentence
-- **Wins** — bullets short enough to scan without reading, each naming one gain. Use vocabulary terms: "locality: bugs concentrate in one module", "leverage: one interface, N call sites", "interface shrinks; implementation absorbs the wrappers"
-- **ADR callout** (if applicable) — amber-tinted box
+- **Title**: short, names the deepening ("Collapse the Order intake pipeline")
+- **Badge row**: recommendation strength (`Strong` = `.badge-strong`, olive; `Worth exploring` = `.badge-explore`, amber; `Speculative` = `.badge-speculative`, muted grey) + dependency category tag (`in-process`, `local-substitutable`, `ports & adapters`, `mock`)
+- **Files**: monospaced list, one path per line, set in `var(--mono)` a step smaller than body text
+- **Before / After diagram**: two columns, side by side. See patterns below
+- **Problem**: one sentence
+- **Solution**: one sentence
+- **Wins**: bullets short enough to scan without reading, each naming one gain. Use vocabulary terms: "locality: bugs concentrate in one module", "leverage: one interface, N call sites", "interface shrinks; implementation absorbs the wrappers"
+- **ADR callout** (if applicable): amber-tinted box
 
 No paragraphs of explanation. If diagram needs a paragraph, redraw it.
 
@@ -109,7 +109,7 @@ Use when point is "X calls Y calls Z, look at the mess." Style leakage edges wit
 
 ### Hand-built boxes-and-arrows
 
-Modules as `<div>`s with borders. Arrows as inline SVG. Use when "after" diagram should feel like one thick-bordered deep module with greyed-out internals — Mermaid won't render that weight.
+Modules as `<div>`s with borders. Arrows as inline SVG. Use when "after" diagram should feel like one thick-bordered deep module with greyed-out internals. Mermaid won't render that weight.
 
 ### Cross-section (layered shallowness)
 
@@ -117,7 +117,7 @@ Stack horizontal bands, each a fixed-height row with a thick left border, showin
 
 ### Mass diagram (interface as wide as implementation)
 
-Two rectangles per module — interface surface area + implementation. Before: interface nearly as tall as implementation (shallow). After: interface short, implementation tall (deep).
+Two rectangles per module: interface surface area + implementation. Before: interface nearly as tall as implementation (shallow). After: interface short, implementation tall (deep).
 
 ### Call-graph collapse
 
@@ -151,9 +151,9 @@ State each finding directly, in its own sentence, opening on the claim.
 
 Phrasings that fit the style:
 
-- "Order intake module is shallow — interface nearly matches the implementation."
+- "Order intake module is shallow: interface nearly matches the implementation."
 - "Pricing leaks across the seam."
 - "Deepen: one interface, one place to test."
 - "Two adapters justify the seam: HTTP in prod, in-memory in tests."
 
-Wins bullets name the gain in glossary terms. Never "easier to maintain" or "cleaner code" — those terms are not in the vocabulary.
+Wins bullets name the gain in glossary terms. Never "easier to maintain" or "cleaner code", since those terms are not in the vocabulary.

@@ -1157,7 +1157,7 @@ MECHANISMS: tuple[Mechanism, ...] = (
             "branch at all."
         ),
         entry_point=REFRESH_CLI,
-        must_contain=('pulls/{number}/update-branch', 'expected_head_sha='),
+        must_contain=("pulls/{number}/update-branch", "expected_head_sha="),
         must_not_contain=('"push"', "'push'"),
     ),
     Mechanism(
@@ -1196,7 +1196,7 @@ MECHANISMS: tuple[Mechanism, ...] = (
     Mechanism(
         id="merge.wrapper-filters-unpinned-head-in-bash",
         claim=(
-            "The merge wrapper's refusal is a bash argument loop over \"$@\" that exits "
+            'The merge wrapper\'s refusal is a bash argument loop over "$@" that exits '
             "before the interpreter shim is sourced -- it is not, and must not become, "
             "an argparse flag on the Python side."
         ),
@@ -1492,7 +1492,7 @@ consumer may assume about this lane's entry points. Rows in the refusal,
 predicate, effect, and documented-command tables are executed as assertions by
 `scripts/tests/test_guards.py`; a guard change that falsifies one fails CI with
 a message naming the claim. The columns listed under "Not covered here" are
-rendered from the same data but are not asserted — read those as annotation, not
+rendered from the same data but are not asserted. Read those as annotation, not
 as proof.
 
 Cite a row by its ID. IDs are stable; rows are removed only when the behavior is.
@@ -1567,8 +1567,15 @@ def render_markdown() -> str:
         " through to the same exit code and read as proof.",
         "",
         *_table_head(
-            "ID", "Entry point", "Invocation", "Exit", "Refused by", "No gh",
-            "Error names", "Enforced at", "Claim",
+            "ID",
+            "Entry point",
+            "Invocation",
+            "Exit",
+            "Refused by",
+            "No gh",
+            "Error names",
+            "Enforced at",
+            "Claim",
         ),
     ]
     for row in REFUSALS:
@@ -1606,7 +1613,7 @@ def render_markdown() -> str:
         " set, not a reading of the flag names, and it is directional rather than a"
         " changed/unchanged boolean: a row claiming deletion asserts that the file set"
         " strictly shrank, so a reap that rewrote the expired lease -- or touched some"
-        " unrelated file -- fails it instead of passing on \"something changed\". The"
+        ' unrelated file -- fails it instead of passing on "something changed". The'
         " assertion is over the file set, deliberately not over named paths: a path"
         " literal here would couple this contract to the lease writer's internal"
         " layout. Advisory `.lock` siblings are excluded from the comparison.",

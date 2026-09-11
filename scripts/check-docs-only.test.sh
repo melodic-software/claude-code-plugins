@@ -10,29 +10,26 @@ set -uo pipefail
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SELF_DIR/check-docs-only.sh"
 
-# A fixture runs a COPY of the gate, so it must also carry the shared
-# libraries that copy sources (scripts/lib/*.sh). Staging them here keeps the
-# fixture a faithful copy; without it the copied gate dies on a missing
-# source at line 1 and every assertion below turns into the same opaque
-# failure. See #2914.
-stage_libs() {
-  mkdir -p "$1/lib"
-  cp "$SELF_DIR/lib/changed-files.sh" "$SELF_DIR/lib/read-list.sh" "$1/lib/"
-}
 ALLOWLIST="$SELF_DIR/docs-only-paths.txt"
 # shellcheck source=test-git-helpers.sh
 . "$SELF_DIR/test-git-helpers.sh"
 
 # shellcheck source=lib/test-harness.sh
 . "$SELF_DIR/lib/test-harness.sh"
+# shellcheck source=lib/fixture-tree.sh
+. "$SELF_DIR/lib/fixture-tree.sh"
 
+# The builder assigns through a nameref, which shellcheck cannot follow;
+# declaring the out-var here is what tells it (SC2154) the name is written.
+repo=""
+
+# mk_repo <out-var>. A fixture runs a COPY of the gate, so the builder stages
+# scripts/lib/ with it: without those, the copy dies on a missing source at
+# line 1 and every assertion below turns into the same opaque failure.
 mk_repo() {
   local dir
-  dir="$(mktemp -d)"
-  git_init_safe "$dir"
-  mkdir -p "$dir/scripts"
-  cp "$SCRIPT" "$dir/scripts/check-docs-only.sh"
-  stage_libs "$dir/scripts"
+  fixture_tree::build "$1" --sut "$SCRIPT" --git || return 1
+  dir="${!1}"
   cp "$ALLOWLIST" "$dir/scripts/docs-only-paths.txt"
   # A committed base tree spanning every path class the assertions touch.
   mkdir -p "$dir/docs/topics/example" "$dir/docs" "$dir/plugins/p1/skills/alpha" \
@@ -48,7 +45,6 @@ mk_repo() {
   printf 'seed\n' >"$dir/package-lock.json"
   git_test_config "$dir" add -A >/dev/null
   git_test_config "$dir" commit -qm base
-  printf '%s' "$dir"
 }
 
 # assert_flag <label> <expected true|false> <repo-relpath-to-touch...>
@@ -58,7 +54,7 @@ assert_flag() {
   local label="$1" expected="$2"
   shift 2
   local repo base p out
-  repo="$(mk_repo)"
+  mk_repo repo
   base="$(git -C "$repo" rev-parse HEAD)"
   for p in "$@"; do
     mkdir -p "$repo/$(dirname "$p")"
@@ -105,7 +101,7 @@ assert_flag "plugin manifest (plugin-schema reads it)" false "plugins/p1/.claude
 assert_flag "dependabot.yml (dependabot-schema reads it)" false ".github/dependabot.yml"
 
 # --- fail-closed paths: emit false, exit 0 (run full, never block) ---------
-repo="$(mk_repo)"
+mk_repo repo
 out="$(cd "$repo" && bash scripts/check-docs-only.sh "does-not-exist" 2>/dev/null)"
 rc=$?
 if [[ "$out" == "docs_only=false" && $rc -eq 0 ]]; then
@@ -115,7 +111,7 @@ else
 fi
 rm -rf "$repo"
 
-repo="$(mk_repo)"
+mk_repo repo
 base="$(git -C "$repo" rev-parse HEAD)"
 : >"$repo/empty-allowlist.txt"
 printf 'changed\n' >"$repo/docs/topics/example/PLAN.md"
@@ -129,7 +125,7 @@ fi
 rm -rf "$repo"
 
 # --- GITHUB_OUTPUT is written for the step to consume ----------------------
-repo="$(mk_repo)"
+mk_repo repo
 base="$(git -C "$repo" rev-parse HEAD)"
 printf 'changed\n' >"$repo/docs/topics/example/PLAN.md"
 git_test_config "$repo" add -A >/dev/null && git_test_config "$repo" commit -qm change >/dev/null

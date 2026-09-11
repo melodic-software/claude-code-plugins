@@ -15,12 +15,12 @@ LIB="$REPO/plugins/claude-ops/hooks/session-log-lib.sh"
 # shellcheck source=lib/test-harness.sh
 . "$SELF_DIR/lib/test-harness.sh"
 
-FIXTURES=()
-cleanup() {
-  local d
-  for d in ${FIXTURES[@]+"${FIXTURES[@]}"}; do rm -rf "$d"; done
-}
-trap cleanup EXIT
+# shellcheck source=lib/fixture-tree.sh
+. "$SELF_DIR/lib/fixture-tree.sh"
+
+# The builder assigns through a nameref, which shellcheck cannot follow;
+# declaring the out-var here is what tells it (SC2154) the name is written.
+f=""
 
 # shellcheck disable=SC2016  # literal hooks.json command text, never expanded here
 PRODUCER='"${CLAUDE_PLUGIN_ROOT}"/hooks/session-event-log.sh'
@@ -29,20 +29,19 @@ RETENTION='"${CLAUDE_PLUGIN_ROOT}"/hooks/session-retention.sh'
 
 # new_fixture -> a repo root carrying the real hooks.json with every producer
 # row stripped (so the base is the nine handlers alone) and the lib.
-new_fixture() {
+new_fixture() { # <out-var>
   local dir
-  dir="$(mktemp -d)"
+  fixture_tree::build "$1" --plugins || return 1
+  dir="${!1}"
   mkdir -p "$dir/plugins/claude-ops/hooks"
   jq --indent 2 --arg prod "$PRODUCER" --arg ret "$RETENTION" '
     .hooks |= (with_entries(.value |= map(select(any(.hooks[]?; .command == $prod or .command == $ret) | not)))
                | with_entries(select(.value | length > 0)))' "$REAL_HOOKS_JSON" >"$dir/plugins/claude-ops/hooks/hooks.json"
   cp "$LIB" "$dir/plugins/claude-ops/hooks/"
-  FIXTURES+=("$dir")
-  printf '%s' "$dir"
 }
 
 # --- a full run from the saved table -----------------------------------------
-f="$(new_fixture)"
+new_fixture f
 BASE_HANDLERS=$(jq -S '[.hooks[][] | .hooks[] | .command] | sort' "$f/plugins/claude-ops/hooks/hooks.json")
 out=$(bash "$SCRIPT" --from "$TABLE" --root "$f" --as-of 2026-09-05 2>&1)
 rc=$?
@@ -127,7 +126,7 @@ done < <(jq -r '.[] | [.name, .category] | @tsv' "$REG")
 if ((disagree == 0)); then ok "registry categories agree with slog_category_to"; else fail "$disagree events disagree with slog_category_to"; fi
 
 # --- the under-25-rows refusal ---------------------------------------------------
-f="$(new_fixture)"
+new_fixture f
 short="$(mktemp)"
 FIXTURES+=("$short")
 head -12 "$TABLE" >"$short"
@@ -140,7 +139,7 @@ else
 fi
 
 # --- an unknown event is excluded with a warning, never registered ------------------
-f="$(new_fixture)"
+new_fixture f
 odd="$(mktemp)"
 FIXTURES+=("$odd")
 { cat "$TABLE"; } >"$odd"

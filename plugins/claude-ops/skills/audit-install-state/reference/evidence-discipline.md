@@ -46,8 +46,8 @@ mechanism.
 
 ## 3. Agreement within one moment is not evidence
 
-For a timing, racing, or periodic property, repeated sampling *at one instant* proves nothing —
-sample across the varying dimension.
+For a timing, racing, or periodic property, repeated sampling *at one instant* proves nothing.
+Sample across the varying dimension.
 
 Two samples of a timestamp comparison taken in one moment can return a clean, unanimous
 `equal=True`, and two more taken a moment later a clean, unanimous `equal=False`. Neither
@@ -86,7 +86,7 @@ subagent that did not produce them. A reviewer carrying the producing agent's co
 producing agent's blind spot, which is exactly the failure mode this section documents. If this skill
 is run across several agents, that delegation is not optional. What works:
 
-- lanes broadcast load-bearing findings mid-flight, not only at the end;
+- lanes broadcast findings other lanes depend on mid-flight, not only at the end;
 - a receiving lane **verifies before adopting** rather than propagating;
 - retractions stay in place as worked examples, so the next reader does not re-derive the same dead
   hypothesis, which several lanes can reach independently when one grep would falsify it;

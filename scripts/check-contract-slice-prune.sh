@@ -26,10 +26,11 @@
 # may not leave one behind.
 #
 # The convention formulates the check as `git diff --name-only base...head`.
-# --name-only cannot distinguish a deletion from an addition, so this gate reads
-# --name-status instead. That is a deliberate deviation from the letter of the
-# convention in service of its intent; the three-dot base...HEAD range is
-# unchanged.
+# A bare --name-only cannot distinguish a deletion from an addition, so the walk
+# goes through scripts/lib/changed-files.sh with its default `--diff-filter=d`,
+# which excludes the deleted paths at the source. That is a deliberate deviation
+# from the letter of the convention in service of its intent; the three-dot
+# base...HEAD range is unchanged.
 #
 # Existing debt is grandfathered by SLUG in scripts/contract-slice-baseline.txt
 # (the same stale-guarded idiom as scripts/changelog-parity-baseline.txt and
@@ -63,7 +64,12 @@
 # resolved contract dir and baseline path (test injection).
 set -uo pipefail
 
-cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 2
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
+cd "$SCRIPT_DIR/.." || exit 2
+# shellcheck source=lib/read-list.sh
+. "$SCRIPT_DIR/lib/read-list.sh" || exit 2
+# shellcheck source=lib/changed-files.sh
+. "$SCRIPT_DIR/lib/changed-files.sh" || exit 2
 
 CONCERN_FILE=".claude/topic-docs.yaml"
 BASELINE="${CONTRACT_SLICE_BASELINE:-scripts/contract-slice-baseline.txt}"
@@ -167,7 +173,8 @@ if [[ "$mode" == "--check-diff" ]]; then
     echo "usage: $(basename "$0") --check-diff <base-ref>" >&2
     exit 2
   fi
-  if ! git rev-parse --verify --quiet "${2}^{commit}" >/dev/null; then
+  # shellcheck disable=SC2310  # the non-zero return IS the handled case
+  if ! changed_files::verify_base "$2"; then
     echo "check-contract-slice-prune: base ref '$2' is not a resolvable commit." >&2
     exit 2
   fi
@@ -215,14 +222,16 @@ CONTRACT_DIR="${CONTRACT_DIRS[0]}"
 # unset, so `${#grandfathered[@]}` aborts when the baseline holds no slugs — the
 # exact END state this gate's debt burn-down is driving toward (#1419).
 declare -A grandfathered=()
+baseline_slugs=()
 if baseline_content="$(read_at_rev "$baseline_rev" "$BASELINE")"; then
-  while IFS= read -r line; do
-    line="${line%%#*}"
-    line="${line#"${line%%[![:space:]]*}"}"
-    line="${line%"${line##*[![:space:]]}"}"
-    [[ -z "$line" ]] && continue
+  # The baseline is read from a REVISION, so there is no path to open; the text
+  # reader is the same parse `read_list::into` performs on a file. `inline`:
+  # entries are slugs, never regexes, so a `#` anywhere opens the reason comment
+  # (scripts/lib/read-list.sh owns the two comment families).
+  read_list::into_text baseline_slugs "$baseline_content" --comments inline || exit 2
+  for line in ${baseline_slugs[@]+"${baseline_slugs[@]}"}; do
     grandfathered["$line"]=1
-  done <<<"$baseline_content"
+  done
 fi
 
 # Map a repo path to the slice slug that owns it, or empty if the path is under
@@ -254,12 +263,13 @@ slug_of() {
 
 if [[ "$mode" == "--check" ]]; then
   stale=0
-  for slug in ${grandfathered[@]+"${!grandfathered[@]}"}; do
-    if [[ ! -d "$CONTRACT_DIR/$slug" ]]; then
-      echo "STALE BASELINE: '$slug' in $BASELINE no longer names a slice under $CONTRACT_DIR/ — remove the line." >&2
-      stale=1
-    fi
+  for slug in ${baseline_slugs[@]+"${baseline_slugs[@]}"}; do
+    [[ -d "$CONTRACT_DIR/$slug" ]] && read_list::mark_used "$slug"
   done
+  # scripts/lib/read-list.sh owns the consumed-set and the one STALE BASELINE
+  # diagnostic every list gate here prints.
+  read_list::report_stale baseline_slugs "$BASELINE" \
+    "no longer names a slice under $CONTRACT_DIR/ — remove the line." || stale=1
   if ((stale)); then
     echo "" >&2
     echo "A baseline entry outliving its slice would silently re-open the exemption for a future slice reusing that slug." >&2
@@ -277,29 +287,31 @@ base="$2"
 # therefore out of scope, so an untouched stale branch is never forced to
 # merge-from-main over someone else's violation.
 #
-# Read via COMMAND substitution, not process substitution: this is a required
-# merge check and a git failure must fail loud. Process substitution swallows
-# git's exit status, so a diff that genuinely cannot be computed (no common
-# ancestor -> "fatal: no merge base", exit 128) would yield empty output and let
-# the gate exit 0 without checking anything. A legitimate empty diff succeeds
-# with empty output and correctly finds no violations.
-if ! diff_status="$(git diff --name-status --find-renames "$base...HEAD")"; then
-  echo "check-contract-slice-prune: 'git diff --name-status $base...HEAD' failed (no common ancestor between '$base' and HEAD, or history not fetched deeply enough); refusing to pass without checking." >&2
+# Walked through scripts/lib/changed-files.sh, whose whole reason for existing
+# is that a failed diff and an empty change set must not look alike: a diff that
+# genuinely cannot be computed (no common ancestor -> "fatal: no merge base",
+# exit 128) returns non-zero here instead of yielding no paths and letting the
+# gate exit 0 having checked nothing. A legitimate empty diff succeeds with no
+# paths and correctly finds no violations.
+#
+# The two option choices carry this gate's whole deletion-is-the-exemption rule:
+#   - the default `--diff-filter=d` drops the paths this change set DELETED, so
+#     the convention's own prune commit passes;
+#   - `--find-renames` pins rename detection on regardless of `diff.renames`, so
+#     a move collapses to its DESTINATION alone and a `git mv` OUT of the
+#     contract dir (step 3's history-preserving graduation) is not red-lined by
+#     its vanished source.
+# What is left is exactly where each change LANDS, which is what this gate keys
+# on.
+landed_paths=()
+if ! changed_files::into landed_paths "$base...HEAD" --find-renames; then
+  echo "check-contract-slice-prune: the diff against $base...HEAD failed (no common ancestor between '$base' and HEAD, or history not fetched deeply enough); refusing to pass without checking." >&2
   exit 2
 fi
 
 violations=()
 exempted=()
-while IFS=$'\t' read -r status path dest; do
-  [[ -z "$status" ]] && continue
-  # Rename and copy carry two paths; what matters is where the content LANDS, so
-  # the destination is the path under test. The source side of a rename out of
-  # the contract dir is a graduation (`git mv` to docs/adr/) and must pass.
-  case "$status" in
-  R* | C*) landed="$dest" ;;
-  D) continue ;;
-  *) landed="$path" ;;
-  esac
+for landed in ${landed_paths[@]+"${landed_paths[@]}"}; do
   [[ -z "$landed" ]] && continue
 
   slug="$(slug_of "$landed")"
@@ -308,9 +320,9 @@ while IFS=$'\t' read -r status path dest; do
   if [[ -n "${grandfathered[$slug]:-}" ]]; then
     exempted+=("$landed")
   else
-    violations+=("$status	$landed")
+    violations+=("$landed")
   fi
-done <<<"$diff_status"
+done
 
 # Name every root actually policed, so a relocation's second root is visible in
 # the log rather than implied.

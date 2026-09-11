@@ -152,6 +152,20 @@
         "The pnpm build:proto first-run gotcha is NOT flagged by C2 as removable — it is kept as a non-obvious gotcha",
         "Honors the requested C1/C2/C5 scope: does not report C7 missing-file or C9 command-validation findings against the fictional repository's paths and commands"
       ]
+    },
+    {
+      "id": 13,
+      "name": "spine-expands-imports-and-catches-unwired-nested-agents",
+      "narration": true,
+      "prompt": "Audit my memory health. My root CLAUDE.md is one line, `@AGENTS.md`, and AGENTS.md is 240 lines. Under plugins/foo/ there is an AGENTS.md with no CLAUDE.md beside it, and .claude/rules/pr-contract.md was last committed by the standards sync.",
+      "expected_output": "C1 is graded on the expanded file (241 loaded lines, a FAIL) rather than the 1-line root, with the per-file breakdown naming AGENTS.md as the contributor. N1 reports plugins/foo/AGENTS.md as a deterministic FAIL because no sibling CLAUDE.md imports it, and names the one-line `@AGENTS.md` CLAUDE.md shim as the fix. Any finding on .claude/rules/pr-contract.md carries a synced provenance and routes the fix to the sync's source instead of proposing a local edit. The Summary's context cost is presented as a bytes-per-token estimate over the always-loaded set, never attributed to /context.",
+      "files": [],
+      "expectations": [
+        "C1 is graded on the import-expanded line count (a FAIL for 241 loaded lines), not on the 1-line root file",
+        "N1 reports plugins/foo/AGENTS.md as a FAIL with the sibling @AGENTS.md CLAUDE.md shim as the fix",
+        "The finding on the standards-synced rule names the sync's source as where the fix belongs and does not propose a local edit",
+        "The context-cost line is labelled an estimate (bytes / 4) and is not attributed to /context"
+      ]
     }
   ]
 }

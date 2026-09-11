@@ -3,6 +3,17 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.6]
+
+### Changed
+
+- **Options reference drops its em dashes.** The generated How-to-set-these block is rewritten by `scripts/sync-plugin-options-docs.py`, which is the fix site: its output is regenerated, never hand-edited. The block no longer needs the ignore marker that exempted it from the repository's em-dash gate, so that marker is gone as well.
+
+- **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
+- **The plugin's prose drops its em dashes.** Nine surfaces were rewritten: this changelog, `skills/quiz-me/SKILL.md`, `skills/setup/SKILL.md`, and the six `skills/teach/context/` documents. Wording only, with no change to any lesson format, asset rule, or quiz policy. Four headings in `lessons.md` lost a dashed separator and so changed anchor; the one in-file reference to them was updated in the same pass, and nothing outside the file linked to any of them. The released sections corrected in place are 0.9.0, 0.8.2, 0.8.1, 0.8.0, 0.7.0, 0.6.0, 0.5.5, 0.5.4, 0.5.3, 0.5.2, 0.5.1, 0.5.0, 0.4.0, and 0.3.1: their wording changed, their facts did not.
+- **`skills/quiz-me/SKILL.md` names its reasons instead of selling them.** "Three value props" is now "Three reasons it exists", because a skill body states what a rule is for rather than advertising it.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md`, every `skills/*/SKILL.md`, and the `skills/teach/context/` tree.
+
 ## [0.10.5]
 
 ### Changed
@@ -83,8 +94,8 @@ All notable changes to the `education` plugin are documented here. Format follow
 ### Changed
 
 - **`explain`: vocabulary-ladder entries and an original-ask success condition.** Rung-2 terms of
-  art now arrive as ladder entries — the term, an ordinary-words definition, and a modeled "you
-  can now say" sentence the user can reuse — and when the explanation serves a task the user was
+  art now arrive as ladder entries: the term, an ordinary-words definition, and a modeled "you
+  can now say" sentence the user can reuse. When the explanation serves a task the user was
   stuck on, success is judged by whether their next prompt names what they mean (bare
   comprehension asks are exempt by scope). Adopted from the "Finding Your Unknowns" corpus at the
   integration sign-off (team-convention tier; provenance in `docs/FINDING-YOUR-UNKNOWNS.md` in the
@@ -159,9 +170,9 @@ All notable changes to the `education` plugin are documented here. Format follow
   whole stored `pluginConfigs` entry, resetting every declared option to its manifest default.
   On Claude Code 2.1.240 a plain `claude plugin install … --config` against an already-installed
   plugin prints `already installed` and still writes the value, so that is now the documented
-  route — stamped with the CLI version it was verified against
+  route, stamped with the CLI version it was verified against
   ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). This skill is
-  check-only — it has no `apply` action — and `check` still closes by telling the reader to
+  check-only, having no `apply` action, and `check` still closes by telling the reader to
   rerun it in a fresh session and report the observed value, never asserting an unobserved
   change.
 - **Docs:** the generated options block's headless route no longer implies `--config` applies
@@ -181,12 +192,12 @@ All notable changes to the `education` plugin are documented here. Format follow
   `/discovery:research` and its `/context7:lookup` / `/firecrawl:firecrawl` fallback rungs, tier 2's
   `/discovery:research-deep`, tier 3's `/knowledge:map-corpus`, and the adjacent intake/sources
   line (`/discovery:blindspot`, `/dometrain:grounding`, `/x:read`) now all say "via the Skill
-  tool" — applying the rule to one rung of a ladder and not the rest was the defect. Tier 1 also
+  tool". Applying the rule to one rung of a ladder and not the rest was the defect. Tier 1 also
   lost a mid-sentence lowercase "invoke" left by the first pass. `context/lessons.md`'s visual-design
   delegation to `/frontend-design:frontend-design` carries the phrasing too: the rubric's
   `disable-model-invocation: true` exemption is keyed on the TARGET, and `teach` being `true`
   itself says nothing about what it may reach.
-  Wording only — the tier order, presence gates, and the terminal WebSearch rung are unchanged.
+  Wording only. The tier order, presence gates, and the terminal WebSearch rung are unchanged.
   `education:setup` references are left as prose: it is `disable-model-invocation: true`, so the
   rubric's invocation-reach invariant keeps it human-only.
 
@@ -199,7 +210,7 @@ All notable changes to the `education` plugin are documented here. Format follow
   (`docs/upstream/cursor-pstack.md`, the `teach` section) into the lesson contract.
 
   For anything with three or more moving parts, the lesson draws a short series where each picture
-  redraws the last and adds exactly one part, so the learner watches the system assemble — to teach
+  redraws the last and adds exactly one part, so the learner watches the system assemble. To teach
   A→B→C, draw A→B, then redraw and add C, then redraw and add the return edge. Three small growing
   diagrams beat one crowded one, and the series is the opposite of a wall: each step is small and
   carries one idea. A single all-at-once diagram, especially one saved for the end, is a reference.
@@ -228,30 +239,30 @@ All notable changes to the `education` plugin are documented here. Format follow
 
 ## [0.7.0]
 
-Two consumer-visible default changes (lesson format, topic-workspace location) — the
+Two consumer-visible default changes (lesson format, topic-workspace location). The
 `teach-skill-comparison` topic audit (PR #2958 carries the full Brief and plan) is the design record.
 
 ### Changed
 
-- **Learning workspaces are classified as user documents, not machine state — a deliberate,
+- **Learning workspaces are classified as user documents, not machine state: a deliberate,
   documented deviation from the plugin philosophy's plugin-data default.** A learning workspace
   is the user's own long-lived study material (mission, glossary, lessons, references): it should
   be visible, portable, and survive plugin removal the way documents do, not live in an opaque
-  machine-state directory. `teach` therefore resolves a workspace-root ladder — project
+  machine-state directory. `teach` therefore resolves a workspace-root ladder: project
   declaration → `workspace_root` userConfig → one-time ask → the OS Documents folder's
-  `Claude Learning/` home → `${CLAUDE_PLUGIN_DATA}` — and topic-mode workspaces default to the
+  `Claude Learning/` home → `${CLAUDE_PLUGIN_DATA}`. Topic-mode workspaces default to the
   Documents home where one is eligible. **Codebase-mode workspaces stay under plugin data by
   default**: their lessons embed repo snippets, and Documents roots are commonly cloud-synced
   (OneDrive/iCloud), so repo-derived state must not silently leave the machine for a private
-  repo — privacy beats visibility there. Existing plugin-data workspaces stay readable forever
+  repo. Privacy beats visibility there. Existing plugin-data workspaces stay readable forever
   (the ladder always scans that root); migration is a one-time offer, never forced.
 - **Lessons default to interactive, self-contained HTML where the learner's host can render
   it** (headless/SSH/remote/cloud hosts keep markdown; so do lessons where interactivity pays
-  nothing). The durable trio — `reference.md`, learning records, `GLOSSARY.md` — stays
+  nothing). The durable trio of `reference.md`, learning records, and `GLOSSARY.md` stays
   markdown. Lesson HTML embeds shared assets by a scripted splice from the workspace `assets/`
   library (stylesheet + answer-shuffling quiz component), never re-emitted per lesson; in-page
   quizzes end in a copy-out result block graded in conversation, recorded as learning-record
-  evidence — the page never self-certifies.
+  evidence. The page never self-certifies.
 - **Mission interview runs BEFORE workspace creation** (it crystallizes the raw subject name
   the slug and collision guard need) and harvests fields the opening message already answers;
   whole-repo/deictic subjects route to codebase mode under a stable derived content name.
@@ -261,13 +272,13 @@ Two consumer-visible default changes (lesson format, topic-workspace location) �
 ### Added
 
 - **Storage-strength pedagogy** (from the upstream teach skill, re-adopted): fluency-vs-storage
-  distinction, desirable-difficulty triad (retrieval practice, spacing, interleaving — skills
-  practice only), the knowledge/skills difficulty asymmetry, and the equal-length quiz-answer
+  distinction, desirable-difficulty triad for skills practice only (retrieval practice, spacing,
+  interleaving), the knowledge/skills difficulty asymmetry, and the equal-length quiz-answer
   rule.
 - **Graduated research-grounding ladder** for lesson claims: tier 0 no-dispatch (repo files
   Read this turn, verified RESOURCES.md citations) → tier 1 `/discovery:research` with
   inline-fetch fallbacks → tier 2 seeding via `/discovery:research-deep` → tier 3
-  `/knowledge:map-corpus` + digests — every cross-plugin name presence-gated; roughly one
+  `/knowledge:map-corpus` + digests. Every cross-plugin name is presence-gated; roughly one
   research dispatch per session; parametric recall banned at every tier.
 - **Spaced review**: `resume` surfaces due-for-review floor concepts (record age × domain
   velocity) before advancing the frontier; `status` adds a due-for-review flag from
@@ -320,7 +331,7 @@ Two consumer-visible default changes (lesson format, topic-workspace location) �
 
 - **The bare `/<skill>` alias for this plugin's skills.** Their `SKILL.md` files no longer
   declare a frontmatter `name`. The field is optional and defaults to the directory name, so
-  declaring it only restated the path while registering a second, unnamespaced command — which
+  declaring it only restated the path while registering a second, unnamespaced command, which
   the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
   namespaced command; the command itself is unchanged.
 
@@ -330,7 +341,7 @@ Two consumer-visible default changes (lesson format, topic-workspace location) �
 
 - **`quiz-me`: report narrative sections get a length calibration.** The report contract densely
   specified self-containment, answer-key embedding, and retention slugging but carried no length
-  guidance for the four free-form narrative sections — the most padding-prone genre (explanatory
+  guidance for the four free-form narrative sections, the most padding-prone genre (explanatory
   narrative for a human reader) in a retained, growing library. The contract now carries it:
   match each section's length to what the change needs; no filler, redundant summaries, or
   boilerplate.
@@ -347,14 +358,14 @@ Two consumer-visible default changes (lesson format, topic-workspace location) �
   substitutions. The derivation now lives in a bundled
   `skills/teach/scripts/list-workspaces.sh`, invoked with plugin variables only
   (`${CLAUDE_PLUGIN_ROOT}`, `${CLAUDE_PROJECT_DIR}`, `${CLAUDE_PLUGIN_DATA}`), which the
-  harness substitutes into literal paths before any shell sees them — so the composed
+  harness substitutes into literal paths before any shell sees them, so the composed
   command contains no `$` for the guard to refuse, while the script file uses `$` freely.
   SKILL.md's "Workspace layout" section remains normative for the slug derivation and now
   names the script as its implementation. Refs #1687.
 - The teach pre-compute probe reported **nothing at all** for a project with no
   workspaces, instead of the `none` its own fallback intended. `ls -d … 2>/dev/null |
   head -20 || echo "none"` binds `||` to the pipeline, whose status is `head`'s, and `head`
-  exits 0 even when `ls` matched nothing — so the fallback was unreachable and the skill
+  exits 0 even when `ls` matched nothing, so the fallback was unreachable and the skill
   loaded with an empty value that reads the same as a broken probe. The bundled script now
   prints `none` on a no-match; the invoking line keeps its own `|| echo "none"` for the
   distinct case of the script itself being unavailable.
@@ -367,21 +378,21 @@ Two consumer-visible default changes (lesson format, topic-workspace location) �
   while writing into persistent machine state, and no longer offers two placements for
   one artifact. The bullet in `skills/teach/context/lessons.md` allowed either the
   workspace concept slice **or** OS temp, which made placement non-deterministic, and its
-  title collided with the marketplace topic-docs **ephemeral tier** — a tier a workspace
+  title collided with the marketplace topic-docs **ephemeral tier**, a tier a workspace
   artifact does not belong in. A concept's HTML *is* that concept's lesson artifact: the
   workspace is durable cross-session coaching state that `resume` reopens, so it is
   machine state, and the single placement is now the concept slice. "Ephemeral" in the
   eagerly-loaded `skills/teach/SKILL.md` surfaces as well as in this doc is pedagogical
   (rarely revisited, regenerable) and is now stated as such at each. The classification is justified by the slice
-  the file belongs to — `resume` opens `concepts/<concept>/`, so a lesson rendered to
-  temp would leave that concept holding a reference and an exercise with its lesson
-  missing — and explicitly **not** by any claim that something re-reads the lesson;
-  the Staleness check covers references and the glossary, never lessons.
+  the file belongs to, and explicitly **not** by any claim that something re-reads the
+  lesson. `resume` opens `concepts/<concept>/`, so a lesson rendered to temp would leave
+  that concept holding a reference and an exercise with its lesson missing. The Staleness
+  check covers references and the glossary, never lessons.
   `skills/teach/SKILL.md` no longer calls the HTML "session output" either.
 - The `primer` action's HTML vocabulary ladder had **no resolvable path**: it routed
   through the workspace placement above while creating no workspace, so there was no
   `<mode>`, `<topic>`, or `<concept>` to substitute. It is read once and never again, so
-  it is now routed explicitly through the topic-docs ephemeral tier — one file per run
+  it is now routed explicitly through the topic-docs ephemeral tier: one file per run
   via the platform's temp primitive, resolved deterministically, never the session
   scratchpad, and never deleted before the path is handed back. Its `mktemp` invocation
   names the temp root in the template, the one form that cannot land the file in the
@@ -393,15 +404,15 @@ Two consumer-visible default changes (lesson format, topic-workspace location) �
   lesson to be HTML left the name unspecified while the workspace schema and the
   `explain` action both named `concepts/<concept>/lesson.md`, so re-rendering a concept
   could leave a stale `lesson.md` beside an unnamed HTML file with nothing telling a
-  resumed session which was current. The HTML lesson is `lesson.html`, it **replaces**
-  `lesson.md` rather than joining it — one lesson file per concept, never both — and
-  every surface that names the file now says so.
+  resumed session which was current. The HTML lesson is `lesson.html`. It **replaces**
+  `lesson.md` rather than joining it, so there is one lesson file per concept and never
+  both, and every surface that names the file now says so.
 - **The slug-collision guard survives an HTML lesson.** Letting `lesson.html` replace
   `lesson.md` removed the guard's only identity source: `skills/teach/SKILL.md` "Path
   resolution rules" compares an existing slice's recorded raw concept name before reusing
   its slug directory, and that name lived solely in the Markdown `**Concept:**` line. With
-  an HTML lesson there was no equivalent field, so `C++` and `C#` — both normalizing to
-  `c` — could silently share one slice. `lesson.html` now MUST carry
+  an HTML lesson there was no equivalent field, so `C++` and `C#`, which both normalize
+  to `c`, could silently share one slice. `lesson.html` now MUST carry
   `<meta name="concept" content="<raw concept name>">`, and the rule names the marker per
   format rather than per file, so the guard no longer depends on the lesson's extension.
 
@@ -413,7 +424,7 @@ Two consumer-visible default changes (lesson format, topic-workspace location) �
   `adhd:clarify`: `explain` changes ALTITUDE (plain words, lossy), `clarify`
   changes STRUCTURE (faithful restructure, no altitude loss). This keeps the two
   auto-firing skills from colliding on the shared "previous response" default
-  target — routing is on intent, not overlapping phrases. All existing `explain`
+  target. Routing is on intent, not overlapping phrases. All existing `explain`
   trigger keywords are preserved.
 
 ## [0.5.1]
@@ -421,14 +432,14 @@ Two consumer-visible default changes (lesson format, topic-workspace location) �
 ### Changed
 
 - Skills with `!` dynamic-context injections now declare `shell: bash` explicitly, per
-  the pinned precompute convention — bash-only pipelines must not fall through to a
+  the pinned precompute convention. Bash-only pipelines must not fall through to a
   PowerShell host.
 
 ## [0.5.0]
 
 ### Added
 
-- New `quiz-me` skill (`/education:quiz-me`) — a post-work comprehension
+- New `quiz-me` skill (`/education:quiz-me`), a post-work comprehension
   check. After a change is complete it generates a self-contained HTML
   report of what was done (context, intuition, decisions) with a quiz at
   the bottom the user answers, verifying that the HUMAN absorbed the work
@@ -451,7 +462,7 @@ Two consumer-visible default changes (lesson format, topic-workspace location) �
 
 ### Added
 
-- New `explain` skill (`/education:explain`) — a one-shot, plain-language
+- New `explain` skill (`/education:explain`), a one-shot, plain-language
   sibling to the multi-session `teach` coach. It drops any concept, code,
   error, architecture, or the previous assistant response to genuinely plain
   words (concrete analogy, zero jargon), then layers altitude up only on
@@ -477,7 +488,7 @@ Two consumer-visible default changes (lesson format, topic-workspace location) �
 - README Requirements now declare the skill's Bash + coreutils mechanics
   (`sha256sum`/`shasum`, `realpath`, `tr`, `sed`) with their Windows path
   (Git Bash bundles all of them), replacing the inaccurate "none beyond
-  Claude Code" — cross-platform declaration wave.
+  Claude Code", as part of the cross-platform declaration wave.
 
 ## [0.3.0]
 

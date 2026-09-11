@@ -1,31 +1,31 @@
-# Session-config recommendation — model, effort, advisor
+# Session-config recommendation: model, effort, advisor
 
 Reference detail for the `## Session-config recommendation (model, effort, advisor)`
 section of `SKILL.md`.
-Read on demand when forming the recommendation — at the stop/handoff boundary for an
+Read on demand when forming the recommendation, at the stop/handoff boundary for an
 engineering session, or at the early post-survey surface (and again at the stop
 boundary) for a general/terminal session. The interview already reads task complexity
 and ambiguity to drive its rounds; this turns that read into a recommendation for how
-the session that carries the work forward should be configured — the **downstream
+the session that carries the work forward should be configured: the **downstream
 execution session** an engineering session hands off to, or, when the session is
 terminal with no downstream consumer (a general decision, per SKILL.md Step 5), the
 **current/next session**, applied now.
 
 ## Two orthogonal knobs
 
-The official guidance separates two levers. Recommend against the right one — they
+The official guidance separates two levers. Recommend against the right one, because they
 are not interchangeable:
 
 - **Model tier (capability).** Raise the model when the assistant would be
-  **confidently wrong despite full context** — the failure is a reasoning ceiling,
+  **confidently wrong despite full context**, where the failure is a reasoning ceiling,
   not missing information. Signals from the interview: the task turned on subtle
   correctness, dense cross-module invariants, or tradeoffs the user themselves found
-  hard to adjudicate. Residual ambiguity is its own signal in this direction —
+  hard to adjudicate. Residual ambiguity is its own signal in this direction:
   upstream pairs the larger model with handling ambiguity and the smaller model with
   "specific instructions directing execution", so ambiguity the rounds could not
   retire argues up, and a Brief precise enough to execute from argues down.
 - **Effort level (thoroughness).** Raise effort when the assistant would
-  **under-explore or under-verify** — it can reach the right answer but tends to stop
+  **under-explore or under-verify**, reaching the right answer but tending to stop
   short. Signals: broad surface area, many files, a verification-heavy acceptance
   criteria list, or a task where the risk is a missed case rather than a wrong model.
 
@@ -34,27 +34,27 @@ why, in the interview's own evidence terms.
 
 **Neither knob is the first move.** Upstream puts a prior step ahead of both: when
 Claude gets something wrong, "your first instinct shouldn't be to adjust a knob, but
-to examine the context you have provided" — vague prompt, wrong tools, missing
+to examine the context you have provided": a vague prompt, wrong tools, missing
 skills. The corollary names the surfaces: "If you're increasing effort on a task that
 *shouldn't* need it, the fix is often upstream, in your context, your CLAUDE.md, or
 how the task is scoped." That prior step is this skill's own product: the Brief **is**
 the context fix, so recommend a knob only for what a sharper Brief would not have
-caught. The discriminator between the two — "did it not *try* hard enough, or did it
-not *know* enough?" — is upstream's, and its own figure caption fences it: "a starting
+caught. The discriminator between the two, "did it not *try* hard enough, or did it
+not *know* enough?", is upstream's, and its own figure caption fences it: "a starting
 point, not a hard rule". Raising effort is sharpest below the default, where upstream
 scopes it: "most relevant if you selected an effort level below the model's default"
 ([choosing a Claude model and effort level in Claude Code](https://claude.com/blog/claude-model-and-effort-level-in-claude-code),
 verified 2026-08-04).
 
 A post is cited here for doctrine, not only for the live values below, and the harness
-docs authorize it outright: `model-config` delegates this guidance to the post — "For
+docs authorize it outright: `model-config` delegates this guidance to the post with "For
 guidance on which model and effort level fit different kinds of work, see [the post]
 on the blog"
 ([model configuration](https://code.claude.com/docs/en/model-config), verified
 2026-08-04). What no reference page states is the try-versus-know **diagnostic**
 itself. The nearest sentences discriminate something else: [choosing a
 model](https://platform.claude.com/docs/en/about-claude/models/choosing-a-model) orders
-the levers — "Tuning effort is often a better lever than switching models" — and the
+the levers with "Tuning effort is often a better lever than switching models", and the
 effort page's "raise effort rather than prompting around it" pairs effort against
 *prompting*. Ordering a lever is not diagnosing which failure you have, so the post
 owns the diagnostic rather than corroborating a page that states it.
@@ -66,39 +66,39 @@ configuration for non-trivial work: the documented efficiency pairing is a faste
 main model that escalates planning, ambiguous failures, and completion checks to a
 stronger advisor, rather than paying for the stronger model on every routine turn.
 The concrete tier names that fill this **faster-main + stronger-advisor** shape are
-exactly the values that drift between versions — and which specific pairings are
+exactly the values that drift between versions, and which specific pairings are
 accepted drifts with them. Source them live (below), never pin them here: the durable
 fact is the *shape* of the pairing, not the names that fill it.
 
 When the recommendation is "keep the faster main model," pair it with the advisor
 recommendation. When it is "raise the main model to the top tier," the advisor adds
-less — note that and let the user decide.
+less, so note that and let the user decide.
 
-## Read the live contract — never pin
+## Read the live contract, never pin
 
 Current model names, tiers, effort levels, and accepted advisor pairings change
 between Claude Code versions. Source them at recommendation time from the official
-docs; do not bake them into this skill (the durable *distinction* above is stable —
-the *names and tiers* are not). This mirrors `draft-goal-condition`'s never-pin,
-live-doc discipline — its fetch-**failure** handling differs (below): there the
+docs; do not bake them into this skill (the durable *distinction* above is stable, the
+*names and tiers* are not). This mirrors `draft-goal-condition`'s never-pin,
+live-doc discipline, though its fetch-**failure** handling differs (below): there the
 fetched value is the deliverable so it halts, here the recommendation is auxiliary so
 it degrades.
 
 Primary sources, fetched once when you form the recommendation (not per round):
 
-- `https://code.claude.com/docs/en/model-config` — model aliases and the effort setting
-- `https://claude.com/blog/claude-model-and-effort-level-in-claude-code` — which model and effort fit which work
-- `https://code.claude.com/docs/en/advisor` — advisor enablement and accepted main+advisor pairings
-- `https://claude.com/blog/the-advisor-strategy` — why a faster main + stronger advisor works
+- `https://code.claude.com/docs/en/model-config`: model aliases and the effort setting
+- `https://claude.com/blog/claude-model-and-effort-level-in-claude-code`: which model and effort fit which work
+- `https://code.claude.com/docs/en/advisor`: advisor enablement and accepted main+advisor pairings
+- `https://claude.com/blog/the-advisor-strategy`: why a faster main + stronger advisor works
 
-**Fetch failure degrades, never halts.** The recommendation is an auxiliary output —
+**Fetch failure degrades, never halts.** The recommendation is an auxiliary output, so
 a doc-fetch failure must not block the interview or the Brief. Fall back to the
 durable distinction above and tell the user, in the same breath, that the current
 model names and pairings could not be verified live (cite the URL) so they confirm
 against `/model` and `/advisor` themselves. This is a visible degrade, not a silent
 one, and never a guessed-from-memory model name.
 
-## Advisory framing — effort is readable, advisor state is not
+## Advisory framing: effort is readable, advisor state is not
 
 The skill knows its own main model, stated in the system prompt. Effort is readable too:
 `${CLAUDE_EFFORT}` substitutes the current level into a skill body, and `CLAUDE_EFFORT` is set in
@@ -122,29 +122,29 @@ environment-variables page, or when a release note names either.
 
 ## Both domains
 
-Complexity and ambiguity apply to engineering and general sessions alike — a hard
+Complexity and ambiguity apply to engineering and general sessions alike: a hard
 general decision can warrant the top model just as a subtle refactor can. Surface the
 recommendation for both; it is orthogonal to the engineering/general domain split and
 to the `me`/`auto`/`lock` action. Framing differs by what the session hands off to
 (SKILL.md Step 5): an engineering session's recommendation configures the
-**downstream execution session** it hands off to. A general session is **terminal** —
-nothing downstream exists — so its recommendation configures the **current or next
+**downstream execution session** it hands off to. A general session is **terminal**,
+with nothing downstream, so its recommendation configures the **current or next
 session**, applied now (`/model` for the model, the effort setting for effort,
 `/advisor` for the advisor), not a session that will never exist.
 
 **Timing differs with the consumer.** The engineering recommendation configures a
 session that has not started yet, so the stop/handoff boundary is early enough. A
-general session's consumer is the session already running the interview — a
+general session's consumer is the session already running the interview, so a
 recommendation first emitted at the stop boundary lands after the work it was derived
 from is complete. Surface a first read early, right after the Step 1 survey
 classifies the domain as general, whenever the survey's complexity/ambiguity signals
-warrant a config change — applied then, it improves the substantive rounds
+warrant a config change. Applied then, it improves the substantive rounds
 themselves. Refresh it at the stop boundary as config for the current/next session.
 When the config was raised only at the end, or the user declined a mid-session
 change, offer to re-evaluate the reached understanding under the raised config
 instead of leaving the recommendation purely prospective.
 
-## Inverse direction — mid-task
+## Inverse direction: mid-task
 
 The same two signals keep mattering mid-task, past the interview boundary, but the
 interview terminates at handoff (SKILL.md Step 5) and nothing wires this context into
@@ -152,5 +152,5 @@ whatever session executes next. Hand it to the **user** as a watch-for at handof
 not as an instruction to an executing actor: tell them that if execution starts
 showing **confidently-wrong-despite-context** (a signal to raise the model) or
 **under-exploration / under-verification** (a signal to raise effort), that is their
-cue to raise the corresponding knob — same knob-picking logic as above — rather than
+cue to raise the corresponding knob, by the same knob-picking logic as above, rather than
 grinding on under a config the task has outgrown.

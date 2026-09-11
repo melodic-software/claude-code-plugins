@@ -103,7 +103,7 @@ emit_file_facts() {
   # reads a byte. Deliberately not `content=$(…)`: holding the file in a shell
   # variable would put every credential in it into `set -x` trace output. File
   # contents stay inside pipelines, where tracing prints the command only.
-  if ! : <"$path" 2>/dev/null; then
+  if ! : 2>/dev/null <"$path"; then
     printf 'Readable: no\n'
     printf 'Valid JSON: n/a\n'
     printf 'Top-level keys: n/a\n'

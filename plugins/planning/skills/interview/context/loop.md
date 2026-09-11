@@ -1,18 +1,18 @@
-# Interview loop — depth-first Q&A detail
+# Interview loop: depth-first Q&A detail
 
 ## Contents
 
-- [Step 1 — Survey before you ask](#step-1--survey-before-you-ask)
-- [Step 1.5 — Auto-detect: gap analysis without asking](#step-15--auto-detect-gap-analysis-without-asking)
-- [Step 2 — Drive the decision tree](#step-2--drive-the-decision-tree)
+- [Step 1. Survey before you ask](#step-1-survey-before-you-ask)
+- [Step 1.5. Auto-detect: gap analysis without asking](#step-15-auto-detect-gap-analysis-without-asking)
+- [Step 2. Drive the decision tree](#step-2-drive-the-decision-tree)
 - [Relentless `me` mode mechanics](#relentless-me-mode-mechanics)
 - [The open-question register](#the-open-question-register)
-- [Step 3 — Recognize the stop condition](#step-3--recognize-the-stop-condition)
-- [Step 4 — Section guidance for the Brief](#step-4--section-guidance-for-the-brief)
+- [Step 3. Recognize the stop condition](#step-3-recognize-the-stop-condition)
+- [Step 4. Section guidance for the Brief](#step-4-section-guidance-for-the-brief)
 
 Reference detail extracted from `SKILL.md`. Read on demand when running the `me` action (full Q&A loop), executing the auto-detect Q&A branch, or designing follow-up questions for an existing Brief.
 
-## Step 1 — Survey before you ask
+## Step 1. Survey before you ask
 
 Spend the first turn grounding yourself. Do NOT ask anything you can answer from the repo. In parallel where possible:
 
@@ -23,13 +23,13 @@ Spend the first turn grounding yourself. Do NOT ask anything you can answer from
 - List the project's own rules files that govern the area
 - Note what the topic's contract slice `<contract_dir>/<topic-slug>/` (default `docs/topics/`) already contains (prior PLAN.md, PRD, design artifacts) and what its memory slice `<memory_dir>/<topic-slug>/` (default `.work/`) holds (exploration/research artifacts, ledgers)
 
-Classify the domain from what the survey shows before anything Brief-related — the task/build surface decides, not cwd; a general decision raised from inside a code repo is still general. See SKILL.md Step 1 "Classify the domain".
+Classify the domain from what the survey shows before anything Brief-related. The task/build surface decides, not cwd; a general decision raised from inside a code repo is still general. See SKILL.md Step 1 "Classify the domain".
 
-**Engineering sessions only:** if a prior `PLAN.md` with a Brief section exists for this topic, read it first and ask whether to **resume** (continue from last open question), **revise** (task shifted, update specific sections in-place), or **start fresh** (append a dated scope-change note to the top of the Brief capturing why, then rewrite it; the commit carrying the rewrite states the pivot rationale — git log is the history). A general session never creates or edits a PLAN.md Brief, so it skips this prompt.
+**Engineering sessions only:** if a prior `PLAN.md` with a Brief section exists for this topic, read it first and ask whether to **resume** (continue from last open question), **revise** (task shifted, update specific sections in-place), or **start fresh** (append a dated scope-change note to the top of the Brief capturing why, then rewrite it; the commit carrying the rewrite states the pivot rationale, so git log is the history). A general session never creates or edits a PLAN.md Brief, so it skips this prompt.
 
 Survey output is a one-paragraph summary in your reply: "Here is what I see in the repo about this task." Then transition to Step 1.5 (auto-detect) or Step 2 (Q&A loop), per the action.
 
-## Step 1.5 — Auto-detect: gap analysis without asking
+## Step 1.5. Auto-detect: gap analysis without asking
 
 When the action is `auto` (default), insert between Step 1 (Survey) and Step 2 (Q&A loop). Goal: skip Q&A when nothing is actually open.
 
@@ -47,27 +47,27 @@ When the action is `auto` (default), insert between Step 1 (Survey) and Step 2 (
 - Trigger observed: "interview me", "I'm not sure", "help me think", "fuzzy"
 - 2+ unstated assumptions visible (scale, users, frequency, untouchable areas)
 
-**Mixed (ask only the residue):** one or a few load-bearing unknowns amid otherwise-clear intent → ask them as one residue round, then synthesize the rest.
+**Mixed (ask only the residue):** one or a few unknowns the Brief turns on amid otherwise-clear intent → ask them as one residue round, then synthesize the rest.
 
-When `lock` is invoked explicitly, skip auto-detect and synthesize. If a true gap is detected during synthesis, STOP and surface: *"Found gap: <X>. Want me to ask, or capture as assumption with revisit trigger?"* — never fudge.
+When `lock` is invoked explicitly, skip auto-detect and synthesize. If a true gap is detected during synthesis, STOP and surface: *"Found gap: <X>. Want me to ask, or capture as assumption with revisit trigger?"* Never fudge.
 
-**Auto-guard:** synthesize-directly applies ONLY to codebase-resolvable answers or unambiguous conventional defaults. A decision genuinely the user's (real tradeoffs, no codebase answer) is never synthesized silently — ask it inline or offer `me` mode. See SKILL.md Step 1.5 "Auto-guard".
+**Auto-guard:** synthesize-directly applies ONLY to codebase-resolvable answers or unambiguous conventional defaults. A decision genuinely the user's (real tradeoffs, no codebase answer) is never synthesized silently. Ask it inline or offer `me` mode. See SKILL.md Step 1.5 "Auto-guard".
 
-## Step 2 — Drive the decision tree
+## Step 2. Drive the decision tree
 
-The decision space is a TREE, not a flat list. Decisions have dependencies — resolving one branch can eliminate or unlock entire subtrees. Work the tree in **rounds**: the **frontier** is every decision whose prerequisites are already settled — the questions you can ask *now* without guessing at answers you haven't heard yet. Ask the whole frontier per round; the answers push the frontier outward.
+The decision space is a TREE, not a flat list. Decisions have dependencies, so resolving one branch can eliminate or unlock entire subtrees. Work the tree in **rounds**: the **frontier** is every decision whose prerequisites are already settled, the questions you can ask *now* without guessing at answers you haven't heard yet. Ask the whole frontier per round; the answers push the frontier outward.
 
 ### Frontier rounds
 
 Run rounds until the stop condition is met. Each round:
 
-1. **Restate the working understanding** in two or three sentences — what is decided, what branches remain open. This restate doubles as the **session-hop anchor**: after a handoff, resume, or long gap it re-establishes the decided set and the current round's stakes before any question, so a returning reader (or a fresh session resuming from the ledger) is grounded without re-reading the whole ledger. When it fully covers a question's context, that question needs no per-question context line (SKILL.md "Relentless mode")
-2. **Compute the frontier** — every open decision whose prerequisites are settled. A question whose framing or option set depends on another question still open in THIS round belongs to a later round, not this one. Carry-overs first: questions unanswered from the previous round re-surface at the top, labelled as such
-3. **Codebase gate per frontier question** — check whether the environment already answers it (Grep, Read, Glob). A fact the code answers is STATED, not asked, and its dependents join the frontier now. A slow lookup (deep exploration, external research) is dispatched to a sub-agent without blocking: the running lookup is an unsettled prerequisite, so only its downstream questions wait — the rest of the frontier is asked this round
-4. **Ask the frontier as one numbered set** — each question with a recommended answer grounded in observed codebase state (when no code signal exists, recommend from conventions and state the basis). Order within the round by blast radius — the answer that would change the most downstream work goes first
-5. **Capture the answers.** In `auto` and `lock`, hold the Brief draft in a scratch buffer and write it at Step 4; in `me` mode, persist each answer to the ledger and Brief the moment it locks (see Incremental persistence). The open-question register is written earlier still, at ask-time, in every mode — except for the acceptance-criteria coverage prompt, which gets no row (see "Write at ask-time, not at answer-time"). Partial replies are normal: resolve what was answered, keep the rest OPEN, and never default an unanswered question to its recommendation. Honor accept-shorthands ("accept all recommendations", "yes to Q5 to Q7")
-6. **Recompute the tree** — what subtrees did these answers eliminate? What new branches opened? Which blocked questions just joined the frontier? Name what was pruned
-7. **Domain check** — when the task touches domain concepts, run the glossary challenge (probe terms used two ways or colliding with existing definitions) + scenario exploration (invented edge cases probing concept boundaries). **Engineering sessions only:** when a term resolves, invoke `/domain-driven-design:curate-language` via the Skill tool for the inline vocabulary update if that plugin is installed, else record the term in the Brief's glossary notes — a general session writes no repo docs (SKILL.md "Domain-aware behaviors")
+1. **Restate the working understanding** in two or three sentences: what is decided, what branches remain open. This restate doubles as the **session-hop anchor**: after a handoff, resume, or long gap it re-establishes the decided set and the current round's stakes before any question, so a returning reader (or a fresh session resuming from the ledger) is grounded without re-reading the whole ledger. When it fully covers a question's context, that question needs no per-question context line (SKILL.md "Relentless mode")
+2. **Compute the frontier:** every open decision whose prerequisites are settled. A question whose framing or option set depends on another question still open in THIS round belongs to a later round, not this one. Carry-overs first: questions unanswered from the previous round re-surface at the top, labelled as such
+3. **Codebase gate per frontier question:** check whether the environment already answers it (Grep, Read, Glob). A fact the code answers is STATED, not asked, and its dependents join the frontier now. A slow lookup (deep exploration, external research) is dispatched to a sub-agent without blocking: the running lookup is an unsettled prerequisite, so only its downstream questions wait, and the rest of the frontier is asked this round
+4. **Ask the frontier as one numbered set:** each question with a recommended answer grounded in observed codebase state (when no code signal exists, recommend from conventions and state the basis). Order within the round by blast radius, so the answer that would change the most downstream work goes first
+5. **Capture the answers.** In `auto` and `lock`, hold the Brief draft in a scratch buffer and write it at Step 4; in `me` mode, persist each answer to the ledger and Brief the moment it locks (see Incremental persistence). The open-question register is written earlier still, at ask-time, in every mode, except for the acceptance-criteria coverage prompt, which gets no row (see "Write at ask-time, not at answer-time"). Partial replies are normal: resolve what was answered, keep the rest OPEN, and never default an unanswered question to its recommendation. Honor accept-shorthands ("accept all recommendations", "yes to Q5 to Q7")
+6. **Recompute the tree.** What subtrees did these answers eliminate? What new branches opened? Which blocked questions just joined the frontier? Name what was pruned
+7. **Domain check:** when the task touches domain concepts, run the glossary challenge (probe terms used two ways or colliding with existing definitions) + scenario exploration (invented edge cases probing concept boundaries). **Engineering sessions only:** when a term resolves, invoke `/domain-driven-design:curate-language` via the Skill tool for the inline vocabulary update if that plugin is installed, else record the term in the Brief's glossary notes, since a general session writes no repo docs (SKILL.md "Domain-aware behaviors")
 
 ### Where a round may fire
 
@@ -85,13 +85,13 @@ Branch pruning is the tree model's biggest win: resolving one high-level decisio
 
 Each open item is one of:
 
-- **Resolvable** — the user can answer it now. Ask with recommended answer
-- **Blocked** — depends on another unresolved decision. Name the blocker
-- **Needs-an-artifact** — ungrillable by asking: the answer only arrives once the user reacts to something concrete (a look, a feel, a behavior), and another round of framing will not produce it. Not a deferral — route it to a throwaway prototype now, then answer it in one line. The detour and the skills that own it: SKILL.md "Mid-interview composition"
-- **Defer-with-assumption** — the user can pick a working assumption, with a known revisit trigger. Capture the assumption and the trigger ("assume Postgres for now; revisit if write throughput exceeds X")
-- **Defer-fully** — out of scope for this task; record in **Deferred questions** so it doesn't silently become a hidden assumption later
+- **Resolvable:** the user can answer it now. Ask with recommended answer
+- **Blocked:** depends on another unresolved decision. Name the blocker
+- **Needs-an-artifact:** ungrillable by asking. The answer only arrives once the user reacts to something concrete (a look, a feel, a behavior), and another round of framing will not produce it. Not a deferral: route it to a throwaway prototype now, then answer it in one line. The detour and the skills that own it: SKILL.md "Mid-interview composition"
+- **Defer-with-assumption:** the user can pick a working assumption, with a known revisit trigger. Capture the assumption and the trigger ("assume Postgres for now; revisit if write throughput exceeds X")
+- **Defer-fully:** out of scope for this task; record in **Deferred questions** so it doesn't silently become a hidden assumption later
 
-**In `me` mode**, "Defer-with-assumption" is NOT available for a *consequential* branch — drive it to a decision (which may be an explicit "defer to post-V1", recorded as a surfaced decision, not a silent assumption). Defer-with-assumption stays valid only for genuinely non-consequential items.
+**In `me` mode**, "Defer-with-assumption" is NOT available for a *consequential* branch. Drive it to a decision (which may be an explicit "defer to post-V1", recorded as a surfaced decision, not a silent assumption). Defer-with-assumption stays valid only for genuinely non-consequential items.
 
 ### Highest-value question shapes
 
@@ -99,13 +99,13 @@ Targets that catch the most rework downstream:
 
 | Shape | Why it matters | Example (with recommended answer) |
 |---|---|---|
-| Goal phrased as solution | Locks implementation before problem is named | "If we ignore the implementation — what changes for the user? I'd guess: users can reset passwords via email, based on the `ForgotPassword` endpoint stub I found." |
-| Acceptance criterion not testable | "Works correctly" is not a contract | "How would we know this is working? I'd suggest: `GET /api/users/me` returns 401 when session token missing — verifiable?" |
-| Implicit constraint | Stack, timing, untouchable area | "Anything we should NOT touch? I see `LegacyAuthMiddleware` hasn't changed in 6 months — off limits?" |
-| Unstated scale assumption | Drives architecture | "Roughly how many per day? Your current table has 12K rows — expecting 10x growth, or staying in that range?" |
+| Goal phrased as solution | Locks implementation before problem is named | "If we ignore the implementation, what changes for the user? I'd guess: users can reset passwords via email, based on the `ForgotPassword` endpoint stub I found." |
+| Acceptance criterion not testable | "Works correctly" is not a contract | "How would we know this is working? I'd suggest: `GET /api/users/me` returns 401 when session token missing. Verifiable?" |
+| Implicit constraint | Stack, timing, untouchable area | "Anything we should NOT touch? I see `LegacyAuthMiddleware` hasn't changed in 6 months. Off limits?" |
+| Unstated scale assumption | Drives architecture | "Roughly how many per day? Your current table has 12K rows. Expecting 10x growth, or staying in that range?" |
 | Domain term used two ways | Will collide later | "When you say 'Order', do you mean the cart or the placed-and-paid order? Your vocabulary file doesn't have this term yet." |
-| Scope creep | One PR vs three | "Is X part of this task, or its own follow-up? I'd recommend splitting — X touches a different module." |
-| NFRs missing | Functional vs non-functional unclear | "Beyond the feature — constraints on latency, reliability, cost? Your current p99 is 45ms per the middleware logs." |
+| Scope creep | One PR vs three | "Is X part of this task, or its own follow-up? I'd recommend splitting, since X touches a different module." |
+| NFRs missing | Functional vs non-functional unclear | "Beyond the feature: constraints on latency, reliability, cost? Your current p99 is 45ms per the middleware logs." |
 | Domain boundary unclear | Concept overlap between contexts | "What happens when a Customer cancels half an Order? Partial cancellation or two separate ones? Let's probe the edge case." |
 
 ## Relentless `me` mode mechanics
@@ -114,34 +114,34 @@ Targets that catch the most rework downstream:
 
 ### Inline round format
 
-Each round is one numbered set in prose (surface rules: SKILL.md "Question surface"). **Per-question template + partial-round resolution: SKILL.md Stance "Relentless mode"** — single source; not duplicated here.
+Each round is one numbered set in prose (surface rules: SKILL.md "Question surface"). **Per-question template + partial-round resolution: SKILL.md Stance "Relentless mode"** is the single source; it is not duplicated here.
 
-`Q<N>` is a running counter across the session and across rounds (Q1–Q4 in round one, Q5… in round two — visible depth). Wait for the round's answers before computing the next round. The closing probe is load-bearing: it invites the user to surface a hidden constraint that would flip a recommendation. Most answers come back as a one-line "all as recommended" — that is the format working, not under-questioning.
+`Q<N>` is a running counter across the session and across rounds (Q1–Q4 in round one, Q5… in round two, so the depth stays visible). Wait for the round's answers before computing the next round. The closing probe is what invites the user to surface a hidden constraint that would flip a recommendation. Most answers come back as a one-line "all as recommended". That is the format working, not under-questioning.
 
 ### Artifact escape hatch (dense round)
 
-When a round is large or dense enough that inline prose reads as a wall, offer to render the **whole frontier** as a decision table (SKILL.md "Artifact escape hatch"). It is a rendering surface, not a protocol change — the frontier is still asked whole, never capped or split across cards, and the recommendation+basis+probe contract of an inline round is preserved (below).
+When a round is large or dense enough that inline prose reads as a wall, offer to render the **whole frontier** as a decision table (SKILL.md "Artifact escape hatch"). It is a rendering surface, not a protocol change. The frontier is still asked whole, never capped or split across cards, and the recommendation+basis+probe contract of an inline round is preserved (below).
 
-- **Delivery:** write a **self-contained** HTML file to the topic-docs **ephemeral tier**, not the memory slice — nothing downstream reads a round table again, and the ledger and terminal stay the tracked record (the HTML is a scannable view, not the source of truth — mirror the repo's HTML-vs-markdown convention when it declares one). Create **one** OS temp directory per interview run through the platform's temp primitive, naming the temp root in the template (`mktemp -d "${TMPDIR:-/tmp}/interview-XXXXXX"` on Unix — the positional-template form GNU and BSD accept identically, and the only form that reliably leaves the working directory; a user-scoped temp under `%LOCALAPPDATA%\Temp` on Windows) and write that run's `interview-round-<n>.html` files inside it — one directory per run, never an accumulating tree in the repo. Resolve that one path deterministically: never branch on whether the harness injected a scratchpad path or set `CLAUDE_JOB_DIR`, and never depend on the session scratchpad. Give the user the file's path to open, and do **not** delete it — the path is the delivery mechanism, so it must still be readable when the reader opens it, and it outlives this invocation. A resumed interview starts a **new** run directory: after the handoff-and-clear in "Incremental persistence + branch-out", the prior run's directory is not re-resolvable, and it does not need to be — the ledger and Brief carry every resolved answer, and the temp path is deliberately not recorded anywhere to make it so (a pointer into the temp tree is not memory-tier content). Rules and rationale: the binding [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md).
-- **Columns:** `#` (the terminal `Q<N>`) | `Question` | `Recommendation` — the answer **with its 2-3 sentence codebase-grounded basis**, the same grounding an inline round carries, never a terse label | `Alternatives` (the other options, one line each) | `Deciding what` (the stakes — what this answer changes downstream).
-- **Constraint probe kept:** render the round's closing probe (the invitation to surface a constraint that would flip a recommendation) with the table — in the terminal residue or beneath the table — so the challenge mechanism the inline contract requires is not lost.
+- **Delivery:** write a **self-contained** HTML file to the topic-docs **ephemeral tier**, not the memory slice. Nothing downstream reads a round table again, and the ledger and terminal stay the tracked record (the HTML is a scannable view, not the source of truth, so mirror the repo's HTML-vs-markdown convention when it declares one). Create **one** OS temp directory per interview run through the platform's temp primitive, naming the temp root in the template (`mktemp -d "${TMPDIR:-/tmp}/interview-XXXXXX"` on Unix, the positional-template form GNU and BSD accept identically, and the only form that reliably leaves the working directory; a user-scoped temp under `%LOCALAPPDATA%\Temp` on Windows) and write that run's `interview-round-<n>.html` files inside it, one directory per run, never an accumulating tree in the repo. Resolve that one path deterministically: never branch on whether the harness injected a scratchpad path or set `CLAUDE_JOB_DIR`, and never depend on the session scratchpad. Give the user the file's path to open, and do **not** delete it. The path is the delivery mechanism, so it must still be readable when the reader opens it, and it outlives this invocation. A resumed interview starts a **new** run directory: after the handoff-and-clear in "Incremental persistence + branch-out", the prior run's directory is not re-resolvable, and it does not need to be. The ledger and Brief carry every resolved answer, and the temp path is deliberately not recorded anywhere to make it so (a pointer into the temp tree is not memory-tier content). Rules and rationale: the binding [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md).
+- **Columns:** `#` (the terminal `Q<N>`) | `Question` | `Recommendation`, the answer **with its 2-3 sentence codebase-grounded basis**, the same grounding an inline round carries, never a terse label | `Alternatives` (the other options, one line each) | `Deciding what` (the stakes, meaning what this answer changes downstream).
+- **Constraint probe kept:** render the round's closing probe (the invitation to surface a constraint that would flip a recommendation) with the table, in the terminal residue or beneath the table, so the challenge mechanism the inline contract requires is not lost.
 - **Answer path:** the row `#` equals the terminal `Q<N>`, so the user answers in the terminal by number ("Q7 = b", "accept all") exactly as with an inline round; the table is read-only scanning, not an input surface.
-- **Terminal residue:** the terminal keeps a one-line summary (how many questions, what the round turns on), the file path, and the closing probe — never a silent hand-off to the artifact.
+- **Terminal residue:** the terminal keeps a one-line summary (how many questions, what the round turns on), the file path, and the closing probe, never a silent hand-off to the artifact.
 - **Degrade:** when HTML rendering is unavailable, render the same columns (with the same grounded basis) and the probe as a fenced markdown table inline.
 
 ### Session-shorthand glossary
 
-When a round coins or leans on session-local shorthand — a label, abbreviation, or cross-repo term the user may not share — define it once at first use and record it here so later rounds (and a resumed session) use it without re-explaining. Ephemeral session vocabulary, distinct from the project's ubiquitous language (owned by `/domain-driven-design:curate-language`); it lives only in the working ledger and is discarded with it.
+When a round coins or leans on session-local shorthand, a label, abbreviation, or cross-repo term the user may not share, define it once at first use and record it here so later rounds (and a resumed session) use it without re-explaining. Ephemeral session vocabulary, distinct from the project's ubiquitous language (owned by `/domain-driven-design:curate-language`); it lives only in the working ledger and is discarded with it.
 
 ```markdown
 **Session shorthand:**
-- lane — one parallel builder session working an isolated slice
-- gate vacuity — an acceptance gate that always passes, so it checks nothing
+- lane: one parallel builder session working an isolated slice
+- gate vacuity: an acceptance gate that always passes, so it checks nothing
 ```
 
 ### Dialogue + recommendation revision
 
-The user drives too. When they push back or reframe a decision on a new axis — most often **reversibility** ("what's hardest to roll back from?") — re-rank the options on that axis and REVISE your recommendation out loud. Worked example: recommend one-level reply threading → user asks what's irreversible → re-rank by reversibility (flat→one-level trivial; one-level→nested easy; nested→simpler hard) → flip the recommendation to pure-flat as the most reversible V1 start. The flip is the dialogue working, not indecision.
+The user drives too. When they push back or reframe a decision on a new axis, most often **reversibility** ("what's hardest to roll back from?"), re-rank the options on that axis and REVISE your recommendation out loud. Worked example: recommend one-level reply threading → user asks what's irreversible → re-rank by reversibility (flat→one-level trivial; one-level→nested easy; nested→simpler hard) → flip the recommendation to pure-flat as the most reversible V1 start. The flip is the dialogue working, not indecision.
 
 ### Reversibility lens (V1 default)
 
@@ -159,68 +159,68 @@ Maintain a live ledger of branches as checkboxes in `<memory_dir>/<topic-slug>/i
 
 ```markdown
 **Decision tree:**
-- [x] who can read/write — enrolled + instructor + admin
-- [x] threading — flat (most reversible)
+- [x] who can read/write: enrolled + instructor + admin
+- [x] threading: flat (most reversible)
 - [ ] content format
 - [ ] moderation (blocked by: admin-role scope)
 ```
 
-Tick on resolve. Surface the open set periodically (every few questions, or on request) — not every turn, which would clutter the round flow. Loop until zero open *consequential* branches. No question cap.
+Tick on resolve. Surface the open set periodically (every few questions, or on request), not every turn, which would clutter the round flow. Loop until zero open *consequential* branches. No question cap.
 
 ### Incremental persistence + branch-out
 
 - **Persist per lock-in.** The moment a branch resolves, write the answer to its ledger checkbox + the relevant Brief section, so resolved branches survive a crash, context clear, or overflow.
 - **Handoff on signal, not on self-estimate.** The ledger and partial Brief are already on disk after every lock-in, so nothing needs flushing before a handoff. Offer one (`/session-flow:handoff` if installed, otherwise a resume note) when the user or the harness asks for a pause or when branches outgrow the session; never because the conversation feels long.
-- **Branch out to ground a recommendation — without blocking the round.** If a question needs more than the lightweight codebase gate — external best-practice, library API surface, deeper exploration — dispatch the lookup to a sub-agent (or do it inline when fast) and treat the running lookup as an unsettled prerequisite: its downstream questions move to a later round while the rest of the frontier is asked now. When the result lands, the unblocked questions join the next round's frontier, grounded in code read this session or an official source fetched this session. Never recommend a load-bearing technical choice from training recall.
-- **Handoff for long sessions.** If branches outgrow one session, hand off (save-point + resume prompt) → clear → resume from the first open ledger checkbox — and from the register's `open` rows, which survive the clear that the transcript does not.
+- **Branch out to ground a recommendation, without blocking the round.** If a question needs more than the lightweight codebase gate, such as external best-practice, library API surface, or deeper exploration, dispatch the lookup to a sub-agent (or do it inline when fast) and treat the running lookup as an unsettled prerequisite: its downstream questions move to a later round while the rest of the frontier is asked now. When the result lands, the unblocked questions join the next round's frontier, grounded in code read this session or an official source fetched this session. Never recommend a consequential technical choice from training recall.
+- **Handoff for long sessions.** If branches outgrow one session, hand off (save-point + resume prompt) → clear → resume from the first open ledger checkbox, and from the register's `open` rows, which survive the clear that the transcript does not.
 
 ## The open-question register
 
-A question that was asked, went unanswered across a reply about something else, and was never re-surfaced is not an ergonomics problem — it is the skill reporting a locked contract over an input it had itself identified as load-bearing. The register is the durable record that makes that failure visible; it lives as the `## Open-question register` section of the topic's one ledger (`<memory_dir>/<topic-slug>/interview-checklist.md`), never a second file.
+A question that was asked, went unanswered across a reply about something else, and was never re-surfaced is not an ergonomics problem. It is the skill reporting a locked contract over an input it had itself identified as consequential. The register is the durable record that makes that failure visible; it lives as the `## Open-question register` section of the topic's one ledger (`<memory_dir>/<topic-slug>/interview-checklist.md`), never a second file.
 
 ### Write at ask-time, not at answer-time
 
-**The moment a round is asked — before any reply arrives — write one row per question at `open`.** This is the load-bearing rule and the reason the register is worth anything: registering is a byproduct of *asking*, so an unanswered question is on disk whether or not the conversation ever returns to it. A register written when answers land can only record questions that were answered, which is precisely the set that never needed recording.
+**The moment a round is asked, before any reply arrives, write one row per question at `open`.** This is the rule the register rests on and the reason it is worth anything: registering is a byproduct of *asking*, so an unanswered question is on disk whether or not the conversation ever returns to it. A register written when answers land can only record questions that were answered, which is precisely the set that never needed recording.
 
 The register tracks the *asking*; the Brief draft tracks the answers, on the schedule Step 2 item 5 sets per mode.
 
-**One thing asked is not a question here: the acceptance-criteria coverage prompt.** It carries no decision, so it gets no row at ask-time and does not by itself make the register exist — including when it rides along inside a round. That is the whole exception. Every real question in the same round is written at `open` exactly as this rule requires, and nothing about the coverage prompt changes when a round is registered or what the gate then demands.
+**One thing asked is not a question here: the acceptance-criteria coverage prompt.** It carries no decision, so it gets no row at ask-time and does not by itself make the register exist, including when it rides along inside a round. That is the whole exception. Every real question in the same round is written at `open` exactly as this rule requires, and nothing about the coverage prompt changes when a round is registered or what the gate then demands.
 
-Because the register must exist before the first reply, a session that asks ANY round emits the ledger — the `≥2 open questions OR me mode` threshold in SKILL.md "Emit checklist" governs the full checklist, not this section.
+Because the register must exist before the first reply, a session that asks ANY round emits the ledger. The `≥2 open questions OR me mode` threshold in SKILL.md "Emit checklist" governs the full checklist, not this section.
 
-**A run that asks nothing writes no register — but a run that fails to resolve cleanly does, whichever action it was.** `auto` routing to synthesize-directly with no open decision asks nothing, exactly as `lock` does; both are ordinary outcomes, not edge cases, and neither is exempt for being that action. `lock`'s STOP-on-gap rule and the unattended ladder both produce questions the run could not resolve, and a question outside the register is a question outside the gate. So: a gap surfaced mid-synthesis is registered `open` when it goes to the user, and a genuine user decision reached with nobody to answer is registered `blocked`. The register exists whenever there is something unresolved to record, in every mode.
+**A run that asks nothing writes no register, but a run that fails to resolve cleanly does, whichever action it was.** `auto` routing to synthesize-directly with no open decision asks nothing, exactly as `lock` does; both are ordinary outcomes, not edge cases, and neither is exempt for being that action. `lock`'s STOP-on-gap rule and the unattended ladder both produce questions the run could not resolve, and a question outside the register is a question outside the gate. So: a gap surfaced mid-synthesis is registered `open` when it goes to the user, and a genuine user decision reached with nobody to answer is registered `blocked`. The register exists whenever there is something unresolved to record, in every mode.
 
 ```text
 - Q1 | answered | round 1 | Who can write comments? | enrolled + instructor + admin
 - Q2 | open | round 1 | What content format? |
-- Q3 | blocked | round 2 | Retention window? | named blocker — no interactive user
+- Q3 | blocked | round 2 | Retention window? | named blocker: no interactive user
 ```
 
 Fields: `Q<N> | status | round | question | resolution`. Statuses:
 
 | Status | Means | Terminal? |
 |---|---|---|
-| `open` | asked, not yet resolved | no — blocks the contract |
+| `open` | asked, not yet resolved | no, it blocks the contract |
 | `answered` | the user answered it; the answer is in the resolution field | yes |
 | `deferred` | deferred-fully; recorded in the Brief's `### Deferred questions` | yes |
-| `withdrawn` | the tree changed and the question no longer applies — say what pruned it | yes |
+| `withdrawn` | the tree changed and the question no longer applies; say what pruned it | yes |
 | `blocked` | no answer is reachable (see "Unattended path"); a named blocker in the Brief | yes |
 
-`Q<N>` matches the terminal numbering, runs continuously across rounds, and never has a gap — a gap means a row was dropped after it was written, and the gate refuses to grade a register with one.
+`Q<N>` matches the terminal numbering, runs continuously across rounds, and never has a gap. A gap means a row was dropped after it was written, and the gate refuses to grade a register with one.
 
-**Free-text flag — a resolution-field convention.** When a reply RESOLVES its question but arrives as free text rather than a pick from the authored options — the escape hatch, a complete answer in the user's own words, an explicit "you pick" (which resolves to the recommendation) — lead the resolution field with `free-text:` before the answer. Downstream passes (answer audits, plan formulation) treat flagged rows as deserving scrutiny rather than as settled picks: a free-text answer is where a misread lands silently. The flag never launders a non-answer into `answered`: a partial or non-resolving reply keeps its row `open` under the drift check below, exactly as if the reply had changed the subject. This lives inside the free-form resolution field; `check-open-questions.sh` grades statuses, not resolutions, so the flag is invisible to the gate and downstream passes read it from the row text.
+**Free-text flag, a resolution-field convention.** When a reply RESOLVES its question but arrives as free text rather than a pick from the authored options, whether through the escape hatch, a complete answer in the user's own words, or an explicit "you pick" (which resolves to the recommendation), lead the resolution field with `free-text:` before the answer. Downstream passes (answer audits, plan formulation) treat flagged rows as deserving scrutiny rather than as settled picks: a free-text answer is where a misread lands silently. The flag never launders a non-answer into `answered`: a partial or non-resolving reply keeps its row `open` under the drift check below, exactly as if the reply had changed the subject. This lives inside the free-form resolution field; `check-open-questions.sh` grades statuses, not resolutions, so the flag is invisible to the gate and downstream passes read it from the row text.
 
-### Drift check — a reply that does not answer is not an answer
+### Drift check: a reply that does not answer is not an answer
 
-**After every user reply, before doing anything else, check the reply against the register's `open` rows.** Any row the reply did not address stays `open`, and you restate it at the top of your next response — even when the reply changed the subject entirely, even when you are mid-answer to something else, and even when the reply reads as agreement. Conversational drift is never consent, and the user changing the subject is ordinary conversation, not a defect on their side.
+**After every user reply, before doing anything else, check the reply against the register's `open` rows.** Any row the reply did not address stays `open`, and you restate it at the top of your next response, even when the reply changed the subject entirely, even when you are mid-answer to something else, and even when the reply reads as agreement. Conversational drift is never consent, and the user changing the subject is ordinary conversation, not a defect on their side.
 
 The register, not the transcript, is the authority here. After a compaction the question may no longer be in context at all; the row still is.
 
-Two shapes of restate, both one line: *"Still open: Q3 (content format)"* when the reply simply moved on, and *"Q3 is still open — your answer covered Q4"* when the reply addressed a different registered question. Cost is a line when the question was answered anyway; the alternative is the entire failure.
+Two shapes of restate, both one line: *"Still open: Q3 (content format)"* when the reply simply moved on, and *"Q3 is still open; your answer covered Q4"* when the reply addressed a different registered question. Cost is a line when the question was answered anyway; the alternative is the entire failure.
 
-### Out-of-band drift — a return that lands before the reply
+### Out-of-band drift: a return that lands before the reply
 
-The drift check above fires on a user reply. A round can also be overtaken by output the user did not write: a dispatched sub-agent's return, a background task notification, an agent-team member's report, a Monitor firing, a permission prompt raised by a sub-agent. The list is open — the test is *non-user content reaching the transcript while a round is open*, not membership of a named set. This is the ordinary consequence of the non-blocking dispatch rule ("Codebase gate per frontier question" above, and "Branch out to ground a recommendation"), so it is expected traffic, never an anomaly.
+The drift check above fires on a user reply. A round can also be overtaken by output the user did not write: a dispatched sub-agent's return, a background task notification, an agent-team member's report, a Monitor firing, a permission prompt raised by a sub-agent. The list is open, because the test is *non-user content reaching the transcript while a round is open*, not membership of a named set. This is the ordinary consequence of the non-blocking dispatch rule ("Codebase gate per frontier question" above, and "Branch out to ground a recommendation"), so it is expected traffic, never an anomaly.
 
 **When such output lands, check it against the register's `open` rows before continuing.** The trigger is RELEVANCE, not arrival. Three outcomes, and most returns take the first:
 
@@ -228,38 +228,38 @@ The drift check above fires on a user reply. A round can also be overtaken by ou
 2. **It contradicts a recommendation under a question already asked.** Restate that question, naming the superseded recommendation as superseded and giving the replacement its own basis. A recommendation the session has since disproved is worse than no recommendation, because the user is answering against it.
 3. **It answers an open row from the environment.** Resolve it and STATE the answer; do not leave it standing as a question. "Facts are yours; decisions are the user's" does not stop applying because the fact arrived late.
 
-**Re-present narrowly.** One line carrying the untouched questions (*"Still open: Q5, Q6, Q8 — unchanged"*), and the full question shape ONLY for the row that actually moved. Never re-print the whole round: with several lookups in flight that is several full re-prints under one open set, which buries the round it is trying to surface. The user answers by `Q<N>` against a block they can scroll to; restoring visibility is not worth the noise, and the changed recommendation is the part they cannot recover by scrolling.
+**Re-present narrowly.** One line carrying the untouched questions (*"Still open, unchanged: Q5, Q6, Q8"*), and the full question shape ONLY for the row that actually moved. Never re-print the whole round: with several lookups in flight that is several full re-prints under one open set, which buries the round it is trying to surface. The user answers by `Q<N>` against a block they can scroll to; restoring visibility is not worth the noise, and the changed recommendation is the part they cannot recover by scrolling.
 
 **This does not hold the round.** The scoped barrier stays exactly as it is: only questions downstream of a running lookup wait, and the rest of the frontier is asked now. Holding a round until every dispatch drains would trade this failure for a serialized interview.
 
 **The floor is the next user reply.** Whether the harness gives you a turn when out-of-band output lands is not something to build correctness on. Acting the moment the output lands is the improvement, not the requirement.
 
-**When a user reply and queued out-of-band output share a turn, process the queued output first.** Apply the three outcomes against the register as it stood before the reply, then apply the reply. If the queued output changed the recommendation under a question the reply just answered, revalidate that answer against the replacement; do not treat the row as settled on the superseded recommendation. Checking the reply first would mark the row `answered`, and the queued contradiction would then touch no open row — outcome 1, and the wrong one.
+**When a user reply and queued out-of-band output share a turn, process the queued output first.** Apply the three outcomes against the register as it stood before the reply, then apply the reply. If the queued output changed the recommendation under a question the reply just answered, revalidate that answer against the replacement; do not treat the row as settled on the superseded recommendation. Checking the reply first would mark the row `answered`, and the queued contradiction would then touch no open row, which is outcome 1 and the wrong one.
 
 The rule is also surface-agnostic: it reads the register, so it does not care whether the round was asked as inline prose or through `AskUserQuestion`.
 
 ### Unattended path
 
-`/planning:interview` can be reached with no human to answer — from a loop, a spawned worker, or another skill's chain. There is no supported way for the session to *detect* this (as of 2026-09-02, `https://code.claude.com/docs/en/cli-reference` documents `--permission-prompt-tool` for non-interactive permission handling and no state a running session can read, and `https://code.claude.com/docs/en/env-vars` documents no remote or headless indicator; recheck when either page gains one), so the trigger is **declared, never sniffed**: the caller says it is unattended, or the round has been emitted and the run has no user turn to wait for.
+`/planning:interview` can be reached with no human to answer, from a loop, a spawned worker, or another skill's chain. There is no supported way for the session to *detect* this (as of 2026-09-02, `https://code.claude.com/docs/en/cli-reference` documents `--permission-prompt-tool` for non-interactive permission handling and no state a running session can read, and `https://code.claude.com/docs/en/env-vars` documents no remote or headless indicator; recheck when either page gains one), so the trigger is **declared, never sniffed**: the caller says it is unattended, or the round has been emitted and the run has no user turn to wait for.
 
 The ladder, in order:
 
-1. **Facts stay facts.** Resolve from the environment exactly as always — this path changes nothing about the codebase gate.
+1. **Facts stay facts.** Resolve from the environment exactly as always; this path changes nothing about the codebase gate.
 2. **Codebase-resolvable or unambiguous-conventional decisions** resolve as they would interactively. Record the row `answered` with the basis in the resolution field, marked `auto-resolved (unattended)`.
-3. **A decision that is genuinely the user's** — real tradeoffs, no codebase answer — is NEVER assumed. Record the row `blocked`, write the question into the Brief's `### Deferred questions` led by its `Q<N>` id and tagged **arbiter: USER-RESERVED**, and name it as a blocker in the run's output.
+3. **A decision that is genuinely the user's**, with real tradeoffs and no codebase answer, is NEVER assumed. Record the row `blocked`, write the question into the Brief's `### Deferred questions` led by its `Q<N>` id and tagged **arbiter: USER-RESERVED**, and name it as a blocker in the run's output.
 4. **Never idle-wait.** A run with nobody to answer stops on its blockers rather than holding the lane.
 5. **The confirmation gate cannot be satisfied unattended.** Report the contract as unconfirmed with its blocker list; absence of objection is not confirmation.
 
-**This preserves the auto-guard rather than carving an exception in it.** SKILL.md Step 1.5's guard forbids *silently* folding a user decision into the Brief as an assumption — the failure it exists to prevent is the choice disappearing. A named blocker is the opposite: the choice is surfaced, attributed to the user, and blocks the contract until they make it. The sibling `plugin-quality:audit` resolves its contract-lock the same way — safe defaults resolve silently and are recorded; anything without a safe default becomes a named blocker.
+**This preserves the auto-guard rather than carving an exception in it.** SKILL.md Step 1.5's guard forbids *silently* folding a user decision into the Brief as an assumption, because the failure it exists to prevent is the choice disappearing. A named blocker is the opposite: the choice is surfaced, attributed to the user, and blocks the contract until they make it. The sibling `plugin-quality:audit` resolves its contract-lock the same way: safe defaults resolve silently and are recorded; anything without a safe default becomes a named blocker.
 
-**The acceptance-criteria coverage prompt is exempt from this ladder.** It is a coverage check, not a decision: unattended it is skipped, reported unexamined in the returned summary, and recorded under `### Captured assumptions`. Never a `blocked` register row, never a `### Deferred questions` entry, and never a blocker that stops the run. It exempts itself and nothing else — a decision genuinely the user's still takes rung 3 exactly as written. Step 4's "Acceptance criteria" guidance owns the prompt itself.
+**The acceptance-criteria coverage prompt is exempt from this ladder.** It is a coverage check, not a decision: unattended it is skipped, reported unexamined in the returned summary, and recorded under `### Captured assumptions`. Never a `blocked` register row, never a `### Deferred questions` entry, and never a blocker that stops the run. It exempts itself and nothing else: a decision genuinely the user's still takes rung 3 exactly as written. Step 4's "Acceptance criteria" guidance owns the prompt itself.
 
 ### Gate before locking
 
 The register is bookkeeping, so it gets a mechanical check rather than a promise. It runs **twice**, because the two things it proves become checkable at different moments:
 
 ```bash
-# Step 3, before the contract is persisted — the Brief does not exist yet.
+# Step 3, before the contract is persisted. The Brief does not exist yet.
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" \
   --ledger <memory_dir>/<topic-slug>/interview-checklist.md
 
@@ -269,52 +269,52 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" \
   --brief <contract_dir>/<topic-slug>/PLAN.md
 ```
 
-Passing `--brief` at Step 3 would name a file Step 4 has not written yet, and the gate exits 2 on a named-but-missing `--brief` — a first-time interview would deadlock before it could persist anything. A general session writes no Brief and runs only the first form.
+Passing `--brief` at Step 3 would name a file Step 4 has not written yet, and the gate exits 2 on a named-but-missing `--brief`, so a first-time interview would deadlock before it could persist anything. A general session writes no Brief and runs only the first form.
 
-Exit 0 = clean; exit 1 = a question is still `open` (do not lock the contract, do not hand off — resolve or explicitly retire it); exit 2 = ungradeable (missing ledger, missing register, malformed row, unknown status, duplicate or gapped `Q<N>`, or a `deferred`/`blocked` row the Brief never records) — treat as a halt, never as a pass. On the Step 4 run a missing question means the **Brief** is incomplete: fix the Brief, never retire the row to quiet the gate.
+Exit 0 = clean; exit 1 = a question is still `open` (do not lock the contract, do not hand off; resolve or explicitly retire it); exit 2 = ungradeable (missing ledger, missing register, malformed row, unknown status, duplicate or gapped `Q<N>`, or a `deferred`/`blocked` row the Brief never records), which is treated as a halt, never as a pass. On the Step 4 run a missing question means the **Brief** is incomplete: fix the Brief, never retire the row to quiet the gate.
 
 **The acceptance-criteria coverage prompt is not a registered question, and not a gap in the record either.** It carries no decision, so it writes no row and never reaches this gate; a run whose only question was that prompt has no register and skips the gate rather than failing it ungradeable. The exemption is that one prompt and no other: a real question asked alongside it registers at ask-time and brings the gate into scope exactly as it always did. Step 4's "Acceptance criteria" guidance owns the prompt itself.
 
 What the gate cannot prove: it grades the interview's own record, so a question never registered is invisible to it. The ask-time write rule is what keeps the record independent of the answer; the contiguity and duplicate checks are what catch a row dropped after it was written.
 
-## Step 3 — Recognize the stop condition
+## Step 3. Recognize the stop condition
 
 Stop when ALL hold:
 
-- The frontier is empty: every load-bearing unknown is **resolved** or **explicitly captured as a named assumption** with a revisit trigger
+- The frontier is empty: every unknown the task depends on is **resolved** or **explicitly captured as a named assumption** with a revisit trigger
 - The user can describe the goal in one paragraph without contradicting the constraints or acceptance criteria
-- Acceptance criteria are testable — each points at a check, observation, or measurement
-- **Confirmation gate** (`me` and `auto`): the shared understanding is restated and the user explicitly confirms it — do not persist the contract or hand off on an empty frontier alone. `lock` is exempt: invoking it IS the confirmation (its STOP-on-gap rule still applies)
+- Acceptance criteria are testable: each points at a check, observation, or measurement
+- **Confirmation gate** (`me` and `auto`): the shared understanding is restated and the user explicitly confirms it. Do not persist the contract or hand off on an empty frontier alone. `lock` is exempt: invoking it IS the confirmation (its STOP-on-gap rule still applies)
 
-Do NOT stop early because the user gets impatient. If a real load-bearing unknown remains, name it ("one open item: X — willing to ship as an assumption?") and let them choose. Do NOT keep asking past the stop condition — that is its own anti-pattern.
+Do NOT stop early because the user gets impatient. If a real unknown the task depends on remains, name it ("one open item: X. Willing to ship as an assumption?") and let them choose. Do NOT keep asking past the stop condition; that is its own anti-pattern.
 
-**`me` mode:** the stop condition is an empty decision-tree ledger (every consequential branch decided) plus the confirmation gate — never a question count.
+**`me` mode:** the stop condition is an empty decision-tree ledger (every consequential branch decided) plus the confirmation gate, never a question count.
 
-## Step 4 — Section guidance for the Brief
+## Step 4. Section guidance for the Brief
 
 Each section in the PLAN.md Brief captures a specific shape. Keep tight.
 
-**Goal** — one paragraph. What success looks like in plain language. Describe the OUTCOME, not the implementation:
+**Goal:** one paragraph. What success looks like in plain language. Describe the OUTCOME, not the implementation:
 
 - ✅ "Users can reset their password via email" (outcome)
 - ❌ "Add PasswordResetHandler with IDispatcher" (implementation)
 
-**Constraints** — bullet list. What the solution must respect OR avoid. Sub-categories worth probing:
+**Constraints:** bullet list. What the solution must respect OR avoid. Sub-categories worth probing:
 
-- **Non-goals** — explicitly out of scope (often surfaces during interview)
-- **Untouchable code/areas** — don't modify X, don't break Y
-- **Performance / API contracts** — e.g. "must stay under 200ms p99", "must not break existing webhook clients"
-- **Ecosystem / stack constraints** — e.g. "no new languages", "no new mapping library"
-- **Timeline constraints** — e.g. "must ship before mobile release freeze"
+- **Non-goals:** explicitly out of scope (often surfaces during interview)
+- **Untouchable code/areas:** don't modify X, don't break Y
+- **Performance / API contracts:** e.g. "must stay under 200ms p99", "must not break existing webhook clients"
+- **Ecosystem / stack constraints:** e.g. "no new languages", "no new mapping library"
+- **Timeline constraints:** e.g. "must ship before mobile release freeze"
 
-**Acceptance criteria** — bullet list. How to verify done. Each criterion must map to a test or verifiable observation:
+**Acceptance criteria:** bullet list. How to verify done. Each criterion must map to a test or verifiable observation:
 
 - ✅ "`GET /api/users/me` returns 401 when the session token is missing" (testable)
 - ❌ "Authentication works correctly" (fuzzy)
 
 Two behaviours attach here, both defined in the SKILL.md section "Acceptance-criteria capture" and summarized below for the writer of this section.
 
-**Coverage prompt, always on.** Asked once while these criteria are captured: are they missing an **unwanted-behaviour** case (`IF <trigger>, THEN <response>`) and a **state-driven** case (`WHILE <state>, <response>`)? One prompt for both, "neither applies" closes it, and it is never a `Q<N>` row in the open-question register — it carries no decision, so it must never reach the register gate or `### Deferred questions`. A non-interactive run (a dispatched worker, a forked subagent, a headless invocation, or any caller that declared the run unattended — declared, never sniffed) SKIPS the ask, states in its returned summary that unwanted-behaviour and state-driven coverage went unexamined, and records the same line under `### Captured assumptions`. That line records an unrun check and nothing else: it is never a place to park a decision, it satisfies no part of the auto-guard, and a decision genuinely the user's is still recorded `blocked` with **arbiter: USER-RESERVED** per the unattended ladder.
+**Coverage prompt, always on.** Asked once while these criteria are captured: are they missing an **unwanted-behaviour** case (`IF <trigger>, THEN <response>`) and a **state-driven** case (`WHILE <state>, <response>`)? One prompt for both, "neither applies" closes it, and it is never a `Q<N>` row in the open-question register. It carries no decision, so it must never reach the register gate or `### Deferred questions`. A non-interactive run (a dispatched worker, a forked subagent, a headless invocation, or any caller that declared the run unattended, declared and never sniffed) SKIPS the ask, states in its returned summary that unwanted-behaviour and state-driven coverage went unexamined, and records the same line under `### Captured assumptions`. That line records an unrun check and nothing else: it is never a place to park a decision, it satisfies no part of the auto-guard, and a decision genuinely the user's is still recorded `blocked` with **arbiter: USER-RESERVED** per the unattended ladder.
 
 **Pattern tags, only under the `ears` convention.** With `acceptance_criteria_format` resolving to `free-text` (the default and every degrade), criteria are emitted untagged, exactly as the template placeholder shows. With it resolving to `ears`, each criterion takes a bracketed pattern prefix on that same plain bullet, drawn from exactly these five names:
 
@@ -335,13 +335,13 @@ Two behaviours attach here, both defined in the SKILL.md section "Acceptance-cri
 - [optional-feature] WHERE checksum verification is enabled, the manifest records a digest per entry
 ```
 
-`ubiquitous`, `event-driven`, `state-driven`, `unwanted-behaviour`, `optional-feature` — spelled exactly that way. A downstream reader matches on the literal name, so a variant spelling is not a near miss; it is an untagged criterion that looks tagged.
+Spell them exactly this way: `ubiquitous`, `event-driven`, `state-driven`, `unwanted-behaviour`, `optional-feature`. A downstream reader matches on the literal name, so a variant spelling is not a near miss; it is an untagged criterion that looks tagged.
 
-**Captured assumptions** — what was deferred-with-assumption. Each captures the assumption AND the trigger forcing a revisit. The load-bearing innovation: what would otherwise be silent becomes explicit, and `/planning:devils-advocate` and `/planning:plan` can attack it later.
+**Captured assumptions:** what was deferred-with-assumption. Each captures the assumption AND the trigger forcing a revisit. The point of the section: what would otherwise be silent becomes explicit, and `/planning:devils-advocate` and `/planning:plan` can attack it later.
 
-**Out-of-scope** — things raised during the interview and explicitly excluded. Distinct from non-goals (constraints up-front); these surfaced in conversation.
+**Out-of-scope:** things raised during the interview and explicitly excluded. Distinct from non-goals (constraints up-front); these surfaced in conversation.
 
-**Deferred questions** — questions deferred-fully, plus the `blocked` ones an unattended run could not put to anybody. Out of scope for this task but recorded so they don't silently become hidden assumptions. **Each entry leads with its `Q<N>` id** — that id is what ties the contract entry back to its register row, and the Step 4 gate greps this section for it; an entry written without one reads as a question the ledger retired and the contract never recorded, and halts the gate.
+**Deferred questions:** questions deferred-fully, plus the `blocked` ones an unattended run could not put to anybody. Out of scope for this task but recorded so they don't silently become hidden assumptions. **Each entry leads with its `Q<N>` id.** That id is what ties the contract entry back to its register row, and the Step 4 gate greps this section for it; an entry written without one reads as a question the ledger retired and the contract never recorded, and halts the gate.
 
 ### Brief template (the literal shape)
 
@@ -351,10 +351,10 @@ Write this into `<contract_dir>/<topic-slug>/PLAN.md` (default `docs/topics/`; t
 ## Brief
 
 ### TLDR
-<≤5 bullets — what's shipping. Load-bearing scope-review surface for dense briefs (>100 lines). A reviewer reading ONLY TLDR + Goal must know scope. If the summary grows beyond 5 bullets, the brief is too sprawling — surface back to the user and ask which items to defer>
+<≤5 bullets: what's shipping. This is the scope-review surface a reviewer of a dense brief (>100 lines) reads first. A reviewer reading ONLY TLDR + Goal must know scope. If the summary grows beyond 5 bullets, the brief is too sprawling; surface back to the user and ask which items to defer>
 
 ### Goal
-<one paragraph — outcome, not implementation>
+<one paragraph: outcome, not implementation>
 
 ### Constraints
 - <untouchable code, deadline, contract, stack, performance budget>
@@ -363,18 +363,18 @@ Write this into `<contract_dir>/<topic-slug>/PLAN.md` (default `docs/topics/`; t
 - <testable criterion>
 
 ### Captured assumptions
-- <assumption> — revisit if <trigger>
+- <assumption>: revisit if <trigger>
 
 ### Out-of-scope
 - <thing the user raised and explicitly excluded>
 
 ### Deferred questions
-- Q<N> — <question> — defer until <when>; **arbiter: /planning:plan** (default — /planning:plan resolves unilaterally during planning) OR **arbiter: USER-RESERVED** (user must re-confirm at /planning:plan approval gate; /planning:plan proposes, user resolves)
+- Q<N>: <question>, defer until <when>; **arbiter: /planning:plan** (the default, where /planning:plan resolves unilaterally during planning) OR **arbiter: USER-RESERVED** (user must re-confirm at /planning:plan approval gate; /planning:plan proposes, user resolves)
 
 ## Plan
-<empty — populated by /planning:plan>
+<empty, populated by /planning:plan>
 ```
 
-**The criteria bullet stays a plain bullet.** `- <testable criterion>` is the emitted shape in both formats: `free-text` fills it as-is, `ears` fills it as `- [<pattern>] <criterion>`. Never a checkbox — `- [ ]` is decompose's slice shape, and a `[pattern]` prefix on a checkbox line is ambiguous with an unchecked box.
+**The criteria bullet stays a plain bullet.** `- <testable criterion>` is the emitted shape in both formats: `free-text` fills it as-is, `ears` fills it as `- [<pattern>] <criterion>`. Never a checkbox: `- [ ]` is decompose's slice shape, and a `[pattern]` prefix on a checkbox line is ambiguous with an unchecked box.
 
-**Arbiter tag is load-bearing.** Default `/planning:plan` is fine for execution-shape decisions (orchestration shape, agent rosters, phase nesting) within already-approved scope. Use `USER-RESERVED` for any deferred question whose resolution could change the brief's acceptance criteria, out-of-scope list, or constraints. When in doubt, mark `USER-RESERVED` and let `/planning:plan` surface it at approval time.
+**The arbiter tag decides who resolves the question.** Default `/planning:plan` is fine for execution-shape decisions (orchestration shape, agent rosters, phase nesting) within already-approved scope. Use `USER-RESERVED` for any deferred question whose resolution could change the brief's acceptance criteria, out-of-scope list, or constraints. When in doubt, mark `USER-RESERVED` and let `/planning:plan` surface it at approval time.

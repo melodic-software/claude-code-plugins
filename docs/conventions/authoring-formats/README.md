@@ -1,4 +1,4 @@
-# Authoring formats — acceptance-criteria format and diagram dialect
+# Authoring formats: acceptance-criteria format and diagram dialect
 
 Owner doc for two **team-shared authoring format choices** a consuming team may declare once and
 have every planning-to-verification skill honour: the format acceptance criteria are written in,
@@ -9,8 +9,8 @@ This directory is the source of truth for the concern: `README.md` (the contract
 
 **An owner doc is not a consumer declaration.** This file states the keys, their values, and the
 ladder that resolves them. The declaration a team actually writes lives in that team's own
-repository, at the consumer surface described below. This repository ships no such declaration —
-see [Zero config, including here](#zero-config-including-here).
+repository, at the consumer surface described below. This repository ships no such declaration.
+See [Zero config, including here](#zero-config-including-here).
 
 ## Boundary
 
@@ -18,7 +18,7 @@ This doc owns the two keys, their allowed values, their defaults, and the resolu
 It does not own:
 
 - **Delivery surface.** [`rendered-views`](../rendered-views/README.md) owns where a person-facing
-  artifact is delivered; this doc owns the syntax an artifact is written in — dialect is source
+  artifact is delivered; this doc owns the syntax an artifact is written in. Dialect is source
   syntax, medium is delivery surface.
 - **Layering and expression form.** [`config-cascade`](../config-cascade/README.md) owns which
   layers exist, how they merge, the pointer-line grammar that binds a consumer's convention home,
@@ -45,7 +45,7 @@ diagram_dialect:
 |---|---|---|
 | `acceptance_criteria_format` | `free-text`, `ears` | `free-text` |
 | `diagram_dialect.data` | `mermaid`, `dbml` | `mermaid` |
-| `diagram_dialect.system` | `likec4`, `c4-plantuml` | **none — deliberately unset** |
+| `diagram_dialect.system` | `likec4`, `c4-plantuml` | **none, deliberately unset** |
 
 `acceptance_criteria_format: ears` selects the five EARS patterns (ubiquitous, event-driven,
 state-driven, unwanted-behaviour, optional-feature) as the shape emitted criteria are tagged with.
@@ -83,14 +83,51 @@ values. The claim rests on an upstream fact and therefore carries a four-part re
   Verbatim: "C4 Diagram: This is an experimental diagram for now. The syntax and properties can
   change in future releases. Proper documentation will be provided when the syntax is stable."
 - **Basis.** <https://mermaid.js.org/syntax/c4.html>, read at rung 2 of the upstream-drift fetch
-  ladder — `curl` of the rendered page to a local file, 111,058 bytes, the page arrived whole and
+  ladder: `curl` of the rendered page to a local file, 111,058 bytes, the page arrived whole and
   the quote above was matched in the local copy rather than in a summarizer's span.
 - **As-of date.** 2026-09-06.
-- **Recheck trigger.** That page dropping the experimental banner — the quoted sentence no longer
-  appearing on it. On firing, re-derive whether `mermaid` becomes an allowed value for
-  `diagram_dialect.system` and record the outcome in this convention's `CHANGELOG.md`.
+- **Recheck trigger.** Either of these observable events on the basis page, or on a sibling
+  mermaid C4 syntax page linked from it: the quoted experimental sentence no longer appearing;
+  or mermaid documenting a dedicated landscape diagram type. On firing, re-derive whether
+  `mermaid` becomes an allowed value for `diagram_dialect.system` and record the outcome in
+  this convention's `CHANGELOG.md`. The same firing also re-derives whether
+  `landscape_dialect`'s mermaid default (owned by the architecture plugin's
+  `reference/config.md`) should change, and whether `/architecture:map-landscape`'s mermaid
+  output should use a dedicated landscape type instead of a `C4Context` diagram without a
+  focal system, and records those outcomes in the architecture plugin's `CHANGELOG.md`. This
+  record is the single recheck trigger for every surface whose mermaid default or mermaid
+  output shape depends on mermaid's C4 status.
 
 Nothing here restricts mermaid for the `data` key, where it is the default and is not experimental.
+Nothing here restricts mermaid for the architecture plugin's `landscape_dialect` either; see
+[C4 dialect surfaces](#c4-dialect-surfaces).
+
+## C4 dialect surfaces
+
+This convention owns one C4-shaped artifact. The architecture plugin owns another. They keep
+separate keys, separate allowed values, and separate defaults because they are different artifacts,
+not because they disagree about mermaid.
+
+| Artifact | Key | Owner | Allowed values | Default | Emitter |
+|---|---|---|---|---|---|
+| C4 container view | `diagram_dialect.system` | this convention | `likec4`, `c4-plantuml` | none (opt-in) | `/planning:design` |
+| C4 system landscape | `landscape_dialect` | architecture plugin [`reference/config.md`](../../../plugins/architecture/reference/config.md#c4-dialect-surfaces) | `structurizr`, `mermaid` | `mermaid` | `/architecture:map-landscape` |
+
+`diagram_dialect.system` is the opt-in C4 container view `/planning:design` emits. A default on that
+key would add an artifact a consumer never asked for, which is why the key is unset unless the team
+names a dialect.
+
+`landscape_dialect` is the C4 system landscape `/architecture:map-landscape` emits once
+`architecture_dir` is set. Its mermaid default is a format choice for an artifact that skill
+already emits; it does not add a new deliverable.
+
+Mermaid C4 being experimental is why this convention's system key refuses mermaid as a value. It is
+not a claim that mermaid is unfit for the landscape surface, whose allowed set is
+`structurizr | mermaid`. The four-part record in
+[Why mermaid is not offered for the system key](#why-mermaid-is-not-offered-for-the-system-key)
+is the single recheck trigger for both surfaces: when it fires, re-derive the system-key allowed
+set, whether the landscape key's mermaid default should change, and whether the landscape
+emitter's mermaid output should use a dedicated landscape type.
 
 ## The consumer surface
 
@@ -101,7 +138,7 @@ dedicated file:
 - **Path.** `<home>/authoring-formats/README.md`, where `<home>` is the consumer's convention home
   named by the pointer line in the marked `<!-- BEGIN GENERATED: convention-home -->` region of the
   consumer's root instruction file.
-- **Layers.** One — the team's. A convention-doc surface has **no overlay channel** and no
+- **Layers.** One, the team's. A convention-doc surface has **no overlay channel** and no
   user-global layer; there is no `*.local.*` file for this surface and no gitignore line to
   recommend.
 - **Content.** Consumer prose carrying the fenced YAML block above. It is
@@ -122,13 +159,14 @@ verbatim, with only the key name and the emitting behaviour substituted:
    `<!-- BEGIN GENERATED: convention-home -->` region of the root instruction file
    (`AGENTS.md` canonical; `CLAUDE.md` unless it is a pure `@AGENTS.md` shim). Use the
    bundled resolver where the plugin ships one; never hand-parse the root file.
-3. Read `<home>/authoring-formats/README.md` and take the key's value from its fenced
-   YAML block.
+3. The printed home is repo-relative: join it to the root resolved in step 1,
+   then read `<home>/authoring-formats/README.md` from that path and take the
+   key's value from its fenced YAML block.
 4. Layer order is one layer deep: an explicit invocation argument, where the skill has
    one, then the team convention doc, then the documented default. A convention-doc
    surface has no personal overlay, so there is no further layer to consult.
 5. Defaults: `acceptance_criteria_format` is `free-text`; `diagram_dialect.data` is
-   `mermaid`; `diagram_dialect.system` has NO default — when it is unset, emit no C4
+   `mermaid`; `diagram_dialect.system` has NO default. When it is unset, emit no C4
    container view and behave exactly as with no convention doc at all.
 6. Degrade soft, and say so. No pointer line, no convention home on disk, no
    `authoring-formats/README.md`, no YAML block, an absent key, or an unrecognized value
@@ -136,7 +174,7 @@ verbatim, with only the key name and the emitting behaviour substituted:
    Name the cause in one clause and continue; never hard-fail, and never ask the operator
    to create the surface mid-task.
 7. Report provenance whenever the resolved value shapes output: name the key, the value,
-   and the layer it came from — `argument`, `team convention doc <path>`, `default`, or
+   and the layer it came from: `argument`, `team convention doc <path>`, `default`, or
    `unset (no C4 view emitted)`.
 ```
 
@@ -162,6 +200,9 @@ home through the resolver its own plugin bundles and restates the ladder in its 
 | `acceptance_criteria_format` | `/planning:interview` and `/planning:prd` (emit tagged or free-text criteria) |
 | `diagram_dialect.data` | `/planning:design` (data-scope artifact) |
 | `diagram_dialect.system` | `/planning:design` (system-scope C4 container view, emitted only when the key is set) |
+
+`landscape_dialect` is not a key of this convention. It is owned by the architecture plugin; see
+[C4 dialect surfaces](#c4-dialect-surfaces).
 
 Two skills consume what those readings produce without reading a key of their own, so neither has a
 row above. `/work-items:decompose` inlines a design artifact under a provenance note on the

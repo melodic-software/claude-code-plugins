@@ -1,4 +1,4 @@
-# Codify Mode — Targeted Learning Capture
+# Codify Mode: Targeted Learning Capture
 
 Persist specific learnings from the current session without running the full retrospective. Use
 mid-session when a valuable learning emerges, or any time something should be saved before it is
@@ -36,7 +36,7 @@ Scan the recent conversation for learnings:
 5. Is it about ongoing work status? → **personal** (project memory)
 6. Is it a pointer to external information? → **personal** (reference memory)
 
-When in doubt, prefer project scope — a tracked rule is reviewable and portable; a personal memory
+When in doubt, prefer project scope. A tracked rule is reviewable and portable; a personal memory
 is neither.
 
 ### 3. Verify before persisting

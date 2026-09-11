@@ -1,4 +1,4 @@
-# ranking — WSJF-style scoring, confidence mapping, instrument-first, dedupe order
+# ranking: WSJF-style scoring, confidence mapping, instrument-first, dedupe order
 
 How candidates from every dimension compete in one ranked list. The output contract (row shape,
 highest value-to-effort first) lives in SKILL.md; this leaf is the scoring mechanics.
@@ -10,10 +10,10 @@ Rank each candidate on its **cost of delay against its job size** (the WSJF shap
 
 | Component | Question |
 |---|---|
-| Value | What does fixing this win — for users, operators, or the team? |
+| Value | What does fixing this win, for users, operators, or the team? |
 | Urgency (time criticality) | Does the cost grow while it waits? Is a window closing? |
 | Risk reduction | Does it retire a failure mode, flakiness, or a class of toil? |
-| Job size | S / M / L — the same band the row publishes |
+| Job size | S / M / L, the same band the row publishes |
 
 Weigh the three cost-of-delay components together against the size band and order the list by
 that judgment. A large candidate leads only when its cost of delay is correspondingly larger.
@@ -23,10 +23,10 @@ Rules that keep the ranking honest:
 - Compare candidates against each other in this run, not against an absolute bar, and re-rank
   every run (a recurring sweep re-ranks; rankings are not sticky).
 - The size band (S/M/L) is also the row's published size; when a size-band narrowing
-  (`--small` / `--medium` / `--large`) is in effect, filter before ranking — with ONE
+  (`--small` / `--medium` / `--large`) is in effect, filter before ranking, with ONE
   exemption: the instrument-first candidate (below) is never filtered out by the band. When the
   target is unmeasured, that candidate is surfaced and top-ranked regardless of the requested
-  band, marked `outside requested band` when it is — the hard rule wins over the filter, never
+  band, marked `outside requested band` when it is. The hard rule wins over the filter, never
   silently the other way around.
 - The value-to-effort *rationale* in the row is the one-line justification naming which
   components drive the placement.
@@ -34,7 +34,7 @@ Rules that keep the ranking honest:
 
 ## Evidence strength → confidence (aligned to SKILL.md's ladder rungs)
 
-Confidence is a function of the evidence rung, stated plainly in the row — it tempers the
+Confidence is a function of the evidence rung, stated plainly in the row. It tempers the
 cost-of-delay estimate, never inflates it:
 
 | Rung | Evidence class | Confidence label |
@@ -42,12 +42,12 @@ cost-of-delay estimate, never inflates it:
 | 1 | Measured telemetry (Tier 1/2 sources) | high |
 | 2 | Repo and CI history (hotspots.md, ci-health.md, dependency staleness) | medium-high |
 | 3 | Structural presence signals (coverage presence, TODO density, missing automation) | medium-low |
-| 4 | Model judgment (this session's read of the target) | low — always labeled "judgment" |
+| 4 | Model judgment (this session's read of the target) | low, always labeled "judgment" |
 
 A candidate cites the *best* rung it actually has; mixing rungs in one citation is fine
-(`churn rung 2 + judgment rung 4`) but the confidence label follows the weakest load-bearing
-piece. Evidence gaps never lower a candidate's rung retroactively — they are recorded as
-gap lines so the reader knows what the ranking could not see.
+(`churn rung 2 + judgment rung 4`) but the confidence label follows the weakest piece the
+citation rests on. Evidence gaps never lower a candidate's rung retroactively. They are recorded
+as gap lines so the reader knows what the ranking could not see.
 
 ## The instrument-first rule
 
@@ -70,7 +70,7 @@ Ranking it: value and risk-reduction inherit from what the missing measurement w
 (usually high); size is typically S or M. That is why it genuinely rises to the top rather
 than being pinned there artificially.
 
-## Dedupe and dismissed-candidate memory — consultation order
+## Dedupe and dismissed-candidate memory: consultation order
 
 Two memories are consulted, in this order, and they answer different questions:
 
@@ -82,7 +82,7 @@ Two memories are consulted, in this order, and they answer different questions:
    prompt can override it ("include previously dismissed candidates"), and the report notes
    how many were suppressed.
 2. **Open-work-item dedupe at filing time, per candidate.** Before filing (unattended) or
-   offering to file (interactive), run the tracker's search-before-create pre-flight —
+   offering to file (interactive), run the tracker's search-before-create pre-flight.
    `work-items:track`'s add action carries it (adapter "Search items", `--state all`). Run the
    search *before* spending a cap slot, so a duplicate never counts against the adaptive
    filing cap. A match means skip-and-note in the report (filing duplicates is a bug, not a

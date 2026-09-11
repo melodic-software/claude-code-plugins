@@ -8,12 +8,13 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GUARD_SCRIPT="$SCRIPT_DIR/verify-claude-review-skill.sh"
 
-FAILED=0
-pass() { printf 'PASS: %s\n' "$1"; }
-fail() {
-  FAILED=$((FAILED + 1))
-  printf 'FAIL: %s\n  %s\n' "$1" "$2" >&2
-}
+# shellcheck source=lib/test-harness.sh
+. "$SCRIPT_DIR/lib/test-harness.sh"
+
+pass() { ok "$1"; }
+# Two-argument shape: a label plus the detail that explains the failure. The
+# harness owns the counter and the exit contract.
+bad() { fail "$1${2:+: $2}"; }
 
 # run_guard <expected-exit> <name> <body-stub> [VAR=value ...]
 # Optional REVIEW_BODY_STUB2 in the env list adds a second independent record.
@@ -47,7 +48,7 @@ run_guard() {
     LAST_OUTPUT="$output"
     return 0
   fi
-  fail "$name" "expected exit $expected, got $status; output: $output"
+  bad "$name" "expected exit $expected, got $status; output: $output"
   LAST_OUTPUT="$output"
   return 1
 }
@@ -57,7 +58,7 @@ assert_output_contains() {
   if [[ "$LAST_OUTPUT" == *"$needle"* ]]; then
     pass "$name"
   else
-    fail "$name" "expected output to contain '$needle'; got: $LAST_OUTPUT"
+    bad "$name" "expected output to contain '$needle'; got: $LAST_OUTPUT"
   fi
 }
 
@@ -156,7 +157,7 @@ filter_decoded="$(b64_decode "$(printf '%s' "$filter_out" | tr -d '\n')")"
 if [[ "$filter_decoded" == *'skill review at this head'* && "$filter_decoded" != *'prior head'* && "$filter_decoded" != *'third-party'* ]]; then
   pass "filter_review_bodies keeps only current-head reviewer records"
 else
-  fail "filter_review_bodies keeps only current-head reviewer records" "got: $filter_decoded"
+  bad "filter_review_bodies keeps only current-head reviewer records" "got: $filter_decoded"
 fi
 
 # --- help --------------------------------------------------------------------
@@ -166,12 +167,7 @@ help_status=$?
 if [[ "$help_status" -eq 0 && "$help_out" == *'verify-claude-review-skill.sh'* ]]; then
   pass "--help exits 0"
 else
-  fail "--help exits 0" "status=$help_status output=$help_out"
+  bad "--help exits 0" "status=$help_status output=$help_out"
 fi
 
-if [[ "$FAILED" -eq 0 ]]; then
-  printf '\nAll checks passed.\n'
-  exit 0
-fi
-printf '\n%d checks failed.\n' "$FAILED" >&2
-exit 1
+test_harness::report

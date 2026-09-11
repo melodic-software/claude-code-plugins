@@ -204,7 +204,7 @@ out of scope until such a signal exists.
 - **`block-hook-bypass` does not see MCP-provided shell or file-write tools.**
   The matcher is `Bash|PowerShell`. A write issued through an MCP tool is an
   accepted residual, same class as the unmonitored Bash forms above. The two
-  CONTENT guards are the exception since **0.32.0** — see the next note.
+  CONTENT guards are the exception since **0.32.0**. See the next note.
 - **The content guards cover the GitHub MCP write lane; the scope is exactly two
   tools.** `secret-pattern-detection` and `hardcoded-path-check` inspect
   `mcp__github__push_files` (every entry of its `files` array, not just the
@@ -223,22 +223,27 @@ out of scope until such a signal exists.
   Three local-only gates are deliberately not applied on this lane, because an
   MCP write names `owner/repo` and a repo-relative path and has no local file:
   the project-scope guard (a relative path is never under `CLAUDE_PROJECT_DIR`,
-  so applying it would skip every MCP write — a silent hole, not a scope), the
+  so applying it would skip every MCP write, a silent hole rather than a scope), the
   git-working-tree requirement, and `git check-ignore` (which answers what THIS
   checkout ignores, not the destination repo). The path ALLOWLIST is the same
   list, asked of the repo-relative path: an `.env.example` or a test fixture
   tree is the same false positive whichever route writes it.
   `hardcoded-path-check` still resolves its scan root, which is the most
-  valuable half of the lane — it catches this machine's own checkout path
+  valuable half of the lane: it catches this machine's own checkout path
   appearing verbatim in content being pushed.
-- **`block-hook-bypass` ships one scratch root exempt, and takes more by
+- **`block-hook-bypass` ships two scratch roots exempt, and takes more by
   configuration.** Since **0.32.0** the guard exempts the host temp trees, which
-  the harness's own per-session scratchpad sits under. It is gated on
-  `CLAUDE_PROJECT_DIR` naming a project root **outside** the temp tree: with no
-  project root it does not fire, and when the project root is itself temp-rooted
-  a temp file is project content, so the default stands down. It is not spelled
-  as a static default, because it has no fixed spelling — the scratchpad path
-  carries a session id — so it resolves at run time.
+  the harness's own per-session scratchpad sits under, and since **0.33.0** the
+  plugin data directory (`<config dir>/plugins/data`, the config dir being
+  `CLAUDE_CONFIG_DIR` or `~/.claude`), where a plugin persists its reports. Each
+  is gated on `CLAUDE_PROJECT_DIR` naming a project root that does **not** contain
+  it: with no project root neither fires; when the project root is itself
+  temp-rooted a temp file is project content, and when it is `~` or an ancestor
+  of the config dir the plugin data directory is, so the default stands down.
+  Neither removes protection: the Write|Edit content gates decline a file outside
+  the project root, so a redirect there bypasses nothing. Neither is spelled
+  as a static default, because neither has a fixed spelling: the scratchpad path
+  carries a session id, so it resolves at run time.
 
   **Exempting it gives up no protection**, which is the only reason a default is
   defensible here: `hook::read_file_path`, the entry every `Write|Edit` content
@@ -252,7 +257,7 @@ out of scope until such a signal exists.
   the argument above does not carry to it: `secret-pattern-detection` scans a
   `Write` to `.work/notes.md` today, so exempting Bash redirects there would let
   `printf '<secret>' >> .work/notes.md` reach disk unscanned while the identical
-  `Write` stayed blocked — the same content-guard bypass the MCP lane above
+  `Write` stayed blocked, the same content-guard bypass the MCP lane above
   exists to close. The consequence is that `printf '*' >> .work/.gitignore`
   still blocks; that command is `session-flow`'s own documented procedure, so the
   conflict routes to the skill (use `Write`, which is scanned) rather than to this
@@ -336,7 +341,7 @@ out of scope until such a signal exists.
   them existed before 0.30.0.** A write reaches the drive root either as a
   command string (`echo x > /tmp/f`) or as a tool's own target path (`Write`
   with `file_path: C:\tmp\f`). The hook read `.tool_input.command` only, so the
-  second shape hit an empty-`COMMAND` early exit and passed unexamined — a real
+  second shape hit an empty-`COMMAND` early exit and passed unexamined, and a real
   `C:\tmp\tmp.rSFIkHm5DO` was created on 2026-08-30 with no guard firing. Both
   shapes now feed the shipped `has_drive_root_tmp()`; there is no second matcher
   to drift. The file-path lane carries **none** of the command lane's
@@ -344,13 +349,13 @@ out of scope until such a signal exists.
   the write target by construction, so there is no redirect to parse, no
   producer-utility whitelist, and no quoted-prose ambiguity. Its residual is
   narrower than the command lane's and of a different kind: a path assembled at
-  runtime and passed by a tool this guard does not match — an MCP file-write
-  tool, or a Bash form the command lane's own residuals already allow.
+  runtime and passed by a tool this guard does not match, either an MCP file-write
+  tool or a Bash form the command lane's own residuals already allow.
 - **`block-windows-drive-tmp`'s file-path lane shipped blocking on a measured
   sweep, per [ADR 0003](../../docs/adr/0003-verification-guards-earn-default-on-by-measured-precision.md).**
   Corpus: 259 distinct `file_path` / `notebook_path` values that a real `Write`,
   `Edit`, `MultiEdit` or `NotebookEdit` actually carried across 227 local Claude
-  Code session transcripts on a Windows host — absolute Windows and MSYS paths,
+  Code session transcripts on a Windows host, covering absolute Windows and MSYS paths,
   not the repo-relative ones a drive-root matcher could never match, which is
   what makes a low finding count informative here. **1 finding in 259 (0.39%
   firing), and it was a true positive**: `/tmp/tmp.rSFIkHm5DO/worktree-root`, the
@@ -358,7 +363,7 @@ out of scope until such a signal exists.
   Six seeded spellings were detected end to end.
 
   **What that evidence does and does not support, stated plainly.** Precision is
-  1/1, so the ratio is 100% and the sample is one — this is the ADR's
+  1/1, so the ratio is 100% and the sample is one. This is the ADR's
   near-zero-findings branch, where the seeded-detection burden carries the
   argument and the precision figure by itself does not. The corpus is one
   Windows host and one operator, so it is evidence about this deployment and
@@ -366,7 +371,7 @@ out of scope until such a signal exists.
   entries at all, and those two tools are covered by the contract suite and by
   the shared matcher, not by the sweep. **The ratio considered acceptable for
   this surface is a false-positive rate near zero, and the justification is that
-  the cost of a wrong block here is unusually low** — the agent gets a stderr
+  the cost of a wrong block here is unusually low**: the agent gets a stderr
   line naming `%TEMP%` and reissues the write, which is a second of friction,
   against a missed write that is silent by construction and was found only by
   noticing litter on a volume root days later. The near-misses that would
@@ -380,7 +385,7 @@ out of scope until such a signal exists.
   content.** `.tool_input.content` / `.new_string` / `.new_source` are
   deliberately not requested. `HOOK_JQ_FIELDS_NUL` is computed across every
   requested field, so pulling written content in would make this guard fail
-  closed on a NUL anywhere in a file body — that surface belongs to
+  closed on a NUL anywhere in a file body, and that surface belongs to
   `hardcoded-path-check` and `secret-pattern-detection`. A prose mention of
   `/tmp` inside a written file is therefore never a block on this lane. The
   Bash lane is scoped differently but reaches the same place: it sees only the
@@ -837,7 +842,7 @@ in the dispatcher's primed field set.
 
 *The always-on `Write` path is unchanged, and that took a fix.* Both guards now ask
 for `.tool_input.path`, and the dispatcher's cached `hook::jq_fields` is
-all-or-nothing per call — one filter it cannot serve sends the whole call to an
+all-or-nothing per call: one filter it cannot serve sends the whole call to an
 uncached `jq`. Measured, that cost two extra spawns on EVERY Write/Edit: 50 ms to
 60 ms. Adding the field to `run-guards.sh`'s `PRIME_FILTERS` returns it to the
 dispatcher's single primed `jq`, now nine filters instead of eight: 51 ms before,
@@ -943,8 +948,8 @@ changed is the **per-`Write` tool call**, whose ceiling is ≤ 1 s typical /
 ≤ 2 s worst-case.
 
 **Method** (the convention's, unchanged): `EPOCHREALTIME` wall-clock around
-direct hook invocation with a benign representative payload — a `Write` of a
-short body to an ordinary repo path — sets launched concurrently (`&` + `wait`)
+direct hook invocation with a benign representative payload, a `Write` of a
+short body to an ordinary repo path, with sets launched concurrently (`&` + `wait`)
 to approximate the harness's parallel dispatch. Windows 11 + Git Bash,
 2026-08-30.
 
@@ -965,12 +970,12 @@ that ratio back at 80 ms. The spawn-equivalent figure is the stable one.
 
 **The hook's own cost is the measurement that holds: ≈ 6.3 spawn-equivalents,
 ≈ 505 ms of reference-host work per `Write`.** The set rows are reported for
-completeness and must not be read as a delta, because they do not resolve one —
+completeness and must not be read as a delta, because they do not resolve one:
 `AFTER` measures *lower* than `BEFORE`, and adding a hook cannot make a set
 faster. A separate **paired A/B** (n=15, BEFORE and AFTER launched back to back
 inside each trial in alternating order so load drift biases both arms equally)
-came out at a mean **1.26×**, but its per-trial ratios span **0.55×–1.82×** —
-several trials put AFTER *faster* than BEFORE, which is physically impossible
+came out at a mean **1.26×**, but its per-trial ratios span **0.55×–1.82×**.
+Several trials put AFTER *faster* than BEFORE, which is physically impossible
 and is the host's noise, not the hook's cost. **On this host the set-level delta
 is below the noise floor and this accounting does not state one.** What can be
 said: the harness dispatches matching hooks in parallel, so the set wall is the
@@ -981,7 +986,7 @@ the way to replace this bound with a number, and is the honest follow-up.
 
 **Share of the budget, and the overage.** The convention's ceiling is
 ≤ 1 s typical / ≤ 2 s worst-case **per tool call, counting `PreToolUse` and
-`PostToolUse` together for one matcher** — so the surface this widening lands on
+`PostToolUse` together for one matcher**, so the surface this widening lands on
 is larger than the table above measures: guardrails also runs three `PostToolUse`
 verifiers on `Write|Edit`, and the fleet's binding accounting for the whole
 per-`Write` set is **≈ 1.9 s** (two formatters plus three guardrails verifiers),
@@ -991,7 +996,7 @@ guard's own **≈ 505 ms is ≈ 25% of the ≤ 2 s worst-case ceiling as an uppe
 bound on its contribution**, and less than that in practice because it is
 dispatched in parallel rather than added. Per the convention's rule 2 the budget
 does not relax to absorb the overage: remediation is guardrails' own
-spawn-reduction work (#1403), and this change pays part of its way — it removes
+spawn-reduction work (#1403), and this change pays part of its way: it removes
 the `printf | tr` fork-and-exec pair from the shared normalizer and stops
 resolving the telemetry subject in a subshell when no sink is wired, both costs
 the pre-existing per-Bash-call lane was paying on every call. Operators who
@@ -1112,6 +1117,15 @@ repo-specific policy of their own:
   common install) still triggers it. The project need not carry its own
   `settings.json`. Missing/uncertain state (no key enabled at any scope, no jq)
   fails quiet. It never advises toward a skill that is not enabled for the session.
+- **Coverage manifest.** `hooks/coverage.json` declares, per guard, which
+  baseline permission families and exact patterns it blocks by default (today
+  `block-dangerous-git` covering `destructive-bash-deny`) and the levers that
+  narrow or switch it off (`block_dangerous_git_enabled`,
+  `block_dangerous_git_allow`). The `claude-config` plugin's `audit` skill reads
+  it to demote a missing baseline deny pattern to `info` when the family is
+  already blocked by a live hook, citing the manifest and naming the levers as
+  the residual. It is data, never executed, and adds no per-call latency;
+  `coverage-manifest.test.sh` pins it to the guards it describes.
 
 ## Telemetry (opt-in)
 
@@ -1147,8 +1161,7 @@ content invariants on every staged blob, write-path-independent).
 
 ## Configuration
 
-<!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
-<!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
+<!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
 
@@ -1160,33 +1173,33 @@ reads it from.
 | --- | --- | --- | --- | --- |
 | `secret_pattern_detection_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_SECRET_PATTERN_DETECTION_ENABLED` | Block writes containing high-confidence secret/credential patterns |
 | `hardcoded_path_check_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_HARDCODED_PATH_CHECK_ENABLED` | Block writes containing hardcoded machine-specific paths |
-| `block_no_verify_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_ENABLED` | Block git hook-bypass attempts (--no-verify, core.hooksPath=, hook-manager env-var disables for a configurable set — lefthook/husky/pre-commit/simple-git-hooks by default) |
-| `block_dangerous_git_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ENABLED` | Block irreversible git operations (push --force, push --force-with-lease leasing against a value git resolves at push time — either no expected value, or an expectation that is not an object id of the repository's own hash width — reset --hard, clean -f, worktree-wide checkout/restore discards) |
+| `block_no_verify_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_ENABLED` | Block git hook-bypass attempts (--no-verify, core.hooksPath=, hook-manager env-var disables for a configurable set: lefthook/husky/pre-commit/simple-git-hooks by default) |
+| `block_dangerous_git_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ENABLED` | Block irreversible git operations (push --force, reset --hard, clean -f, worktree-wide checkout/restore discards, and push --force-with-lease when it leases against a value git resolves at push time, meaning either no expected value, or an expectation that is not an object id of the repository's own hash width) |
 | `block_hook_bypass_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_ENABLED` | Block Bash file-write workarounds that circumvent Write/Edit hook gates |
-| `block_windows_drive_tmp_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_WINDOWS_DRIVE_TMP_ENABLED` | Block writes whose target is a Windows drive-root temp path (/tmp, C:\tmp, \tmp, /c/tmp) that resolves to <drive>:\tmp instead of %TEMP% — both Bash/PowerShell commands and Write/Edit/MultiEdit/NotebookEdit file paths. One switch covers both lanes |
+| `block_windows_drive_tmp_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_WINDOWS_DRIVE_TMP_ENABLED` | Block writes whose target is a Windows drive-root temp path (/tmp, C:\tmp, \tmp, /c/tmp) that resolves to <drive>:\tmp instead of %TEMP%, in both Bash/PowerShell commands and Write/Edit/MultiEdit/NotebookEdit file paths. One switch covers both lanes |
 | `block_exported_msys_pathconv_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_EXPORTED_MSYS_PATHCONV_ENABLED` | Block a leaking MSYS path-conversion suppressor on Windows: an EXPORTED MSYS_NO_PATHCONV / MSYS2_ARG_CONV_EXCL, or a prefix on a child shell (MSYS_NO_PATHCONV=1 bash -c ...). Either switches off conversion for later commands, letting an unconverted /d/... reach git as <current-drive>:\d\...; a prefix on a non-shell command word and a bare assignment are not matched |
-| `block_noncanonical_commit_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_NONCANONICAL_COMMIT_ENABLED` | Block `git commit -m` when the message actually contains a newline (multi-line `-m` mangles across shells — pipe it via `-F -` instead; single-line `-m` passes); --amend, -C/-c, --fixup/--squash, -F <path>, and an in-progress merge/rebase are exempt |
+| `block_noncanonical_commit_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_NONCANONICAL_COMMIT_ENABLED` | Block `git commit -m` when the message actually contains a newline (multi-line `-m` mangles across shells, so pipe it via `-F -` instead; single-line `-m` passes); --amend, -C/-c, --fixup/--squash, -F <path>, and an in-progress merge/rebase are exempt |
 | `block_convention_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_CONVENTION_GATE_ENABLED` | Block a commit subject or `gh pr create --title` that violates the team-tracked convention pattern in .claude/source-control.md (no tracked pattern = no enforcement; same exemptions as block-noncanonical-commit) |
 | `cli_flag_verify_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_ENABLED` | Advise on hallucinated CLI flags written to files (never blocks) |
 | `skill_reference_verify_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_SKILL_REFERENCE_VERIFY_ENABLED` | Advise when markdown cites a /plugin:skill reference this repo owns but cannot resolve (never blocks) |
 | `stale_path_verify_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_STALE_PATH_VERIFY_ENABLED` | Advise when markdown cites a repo-relative path this repo's own history shows was removed and that is gone from the working tree (never blocks) |
-| `workflow_resilience_check_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_WORKFLOW_RESILIENCE_CHECK_ENABLED` | Advise on un-throttled Workflow fan-out (never blocks). Default off since 0.20.0: a behavioral-class prose injector, config-disabled per the instruction-economy evidence gate (#2021) — set true to opt back in |
-| `flag_commit_pr_skill_bypass_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_FLAG_COMMIT_PR_SKILL_BYPASS_ENABLED` | Advise when a direct gh pr create bypasses the source-control pull-request skill (never blocks). Default off since 0.20.0: a behavioral-class prose injector, config-disabled per the instruction-economy evidence gate (#2021) — set true to opt back in |
+| `workflow_resilience_check_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_WORKFLOW_RESILIENCE_CHECK_ENABLED` | Advise on un-throttled Workflow fan-out (never blocks). Default off since 0.20.0: a behavioral-class prose injector, config-disabled per the instruction-economy evidence gate (#2021). Set true to opt back in |
+| `flag_commit_pr_skill_bypass_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_FLAG_COMMIT_PR_SKILL_BYPASS_ENABLED` | Advise when a direct gh pr create bypasses the source-control pull-request skill (never blocks). Default off since 0.20.0: a behavioral-class prose injector, config-disabled per the instruction-economy evidence gate (#2021). Set true to opt back in |
 | `cli_flag_verify_bins` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS` | Comma-separated binaries cli-flag-verify scans; empty uses the built-in default set |
 | `cli_flag_verify_skip_bins` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_SKIP_BINS` | Comma-separated binaries cli-flag-verify must never scan |
 | `block_dangerous_git_allow` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW` | Comma-separated forms block-dangerous-git permits: push-force, push-lease-unsafe, reset-hard, clean-force, checkout-dot, restore-dot, checkout-force, plus PowerShell fail-closed sink shapes ps-unparsable-dynamic-invocation, ps-unparsable-launcher, ps-unparsable-special-construct, ps-unparsable-herestring-unbalanced; empty blocks all |
 | `block_noncanonical_commit_allow` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_NONCANONICAL_COMMIT_ALLOW` | Comma-separated form tokens to allow (currently: message-flag, which permits `-m` even when the message contains a newline) |
 | `block_no_verify_hook_manager_prefixes` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_HOOK_MANAGER_PREFIXES` | Comma-separated hook-manager env-var name prefixes block-no-verify treats as a bypass when set to 0/false (e.g. lefthook,husky); empty uses the built-in default set (lefthook, husky, pre_commit, simple_git_hooks) |
-| `block_hook_bypass_scratch_roots` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS` | Comma-separated ABSOLUTE directories block-hook-bypass exempts as scratch/temp write targets (e.g. /tmp/scratch,/d/jobtmp/session). This list is empty by default and ADDS TO the one root the guard already ships exempt — the host temp trees, which the harness scratchpad sits under — gated on CLAUDE_PROJECT_DIR naming a project root outside the temp tree. Set this to name a scratch root of your own; the kill switch, not this option, is the whole-guard lever. The memory tier (`<memory_dir>/`, default `.work/`) is deliberately NOT a shipped default: secret-pattern-detection scans a Write there, so exempting Bash redirects to it would let a secret reach disk unscanned. Matching is on the effective stdout target after lexical normalization, at a path-component boundary — a sibling merely sharing the name prefix, a `..` escape out of a root, and a discard-then-real-file redirect all still block. A relative target is resolved against the tool call's own cwd and refused when the command carries a cd/pushd/popd. A quoted or escaped OPERAND is never exempt: the operand is marked so it survives the quote strip and the segment split as one word, and an operand carrying whitespace, `;`, `\|`, `&`, `(`, `)`, a newline or a backslash escape exempts nothing. Quotes elsewhere in the command no longer matter. Symlinks are not followed for a CONFIGURED root (an operator naming a root accepts its contents); the shipped temp default resolves them before exempting |
+| `block_hook_bypass_scratch_roots` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS` | Comma-separated ABSOLUTE directories block-hook-bypass exempts as scratch/temp write targets (e.g. /tmp/scratch,/d/jobtmp/session). This list is empty by default and ADDS TO the two roots the guard already ships exempt: the host temp trees, which the harness scratchpad sits under, and the plugin data directory (<config dir>/plugins/data), where plugins persist their reports. Each is gated on CLAUDE_PROJECT_DIR naming a project root that does not contain it. Set this to name a scratch root of your own; the kill switch, not this option, is the whole-guard lever. The memory tier (`<memory_dir>/`, default `.work/`) is deliberately NOT a shipped default: secret-pattern-detection scans a Write there, so exempting Bash redirects to it would let a secret reach disk unscanned. Matching is on the effective stdout target after lexical normalization, at a path-component boundary, so a sibling merely sharing the name prefix, a `..` escape out of a root, and a discard-then-real-file redirect all still block. A relative target is resolved against the tool call's own cwd and refused when the command carries a cd/pushd/popd. A quoted or escaped OPERAND is never exempt: the operand is marked so it survives the quote strip and the segment split as one word, and an operand carrying whitespace, `;`, `\|`, `&`, `(`, `)`, a newline or a backslash escape exempts nothing. Quotes elsewhere in the command no longer matter. Symlinks are not followed for a CONFIGURED root (an operator naming a root accepts its contents); the shipped temp default resolves them before exempting |
 | `stdin_read_timeout` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT` | Idle bound on reading the hook payload from stdin: how long a silent pipe is tolerated before a blocking guard fails closed. Only a JSON payload the pipe closed on mid-document is allowed with a notice; a stalled pipe stays a block |
 
 ### How to set these
 
 Three supported routes, in the order most people want them:
 
-1. **Interactively** — Claude Code prompts for declared options when you enable the
+1. **Interactively.** Claude Code prompts for declared options when you enable the
    plugin. To change them later: `/plugin configure guardrails@<marketplace>`.
-2. **Headless** — repeat `--config` for each option. Replace
+2. **Headless.** Repeat `--config` for each option. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
 
    ```shell
@@ -1206,7 +1219,7 @@ Three supported routes, in the order most people want them:
    Claude Code session before expecting new behavior. A check run in the old session
    still reports the old value, and that is not a failed write.
 
-3. **By hand, in settings** — add the value under `pluginConfigs` in your **user**
+3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
    settings (`~/.claude/settings.json`):
 
    ```json
@@ -1222,7 +1235,7 @@ Three supported routes, in the order most people want them:
    ```
 
    Plugin option values are read from **user**, `--settings`, and managed settings
-   only — **not** from a project's `.claude/settings.json`. To vary behavior per
+   only, **not** from a project's `.claude/settings.json`. To vary behavior per
    repository, enable or disable the plugin in that project's `enabledPlugins`
    instead of setting an option there.
 
@@ -1231,14 +1244,13 @@ hands a configured value to a hook process; the value comes from the routes abov
 
 ### Upstream documentation
 
-- [User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration) — the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
-- [Plugin install options](https://code.claude.com/docs/en/plugins-reference#plugin-install) — the `--config` flag's reference entry
-- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills) — `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
-- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect) — user vs project vs local precedence
-- [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins) — enabling, disabling, `/plugin list`
+- [User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration): the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
+- [Plugin install options](https://code.claude.com/docs/en/plugins-reference#plugin-install): the `--config` flag's reference entry
+- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
+- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
+- [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins): enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
-<!-- ai-slop-ignore-end -->
 
 ## License
 

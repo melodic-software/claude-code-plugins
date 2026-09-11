@@ -192,22 +192,22 @@ check_segment() {
     return 0
   fi
 
-  hook::git_resolve_index "${w[@]}" || return 0
-  gi=$HOOK_GIT_RESOLVED_GI
-  # env -S splicing may have rewritten the argv — match on the resolved words.
-  w=("${HOOK_GIT_RESOLVED_WORDS[@]}")
+  # One parsed invocation: git's index, the argv `env -S` splicing may have
+  # rewritten (match on THESE words), the subcommand and its index, and the
+  # config assignments. A segment that is no git invocation, or names no
+  # subcommand, is nothing this guard blocks.
+  hook::git_invocation "${w[@]}" || return 0
+  gi=$HOOK_GITINV_GI
+  w=("${HOOK_GITINV_WORDS[@]}")
   nseg=${#w[@]}
+  sub=$HOOK_GITINV_SUB
+  sub_idx=$HOOK_GITINV_SUB_IDX
+  [[ "$sub" == "commit" || "$sub" == "push" ]] || return 0
 
   # core.hooksPath is checked only on git config arguments (collected by the
   # subcommand walk from -c/--config/--config-env), never commit messages or
-  # pathspecs. The check applies whether or not a subcommand was found — the
-  # hooksPath block below still needs commit/push, so gate after.
-  hook::git_resolve_subcommand "$gi" "${w[@]}" || return 0
-  sub=$HOOK_GIT_SUB
-  sub_idx=$HOOK_GIT_SUB_IDX
-  [[ "$sub" == "commit" || "$sub" == "push" ]] || return 0
-
-  for cv in ${HOOK_GIT_CONFIG_VALUES[@]+"${HOOK_GIT_CONFIG_VALUES[@]}"}; do
+  # pathspecs.
+  for cv in ${HOOK_GITINV_CONFIG_VALUES[@]+"${HOOK_GITINV_CONFIG_VALUES[@]}"}; do
     lc="${cv,,}"
     [[ "$lc" == *core.hookspath=* ]] && block "hooksPath" \
       "BLOCKED: core.hooksPath assignment is not allowed with git commit/push." \
@@ -279,14 +279,18 @@ if ((${#COMMAND} > MAX_COMMAND_LEN)); then
 fi
 
 # Reduce a PowerShell command to a Bash-tokenizer-faithful form, or fail closed.
-# For the Bash tool this is a no-op (COMMAND unchanged). The ~41 KB classifier
-# is sourced only on the PowerShell lane (#2663): its Bash path is `return 0`
-# after setting PS_SAFE_COMMAND, so a file-scope `source` was parse tax with
-# no behaviour.
+# For the Bash tool this is a no-op (COMMAND unchanged). The classifier is
+# loaded only on the PowerShell lane (#2663): its Bash path is `return 0` after
+# setting PS_SAFE_COMMAND, so a file-scope `source` is parse tax with no
+# behaviour. This guard names it once, in hooks/guard-requires.sh, rather than
+# spelling the plugin root and the library path here.
 if [[ "$TOOL_NAME" == "PowerShell" ]]; then
-  PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$_HOOK_SELF/.." && pwd)}"
-  # shellcheck source=../lib/powershell/ps-command.sh
-  source "$PLUGIN_ROOT/lib/powershell/ps-command.sh"
+  # The declaration first, then the library it names. Under run-guards.sh the
+  # declaration is already in this process and the library was loaded once for
+  # the whole event, so neither line opens a file.
+  # shellcheck source=guard-requires.sh
+  declare -F guard::require_libs >/dev/null || source "$_HOOK_SELF/guard-requires.sh"
+  guard::require_libs
   ps::classify_git_command "$TOOL_NAME" "$COMMAND" "readonly-ok"
   case $? in
   2)

@@ -1,4 +1,4 @@
-# Worktree `audit` — configuration health checks and findings presentation
+# Worktree `audit`: configuration health checks and findings presentation
 
 Full detail for the `/source-control:worktree audit` action. SKILL.md carries the headline plus Step 1 (run `status` internally); this file carries the Step 2 configuration-health checklist and the Step 3 findings presentation.
 
@@ -8,13 +8,13 @@ Periodic health check for worktree infrastructure. Suitable as a recurring item 
 
 | Check | How | Expected |
 |-------|-----|----------|
-| `delete_branch_on_merge` | `gh api repos/{owner}/{repo} --jq '.delete_branch_on_merge'` | `true` recommended — remote branches auto-delete on merge, so cleanup only handles local branches |
-| Worktree root convention | `bash "${CLAUDE_PLUGIN_ROOT}/scripts/worktree-root-doctor.sh" --repo-dir <repo>` | Exit 0 — the doctor makes the `melodic.worktreeroot` / `includeIf` silent-failure classes loud (misfiring conditions, missing include files, parse-order shadowing, a root inside a repository) and names which rule supplied this repository's root; report each `warn:`/`error:` line as a finding. Convention: `reference/worktree-root-convention.md` |
-| Gitignored-file propagation | Check whether a `.worktreeinclude` file exists at the repo root | Optional — suggest when the project keeps local secrets/config in gitignored files (e.g. `.claude/settings.local.json`); Claude Code copies matching gitignored files into new worktrees |
-| Project worktree hooks | If the project registers `WorktreeCreate` / SessionStart setup hooks in its settings, confirm they are present as its docs expect | Per project convention — skip when the project has none |
-| Stale metadata | `git worktree list --porcelain` shows no `prunable` entries | Clean — otherwise suggest `git worktree prune` via `/source-control:worktree cleanup` |
+| `delete_branch_on_merge` | `gh api repos/{owner}/{repo} --jq '.delete_branch_on_merge'` | `true` recommended: remote branches auto-delete on merge, so cleanup only handles local branches |
+| Worktree root convention | `bash "${CLAUDE_PLUGIN_ROOT}/scripts/worktree-root-doctor.sh" --repo-dir <repo>` | Exit 0. The doctor makes the `worktreeroot.path` / `includeIf` silent-failure classes loud (misfiring conditions, missing include files, parse-order shadowing, a root inside a repository) and names which rule supplied this repository's root; report each `warn:`/`error:` line as a finding. Convention: `reference/worktree-root-convention.md` |
+| Gitignored-file propagation | Check whether a `.worktreeinclude` file exists at the repo root | Optional. Suggest when the project keeps local secrets/config in gitignored files (e.g. `.claude/settings.local.json`); Claude Code copies matching gitignored files into new worktrees |
+| Project worktree hooks | If the project registers `WorktreeCreate` / SessionStart setup hooks in its settings, confirm they are present as its docs expect | Per project convention. Skip when the project has none |
+| Stale metadata | `git worktree list --porcelain` shows no `prunable` entries | Clean. Otherwise suggest `git worktree prune` via `/source-control:worktree cleanup` |
 | Claim liveness | `bash "${CLAUDE_PLUGIN_ROOT}/scripts/worktree-claim.sh" report --repo-dir <repo>` | Exit 0. Every linked worktree carries a lock reason (a claim other agents can read). Exit 1 lists each `UNCLAIMED` path: a plain `git worktree add` that bypassed `worktree-create.sh`. Claim with `worktree-claim.sh claim <path>` or leave it reported; do not rewrite an existing helper reason |
-| Orphaned plugin install records | `claude plugin list --json`, project-scope records grouped by `projectPath`, classified per Step 2b (which requires a **liveness** test, not just registration in this repository — the worktree root is shared across repositories) | Zero paths in the `candidate orphan` bucket |
+| Orphaned plugin install records | `claude plugin list --json`, project-scope records grouped by `projectPath`, classified per Step 2b (which requires a **liveness** test, not just registration in this repository, since the worktree root is shared across repositories) | Zero paths in the `candidate orphan` bucket |
 
 ## Step 2b: Orphaned project-scope plugin install records
 
@@ -27,7 +27,7 @@ project-scope record for a live repository on an unmounted network share or a de
 volume is indistinguishable from a dead worktree to a bare existence check, so nothing here may act
 on path non-resolution.
 
-Collect (enumeration is cwd-independent — measured, [fixtures/README.md](../fixtures/README.md)
+Collect (enumeration is cwd-independent, measured in [fixtures/README.md](../fixtures/README.md)
 § `project-scope-reap-probe.sh`):
 
 ```bash
@@ -39,10 +39,10 @@ claude plugin list --json | jq -r '
   | .[] | [.path, (.count|tostring), (.marketplaces|join(","))] | join("\t")' | tr -d '\r'
 ```
 
-**Precondition — check this FIRST, and stop the step if it fails.** Confirm the resolved worktree
+**Precondition: check this FIRST, and stop the step if it fails.** Confirm the resolved worktree
 root itself is a directory that exists right now. If it does not, the volume holding every worktree
 is detached or unmounted, and *every* path under it would classify as orphaned on identical
-evidence. Report "orphaned-record check unavailable — the worktree root `<root>` does not resolve"
+evidence. Report "orphaned-record check unavailable: the worktree root `<root>` does not resolve"
 and offer nothing. A root that is merely empty is a different answer from a root that is absent, and
 only the second one poisons the whole classification.
 
@@ -50,7 +50,7 @@ Classify each path into exactly one of four buckets, and never merge them:
 
 | Bucket | Test | Reported as |
 |---|---|---|
-| **live here** | the path is in **this** repository's `git worktree list` — compare *normalized*: the record spells the path natively (backslashes on Windows) while `git worktree list` prints forward slashes, so unify separators and fold case on Windows, exactly as `scripts/reap-project-plugin-records.sh`'s `norm_path` does | not a finding |
+| **live here** | the path is in **this** repository's `git worktree list`, compared *normalized*: the record spells the path natively (backslashes on Windows) while `git worktree list` prints forward slashes, so unify separators and fold case on Windows, exactly as `scripts/reap-project-plugin-records.sh`'s `norm_path` does | not a finding |
 | **live elsewhere** | the path resolves to a directory **and** `git -C <path> rev-parse --is-inside-work-tree` prints `true` | **not a finding.** Count it and move on |
 | **candidate orphan** | under the resolved worktree root, **and** both tests above failed | reported, with the gated remedy below |
 | **other project records** | not under the resolved worktree root | listed for information only, explicitly labelled *not this plugin's lifecycle*, with **no remedy offered** |
@@ -65,24 +65,24 @@ colleague repository's active worktree as dead and hand it a destructive remedy.
 test is scoped to one repository; the liveness test is not, which is exactly why both are needed.
 
 The fourth bucket exists because this plugin owns worktree lifecycle and nothing more. A record for
-some other project's checkout may be perfectly current — including one whose volume simply is not
-mounted right now — and this skill has no standing to judge it. Report the count; stop there.
+some other project's checkout may be perfectly current, including one whose volume simply is not
+mounted right now, and this skill has no standing to judge it. Report the count; stop there.
 
 **What the `candidate orphan` bucket cannot tell you, and must say so.** It is reached by two
 failures, not by positive evidence of death. Three different live things fail both tests exactly as a
-deleted worktree does, and every row must carry all three as its caveat — never "these are dead":
+deleted worktree does, and every row must carry all three as its caveat, never "these are dead":
 
 - a path on an **unmounted network share** or a **detached external volume**;
-- **another lane's live worktree whose main clone has been moved, deleted, or unmounted** — it still
+- **another lane's live worktree whose main clone has been moved, deleted, or unmounted**: it still
   holds all its work and still carries its `.git` file, but `rev-parse` fails, which is the case
-  [cleanup.md](cleanup.md) calls the load-bearing one;
+  [cleanup.md](cleanup.md) Step 4b guards against;
 - any directory whose contents nobody has accounted for.
 
-So before confirming a row, check it the way `cleanup` does — **strip every trailing separator from
-the path first**, then: not a symlink, no `.git` entry, empty. The normalization is load-bearing, not
+So before confirming a row, check it the way `cleanup` does. **Strip every trailing separator from
+the path first**, then: not a symlink, no `.git` entry, empty. The normalization is required, not
 cosmetic: `test -L "<path>/"` resolves through the link and answers about its target, so one trailing
 character turns the symlink check into a silent pass ([cleanup.md](cleanup.md) Step 4b carries the
-measurement). Strip it the way `cleanup` does — every trailing separator the platform recognizes,
+measurement). Strip it the way `cleanup` does, every trailing separator the platform recognizes,
 never a single `${path%/}` pass; off Windows a trailing `\` is a legal filename byte and must
 survive, or the checks and remedy point at a different sibling path:
 
@@ -113,13 +113,13 @@ mkdir "<path>" &&
 ```
 
 **Substitute `<helper>` with the resolved absolute path** to
-`scripts/reap-project-plugin-records.sh` before presenting this — do not emit
+`scripts/reap-project-plugin-records.sh` before presenting this. Do not emit
 `${CLAUDE_PLUGIN_ROOT}` here. That variable is set for the tooling that runs this skill, not in the
 user's own shell, so a pasted command carrying it expands to `/scripts/…` and exits 127. The `&&`
 chain fails safe, but the remedy would simply never run while appearing to.
 
-Every step is chained with `&&` deliberately. If the reap exits non-zero — some record survived
-(exit 1), or the CLI was unavailable (exit 3) — the directory is **left in place**, because deleting
+Every step is chained with `&&` deliberately. If the reap exits non-zero, whether some record survived
+(exit 1) or the CLI was unavailable (exit 3), the directory is **left in place**, because deleting
 it would put the surviving records back out of reach. The `--dry-run` pass runs first and prints
 what the second call will remove.
 
@@ -135,18 +135,18 @@ The helper refuses unless the directory it is standing in is the one named, and 
 | Check | Status |
 |-------|--------|
 | delete_branch_on_merge | OK (enabled) |
-| Worktree root convention | OK (melodic.worktreeroot supplied by includeIf "gitdir/i:~/work/") |
-| .worktreeinclude | SUGGEST — gitignored local settings exist but no .worktreeinclude |
+| Worktree root convention | OK (worktreeroot.path supplied by includeIf "gitdir/i:~/work/") |
+| .worktreeinclude | SUGGEST: gitignored local settings exist but no .worktreeinclude |
 | Stale metadata | OK (none prunable) |
-| Orphaned plugin install records | 108 records, 8 marketplaces — 1 candidate-orphan path (0 live elsewhere, 0 other project paths) |
+| Orphaned plugin install records | 108 records, 8 marketplaces, 1 candidate-orphan path (0 live elsewhere, 0 other project paths) |
 
 ### Worktree Health
 - 3 worktrees total
-- 1 stranded (4 commits at risk) — push before any cleanup
+- 1 stranded (4 commits at risk): push before any cleanup
 - 0 unproven (Work axis unavailable)
-- 0 in-progress — cleanup refuses (sequencer / conflict state dies with the directory)
-- 0 dirty — cleanup refuses (uncommitted edits, or status unreadable)
-- 1 stale (> 14 days, no PR) — consider `/source-control:worktree cleanup`
+- 0 in-progress: cleanup refuses (sequencer / conflict state dies with the directory)
+- 0 dirty: cleanup refuses (uncommitted edits, or status unreadable)
+- 1 stale (> 14 days, no PR): consider `/source-control:worktree cleanup`
 - 0 prunable
 
 ### Recommendations
@@ -155,9 +155,9 @@ The helper refuses unless the directory it is standing in is the one named, and 
 - Run `/source-control:worktree cleanup` to remove the stale worktree
 - 108 plugin install records name `<candidate-orphan-path>`: under your worktree root, not registered
   here, and not a live work tree of any repository right now. That is two negatives, not proof of
-  death — confirm it is not an unmounted share or a detached volume before acting. `cleanup` reaps
-  these at teardown; these predate that step. Removing them needs the directory recreated — the
+  death. Confirm it is not an unmounted share or a detached volume before acting. `cleanup` reaps
+  these at teardown; these predate that step. Removing them needs the directory recreated. The
   commands are in Step 2b, and they are yours to run, not the audit's.
 ```
 
-Stranded and unproven counts lead the health list and are reported even when zero — a class that only appears when non-zero cannot be distinguished from one that was never measured, and "the Work axis could not be computed" is exactly the answer an audit must not swallow. `in-progress` and `dirty` follow them for the same reason: both are classes `/worktree cleanup` refuses to act on, and `in-progress` is invisible to `git status --porcelain`, so nothing else in the audit surfaces it unless named here.
+Stranded and unproven counts lead the health list and are reported even when zero: a class that only appears when non-zero cannot be distinguished from one that was never measured, and "the Work axis could not be computed" is exactly the answer an audit must not swallow. `in-progress` and `dirty` follow them for the same reason: both are classes `/worktree cleanup` refuses to act on, and `in-progress` is invisible to `git status --porcelain`, so nothing else in the audit surfaces it unless named here.

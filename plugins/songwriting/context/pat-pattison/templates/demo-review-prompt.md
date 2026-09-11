@@ -3,7 +3,7 @@
 Use when writer pastes a lyric at any completion stage and asks for
 direction.
 
-## Step 1 — Stage detection (model-side)
+## Step 1: Stage detection (model-side)
 
 Examine the pasted lyric. Identify completion stage:
 
@@ -18,21 +18,21 @@ Examine the pasted lyric. Identify completion stage:
 
 Confirm stage with writer if ambiguous.
 
-## Step 2 — Read aloud (writer-facing)
+## Step 2: Read aloud (writer-facing)
 
 ```
 Read the lyric aloud once. Don't analyze; don't fix. Mark:
 
-- **Trip** — where the ear hesitates (stress trip / awkward phrasing)
-- **Coast** — where the ear coasts (forgettable line)
-- **Grab** — where the ear is grabbed (strong moment)
-- **Confuse** — where the ear is confused (POV / image / logic)
+- **Trip**: where the ear hesitates (stress trip / awkward phrasing)
+- **Coast**: where the ear coasts (forgettable line)
+- **Grab**: where the ear is grabbed (strong moment)
+- **Confuse**: where the ear is confused (POV / image / logic)
 
 Paste the marked-up lyric. We'll diagnose from where the ear told you the
 truth, not from where you wanted truth to be.
 ```
 
-## Step 3 — Stage-appropriate diagnose (model-side)
+## Step 3: Stage-appropriate diagnose (model-side)
 
 Different stages need different passes. Don't run all 12 audits on a
 chorus-only stub.
@@ -51,7 +51,7 @@ chorus-only stub.
 - Central idea implied or named?
 - Refrain candidate (line that could close every verse)?
 - Power positions doing work (line 1 strong, last line strong)?
-- Sensory specificity — Rusty's-collar images, or abstract telling?
+- Sensory specificity: Rusty's-collar images, or abstract telling?
 - POV consistent?
 
 ### V + Ch
@@ -73,7 +73,7 @@ Run sequenced diagnose:
 7. POV consistency
 8. Hot-spot audit
 9. Hook check
-10. Read aloud — final pass
+10. Read aloud, final pass
 
 Identify the DOMINANT problem. Stop there.
 
@@ -94,13 +94,13 @@ Lyric-melodic alignment per `lyric-melodic-roadmaps.md`:
 - Stable/unstable per section
 - Three alignment fixes
 
-## Step 4 — Surface ONE focused next move (writer-facing)
+## Step 4: Surface ONE focused next move (writer-facing)
 
 ```
 **Stage:** <detected stage>
 
 **Strongest material:**
-- <specific element working — line, image, rhythm, prosodic move>
+- <specific element working: line, image, rhythm, prosodic move>
 
 **Dominant next move:**
 - <ONE specific revision direction, not a list>
@@ -116,7 +116,7 @@ Lyric-melodic alignment per `lyric-melodic-roadmaps.md`:
 - <secondary move, deferred until dominant is resolved>
 ```
 
-## Step 5 — Hand off to action (model-side)
+## Step 5: Hand off to action (model-side)
 
 Route the dominant move to the right action:
 
@@ -136,14 +136,14 @@ Route the dominant move to the right action:
 ## Coach posture
 
 - One focused finding. Not ten scattered notes. (Plugin-authored coaching
-  posture — **not** a Pat rule; zero hits across all four books.)
+  posture, **not** a Pat rule; zero hits across all four books.)
 - Surface secondaries briefly, do not fix them.
 - Read aloud is non-negotiable (Step 2).
 - If dominant problem is upstream (title doesn't fit form, form doesn't
-  fit emotion), say so — fixing downstream lines won't help.
+  fit emotion), say so. Fixing downstream lines won't help.
 
 ## Cross-references
 
-- `demo-review.md` — full context
+- `demo-review.md`: full context
 - `workflows.md` Scenarios 2, 6
 - All diagnostic context files

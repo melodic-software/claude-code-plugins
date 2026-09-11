@@ -22,8 +22,8 @@ them:
   the file list underneath, which that theory predicts.
 
 **Rule:** dismiss a shell-owned menu with a **left-click on empty space**. That is the path
-verified to work every time. `down` also closes it, but it is a side effect of unclear origin —
-prefer the click.
+verified to work every time. `down` also closes it, but it is a side effect of unclear origin.
+Prefer the click.
 
 **In-app menus are unaffected.** Notepad's File menu closes on the first synthesized `escape`.
 So this is not "Escape is unreliable"; it is specifically shell-owned surfaces.
@@ -55,7 +55,7 @@ On a multi-monitor machine there are two distinct causes, and they pull in oppos
    on the primary.
 
 Chasing cause 1 is what creates cause 2. On a multi-monitor machine, resolve a missing window by
-returning capture to `auto` **first**, then sweeping displays — not the other way round.
+returning capture to `auto` **first**, then sweeping displays, not the other way round.
 
 ## Elevated processes cannot be driven
 

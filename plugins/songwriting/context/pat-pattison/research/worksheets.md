@@ -52,8 +52,8 @@ one.
 > A worksheet externalizes the inward process of lyric writing.
 
 The same three stages run *Essential Guide to Rhyming* (2014), Chapter 3, in
-almost the same words — focus the idea, list words that fit it, look them up —
-but that chapter builds the sheet out of perfect rhyme only, and reaches its idea
+almost the same words: focus the idea, list words that fit it, look them up.
+But that chapter builds the sheet out of perfect rhyme only, and reaches its idea
 words straight from a prose idea sketch. *Writing Better Lyrics* (2009), Chapter
 4 is broader on both counts: it routes the idea-word stage through object writing
 and a Roget's thesaurus, and it searches every rhyme type from the start. See
@@ -73,14 +73,14 @@ sensory world, not by whatever the rhyming dictionary happens to offer first.
 
 ## Stage 1: focus the idea
 
-Chapter 4 runs the whole build on one topic — homelessness — and names three ways
+Chapter 4 runs the whole build on one topic, homelessness, and names three ways
 a writer arrives at it. Pat phrases each as something the writer actually says:
 
 - **From an emotion.** "That old homeless woman with everything she owns in a
   shopping cart really touches me. I want to write a song about her."
 - **From a cold, calculated idea.** "I'm tired of writing love songs. I want to
   do one on a serious subject, maybe homelessness."
-- **From a title you like** — say, "Risky Business."
+- **From a title you like.** Say, "Risky Business."
 
 The title entry needs one extra move: find an interesting angle on it. Pat's is a
 scrap of dialogue.
@@ -93,7 +93,7 @@ scrap of dialogue.
 
 In each case it is on you to find the angle, brainstorm the idea, and create the
 world the idea will live in. You always bring your unique perspective, so you
-will have something interesting to offer — but you will have to look at enough
+will have something interesting to offer, but you will have to look at enough
 ideas to find the best perspective. Object writing is the key to developing
 choices: you must dive into your vaults of sense material, those unique and
 secret places, to find out what images you have stored away around the idea.
@@ -110,21 +110,23 @@ Use [object writing](object-writing.md) to ask:
 Pat's definition, and it is worth using verbatim because it sets the bar at
 touchability rather than at cleverness:
 
+<!-- ai-slop-ignore-start: verbatim Pattison quotation, Writing Better Lyrics (2009) Chapter 4 -->
 > These expressive objects or situations are what T.S. Eliot calls "objective
 > correlatives" — objects anyone can touch, smell, and see that correlate with
 > the emotion you want to express.
+<!-- ai-slop-ignore-end -->
 
 His two examples for the homelessness lyric are a broken wheel on a homeless
 woman's shopping cart (an object that can serve as a metaphor, a vehicle to carry
 your feelings) and your parents fighting (a situation from your own life that
-connects you to hers). Note that one is an object and one is a situation — both
+connects you to hers). Note that one is an object and one is a situation. Both
 qualify.
 
 *Writing Better Lyrics* (2009), Chapter 2 supplies the test for whether the
 correlative is actually doing work. Pat forgot his puppy's collar on the kitchen
 table on Show-and-Tell day, and Sister Mary Elizabeth told him: "You can't tell
 unless you show first." He calls it the Sister Mary Elizabeth Rule of
-Songwriting — show before you tell — and his demonstration is a four-line section
+Songwriting: show before you tell. His demonstration is a four-line section
 with the collar swapped in and out:
 
 ```text
@@ -151,7 +153,7 @@ one.
 
 ## Stage 2: idea-word list
 
-Use a thesaurus set up according to Roget's original plan — organized by the flow
+Use a thesaurus set up according to Roget's original plan, organized by the flow
 of ideas, not alphabetically. Dictionary-style versions are useful only for
 finding synonyms and antonyms; they turn brainstorming into a cumbersome exercise
 in cross-referencing.
@@ -188,7 +190,7 @@ Danger signal            Warning
 ```
 
 Sixteen pages of double-column entries, with *risk* totally surrounded by its
-relatives — the diseases on one side, the remedies on the other. The first few
+relatives: the diseases on one side, the remedies on the other. The first few
 entries under *danger* read:
 
 ```text
@@ -222,7 +224,7 @@ Chapter 4 demonstrates the search three times, once per consonant family, and th
 shape is always the same: exhaust perfect rhyme first, notice how thin it is,
 then walk the family.
 
-Plosives — `I'm stuck in a rut`. Perfect rhymes for *rut*: `cut, glut, gut, hut,
+Plosives: `I'm stuck in a rut`. Perfect rhymes for *rut*: `cut, glut, gut, hut,
 shut`. Now meet t's relatives:
 
 ```text
@@ -236,7 +238,7 @@ thud     stuck    tub                shrug
                                      tug
 ```
 
-Fricatives — `There's nowhere I can feel safe`. Perfect rhymes for *safe*: `waif`.
+Fricatives: `There's nowhere I can feel safe`. Perfect rhymes for *safe*: `waif`.
 That is the entire list. Now f's family:
 
 ```text
@@ -254,7 +256,7 @@ resting-place
 space
 ```
 
-Nasals — `My head is pounding like a drum`. Perfect rhymes for *drum*: `hum,
+Nasals: `My head is pounding like a drum`. Perfect rhymes for *drum*: `hum,
 pendulum, numb, slum, strum`. Then m's relatives:
 
 ```text
@@ -269,7 +271,7 @@ skeleton
 
 Additive rhyme has its own ordering rule, and it is the one worksheet-builders
 most often skip: the less sound you add, the closer you stay to perfect rhyme.
-Work outward in that order — voiced plosives (b, d, g) first, then unvoiced
+Work outward in that order: voiced plosives (b, d, g) first, then unvoiced
 plosives, then voiced fricatives, then unvoiced fricatives, then the nasals. For
 *free* that produces a ladder running closest-to-furthest:
 
@@ -290,7 +292,7 @@ For `I hope you're satisfied`, *satisfied* yields `life, trial, crime, sign, ris
 survive, surprise`.
 
 Look actively at every candidate. Use each one to dive through your senses, as
-though you were object writing — that is what keeps the rhyme search inside the
+though you were object writing. That is what keeps the rhyme search inside the
 lyric's world instead of inside the dictionary's.
 
 For definitions and fuller rhyme workflows, route to
@@ -312,7 +314,7 @@ Do not treat a worksheet as a mandatory word bank. Treat it as a controlled
 overload system. Its value is the ability to choose.
 
 *Writing Better Lyrics* (2009), Chapter 5 supplies the concrete no-list. These are
-the rhyme pairs Pat says put puppies to sleep — when you hear one, there is no
+the rhyme pairs Pat says put puppies to sleep. When you hear one, there is no
 need to lose sleep wondering what's coming next:
 
 ```text
@@ -336,22 +338,22 @@ change / rearrange               maybe / baby
 ```
 
 Pat's own diagnosis of why this list matters to worksheet-building: most cliché
-rhymes are perfect rhymes. That is a good reason to stretch into the other types
-— family, additive, subtractive, and even assonance — which are guaranteed fresh
-and which most listeners won't register as imperfect. If a column comes back full
+rhymes are perfect rhymes. That is a good reason to stretch into the other types:
+family, additive, subtractive, and even assonance. They are guaranteed fresh,
+and most listeners won't register them as imperfect. If a column comes back full
 of the pairs above, the search stopped at Stage 3's first step.
 
-The full cliché taxonomy — phrases, images, metaphors, and the friendly-cliché
-setups that redeem them — is in [cliche](cliche.md).
+The full cliché taxonomy is in [cliche](cliche.md): phrases, images, metaphors,
+and the friendly-cliché setups that redeem them.
 
 ## Rhyme as emotional stability
 
 Chapter 4 gets at this through the piano. Play F (F in the bass), G7 (G in the
 bass), then C with C-E-G in the right hand and C in the bass, singing a C. That
-feels like arriving home. Now run it again with G in the bass — still home, less
-solidly. Again with E in the bass — a version of home with some discomfort in it,
+feels like arriving home. Now run it again with G in the bass: still home, less
+solidly. Again with E in the bass: a version of home with some discomfort in it,
 a very expressive chord. Again with E in the bass and the C taken out of the
-right hand — less comfortable still. Last time, add a B and leave the C out: you
+right hand: less comfortable still. Last time, add a B and leave the C out: you
 are now playing E minor, the three minor in the key of C, still singing the C.
 Only a suggestion of home rather than sitting down to the supper table.
 
@@ -370,8 +372,8 @@ Perfect Rhyme          Additive/                              Consonance
                        Subtractive Rhyme                           Rhyme
 ```
 
-The worked ladder holds the couplet's structure fixed — a stable four-stress
-couplet — and changes only the rhyme type:
+The worked ladder holds the couplet's structure fixed, a stable four-stress
+couplet, and changes only the rhyme type:
 
 ```text
 Perfect:      A lovely day to have some fun / Hit the beach, get some sun
@@ -388,7 +390,7 @@ Consonance:   A lovely day to have some fun / Hit the beach, bring it on
 ```
 
 The second ladder shows the same control changing *meaning*, not just landing.
-The cliché setup telegraphs its own answer — `Baby baby take my hand / Let me know
+The cliché setup telegraphs its own answer: `Baby baby take my hand / Let me know
 you ... understand`. Say something else and you get both messages at once, because
 the expected word is still audible underneath:
 
@@ -404,7 +406,7 @@ on your mind     consonance; curiosity and uncertainty, expressed completely
 
 Expanding rhyme possibilities does three things: it multiplies the chance of
 saying what you mean and still rhyming, it guarantees the rhymes will not be
-predictable or cliché, and — most important — it lets you control how stable or
+predictable or cliché, and, most important, it lets you control how stable or
 unstable the rhyme feels, so the rhyme can support or even create emotion.
 
 Use [rhyme strategy](rhyme-strategy.md) when deciding where stable or unstable
@@ -414,7 +416,7 @@ rhymes belong inside a section.
 
 Chapter 4's own worksheet is ten numbered core words, each heading a single
 undifferentiated column of rhymes. There is no title header, no angle field, and
-no objective-correlative field on the page — those live in the writer's head and
+no objective-correlative field on the page. Those live in the writer's head and
 in the object writing that preceded it. The page is the boxed core-word list plus
 ten columns.
 
@@ -479,10 +481,10 @@ option the worksheet exists to make available.
 
 Parentheses are the chapter's only annotation, and they do two jobs:
 
-- **Alternates** — a whole word held behind a first choice sharing its vowel
+- **Alternates**: a whole word held behind a first choice sharing its vowel
   sound, as in the core-word list's `freeze (wheel, shield)`. This is Stage 2's
   duplicate-vowel rule written on the page.
-- **Optional morphemes** — a prefix or ending that may or may not be used, as in
+- **Optional morphemes**: a prefix or ending that may or may not be used, as in
   the columns' `(re)born` and `guarantee(s)`, which record two rhyme candidates
   in one entry.
 
@@ -491,14 +493,14 @@ not writing the word down. Keep that convention rather than adding columns the
 worksheet does not have.
 
 **Search by type; record unsorted.** Stage 3 above still runs a separate search
-per rhyme type — each one is a different lookup and skipping any of them loses
+per rhyme type, because each one is a different lookup and skipping any of them loses
 candidates. What the worksheet does not do is keep those searches apart on the
 page. Perfect, family, additive, subtractive, assonance, and consonance results
 land in one column together, and the mixing is the point: the eye scans a single
 field and compares candidates on what they *mean* for this lyric.
 
 Labelled per-type rows turn one choice into five sub-choices and invite filling
-each row to a quota — the opposite of generating a surplus to reject
+each row to a quota, the opposite of generating a surplus to reject
 most of it. Which type a surviving candidate belongs to matters again when
 deciding where it lands, and that stability question is
 [rhyme strategy](rhyme-strategy.md)'s, after the column exists.
@@ -521,14 +523,16 @@ concrete "did you ever" questions aimed at their own experience.
 
 Then the follow-up question, which is where the objective correlative arrives:
 
+<!-- ai-slop-ignore-start: verbatim Pattison quotation, Writing Better Lyrics (2009) Chapter 4, Exercise 9 follow-up -->
 > Now, did you find an expressive image, like a broken wheel on a homeless
 > woman's shopping cart, that can serve as a metaphor — a vehicle to carry your
 > feelings? Did you see some situation, like your parents fighting, that seems to
 > connect you with her situation?
+<!-- ai-slop-ignore-end -->
 
 And the instruction not to stop at the first one: even if you find ideas that
 work well, keep looking a while longer, because when you find a good idea there
-is usually a bunch more behind it. Jot the good ones on a separate sheet — that
+is usually a bunch more behind it. Jot the good ones on a separate sheet. That
 separate sheet becomes the raw material for Stage 2.
 
 ## Skill workflow
@@ -541,8 +545,8 @@ When applying this file:
 4. Select an objective correlative.
 5. Build a core idea-word list.
 6. Trim the list for vowels, stress, and relevance.
-7. Search each rhyme type separately — perfect, family, additive, subtractive,
-   assonance, consonance — and record every survivor into one mixed, unsorted
+7. Search each rhyme type separately: perfect, family, additive, subtractive,
+   assonance, consonance. Record every survivor into one mixed, unsorted
    column per core word.
 8. Parenthesise alternates and optional morphemes; drop everything else by
    leaving it off the page.
@@ -555,6 +559,6 @@ asks how to get good at this:
 > lyrics, then stick to it.
 
 Pat's own forecast for that run: the first one will be slow and painful, but full
-of new and interesting options. By the third, ideas will come fast and furious —
+of new and interesting options. By the third, ideas will come fast and furious:
 too much to say, too many choices, too many rhymes. Reading a worksheet is
 stimulating; doing your own is what sets you on fire.

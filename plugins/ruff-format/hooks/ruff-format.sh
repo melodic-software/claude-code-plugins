@@ -25,11 +25,6 @@
 
 set -uo pipefail
 
-# Read inherited fd0 directly (bare cat) — NEVER `</dev/stdin`: on Windows Git
-# Bash, CC spawns hooks with stdin = a Win32 pipe that `/dev/stdin` cannot
-# resolve (ENOENT -> silent no-op). stdin is read ONCE here and fed to both
-# hook::read_file_path (file_path) and the tool_name parse below; reading fd0
-# twice would drain the pipe on the second call.
 # Kill switch FIRST, before any library is sourced: a disabled hook must not
 # pay to parse hook-utils.sh to learn it is off. Same predicate as
 # hook::is_enabled; scripts/check-killswitch-hoist.sh pins the two together.
@@ -47,101 +42,28 @@ HOOK_DIR="${BASH_SOURCE[0]%/*}"
 source "$HOOK_DIR/hook-utils.sh"
 # shellcheck source=rewrite-guard.sh
 source "$HOOK_DIR/rewrite-guard.sh"
-# Capture $EPOCHREALTIME immediately after kill-switch so duration_ms covers the
-# work below (pre-work exits do not emit telemetry). EPOCHREALTIME is Bash 5.0+;
-# on older bash it is unset, so default to empty — referencing it bare under
-# `set -u` would abort before the advisory exit 0, failing every edit.
-start=${EPOCHREALTIME:-}
 
-# Emit this run's telemetry envelope: $1 status, $2 findings JSON array.
-# Two guards: the high-res start stamp (EPOCHREALTIME is Bash 5.0+; on older
-# bash it is empty and telemetry is skipped, so the hook still formats and
-# lints rather than aborting) and the sink opt-in. The data payload costs a jq
-# subprocess, so it is built here after both guards — never on the unwired path.
-emit_tel() {
-  [[ -n "$start" ]] || return 0
-  hook::telemetry_enabled || return 0
-  hook::emit_telemetry "ruff-format" "PostToolUse" "$1" "$start" "$(build_data_json "$2")" "$REPO_ROOT"
-}
+# The whole prologue: the start stamp, the buffered payload, the jq-free
+# applicability filter, the jq gate, the parsed path with its basename and
+# directory, the file-anchored repo root (which bounds the config opt-in walk
+# below), and the telemetry-only TOOL behind the sink opt-in. Exits 0 itself on
+# every path this hook has nothing to do on — including a Write or Edit of
+# anything but a Python file, which it decides before the jq gate so a
+# non-Python edit never triggers the jq notice.
+#
+# --relative because FILE_REL serves two consumers here, not just telemetry: it
+# is also the argument Ruff runs on from the repo root, so it is resolved with
+# or without a sink. A path the prefix strip could not make relative degrades
+# to its basename, which is right for telemetry but names a DIFFERENT file when
+# resolved against the repo root, so the invocation below reads
+# FILE_REL_DEGRADED to know which of the two it holds.
+hook::begin --relative ruff-format PostToolUse '*.py' '*.pyi'
 
-hook::buffer_stdin_to INPUT || exit 0
-
-# jq-free applicability pre-filter: never emit the jq notice for an edit this
-# hook would not process anyway (the Write|Edit matcher is broader than the
-# Python-file filter).
-RAW_FILE=$(hook::raw_file_path "$INPUT") || exit 0
-case "$RAW_FILE" in
-*.py | *.pyi) ;;
-*) exit 0 ;;
-esac
-
-# jq is load-bearing for input parsing; absent → visible once-per-session skip
-# notice instead of a silent no-op (dim-9 doctrine).
-hook::require_jq PostToolUse ruff-format "$INPUT"
-
-FILE=$(printf '%s' "$INPUT" | hook::read_file_path) || exit 0
-case "$FILE" in
-*.py | *.pyi) ;;
-*) exit 0 ;;
-esac
-# Basename via parameter expansion, not `basename(1)`: this hook fires on
-# every Write/Edit of a Python file, and GNU Bash forks a subshell for
-# `$(basename "$FILE")` even though the body is a single exec (Command
-# Substitution, Bash Reference Manual;
-# https://mywiki.wooledge.org/CommandSubstitution). Trim on either separator
-# so a mixed-form Windows path still yields the final component.
-FILE_BASE="${FILE##*/}"
-FILE_BASE="${FILE_BASE##*\\}"
-
-# Telemetry-only. Parsed behind the sink opt-in so the unwired default path
-# spawns zero telemetry-only subprocesses (FILE_REL below is NOT gated — it is
-# also the path Ruff itself is invoked with).
-TOOL=""
-if hook::telemetry_enabled; then
-  TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
-fi
-
-# Resolve repo root early — used to bound the config opt-in walk and to compute
-# the schema-required repo-relative path in data.file.
-FILE_DIR="${FILE%/*}"
-[[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR=.
-[[ -n "$FILE_DIR" ]] || FILE_DIR=/
-REPO_ROOT=""
-hook::repo_root_to REPO_ROOT "$FILE_DIR"
-# Repo-relative path, serving two consumers: the schema-required data.file, and
-# the argument Ruff runs on from the repo root. A path the prefix strip could
-# not make relative degrades to its basename, which is right for telemetry but
-# names a DIFFERENT file when resolved against the repo root, so the invocation
-# below has to know which of the two it holds. `_to` writes FILE_REL and
-# HOOK_REPO_RELATIVE_DEGRADED in this shell, so the capture subshell that used
-# to hide the global is gone (Command Substitution, Bash Reference Manual;
-# https://mywiki.wooledge.org/CommandSubstitution). Status remains the
-# distinguishable channel.
-FILE_REL_DEGRADED=0
-FILE_REL=""
-hook::repo_relative_path_to FILE_REL "$FILE" "$REPO_ROOT" || FILE_REL_DEGRADED=1
-
-# Build the telemetry data object for the current TOOL/FILE_REL. $1 is the
-# findings JSON array. jq is authoritative. The fallback is a fixed empty-shape
-# object — NOT an interpolation of TOOL/FILE_REL, which could inject quotes or
-# backslashes from a path and corrupt the envelope. The fallback is essentially
-# unreachable in practice (it fires only if `jq -n` fails, and when jq is absent
-# hook::emit_telemetry drops the envelope anyway), so losing the values here is
-# harmless and strictly safer than emitting malformed JSON.
-build_data_json() {
-  jq -n \
-    --arg tool "$TOOL" \
-    --arg file "$FILE_REL" \
-    --argjson findings "$1" \
-    --arg changed "${HOOK_REWRITE_CHANGED:-}" \
-    '{tool:$tool,file:$file,findings:$findings}
-     + (if $changed == "" then {} else {changed: ($changed == "true")} end)' 2>/dev/null ||
-    printf '{"tool":"","file":"","findings":[]}'
-}
-
+# Every arm exits through hook::finish, which takes the rewrite disclosure
+# (settling data.changed and releasing the guard's snapshot), emits telemetry
+# with that verdict, and emits the one JSON document — in that order.
 emit_skipped() {
-  emit_tel "skipped" '[]'
-  exit 0
+  hook::finish skipped findings array '[]'
 }
 
 # Existence check is a builtin; the previous `$(cd && pwd)` forked a subshell
@@ -171,46 +93,43 @@ root=""
 # appear in any order under `[tool]`), and a multi-pass grep risks a false
 # positive from an unrelated `ruff = "..."` key in a different table or a
 # commented-out line.
-CONFIG_FOUND=""
-dir="$FILE_DIR_POSIX"
-while [[ -n "$dir" ]]; do
+#
+# The walk's ceiling is the repo root and it fails closed without one
+# (hook::walk_up_to): the gate decides whether this repository's Python files
+# get rewritten, so an unresolvable root leaves them alone rather than adopting
+# a config from above the repository.
+# shellcheck disable=SC2329  # invoked by name, as hook::walk_up_to's predicate
+ruff_config_here() {
+  local dir="$1" name
   for name in .ruff.toml ruff.toml; do
-    [[ -f "$dir/$name" ]] && CONFIG_FOUND="$dir/$name" && break
+    [[ -f "$dir/$name" ]] && return 0
   done
-  if [[ -z "$CONFIG_FOUND" && -f "$dir/pyproject.toml" ]] &&
-    grep -qE '^[[:space:]]*\[tool\.ruff(\]|[.])' "$dir/pyproject.toml" 2>/dev/null; then
-    CONFIG_FOUND="$dir/pyproject.toml"
-  fi
-  [[ -n "$CONFIG_FOUND" ]] && break
-  [[ -n "$root" && "$dir" == "$root" ]] && break
-  parent="${dir%/*}"
-  [[ -n "$parent" ]] || parent=/
-  [[ "$parent" == "$dir" ]] && break # reached filesystem root
-  dir="$parent"
-done
-
-[[ -n "$CONFIG_FOUND" ]] || emit_skipped
+  [[ -f "$dir/pyproject.toml" ]] &&
+    grep -qE '^[[:space:]]*\[tool\.ruff(\]|[.])' "$dir/pyproject.toml" 2>/dev/null
+}
+# shellcheck disable=SC2034  # the gate reads the walk's verdict, not which directory carried the config
+CONFIG_DIR=""
+hook::walk_up_to CONFIG_DIR "$FILE_DIR_POSIX" "$root" ruff_config_here || emit_skipped
 
 # Resolve the Ruff binary from the repo's own virtual environment (.venv,
 # walking up from the file; bin/ on POSIX, Scripts/ on Windows) or PATH — never
 # `uvx`/`pipx run`, which would download Ruff on a per-edit hook. Absent -> skip
 # (the repo opted into config but Ruff is not installed; nothing to run).
 RUFF_BIN=""
-dir="$FILE_DIR_POSIX"
-while [[ -n "$dir" ]]; do
-  for cand in "$dir/.venv/bin/ruff" "$dir/.venv/Scripts/ruff.exe"; do
+# shellcheck disable=SC2329  # invoked by name, as hook::walk_up_to's predicate
+ruff_venv_bin_here() {
+  local cand
+  for cand in "$1/.venv/bin/ruff" "$1/.venv/Scripts/ruff.exe"; do
     if [[ -x "$cand" ]]; then
       RUFF_BIN="$cand"
-      break
+      return 0
     fi
   done
-  [[ -n "$RUFF_BIN" ]] && break
-  [[ -n "$root" && "$dir" == "$root" ]] && break
-  parent="${dir%/*}"
-  [[ -n "$parent" ]] || parent=/
-  [[ "$parent" == "$dir" ]] && break
-  dir="$parent"
-done
+  return 1
+}
+# shellcheck disable=SC2034  # the caller reads RUFF_BIN, which the predicate sets
+venv_dir=""
+hook::walk_up_to venv_dir "$FILE_DIR_POSIX" "$root" ruff_venv_bin_here || true
 if [[ -z "$RUFF_BIN" ]]; then
   # `command -v` is a builtin; capturing it with `$( )` was a leftover subshell
   # just to learn the path. The later exec looks the name up on PATH itself.
@@ -221,8 +140,11 @@ fi
 # once-per-session skip notice, not a silent gap (dim-9 doctrine).
 if [[ -z "$RUFF_BIN" ]]; then
   if hook::notice_once "ruff-format-ruff" "$INPUT"; then
-    hook::emit_skip_notice PostToolUse "ruff-format: a Ruff config governs this repo but no 'ruff' binary was found (.venv or this hook's PATH) — format/lint skipped for this edit (probe re-runs on every matching edit; only this notice latches once per session — there is no skip latch). Hook processes inherit Claude Code's own environment, not the interactive shell's profile, so a version-manager install the Bash tool can see may be invisible here; a project .venv install is the reliable route. Install: https://docs.astral.sh/ruff/installation/
-PATH probed: ${PATH:-<unset>}"
+    RUFF_NOTICE=""
+    hook::tool_missing_notice_to RUFF_NOTICE \
+      "ruff-format: a Ruff config governs this repo but no 'ruff' binary was found (.venv or this hook's PATH) — format/lint skipped for this edit" \
+      matching "; a project .venv install is the reliable route. Install: https://docs.astral.sh/ruff/installation/"
+    hook::emit_skip_notice PostToolUse "$RUFF_NOTICE"
   fi
   emit_skipped
 fi
@@ -283,35 +205,21 @@ OUTPUT=$(cd "$RUN_DIR" && "$RUFF_BIN" check --no-fix --output-format concise "${
 RC=$?
 
 if [[ $RC -eq 0 ]]; then
-  # Take before the telemetry emit so data.changed carries the byte verdict;
-  # the disclosure is still one systemMessage-only document, or nothing.
-  hook::rewrite_take_disclosure "$FILE" "$RUFF_REWRITE_MESSAGE"
-  emit_tel "ok" '[]'
-  [[ -z "$HOOK_REWRITE_MESSAGE" ]] || hook::emit_channels PostToolUse "" "$HOOK_REWRITE_MESSAGE"
-  exit 0
+  # Clean: the disclosure is the whole document, or there is none.
+  hook::finish --disclose "$RUFF_REWRITE_MESSAGE" ok findings array '[]'
 fi
 
 if [[ $RC -eq 1 && -n "$OUTPUT" ]]; then
-  RUFF_CTX="ruff-format: $FILE_BASE has Ruff findings (advisory):"
-  findings_raw=""
-  while IFS= read -r line; do
-    [[ -n "$line" ]] || continue
-    RUFF_CTX+=$'\n'"  $line"
-    findings_raw+="$line"$'\n'
-  done <<<"$OUTPUT"
-  # Findings AND a rewrite disclosure compose into one document (#3406).
-  hook::rewrite_take_disclosure "$FILE" "$RUFF_REWRITE_MESSAGE"
-  hook::emit_channels PostToolUse "$RUFF_CTX" "$HOOK_REWRITE_MESSAGE"
-
+  RUFF_CTX=""
   FINDINGS_JSON='[]'
-  if [[ -n "$findings_raw" ]]; then
-    FINDINGS_JSON=$(printf '%s' "$findings_raw" | jq -R . | jq -s . 2>/dev/null) || FINDINGS_JSON='[]'
-  fi
+  hook::findings_to RUFF_CTX "ruff-format: $FILE_BASE has Ruff findings (advisory):" \
+    "$OUTPUT" FINDINGS_JSON
+  # Findings AND a rewrite disclosure compose into one document (#3406).
   # Status "ok" — the linter RAN and produced a judgment (findings live in
   # data.findings), mirroring the sibling formatter plugins where status
   # reflects whether the tool ran, not whether it was clean.
-  emit_tel "ok" "$FINDINGS_JSON"
-  exit 0
+  hook::finish --context "$RUFF_CTX" --disclose "$RUFF_REWRITE_MESSAGE" \
+    ok findings array "$FINDINGS_JSON"
 fi
 
 # Ruff broke for non-lint reasons (config parse error, internal error) — no
@@ -319,16 +227,13 @@ fi
 # an advisory hook's exit-0 stderr can trip a false "Hook Error" label). Record
 # as "skipped" (the linter never ran to judgment), the same status as the
 # no-config / no-binary paths.
-RUFF_CTX="ruff-format: ruff failed for $FILE_BASE (no diagnostics; tool break, not a finding):"
-while IFS= read -r line; do
-  [[ -n "$line" ]] || continue
-  RUFF_CTX+=$'\n'"  $line"
-done <<<"$OUTPUT"
+RUFF_CTX=""
+hook::findings_to RUFF_CTX \
+  "ruff-format: ruff failed for $FILE_BASE (no diagnostics; tool break, not a finding):" \
+  "$OUTPUT"
 # The fix/format passes may already have rewritten the file before the verify
-# pass broke; take the disclosure and compose it with the tool-break context
-# as one document (#3406). Taken before the telemetry emit so data.changed
-# records that rewrite too.
-hook::rewrite_take_disclosure "$FILE" "$RUFF_REWRITE_MESSAGE"
-emit_tel "skipped" '[]'
-hook::emit_channels PostToolUse "$RUFF_CTX" "$HOOK_REWRITE_MESSAGE"
-exit 0
+# pass broke, so the disclosure is still owed and composes with the tool-break
+# context as one document (#3406); the take inside hook::finish is also what
+# records that rewrite in data.changed.
+hook::finish --context "$RUFF_CTX" --disclose "$RUFF_REWRITE_MESSAGE" \
+  skipped findings array '[]'
