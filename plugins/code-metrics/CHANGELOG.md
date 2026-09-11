@@ -3,6 +3,62 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.0]
+
+### Added
+
+- **`scope.registries`**, the sanctioned-replication registry list every audit reads. The
+  dispatcher collapses the per-file and per-function rows of every copy of a listed file into one
+  row labelled `replicated` with a `replicas` object (`count`, `registry`, `line`, `path`,
+  `files`), so a file vendored into ten plugins shows each function once and its over-reference
+  count once, and `summary.files` still counts every copy. `duplication.registries` stays as the
+  older name, read when the scope-level list is empty. New `scripts/replica-collapse.py` and
+  `resolve-config.py --format registries`; `audit-duplication` reads its registries through the
+  same format.
+- **Default scope exclusions.** `scope.exclude` now defaults to `**/node_modules/**`,
+  `**/vendor/**`, `**/dist/**`, and `**/build/**`, and the document carries
+  `scope.exclusions[]` (one `{pattern, files}` per glob that matched) so the markdown can say
+  which exclusion dropped what. Fixtures and evals stay in scope; a team file that sets the key
+  replaces the list whole.
+- **The persisted document.** Every markdown run writes the `code-metrics/v1` document it
+  rendered to `CODE_METRICS_REPORT_DIR`, else `<CLAUDE_PLUGIN_DATA>/reports`, else
+  `~/.claude/plugins/data/code-metrics/reports`, keeping the newest twenty per skill, and the
+  table's cap line and the summary name that path. A directory that cannot be written is
+  reported on stderr and the cap line says to re-run with `--json` instead. New
+  `scripts/persist-report.sh`, sourced by all five entry points, and `report.py render
+  --document`.
+- **Progress on stderr** for a run whose scope passes two hundred files, or under
+  `CODE_METRICS_PROGRESS=1`; `=0` silences it.
+
+### Changed
+
+- **The markdown table joins each function's rows.** One line per function carries every
+  collector's values (a cyclomatic row and a Halstead row no longer print the same function twice
+  with complementary nulls); a row with no start line joins the one function of its name in the
+  file and stays separate when the name is ambiguous, and rows whose values disagree are never
+  merged. The JSON keeps one row per collector. A Labels column now shows `start-line-only`,
+  `file-level`, `multimetric-approximation`, and `replicated`. Rows over a reference sort by how
+  far past it they sit, worst first, then by file. A Halstead value of 0 gets a footnote saying
+  it is a measurement.
+- **Collectors run in parallel**, one process per lane and measure, capped at the CPU count or
+  `CODE_METRICS_JOBS`; the run table and the rows come out in lane order whatever the concurrency.
+  The scope's normalization, deduplication, and binary sniff moved from a shell loop with two
+  subprocesses per file into `scripts/scope-filter.py`, and `detect-lanes.sh` lower-cases
+  extensions in the shell. A whole-tree run on this repository went from 95 seconds to 49, the
+  remainder being shellmetrics' own time.
+- **An empty change scope says why.** The `*/*` run row's reason names the merge-base ref and
+  the `--all` alternative when the branch sits at it with a clean tree, or says the changed files
+  belong to no lane.
+- **ESLint with no configuration is `unavailable`, not a failed run.** The adapter contract
+  gains exit 4, "resolved but cannot run here": `eslint-complexity` returns it when ESLint
+  reports that it found no configuration for the files, and the dispatcher writes an
+  `unavailable` row carrying ESLint's own message instead of failing the run with exit 3. The
+  adapter does not look for a configuration file itself; ESLint resolves it per target file.
+- **Version probes for tools with no version flag.** `multimetric` reports the distribution
+  version from the interpreter its launcher names, `gocognit` the module version from `go
+  version -m`, and both read `version unavailable (<tool> has no version flag)` rather than
+  `unknown-version` when nothing answers.
+
 ## [0.1.9]
 
 ### Fixed

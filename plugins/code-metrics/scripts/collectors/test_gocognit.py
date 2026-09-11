@@ -77,7 +77,8 @@ class GocognitAdapterTests(unittest.TestCase):
             make_stub(Path(tmp), version_line="usage: gocognit [flags] paths")
             result = run("probe", path_prefix=Path(tmp))
             self.assertEqual(
-                (result.returncode, result.stdout.strip()), (0, "unknown-version")
+                (result.returncode, result.stdout.strip()),
+                (0, "version unavailable (gocognit has no version flag)"),
             )
 
     def test_measures_lists_the_single_pair_it_serves(self) -> None:

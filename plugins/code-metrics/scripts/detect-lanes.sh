@@ -151,7 +151,12 @@ for file in "${FILES[@]}"; do
   else
     base="${normalized##*/}"
     ext=""
-    [[ "$base" == *.* ]] && ext="$(printf '%s' "${base##*.}" | tr '[:upper:]' '[:lower:]')"
+    # Lower-cased in the shell rather than through `tr`: this runs once per
+    # file, and two subprocesses per file is most of a whole-tree run's time.
+    if [[ "$base" == *.* ]]; then
+      ext="${base##*.}"
+      ext="${ext,,}"
+    fi
     lane="$(lane_for_extension "$ext")"
     # A lane the consumer redefined by globs no longer claims files by extension.
     [[ -n "$lane" && -n "${LANE_GLOBS[$lane]:-}" ]] && lane=""

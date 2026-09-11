@@ -8,7 +8,8 @@
 scope:
   default: change          # change | all
   base: auto               # auto (merge-base with the default branch) | <ref>
-  exclude: []              # path globs dropped from every measure, e.g. ["vendor/**"]
+  exclude: ["**/node_modules/**", "**/vendor/**", "**/dist/**", "**/build/**"]  # path globs dropped from every measure; a closed list, replaced whole
+  registries: []           # sanctioned-replication registries, one relative path per line; replicas collapse to one row in every audit
 
 complexity:
   cyclomatic:
@@ -27,7 +28,7 @@ duplication:
   min_tokens: 50
   min_lines: 5
   ignore: []
-  registries: []           # sanctioned-replication registries, one relative path per line
+  registries: []           # older name for scope.registries; read only when the scope-level list is empty
 
 coverage:
   artifacts: []            # explicit artifact paths; empty means auto-discover
