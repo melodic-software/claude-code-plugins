@@ -1,5 +1,5 @@
 ---
-description: "Audit whether each installed skill is actually VISIBLE to the model, and diagnose why most of a fleet never gets used. A skill is invisible when the skill-listing context budget drops its description (Claude Code drops by a decay-weighted usage score, so an unused skill loses its matchable keywords and stays unused), when frontmatter is malformed or a description is missing, when skillOverrides or a disabled plugin hides it, or when disable-model-invocation keeps it out of context by design. Reports reachability, observed usage, and whether it is losing the budget contest, computing overflow from documented settings and withholding any verdict the data cannot support. Read-only; never disables, deletes, or edits a skill. Use when: 'why do I never use most of my skills', 'why does Claude never suggest this skill', 'are my skill descriptions being dropped', 'is my skill listing over budget', 'which skills can the model actually see', 'which skills are starved', 'I have too many skills to know when to use them', 'audit skill visibility'. Not for: which skills are unused versus their context cost as a one-shot check (when the built-in /skill-doctor command resolves in your session, prefer it; likewise the bundled /doctor skill when that resolves in your session), repo-authoring listing-budget lint (use skill-quality's check-listing-budget), enumerating what is installed (use /claude-ops:inventory), or reading telemetry infrastructure (use /claude-ops:observability)."
+description: "Audit whether each installed skill is actually VISIBLE to the model, and diagnose why most of a fleet never gets used. A skill is invisible when the skill-listing context budget drops its description (Claude Code drops by a decay-weighted usage score, so an unused skill loses its matchable keywords and stays unused), when frontmatter is malformed or a description is missing, when a disabled plugin hides it, or when disable-model-invocation keeps it out of context by design. Reports reachability, observed usage, and whether it is losing the budget contest, computing overflow from documented settings and withholding any verdict the data cannot support. Read-only; never disables, deletes, or edits a skill. Use when: 'why do I never use most of my skills', 'why does Claude never suggest this skill', 'are my skill descriptions being dropped', 'is my skill listing over budget', 'which skills can the model actually see', 'which skills are starved', 'I have too many skills to know when to use them', 'audit skill visibility'. Not for: which skills are unused versus their context cost as a one-shot check (when the built-in /skill-doctor command resolves in your session, prefer it; likewise the bundled /doctor skill when that resolves in your session), repo-authoring listing-budget lint (use skill-quality's check-listing-budget), enumerating what is installed (use /claude-ops:inventory), or reading telemetry infrastructure (use /claude-ops:observability)."
 argument-hint: "[--installed [dir]] [--plugins-root <dir>] [--context-window <tokens>] [--bytes-per-token 3|4] [--budget-fraction <f>] [--max-desc-chars <n>] [--render markdown|json] [--now <RFC3339>] [--fixture <path>]. Collects live; --installed reads the plugin manifest, else fleet defaults to ./plugins; unpinned, the budget is a band over both windows and both byte estimates"
 user-invocable: true
 disable-model-invocation: false
@@ -17,8 +17,16 @@ That is the question behind the one operators usually ask, which is *why does mo
 my skill fleet never get used?* A skill the model cannot see cannot be chosen, so
 "unused" is very often a visibility failure wearing a preference costume.
 
-**Visibility is Claude Code's own term** for this: `skillOverrides` is documented under
-"Override skill visibility". This skill audits every way a skill loses it.
+**Visibility is Claude Code's own term** for this; the settings page documents
+`skillOverrides` under "Override skill visibility". This skill audits every way a
+plugin skill loses it, and `skillOverrides` is not one of those ways: plugin skills
+are governed by `enabledPlugins`, and a plugin resolved to `false` hides every skill
+it ships. `skillOverrides` governs non-plugin skills, which this audit does not
+enumerate, so it is never cited here as a cause. Verified 2026-09-11 against
+<https://code.claude.com/docs/en/skills> ("Plugin skills are not affected by
+`skillOverrides`") and Claude Code 2.1.263, whose listing resolver returns `on`
+for every plugin-sourced skill before it reads the override map; recheck when
+that section changes.
 
 Claude Code budgets the model-visible skill listing in characters, at
 `window x bytes-per-token x skillListingBudgetFraction` (default 0.01), and,
@@ -134,6 +142,18 @@ not from either cached `installPath`. Verified by a skill executing out of the
 marketplace directory. For those, the plugin's root comes from the catalog's
 declared `source`, since `plugins/<name>` is the common layout but not a rule.
 
+Whether each resolved plugin actually loads is read from `enabledPlugins` in the
+same settings scopes the listing budget reads, merged per `plugin@marketplace`
+key with the product's precedence: user < project < local < the `--settings`
+flag (unread from outside the session) < managed policy. A key set to `false`
+makes every skill of that plugin `hidden`, with the scope file that supplied
+the `false` as evidence; a key absent from every scope is enabled, the
+product's default. A scope file that exists but cannot be read or parsed could
+have set any key at its own precedence, so plugins whose answer would come
+from below it read `unknown`, with that file named in the remedy. Only
+`--installed` assesses this: a checkout is not an install, so a
+`--plugins-root` run reports reachability as `not-assessed` once for the run.
+
 `--render json` swaps the Markdown report for the machine-readable model, and
 `--now <RFC3339>` pins the clock the horizon is measured against.
 
@@ -196,9 +216,13 @@ questions that demand different actions.
 better, and it is never a synonym for unused.
 
 `reachability` values: `model-reachable` · `user-only` · `hidden` ·
-`misconfigured` · `unknown`. Only `model-reachable` with no observation is a
-starvation candidate. `user-only` means you type it by design, and
-`misconfigured` is a fix. Each carries its causes, evidence, and a remedy.
+`misconfigured` · `unknown` · `not-assessed`. Only `model-reachable` with no
+observation is a starvation candidate. `user-only` means you type it by design,
+`hidden` means `enabledPlugins` resolves the owning plugin to `false`, and
+`misconfigured` is a fix. `unknown` is reserved for a settings file the reader
+could not parse, and `not-assessed` is the checkout-mode answer, where there is
+no install to read enablement from. Each carries its causes, evidence, and a
+remedy.
 
 **The reachability causes are not an official list.** No such list is published;
 this catalogue is assembled from scattered documentation plus strings in the

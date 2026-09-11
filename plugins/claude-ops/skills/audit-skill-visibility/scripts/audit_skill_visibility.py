@@ -335,8 +335,9 @@ def collect_fleet(plugins_root: str) -> list[dict]:
     `inventory.py` owns "what is installed" but emits bare leaf names with no
     frontmatter and no paths, so reachability cannot be answered from it alone
     (a gap the design recorded). This walk supplies the frontmatter for the
-    skills it finds; it does not re-implement enablement, which stays `None` ->
-    `unknown` until a source can answer it.
+    skills it finds. It does not assess enablement: a checkout is not an
+    install, so `enabledPlugins` has nothing to say about it, and every entry
+    is marked `not-assessed` rather than `unknown`.
     """
     entries: list[dict] = []
     if not os.path.isdir(plugins_root):
@@ -346,13 +347,29 @@ def collect_fleet(plugins_root: str) -> list[dict]:
     return entries
 
 
-def collect_fleet_at(plugin_root: str, plugin: str) -> list[dict]:
+# The evidence marker a checkout walk carries instead of a settings path:
+# enablement is a property of an install, and a checkout is not one.
+ENABLEMENT_NOT_ASSESSED = "not-assessed"
+
+
+def collect_fleet_at(
+    plugin_root: str,
+    plugin: str,
+    plugin_enabled: bool | None = None,
+    plugin_enabled_evidence: str = ENABLEMENT_NOT_ASSESSED,
+) -> list[dict]:
     """Walk ONE plugin directory into denominator entries.
 
     Separate from `collect_fleet` because the installed manifest resolves each
     plugin to its own root: the installs are scattered across versioned cache
     paths rather than sitting side by side under a single parent, so there is
     no one directory to walk for a real installation.
+
+    `plugin_enabled` and `plugin_enabled_evidence` are the caller's answer to
+    "does this plugin load", resolved from `enabledPlugins` by
+    `collect_installed`. The defaults are the checkout answer: not assessed,
+    because the filesystem alone cannot say, and guessing would libel a
+    disabled plugin's skills as reachable.
     """
     entries: list[dict] = []
     skills_dir = os.path.join(plugin_root, "skills")
@@ -371,9 +388,8 @@ def collect_fleet_at(plugin_root: str, plugin: str) -> list[dict]:
             {
                 "qualified_name": f"{plugin}:{leaf}",
                 "source": "plugin",
-                # Enablement is not knowable from the filesystem alone, and
-                # guessing it would libel a disabled plugin's skills.
-                "plugin_enabled": None,
+                "plugin_enabled": plugin_enabled,
+                "plugin_enabled_evidence": plugin_enabled_evidence,
                 "frontmatter": frontmatter,
                 "path": path,
             }
@@ -574,12 +590,19 @@ def resolve_installed(
 
 
 def collect_installed(
-    plugins_dir: str, current_project: str | None = None
+    plugins_dir: str,
+    current_project: str | None = None,
+    enabled_plugins: dict | None = None,
 ) -> tuple[list[dict], dict]:
     """Read the installed manifest + marketplace registry into a denominator.
 
     Returns the denominator entries and the resolution report, so the caller
     can surface superseded and inapplicable records rather than absorbing them.
+
+    `enabled_plugins` is `merge_enabled_plugins` over the settings layers; it
+    decides `plugin_enabled` per `plugin@marketplace` key. Omitted, no scope
+    was consulted, and every plugin resolves to the product's default,
+    enabled, with `default` as its evidence.
     """
 
     def _load_json(path: str) -> dict:
@@ -609,9 +632,13 @@ def collect_installed(
     resolution = resolve_installed(
         _load("installed_plugins.json"), marketplaces, current_project
     )
+    enablement = enabled_plugins or merge_enabled_plugins([])
     denominator: list[dict] = []
     for row in resolution["plugins"]:
-        denominator += collect_fleet_at(row["root"], row["plugin"])
+        state = enablement_for(enablement, f"{row['plugin']}@{row['marketplace']}")
+        denominator += collect_fleet_at(
+            row["root"], row["plugin"], state["value"], state["evidence"]
+        )
     return denominator, resolution
 
 
@@ -861,6 +888,89 @@ def merge_listing_settings(layers: list[dict]) -> dict:
             }
     merged["ignored"] = ignored
     return merged
+
+
+ENABLED_PLUGINS_KEY = "enabledPlugins"
+
+
+def merge_enabled_plugins(layers: list[dict]) -> dict:
+    """Per-key merge of `enabledPlugins` over layers given in ASCENDING precedence.
+
+    The same walk as `merge_listing_settings`, over the same layer shape, for
+    one more key: the object mapping `plugin-name@marketplace-name` to a
+    Boolean. The product merges it per key, user < project < local < flag <
+    policy, last defined scope wins, and a key absent from every scope means
+    enabled. Verified 2026-09-11 against the settings reference and Claude
+    Code 2.1.263; recheck trigger: https://code.claude.com/docs/en/settings
+    changing the `enabledPlugins` shape or its stated precedence.
+
+    Returns `plugins` (per key, the winning `value` and the `evidence` path
+    that supplied it), `unreadable` (settings FILES that exist but could not
+    be read or parsed) and `ignored` (non-Boolean values left out, named). An
+    unreadable file could have set any key at its own precedence, so a key
+    whose winning value comes from below one resolves to `None` with the
+    unreadable file as evidence. The in-session flag scope and a managed scope
+    that could not be enumerated carry no file path; they are reported in the
+    inputs list rather than poisoning the merge, as the listing keys do.
+    """
+    plugins: dict[str, dict] = {}
+    unreadable: list[tuple[int, str]] = []
+    ignored: list[str] = []
+    for index, layer in enumerate(layers):
+        path = layer.get("path")
+        if layer.get("status") == "unreadable" and path:
+            unreadable.append((index, path))
+            continue
+        settings = layer.get("settings")
+        if not isinstance(settings, dict):
+            continue
+        block = settings.get(ENABLED_PLUGINS_KEY)
+        if block is None:
+            continue
+        if not isinstance(block, dict):
+            ignored.append(
+                f"{ENABLED_PLUGINS_KEY} in {path} is not an object; left out of "
+                "the merge"
+            )
+            continue
+        for key, value in block.items():
+            if not isinstance(value, bool):
+                ignored.append(
+                    f"{ENABLED_PLUGINS_KEY}[{key!r}] in {path} is {value!r}, not "
+                    "a Boolean; left out of the merge"
+                )
+                continue
+            plugins[key] = {"value": value, "evidence": path, "rank": index}
+    resolved: dict[str, dict] = {}
+    for key, row in plugins.items():
+        above = [path for rank, path in unreadable if rank > row["rank"]]
+        if above:
+            resolved[key] = {"value": None, "evidence": ", ".join(above)}
+        else:
+            resolved[key] = {"value": row["value"], "evidence": row["evidence"]}
+    return {
+        "plugins": resolved,
+        "unreadable": [path for _, path in unreadable],
+        "ignored": ignored,
+    }
+
+
+def enablement_for(merged: dict, key: str) -> dict:
+    """The enablement answer for one `plugin@marketplace` key.
+
+    `merged` is `merge_enabled_plugins` output. A key it names is answered
+    from the scope that set it, or is `None` naming the unreadable file above
+    that scope. A key absent everywhere is the documented default, enabled,
+    with `default` as evidence; when any settings file was unreadable that
+    absence is not knowable, so the answer is `None` naming the file, never a
+    guess.
+    """
+    row = merged["plugins"].get(key)
+    if row is not None:
+        return dict(row)
+    if merged["unreadable"]:
+        return {"value": None, "evidence": ", ".join(merged["unreadable"])}
+    return {"value": True, "evidence": "default"}
 
 
 def _read_settings_file(path: str) -> tuple[str, dict | None, str | None]:
@@ -1283,17 +1393,16 @@ def build_listing_inputs(
 def _eligibility(entry: dict) -> str:
     """Which skills actually contend for description budget.
 
-    Three exempt classes, and the third is easy to miss: a
+    Two exempt classes, and the second is easy to miss: a
     `disable-model-invocation` skill keeps its description out of the model's
     context entirely, so it spends none of the shared budget. Locally that is 59
     of 213 skills -- counting them would inflate the overflow figure enough to
-    flip the headline verdict.
+    flip the headline verdict. `skillOverrides` is not a third class: it never
+    applies to plugin skills, the only kind this audit enumerates.
     """
     frontmatter = entry.get("frontmatter") or {}
     if entry.get("source") == "bundled":
         return "exempt-bundled"
-    if frontmatter.get("skill_override") == "name-only":
-        return "exempt-name-only"
     if frontmatter.get("disable_model_invocation"):
         return "exempt-user-only"
     return "competing"
@@ -1383,7 +1492,7 @@ def compute_listing(
 
     # Basis is decided by whether any score survived AMONG THE CONTENDERS, not
     # by whether a scores argument arrived and not over the whole denominator. A
-    # bundled, name-only, or disable-model-invocation skill can carry real native
+    # bundled or disable-model-invocation skill can carry real native
     # usage while being excluded from the contest entirely; counting its score
     # here would label a listing `native-counters` whose every actual contender
     # is at zero, so a pure catalog ordering would be dressed as `inferential`.
@@ -1612,6 +1721,7 @@ def reachability(entry: dict) -> dict:
     """
     frontmatter = entry.get("frontmatter") or {}
     enabled = entry.get("plugin_enabled")
+    enabled_evidence = entry.get("plugin_enabled_evidence")
 
     causes: list[str] = []
     if frontmatter.get("_malformed"):
@@ -1632,22 +1742,40 @@ def reachability(entry: dict) -> dict:
             "provenance": "assembled-from-docs-and-binary, not an official list",
         }
 
-    if frontmatter.get("skill_override") == "off":
+    # `skillOverrides` is deliberately not consulted: plugin skills are
+    # governed by `enabledPlugins` alone, and the product's listing resolver
+    # returns "on" for every plugin-sourced skill before it reads the override
+    # map. Non-plugin skills, which it does govern, are not enumerated here.
+    if enabled is None and enabled_evidence == ENABLEMENT_NOT_ASSESSED:
+        # A checkout is not an install: there is no enablement to read, so
+        # the question is declined rather than answered `unknown`.
         return {
-            "value": "hidden",
-            "causes": ["skill-override-off"],
-            "remedy": "Hidden from both the model and the user by skillOverrides.",
-            "evidence": "settings",
-            "provenance": "documented",
+            "value": "not-assessed",
+            "causes": ["checkout-not-an-install"],
+            "remedy": (
+                "Enablement is a property of an install, not a checkout. Run "
+                "with --installed to assess whether the owning plugin loads."
+            ),
+            "evidence": None,
+            "provenance": "n/a",
         }
 
     if enabled is None:
-        # Never guess enablement. An unknown is reported as unknown.
+        # The sources genuinely could not answer. Never guess; name the file.
+        named = (
+            f"{enabled_evidence} could not be read or parsed, and a setting "
+            "there would outrank every readable scope"
+            if enabled_evidence
+            else "the available sources do not carry it"
+        )
         return {
             "value": "unknown",
             "causes": ["enablement-undetermined"],
-            "remedy": "Enablement could not be determined from the available sources.",
-            "evidence": None,
+            "remedy": (
+                f"Enablement could not be determined: {named}. Fix or remove "
+                "that file and rerun."
+            ),
+            "evidence": enabled_evidence or None,
             "provenance": "n/a",
         }
 
@@ -1655,8 +1783,12 @@ def reachability(entry: dict) -> dict:
         return {
             "value": "hidden",
             "causes": ["plugin-not-enabled"],
-            "remedy": "The owning plugin is installed but not enabled.",
-            "evidence": "plugin_loaded",
+            "remedy": (
+                "The owning plugin is installed but `enabledPlugins` resolves "
+                "it to false, so none of its skills load. Set it to true in "
+                "a higher-precedence scope, or remove the entry, to enable it."
+            ),
+            "evidence": enabled_evidence,
             "provenance": "documented",
         }
 
@@ -1974,6 +2106,8 @@ def _render_markdown(model: dict) -> str:
                 "",
             ]
 
+    lines += _render_reachability(model["skills"])
+
     listing = model.get("listing", {})
     if listing:
         lines += ["## Listing budget", ""]
@@ -2009,7 +2143,7 @@ def _render_markdown(model: dict) -> str:
                 ]
         lines += [
             f"- Exempt from the contest: {listing['exempt_count']} "
-            f"(bundled, name-only, and user-only skills spend no budget)",
+            f"(bundled and user-only skills spend no budget)",
             "",
         ]
         if listing.get("inputs"):
@@ -2053,6 +2187,49 @@ def _render_markdown(model: dict) -> str:
         reasons = {w["reason"] for w in model["withheld"]}
         lines += [f"- {reason}" for reason in sorted(reasons)] + [""]
     return "\n".join(lines)
+
+
+def _render_reachability(skills: list[dict]) -> list[str]:
+    """Per-value counts, the one checkout line, and the hidden table.
+
+    A checkout run declines enablement once, for the run, rather than once
+    per row. An installed run groups the hidden rows by owning plugin, since
+    the cause is per plugin and the evidence is the scope file that set it.
+    """
+    counts: dict[str, int] = defaultdict(int)
+    for row in skills:
+        counts[row["reachability"]["value"]] += 1
+    lines = ["## Reachability", ""]
+    if counts.get("not-assessed"):
+        lines += ["Reachability not assessed: a checkout is not an install.", ""]
+    shown = [f"{value} {counts[value]}" for value in sorted(counts)]
+    lines += ["- " + " · ".join(shown), ""]
+
+    hidden: dict[str, dict] = {}
+    for row in skills:
+        reach = row["reachability"]
+        if reach["value"] != "hidden":
+            continue
+        plugin = row["qualified_name"].partition(":")[0]
+        bucket = hidden.setdefault(plugin, {"skills": 0, "evidence": reach["evidence"]})
+        bucket["skills"] += 1
+    if hidden:
+        lines += [
+            "Hidden: the owning plugin is installed but `enabledPlugins` "
+            "resolves it to false, so none of its skills load.",
+            "",
+            "| Plugin | Skills | Evidence |",
+            "|---|---|---|",
+        ]
+        for plugin in sorted(hidden)[:10]:
+            bucket = hidden[plugin]
+            lines.append(
+                f"| `{plugin}` | {bucket['skills']} | `{bucket['evidence']}` |"
+            )
+        lines.append("")
+        if len(hidden) > 10:
+            lines += [f"…and {len(hidden) - 10} more", ""]
+    return lines
 
 
 def _render_single_budget(listing: dict) -> list[str]:
@@ -2298,9 +2475,24 @@ def main(argv: list[str] | None = None) -> int:
         # it, since those load only in their own project, and the project and
         # local settings scopes are read from its `.claude/`.
         current_project = os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
+        # The settings scopes feed two consumers: the listing keys below, and
+        # `enabledPlugins` for the installed fleet. One read, one merge walk,
+        # the managed locations from the vendored managed-scope.sh, never
+        # from a path written here. CLAUDE_CONFIG_DIR relocates the whole
+        # ~/.claude tree, user settings included.
+        config_root = os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser(
+            "~/.claude"
+        )
+        layers = settings_layers(
+            current_project,
+            config_root,
+            enumerate_managed_scope(managed_scope_lib_path()),
+        )
         if args.installed is not None:
             plugins_dir = args.installed or os.path.expanduser("~/.claude/plugins")
-            denominator, resolution = collect_installed(plugins_dir, current_project)
+            denominator, resolution = collect_installed(
+                plugins_dir, current_project, merge_enabled_plugins(layers)
+            )
             if not denominator:
                 print(
                     f"error: no installed skills resolved from {plugins_dir!r}; "
@@ -2332,18 +2524,6 @@ def main(argv: list[str] | None = None) -> int:
                 horizons["jsonl"] = jsonl_horizon
 
         cfg = Config()
-        # The listing keys are read from the same settings scopes the product
-        # merges, and the managed locations come from the vendored
-        # managed-scope.sh, never from a path written here. CLAUDE_CONFIG_DIR
-        # relocates the whole ~/.claude tree, user settings included.
-        config_root = os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser(
-            "~/.claude"
-        )
-        layers = settings_layers(
-            current_project,
-            config_root,
-            enumerate_managed_scope(managed_scope_lib_path()),
-        )
         listing_cfg, listing_axes = build_listing_inputs(
             {
                 "context_window": args.context_window,

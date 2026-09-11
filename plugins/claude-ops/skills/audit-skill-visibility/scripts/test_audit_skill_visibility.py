@@ -252,27 +252,233 @@ class ReachabilityTest(unittest.TestCase):
         self.assertEqual(reach["value"], "misconfigured")
         self.assertIn("no-description", reach["causes"])
 
-    def test_skill_overrides_off_is_hidden(self):
-        reach = self._row(description="d", skill_override="off")
-        self.assertEqual(reach["value"], "hidden")
-
     def test_disabled_plugin_is_hidden(self):
         reach = self._row(description="d", _plugin_enabled=False)
         self.assertEqual(reach["value"], "hidden")
+        self.assertEqual(reach["causes"], ["plugin-not-enabled"])
 
-    def test_undetermined_enablement_is_unknown_never_guessed(self):
+    def _classify_one(self, entry):
         now = _utc(2026, 8, 18)
-        entry = _skill("a:one")
-        entry["frontmatter"] = {"description": "d"}
-        entry["plugin_enabled"] = None  # genuinely undetermined
-        model = engine.classify(
+        return engine.classify(
             denominator=[entry],
             events=[],
             config=engine.Config(),
             clock=now,
             horizons={"native": now - timedelta(days=400)},
         )
-        self.assertEqual(model["skills"][0]["reachability"]["value"], "unknown")
+
+    def test_undetermined_enablement_is_unknown_and_names_the_file(self):
+        """`unknown` is reserved for a source that could not answer: the
+        evidence names the settings file that could not be read, and the
+        remedy repeats it, so the row is a fix and never a guess."""
+        entry = _skill("a:one")
+        entry["frontmatter"] = {"description": "d"}
+        entry["plugin_enabled"] = None
+        entry["plugin_enabled_evidence"] = "/repo/.claude/settings.local.json"
+        reach = self._classify_one(entry)["skills"][0]["reachability"]
+        self.assertEqual(reach["value"], "unknown")
+        self.assertEqual(reach["causes"], ["enablement-undetermined"])
+        self.assertIn("/repo/.claude/settings.local.json", reach["remedy"])
+        self.assertEqual(reach["evidence"], "/repo/.claude/settings.local.json")
+
+    def test_a_checkout_entry_is_not_assessed_never_unknown(self):
+        """A checkout is not an install, so enablement is declined for the
+        run rather than answered `unknown` per row, and the Markdown carries
+        that refusal exactly once."""
+        with tempfile.TemporaryDirectory() as tmp:
+            skill = os.path.join(tmp, "p", "skills", "s")
+            os.makedirs(skill)
+            with open(os.path.join(skill, "SKILL.md"), "w", encoding="utf-8") as h:
+                h.write('---\ndescription: "d"\n---\n')
+            model = self._classify_one(engine.collect_fleet(tmp)[0])
+        reach = model["skills"][0]["reachability"]
+        self.assertEqual(reach["value"], "not-assessed")
+        self.assertEqual(reach["causes"], ["checkout-not-an-install"])
+        self.assertIsNone(reach["evidence"])
+        rendered = engine._render_markdown(model)
+        self.assertEqual(
+            rendered.count("Reachability not assessed: a checkout is not an install"),
+            1,
+        )
+        self.assertNotIn("unknown", rendered)
+
+    def test_misconfigured_still_fires_in_checkout_mode(self):
+        entry = _skill("a:one")
+        entry["frontmatter"] = {"_malformed": True}
+        entry["plugin_enabled"] = None
+        entry["plugin_enabled_evidence"] = engine.ENABLEMENT_NOT_ASSESSED
+        reach = self._classify_one(entry)["skills"][0]["reachability"]
+        self.assertEqual(reach["value"], "misconfigured")
+
+    # --- enabledPlugins, end to end through the installed collector ---------
+    #
+    # Each case builds its settings scopes and a one-plugin install in a
+    # temporary tree and reads them through the same `settings_layers` walk
+    # the listing keys use, so the precedence under test is the reader's, not
+    # a hand-built layer list. Nothing here touches the real ~/.claude.
+
+    @staticmethod
+    def _write_json(path, blob):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump(blob, handle)
+
+    def _installed_reach(
+        self, tmp, user=None, project=None, local=None, managed=None, raw=None
+    ):
+        """Reachability of `alpha:one` from `alpha@mkt`, installed at user
+        scope, under the given `enabledPlugins` blocks. `raw` writes literal
+        text to a scope file so a malformed one can be staged."""
+        config_root = os.path.join(tmp, "config")
+        project_root = os.path.join(tmp, "repo")
+        os.makedirs(config_root, exist_ok=True)
+        os.makedirs(project_root, exist_ok=True)
+        paths = {
+            "user": os.path.join(config_root, "settings.json"),
+            "project": os.path.join(project_root, ".claude", "settings.json"),
+            "local": os.path.join(project_root, ".claude", "settings.local.json"),
+        }
+        for scope, block in (("user", user), ("project", project), ("local", local)):
+            if block is not None:
+                self._write_json(paths[scope], {"enabledPlugins": block})
+        for scope, text in (raw or {}).items():
+            os.makedirs(os.path.dirname(paths[scope]), exist_ok=True)
+            with open(paths[scope], "w", encoding="utf-8") as handle:
+                handle.write(text)
+        cache = os.path.join(tmp, "cache", "alpha")
+        skill = os.path.join(cache, "skills", "one")
+        os.makedirs(skill, exist_ok=True)
+        with open(os.path.join(skill, "SKILL.md"), "w", encoding="utf-8") as handle:
+            handle.write('---\nname: one\ndescription: "does a"\n---\n')
+        plugins_dir = os.path.join(tmp, "plugins-config")
+        self._write_json(
+            os.path.join(plugins_dir, "installed_plugins.json"),
+            {
+                "version": 2,
+                "plugins": {
+                    "alpha@mkt": [
+                        {"scope": "user", "version": "1.0.0", "installPath": cache}
+                    ]
+                },
+            },
+        )
+        layers = engine.settings_layers(
+            project_root,
+            config_root,
+            managed or {"status": "unreadable", "lib": "n/a", "reason": "stubbed"},
+        )
+        denominator, _ = engine.collect_installed(
+            plugins_dir, project_root, engine.merge_enabled_plugins(layers)
+        )
+        self.assertEqual([e["qualified_name"] for e in denominator], ["alpha:one"])
+        model = self._classify_one(denominator[0])
+        return model["skills"][0]["reachability"], paths
+
+    def test_a_plugin_disabled_in_project_settings_hides_its_skills(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            reach, paths = self._installed_reach(tmp, project={"alpha@mkt": False})
+        self.assertEqual(reach["value"], "hidden")
+        self.assertEqual(reach["causes"], ["plugin-not-enabled"])
+        self.assertEqual(reach["evidence"], paths["project"])
+
+    def test_absent_from_every_scope_is_enabled_by_default(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            reach, _ = self._installed_reach(tmp, project={"other@mkt": False})
+        self.assertEqual(reach["value"], "model-reachable")
+
+    def test_project_true_outranks_user_false(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            reach, _ = self._installed_reach(
+                tmp, user={"alpha@mkt": False}, project={"alpha@mkt": True}
+            )
+        self.assertEqual(reach["value"], "model-reachable")
+
+    def test_local_false_outranks_project_true(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            reach, paths = self._installed_reach(
+                tmp, project={"alpha@mkt": True}, local={"alpha@mkt": False}
+            )
+        self.assertEqual(reach["value"], "hidden")
+        self.assertEqual(reach["evidence"], paths["local"])
+
+    @unittest.skipIf(shutil.which("bash") is None, "bash not on PATH")
+    def test_managed_policy_false_outranks_local_true(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = os.path.join(tmp, "managed", "managed-settings.json")
+            self._write_json(base, {"enabledPlugins": {"alpha@mkt": False}})
+            managed = engine.enumerate_managed_scope(
+                engine.managed_scope_lib_path(), override=base
+            )
+            self.assertEqual(managed["status"], "read", managed)
+            reach, _ = self._installed_reach(
+                tmp, local={"alpha@mkt": True}, managed=managed
+            )
+        self.assertEqual(reach["value"], "hidden")
+        self.assertEqual(reach["evidence"], base)
+
+    def test_a_malformed_settings_file_is_unknown_never_a_guess(self):
+        """An unparsable scope could have set the key at its own precedence,
+        so every plugin whose answer would come from below it is `unknown`,
+        with the file named, never `hidden` or `model-reachable`."""
+        with tempfile.TemporaryDirectory() as tmp:
+            reach, paths = self._installed_reach(
+                tmp, user={"alpha@mkt": True}, raw={"project": "{not json"}
+            )
+        self.assertEqual(reach["value"], "unknown")
+        self.assertEqual(reach["causes"], ["enablement-undetermined"])
+        self.assertIn(paths["project"], reach["remedy"])
+
+    def test_a_readable_scope_above_a_malformed_one_still_decides(self):
+        """Precedence is per key and upward: a `false` in local outranks
+        whatever the unreadable project file might have said."""
+        with tempfile.TemporaryDirectory() as tmp:
+            reach, paths = self._installed_reach(
+                tmp, raw={"project": "{not json"}, local={"alpha@mkt": False}
+            )
+        self.assertEqual(reach["value"], "hidden")
+        self.assertEqual(reach["evidence"], paths["local"])
+
+
+class EnabledPluginsMergeTest(unittest.TestCase):
+    """The pure per-key merge, on hand-built layers."""
+
+    @staticmethod
+    def _layer(scope, path, settings=None, status="read"):
+        return {"scope": scope, "path": path, "status": status, "settings": settings}
+
+    def test_last_defined_scope_wins_per_key(self):
+        merged = engine.merge_enabled_plugins(
+            [
+                self._layer(
+                    "user", "/u", {"enabledPlugins": {"a@m": False, "b@m": False}}
+                ),
+                self._layer("project", "/p", {"enabledPlugins": {"a@m": True}}),
+            ]
+        )
+        self.assertEqual(merged["plugins"]["a@m"], {"value": True, "evidence": "/p"})
+        self.assertEqual(merged["plugins"]["b@m"], {"value": False, "evidence": "/u"})
+        self.assertEqual(engine.enablement_for(merged, "c@m")["evidence"], "default")
+
+    def test_a_non_boolean_value_is_left_out_and_named(self):
+        merged = engine.merge_enabled_plugins(
+            [self._layer("user", "/u", {"enabledPlugins": {"a@m": "yes"}})]
+        )
+        self.assertNotIn("a@m", merged["plugins"])
+        self.assertEqual(len(merged["ignored"]), 1)
+        self.assertIn("a@m", merged["ignored"][0])
+
+    def test_unread_scopes_without_a_file_do_not_poison_the_merge(self):
+        """The flag scope and an unenumerable managed scope carry no file
+        path; they are reported in the inputs, not treated as unreadable."""
+        merged = engine.merge_enabled_plugins(
+            [
+                self._layer("user", "/u", {"enabledPlugins": {"a@m": False}}),
+                self._layer("flag", "--settings", status="unread"),
+                self._layer("policy", None, status="unreadable"),
+            ]
+        )
+        self.assertEqual(merged["unreadable"], [])
+        self.assertEqual(merged["plugins"]["a@m"]["value"], False)
 
 
 class ReachabilityFixtureTest(unittest.TestCase):
@@ -802,7 +1008,7 @@ class BudgetArithmeticTest(unittest.TestCase):
 
 
 class ExemptionTest(unittest.TestCase):
-    """Three exempt classes spend zero budget and never enter the ranking.
+    """Two exempt classes spend zero budget and never enter the ranking.
 
     `exempt-user-only` is the one plan review caught: a
     `disable-model-invocation` skill keeps its description out of the model's
@@ -833,9 +1039,9 @@ class ExemptionTest(unittest.TestCase):
         listing = self._listing({"description": "x" * 1000}, source="bundled")
         self.assertEqual(listing["demand_chars"], 0)
 
-    def test_name_only_override_contributes_zero_and_frees_nothing(self):
+    def test_an_exempt_skill_frees_nothing(self):
         listing = self._listing(
-            {"description": "x" * 1000, "skill_override": "name-only"}
+            {"description": "x" * 1000, "disable_model_invocation": True}
         )
         self.assertEqual(listing["demand_chars"], 0)
         # Freed bytes are NOT returned to the pool -- the budget is unchanged.
@@ -1715,9 +1921,10 @@ class CollectFleetTest(unittest.TestCase):
         self.assertEqual(entries[0]["qualified_name"], "myplugin:myskill")
         self.assertEqual(entries[0]["frontmatter"]["description"], "d")
 
-    def test_enablement_is_unknown_never_assumed(self):
-        """The filesystem cannot answer enablement, and guessing it would libel
-        a disabled plugin's skills as reachable."""
+    def test_a_checkout_walk_is_not_assessed_never_assumed(self):
+        """A checkout is not an install: the walk carries no enablement and
+        says so, because guessing would libel a disabled plugin's skills as
+        reachable and `unknown` would claim a source that does not exist."""
         import pathlib
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -1728,6 +1935,9 @@ class CollectFleetTest(unittest.TestCase):
             )
             entries = engine.collect_fleet(tmp)
         self.assertIsNone(entries[0]["plugin_enabled"])
+        self.assertEqual(
+            entries[0]["plugin_enabled_evidence"], engine.ENABLEMENT_NOT_ASSESSED
+        )
 
     def test_missing_root_is_empty_not_an_exception(self):
         self.assertEqual(engine.collect_fleet("/nonexistent/path/here"), [])
