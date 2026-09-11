@@ -60,6 +60,7 @@ have checked a judgment row is misreporting.
 | `evals/evals.json` is present | mechanical (check 14) |
 | `evals/evals.json` validates against the schema and passes the eval-quality lint | mechanical (`/skill-quality:check validate-evals <skill>`) |
 | Three or more eval cases | mechanical (advisory) |
+| Where the bundled skill-creator plugin is installed, its eval modes ran the cases with a subagent per case; otherwise the fresh-session loop below stands in | attestation |
 | Fresh-session baseline captured with the skill disabled, then enabled | attestation |
 | Tested on real tasks, not contrived scenarios | attestation |
 | Models exercised: which of `haiku`, `sonnet`, `opus`, `fable` | attestation |
