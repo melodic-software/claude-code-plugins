@@ -3,6 +3,23 @@
 All notable changes to the `improvement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.12]
+
+### Changed
+
+- **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
+- **The plugin's prose drops its em dashes.** Six surfaces were rewritten: this changelog, `reference/config.md`, and the four `skills/find/context/` documents. Wording only, with no change to any ranking weight, probe ladder, exclusion default, or config key. Several headings lost a dashed separator and so changed anchor; nothing in the repository linked to any of them. The `gap:` template line in `unattended.md` keeps its dashed separators, because they are the field delimiter the emitted report uses and three inline examples instantiate that shape verbatim. The released sections corrected in place are 0.1.2, 0.1.1, and 0.1.0: their wording changed, their facts did not.
+- **Three documents say what a piece of evidence carries instead of calling it load-bearing or a seam.** `ranking.md` now follows "the weakest piece the citation rests on", `ci-health.md` names "an equivalent raw-request path", and `unattended.md` says "outside the tracker".
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md`, the `reference/` tree, every `skills/*/SKILL.md`, and the `skills/find/context/` tree.
+
+## [0.1.11]
+
+### Changed
+
+- **`lib/state-key.sh`:** replica synced with the canonical copy. The non-repository rung now
+  hashes the physical working directory, so one directory reached through two spellings keys once,
+  and an exported `CDPATH` can no longer redirect `cd` or add a line to stdout.
+
 ## [0.1.10]
 
 ### Changed
@@ -83,7 +100,7 @@ All notable changes to the `improvement` plugin are documented here. Format foll
   the explore/research/plan hand-off, and the execution-request pipeline sentence now say the
   named skills are invoked via the Skill tool. The remainder-filing line keeps its
   recommend-to-the-human shape ("the user decides which, if any") and only regains the leading
-  slash its siblings all carry: `work-items:track` → `/work-items:track`. Wording only — this
+  slash its siblings all carry: `work-items:track` → `/work-items:track`. Wording only. This
   skill still performs no code edits in any mode, and the presence gates are unchanged.
 
 ## [0.1.1]
@@ -91,7 +108,7 @@ All notable changes to the `improvement` plugin are documented here. Format foll
 ### Fixed
 
 - **README opener said "One skill" for a two-skill plugin.** `/improvement:setup` shipped alongside
-  `find` in 0.1.0 and appears in the table, but the sentence introducing it was never recounted — so
+  `find` in 0.1.0 and appears in the table, but the sentence introducing it was never recounted, so
   the plugin's very first release described itself as smaller than it was. Found by
   `scripts/check-skill-count-claims.sh`, a new fleet gate that compares every hand-written skill
   count against the tree.
@@ -116,10 +133,10 @@ All notable changes to the `improvement` plugin are documented here. Format foll
   scoring, evidence-rung confidence mapping, instrument-first), `unattended.md` (declaration
   contract, `${CLAUDE_PLUGIN_DATA}` report keying, filing flow, dismissed-candidate memory).
 - **`/improvement:setup` skill.** Fleet-standard `check` (default, read-only) / `apply` actions
-  over the `.claude/improvement.md` config cascade — verifies layer presence and
+  over the `.claude/improvement.md` config cascade: verifies layer presence and
   tracked/ignored state, reports the effective evidence-source configuration with per-layer
   provenance, and interviews before writing the team file.
-- **Config contract at `reference/config.md`** — the single home for the config keys: Tier 2
+- **Config contract at `reference/config.md`**, the single home for the config keys: Tier 2
   `evidence_sources` MCP declarations, churn window and exclusion patterns, and the three-layer
   cascade resolution order (`~/.claude/improvement.md` → `.claude/improvement.md` →
   `.claude/improvement.local.md`) with declared merge semantics.

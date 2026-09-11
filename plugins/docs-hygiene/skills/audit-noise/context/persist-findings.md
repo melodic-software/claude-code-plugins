@@ -15,7 +15,7 @@ the consumer never scans that path.
 
 The skill body's read-only hard rule still holds, and it now states the distinction this file
 depends on: **target mutation is forbidden unconditionally; artifact emission is not target
-mutation.** No audited file becomes writable here. The findings file is a **proposal artifact** — a
+mutation.** No audited file becomes writable here. The findings file is a **proposal artifact**, a
 NEW file in the gitignored memory tier that reaches `review:fanout`'s `fix` action, which is itself
 human-gated. Persisting is opt-in behind `--persist-findings`; a bare invocation reports and stops.
 Never describe the findings file to an operator as a change that has been made.
@@ -29,7 +29,7 @@ space before writing (the contract and its topic-docs binding own the proof; a d
 cannot be proven is reported and not written to).
 
 File name: `${TS}-audit-noise.md`, `TS="$(date -u +%Y%m%dT%H%M%SZ)"` (colon-free, Windows-safe).
-Never overwrite: when the path exists, take `-2`, `-3`, the smallest free integer —
+Never overwrite: when the path exists, take `-2`, `-3`, the smallest free integer.
 `emit-findings.sh` does this itself.
 
 ## The body-scope fence is not optional and not the caller's alone
@@ -46,19 +46,19 @@ that phrase carried. Two consequences bind every run:
   being bypassed.
 
 A prohibition inside a `description` is a real observation and still belongs in the **human
-report** — it is routed there, never to the relay.
+report**. It is routed there, never to the relay.
 
 ## Compose by script, not by hand
 
 Once the destination is resolved and the contract fetch succeeded, run
 `${CLAUDE_SKILL_DIR}/scripts/emit-findings.sh --from <detect output file> --out <resolved path>`.
 The script owns the mechanical half: the fence recomputation, cell assembly and escaping, tier
-lookup (a mirror of the crosswalk — the crosswalk row is authoritative), rank ordering, the
+lookup (a mirror of the crosswalk, whose row stays authoritative), rank ordering, the
 non-overwrite suffix, and the `## Surfaces` counts. What stays with the model is everything before
 the script (rung-order resolution, the fetch-and-refuse gate, the self-ignore guard) and everything
 after it (reading the written file's head to confirm shape, and severity-vocabulary mapping when
-the consuming project defines its own — edit the written file's `Tier` cells per the contract's
-consumer-precedence rule).
+the consuming project defines its own, done by editing the written file's `Tier` cells per the
+contract's consumer-precedence rule).
 
 ## Which findings enter the file
 
@@ -66,8 +66,8 @@ consumer-precedence rule).
 `preamble`, `enum-list`, `scope-meta`, `plan-reference`, `conversational-antecedent`,
 `ticket-pr-residue`) have no severity-crosswalk row, and the contract admits no row whose tier
 cannot be looked up from one. They stay in the human report and are counted in
-`## Surfaces` as `reason=no-severity-crosswalk-row` — declined, never silently dropped. The count
-is the one `audit_noise_detect_shapes_into` in `scripts/lib/noise-shapes.sh` actually appends, plus
+`## Surfaces` as `reason=no-severity-crosswalk-row`. They are declined, never silently dropped. The
+count is the one `audit_noise_detect_shapes_into` in `scripts/lib/noise-shapes.sh` actually appends, plus
 `negation`; re-derive it there rather than trusting this sentence.
 
 | Scanner shape | Rule id | Tier |
@@ -76,7 +76,7 @@ is the one `audit_noise_detect_shapes_into` in `scripts/lib/noise-shapes.sh` act
 
 The scanner's own carve-outs (paired positive, hard guardrail, worked example) already ran at
 classification time, so a carved-out candidate never reaches this file **and never reaches the
-human report either** — one candidate, one disposition on every surface, which is what the
+human report either**. One candidate gets one disposition on every surface, which is what the
 contract's "fall-through takes effect before the producer's FIRST output" requires of a producer
 with more than one output surface.
 
@@ -109,7 +109,7 @@ findings still belong in the **human report**.
   the instruction itself.
 - **`Tier`** is LOOKED UP from the rule's crosswalk row (IMPORTANT), then mapped to the consuming
   project's severity vocabulary when it defines one. **`Confidence`** is `high` on every emitted
-  row: a deterministic detector fired. Confidence is confidence-of-realness — the rule's repair
+  row: a deterministic detector fired. Confidence is confidence-of-realness. The rule's repair
   needs authorial judgment, and that is said in the crosswalk's `Auto-applicable` cell and in the
   `Action` wording, never by downgrading `Confidence`.
 

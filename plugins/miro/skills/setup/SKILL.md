@@ -1,5 +1,5 @@
 ---
-description: "Verify the Miro plugin without reading or exposing its API token. Use when: 'set up Miro', 'configure Miro', 'Miro setup', the Miro MCP server is unavailable, or a Miro tool reports an authentication error. Actions: check (read-only verification, default and only action — this plugin's entire configuration is native userConfig, so there is nothing an apply could write); check verify-api additionally authorizes one read-only API call."
+description: "Verify the Miro plugin without reading or exposing its API token. Use when: 'set up Miro', 'configure Miro', 'Miro setup', the Miro MCP server is unavailable, or a Miro tool reports an authentication error. Actions: check (read-only verification, default and only action. This plugin's entire configuration is native userConfig, so there is nothing an apply could write); check verify-api additionally authorizes one read-only API call."
 argument-hint: "check [verify-api]"
 user-invocable: true
 disable-model-invocation: true
@@ -80,7 +80,7 @@ command line (see the security note below).
 Per the marketplace's plugin-reconfiguration convention
 (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
 which owns the verified-version record), a headless `claude plugin install … --config` rerun
-against an already-installed plugin prints `already installed` and still writes the value — but
+against an already-installed plugin prints `already installed` and still writes the value, but
 that record covers only a non-sensitive option, so do not rely on it for a `sensitive` credential
 such as `miro_api_token`. Do **not** uninstall to rotate either: uninstalling drops this
 plugin's entire stored `pluginConfigs` entry, resetting every option in the README's Options

@@ -14,6 +14,23 @@ source "$HOOK_DIR/claude-ops-test-helpers.sh"
 
 ON=CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED=true
 
+# The hook event record schema session-log-lib.sh documents, as one jq -e over
+# every line of a session file. `source: "event-log"` rows describe one event
+# the session saw, never a hook run, so they carry `category` and no `hook`;
+# the retired `event` key must be absent, which is what lets a reader query
+# `.hook_event_name` with no normalization prelude.
+RECORD_SCHEMA='(.ts|type)=="string" and (.session_id|type)=="string"
+  and (.hook_event_name|type)=="string" and (.status|type)=="string"
+  and ((.duration_ms|type)=="number" or .duration_ms==null)
+  and .source=="event-log" and (.category|type)=="string"
+  and (has("event")|not) and (has("hook")|not)'
+
+# assert_record <label> <file> [<extra jq clause>]
+assert_record() {
+  jq -e -s "all(.[]; $RECORD_SCHEMA${3:+ and ($3)})" "$2" >/dev/null 2>&1
+  assert_exit "$1" 0 "$?"
+}
+
 # payload <session_id> <event> [<extra-json-members>]
 payload() {
   local extra="${3:-}"
@@ -63,6 +80,7 @@ if [[ -s "$LOG" ]]; then
   assert_eq "tool_name carried" "Write" "$(jq -r .tool_name "$LOG")"
   assert_eq "file_path recorded repo-relative" "docs/a.md" "$(jq -r .file_path "$LOG")"
   assert_eq "duration_ms is a number" "number" "$(jq -r '.duration_ms | type' "$LOG")"
+  assert_record "event-log route: the line satisfies the record schema" "$LOG"
 else
   bad "enabled: no line written at $LOG"
 fi
@@ -172,6 +190,13 @@ WIN_PATH="Q:${BS}scratch${BS}private${BS}notes.md"
 run "$P" "$(payload s9w PostToolUse "\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"${WIN_PATH}\"}")" "$ON" >/dev/null
 assert_eq "Windows outside path → last segment only" "notes.md" "$(jq -r .file_path "$P/.observability/claude/sessions/s9w.jsonl")"
 
+# A payload body carrying JSON escapes is re-emitted verbatim, never re-escaped:
+# the record formatter takes these three keys as bodies for exactly this reason.
+run "$P" "$(payload s9e PostToolUse '"tool_name":"Edit","reason":"said \"go\" then \\ stopped\tabruptly"')" "$ON" >/dev/null
+assert_record "an escaped payload body still satisfies the record schema" "$P/.observability/claude/sessions/s9e.jsonl"
+assert_eq "an escaped payload body round-trips verbatim" "$(printf 'said "go" then \\ stopped\tabruptly')" \
+  "$(jq -r .reason "$P/.observability/claude/sessions/s9e.jsonl")"
+
 # --- a pause after a NESTED `}` does not end the read early ----------------------
 # The writer stops for longer than one slice right after tool_input closes,
 # then sends the rest. Read as "the payload ended", the buffer has no event
@@ -231,6 +256,21 @@ wait
 PLOG="$P/.observability/claude/sessions/s12.jsonl"
 assert_eq "33 parallel fires → 33 lines" 33 "$(wc -l <"$PLOG" | tr -d ' ')"
 assert_eq "33 parallel fires → every line parses" 33 "$(jq -c . "$PLOG" 2>/dev/null | wc -l | tr -d ' ')"
+
+# --- an unusable stdin_read_timeout falls back to the default ----------------------
+# The env-block channel can deliver any string, so the schema's `min: 1` is not
+# a guard here. `0` makes `read -t` return at once with nothing read, and a
+# positive value under 10 µs returns before the payload's bytes arrive; both
+# must fall back to the default and still write the line, as the library's
+# hook::resolve_read_timeout_to does for the same variable.
+for bad_timeout in 0 0.0 00 0.000001; do
+  P=$(project "timeout-$bad_timeout")
+  OUT=$(run "$P" "$(payload s13 PostToolUse)" "$ON" "CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=$bad_timeout")
+  assert_exit "stdin_read_timeout=$bad_timeout → exit 0" 0 "$?"
+  assert_silent "stdin_read_timeout=$bad_timeout → silent" "$OUT"
+  assert_eq "stdin_read_timeout=$bad_timeout → falls back and writes the line" 1 \
+    "$(wc -l <"$P/.observability/claude/sessions/s13.jsonl" 2>/dev/null | tr -d ' ')"
+done
 
 # --- the producer sources nothing from hook-utils --------------------------------
 assert_eq "no hook-utils.sh source" 0 "$(grep -cE '^[[:space:]]*(source|\.)[[:space:]].*hook-utils' "$HOOK" "$HOOK_DIR/session-log-lib.sh" | awk -F: '{ s += $2 } END { print s + 0 }')"

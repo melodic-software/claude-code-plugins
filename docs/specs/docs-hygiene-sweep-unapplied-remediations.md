@@ -263,7 +263,7 @@ useful thing to fix if anyone touches that section for another reason.
 | Path | Tier | Chain |
 |---|---|---|
 | `plugins/claude-config/skills/audit-pass/reference/terms.md` and `reference/finding-identity.md` | 2 | `plugins/claude-config/skills/audit-pass/SKILL.md:19` to `plugins/claude-config/skills/audit-pass/reference/run-contract.md:9` to leaf. Every other leaf opens by assuming `terms.md`, and it is the file furthest from the hub |
-| `plugins/architecture/skills/improve/research/deepening/*.md` (5 files) | 2 | `plugins/architecture/skills/improve/SKILL.md:35` to `plugins/architecture/skills/improve/actions/deepening.md:26` to that skill's `research/deepening/scan-briefing.md`. The citing line calls the target load-bearing for scan quality |
+| `plugins/architecture/skills/improve/research/deepening/*.md` (5 files) | 2 | `plugins/architecture/skills/improve/SKILL.md:35` to `plugins/architecture/skills/improve/actions/deepening.md:26` to that skill's `research/deepening/scan-briefing.md`. The citing line calls the target "load-bearing" for scan quality |
 | `plugins/session-flow/skills/retro/reference/ecosystem-improvement-catalog.md` | 2 | `plugins/session-flow/skills/retro/SKILL.md` to `plugins/session-flow/skills/retro/context/session.md:184` ("Load the catalog") to the catalog |
 | `plugins/knowledge/skills/course-digest/reference/screenshot-strategy.md` | 2 | `plugins/knowledge/skills/course-digest/SKILL.md` to `plugins/knowledge/skills/course-digest/context/workflow.md:46` to the strategy |
 | `plugins/claude-ops/skills/known-issues/context/issue-templates.md`, `context/output-templates.md` | 3 | Explicitly conditional offline snapshots. Alternates, not required reading. **No treatment** |
@@ -349,8 +349,8 @@ citing text the audit quoted.
 > commit that created this file and this whole section, while all 34 rows were open; it was true
 > then. Rows closed by [#3380](https://github.com/melodic-software/claude-code-plugins/pull/3380)
 > (`6c7a1032`): 22 of Group 1, **all 8 of Group 2**, and both of Group 3. #3380 fixed those 32 in
-> the citing files and never touched this section — `git show 6c7a1032 -- <this file>` has hunks
-> only in "Status at the stamp", L2 structure, L6 and L7 — so the summary above kept asserting a
+> the citing files and never touched this section. `git show 6c7a1032 -- <this file>` has hunks
+> only in "Status at the stamp", L2 structure, L6 and L7, so the summary above kept asserting a
 > re-verification of citing text that no longer stood. Three separate later passes each re-derived
 > this roster from scratch because of it.
 >
@@ -602,7 +602,7 @@ The verified auto-read enumeration behind the scope statement lands in the skill
 file at implementation.
 ```
 
-If that enumeration is load-bearing evidence rather than working notes, promote it into the brief
+If that enumeration is evidence the brief depends on rather than working notes, promote it into the brief
 instead of stripping the pointer.
 
 ### `plan-reference`, 1
@@ -992,7 +992,7 @@ README), `## Tests` (`machine-health`), `## Revisit triggers` (`instruction-plac
 
 `K4` is `docs/PLUGIN-PHILOSOPHY.md`, filed as an `M1` mode finding with **no edit proposed**: it is
 four documents (policy reference, argument, procedure, measured findings) in over a thousand lines,
-and splitting it belongs to L2. The finding exists so L2 has the mode seams when it decides where the
+and splitting it belongs to L2. The finding exists so L2 has the mode boundaries when it decides where the
 split lines go.
 
 Beyond the 14 adjudicated `L1` findings, all 442 raw `L1` hits are enumerated per group in the

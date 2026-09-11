@@ -12,9 +12,9 @@
 Everything the **parent** owes a dispatched `discovery:explorer`, `discovery:researcher` or
 `discovery:intent-tracer` run that is **identical across all three families**. It exists because it
 did not: five statements below were previously carried in two to six copies each, and every one of
-them had drifted apart by the time the drift was audited — the envelope's field list, the
-pre-dispatch baseline command, the claim about `$ARGUMENTS`, the agents' write boundary, and what to
-do with a partial slice.
+them had drifted apart by the time the drift was audited. The five are the envelope's field list,
+the pre-dispatch baseline command, the claim about `$ARGUMENTS`, the agents' write boundary, and
+what to do with a partial slice.
 
 Four files answer "what does the parent owe", and the split is deliberate:
 
@@ -30,7 +30,7 @@ Adding a second copy is the defect this file removes.
 
 ## The pre-dispatch envelope
 
-Six fields. The agent refuses to guess any of them, which is what makes the envelope safe to
+Six shared fields. The agent refuses to guess any of them, which is what makes the envelope safe to
 mandate: an unresolved field surfaces as a failed dispatch instead of a confident answer to a
 question nobody asked.
 
@@ -47,18 +47,32 @@ Budget: <the depth this session authorized>
 Capability flags: nested spawning <available|unavailable>
 ```
 
+**Research adds one more labelled line**, because source breadth is the caller's level and
+the researcher lane is pinned `high` for reasoning:
+
+```text
+Source breadth: <low|medium|high|xhigh|max>
+```
+
+The parent resolves that value from `${CLAUDE_EFFORT}` in the parent skill load before
+dispatch (a literal placeholder means the body was read from disk: write `high`). Explore
+and trace-intent do not write this line. A research worker that does not receive it treats
+the run as `high` and names that default in the artifact, the same fallback as an
+unsubstituted body. Dated record: [Harness facts the dispatch design rests on](#harness-facts-the-dispatch-design-rests-on),
+"`${CLAUDE_EFFORT}` is the loading context's level".
+
 Those labels are the ones `/discovery:research-deep` already ships in its literal dispatch block;
 they are reproduced here rather than reinvented, so the two cannot drift.
 
 **`/discovery:trace-intent` keeps the `Topic:` label rather than adding a `Target:` one.** Its
-argument is user-facing a target — a decision, a file, a symbol, a convention — but the label a
-dispatched agent parses is the same label its siblings parse, and the echo-back field in every
-return payload is `topic_as_received`. A fourth label for the same envelope slot would put the
+argument is user-facing a target, whether a decision, a file, a symbol, or a convention, but the
+label a dispatched agent parses is the same label its siblings parse, and the echo-back field in
+every return payload is `topic_as_received`. A fourth label for the same envelope slot would put the
 family's name for its input in one place and the field that verifies it in another, which is exactly
 the drift this file exists to close.
 
-**Memory root is its own line, not derivable from the slice path.** When the slice is nested — a
-sub-slice for a collision or a parallel fan-out — no one can tell from the path alone which ancestor
+**Memory root is its own line, not derivable from the slice path.** A nested slice is a sub-slice
+for a collision or a parallel fan-out. No one can tell from the path alone which ancestor
 is the configured root, and the root is where the self-ignoring `.gitignore` guard belongs. An agent
 that has to derive it derives-and-flags rather than stopping, so the cost is a recoverable wrong
 guess, not a halt: it is the one envelope field whose absence is degradable. Topic/scope, reason and
@@ -73,7 +87,7 @@ everywhere else:
 - **The child's ability to write.** The parent's own `mkdir -p` + baseline touch proves that *the
   parent* can write there; the guard that has actually fired in the field was on **subagent**
   writes. There is no pre-dispatch probe for it that does not either lie or corrupt the freshness
-  baseline — an agent-side probe `touch` into the slice makes the slice's newest file older than
+  baseline. An agent-side probe `touch` into the slice makes the slice's newest file older than
   nothing and defeats the check `--newer-than` performs. The write question is answered *after* the
   fact, by `persistence: written | by-value` in the return payload, and that is the mechanism the
   ladders' by-value rung exists for.
@@ -99,14 +113,14 @@ New-Item -ItemType Directory -Force -Path '<memory-slice path>' | Out-Null
 New-Item -ItemType File -Force -Path '<memory-slice path>/.<explore|research|trace-intent>-dispatch' | Out-Null
 ```
 
-Run whichever matches the shell this session actually has — on Windows without Git Bash that is
+Run whichever matches the shell this session actually has. On Windows without Git Bash that is
 PowerShell, and the POSIX line fails there in a way that reads as a broken instruction rather than a
 wrong shell.
 
 Creating the directory is not decoration: on a first-time topic the slice does not exist yet, a bare
 `touch` fails there, and the dispatch either stops before it starts or reaches a gate with no
 baseline to grade against. A baseline the parent *named* but did not create exits 2 rather than
-quietly reporting `freshness=unchecked` — a check the caller asked for and only appeared to get is
+quietly reporting `freshness=unchecked`. A check the caller asked for and only appeared to get is
 worse than one it knowingly skipped.
 
 **On an N-topic fan-out, one baseline at the slice root serves every sub-slice.** The gate compares
@@ -115,7 +129,7 @@ anything an earlier run left anywhere under the slice, so a per-sub-slice baseli
 rather than owed.
 
 The memory root's self-ignoring `.gitignore` guard is a **different** obligation and is not part of
-this baseline — see "What this gate does not grade" below.
+this baseline. See "What this gate does not grade" below.
 
 ## Scope and topic do not arrive by argument substitution
 
@@ -125,23 +139,23 @@ non-fork subagent starts with no history by design. So the operative rule is:
 
 > **Never rely on seeing an unfilled slot.** Whatever a preloaded body renders as, the agent treats
 > a topic or scope that did not arrive in its dispatch prompt as a **parent-envelope failure it
-> reports rather than repairs** — never as an empty scope to fill in, and never as a licence to run
+> reports rather than repairs**, never as an empty scope to fill in, and never as a licence to run
 > a general sweep.
 
 That rule holds whichever way the harness renders the placeholder, which matters because **the
 harness's behavior on this path is not documented in either direction.** Recorded as unsupported,
-not as false — nothing below establishes that a preloaded body renders the placeholder empty, and
+not as false. Nothing below establishes that a preloaded body renders the placeholder empty, and
 nothing establishes that it does not:
 
 - <https://code.claude.com/docs/en/skills> (raw markdown, fetched 2026-08-11) scopes the placeholder
   to invocation: "`$ARGUMENTS` | All arguments passed when invoking the skill." It states that
-  preload is a different path — "Subagents with preloaded skills work differently: the full skill
-  content is injected at startup" — and says nothing about argument substitution on it.
+  preload is a different path, "Subagents with preloaded skills work differently: the full skill
+  content is injected at startup", and says nothing about argument substitution on it.
 - <https://code.claude.com/docs/en/sub-agents> (raw markdown, same date) likewise: "The full content
   of each listed skill is injected into the subagent's context at startup." No mention of arguments.
 - The nearest documented analogue points the *other* way. The `context: fork` walkthrough on the
   skills page shows the subagent "receives the skill content as its prompt (`"Research \$ARGUMENTS
-  thoroughly..."`)" — the placeholder arriving as literal text, on a path that is not this one.
+  thoroughly..."`)", the placeholder arriving as literal text, on a path that is not this one.
 
 **Re-check both pages before restating any mechanism here.** Through 0.14.0 this plugin asserted a
 specific empty-string rendering of the placeholder on the preload path as settled fact, at five
@@ -163,7 +177,7 @@ was observed and what is documented, because the mechanism is neither:
   a factually wrong question and answered it correctly.
 - **Documented** (`plugins-reference`, `skills`, both fetched 2026-08-11): skill and agent content
   is a substitution site for `${CLAUDE_PLUGIN_ROOT}`, `${CLAUDE_PLUGIN_DATA}` and
-  `${CLAUDE_PROJECT_DIR}` "anywhere the placeholder appears", and there is **no escape** for them —
+  `${CLAUDE_PROJECT_DIR}` "anywhere the placeholder appears", and there is **no escape** for them.
   "A backslash before any other `$` is left unchanged" covers `$ARGUMENTS` and declared argument
   names, not these.
 - **Not documented on any page:** whether argument-supplied text is itself scanned for those
@@ -171,25 +185,27 @@ was observed and what is documented, because the mechanism is neither:
 
 Practically: name a path in plain words rather than passing a `${CLAUDE_…}` token and expecting it
 back. The `topic_as_received` / `scope_as_received` echo-back in the acceptance gate is what catches
-this whichever way the substitution actually runs — and it matters most under
+this whichever way the substitution actually runs, and it matters most under
 `/discovery:research-deep`, where one topic is copied into every envelope of an N-way fan-out, so
 check each dispatched agent's echo against the envelope it was sent, per topic, before synthesis.
 
 **This caveat expires 2027-02-11.** Re-fetch both pages then. After that date it is an unverified
-claim, not a fact — say so rather than repeating it.
+claim, not a fact. Say so rather than repeating it.
 
 ## Harness facts the dispatch design rests on
 
-Six harness behaviors this plugin's dispatch design depends on, each with one dated record here
+Seven harness behaviors this plugin's dispatch design depends on, each with one dated record here
 instead of an undated restatement at every site that relies on it. A skill, context file, or agent
 definition keeps its own one-sentence operative rule and cites this section by heading; none of
-them repeats a basis. Every record below was verified against Claude Code 2.1.263 with the pages
-named, fetched 2026-09-06.
+them repeats a basis. Records 1-6 were verified against Claude Code 2.1.263 with the pages
+named, fetched 2026-09-06. Record 7 was verified against the skills and sub-agents pages
+fetched 2026-09-08.
 
-**One shared recheck trigger covers all six:** any of the named pages stops carrying the quoted
-span, a release note names subagent tool filtering, skill preloading, background execution, or
-subagent spawn permissions, or the CLI major version moves. On any of those, re-fetch the page
-before restating the record, and re-date this section rather than editing a claim in place.
+**One shared recheck trigger covers all seven:** any of the named pages stops carrying the quoted
+span, a release note names subagent tool filtering, skill preloading, background execution,
+subagent spawn permissions, or effort substitution, or the CLI major version moves. On any of
+those, re-fetch the page before restating the record, and re-date this section rather than
+editing a claim in place.
 
 ### A preloaded skill that fails to resolve is skipped silently
 
@@ -199,7 +215,7 @@ runs without the body it was supposed to carry, and the only trace is a debug-lo
 is missing or disabled, for example by your organization's policy, Claude Code skips it and logs a
 warning to the debug log." The same page's field table gives the mechanism the preload uses: the
 `skills` field injects "The full skill content", not only the description. *Why the plugin cares.*
-A run whose discipline never loaded is indistinguishable from a good one at every other seam,
+A run whose discipline never loaded is indistinguishable from a good one by every other signal,
 which is what the liveness token exists to catch.
 
 ### `AskUserQuestion` is removed from every non-fork subagent
@@ -245,14 +261,32 @@ its inherited tool list, but the tool returns an error instead of spawning." *On
 carrying:* in a subagent definition, listing `Agent` permits nesting while the depth limit allows
 it, but "any type list inside the parentheses is ignored".
 
+### `${CLAUDE_EFFORT}` is the loading context's level
+
+*Claim.* `${CLAUDE_EFFORT}` substitutes the effort level of the context that loaded the skill
+(`low`, `medium`, `high`, `xhigh`, or `max`; Ultracode reports as `xhigh`). A skill or
+subagent frontmatter `effort` pin overrides the session level while that lane is active, so a
+skill preloaded into a pinned worker expands the pin, not the parent's session level. A body
+Read from disk is unsubstituted: the placeholder remains the literal characters. *Basis.*
+[Skills: available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions):
+"`${CLAUDE_EFFORT}` | The current effort level: `low`, `medium`, `high`, `xhigh`, or `max`.
+Ultracode is not a distinct level and reports as `xhigh`." [Skills: frontmatter
+reference](https://code.claude.com/docs/en/skills#frontmatter-reference): `effort` "Overrides
+the session effort level." [Create custom subagents](https://code.claude.com/docs/en/sub-agents):
+the agent-frontmatter `effort` field "Overrides the session effort level. Default: inherits
+from session." *Why the plugin cares.* `/discovery:research` scales source breadth by caller
+effort, and `discovery:researcher` is pinned `high` so reasoning does not degrade inside a
+session tuned down for cost. The worker's substituted value is therefore the pin. The parent
+writes `Source breadth:` from its own load so the table still follows the caller.
+
 ## Running the acceptance gate
 
 Each entry skill's `SKILL.md` carries the gate's steps. What follows is the same for every family whenever
-the gate has to *run* — including an inline research run that still owes criterion 11's script
+the gate has to *run*, including an inline research run that still owes criterion 11's script
 verdict. A legitimate inline `/discovery:explore` does **not** run these scripts and owes no
 `--help` probe.
 
-### Pre-flight — before a route that owes a gate
+### Pre-flight, before a route that owes a gate
 
 Probe only the scripts the **chosen** route will need. Each script's `--help` is side-effect-free
 and exits 0:
@@ -265,7 +299,7 @@ and exits 0:
 - **Dispatched route (explore, research or trace-intent):** probe `check-dispatch-artifact.sh`
   before dispatching. Research also probes the coverage checker; trace-intent owes no ledger and so
   probes only the artifact checker. A denied, declined, or errored probe is the same FAIL
-  as a non-zero gate exit — **halt**. Do not take the inline escape hatch to dodge an un-runnable
+  as a non-zero gate exit: **halt**. Do not take the inline escape hatch to dodge an un-runnable
   post-dispatch gate.
 - **Inline research:** still owes criterion 11's coverage-script exit status. Probe the coverage
   checker before spending the run; a denied probe **halts**. Reading the ledger instead is the
@@ -274,7 +308,7 @@ and exits 0:
   iteration, cost, already-a-subagent) remain valid; do **not** halt an otherwise-legitimate inline
   explore because the dispatch artifact checker is unavailable.
 
-### How to invoke — prefer the script path, not `bash <script>`
+### How to invoke: prefer the script path, not `bash <script>`
 
 The scripts are shebang executables. Prefer invoking the path directly so the outer command is the
 gate itself rather than an interpreter wrapping it:
@@ -286,15 +320,15 @@ gate itself rather than an interpreter wrapping it:
 
 `bash "${CLAUDE_PLUGIN_ROOT}/scripts/…"` remains valid where a direct exec is awkward. On a session
 whose Bash tool is blocked by another skill's PreToolUse belt but whose PowerShell lane (or another
-open shell) still runs, invoke the **same** scripts from that open lane — including the coverage
+open shell) still runs, invoke the **same** scripts from that open lane, including the coverage
 ledger's Python twin (`check-coverage-complete.py`) when `python3` is what that lane can run. The
 twin is the non-bash alternative for criterion 11; it shares the `.sh` exit contract (0 / 1 / 2)
 and the greppable summary line. Either implementation's exit status is the verdict; a table reading
 is never a substitute for either.
 
 When every lane that could run a gate is denied: **halt**. Report that the gate could not run. Do
-not proceed, do not self-grade, and do not invent an `UNGRADED` that continues the workflow —
-anything that lets the run proceed without a script exit reintroduces the defect.
+not proceed, do not self-grade, and do not invent an `UNGRADED` that continues the workflow.
+Anything that lets the run proceed without a script exit reintroduces the defect.
 
 ### The gate ships no permission grant, and the un-run case is a halt
 
@@ -305,10 +339,10 @@ against <https://code.claude.com/docs/en/skills> (raw markdown, fetched 2026-08-
    "In a plugin skill, Claude Code substitutes `${CLAUDE_PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_DATA}` in
    the same two places" as `${CLAUDE_SKILL_DIR}` / `${CLAUDE_PROJECT_DIR}`). That removes the old
    "token cannot name these scripts" leg. It does **not** confirm that a
-   `${CLAUDE_PLUGIN_ROOT}`-bearing rule matches at runtime on every host — treat the docs change as
+   `${CLAUDE_PLUGIN_ROOT}`-bearing rule matches at runtime on every host. Treat the docs change as
    necessary but not sufficient, and do not ship a grant on docs alone.
 2. **An interpreter-led rule is still an anti-pattern in this repo.** A grant shaped like
-   `bash` wrapping the script path names the interpreter and is dropped under auto mode — see
+   `bash` wrapping the script path names the interpreter and is dropped under auto mode. See
    `docs/conventions/permission-rule-hygiene/README.md`, anti-pattern 1. A direct-path rule that
    names the `.sh` (or `.py`) under the plugin root is the documented shape, but see leg 3.
 3. **The grant would not last long enough anyway.** It "grants permission for the listed tools
@@ -320,14 +354,14 @@ So the honest statement is the one the rest of this plugin already makes about u
 
 > **A gate that could not run is a FAIL, never a skip.** If the invocation is denied, prompts and is
 > declined, or errors out, report that and halt exactly as on a non-zero exit. Do not substitute a
-> reading of the directory or of the coverage ledger — the context most motivated to call the run
+> reading of the directory or of the coverage ledger. The context most motivated to call the run
 > finished is the one that would be doing the reading.
 
 **Operator setup, once, optional.** The documented way to cover a multi-turn command is settings,
 not frontmatter: "To pre-approve tools for the whole session rather than a single turn, add allow
 rules to those permission settings instead." An operator who wants this gate to run without a prompt
 adds a direct-path rule for the script paths (and, if useful, the coverage `.py`) to their own
-`~/.claude/settings.json`. The plugin cannot ship it — a plugin's `settings.json` supports only the
+`~/.claude/settings.json`. The plugin cannot ship it: a plugin's `settings.json` supports only the
 `agent` and `subagentStatusLine` keys.
 
 ### What this gate does not grade
@@ -341,7 +375,7 @@ grades" was previously left implicit, and an unstated gap reads as a covered one
   own envelope field.
 - **The acceptance gate never checks it.** It grades the artifact set and the coverage ledger. A
   missing guard is a hygiene defect the parent can see in one `git status`, not a reason to discard
-  a good run — so it is not wired into a gate that halts the workflow.
+  a good run, so it is not wired into a gate that halts the workflow.
 
 ## Resume first, then decide about the slice
 
@@ -350,7 +384,7 @@ slice. Both also usually leave a **live agent**. The order is:
 
 > **Resume first where the agent is still reachable; decide about the slice from what the resume
 > returns.** Discarding first throws away the evidence that would tell you whether the slice is
-> worth keeping — a resume has recovered a complete artifact set from retained context, and the
+> worth keeping. A resume has recovered a complete artifact set from retained context, and the
 > discard-first reading would have re-dispatched a finished run at full cost.
 
 The harness supports this, verified against <https://code.claude.com/docs/en/sub-agents> (raw
@@ -361,10 +395,10 @@ markdown, fetched 2026-08-11):
   fresh."
 - "A completed subagent that receives a `SendMessage` auto-resumes in the background without a new
   `Agent` invocation."
-- "When a subagent completes, Claude receives its agent ID" — address it by ID, not by name.
+- "When a subagent completes, Claude receives its agent ID". Address it by ID, not by name.
 
-**The discard is what happens next, not instead.** Discard the partial slice — clearing it, or
-assigning a fresh sub-slice — when the resume is refused, is unavailable, or comes back without a
+**The discard is what happens next, not instead.** Discard the partial slice, clearing it or
+assigning a fresh sub-slice, when the resume is refused, is unavailable, or comes back without a
 usable payload. It stays mandatory there: a half-marked coverage ledger cannot be told apart from a
 complete one by the coverage script, and a half-written artifact set cannot be told apart from a
 complete one by reading it.
@@ -374,5 +408,5 @@ the `persistence:` axis was built around: a run that finished its work and could
 `status: complete` + `persistence: by-value`, and its rung comes before this one in both ladders,
 because the payload has already said why the disk is empty.
 
-The full per-family ladders — including the by-value rung that precedes the resume rung, and
-research's clear-the-slice rule — are in the three per-family files at the top of this document.
+The three per-family files at the top of this document carry the full per-family ladders, including
+the by-value rung that precedes the resume rung and research's clear-the-slice rule.

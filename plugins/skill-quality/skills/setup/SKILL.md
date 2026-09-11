@@ -50,7 +50,7 @@ surface, which setup must not hand-edit (Check-only carve-out, native `userConfi
   (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
   which owns the verified-version record): interactive `/plugin configure skill-quality@<marketplace>`
   any time, or headless `claude plugin install skill-quality@<marketplace> -s <scope> --config skills_root=<dir>`
-  (repeatable per key) — against an already-installed plugin it prints `already installed` and
+  (repeatable per key). Against an already-installed plugin it prints `already installed` and
   still writes the value. Do **not** uninstall to reconfigure: that drops this plugin's entire
   stored `pluginConfigs` entry, resetting every option in the README's Options reference to its
   manifest default. `-s` defaults to `user`; pass the scope `claude plugin list` reports, and run

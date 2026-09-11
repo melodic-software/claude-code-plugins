@@ -15,14 +15,14 @@ reports "healthy" from configuration alone, and never invents a verdict-shaped f
 ## `check` (read-only)
 
 1. Resolve scheduling-surface ids from the existing binding (`triggers.surfaces` and
-   `routines.surfaces` — merged; the slice never declares its own `surfaces` map).
+   `routines.surfaces`, merged; the slice never declares its own `surfaces` map).
 2. For each surface, run
    [`scripts/resolve-prerequisites.mjs`](../scripts/resolve-prerequisites.mjs) against the
    project root.
 3. Report per-identity verdicts (`supported` / `conditional` / `unsupported` / `unknown`)
    with per-signal provenance and any findings (declaration↔probe contradictions).
 4. On a bare repo (no binding, no tracker, no CI), every identity reports
-   `unsupported` or `unknown` — never an error.
+   `unsupported` or `unknown`, never an error.
 
 Wrapper:
 [`scripts/check-prerequisite-resolution.mjs`](../scripts/check-prerequisite-resolution.mjs).
@@ -34,7 +34,7 @@ Wrapper:
    results is a **finding**, never a silent overwrite. A ran-negative probe caps a positive
    declaration; the identity stays `unsupported` while the finding is open.
 2. **Prose-context pass (proposal only).** Read host instruction files (`CLAUDE.md`),
-   secondary agent-instruction files (`AGENTS.md` — reaches a session only through a
+   secondary agent-instruction files (`AGENTS.md`, which reaches a session only through a
    reference; the dated record for that platform bound is the prerequisite-resolution
    contract in this plugin's reference tree), and `README` for *proposed* declarations into
    **non-security keys only**.
@@ -44,7 +44,7 @@ Wrapper:
 4. **Write additively.** On ratification, write the `prerequisite_resolution` section of
    `.claude/autonomy/binding.json`:
    - `schema_version`: `"1.0"`
-   - `surface_refs`: existing scheduling-surface ids (references only — **no `surfaces` map**)
+   - `surface_refs`: existing scheduling-surface ids (references only, **no `surfaces` map**)
    - `declarations`: `{ surface, identity?, need?, state, rung }` entries
 5. **Narrowing-only enablement.** An identity may be enabled in `routines.enabled` only when
    its verdict clears (`supported`, or `conditional` where the named conditions are accepted).
@@ -52,7 +52,7 @@ Wrapper:
    security-binding change (admission / classification) and **never writes** that surface.
 6. **Org-rung entitlements.** Connector entitlements for `prod` / `product` / `org` / `ext`
    bind at the Org binding layer. The slice reports which prerequisites await the org rung
-   and stops — it never auto-writes org-rung values into the repo-local binding.
+   and stops. It never auto-writes org-rung values into the repo-local binding.
 
 Wrapper (non-interactive propose / optional `--ratify` for tests):
 [`scripts/apply-prerequisite-resolution.mjs`](../scripts/apply-prerequisite-resolution.mjs).
@@ -77,6 +77,6 @@ Wrapper (non-interactive propose / optional `--ratify` for tests):
 }
 ```
 
-Absent-section tolerance holds. The section MUST NOT carry a `surfaces` map —
+Absent-section tolerance holds. The section MUST NOT carry a `surfaces` map, because
 [`check-signal-envelope.mjs`](../scripts/check-signal-envelope.mjs) merges every section's
 `surfaces` map and treats duplicates as ambiguous.

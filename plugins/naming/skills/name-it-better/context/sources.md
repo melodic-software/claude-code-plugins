@@ -1,13 +1,13 @@
-# Method sources — name-it-better
+# Method sources for name-it-better
 
-The naming CRITERIA are owned elsewhere (the consuming org's conventions —
-see the skill body). This file grounds the skill's METHOD — how candidates
-are generated, why generators run blind, what the `tournament` mode is
-adapted from — and the RESEARCH ORDERING behind the fallback general
-criteria (semantic accuracy → scope fit → comprehensibility → trigger
-utility) the skill applies only when no convention is declared. Read it
-when judging a method question, weighing the fallback criteria, or
-extending the skill. Tiers: PRIMARY = author's own words / official
+The naming CRITERIA are owned elsewhere (the consuming org's conventions,
+see the skill body). This file grounds the skill's METHOD: how candidates
+are generated, why generators run blind, and what the `tournament` mode is
+adapted from. It also grounds the RESEARCH ORDERING behind the fallback
+general criteria (semantic accuracy → scope fit → comprehensibility →
+trigger utility) the skill applies only when no convention is declared.
+Read it when judging a method question, weighing the fallback criteria,
+or extending the skill. Tiers: PRIMARY = author's own words / official
 spec; AUTHORITATIVE = faithful canonical write-up by the originators or
 their collaborators; SECONDARY = derivative. A source whose full text was
 paywalled this pass is flagged Tier-2-for-verification regardless of its
@@ -23,41 +23,41 @@ does-the-right-thing, to intent-revealing, to domain-abstraction. The
 the honest → intent → domain-abstraction progression.
 
 - Origin, Arlo Belshee ("Read by Refactoring"):
-  `https://arlobelshee.com/good-naming-is-a-process-not-a-single-step/` —
+  `https://arlobelshee.com/good-naming-is-a-process-not-a-single-step/`.
   PRIMARY. Belshee's exact per-stage prose is corroborated by the Deep Roots
   rewrite below rather than quoted from the origin. Basis: the host did not
   resolve when the entry was written, as of 2026-07-17. Recheck trigger: the
   host resolving again, which allows quoting the origin directly and restores
   this entry to a fully primary citation.
 - Canonical rewrite, Tim Ottinger + Llewellyn Falco: [deeproots-series]
-  and [deeproots-path] — AUTHORITATIVE. Confirm the ordered stages and the
+  and [deeproots-path]. AUTHORITATIVE. Confirm the ordered stages and the
   three-phase structure.
 
-## Empirical naming studies — criteria-priority backbone
+## Empirical naming studies: criteria-priority backbone
 
 Backs the declared criteria priority (semantic accuracy → scope fit →
 comprehensibility → trigger utility) and the structured brief's
 concept → word → structure shape. Peer-reviewed, primary-fetched.
 
 - Feitelson et al., "How Developers Choose Names," IEEE TSE 48(1), 2022
-  (arXiv:2103.07487): [feitelson-tse] — PRIMARY. Two load-bearing findings:
-  (a) median ~6.9% agreement between any two developers naming the same
-  thing — no single namer converges, which validates blind multi-generator
-  fan-out; (b) an explicit three-step model (select concepts → choose words
-  → arrange structure) produced names judged better ~2:1, which the
-  structured brief mirrors.
+  (arXiv:2103.07487): [feitelson-tse]. PRIMARY. Two findings the method
+  rests on: (a) median ~6.9% agreement between any two developers naming
+  the same thing, so no single namer converges, which validates blind
+  multi-generator fan-out; (b) an explicit three-step model (select
+  concepts → choose words → arrange structure) produced names judged
+  better ~2:1, which the structured brief mirrors.
 - Alpern et al., "Reproducing, Extending, and Analyzing Naming
-  Experiments," arXiv:2402.10022, 2024: [alpern-repro] — PRIMARY.
+  Experiments," arXiv:2402.10022, 2024: [alpern-repro]. PRIMARY.
   Independent reproduction (~6% agreement); instructing "longer names are
-  better" alone produced NO improvement — the three-step process, not
+  better" alone produced NO improvement. The three-step process, not
   length, drives the gain.
 - Avidan & Feitelson, "Effects of Variable Names on Comprehension," ICPC
-  2017: [avidan-feitelson] — PRIMARY. Misleading names measured as bad as
-  or worse than meaningless single letters — the evidence for ranking
-  semantic accuracy above every other criterion.
+  2017: [avidan-feitelson]. PRIMARY. Misleading names measured as bad as
+  or worse than meaningless single letters. That is the evidence for
+  ranking semantic accuracy above every other criterion.
 - Hofmeister, Siegmund & Holt, "Shorter Identifier Names Take Longer to
-  Comprehend," SANER 2017: [hofmeister] — PRIMARY. Full-word identifiers
-  ~19% faster to comprehend than abbreviations/letters — bounds the
+  Comprehend," SANER 2017: [hofmeister]. PRIMARY. Full-word identifiers
+  ~19% faster to comprehend than abbreviations/letters, which bounds the
   comprehensibility tier: prefer full words, but the effect is an average,
   moderated by experience, not absolute.
 
@@ -66,89 +66,90 @@ concept → word → structure shape. Peer-reviewed, primary-fetched.
 Backs the scoring rubric's shape (the authoritative criteria source of
 truth is the consuming org's conventions).
 
-- Ottinger's Rules: [ottinger-rules] — AUTHORITATIVE. Intention-revealing,
+- Ottinger's Rules: [ottinger-rules]. AUTHORITATIVE. Intention-revealing,
   avoid disinformation, pronounceable, no encodings, one word per concept,
   meaningful in context. The fetchable stand-in for the Clean Code chapter.
 - Clean Code, ch. 2 "Meaningful Names" (Martin, with Ottinger):
-  `https://www.oreilly.com/library/view/clean-code-a/9780136083238/chapter02.xhtml`
-  — nominally PRIMARY (the authors' own chapter), but its specific rules here
-  rest on secondary write-ups, so treat it as Tier-2-for-verification. Basis:
-  the full text sat behind the publisher's paywall and was not obtained, as of
-  2026-07-18. Recheck trigger: obtaining the chapter text, which promotes this
-  entry to PRIMARY and lets its rules be cited directly.
+  `https://www.oreilly.com/library/view/clean-code-a/9780136083238/chapter02.xhtml`.
+  Nominally this is PRIMARY (the authors' own chapter), but its specific
+  rules here rest on secondary write-ups, so treat it as
+  Tier-2-for-verification. Basis: the full text sat behind the publisher's
+  paywall and was not obtained, as of 2026-07-18. Recheck trigger: obtaining
+  the chapter text, which promotes this entry to PRIMARY and lets its rules
+  be cited directly.
 
 ## Domain language
 
 Backs the domain-lore lens and the "name from the shared domain
 vocabulary" criterion.
 
-- DDD Reference (Eric Evans): [ddd-reference] — PRIMARY.
-- Ubiquitous Language (Fowler): [fowler-ubiquitous] — AUTHORITATIVE.
+- DDD Reference (Eric Evans): [ddd-reference]. PRIMARY.
+- Ubiquitous Language (Fowler): [fowler-ubiquitous]. AUTHORITATIVE.
 
 ## Blind generation → human convergence (anti-anchoring)
 
 Why generators run BLIND to the conversation and the human always makes
 the final pick: diverge widely from independent perspectives, then
-converge once — and keep the first-seen suggestion from anchoring the
+converge once, and keep the first-seen suggestion from anchoring the
 choice.
 
-- Double Diamond (diverge/converge), UK Design Council: [double-diamond]
-  — AUTHORITATIVE.
+- Double Diamond (diverge/converge), UK Design Council: [double-diamond].
+  AUTHORITATIVE.
 - Anchoring bias, Tversky & Kahneman (1974), "Judgment under Uncertainty":
   `https://www.science.org/doi/10.1126/science.185.4157.1124`
-  (open PDF: [tk-1974-pdf]) — PRIMARY. First value seen biases
+  (open PDF: [tk-1974-pdf]). PRIMARY. First value seen biases
   the final judgment; independent-before-shared review reduces it.
 
-## `tournament` mode — adapted, NOT a documented naming technique
+## `tournament` mode: adapted, NOT a documented naming technique
 
 HONEST FLAG: there is no primary source describing a "naming tournament"
 or "naming bracket" method for choosing identifiers. The mode is an
 ADAPTATION, presented as a local convergence mechanism, not an
 established naming standard. It borrows two documented, unrelated things:
 
-- Elimination brackets (single/double elimination): [elim-bracket] —
+- Elimination brackets (single/double elimination): [elim-bracket].
   SECONDARY (generic, not naming).
 - Pairwise social-choice aggregation (Condorcet / Copeland / Minimax) for
-  turning head-to-head judgements into a ranking: [condorcet] — the
+  turning head-to-head judgements into a ranking: [condorcet]. This is the
   rigorous basis if judges score candidates pairwise.
 
-## Modality layer — semantic vs syntactic
+## Modality layer: semantic vs syntactic
 
 Backs the skill's semantic/syntactic split and the rule that documented
 style conflicts route to the consuming ecosystem, not a house verdict.
 
-- CLI naming conventions, clig.dev: [clig] — PRIMARY (community standard).
+- CLI naming conventions, clig.dev: [clig]. PRIMARY (community standard).
   Lowercase-dash names, noun-verb subcommands, a full `--flag` for every
-  short flag — syntactic conventions that do not transfer to other
+  short flag. These are syntactic conventions that do not transfer to other
   modalities.
-- Claude Code skills, official docs: [cc-skills] — PRIMARY. The
+- Claude Code skills, official docs: [cc-skills]. PRIMARY. The
   `description`, not the `name`, is what Claude uses to decide when to load
   a skill (combined description text truncated at 1,536 chars in the skill
   listing). So the name serves the human; the trigger phrases live in the
-  description. HIGH confidence — falsification survived in the research pass.
+  description. HIGH confidence. Falsification survived in the research pass.
   Verified 2026-08-31 against
   <https://code.claude.com/docs/en/skills#frontmatter-reference>; recheck
   trigger: that page changing the discovery mechanism or the cap re-derives
   this entry.
-- Documented, unresolved style conflicts — route to the consuming
-  ecosystem's guide, do not pick a side:
-  - abbreviation policy — .NET forbids ([dotnet-naming]) vs Go endorses
+- Documented, unresolved style conflicts. Route these to the consuming
+  ecosystem's guide and do not pick a side:
+  - abbreviation policy: .NET forbids ([dotnet-naming]) vs Go endorses
     short scope-local names ([effective-go]);
-  - acronym casing — Go `URL`/`appID` ([go-initialisms]) vs .NET/Java
+  - acronym casing: Go `URL`/`appID` ([go-initialisms]) vs .NET/Java
     `Xml`/`Html` ([dotnet-naming], [google-style]);
-  - camelCase vs snake_case — no settled comprehension verdict; PEP 8
+  - camelCase vs snake_case: no settled comprehension verdict. PEP 8
     ([pep8]) and each ecosystem's guide decide it locally.
 
 ## Framework / style-guide naming (supporting)
 
-- .NET naming guidelines (Microsoft): [dotnet-naming] — PRIMARY. Reproduces
+- .NET naming guidelines (Microsoft): [dotnet-naming]. PRIMARY. Reproduces
   the 2008 2nd-edition text (self-flagged), so treat the specific DO/DO NOT
   rules as Tier-2. Basis: the 3rd edition (2020) was not freely available, as
   of 2026-07-18. Recheck trigger: the 3rd-edition text becoming reachable,
   which re-derives the DO/DO NOT rules against the current edition.
-- Kevlin Henney, "Seven Ineffective Coding Habits" (naming): [henney] —
+- Kevlin Henney, "Seven Ineffective Coding Habits" (naming): [henney].
   PRIMARY. Meaning over word-count; "adding words is not adding meaning".
-- Google style guides (per-language naming): [google-style] — PRIMARY.
+- Google style guides (per-language naming): [google-style]. PRIMARY.
 
 [deeproots-series]: https://www.digdeeproots.com/articles/naming-process/naming-as-a-process/
 [deeproots-path]: https://www.digdeeproots.com/articles/naming-process/naming-as-a-process-learning-path/

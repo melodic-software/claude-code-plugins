@@ -19,15 +19,15 @@ support article's requirement that the machine be awake changes.
 The single most disruptive finding, and the least obvious.
 
 **Measured:** user idle time was 10.4s. A computer-use `mouse_move` was injected. Idle time
-immediately after: **29.6s** — it kept climbing. Repeated with four more synthesized moves:
+immediately after: **29.6s**, and it kept climbing. Repeated with four more synthesized moves:
 **22.2s**. Synthesized input from computer use does **not** reset the OS idle timer.
 
 **Consequences:**
 
 - A long session hits the screensaver or display-sleep timeout **no matter how much Claude is
   clicking and typing**. Claude cannot keep the machine awake by working.
-- Long non-GUI stretches inside a computer-use session — research, file edits, reasoning — are
-  pure idle time to the OS, so a mixed session is *more* exposed than a purely GUI one.
+- Research, file edits, and reasoning inside a computer-use session are long non-GUI stretches.
+  To the OS they are pure idle time, so a mixed session is *more* exposed than a purely GUI one.
 - Once the screensaver is up, computer use **cannot recover itself**: synthesized input to the
   screensaver desktop is refused. Only a human touching the mouse clears it.
 
@@ -40,7 +40,7 @@ and let them decide.
 Walk it in order; stop at the first hit.
 
 1. **Is a screensaver running?** The most likely cause and the easiest to miss, because a
-   screensaver is *not* a lock and *not* display sleep — they are three separate settings.
+   screensaver is *not* a lock and *not* display sleep. They are three separate settings.
 2. **Is the workstation locked?** The secure desktop blocks capture and input wholesale.
 3. **Is the display asleep / powered off?** Upstream is explicit that the machine must be awake
    ([Cowork computer use](https://support.claude.com/en/articles/14128542-let-claude-use-your-computer-in-cowork),
@@ -80,7 +80,7 @@ powercfg /q SCHEME_CURRENT SUB_SLEEP STANDBYIDLE
 powercfg /requests
 ```
 
-A configured-but-not-running screensaver does **not** explain a current `0x0` — keep walking the
+A configured-but-not-running screensaver does **not** explain a current `0x0`. Keep walking the
 ladder. It is still worth reporting, because it predicts when the session will die next.
 
 **A locked-looking failure that reports "not locked" is the screensaver.** With
@@ -96,10 +96,10 @@ is a separate setting with its own timeout, and the more common culprit.
 **No macOS probe commands ship.** This plugin does not ship platform specifics it has not
 verified, and no macOS probe set has been verified.
 
-On macOS, say so explicitly rather than skipping the step silently: report that the equivalent
-settings — screensaver idle delay, display sleep, and whether a lock is required on wake — must be
-read from System Settings by the operator, and that the ladder above still applies unchanged. The
-ladder is platform-neutral; only the probe commands are missing.
+On macOS, say so explicitly rather than skipping the step silently. Report that the operator must
+read the equivalent settings from System Settings, and that the ladder above still applies
+unchanged. Those settings are the screensaver idle delay, display sleep, and whether a lock is
+required on wake. The ladder is platform-neutral; only the probe commands are missing.
 
 ## Input refused with a UIPI error
 
@@ -108,7 +108,7 @@ Error moving mouse: Simulate("not all input events were sent. they may have been
 ```
 
 An elevated or secure-desktop process holds the foreground. Windows blocks synthesized input
-from a lower-integrity process — no grant overrides this. Candidates: a UAC consent prompt, Task
+from a lower-integrity process, and no grant overrides this. Candidates: a UAC consent prompt, Task
 Manager, an installer running as administrator, the lock screen, or a screensaver.
 
 This is **not recoverable by retrying**. Identify the window and ask the operator to dismiss it:
@@ -119,15 +119,15 @@ Get-Process | Where-Object MainWindowHandle -ne 0 | Select-Object Name, MainWind
 
 ## "X is not in the allowed applications and is currently in front"
 
-A background utility took focus between your screenshot and your action. **The gate did its job
-— nothing was sent to the wrong app.** This is the desired behavior, not a failure to route
+A background utility took focus between your screenshot and your action. **The gate did its job.
+Nothing was sent to the wrong app.** This is the desired behavior, not a failure to route
 around.
 
 Typical culprits are peripheral, overlay, and launcher utilities that raise transient windows:
 RGB and peripheral suites, game overlays, notification helpers, update prompts. The error names
 the process when it can and withholds the name when it cannot.
 
-**Retry pattern** — put a `screenshot` first in the batch so the retry re-establishes state and
+**Retry pattern:** put a `screenshot` first in the batch so the retry re-establishes state and
 reveals whatever appeared:
 
 ```json
@@ -135,15 +135,15 @@ reveals whatever appeared:
 ```
 
 If one process trips this repeatedly on a given machine, that is a durable machine fact for the
-operator's own `CLAUDE.md`, not a plugin fact — the mitigation above is already general.
+operator's own `CLAUDE.md`, not a plugin fact. The mitigation above is already general.
 
 ## When to stop and ask
 
 Escalate to the operator instead of retrying when:
 
-- capture fails after the full ladder — the machine needs a human touch;
-- input is UIPI-blocked — nothing you can send will land;
-- the remediation is a system setting — power, screensaver, lock policy, or accessibility
+- capture fails after the full ladder, because the machine needs a human touch;
+- input is UIPI-blocked, because nothing you can send will land;
+- the remediation is a system setting, because power, screensaver, lock policy, or accessibility
   permissions are the operator's to change, never the agent's.
 
 Report the specific measured value you found (`ScreenSaveTimeOut = 300`) rather than a generic

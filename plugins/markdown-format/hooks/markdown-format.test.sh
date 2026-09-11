@@ -2808,20 +2808,24 @@ fi
 # A file directly under the filesystem root (`/README.md`) cannot be created
 # without privileges on any CI host, and hook::read_file_path's `-f` test runs
 # before FILE_DIR is computed, so no black-box input reaches that block. The
-# hook's own FILE_DIR lines are lifted from its source and run here instead.
-# The parameter-expansion strip leaves an empty string for such a path, and
-# hook::repo_root reads an empty hint as `.`, the hook process CWD, where the
-# `dirname` it replaced answered `/`. An empty extraction fails loudly so a
-# refactor that moves the block cannot pass by testing nothing.
-FILE_DIR_LINES="$(awk 'index($0, "FILE_DIR=\"${FILE%/*}\"") == 1 { p = 1 } /^REPO_ROOT=/ { p = 0 } p' "$HOOK")"
+# FILE_DIR lines of hook::begin are lifted from the copy this plugin ships and
+# run here instead. The parameter-expansion strip leaves an empty string for
+# such a path, and hook::repo_root reads an empty hint as `.`, the hook process
+# CWD, where the `dirname` it replaced answered `/`. An empty extraction fails
+# loudly so a refactor that moves the block cannot pass by testing nothing.
+FILE_DIR_LINES="$(awk 'index($0, "FILE_DIR=\"${FILE%/*}\"") { p = 1 } index($0, "REPO_ROOT=") { p = 0 } p' "$HOOK_DIR/hook-utils.sh")"
 if [[ -z "$FILE_DIR_LINES" ]]; then
-  fail "root-level: FILE_DIR block not found in $(basename "$HOOK")"
+  fail "root-level: FILE_DIR block not found in hook-utils.sh"
 else
   for pair in "/README.md=/" "README.md=." "/a/b.md=/a" "/a/b/c.md=/a/b"; do
     IN="${pair%%=*}"
     WANT="${pair#*=}"
     # shellcheck disable=SC2034,SC2154  # the eval'd hook lines read FILE and assign FILE_DIR
-    GOT="$(FILE="$IN"; eval "$FILE_DIR_LINES"; printf '%s' "$FILE_DIR")"
+    GOT="$(
+      FILE="$IN"
+      eval "$FILE_DIR_LINES"
+      printf '%s' "$FILE_DIR"
+    )"
     if [[ "$GOT" == "$WANT" ]]; then
       ok "root-level: FILE_DIR of $IN is $GOT"
     else
@@ -2842,9 +2846,15 @@ fi
 # call, because it depends on whether this host's `/` carries a config. The
 # control call on a file under a directory that does carry one proves the
 # lifted function and the shim work together.
+#
+# The gate delegates the walk itself to hook::walk_up_to and asks
+# markdownlint_config_here about each directory, so both are lifted alongside it
+# and the library is sourced first — the shim shadows `cd` only after that, and
+# neither the library nor the sourcing calls `cd`.
 DISC_FN="$(awk '/^markdownlint_config_discoverable\(\) \{/ { p = 1 } p { print } p && /^}/ { exit }' "$HOOK")"
-if [[ -z "$DISC_FN" ]]; then
-  fail "root-level walk: markdownlint_config_discoverable not found in $(basename "$HOOK")"
+DISC_PRED="$(awk '/^markdownlint_config_here\(\) \{/ { p = 1 } p { print } p && /^}/ { exit }' "$HOOK")"
+if [[ -z "$DISC_FN" || -z "$DISC_PRED" ]]; then
+  fail "root-level walk: markdownlint_config_discoverable/markdownlint_config_here not found in $(basename "$HOOK")"
 else
   WALK_DIR="$WORK/root-walk"
   mkdir -p "$WALK_DIR"
@@ -2858,7 +2868,10 @@ else
     }
   }
   : >"$CD_LOG"
-  (cd "$UNRELATED" && eval "$DISC_FN" && cd_logging_shim && markdownlint_config_discoverable "$WALK_DIR/README.md" "$WALK_DIR")
+  # shellcheck source=hook-utils.sh
+  (cd "$UNRELATED" && source "$HOOK_DIR/hook-utils.sh" && eval "$DISC_PRED" &&
+    eval "$DISC_FN" && cd_logging_shim &&
+    markdownlint_config_discoverable "$WALK_DIR/README.md" "$WALK_DIR")
   RC_CTL=$?
   CTL_FIRST="$(head -n 1 "$CD_LOG")"
   if [[ "$RC_CTL" -eq 0 && "$CTL_FIRST" == "$WALK_DIR" ]]; then
@@ -2867,7 +2880,10 @@ else
     fail "root-level walk: control rc=$RC_CTL first cd='$CTL_FIRST', want rc=0 and '$WALK_DIR'"
   fi
   : >"$CD_LOG"
-  (cd "$UNRELATED" && eval "$DISC_FN" && cd_logging_shim && markdownlint_config_discoverable /README.md "$WALK_DIR") || :
+  # shellcheck source=hook-utils.sh
+  (cd "$UNRELATED" && source "$HOOK_DIR/hook-utils.sh" && eval "$DISC_PRED" &&
+    eval "$DISC_FN" && cd_logging_shim &&
+    markdownlint_config_discoverable /README.md "$WALK_DIR") || :
   ROOT_FIRST="$(head -n 1 "$CD_LOG")"
   if [[ "$ROOT_FIRST" == "/" ]]; then
     ok "root-level walk: /README.md anchors the walk on /"

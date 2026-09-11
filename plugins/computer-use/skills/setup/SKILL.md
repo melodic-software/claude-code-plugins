@@ -1,5 +1,5 @@
 ---
-description: "Verify the computer-use plugin's prerequisites and report the environment settings that end a screen-control session mid-run. Use when: 'set up computer use', 'is computer use working', 'why did my computer use session die', 'check computer use', 'computer use preflight', or before a long unattended screen-control run. Action: check (read-only, default) — probes the surface, the tool availability, and the idle/screensaver/sleep timeouts that no amount of Claude activity can hold off, then reports PASS/FAIL/INFO with one remediation line each. Check-only by contract: every prerequisite is external or a system setting this plugin must not write."
+description: "Verify the computer-use plugin's prerequisites and report the environment settings that end a screen-control session mid-run. Use when: 'set up computer use', 'is computer use working', 'why did my computer use session die', 'check computer use', 'computer use preflight', or before a long unattended screen-control run. Action: check (read-only, default). It probes the surface, the tool availability, and the idle/screensaver/sleep timeouts that no amount of Claude activity can hold off, then reports PASS/FAIL/INFO with one remediation line each. Check-only by contract: every prerequisite is external or a system setting this plugin must not write."
 argument-hint: "check"
 user-invocable: true
 disable-model-invocation: true
@@ -78,7 +78,7 @@ expected unattended run** is a FAIL, and one comfortably longer is a PASS. A 5-m
 screensaver is fine for a two-minute task and fatal for a thirty-minute one.
 
 Remediation is always advisory, phrased as the operator's decision: *"Screensaver fires after 5
-minutes and this run will exceed that — raise or disable it for the duration."* Never change a
+minutes and this run will exceed that. Raise or disable it for the duration."* Never change a
 power, screensaver, or lock setting; state the setting and the value and let the operator act.
 
 Note the three settings are independent. "Display never sleeps" says nothing about the
@@ -94,7 +94,8 @@ class of confusion, and knowing it up front is cheaper than diagnosing it later.
 
 If any known focus-stealing utility is running (peripheral suites, overlays, launchers), report
 it as INFO with the retry pattern from the diagnostics reference. This is a nuisance, not a
-blocker. The allowlist gate catches it safely every time.
+blocker. When one of these windows is in front, the allowlist gate refuses the action with the
+"not in the allowed applications" error instead of sending it to the wrong app.
 
 ## Reporting
 

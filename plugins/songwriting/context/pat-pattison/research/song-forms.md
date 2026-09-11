@@ -25,10 +25,10 @@
 - [Exercises to preserve](#exercises-to-preserve)
 - [Revision workflow](#revision-workflow)
 - [Common fixes](#common-fixes)
-- [Limerick principle — home base at section level](#limerick-principle--home-base-at-section-level)
-- [Form potency — when delivery matches package](#form-potency--when-delivery-matches-package)
-- ["Four times is a lot" — V/V/Ch/V/V/Ch risk](#four-times-is-a-lot--vvchvvch-risk)
-- [Third-system risk — V/Ch/V/Ch/V/Ch](#third-system-risk--vchvchvch)
+- [Limerick principle: home base at section level](#limerick-principle-home-base-at-section-level)
+- [Form potency: when delivery matches package](#form-potency-when-delivery-matches-package)
+- ["Four times is a lot": V/V/Ch/V/V/Ch risk](#four-times-is-a-lot-vvchvvch-risk)
+- [Third-system risk: V/Ch/V/Ch/V/Ch](#third-system-risk-vchvchvch)
 - [Song system](#song-system)
 - [*Essential Guide to Lyric Form and Structure* (1991) worked examples](#essential-guide-to-lyric-form-and-structure-1991-worked-examples)
 - [Cross-references](#cross-references)
@@ -40,8 +40,8 @@ Chapters 22-23.
 ## Image inventory
 
 - *Essential Guide to Lyric Form and Structure* (1991), Chapter 6: **37 linked
-  images**, and they are load-bearing. Chapter 6's entire scansion and
-  rhyme-column argument lives in figures, not in the text layer — the prose
+  images**, and they carry the argument. Chapter 6's entire scansion and
+  rhyme-column argument lives in figures, not in the text layer. The prose
   runs "…the seventh phrase only continues the pattern:" and then stops. Any
   audit of this chapter that reads only extracted text will miscount phrases;
   that is exactly how the "Southern Comfort" seven-phrase error entered this
@@ -64,9 +64,10 @@ base; contrast creates tension; return resolves it.
 
 *Writing Better Lyrics* (2009), Chapter 22 treats song form as a delivery system. A form is potent when it
 helps the lyric arrive with power; it is impotent when repetition, delay, or
-wrong-sized sections make the message sag.
+wrong-sized sections make the message sag. Pat, *Writing Better Lyrics* (2009),
+Chapter 22:
 
-> "Four times is a lot." — Pat (*Writing Better Lyrics* (2009), Chapter 22)
+> "Four times is a lot."
 
 The risky case is:
 
@@ -86,7 +87,7 @@ deliver the strongest version of the song?"
 ## V/V/Ch Risk Repair
 
 Chapter 22 gives three practical repair strategies for a verse/verse/chorus,
-verse/verse/chorus draft. It works all three on one lyric — Jim Rushing's
+verse/verse/chorus draft. It works all three on one lyric, Jim Rushing's
 "Slow Healing Heart," first arranged as a `v / v / ch / v / v / ch` lyric so
 the risk is visible. Verse 4 is the crucial one, the place "where you run the
 risk of making the song seem too long":
@@ -184,7 +185,7 @@ v / ch / v / ch
 
 The point is not to remove the blank line on the lyric sheet. The point is to
 make the longer verse change internally, so two blocks of information no longer
-repeat the same structure. Here is how Rushing's actual verse does it —
+repeat the same structure. Here is how Rushing's actual verse does it.
 Chapter 22 prints the rhyme letter and stress count beside each line:
 
 | Line | Rhyme | Stresses |
@@ -303,13 +304,13 @@ v / ch / v / ch / br / v / ch
 
 Use this when the third verse is still needed as a verse, but the song needs a
 contrasting section first. The bridge should supply a missing angle and change
-structure significantly — "a different rhyme scheme, a different number of
+structure significantly: "a different rhyme scheme, a different number of
 lines, and different line lengths," and it should also say something
 different.
 
 Pat finds the missing angle by auditing what the lyric already says: we know
 the speaker wants the wife, that the husband is fooling around, that she calls
-the speaker, and that the speaker has plans — but we never learn what makes
+the speaker, and that the speaker has plans, but we never learn what makes
 her so desirable. A bridge on her qualities leads smoothly into the third
 verse, which opens:
 
@@ -319,12 +320,12 @@ They never see the finer things in life …
 ```
 
 (Chapter 23 prints this opening line **twice**, differently: with a comma here,
-where it is quoted on its own, and without one — *Well I guess some men got no
-appreciation* — inside the full lyric above. Both are as printed. Do not fold
+where it is quoted on its own, and without one, *Well I guess some men got no
+appreciation*, inside the full lyric above. Both are as printed. Do not fold
 them together.)
 
 Chapter 23 names the cost: because the form returns to a full verse before the
-last chorus, the lyric can still get — or seem — long. That is the risk this
+last chorus, the lyric can still get long, or seem long. That is the risk this
 whole chapter exists to manage, so weigh it against Option 2.
 
 Option 2 replaces the third verse with a short bridge and moves directly to
@@ -336,7 +337,7 @@ v / ch / v / ch / br / ch
 
 This is leaner than returning to another full verse. It works when the bridge
 can carry the missing turn without needing a full third verse. Pat's bridge
-for "Love Her or Leave Her to Me" is two lines — it recycles the third
+for "Love Her or Leave Her to Me" is two lines. It recycles the third
 verse's idea into a couplet and hands straight back to the chorus:
 
 ```text
@@ -362,7 +363,7 @@ A verse/refrain
 This lets the first two A sections define home, the B section depart, and the
 final A feel like a real return rather than a third repeated verse/chorus
 system. Pat rewrites the same three ideas with the title demoted from chorus
-to refrain — the chorus disappears and every verse now ends on the title:
+to refrain. The chorus disappears and every verse now ends on the title:
 
 ```text
 You're living with a woman you ain't true to
@@ -386,10 +387,12 @@ Soon you'll be resigning her
 Love her or leave her to me
 ```
 
+<!-- ai-slop-ignore-start: verbatim quotation from Writing Better Lyrics (2009) Chapter 23 -->
 Pat on why it works: "The first two verses define 'home base,' then the bridge
 takes you away from home — away from the familiar structure. When you come
 back to the third verse, you come back home to familiar territory. It's a real
 homecoming, seeing the old neighborhood again after a long trip."
+<!-- ai-slop-ignore-end -->
 
 ## Bridge Validity
 
@@ -407,6 +410,7 @@ Use object writing when the missing angle is character or sensory detail.
 Chapter 23 sets the order as an exercise, and supplies its own object-writing
 sample inside it:
 
+<!-- ai-slop-ignore-start: verbatim Exercise 49 blockquote from Writing Better Lyrics (2009) Chapter 23 -->
 > **EXERCISE 49**
 >
 > A bridge focusing on her qualities would lead smoothly into the third verse.
@@ -423,6 +427,7 @@ sample inside it:
 > Your object writing will create a mood and character for you to respond to.
 > Then try a few bridges. Be sure your bridge is a contrasting section. Keep it
 > short and effective.
+<!-- ai-slop-ignore-end -->
 
 ## Home base principle
 
@@ -443,11 +448,14 @@ And now he's a college professor
 4. return to original          A
 ```
 
+*Essential Guide to Lyric Form and Structure* (1991), Chapter 6:
+
+<!-- ai-slop-ignore-start: verbatim blockquote from Essential Guide to Lyric Form and Structure (1991) Chapter 6 -->
 > "Repeating the structure of the first statement defines 'home base.' Moving
 > away from home base at the third phrase creates tension — a move to
 > unfamiliar territory. Coming back to familiar territory at phrase four is a
-> resolution, a welcome home party." — *Essential Guide to Lyric Form and
-> Structure* (1991), Chapter 6
+> resolution, a welcome home party."
+<!-- ai-slop-ignore-end -->
 
 The return matters because the listener has heard home base before. Without a
 defined home, departure and return lose force.
@@ -468,7 +476,7 @@ the same size, the form can become monotonous unless the verse ideas develop
 strongly or a bridge interrupts the pattern.
 
 *Essential Guide to Lyric Form and Structure* (1991), Chapter 6 example
-diagnosis — "This Bottle and Me," verse 1:
+diagnosis, "This Bottle and Me," verse 1:
 
 ```text
 We've been sitting here the whole night long
@@ -490,7 +498,7 @@ refrain:         final two phrases, part of verse structure
 
 The refrain is "We got a lot to talk about / THIS BOTTLE AND ME"; the hook is
 the title line alone. Because the structure repeats so heavily, Pat's own
-verdict is that "this lyric gets boring fast" and needs a release — which is
+verdict is that "this lyric gets boring fast" and needs a release, which is
 what the bridge below supplies.
 
 Use this form when the repeated central idea should feel woven into the verse
@@ -527,7 +535,7 @@ Struggle through another day
 Till another night comes rolling on
 ```
 
-It is asymmetrical — 7 phrases — and different from the verses in both rhythm
+It is asymmetrical at 7 phrases, and different from the verses in both rhythm
 and rhyme. Its last four lines still run on Common Meter; the difference is
 placed where difference is needed: the first line is a clear rhythmic
 departure, and the last line's extra stressed syllable is a rhythmic
@@ -552,7 +560,7 @@ perspective contrast that the return resolves tension.
 that is easy to miss when counting AABA by sections: the last system is
 actually **bridge / verse**, not a lone verse. That pairing is what supplies
 the contrast against the two opening A sections and what sponsors the
-homecoming — so when an AABA return feels unearned, check the B-to-final-A
+homecoming, so when an AABA return feels unearned, check the B-to-final-A
 unit as a whole rather than only the final A.
 
 Use AABA when the song's emotional power depends on leaving familiar ground and
@@ -560,8 +568,8 @@ then feeling the arrival back at it.
 
 ## Verse / Chorus
 
-Simple verse/chorus form works like Common Meter — also called the **Ballad
-Stanza** — at the section level. Chapter 6 states the two mappings as a pair:
+Simple verse/chorus form works like Common Meter, also called the **Ballad
+Stanza**, at the section level. Chapter 6 states the two mappings as a pair:
 AABA runs on the limerick's principle, verse/chorus runs on Common Meter's.
 The two stanzas printed to establish the pattern in *Essential Guide to Lyric
 Form and Structure* (1991), Chapter 6:
@@ -597,10 +605,10 @@ S1: Verse -> Chorus
 S2: Verse -> Chorus
 ```
 
-Chapter 6 example diagnosis — "Southern Comfort". (*Writing Better Lyrics*
+Chapter 6 example diagnosis, "Southern Comfort". (*Writing Better Lyrics*
 (2009), Chapter 20 prints this same lyric differently, for a different argument;
 see the cross-book warning in
-[song-forms-examples](song-forms-examples.md#southern-comfort--versechorus-chapter-6).
+[song-forms-examples](song-forms-examples.md#southern-comfort-versechorus-chapter-6).
 The printing below is from *Essential Guide to Lyric Form and Structure* (1991),
 Chapter 6.)
 
@@ -632,7 +640,7 @@ effect: verse points; chorus closes
 
 The verse runs eight phrases rhyming `x a x a x a b b`. The first six lock the
 ear into Common Meter and the seventh only continues the pattern, so everyone
-expects a three-stress Common Meter close — and the eighth phrase refuses it
+expects a three-stress Common Meter close, and the eighth phrase refuses it
 in both rhythm and rhyme. "The last phrase of this verse, and the last phrase
 alone, unbalances the section… Any three-stress phrase would have balanced the
 verse! But the verse has refused to deliver."
@@ -671,7 +679,7 @@ result:             new angle, then chorus realization
 
 Worked on "Southern Comfort": the song runs on 3- and 4-stress phrases, plus
 quick passes at 2-stress phrases in "Southern evenings, / southern stars" and
-"Tried the bedrooms, / tried the bars" — always in non-resolving places. Pat
+"Tried the bedrooms, / tried the bars", always in non-resolving places. Pat
 takes that hint and develops it:
 
 ```text
@@ -684,7 +692,7 @@ I always turn them into you
 
 Start with fast 2-stress phrases (diving into the singles-bar lifestyle) for
 contrast and a push forward, then build into longer phrases, slowing down
-until the realization lands — and the restated chorus completes it.
+until the realization lands, and the restated chorus completes it.
 
 Use this form when the song has already completed two strong cycles and needs a
 new pressure source before the final chorus.
@@ -704,7 +712,7 @@ This avoids the risk of four same-shaped verses while preserving the full
 story. The larger verse must not simply be two verses pasted together. It
 should behave like one designed unit with a deliberate internal turn. The
 worked instance is the "Slow Healing Heart" verse tabled above: `x a b b a` at
-3/3/2/2/3 stresses, then `c c c c` at 4/4/4/3 — common meter giving way to
+3/3/2/2/3 stresses, then `c c c c` at 4/4/4/3: common meter giving way to
 four-stress couplets inside a single verse.
 
 ## Verse / Transitional Bridge / Chorus
@@ -720,7 +728,7 @@ S2: Verse -> Transitional Bridge -> Chorus
 Its job is not the same as a full bridge. It is shorter, more unstable, and
 designed to make the chorus feel necessary.
 
-Chapter 6 example diagnosis — "Teddy Doesn't Live Here Anymore," song
+Chapter 6 example diagnosis, "Teddy Doesn't Live Here Anymore," song
 system 1:
 
 ```text
@@ -797,7 +805,7 @@ YOU NEVER LET ME DOWN
 ```
 
 Pat pairs "They get you crawlin' / I might've fallen" as the contrasting
-move — short phrases, quick rhymes — and then "But you were always around" is
+move, with short phrases and quick rhymes, and then "But you were always around" is
 the set-up: a 3-stress line supplying a sound for the hook to attach to.
 
 Use this when the title should remain part of the verse system, but the lyric
@@ -839,7 +847,7 @@ Tonight he'll find peace
 ```
 
 The last phrase puts two stressed syllables in a row, forcing an irregular
-rhythm — and a regular one would have been easy to write. The irregularity
+rhythm, and a regular one would have been easy to write. The irregularity
 lands at a point of strong tension in the ideas, so it is prosody as well as
 motion; the imperfect rhyme "sleep/peace" defines the section while still
 letting you feel the pull forward into the transitional bridge.
@@ -871,8 +879,8 @@ TEDDY DOESN'T LIVE HERE ANYMORE
 Pat: "I think of the longer phrase as the rubber of a slingshot, stretching to
 give power to the release. It seems to me that it should be longer than the
 Hook, especially since there are no 5-stress lines to set up expectations for
-a 5-stress close." Exercise 37 asks the writer to try the opposite — set up
-the hook with shorter phrases instead — and compare the sense of arrival.
+a 5-stress close." Exercise 37 asks the writer to try the opposite, setting up
+the hook with shorter phrases instead, and compare the sense of arrival.
 
 ## Parallel sections
 
@@ -897,8 +905,8 @@ Leaves alone
 ```
 
 The third line, "She shivers as she turns away," carries the same three strong
-stresses as its counterpart "He slides the seat back" — the additional
-unstressed syllables "shiver quickly past and leave with her," forcing the
+stresses as its counterpart "He slides the seat back". The additional
+unstressed syllables "shiver quickly past and leave with her," which forces the
 music to accelerate by stuffing syllables between the strong positions. Pat
 calls the effect startling here, then adds the general rule: "Normally,
 though, keep your sections parallel."
@@ -907,7 +915,7 @@ though, keep your sections parallel."
 
 **This list is the file's own operational scaffolding, not Pat's text.** It
 generalizes the drills so they can be applied to a user's own lyric. Pat's
-actual exercise bodies are quoted verbatim in the sections above — Exercises 47
+actual exercise bodies are quoted verbatim in the sections above: Exercises 47
 and 48 under [V/V/Ch Risk Repair](#vvch-risk-repair), Exercise 50 under
 [Three-System Verse/Chorus Risk](#three-system-versechorus-risk), and Exercise 49
 under [Bridge Validity](#bridge-validity), all from *Writing Better Lyrics*
@@ -973,9 +981,9 @@ under [Bridge Validity](#bridge-validity), all from *Writing Better Lyrics*
 - If three verse ideas are essential, test AABA verse/refrain before forcing a
   third verse/chorus cycle.
 
-## Limerick principle — home base at section level
+## Limerick principle: home base at section level
 
-*Essential Guide to Lyric Form and Structure* (1991), Chapter 6 names the principle behind A-A-B-A and similar forms. The limerick, the A-A-B-A structure block, and Pat's "home base" quote are printed once above under [Home base principle](#home-base-principle) — this section applies them at section level rather than reprinting them.
+*Essential Guide to Lyric Form and Structure* (1991), Chapter 6 names the principle behind A-A-B-A and similar forms. The limerick, the A-A-B-A structure block, and Pat's "home base" quote are printed once above under [Home base principle](#home-base-principle). This section applies them at section level rather than reprinting them.
 
 One detail worth holding, because it looks like an error and is not: Chapter 6
 prints the limerick in **four** phrases, running "It at last grew so small, he
@@ -995,7 +1003,7 @@ Use the home-base principle to:
   weight of three returns,
 - design any section that wants the listener to feel arrival.
 
-## Form potency — when delivery matches package
+## Form potency: when delivery matches package
 
 Pat's "(Im)potent Packages" framing from *Writing Better Lyrics* (2009), Chapters 22-23 (extends
 *Essential Guide to Lyric Form and Structure* (1991), Chapter 6): a song's form is potent when it delivers the strongest
@@ -1006,49 +1014,51 @@ Diagnose form potency:
 
 | Symptom | Diagnosis | Repair |
 |---|---|---|
-| Chorus lands weaker on second occurrence | Repaint failure — chorus needs new context per visit | See [repetition](repetition.md) "repainting" |
-| Verses feel interchangeable | Verse-development failure — verse 2 not advancing | See [verse development](verse-development.md) |
+| Chorus lands weaker on second occurrence | Repaint failure: chorus needs new context per visit | See [repetition](repetition.md) "repainting" |
+| Verses feel interchangeable | Verse-development failure: verse 2 not advancing | See [verse development](verse-development.md) |
 | Bridge feels like a third verse | Bridge fails to differ where it counts | Change first line; change tense or POV |
 | Final chorus feels like more of the same | Form failed to earn its final arrival | Bridge or transitional bridge before final chorus |
 
 A potent form has a job for every section. An impotent form repeats
 without development.
 
-## "Four times is a lot" — V/V/Ch/V/V/Ch risk
+## "Four times is a lot": V/V/Ch/V/V/Ch risk
 
 *Writing Better Lyrics* (2009), Chapter 22 names this warning: V/V/Ch/V/V/Ch
 form asks the listener to absorb four verses. Four-times verse exposure
 risks boredom even with strong verses.
 
 **The warning is 2009's alone.** *Essential Guide to Lyric Form and Structure*
-(1991), Chapter 6 — now read in full with its figures — does not carry it.
+(1991), Chapter 6, now read in full with its figures, does not carry it.
 Chapter 6 never discusses V/V/Ch/V/V/Ch, never counts verses, and never names
 four. Its related-but-different claim is about *pattern-size monotony*: running
 the same structural pattern too long "gets boring fast," and the remedy Pat
-reaches for is a bridge. He makes that point twice — once for AABA, once for
+reaches for is a bridge. He makes that point twice: once for AABA, once for
 verse/chorus. Do not cite 1991 for a verse-count threshold.
 
 Three named repair strategies:
 
 1. **Distill verses 3 and 4 into one stronger verse.** Combine the
-   load-bearing ideas; cut the rest. Result: `v / v / ch / v / ch`.
+   essential ideas; cut the rest. Result: `v / v / ch / v / ch`.
 2. **Convert one of the late verses into a bridge.** Change both the
-   structure and the *kind of information* the section carries — a
+   structure and the *kind of information* the section carries. A
    bridge is a contrasting element on both counts, so reusing the
    verse's content unchanged does not produce one. Result:
    `v / v / ch / v / ch / br / ch`.
 3. **Restructure the two verses of a system into one larger verse.**
    Keep every line, but make the combined verse change shape partway
    through so the material stops repeating itself. Result:
-   `v / ch / v / ch` — two verses, not four.
+   `v / ch / v / ch`, two verses, not four.
 
-> "Four times is a lot." — Pat (*Writing Better Lyrics* (2009), Chapter 22)
+Pat, *Writing Better Lyrics* (2009), Chapter 22:
+
+> "Four times is a lot."
 
 The warning is most useful at form-planning time, before the shape is
 drafted. Chapter 22 nonetheless applies all three repairs to a finished
 draft, so it is a revision procedure too.
 
-## Third-system risk — V/Ch/V/Ch/V/Ch
+## Third-system risk: V/Ch/V/Ch/V/Ch
 
 The companion failure mode to four-times-verses: a verse-chorus form
 that runs three full systems with no contrast risks flatness on the
@@ -1056,7 +1066,7 @@ third arrival.
 
 Chapter 23's worked lyric ("Love Her or Leave Her to Me"), Pat's three
 numbered Options, and his bridge material are all above under
-[Three-System Verse/Chorus Risk](#three-system-versechorus-risk) — that
+[Three-System Verse/Chorus Risk](#three-system-versechorus-risk). That
 section is the canonical treatment and this one no longer restates it.
 
 Diagnose at form-planning: count the systems, name what each is
@@ -1100,19 +1110,19 @@ Pat's *Essential Guide to Lyric Form and Structure* (1991), Chapter 6 has four c
 form's mechanics on a full lyric. See [song-forms-examples](song-forms-examples.md)
 for the lyrics as Chapter 6 prints them plus his mechanism analyses of:
 
-- **"This Bottle and Me"** — verse/refrain with Common Meter ×2, xaxaxbxb,
+- **"This Bottle and Me"**: verse/refrain with Common Meter ×2, xaxaxbxb,
   fragmentation after line 4; bridge variant demonstrates all three *Essential
   Guide to Lyric Form and Structure* (1991), Chapter 6 bridge purposes
   point-by-point
-- **"Southern Comfort"** — verse/chorus whose eight-phrase verse (`x a x a x a
+- **"Southern Comfort"**: verse/chorus whose eight-phrase verse (`x a x a x a
   b b`) sets up Common Meter and then refuses to close on it; the deceptive
   closure lands on the verse's **eighth** phrase, and the chorus delivers the
   withheld three-stress resolution plus the title rhyme payoff
-- **"Teddy Doesn't Live Here Anymore"** — verse/trans-bridge/chorus
+- **"Teddy Doesn't Live Here Anymore"**: verse/trans-bridge/chorus
   three-system analysis; the slingshot effect (long phrase before hook);
   unstressed-syllable trick implying a fifth stress; hook delivers 5-stress
   for the first time
-- **"You Never Let Me Down"** — verse/trans-bridge/refrain with deliberate
+- **"You Never Let Me Down"**: verse/trans-bridge/refrain with deliberate
   contrast: long phrases and distant imperfect rhyme in the verse, then
   "short phrases, quick rhymes" in the transitional bridge
 
@@ -1121,13 +1131,13 @@ built?" or "how does a deceptive verse hand off to a resolving chorus?"
 
 ## Cross-references
 
-- [form](form.md) — section-level building, candy bar discipline,
+- [form](form.md): section-level building, candy bar discipline,
   bridge functions.
-- [song-forms-examples](song-forms-examples.md) — *Essential Guide to Lyric Form and Structure* (1991), Chapter 6 worked
+- [song-forms-examples](song-forms-examples.md): *Essential Guide to Lyric Form and Structure* (1991), Chapter 6 worked
   mechanism analyses for the four canonical examples.
-- [repetition](repetition.md) — repainting choruses across visits.
-- [verse development](verse-development.md) — preventing
+- [repetition](repetition.md): repainting choruses across visits.
+- [verse development](verse-development.md): preventing
   travelogues across multiple verses.
-- [hook](hook.md) — title-in-hot-spot per song form.
-- [bridge](bridge.md) — bridge writing pattern + AABA homecoming.
-- [exercises](exercises.md) Ex 34-38 — song-form drills.
+- [hook](hook.md): title-in-hot-spot per song form.
+- [bridge](bridge.md): bridge writing pattern + AABA homecoming.
+- [exercises](exercises.md) Ex 34-38: song-form drills.

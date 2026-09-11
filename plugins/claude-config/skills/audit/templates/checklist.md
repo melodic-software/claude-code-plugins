@@ -4,11 +4,11 @@ Copy into your working task notes. Tick as each phase completes.
 
 ## Phases
 
-- [ ] Phase 1: Load & parse — read `.claude/settings.json` + `settings.local.json` + `.mcp.json` + machine-scope managed settings (structure only, via `check-structure.sh`)
-- [ ] Phase 2: Validate — schema check; permission rule correctness; hook event names; `enabledPlugins` boolean values; `enableAllProjectMcpServers` semantics
-- [ ] Phase 3: Research & recheck — verify against upstream docs (`code.claude.com/docs/en/settings`); recheck known issues
-- [ ] Phase 4: Report — categorized findings (correctness / drift / issue-affected / convention-conflict)
-- [ ] Phase 5: Fix (only with `--fix` flag) — apply Phase 4 findings; verify config files still valid JSON
+- [ ] Phase 1: Load & parse. Read `.claude/settings.json` + `settings.local.json` + `.mcp.json` + machine-scope managed settings (structure only, via `check-structure.sh`)
+- [ ] Phase 2: Validate. Schema check; permission rule correctness; hook event names; `enabledPlugins` boolean values; `enableAllProjectMcpServers` semantics
+- [ ] Phase 3: Research & recheck. Fetch the cited pages verbatim, run `check-doc-citations.sh --docs-dir`, compare against `settings-reference` and `settings`; recheck known issues by the degrade ladder
+- [ ] Phase 4: Report. Categorized findings (correctness / drift / issue-affected / convention-conflict)
+- [ ] Phase 5: Fix (only with `--fix` flag). Apply Phase 4 findings; verify config files still valid JSON
 
 ## Skip criteria
 

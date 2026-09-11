@@ -6,7 +6,7 @@ description: "Converts contracts to redlined drafts. Use when: 'redline this con
 
 Produce a redlined draft from two contract versions. The basic path is inline below; **for
 tracked-changes output specifically**, read
-[reference/redlining-rules.md](reference/redlining-rules.md) — it carries the clause-matching
+[reference/redlining-rules.md](reference/redlining-rules.md). It carries the clause-matching
 rules and is only needed when the caller asked for tracked changes.
 
 ## Basic path

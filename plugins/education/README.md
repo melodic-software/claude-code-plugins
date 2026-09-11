@@ -138,8 +138,7 @@ the #798 path-indirection work lands.
 Run `/education:setup` to validate the effective `quiz_policy`, report-library root,
 and teach workspace root without reading settings files.
 
-<!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
-<!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
+<!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
 
@@ -149,17 +148,17 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `quiz_policy` | string | `"on-request"` | `CLAUDE_PLUGIN_OPTION_QUIZ_POLICY` | When quiz-me offers a post-work comprehension quiz. One of: off (never offers), on-request (only when asked), always (after each completed change), above-threshold (when the change is large). Governs offer cadence only — a report is never generated without your confirmation. Unknown values are treated as on-request. |
+| `quiz_policy` | string | `"on-request"` | `CLAUDE_PLUGIN_OPTION_QUIZ_POLICY` | When quiz-me offers a post-work comprehension quiz. One of: off (never offers), on-request (only when asked), always (after each completed change), above-threshold (when the change is large). Governs offer cadence only. A report is never generated without your confirmation. Unknown values are treated as on-request. |
 | `report_library_dir` | directory | *(none)* | `CLAUDE_PLUGIN_OPTION_REPORT_LIBRARY_DIR` | Where quiz-me stores generated reports and quizzes. Unset uses the plugin's own persistent data directory; set it to a corpus checkout to redirect the library root there. Artifacts never land in the consuming repo's tree. |
-| `workspace_root` | directory | *(none)* | `CLAUDE_PLUGIN_OPTION_WORKSPACE_ROOT` | Where /education:teach stores learning workspaces. Unset resolves a ladder: project declaration, this setting, a one-time ask, the OS Documents folder's 'Claude Learning' home (topic mode only), then the plugin's persistent data directory. Codebase-mode workspaces stay under plugin data unless a project declaration or this setting names a root, since their lessons can embed private-repo snippets and Documents roots are often cloud-synced. Grammar: absolute, ~-home-relative, or ${NAME} / %NAME% environment references; a relative value resolves against the project; a value inside the consuming repo is refused — declare an in-repo root in the project's own CLAUDE.md or rules instead. |
+| `workspace_root` | directory | *(none)* | `CLAUDE_PLUGIN_OPTION_WORKSPACE_ROOT` | Where /education:teach stores learning workspaces. Unset resolves a ladder: project declaration, this setting, a one-time ask, the OS Documents folder's 'Claude Learning' home (topic mode only), then the plugin's persistent data directory. Codebase-mode workspaces stay under plugin data unless a project declaration or this setting names a root, since their lessons can embed private-repo snippets and Documents roots are often cloud-synced. Grammar: absolute, ~-home-relative, or ${NAME} / %NAME% environment references; a relative value resolves against the project; a value inside the consuming repo is refused. Declare an in-repo root in the project's own CLAUDE.md or rules instead. |
 
 ### How to set these
 
 Three supported routes, in the order most people want them:
 
-1. **Interactively** — Claude Code prompts for declared options when you enable the
+1. **Interactively.** Claude Code prompts for declared options when you enable the
    plugin. To change them later: `/plugin configure education@<marketplace>`.
-2. **Headless** — repeat `--config` for each option. Replace
+2. **Headless.** Repeat `--config` for each option. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
 
    ```shell
@@ -179,7 +178,7 @@ Three supported routes, in the order most people want them:
    Claude Code session before expecting new behavior. A check run in the old session
    still reports the old value, and that is not a failed write.
 
-3. **By hand, in settings** — add the value under `pluginConfigs` in your **user**
+3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
    settings (`~/.claude/settings.json`):
 
    ```json
@@ -195,7 +194,7 @@ Three supported routes, in the order most people want them:
    ```
 
    Plugin option values are read from **user**, `--settings`, and managed settings
-   only — **not** from a project's `.claude/settings.json`. To vary behavior per
+   only, **not** from a project's `.claude/settings.json`. To vary behavior per
    repository, enable or disable the plugin in that project's `enabledPlugins`
    instead of setting an option there.
 
@@ -204,14 +203,13 @@ hands a configured value to a hook process; the value comes from the routes abov
 
 ### Upstream documentation
 
-- [User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration) — the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
-- [Plugin install options](https://code.claude.com/docs/en/plugins-reference#plugin-install) — the `--config` flag's reference entry
-- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills) — `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
-- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect) — user vs project vs local precedence
-- [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins) — enabling, disabling, `/plugin list`
+- [User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration): the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
+- [Plugin install options](https://code.claude.com/docs/en/plugins-reference#plugin-install): the `--config` flag's reference entry
+- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
+- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
+- [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins): enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
-<!-- ai-slop-ignore-end -->
 
 ## License
 

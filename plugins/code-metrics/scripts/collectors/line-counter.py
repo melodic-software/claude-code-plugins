@@ -23,6 +23,8 @@ import json
 import os
 import sys
 
+from adapter_paths import files_from
+
 MIN_PYTHON = (3, 9)
 NAME = "line-counter"
 
@@ -69,7 +71,7 @@ def main(argv: list[str]) -> int:
                 file=sys.stderr,
             )
             return 2
-        lane, measure, files = rest[0], rest[1], rest[2:]
+        lane, measure, files = rest[0], rest[1], files_from(rest[2:])
         if measure != "file_lines":
             print(f"line-counter.py: cannot collect {measure}", file=sys.stderr)
             return 2

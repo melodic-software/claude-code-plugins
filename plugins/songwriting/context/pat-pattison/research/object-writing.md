@@ -4,11 +4,11 @@
 
 - [Core idea](#core-idea)
 - [Show before you tell](#show-before-you-tell)
-- [Rusty's collar rewrite pattern — this file's own, no book source](#rustys-collar-rewrite-pattern--this-files-own-no-book-source)
+- [Rusty's collar rewrite pattern: this file's own, no book source](#rustys-collar-rewrite-pattern-this-files-own-no-book-source)
 - [Cliche substitution warning](#cliche-substitution-warning)
 - [The seven senses](#the-seven-senses)
 - [Ten-minute practice](#ten-minute-practice)
-- [The pivot chain — the mechanism behind "follow the senses"](#the-pivot-chain--the-mechanism-behind-follow-the-senses)
+- [The pivot chain: the mechanism behind "follow the senses"](#the-pivot-chain-the-mechanism-behind-follow-the-senses)
 - [Loyalty to the object](#loyalty-to-the-object)
 - [Specificity calibration](#specificity-calibration)
 - [Invention is licensed](#invention-is-licensed)
@@ -18,7 +18,7 @@
 - [Challenge 1 practice frame](#challenge-1-practice-frame)
 - [Strict timer and immediate access](#strict-timer-and-immediate-access)
 - [What, who, when, and where progression](#what-who-when-and-where-progression)
-- [Audition your verbs — Challenge 1, Day 4](#audition-your-verbs--challenge-1-day-4)
+- [Audition your verbs: Challenge 1, Day 4](#audition-your-verbs-challenge-1-day-4)
 - [Place as action organizer](#place-as-action-organizer)
 - [Post-write review](#post-write-review)
 - [Character observation](#character-observation)
@@ -26,12 +26,12 @@
 - [Chapter 1 exercises as coaching prompts](#chapter-1-exercises-as-coaching-prompts)
 - [Skill workflow](#skill-workflow)
 - [Prompt template](#prompt-template)
-- [Mid-word stop — non-negotiable](#mid-word-stop--non-negotiable)
-- [Destination writing — partial-tell integration](#destination-writing--partial-tell-integration)
-- [Airport game — character observation](#airport-game--character-observation)
+- [Mid-word stop, non-negotiable](#mid-word-stop-non-negotiable)
+- [Destination writing: partial-tell integration](#destination-writing-partial-tell-integration)
+- [Airport game: character observation](#airport-game-character-observation)
 - [Coaching prompts (extended)](#coaching-prompts-extended)
-- [Kami-kazi — 90-second speed round (*Writing Better Lyrics* (2009), Chapter 1)](#kami-kazi--90-second-speed-round-writing-better-lyrics-2009-chapter-1)
-- [Object Writing Parties — Gillian Welch / Nashville Sunday format](#object-writing-parties--gillian-welch--nashville-sunday-format)
+- [Kami-kazi: 90-second speed round (*Writing Better Lyrics* (2009), Chapter 1)](#kami-kazi-90-second-speed-round-writing-better-lyrics-2009-chapter-1)
+- [Object Writing Parties: Gillian Welch / Nashville Sunday format](#object-writing-parties-gillian-welch--nashville-sunday-format)
 - [Cross-references](#cross-references)
 
 Pat Pattison - *Writing Better Lyrics* (2009), Chapters 1-2; Pat Pattison -
@@ -65,20 +65,24 @@ could have found.
 Pat opens Challenge 1 with an epigraph that states the whole discipline in one
 sentence:
 
+<!-- ai-slop-ignore-start: epigraph and its attribution as printed in Songwriting Without Boundaries (2011) -->
 > Don't tell me the moon is shining; show me the glint of light on broken glass.
 >
 > —Anton Chekhov, epigraph to *Songwriting Without Boundaries* (2011),
 > Challenge 1
+<!-- ai-slop-ignore-end -->
 
 He then earns that epigraph with three specimens before he ever defines object
-writing. The first is a couplet, followed by his interrogation of it — the
+writing. The first is a couplet, followed by his interrogation of it. The
 questions are the point, because the reader has to supply every answer:
 
+<!-- ai-slop-ignore-start: lyric specimen and its attribution as printed in Songwriting Without Boundaries (2011) -->
 > Turn down the lights, Turn down the bed
 >
 > Turn down these voices inside my head.
 >
 > "I Can't Make You Love Me" —Reid/Shamblin
+<!-- ai-slop-ignore-end -->
 
 > Where do these words take you? Do they make you see something? What kind of
 > bed? Single? Double? What color is the bedspread? The pillows? Where is the
@@ -92,18 +96,21 @@ questions are the point, because the reader has to supply every answer:
 
 The second specimen, and the sentence the whole discipline rests on:
 
+<!-- ai-slop-ignore-start: lyric specimen and its attribution as printed in Songwriting Without Boundaries (2011) -->
 > I've got sunshine on a cloudy day
 >
 > When it's cold outside, I've got the month of May
 >
 > "My Girl" —Smokey Robinson
+<!-- ai-slop-ignore-end -->
 
 > Sense-bound writing turns observers into participants. It is one of the most
 > powerful tools a writer has.
 
-The third is not a song at all — Pat reaches for Matthew Arnold to show the same
+The third is not a song at all. Pat reaches for Matthew Arnold to show the same
 muscle working in poetry. The trailing ellipsis is his:
 
+<!-- ai-slop-ignore-start: poem specimen and its attribution as printed in Songwriting Without Boundaries (2011) -->
 > The sea is calm tonight.
 > The tide is full, the moon lies fair
 > Upon the straits; on the French coast the light
@@ -111,6 +118,7 @@ muscle working in poetry. The trailing ellipsis is his:
 > Glimmering and vast, out in the tranquil bay …
 >
 > "Dover Beach" —Matthew Arnold
+<!-- ai-slop-ignore-end -->
 
 All three specimens, and the prose between them, are *Songwriting Without
 Boundaries* (2011), Challenge 1. Only after all three does Pat name the
@@ -145,13 +153,13 @@ to bring the collar instead, and left the collar on the kitchen table:
 > Show before you tell. Showing makes the telling more powerful because your
 > senses and your mind are both engaged.
 >
-> — *Writing Better Lyrics* (2009), Chapter 2
+> *Writing Better Lyrics* (2009), Chapter 2
 
 > The Sister Mary Elizabeth Rule of Songwriting: Show before you tell.
 
 Use the full name when coaching. "Show before you tell" is the rule; "the Sister
 Mary Elizabeth Rule of Songwriting" is what Pat calls it, and "Rusty's collar" is
-what he calls the image itself — the concrete thing the writer holds up before
+what he calls the image itself, the concrete thing the writer holds up before
 explaining.
 
 Pat's demonstration. First, the version that forgot the collar:
@@ -178,7 +186,7 @@ The mechanism is not "color" in the abstract. It is a bag of dye:
 > bag of dye. Hang the dye on top of the section and let it drip its colors
 > downward onto the other lines, giving them more interest and depth.
 
-Placement is load-bearing, and Pat proves it by moving the collar down two lines,
+Placement matters, and Pat proves it by moving the collar down two lines,
 from the top of the section to line three:
 
 ```text
@@ -203,7 +211,7 @@ the image arrives late, the opening statements remain abstract and
 under-colored.
 
 Use this diagnosis on bland drafts. *The four-part breakdown below is this
-file's own tooling — Chapter 2 states the rule and demonstrates it, but prints
+file's own tooling. Chapter 2 states the rule and demonstrates it, but prints
 no diagnostic list:*
 
 - Abstract line: names the feeling, lesson, topic, or conclusion.
@@ -218,7 +226,7 @@ sensory evidence. "I miss home" can work after the listener has felt the hills,
 trees, wages, weather, distance, or body motion of leaving. Without the collar,
 the same claim becomes generic.
 
-## Rusty's collar rewrite pattern — this file's own, no book source
+## Rusty's collar rewrite pattern: this file's own, no book source
 
 *Pat publishes no rewrite sequence for the collar. Chapter 2 is a story, a rule,
 and two demonstrations; the numbered steps and the coaching questions below are
@@ -261,7 +269,8 @@ the comparison is:
 > alert for potential "collars." Don't leave Rusty's collar on the kitchen
 > table, no matter how excited you are to get to school and tell everyone about
 > your new puppy.
-> — *Writing Better Lyrics* (2009), Chapter 2
+>
+> *Writing Better Lyrics* (2009), Chapter 2
 
 So: if a draft swaps vivid place, job, weather, object, or body detail for broad
 labels to reach a rhyme, keep the image and rework the rhyme.
@@ -286,7 +295,7 @@ metaphor challenges in between do not carry the strip. Pat's framing on Day 1:
 > Use the list below as a place to let your eye wander when you're not sure
 > where to go next.
 >
-> — *Songwriting Without Boundaries* (2011), Challenge 1, Day 1
+> *Songwriting Without Boundaries* (2011), Challenge 1, Day 1
 
 ```text
 Sight Sound Taste Touch Smell Body Motion
@@ -294,7 +303,7 @@ Sight Sound Taste Touch Smell Body Motion
 
 Both name the same seven channels. Use whichever vocabulary the user brought.
 
-Pat does not gloss the five ordinary senses — he sharpens them with questions:
+Pat does not gloss the five ordinary senses. He sharpens them with questions:
 
 > Although you understand your five senses, you could probably stand a few
 > exercises to sharpen them, especially the four you don't normally use when you
@@ -306,19 +315,22 @@ Pat does not gloss the five ordinary senses — he sharpens them with questions:
 > it? No, it's not silly. Remember this, it is important: The more senses you
 > incorporate into your writing, the better it breathes and dances.
 >
-> — *Writing Better Lyrics* (2009), Chapter 1
+> *Writing Better Lyrics* (2009), Chapter 1
 
 *Songwriting Without Boundaries* (2011), Challenge 1 adds a subdivision of sight
 that the 2009 text does not have:
 
+<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison, Songwriting Without Boundaries (2011) -->
 > Even if it is only visual, remember that visual has at least three
 > aspects — color, shape, and texture. Try isolating each and noticing, for
 > example, only shapes. Look for similar shapes. Then look for texture "rhymes."
 > How many colors does the tree really have?
+<!-- ai-slop-ignore-end -->
 
 The two extra channels get real definitions. These are Pat's, near-identical in
 both books:
 
+<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison, Writing Better Lyrics (2009) -->
 > **Organic sense** is your awareness of inner bodily functions, for example,
 > heartbeat, pulse, muscle tension, stomachaches, cramps, and breathing.
 > Athletes are most keenly focused on this sense, but you use it constantly,
@@ -333,24 +345,26 @@ both books:
 > most fully — they look onto a stage or down to the water and see spatial
 > possibilities for their bodies. It makes me dizzy just thinking about it.
 >
-> — *Writing Better Lyrics* (2009), Chapter 1; *Songwriting Without Boundaries*
+> *Writing Better Lyrics* (2009), Chapter 1; *Songwriting Without Boundaries*
 > (2011), Challenge 1, which labels them "Organic sense (body)" and "Kinesthetic
 > sense (motion)"
+<!-- ai-slop-ignore-end -->
 
 Organic and kinesthetic details are often the fastest way to move a lyric from
 general description into embodiment. Use them when the draft explains emotion
 from the outside instead of letting the listener feel it.
 
-### Sense inventory — the acceptance test on a finished write
+### Sense inventory: the acceptance test on a finished write
 
 Chapter 1 does not stop at naming the channels. It takes a completed
-write — Pat's own, "Back Porch," written to Exercise 1 — and breaks it into seven
+write, Pat's own "Back Porch," written to Exercise 1, and breaks it into seven
 headed lists, each one quoting the write's own phrases back. That inventory is
 the check: a channel with nothing under it was not covered, whatever the writer
 believes.
 
 Pat's write, in full:
 
+<!-- ai-slop-ignore-start: verbatim object write by Pat Pattison, Writing Better Lyrics (2009) -->
 > **Back Porch**
 >
 > I must have been four. Memories from that time are a rare species — lobbing in
@@ -372,7 +386,8 @@ Pat's write, in full:
 > Crouching there fetal and content, I could feel Mom above me, could hear her
 > high heels tap-tapping.
 >
-> — Pat Pattison, *Writing Better Lyrics* (2009), Chapter 1
+> Pat Pattison, *Writing Better Lyrics* (2009), Chapter 1
+<!-- ai-slop-ignore-end -->
 
 And Pat's inventory of it, verbatim, under his own heading "Look at the sense
 information in 'Back Porch'":
@@ -403,7 +418,7 @@ information in 'Back Porch'":
 > don't stand up; I could feel Mom above me
 
 Note the shape of the real thing: smell gets two entries and taste gets one,
-while sight gets nine. The inventory is not a quota — it is a record.
+while sight gets nine. The inventory is not a quota. It is a record.
 
 Run the same inventory on every completed write, whoever produced it:
 
@@ -421,7 +436,7 @@ Rules this skill adds to make it an acceptance test rather than a formality
 (Chapter 1 demonstrates the inventory; it does not state these as rules):
 
 - Quote the write's own words. A summary ("I covered smell") is not evidence.
-- A phrase may appear under more than one channel — Chapter 1's own inventory
+- A phrase may appear under more than one channel. Chapter 1's own inventory
   does exactly this. "tingling along my back and neck" is filed under touch,
   organic, *and* kinesthetic, because one image can carry three senses at once.
 - A thin or empty channel is **reported, never padded**. Sight and hearing fill
@@ -430,7 +445,7 @@ Rules this skill adds to make it an acceptance test rather than a formality
   line bolted on to fill the row.
 
 This inventory is what converts "the write covered the senses" from a claim
-into checkable evidence — which matters most when the write was machine-
+into checkable evidence, which matters most when the write was machine-
 generated and the generator is also the grader.
 
 ## Ten-minute practice
@@ -441,12 +456,13 @@ The basic practice is strict:
 2. Set a timer for ten minutes, preferably first thing in the morning.
 3. Write continuously in sensory language.
 4. Move through all seven senses.
-5. Pivot from image to image through the senses — see below.
+5. Pivot from image to image through the senses, described below.
 6. Stop immediately when the timer ends.
 7. Mine the page later for images, phrases, titles, and emotional turns.
 
 Stopping on time matters, and Pat gives the mechanism a name:
 
+<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison, Songwriting Without Boundaries (2011) -->
 > Soon, during your timed writing, something like this will happen: Your writing
 > will start to roll, diving, plunging, heading directly for the soft pink and
 > blue glow below when, beep! The timer goes off. Just stop. Wherever you are.
@@ -458,13 +474,14 @@ Stopping on time matters, and Pat gives the mechanism a name:
 > without depth. The ten-minute absolute limit is the key to building both. And
 > it guarantees a manageable task.
 >
-> — *Songwriting Without Boundaries* (2011), Challenge 1
+> *Songwriting Without Boundaries* (2011), Challenge 1
+<!-- ai-slop-ignore-end -->
 
 The frustration is the point, not a side effect. Object writing is a warmup and
 a source of material, not the whole songwriting process: "It prepares you for
 any creative writing you want to do: lyrics, poetry, short stories, novels."
 
-## The pivot chain — the mechanism behind "follow the senses"
+## The pivot chain: the mechanism behind "follow the senses"
 
 "Follow sensory associations wherever they lead" is the instruction. The pivot
 chain is the mechanism, and without it a write becomes a static description of
@@ -475,7 +492,7 @@ one scene instead of a dive. Pat names the mechanism directly:
 > association. Always with your senses, all seven of them. All within ten
 > minutes.
 >
-> — *Writing Better Lyrics* (2009), Chapter 1
+> *Writing Better Lyrics* (2009), Chapter 1
 
 *Songwriting Without Boundaries* (2011), Challenge 1 gives the same idea its
 other name: "Think of object writing as sense-bound free association."
@@ -487,7 +504,7 @@ Pat's own worked chain, printed in both books in nearly identical words:
 > splashing water up so it sprays like fireworks, to the boom in your chest and
 > the smell of gunpowder and the taste of cotton candy.
 >
-> — *Writing Better Lyrics* (2009), Chapter 1; *Songwriting Without Boundaries*
+> *Writing Better Lyrics* (2009), Chapter 1; *Songwriting Without Boundaries*
 > (2011), Challenge 1
 
 Read as a chain of handoffs, each one carried by a sense and each one landing in
@@ -512,6 +529,7 @@ loyal to the seed.
 Pat's second documented demonstration is Cathy Brettell's ten-minute write on
 "Elevator," and he points at the exact pivot that carried it:
 
+<!-- ai-slop-ignore-start: verbatim object write by Cathy Brettell and Pat Pattison's comment on it, Songwriting Without Boundaries (2011) -->
 > Breath sucks back into my throat — stomach ball jellies to my toes like an
 > anchor hoisted over a ship — dull brass dragging thick fingers of midnight,
 > current's chain unspools — like roller skates gliding freely — wind sassing back
@@ -528,15 +546,16 @@ Pat's second documented demonstration is Cathy Brettell's ten-minute write on
 > dreamy nightmare up — rolling it back into heaven's closet — soft crystal knob
 > pulls shut … (time!)
 >
-> — Cathy Brettell, object: Elevator, time limit: 10 minutes, in *Songwriting
+> Cathy Brettell, object: Elevator, time limit: 10 minutes, in *Songwriting
 > Without Boundaries* (2011), Challenge 1
 
 > As you can see from "Elevator," "Breath sucks back into my throat — stomach ball
 > jellies to my toes like an anchor hoisted over ship" took Cathy from an
 > elevator ride to an ocean storm, no permission asked.
 >
-> — Pat Pattison, *Songwriting Without Boundaries* (2011), Challenge 1
+> Pat Pattison, *Songwriting Without Boundaries* (2011), Challenge 1
 > opener
+<!-- ai-slop-ignore-end -->
 
 Note the ending as printed: the write trails off into an ellipsis after "soft
 crystal knob pulls shut", and "(time!)" follows it. That is the buzzer, printed.
@@ -580,11 +599,11 @@ passage, two sentences long:
 >
 > Where were you? Not on Duluth Avenue, I'll bet.
 >
-> — *Writing Better Lyrics* (2009), Chapter 1
+> *Writing Better Lyrics* (2009), Chapter 1
 
 Count what is doing the work: the named street, the named city, the speaker's
 exact age, the specific garment, what that garment smelled like, and the sound
-its hardware made when he walked — spread across sight, smell, sound, and body
+its hardware made when he walked, spread across sight, smell, sound, and body
 motion. That is the density to calibrate against. Pat's point about why it works
 is the second half: "In this way, sense-bound language involves you; my words are
 filled with your experiences."
@@ -594,7 +613,7 @@ Calibration check on any line claiming to be specific:
 - Could a stranger name the street, the year, the age, or the brand from this?
 - Does the specificity land on more than one sense, or is it all sight?
 - Is a proper noun doing work, or is it decoration on a generic image?
-- Swap in the generic version — is anything actually lost? If not, the "specific"
+- Swap in the generic version. Is anything actually lost? If not, the "specific"
   version was not specific.
 
 Weak calibration is the most common cause of a write that satisfies every rule
@@ -604,7 +623,7 @@ and still reads as nothing in particular.
 
 Chapter 1 is explicit: a song does not have to be accurate autobiography, and
 truth outranks reality. Object writing draws on sense memory, but the write is
-not a deposition — the writer may invent the street, the garment, the age, and
+not a deposition. The writer may invent the street, the garment, the age, and
 the weather, so long as the result is sense-bound and specific.
 
 This matters most when the writer is an AI, which has no autobiography to draw
@@ -636,16 +655,18 @@ a principle:
 > Remember to pick real objects. Butter. Canary. The smell of split pea soup.
 > Hanging ivy. Hot coffee.
 >
-> — *Writing Better Lyrics* (2009), Chapter 1, "Group Writing"
+> *Writing Better Lyrics* (2009), Chapter 1, "Group Writing"
 
+<!-- ai-slop-ignore-start: inline verbatim quote from Pat Pattison, Writing Better Lyrics (2009) Chapter 1 -->
 **Same seed, no shared context.** Chapter 1 prints several writers' dives on a
 single common seed word and they are unrecognizable as responses to the same
 prompt. The divergence is the product: each writer enters the word through
-sense memory no one else has. Pat protects it procedurally — his exercises say
-to write your own response *before reading ahead* — but he does not claim
+sense memory no one else has. Pat protects it procedurally, his exercises saying
+to write your own response *before reading ahead*, but he does not claim
 shared reading flattens a group. He claims the reverse: "Do two or three at a
 sitting. Each one will be better because you feed off each other — each of you
 has something unique to offer."
+<!-- ai-slop-ignore-end -->
 
 **The bar escalates between rounds.** In the documented Sunday-group format the
 strongest write of a round sets the standard the next round writes against.
@@ -671,6 +692,7 @@ to the group. The useful part is rhythm and accountability, not performance.
 *Songwriting Without Boundaries* (2011) restates the same practice for its
 fourteen-day format, under the heading "Group Writing":
 
+<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison, Songwriting Without Boundaries (2011) -->
 > The fourteen-day challenges in this book work great in a group setting. You
 > can expand your experience by asking friends to join you, either at your
 > favorite coffee shop, someone's home, or even online. It's fascinating to hear
@@ -680,7 +702,8 @@ fourteen-day format, under the heading "Group Writing":
 > something unique to offer. In a good group, the level of writing gets very high
 > (or deep) very quickly.
 >
-> — *Songwriting Without Boundaries* (2011), Challenge 1
+> *Songwriting Without Boundaries* (2011), Challenge 1
+<!-- ai-slop-ignore-end -->
 
 And his closing push, a little further down the same opener: "But do form a
 group, or at least find a partner. It'll keep you on track."
@@ -702,7 +725,7 @@ Start with sensory access, then let meaning emerge.
 
 *Songwriting Without Boundaries* turns object writing into a 14-day curriculum.
 The purpose is not to collect finished lyrics. The purpose is to train the
-writer to enter material through sensory participation instead of observation —
+writer to enter material through sensory participation instead of observation:
 Pat's *"sense-bound writing turns observers into participants"*, quoted in full
 with the specimens that earn it under [core idea](#core-idea) above.
 
@@ -718,13 +741,13 @@ under every prompt:
 > from the 20 to 40 responses we received each day, for inclusion here. This way,
 > you'll have a group writing experience whether you form your own group or not.
 >
-> — *Songwriting Without Boundaries* (2011), Challenge 1
+> *Songwriting Without Boundaries* (2011), Challenge 1
 
 That is why most samples carry other writers' names: they are contest entries,
-selected two per prompt. Pat's own writes appear only occasionally — on Day 1 he
+selected two per prompt. Pat's own writes appear only occasionally. On Day 1 he
 supplies the second "Sky" and "Lily Pad" pieces himself. He also closes the
 challenge by
-pointing readers back there — "you might go to www.objectwriting.com for the
+pointing readers back there: "you might go to www.objectwriting.com for the
 daily prompt there."
 
 Treat every daily prompt as a doorway into sense memory. The seed word may be a
@@ -789,7 +812,7 @@ Challenge 1 daily seeds:
 Use these as models, not a mandatory canonical list. The category and timer
 matter more than the exact seed word.
 
-## Audition your verbs — Challenge 1, Day 4
+## Audition your verbs: Challenge 1, Day 4
 
 Day 4 stops mid-challenge to teach one craft lever, and the lever is verbs.
 Pat's commentary on Nick Miller's and Linda M's curbs:
@@ -800,15 +823,15 @@ Pat's commentary on Nick Miller's and Linda M's curbs:
 > prance and somersault for you. Verbs based in metaphor or steeped in the senses
 > usually get the gig.
 >
-> — *Songwriting Without Boundaries* (2011), Challenge 1, Day 4
+> *Songwriting Without Boundaries* (2011), Challenge 1, Day 4
 
 He closes the same day with the payoff line: "I hope that paying attention to
 your verbs helped your writing today. It's a surefire way to take your writing
 to another level instantly."
 
-The audition metaphor is the usable part — a verb is a candidate, not a given.
+The audition metaphor is the usable part: a verb is a candidate, not a given.
 Pat keeps running the check on later days ("Check out both Linda and Deborah's
-verbs. Yum." — Day 9; "Nice verbs in both pieces." — Day 7). When mining a write,
+verbs. Yum." on Day 9; "Nice verbs in both pieces." on Day 7). When mining a write,
 underline every verb first and ask which ones got the gig on merit.
 
 ## Place as action organizer
@@ -823,11 +846,13 @@ it in four sentences on Day 14:
 >
 > Abstract, generic writing usually lacks the grounding power of "where."
 >
-> — *Songwriting Without Boundaries* (2011), Challenge 1, Day 14
+> *Songwriting Without Boundaries* (2011), Challenge 1, Day 14
 
+<!-- ai-slop-ignore-start: inline verbatim quote from Pat Pattison, Songwriting Without Boundaries (2011) Challenge 1 Day 12 -->
 And his reason for pairing it with "when", from the Day 12 opener: "'Where' and
 'when' are a powerful combination, working together to create a scene and
 situation—a context for 'who' and 'what' to operate from."
+<!-- ai-slop-ignore-end -->
 
 If a lyric claims a general feeling, ask where the body is when the feeling
 happens.
@@ -871,7 +896,7 @@ Observation games in public places are useful, but keep them ethical and
 craft-focused. The point is to notice posture, pace, tension, gesture, objects,
 distance, and implied want, then invent responsibly.
 
-### Perspective writes — through the character's senses
+### Perspective writes: through the character's senses
 
 *Songwriting Without Boundaries* (2011), Challenge 1, Day 6 and *Writing Better
 Lyrics* (2009), Chapter 1 both go further than observing a character: they
@@ -886,7 +911,7 @@ Pat's own examples, verbatim:
 > volunteer at an animal rescue shelter. A car thief, as in Sting's "Stolen Car"
 > or his "Tomorrow We'll See," from the perspective of a male prostitute.
 >
-> — *Songwriting Without Boundaries* (2011), Challenge 1, Day 6
+> *Songwriting Without Boundaries* (2011), Challenge 1, Day 6
 
 That last sentence is elliptical as printed; do not smooth it. The 2009 parallel
 spells the same two songs out: "Sting's 'Stolen Car' is told from the
@@ -900,7 +925,7 @@ The discipline:
 
 - Name the character and their situation before the timer starts.
 - Every sensory detail must be reachable from where that character's body is.
-- Their vocabulary, not the writer's — what they would notice, and what they
+- Their vocabulary, not the writer's: what they would notice, and what they
   would fail to notice.
 - No narrator commentary on the character from outside.
 
@@ -949,7 +974,7 @@ Exercise 3 - Timed "pepper" session:
 - Push beyond sight into taste, smell, touch, organic, and kinesthetic detail.
 - Stop at the buzzer, then mine the page.
 
-Rusty's collar rewrite — *this file's own drill; Chapter 2 prints no exercise*:
+Rusty's collar rewrite, *this file's own drill; Chapter 2 prints no exercise*:
 
 - Choose one telling line from a lyric draft.
 - List sensory images that could prove or color the line.
@@ -996,7 +1021,7 @@ Stop immediately when the timer ends. Afterward, underline the strongest
 images, verbs, body details, and metaphor seeds.
 ```
 
-## Mid-word stop — non-negotiable
+## Mid-word stop, non-negotiable
 
 The single most-emphasized object-writing discipline across both
 *Writing Better Lyrics* (2009) and *Songwriting Without Boundaries*
@@ -1006,7 +1031,8 @@ Not after finishing the word. Not after closing the thought. Stop.
 
 > "Stop IMMEDIATELY when the timer goes off. Do not even finish the word
 > you are on."
-> — Pat Pattison, *Songwriting Without Boundaries* (2011), Challenge 1,
+>
+> Pat Pattison, *Songwriting Without Boundaries* (2011), Challenge 1,
 > Day 1 (that long form is printed on Day 1 only; Days 2-14 carry
 > "Stop IMMEDIATELY when the timer goes off." alone)
 
@@ -1018,7 +1044,7 @@ this is the version to read to a writer once:
 > examples in this challenge. Be sure you always stop right at the buzzer. Don't
 > finish the sentence. Don't even finish the word you're in the middle of.
 >
-> — *Songwriting Without Boundaries* (2011), Challenge 1
+> *Songwriting Without Boundaries* (2011), Challenge 1
 
 Reasons:
 
@@ -1032,9 +1058,9 @@ Reasons:
 Coaching prompt at session open: "When the buzzer sounds, drop the
 pen even if you are mid-letter."
 
-## Destination writing — partial-tell integration
+## Destination writing: partial-tell integration
 
-Destination writing is **not Pat's term** — it is Andrea Stolpe's, and Pat
+Destination writing is **not Pat's term**. It is Andrea Stolpe's, and Pat
 credits her for it:
 
 > In her book, *Popular Lyric Writing: 10 Steps to Effective Storytelling*,
@@ -1043,11 +1069,12 @@ credits her for it:
 > especially titles, come just as easily from the "tell" side as the "show" side
 > of your writing.
 >
-> — *Writing Better Lyrics* (2009), Chapter 1, "Expanded Object Writing"
+> *Writing Better Lyrics* (2009), Chapter 1, "Expanded Object Writing"
 
-Pat prints no minute-split for it — do not invent one. What he prints is a single
+Pat prints no minute-split for it. Do not invent one. What he prints is a single
 worked instance, and the tell lands as the last line of a sense-bound passage:
 
+<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison, Writing Better Lyrics (2009) -->
 > For example, I was tempted to add one more line to the passage I wrote about
 > the yellow slicker for the "Puddle" exercise:
 >
@@ -1059,25 +1086,28 @@ worked instance, and the tell lands as the last line of a sense-bound passage:
 > takes. It's a comment — a "tell." It might be a line in a song, maybe a comment
 > after a few sense images set it up.
 >
-> — *Writing Better Lyrics* (2009), Chapter 1
+> *Writing Better Lyrics* (2009), Chapter 1
+<!-- ai-slop-ignore-end -->
 
 He also prints a warning about when to start using tells at all:
 
+<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison, Writing Better Lyrics (2009) -->
 > You might want to use some tells in your object writing, but you might wait a
 > few weeks before you do — getting really sense-bound is hard work. You need to
 > practice being specific and sense-bound to do it well in the context of
 > building a song.
 >
-> — *Writing Better Lyrics* (2009), Chapter 1
+> *Writing Better Lyrics* (2009), Chapter 1
+<!-- ai-slop-ignore-end -->
 
 The three-item "Use destination writing when:" list that stood here was
-**invented** — Pat gives no such criteria. What he actually gives is the
+**invented**. Pat gives no such criteria. What he actually gives is the
 reason it earns its place:
 
 > She recognizes that good song ideas, especially titles, come just as easily
 > from the "tell" side as the "show" side of your writing.
 >
-> — *Writing Better Lyrics* (2009), Chapter 1
+> *Writing Better Lyrics* (2009), Chapter 1
 
 Pat's own section title for this material is **"Expanded Object Writing"**.
 His one boundary on it is that neither practice is journaling:
@@ -1088,9 +1118,9 @@ His one boundary on it is that neither practice is journaling:
 > writing and destination writing are about writing. They are a preparation
 > for writing songs. They have a specific purpose.
 >
-> — *Writing Better Lyrics* (2009), Chapter 1
+> *Writing Better Lyrics* (2009), Chapter 1
 
-## Airport game — character observation
+## Airport game: character observation
 
 Pat names a character-observation drill the airport game. It sits inside the
 "who" material of *Songwriting Without Boundaries* (2011), Challenge 1, Day 6,
@@ -1107,7 +1137,7 @@ verbatim:
 > junior prom?" "Does she get along with her younger sister?" Take turns asking
 > questions.
 >
-> — *Songwriting Without Boundaries* (2011), Challenge 1, Day 6; printed almost
+> *Songwriting Without Boundaries* (2011), Challenge 1, Day 6; printed almost
 > word for word in *Writing Better Lyrics* (2009), Chapter 1
 
 The questions come first and the answers are invented. Pat's framing right
@@ -1141,13 +1171,15 @@ becomes the song's speaker.
   responsibly extended, or a projection? Real observation produces
   surprising verbs; projection produces generic adjectives.
 
-## Kami-kazi — 90-second speed round (*Writing Better Lyrics* (2009), Chapter 1)
+## Kami-kazi: 90-second speed round (*Writing Better Lyrics* (2009), Chapter 1)
 
+<!-- ai-slop-ignore-start: inline verbatim quote from Pat Pattison, Writing Better Lyrics (2009) Chapter 1 -->
 Pat names the 90-second object-writing variant the **Kami-kazi**, crediting
 songwriter Kami Lyle, and glosses it in one parenthesis: "a ninety-second piece
 (suggested by Kami Lyle — I call it a Kami-kazi: you really approach it in a
 different way)." *A different way* is the whole gloss he gives it; do not
 elaborate his reasoning for him.
+<!-- ai-slop-ignore-end -->
 
 The mechanics:
 
@@ -1158,7 +1190,7 @@ The mechanics:
 - No editing during the timer
 
 The brevity is the point. With only 90 seconds, the writer has no time to
-deliberate — the seed has to launch into sensory association immediately.
+deliberate. The seed has to launch into sensory association immediately.
 Writus interruptus trains depth across sessions; the Kami-kazi compresses the
 same discipline into the shortest window Pat uses. That framing is this file's,
 not a quotation.
@@ -1166,12 +1198,13 @@ not a quotation.
 Use Kami-kazi as warmup before longer 10-minute writes, or as a standalone
 when the writer has only a brief window.
 
-## Object Writing Parties — Gillian Welch / Nashville Sunday format
+## Object Writing Parties: Gillian Welch / Nashville Sunday format
 
 Pat documents Gillian Welch's Nashville Sunday group as the object-writing
-party. Reproduce his account rather than a tidied schedule — the reading after
+party. Reproduce his account rather than a tidied schedule. The reading after
 every single round is the part a summary drops:
 
+<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison, Writing Better Lyrics (2009) -->
 > The best way to do group object writing is face to face. Gillian Welch had a
 > group in Nashville that met for two and a half years, every Sunday afternoon
 > from one to four. They'd warm up with a five-minute exercise and read their
@@ -1186,10 +1219,11 @@ every single round is the part a summary drops:
 > object writing was one of the most important keys to her success — and she's had
 > seven Grammy nominations, with three wins.
 >
-> — *Writing Better Lyrics* (2009), Chapter 1, "Object Writing Parties"
+> *Writing Better Lyrics* (2009), Chapter 1, "Object Writing Parties"
+<!-- ai-slop-ignore-end -->
 
-Read that as the sequence it is: nine writes — 5, 5, 10, 10, 90s, 5, then the
-break, then 10, 90s, 5 — with Pat marking "Read." after every one of the six
+Read that as the sequence it is. Nine writes: 5, 5, 10, 10, 90s, 5, then the
+break, then 10, 90s, 5. Pat marks "Read." after every one of the six
 before the break. The Kami-kazi arrives only after two tens, and a decompression
 five comes before the food break.
 
@@ -1198,13 +1232,13 @@ pages afterward.
 
 ## Cross-references
 
-- [daily practice](daily-practice.md) — Challenges 1-4 curriculum.
-- [point of view](point-of-view.md) — Who-category object writing
+- [daily practice](daily-practice.md): Challenges 1-4 curriculum.
+- [point of view](point-of-view.md): Who-category object writing
   feeds POV decisions.
-- [brainstorm](brainstorm.md) — Path A uses 10-minute object-writing.
-- [idea-to-title](idea-to-title.md) — object-writing the seed's world.
-- [fragment-development](fragment-development.md) — object-writing the
+- [brainstorm](brainstorm.md): Path A uses 10-minute object-writing.
+- [idea-to-title](idea-to-title.md): object-writing the seed's world.
+- [fragment-development](fragment-development.md): object-writing the
   fragment's implied world.
-- [workflows](workflows.md) "Scenario 1 — Brand new song from
-  scratch" — object writing as Step 1.
+- [workflows](workflows.md) Scenario 1, "Brand new song from
+  scratch": object writing as Step 1.
 - [templates/object-writing-prompt](../templates/object-writing-prompt.md).

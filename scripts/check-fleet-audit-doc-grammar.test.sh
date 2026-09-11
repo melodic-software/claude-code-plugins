@@ -9,12 +9,18 @@ SCRIPT="$SELF_DIR/check-fleet-audit-doc-grammar.sh"
 
 # shellcheck source=lib/test-harness.sh
 . "$SELF_DIR/lib/test-harness.sh"
+# shellcheck source=lib/fixture-tree.sh
+. "$SELF_DIR/lib/fixture-tree.sh"
+
+# The builder assigns through a nameref, which shellcheck cannot follow;
+# declaring the out-vars here is what tells it (SC2154) the names are written.
+repo="" hist=""
 
 # Minimal stub collector: classifies the bare-positional probe and the no-scope
 # probe from argv / emptiness without touching git or the network.
 write_stub_script() {
   local path="$1"
-  local bare_mode="$2" # accept | reject | ignore | noise
+  local bare_mode="$2"    # accept | reject | ignore | noise
   local noscope_mode="$3" # remedy | report | noise | zero
   cat >"$path" <<EOF
 #!/usr/bin/env bash
@@ -111,12 +117,9 @@ write_skill() {
   } >"$path"
 }
 
-mk_tree() {
-  local dir
-  dir="$(mktemp -d)"
-  mkdir -p "$dir/plugins/repo-fleet-hygiene/skills/audit/scripts" "$dir/scripts"
-  cp "$SCRIPT" "$dir/scripts/check-fleet-audit-doc-grammar.sh"
-  printf '%s' "$dir"
+mk_tree() { # <out-var>
+  fixture_tree::build "$1" --sut "$SCRIPT" --plugins || return 1
+  mkdir -p "${!1}/plugins/repo-fleet-hygiene/skills/audit/scripts"
 }
 
 run_check() {
@@ -125,7 +128,7 @@ run_check() {
 }
 
 # Aligned tree: bare accepted + hint + grammar bullets covering remedy tokens.
-repo="$(mk_tree)"
+mk_tree repo
 write_stub_script "$repo/plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.sh" accept remedy
 write_skill "$repo/plugins/repo-fleet-hygiene/skills/audit/SKILL.md" \
   '[<dir>]... [--root <dir>]... [--repo <dir>]... [--config <file>] | --apply-plan <path>' \
@@ -134,7 +137,7 @@ if run_check "$repo" >/dev/null; then ok "aligned skill+parser passes --check"; 
 rm -rf "$repo"
 
 # Bare accepted but argument-hint omits [<dir>] (the #2646 shape).
-repo="$(mk_tree)"
+mk_tree repo
 write_stub_script "$repo/plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.sh" accept remedy
 write_skill "$repo/plugins/repo-fleet-hygiene/skills/audit/SKILL.md" \
   '[--root <dir>]... [--repo <dir>]... [--config <file>] | --apply-plan <path>' \
@@ -149,7 +152,7 @@ fi
 rm -rf "$repo"
 
 # Bare accepted but Input-resolution grammar omits the <dir> bullet.
-repo="$(mk_tree)"
+mk_tree repo
 write_stub_script "$repo/plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.sh" accept remedy
 write_skill "$repo/plugins/repo-fleet-hygiene/skills/audit/SKILL.md" \
   '[<dir>]... [--root <dir>]... [--repo <dir>]... [--config <file>] | --apply-plan <path>' \
@@ -164,7 +167,7 @@ fi
 rm -rf "$repo"
 
 # Remedy names --repo but skill omits that bullet.
-repo="$(mk_tree)"
+mk_tree repo
 write_stub_script "$repo/plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.sh" accept remedy
 write_skill "$repo/plugins/repo-fleet-hygiene/skills/audit/SKILL.md" \
   '[<dir>]... [--root <dir>]... [--config <file>] | --apply-plan <path>' \
@@ -179,7 +182,7 @@ fi
 rm -rf "$repo"
 
 # Hint documents bare positional but parser rejects it.
-repo="$(mk_tree)"
+mk_tree repo
 write_stub_script "$repo/plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.sh" reject remedy
 write_skill "$repo/plugins/repo-fleet-hygiene/skills/audit/SKILL.md" \
   '[<dir>]... [--root <dir>]... [--repo <dir>]... [--config <file>] | --apply-plan <path>' \
@@ -194,7 +197,7 @@ fi
 rm -rf "$repo"
 
 # No-scope produces a report instead of a clean stop.
-repo="$(mk_tree)"
+mk_tree repo
 write_stub_script "$repo/plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.sh" accept report
 write_skill "$repo/plugins/repo-fleet-hygiene/skills/audit/SKILL.md" \
   '[<dir>]... [--root <dir>]... [--repo <dir>]... [--config <file>] | --apply-plan <path>' \
@@ -209,7 +212,7 @@ fi
 rm -rf "$repo"
 
 # Inconclusive bare-positional probe → exit 2 (never a pass).
-repo="$(mk_tree)"
+mk_tree repo
 write_stub_script "$repo/plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.sh" noise remedy
 write_skill "$repo/plugins/repo-fleet-hygiene/skills/audit/SKILL.md" \
   '[<dir>]... [--root <dir>]... [--repo <dir>]... [--config <file>] | --apply-plan <path>' \
@@ -224,7 +227,7 @@ fi
 rm -rf "$repo"
 
 # Inconclusive no-scope probe → exit 2.
-repo="$(mk_tree)"
+mk_tree repo
 write_stub_script "$repo/plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.sh" accept noise
 write_skill "$repo/plugins/repo-fleet-hygiene/skills/audit/SKILL.md" \
   '[<dir>]... [--root <dir>]... [--repo <dir>]... [--config <file>] | --apply-plan <path>' \
@@ -241,10 +244,8 @@ rm -rf "$repo"
 # Historical proof (#2713): a6be07f9's SKILL.md + audit-fleet.sh must go red,
 # naming the missing bare positional form.
 if git rev-parse --verify --quiet "a6be07f9^{commit}" >/dev/null 2>&1; then
-  hist="$(mktemp -d)"
-  mkdir -p "$hist/scripts" \
-    "$hist/a6be07f9/plugins/repo-fleet-hygiene/skills/audit/scripts"
-  cp "$SCRIPT" "$hist/scripts/check-fleet-audit-doc-grammar.sh"
+  fixture_tree::build hist --sut "$SCRIPT"
+  mkdir -p "$hist/a6be07f9/plugins/repo-fleet-hygiene/skills/audit/scripts"
   git show a6be07f9:plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.sh \
     >"$hist/a6be07f9/plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.sh"
   git show a6be07f9:plugins/repo-fleet-hygiene/skills/audit/SKILL.md \

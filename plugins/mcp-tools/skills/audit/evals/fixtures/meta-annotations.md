@@ -1,7 +1,7 @@
 # Fixture: Claude Code `_meta` annotations (C17-C19)
 
 Two servers declaring `anthropic/requiresUserInteraction`. In each, one tool declares it
-as the JSON boolean `true` and one declares it as a JSON string — the value Claude Code
+as the JSON boolean `true` and one declares it as a JSON string, the value Claude Code
 silently ignores, so the intended consent gate never fires. C18 turns on that JSON type.
 
 ## TypeScript (`@modelcontextprotocol/sdk`)

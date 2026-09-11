@@ -6,6 +6,11 @@
 
 set -uo pipefail
 
+# The git-remote fallback case builds a throwaway repository. An inherited
+# absolute GIT_DIR would redirect that fixture's writes into the caller's
+# clone, so the inherited git environment is cleared before anything runs.
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BRIEF="$SCRIPT_DIR/scripts/morning-brief.sh"
 
@@ -529,8 +534,9 @@ OUT_ERR="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 \
   --telemetry-json "$TMP/telemetry.json" \
   --merged-json "$TMP/merged-apierror.json" 2>&1)"
 assert_not_contains "stranded: an API error is NEVER reported as clear" "$OUT_ERR" "every merged PR in the window is clear"
-assert_contains "stranded: an API error says it is not an all-clear" "$OUT_ERR" "NOT an all-clear"
+assert_contains "stranded: an API error renders the section UNREADABLE" "$OUT_ERR" "UNREADABLE: API rate limit"
 assert_contains "stranded: the API error message is surfaced" "$OUT_ERR" "rate limit already exceeded"
+assert_contains "stranded: the header counts the unreadable section" "$OUT_ERR" "1 of 5 sections unreadable: stranded"
 
 # --- Severity classification and ranking -------------------------------------
 OUT_SEV="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 \
@@ -568,6 +574,266 @@ OUT_WIDE="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 --stranded-days 60 \
   --merged-json "$TMP/merged.json" 2>&1)"
 assert_contains "stranded: --stranded-days widens the window" "$OUT_WIDE" "#1690"
 assert_contains "stranded: the window is reported in the header" "$OUT_WIDE" "last 60d"
+
+# --- Degraded-mode contract: an unreadable source is never an all-clear -------
+# A `gh` test double on PATH stands in for the network. MB_GH_MODE selects the
+# host's behavior:
+#   blocked  every call is refused with the pinned-GraphQL 403 shape (body on
+#            stdout, message on stderr, exit 1) — the cloud-session shape
+#   fail     every call fails with an unrelated error
+#   rest     GraphQL-backed subcommands are refused as in `blocked`; `gh api
+#            repos/...` is served from MB_GH_FIXTURES/<sanitized path>.json,
+#            a missing fixture answering 404
+GH_STUB_DIR="$TMP/gh-stub"
+mkdir -p "$GH_STUB_DIR"
+cat >"$GH_STUB_DIR/gh" <<'STUB'
+#!/usr/bin/env bash
+mode="${MB_GH_MODE:?MB_GH_MODE not set}"
+blocked() {
+  printf '{"message":"This GraphQL query is not enabled for this session — only the pinned set of PR-review operations is served. Use REST via `gh api repos/{owner}/{repo}/...` instead.","documentation_url":"https://example.invalid/docs"}\n'
+  printf 'gh: This GraphQL query is not enabled for this session — only the pinned set of PR-review operations is served. (HTTP 403)\n' >&2
+  exit 1
+}
+case "$mode" in
+  blocked) blocked ;;
+  fail)
+    printf 'gh: boom, the upstream fell over (HTTP 500)\n' >&2
+    exit 1
+    ;;
+  rest)
+    [[ "${1:-}" == "api" ]] || blocked
+    shift
+    path=""
+    for a in "$@"; do
+      [[ "$a" == repos/* ]] && path="$a"
+    done
+    [[ -n "$path" ]] || blocked
+    key="$(printf '%s' "$path" | sed -E 's/[^A-Za-z0-9._-]/_/g')"
+    f="${MB_GH_FIXTURES:?MB_GH_FIXTURES not set}/$key.json"
+    if [[ -f "$f" ]]; then
+      cat "$f"
+      exit 0
+    fi
+    printf '{"message":"Not Found","documentation_url":"https://example.invalid/docs"}\n'
+    printf 'gh: Not Found (HTTP 404) — no fixture %s\n' "$key" >&2
+    exit 1
+    ;;
+  *)
+    printf 'gh stub: unknown MB_GH_MODE %s\n' "$mode" >&2
+    exit 2
+    ;;
+esac
+STUB
+chmod +x "$GH_STUB_DIR/gh"
+
+run_stub() {
+  # run_stub MODE args... — runs the brief with the gh double on PATH.
+  local mode="$1"
+  shift
+  PATH="$GH_STUB_DIR:$PATH" MB_GH_MODE="$mode" MB_GH_FIXTURES="${MB_GH_FIXTURES:-$TMP/rest}" \
+    bash "$BRIEF" --now "$NOW" --stale-hours 6 --repo "$FIXTURE_REPO" "$@" 2>&1
+}
+
+section() {
+  # section OUTPUT "== heading prefix" — the lines of one section, heading included.
+  printf '%s\n' "$1" | awk -v h="$2" 'index($0, h) == 1 {p = 1; print; next} /^== / {p = 0} p'
+}
+
+# Every section live, every call refused: nothing may read as clear or absent.
+OUT_BLOCKED="$(run_stub blocked)"
+RC_BLOCKED=$?
+assert_exit "blocked: every live section unreadable exits 5" 5 "$RC_BLOCKED"
+assert_contains "blocked: header counts every section" "$OUT_BLOCKED" "5 of 5 sections unreadable"
+assert_contains "blocked: queues are UNREADABLE" "$(section "$OUT_BLOCKED" "== Queues")" "UNREADABLE:"
+assert_contains "blocked: merge-ready is UNREADABLE" "$(section "$OUT_BLOCKED" "== Merge-ready")" "UNREADABLE:"
+assert_contains "blocked: decisions are UNREADABLE" "$(section "$OUT_BLOCKED" "== Parked")" "UNREADABLE:"
+assert_contains "blocked: telemetry is UNREADABLE" "$(section "$OUT_BLOCKED" "== Lane telemetry")" "UNREADABLE:"
+assert_contains "blocked: stranded is UNREADABLE" "$(section "$OUT_BLOCKED" "== Findings stranded")" "UNREADABLE:"
+assert_not_contains "blocked: stranded never renders an all-clear" "$OUT_BLOCKED" "every merged PR in the window is clear"
+assert_not_contains "blocked: telemetry never renders as absent" "$OUT_BLOCKED" "no telemetry issue found"
+assert_not_contains "blocked: merge-ready never renders as none clean" "$OUT_BLOCKED" "(none clean right now)"
+assert_not_contains "blocked: decisions never render as none parked" "$OUT_BLOCKED" "(none parked)"
+assert_not_contains "blocked: queues never render a ? count" "$(section "$OUT_BLOCKED" "== Queues")" " ?"
+assert_contains "blocked: the refusal is surfaced verbatim" "$OUT_BLOCKED" "not enabled for this session"
+
+# An unrelated failure degrades the same way; the shape of the error does not
+# decide whether a section is readable.
+OUT_FAIL="$(run_stub fail)"
+RC_FAIL=$?
+assert_exit "fail: every live section unreadable exits 5" 5 "$RC_FAIL"
+assert_contains "fail: the error is surfaced" "$OUT_FAIL" "UNREADABLE: boom, the upstream fell over"
+assert_not_contains "fail: no REST transport claimed for an unrelated error" "$OUT_FAIL" "transport: REST"
+
+# One live section among fixtures: a partial brief is still a brief (exit 0),
+# and the header says which section was lost.
+OUT_ONE="$(run_stub blocked \
+  --counts-json "$TMP/counts.json" \
+  --pr-json "$TMP/pr.json" \
+  --decisions-json "$TMP/decisions.json" \
+  --telemetry-json "$TMP/telemetry.json")"
+RC_ONE=$?
+assert_exit "partial: one unreadable section among fixtures exits 0" 0 "$RC_ONE"
+assert_contains "partial: header names the lost section" "$OUT_ONE" "1 of 5 sections unreadable: stranded"
+assert_contains "partial: the fixture sections still render" "$OUT_ONE" "#10 clean pr"
+
+# A `message`-shaped error body (the REST/403 shape, no `errors` key) fed as a
+# fixture is an unreadable source, exactly like the GraphQL `errors` shape.
+cat >"$TMP/merged-message-error.json" <<'EOF'
+{"message":"This GraphQL query is not enabled for this session — only the pinned set of PR-review operations is served.","documentation_url":"https://example.invalid/docs"}
+EOF
+OUT_MSG="$(bash "$BRIEF" --now "$NOW" \
+  --counts-json "$TMP/counts.json" \
+  --pr-json "$TMP/pr.json" \
+  --decisions-json "$TMP/decisions.json" \
+  --telemetry-json "$TMP/telemetry.json" \
+  --merged-json "$TMP/merged-message-error.json" 2>&1)"
+assert_not_contains "message-shaped error: never an all-clear" "$OUT_MSG" "every merged PR in the window is clear"
+assert_contains "message-shaped error: renders UNREADABLE" "$OUT_MSG" "UNREADABLE: This GraphQL query is not enabled"
+
+# --- Repo resolution falls back to the git origin remote ---------------------
+if have git; then
+  CHECKOUT="$TMP/checkout"
+  mkdir -p "$CHECKOUT"
+  git -C "$CHECKOUT" init -q 2>/dev/null
+  git -C "$CHECKOUT" remote add origin "https://github.com/$FIXTURE_REPO.git"
+  OUT_REMOTE="$(cd "$CHECKOUT" && PATH="$GH_STUB_DIR:$PATH" MB_GH_MODE=blocked \
+    bash "$BRIEF" --now "$NOW" \
+    --counts-json "$TMP/counts.json" \
+    --pr-json "$TMP/pr.json" \
+    --decisions-json "$TMP/decisions.json" 2>&1)"
+  RC_REMOTE=$?
+  assert_exit "git remote fallback: renders (exit 0, two of five unreadable)" 0 "$RC_REMOTE"
+  assert_contains "git remote fallback: owner/repo taken from origin" "$OUT_REMOTE" "Morning brief — $FIXTURE_REPO —"
+  assert_contains "git remote fallback: the header names the source" "$OUT_REMOTE" "repo resolved from the git origin remote"
+  assert_contains "git remote fallback: live sections still degrade honestly" "$OUT_REMOTE" "2 of 5 sections unreadable: telemetry stranded"
+fi
+
+# --- REST fallback: sections 1-4 from repository-scoped endpoints -------------
+# The REST fixtures and the gh-shaped fixtures below describe the SAME data, so
+# the two paths must render sections 1-3 byte-identically (and telemetry
+# identically once the REST path's source line is set aside).
+REST="$TMP/rest"
+mkdir -p "$REST"
+rest_key() { printf '%s' "$1" | sed -E 's/[^A-Za-z0-9._-]/_/g'; }
+R="repos/$FIXTURE_REPO"
+cat >"$REST/$(rest_key "$R/labels?per_page=100").json" <<'EOF'
+[{"name": "status: ready"}, {"name": "needs-human"}, {"name": "status: needs-decision"}]
+EOF
+# Two issues and one pull request carry the label: the count excludes the PR.
+cat >"$REST/$(rest_key "$R/issues?state=open&per_page=100&labels=status%3A%20ready").json" <<'EOF'
+[{"number": 1, "title": "a"}, {"number": 2, "title": "b"}, {"number": 3, "title": "pr", "pull_request": {"url": "x"}}]
+EOF
+cat >"$REST/$(rest_key "$R/issues?state=open&per_page=100&labels=needs-human").json" <<'EOF'
+[{"number": 4, "title": "c"}]
+EOF
+cat >"$REST/$(rest_key "$R/issues?state=open&per_page=100&labels=status%3A%20needs-decision").json" <<'EOF'
+[{"number": 42, "title": "pick a store", "html_url": "http://x/i/42", "body": "Options weighed.\nRECOMMENDED: option B."}]
+EOF
+cat >"$REST/$(rest_key "$R/issues/42/comments?per_page=100").json" <<'EOF'
+[{"body": "no change of lean"}]
+EOF
+cat >"$REST/$(rest_key "$R/pulls?state=open&per_page=100").json" <<'EOF'
+[{"number": 9, "title": "blocked one"}, {"number": 8, "title": "draft one"}, {"number": 7, "title": "clean one"}]
+EOF
+cat >"$REST/$(rest_key "$R/pulls/7").json" <<'EOF'
+{"number": 7, "title": "clean one", "html_url": "http://x/7", "draft": false, "mergeable": true, "mergeable_state": "clean"}
+EOF
+cat >"$REST/$(rest_key "$R/pulls/8").json" <<'EOF'
+{"number": 8, "title": "draft one", "html_url": "http://x/8", "draft": true, "mergeable": true, "mergeable_state": "clean"}
+EOF
+cat >"$REST/$(rest_key "$R/pulls/9").json" <<'EOF'
+{"number": 9, "title": "blocked one", "html_url": "http://x/9", "draft": false, "mergeable": true, "mergeable_state": "blocked"}
+EOF
+cat >"$REST/$(rest_key "$R/issues?state=open&per_page=100").json" <<'EOF'
+[{"number": 51, "title": "unrelated"},
+ {"number": 50, "title": "Loop-lane telemetry: running per-lane status"},
+ {"number": 52, "title": "loop-lane telemetry running per-lane status (older duplicate)", "pull_request": {"url": "x"}}]
+EOF
+cat >"$REST/$(rest_key "$R/issues/50/comments?per_page=100").json" <<'EOF'
+[{"body": "- lane: babysit\n- last-cycle: 2026-07-20T06:30Z\n- flags: none"}]
+EOF
+
+OUT_REST="$(run_stub rest)"
+RC_REST=$?
+assert_exit "rest: renders with the stranded section unreadable (exit 0)" 0 "$RC_REST"
+assert_contains "rest: the header names the transport" "$OUT_REST" "transport: REST"
+assert_contains "rest: queue count excludes pull requests" "$(section "$OUT_REST" "== Queues")" "status: ready            2"
+assert_contains "rest: queue count for the second label" "$(section "$OUT_REST" "== Queues")" "needs-human              1"
+assert_not_contains "rest: absent default labels are not rendered" "$(section "$OUT_REST" "== Queues")" "priority: needs-triage"
+assert_contains "rest: merge-ready keeps the clean non-draft" "$OUT_REST" "#7 clean one"
+assert_not_contains "rest: merge-ready drops the draft" "$OUT_REST" "#8 draft one"
+assert_not_contains "rest: merge-ready drops the blocked" "$OUT_REST" "#9 blocked one"
+assert_contains "rest: review decision is reported as n/a" "$OUT_REST" "review=n/a"
+assert_contains "rest: decision RECOMMENDED line is extracted" "$OUT_REST" "RECOMMENDED: option B."
+assert_contains "rest: telemetry issue found by title" "$OUT_REST" "source: issue #50"
+assert_contains "rest: telemetry lane age computed" "$OUT_REST" "babysit    last-cycle=2026-07-20T06:30Z  age=1h 30m"
+assert_contains "rest: stranded is UNREADABLE, never clear" "$(section "$OUT_REST" "== Findings stranded")" "UNREADABLE: review threads need GraphQL"
+assert_contains "rest: header counts the one lost section" "$OUT_REST" "1 of 5 sections unreadable: stranded"
+
+# The same data through the gh-shaped fixtures.
+cat >"$TMP/same-counts.json" <<'EOF'
+{"status: ready": 2, "needs-human": 1, "status: needs-decision": 1}
+EOF
+cat >"$TMP/same-labels.json" <<'EOF'
+["status: ready", "needs-human", "status: needs-decision"]
+EOF
+cat >"$TMP/same-pr.json" <<'EOF'
+[
+  {"number": 9, "title": "blocked one", "url": "http://x/9", "isDraft": false, "mergeStateStatus": "BLOCKED", "reviewDecision": "n/a"},
+  {"number": 8, "title": "draft one", "url": "http://x/8", "isDraft": true, "mergeStateStatus": "CLEAN", "reviewDecision": "n/a"},
+  {"number": 7, "title": "clean one", "url": "http://x/7", "isDraft": false, "mergeStateStatus": "CLEAN", "reviewDecision": "n/a"}
+]
+EOF
+cat >"$TMP/same-decisions.json" <<'EOF'
+[{"number": 42, "title": "pick a store", "url": "http://x/i/42", "body": "Options weighed.\nRECOMMENDED: option B.", "comments": [{"body": "no change of lean"}]}]
+EOF
+cat >"$TMP/same-telemetry.json" <<'EOF'
+[{"body": "- lane: babysit\n- last-cycle: 2026-07-20T06:30Z\n- flags: none"}]
+EOF
+OUT_SAME="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 --repo "$FIXTURE_REPO" \
+  --repo-labels-json "$TMP/same-labels.json" \
+  --counts-json "$TMP/same-counts.json" \
+  --pr-json "$TMP/same-pr.json" \
+  --decisions-json "$TMP/same-decisions.json" \
+  --telemetry-json "$TMP/same-telemetry.json" \
+  --merged-json "$TMP/merged-clean.json" 2>&1)"
+for heading in "== Queues" "== Merge-ready" "== Parked"; do
+  if [[ "$(section "$OUT_REST" "$heading")" == "$(section "$OUT_SAME" "$heading")" ]]; then
+    pass "rest and gh paths render '$heading' byte-identically"
+  else
+    fail "rest and gh paths render '$heading' byte-identically" "$(section "$OUT_SAME" "$heading")" "$(section "$OUT_REST" "$heading")"
+  fi
+done
+TEL_REST="$(section "$OUT_REST" "== Lane telemetry" | grep -v '^  source: issue')"
+TEL_SAME="$(section "$OUT_SAME" "== Lane telemetry")"
+if [[ "$TEL_REST" == "$TEL_SAME" ]]; then
+  pass "rest and gh paths render telemetry identically past the source line"
+else
+  fail "rest and gh paths render telemetry identically past the source line" "$TEL_SAME" "$TEL_REST"
+fi
+
+# A pull whose mergeability GitHub has not finished computing (`mergeable: null`,
+# `mergeable_state: "unknown"`) is retried once, then reported as inconclusive,
+# never rendered as "not clean".
+UNCOMPUTED="$TMP/rest-uncomputed"
+mkdir -p "$UNCOMPUTED"
+cp "$REST/"*.json "$UNCOMPUTED/"
+cat >"$UNCOMPUTED/$(rest_key "$R/pulls?state=open&per_page=100").json" <<'EOF'
+[{"number": 7, "title": "clean one"}, {"number": 10, "title": "still computing"}]
+EOF
+cat >"$UNCOMPUTED/$(rest_key "$R/pulls/10").json" <<'EOF'
+{"number": 10, "title": "still computing", "html_url": "http://x/10", "draft": false, "mergeable": null, "mergeable_state": "unknown"}
+EOF
+OUT_UNCOMPUTED="$(MB_GH_FIXTURES="$UNCOMPUTED" MORNING_BRIEF_MERGE_STATE_RETRY_SECS=0 run_stub rest)"
+assert_contains "rest: an uncomputed merge state is reported as inconclusive" "$OUT_UNCOMPUTED" "PARTIAL: merge state not yet computed by GitHub for #10"
+assert_contains "rest: the computed PR beside it still renders" "$OUT_UNCOMPUTED" "#7 clean one"
+assert_not_contains "rest: the uncomputed PR is never listed as merge-ready" "$OUT_UNCOMPUTED" "#10 still computing"
+
+# The per-PR merge-state read is capped, and a capped read says so.
+OUT_CAP="$(run_stub rest --pr-limit 1)"
+assert_contains "rest: a capped merge-state read is reported as PARTIAL" "$OUT_CAP" "PARTIAL: 3 open PRs; merge state read for the first 1 only"
+bash "$BRIEF" --pr-limit x --repo "$FIXTURE_REPO" >/dev/null 2>&1
+assert_exit "non-numeric --pr-limit exits 3" 3 "$?"
 
 # --- Summary ------------------------------------------------------------------
 echo

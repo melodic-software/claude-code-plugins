@@ -13,12 +13,6 @@ git-common-dir-unavailable
 github-identity-unavailable
 github-pr-evidence-unavailable
 github-remote-moved
-local-ancestry-only
-local-ancestry-unavailable
-locked-worktree
-missing-worktree
-prunable-worktree
 # that do not yet have a collector-output assertion (`Finding: <kind>`) in
-worktree-common-dir-unavailable
 worktree-placement-unverifiable
 worktree-root-pluginconfigs-unreadable

@@ -124,17 +124,20 @@
 # the file.
 set -uo pipefail
 
-cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 1
+cd "$SCRIPT_DIR/.." || exit 1
+# shellcheck source=lib/read-list.sh
+. "$SCRIPT_DIR/lib/read-list.sh" || exit 2
 
 BASELINE="scripts/fixture-git-isolation-baseline.txt"
 mode="check"
 case "${1:-}" in
-  "" | --check) ;;
-  --list) mode="list" ;;
-  *)
-    echo "usage: scripts/check-fixture-git-isolation.sh [--check|--list]" >&2
-    exit 2
-    ;;
+"" | --check) ;;
+--list) mode="list" ;;
+*)
+  echo "usage: scripts/check-fixture-git-isolation.sh [--check|--list]" >&2
+  exit 2
+  ;;
 esac
 
 # Git Bash pays ~140ms per process spawn and this corpus is ~550 shell files, so
@@ -564,14 +567,14 @@ mapfile -t tracked < <(git ls-files '*.sh' '*.py' 2>/dev/null)
 
 while IFS=$'\t' read -r kind file extra; do
   case "$kind" in
-    CLEARS)
-      ISOLATING_BASENAME["${file##*/}"]=1
-      CLEARS_FILE["$file"]=1
-      ;;
-    FIXTURE) IS_FIXTURE["$file"]=1 ;;
-    SCOPE) SCOPED["$file"]=1 ;;
-    SOURCE) SOURCES["$file"]="${SOURCES["$file"]:-} $extra" ;;
-    *) ;;
+  CLEARS)
+    ISOLATING_BASENAME["${file##*/}"]=1
+    CLEARS_FILE["$file"]=1
+    ;;
+  FIXTURE) IS_FIXTURE["$file"]=1 ;;
+  SCOPE) SCOPED["$file"]=1 ;;
+  SOURCE) SOURCES["$file"]="${SOURCES["$file"]:-} $extra" ;;
+  *) ;;
   esac
 done < <(scan "${tracked[@]}")
 
@@ -588,17 +591,21 @@ clears_env() { [[ -n "${CLEARS_FILE["$1"]:-}" ]]; }
 declared_scope() { [[ -n "${SCOPED["$1"]:-}" ]]; }
 
 declare -A BASELINED=()
+BASELINE_ENTRIES=()
 if [[ -f "$BASELINE" ]]; then
-  # One sed pass, not one command substitution per line: on Git Bash a spawn per
-  # line turns a 70-line file into minutes of wall clock.
-  while IFS= read -r line; do
-    [[ -n "$line" ]] && BASELINED["$line"]=1
-  done < <(sed 's/\r$//; s/#.*//; s/^[[:space:]]*//; s/[[:space:]]*$//; /^$/d' "$BASELINE")
+  # `inline`: entries are exact suite paths, never regexes, so a `#` anywhere on
+  # the line opens the reason comment (scripts/lib/read-list.sh owns the two
+  # comment families and why they must stay distinct). The shared reader is
+  # pure-bash, so it spawns nothing at all -- on Git Bash a spawn per line turns
+  # a 70-line file into minutes of wall clock.
+  read_list::into BASELINE_ENTRIES "$BASELINE" --comments inline || exit 2
+  for line in ${BASELINE_ENTRIES[@]+"${BASELINE_ENTRIES[@]}"}; do
+    BASELINED["$line"]=1
+  done
 fi
 
 violations=()
 covered=()
-declare -A STILL_VIOLATING=()
 
 # The suite set spans both languages. Python test files are named `test_*.py`
 # or `*_test.py` in this corpus; both spellings are enumerated so a rename
@@ -622,7 +629,9 @@ for t in "${suites[@]}"; do
     [[ "$mode" == "list" ]] && printf 'declared    %s\n' "$t"
     continue
   fi
-  STILL_VIOLATING["$t"]=1
+  # A baseline entry shadowing a live violation has not outlived its debt.
+  # scripts/lib/read-list.sh owns the consumed-set and the diagnostic.
+  read_list::mark_used "$t"
   if [[ -n "${BASELINED[$t]:-}" ]]; then
     [[ "$mode" == "list" ]] && printf 'baselined   %s\n' "$t"
     continue
@@ -632,9 +641,7 @@ for t in "${suites[@]}"; do
 done
 
 stale=()
-for b in "${!BASELINED[@]}"; do
-  [[ -n "${STILL_VIOLATING[$b]:-}" ]] || stale+=("$b")
-done
+read_list::stale_to stale BASELINE_ENTRIES
 
 if [[ "$mode" == "list" ]]; then
   printf '\n%d isolated, %d baselined, %d violating\n' \
@@ -667,10 +674,14 @@ fi
 if ((${#stale[@]} > 0)); then
   rc=1
   echo >&2
-  echo "STALE BASELINE: ${#stale[@]} entry(ies) in $BASELINE no longer shadow a violation." >&2
+  echo "${#stale[@]} entry(ies) in $BASELINE no longer shadow a violation." >&2
   echo "Delete each line below — the debt it recorded is paid." >&2
   echo >&2
-  while IFS= read -r s; do echo "  $s" >&2; done < <(printf '%s\n' "${stale[@]}" | sort)
+  # scripts/lib/read-list.sh owns the one STALE BASELINE diagnostic every list
+  # gate here prints.
+  while IFS= read -r s; do
+    read_list::stale_line "$BASELINE" "$s" 'no longer shadows a violation'
+  done < <(printf '%s\n' "${stale[@]}" | sort)
 fi
 
 if ((rc == 0)); then

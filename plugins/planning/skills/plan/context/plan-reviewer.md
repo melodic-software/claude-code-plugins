@@ -1,4 +1,4 @@
-# Plan Reviewer — Sub-Agent Dispatch
+# Plan Reviewer: Sub-Agent Dispatch
 
 Fresh-context plan stress-test for `/planning:plan` Step 3. The producing planner MUST NOT run this checklist inline.
 

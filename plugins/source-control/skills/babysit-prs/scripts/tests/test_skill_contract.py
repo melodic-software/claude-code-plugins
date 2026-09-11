@@ -250,7 +250,7 @@ class SkillContractTests(unittest.TestCase):
 
         for header in (
             "Why The Push Stays With The Orchestrator",
-            "Conflict-Worker Contract (local only — never writes to GitHub)",
+            "Conflict-Worker Contract (local only, never writes to GitHub)",
             "Orchestrator Contract (the push)",
             "Conflict-Worker Prompt Delta",
         ):
@@ -258,7 +258,7 @@ class SkillContractTests(unittest.TestCase):
                 self.assertIn(header, sections)
 
         worker = sections[
-            "Conflict-Worker Contract (local only — never writes to GitHub)"
+            "Conflict-Worker Contract (local only, never writes to GitHub)"
         ]
         for marker in (
             "git merge origin/<base-branch>",

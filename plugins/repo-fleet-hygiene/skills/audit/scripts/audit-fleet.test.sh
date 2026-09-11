@@ -79,7 +79,7 @@ case "$cmd" in
 rev-parse)
   case "${1:-}" in
   --git-dir)
-    # Gate for melodic.worktreeroot reads (#2606).
+    # Gate for worktree-root git-config reads.
     case "$base" in
     discovered-a | canonical-a | repo-b | old-repo | wt-old | bad-discovered | bad-canonical | \
       wt-fail | ref-fail | rref-fail | dup-a | new-clone | root-repo | visible-repo | \
@@ -467,15 +467,30 @@ log)
   esac
   ;;
 config)
-  if [[ "${1:-}" == "--get-all" && "${2:-}" == "--show-origin" && "${3:-}" == "--type=path" &&
-    "${4:-}" == "melodic.worktreeroot" ]]; then
-    if [[ -n "${MOCK_MELODIC_WORKTREE_ROOT:-}" ]]; then
-      printf 'file:%s/mock-gitconfig\t%s\n' "$TEST_ROOT" "$MOCK_MELODIC_WORKTREE_ROOT"
-      exit 0
-    fi
-    exit 1
+  key=""
+  show_origin=0
+  for a in "$@"; do
+    key="$a"
+    [[ "$a" == "--show-origin" ]] && show_origin=1
+  done
+  mock=""
+  if [[ "$key" == "worktreeroot.path" ]]; then
+    mock="${MOCK_WORKTREEROOT_PATH:-}"
+  elif [[ "$key" == "melodic.worktreeroot" ]]; then
+    mock="${MOCK_MELODIC_WORKTREE_ROOT:-}"
+  else
+    "$REAL_GIT" config "$@"
+    exit $?
   fi
-  "$REAL_GIT" config "$@"
+  if [[ -n "$mock" ]]; then
+    if ((show_origin)); then
+      printf 'file:%s/mock-gitconfig\t%s\n' "$TEST_ROOT" "$mock"
+    else
+      printf '%s\n' "$mock"
+    fi
+    exit 0
+  fi
+  exit 1
   ;;
 *) exit 96 ;;
 esac
@@ -781,7 +796,7 @@ assert_contains "unset worktree root reports placement without asserting a conve
   "Finding: worktree-root-unconfigured"
 assert_contains "fleet unconfigured rollup is present" "Target: fleet"
 assert_contains "header names worktree root unset" \
-  "Worktree root: unset (no melodic.worktreeroot git key and no source-control worktree_root"
+  "Worktree root: unset (no worktreeroot.path git key and no source-control worktree_root"
 assert_contains "a registered path that is not a work-tree root is reported" "Finding: worktree-not-a-root"
 assert_contains "a failed root-ness probe is UNKNOWN, not a silent pass" \
   "Finding: worktree-root-unverifiable"
@@ -1471,7 +1486,7 @@ assert_not_contains_file "no merged-remote claim without GitHub evidence" "Findi
 
 # --- #2606 worktree-root conformance ------------------------------------------
 # Separate fixture so the main fleet run stays on the unset-root path. Configured
-# root comes from melodic.worktreeroot (mocked); linked worktrees cover conforming,
+# root comes from the legacy alias (mocked); linked worktrees cover conforming,
 # outside-root, wrong-layout, rename-after-create (still conforming), and Codex tool-owned.
 mkdir -p "$TMP/conform-root" \
   "$TMP/conform-canon/.git" \
@@ -1486,10 +1501,30 @@ MOCK_MELODIC_WORKTREE_ROOT="$TMP/conform-root" \
   REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/conform-canon" HOME="$TMP/fake-home" \
   bash "$SCRIPT" --repo "$TMP/conform-canon" --detail >"$conform_out" 2>&1 || true
 
-assert_contains_file "header names configured melodic worktree root" \
-  "Worktree root: $TMP/conform-root (source: melodic.worktreeroot" "$conform_out"
+assert_contains_file "header names configured worktree root from a retired alias" \
+  "Worktree root: $TMP/conform-root (source: worktreeroot.path" "$conform_out"
 assert_contains_file "origin attribution uses --show-origin file: form" \
   "origin: file:$TMP/mock-gitconfig" "$conform_out"
+
+newkey_out="$TMP/newkey-output.txt"
+MOCK_WORKTREEROOT_PATH="$TMP/conform-root" \
+  REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/conform-canon" HOME="$TMP/fake-home" \
+  bash "$SCRIPT" --repo "$TMP/conform-canon" --detail >"$newkey_out" 2>&1 || true
+assert_contains_file "header names configured worktreeroot.path" \
+  "Worktree root: $TMP/conform-root (source: worktreeroot.path" "$newkey_out"
+
+bothkey_out="$TMP/bothkey-output.txt"
+MOCK_WORKTREEROOT_PATH="$TMP/conform-root" MOCK_MELODIC_WORKTREE_ROOT="$TMP/other-root" \
+  REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/conform-canon" HOME="$TMP/fake-home" \
+  bash "$SCRIPT" --repo "$TMP/conform-canon" --detail >"$bothkey_out" 2>&1 || true
+assert_contains_file "worktreeroot.path wins when both keys are mocked" \
+  "source: worktreeroot.path" "$bothkey_out"
+if grep -Fq "source: melodic.worktreeroot" "$bothkey_out"; then
+  printf 'FAIL: legacy source leaked when worktreeroot.path was set\n' >&2
+  failures=$((failures + 1))
+else
+  printf 'PASS: legacy source does not win when worktreeroot.path is set\n'
+fi
 assert_contains_file "outside-root finding for flat sibling" \
   "Finding: worktree-outside-configured-root" "$conform_out"
 assert_contains_file "outside-root names expected location" \
@@ -1580,12 +1615,12 @@ unset MOCK_MELODIC_WORKTREE_ROOT
 REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/conform-canon" \
   HOME="$TMP/settings-home" CLAUDE_CONFIG_DIR="$TMP/settings-home/.claude" \
   bash "$SCRIPT" --repo "$TMP/conform-canon" --detail >"$plugin_out" 2>&1 || true
-assert_contains_file "pluginConfigs worktree_root is used when melodic key unset" \
+assert_contains_file "pluginConfigs worktree_root is used when git key unset" \
   "source: source-control:worktree_root" "$plugin_out"
 assert_contains_file "pluginConfigs origin names settings.json" \
   "settings.json" "$plugin_out"
 
-# Convention-git allowlist: only the fixed melodic.worktreeroot shape is admitted.
+# Convention-git allowlist: only the fixed worktree-root shapes are admitted.
 # shellcheck source=audit-fleet.sh
 source "$SCRIPT"
 conv_ok=true
@@ -1597,7 +1632,7 @@ if [[ "$conv_ok" != "true" || "$conv_rejected" != "true" ]]; then
   printf 'FAIL: convention git allowlist admitted a forbidden probe or rejected the gate\n' >&2
   failures=$((failures + 1))
 else
-  printf 'PASS: convention git allowlist admits gate+melodic read and rejects other config\n'
+  printf 'PASS: convention git allowlist admits gate+worktree-root read and rejects other config\n'
 fi
 if MOCK_MELODIC_WORKTREE_ROOT="$TMP/conform-root" \
   run_convention_git -C "$TMP/conform-canon" config --get-all --show-origin --type=path melodic.worktreeroot |
@@ -1607,18 +1642,27 @@ else
   printf 'FAIL: convention git did not return mocked melodic.worktreeroot\n' >&2
   failures=$((failures + 1))
 fi
+if MOCK_WORKTREEROOT_PATH="$TMP/conform-root" \
+  run_convention_git -C "$TMP/conform-canon" config --get-all --type=path worktreeroot.path |
+  grep -Fq "$TMP/conform-root"; then
+  printf 'PASS: convention git returns mocked worktreeroot.path\n'
+else
+  printf 'FAIL: convention git did not return mocked worktreeroot.path\n' >&2
+  failures=$((failures + 1))
+fi
 
 # The tier table is the contract a consumer tiers decisions on, and it silently fell to covering
-# half the emitted kinds. Assert set equality in BOTH directions instead: a new emit_finding kind
-# with no documented disposition fails here, and so does a table row for a kind the collector no
-# longer emits. Both sides are extracted mechanically -- comparing two hand-maintained lists would
-# reproduce the drift this replaces.
+# half the emitted kinds. Assert set equality in BOTH directions instead: a registered kind with no
+# documented disposition fails here, and so does a table row for a kind the collector no longer
+# registers. The collector side comes from its own registry (--print-finding-registry), never from
+# a regex over this file's source -- comparing two hand-maintained lists would reproduce the drift
+# this replaces, and a scrape goes quietly empty when the emitter's argument shape changes.
 MODEL_DOC="$SCRIPT_DIR/../reference/confidence-model.md"
+registry_rows="$TMP/finding-registry.tsv"
 emitted_kinds="$TMP/emitted-kinds.txt"
 documented_kinds="$TMP/documented-kinds.txt"
-# Skip comment lines: prose in this script names finding kinds while explaining them, and counting
-# those would let a kind be "documented" by a comment that emits nothing.
-grep -vE "^[[:space:]]*#" "$SCRIPT" | grep -oE "emit_finding [A-Z]+ [a-z-]+" | awk '{print $3}' | sort -u >"$emitted_kinds"
+bash "$SCRIPT" --print-finding-registry >"$registry_rows" 2>/dev/null
+awk -F'\t' 'NF > 0 && $1 != "" {print $1}' "$registry_rows" | sort -u >"$emitted_kinds"
 # Table rows only: a kind is the first backticked cell of a row, so prose mentions elsewhere in the
 # document cannot satisfy the contract. The delimiter is built with printf rather than written
 # literally, so no quoting style has to carry a bare backtick through grep and sed.
@@ -1628,16 +1672,161 @@ emitted_count="$(grep -c . "$emitted_kinds" || true)"
 documented_count="$(grep -c . "$documented_kinds" || true)"
 # Guard against an extraction that silently matches nothing and compares two empty sets.
 if [[ "$emitted_count" -lt 20 || "$documented_count" -lt 20 ]]; then
-  printf 'FAIL: finding-kind extraction returned too few kinds (emitted=%s documented=%s); the extraction, not the docs, is broken\n' \
+  printf 'FAIL: finding-kind extraction returned too few kinds (registered=%s documented=%s); the extraction, not the docs, is broken\n' \
     "$emitted_count" "$documented_count" >&2
   failures=$((failures + 1))
 elif kind_diff="$(diff "$emitted_kinds" "$documented_kinds")"; then
-  printf 'PASS: tier table documents exactly the finding kinds the collector emits (%s)\n' "$emitted_count"
+  printf 'PASS: tier table documents exactly the finding kinds the collector registers (%s)\n' "$emitted_count"
 else
-  printf 'FAIL: tier table and collector finding kinds have drifted (< emitted only, > documented only)\n%s\n' \
+  printf 'FAIL: tier table and collector finding kinds have drifted (< registered only, > documented only)\n%s\n' \
     "$kind_diff" >&2
   failures=$((failures + 1))
 fi
+
+# Row-for-row confidence parity. Set equality above proves every kind has a row; this proves the
+# row says the same tier the collector will actually stamp on the finding. The doc's Confidence
+# cell is prose (a kind whose tier depends on the evidence names both tiers and says when each
+# applies), so compare the SET of tier tokens in that cell against the set the registry declares.
+# Only real tier tokens count: the same cell also backticks non-tier names such as
+# fleet.ackUnavailable.
+conf_mismatches=0
+conf_compared=0
+while IFS=$'\t' read -r reg_kind reg_conf _rest; do
+  [[ -n "$reg_kind" ]] || continue
+  registry_tiers="$(printf '%s\n' "${reg_conf//\// }" | tr ' ' '\n' | grep -c . || true)"
+  registry_set="$(printf '%s\n' "${reg_conf//\// }" | tr ' ' '\n' | grep -E '^[A-Z]+$' | sort -u | tr '\n' ' ')"
+  doc_set="$(
+    awk -F'|' -v kind="$reg_kind" '
+      $0 ~ /^\| `[a-z-]+` \|/ {
+        k = $2
+        gsub(/[` ]/, "", k)
+        if (k == kind) print $4
+      }
+    ' "$MODEL_DOC" | grep -oE 'HIGH|MEDIUM|LOW|UNKNOWN|ACKNOWLEDGED' | sort -u | tr '\n' ' '
+  )"
+  conf_compared=$((conf_compared + 1))
+  if [[ "$registry_set" != "$doc_set" ]]; then
+    printf 'FAIL: confidence drift for %s -- registry [%s] vs tier table [%s]\n' \
+      "$reg_kind" "${registry_set% }" "${doc_set% }" >&2
+    conf_mismatches=$((conf_mismatches + 1))
+  fi
+  [[ "$registry_tiers" -ge 1 ]] || {
+    printf 'FAIL: registry row for %s declares no confidence tier\n' "$reg_kind" >&2
+    conf_mismatches=$((conf_mismatches + 1))
+  }
+done <"$registry_rows"
+if [[ "$conf_compared" -lt 20 ]]; then
+  printf 'FAIL: confidence parity compared only %s rows; the registry probe, not the docs, is broken\n' \
+    "$conf_compared" >&2
+  failures=$((failures + 1))
+elif [[ "$conf_mismatches" -eq 0 ]]; then
+  printf 'PASS: tier table states the same confidence the registry stamps, row for row (%s)\n' "$conf_compared"
+else
+  failures=$((failures + 1))
+fi
+
+# --- In-process classifier cases ----------------------------------------------
+# classify_worktrees and classify_branches read the collector's evidence arrays and emit findings;
+# every Git and gh call sits in the collection phase ahead of them. A finding kind they own is
+# therefore reachable from a case that assigns those arrays, and needs no fixture in the mock fleet
+# above. Both probe wrappers are replaced with loud stubs AFTER sourcing, so a classifier that
+# reached for git prints PROBE LEAK instead of quietly working.
+#
+# Sourcing stops at the collector's source guard, which is why the classifiers and the pure path
+# helpers they use sit above it. The report renderer is past the guard, so it is extracted the same
+# way repo_verdict is below: the assertions then read the report lines the audit itself prints,
+# rather than a second rendering written for the test.
+classifier_probe() {
+  bash -c '
+    . "$1" || exit 1
+    eval "$(sed -n "/^print_collapsed_target_detail()/,/^}/p" "$1")"
+    run_git_probe() {
+      printf "PROBE LEAK: git %s\n" "$*"
+      return 127
+    }
+    run_bounded_gh() {
+      printf "PROBE LEAK: gh %s\n" "$*"
+      return 127
+    }
+    CURRENT_REPO_IDX=0
+    eval "$2"
+    print_collapsed_target_detail 0
+  ' _ "$SCRIPT" "$1" 2>&1
+}
+
+wt_classify_out="$TMP/classify-worktrees.out"
+classifier_probe '
+  canonical="/fleet/repo"
+  canonical_top="/fleet/repo"
+  expected_common="/fleet/repo/.git"
+  WT_ORIGIN_OWNER="acme"
+  WT_ORIGIN_REPO="repo"
+  CONFIGURED_WORKTREE_ROOT=""
+  WT_PATHS=("/fleet/repo" "/wt/acme-repo-gone" "/wt/acme-repo-prunable" "/wt/acme-repo-locked" "/wt/acme-repo-live")
+  WT_BRANCHES=("main" "feature/gone" "feature/prunable" "feature/locked" "feature/live")
+  WT_PRUNABLE=("false" "false" "true" "false" "false")
+  WT_LOCKED=("false" "false" "false" "true" "false")
+  WT_PRESENT=("true" "false" "false" "true" "true")
+  WT_PREFIX_STATUS=("ok" "skipped" "skipped" "ok" "ok")
+  WT_PREFIX=("" "" "" "" "")
+  WT_COMMON_DIR_STATUS=("ok" "skipped" "skipped" "failed" "ok")
+  WT_COMMON_DIR=("/fleet/repo/.git" "" "" "" "/fleet/repo/.git")
+  classify_worktrees
+' >"$wt_classify_out"
+
+assert_not_contains_file "worktree classification reaches for no Git probe" \
+  "PROBE LEAK" "$wt_classify_out"
+assert_contains_file "an absent registration git has not marked prunable is missing-worktree" \
+  "Finding: missing-worktree" "$wt_classify_out"
+assert_contains_file "an absent registration git marks prunable is prunable-worktree" \
+  "Finding: prunable-worktree" "$wt_classify_out"
+assert_contains_file "a locked linked registration is locked-worktree" \
+  "Finding: locked-worktree" "$wt_classify_out"
+assert_contains_file "a registration whose common-dir probe failed is UNKNOWN, not a silent pass" \
+  "Finding: worktree-common-dir-unavailable" "$wt_classify_out"
+assert_contains_file "common-dir-unavailable does not claim an administrative mismatch" \
+  "Disposition: Do not infer an administrative mismatch" "$wt_classify_out"
+assert_contains_file "a healthy linked registration hands off to source-control status" \
+  "Finding: worktree-status-handoff" "$wt_classify_out"
+# A locked worktree is manual review, never a disposability handoff: the lock is the operator's.
+assert_not_contains_file "the locked registration is not named for status handoff" \
+  "/wt/acme-repo-locked (feature/locked); this collector" "$wt_classify_out"
+
+branch_classify_out="$TMP/classify-branches.out"
+classifier_probe '
+  canonical="/fleet/repo"
+  canonical_remote="origin"
+  default_branch="main"
+  current_branch="main"
+  remote_inventory_failed=false
+  REMOTE_BRANCH_NAMES=()
+  REMOTE_BRANCH_TIPS=()
+  BRANCH_NAMES=("main" "feature/ancestor" "feature/diverged" "feature/objects-gone")
+  BRANCH_TIPS=("a1" "b2" "c3" "d4")
+  BRANCH_ATTACHED=("true" "false" "false" "false")
+  BRANCH_IS_MAIN=("true" "false" "false" "false")
+  BRANCH_PROTECTED=("true" "false" "false" "false")
+  BRANCH_PR_MATCH=("" "" "" "")
+  BRANCH_PR_ANY=("" "" "" "")
+  BRANCH_ANCESTRY=("" "0" "1" "128")
+  classify_branches
+' >"$branch_classify_out"
+
+assert_not_contains_file "branch classification reaches for no Git probe" \
+  "PROBE LEAK" "$branch_classify_out"
+assert_contains_file "an ancestor tip with no merged-PR row is local-ancestry-only" \
+  "Finding: local-ancestry-only" "$branch_classify_out"
+assert_contains_file "a failed ancestry probe is local-ancestry-unavailable" \
+  "Finding: local-ancestry-unavailable" "$branch_classify_out"
+assert_contains_file "the failed-probe evidence carries the status git returned" \
+  "git merge-base --is-ancestor failed with status 128" "$branch_classify_out"
+# Exit 1 is a definite "not an ancestor": evidence, and no finding to draw from it.
+assert_not_contains_file "a diverged branch yields no ancestry finding" \
+  "Target: /fleet/repo :: feature/diverged" "$branch_classify_out"
+# An unprobed branch (protected, attached, or already carrying merge evidence) has an empty
+# ancestry slot, and an empty slot must never read as exit 0.
+assert_not_contains_file "an unprobed branch yields no ancestry finding" \
+  "Target: /fleet/repo :: main" "$branch_classify_out"
 
 # --- #2608 / #2609 rollup + fleet action plan ---------------------------------
 assert_contains "rollup section present" "Repository rollup"
@@ -1761,10 +1950,13 @@ else
   failures=$((failures + 1))
 fi
 
-# Candidate verdicts follow actionable kinds, not mere HIGH/MEDIUM confidence.
+# Candidate verdicts follow actionable kinds, not mere HIGH/MEDIUM confidence. Sourcing brings the
+# finding registry and both action predicates in; repo_verdict itself sits past the source guard,
+# so it is still extracted.
 verdict_probe="$(
   bash -c '
-    eval "$(sed -n "/^branch_action_kind()/,/^}/p; /^worktree_action_kind()/,/^}/p; /^repo_verdict()/,/^}/p" "$1")"
+    . "$1"
+    eval "$(sed -n "/^repo_verdict()/,/^}/p" "$1")"
     F_KIND=(locked-worktree merged-pr-tip-drift)
     F_CONF=(HIGH MEDIUM)
     F_TARGET=("/tmp/locked" "/tmp/drift")
@@ -1780,7 +1972,8 @@ else
 fi
 verdict_probe_actionable="$(
   bash -c '
-    eval "$(sed -n "/^branch_action_kind()/,/^}/p; /^worktree_action_kind()/,/^}/p; /^repo_verdict()/,/^}/p" "$1")"
+    . "$1"
+    eval "$(sed -n "/^repo_verdict()/,/^}/p" "$1")"
     F_KIND=(merged-local-branch locked-worktree)
     F_CONF=(HIGH HIGH)
     F_TARGET=("repo :: feature/x" "/tmp/locked")

@@ -9,12 +9,12 @@ A bond portfolio system needs multi-currency support. Two behaviors needed:
 1. Multiply an amount by a number (price × shares)
 2. Add amounts in different currencies with exchange rates
 
-Beck starts with a **to-do list** — a running inventory of tests to write, maintained throughout. Items are added when thoughts arise, crossed off when done, bolded when in-progress. This keeps focus narrow.
+Beck starts with a **to-do list**, a running inventory of tests to write, maintained throughout. Items are added when thoughts arise, crossed off when done, bolded when in-progress. This keeps focus narrow.
 
 ## The TDD Cycle (stated in Ch 2)
 
 1. **Write a test.** Think about how the operation should *look* from the outside. Invent the interface you wish you had.
-2. **Make it run.** Get green as fast as possible — "quick green excuses all sins. But only for a moment."
+2. **Make it run.** Get green as fast as possible: "quick green excuses all sins. But only for a moment."
 3. **Make it right.** Remove duplication. Step back onto the straight and narrow.
 
 "First we'll solve the 'that works' part. Then we'll solve the 'clean code' part. This is the opposite of architecture-driven development."
@@ -23,8 +23,8 @@ Beck starts with a **to-do list** — a running inventory of tests to write, mai
 
 | Strategy | How it works | When to use |
 |----------|-------------|-------------|
-| **Fake It** | Return a constant, then gradually replace constants with variables | Default strategy — safest |
-| **Obvious Implementation** | Type in the real code directly | When you're confident — but back off to Fake It when you get an unexpected red bar |
+| **Fake It** | Return a constant, then gradually replace constants with variables | Default strategy, safest |
+| **Obvious Implementation** | Type in the real code directly | When you're confident, but back off to Fake It when you get an unexpected red bar |
 | **Triangulation** | Only generalize when you have 2+ examples demanding it | When you're completely unsure how to refactor. "What axes of variability are you trying to support?" |
 
 Beck commonly shifts between Fake It and Obvious Implementation: "When everything is going smoothly, I put in Obvious Implementation after Obvious Implementation. As soon as I get an unexpected red bar, I back up, shift to faking implementations, and refactor to the right code."
@@ -33,11 +33,11 @@ Beck commonly shifts between Fake It and Obvious Implementation: "When everythin
 
 ### Dependency and Duplication (Ch 1)
 
-"Dependency is the key problem in software development at all scales. If dependency is the problem, duplication is the symptom." Eliminating duplication eliminates dependency. The duplication isn't always between two code locations — it can be between the test data and the code data. `int amount = 10` in the code is duplication of `5 * 2` in the test.
+"Dependency is the key problem in software development at all scales. If dependency is the problem, duplication is the symptom." Eliminating duplication eliminates dependency. The duplication isn't always between two code locations. It can be between the test data and the code data. `int amount = 10` in the code is duplication of `5 * 2` in the test.
 
 ### Value Objects (Ch 2-3)
 
-Dollar becomes immutable — `times()` returns a new Dollar instead of mutating. "One of the constraints on Value Objects is that the values of the instance variables never change once they have been set in the constructor." This eliminates aliasing bugs. Implications: all operations return new objects, must implement `equals()`.
+Dollar becomes immutable, and `times()` returns a new Dollar instead of mutating. "One of the constraints on Value Objects is that the values of the instance variables never change once they have been set in the constructor." This eliminates aliasing bugs. Implications: all operations return new objects, must implement `equals()`.
 
 ### Translating Feelings into Tests (Ch 2)
 
@@ -45,7 +45,7 @@ Dollar becomes immutable — `times()` returns a new Dollar instead of mutating.
 
 ### Copying to Get Green, Then Removing Duplication (Ch 5-6)
 
-Beck deliberately copy-pastes Dollar to create Franc. "Stop. Hold on. I can hear the aesthetically inclined among you sneering. Remember, our cycle has different phases. The first three need to go by quickly. Speed trumps design, just for that brief moment." He then spends chapters 6-11 systematically eliminating the duplication — extracting Money superclass, unifying equals(), unifying times(), eventually eliminating the subclasses entirely.
+Beck deliberately copy-pastes Dollar to create Franc. "Stop. Hold on. I can hear the aesthetically inclined among you sneering. Remember, our cycle has different phases. The first three need to go by quickly. Speed trumps design, just for that brief moment." He then spends chapters 6-11 systematically eliminating the duplication: extracting Money superclass, unifying equals(), unifying times(), eventually eliminating the subclasses entirely.
 
 ### Factory Methods to Decouple (Ch 8)
 
@@ -59,7 +59,9 @@ Ch 9: "I'm feeling defensive again about taking such teeny-tiny steps. What I di
 
 ### Ask the Computer, Don't Reason (Ch 10)
 
+<!-- ai-slop-ignore-start: verbatim Beck quotation, dash is inside the quoted sentence -->
 "I see this situation all the time — excellent software engineers spending 5 to 10 minutes reasoning about a question that the computer could answer in 15 seconds. Without the tests you have no choice, you have to reason. With the tests you can decide whether an experiment would answer the question faster."
+<!-- ai-slop-ignore-end -->
 
 ### Back Out When Red (Ch 10)
 
@@ -99,7 +101,7 @@ For the final mixed-currency test, Beck writes the ideal test first, realizes it
 
 1. The three approaches to getting green (Fake It, Triangulation, Obvious Implementation)
 2. Removing duplication between test and code as the way to drive design
-3. The ability to control the gap between tests — "increase traction when the road gets slippery and cruise faster when conditions are clear"
+3. The ability to control the gap between tests: "increase traction when the road gets slippery and cruise faster when conditions are clear"
 
 ### Test Quality
 

@@ -34,7 +34,10 @@
 # violation of anything.
 set -euo pipefail
 
-cd "$(dirname "${BASH_SOURCE[0]}")/.."
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR/.."
+# shellcheck source=lib/read-list.sh
+. "$SCRIPT_DIR/lib/read-list.sh" || exit 2
 
 registry="scripts/skill-leaf-name-registry.txt"
 
@@ -76,17 +79,19 @@ done
 declare -A registered
 registered_leaves=()
 if [[ -f "$registry" ]]; then
-  while IFS= read -r line; do
-    line="${line%%#*}"
-    line="${line#"${line%%[![:space:]]*}"}"
-    line="${line%"${line##*[![:space:]]}"}"
-    [[ -z "$line" ]] && continue
+  # `inline`: an entry is a leaf name plus an owner set, never a regex, so a `#`
+  # anywhere on the line opens the rationale comment (scripts/lib/read-list.sh
+  # owns the two comment families and why they must stay distinct).
+  registry_lines=()
+  # shellcheck disable=SC2310  # the non-zero return IS the handled case; the library reports it
+  read_list::into registry_lines "$registry" --comments inline || exit 2
+  for line in ${registry_lines[@]+"${registry_lines[@]}"}; do
     # `read`, not array splitting: the owner field may be a literal `*`, which
     # unquoted word splitting would pathname-expand against the cwd.
     read -r leaf_key owner_field _ <<<"$line"
     [[ -n "${registered[$leaf_key]+set}" ]] || registered_leaves+=("$leaf_key")
     registered["$leaf_key"]="${owner_field:-}"
-  done <"$registry"
+  done
 fi
 
 # Sorted comma-separated owner set, so the comparison is order-independent.
@@ -159,6 +164,11 @@ for leaf in $(printf '%s\n' ${collision_leaves[@]+"${collision_leaves[@]}"} | so
     continue
   fi
 
+  # The entry is doing its job: it names a collision that is live right now. An
+  # owner-set mismatch below is a different failure and does not make the entry
+  # stale, so the mark is taken here rather than after the comparison.
+  read_list::mark_used "$leaf"
+
   accepted="${registered[$leaf]}"
   # An open owner set is accepted by contract; only the name is registered.
   [[ "$accepted" == "*" ]] && continue
@@ -185,12 +195,10 @@ done
 
 # Stale guard: a registry entry that no longer collides has outlived its reason
 # and would otherwise silently pre-authorize a future collision on that name.
-for leaf in $(printf '%s\n' ${registered_leaves[@]+"${registered_leaves[@]}"} | sort); do
-  [[ -n "${collisions[$leaf]:-}" ]] && continue
-  printf 'FAIL: %s lists %s, but it is no longer carried by 2+ plugins. Drop the entry.\n' \
-    "$registry" "$leaf" >&2
-  failed=1
-done
+# scripts/lib/read-list.sh owns the consumed-set and the diagnostic.
+# shellcheck disable=SC2310  # the non-zero return IS the stale verdict this reads
+read_list::report_stale registered_leaves "$registry" \
+  'is no longer carried by 2+ plugins. Drop the entry.' || failed=1
 
 if ((failed)); then
   exit 1

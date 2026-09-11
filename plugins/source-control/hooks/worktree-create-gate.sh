@@ -203,7 +203,7 @@ fi
 # `${user_config.worktree_root}` into a command: a value substituted into a shell
 # field would be executed by the shell, which is why Claude Code rejects that
 # form outright and exports CLAUDE_PLUGIN_OPTION_<KEY> instead. It rides the
-# helper's --fallback-root rung, BELOW the `melodic.worktreeroot` git config key
+# helper's --fallback-root rung, BELOW the `worktreeroot.path` git config key
 # the helper reads from the target repository (includes on) — most specific
 # first, per reference/worktree-root-convention.md (#2610/#2612).
 root="${CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT:-}"
@@ -233,7 +233,7 @@ fi
 # than a checkout, so it satisfies the outside-every-repository invariant on its
 # own. Passed through the helper's file channel because that is the interface
 # the helper documents for a value it must read verbatim. No pre-refusal here
-# when both the option and the data dir are absent: the melodic.worktreeroot git
+# when both the option and the data dir are absent: the worktreeroot.path git
 # config key may still supply the root, and only the helper (which has resolved
 # the repository) can know — its exit 3 is the honest refusal.
 data_root="${CLAUDE_PLUGIN_DATA:-}"
@@ -267,7 +267,7 @@ if ((status != 0)); then
     ;;
   3)
     gate::refuse \
-      'set the melodic.worktreeroot git config key (git config --global melodic.worktreeroot <dir>) or the worktree_root plugin option to a directory outside every repository and on the same drive as the repository (Windows), then retry' \
+      'set the worktreeroot.path git config key (git config --global worktreeroot.path <dir>) or the worktree_root plugin option to a directory outside every repository and on the same drive as the repository (Windows), then retry' \
       'the helper refused with exit 3 — no usable external root, a root inside a repository, or a cross-drive root on Windows'
     ;;
   4)

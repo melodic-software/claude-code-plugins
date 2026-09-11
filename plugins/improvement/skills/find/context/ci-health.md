@@ -1,4 +1,4 @@
-# ci-health — GitHub Actions CI-health recipe (Tier 0, evidence rung 2)
+# ci-health: GitHub Actions CI-health recipe (Tier 0, evidence rung 2)
 
 Failure ratios, duration trends, and retry rates from GitHub Actions run history. Output:
 CI-health candidates with citations like
@@ -6,23 +6,23 @@ CI-health candidates with citations like
 
 **Portability scope.** This recipe is GitHub-forge-specific by construction: the CI-health
 *dimension* is neutral, but the mechanics below are the GitHub Actions API. On a repo hosted on
-a non-GitHub forge (GitLab, Gitea, Azure DevOps, ...), record an evidence-gap line — e.g.
-`gap: ci-health — non-GitHub forge; this recipe covers GitHub Actions only` — and rank without
+a non-GitHub forge (GitLab, Gitea, Azure DevOps, ...), record an evidence-gap line, e.g.
+`gap: ci-health — non-GitHub forge; this recipe covers GitHub Actions only`, and rank without
 CI evidence. Never adapt these calls by guesswork against another forge's API.
 
 Owner/repo for every call below comes from the TARGET repository's remote
-(`git -C <target-root> remote get-url origin`), never from the session's cwd — the target may be
+(`git -C <target-root> remote get-url origin`), never from the session's cwd. The target may be
 a different checkout (SKILL.md "Repo as parameter").
 
 ## Access probe ladder (probe in order, record the outcome)
 
-1. **GitHub MCP tools** — the `actions_*` toolset (`actions_list`, `actions_get`,
+1. **GitHub MCP tools.** The `actions_*` toolset (`actions_list`, `actions_get`,
    `get_job_logs`) in this session's tool roster. Preferred: works in cloud sessions where `gh`
-   is absent. Note: in cloud sessions the MCP server is repo-scoped to attached repos — most
-   reliable for the repo this invocation targets, which matches the one-repo-per-invocation
+   is absent. Note: in cloud sessions the MCP server is repo-scoped to attached repos, making it
+   most reliable for the repo this invocation targets, which matches the one-repo-per-invocation
    scope.
-2. **`gh` CLI** — `command -v gh` succeeds and `gh auth status` reports authentication.
-3. **None** — record the evidence-gap line
+2. **`gh` CLI.** `command -v gh` succeeds and `gh auth status` reports authentication.
+3. **None.** Record the evidence-gap line
    (`gap: ci-health — no GitHub access path (no MCP actions tools, no gh)`) and rank without CI
    evidence. A missing access path is never license to estimate CI health.
 
@@ -39,7 +39,7 @@ usage" entry reads "This endpoint is in the process of closing down." Verified 2
 that page as fetched that day. Recheck when the entry loses that notice, or when the endpoint is
 removed and the call starts returning 404.
 
-## Iterate by `created` date windows — never deep pagination
+## Iterate by `created` date windows, never deep pagination
 
 The cap is documented, not folklore. "List workflow runs for a repository" returns up to 1,000
 results for each search that uses `actor`, `branch`, `check_suite_id`, `created`, `event`,
@@ -52,17 +52,17 @@ parameters it applies to. Use the documented `created` date filter:
 
 - Split the analysis period (default: last 28 days, in 7-day buckets) into windows and query
   each window separately with `created=<start>..<end>`.
-- Write the window bounds as **literal ISO dates** you compute yourself — do not shell out to
+- Write the window bounds as **literal ISO dates** you compute yourself. Do not shell out to
   date arithmetic, whose flags are dialect-split.
 - `per_page` caps at 100 (values above are silently clamped). If a window's `total_count`
-  exceeds 100, either narrow the window or fetch the few extra pages *within* that window —
-  shallow pages inside a bounded window are fine; an unbounded page walk across the whole
+  exceeds 100, either narrow the window or fetch the few extra pages *within* that window.
+  Shallow pages inside a bounded window are fine; an unbounded page walk across the whole
   history is what the cap breaks.
 
 ## Metrics
 
 Per completed run, three fields do all the work: `conclusion` (failure ratio), `run_attempt`
-(retry detection — a run with `run_attempt > 1` was re-run), and
+(retry detection: a run with `run_attempt > 1` was re-run), and
 `updated_at − run_started_at` (wall duration of the latest attempt; use `run_started_at`, not
 `created_at`, which includes queue time).
 
@@ -90,31 +90,30 @@ Via the GitHub MCP tools, the per-run fields are the same (`conclusion`, `run_at
 `run_started_at`, `updated_at`) but the window mechanics are NOT: the `actions_list` tooling
 exposes no `created` date filter, so date-windowed iteration is unreachable through it. On the
 MCP path, read the most recent page(s) only, cite the covered span verbatim ("last N runs,
-&lt;oldest&gt;..&lt;newest&gt;"), and record the uncovered windows as a `gap:` line — never page deep to
+&lt;oldest&gt;..&lt;newest&gt;"), and record the uncovered windows as a `gap:` line. Never page deep to
 reach them and never present a recent-page sample as full-window coverage. Full date-window
-iteration needs the REST call above (`gh api` or an equivalent raw-request seam). Use
+iteration needs the REST call above (`gh api` or an equivalent raw-request path). Use
 `get_job_logs` (failed-jobs-only option) when a candidate needs "why is CI red" specifics.
 
 Derived signals:
 
 - **Failure ratio** = failures ÷ completed runs, per window; the across-window sequence is the
   trend.
-- **Retry rate** = share of runs with `run_attempt > 1` — a high retry rate is a flakiness
+- **Retry rate** = share of runs with `run_attempt > 1`. A high retry rate is a flakiness
   signal in its own right (humans re-running until green), often stronger than the failure
   ratio it masks.
 - **Duration trend** = median (or p90) run duration per window; a rising sequence is a
   slow-CI candidate.
-- **Per-workflow split** — scope any of the above to one workflow via
+- **Per-workflow split.** Scope any of the above to one workflow via
   `repos/{owner}/{repo}/actions/workflows/{workflow_id}/runs` when a single workflow dominates
   the signal.
 
-## Zero runs / repo without Actions — a branch, not an error
+## Zero runs / repo without Actions: a branch, not an error
 
 A repo with no `.github/workflows/`, or with workflows but zero runs in every window, resolves
-to one of two outcomes — never an error and never a fabricated "CI is healthy":
+to one of two outcomes, never an error and never a fabricated "CI is healthy":
 
-- Record the evidence-gap line: `gap: ci-health — no Actions runs in window (no CI history to
-  rank on)`.
+- Record the evidence-gap line: `gap: ci-health — no Actions runs in window (no CI history to rank on)`.
 - Where CI evidence would matter for this target (there is code to build or test), propose the
   instrument-first candidate per ranking.md: add a baseline CI workflow so future runs can rank
   on failure ratios and durations.
@@ -122,6 +121,6 @@ to one of two outcomes — never an error and never a fabricated "CI is healthy"
 ## Citation shape
 
 Every CI-health candidate cites: the metric(s), the window(s), the access path used, and the
-rung — e.g. `ci: median duration 6m→11m over 4 weekly windows (updated_at − run_started_at),
-via gh — rung 2`. Numbers come only from runs actually fetched; a partially-fetched window is
-either completed or recorded as a gap.
+rung, e.g. `ci: median duration 6m→11m over 4 weekly windows (updated_at − run_started_at), via gh — rung 2`.
+Numbers come only from runs actually fetched; a partially-fetched window is either completed or
+recorded as a gap.

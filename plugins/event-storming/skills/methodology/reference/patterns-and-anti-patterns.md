@@ -8,7 +8,7 @@ A catalog of named facilitation patterns and anti-patterns from Alberto Brandoli
 
 ### Add More Space
 
-When everything starts feeling harder and people lose momentum, the problem isn't harder — your brain is solving multiple problems simultaneously: modeling + finding empty space + moving things without breaking the timeline. **Therefore:** Add another paper strip below the original one. Modeling becomes easy again once the space constraint is removed.
+When everything starts feeling harder and people lose momentum, the problem isn't harder. Your brain is solving multiple problems simultaneously: modeling + finding empty space + moving things without breaking the timeline. **Therefore:** Add another paper strip below the original one. Modeling becomes easy again once the space constraint is removed.
 
 Use cases: comparing current vs desired state, exploring alternative paths, starting Design-Level alongside Big Picture, splitting the team on two surfaces.
 
@@ -26,7 +26,7 @@ People want detailed instructions before acting. But explaining swimming theory 
 
 ### Fuzzy Definitions
 
-Software developers obsess over precision, but precision too early excludes voices from the conversation. The distinction between User/Actor/Persona isn't interesting — there are better things to discuss. **Therefore:** Explicitly state you won't provide precise definitions on purpose. Let the visible legend be the reference. Dumb down the language to "we need a blue one after a lilac one" when useful.
+Software developers obsess over precision, but precision too early excludes voices from the conversation. The distinction between User/Actor/Persona isn't interesting. There are better things to discuss. **Therefore:** Explicitly state you won't provide precise definitions on purpose. Let the visible legend be the reference. Dumb down the language to "we need a blue one after a lilac one" when useful.
 
 ### Guess First
 
@@ -34,13 +34,13 @@ Traditional: learners listen silently to the expert. Problems: boring, hard to i
 
 ### Hotspot
 
-Exploration is non-linear. You'll hit uncertainty, disagreements, warnings, and endless arguments. **Therefore:** Purple stickies mark hotspots — shared annotations containing meta-information. The model won't be right or finished; hotspots capture what's still unresolved.
+Exploration is non-linear. You'll hit uncertainty, disagreements, warnings, and endless arguments. **Therefore:** Purple stickies mark hotspots: shared annotations containing meta-information. The model won't be right or finished; hotspots capture what's still unresolved.
 
 "The visible outcome of EventStorming is a representation of our current level of understanding, with no guarantee that we'll understand everything."
 
 ### Icebreaker
 
-That awkward moment everyone stares at an empty paper roll. The best icebreaker is an ally among participants who makes the first move. If nobody moves, the facilitator can place one — but then immediately step back. After seeing what's expected, things flow smoothly.
+That awkward moment everyone stares at an empty paper roll. The best icebreaker is an ally among participants who makes the first move. If nobody moves, the facilitator can place one, but then immediately step back. After seeing what's expected, things flow smoothly.
 
 ### Incremental Notation
 
@@ -56,27 +56,27 @@ Sometimes the solution is obvious to you. Resist. Let someone else have the idea
 
 ### Leave Stuff Around
 
-After the workshop, resist the temptation to tear down the model. Leave it visible for days — it sparks conversations in hallways and over coffee. Benefits: participants need time to digest insights, additional people gravitate toward visible artifacts and contribute observations, and the model evolves with unexpected contributors. Extend room reservations beyond the workshop day. Relocate to high-traffic areas if possible. Companion pattern: **Make Yourself Available** — remain accessible after workshop conclusion; "the empty slot in the calendar the morning after the workshop is not a waste; it's an investment." *Source: [eventstorming.com/patterns/leave-stuff-around](https://www.eventstorming.com/patterns/leave-stuff-around/)*
+After the workshop, resist the temptation to tear down the model. Leave it visible for days. It sparks conversations in hallways and over coffee. Benefits: participants need time to digest insights, additional people gravitate toward visible artifacts and contribute observations, and the model evolves with unexpected contributors. Extend room reservations beyond the workshop day. Relocate to high-traffic areas if possible. Companion pattern: **Make Yourself Available**. Remain accessible after workshop conclusion; "the empty slot in the calendar the morning after the workshop is not a waste; it's an investment." *Source: [eventstorming.com/patterns/leave-stuff-around](https://www.eventstorming.com/patterns/leave-stuff-around/)*
 
 ### Manage Energy
 
-Workshops are energy-intensive. Monitor fatigue, take breaks at natural transition points, provide healthy food and beverages. Specific techniques: timebox chaotic exploration to 5-15 minute bursts before cool-down; insert 10-minute breaks at midway points for sessions >1 hour; continuously assess participant energy and adjust duration; keep the workshop in a "Goldilocks state: not too challenging, not too easy, just right" via incremental notation. Standing format keeps energy high but requires break awareness — watch for when people start leaning on walls or shifting weight.
+Workshops are energy-intensive. Monitor fatigue, take breaks at natural transition points, provide healthy food and beverages. Specific techniques: timebox chaotic exploration to 5-15 minute bursts before cool-down; insert 10-minute breaks at midway points for sessions >1 hour; continuously assess participant energy and adjust duration; keep the workshop in a "Goldilocks state: not too challenging, not too easy, just right" via incremental notation. Standing format keeps energy high but requires break awareness. Watch for when people start leaning on walls or shifting weight.
 
 ### Money on the Table
 
-Developers forget money. When discovering business processes, include money in the conversation. **Do it as a separate focused round** — talking about money displaces other valuable perspectives if mixed in.
+Developers forget money. When discovering business processes, include money in the conversation. **Do it as a separate focused round.** Talking about money displaces other valuable perspectives if mixed in.
 
 ### Open Invitation
 
-Instead of the facilitator hand-picking participants, make the workshop visible and let people **self-select**. Maintain headcount control for logistics, secure essential participants in advance, but prioritize voluntary commitment over mandatory attendance. Watch for political bias in self-selected groups affecting voting outcomes — self-selection may attract people with an agenda. References "Iterative Invitations" as a related pattern (publish workshop, let early arrivals spread the word, adjust headcount iteratively). *Source: [eventstorming.com/patterns/open-invitation](https://www.eventstorming.com/patterns/open-invitation/) (Dec 2024)*
+Instead of the facilitator hand-picking participants, make the workshop visible and let people **self-select**. Maintain headcount control for logistics, secure essential participants in advance, but prioritize voluntary commitment over mandatory attendance. Watch for political bias in self-selected groups affecting voting outcomes. Self-selection may attract people with an agenda. References "Iterative Invitations" as a related pattern (publish workshop, let early arrivals spread the word, adjust headcount iteratively). *Source: [eventstorming.com/patterns/open-invitation](https://www.eventstorming.com/patterns/open-invitation/) (Dec 2024)*
 
 ### One Man One Marker
 
-When only a few people have markers, collaboration becomes dysfunctional — committees form, one person becomes the scribe. **Therefore:** Provide enough working markers for everyone. Check markers before the workshop. Throw away depleted ones.
+When only a few people have markers, collaboration becomes dysfunctional. Committees form, one person becomes the scribe. **Therefore:** Provide enough working markers for everyone. Check markers before the workshop. Throw away depleted ones.
 
 ### Poisonous Seats
 
-Sitting is a hardly reversible action — takes little energy to sit, much more to stand. Seated people interact less, get distracted more (laptops). **Therefore:** Remove seats for short workshops. For longer ones, have seats visibly removed but reachable. Don't push it — some people genuinely need a seat.
+Sitting is a hardly reversible action: it takes little energy to sit, much more to stand. Seated people interact less, get distracted more (laptops). **Therefore:** Remove seats for short workshops. For longer ones, have seats visibly removed but reachable. Don't push it. Some people genuinely need a seat.
 
 ### Reverse Narrative
 
@@ -84,7 +84,7 @@ Challenge the model by thinking backward. Pick an event from the end, then ask: 
 
 ### The Right To Be Wrong
 
-We are exploring, so being wrong is a legitimate state. Being **visibly wrong** is even better — it attracts someone with the right information who can teach us something valuable.
+We are exploring, so being wrong is a legitimate state. Being **visibly wrong** is even better. It attracts someone with the right information who can teach us something valuable.
 
 ### Rush to the Goal
 
@@ -96,11 +96,11 @@ After "Rush to the Goal" completes a baseline, systematically introduce the corn
 
 ### Single Out the Alpha-Male
 
-When one person dominates, their voice drowns out others. Techniques: ask "obvious questions" to distribute cognitive load across the group; introduce intentional errors to invite corrections from quieter members; rotate narrators physically; direct criticism at the model (stickies), not at people. "One Person/One Marker" is a prerequisite — democratic access to markers prevents a single person controlling the narrative. *Source: Brandolini blog, [ziobrando.blogspot.com](http://ziobrando.blogspot.com/2014/05/eventstorming-invite-right-people.html)*
+When one person dominates, their voice drowns out others. Techniques: ask "obvious questions" to distribute cognitive load across the group; introduce intentional errors to invite corrections from quieter members; rotate narrators physically; direct criticism at the model (stickies), not at people. "One Person/One Marker" is a prerequisite: democratic access to markers prevents a single person controlling the narrative. *Source: Brandolini blog, [ziobrando.blogspot.com](http://ziobrando.blogspot.com/2014/05/eventstorming-invite-right-people.html)*
 
 ### Slack Day After
 
-The workshop opens Pandora's boxes. Ideas and urgency emerge. **Therefore:** Reserve slack time after the workshop to immediately start attacking the real problem — prototype, sketch, or call another meeting. Nothing is more annoying than having a clear vision of what to do NOW and being scheduled for something else.
+The workshop opens Pandora's boxes. Ideas and urgency emerge. **Therefore:** Reserve slack time after the workshop to immediately start attacking the real problem: prototype, sketch, or call another meeting. Nothing is more annoying than having a clear vision of what to do NOW and being scheduled for something else.
 
 ### Sound Stupid
 
@@ -108,7 +108,7 @@ Read policies and flows aloud. Your brain's "avoid sounding stupid in public" me
 
 ### Speaking Out Loud
 
-Your brain takes shortcuts — it pretends you understand even when you don't. **Therefore:** Exercise the verbal part of your brain by speaking in complete sentences loud enough for peers to hear. This engages your "don't look stupid" defense mechanism, exposing inconsistencies.
+Your brain takes shortcuts. It pretends you understand even when you don't. **Therefore:** Exercise the verbal part of your brain by speaking in complete sentences loud enough for peers to hear. This engages your "don't look stupid" defense mechanism, exposing inconsistencies.
 
 ### Time-boxed Leadership
 
@@ -128,7 +128,7 @@ The modeling space must be so large that no scoping is needed before the action 
 
 ### Visible Legend
 
-When people wonder "what was the lilac sticky for?" they're distracted from their goal. **Therefore:** Keep a flip chart with the current notation visible to everyone. Use the same modeling tools for the legend (an orange sticky named "Domain Event", etc.) — "use every trick to keep the cognitive load as low as possible." Especially critical with Incremental Notation — each new element adds cognitive load that the legend offloads. With incremental notation, the facilitator creates the legend on-the-fly as new building blocks are introduced.
+When people wonder "what was the lilac sticky for?" they're distracted from their goal. **Therefore:** Keep a flip chart with the current notation visible to everyone. Use the same modeling tools for the legend (an orange sticky named "Domain Event", etc.): "use every trick to keep the cognitive load as low as possible." Especially critical with Incremental Notation. Each new element adds cognitive load that the legend offloads. With incremental notation, the facilitator creates the legend on-the-fly as new building blocks are introduced.
 
 ### Extract Acceptance Tests
 
@@ -136,11 +136,11 @@ After completing a robust process flow, extract desired system behavior into acc
 
 ### Frame Sorting
 
-For **online workshops** — sort frames (containers) instead of individual stickies. Timebox exploration to 7-10 minutes, use coarse-grained frames with fuzzy definitions, let participants label boxes sequentially, facilitator arranges coherently after each round. Addresses the throughput problem of digital sorting where moving individual stickies on a shared canvas creates bottlenecks. Particularly useful for remote Big Picture to compensate for lost physical clustering dynamics. *Source: [eventstorming.com/patterns/frame-sorting](https://www.eventstorming.com/patterns/frame-sorting/)*
+For **online workshops**, sort frames (containers) instead of individual stickies. Timebox exploration to 7-10 minutes, use coarse-grained frames with fuzzy definitions, let participants label boxes sequentially, facilitator arranges coherently after each round. Addresses the throughput problem of digital sorting where moving individual stickies on a shared canvas creates bottlenecks. Particularly useful for remote Big Picture to compensate for lost physical clustering dynamics. *Source: [eventstorming.com/patterns/frame-sorting](https://www.eventstorming.com/patterns/frame-sorting/)*
 
 ### Make Some Noise
 
-(Facilitator pattern.) When energy drops or participants get too quiet, the facilitator introduces controlled disruption — a provocative question, a deliberately wrong sticky, or an explicit call to challenge an assumption. Breaks passive observation mode and re-engages the room.
+(Facilitator pattern.) When energy drops or participants get too quiet, the facilitator introduces controlled disruption: a provocative question, a deliberately wrong sticky, or an explicit call to challenge an assumption. Breaks passive observation mode and re-engages the room.
 
 ---
 
@@ -164,19 +164,19 @@ The Latin *divide et impera* was about keeping enemies divided, not solving prob
 
 ### Do the Right Thing
 
-Expecting perfection and correctness from the start. In EventStorming, the first draft is always wrong — that's the point.
+Expecting perfection and correctness from the start. In EventStorming, the first draft is always wrong. That's the point.
 
 ### Dungeon Master
 
-Not a controlling facilitator — the original developer of legacy software who becomes a knowledge bottleneck and gatekeeper. Gives too much unnecessary implementation detail, gets defensive when new ideas are proposed, makes themselves indispensable. "Behind the vilified character are very human behaviors — often deep knowledge paired with a lack of skills in passing that knowledge to collaborators." The team is paralyzed when they're unavailable. Countermeasure: gradual workarounds to distribute knowledge; EventStorming's parallel writing format bypasses the bottleneck by not requiring the Dungeon Master's permission to contribute. *Source: Brandolini, [medium.com/@ziobrando](https://medium.com/@ziobrando/the-rise-and-fall-of-the-dungeon-master-c2d511eed12f)*
+Not a controlling facilitator, but the original developer of legacy software who becomes a knowledge bottleneck and gatekeeper. Gives too much unnecessary implementation detail, gets defensive when new ideas are proposed, makes themselves indispensable. "Behind the vilified character are very human behaviors — often deep knowledge paired with a lack of skills in passing that knowledge to collaborators." The team is paralyzed when they're unavailable. Countermeasure: gradual workarounds to distribute knowledge; EventStorming's parallel writing format bypasses the bottleneck by not requiring the Dungeon Master's permission to contribute. *Source: Brandolini, [medium.com/@ziobrando](https://medium.com/@ziobrando/the-rise-and-fall-of-the-dungeon-master-c2d511eed12f)* <!-- ai-slop-ignore: verbatim Brandolini quotation on the Dungeon Master ("Behind the vilified character ..."); the em dash is the source's -->
 
 ### Follow the Leader
 
-Participants defer to the senior person or domain expert instead of contributing independently. The group waits for one person to place stickies before contributing, mirrors their vocabulary and conclusions. Distinct from The Godfather (which is the person causing the problem) — Follow the Leader is the **group behavior** that results. Countermeasure: "One Person/One Marker" democratization, "Do First, Explain Later" (start writing before discussion), Chaotic Exploration forces massive parallel contribution preventing single-person dominance.
+Participants defer to the senior person or domain expert instead of contributing independently. The group waits for one person to place stickies before contributing, mirrors their vocabulary and conclusions. Distinct from The Godfather (which is the person causing the problem). Follow the Leader is the **group behavior** that results. Countermeasure: "One Person/One Marker" democratization, "Do First, Explain Later" (start writing before discussion), Chaotic Exploration forces massive parallel contribution preventing single-person dominance.
 
 ### Human Bottleneck
 
-One person becomes the scribe for the group — everyone dictates, one person writes. Throughput drops to a single person's speed. Broader than Dungeon Master: any workshop participant who becomes a single point of dependency. See: One Man One Marker, Committee.
+One person becomes the scribe for the group. Everyone dictates, one person writes. Throughput drops to a single person's speed. Broader than Dungeon Master: any workshop participant who becomes a single point of dependency. See: One Man One Marker, Committee.
 
 ### Karaoke Singer
 
@@ -200,18 +200,18 @@ Starting exploration from the very beginning of the timeline creates a serial bo
 
 ### The Godfather
 
-A senior person whose mere presence intimidates others into silence. Distinct from Dungeon Master (which is a knowledge bottleneck) — the Godfather creates a **power dynamic** where participants self-censor. Nobody dares contradict them openly; their organizational power alone suppresses dissent, often without them intending to. Countermeasures: chaotic exploration with anonymous sticky notes provides "anonymity to visualize dissent"; Hot Spots allow marking disagreement without direct confrontation; physical model serves as conflict buffer — "finger point at the stickies, not the people." Brandolini reports this was "the only time in my career when I was ready to cancel the whole workshop." *Source: Brandolini blog, [ziobrando.blogspot.com](http://ziobrando.blogspot.com/2014/05/eventstorming-invite-right-people.html)*
+A senior person whose mere presence intimidates others into silence. Distinct from Dungeon Master (which is a knowledge bottleneck). The Godfather creates a **power dynamic** where participants self-censor. Nobody dares contradict them openly; their organizational power alone suppresses dissent, often without them intending to. Countermeasures: chaotic exploration with anonymous sticky notes provides "anonymity to visualize dissent"; Hot Spots allow marking disagreement without direct confrontation; physical model serves as conflict buffer: "finger point at the stickies, not the people." Brandolini reports this was "the only time in my career when I was ready to cancel the whole workshop." *Source: Brandolini blog, [ziobrando.blogspot.com](http://ziobrando.blogspot.com/2014/05/eventstorming-invite-right-people.html)*
 
 ---
 
 ## RED ZONE (Emergency Exits)
 
-These are **last-resort facilitation strategies** for when a workshop is going badly — normal patterns have failed and the facilitator needs to halt or reset without damaging credibility or participants' willingness to continue.
+These are **last-resort facilitation strategies** for when a workshop is going badly. Normal patterns have failed and the facilitator needs to halt or reset without damaging credibility or participants' willingness to continue.
 
 ### Fresh Catering
 
-Call a break with food/refreshments as a "legitimate" reason to pause when the workshop is derailing. The catering provides cover for a strategic reset — the facilitator uses the break to regroup, adjust approach, and restart with fresh energy. Quality food matters: stale cookies and bad coffee kill engagement faster than any anti-pattern.
+Call a break with food/refreshments as a "legitimate" reason to pause when the workshop is derailing. The catering provides cover for a strategic reset. The facilitator uses the break to regroup, adjust approach, and restart with fresh energy. Quality food matters: stale cookies and bad coffee kill engagement faster than any anti-pattern.
 
 ### Providential Toilet Door Malfunctioning
 
-Create a physical disruption or excuse to interrupt a failing session. The "malfunctioning door" is a metaphor for any convenient disruption that gives the facilitator time to regroup. Sometimes the best conversations happen in the hallway or at the coffee machine — unplanned breaks force informal interaction that the formal workshop couldn't produce. The workshop model extends beyond the paper roll.
+Create a physical disruption or excuse to interrupt a failing session. The "malfunctioning door" is a metaphor for any convenient disruption that gives the facilitator time to regroup. Sometimes the best conversations happen in the hallway or at the coffee machine. Unplanned breaks force informal interaction that the formal workshop couldn't produce. The workshop model extends beyond the paper roll.

@@ -1,11 +1,11 @@
-# Loop-lane convention — changelog
+# Changelog for the loop-lane convention
 
 Notable changes to the loop-lane contract. The contract is versioned by SemVer; a change to the
 topology, the escalation contract, the capability-tier vocabulary, or any loop-layer invariant is a
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
-## 9.1.0 — 2026-08-28
+## [9.1.0] - 2026-08-28
 
 Additive, minor. §6 replaces an unbacked conformance claim with the name of a real check. No
 topology, escalation-contract, tier-vocabulary or loop-layer invariant changed, and the inline-floor
@@ -60,9 +60,9 @@ rule itself is unchanged: what changes is that the rule is now enforced.
   that all six agree under this check's comparison, byte for byte for the four prose copies and
   after normalization for the two templates.
 
-## 9.0.2 — 2026-08-28
+## [9.0.2] - 2026-08-28
 
-Corrective, no topology, escalation, tier, or invariant change — §5's consumer table cites
+Corrective, no topology, escalation, tier, or invariant change. §5's consumer table cites
 `babysit-prs` by its public invocation instead of by a filesystem path into another plugin's tree.
 The second half of the defect 9.0.1 closed, recorded open at the time and now closed with it.
 
@@ -77,9 +77,9 @@ The second half of the defect 9.0.1 closed, recorded open at the time and now cl
   the lane wraps. The table is still a live consumer list; nothing about the lane, its tier, or its
   escalation path changed.
 
-## 9.0.1 — 2026-08-28
+## [9.0.1] - 2026-08-28
 
-Corrective, no topology, escalation, tier, or invariant change — §4 cites the `@path`-as-body rule
+Corrective, no topology, escalation, tier, or invariant change. §4 cites the `@path`-as-body rule
 by its public invocation instead of by a filesystem path into another plugin's tree.
 
 - **A cross-plugin citation named a path, which an installed reader cannot resolve.** The
@@ -95,12 +95,12 @@ by its public invocation instead of by a filesystem path into another plugin's t
   checkout. Text and paragraph wrapping changed; the contract did not. Found by the whole-repo
   extract-ssot sweep.
 
-## 9.0.0 — 2026-08-12
+## [9.0.0] - 2026-08-12
 
-Major — §2 gains a **Cross-lane PR hold** subsection, a change to the escalation contract
+Major. §2 gains a **Cross-lane PR hold** subsection, a change to the escalation contract
 (#1409). Tracker-item escalation and PR holding were one undifferentiated act; the 2026-07-25
-incident showed the difference is load-bearing. An escalating lane decided a PR must not merge,
-drafted its explanation first, and applied `do-not-merge` ~30 minutes later — 3m20s **after** the
+incident showed the difference decides whether a hold lands. An escalating lane decided a PR must
+not merge, drafted its explanation first, and applied `do-not-merge` ~30 minutes later, 3m20s **after** the
 merge. The server-side enforcement (org-ruleset-required `do-not-merge` status check,
 re-evaluated on `labeled`/`unlabeled`, no bypass actors) worked correctly on both sides of the
 boundary; what no convention defined was when to engage it. The escalation ladder's softer rung
@@ -110,14 +110,14 @@ nothing, because no gate reads comments.
 - **`do-not-merge` is the only cross-lane hold; a PR comment is never one.** The label flips a
   SHA-bound required check; a comment obliges nothing.
 - **Hold-then-explain, never explain-then-hold.** The label goes on the moment the hold is
-  decided, before the escalation comment is drafted — drafting time is exactly the window a
+  decided, before the escalation comment is drafted, since drafting time is exactly the window a
   merge-capable lane needs.
-- **Freshness re-read before any hold action** — a hold decision drafted against a stale
+- **Freshness re-read before any hold action.** A hold decision drafted against a stale
   snapshot can target an already-merged PR and announce state that is minutes out of date.
 
-## 8.1.0 — 2026-08-12
+## [8.1.0] - 2026-08-12
 
-Additive, minor — §3 gains a **Current alias binding** subsection recording the capability-tier
+Additive, minor. §3 gains a **Current alias binding** subsection recording the capability-tier
 re-audit for the Opus 5 / Fable 5 lineup (#1293). This is the §Versioning "new model release
 re-audits the capability-tier table" trigger firing: both models shipped with no re-audit entry
 here. The tier vocabulary, the fixed rules, and every invariant are unchanged; what lands is the
@@ -132,20 +132,20 @@ dated resolution the trigger exists to re-derive, expressed as aliases and never
   and the implementer tier is where harness-knowledge freshness pays. Haiku 4.5 (200k context,
   Feb 2025 cutoff) fails the reviewer-never-weaker floor in every reachable pairing.
 - **Two Fable 5 known gaps recorded with the binding:** safety-classifier automatic model fallback
-  (most often in cybersecurity domains — the very work frontier unconditionally receives) is
+  (most often in cybersecurity domains, the very work frontier unconditionally receives) is
   undetected by any lane today; and non-interactive Fable 5 requests bill usage credits without a
   consent prompt, the shape unattended lanes run in.
 
-## 8.0.1 — 2026-08-05
+## [8.0.1] - 2026-08-05
 
-Corrective, no topology, escalation, tier, or invariant change — §"Out-of-band notification seam"
+Corrective, no topology, escalation, tier, or invariant change. §"Out-of-band notification seam"
 replaces an enumeration of Remote Control's requirements with a pointer at the section that owns
 them.
 
 - **The `PushNotification` phone leg's inherited requirements were enumerated, and the enumeration
-  under-covered its source.** The paragraph listed four conditions — a Pro, Max, Team, or Enterprise
+  under-covered its source.** The paragraph listed four conditions: a Pro, Max, Team, or Enterprise
   plan, a claude.ai login, a session talking directly to the Anthropic API, and accepted workspace
-  trust — against a `## Requirements` section carrying five bullets. **Feature-flag evaluation** had
+  trust. Its source, a `## Requirements` section, carries five bullets. **Feature-flag evaluation** had
   no counterpart at all: `DISABLE_TELEMETRY`, `DO_NOT_TRACK`,
   `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`, and `DISABLE_GROWTHBOOK` "each disable the
   feature-flag evaluation that Remote Control availability depends on". Two more under-covered:
@@ -158,50 +158,50 @@ them.
   re-drift, and the paragraph already cites the page. Stamp refreshed 2026-07-27 → 2026-08-04
   (<https://code.claude.com/docs/en/remote-control>, verified 2026-08-04).
 
-## 8.0.0 — 2026-08-05
+## [8.0.0] - 2026-08-05
 
 Adds the reviewed internal-bot trust signal to §1's C4/C5 floor trust test, designed and decided in
 [melodic-software/claude-code-plugins#1525](https://github.com/melodic-software/claude-code-plugins/issues/1525)
 (fixing
 [#1520](https://github.com/melodic-software/claude-code-plugins/issues/1520)'s misclassification of
 repository-owned automation identities). **Bump ambiguity:** a repository that never sets the key
-sees byte-identical behavior — unset fails closed to the empty set — which reads as additive
+sees byte-identical behavior, since unset fails closed to the empty set, which reads as additive
 guidance and a **minor**; but the floor's trust test is part of §1's autonomy-ladder contract, and
 this changes what the test accepts for every lane implementing the floor, which reads as a
 **major**. Ratified major on 2.0.0's discriminator: a changed floor test is a changed obligation,
 whatever its default resolves to.
 
 - **The trust test gains a second positive arm (§1).** C5's provenance test classified every
-  non-`OWNER`/`MEMBER` author as untrusted — but GitHub App bot identities are never org member
+  non-`OWNER`/`MEMBER` author as untrusted, but GitHub App bot identities are never org member
   accounts, so the org's own automation (which `work-classes.md` explicitly places in C2) was
   categorically C5 and ineligible at every rung. The floor now also accepts an author the target
-  repository's own team-tracked seam config attests as a trusted internal bot: a recorded, reviewed
+  repository's own team-tracked config attests as a trusted internal bot: a recorded, reviewed
   trust grant naming exact bot identities, honored from the team-tracked layer only, fail-closed to
   the empty set when unset. The key, its grammar, and its composition rules are owned by the babysit
   lane's config reference (`babysit_loop_trusted_internal_bot_logins`), not restated here.
-- **Nothing else widens.** The fork test is independent — a listed bot authoring from a
+- **Nothing else widens.** The fork test is independent: a listed bot authoring from a
   cross-repository head is still C5; the dependency-manager merge hold wins on intersection; a trust
   match never establishes a work class, and the C4 diff veto, rung comparison, and every other
-  withholding stand unchanged. The rejected alternatives — ambient attestation via app installation
-  (not a recorded seam change, and wider than the identities the org vouches for) and reuse of a
-  personal-scalar or repository-owner key — are recorded in #1525's decision comment.
+  withholding stand unchanged. The rejected alternatives are recorded in #1525's decision comment:
+  ambient attestation via app installation (not a recorded config change, and wider than the
+  identities the org vouches for), and reuse of a personal-scalar or repository-owner key.
 
-## 7.0.1 — 2026-08-02
+## [7.0.1] - 2026-08-02
 
-Corrective, no topology, escalation, tier, or invariant change — §"Launch surfaces" describes the
+Corrective, no topology, escalation, tier, or invariant change. §"Launch surfaces" describes the
 same launch surface with the label the official docs use for it.
 
 - **`/loop` was called "built-in"; it is a bundled skill.** The official commands reference states
   "Most are built-in commands whose behavior is coded into the CLI" and marks `/loop` **[Skill]**,
   "a bundled skill"; the skills page adds that bundled skills are "prompt-based … Most built-in
   commands instead execute fixed logic directly", and that `/doctor` was "a built-in command rather
-  than a bundled skill" before v2.1.205 — the two labels name different things. The sentence now
+  than a bundled skill" before v2.1.205. The two labels name different things. The sentence now
   reads "a bundled skill needing no install", carrying the four-part record §Versioning's second
-  recheck trigger obliges — basis, as-of date, and this file's existing `(<url>, verified <date>)`
-  shape — and preserving the point the old wording was making: `/loop` needs no plugin, so it is
+  recheck trigger obliges, namely basis, as-of date, and this file's existing
+  `(<url>, verified <date>)` shape, and preserving the point the old wording was making: `/loop` needs no plugin, so it is
   the dependency-free launch surface against which the `claude-ops` `lanes` launcher is optional.
 
-## 7.0.0 — 2026-07-30
+## [7.0.0] - 2026-07-30
 
 Repartitions §4's telemetry binding from the lane **type** to the lane **instance**, resolving
 [melodic-software/claude-code-plugins#1295](https://github.com/melodic-software/claude-code-plugins/issues/1295).
@@ -212,7 +212,7 @@ body implements, and adds two more (instance identity, collision detection).
   per lane, so two instances of one lane on one repository resolved the same sentinel and overwrote
   each other's durable state under last-writer-wins. The serious loss was `first_drain_complete`:
   one machine finishing a drain ended the earn-trust C3 ratification gate for every other machine,
-  widening autonomy with no human ratification — a safety property failing open. The marker gains a
+  widening autonomy with no human ratification, a safety property failing open. The marker gains a
   lane-instance suffix (`<lane-marker>@<lane_instance>`), the lane-type marker becoming its prefix,
   and "exactly one comment" is restated as **one comment per writer identity**: N concurrent
   instances legitimately hold N comments on one telemetry item.
@@ -224,50 +224,50 @@ body implements, and adds two more (instance identity, collision detection).
 - **Instance-collision detection (§4, new invariant).** The state block gains `lane_instance`,
   `writer_nonce`, `heartbeat_at`, and `paused_until`. A differing nonce over a stale block is the
   ordinary restart path (adopt and continue); a differing nonce over a *fresh* block means another
-  live lane holds this id — write nothing, escalate per §2, stop cleanly. The staleness window is
+  live lane holds this id: write nothing, escalate per §2, stop cleanly. The staleness window is
   two hours, twice the one-hour `ScheduleWakeup` ceiling, so maximum idle backoff can never read as
   death. Detection runs before any write, so a collision degrades to a stopped lane rather than a
   clobbered `first_drain_complete`.
 - **The `Lane telemetry: <lane>` title contract is deliberately untouched.** The drain-exit
   snapshot, the intake sweep, and the attention view all match lane infrastructure by that title;
-  the marker was chosen as the partition seam precisely so no title-matching consumer moves.
-- **Migration is a deliberate reset.** No pre-existing comment matches an instance's new sentinel —
+  the marker was chosen as the partition key precisely so no title-matching consumer moves.
+- **Migration is a deliberate reset.** No pre-existing comment matches an instance's new sentinel,
   neither the legacy un-suffixed `marker=<lane>` comments nor the improvised
-  `<!-- work-items:telemetry lane=… instance=… -->` comments some lanes began posting in practice —
+  `<!-- work-items:telemetry lane=… instance=… -->` comments some lanes began posting in practice,
   so the first cycle after adoption posts a fresh block from defaults, including
   `first_drain_complete:false`. That fails closed and is intended; it produces one burst of
   ratification queue comments on the next drain. The legacy comment is never adopted, edited, or
-  tombstoned by a lane — its marker names no writer, so no instance can prove it owns it, and a lane
+  tombstoned by a lane: its marker names no writer, so no instance can prove it owns it, and a lane
   that adopted it would reintroduce the shared-comment clobber this change removes. Retiring it is
   an operator action; until then it reads as stale, which is honest, because nothing is writing it.
 
-## 6.0.1 — 2026-07-29
+## [6.0.1] - 2026-07-29
 
-Corrective, no topology, escalation, tier, or invariant change — 6.0.0's usage-sample invariant is
+Corrective, no topology, escalation, tier, or invariant change. 6.0.0's usage-sample invariant is
 clarified, not altered.
 
 - **The one permitted readback (§4) named the wrong scope.** 6.0.0 permitted reading the previous
   sample back "for exactly one operation: subtracting its `five_hour_pct`", then forbade every other
   read. But the same invariant withholds a delta when the window rolled over, and deciding that
-  requires comparing against the previous reading — a second read the text forbade, so no lane could
+  requires comparing against the previous reading, a second read the text forbade, so no lane could
   satisfy both clauses. The permission is now scoped by **purpose** rather than by operation:
   deriving `five_hour_delta_pct`, covering the subtraction and the rollover comparison together. The
-  measure-only guarantee is unchanged — the value still reaches no decision at any threshold.
+  measure-only guarantee is unchanged: the value still reaches no decision at any threshold.
 - **Changelog version order corrected, and gated.** The `#1638` entry was authored against 3.1.0 and
   merged as `3.1.1` after 4.0.0 had already landed, leaving a version regression in a
   descending-order file. It is renumbered `4.0.1` and repositioned below 5.0.0, preserving both
   version order and the order entries actually shipped in. No wording in that entry changed. Nothing
-  caught it because no gate read the *sequence* — `check-changelog-parity.sh` now has a
+  caught it because no gate read the *sequence*. `check-changelog-parity.sh` now has a
   `--check-order` mode, wired as a required check, covering convention changelogs as well as plugin
   ones.
 
-## 6.0.0 — 2026-07-29
+## [6.0.0] - 2026-07-29
 
 Adds the per-cycle usage sample to §4's loop-layer invariants, requested and scoped in
 [melodic-software/claude-code-plugins#1651](https://github.com/melodic-software/claude-code-plugins/issues/1651).
 Tier ratified as **major** on 2.0.0's discriminator: a new §4 loop-layer invariant is a new
 obligation every loop-lane body must implement. That the recorded value drives no behavior does not
-soften the tier — the *write* is the obligation. **Bump ambiguity:** a field no decision reads changes
+soften the tier: the *write* is the obligation. **Bump ambiguity:** a field no decision reads changes
 no lane's behavior, and a purely additive telemetry key reads as additive guidance and a **minor**; but
 §4 states loop-layer invariants, and this adds one every loop-lane body must carry, which reads as a
 **major**. The attended `attend-queue` lane is unaffected: §4 binds loop lanes, and that lane holds
@@ -277,34 +277,34 @@ no durable-state block.
   the rate-limit guard's pause is a ceiling, and nothing recorded how much of the shared
   subscription windows a cycle consumed. Each loop lane now records a `usage_sample` in its #502
   durable state every cycle, holding the two window percentages the guard step (§6) **already read**
-  that cycle plus the rise since the previous sample — the reading is in hand, so the invariant costs
+  that cycle plus the rise since the previous sample. The reading is in hand, so the invariant costs
   a write, not an observation. Whether the data supports acting on it is a later, separately decided
   question.
 - **Measure-only, with exactly one permitted readback (§4).** Deriving the delta needs the previous
   cycle's percentage, and after context compaction the telemetry block is the only durable place it
-  survives — so the invariant permits reading the previous sample back for exactly one purpose:
+  survives, so the invariant permits reading the previous sample back for exactly one purpose:
   deriving the new sample's `five_hour_delta_pct` from its `five_hour_pct` (the subtraction, and the
   rollover comparison deciding whether a delta is written at all). That derivation is the field's
-  only permitted consumer. No other read is permitted, and the value never reaches a decision — not
-  pacing, backoff, an adaptive or item cap, a merge rung, admission, escalation, a warning, or a
-  pause — at any threshold, in a lane or in any gate a lane runs.
+  only permitted consumer. No other read is permitted, and the value never reaches a decision at any
+  threshold, in a lane or in any gate a lane runs: not pacing, backoff, an adaptive or item cap, a
+  merge rung, admission, escalation, a warning, or a pause.
 - **The delta measures the preceding interval (§4).** The guard reading a lane copies is taken at
   cycle start, before that cycle's own work, so `at` is the cycle-start observation time and the
   delta is the rise between the previous cycle's reading and this one: it covers the interval
   *preceding* the cycle whose report carries it, and that cycle's own consumption lands in the next
-  cycle's sample. The alternative — a post-execution reading — was rejected because it would be a
+  cycle's sample. The alternative, a post-execution reading, was rejected because it would be a
   second observation of the guard's tee that no lane's cycle shape performs, contradicting the
   invariant's own justification that the reading is already in hand.
 - **Recorded caveats bound what the data can support.** The reading is a snapshot no fresher than
   the guard's staleness rule allows, from a machine-local, last-writer-wins tee that refreshes only
-  while an interactive session renders a status line — so an unattended lane samples nothing, and an
+  while an interactive session renders a status line, so an unattended lane samples nothing, and an
   empty sample means unobserved rather than zero. The figures are **account-scope**, so the
   three-lane topology means concurrent lanes move the same windows and a per-cycle rise is one
   lane's own consumption only when that lane is the sole active session; and they are a percentage
   of a subscription window, not a token count, absent entirely for non-subscription auth. No lane
   claims a token count, because none is readable at a cycle boundary: the machine-readable token
   fields are current-context occupancy, not session totals. A machine-readable cumulative *cost*
-  field does exist and is session-scoped, so it would attribute to a lane — but the guard's tee does
+  field does exist and is session-scoped, so it would attribute to a lane, but the guard's tee does
   not forward it, and widening the tee is a guard-side change this invariant deliberately does not
   make.
 - **Upstream re-verification (§Versioning trigger 2).** This entry relies on the status-line stdin
@@ -314,88 +314,88 @@ no durable-state block.
   seconds; `rate_limits` is present only for Claude.ai subscribers after the session's first API
   response, and each window may be independently absent. Confirmed still true, and the reason no
   token count is claimed: `context_window.total_input_tokens` / `total_output_tokens` are "token
-  counts currently in the context window, from the most recent API response" — cumulative session
+  counts currently in the context window, from the most recent API response", cumulative session
   totals only before Claude Code v2.1.132. Also recorded, because it bounds a future phase rather
   than this one: `cost.total_cost_usd` is documented as the estimated session cost accumulated
-  client-side, resetting on `/clear` — machine-readable and session-scoped, and therefore the
+  client-side, resetting on `/clear`, machine-readable and session-scoped, and therefore the
   deferred candidate for per-lane attribution once a guard-side change forwards it. No drift found.
   `rate-limit-guard`'s reader contract carries its own 2026-07-23 stamp on the same page; it is
   unchanged by this entry and its refresh belongs to that plugin's own bump.
 
-## 5.0.0 — 2026-07-29
+## [5.0.0] - 2026-07-29
 
 Adds the per-lane consecutive-no-progress detector to §4's loop-layer invariants, requested and
 scoped in
 [melodic-software/claude-code-plugins#1648](https://github.com/melodic-software/claude-code-plugins/issues/1648).
 Tier ratified as **major**: a new loop-layer invariant is a new obligation every unattended lane
-body must implement, which is the discriminator 2.0.0 used. The minor reading — that a new
-invariant is additive guidance because no existing invariant changes — was considered and not
+body must implement, which is the discriminator 2.0.0 used. The minor reading, that a new
+invariant is additive guidance because no existing invariant changes, was considered and not
 taken.
 
 - **No-progress detector (§4).** Every stall mechanism below the loop layer is per-PR or per-item,
   so a lane cycling with zero aggregate progress was invisible to itself. Each unattended lane now
   persists a `no_progress_streak` counter in its #502 durable state (absent = 0): a cycle with
   actionable work in the cycle-start snapshot and no lane-defined qualifying progress increments
-  it, an idle cycle — or one held, meaning the rate-limit guard (§6) barred the lane from claiming
-  new work, which each lane's floor defines and which can outlive the pause window — leaves it
-  unchanged, and any qualifying progress resets it. Reaching the stall
+  it, while an idle cycle, or one held, meaning the rate-limit guard (§6) barred the lane from
+  claiming new work, which each lane's floor defines and which can outlive the pause window, leaves
+  it unchanged, and any qualifying progress resets it. Reaching the stall
   threshold (default 3; lane-configurable) **escalates through §2's existing contract and keeps
-  looping** — never a lane stop, no second channel, no new guardrail event class. At most one stall
+  looping**, never a lane stop, no second channel, no new guardrail event class. At most one stall
   escalation per lane stays open at a time (author-matched dedup), and neither the stall escalation
   itself nor a lane's own repeat attempt at the same still-unresolved blocker ever counts as
-  qualifying progress. The attended queue is exempt — its operator is present by definition.
+  qualifying progress. The attended queue is exempt, its operator being present by definition.
 - **Durable loop state (§4)** now lists the consecutive-no-progress counter among the persisted
   counters.
 
-## 4.0.1 — 2026-07-29
+## [4.0.1] - 2026-07-29
 
 Docs-only, no topology, escalation, tier, or invariant change: §Versioning's "Re-derivation
 triggers" label becomes "Recheck triggers" and cites the
 [upstream-drift convention](../upstream-drift/README.md) (#1638), the new owner of the
 stamp-and-trigger discipline; the generic date-is-never-authority rationale moves there. Both
-triggers stay unchanged; the recording policy aligns with the owner doc — a firing that finds
-drift lands here, a no-drift firing refreshes the claim's verification date only.
+triggers stay unchanged; the recording policy aligns with the owner doc, so a firing that finds
+drift lands here and a no-drift firing refreshes the claim's verification date only.
 
-## 4.0.0 — 2026-07-27
+## [4.0.0] - 2026-07-27
 
 Out-of-band escalation notification
 ([melodic-software/claude-code-plugins#1650](https://github.com/melodic-software/claude-code-plugins/issues/1650)).
 A change to the escalation contract is a major bump per this file's own rule.
 
-- **Escalation contract (§2) — escalation record write.** Every escalation an autonomous lane
+- **Escalation contract (§2), escalation record write.** Every escalation an autonomous lane
   files now also writes a local JSON escalation record at
   `.claude/lane-escalations/<UTC-stamp>-<item>-<lane>.json`, created with the Write tool (never a
   shell redirect, whose `Bash` event the seam's `Write` matcher never sees), one new file per
-  NEWLY filed escalation — suppression is the marker read a lane already performs before
+  NEWLY filed escalation, since suppression is the marker read a lane already performs before
   escalating, so a standing escalation re-encountered on a later cycle fires no second webhook. The
   record is written **immediately before** the marker comment, and the order is part of the
   contract: the two writes are not atomic, and this order fails toward a duplicate notification the
   next cycle re-files, where the reverse fails toward a standing marker that suppresses the record
   forever and loses the notification silently. The record is signal, not storage: the tracker item
   stays the single escalation of record. Keeping the record directory out of the working tree is a
-  **lane-start preflight**, not a consumer obligation — a lane that finds the path unignored
+  **lane-start preflight**, not a consumer obligation: a lane that finds the path unignored
   appends it to the clone's untracked `$(git rev-parse --git-common-dir)/info/exclude`, which
   repairs an existing consumer that upgraded without adding a tracked rule and alters nothing the
   repo tracks. A tracked `.gitignore` rule added through a repo's lane-enabling adoption change
   stays the durable form, and the preflight then no-ops.
-- **Escalation contract (§2) — out-of-band notification seam.** A consuming repo's own tracked
+- **Escalation contract (§2), out-of-band notification seam.** A consuming repo's own tracked
   `.claude/settings.json` may register a deterministic `PostToolUse` `type: "http"` hook on the
-  record write, POSTing the hook JSON to a repo-chosen endpoint — documented default shape,
+  record write, POSTing the hook JSON to a repo-chosen endpoint, with documented default shape,
   per-element grounding, and official-doc citations all in §2, verified 2026-07-27. The
   deterministic path carries no claude.ai subscription or Remote Control dependency.
   `PushNotification` and `slack`-plugin outbound are
   named as optional model-discretionary layers, never the deterministic leg. Fan-out depth on the
-  one filed escalation — not a second escalation channel; degradation without a configured hook
+  one filed escalation, not a second escalation channel; degradation without a configured hook
   loses only the out-of-band leg. §2 also records the seam's egress (the POST body is the full
-  hook input, session metadata included — consumer-opted by configuring the hook) and its
+  hook input, session metadata included, consumer-opted by configuring the hook) and its
   silent-failure mode (empty-string env interpolation plus non-blocking non-2xx), with a
   wire-time verification step.
 
-## 3.1.0 — 2026-07-27
+## [3.1.0] - 2026-07-27
 
 Three convention notes recording distinctions and a boundary the contract already operated under,
 plus one newly named gap. Tier is **minor**: no topology, escalation contract, or tier vocabulary
-changes, and no consuming lane acquires an obligation. The §4 and §5 additions are descriptive —
+changes, and no consuming lane acquires an obligation. The §4 and §5 additions are descriptive:
 they state what the loop layer already does, and add no invariant a lane must newly hold. **Bump
 ambiguity:** §4 is headed "Every loop lane holds these" and this revision both adds a bolded
 paragraph there and widens a stated bound, which reads as a change to a shared invariant and a
@@ -405,7 +405,7 @@ must newly hold, which reads as additive guidance and a **minor**.
 - **Prompt-fresh versus session-persistent (§4).** A cycle re-sends the lane's prompt verbatim into
   the *same* session; "runs fresh every time" describes the prompt, never the context. Stated in one
   sentence anchored at `claude-ops` `lanes`, which owns the mechanism. Records that the carried-over
-  context also *degrades* — auto-compaction summarizes earlier history in place — so the note does
+  context also *degrades*, because auto-compaction summarizes earlier history in place, so the note does
   not read as a promise that every turn survives. Prevents the conflation for any reader arriving
   from phrasing that describes only the prompt
   ([#1655](https://github.com/melodic-software/claude-code-plugins/issues/1655)).
@@ -421,14 +421,14 @@ must newly hold, which reads as additive guidance and a **minor**.
 - **Self-pacing is a named provider-conditional gap (§5).** On Bedrock, Claude Platform on AWS,
   Google Cloud's Agent Platform, and Microsoft Foundry, an omitted interval runs on a fixed
   ten-minute schedule and `ScheduleWakeup` is unavailable, so a lane launched there loses both
-  properties the self-paced shape supplies — idle backoff cannot lengthen the wake, and the lane
-  cannot end itself, which strands a **drain** lane on the deadlock §4's terminal state exists to
-  prevent — undetected. Recorded as a gap rather than left as the unstated assumption the §5 note
-  would otherwise carry — the treatment §6 already gives the single-account assumption.
+  properties the self-paced shape supplies: idle backoff cannot lengthen the wake, and the lane
+  cannot end itself, which strands a **drain** lane, undetected, on the deadlock §4's terminal state
+  exists to prevent. Recorded as a gap rather than left as the unstated assumption the §5 note
+  would otherwise carry, which is the treatment §6 already gives the single-account assumption.
 - **The fresh-context review boundary is now an explicit decision (§3).** The requirement fires on
   the merge-authority exception's dispatch and deliberately not per cycle over ordinary loop output:
-  independence substitutes for a *human decision*, and the ordinary path takes none — its
-  correctness rests on deterministic gates that are unbiased by construction. States that a lane's
+  independence substitutes for a *human decision*, and the ordinary path takes none, its
+  correctness resting on deterministic gates that are unbiased by construction. States that a lane's
   conflict path is not a second instance, since the fresh conflict *worker* it dispatches holds a
   resolution role rather than ratifying a decision a human would otherwise make. Recorded with the
   condition that revisits it, so the absence reads as a chosen boundary rather than a gap discovered
@@ -438,34 +438,34 @@ Per §Versioning's upstream-claim trigger, the `/loop` pacing claims this revisi
 re-verified against <https://code.claude.com/docs/en/scheduled-tasks> and
 <https://code.claude.com/docs/en/tools-reference> on 2026-07-27 before writing, and the §4 and §5
 dates are refreshed with the outcome. **No upstream drift:** every value the 2026-07-23 stamp
-covered still holds — the `ScheduleWakeup` bounds, its end-of-iteration call site, its
+covered still holds, the `ScheduleWakeup` bounds, its end-of-iteration call site, its
 non-operator-callability, and the seven-day expiry itself. The re-verification did change what this
 document says, in two ways:
 
 - **Two facts the prior stamp never recorded**, both now stated in §5: cron jitter, and the provider
   carve-out that turns an omitted interval into a fixed ten-minute schedule.
 - **One claim the prior stamp scoped too narrowly**, now corrected in §4: the seven-day expiry was
-  written as a property of the self-paced shape, where the source binds **both** launch shapes — a
+  written as a property of the self-paced shape, where the source binds **both** launch shapes: a
   fixed-interval loop runs until stopped by hand or until the same seven days elapse. The bound
   never changed; only this document's statement of it was narrower than the source.
 
-## 3.0.0 — 2026-07-25
+## [3.0.0] - 2026-07-25
 
-Repo-owner-ratified addition of a single named, explicit-argument exception to the seam-only merge
+Repo-owner-ratified addition of a single named, explicit-argument exception to the config-only merge
 rung, requested and scoped in
 [melodic-software/claude-code-plugins#1309](https://github.com/melodic-software/claude-code-plugins/issues/1309).
 A change to the autonomy-ladder invariant is a major bump per this file's own rule.
 
-- **Autonomy ladder** — an invocation whose own argument line explicitly types both the literal
+- **Autonomy ladder.** An invocation whose own argument line explicitly types both the literal
   `autopilot` tier keyword and the dedicated raise argument `--merge c3-this-run` (each never
-  inherited, never defaulted, never seam-supplied, never model-composed on the caller's behalf)
+  inherited, never defaulted, never config-supplied, never model-composed on the caller's behalf)
   widens that single invocation's merge authority up
   to and including C3, in a repository that has already adopted the baseline rung. The raise token
-  exists for this exception alone — `autopilot` predates it as a merge-inert tier keyword, so a
+  exists for this exception alone, and `autopilot` predates it as a merge-inert tier keyword, so a
   saved invocation or expanded template carrying the tier keyword alone acquires no merge
   authority. Persists nothing
-  to config; is not a substitute for the recorded C3-autonomous seam flip. **C4 (structural) and C5
-  (untrusted-provenance) stay unconditionally human-gated** — no rung, seam, or argument, including
+  to config; is not a substitute for the recorded C3-autonomous config flip. **C4 (structural) and C5
+  (untrusted-provenance) stay unconditionally human-gated**: no rung, config, or argument, including
   this one, ever reaches them, per the autonomy matrix's own "never promotes" cells. The exception
   lifts only the *raise* restriction: every other merge-dimension value still only selects a lower
   rung, and
@@ -481,28 +481,28 @@ A change to the autonomy-ladder invariant is a major bump per this file's own ru
   provenance and C4 the diff's blast radius, both derived from the PR rather than the linked item's
   stamp, with a class/diff mismatch failing closed; a repository-owner allowlist never substitutes
   for the provenance test. The provenance test is executable, not a vibe: a cross-repository head,
-  or an author the provider does not attest as an owner or member of the base repository — an
-  outside collaborator on a base-repository branch is external despite a same-repository head — and
+  or an author the provider does not attest as an owner or member of the base repository, where an
+  outside collaborator on a base-repository branch is external despite a same-repository head, and
   an unavailable signal fails closed to C5. The floor's verdict attaches to the exact head SHA it
   examined: any later push, the resolver's or the merge-capable worker's own, re-derives the
   verdict before any merge. The dispatch runs under the PR's own worker lease and resolves its
   capability tier through §3's binding, never a family alias fixed in a lane.
-- **Capability tiers** — the explicit-`autopilot` exception's frontier-tier dispatch additionally
+- **Capability tiers.** The explicit-`autopilot` exception's frontier-tier dispatch additionally
   requires context independence: no shared conversation history with whatever produced or previously
   reviewed the PR. A same-context or self-continuation dispatch does not satisfy the exception even at
   the frontier tier.
 
-## 2.0.0 — 2026-07-24
+## [2.0.0] - 2026-07-24
 
 Tier ratified as **major**. Both corrections touch a shared invariant: B4 replaces a stated
 operating assumption every consuming lane inlines, and B6 alters the §Versioning trigger set that
-governs when this contract must change at all. The narrower minor reading — that §6 is the guard
-binding rather than a §4 loop-layer invariant, and that a new trigger is additive guidance — was
+governs when this contract must change at all. The narrower minor reading, that §6 is the guard
+binding rather than a §4 loop-layer invariant and that a new trigger is additive guidance, was
 considered and not taken. Each entry below records both cases.
 
 - **Single-account-per-machine is reframed from invariant to known gap (§6).** The previous text
-  said "operation assumes one account per machine" — descriptive of how the guard happened to be
-  built, and fail-**open** where the rest of the contract fail-closes. Same-machine account rotation
+  said "operation assumes one account per machine", which was descriptive of how the guard happened
+  to be built, and fail-**open** where the rest of the contract fail-closes. Same-machine account rotation
   is real operating practice, so the section now names the gap instead of asserting an assumption,
   and defers the account-identity design that resolves it to `TODO(#1218)`, which owns all three
   sides (writer-side identity field, reader-side invalidation of latched state, and the lane-floor
@@ -515,38 +515,38 @@ considered and not taken. Each entry below records both cases.
   which reads as a change to a shared invariant and a **major**.
 - **Second re-derivation trigger (§Versioning).** Any change relying on an upstream-sourced claim
   now re-verifies that claim against its cited page first and refreshes its date. Previously only a
-  new model release triggered re-derivation, so the upstream-sourced claims — `/loop` expiry,
-  `ScheduleWakeup` bounds, alias semantics, rate-limit windows — carried a dated stamp with no
+  new model release triggered re-derivation, so the upstream-sourced claims, `/loop` expiry,
+  `ScheduleWakeup` bounds, alias semantics, and rate-limit windows, carried a dated stamp with no
   expiry, which reads as standing authority the longer it sits. **Bump ambiguity:** adding a trigger
   is additive guidance and a **minor**; but the §Versioning trigger set governs when this contract
   must change at all, so altering it changes the contract's own maintenance obligations, which reads
   as a **major**.
 
-## 1.0.0 — 2026-07-23
+## [1.0.0] - 2026-07-23
 
 Initial published contract. Lands before the second adopter, per the convention-registry rule: the
 `work-items` `work-loop` / `attend-queue` skills and the `source-control` `babysit-loop` skill share
 these concerns across two plugins.
 
-- **Three-session topology** — worker loop authors PRs (never merges), babysit lane owns merges
-  within the autonomy matrix's merge-policy column, attended queue holds judgment.
-- **Autonomy ladder** — human merge is the shipped default for all but gate-proven C2-mechanical
+- **Three-session topology.** The worker loop authors PRs (never merges), the babysit lane owns
+  merges within the autonomy matrix's merge-policy column, and the attended queue holds judgment.
+- **Autonomy ladder.** Human merge is the shipped default for all but gate-proven C2-mechanical
   PRs (a work-class test, not an authorship one: bot authorship alone never qualifies, and C3/C4/C5/
   unclassified stay human-gated); this default is the recorded baseline rung, and every higher rung
   is opt-in per repo through the matrix's recorded human-ratified config flip.
-- **Escalation contract** — `needs-human` role label resolved via `config.role_labels` plus a
+- **Escalation contract.** A `needs-human` role label resolved via `config.role_labels` plus a
   machine-marked discriminator comment; event classes owned by the autonomy guardrails.
-- **Capability tiers** — order-defined (frontier / strong / fast), never family names; runtime
+- **Capability tiers.** Order-defined (frontier / strong / fast), never family names; runtime
   resolution by model alias only, Models API as the build/audit-time path; security-surface work
   routes to frontier always; weekly-cap specifics linked to the official support article, never
   restated.
-- **Loop-layer invariants** — stop shapes with a drain-terminal state; `#691` cycle budget restarts
+- **Loop-layer invariants.** Stop shapes with a drain-terminal state; `#691` cycle budget restarts
   the session, never the loop; `#502` single edit-in-place telemetry comment with durable loop state;
   headless-config floor; seam exit 8 backoff-as-dirty; snapshot drain exit; subagent discipline
   preamble.
-- **Launch surfaces** — `/loop` primary and dependency-free; `claude-ops` `lanes` a one-directional
+- **Launch surfaces.** `/loop` primary and dependency-free; `claude-ops` `lanes` a one-directional
   supporting launcher (#480), presence-gated with a `/loop` fallback.
-- **Rate-limit guard binding** — each lane inlines the operable pause floor and cites the guard
+- **Rate-limit guard binding.** Each lane inlines the operable pause floor and cites the guard
   reader contract for provenance; single-account-per-machine invariant; per-cycle guard-mode
   telemetry.
 

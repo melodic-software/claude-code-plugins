@@ -2,7 +2,7 @@
 
 What a mutant is, what happens to it, and the catalogs of faults tools know how to inject.
 
-Sources: [Stryker — mutant states and
+Sources: [Stryker mutant states and
 metrics](https://stryker-mutator.io/docs/mutation-testing-elements/mutant-states-and-metrics/);
 [PIT mutation operators](https://pitest.org/quickstart/mutators/); Petrović & Ivanković, *State of
 Mutation Testing at Google* (ICSE-SEIP 2018) and Petrović, Ivanković, Fraser & Just, *Practical
@@ -11,7 +11,7 @@ Mutation Testing at Scale* (<https://arxiv.org/abs/2102.11378>). Fetched 2026-08
 ## The mutant lifecycle
 
 1. Pick a location in the code under test.
-2. Apply one operator — a single small, syntactically valid change.
+2. Apply one operator, a single small, syntactically valid change.
 3. Run the tests that cover that location.
 4. Record the outcome.
 5. **Revert.** The source is unchanged when the run ends. A mutation run is net-zero on the working
@@ -29,21 +29,21 @@ Stryker's vocabulary is the one the other tools converge on:
 | **Timeout** | Running the tests with the mutant active timed out (typically an infinite loop) | Detected |
 | **Runtime error** | The run errored rather than failing a test | Invalid |
 | **Compile error** | The mutant did not compile (compiled languages only) | Invalid |
-| **Ignored** | Deliberately not tested — user configuration or another documented reason | Excluded |
+| **Ignored** | Deliberately not tested, by user configuration or another documented reason | Excluded |
 | **Pending** | Generated, not yet run | Excluded |
 
 Two of these routinely mislead:
 
 - **Timeout counts as detected.** An infinite loop *is* a detected behavior change. Do not read
-  timeouts as failures of the harness by default — but a suite whose score leans heavily on timeouts
-  is worth a look, because it is being carried by wall-clock rather than assertions.
+  timeouts as failures of the harness by default. A suite whose score leans heavily on timeouts
+  is still worth a look, because it is being carried by wall-clock rather than assertions.
 - **No coverage is not a weak test.** It is an absent test. Keeping it in the same bucket as
   "survived" is what makes the plain mutation score misleading; see
   [metrics.md](metrics.md).
 
 ## Operator catalogs
 
-An operator is a rule for producing one mutant. Tools ship fixed catalogs — the mutants are not
+An operator is a rule for producing one mutant. Tools ship fixed catalogs. The mutants are not
 invented per run, which is what makes the technique reproducible.
 
 ### PIT's default set (Java/JVM)
@@ -61,7 +61,7 @@ invented per run, which is what makes the technique reproducible.
 | Null returns | Returns `null` for an object return |
 | Primitive returns | Returns `0` for a numeric return |
 
-Optional and experimental sets go further — constructor calls to `null`, remove-conditionals (force
+Optional and experimental sets go further: constructor calls to `null`, remove-conditionals (force
 a branch always taken), remove-increments, non-void method call replacement, argument propagation,
 switch mutation, bitwise operators. Turning these on raises both the mutant count and the
 unproductive rate; start with defaults.
@@ -72,11 +72,11 @@ Narrowed deliberately, and worth knowing because the narrowing is the finding:
 
 | Operator | What it does |
 |---|---|
-| **AOR** | Arithmetic operator replacement — `a + b` → `a`, `b`, `a - b`, `a * b`, … |
-| **LCR** | Logical connector replacement — `a && b` → `a`, `b`, `a \|\| b`, … |
-| **ROR** | Relational operator replacement — `a > b` → `a < b`, `a <= b`, … |
-| **SBR** | Statement block removal — `stmt` → nothing |
-| **UOI** | Unary operator insertion — `a` → `a++`, `a--` |
+| **AOR** | Arithmetic operator replacement: `a + b` → `a`, `b`, `a - b`, `a * b`, … |
+| **LCR** | Logical connector replacement: `a && b` → `a`, `b`, `a \|\| b`, … |
+| **ROR** | Relational operator replacement: `a > b` → `a < b`, `a <= b`, … |
+| **SBR** | Statement block removal: `stmt` → nothing |
+| **UOI** | Unary operator insertion: `a` → `a++`, `a--` |
 
 **SBR dominates**, accounting for roughly 68% of generated mutants in their corpus. That matters for
 any language without an off-the-shelf tool: deleting a statement or a block is the single
@@ -88,8 +88,8 @@ by hand in this repository's own `lib/hook-utils.test.sh` mutation notes.
 For a language with no mutation tooling, a hand-rolled or agent-driven pass should start with the
 two operators that need no parser:
 
-1. **SBR** — delete one statement or one block.
-2. **ROR / negate-conditionals** — invert one comparison.
+1. **SBR**: delete one statement or one block.
+2. **ROR / negate-conditionals**: invert one comparison.
 
 Both are language-agnostic, both produce a syntactically valid program in most languages, and
 together they cover the two failure modes that assertions most often miss: a step that never ran,

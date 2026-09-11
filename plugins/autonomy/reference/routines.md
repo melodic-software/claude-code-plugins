@@ -29,18 +29,18 @@ schedule plus a saved task definition that, on each firing, enqueues through the
 contract's `temporal` [signal-surface class](trigger-dispatch.md#signal-surface-classes) and
 executes only through its [one dispatch entrypoint](trigger-dispatch.md#dispatch). A routine
 is never a private execution, merge, or scheduling path. Every
-[adapter obligation](trigger-dispatch.md#adapter-obligations) binds it — admission is
+[adapter obligation](trigger-dispatch.md#adapter-obligations) binds it: admission is
 enforced at the seam, and the routine's bound definition is what derives the
 `signal.work_class` stamp per the
-[classification rules](trigger-dispatch.md#work-class-classification) — and the
+[classification rules](trigger-dispatch.md#work-class-classification). The
 [guardrail matrix](guardrails.md#the-matrix) governs from the moment the item is queued.
 
 A **wholly** deterministic check is not a routine. Judgment-free date, threshold, and
-pipeline mechanics run with **no agent session and zero agent tokens** — that property is
+pipeline mechanics run with **no agent session and zero agent tokens**. That property is
 the invariant this contract fixes, and the substrate carrying it is a deployment-owned
 binding like every other hosting choice (§Hosting stance), never a mechanism named here.
 Failures file work items through the same trigger adapters. The catalog flags such classes
-`not-a-routine` — they stay visible as rows, never silent exclusions.
+`not-a-routine`. They stay visible as rows, never silent exclusions.
 
 Determinism is a per-portion verdict, so a deterministic portion is rarely a reason to stop
 classifying a class. A class whose detection is judgment-free but whose disposition is not
@@ -57,7 +57,7 @@ fire fresh ones.
 | Term | Family | Meaning |
 |---|---|---|
 | `loop` | session-scoped | repetition on an interval inside one session; dies with the session |
-| `goal` | session-scoped | completion condition — the session keeps going until a separate grader judges the condition met or the goal is cleared |
+| `goal` | session-scoped | completion condition: the session keeps going until a separate grader judges the condition met or the goal is cleared |
 | `batch` | session-scoped | parallel fan-out over decomposed units of one brief; not bulk-inference batch APIs |
 | `dynamic workflow` | session-scoped | orchestration whose decomposition and sub-steps the session composes at run time; ends with the session |
 | `schedule` | standing | the standing time trigger |
@@ -69,7 +69,7 @@ standing governance beyond the session that runs them.
 ## Trigger taxonomy
 
 Three trigger shapes place a routine class in time. All three enter work through the trigger
-contract's signal-surface classes — none is a second scheduling path.
+contract's signal-surface classes. None is a second scheduling path.
 
 | Trigger | Meaning | Queue entry |
 |---|---|---|
@@ -77,15 +77,15 @@ contract's signal-surface classes — none is a second scheduling path.
 | `event` | a source emission the routine rides in addition to its cadence | the routine's run is always `temporal` (rule below); the event itself may separately enqueue as an ordinary signal through its own surface class |
 | `continuous` | standing monitor | the routine's run is always `temporal` (rule below); a push feed wakes the routine, and where the surface offers no push the `temporal` poll-fallback detector is the conforming form; the feed emission may separately enqueue as an ordinary `channel-feed` signal |
 
-**Routine runs stay temporal — every wake source.** A routine run never enters the queue
+**Routine runs stay temporal, whatever the wake source.** A routine run never enters the queue
 through a foreign adapter. Event-riding means the event wakes the routine's own emitting
-scheduling surface — an event trigger on the same ratified schedule surface — and the run
+scheduling surface, an event trigger on the same ratified schedule surface, and the run
 that surface emits is a `temporal`-class signal carrying `signal.routine` under the same
 ratified identity, surface, run-link namespace, and `producer_identity` as a schedule-tick run
 ([classification](trigger-dispatch.md#work-class-classification)). Only the wake source
 varies; identity, attestation namespace, producer identity, and classification are invariant. The event itself
-may still flow through its own event adapter as an ordinary signal — an advisory landing as
-a tracker item is such a signal — but the routine's run is always `temporal`. A continuous
+may still flow through its own event adapter as an ordinary signal, an advisory landing as
+a tracker item being such a signal, but the routine's run is always `temporal`. A continuous
 monitor's push feed likewise only wakes the ratified surface; the feed message may enqueue as
 an ordinary `channel-feed` signal, but the routine's run is always `temporal`.
 
@@ -94,13 +94,13 @@ an ordinary `channel-feed` signal, but the routine's run is always `temporal`.
 Routine output is an advisory report or a work item filed into the governed queue. Direct
 change is never a routine-private capability: it exists only through the merge-policy column
 of the [guardrail matrix](guardrails.md#the-matrix) for the class the routine derives.
-Governed-queue and tracker writes are permitted `C1` output — scoping in the
-[work-classes leaf](guardrails/work-classes.md).
+Governed-queue and tracker writes are permitted `C1` output. The
+[work-classes leaf](guardrails/work-classes.md) carries the scoping.
 
 ## Mapping rules (catalog to matrix)
 
 The mapping rules are contract-owned so an adopting org can classify a novel routine class
-end-to-end — axes to guardrail row to prerequisites — without a contract change. Score the
+end-to-end, axes to guardrail row to prerequisites, without a contract change. Score the
 class on the catalog's axes, then apply the rules below.
 
 ### Judgment and output
@@ -109,8 +109,8 @@ class on the catalog's axes, then apply the rules below.
   items through trigger adapters. Flagged `not-a-routine` in the catalog.
 - Hybrid `DET` detect + `AGT` judgment → split: the detection portion carries the
   no-agent-session property; the judgment portion is the routine and derives through the
-  `AGT` rules below. A portion-split row therefore binds a posture-qualified identity —
-  `<class-token>/<posture-token>`, never the bare class token (§Routine identity) — carries the
+  `AGT` rules below. A portion-split row therefore binds a posture-qualified identity,
+  `<class-token>/<posture-token>` and never the bare class token (§Routine identity), carries the
   judgment portion's class in `Derived row`, and is never flagged `not-a-routine`. That flag is
   reserved for a wholly deterministic class with no agent portion at all; the no-agent-session
   property belongs to the detect portion and is stated in the Judgment cell only.
@@ -126,7 +126,7 @@ class on the catalog's axes, then apply the rules below.
 
 ### Risk-raising axes
 
-- **Structural blast radius** — a direct change to a structural or configuration surface
+- **Structural blast radius**: a direct change to a structural or configuration surface
   derives `C4`. The axis fires on the change's target, not on the file the change lives in: a
   one-line fix that merely sits in a file declaring an interface is the over-read this excludes,
   and a purely mechanical single-implementation inline does not demote a row whose target is the
@@ -134,30 +134,30 @@ class on the catalog's axes, then apply the rules below.
   mechanism performing the edit is. **No catalog column records the target**, so two rows can carry
   identical axis cells and derive different classes; the target comes from the class's own
   definition, and a row whose derivation turns on it says so in its `Derived row` cell.
-- **Per-item escalation** — a risk-raising axis evaluates per item as well as class-wide. Where it
+- **Per-item escalation**: a risk-raising axis evaluates per item as well as class-wide. Where it
   fires only on some items of a class, the class derives the lower class and the row records the
-  escalation, rather than the class deriving the higher one wholesale — otherwise the lower branch
+  escalation, rather than the class deriving the higher one wholesale. Otherwise the lower branch
   goes nearly unpopulated for whole categories of work. The definition leaf owns the predicate that
   decides which side an item falls on.
-- **Input provenance** — a routine consuming attacker-writable external content derives
+- **Input provenance**: a routine consuming attacker-writable external content derives
   `C5`, the untrusted-provenance class. This is a class outcome, not a caveat. The axis keys
   on external content: the `ext` access class, and judgment postures that reason over
   external prose or code such as upstream release notes, changelogs, and third-party package
   contents. Third-party-authored text already inside the org's own tracker and product
   surfaces is admission-governed routine input, not a `C5` trigger.
-- **Composition** — when multiple rules match, the derivation composes to the highest-risk
+- **Composition**: when multiple rules match, the derivation composes to the highest-risk
   class (`C5` > `C4` > `C3` > `C2` > `C1`). A structural change driven by attacker-writable
   input derives `C5` and its floor, never `C4`'s lower floor.
 
 ### Access to prerequisites
 
-Which routine identities can run against a given repository — and why — is owned by
+Which routine identities can run against a given repository, and why, is owned by
 [routine prerequisite resolution](prerequisite-resolution.md); this section states only the
 catalog consequence when a prerequisite is missing.
 
-- `repo` — the [`L2` unattended floor](guardrails/isolation-ladder.md#unattended-floor)
+- `repo`: the [`L2` unattended floor](guardrails/isolation-ladder.md#unattended-floor)
   applies; no connector prerequisite.
-- `prod`, `product`, `org`, `ext` — a connector is a prerequisite, with the entitlement
+- `prod`, `product`, `org`, `ext`: a connector is a prerequisite, with the entitlement
   resolved in the org binding; a missing surface or entitlement routes to the advisory path
   per the trigger contract, never a silent degrade.
 - External-watch classes read attacker-writable content: the input-provenance rule applies,
@@ -173,7 +173,7 @@ A routine binds under a routine identity: `<class-token>` for a single-posture c
 portion-split rows (kebab-case segments). A multi-posture class never binds its bare class
 token; each posture-qualified identity carries that posture's derived class. The
 identity-to-class mapping is admission data on the security binding, each entry bound to its
-one emitting scheduling surface — one identity per surface — so the schedule-side selector is
+one emitting scheduling surface, one identity per surface, so the schedule-side selector is
 a claim the admission seam validates against the ratified binding, never a trust anchor, for
 the same agent-unwritable reason the
 [classification obligation](trigger-dispatch.md#work-class-classification) states. Posture
@@ -199,7 +199,7 @@ prepares, human decides · hybrid rows show the split. Output: `R` report · `WI
 |---|---|---|---|---|---|
 | **Ops / production** | | | | | |
 | alert-triage | AGT | R + WI | prod | C1 | join: telemetry connector exists |
-| anomaly-detection | DET (ML detector) | R (alert) | prod | n/a — no agent session | not-a-routine |
+| anomaly-detection | DET (ML detector) | R (alert) | prod | n/a, no agent session | not-a-routine |
 | slo-error-budget-review | AGT/HUM | R | prod | C1; disposition human-gated | join: telemetry connector exists |
 | alert-noise-review | AGT | R + WI | prod | C1 | join: telemetry connector exists |
 | log-review-sweep | AGT | R | prod | C1 | join: telemetry connector exists |
@@ -210,7 +210,7 @@ prepares, human decides · hybrid rows show the split. Output: `R` report · `WI
 | **Issue lifecycle** | | | | | |
 | issue-triage-sweep | AGT | WI + R | repo | C1 | v1 |
 | duplicate-detection-sweep | AGT | WI + R | repo | C1 | v1 |
-| stale-issue-pr-grooming | DET | DC per policy | repo | n/a — no agent session | not-a-routine |
+| stale-issue-pr-grooming | DET | DC per policy | repo | n/a, no agent session | not-a-routine |
 | backlog-readiness-check | AGT | WI + R | repo | C1 | v1 |
 | pr-queue-tending | AGT | R + WI | repo | C1 | v1 |
 | flaky-test-quarantine | hybrid: DET detect (no agent session); AGT root-cause is the routine | WI + DC (quarantine) | repo | C1 (WI); quarantine DC C2 (mechanically checkable) | join: proven recurring manual pattern |
@@ -220,24 +220,24 @@ prepares, human decides · hybrid rows show the split. Output: `R` report · `WI
 | advisory-cve-triage | AGT | R + WI | repo | C1 | v1 |
 | secret-scan-review | AGT/HUM | R + WI | repo | C1; disposition human-gated | join: proven recurring manual pattern |
 | license-compliance-audit | hybrid: DET scan (no agent session); AGT edge-case judgment is the routine | R | repo | C1 | join: proven recurring manual pattern |
-| sbom-refresh | DET | DC (artifact) | repo | n/a — no agent session | not-a-routine |
+| sbom-refresh | DET | DC (artifact) | repo | n/a, no agent session | not-a-routine |
 | access-review | AGT/HUM | R (evidence pack) | org | C1; disposition human-gated | join: org systems connected |
-| base-image-refresh | DET | DC (PR) | repo | n/a — no agent session | not-a-routine |
+| base-image-refresh | DET | DC (PR) | repo | n/a, no agent session | not-a-routine |
 | malicious-code-scan | AGT | R | repo | C5 (reads attacker-writable third-party code) | join: proven recurring manual pattern |
 | **Code quality / knowledge** | | | | | |
 | tech-debt-sweep | hybrid: DET recipes (no agent session); AGT sweep is the routine | WI | repo | C1 (WI); prioritization disposition human-gated | v1 |
-| dead-code-sweep | hybrid: DET detect (no agent session); AGT quarantine-exit judgment is the routine | DC (review-gated PR) | repo | C3 (liveness not mechanically checkable — reflection, dynamic dispatch, and out-of-tree callers all defeat the build); per-item escalation to C4 on a published surface | join: proven recurring manual pattern |
-| clone-trend-gate | DET | R (digest/gate) | repo | n/a — no agent session | not-a-routine |
-| cant-fail-test-repair | hybrid: DET detect (built: the `testing:audit` script detector; no agent session); AGT repair judgment is the routine | DC (PR) | repo | C3 (an assertion's adequacy is not mechanically checkable — a test that now fails may be right or wrong) | join: proven recurring manual pattern |
+| dead-code-sweep | hybrid: DET detect (no agent session); AGT quarantine-exit judgment is the routine | DC (review-gated PR) | repo | C3 (liveness not mechanically checkable: reflection, dynamic dispatch, and out-of-tree callers all defeat the build); per-item escalation to C4 on a published surface | join: proven recurring manual pattern |
+| clone-trend-gate | DET | R (digest/gate) | repo | n/a, no agent session | not-a-routine |
+| cant-fail-test-repair | hybrid: DET detect (built: the `testing:audit` script detector; no agent session); AGT repair judgment is the routine | DC (PR) | repo | C3 (an assertion's adequacy is not mechanically checkable: a test that now fails may be right or wrong) | join: proven recurring manual pattern |
 | stale-flag-removal | hybrid: DET staleness detect (no agent session); AGT/HUM removal disposition is the routine | DC (PR) | repo | C4 (a flag definition is a configuration surface; composes above the C3 the direct-change rule alone would give); disposition human-gated | join: proven recurring manual pattern |
 | formal-logic-modeling | AGT | R | repo | C1 | join: a stated invariant or specification artifact exists to model against |
 | layering-enforcement | AGT/HUM | R | repo | C1; disposition human-gated | join: layering rules stated as text, and a recurring manual pattern the incumbent reviewer does not already cover |
 | logic-simplification-sweep | AGT | DC (PR) | repo | C3 (equivalence above expression level is not mechanically checkable) | join (external): published effectiveness evidence exists |
 | abstraction-flattening | AGT | DC (PR) | repo | C4 (structural surface) | join (external): a validated detector is published |
-| gui-crash-fuzzing | DET (fuzzer) | R + WI | repo | n/a — no agent session; the GUI-actuation rule still requires L3 | not-a-routine |
+| gui-crash-fuzzing | DET (fuzzer) | R + WI | repo | n/a, no agent session; the GUI-actuation rule still requires L3 | not-a-routine |
 | doc-freshness-sweep | AGT | R + DC (optional docs PR) | repo | C1 (report); optional gated docs-PR portion C3 | v1 |
 | drift-delta-sweep | AGT | R + WI | repo | C1 | v1 |
-| coverage-mutation-watch | DET | R (digest/gate) | repo | n/a — no agent session | not-a-routine |
+| coverage-mutation-watch | DET | R (digest/gate) | repo | n/a, no agent session | not-a-routine |
 | release-notes-generation | hybrid: DET cut mechanics (no agent session); AGT narrative is the routine | DC (draft) | repo | C3 (narrative truth not mechanically checkable) | join: proven recurring manual pattern |
 | eng-metrics-digest | AGT | R | repo | C1 | v1 |
 | knowledge-base-gardening | AGT/HUM | R + WI | repo | C1; disposition human-gated | join: proven recurring manual pattern |
@@ -245,7 +245,7 @@ prepares, human decides · hybrid rows show the split. Output: `R` report · `WI
 | rotating-quality-improver | AGT | DC (targeted PRs) | repo | C3 | join: proven recurring manual pattern |
 | cross-artifact-sync | AGT | DC (mirrored PR) | repo (multi) | C3 | join: proven recurring manual pattern |
 | **Product / business-adjacent** | | | | | |
-| release-cut | DET | DC (version + tag) | repo | n/a — no agent session | not-a-routine |
+| release-cut | DET | DC (version + tag) | repo | n/a, no agent session | not-a-routine |
 | deploy-verification | AGT/HUM | R (go/no-go) | prod | C1; disposition human-gated | join: telemetry connector exists |
 | voc-theme-digest | AGT | R + WI | product | C1 | join: analytics/feedback connected |
 | analytics-anomaly-review | AGT/HUM | R | product | C1; disposition human-gated | join: analytics/feedback connected |
@@ -258,18 +258,18 @@ prepares, human decides · hybrid rows show the split. Output: `R` report · `WI
 Normative detail a row's cells cannot carry. A parameter here binds the class; it is not
 commentary, and a leaf that contradicts one is non-conforming.
 
-- **`dead-code-sweep` — `C3` is the class-level derivation; a published surface escalates the item
+- **`dead-code-sweep`: `C3` is the class-level derivation; a published surface escalates the item
   to `C4`.** This is the per-item escalation rule applied: deleting a symbol on a published,
   cross-repo-consumed API surface is a contract change, so the structural-blast-radius axis fires on
   that item and composition takes it to `C4`, while the class stays `C3`. What turns on it: `C3`
   versus `C4` is the difference between auto-merge ever becoming eligible and human merge always.
-- **`dead-code-sweep` — a green quarantine window is inductive evidence, never proof.** It shows no
-  observed invocation over a bounded period under observed workloads. The paths a bounded window
-  under-samples worst — disaster recovery, annual and quarterly jobs, error and fallback branches, a
-  downstream consumer pinned to an older version — are exactly the ones that make deletion dangerous.
+- **`dead-code-sweep`: a green quarantine window is inductive evidence, never proof.** It shows no
+  observed invocation over a bounded period under observed workloads. Exactly the paths that make
+  deletion dangerous are the ones a bounded window under-samples worst: disaster recovery, annual
+  and quarterly jobs, error and fallback branches, a downstream consumer pinned to an older version.
   A suite that still passes after removal proves the suite does not cover the symbol, which is the
   null hypothesis rather than the alternative.
-- **`dead-code-sweep` — the quarantine window floor is 30–90 days with staged quarantine, never a
+- **`dead-code-sweep`: the quarantine window floor is 30–90 days with staged quarantine, never a
   one-day window.** Removal is staged: detect, quarantine, and only then judge the exit. The floor
   is not tunable downward by an org binding. The bound derives from what the window must out-last:
   a quarantine window is evidence only where it spans the invocation cadence of the paths a short
@@ -280,53 +280,53 @@ commentary, and a leaf that contradicts one is non-conforming.
   Both score `DET | R (digest/gate) | repo`, so the two rows differ only in their class token. The
   observables differ: clone density and its trend, versus coverage and mutation score. Neither row
   is a duplicate of the other, and neither subsumes the other's observable.
-- **`clone-trend-gate` — detection and trend gating only.** The unify *decision* is deliberately not
+- **`clone-trend-gate`: detection and trend gating only.** The unify *decision* is deliberately not
   in this class and is not a deferred posture of it: no surveyed clone-detection tool automates the
   choice of which clones to unify, across a detection literature the survey found spanning two
   decades. On that record there is nothing to defer to, so a request to add a unify posture re-opens
   the class rather than extending it.
-- **`stale-flag-removal` — the disposition never automates.** Staleness is detectable; which branch
+- **`stale-flag-removal`: the disposition never automates.** Staleness is detectable; which branch
   survives is a product decision. The flag-lifecycle tooling surveyed stops at the same line; where
   an instance does act, the decision was pre-encoded (a flag already at a single variation
   everywhere).
-- **`ant-only-shipper` — the decision layer is a human product call and stays one.** The agent
+- **`ant-only-shipper`: the decision layer is a human product call and stays one.** The agent
   assembles the promotion evidence; whether to promote, hold, or retire is not delegable to the
   routine.
-- **`layering-enforcement` — the inform-human posture only.** A direct-change posture would derive
+- **`layering-enforcement`: the inform-human posture only.** A direct-change posture would derive
   `C4` by structural blast radius, and no surveyed precedent supports one; it is excluded, not
   deferred.
-  Admission also requires layering rules stated as text — a routine cannot enforce a rule nobody
-  wrote — and requires clearing the incumbent gate against the existing architecture-review surface.
-- **`logic-simplification-sweep` — above expression level only, and unbuilt.** Equivalence above
+  Admission also requires layering rules stated as text, since a routine cannot enforce a rule
+  nobody wrote, and requires clearing the incumbent gate against the existing architecture-review surface.
+- **`logic-simplification-sweep`: above expression level only, and unbuilt.** Equivalence above
   expression level is not mechanically checkable, which is what puts the row at `C3` rather than
   `C2`. No effectiveness evidence for automating it surfaced in the surveyed literature, which is
-  why the class is unbuilt. The join trigger is that evidence being published — world state, not a
+  why the class is unbuilt. The join trigger is that evidence being published: world state, not a
   prerequisite an adopting org can supply, which is why the status reads `join (external)`.
-- **`abstraction-flattening` — the structural axis fires because the target is the structural
+- **`abstraction-flattening`: the structural axis fires because the target is the structural
   surface.** The change edits module boundaries and type/interface structure; cross-cutting blast
   radius is the shape of the operation rather than a risk it might incur.
-- **`abstraction-flattening` — a scanner is not the join trigger; a published validated detector
+- **`abstraction-flattening`: a scanner is not the join trigger; a published validated detector
   is.** Heuristic scanners for the smells this class would target (Speculative Generality, Middle
   Man) ship today; none surveyed is validated against a fault-outcome ground truth, which is what
   the trigger names. The empirical record also runs backwards: those smells are in some studies
   associated with *fewer* faults, not more. Satisfying the join trigger would not settle that
-  question — both must clear.
-- **`gui-crash-fuzzing` — the `WI` half of its Output is replay-gated, and reproducibility triage is
+  question. Both must clear.
+- **`gui-crash-fuzzing`: the `WI` half of its Output is replay-gated, and reproducibility triage is
   excluded from the class.** Reported crash-replay reproducibility is low enough that filing every
   crash would degrade the governed queue rather than feed it. So the row's `WI` output is
   admission-constrained: an item is filed only where re-running the recorded input sequence
   reproduces the crash, and everything else stays in the `R` half as a fuzzer report. That gate is a
   re-run, not a judgment, so it introduces no `AGT` portion and the `DET` exit stays complete rather
-  than skipping a split. Judging a *filed* item beyond that — whether it is worth fixing, whether it
-  duplicates another — is ordinary queue intake owned by the issue-lifecycle classes, excluded from
+  than skipping a split. Judging a *filed* item beyond that, whether it is worth fixing and whether
+  it duplicates another, is ordinary queue intake owned by the issue-lifecycle classes, excluded from
   this class rather than deferred within it.
-- **`gui-crash-fuzzing` — the `L3` floor comes from the mapping rule, not the matrix.** A row
+- **`gui-crash-fuzzing`: the `L3` floor comes from the mapping rule, not the matrix.** A row
   deriving no class cannot index the matrix's min-isolation column. The fuzz target is built from
   the repo, but synthetic input actuation is not contained by a process boundary, so the `L2` the
   `repo` access class alone would give is not the operative floor.
-- **`cant-fail-test-repair` — repair, not pruning.** A test that cannot fail is a coverage claim that
+- **`cant-fail-test-repair`: repair, not pruning.** A test that cannot fail is a coverage claim that
   is false; deleting it removes the false claim and the coverage together. The class repairs the
-  assertion. The detect portion is built — the `testing:audit` script detector — and carries the
+  assertion. The detect portion is built as the `testing:audit` script detector and carries the
   no-agent-session property per the portion-split mapping rule; the repair judgment, the routine
   itself, is not, so the join trigger stays open and the class gains no leaf. A detector proves
   detection, never the repair pattern `v1` requires.
@@ -342,7 +342,7 @@ commentary, and a leaf that contradicts one is non-conforming.
 
 ### v1 leaves
 
-Leaf-level definition depth for the eleven `v1` classes only — every leaf derives its guardrail
+Leaf-level definition depth for the eleven `v1` classes only. Every leaf derives its guardrail
 row through the mapping rules above, never by hand. The class parameters above are the other
 depth tier and bind whether or not a class has a leaf:
 
@@ -358,7 +358,7 @@ depth tier and bind whether or not a class has a leaf:
 - [eng-metrics-digest](routines/eng-metrics-digest.md)
 - [ci-health-review](routines/ci-health-review.md)
 
-Deferred classes stay catalog rows — carrying class parameters where they need them — until
+Deferred classes stay catalog rows, carrying class parameters where they need them, until
 their join trigger fires; `not-a-routine` classes never gain leaves, and bind through their row
 and its parameters alone.
 
@@ -378,58 +378,58 @@ product ships today. The same caution covers the survey-backed sentences in the 
 above. Recheck trigger: a re-survey that records its own date, which supersedes this note, or a
 row whose pointer a reader finds no longer describes the named product.
 
-- `alert-triage` — per-alert investigation agents shipped across observability platforms,
+- `alert-triage`: per-alert investigation agents shipped across observability platforms,
   event-triggered today
-- `anomaly-detection` — continuous statistical/ML detectors built into monitoring platforms
-- `slo-error-budget-review` — standing human cadence in the SRE literature's error-budget
+- `anomaly-detection`: continuous statistical/ML detectors built into monitoring platforms
+- `slo-error-budget-review`: standing human cadence in the SRE literature's error-budget
   practice
-- `alert-noise-review` — standing alert-insight dashboards feeding a human review
-- `log-review-sweep` — scheduled log-watch samples in hosted agentic-workflow sample packs
-- `incident-retro-drafting` — post-incident draft generation on resolve in
+- `alert-noise-review`: standing alert-insight dashboards feeding a human review
+- `log-review-sweep`: scheduled log-watch samples in hosted agentic-workflow sample packs
+- `incident-retro-drafting`: post-incident draft generation on resolve in
   incident-management platforms
-- `postmortem-followup-sweep` — follow-up items auto-exported to trackers and nudged to
+- `postmortem-followup-sweep`: follow-up items auto-exported to trackers and nudged to
   completion by incident-management platforms
-- `on-call-handoff-summary` — recipient-tailored handoff summaries in incident-management
+- `on-call-handoff-summary`: recipient-tailored handoff summaries in incident-management
   tooling
-- `on-call-conflict-resolution` — a GA continuous background agent on a major
+- `on-call-conflict-resolution`: a GA continuous background agent on a major
   incident-response platform detecting schedule conflicts and coordinating replacements
-- `stale-issue-pr-grooming` — deterministic stale-bot policy engines driven by
+- `stale-issue-pr-grooming`: deterministic stale-bot policy engines driven by
   date-threshold rules
-- `flaky-test-quarantine` — auto-quarantine pipelines at large test fleets and CI-analytics
+- `flaky-test-quarantine`: auto-quarantine pipelines at large test fleets and CI-analytics
   services; agent root-cause analysis emerging
-- `support-ticket-conversion` — classify-and-escalate support assistants; no verified
-  closed loop — an emerging, unverified class
-- `secret-scan-review` — validity-checked secret-incident triage workflows in scanning
+- `support-ticket-conversion`: classify-and-escalate support assistants with no verified
+  closed loop, an emerging and unverified class
+- `secret-scan-review`: validity-checked secret-incident triage workflows in scanning
   platforms
-- `license-compliance-audit` — deterministic license scanners with judgment on edge cases;
+- `license-compliance-audit`: deterministic license scanners with judgment on edge cases;
   precedent depth unverified
-- `sbom-refresh` — per-build artifact regeneration mandated by government minimum-elements
+- `sbom-refresh`: per-build artifact regeneration mandated by government minimum-elements
   guidance
-- `access-review` — compliance-evidence automation with the decision kept human
-- `malicious-code-scan` — daily malicious-code-scan and VEX-generation samples in hosted
+- `access-review`: compliance-evidence automation with the decision kept human
+- `malicious-code-scan`: daily malicious-code-scan and VEX-generation samples in hosted
   agentic-workflow sample packs
-- `dead-code-sweep` — dead-code deletion pipelines filing review-gated change requests at
+- `dead-code-sweep`: dead-code deletion pipelines filing review-gated change requests at
   very large scale; the staged quarantine the row requires is the row's own normative
   content, not a property read off those pipelines. Judgment-bearing triage of its findings
   belongs to the tech-debt sweep
-- `coverage-mutation-watch` — coverage threshold gates and nightly mutation-score ratchets
-- `release-notes-generation` — deterministic release-cut tooling plus drafted narratives
+- `coverage-mutation-watch`: coverage threshold gates and nightly mutation-score ratchets
+- `release-notes-generation`: deterministic release-cut tooling plus drafted narratives
   flagged for human review
-- `knowledge-base-gardening` — among the weakest precedent the survey found; wiki and glossary
+- `knowledge-base-gardening`: among the weakest precedent the survey found; wiki and glossary
   maintainer samples in agentic-workflow packs
-- `rotating-quality-improver` — daily targeted test, performance, and accessibility
+- `rotating-quality-improver`: daily targeted test, performance, and accessibility
   improver samples in agentic-workflow packs
-- `cross-artifact-sync` — mirrored-PR port routines (library port, parallel-SDK sync) in
+- `cross-artifact-sync`: mirrored-PR port routines (library port, parallel-SDK sync) in
   hosted routine samples
-- `release-cut` — deterministic version-and-tag release pipelines
-- `deploy-verification` — analysis-gated canary promotion/rollback plus go/no-go
+- `release-cut`: deterministic version-and-tag release pipelines
+- `deploy-verification`: analysis-gated canary promotion/rollback plus go/no-go
   verification samples
-- `voc-theme-digest` — continuous feedback ingestion with weekly theme digests in
+- `voc-theme-digest`: continuous feedback ingestion with weekly theme digests in
   product-feedback platforms
-- `analytics-anomaly-review` — anomaly surfacing with human review in product-analytics
+- `analytics-anomaly-review`: anomaly surfacing with human review in product-analytics
   platforms
-- `experiment-readout` — AI experiment summaries with the ship decision kept human
-- `competitive-ecosystem-watch` — continuous external-signal monitoring in
+- `experiment-readout`: AI experiment summaries with the ship decision kept human
+- `competitive-ecosystem-watch`: continuous external-signal monitoring in
   competitive-intelligence platforms; weekly research samples in agentic-workflow packs
 
 ## Instruction provenance
@@ -443,7 +443,7 @@ version-controlled home owns the diff, review, and rollback the stored prompt do
 
 The stored prompt is not itself a versioned artifact. Where a scheduling surface holds the
 prompt centrally it exposes no prompt history, diff, or rollback, so a routine's behavior
-change is auditable only where the pointed-to artifact is versioned — which is why the thin
+change is auditable only where the pointed-to artifact is versioned, which is why the thin
 pointer, not the prompt, is the conforming shape.
 
 Which artifact, and where it lives, is a deployment-owned binding, consistent with the
@@ -478,15 +478,15 @@ Hosting stance below. The following are illustrative bindings, not fixed require
 
 Hosting is a deployment-owned binding. This contract fixes invariants only:
 
-- the queue contract — every routine enqueues through the trigger contract and is bound by
+- the queue contract: every routine enqueues through the trigger contract and is bound by
   its [one-entrypoint invariant](trigger-dispatch.md#dispatch), stated canonically there;
   a routine additionally opens no scheduling or merge path of its own;
-- the per-class isolation floor — the [matrix](guardrails.md#the-matrix) min-isolation
+- the per-class isolation floor: the [matrix](guardrails.md#the-matrix) min-isolation
   column;
-- merge-policy caps — including that vendor-hosted
+- merge-policy caps, including that vendor-hosted
   [executors](trigger-dispatch.md#executor-surface-classes) stay human-gated;
 - cost surfaced before any paid binding; no new cost by default.
 
 Budget posture, org shape, and substrate availability are deployment decision inputs.
-Profiles — solo-local, CI-hosted, self-run infra, vendor-hosted — are non-normative examples;
+Solo-local, CI-hosted, self-run infra, and vendor-hosted are non-normative example profiles;
 deployments mix profiles per class. The contract assumes no machine, org size, or budget.

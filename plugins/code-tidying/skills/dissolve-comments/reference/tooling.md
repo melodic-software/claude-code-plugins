@@ -1,4 +1,4 @@
-# Tooling — the reading layers, what each proves, how to get it
+# Tooling: the reading layers, what each proves, how to get it
 
 `dissolve-comments` never assumes a tool. `../../../scripts/comment-tooling-probe.sh`
 asks the environment at scope time and the run states the layer it operated at. Every layer is
