@@ -8,12 +8,17 @@
 # tens of thousands of paths does not fit in one argument vector on every
 # platform this runs on, and the file has no such ceiling.
 #
-# Prints one `<lane><TAB><file>` line per file that belongs to a lane, in the
-# order the files were given; a file that belongs to no lane prints nothing.
-# The bundled map classifies by extension. `--globs` replaces the bundled map
-# for that lane with gitignore-style globs (the consumer's ecosystem file
-# `globs`, resolved by the caller), matched through pathglob.py. `--disable`
-# drops a lane entirely (a resolved `enabled: false`).
+# Prints one `<lane><TAB><file>` line per file, in the order the files were
+# given. The bundled map classifies by extension into the language lanes; a
+# file whose extension no language lane claims lands in the catch-all `other`
+# lane, which the ladder serves with the line count alone, so a markdown or
+# JSON file is measured for size and reported `n/a` for every other measure.
+# `--globs` replaces the bundled map for that lane with gitignore-style globs
+# (the consumer's ecosystem file `globs`, resolved by the caller), matched
+# through pathglob.py; a file the globs leave out of its extension's lane
+# prints nothing, because the consumer scoped that lane deliberately, and it
+# is not moved to `other`. `--disable` drops a lane entirely (a resolved
+# `enabled: false`), `other` included.
 #
 # Exit: 0 classified (an empty result is still 0); 2 usage or environment error.
 set -euo pipefail
@@ -28,15 +33,17 @@ usage() {
 # shellcheck source=python-resolve.sh
 source "$SCRIPT_DIR/python-resolve.sh"
 
-# Bundled extension map. Lower-cased extension -> lane.
+# Bundled extension map. Lower-cased extension -> lane, returned in LANE
+# rather than printed: a command substitution forks once per file, and over a
+# whole repository that fork is most of the classifier's running time.
 lane_for_extension() {
   case "$1" in
-  ts | tsx | mts | cts | js | jsx | mjs | cjs) printf 'typescript\n' ;;
-  py | pyi) printf 'python\n' ;;
-  sh | bash) printf 'bash\n' ;;
-  go) printf 'go\n' ;;
-  cs) printf 'dotnet\n' ;;
-  *) printf '\n' ;;
+  ts | tsx | mts | cts | js | jsx | mjs | cjs) LANE=typescript ;;
+  py | pyi) LANE=python ;;
+  sh | bash) LANE=bash ;;
+  go) LANE=go ;;
+  cs) LANE=dotnet ;;
+  *) LANE=other ;;
   esac
 }
 
@@ -151,8 +158,17 @@ for file in "${FILES[@]}"; do
   else
     base="${normalized##*/}"
     ext=""
-    [[ "$base" == *.* ]] && ext="$(printf '%s' "${base##*.}" | tr '[:upper:]' '[:lower:]')"
-    lane="$(lane_for_extension "$ext")"
+    # Lower-cased in the shell rather than through `tr`: this runs once per
+    # file, and two subprocesses per file is most of a whole-tree run's time.
+    if [[ "$base" == *.* ]]; then
+      ext="${base##*.}"
+      ext="${ext,,}"
+    fi
+    # The lookup returns through LANE rather than stdout: a command
+    # substitution forks once per file, and over a whole repository that fork
+    # is most of the classifier's remaining time.
+    lane_for_extension "$ext"
+    lane="$LANE"
     # A lane the consumer redefined by globs no longer claims files by extension.
     [[ -n "$lane" && -n "${LANE_GLOBS[$lane]:-}" ]] && lane=""
   fi

@@ -1,9 +1,16 @@
 # Verification loops in skills
 
-Locally-owned Melodic Software guidance (not part of the upstream playbook). It covers three
+## Contents
+
+- [Three routes to create the skill, not two](#three-routes-to-create-the-skill-not-two)
+- [Attaching a check to a skill you do not own](#attaching-a-check-to-a-skill-you-do-not-own)
+- [When the embedded step does not run](#when-the-embedded-step-does-not-run)
+- [Validator preference and plan-validate-execute](#validator-preference-and-plan-validate-execute)
+
+Locally-owned Melodic Software guidance (not part of the upstream playbook). It covers four
 questions the playbook leaves open once a skill's job is *checking* work: which route creates the
-skill, how to attach a check to a skill you do not own, and what to do when an embedded check
-silently does not run.
+skill, how to attach a check to a skill you do not own, what to do when an embedded check
+silently does not run, and which kind of validator the check should use.
 
 It does not restate skill syntax, frontmatter, or invocation rules. The authoritative references
 are [Skills](https://code.claude.com/docs/en/skills) (harness) and
@@ -107,3 +114,36 @@ description budget is a configuration question (`/claude-config:audit`, if insta
 of consulting the listing at all has its own corrector (`/discipline:use-your-skills`, if
 installed). Different failure, different remedy, and each diagnostic resolves only where its
 plugin is present.
+
+## Validator preference and plan-validate-execute
+
+The loop the platform page names (run validator, fix errors, repeat) needs a validator, and two
+kinds exist. Prefer them in this order:
+
+1. **A script with pass/fail output.** Claude Code runs it through bash and only its output enters
+   context, so the loop closes on a signal the model can read ("OK" or a list of errors) and the
+   same script can gate CI. Make its errors verbose and name the available alternatives ("Field
+   'signature_date' not found. Available fields: customer_name, order_total"), because the message
+   is what the model fixes from.
+2. **A reference document the model reads and compares against.** It serves where no script fits
+   (style, tone, structure), but it has no machine-readable outcome and no second consumer. Convert
+   it to a script wherever the check is deterministic; where it is not, give the document a
+   concrete checklist so "compare" has something to compare against.
+
+Either way the body states the gate ("Only proceed when validation passes") between the validator
+and the next irreversible step, with a loop-back target ("If validation fails, return to Step 2").
+A body cannot enforce its own gate; a hook can, and is the escalation for a high-cost skip.
+
+**Plan-validate-execute** is the shape for batch, destructive, or high-stakes operations: the model
+writes a structured plan file (a `changes.json`, a list of edits), a validator script checks the
+plan and prints specific errors with the valid alternatives, the model fixes the plan until the
+validator passes, then executes, then verifies the result. The plan is reversible and the originals
+stay untouched until the validator has said yes. The validator is the same kind as item 1 above,
+pointed at the plan instead of the output.
+
+Basis: [Claude Code best practices, "Give Claude a way to verify its work"](https://code.claude.com/docs/en/best-practices)
+(a check that produces a pass or fail closes the loop on its own), and the platform page's
+"Workflows and feedback loops" and "Advanced: Skills with executable code" sections
+([Skill authoring best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices)).
+Verified 2026-09-10. Recheck trigger: either page changes the pattern's steps or drops the pass/fail
+framing.

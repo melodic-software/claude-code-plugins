@@ -3,6 +3,28 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.19]
+
+### Changed
+
+- **Every markdown surface in the plugin passes `/ai-slop:audit`.** Em dashes in the plugin's own
+  prose (this changelog, the write and organize contexts, the diagnose investigate and loop
+  contexts, and the run-e2e e2e, e2e-config and non-ui contexts) are rewritten as a comma, a
+  period, a colon where a definition or list follows, or a restructured sentence. No test-writing
+  rule, browser-fit verdict, MCP revision pin, or dated verification stamp changed.
+- **Four headings took the colon form**, in `e2e-config.md` and `organize.md`; no file in the
+  repository links any of the old anchors.
+- **Em dashes inside the `csharp` illustrative fences stay.** They are code comments, which the
+  detector exempts and which this campaign treats as code rather than prose.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`,** so the gate defends
+  it from here on.
+- **Changelog, in-place wording corrections to released entries:** the same rewrite was applied
+  inside
+  `[0.7.10]`, `[0.7.5]`, `[0.7.4]`, `[0.7.2]`, `[0.7.1]`, `[0.7.0]`, `[0.6.2]`, `[0.6.1]`,
+  `[0.6.0]`, `[0.5.1]`, `[0.5.0]`, `[0.4.0]`, `[0.3.4]`, `[0.3.3]`, `[0.3.2]`, `[0.3.1]`,
+  `[0.3.0]`, `[0.2.3]`, `[0.2.2]`, `[0.2.0]`, and `[0.1.0]`. Wording only; every entry's facts are
+  unchanged.
+
 ## [0.7.18]
 
 ### Added

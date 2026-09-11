@@ -57,6 +57,8 @@ components are declared in, not a component, so it has no row.
 | Create plugins | <https://code.claude.com/docs/en/plugins> | 2026-08-06 |
 | Plugins reference (schemas, variables, CLI) | <https://code.claude.com/docs/en/plugins-reference> | 2026-08-06 |
 | Skills | <https://code.claude.com/docs/en/skills> | 2026-08-06 |
+| Skill authoring best practices (platform, cross-product) | <https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices> | 2026-09-10 |
+| Claude Code best practices (CLAUDE.md and workflow) | <https://code.claude.com/docs/en/best-practices> | 2026-09-10 |
 | Slash commands | <https://code.claude.com/docs/en/commands> | 2026-08-06 |
 | Hooks reference | <https://code.claude.com/docs/en/hooks> | 2026-08-06 |
 | Automate actions with hooks (guide) | <https://code.claude.com/docs/en/hooks-guide> | 2026-08-06 |
@@ -81,6 +83,10 @@ components are declared in, not a component, so it has no row.
 | Platforms and integrations: the host-surface index (CLI, Desktop, IDEs, web, mobile) | <https://code.claude.com/docs/en/platforms> | 2026-08-10 |
 | Ultrareview: human-confirmed, metered cloud review; no programmatic entry point | <https://code.claude.com/docs/en/ultrareview> | 2026-08-10 |
 | Chrome: browser integration delivered as the built-in `claude-in-chrome` skill | <https://code.claude.com/docs/en/chrome> | 2026-08-10 |
+
+The two `best-practices` rows share only their slug: the platform page is the cross-product Agent
+Skills guide for skill bodies, the Claude Code page is the harness guide for CLAUDE.md, permissions,
+and sessions, and they are distinct documents, so cite the one you mean by its full URL.
 
 ## Distribution / marketplace
 

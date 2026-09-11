@@ -60,6 +60,7 @@ EMPTY_PATH="$WORK/empty"
 HOME_DIR="$WORK/home"
 mkdir -p "$STUBS" "$EMPTY_PATH" "$HOME_DIR"
 trap 'rm -rf "$WORK"' EXIT
+export CODE_METRICS_REPORT_DIR="$WORK/reports"
 
 # EMPTY_PATH is the caller's PATH with every collector removed: a directory of
 # symlinks to each executable on PATH except the tools the ladder names (and

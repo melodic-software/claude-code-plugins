@@ -3,6 +3,26 @@
 All notable changes to the `github` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.15]
+
+### Changed
+
+- **Every markdown surface in the plugin passes `/ai-slop:audit`.** Em dashes in the plugin's own
+  prose (this changelog, the method ladder, change routing, browser automation, areas and
+  conventions-file references, and the four recipes) are rewritten as a comma, a period, a colon
+  where a definition or list follows, or a restructured sentence. Thirteen headings took the colon
+  form; no file links any of the old anchors. No rung, routing value, area key, or checklist
+  question was dropped: where a dash held two clauses apart inside a checklist question, the
+  question became two questions rather than one comma-run.
+- **`github.test.sh` passes at 36/0.** That suite pins the six recipe section headings, a floor of
+  ten questions per checklist, the area-key oracle, and the no-endpoints, no-prices, and no-scopes
+  sweeps, so it covers exactly the surfaces this rewrite touched.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`,** so the gate defends
+  it from here on.
+- **Changelog, in-place wording corrections to released entries:** the same rewrite was applied
+  inside `[0.3.10]`, `[0.3.4]`, `[0.3.0]`, `[0.2.0]`, and `[0.1.0]`. Wording only; every entry's
+  facts are unchanged.
+
 ## [0.3.14]
 
 ### Changed

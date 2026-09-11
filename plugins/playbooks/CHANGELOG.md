@@ -4,7 +4,7 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
-## [0.9.11]
+## [0.10.1]
 
 ### Changed
 
@@ -26,6 +26,26 @@ only after that version increases.
   `[0.6.4]`, `[0.6.3]`, `[0.6.2]`, `[0.6.1]`, `[0.6.0]`, `[0.5.2]`, `[0.5.1]`, `[0.5.0]`,
   `[0.4.0]`, `[0.3.2]`, `[0.3.1]`, `[0.3.0]`, `[0.2.0]`, and `[0.1.0]`. Wording only; every
   entry's facts are unchanged.
+
+### Added
+
+- **`skill-authoring`**: `reference/authoring-guidance.md`, a cross-reading of Anthropic's
+  skill-authoring best-practices page against what Claude Code enforces: the description contract
+  with both caps (1,024 spec validation; 1,536 listing truncation) and the listing budget, the three
+  degrees of freedom mapped onto the enforcement ladder, the progressive-disclosure numbers with the
+  compaction placement rule, the inject-once runtime model with `${CLAUDE_SKILL_DIR}` pointers and
+  dependency statements, Claude Code's MCP tool-name forms, output-template and escape-hatch shapes,
+  the no-old-patterns deviation, the eval loop in the runner's file shape, and a model-coverage
+  attestation. Every restated number carries the four-part record.
+- **`skill-authoring`**: `reference/authoring-checklist.md`, the pre-share checklist in three groups
+  with each row tagged mechanical (naming its `skill-quality:check` number), judgment, or
+  attestation.
+- **`skill-authoring`**: `reference/verification-loops-in-skills.md` gains the validator preference
+  order (a script with pass/fail output first, a reference-document read-and-compare second) and the
+  plan-validate-execute pattern; it and `reference/precompute-context.md` gain a `## Contents`
+  block.
+- **`skill-authoring`**: pointer paragraphs in SKILL.md for the two new spokes, and eval cases 3
+  (description caps and their sources) and 4 (the pre-share checklist).
 
 ## [0.9.10]
 

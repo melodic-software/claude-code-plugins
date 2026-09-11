@@ -212,8 +212,8 @@ in review, so this work ships as `0.6.4` and that entry is kept below unchanged.
   (issue 2854).** Step 3 of `agents/auditor.md` prescribed `WebFetch` as the default for every
   harness-behavior claim a finding rests on. That is rung 2 of the ladder in
   `docs/conventions/upstream-drift/README.md`, which the convention labels *degraded* and which
-  truncates long pages silently, and "not in the response" is indistinguishable from "not on the
-  page". The step now names the convention's rung-1 route (`curl` the `.md` channel to a file,
+  truncates long pages silently, which makes "not in the response" indistinguishable from "not on
+  the page". The step now names the convention's rung-1 route (`curl` the `.md` channel to a file,
   search the file locally) as the default and cites that convention as the owning record. The
   tool-honesty note was amended in step: the step-3 `curl` joins Bash's enumerated uses, and the
   network clause now permits it alongside `WebFetch` instead of capping network reach at `WebFetch`.

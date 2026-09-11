@@ -3,6 +3,21 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.22]
+
+### Changed
+
+- **Every markdown surface in the plugin passes `/ai-slop:audit`.** Em dashes in the plugin's own
+  prose (this changelog, the audit skill's contexts including suppression, and the principles
+  references) are rewritten as a comma, a period, a colon where a definition or list follows, or a
+  restructured sentence. No survivor class, suppression key, aridity test, or equivalence
+  demonstration changed.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`,** so the gate defends
+  it from here on.
+- **Changelog, in-place wording corrections to released entries:** the same rewrite was applied
+  inside `[0.3.10]`, `[0.3.4]`, `[0.3.3]`, `[0.3.2]`, `[0.3.1]`, `[0.3.0]`, `[0.2.0]`, and
+  `[0.1.0]`. Wording only; every entry's facts are unchanged.
+
 ## [0.3.21]
 
 ### Added
@@ -236,7 +251,7 @@ All notable changes to the `mutation-testing` plugin are documented here. Format
   manual protocol unless the tool can express Phase 1's changed-line scope. A file-level
   `mutate`/path selector alone is not enough.
 - **Same table gains a Write-regime setting column** for Phase 0 of `/mutation-testing:audit`: the
-  per-tool key to read (`inPlace` for StrykerJS) or `none — …` when the regime is a constant
+  per-tool key to read (`inPlace` for StrykerJS) or `none, …` when the regime is a constant
   (Stryker.NET, Stryker4s, Infection by option enumeration; PIT's documented in-memory guarantee;
   mutmut's ≤2.x / ≥3.0.0 execution-model boundary). The column resolves the full three-way regime
   Phase 0 needs (out-of-tree / in-tree whole-file / in-tree per-mutant), not only out-of-tree vs

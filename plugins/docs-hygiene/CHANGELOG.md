@@ -1,6 +1,6 @@
 # Changelog: docs-hygiene plugin
 
-## [0.21.44]
+## [0.21.45]
 
 ### Changed
 
@@ -38,6 +38,16 @@
   `[0.4.0]`, and `[0.3.0]`. Wording only; every entry's facts are unchanged. Nine dated release
   headings also took the Keep a Changelog form `## [x.y.z] - YYYY-MM-DD`, which is what
   `scripts/check-changelog-parity.sh` parses.
+
+## [0.21.44]
+
+### Changed
+
+- **`audit-progressive-disclosure`**: pointer-quality criterion 6 in `context/tier-model.md`
+  names both Claude Code MCP tool-name forms (`mcp__<server>__<tool>`, and
+  `mcp__plugin_<plugin-name>_<server-name>__<tool-name>` for a plugin-bundled server) with a
+  dated basis and recheck trigger, and notes that the platform page's `ServerName:tool_name`
+  form is not the harness form.
 
 ## [0.21.43]
 

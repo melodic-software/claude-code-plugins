@@ -34,6 +34,14 @@ Keep in the body:
 History belongs in the plugin's `CHANGELOG.md`, the commit message, and `docs/adr/`. A reader who
 needs the archaeology finds it there; the model reading the skill does not need it to act.
 
+The platform skill-authoring guidance recommends the opposite shape for superseded guidance: an
+in-body "Old patterns" section inside a collapsed `<details>` block
+([content guidelines](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#content-guidelines),
+verified 2026-09-10). This repository deviates on purpose: every body line is a recurring token
+cost on invocation, so history routes to the CHANGELOG, the commit, and `docs/adr/`, and a volatile
+specific carries the four-part record above instead of a legacy stanza. Recheck this paragraph when
+that page drops or changes the "Old patterns" recommendation.
+
 ## Successor sections
 
 A skill that has a natural successor names it in a `## Next` section placed before `## Gotchas`

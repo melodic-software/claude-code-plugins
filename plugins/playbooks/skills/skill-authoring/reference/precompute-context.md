@@ -1,5 +1,12 @@
 # Precomputed context: `!` dynamic-context injection
 
+## Contents
+
+- [What it is](#what-it-is)
+- [When to precompute](#when-to-precompute)
+- [Conventions we pin](#conventions-we-pin)
+- [Mechanics not to get wrong (pointers, not copies)](#mechanics-not-to-get-wrong-pointers-not-copies)
+
 Locally-owned Melodic Software guidance (not part of the upstream playbook). It states
 *when* to precompute and the conventions we pin; it does **not** restate the syntax. The
 authoritative reference is

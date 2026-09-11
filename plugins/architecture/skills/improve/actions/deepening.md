@@ -10,8 +10,8 @@ Three phases, with a verification gate (Phase 1.5) between the scan and the repo
 the scan toward where change keeps landing. A deepening opportunity in code nobody touches is
 leverage never cashed in. Decide *where* to look before looking:
 
-- The user may name a direction, a module, a subsystem, or a pain point, whether in the invocation
-  arguments or the conversation. When they do, scope the scan to it and skip the inference below.
+- The user may name a direction in the invocation arguments or the conversation: a module, a
+  subsystem, a pain point. When they do, scope the scan to it and skip the inference below.
 - Otherwise, walk back the recent commit history to find the hot spots: the files and areas that
   keep coming up. Let those paths pull the scan first. The **Recent commits** list gathered by
   this skill's repository-context step is the starting evidence; when it runs thin, go deeper with a
@@ -78,7 +78,7 @@ Use the project's domain glossary vocabulary for the domain, and [../research/de
 - problem: <one sentence>
 - deepening: <one sentence of narrative naming the shallow-module friction, not an interface proposal; e.g. "three modules wrap a single call each, adding no behavior">
 - shallow-signal: <the concrete observation, evidence rather than narrative; e.g. "OrderHandler/OrderValidator/OrderRepo each forward their one argument unmodified (confirmed by reading all three)". Reproduced in Phase 1.5 for every `Strong` candidate; a runtime-claim candidate has its *claim* reproduced, not this signal, so unless it is also `Strong` the signal here is the scan's as-reported observation, not yet reproduced>
-- signal-verified: <true only once Phase 1.5 reproduced *this signal* — i.e. every `Strong` candidate. A runtime-claim reproduction verifies the claim, not the shallow-signal, so a runtime-claim candidate left below `Strong` keeps `signal-verified: false`. This keeps the planning handoff from ever reading an unverified shallowness observation as verified>
+- signal-verified: <true only once Phase 1.5 reproduced *this signal*, i.e. every `Strong` candidate. A runtime-claim reproduction verifies the claim, not the shallow-signal, so a runtime-claim candidate left below `Strong` keeps `signal-verified: false`. This keeps the planning handoff from ever reading an unverified shallowness observation as verified>
 - agreed-shape: <empty until Phase 3. Filled when the user picks and the shape is grilled: interface entry points, what sits behind the seam, tests that survive>
 - graft-record: <empty unless the agreed shape is a hybrid from a Design-It-Twice fan-out. Then: what was taken from which design, and what was considered and left behind with its reason. The left-behind half is the higher-value half. It is what stops a later explorer re-proposing a shape this exploration already weighed and dropped. A hybrid recorded as a winner alone loses that permanently>
 - rejected-reason: <only if status is rejected and the reason would help a future explorer>

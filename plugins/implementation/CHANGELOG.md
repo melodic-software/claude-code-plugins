@@ -3,6 +3,32 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.5]
+
+### Changed
+
+- **Every markdown surface in the plugin passes `/ai-slop:audit`.** Em dashes in the plugin's own
+  prose (this changelog, both agent definitions, the topic-docs reference, and the implement
+  skill's feature, bugfix, refactor and gotchas contexts) are rewritten as a comma, a period, a
+  colon where a definition or list follows, or a restructured sentence. No phase gate, acceptance
+  criterion, or dispatch rule changed.
+- **`reference/artifact-protocol.md` is untouched.** Six plugins carry byte-identical copies of it,
+  held in step by `scripts/validate-plugin-contracts.mjs`, and it carries no em dash, so the
+  campaign leaves it exactly as it is.
+- **`seam` keeps its name where the repository defines it.** `## Model binding (the dispatch seam)`
+  is shared byte-identical across both agent files, `dispatch seam` is live vocabulary in the
+  autonomy plugin's scripts and schema, and `docs/conventions/seam-phrasing/` defines the term.
+  Renaming it in three files would fork the vocabulary and move two anchors. Reflexive uses became
+  the concrete word.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`,** so the gate defends
+  it from here on.
+- **Changelog, in-place wording corrections to released entries:** the same rewrite was applied
+  inside
+  `[0.15.3]`, `[0.15.2]`, `[0.15.1]`, `[0.15.0]`, `[0.14.0]`, `[0.13.2]`, `[0.13.0]`, `[0.12.1]`,
+  `[0.12.0]`, `[0.11.0]`, `[0.10.0]`, `[0.9.2]`, `[0.8.0]`, `[0.7.8]`, `[0.7.7]`, `[0.7.6]`,
+  `[0.7.4]`, `[0.7.3]`, `[0.7.2]`, `[0.7.0]`, `[0.6.0]`, `[0.5.0]`, `[0.4.0]`, `[0.3.0]`,
+  `[0.2.0]`, and `[0.1.0]`. Wording only; every entry's facts are unchanged.
+
 ## [0.16.4]
 
 ### Changed
