@@ -10,10 +10,14 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 - **`audit-skill-visibility` Markdown names what it counts and points at the fix.** The
   Reachability section tables misconfigured skills with their cause and states each cause's
   remedy once; the Listing budget section, whenever a row overflows, tables the ten longest
-  competing descriptions with their character counts, labelled as description length and never
-  as a starvation ranking, so it renders the same in an unscored run; and a closing Next actions
-  section names only the fixes the run's findings support. Every table caps at ten rows and
-  counts the rest. The JSON model is unchanged.
+  competing descriptions ranked by source length beside the capped charge the listing counts,
+  labelled as length and never as a starvation ranking, so it renders the same in an unscored
+  run; and a closing Next actions section names only the fixes the run's findings support,
+  pointing at the budget control the run's provenance says is effective (the env override, a
+  managed-policy file, or the settings file that set the fraction) rather than always at the
+  fraction. Every table caps at ten rows and counts the rest. JSON schema 1.2.0, additive:
+  each listing row carries `description_chars`, the uncapped source length, beside the capped
+  `demand_chars`.
 
 ## [0.51.0]
 

@@ -286,11 +286,15 @@ The Markdown names what these fields hold rather than only counting it. Under
 Reachability, hidden plugins are tabled with the scope file that disabled them,
 and misconfigured skills with their cause and one remedy per cause. Under
 Listing budget, when any row overflows, the ten longest competing descriptions
-are tabled with their character counts: that is the lever on demand and is
-labelled as length, never as a starvation ranking, so it renders the same in an
-unscored run. Each table caps at ten rows and counts the rest. A closing Next
-actions section names only the fixes this run's findings support, and says so
-when there are none.
+are tabled by source length beside the capped charge the listing counts
+(`description_chars` and `demand_chars` in the JSON): trimming lowers the
+overflow only once a description is under `skillListingMaxDescChars`, and the
+table is labelled as length, never as a starvation ranking, so it renders the
+same in an unscored run. Each table caps at ten rows and counts the rest. A
+closing Next actions section names only the fixes this run's findings support,
+points at the budget control the run's provenance says is effective (the env
+override when set, the managed policy when it supplied the fraction, otherwise
+the settings file that did), and says so when there is nothing to fix.
 
 ## Counting rules that are not obvious
 

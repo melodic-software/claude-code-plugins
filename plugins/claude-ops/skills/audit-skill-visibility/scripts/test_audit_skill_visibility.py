@@ -1286,6 +1286,11 @@ class RenderTablesTest(unittest.TestCase):
         self.assertIn("| `c:three` | malformed-frontmatter |", reach)
         self.assertEqual(reach.count("- `no-description`:"), 1)
         self.assertEqual(reach.count("- `malformed-frontmatter`:"), 1)
+        # A missing description is unreliable, not unreachable: the product
+        # falls back to the first body paragraph, so the caption must not say
+        # the skill can never match.
+        self.assertIn("falls back to the first body paragraph", reach)
+        self.assertNotIn("ever matching", reach)
         self.assertIn("Fix the frontmatter of the 3 misconfigured skills", md)
 
     def test_tables_cap_at_ten_and_count_the_rest(self):
@@ -1315,8 +1320,8 @@ class RenderTablesTest(unittest.TestCase):
         listing = self._section(md, "## Listing budget", "## Next actions")
         self.assertIn("Longest competing descriptions", listing)
         rows = [line for line in listing.splitlines() if line.startswith("| `")]
-        self.assertEqual(rows[0], "| `p:s8` | 1,008 |")
-        self.assertEqual(rows[-1], "| `p:s0` | 1,000 |")
+        self.assertEqual(rows[0], "| `p:s8` | 1,008 | 1,008 |")
+        self.assertEqual(rows[-1], "| `p:s0` | 1,000 | 1,000 |")
         self.assertNotIn("likely-starved", listing)
         self.assertIn("withheld", listing)
         self.assertIn("Trim the longest competing descriptions", md)
@@ -1343,6 +1348,89 @@ class RenderTablesTest(unittest.TestCase):
         self.assertIn("enable the hidden plugins", actions)
         self.assertNotIn("Trim", actions)
         self.assertNotIn("collect usage", actions)
+
+    def _axes_model(self, entries, pins=None, env=None, layers=None):
+        base = {
+            "context_window": 200_000,
+            "bytes_per_token": 4,
+            "budget_fraction": None,
+            "max_desc_chars": None,
+        }
+        base.update(pins or {})
+        cfg, axes = engine.build_listing_inputs(base, env or {}, layers or [])
+        now = _utc(2026, 8, 18)
+        return engine.classify(
+            denominator=entries,
+            events=[],
+            config=engine.Config(),
+            clock=now,
+            horizons={"native": now - timedelta(days=400)},
+            listing_config=cfg,
+            listing_axes=axes,
+        )
+
+    def test_length_table_ranks_by_source_length_above_the_cap(self):
+        # Six 2,000-character descriptions each charge the 1,536 cap and
+        # overflow the 8,000-character budget. A 5,000-character one charges
+        # the same 1,536, so ranking on the charge would order it by name;
+        # it is the one to trim first, so the source length orders the table
+        # and the charge is shown beside it.
+        entries = [self._described(f"p:s{i}", 2000) for i in range(6)]
+        entries.append(self._described("p:big", 5000))
+        model = self._axes_model(entries)
+        big = next(r for r in model["skills"] if r["qualified_name"] == "p:big")
+        self.assertEqual(big["starvation"]["description_chars"], 5000)
+        self.assertEqual(big["starvation"]["demand_chars"], 1536)
+        listing = self._section(
+            engine._render_markdown(model), "## Listing budget", "## Next actions"
+        )
+        rows = [line for line in listing.splitlines() if line.startswith("| `")]
+        self.assertEqual(rows[0], "| `p:big` | 5,000 | 1,536 |")
+        self.assertEqual(rows[1], "| `p:s0` | 2,000 | 1,536 |")
+        self.assertIn("at most 1,536 characters", listing)
+
+    def test_next_actions_name_the_effective_budget_control(self):
+        # The fraction is the documented control, but not always the effective
+        # one: an env override ignores it, a pin changes only this report, and
+        # a managed-policy value outranks every scope a user edits.
+        entries = [self._described(f"p:s{i}", 1000) for i in range(9)]
+
+        env_model = self._axes_model(
+            entries, env={"SLASH_COMMAND_TOOL_CHAR_BUDGET": "100"}
+        )
+        self.assertIn(
+            "raise `SLASH_COMMAND_TOOL_CHAR_BUDGET`", engine._render_markdown(env_model)
+        )
+
+        pinned = self._axes_model(entries, pins={"budget_fraction": 0.001})
+        self.assertIn(
+            "pin changes the report, not the session", engine._render_markdown(pinned)
+        )
+
+        project = [
+            {
+                "scope": "project",
+                "path": "/repo/.claude/settings.json",
+                "status": "read",
+                "settings": {"skillListingBudgetFraction": 0.005},
+            }
+        ]
+        self.assertIn(
+            "above 0.005 in `/repo/.claude/settings.json`",
+            engine._render_markdown(self._axes_model(entries, layers=project)),
+        )
+
+        policy = [
+            dict(
+                project[0],
+                scope="policy",
+                path="/etc/claude-code/managed-settings.json",
+            )
+        ]
+        self.assertIn(
+            "managed policy at `/etc/claude-code/managed-settings.json`",
+            engine._render_markdown(self._axes_model(entries, layers=policy)),
+        )
 
 
 class InferentialBandTest(unittest.TestCase):
