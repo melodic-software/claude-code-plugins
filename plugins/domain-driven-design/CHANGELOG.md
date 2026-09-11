@@ -8,6 +8,9 @@ All notable changes to the `domain-driven-design` plugin are documented here. Fo
 ### Changed
 
 - **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
+- **The plugin's prose drops its em dashes.** This changelog and `skills/curate-language/SKILL.md` were rewritten. Wording only, with no change to any glossary rule or routing. All four trigger phrases are byte-identical. The released sections corrected in place are 0.3.0, 0.2.0, and 0.1.0: their wording changed, their facts did not.
+- **`curate-language`'s summary takes the period form, and the cheat sheet is regenerated with it.** That summary renders into `docs/SKILL-CHEAT-SHEET.md`, so the source and the generated sheet move together. A colon was not an option: `summary:` is an unquoted YAML scalar, and a colon followed by a space would break the parse.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md` and every `skills/*/SKILL.md`.
 
 ## [0.3.2]
 

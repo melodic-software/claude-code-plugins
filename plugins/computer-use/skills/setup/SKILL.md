@@ -94,7 +94,7 @@ class of confusion, and knowing it up front is cheaper than diagnosing it later.
 
 If any known focus-stealing utility is running (peripheral suites, overlays, launchers), report
 it as INFO with the retry pattern from the diagnostics reference. This is a nuisance, not a
-blocker: when one of these windows is in front, the allowlist gate refuses the action with the
+blocker. When one of these windows is in front, the allowlist gate refuses the action with the
 "not in the allowed applications" error instead of sending it to the wrong app.
 
 ## Reporting

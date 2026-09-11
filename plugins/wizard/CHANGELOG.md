@@ -8,6 +8,9 @@ All notable changes to the `wizard` plugin are documented here. Format follows
 ### Changed
 
 - **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
+- **The plugin's prose drops its em dashes.** This changelog was rewritten. Wording only, with no change to any generated-script shape, dispatch rule, or upstream reference. No heading was touched. The released sections corrected in place are 0.2.0 and 0.1.0: their wording changed, their facts did not.
+- **`seam` stays in the 0.2.5 entry, because the sentence defines it.** It names the single `exec 3</dev/tty` open that `skills/generate/template.test.sh` pins and rewrites, which is a testing seam in the Feathers sense rather than a reflexive metaphor.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md` alongside the README and SKILL bodies it already covered.
 
 ## [0.2.7]
 

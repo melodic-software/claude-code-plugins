@@ -10,6 +10,9 @@ All notable changes to the `eol-normalizer` plugin are documented here. Format f
 - **Options reference drops its em dashes.** The generated How-to-set-these block is rewritten by `scripts/sync-plugin-options-docs.py`, which is the fix site: its output is regenerated, never hand-edited. The block no longer needs the ignore marker that exempted it from the repository's em-dash gate, so that marker is gone as well.
 
 - **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
+- **The plugin's prose drops its em dashes.** This changelog and `skills/setup/SKILL.md` were rewritten. Wording only, with no change to any `.gitattributes` rule, hook arm, or telemetry field. The emitted string `Normalizing line endings...` still matches `hooks/hooks.json` byte for byte, and no heading was touched. Where an entry restates the same vendored `hook-utils.sh` change a sibling plugin carries, this copy takes the wording those already-purged siblings settled on, so the fleet converges rather than splitting. The released sections corrected in place are 0.6.34, 0.6.18, 0.6.16, 0.6.5, 0.6.3, 0.6.2, 0.6.1, 0.6.0, 0.5.9, 0.5.8, 0.5.7, 0.5.6, 0.5.5, 0.5.4, 0.5.2, 0.5.1, 0.5.0, 0.4.0, and 0.2.0: their wording changed, their facts did not.
+- **Two entries say what they mean instead of reaching for jargon.** The 0.5.8 temp-tree exemption is "deliberate and required", and the 0.2.0 entry reads "Consumer-side telemetry through `HOOK_TELEMETRY_SINK` is unaffected".
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md` and every `skills/*/SKILL.md`.
 
 ## [0.6.43]
 

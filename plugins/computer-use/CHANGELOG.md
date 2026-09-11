@@ -8,6 +8,9 @@ All notable changes to the `computer-use` plugin are documented here. Format fol
 ### Changed
 
 - **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
+- **The plugin's prose drops its em dashes.** Five surfaces were rewritten: this changelog, `skills/setup/SKILL.md`, and the three `skills/diagnose/reference/` documents. Wording only. Every measured figure, verification date, citation, and recheck trigger is byte-identical, and the upstream strings the references quote (the UIPI error inside its fenced block, the allowed-applications heading, and the blockquoted resolution guidance) were not touched. The released section corrected in place is 0.1.0, in its `### Added` and `### Empirical basis` subsections: their wording changed, their facts did not.
+- **`skills/setup/SKILL.md` says what the allowlist gate actually does.** "The allowlist gate catches it safely every time" named no mechanism and no observable; it now states that the gate refuses the action with the "not in the allowed applications" error rather than sending it to the wrong app.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md`, every `skills/*/SKILL.md`, and the `skills/diagnose/reference/` tree.
 
 ## [0.1.5]
 

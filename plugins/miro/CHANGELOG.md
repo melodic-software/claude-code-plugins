@@ -10,6 +10,8 @@ All notable changes to the `miro` plugin are documented here. Format follows
 - **Options reference drops its em dashes.** The generated How-to-set-these block is rewritten by `scripts/sync-plugin-options-docs.py`, which is the fix site: its output is regenerated, never hand-edited. The block no longer needs the ignore marker that exempted it from the repository's em-dash gate, so that marker is gone as well.
 
 - **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
+- **The plugin's prose drops its em dashes.** This changelog and `skills/setup/SKILL.md` were rewritten. Wording only, with no change to any rotation path, credential rule, or bundled artifact. Every trigger phrase in the setup description is byte-identical, and the Miro API identifiers and upstream links are untouched. The released sections corrected in place are 0.3.5, 0.3.0, 0.2.2, and 0.2.0: their wording changed, their facts did not.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md` and every `skills/*/SKILL.md`.
 
 ## [0.3.15]
 

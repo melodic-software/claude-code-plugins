@@ -10,6 +10,9 @@ All notable changes to the `dometrain` plugin are documented here. Format follow
 - **Options reference drops its em dashes.** The generated How-to-set-these block is rewritten by `scripts/sync-plugin-options-docs.py`, which is the fix site: its output is regenerated, never hand-edited. The block no longer needs the ignore marker that exempted it from the repository's em-dash gate, so that marker is gone as well.
 
 - **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
+- **The plugin's prose drops its em dashes.** Five surfaces were rewritten: this changelog, all three SKILL bodies, and `skills/sync/context/update.md`. Wording only, with no change to any drift mode, exit code, or preservation rule. Every trigger phrase is byte-identical across the three skills (nine in total, confirmed by `check-skill.sh`). The released sections corrected in place are 0.2.3, 0.2.2, 0.2.0, 0.1.3, 0.1.2, and 0.1.1: their wording changed, their facts did not.
+- **A cited Dometrain lesson and course keep their published titles.** The citation example in `skills/grounding/SKILL.md` rewrote only the separator and the prose around it, because the title is the publisher's and a citation that alters it stops matching the thing it cites. The vendored copy under `skills/sync/vendor/` is upstream text and was not touched, so the sync drift check still compares cleanly.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md`, every `skills/*/SKILL.md`, and `skills/sync/context/`. The vendored tree stays excluded as third-party reference material.
 
 ## [0.2.11]
 

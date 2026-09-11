@@ -3,6 +3,14 @@
 All notable changes to the `debugging` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.5]
+
+### Changed
+
+- **The changelog drops its em dashes.** Wording only, with no change to any phase, gate, or trigger phrase; the nine backticked trigger phrases in the 0.6.1 entry are byte-identical. No heading was touched. The released sections corrected in place are 0.7.0, 0.6.1, 0.6.0, 0.4.2, and 0.4.0: their wording changed, their facts did not.
+- **`load-bearing` stays in the 0.7.4 entry, because there it is a name.** It identifies which paragraph that release removed, and the same name is still live in `skills/debug/evals/evals.json` and the README. Rewriting it here would leave a reader unable to tell what was removed.
+- **`CHANGELOG.md` is declared in `scripts/em-dash-purged-paths.txt`,** alongside the README and skill bodies the gate already defends.
+
 ## [0.7.4]
 
 ### Changed

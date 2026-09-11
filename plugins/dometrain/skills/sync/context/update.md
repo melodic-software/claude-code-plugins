@@ -73,5 +73,5 @@ What to **adopt** from upstream (when present):
 
 A substantive behavioral change means a new tool, a new auth model, or a new quota policy. When
 the drift check surfaces one, research primary sources (Dometrain's README, release notes, the
-MCP server card) before porting. Upstream's `SKILL.md` is not a changelog; it reflects the current state
-only.
+MCP server card) before porting. Upstream's `SKILL.md` is not a changelog. It reflects the
+current state only.

@@ -105,6 +105,7 @@ plugins/actionlint/README.md
 plugins/actionlint/CHANGELOG.md
 plugins/actionlint/skills/*/SKILL.md
 plugins/adhd/README.md
+plugins/adhd/CHANGELOG.md
 plugins/adhd/skills/*/SKILL.md
 plugins/ai-briefing/README.md
 plugins/ai-briefing/CHANGELOG.md
@@ -132,6 +133,8 @@ plugins/bash-format/README.md
 plugins/bash-format/CHANGELOG.md
 plugins/bash-format/skills/*/SKILL.md
 plugins/biome-format/README.md
+plugins/biome-format/CHANGELOG.md
+plugins/biome-format/skills/*/SKILL.md
 plugins/bugs/README.md
 plugins/bugs/CHANGELOG.md
 plugins/bugs/reference/*.md
@@ -176,6 +179,9 @@ plugins/codebase-health/skills/audit/reference/*.md
 plugins/codebase-health/skills/audit/templates/*.md
 plugins/codebase-health/skills/setup/templates/*.md
 plugins/computer-use/README.md
+plugins/computer-use/CHANGELOG.md
+plugins/computer-use/skills/*/SKILL.md
+plugins/computer-use/skills/diagnose/reference/*.md
 plugins/context-budget/README.md
 plugins/context-budget/CHANGELOG.md
 plugins/context-budget/skills/*/SKILL.md
@@ -198,6 +204,7 @@ plugins/coupling/reference/topic-docs.md
 plugins/coupling/skills/*/SKILL.md
 plugins/coupling/skills/reduce/reference/*.md
 plugins/debugging/README.md
+plugins/debugging/CHANGELOG.md
 plugins/debugging/skills/*/SKILL.md
 plugins/desktop-notification/README.md
 plugins/desktop-notification/CHANGELOG.md
@@ -230,12 +237,19 @@ plugins/docs-hygiene/skills/*/evals/fixtures/*.md
 plugins/docs-hygiene/skills/*/evals/fixtures/*/*.md
 plugins/docs-hygiene/skills/*/evals/fixtures/*/*/*.md
 plugins/domain-driven-design/README.md
+plugins/domain-driven-design/CHANGELOG.md
+plugins/domain-driven-design/skills/*/SKILL.md
 plugins/dometrain/README.md
+plugins/dometrain/CHANGELOG.md
+plugins/dometrain/skills/*/SKILL.md
+plugins/dometrain/skills/sync/context/*.md
 plugins/education/README.md
 plugins/education/CHANGELOG.md
 plugins/education/skills/*/SKILL.md
 plugins/education/skills/teach/context/*.md
 plugins/eol-normalizer/README.md
+plugins/eol-normalizer/CHANGELOG.md
+plugins/eol-normalizer/skills/*/SKILL.md
 # The event-storming plugin was purged whole, its simulation eval fixtures included.
 plugins/evals/README.md
 plugins/evals/CHANGELOG.md
@@ -316,6 +330,8 @@ plugins/markdown-format/README.md
 plugins/markdown-format/CHANGELOG.md
 plugins/markdown-format/skills/*/SKILL.md
 plugins/miro/README.md
+plugins/miro/CHANGELOG.md
+plugins/miro/skills/*/SKILL.md
 plugins/mutation-testing/README.md
 plugins/naming/README.md
 plugins/naming/CHANGELOG.md
@@ -460,6 +476,7 @@ plugins/visualization/CHANGELOG.md
 plugins/visualization/skills/visualize/context/*.md
 plugins/visualization/skills/*/SKILL.md
 plugins/wizard/README.md
+plugins/wizard/CHANGELOG.md
 plugins/wizard/skills/*/SKILL.md
 # The work-items plugin was purged whole, adapters and tracker contract included.
 plugins/work-items/*.md
