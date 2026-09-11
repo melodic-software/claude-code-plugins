@@ -96,9 +96,13 @@ for the repo's test discovery.
 
 Under-recall stated honestly beats confident completeness. Three rules:
 
-- **Carry the integrity floor through.** If the inventory reports `degraded`, every native-side
-  count in the report is a floor and the report says so in the same sentence as the number. If it
-  reports `broken`, the report carries no native-side counts at all.
+- **Carry the integrity floor through, per lane.** The inventory reports integrity per lane
+  (`builtin_commands`, `bundled_skills`, `plugin_backed`). A `degraded` lane makes every count from
+  that lane a floor, and the report says so in the same sentence as the number. A `broken` lane's
+  counts are omitted, the report names the lane and its cause, and every candidate whose lane is
+  broken is marked `re_derivable: false` (its presence or absence in that lane proves nothing
+  this run); the other lanes' counts stand. Only when every lane is broken does the report omit
+  every native-side count.
 - **Never auto-verdict.** Detection emits candidates with evidence. The verdict column is empty
   until a human fills it.
 - **Accept human-added candidates.** A pair nobody's heuristic found is a first-class row; add it
@@ -110,8 +114,8 @@ Under-recall stated honestly beats confident completeness. Three rules:
 # Native overlap — <repo>, <date>
 
 ## Detection integrity
-Inventory status (ok | degraded | broken), cli_version vs validated_against, and what that
-means for every count below.
+Inventory status per lane (ok | degraded | broken), cli_version vs validated_against, and what
+that means for every count below; a broken lane is named with its cause.
 
 ## Overlap candidates
 One row per (native surface, our component): native name + provenance class + hidden/gated

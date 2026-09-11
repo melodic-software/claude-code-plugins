@@ -115,7 +115,9 @@ Done 2026-09-10: container #4047; sub-issues #4048 (unit 1, tooling fix), #4049 
 - The search ran and its result (no match, or the matched issue number) is written into the parent issue body.
 - `gh issue view <parent> --json body -q .body | grep -c "## Affected store rows"` prints 1 and `… | grep -c '`doctor`'` prints at least 3; nine linked sub-issues exist and eight of them are blocked.
 
-### Phase 1: Extractor bundled-skill lane on 2.1.263 [TODO]
+### Phase 1: Extractor bundled-skill lane on 2.1.263 [DONE]
+
+Done 2026-09-11. Deviation from step 3 as planned: bundle markers are not module boundaries in the bytecode layout (the hoisted name constants sit about 8.7 MB and 173 marker occurrences ahead of their registrations, measured on 2.1.263), so a marker-scoped constant map resolves nothing. The rule built instead is locality: a computed name resolves to its nearest preceding `ident="kebab"` binding, a farther binding never wins over a nearer one (the `ehrpd` phantom is the negative fixture), a single-character identifier is trusted only within a 64 KiB window (which recovers the design canvas `var r="design"` and refuses a loop variable bound megabytes away), and a loop or template-literal registration is a `dynamic_roster` note. A call to the registrar identifier whose object carries no `name:` is another module's function and is counted apart. Measured wall clock on this container: about 14 seconds (region pass 4 s, brace map 5 s, name resolution 2 s), so the sanity bound below is 30 seconds, not 15.
 
 Files: `plugins/claude-ops/skills/inventory/scripts/inventory.py` (MODIFY), `plugins/claude-ops/skills/inventory/scripts/test_inventory.py` (MODIFY).
 
@@ -130,11 +132,13 @@ Files: `plugins/claude-ops/skills/inventory/scripts/inventory.py` (MODIFY), `plu
 **Sanity Check:**
 
 - `python3 plugins/claude-ops/skills/inventory/scripts/test_inventory.py` exits 0 and `grep -c "def test_read_bundle" plugins/claude-ops/skills/inventory/scripts/test_inventory.py` prints at least 4.
-- `time python3 plugins/claude-ops/skills/inventory/scripts/inventory.py --binary-only --out /tmp/inv.json` exits 0 in under 15 seconds of wall clock, and `jq -e '[.bundled_skills.doctor, .bundled_skills.simplify, .bundled_skills.run, .bundled_skills.design, .bundled_skills["code-review"]] | all(. != null)' /tmp/inv.json` prints `true`, and `jq -e '.plugin_backed["security-review"] != null' /tmp/inv.json` prints `true`.
+- `time python3 plugins/claude-ops/skills/inventory/scripts/inventory.py --binary-only --out /tmp/inv.json` exits 0 in under 30 seconds of wall clock (measured about 14 seconds), and `jq -e '[.bundled_skills.doctor, .bundled_skills.simplify, .bundled_skills.run, .bundled_skills.design, .bundled_skills["code-review"]] | all(. != null)' /tmp/inv.json` prints `true`, and `jq -e '.plugin_backed["security-review"] != null' /tmp/inv.json` prints `true`.
 - `jq -e '.bundled_skills.doctor.disable_model_invocation == true and .bundled_skills.simplify.disable_model_invocation == false and .bundled_skills.doctor.terminal_oriented == true' /tmp/inv.json` prints `true`; `jq -r .bundled_skill_notes.registrar_route /tmp/inv.json` prints `esm-export`; `jq -r .integrity.status /tmp/inv.json` prints `ok` or `degraded`, never `broken`; `jq '.bundled_skills | keys' /tmp/inv.json` does not contain `ehrpd`.
 - `jq -e '.bundled_skills.design | (type == "array" and length == 2) and (map(.disable_model_invocation) | sort == [false, true])' /tmp/inv.json` prints `true` (the canvas and hub registrations both kept).
 
-### Phase 2: Per-lane integrity and honest exits in both tools [TODO]
+### Phase 2: Per-lane integrity and honest exits in both tools [DONE]
+
+Done 2026-09-11 as planned, plus a `plugin_backed` canary (`security-review`) so that lane has a break condition of its own, and `re_derivable: null` for session-provided and marketplace candidates, which have no extraction lane. A name collision in the extraction is listed in the candidate's evidence per registration with its invocation mode; the pairs file carries no description to match against, so `detect` records every registration and the Phase 4 marker read picks the one the row's evidence names.
 
 Files: `inventory.py` (MODIFY), `test_inventory.py` (MODIFY), `plugins/claude-ops/skills/inventory/reference/extraction.md` (MODIFY), `plugins/claude-ops/skills/audit-native-overlap/scripts/overlap.py` (MODIFY), `plugins/claude-ops/skills/audit-native-overlap/scripts/test_overlap.py` (MODIFY), `plugins/claude-ops/skills/inventory/SKILL.md` (MODIFY, the integrity paragraph), `plugins/claude-ops/skills/audit-native-overlap/SKILL.md` (MODIFY, "The two substrates" and "Detection posture").
 
@@ -153,7 +157,9 @@ One rule for one state, stated exactly: top-level `integrity.status` becomes the
 - A fixture inventory with `lanes.bundled_skills.status == "broken"` and healthy other lanes makes `overlap.py detect … --out /tmp/c.json` exit 3 and `jq '[.candidates[] | select(.re_derivable == false)] | length' /tmp/c.json` prints a number greater than 0.
 - `grep -c "no native-side counts at all" plugins/claude-ops/skills/audit-native-overlap/SKILL.md` prints 0.
 
-### Phase 3: Reverse-parity blind spot, seeded pairs, evals, claude-ops release [TODO]
+### Phase 3: Reverse-parity blind spot, seeded pairs, evals, claude-ops release [DONE]
+
+Done 2026-09-11. Two additions: the presence-mention advisory requires an availability word in the clause (`available`, `installed`, `enabled`, `present`, `resolves`, `exists`, `ships`), so "use when the user asks about a built-in command" is not a presence condition, and it judges the gate token per clause, since `prototype:explore-directions` carries the marketplace token in one clause and the ungated design mention in another. `--upstream-sha` now repeats, one value per upstream repository the store cites: the store records commits in two repositories (`anthropics/claude-code` for the `skill-doctor` row, `anthropics/claude-plugins-official` for the playground rows), so one value always drifted and the sanity check below could never hold as written. The Windows run was not reachable from this container; the CHANGELOG states the Linux-only basis.
 
 Files: `overlap.py` (MODIFY), `test_overlap.py` (MODIFY), `plugins/claude-ops/skills/audit-native-overlap/reference/canonical-pairs.json` (MODIFY), `plugins/claude-ops/skills/inventory/evals/evals.json` (MODIFY only where an expectation names the old build or the old integrity wording), `plugins/claude-ops/.claude-plugin/plugin.json` (MODIFY), `plugins/claude-ops/CHANGELOG.md` (MODIFY). The native-references Enforceability row ("candidate check named, not built" becomes built) is edited in Phase 4's convention bump, not here, so the convention takes one versioned change.
 
@@ -167,7 +173,7 @@ Files: `overlap.py` (MODIFY), `test_overlap.py` (MODIFY), `plugins/claude-ops/sk
 
 **Sanity Check:**
 
-- `python3 overlap.py self-check --upstream-sha ed404106fcd80ba98ecb7c851e531dcb626d13b7` exits 3 with no problems, and its advisories are exactly the version-drift advisory (until Phase 4 refreshes observations) plus two reverse-parity advisories naming `visualization:visualize` and `prototype:explore-directions` (`… 2>&1 | grep -c "presence condition without a gate token"` prints 2).
+- `python3 overlap.py self-check --upstream-sha ed404106fcd80ba98ecb7c851e531dcb626d13b7 --upstream-sha d7dbd9a09f59775726ed14bbea8fc9dfdff62f7b` exits 3 with no problems, and its advisories are exactly the version-drift advisory (until Phase 4 refreshes observations) plus two reverse-parity advisories naming `visualization:visualize` and `prototype:explore-directions` (`… 2>&1 | grep -c "presence condition without a gate token"` prints 2).
 - `jq '.pairs | length' canonical-pairs.json` prints 16 and `jq '.pairs[] | select(.native.name=="skill-doctor")' canonical-pairs.json` is non-empty.
 - `grep -n 'VALIDATED_AGAINST = "2.1.263"' inventory.py` matches; `jq -r .version plugins/claude-ops/.claude-plugin/plugin.json` is greater than `0.45.2`; `bash plugins/skill-quality/scripts/check-evals-quality.sh plugins/claude-ops/skills/inventory/evals/evals.json` exits 0; `scripts/affected-tests.sh --run` passes.
 
@@ -189,7 +195,7 @@ Pre-flight consumer check, first work item: `Grep` for readers of `records.json`
 
 **Sanity Check:**
 
-- `python3 overlap.py self-check --upstream-sha ed404106fcd80ba98ecb7c851e531dcb626d13b7` exits 0 with no problems and no advisories; `jq '[.rows[] | select(.integration == null)] | length' docs/native-surfaces/records.json` prints 0; `jq '.rows | length' docs/native-surfaces/records.json` prints 18; `python3 overlap.py generate --check` exits 0.
+- `python3 overlap.py self-check --upstream-sha ed404106fcd80ba98ecb7c851e531dcb626d13b7 --upstream-sha d7dbd9a09f59775726ed14bbea8fc9dfdff62f7b` exits 0 with no problems and no advisories; `jq '[.rows[] | select(.integration == null)] | length' docs/native-surfaces/records.json` prints 0; `jq '.rows | length' docs/native-surfaces/records.json` prints 18; `python3 overlap.py generate --check` exits 0.
 - `grep -c "## Native step: <name> (<class>)" docs/conventions/native-references/README.md` prints at least 1; `grep -c "is available in your session (" docs/conventions/native-references/README.md` prints at least 1; `grep -c "marketplace-plugin" docs/conventions/native-references/README.md` prints at least 1; `grep -c "model-invocation-disabled" docs/conventions/native-references/README.md` prints at least 1.
 - `jq '[.rows[] | select(.native.class=="builtin-command" and .integration=="wrap")] | length' records.json` prints 0; `jq '[.rows[] | select((.native.markers | index("model-invocation-disabled")) and .integration!="suggest")] | length' records.json` prints 0; `jq '[.rows[] | select(.native.name=="design" and (.native.markers | index("model-invocation-disabled")))] | length' records.json` prints 0; `jq '[.rows[] | select(.verdict=="defer" and .integration!="route")] | length' records.json` prints 0; `jq '[.rows[] | select(.integration=="suggest")] | length' records.json` prints 7 and `jq '[.rows[] | select(.integration=="wrap")] | length' records.json` prints 2.
 
@@ -207,7 +213,7 @@ A suggest unit, confirmed 2026-09-11: `doctor` is model-disabled, so no skill in
 **Sanity Check:**
 
 - `bash plugins/skill-quality/scripts/check-skill.sh <skill>` passes for each of the three skills (its per-entry cap check covers the description length).
-- `python3 overlap.py self-check --upstream-sha ed404106fcd80ba98ecb7c851e531dcb626d13b7` exits 0; `grep -c "If /doctor is available in your session (" plugins/claude-ops/skills/audit-install-state/SKILL.md` prints 1; `grep -c "unattended" plugins/claude-ops/skills/audit-install-state/SKILL.md` prints at least 2 (argument-hint and body).
+- `python3 overlap.py self-check --upstream-sha ed404106fcd80ba98ecb7c851e531dcb626d13b7 --upstream-sha d7dbd9a09f59775726ed14bbea8fc9dfdff62f7b` exits 0; `grep -c "If /doctor is available in your session (" plugins/claude-ops/skills/audit-install-state/SKILL.md` prints 1; `grep -c "unattended" plugins/claude-ops/skills/audit-install-state/SKILL.md` prints at least 2 (argument-hint and body).
 - In this cloud session, invoking `/claude-ops:audit-install-state unattended` yields a report whose final section records the `/doctor` suggestion without asking; the transcript excerpt is quoted in the PR body.
 
 ### Phase 6: Sweep unit, code-tidying [TODO]
@@ -222,7 +228,7 @@ The first wrap unit. `simplify` is model-invocable and mutates the working tree,
 
 **Sanity Check:**
 
-- skill-quality check passes for both skills; `python3 overlap.py self-check --upstream-sha ed404106fcd80ba98ecb7c851e531dcb626d13b7` exits 0; `grep -c "## Native step: simplify (bundled skill)" plugins/code-tidying/skills/batch-simplify/SKILL.md` prints 1.
+- skill-quality check passes for both skills; `python3 overlap.py self-check --upstream-sha ed404106fcd80ba98ecb7c851e531dcb626d13b7 --upstream-sha d7dbd9a09f59775726ed14bbea8fc9dfdff62f7b` exits 0; `grep -c "## Native step: simplify (bundled skill)" plugins/code-tidying/skills/batch-simplify/SKILL.md` prints 1.
 - Positive path in this cloud session, where `simplify` resolves: invoking `/code-tidying:batch-simplify` over a small changed set yields a report with a `Native step` result block and no change outside the named scope; negative path on a host with `disableBundledSkills` set: the report carries `did not resolve in this session` and the axis line; both transcript excerpts are quoted in the PR body.
 
 ### Phase 7: Sweep unit, testing [TODO]
