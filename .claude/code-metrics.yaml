@@ -1,6 +1,17 @@
 # Team layer for the code-metrics plugin (reference: plugins/code-metrics/reference/config.md).
 # Every key is optional; an absent key keeps the bundled default.
 scope:
+  # A closed list that replaces the bundled default whole, so the four bundled
+  # patterns are restated. The two added here are files nobody writes by hand
+  # or would ever split: npm lockfiles are generated, and a plugin changelog is
+  # an append-only record whose length is its history, not a size problem.
+  exclude:
+    - "**/node_modules/**"
+    - "**/vendor/**"
+    - "**/dist/**"
+    - "**/build/**"
+    - "**/package-lock.json"
+    - "**/CHANGELOG.md"
   # The files this repository vendors into several plugins on purpose. An audit
   # collapses their rows to one per function with a replica count instead of
   # counting each copy, and a clone across the copies is an exclusion, not debt.
