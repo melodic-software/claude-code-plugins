@@ -53,23 +53,41 @@ def make_stub(
     stdout_line: str = "",
     stderr_line: str = "",
     argv_log: Path | None = None,
+    reject_explicit_bases: bool = False,
 ) -> None:
     """Write a `mypy` stub that replays the capture into the report directory.
 
     With `argv_log` the stub also records every argument it received, one per
-    line, so a test can assert on the flags the adapter passes.
+    line and one run after another, so a test can assert on the flags the
+    adapter passes. With `reject_explicit_bases` the stub answers a run
+    carrying `--explicit-package-bases` the way mypy does when the config
+    turns namespace packages off: the usage error on stderr and exit 2,
+    before any report is written.
     """
     copy = (
         f'cp "{capture}" "$dir/any-exprs.txt"\n'
         if capture is not None
         else "# the report is never written\n"
     )
-    log = f'printf \'%s\\n\' "$@" >"{argv_log}"\n' if argv_log is not None else ""
+    log = f'printf \'%s\\n\' "$@" >>"{argv_log}"\n' if argv_log is not None else ""
+    reject = (
+        'for arg in "$@"; do\n'
+        '  if [[ "$arg" == "--explicit-package-bases" ]]; then\n'
+        "    printf '%s\\n' 'mypy: error: Can only use --explicit-package-bases "
+        "with --namespace-packages, since otherwise examining __init__.py files "
+        "is sufficient to determine module names for files' >&2\n"
+        "    exit 2\n"
+        "  fi\n"
+        "done\n"
+        if reject_explicit_bases
+        else ""
+    )
     stub = directory / "mypy"
     stub.write_text(
         "#!/usr/bin/env bash\n"
         'if [[ "${1:-}" == "--version" ]]; then printf \'mypy 1.19.1 (compiled: yes)\\n\'; exit 0; fi\n'
         + log
+        + reject
         + 'dir=""\nprev=""\n'
         'for arg in "$@"; do\n'
         '  [[ "$prev" == "--any-exprs-report" ]] && dir="$arg"\n'
@@ -394,6 +412,71 @@ class MypyReportCollectTests(unittest.TestCase):
             self.assertIn("--cache-dir", argv)
             self.assertEqual(argv[argv.index("--cache-dir") + 1], os.devnull)
             self.assertEqual(argv[-1], f"{SOURCES}/cm_sample.py")
+
+    def test_a_config_without_namespace_packages_reruns_in_mypys_own_naming(
+        self,
+    ) -> None:
+        # mypy allows --explicit-package-bases only with namespace packages on;
+        # a consumer config that turns them off makes the first run a usage
+        # error (exit 2, nothing measured). That is not the consumer's tree
+        # failing, so the run repeats without the flag and the note says which
+        # naming the rows follow. The capture's names (`pkg.a`, `b`, `c`) are
+        # the ones mypy's __init__.py walk gives too, so the rows still map.
+        with tempfile.TemporaryDirectory() as tmp:
+            argv_log = Path(tmp) / "argv"
+            make_stub(
+                Path(tmp),
+                capture=MODULES,
+                argv_log=argv_log,
+                reject_explicit_bases=True,
+            )
+            result = run(
+                "collect",
+                "python",
+                "type_coverage",
+                "pkg/a.py",
+                "pkg-x/b.py",
+                "c.py",
+                path_prefix=Path(tmp),
+                cwd=Path(tmp),
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            rows = rows_of(result)
+            self.assertEqual(
+                [r["file"] for r in rows], [None, "pkg/a.py", "pkg-x/b.py", "c.py"]
+            )
+            self.assertEqual(rows[0]["labels"], ["lane-total"])
+            self.assertEqual(
+                result.stderr.strip(),
+                "namespace packages are off in the mypy config, so modules are "
+                "named from __init__.py packages rather than their paths",
+            )
+            argv = argv_log.read_text(encoding="utf-8").splitlines()
+            # Two runs: the flag on the first only, the report asked for twice.
+            self.assertEqual(argv.count("--explicit-package-bases"), 1)
+            self.assertEqual(argv.count("--any-exprs-report"), 2)
+            self.assertLess(
+                argv.index("--explicit-package-bases"),
+                argv.index("--any-exprs-report", argv.index("--any-exprs-report") + 1),
+            )
+
+    def test_a_usage_error_that_is_not_the_pairing_rule_is_still_exit_4(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            make_stub(
+                Path(tmp),
+                exit_code=2,
+                capture=ABORTED,
+                stderr_line="mypy: error: unrecognized arguments: --frobnicate",
+            )
+            result = run(
+                "collect",
+                "python",
+                "type_coverage",
+                f"{SOURCES}/cm_sample.py",
+                path_prefix=Path(tmp),
+            )
+            self.assertEqual(result.returncode, 4, result.stderr)
+            self.assertIn("--frobnicate", result.stderr)
 
     @unittest.skipUnless(shutil.which("mypy"), "the real mypy is not on PATH")
     def test_the_real_mypy_leaves_no_cache_in_the_working_directory(self) -> None:

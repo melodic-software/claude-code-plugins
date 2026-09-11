@@ -239,6 +239,63 @@ class TypeCoverageCollectTests(unittest.TestCase):
                 ["--detail", "--json-output", "--show-relative-path", "--", "src/a.ts"],
             )
 
+    def test_the_program_drops_node_modules_by_segment_not_by_substring(self) -> None:
+        # The dependency tree is left out of the program the way the tool
+        # leaves it out; a source file whose name contains the string is not a
+        # dependency and keeps its row.
+        with tempfile.TemporaryDirectory() as tmp:
+            stubs = Path(tmp) / "bin"
+            helper = Path(tmp) / "src" / "node_modules_helper.ts"
+            helper.parent.mkdir(parents=True)
+            helper.write_text("export const x: any = 1;\n", encoding="utf-8")
+            capture = Path(tmp) / "capture.json"
+            capture.write_text(
+                json.dumps(
+                    {
+                        "percent": 50.0,
+                        "correctCount": 1,
+                        "totalCount": 2,
+                        "details": [
+                            {
+                                "filePath": "src/node_modules_helper.ts",
+                                "line": 0,
+                                "character": 13,
+                                "text": "x",
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            write_stub(stubs / "type-coverage", capture=capture)
+            write_node_stub(
+                stubs / "node",
+                [
+                    str(helper),
+                    str(Path(tmp) / "node_modules" / "dep" / "index.d.ts"),
+                ],
+            )
+            result = run(
+                "collect",
+                "typescript",
+                "type_coverage",
+                "src/node_modules_helper.ts",
+                "node_modules/dep/index.d.ts",
+                path_prefix=stubs,
+                cwd=Path(tmp),
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            rows = [json.loads(line) for line in result.stdout.splitlines()]
+            self.assertEqual(
+                [(r["file"], r["values"]["any_count"]) for r in rows],
+                [(None, 1), ("src/node_modules_helper.ts", 1)],
+            )
+            self.assertEqual(
+                result.stderr.strip(),
+                "1 scope file(s) are outside the tsconfig program and were not "
+                "measured: node_modules/dep/index.d.ts",
+            )
+
     def test_an_unreadable_program_keeps_only_the_listed_files(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             stubs = Path(tmp) / "bin"

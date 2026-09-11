@@ -70,9 +70,10 @@ MEASURE = "type_coverage"
 LANE = "typescript"
 LOCAL_BIN = os.path.join("node_modules", ".bin", "type-coverage")
 NO_TYPESCRIPT = "type-coverage needs a resolvable typescript (the probe found none)"
-# Prints the tsconfig program's source files (absolute paths, node_modules
-# excluded) as a JSON array, or `null` when no tsconfig.json resolves from the
-# working directory, through the same `typescript` the tool itself uses.
+# Prints the tsconfig program's source files (absolute paths, dependencies
+# included) as a JSON array, or `null` when no tsconfig.json resolves from the
+# working directory, through the same `typescript` the tool itself uses. The
+# `node_modules` exclusion is applied here, by path segment.
 PROGRAM_SCRIPT = """
 const ts = require('typescript');
 const path = require('path');
@@ -81,7 +82,7 @@ if (!config) { console.log('null'); process.exit(0); }
 const read = ts.readConfigFile(config, ts.sys.readFile);
 const parsed = ts.parseJsonConfigFileContent(read.config || {}, ts.sys, path.dirname(config));
 const program = ts.createProgram(parsed.fileNames, parsed.options);
-console.log(JSON.stringify(program.getSourceFiles().map(f => f.fileName).filter(f => !f.includes('node_modules'))));
+console.log(JSON.stringify(program.getSourceFiles().map(f => f.fileName)));
 """
 
 
@@ -137,6 +138,13 @@ def _key(path: str) -> str:
     return os.path.normcase(os.path.abspath(path))
 
 
+def _under_node_modules(path: str) -> bool:
+    """True when a whole path segment is `node_modules`, the dependency tree
+    the tool itself leaves out; a file whose name merely contains the string
+    (`src/node_modules_helper.ts`) is a source file and stays."""
+    return "node_modules" in re.split(r"[\\/]", path)
+
+
 def _row(lane: str, file: str | None, values: dict, labels: list[str]) -> dict:
     return {
         "file": file,
@@ -170,7 +178,9 @@ def program_files() -> tuple[set[str] | None, str]:
         return None, "the program listing was not JSON"
     if not isinstance(listed, list):
         return None, "no tsconfig.json resolves from the working directory"
-    return {_key(str(name)) for name in listed}, ""
+    return {
+        _key(str(name)) for name in listed if not _under_node_modules(str(name))
+    }, ""
 
 
 def translate(

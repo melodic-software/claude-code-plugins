@@ -57,7 +57,13 @@ mypy-any-exprs-modules.txt and mypy-any-exprs-aborted.txt:
   identifier-named directories (`a/foo.py`, `b/foo.py`) no longer collide. The
   walk stops at a directory whose name is not a Python identifier, so
   same-named files under two hyphenated directories still collide and reach the
-  exit-4 path with mypy's message;
+  exit-4 path with mypy's message. mypy accepts the flag only while namespace
+  packages are on (its default), so when the consumer's config turns them off
+  mypy refuses the pairing with a usage error (exit 2); the run then repeats
+  without the flag, in mypy's own naming mode (packages from `__init__.py`
+  files), and a stderr note says so. The shorter names that mode gives are
+  matched by the same suffix pass a config base uses; same-named files collide
+  again in it, the consumer's own configuration;
 - `--cache-dir os.devnull` is mypy's documented "disable caching" value (mypy
   compares the option to os.devnull by string equality, `/dev/null` on POSIX
   and `nul` on Windows), so no `.mypy_cache` is written into the consumer's
@@ -235,24 +241,20 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
         print(f"{TOOL} not on PATH", file=sys.stderr)
         return 3
     report_dir = tempfile.mkdtemp(prefix="code-metrics-mypy-")
+    naming_note = ""
     try:
-        result = subprocess.run(
-            [
-                exe,
-                "--any-exprs-report",
-                report_dir,
-                "--no-error-summary",
-                "--show-error-codes",
-                "--no-pretty",
-                "--explicit-package-bases",
-                "--cache-dir",
-                os.devnull,
-                *files,
-            ],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        result = _run_mypy(exe, report_dir, files, explicit_bases=True)
+        if result.returncode == FATAL_EXIT and _rejects_explicit_bases(result.stderr):
+            # The consumer's config turns namespace packages off, and mypy
+            # allows --explicit-package-bases only with them on. Overriding
+            # that config would measure a project the consumer did not
+            # configure, so the run repeats in mypy's own naming mode
+            # (packages from __init__.py files) and says so.
+            result = _run_mypy(exe, report_dir, files, explicit_bases=False)
+            naming_note = (
+                "namespace packages are off in the mypy config, so modules are "
+                "named from __init__.py packages rather than their paths"
+            )
         if result.returncode == FATAL_EXIT:
             # A blocking error stopped mypy before analysis; the report it still
             # wrote is empty, so there is no measurement to read. The tool
@@ -289,7 +291,7 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
         print(f"{NAME}.py: unparsable report ({exc})", file=sys.stderr)
         return 3
     matched = match_modules(modules, files)
-    notes: list[str] = []
+    notes: list[str] = [naming_note] if naming_note else []
     if result.returncode != 0:
         notes.append(error_note(result.stdout))
     labels = ["lane-total"] + (["mypy-reported-errors"] if result.returncode else [])
@@ -324,6 +326,34 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
     if notes:
         print("; ".join(notes), file=sys.stderr)
     return 0
+
+
+def _run_mypy(
+    exe: str, report_dir: str, files: list[str], explicit_bases: bool
+) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        [
+            exe,
+            "--any-exprs-report",
+            report_dir,
+            "--no-error-summary",
+            "--show-error-codes",
+            "--no-pretty",
+            *(["--explicit-package-bases"] if explicit_bases else []),
+            "--cache-dir",
+            os.devnull,
+            *files,
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def _rejects_explicit_bases(stderr: str) -> bool:
+    """True when mypy's usage error is the one pairing rule this adapter can
+    trip: `Can only use --explicit-package-bases with --namespace-packages`."""
+    return "--explicit-package-bases" in stderr and "--namespace-packages" in stderr
 
 
 def match_modules(modules: dict[str, Counts], files: list[str]) -> dict[str, str]:

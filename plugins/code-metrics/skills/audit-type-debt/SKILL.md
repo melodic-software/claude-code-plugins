@@ -131,6 +131,9 @@ the collectors.
   aborting the lane. mypy's module walk stops at a directory whose name is not a Python
   identifier, so two same-named files under two hyphenated directories (`my-pkg/mod.py`,
   `other-pkg/mod.py`) still collide; that run reads `unavailable` with the duplicate-module
-  message.
+  message. mypy accepts the flag only while namespace packages are on (its default), so a
+  consumer config that turns them off makes the run repeat without it, in mypy's own naming
+  (packages from `__init__.py` files), and the run row's reason says so; same-named files collide
+  again in that mode.
 - mypy runs with its cache disabled (`--cache-dir` set to the platform's null device), so no
   `.mypy_cache/` is written into the working tree. A one-shot report gains nothing from the cache.

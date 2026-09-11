@@ -49,7 +49,9 @@ All notable changes to the `code-metrics` plugin are documented here. Format fol
   `--explicit-package-bases`, so mypy names each module by its path (`plugins.a.lib.x`) and two
   same-named files under identifier-named directories no longer collide. Same-named files under
   two hyphenated directories still collide, because mypy's module walk stops at a directory whose
-  name is not a Python identifier; that case reaches the `unavailable` row above.
+  name is not a Python identifier; that case reaches the `unavailable` row above. mypy accepts the
+  flag only with namespace packages on, so when the consumer's config turns them off the run
+  repeats without it, in mypy's own `__init__.py` naming, and the run row's reason says so.
 - **`audit-type-debt`: no `.mypy_cache/` in the consumer's tree.** The collector passes
   `--cache-dir` with the platform's null device, mypy's documented value for disabling the cache;
   a one-shot report gained nothing from it (6.8s without a cache against 8.2s with a warm one over
