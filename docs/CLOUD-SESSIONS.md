@@ -196,7 +196,7 @@ because the [GitHub proxy](https://code.claude.com/docs/en/cloud-environments#gi
 documents that release assets from repositories not attached to the session can return 403.
 
 Not installed at session start (install on demand when working in those areas): the plugin npm
-packages. `plugins/miro` and `.github/standards/runner-policy` are each an `npm ci` in their
+packages. `plugins/miro/server` and `.github/standards/runner-policy` are each an `npm ci` in their
 own directory, while the video-digest, course-digest, and ai-briefing suites install through
 their skills' entry scripts (`plugins/knowledge/skills/video-digest/scripts/run-tests.sh
 install`, `plugins/knowledge/skills/course-digest/scripts/run-tests.sh install`,
