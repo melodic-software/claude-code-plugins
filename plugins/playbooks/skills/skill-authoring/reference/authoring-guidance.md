@@ -149,8 +149,9 @@ Dependencies: state the install command and check before use ("Install into the 
 environment with `pip install pypdf` inside its virtualenv; the script exits 2 with an install hint
 when it is missing"), never "use the pdf library". Claude Code skills have full network access and
 install packages on the user's machine, so there is no pre-installed list to verify against, and the
-install must stay local to the project (a virtualenv, a project `node_modules`, a `--user` install),
-never global, so the skill does not alter the user's computer. The other surfaces differ: the Claude
+install must stay local to the project (a project virtualenv, a project `node_modules`, an
+explicitly project-scoped target directory), never global and never the shared user site (a
+`pip install --user` persists across projects), so the skill does not alter the user's computer. The other surfaces differ: the Claude
 API sandbox has no network and no runtime installs, so a package must be on the code execution
 tool's pre-installed list, and claude.ai's network access varies with admin settings. That is why
 the page tells authors to list packages explicitly.
