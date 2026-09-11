@@ -1,6 +1,6 @@
 # Plan: code-metrics audit-duplication fixes
 
-Issue: to be filed once the Brief is confirmed; this line then reads `Closes #<n>`.
+Closes melodic-software/claude-code-plugins#4068.
 
 ## Brief
 
