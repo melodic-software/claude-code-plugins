@@ -37,10 +37,12 @@ import os
 import platform
 import re
 import stat
+import subprocess
 import sys
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath
+from typing import Callable
 
 MIN_PYTHON = (3, 11)
 
@@ -1094,35 +1096,105 @@ def name_shape(basename: str) -> str:
     return _DIGIT_RUN.sub("<n>", basename)
 
 
-def auditor_pids() -> set[int]:
-    """The engine's own PID and its ancestors, as far as the platform lets us walk.
+WALK_PROC = "proc"
+WALK_PS = "ps"
+WALK_CIM = "cim"
+WALK_PARENT_ONLY = "parent-only"
+
+
+def _parent_from_proc(pid: int) -> int | None:
+    try:
+        stat_line = (Path("/proc") / str(pid) / "stat").read_text(
+            encoding="utf-8", errors="replace"
+        )
+        return int(stat_line.rsplit(")", 1)[1].split()[1])
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+def _parent_map_from_command(cmd: list[str]) -> dict[int, int]:
+    """`pid ppid` pairs, one per line, from a single process-table listing."""
+    try:
+        out = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=15, check=False
+        ).stdout
+    except (OSError, subprocess.SubprocessError):
+        return {}
+    parents: dict[int, int] = {}
+    for line in out.splitlines():
+        fields = line.split()
+        if len(fields) < 2:
+            continue
+        try:
+            parents[int(fields[0])] = int(fields[1])
+        except ValueError:
+            continue
+    return parents
+
+
+def _process_table() -> tuple[dict[int, int] | None, str]:
+    """A pid->ppid map for the whole table, or None when /proc can be walked directly."""
+    if Path("/proc").is_dir():
+        return None, WALK_PROC
+    if os.name == "nt":
+        cmd = [
+            "powershell",
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            'Get-CimInstance Win32_Process | ForEach-Object { "$($_.ProcessId) $($_.ParentProcessId)" }',
+        ]
+        method = WALK_CIM
+    else:
+        cmd = ["ps", "-axo", "pid=,ppid="]
+        method = WALK_PS
+    table = _parent_map_from_command(cmd)
+    if not table:
+        return {}, WALK_PARENT_ONLY
+    return table, method
+
+
+def auditor_ancestry(
+    parent_of: Callable[[int], int | None] | None = None,
+    method: str | None = None,
+) -> tuple[set[int], str]:
+    """The engine's own PID and its ancestors, plus the name of the walk that found them.
 
     A `.in_use/<pid>` marker held by the Claude Code session that launched
-    this audit is evidence about the auditor, not about the tree. On Linux the
-    chain is read from /proc; elsewhere it stops at the parent.
+    this audit is evidence about the auditor, not about the tree. The
+    documented invocation runs Python through a shell, so that session sits
+    at least two generations up; a walk that stops at the parent would miss
+    it. Linux reads /proc; macOS and other POSIX hosts read one `ps` listing;
+    Windows reads one Win32_Process listing. When no listing can be obtained
+    the walk stops at the parent and says so, so `self_held` is never
+    claimed to cover ancestors it could not see.
     """
     pids = {os.getpid()}
     try:
         parent = os.getppid()
     except OSError:  # pragma: no cover - platform-dependent
-        return pids
+        return pids, WALK_PARENT_ONLY
     pids.add(parent)
-    proc = Path("/proc")
+    if parent_of is None:
+        table, method = _process_table()
+        if method == WALK_PROC:
+            parent_of = _parent_from_proc
+        elif table:
+            parent_of = table.get
+        else:
+            return pids, WALK_PARENT_ONLY
     pid = parent
-    if proc.is_dir():
-        for _ in range(64):
-            try:
-                stat_line = (proc / str(pid) / "stat").read_text(
-                    encoding="utf-8", errors="replace"
-                )
-                ppid = int(stat_line.rsplit(")", 1)[1].split()[1])
-            except (OSError, ValueError, IndexError):
-                break
-            if ppid <= 1 or ppid in pids:
-                break
-            pids.add(ppid)
-            pid = ppid
-    return pids
+    for _ in range(64):
+        ppid = parent_of(pid)
+        if ppid is None or ppid <= 1 or ppid in pids:
+            break
+        pids.add(ppid)
+        pid = ppid
+    return pids, method or WALK_PROC
+
+
+def auditor_pids() -> set[int]:
+    return auditor_ancestry()[0]
 
 
 def summarize_numeric(
@@ -1130,6 +1202,7 @@ def summarize_numeric(
     sample_cap: int = 25,
     path_cap: int = 10,
     self_pids: set[int] | None = None,
+    self_pids_walk: str | None = None,
 ) -> dict:
     """Counts per (meaning, liveness), PID rows grouped by PID, unknown names by shape.
 
@@ -1145,7 +1218,8 @@ def summarize_numeric(
     presentational: `classify_name` never sees it, and the fail-closed default
     is untouched.
     """
-    self_pids = auditor_pids() if self_pids is None else self_pids
+    if self_pids is None:
+        self_pids, self_pids_walk = auditor_ancestry()
     buckets: dict[str, int] = {}
     pid_groups: dict[int, dict] = {}
     shapes: dict[str, dict] = {}
@@ -1194,8 +1268,26 @@ def summarize_numeric(
     sample = sorted(shapes.values(), key=lambda s: (-s["count"], s["shape"]))[
         :sample_cap
     ]
+    walk = self_pids_walk or "supplied"
     return {
         "counts_by_meaning_and_liveness": dict(sorted(buckets.items())),
+        "self_pids_walk": walk,
+        "self_pids_walk_note": (
+            "The auditor's own ancestry was read from /proc."
+            if walk == WALK_PROC
+            else "The auditor's own ancestry was read from one `ps` listing."
+            if walk == WALK_PS
+            else "The auditor's own ancestry was read from one Win32_Process listing."
+            if walk == WALK_CIM
+            else "The caller supplied the auditor PID set."
+            if walk == "supplied"
+            else (
+                "No process listing could be obtained, so the auditor's ancestry stops "
+                "at its parent. A marker held by the launching Claude Code session, "
+                "normally two or more generations up, is NOT marked self_held here; "
+                "an `alive` PID group may still be this session."
+            )
+        ),
         "pid_typed": pid_typed,
         "unknown_meaning_sample": sample,
         "unknown_shapes_total": len(shapes),
@@ -1426,24 +1518,57 @@ def largest_subtrees(
     ]
 
 
+def _is_cache_version_node_modules(parts: list[str]) -> bool:
+    """`plugins/cache/<marketplace>/<plugin>/<version>/node_modules/...`, the one layout upstream installs into."""
+    return len(parts) > 6 and parts[1] == "cache" and parts[5] == "node_modules"
+
+
 def node_modules_bucket(rows: list[FileRow]) -> dict:
-    """Bytes under any `node_modules` inside `plugins/`, with the upstream reason they exist."""
+    """Bytes under `node_modules` inside `plugins/`, split by whether upstream installs there.
+
+    Only the copied version directory in the plugin cache is where Claude Code
+    runs `npm ci`. A `node_modules` under a marketplace checkout or a plugin's
+    data directory was put there by something else (a developer's install in
+    the clone, a hook using the documented `${CLAUDE_PLUGIN_DATA}` pattern),
+    so those bytes are measured separately and attributed to nobody.
+    """
     total = 0
     files = 0
     dirs: set[str] = set()
+    other_total = 0
+    other_files = 0
+    other_dirs: set[str] = set()
     for row in rows:
         parts = row.relpath.split("/")
         if parts[0] != "plugins" or "node_modules" not in parts[1:-1]:
             continue
         idx = parts.index("node_modules")
-        dirs.add("/".join(parts[: idx + 1]))
-        total += row.bytes
-        files += 1
+        if _is_cache_version_node_modules(parts):
+            dirs.add("/".join(parts[: idx + 1]))
+            total += row.bytes
+            files += 1
+        else:
+            other_dirs.add("/".join(parts[: idx + 1]))
+            other_total += row.bytes
+            other_files += 1
     return {
         "bytes": total,
         "files": files,
         "directories": sorted(dirs),
         "evidence": MEASURED,
+        "elsewhere_under_plugins": {
+            "bytes": other_total,
+            "files": other_files,
+            "directories": sorted(other_dirs),
+            "evidence": MEASURED,
+            "note": (
+                "node_modules under plugins/ outside the cache's version-directory layout "
+                "(marketplace checkouts, plugin data directories). Not product-installed by "
+                "the rule below and not attributed: a marketplace checkout is a clone whose "
+                "contents its author controls, and a hook may install into "
+                "${CLAUDE_PLUGIN_DATA} by the documented pattern."
+            ),
+        },
         "why": (
             "Product-installed. plugins-reference.md (plugin caching) documents that Claude Code "
             "installs a plugin's Node.js dependencies into the copied version directory, with "
@@ -1489,15 +1614,24 @@ SENTINELS: dict[str, str] = {
 
 
 def sentinels_block(root: Path) -> dict:
-    return {
-        rel: {
-            "present": (root / rel).is_file(),
+    """One record per sentinel; `content_read` is true only when its bytes were actually opened."""
+    out: dict[str, dict] = {}
+    for rel, role in SENTINELS.items():
+        present = (root / rel).is_file()
+        content_read = False
+        if present:
+            try:
+                read_text_guarded(root, rel)
+                content_read = True
+            except OSError:
+                content_read = False
+        out[rel] = {
+            "present": present,
             "role": role,
-            "content_read": True,
+            "content_read": content_read,
             "evidence": OBSERVED_UNDOCUMENTED,
         }
-        for rel, role in SENTINELS.items()
-    }
+    return out
 
 
 def self_excluded(root: Path, outputs: list[str | None]) -> set[str]:

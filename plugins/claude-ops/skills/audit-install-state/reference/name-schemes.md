@@ -58,7 +58,11 @@ the default is what keeps the engine correct on an install it has never seen.
 Because a plugin cache holds one marker per enabled version, the engine groups `pid_typed` rows by
 PID with a count and a bounded path list. A group whose PID is the auditing process or one of its
 ancestors is marked `self_held`: the session running the audit loaded those plugins, so the rows are
-evidence about the auditor, not about the tree.
+evidence about the auditor, not about the tree. The ancestry walk reads `/proc` on Linux, one `ps`
+listing on macOS and other POSIX hosts, and one Win32_Process listing on Windows; `self_pids_walk`
+in the report names which, and `parent-only` means no listing was obtained, so the launching
+session (two or more generations up when Python runs through a shell) was not seen and an `alive`
+group may still be it.
 
 ## Three further traps in the same family
 

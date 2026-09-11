@@ -20,8 +20,14 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   upstream basis in its `why`. The header records `engine_version` and the exact `invocation`.
 - **audit-install-state: `.in_use/<pid>` markers are a PID scheme.** One row per PID with a count
   and a bounded path list replaces one row per marker; a PID that is the auditing process or an
-  ancestor is marked `self_held`. The unknown-name sample groups by shape with a per-directory
-  histogram, so one repeated schema file cannot fill it.
+  ancestor is marked `self_held`. The ancestry walk reads `/proc` on Linux, one `ps` listing on
+  macOS and other POSIX hosts, and one Win32_Process listing on Windows; `self_pids_walk` names
+  which, and `parent-only` says the launching session was not seen. The unknown-name sample groups
+  by shape with a per-directory histogram, so one repeated schema file cannot fill it.
+- **audit-install-state: only the cache's version directories count as product-installed
+  `node_modules`.** A `node_modules` under a marketplace checkout or a plugin data directory is
+  measured in `elsewhere_under_plugins` and attributed to nobody. A sentinel's `content_read` is
+  true only when its bytes were actually opened, never for an absent file.
 
 ### Changed
 

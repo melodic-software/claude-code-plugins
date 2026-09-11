@@ -146,9 +146,9 @@ Each entry carries `surface`, a `reading` with its own `evidence`, and `file_cou
 
 `age-exceeds-window` is the reading most likely to be misread; several swept paths retain by a
 unit other than the file. Per-path rules: [reference/surfaces.md](reference/surfaces.md). For "why
-is my install so big", read `largest_subtrees` (top directories by measured bytes under every
-rolled-up entry) and `node_modules` (bytes the product itself installed into the plugin cache,
-with the upstream basis in its `why`). Neither renders a verdict on any plugin.
+is my install so big", read `largest_subtrees` (top directories by measured bytes) and
+`node_modules` (bytes the product installed into the cache's version directories, upstream basis in
+its `why`; `node_modules` elsewhere under `plugins/` is measured apart and attributed to nobody).
 
 ## Phase 4. Numeric names and liveness
 
@@ -157,10 +157,10 @@ sample grouped by name shape with a per-directory histogram. Everything that is 
 `not_applicable` **by construction**, not because a lookup missed: `ide/<n>.lock` is a TCP port,
 `rate-limit-guard/*.tmp.<n>` a shell `$$`, snapshot and backup numbers are epoch milliseconds, and
 an unrecognised scheme fails closed as `unknown`. A `pid_typed` group marked `self_held` belongs to
-the session running the audit: evidence about the auditor, not the tree. `alive` is a measurement
-about *a* process with that id; "therefore in use" is a further inference. A probe that could not
-run reports `unverified`, **never** `dead`. Schemes and their liveness meanings:
-[reference/name-schemes.md](reference/name-schemes.md).
+the session running the audit: evidence about the auditor, not the tree; `self_pids_walk:
+parent-only` means that ancestry could not be walked, so an `alive` group may still be this session.
+`alive` measures *a* process with that id; "therefore in use" is an inference. A probe that could
+not run reports `unverified`, **never** `dead`. Schemes: [reference/name-schemes.md](reference/name-schemes.md).
 
 ## Phase 5. Home-root state
 
@@ -182,7 +182,8 @@ and the upstream-claim rule (raw markdown only; absence from a summary is not ev
 
 ## Next
 
-/disk-hygiene:clean for a genuinely unmanaged leftover the report surfaced; the audit never deletes.
+/disk-hygiene:clean
+Consumes a genuinely unmanaged leftover this report surfaced; the audit itself never deletes.
 
 ## Gotchas
 
@@ -190,7 +191,6 @@ and the upstream-claim rule (raw markdown only; absence from a summary is not ev
   problem space, and the reason the liveness gate is code rather than advice.
 - **`enabledPlugins: false` does not mean disabled.** Enablement spans several scopes and is read at
   session start; `recent_writers` is behavioural evidence, `/claude-ops:plugins audit` the verdict.
-- **`backups/` cannot be pruned meaningfully.** It is a small rotating buffer the product refills.
 - **An empty directory may be deliberate**, and **a cloud-session tree is the common experimental
   state.** Phases 0 and 1 exist so neither is graded as decay.
 - **`commands/`, `todos/`, `statsig/`, `logs/` being absent is good news.** It is positive evidence

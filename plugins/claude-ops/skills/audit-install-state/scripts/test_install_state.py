@@ -11,9 +11,12 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import os
+import shutil
 import sys
 import tempfile
 import unittest
+import unittest.mock
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -838,6 +841,42 @@ class TestSizeAttribution(unittest.TestCase):
             self.assertEqual(bucket["evidence"], engine.MEASURED)
             self.assertIn("plugins-reference", bucket["why"])
             self.assertNotIn("should", bucket["why"].lower())
+            self.assertEqual(bucket["elsewhere_under_plugins"]["bytes"], 0)
+
+    def test_node_modules_outside_the_cache_layout_is_measured_apart(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            build_tree(root)
+            build_plugin_cache(root, pid=99)
+            checkout = (
+                root / "plugins" / "marketplaces" / "mkt" / "node_modules" / "left"
+            )
+            checkout.mkdir(parents=True)
+            (checkout / "index.js").write_bytes(b"z" * 700)
+            data = root / "plugins" / "data" / "mkt" / "p" / "node_modules" / "dep"
+            data.mkdir(parents=True)
+            (data / "index.js").write_bytes(b"w" * 300)
+            report = _scan(root)
+            bucket = report["node_modules"]
+            self.assertEqual(bucket["bytes"], 6000)
+            self.assertEqual(
+                bucket["directories"],
+                ["plugins/cache/mkt/plugin-0/1.0.0/node_modules"],
+            )
+            other = bucket["elsewhere_under_plugins"]
+            self.assertEqual(other["bytes"], 1000)
+            self.assertEqual(other["files"], 2)
+            self.assertEqual(
+                other["directories"],
+                [
+                    "plugins/data/mkt/p/node_modules",
+                    "plugins/marketplaces/mkt/node_modules",
+                ],
+            )
+            self.assertNotIn(
+                "product-installed",
+                other["note"].lower().replace("not product-installed", ""),
+            )
 
     def test_the_header_records_engine_version_and_invocation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -969,6 +1008,70 @@ class TestContentReadFlag(unittest.TestCase):
             self.assertEqual(
                 report["retention"]["last_cleanup_evidence"],
                 engine.OBSERVED_UNDOCUMENTED,
+            )
+
+    def test_content_read_is_true_only_for_a_sentinel_that_was_opened(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            build_tree(root)
+            (root / ".last-cleanup").write_text(
+                "2026-09-11T00:00:00Z", encoding="utf-8"
+            )
+            report = _scan(root)
+            present = report["sentinels"][".last-cleanup"]
+            absent = report["sentinels"]["plugins/.last_inuse_sweep"]
+            self.assertTrue(present["present"])
+            self.assertTrue(present["content_read"])
+            self.assertFalse(absent["present"])
+            self.assertFalse(absent["content_read"])
+
+
+class TestAuditorAncestry(unittest.TestCase):
+    """`self_held` must cover the launching session, which sits above the shell that ran Python."""
+
+    def test_the_walk_follows_a_supplied_parent_map_to_the_root(self) -> None:
+        me = os.getpid()
+        parent = os.getppid()
+        chain = {parent: 5000, 5000: 4000, 4000: 1}
+        pids, walk = engine.auditor_ancestry(parent_of=chain.get, method="ps")
+        self.assertEqual(pids, {me, parent, 5000, 4000})
+        self.assertEqual(walk, "ps")
+
+    def test_a_missing_listing_stops_at_the_parent_and_says_so(self) -> None:
+        with unittest.mock.patch.object(
+            engine, "_process_table", return_value=({}, engine.WALK_PARENT_ONLY)
+        ):
+            pids, walk = engine.auditor_ancestry()
+        self.assertEqual(pids, {os.getpid(), os.getppid()})
+        self.assertEqual(walk, engine.WALK_PARENT_ONLY)
+        summary = engine.summarize_numeric([], self_pids=pids, self_pids_walk=walk)
+        self.assertEqual(summary["self_pids_walk"], engine.WALK_PARENT_ONLY)
+        self.assertIn("NOT marked self_held", summary["self_pids_walk_note"])
+
+    @unittest.skipUnless(shutil.which("ps"), "no ps on this host")
+    def test_one_ps_listing_yields_the_same_ancestors_as_proc(self) -> None:
+        table = engine._parent_map_from_command(["ps", "-axo", "pid=,ppid="])
+        self.assertIn(os.getpid(), table)
+        via_ps, _ = engine.auditor_ancestry(parent_of=table.get, method=engine.WALK_PS)
+        if Path("/proc").is_dir():
+            via_proc, walk = engine.auditor_ancestry()
+            self.assertEqual(walk, engine.WALK_PROC)
+            self.assertEqual(via_ps, via_proc)
+        self.assertGreaterEqual(len(via_ps), 2)
+
+    def test_the_report_records_which_walk_found_the_auditor(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            build_tree(root)
+            report = _scan(root)
+            self.assertIn(
+                report["numeric_names"]["self_pids_walk"],
+                {
+                    engine.WALK_PROC,
+                    engine.WALK_PS,
+                    engine.WALK_CIM,
+                    engine.WALK_PARENT_ONLY,
+                },
             )
 
 
