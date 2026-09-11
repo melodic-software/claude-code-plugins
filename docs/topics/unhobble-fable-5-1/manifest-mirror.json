@@ -1,0 +1,81 @@
+{
+  "experiment_id": "claude-code-plugins-fable-5-1-20260908-15744de6",
+  "phase": "bare",
+  "phase_timestamps": {
+    "snapshot": "2026-09-08T17:20:00Z",
+    "bare": "2026-09-11T00:00:00Z"
+  },
+  "decisions": {
+    "method": "Three source-backed research memos (official Claude Code docs fetched live 2026-09-11, repo doctrine second-tier), then two independent decision agents (Fable 5.1 and Opus 5) blind to each other; all four verdicts agreed. Memos and verdicts are mirrored under docs/topics/unhobble-fable-5-1/ on the experiment branch.",
+    "D1_user_scope": "Not opted in. No plugin ablated this run: every hook-wiring plugin classified keep (policy, tooling, or ground-truth oracle; context-guard is unstripped-hybrid-hook), and the 53 skill-only plugins need a classification pass before any project-scope enabledPlugins:false overlay is applied. The overlay is the documented, CI-passing mechanism for a future plugin ablation (settings-reference: project beats user; check-plugin-catalog-enablement.sh passes an explicit false).",
+    "D2_conventions": "Strip (a) AGENTS.md 'Validate a change' (gating CI oracle remains: affected-tests.sh in test-linux) and (c) pr-body-contract.md (advisory CI oracle plus .claude/source-control.md remain; stripped under a register hold, contested external-publication, so Phase 4 restores it regardless of the ledger). Keep (b) draft-PR rule (no oracle at all, contested external-publication) and (d) ruff-pin.md (non-derivable ground-truth oracle per PLUGIN-PHILOSOPHY 'Classifying a hook').",
+    "D3_state": "Canonical state stays in the plugin data dir per the contract. A durable mirror (stumbles.md as the primary ledger, manifest-mirror.json with absolute paths tokenized) is committed on the experiment branch at docs/topics/unhobble-fable-5-1/ (contract tier: committed on the task branch only, pruned with pointer before merge; docs-only allowlist; no changelog-parity). backups/ never leaves the data dir and is empty this run.",
+    "D4_classification": "No class changes. Annotations: agents-draft-pr and rule-pr-body-contract carry register_class_contested external-publication; rule-ruff-pin cites the ground-truth-oracle carve-out. Nested plugin AGENTS.md units left unstripped under the skill's two-hats rule (files under plugins/<name>/ ship to consumers and trip changelog-parity, which has no exemption list)."
+  },
+  "checkout": {
+    "worktree_path": "<worktree>",
+    "origin_url": "https://github.com/melodic-software/claude-code-plugins",
+    "base_commit": "c41c6422",
+    "base_commit_note": "Snapshot taken at 2dfaaa40 on 2026-09-08; branch fast-forwarded to origin/main c41c6422 on 2026-09-11 before the strip. Delta re-inventoried: settings.json gained permissions.deny (policy, kept); skill-bodies rule grew a stamped deviation paragraph inside the section already planned for trim; .claude/audit-pass.md, .claude/bugs.md, .claude/code-metrics.yaml are plugin config (kept).",
+    "branch": "claude/unhobble-config-oe7yfx",
+    "branch_note": "Session-designated branch used as the experiment branch; the suggested experiment/unhobble-fable-5-1 name was not created because this session may push only to its designated branch.",
+    "ephemeral_container": true,
+    "ephemeral_note": "The snapshot ran in an ephemeral cloud container. The canonical manifest does not survive container reclaim; this mirror is the durable copy and must be restored to the plugin data path (or the experiment re-snapshotted) before readd runs from a durable checkout.",
+    "state_dir": "<CLAUDE_PLUGIN_DATA>/unhobble/claude-code-plugins-fable-5-1-20260908-15744de6"
+  },
+  "target_model": {
+    "id": "claude-fable-5-1",
+    "cli_version": "2.1.263"
+  },
+  "scope": {
+    "project_surfaces": true,
+    "user_global_surfaces": false,
+    "managed_settings": "none present (/etc/claude-code absent)",
+    "user_global_note": "~/.claude/settings.json enables all 73 marketplace plugins at user scope (cloud environment snapshot + cloud-bootstrap.sh); 20 of them wire hooks. Out of scope by default; recorded as confounds. Operator may opt in explicitly."
+  },
+  "surfaces": [
+    { "id": "claude-md-shim", "path": "CLAUDE.md", "lines": 1, "loads": "always", "class": "convention", "action": "keep", "reason": "Import shim (@AGENTS.md); stays while AGENTS.md exists." },
+    { "id": "agents-validate", "path": "AGENTS.md#validate-a-change", "lines": 6, "loads": "always", "class": "convention", "action": "strip", "mechanism": "edit: section removed from AGENTS.md", "restore": "git", "reason": "Which command validates a change; full contract owned by README.md 'Validate a change' and the script's own exit codes. Stripped per D2: the CI selector in test-linux is a gating oracle." },
+    { "id": "agents-draft-pr", "path": "AGENTS.md#open-a-pull-request-as-a-draft", "lines": 4, "loads": "always", "class": "convention", "register_class_contested": "external-publication", "action": "keep", "reason": "Team PR flow with a CI-cost consequence; no oracle at all. Kept per D2." },
+    { "id": "agents-rules-index", "path": "AGENTS.md#conventions-that-load-on-demand", "lines": 23, "loads": "always", "class": "behavioral", "action": "regenerate", "restore": "git", "reason": "Generated discoverability scaffolding for deferred surfaces. Re-rendered with plugins/instruction-placement/scripts/render-index.sh after the strip so it lists only surviving deferred surfaces." },
+    { "id": "rule-vendor-docs", "path": ".claude/rules/vendor-docs-are-not-style.md", "lines": 11, "loads": "always", "class": "behavioral", "action": "strip", "mechanism": "git rm", "restore": "git", "reason": "Style coaching (no em dashes from vendor docs; run /ai-slop:audit). Partial oracle exists: scripts/check-purged-em-dashes.sh in CI. Cross-surface conflict noted: .claude/ai-slop.json disables rule-em-dash as house style." },
+    { "id": "rule-pr-body-contract", "path": ".claude/rules/pr-body-contract.md", "lines": 25, "loads": "always", "class": "convention", "register_class_contested": "external-publication", "register_hold": true, "action": "strip", "mechanism": "git rm", "restore": "git", "reason": "PR body contract; the ci-status pr-contract composite is the authority and reports (advisory label), not gates; .claude/source-control.md keeps the section list. Stripped per D2 under a register hold: Phase 4 restores it regardless of the ledger." },
+    { "id": "rule-catalog-taxonomy", "path": ".claude/rules/catalog-taxonomy.md", "lines": 12, "loads": "on-read .claude-plugin/marketplace.json", "class": "behavioral", "action": "strip", "mechanism": "git rm", "restore": "git", "reason": "Pointer-only rule; docs/CATALOG-TAXONOMY.md owns the taxonomy and stays. Measures whether the bare model finds the owner doc." },
+    { "id": "rule-hook-budget", "path": ".claude/rules/hook-budget.md", "lines": 13, "loads": "on-read plugins/*/hooks/**", "class": "behavioral", "action": "strip", "mechanism": "git rm", "restore": "git", "reason": "Pointer-only rule; docs/conventions/hook-budget/README.md owns the budget and stays." },
+    { "id": "rule-ruff-pin", "path": ".claude/rules/ruff-pin.md", "lines": 13, "loads": "on-read **/*.py", "class": "convention", "action": "keep", "reason": "Repo tooling convention (pinned wrapper vs bare ruff); docs/CI-RUNNER-ROUTING.md owns the rationale. Kept per D2 under the ground-truth-oracle carve-out: a bare ruff disagrees with the CI pin silently, which no model can derive unaided." },
+    { "id": "rule-skill-bodies", "path": ".claude/rules/skill-bodies-state-current-rules.md", "lines": 61, "loads": "on-read plugins/*/skills/**, plugins/*/agents/**", "class": "hybrid", "action": "trim", "mechanism": "edit: strip the 'keep out of a body' coaching list, its derivation from the bundled prompt-audit guide, and the history-placement paragraphs; keep the '## Next' successor-section contract and the four-part verification-record requirement", "restore": "git", "reason": "Writing coaching (behavioral, derivable from the bundled guide) sits beside two structural conventions other tooling depends on." },
+    { "id": "rule-worktree-base-ref", "path": ".claude/rules/worktree-base-ref.md", "lines": 21, "loads": "on-read .claude/settings.json, .claude/settings.local.json", "class": "behavioral", "action": "strip", "mechanism": "git rm", "restore": "git", "reason": "Corrects a specific recurring misread (restoring a key a review bot calls dropped). Ground truth is git history, which the model can query; consequence is a reviewable settings key, not Gate 0." },
+    { "id": "nested-autonomy", "path": "plugins/autonomy/AGENTS.md (+CLAUDE.md shim)", "lines": 9, "loads": "on-read plugins/autonomy/**", "class": "behavioral", "action": "unstripped-product-surface", "reason": "Pre-empts the CI typos gate on coined hyphenated compounds; the gate is the deterministic oracle and stays. Left in place: it ships inside plugins/autonomy/ (two-hats rule) and any edit there trips changelog-parity, which has no exemption list. Confound for the observe phase, path-scoped so it loads only when that subtree is read." },
+    { "id": "nested-machine-health", "path": "plugins/machine-health/skills/audit/AGENTS.md (+CLAUDE.md shim)", "lines": 27, "loads": "on-read plugins/machine-health/skills/audit/**", "class": "behavioral", "action": "unstripped-product-surface", "reason": "Pointer-only to co-located README sections. Left in place for the same two-hats and changelog-parity reasons as nested-autonomy; confound noted." },
+    { "id": "nested-model-adaptation", "path": "plugins/playbooks/reference/model-adaptation/AGENTS.md", "lines": 17, "loads": "on-read plugins/playbooks/reference/model-adaptation/**", "class": "policy", "register_class": "legal-compliance", "action": "keep", "reason": "Verbatim-quotation and attribution rail in a public repo; protected class, never left deleted on silence." },
+    { "id": "nested-provenance", "path": "plugins/provenance/skills/audit/AGENTS.md", "lines": 23, "loads": "on-read plugins/provenance/skills/audit/**", "class": "hybrid", "action": "unstripped-product-surface", "planned_trim": "remove the 'affected-tests.sh --run exits 3' section (restates README); keep the 'measurement results out of rubric.md' judge-contamination invariant", "reason": "One derivable restatement beside one repo-specific data-integrity invariant. Left in place: ships inside plugins/provenance/ (two-hats rule) and an edit trips changelog-parity; confound noted." },
+    { "id": "nested-work-loop", "path": "plugins/work-items/skills/work-loop/AGENTS.md", "lines": 10, "loads": "on-read plugins/work-items/skills/work-loop/**", "class": "convention", "action": "keep", "reason": "Manual test procedure for an LLM-executed gate with no automated surface; not derivable." },
+    { "id": "hook-sessionstart-bootstrap", "path": ".claude/settings.json#hooks.SessionStart[0]", "loads": "startup|resume", "mechanism_axis": "notification/infra", "class": "policy", "action": "keep", "reason": "Provisions the cloud VM toolchain and plugin registry; no model-facing payload." },
+    { "id": "settings-permissions-deny", "path": ".claude/settings.json#permissions.deny", "class": "policy", "register_class": "secret-handling", "action": "keep", "reason": "Read-deny list for .env, secrets/, keys and the local settings file; protected class, never stripped." },
+    { "id": "settings-env-telemetry", "path": ".claude/settings.json#env.HOOK_TELEMETRY_SINK", "class": "policy", "action": "keep", "reason": "Observability wiring, not an instruction." },
+    { "id": "settings-auto-memory-off", "path": ".claude/settings.json#autoMemoryEnabled", "class": "policy", "action": "keep", "reason": "Operator memory choice; also keeps the bare baseline free of self-written notes." },
+    { "id": "settings-skill-budget", "path": ".claude/settings.json#skillListingBudgetFraction", "class": "convention", "action": "keep", "reason": "Skill-listing budget, not an instruction surface." },
+    { "id": "plugin-fleet", "path": ".claude/settings.json#enabledPlugins.fleet", "class": "convention", "action": "keep", "reason": "Skill-only capability plugin (SSH to other machines), no hooks; tooling, not a model correction." },
+    { "id": "plugin-playgrounds", "path": ".claude/settings.json#enabledPlugins.playgrounds", "class": "convention", "action": "keep", "reason": "Already disabled." },
+    { "id": "plugin-config-files", "path": ".claude/source-control.md, .claude/audit-pass.md, .claude/bugs.md, .claude/code-metrics.yaml, .claude/ai-slop.json, .claude/provenance.json, .work-item-tracker.json", "class": "convention", "action": "keep", "reason": "Plugin configuration read by skills at invocation; not context-loaded instruction." }
+  ],
+  "confounds": [
+    { "kind": "user-scope-plugins", "count": 73, "with_hooks": ["actionlint", "autonomy", "bash-format", "biome-format", "claude-ops", "context-budget", "context-guard", "desktop-notification", "disk-hygiene", "eol-normalizer", "go-format", "guardrails", "instruction-placement", "markdown-format", "powershell-format", "rate-limit-guard", "ruff-format", "session-flow", "source-control", "typos-format"], "note": "Enabled at ~/.claude/settings.json by the cloud environment snapshot. Every skill listing and hook from these plugins stays loaded in the bare session; see decision D1." },
+    { "kind": "user-scope-skills", "paths": ["~/.claude/skills/session-start-hook", "~/.claude/skills/synced"], "note": "User scope; out of scope by default." },
+    { "kind": "unstripped-product-surface", "paths": ["plugins/autonomy/AGENTS.md", "plugins/machine-health/skills/audit/AGENTS.md", "plugins/provenance/skills/audit/AGENTS.md"], "note": "Path-scoped nested AGENTS.md files inside plugin directories; load only when those subtrees are read. See decision D4." },
+    { "kind": "harness-injected", "note": "The remote-session system prompt (PR flow, GitHub rules, git branch requirements) is product-side and not part of this contract." }
+  ],
+  "strip_plan_summary": {
+    "strip_whole": ["rule-vendor-docs", "rule-catalog-taxonomy", "rule-hook-budget", "rule-worktree-base-ref", "rule-pr-body-contract", "agents-validate"],
+    "trim": ["rule-skill-bodies"],
+    "regenerate": ["agents-rules-index"],
+    "keep_convention": ["agents-draft-pr", "rule-ruff-pin", "nested-work-loop"],
+    "keep_policy": ["nested-model-adaptation", "hook-sessionstart-bootstrap", "settings-permissions-deny", "settings-env-telemetry", "settings-auto-memory-off"],
+    "unstripped_product_surface": ["nested-autonomy", "nested-machine-health", "nested-provenance"],
+    "register_holds": ["rule-pr-body-contract"],
+    "always_loaded_lines_before": 74,
+    "always_loaded_lines_after": 5
+  },
+  "commit_message": "experiment: strip instruction surfaces for unhobble baseline",
+  "mirror_note": "Durable mirror of the canonical manifest in the plugin data dir; absolute paths tokenized. The canonical file is authoritative when both exist."
+}
