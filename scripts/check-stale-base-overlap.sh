@@ -36,6 +36,11 @@ if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   echo "check-stale-base-overlap: not inside a git work tree" >&2
   exit 2
 fi
+# SCRIPT_DIR locates the shared library only. The cd below still goes to the
+# tree under test, never to the install location.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
+# shellcheck source=lib/changed-files.sh
+. "$SCRIPT_DIR/lib/changed-files.sh" || exit 2
 cd "$(git rev-parse --show-toplevel)" || exit 2
 
 usage() {
@@ -54,7 +59,8 @@ case "$mode" in
   ;;
 esac
 
-if ! git rev-parse --verify --quiet "${base_ref}^{commit}" >/dev/null; then
+# shellcheck disable=SC2310  # the non-zero return IS the handled case
+if ! changed_files::verify_base "$base_ref"; then
   echo "check-stale-base-overlap: base ref not resolvable: $base_ref" >&2
   exit 2
 fi
@@ -74,28 +80,38 @@ if [[ "$merge_base" == "$base_tip" ]]; then
   exit 0
 fi
 
-# Name-status so renames/copies contribute BOTH the old and new path.
-# --name-only alone would keep only the destination and miss overlaps on the
-# pre-rename path when the other side still touches the old name.
-list_paths() {
-  local a="$1" b="$2"
-  git diff --name-status --diff-filter=ACDMRTUXB "$a" "$b" | awk -F '	' '
-    /^[CR][0-9]*/ { print $2; print $3; next }
-    NF >= 2 { print $2 }
-  ' | LC_ALL=C sort -u
-}
-
-base_paths="$(list_paths "$merge_base" "$base_tip")" || {
+# Both path lists are walked through scripts/lib/changed-files.sh, which exists
+# so a failed diff cannot arrive looking like an empty change set: an empty list
+# here means "this side touched nothing", and a gate that concludes "no
+# overlapping paths" from a diff that never ran is a silent pass on exactly the
+# stale base it is here to refuse.
+#
+# `--include-deleted --no-renames` is what makes a rename contribute BOTH the
+# old and the new path: with detection off the move arrives as a delete of the
+# source plus an add of the destination, and keeping deletions is what lets the
+# source side survive. Collapsing the move to its destination alone would miss
+# an overlap on the pre-rename path when the other side still touches the old
+# name.
+base_paths=()
+# shellcheck disable=SC2310  # the non-zero return IS the handled case
+if ! changed_files::into base_paths "$merge_base..$base_tip" --include-deleted --no-renames; then
   echo "check-stale-base-overlap: cannot list paths changed on $base_ref since merge-base" >&2
   exit 2
-}
-head_paths="$(list_paths "$merge_base" HEAD)" || {
+fi
+head_paths=()
+# shellcheck disable=SC2310  # the non-zero return IS the handled case
+if ! changed_files::into head_paths "$merge_base..HEAD" --include-deleted --no-renames; then
   echo "check-stale-base-overlap: cannot list paths changed on HEAD since merge-base" >&2
   exit 2
-}
+fi
 
+# `comm` requires both inputs ordered under the collation it compares with, so
+# both sides are re-sorted under LC_ALL=C here rather than relying on whatever
+# locale the library's own sort ran in.
 overlap="$(
-  comm -12 <(printf '%s\n' "$base_paths") <(printf '%s\n' "$head_paths")
+  comm -12 \
+    <(printf '%s\n' ${base_paths[@]+"${base_paths[@]}"} | LC_ALL=C sort -u) \
+    <(printf '%s\n' ${head_paths[@]+"${head_paths[@]}"} | LC_ALL=C sort -u)
 )"
 
 behind_by="$(git rev-list --count "$merge_base..$base_tip" 2>/dev/null || echo '?')"

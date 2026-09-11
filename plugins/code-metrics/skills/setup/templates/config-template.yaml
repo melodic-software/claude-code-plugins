@@ -51,3 +51,5 @@ lanes:
     enabled: true
   dotnet:
     enabled: true          # detected; complexity deferred in this version
+  other:
+    enabled: true          # every text file outside the language lanes; line count only

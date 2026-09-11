@@ -47,13 +47,35 @@ Claude Code's native OTEL cannot see.
 
 ## The audit hooks
 
-Eight advisory `*-audit` hooks, spread across nine hook scripts because `skill-usage-audit` has two
-producers, emit the marketplace
+Eight advisory `*-audit` hooks, registered as nine rows because
+`skill-usage-audit` has two producers, emit the marketplace
 [hook-telemetry envelope](../../docs/conventions/hook-telemetry/README.md). One
 JSON event per run carrying that hook's own `duration_ms`, outcome, and a
 privacy-safe subject. Each is independently toggleable via its own `userConfig`
 boolean (default **on**; see [Per-hook kill switches](#per-hook-kill-switches)).
-The six pure emitters are a no-op until a consumer wires a sink (below);
+
+Three scripts serve those nine rows. `hooks/audit-event-emitter.sh` carries
+seven of them and picks the row from the payload's `hook_event_name`, the way
+`session-event-log.sh` next to it serves about thirty events from one file; the
+seven events are distinct, so the event alone selects the row. Each row still
+reads its own `<name>_enabled` switch and emits the same telemetry `hook` id,
+`hook_event`, `status` and `data` fields it emitted as a standalone script, so
+no downstream reader can tell the difference. The two rows with earned behavior
+of their own keep their files: `skill-usage-audit.sh`, whose kill switch is
+inlined above its library `source` because it sits on the hot `PostToolUse`
+path, and `hook-failure-audit.sh` (below).
+
+The [hook budget](../../docs/conventions/hook-budget/README.md) is accounted per
+`hooks.json` entry, and the collapse changes no entry: the same nine audit rows,
+on the same events, with the same matchers, and one event still spawns exactly
+one process. Per-entry cost is unchanged for an enabled row (the same library,
+the same `jq` passes, plus one bash pattern match to read the event) and lower
+when every switch is off, because the emitter reads all seven switches before it
+parses the library. A row that is off on its own pays one buffered payload it
+did not pay before, because the row is only known once the event has been read;
+it parsed the same library then as now, and no extra process runs either way.
+
+The six pure emitter rows are a no-op until a consumer wires a sink (below);
 `skill-usage-audit` is one exception. Both its producers also write the shared
 `skill-usage.jsonl` second store unconditionally (disable the whole feature with
 `skill_usage_audit_enabled=false`; pick the store's home with `skill_usage_scope`
@@ -116,10 +138,10 @@ None captures a command body, absolute path, error message, or argument body, on
 the repo-relative path of the loaded rule file.
 
 The InstructionsLoaded row carries no matcher on purpose. That event's matcher selects on load
-reason, and `instructions-loaded-audit.sh` passes every reason through verbatim into its subject, so
+reason, and the row passes every reason through verbatim into its subject, so
 scoping to the full documented set would skip nothing and would silently drop any reason a later
 release adds. Scoping below that set is worse: the only reason worth excluding for cost is
-`session_start`, which the script already drops at write time, and it drops it behind the
+`session_start`, which the row already drops at write time, and it drops it behind the
 `instructions_loaded_audit_log_session_start` option. A matcher that excluded `session_start` would
 stop the hook from ever spawning on it, leaving that option switched on but unable to log anything.
 The row therefore stays unscoped until the option is retired.
@@ -129,7 +151,9 @@ The row therefore stays unscoped until the option is retired.
 Each audit hook is toggled by its own `userConfig` boolean (default **on**; set
 to `false` for a clean no-op). Disable one hook without touching the others.
 The hooks read them through the native `CLAUDE_PLUGIN_OPTION_<KEY>` hook-process
-mirror.
+mirror. Seven rows share `audit-event-emitter.sh`, which reads the switch of the
+row the event selected: sharing a script does not share a switch, and turning one
+row off leaves the other six emitting.
 
 | Hook | Option |
 |---|---|

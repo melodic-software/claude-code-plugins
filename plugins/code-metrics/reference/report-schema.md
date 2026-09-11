@@ -12,9 +12,9 @@ read, so its shape is stable within the `v1` schema string.
 | `skill` | string | The producing skill, for example `audit-size` |
 | `generated_at` | string | UTC timestamp, `YYYY-MM-DDTHH:MM:SSZ` |
 | `status` | string | `complete` (every implied lane and measure ran; a `not-applicable` row implies nothing and never withholds it), `partial` (at least one `unavailable`, `deferred`, or `partial` row), `empty` (nothing was measured; the markdown headline reads "Measured nothing") |
-| `scope` | object | `mode` (`change`, `paths`, `all`), `base` (the merge-base's short SHA under `change`, else `null`), `files` (count in scope), `unclassified` (how many of those belong to no lane, so `files` minus `unclassified` is the measured count), `excluded` (count dropped by scope exclusions), `exclusions` (one `{pattern, files}` per `scope.exclude` glob that matched at least one file; a file two globs match counts under both) |
+| `scope` | object | `mode` (`change`, `paths`, `all`), `base` (the merge-base's short SHA under `change`, else `null`), `files` (count in scope), `unclassified` (how many of those belong to no lane, so `files` minus `unclassified` is the measured count; with the catch-all `other` lane enabled this is a disabled lane's files, and otherwise 0), `excluded` (count dropped by scope exclusions), `exclusions` (one `{pattern, files}` per `scope.exclude` glob that matched at least one file; a file two globs match counts under both) |
 | `run` | array | The "Coverage of this run" table, one row per lane and measure the scope implied |
-| `thresholds` | array | The references in force: `measure`, `reference` (number or `null`), `provenance`, `layer` (which config layer supplied it, or `bundled default`) |
+| `thresholds` | array | The references in force: `measure`, `value_key` (the `values` key the reference is applied to), `direction` (`at_or_above`, or `below` for coverage and type coverage), `reference` (number or `null`), `provenance`, `layer` (which config layer supplied it, or `bundled default`). The markdown Measures table lists rows over a reference first, furthest past it at the top, then the rest by the first entry whose `value_key` the rows carry, largest first (smallest first under `below`), and its 200-row cap names that key |
 | `measures` | array | The rows, see below |
 | `summary` | object | `files`, `functions`, `over_reference` (measure name to count); when clone-group rows are present, `duplicated_lines` (sum of each group's `values.lines`, one group counted once, after registry exclusions) and `clone_groups` |
 | `excluded` | array | Duplication only: clone groups dropped by a sanctioned-replication registry, each naming the registry path and line |
@@ -49,7 +49,8 @@ different files whatever the registry says, and all of them stay. Clone-group ro
 run whose scope holds no measurable file carries one row `*/*` with status `not-applicable` and a
 reason that opens with `no measurable files in scope` and, under `change`, says why: the branch is
 at its merge-base with a clean working tree (naming the ref and the `--all` alternative), or the
-changed files belong to no lane.
+changed files belong to no lane. The lane `other` (every text file outside the language lanes)
+has `file_lines` rows only; each other measure carries a `not-applicable` row for it.
 
 `partial` means the row produced measurements for some of what it implied and not the rest, which
 `audit-coverage` emits when an artifact covers only some of a lane's scope files, and again when it

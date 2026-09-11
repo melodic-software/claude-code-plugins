@@ -138,10 +138,10 @@ creates nothing. The fix is a per-command `MSYS_NO_PATHCONV=1` prefix, or `git s
 and is where this repo's `cygpath` dependency was first established, but neither of its path helpers
 is an emit helper:
 
-- `hook::normalize_path` folds a leading drive prefix for a **comparison**, using no `cygpath` at
+- `hook::normalize_path_to` folds a leading drive prefix for a **comparison**, using no `cygpath` at
   all. Its own comment is explicit that "the emitted path is always the caller's original." Emitting
   its return value is a misuse of it.
-- `hook::expand_8dot3` does call `cygpath -m` / `cygpath -l -m`, but to expand **8.3 short names**,
+- `hook::expand_8dot3_to` does call `cygpath -m` / `cygpath -l -m`, but to expand **8.3 short names**,
   and only for a path containing `~`.
 
 Both fail **open** — degrading to the caller's original path — which is right for a comparison and

@@ -323,16 +323,17 @@ check_segment() {
   esac
   ((DIR_CHANGED)) && return 0
 
-  hook::git_resolve_index "${w[@]}" || return 0
-  local gi="$HOOK_GIT_RESOLVED_GI"
-  local -a words=("${HOOK_GIT_RESOLVED_WORDS[@]}")
-  local -a wrapper_dirs=()
-  ((${#HOOK_GIT_RESOLVED_WRAPPER_DIRS[@]})) && wrapper_dirs=("${HOOK_GIT_RESOLVED_WRAPPER_DIRS[@]}")
+  # One parsed invocation: the argv `env -S` splicing may have rewritten, git's
+  # index, the wrapper chdirs the [git, subcommand) walk below cannot see, and
+  # the subcommand with its index.
+  hook::git_invocation "${w[@]}" || return 0
+  local gi="$HOOK_GITINV_GI"
+  local -a words=("${HOOK_GITINV_WORDS[@]}")
+  local -a wrapper_dirs=(${HOOK_GITINV_WRAPPER_DIRS[@]+"${HOOK_GITINV_WRAPPER_DIRS[@]}"})
   n=${#words[@]}
 
-  hook::git_resolve_subcommand "$gi" "${words[@]}" || return 0
-  [[ "$HOOK_GIT_SUB" == "worktree" ]] || return 0
-  local sub_idx="$HOOK_GIT_SUB_IDX"
+  [[ "$HOOK_GITINV_SUB" == "worktree" ]] || return 0
+  local sub_idx="$HOOK_GITINV_SUB_IDX"
   [[ "${words[sub_idx + 1]:-}" == "add" ]] || return 0
 
   # The effective directory the git process runs in: the payload cwd, composed

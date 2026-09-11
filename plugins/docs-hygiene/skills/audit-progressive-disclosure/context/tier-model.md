@@ -102,8 +102,15 @@ A pointer is good when *(Anthropic-prescribed unless noted)*:
    `utils`; organize by domain.
 5. **Navigable target** — long references open with a TOC so partial reads still see the scope;
    a grep recipe beats a full read for lookup-shaped content.
-6. **Portable path form** — forward slashes, relative from the skill root; fully-qualified MCP
-   tool names.
+6. **Portable path form**: forward slashes, relative from the skill root; fully-qualified MCP
+   tool names in the form Claude Code resolves, `mcp__<server>__<tool>` for a configured server
+   and `mcp__plugin_<plugin-name>_<server-name>__<tool-name>` for a server a plugin bundles
+   (basis: [permissions, "MCP"](https://code.claude.com/docs/en/permissions#mcp) and
+   [MCP, "Plugin-provided MCP servers"](https://code.claude.com/docs/en/mcp#plugin-provided-mcp-servers),
+   verified 2026-09-10; recheck when either page changes the form). The platform page's
+   `ServerName:tool_name` form
+   ([MCP tool references](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#mcp-tool-references))
+   applies to other surfaces and is not the harness form.
 
 Description-as-trigger (the always-loaded pointer to a skill body): state what the skill does AND
 when to use it, third person, key use case first (tail-first truncation at 1,536 chars strips

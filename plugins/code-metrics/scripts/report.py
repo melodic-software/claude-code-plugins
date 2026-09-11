@@ -214,10 +214,10 @@ def assemble(
         "status": status,
         "scope": scope,
         "run": run,
-        "thresholds": [
-            {k: v for k, v in entry.items() if k not in ("value_key", "direction")}
-            for entry in threshold_entries
-        ],
+        # `value_key` and `direction` travel with the document: the renderer
+        # orders rows by the primary measure, and a consumer comparing two
+        # documents needs to know which value the reference was applied to.
+        "thresholds": list(threshold_entries),
         "measures": measures,
         "summary": summarize(measures),
         "excluded": excluded,
@@ -227,6 +227,30 @@ def assemble(
             if row.get("status") == "unavailable"
         ],
     }
+
+
+def _primary_threshold(
+    thresholds_: list[dict[str, Any]], keys: list[str]
+) -> dict[str, Any] | None:
+    """The threshold whose value orders the rows that are not over any
+    reference: the first one whose `value_key` the rows carry, so a size
+    report lists the longest files first and a coverage report the least
+    covered, and a document whose rows carry none of them (clone groups)
+    keeps its file order."""
+    for entry in thresholds_:
+        if entry.get("value_key") in keys:
+            return entry
+    return None
+
+
+def _primary_rank(primary: dict[str, Any] | None, row: dict[str, Any]) -> tuple:
+    """Largest primary value first (smallest first under a `below`
+    reference), and a row with no numeric value after every row with one."""
+    key = primary.get("value_key") if primary else None
+    value = (row.get("values") or {}).get(key) if key else None
+    if not _is_number(value):
+        return (1, 0)
+    return (0, value if primary.get("direction") == "below" else -value)
 
 
 def _fmt(value: Any) -> str:
@@ -363,6 +387,15 @@ def render(doc: dict[str, Any], document_path: str | None = None) -> str:
         + (f", {scope['unclassified']} in no lane" if scope.get("unclassified") else "")
         + (f", {scope['excluded']} excluded" if scope.get("excluded") else "")
         + "."
+        + (
+            # An empty change is the common empty run; the headline says how
+            # to widen it, because the skill body is not in front of the
+            # reader when the report is.
+            " No files differ from that merge-base and none are uncommitted; "
+            "pass paths or `--all` to widen the scope."
+            if scope.get("mode") == "change" and not scope.get("files")
+            else ""
+        )
     )
     lines.append("")
     lines.append("## Coverage of this run")
@@ -411,14 +444,17 @@ def render(doc: dict[str, Any], document_path: str | None = None) -> str:
         lines.append(header)
         lines.append("|" + "---|" * (5 + len(keys)))
         shown = 0
+        primary = _primary_threshold(thresholds_, keys)
         # Rows over a reference come first, the furthest past it at the top,
         # so the table's opening lines are the ones a reader came for; the
-        # rest follow in file order.
+        # rest follow by the primary measure's value, largest first, so a
+        # size report reads longest to shortest rather than alphabetically.
         for row in sorted(
             measures,
             key=lambda r: (
                 -len(r.get("over_reference", [])),
                 -_over_distance(r, references),
+                _primary_rank(primary, r),
                 r.get("file", ""),
                 r.get("start_line") or 0,
             ),
@@ -430,6 +466,11 @@ def render(doc: dict[str, Any], document_path: str | None = None) -> str:
                     if document_path
                     else f"{remaining} more rows; re-run with --json for the full document"
                 )
+                if primary:
+                    where_full += (
+                        f"; the {MAX_RENDERED_ROWS} shown are those over a reference "
+                        f"first, then the top by {primary['value_key']}"
+                    )
                 lines.append(
                     f"| ... | | | | {' | '.join('' for _ in keys)} | {where_full} |"
                 )
@@ -465,7 +506,10 @@ def render(doc: dict[str, Any], document_path: str | None = None) -> str:
     lines.append("## Summary")
     lines.append("")
     lines.append(
-        f"Files: {summary.get('files', 0)}. Functions: {summary.get('functions', 0)}. "
+        f"Files: {summary.get('files', 0)}. "
+        # A file-level report has no functions to count; the figure is printed
+        # only where function rows exist.
+        + (f"Functions: {summary['functions']}. " if summary.get("functions") else "")
         + "Over reference: "
         + (
             ", ".join(f"{k} {v}" for k, v in summary.get("over_reference", {}).items())

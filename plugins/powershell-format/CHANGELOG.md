@@ -3,6 +3,31 @@
 All notable changes to the `powershell-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.47]
+
+### Fixed
+
+- **Two `jq` processes were spawned per diagnostic-producing edit to build a
+  findings document nothing read.** The guard that skips the findings encode
+  when no telemetry sink is configured was missing here. The encode now sits
+  behind the shared engine's own guard, so it cannot be omitted.
+
+### Changed
+
+- **The hook's exit arms go through the shared `hook::finish`.** Taking the
+  rewrite guard's disclosure, emitting telemetry with the arm's verdict,
+  emitting exactly one channels document and exiting now happen in one place
+  instead of each arm spelling that sequence itself. Arms that never attempted
+  a rewrite now report `data.changed` as false rather than omitting the key,
+  which is the rewrite guard's documented meaning for them.
+- **Running the analyzer, accumulating its output, classifying the outcome
+  and encoding findings moved behind a shared engine.** This hook states only
+  its invocation, its exit-code map and its message text.
+- **The `PSScriptAnalyzerSettings.psd1` walk goes through
+  `hook::walk_up_to`, which requires a ceiling.** A walk whose ceiling does
+  not resolve now stops rather than continuing to the filesystem root, so the
+  hook cannot adopt settings from directories the repository does not own.
+
 ## [0.7.46]
 
 ### Changed

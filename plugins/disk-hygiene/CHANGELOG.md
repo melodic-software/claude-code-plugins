@@ -3,6 +3,18 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.5]
+
+### Changed
+
+- **The engine's invocation grammar is declared once and consumed by both the
+  parser and the guard.** The set of subcommands and tiers lived twice: the
+  argument parser built one copy and the destructive guard hand-wrote another
+  to validate against. They could disagree, and only a reader comparing the two
+  would notice. The grammar is now stated in one module that the parser is
+  built from and the guard validates against, so a subcommand cannot exist in
+  one and be missing from the other.
+
 ## [0.23.4]
 
 ### Fixed

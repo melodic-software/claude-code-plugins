@@ -213,9 +213,6 @@ consumed() {
 mapfile -t -d '' fixtures < <(find plugins -type f -path '*/evals/fixtures/*' -print0 2>/dev/null | sort -z)
 mapfile -t -d '' ALL_TEST_FILES < <(find plugins -type f -name '*.test.*' -print0 2>/dev/null)
 
-# Track which baseline entries actually shadow an orphan, to flag stale ones.
-declare -A entry_used
-
 orphans=0
 if [[ "$mode" == "discover" ]]; then
   for f in "${fixtures[@]}"; do
@@ -236,7 +233,9 @@ for f in "${fixtures[@]}"; do
     continue
   fi
   if p="$(matched_baseline "$f")"; then
-    entry_used["$p"]=1
+    # The entry is shadowing a real orphan, so it has not outlived what it
+    # excuses. scripts/lib/read-list.sh owns the consumed-set.
+    read_list::mark_used "$p"
     continue
   fi
   echo "ORPHANED FIXTURE: $f is under evals/fixtures/ but no eval case references it and no test asserts on it." >&2
@@ -245,11 +244,11 @@ for f in "${fixtures[@]}"; do
 done
 
 stale=0
-for entry in "${entries[@]}"; do
-  if [[ -z "${entry_used[$entry]:-}" ]]; then
-    echo "STALE BASELINE: '$entry' in $BASELINE no longer shadows any orphaned fixture — remove it." >&2
-    stale=$((stale + 1))
-  fi
+stale_entries=()
+read_list::stale_to stale_entries entries
+for entry in ${stale_entries[@]+"${stale_entries[@]}"}; do
+  read_list::stale_line "$BASELINE" "$entry" 'no longer shadows any orphaned fixture — remove it.'
+  stale=$((stale + 1))
 done
 
 if ((orphans > 0 || stale > 0)); then

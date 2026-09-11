@@ -34,7 +34,9 @@ class ScopeFilterTests(unittest.TestCase):
             (root / "src" / "a.py").write_text("print(1)\n", encoding="utf-8")
             (root / "b.sh").write_text("echo\n", encoding="utf-8")
             (root / "img.png").write_bytes(b"\x89PNG\0\0binary")
-            listing = "./src/a.py\r\nsrc\\a.py\nb.sh\nsrc\nmissing.py\nimg.png\n\nb.sh\n"
+            listing = (
+                "./src/a.py\r\nsrc\\a.py\nb.sh\nsrc\nmissing.py\nimg.png\n\nb.sh\n"
+            )
             result = run(listing, root)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(result.stdout.split("\n"), ["src/a.py", "b.sh", ""])
@@ -48,6 +50,26 @@ class ScopeFilterTests(unittest.TestCase):
                 self.skipTest("symlinks are not available here")
             result = run("link.py\n", root)
             self.assertEqual(result.stdout, "")
+
+    @unittest.skipIf(
+        os.name != "posix" or os.geteuid() == 0, "needs a non-root POSIX user"
+    )
+    def test_an_unreadable_file_is_dropped_and_named_on_stderr(self) -> None:
+        # Dropped, so one locked file does not turn its whole lane unavailable;
+        # named, so it does not vanish from the scope with nothing said.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "open.md").write_text("x\n", encoding="utf-8")
+            locked = root / "locked.md"
+            locked.write_text("x\n", encoding="utf-8")
+            locked.chmod(0)
+            try:
+                result = run("open.md\nlocked.md\n", root)
+            finally:
+                locked.chmod(0o644)
+            self.assertEqual(result.returncode, 0)
+            self.assertEqual(result.stdout, "open.md\n")
+            self.assertIn("cannot read: locked.md", result.stderr)
 
     def test_usage_error_exits_2(self) -> None:
         result = subprocess.run(
