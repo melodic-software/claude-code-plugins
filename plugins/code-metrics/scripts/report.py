@@ -43,6 +43,10 @@ MAX_RENDERED_ROWS = 200
 # The reason prefix the dispatcher writes on a run row when a collector ran and
 # produced nothing parseable; it is also what makes an entry script exit 3.
 COLLECT_FAILED = "collect failed (exit 3)"
+# The reason prefix the coverage join writes on every run row when no artifact
+# was named and none was discovered; the rendering points at the table that
+# says how to get one, since the skill itself runs nothing.
+NO_ARTIFACT = "no coverage artifact found"
 
 
 def _read_json(path: str) -> Any:
@@ -376,6 +380,16 @@ def render(doc: dict[str, Any]) -> str:
             "Exit 3: a collector ran and produced nothing parseable: "
             + "; ".join(named)
             + ". The run table carries its output."
+        )
+    if any(NO_ARTIFACT in (row.get("reason") or "") for row in doc.get("run", [])):
+        # Every lane is unavailable for the same cause, and the cause has a
+        # documented remedy the skill will not apply on its own: the table of
+        # producers and command shapes, per lane, in the skill body and README.
+        lines.append(
+            "No coverage artifact was found, so no line was measured. The "
+            '"Getting a first artifact" table in the audit-coverage skill body and '
+            "the plugin README names, per lane, the producer that writes one and the "
+            "command shape; this skill runs none of them."
         )
     return "\n".join(lines) + "\n"
 

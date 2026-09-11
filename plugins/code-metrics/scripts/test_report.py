@@ -773,6 +773,78 @@ class RenderTests(unittest.TestCase):
         result = run("render", stdin=json.dumps(clean))
         self.assertNotIn("Exit 3", result.stdout)
 
+    def test_a_no_artifact_run_ends_with_the_first_artifact_pointer(self) -> None:
+        # The coverage join writes `no coverage artifact found` on every run row
+        # when nothing was named and nothing was discovered. The markdown's last
+        # line then points at the per-lane table that says how to produce one,
+        # because the skill will not run a test or install a tool on its own.
+        # The JSON document is untouched, and a run that read an artifact, even
+        # a partial one, carries no such line.
+        base = {
+            "schema": "code-metrics/v1",
+            "skill": "audit-coverage",
+            "scope": {"mode": "all", "base": None, "files": 3, "excluded": 0},
+            "thresholds": [],
+            "measures": [],
+            "summary": {"files": 0, "functions": 0, "over_reference": {}},
+            "excluded": [],
+        }
+        searched = (
+            "no coverage artifact found; searched: coverage/lcov.info, lcov.info, "
+            "coverage.xml, cobertura.xml, coverage.json, coverage.out, cover.out"
+        )
+        missing = dict(
+            base,
+            status="empty",
+            run=[
+                {
+                    "lane": "python",
+                    "measure": "coverage",
+                    "collector": None,
+                    "status": "unavailable",
+                    "reason": searched,
+                },
+                {
+                    "lane": "python",
+                    "measure": "crap",
+                    "collector": None,
+                    "status": "unavailable",
+                    "reason": searched,
+                },
+            ],
+            unavailable=["python/coverage", "python/crap"],
+        )
+        result = run("render", stdin=json.dumps(missing))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        last = result.stdout.rstrip("\n").splitlines()[-1]
+        self.assertIn("No coverage artifact was found", last)
+        self.assertIn('"Getting a first artifact" table', last)
+        self.assertIn("this skill runs none of them", last)
+        partial = dict(
+            base,
+            status="partial",
+            run=[
+                {
+                    "lane": "python",
+                    "measure": "coverage",
+                    "collector": "coverage.py",
+                    "status": "partial",
+                    "reason": "partial, 1 of 3 scope files present in the artifacts",
+                },
+                {
+                    "lane": "python",
+                    "measure": "crap",
+                    "collector": "coverage.py",
+                    "status": "partial",
+                    "reason": "partial, 1 of 3 scope files present in the artifacts",
+                },
+            ],
+            unavailable=["python/coverage", "python/crap"],
+        )
+        result = run("render", stdin=json.dumps(partial))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("Getting a first artifact", result.stdout)
+
 
 CLONE_ROW = {
     "file": None,

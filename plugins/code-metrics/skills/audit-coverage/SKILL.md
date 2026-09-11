@@ -56,6 +56,29 @@ document when the numbers feed a comparison: pass it to `/verification:measure m
 `verification` plugin is installed, treating `status: empty` on either side as INCONCLUSIVE;
 otherwise keep the JSON beside your notes and compare by hand.
 
+## Getting a first artifact
+
+A run that finds no artifact reports every lane `unavailable`, lists the paths it searched, and
+ends its markdown with a line pointing here, because the remedy is the project's to apply: this
+skill runs no test and installs nothing. One command per lane produces an artifact the next run
+can read. The command shapes are each producer's own documented defaults as of 2026-09-11; the
+producer's documentation wins when a release has moved a flag or an output name.
+
+| Lane | Producer | Command shape | Writes |
+|---|---|---|---|
+| TypeScript/JavaScript | vitest | `npx vitest run --coverage --coverage.reporter=lcov` | lcov `.info` at `coverage/lcov.info`, auto-discovered |
+| TypeScript/JavaScript | jest | `npx jest --coverage --coverageReporters=lcov` | lcov `.info` at `coverage/lcov.info`, auto-discovered |
+| TypeScript/JavaScript | c8 or nyc, over any test runner | `npx c8 --reporter=lcov <test command>` | lcov `.info` at `coverage/lcov.info`, auto-discovered |
+| Python | coverage.py | `python -m coverage run -m pytest && python -m coverage json` | coverage.py JSON at `coverage.json`, auto-discovered; `coverage xml` writes `coverage.xml`, also auto-discovered; `coverage lcov` writes `coverage.lcov`, which needs `--artifacts` |
+| Python | pytest-cov | `pytest --cov=<package> --cov-report=json` | coverage.py JSON at `coverage.json`, auto-discovered |
+| Bash | kcov | `kcov <outdir> bash <test script>` | Cobertura XML under `<outdir>/kcov-merged/cobertura.xml`; pass it with `--artifacts` |
+| Go | `go test` | `go test ./... -coverprofile=coverage.out` | Go cover profile at `coverage.out`, auto-discovered; file rows carry the statement ratio, function rows need a line artifact too |
+| C# | coverlet, as the `dotnet test` collector | `dotnet test --collect:"XPlat Code Coverage"` | Cobertura XML at `TestResults/<run id>/coverage.cobertura.xml`; pass it with `--artifacts`. The C# complexity lane is deferred, so the lane reports file rows and no CRAP |
+
+Auto-discovered means the output lands on one of the well-known names the run looks for with no
+`--artifacts`; anything else is named explicitly or listed under `coverage.artifacts` in the
+configuration.
+
 ## Reading the numbers
 
 - A file row is the artifact's own line table: `coverage_pct`, `lines_executable`, `lines_hit`.

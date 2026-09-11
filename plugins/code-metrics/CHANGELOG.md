@@ -25,6 +25,13 @@ All notable changes to the `code-metrics` plugin are documented here. Format fol
   first; after them function rows sort by CRAP descending with a null CRAP last, file rows by
   coverage ascending with a null percentage last, and file and line only break ties. Rows without
   those values, every other skill's table, keep the file-and-line order they had.
+- **A run that finds no coverage artifact says how to get one.** The report listed the paths it
+  searched and stopped, which told the reader what was missing and nothing about how to produce it,
+  and the skill will not run a test or install a tool on its own. The skill body and the README now
+  carry a "Getting a first artifact" table, one row per lane naming the producer, the command
+  shape, and the file it writes, with whether that file lands on an auto-discovered name; the
+  markdown rendering of a no-artifact run ends with a line pointing at that table. The JSON
+  document is unchanged and the script still runs nothing.
 
 ## [0.1.9]
 
