@@ -15,14 +15,13 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 # shellcheck source=guardrails-test-helpers.sh
 source "$HOOK_DIR/guardrails-test-helpers.sh"
 
+GUARD_UNDER_TEST="$HOOK"
+
 # run <label> <command> <expected-exit> [extra-env NAME=VAL ...]
 run() {
   local label="$1" command="$2" expected="$3"
   shift 3
-  local rc
-  env "$@" bash "$HOOK" <<<"$(command_json "$command")" >/dev/null 2>&1
-  rc=$?
-  assert_exit "$label" "$expected" "$rc"
+  expect "$label" "$expected" --command "$command" -- "$@"
 }
 
 # --- Form 1: --no-verify / -n on git commit ---------------------------------
@@ -213,10 +212,8 @@ fi
 # the PowerShell tool; the canonical PowerShell commit form must be allowed; and
 # commit/push-shaped PowerShell the guard cannot parse must fail closed.
 run_pwsh() {
-  local label="$1" command="$2" expected="$3" rc
-  bash "$HOOK" <<<"$(pwsh_command_json "$command")" >/dev/null 2>&1
-  rc=$?
-  assert_exit "$label" "$expected" "$rc"
+  local label="$1" command="$2" expected="$3"
+  expect "$label" "$expected" --tool PowerShell --command "$command"
 }
 run_pwsh "PS: git commit --no-verify (blocked — the proven bypass)" "git commit --no-verify -m x" 2
 run_pwsh "PS: git commit -n (blocked)" "git commit -n -m x" 2
@@ -488,8 +485,12 @@ run_pwsh "PS: spaced assignment before a computed launcher (fail-closed block �
 # SAY — and a remediation line that describes a shape it never sees is as much a
 # dead end as no line at all. Both message defects fixed here (#1974 review) were
 # exactly that, and both survived because only the exit code was checked.
+# The hook's exit code is the function's, so a caller can still take it with
+# `out="$(pwsh_stderr …)" || rc=$?`.
 pwsh_stderr() {
-  bash "$HOOK" <<<"$(pwsh_command_json "$1")" 2>&1 >/dev/null
+  guard_invoke --tool PowerShell --command "$1"
+  printf '%s' "$GUARD_ERR"
+  return "$GUARD_RC"
 }
 
 # PowerShell pairs each opener with its own quote, so the terminator named has to
@@ -548,12 +549,13 @@ assert_exit "malformed JSON payload (blocked)" 2 "$malformed_rc"
 # A NUL cannot live in a shell variable, so the payload is assembled inside jq:
 # `[0] | implode` is the one-character NUL string, which jq re-emits as a NUL
 # escape on the wire — the form the harness would deliver.
+nul_payload() {
+  jq -n --arg h "$1" --arg t "$2" \
+    '{tool_name:"Bash",tool_input:{command:($h + ([0] | implode) + $t)}}'
+}
 run_nul() {
-  local label="$1" head="$2" tail="$3" expected="$4" rc
-  bash "$HOOK" <<<"$(jq -n --arg h "$head" --arg t "$tail" \
-    '{tool_name:"Bash",tool_input:{command:($h + ([0] | implode) + $t)}}')" >/dev/null 2>&1
-  rc=$?
-  assert_exit "$label" "$expected" "$rc"
+  local label="$1" head="$2" tail="$3" expected="$4"
+  expect "$label" "$expected" --payload "$(nul_payload "$head" "$tail")"
 }
 run_nul "NUL after --no-verify (blocked)" "git push --no-verify" "" 2
 run_nul "NUL splitting the flag itself (blocked)" "git push --no-veri" "fy" 2
@@ -564,8 +566,9 @@ run_nul "NUL in an otherwise harmless command (blocked)" "echo hi" "; echo bye" 
 
 # The block has to say what is wrong and what to do about it, not just refuse.
 nul_stderr() {
-  bash "$HOOK" <<<"$(jq -n --arg h "$1" --arg t "$2" \
-    '{tool_name:"Bash",tool_input:{command:($h + ([0] | implode) + $t)}}')" 2>&1 >/dev/null
+  guard_invoke --payload "$(nul_payload "$1" "$2")"
+  printf '%s' "$GUARD_ERR"
+  return "$GUARD_RC"
 }
 assert_contains "NUL msg: names the byte" "$(nul_stderr 'git push --no-verify' 'x')" "NUL byte"
 assert_contains "NUL msg: gives the fix" "$(nul_stderr 'git push --no-verify' 'x')" \
@@ -627,5 +630,36 @@ assert_absent "#2663: Bash lane does not source ps-command.sh" \
 pwsh_trace_err=$(bash -x "$HOOK" <<<"$(pwsh_command_json 'git status')" 2>&1 >/dev/null) || true
 assert_contains "#2663: PowerShell lane sources ps-command.sh" \
   "$pwsh_trace_err" "ps-command.sh"
+
+# --- The same verdicts under the dispatcher ----------------------------------
+# Every case above invokes the guard alone, which is not how hooks.json runs it:
+# under run-guards.sh stdin is read once and re-served, `.tool_input.command`
+# arrives from the dispatcher's primed jq cache instead of the guard's own jq
+# call, and the guard is `source`d into a subshell rather than exec'd. A verdict
+# that only holds on the standalone path is a guard that does not work where it
+# ships, and nothing else in this suite can see the difference. `expect_both`
+# asserts one expected exit code on both paths.
+expect_both "dispatched parity: git commit --no-verify" 2 \
+  --command "git commit --no-verify -m test"
+expect_both "dispatched parity: git commit -m (allowed)" 0 \
+  --command "git commit -m test"
+expect_both "dispatched parity: quoted flag still blocks" 2 \
+  --command 'git commit "--no-verify" -m test'
+expect_both "dispatched parity: quoted prose stays allowed" 0 \
+  --command 'echo "git commit --no-verify is banned"'
+expect_both "dispatched parity: core.hooksPath assignment" 2 \
+  --command "git -c core.hooksPath=/dev/null commit -m test"
+# A NUL in the payload defeats the dispatcher's primed cache, so the guard's
+# jq call falls through to hook::jq_fields_uncached — the one arm of the cache
+# that only a real payload exercises.
+expect_both "dispatched parity: NUL payload falls through the jq cache" 2 \
+  --payload "$(nul_payload 'git push --no-verify' 'x')"
+# The PowerShell lane as hooks.json wires it: the classifier arrives as the
+# dispatcher's `--lib`, loaded once for the event instead of by the guard.
+expect_both "dispatched parity: PowerShell git commit --no-verify" 2 \
+  --tool PowerShell --lib lib/powershell/ps-command.sh \
+  --command "git commit --no-verify -m x"
+expect_both "dispatched parity: PowerShell git status (allowed)" 0 \
+  --tool PowerShell --lib lib/powershell/ps-command.sh --command "git status"
 
 report

@@ -3,6 +3,20 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.73]
+
+### Changed
+
+- **The linkage gates read a parsed git invocation instead of parsing it in
+  five steps.** Deciding whether a command is a git invocation, which
+  subcommand it runs, whether an alias reparse applies and what its effective
+  directory is were separate walks over the same words at each call site. The
+  shared library now returns that as one parsed result.
+- **Vendored `hook-utils.sh` refresh.** The library gained one exit arm and
+  one ceiling-bounded parent walk, and retired seven value-printing helpers
+  whose whole body called their caller-writes-to-a-variable twin, so each call
+  site stops paying a subshell fork for a value the shell already has.
+
 ## [0.55.72]
 
 ### Changed
