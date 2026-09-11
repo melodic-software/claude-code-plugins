@@ -68,6 +68,12 @@ assert "spawn_cost" in fan_out and "state_label" in fan_out["spawn_cost"], fan_o
 assert "fan_out" in report["timings_seconds"], report["timings_seconds"]
 print("OK: fan-out layer is present in the shipped report")
 
+context = report.get("operator_context")
+assert context is not None, "the report ships no operator_context; the missing paragraph is invisible"
+assert context["status"] == "absent" and context["notes"] == [], context
+assert context["source"] == "unspecified", context
+print("OK: an absent operator paragraph is reported as a fact, not omitted")
+
 census = report.get("kernel_objects")
 assert census is not None and "supported" in census, (
     "the report ships no kernel_objects section; the host-level floor is invisible"
@@ -75,6 +81,22 @@ assert census is not None and "supported" in census, (
 assert census["supported"] is False or census["state_label"] in {"nominal", "paged-pool-high", "token-leak"}, census
 assert "kernel_objects" in report["timings_seconds"], report["timings_seconds"]
 print("OK: kernel-object census is present in the shipped report")
+PY
+
+# Repeated --note lands in the shipped report with its declared source, so the
+# context only a human at the machine holds survives into the artifact.
+"$PYTHON" "$ENGINE" --root "$WORK/root" --skip-processes --skip-fan-out \
+  --note "typing lagged" --note "four terminals open" --note-source operator \
+  >"$WORK/noted.json"
+"$PYTHON" - "$WORK/noted.json" <<'PY'
+import json
+import sys
+
+context = json.loads(open(sys.argv[1], encoding="utf-8").read())["operator_context"]
+assert context["status"] == "present", context
+assert context["notes"] == ["typing lagged", "four terminals open"], context
+assert context["source"] == "operator", context
+print("OK: repeated --note reaches the shipped report with its declared source")
 PY
 
 # --skip-fan-out must actually skip it, so an operator on a wedged machine can
