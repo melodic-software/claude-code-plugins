@@ -22,7 +22,8 @@ is stale but honest":
 
   0  ok        - everything checked passed
   1  broken    - a defect the registry owns: malformed store, missing trigger,
-                 view drift, baked line with no store row
+                 view drift, baked line with no store row, non-defer extraction
+                 row whose component carries no Boundary section naming it
   3  degraded  - checked what could be checked; something was not locally
                  decidable (no CLI on PATH) or is stale-but-honest (recorded
                  extraction version differs from the current build)
@@ -220,6 +221,44 @@ def frontmatter_description(frontmatter: str) -> str:
             parts = _indented_block()
         return " ".join(" ".join(parts).split())
     return ""
+
+
+def boundary_sections(body: str) -> list[str]:
+    """Every `## Boundary...` section in a body, heading line included.
+
+    A section runs from its heading to the next `## ` heading. All of them are
+    collected rather than the first one taken: a component that overlaps several
+    native surfaces may carry one section covering them all, and it may also
+    carry a Boundary section written for something this registry has no row for.
+    """
+    sections: list[str] = []
+    current: list[str] | None = None
+    for line in body.split("\n"):
+        if line.startswith("## "):
+            if current is not None:
+                sections.append("\n".join(current))
+            current = [line] if line.startswith("## Boundary") else None
+        elif current is not None:
+            current.append(line)
+    if current is not None:
+        sections.append("\n".join(current))
+    return sections
+
+
+def boundary_names_surface(sections: list[str], name: str) -> bool:
+    """Does any Boundary section name this native surface as a code span?
+
+    Identity, not presence. The heading alone proves nothing about the row being
+    checked: a component can carry a `## Boundary` section for an unrelated
+    surface, and a component with several rows carries one section that must
+    name each of them. The code span is the marker the convention's heading
+    shape and every worked example already use, and it keeps a native name that
+    is also a common English word (`run`, `design`) from being satisfied by
+    ordinary prose. A leading slash is accepted so a surface written as a
+    command (`/skill-doctor`) counts for a row whose name carries no slash.
+    """
+    pattern = re.compile(r"`/?" + re.escape(name) + r"`")
+    return any(pattern.search(section) for section in sections)
 
 
 def component_path(repo: Path, plugin: str, name: str, kind: str) -> Path:
@@ -624,6 +663,10 @@ def check_baked_parity(repo: Path, rows: list[dict[str, Any]]) -> list[str]:
     """Store <-> component parity, direction-sensitively.
 
     Forward: a row claiming a baked line must have that line in the component.
+    A claimed Boundary section must also NAME this row's native surface, because
+    a generic `## Boundary` heading is satisfied by any prose: one component may
+    carry a section for a surface this registry has no row for, and a component
+    with several rows carries one section that owes each of them a mention.
     Reverse: a description carrying the gate token must have a store row.
 
     The reverse scan keys on the frontmatter description ONLY. `## Boundary` is
@@ -690,11 +733,20 @@ def check_baked_parity(repo: Path, rows: list[dict[str, Any]]) -> list[str]:
                 )
             else:
                 baked_desc[row_token].add((component["plugin"], component["skill"]))
-        if wants_boundary and not re.search(r"^## Boundary", body, re.MULTILINE):
-            problems.append(
-                f"{label}: `baked.boundary_section` is true but {path} has no "
-                "`## Boundary` section"
-            )
+        if wants_boundary:
+            native_name = row["native"]["name"]
+            sections = boundary_sections(body)
+            if not sections:
+                problems.append(
+                    f"{label}: `baked.boundary_section` is true but {path} has no "
+                    "`## Boundary` section"
+                )
+            elif not boundary_names_surface(sections, native_name):
+                problems.append(
+                    f"{label}: `baked.boundary_section` is true but no `## Boundary` "
+                    f"section in {path} names `{native_name}` - a section written for "
+                    "another surface does not carry this row's verdict"
+                )
 
     plugins_dir = repo / "plugins"
     if plugins_dir.is_dir():
@@ -951,9 +1003,14 @@ def cmd_self_check(args: argparse.Namespace) -> int:
     problems.extend(check_baked_parity(repo, rows))
 
     # A verdict lives for the model only once the component's body carries its
-    # Boundary section; the store alone ships to nobody. Advisory rather than a
-    # problem so rows that predate the requirement report until their sweep
-    # lands instead of blocking every run.
+    # Boundary section; the store alone ships to nobody. Broken, not degraded:
+    # degraded is reserved for what this repository cannot fix by editing its
+    # own files (an upstream release it does not own, a comparison with no local
+    # basis), and a consumer gate passes a degraded run for exactly that reason.
+    # A missing section is repairable in the change that adds the row, and the
+    # section is invocation-loaded, so it spends no listing budget and moves no
+    # routing: nothing the description phrase's separate gate protects against
+    # applies to it.
     unbaked_boundary = [
         _row_label(row, index)
         for index, row in enumerate(rows)
@@ -963,10 +1020,11 @@ def cmd_self_check(args: argparse.Namespace) -> int:
         and not row["baked"]["boundary_section"]
     ]
     if unbaked_boundary:
-        advisories.append(
+        problems.append(
             f"{len(unbaked_boundary)} non-defer extraction row(s) carry no Boundary "
             "section in their component (the verdict is recorded but the model never "
-            f"reads it): {', '.join(unbaked_boundary)}"
+            "reads it; the section lands with the row, in the same change): "
+            f"{', '.join(unbaked_boundary)}"
         )
 
     recorded = sorted(

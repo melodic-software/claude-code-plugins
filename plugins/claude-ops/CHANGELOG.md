@@ -10,11 +10,20 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 - **`observability`**: a read-routing boundary row pointing API-application cache health at
   the platform's cache diagnostics API (beta, per-request miss reasons), keeping the skill
   scoped to local Claude Code telemetry while routing the other case.
-- **`audit-native-overlap` self-check**: a new advisory naming every non-`defer`
+- **`audit-native-overlap` self-check**: a new blocking problem naming every non-`defer`
   extraction-evidence store row whose component carries no `## Boundary` section. The
-  convention now requires the Boundary section to land in the same change as its row, so a
-  row without one is a recorded verdict the model never reads; the advisory grades the store
-  as degraded (exit 3) rather than broken, and `defer` rows and agent components owe nothing.
+  convention requires the Boundary section to land in the same change as its row, so a row
+  without one is a recorded verdict the model never reads. It breaks the store (exit 1)
+  rather than degrading it: a consumer gate passes a degraded run because degraded reports a
+  condition this repository cannot fix by editing its own files, and a missing section is
+  fixable in the change that adds the row. `defer` rows and agent components owe nothing.
+- **`audit-native-overlap` parity ties a Boundary section to its row's surface**: a row with
+  `baked.boundary_section` true now needs a `## Boundary` section that names that row's native
+  surface as a code span, not merely the heading. A component can carry a Boundary section for
+  a surface the registry has no row for, and a component overlapping several surfaces carries
+  one section owing each of them a mention, so a presence-only check let a row claim a section
+  written for something else. A leading slash is accepted, so a surface written as a command
+  satisfies a row whose name carries none.
 
 ### Changed
 
@@ -24,9 +33,11 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   description budget on every session. The parity rule is unchanged: every baked description
   phrase traces to a row, and a row without a phrase is legal pending-sweep state.
 - **`audit-native-overlap` tests**: the fixture repository seeds its default component with a
-  Boundary section so the base row is parity-clean, and the suite gains cases for the new
-  advisory, for `defer` rows owing no Boundary, and for a row whose only missing surface is
-  the description phrase.
+  Boundary section naming its surface so the base row is parity-clean, and the suite gains
+  cases for the missing-section problem, for a section written for another surface, for a
+  generic heading whose text names the surface, for one section carrying two rows, for a
+  surface named only in prose, for `defer` rows owing no Boundary, and for a row whose only
+  missing surface is the description phrase.
 - **`audit-performance`**: a `## Boundary, the bundled doctor skill` section: `doctor` inspects
   slow hooks and the release channel and offers to fix, `claude doctor` prints read-only
   diagnostics, this skill measures while it is slow and refuses deletion. Routing, a mutation
