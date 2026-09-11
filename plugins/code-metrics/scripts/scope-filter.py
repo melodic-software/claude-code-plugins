@@ -43,7 +43,14 @@ def is_text_file(path: str) -> bool:
     try:
         with open(path, "rb") as handle:
             return b"\0" not in handle.read(SNIFF_BYTES)
-    except OSError:
+    except OSError as exc:
+        # A file that exists but cannot be read is dropped so one locked file
+        # does not turn a whole lane unavailable, and named on stderr so it
+        # does not vanish from the scope with nothing said.
+        print(
+            f"scope-filter.py: dropped, cannot read: {path} ({exc.strerror})",
+            file=sys.stderr,
+        )
         return False
 
 
@@ -78,6 +85,8 @@ def main(argv: list[str]) -> int:
 
 if __name__ == "__main__":
     if sys.version_info < MIN_PYTHON:
-        print("scope-filter.py needs Python %d.%d or later" % MIN_PYTHON, file=sys.stderr)
+        print(
+            "scope-filter.py needs Python %d.%d or later" % MIN_PYTHON, file=sys.stderr
+        )
         sys.exit(2)
     sys.exit(main(sys.argv[1:]))

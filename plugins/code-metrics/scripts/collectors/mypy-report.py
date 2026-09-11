@@ -35,6 +35,8 @@ import subprocess
 import sys
 import tempfile
 
+from adapter_paths import files_from
+
 MIN_PYTHON = (3, 9)
 NAME = "mypy-report"
 TOOL = "mypy"
@@ -147,7 +149,7 @@ def main(argv: list[str]) -> int:
                 f"usage: {NAME}.py collect <lane> <measure> <file>...", file=sys.stderr
             )
             return 2
-        return collect(rest[0], rest[1], rest[2:])
+        return collect(rest[0], rest[1], files_from(rest[2:]))
     print(f"{NAME}.py: unknown verb {verb}", file=sys.stderr)
     return 2
 

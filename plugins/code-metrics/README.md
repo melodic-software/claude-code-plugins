@@ -23,11 +23,14 @@ value to count against, not a bar.
 ## Works in any repo
 
 Lanes are detected from file extensions (TypeScript/JavaScript, Python, Bash, Go, and C#, whose
-complexity lane is deferred and reported as such). When the consuming repository tracks
-`.claude/ecosystems/<lane>.yaml` files, their `globs` override the bundled map for that lane. The
-default scope is the change: files that differ from the merge-base with the default branch plus
-uncommitted and untracked files; explicit paths or `--all` (every tracked or untracked-but-not-
-ignored file) widen it. Nothing depends on a framework, a build system, or the publisher.
+complexity lane is deferred and reported as such). Every other text file, markdown, JSON, YAML,
+PowerShell, a `Makefile`, lands in the catch-all `other` lane, which carries a line count and
+nothing else: `audit-size` measures it, and every other measure reports it as not applicable.
+When the consuming repository tracks `.claude/ecosystems/<lane>.yaml` files, their `globs`
+override the bundled map for that lane. Two scopes are first-class: the default is the change,
+files that differ from the merge-base with the default branch plus uncommitted and untracked
+files, and `--all` is the whole tree (every tracked or untracked-but-not-ignored file); explicit
+paths narrow either. Nothing depends on a framework, a build system, or the publisher.
 
 ## Requirements
 

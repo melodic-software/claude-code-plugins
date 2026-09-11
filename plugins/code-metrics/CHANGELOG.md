@@ -3,6 +3,49 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.1]
+
+### Changed
+
+- **`audit-size` measures every text file in scope.** Files whose extension no language lane
+  claims (markdown, JSON, YAML, PowerShell, a `Makefile`) used to count toward `scope.files` and
+  then went unmeasured. They now land in a catch-all `other` lane that the ladder serves with
+  `file_lines` alone: `scc` and the bundled counter count any text file, and every other measure
+  carries a `not-applicable` row for the lane, so complexity, duplication, type-debt, and
+  coverage runs settle exactly as before. `lanes.other.enabled: false` opts the lane out. A file
+  the consumer's ecosystem globs leave out of its extension's lane is still dropped, not moved.
+- **Lane detection and the run table stop forking per file and per field.** The extension lookup
+  returned its lane through a command substitution, one fork per scoped file, and each run row
+  was written with one interpreter call per field; the lookup now returns through a variable and
+  a row is one call. A whole-tree `audit-size` run on this repository takes about two seconds.
+- **A lane's file list reaches its collector through a file, not the argument vector.** The
+  dispatcher passes `--paths-from <file>` to every adapter's `collect` verb, read through the new
+  shared `scripts/collectors/adapter_paths.py` (positional paths still work and combine with it),
+  because a whole repository's lane is thousands of paths and Git Bash under Windows caps a
+  native process's command line far below that. The `scc` adapter feeds scc itself in chunks
+  under an argument budget (`CODE_METRICS_ARGV_BUDGET` overrides it) for the same reason.
+- **A file the scope filter cannot read is named on stderr.** It is still dropped, so one locked
+  file does not turn its whole lane unavailable, but it no longer vanishes from the scope with
+  nothing said.
+- **A file `scc` says nothing about is still counted.** scc lists only the languages it knows,
+  so a lockfile or an extensionless text file in the catch-all lane came back with no row and the
+  lane still read as measured. The adapter now counts every requested file scc omitted, total and
+  blank lines, and labels the row `comment-agnostic` with `lines_comment` and `lines_code` null.
+- **The rows under the over-reference block are ordered by the number they report.** After the
+  rows over a reference (furthest past it first), the rest sort by the primary reference's value,
+  largest first (smallest first for a `below` reference such as coverage), so a size report reads
+  longest to shortest instead of alphabetically, and the 200-row cap names the key it kept the
+  top rows by. The `thresholds[]` entries now carry `value_key` and `direction` so a consumer of
+  the JSON can tell which value a reference was applied to.
+- **An empty change says how to widen the scope in the markdown headline too**, beside the run
+  row's reason.
+- **`Functions:` leaves the summary line when no function rows exist**, which is every
+  `audit-size` report in `file-lines` mode.
+- **One provenance sentence for the 1000-line reference.** The report, the `audit-size` body, and
+  the principles threshold table carry the same words, sourced from `scripts/config-defaults.json`
+  and checked by the `audit-size` suite. The `audit-size` description names `--all` as a
+  first-class scope alongside the `change` default rather than disowning it.
+
 ## [0.2.0]
 
 ### Added

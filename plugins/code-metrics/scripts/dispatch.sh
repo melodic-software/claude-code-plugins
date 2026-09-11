@@ -506,11 +506,15 @@ run_row() {
   # One file per slot, concatenated in slot order once every collector has
   # finished, so the run table reads lane by lane and measure by measure
   # whatever order the parallel collectors happened to complete in.
-  local collector reason
-  if [[ -n "$4" ]]; then collector="$(json_str "$4")"; else collector=null; fi
-  if [[ -n "$6" ]]; then reason="$(json_str "$6")"; else reason=null; fi
-  printf '{"lane": %s, "measure": %s, "collector": %s, "status": %s, "reason": %s}\n' \
-    "$(json_str "$2")" "$(json_str "$3")" "$collector" "$(json_str "$5")" "$reason" >"$WORK/run.$1"
+  #
+  # One interpreter call per row rather than one per field; an empty
+  # collector or reason is null.
+  "${PY[@]}" -c '
+import json, sys
+lane, measure, collector, status, reason = sys.argv[1:6]
+print(json.dumps({"lane": lane, "measure": measure, "collector": collector or None,
+                  "status": status, "reason": reason or None}))
+' "$2" "$3" "$4" "$5" "$6" >"$WORK/run.$1"
 }
 
 IFS=',' read -r -a MEASURE_LIST <<<"$MEASURES"
@@ -563,11 +567,18 @@ reap_one() {
 
 launch_collect() {
   # launch_collect <slot> <adapter> <lane> <measure> <files...>
+  #
+  # The file list reaches the adapter through a file (`--paths-from`), not
+  # the argument vector: a whole repository's lane is thousands of paths, and
+  # Git Bash under Windows caps a native process's command line far below
+  # what that needs. Every adapter reads the option through
+  # collectors/adapter_paths.py.
   local slot="$1" adapter="$2" lane="$3" measure="$4"
   shift 4
+  printf '%s\n' "$@" >"$WORK/files.$slot"
   (
     started="$(date +%s)"
-    "${PY[@]}" "$adapter" collect "$lane" "$measure" "$@" >"$WORK/out.$slot" 2>"$WORK/err.$slot"
+    "${PY[@]}" "$adapter" collect "$lane" "$measure" --paths-from "$WORK/files.$slot" >"$WORK/out.$slot" 2>"$WORK/err.$slot"
     rc=$?
     printf '%s %s\n' "$rc" "$(($(date +%s) - started))" >"$WORK/rc.$slot"
   ) &
