@@ -269,6 +269,375 @@ class TestHookInventoryOverATree(unittest.TestCase):
         self.assertEqual(engine.winning_install_path(installs), "/l")
 
 
+class TestMatcherSemantics(unittest.TestCase):
+    """A matcher is a character class first and a regex only as the fallback."""
+
+    def test_star_empty_and_absent_all_match_every_tool(self):
+        for matcher in ("*", "", None):
+            self.assertEqual(engine.matcher_kind(matcher), "all", matcher)
+            self.assertTrue(engine.matcher_matches(matcher, "Bash"), matcher)
+
+    def test_an_exact_list_tolerates_spaces_and_commas(self):
+        matcher = "Write, Edit | NotebookEdit"
+        self.assertEqual(engine.matcher_kind(matcher), "exact")
+        for tool in ("Write", "Edit", "NotebookEdit"):
+            self.assertTrue(engine.matcher_matches(matcher, tool), tool)
+        self.assertFalse(engine.matcher_matches(matcher, "Bash"))
+
+    def test_a_regex_matcher_is_unanchored_so_edit_star_catches_notebookedit(self):
+        self.assertEqual(engine.matcher_kind("Edit.*"), "regex")
+        self.assertTrue(engine.matcher_matches("Edit.*", "NotebookEdit"))
+
+    def test_a_bare_mcp_server_name_is_an_exact_string_and_matches_nothing(self):
+        """`mcp__memory` has no regex character, so it is compared whole and never matches."""
+        self.assertEqual(engine.matcher_kind("mcp__memory"), "exact")
+        self.assertFalse(engine.matcher_matches("mcp__memory", "mcp__memory__create"))
+        self.assertTrue(engine.matcher_matches("mcp__memory.*", "mcp__memory__create"))
+
+    def test_a_matcher_python_cannot_compile_selects_every_tool_and_says_why(self):
+        """A JavaScript-only construct is an unknown selection, so it stays counted."""
+        matcher = "(?<prefix>Edit).*"
+        self.assertEqual(engine.matcher_kind(matcher), "regex")
+        error = engine.matcher_compile_error(matcher)
+        self.assertIsNotNone(error)
+        self.assertIn("not a Python-compilable", error)
+        for tool in ("Edit", "Bash", "mcp__memory__create"):
+            self.assertTrue(engine.matcher_matches(matcher, tool), tool)
+
+    def test_a_compilable_regex_and_an_exact_matcher_report_no_compile_error(self):
+        self.assertIsNone(engine.matcher_compile_error("Edit.*"))
+        self.assertIsNone(engine.matcher_compile_error("Write|Edit"))
+        self.assertIsNone(engine.matcher_compile_error(None))
+
+
+class TestIfGateClassification(unittest.TestCase):
+    """Exactly one `if` shape is decidable here; everything else says why it is not."""
+
+    def test_a_bare_single_extension_edit_rule_is_classified(self):
+        gate = engine.classify_if_gate("Edit(*.md)")
+        self.assertEqual(gate["kind"], "extension")
+        self.assertEqual(gate["extension"], ".md")
+
+    def test_a_mixed_case_extension_folds_into_its_lowercase_file_kind(self):
+        """A `.MD` gate must land in the `.md` row and over-count, never vanish from all rows."""
+        gate = engine.classify_if_gate("Edit(*.MD)")
+        self.assertEqual(gate["kind"], "extension")
+        self.assertEqual(gate["extension"], ".md")
+        self.assertIn(gate["extension"], engine.PROJECTION_FILE_KINDS)
+
+    def test_an_absent_rule_is_absent_not_unclassified(self):
+        self.assertEqual(engine.classify_if_gate(None)["kind"], "absent")
+
+    def test_a_directory_anchored_pattern_is_unclassified(self):
+        gate = engine.classify_if_gate("Edit(**/.github/workflows/*.yml)")
+        self.assertEqual(gate["kind"], "unclassified")
+        self.assertIn("**", gate["reason"])
+
+    def test_a_bash_rule_is_unclassified_and_names_the_tool(self):
+        gate = engine.classify_if_gate("Bash(git *)")
+        self.assertEqual(gate["kind"], "unclassified")
+        self.assertIn("Bash", gate["reason"])
+
+    def test_a_write_rule_is_unclassified_because_only_edit_is_modelled(self):
+        gate = engine.classify_if_gate("Write(*.ts)")
+        self.assertEqual(gate["kind"], "unclassified")
+        self.assertIn("Write", gate["reason"])
+
+    def test_a_brace_alternation_is_unclassified(self):
+        gate = engine.classify_if_gate("Edit(*.{md,mdc})")
+        self.assertEqual(gate["kind"], "unclassified")
+        self.assertIn("alternation", gate["reason"])
+
+
+class TestPerToolCallEventSet(unittest.TestCase):
+    """`if` is evaluated on five tool events, so five events are per tool call."""
+
+    def test_the_set_is_the_five_events_that_accept_if(self):
+        self.assertEqual(
+            set(engine.PER_TOOL_CALL_EVENTS),
+            {
+                "PreToolUse",
+                "PostToolUse",
+                "PostToolUseFailure",
+                "PermissionRequest",
+                "PermissionDenied",
+            },
+        )
+
+    def test_handlers_on_the_three_added_events_are_not_bucketed_as_other(self):
+        entries = [
+            {"event": event, "matcher": None, "command": f"{event}.sh", "source": "s"}
+            for event in ("PermissionDenied", "PostToolUseFailure", "PermissionRequest")
+        ]
+        result = engine.classify_hooks(entries)
+        self.assertEqual(result["per_tool_call"]["count"], 3)
+        self.assertEqual(result["other"]["count"], 0)
+
+
+class TestFanOutProjection(unittest.TestCase):
+    """A registered-row count cannot say what one tool call actually spawns."""
+
+    ENTRIES = [
+        # Three gated rows behind one dispatcher: one command, one extension each.
+        {
+            "event": "PostToolUse",
+            "matcher": "Write|Edit|NotebookEdit",
+            "command": "dispatch.sh",
+            "args": ["md"],
+            "if": "Edit(*.md)",
+            "source": "formatter",
+        },
+        {
+            "event": "PostToolUse",
+            "matcher": "Write|Edit|NotebookEdit",
+            "command": "dispatch.sh",
+            "args": ["py"],
+            "if": "Edit(*.py)",
+            "source": "formatter",
+        },
+        {
+            "event": "PostToolUse",
+            "matcher": "Write|Edit|NotebookEdit",
+            "command": "dispatch.sh",
+            "args": ["ts"],
+            "if": "Edit(*.ts)",
+            "source": "formatter",
+        },
+        # Ungated, and its regex matcher also selects NotebookEdit.
+        {
+            "event": "PostToolUse",
+            "matcher": "Edit.*",
+            "command": "log.sh",
+            "args": [],
+            "if": None,
+            "source": "logger",
+        },
+        # An `if` the engine cannot classify: counted as firing, and listed.
+        {
+            "event": "PreToolUse",
+            "matcher": "Bash",
+            "command": "guard.sh",
+            "args": [],
+            "if": "Bash(git *)",
+            "source": "guardrails",
+        },
+        # A per-tool-call event the old set called `other`.
+        {
+            "event": "PermissionDenied",
+            "matcher": None,
+            "command": "deny.sh",
+            "args": [],
+            "if": None,
+            "source": "audit",
+        },
+        # An `if` on a per-turn event never runs at all.
+        {
+            "event": "Stop",
+            "matcher": None,
+            "command": "stop.sh",
+            "args": [],
+            "if": "Edit(*.md)",
+            "source": "stopper",
+        },
+        # A match-all matcher carrying an extension gate: it reaches Bash, the gate does not.
+        {
+            "event": "PostToolUse",
+            "matcher": "*",
+            "command": "wide.sh",
+            "args": [],
+            "if": "Edit(*.md)",
+            "source": "wide",
+        },
+    ]
+
+    def rows(self, projection: dict) -> dict:
+        return {(r["event"], r["tool"], r["file_kind"]): r for r in projection["rows"]}
+
+    def test_a_markdown_edit_fires_only_its_own_gated_row_plus_the_ungated_one(self):
+        rows = self.rows(engine.project_fan_out(self.ENTRIES))
+        markdown = rows[("PostToolUse", "Edit", ".md")]
+        self.assertEqual(
+            markdown["fires"], 3, "the .md gate, the ungated logger, the match-all gate"
+        )
+        self.assertEqual(markdown["distinct_commands"], 3)
+        self.assertEqual(markdown["fire_always_unclassified"], 0)
+
+    def test_an_unmodelled_file_kind_fires_only_the_ungated_row(self):
+        rows = self.rows(engine.project_fan_out(self.ENTRIES))
+        self.assertEqual(rows[("PostToolUse", "Edit", "other")]["fires"], 1)
+
+    def test_a_regex_matcher_reaches_notebookedit_and_an_exact_list_reaches_it_too(
+        self,
+    ):
+        rows = self.rows(engine.project_fan_out(self.ENTRIES))
+        self.assertEqual(rows[("PostToolUse", "NotebookEdit", ".py")]["fires"], 2)
+
+    def test_bash_gets_a_tool_only_row_and_no_file_kind(self):
+        rows = self.rows(engine.project_fan_out(self.ENTRIES))
+        bash = rows[("PreToolUse", "Bash", None)]
+        self.assertIsNone(bash["file_kind"])
+        self.assertEqual(bash["fires"], 1)
+        self.assertEqual(bash["fire_always_unclassified"], 1)
+
+    def test_an_edit_extension_gate_never_fires_for_a_bash_call(self):
+        """The match-all matcher reaches Bash; the `Edit(*.md)` gate on that row does not."""
+        rows = self.rows(engine.project_fan_out(self.ENTRIES))
+        self.assertEqual(rows[("PostToolUse", "Bash", None)]["fires"], 0)
+
+    def test_a_permissiondenied_handler_is_projected_as_per_tool_call(self):
+        rows = self.rows(engine.project_fan_out(self.ENTRIES))
+        self.assertEqual(rows[("PermissionDenied", "Edit", ".md")]["fires"], 1)
+
+    def test_an_if_on_a_per_turn_event_is_reported_as_never_firing(self):
+        projection = engine.project_fan_out(self.ENTRIES)
+        never = projection["if_on_non_tool_event"]
+        self.assertEqual([r["event"] for r in never], ["Stop"])
+        self.assertIn("never runs", never[0]["reason"])
+        self.assertNotIn("Stop", [r["event"] for r in projection["unclassified_rows"]])
+        self.assertNotIn("Stop", [r["event"] for r in projection["rows"]])
+
+    def test_an_unclassified_row_carries_every_field_an_operator_needs(self):
+        row = engine.project_fan_out(self.ENTRIES)["unclassified_rows"][0]
+        self.assertEqual(set(row), {"event", "matcher", "source", "if", "reason"})
+        self.assertEqual(row["if"], "Bash(git *)")
+        self.assertEqual(row["source"], "guardrails")
+
+    def test_the_projection_note_names_the_regex_stand_in(self):
+        note = engine.project_fan_out([])["note"]
+        self.assertIn("re.search", note)
+        self.assertIn("RegExp.prototype.test", note)
+
+    def test_the_baseline_kinds_are_projected_with_other_last_when_no_gate_adds_one(
+        self,
+    ):
+        projection = engine.project_fan_out(self.ENTRIES)
+        self.assertEqual(projection["file_kinds"], list(engine.PROJECTION_FILE_KINDS))
+        self.assertEqual(projection["file_kinds"][-1], "other")
+        self.assertEqual(projection["discovered_file_kinds"], [])
+
+    def test_a_gate_on_a_kind_outside_the_baseline_gets_its_own_row(self):
+        """A `.go` gate must fire on a `.go` write, never vanish into no kind at all."""
+        go_gate = {
+            "event": "PostToolUse",
+            "matcher": "Write|Edit|NotebookEdit",
+            "command": "dispatch.sh",
+            "args": ["go"],
+            "if": "Edit(*.go)",
+            "source": "formatter",
+        }
+        projection = engine.project_fan_out(self.ENTRIES + [go_gate])
+        self.assertNotIn(".go", engine.PROJECTION_FILE_KINDS)
+        self.assertEqual(projection["discovered_file_kinds"], [".go"])
+        self.assertEqual(
+            projection["file_kinds"],
+            [k for k in engine.PROJECTION_FILE_KINDS if k != "other"]
+            + [".go", "other"],
+            "baseline order kept, the discovered kind appended, `other` last",
+        )
+        rows = self.rows(projection)
+        self.assertEqual(
+            rows[("PostToolUse", "Edit", ".go")]["fires"],
+            2,
+            "the .go gate and the ungated logger; the match-all row is gated to .md",
+        )
+        self.assertEqual(
+            rows[("PostToolUse", "Write", ".go")]["fires"],
+            1,
+            "only the .go gate; `Edit.*` does not select Write",
+        )
+        self.assertEqual(rows[("PostToolUse", "Edit", "other")]["fires"], 1)
+        self.assertEqual(rows[("PostToolUse", "Edit", ".md")]["fires"], 3)
+
+    def test_a_matcher_python_cannot_compile_counts_as_firing_and_is_listed(self):
+        """An unknown selection over-counts where an operator can see it."""
+        odd = {
+            "event": "PostToolUse",
+            "matcher": "(?<prefix>Edit).*",
+            "command": "odd.sh",
+            "args": [],
+            "if": None,
+            "source": "odd",
+        }
+        projection = engine.project_fan_out(self.ENTRIES + [odd])
+        rows = self.rows(projection)
+        self.assertEqual(rows[("PostToolUse", "Bash", None)]["fires"], 1)
+        self.assertEqual(
+            rows[("PostToolUse", "Bash", None)]["fire_always_unclassified"], 1
+        )
+        self.assertEqual(rows[("PostToolUse", "Edit", ".md")]["fires"], 4)
+        self.assertEqual(
+            rows[("PostToolUse", "Edit", ".md")]["fire_always_unclassified"], 1
+        )
+        listed = [r for r in projection["unclassified_rows"] if r["source"] == "odd"]
+        self.assertEqual(len(listed), 1)
+        self.assertEqual(set(listed[0]), {"event", "matcher", "source", "if", "reason"})
+        self.assertIn("not a Python-compilable", listed[0]["reason"])
+
+    def test_an_uncompilable_matcher_with_an_unclassified_if_is_listed_once(self):
+        both = {
+            "event": "PreToolUse",
+            "matcher": "(?<prefix>Bash)",
+            "command": "both.sh",
+            "args": [],
+            "if": "Bash(git *)",
+            "source": "both",
+        }
+        projection = engine.project_fan_out([both])
+        self.assertEqual(len(projection["unclassified_rows"]), 1)
+        bash = self.rows(projection)[("PreToolUse", "Bash", None)]
+        self.assertEqual(bash["fires"], 1)
+        self.assertEqual(bash["fire_always_unclassified"], 1)
+
+
+class TestByMatcherAndBucketCounters(unittest.TestCase):
+    """The ceiling and the gate count ship side by side, never one without the other."""
+
+    def test_by_matcher_separates_rows_from_distinct_commands_and_gated_rows(self):
+        block = engine.classify_hooks(TestFanOutProjection.ENTRIES)
+        row = next(
+            r
+            for r in block["by_matcher"]
+            if r["event"] == "PostToolUse" and r["matcher"] == "Write|Edit|NotebookEdit"
+        )
+        self.assertEqual(row["rows"], 3)
+        self.assertEqual(row["distinct_commands"], 3, "same script, different args")
+        self.assertEqual(row["if_gated_rows"], 3)
+        self.assertEqual(row["sources"], ["formatter"])
+
+    def test_per_tool_call_reports_the_ceiling_beside_its_gated_rows(self):
+        block = engine.classify_hooks(TestFanOutProjection.ENTRIES)
+        self.assertEqual(block["per_tool_call"]["count"], 7, "registered rows")
+        self.assertEqual(block["per_tool_call"]["if_gated_rows"], 5)
+        self.assertEqual(block["per_tool_call"]["distinct_commands"], 7)
+
+    def test_the_notes_state_the_anchor_and_dedup_limits_and_keep_the_parallel_note(
+        self,
+    ):
+        notes = engine.classify_hooks([])["notes"]
+        joined = " ".join(notes)
+        self.assertIn("outside the project directory", joined)
+        self.assertIn("it runs once", joined)
+        self.assertIn("parallel", joined)
+        self.assertIn(engine.classify_hooks([])["note"], notes)
+
+    def test_flatten_carries_the_if_field_and_defaults_it_to_none(self):
+        entries = engine.flatten_hook_block(
+            {
+                "PostToolUse": [
+                    {
+                        "matcher": "Edit",
+                        "hooks": [
+                            {"command": "a.sh", "if": "Edit(*.md)"},
+                            {"command": "b.sh"},
+                        ],
+                    }
+                ]
+            },
+            "fixture",
+        )
+        self.assertEqual([e["if"] for e in entries], ["Edit(*.md)", None])
+
+
 class TestConfigLiveness(unittest.TestCase):
     """Finding 3: config read off disk does not describe what running sessions loaded."""
 
