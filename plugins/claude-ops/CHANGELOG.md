@@ -3,7 +3,7 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.49.0]
+## [0.50.0]
 
 ### Fixed
 
@@ -38,6 +38,43 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 ### Added
 
 - `lib/managed-scope.sh`, vendored from `claude-config` through `scripts/sync-managed-scope.sh`.
+
+## [0.49.0]
+
+### Added
+
+- **audit-install-state: a cloud-session tree is labelled, never graded as the operator's
+  machine.** The report opens with an `environment` block: `tree_verdict` (`remote` / `local` /
+  `indeterminate`) rests on tree signals (`launcher-settings.json`, `environment-manager/`,
+  `plugins/synced/`, root-level hook scripts as corroboration), while the documented
+  `CLAUDE_CODE_REMOTE` variable is reported as session context because `--root` can point at any
+  tree. Label only; no staleness verdict depends on it. Report schema is `claude-install-state/2`
+  and the evidence vocabulary gains `documented` and `observed-undocumented` as closed values.
+- **audit-install-state: the JSON answers "why is my install so big".** `largest_subtrees`
+  ranks directories by measured bytes under every rolled-up entry, collapsing pass-through
+  prefixes, and `node_modules` sums the bytes the product installed into the plugin cache with the
+  upstream basis in its `why`. The header records `engine_version` and the exact `invocation`.
+- **audit-install-state: `.in_use/<pid>` markers are a PID scheme.** One row per PID with a count
+  and a bounded path list replaces one row per marker; a PID that is the auditing process or an
+  ancestor is marked `self_held`. The ancestry walk reads `/proc` on Linux, one `ps` listing on
+  macOS and other POSIX hosts, and one Win32_Process listing on Windows; `self_pids_walk` names
+  which, and `parent-only` says the launching session was not seen. The unknown-name sample groups
+  by shape with a per-directory histogram, so one repeated schema file cannot fill it.
+- **audit-install-state: only the cache's version directories count as product-installed
+  `node_modules`.** A `node_modules` under a marketplace checkout or a plugin data directory is
+  measured in `elsewhere_under_plugins` and attributed to nobody. A sentinel's `content_read` is
+  true only when its bytes were actually opened, never for an absent file.
+
+### Changed
+
+- **audit-install-state: entries name what the engine read by content.** `content_read` and
+  `content_read_paths` sit on the entry rows for `settings.json`, `.last-cleanup` and
+  `plugins/.last_inuse_sweep`; surfaces are unchanged. The two sentinels are reported under
+  `sentinels` as `observed-undocumented`, and the skill body and `reference/surfaces.md` no longer
+  call `.last-cleanup` the sweep's watermark as documented fact.
+- **audit-install-state: SKILL.md gains Phase 0 (whose tree is this) and a `## Next` section, and
+  drops under the skill-quality soft line cap** by pointing at the reference files for detail the
+  hub duplicated.
 
 ## [0.48.2]
 
