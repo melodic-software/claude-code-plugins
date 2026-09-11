@@ -23,6 +23,33 @@ a release note names `/security-review`. This org-authored skill is the CI path.
 `PR NUMBER` / `HEAD SHA` and installs the inline-comment MCP server via
 `claude_args`; this skill owns **what to hunt for**.
 
+## Boundary, the native `security-review` command
+
+One native Claude Code surface shares this lane's name, and the two get conflated on any open pull
+request:
+
+- **`security-review` (native command).** Ships with Claude Code rather than as a marketplace
+  plugin; the commands table labels it a bundled skill and the installed binary registers it as
+  plugin-backed. A developer runs it in their session against the current diff, a PR number, a
+  branch, or a path for a single security pass; `--fix` applies the findings to the working tree.
+  It cannot run under the Actions checkout (the opening paragraph carries that record).
+- **This skill (marketplace plugin).** The security logic the `claude-security-review` reusable
+  workflow runs in CI. The wrapper supplies the target and owns posting; this skill owns what to
+  hunt for.
+
+**Routing.** This skill runs only where the workflow invokes it. In a session, when the native
+command resolves, prefer it for a local single pass before pushing; prefer this lane's criteria
+when the question is what the CI review will flag. A deep multi-agent scan or repository
+monitoring is neither surface: those are the Claude Security plugin and product.
+
+**Mutation gate.** `--fix` edits the working tree. This lane posts only through its wrapper's
+mechanics and edits nothing, so never invoke the native command or its flag on this lane's behalf.
+
+**Availability is never assumed.** Native surfaces are gated by their backing plugin, settings,
+environment, and host; this section states what to do when one resolves, never that it is
+present. The four-part records live in
+[reference/bundled-security-review.md](reference/bundled-security-review.md).
+
 ## Gotchas
 
 - Skill frontmatter cannot install the inline-comment MCP server. Only the

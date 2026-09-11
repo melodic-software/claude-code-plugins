@@ -3,6 +3,22 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.0]
+
+### Added
+
+- **`code-review`**: a `## Boundary, the bundled code-review skill` section stating how the CI
+  lane relates to the bundled `code-review` skill (alias `/review`) and the managed Code Review
+  service: routing (the bundled skill for a local review before pushing, this lane's criteria for
+  what CI will flag), a mutation gate (never invoke `--fix`, `--comment`, or the managed service
+  on the lane's behalf), and an availability rule that never assumes the bundled skill resolves.
+  Four-part records in `reference/bundled-code-review.md`.
+- **`security-review`**: a `## Boundary, the native security-review command` section with the same
+  shape against the native command (labeled a bundled skill on the commands page, registered
+  plugin-backed in the installed binary; the record carries the disagreement), naming the Claude
+  Security plugin and product as further surfaces the lane does not wrap. Four-part records in
+  `reference/bundled-security-review.md`.
+
 ## [0.27.5]
 
 ### Added
