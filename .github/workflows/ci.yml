@@ -758,7 +758,7 @@ jobs:
         continue-on-error: true
         run: scripts/check-plugin-manifest-presence.sh
 
-      # docs/CLOUD-SESSIONS.md promises `enabledPlugins` "turns on the whole
+      # docs/cloud-sessions.md promises `enabledPlugins` "turns on the whole
       # catalog, so this repo dogfoods everything it publishes"; nothing
       # enforced it, and ai-slop (#2892), context-budget (#2932) and
       # improvement (#2985) each reached main catalogued but never enabled. The
@@ -1135,7 +1135,7 @@ jobs:
       # a month after the 750k consumers had already overflowed, and a tripwire
       # that fires after the failure it exists to predict is worse than none.
       # (Neither basis speaks for a 200k-window consumer, who is over the
-      # 40,000-char budget today; docs/CLOUD-SESSIONS.md records that.)
+      # 40,000-char budget today; docs/cloud-sessions.md records that.)
       # Report-only for the same reason its sibling is. The fix for the
       # aggregate is the per-skill description trim, which #3526 owns.
       - name: Report the skill-listing budget at this repo's configured fraction

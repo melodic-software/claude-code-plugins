@@ -145,7 +145,7 @@ plus the cost model of
 Start with one Default. Environments are account-scoped and repo-agnostic, so a single
 environment serves every repository. This fleet runs its Default at **All** network access
 (operator decision 2026-08-22; rationale in
-[CLOUD-FLEET-SETUP.md](CLOUD-FLEET-SETUP.md#step-1-the-shared-environment-claudeai-ui-one-time)).
+[cloud-fleet-setup.md](cloud-fleet-setup.md#step-1-the-shared-environment-claudeai-ui-one-time)).
 Add a second, named environment only when a class of work needs something incompatible or heavy
 enough to isolate: a big SDK whose cache churn you want contained, or an account that handles
 sensitive material and therefore has to run narrower than All, on a
@@ -298,7 +298,7 @@ catalog on, and the cloud bootstrap installs from the two together (see
   guarded one-liner in the
   [setup-script lever above](#setup-script-vs-sessionstart-hook-decision-criteria), implemented
   fleet-wide by the standards `cloud-environment` component that
-  [CLOUD-FLEET-SETUP.md](CLOUD-FLEET-SETUP.md)'s step-1 stub fetches. Whether the cached
+  [cloud-fleet-setup.md](cloud-fleet-setup.md)'s step-1 stub fetches. Whether the cached
   snapshot's `~/.claude` actually reaches sessions is undocumented. After adding the line,
   rebuild the cache (edit saves the script) and verify with a fresh session whose *first*
   message is a plugin slash command.
@@ -323,7 +323,7 @@ catalog on, and the cloud bootstrap installs from the two together (see
   explicitly, for the benefit of the *next* process start, per the timing bullet above. It
   never calls `claude plugin marketplace remove`, which deletes the marketplace's
   entry from `.claude/settings.json` and would have the script mutate tracked config.
-- On resume it also repairs [same-version commit drift](MIGRATION-PLAYBOOK.md): because a
+- On resume it also repairs [same-version commit drift](migration-playbook.md): because a
   directory-source cache is keyed by the semver in `plugin.json` rather than the commit, a
   presence check alone would keep serving whichever commit installed first. The script compares the
   `gitCommitSha` recorded at install time against `HEAD` and forces the documented

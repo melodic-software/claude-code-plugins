@@ -184,7 +184,7 @@ Three artifacts, one direction of flow:
    provenance class and hidden/gated markers, our component, the verdict and its reason, evidence, a
    class-tagged observation record, a recheck trigger with its verified date, `baked` flags, and the
    budget caveat.
-2. **The generated view**. `docs/NATIVE-SURFACES.md`, rendered from the store between HTML
+2. **The generated view**. `docs/native-surfaces.md`, rendered from the store between HTML
    markers, per provenance lane. Never hand-edited; a `--check` mode regenerates and diffs.
 3. **The self-check**, a deterministic script over what is locally decidable: store parses and
    declares its schema, every row carries a trigger, records are well-formed including their

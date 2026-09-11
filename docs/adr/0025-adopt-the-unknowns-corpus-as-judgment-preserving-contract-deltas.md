@@ -32,9 +32,9 @@ anti-premature-codification warning treated as a binding constraint:
   sign-off, as additive lines in the owning skills' bodies with same-commit eval
   expectations, never as generator skills.
 - BEHAVIORAL rows never land as standing instructions: they ship as doc lines in
-  `docs/FINDING-YOUR-UNKNOWNS.md` plus tracked eval candidates (#3589), awaiting
+  `docs/finding-your-unknowns.md` plus tracked eval candidates (#3589), awaiting
   observed-stumble evidence.
-- `docs/FINDING-YOUR-UNKNOWNS.md` is the graduated reference and the owner doc for the
+- `docs/finding-your-unknowns.md` is the graduated reference and the owner doc for the
   reply-affordance and export-button conventions (registry rows point at it,
   owner-doc-first); it quotes the warning byte-faithfully under a stated fair-quotation
   basis.

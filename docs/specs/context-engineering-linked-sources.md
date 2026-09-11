@@ -139,7 +139,7 @@ are the named upstream of interview-style and blindspot planning skills in this 
 **Where the deep apparatus lives**
 
 `context-engineering-critical-apparatus.md`. Note additionally that this page has a dedicated repo
-integration whose durable output is `docs/FINDING-YOUR-UNKNOWNS.md`, landed separately, which
+integration whose durable output is `docs/finding-your-unknowns.md`, landed separately, which
 carries the article's claims into this marketplace's own contract deltas; the audit slice that
 produced it was contract tier and has been pruned. That integration and
 the critical apparatus are complementary: the audit is repo-facing, the apparatus is

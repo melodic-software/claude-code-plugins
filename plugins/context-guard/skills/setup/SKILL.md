@@ -283,7 +283,7 @@ fallback lives in the file that was just deleted.
 ## What this skill does not do
 
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`, per the uniform setup
-  contract (`docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit and repeatable" in the marketplace
+  contract (`docs/plugin-philosophy.md` "Setup is explicit and repeatable" in the marketplace
   repository). Nor `settings.json` (user or project) or any other Claude Code settings surface; the printed edit is the operator's to apply.
 - Install `jq` or any system package.
 - Write to the snapshot directory `~/.claude/context-guard/context/`, the tee owns those files.

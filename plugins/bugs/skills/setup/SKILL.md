@@ -139,7 +139,7 @@ a fresh session.
 - Do not produce or file a bug report; invoke `/bugs:write` via the Skill tool.
 - Do not run a hunt; that is `/bugs:scan`. This skill only verifies and writes its config.
 - Do not write the plugin cache, Claude Code user settings, or `pluginConfigs`, per the uniform
-  setup contract (`docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit and repeatable" in the
+  setup contract (`docs/plugin-philosophy.md` "Setup is explicit and repeatable" in the
   marketplace repository).
 - Do not delete the tracked config: `apply` converges to the configured state and never removes.
 - Do not invent an organization, repository, marketplace, or environment-variable prefix.

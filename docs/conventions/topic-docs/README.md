@@ -157,7 +157,7 @@ Five rules hold at this row:
    can observe. This constrains the FORM of an override, and does not
    oblige any plugin to offer one. No implementer declares one today, so
    the ambient temp root is currently the only root in play. Per the
-   configuration ownership table in `docs/PLUGIN-PHILOSOPHY.md`.
+   configuration ownership table in `docs/plugin-philosophy.md`.
 
 **Keep the footprint small.** Nothing reclaims this tree on a schedule:
 verified 2026-07-26 against the full Claude Code docs corpus, no
