@@ -1,14 +1,14 @@
 # clean cleanup configuration
 
-Concrete per-tier cleanup targets and the protected-paths list. The Workflow (§1–§5 in `SKILL.md`) iterates these lists, and the action scripts under `../scripts/` carry the sweep mechanics and their rationale. Targets are generic across ecosystems and detected at runtime — no repo-specific layout is baked in.
+Concrete per-tier cleanup targets and the protected-paths list. The Workflow (§1–§5 in `SKILL.md`) iterates these lists, and the action scripts under `../scripts/` carry the sweep mechanics and their rationale. Targets are generic across ecosystems and detected at runtime. No repo-specific layout is baked in.
 
 Any file tracked by git (`git ls-files`) is off-limits regardless of glob match. Universal `find` exclusions for every scan/clean step: `-not -path '*/.git/*' -not -path '*/.venv/*' -not -path '*/node_modules/*'`.
 
 ## Cleanup targets (per tier)
 
-Keyed by tier — `caches`, `build`, `git`. Each tier lists the paths/commands its workflow step acts on.
+Keyed by tier: `caches`, `build`, `git`. Each tier lists the paths/commands its workflow step acts on.
 
-### caches — tool / linter caches (regenerate on next run)
+### caches: tool / linter caches (regenerate on next run)
 
 - `.pytest_cache/`
 - `.ruff_cache/`
@@ -16,20 +16,22 @@ Keyed by tier — `caches`, `build`, `git`. Each tier lists the paths/commands i
 - `**/__pycache__/`
 - `.turbo/`
 - `**/*.tsbuildinfo`
-- `.vs/` — regenerable Visual Studio cache (distinct from protected `.vscode/`)
-- `.codex/logs/` — Codex CLI log output (its `config.toml` / `hooks.json` / `rules/` stay protected — see below)
+- `.vs/`: regenerable Visual Studio cache (distinct from protected `.vscode/`)
+- `.codex/logs/`: Codex CLI log output (its `config.toml` / `hooks.json` / `rules/` stay protected, see below)
 
-### build — build artifacts + compiled output + logs (includes caches)
+### build: build artifacts + compiled output + logs (includes caches)
 
 Universal artifact directory globs:
 
 - `**/bin/`, `**/obj/`, `**/build/`, `**/dist/`, `**/out/`, `**/target/`, `**/TestResults/`, `**/*.binlog`
 
-No build-system clean driver (e.g. `dotnet clean`): the universal artifact globs above already remove every output such a driver would delete, so running one first is pure overhead — a full MSBuild evaluation (minutes on a large solution) that also re-creates `obj/` evaluation artifacts. One walk + rm is strictly faster and equally complete.
+No build-system clean driver (e.g. `dotnet clean`): the universal artifact globs above already remove every output such a driver would delete, so running one first is pure overhead. It runs a full MSBuild evaluation (minutes on a large solution) that also re-creates `obj/` evaluation artifacts. One walk + rm is strictly faster and equally complete.
 
-App-specific runtime output (application logs written outside the universal artifact dirs) is **not** swept generically — no portable path exists. A consumer whose app writes logs to a non-artifact directory reclaims them through the `tree` tier (they are untracked/ignored) or their own gitignore + tooling.
+App-specific runtime output (application logs written outside the universal artifact dirs) is **not** swept generically, because no portable path exists. A consumer whose app writes logs to a non-artifact directory reclaims them through the `tree` tier (they are untracked/ignored) or their own gitignore + tooling.
 
+<!-- ai-slop-ignore-start: heading pinned byte-for-byte by scripts/lib/cleanup-paths.test.sh line 90, which passes it to extract_section_bullets -->
 ### git — stale-state hygiene (write-safe)
+<!-- ai-slop-ignore-end -->
 
 Prune ops (safe mutations):
 
@@ -39,9 +41,11 @@ Prune ops (safe mutations):
 
 Report-only (no mutation):
 
+<!-- ai-slop-ignore-start: scripts/lib/cleanup-paths.test.sh parses this section's bullets with awk sub(/` —.*/), so the backtick-space-em-dash separator is a delimiter its parser reads, not prose -->
 - `git branch --merged origin/<default-branch>` — default branch resolved at runtime (see `context/git-branch-cleanup.md` §4.2)
+<!-- ai-slop-ignore-end -->
 
-### tree — working-tree realignment (destructive; never in `all`)
+### tree: working-tree realignment (destructive; never in `all`)
 
 Script: `git-tree-reset.sh`. Operations:
 
@@ -51,35 +55,35 @@ Script: `git-tree-reset.sh`. Operations:
 
 Removes ignored and untracked **artifacts** while preserving the same three protected classes the selective tiers honor (below) by default:
 
-- **Secrets / local config** (`.env*`, `*.local.json` / `.jsonc` / `.md`, IDE + cloud-cred + codex config) — removed only with `--include-secrets` (UNRECOVERABLE; extra confirmation).
-- **Runtime deps** (`node_modules/`, `.venv/`, `vendor/`) — removed only with `--include-deps` (rebuildable).
-- **Skill data** (`.claude/skills/*/data/`) — always preserved; no flag removes it.
+- **Secrets / local config** (`.env*`, `*.local.json` / `.jsonc` / `.md`, IDE + cloud-cred + codex config): removed only with `--include-secrets` (UNRECOVERABLE; extra confirmation).
+- **Runtime deps** (`node_modules/`, `.venv/`, `vendor/`): removed only with `--include-deps` (rebuildable).
+- **Skill data** (`.claude/skills/*/data/`): always preserved; no flag removes it.
 
-**Why deps preserve by default — junction-proofing.** `git clean -fdx` traverses directory reparse points into tracked source. npm-workspace links live under `node_modules/`, so excluding `node_modules/` keeps git from ever descending into them — the default path cannot reach the link, let alone follow it. A post-clean restore guard (`clean_restore_tracked_deletions`) recovers any tracked file deleted this way as a backstop (safe because `reset --hard` ran first).
+**Why deps preserve by default: junction-proofing.** `git clean -fdx` traverses directory reparse points into tracked source. npm-workspace links live under `node_modules/`, so excluding `node_modules/` keeps git from ever descending into them. The default path cannot reach the link, let alone follow it. A post-clean restore guard (`clean_restore_tracked_deletions`) recovers any tracked file deleted this way as a backstop (safe because `reset --hard` ran first).
 
 Gates: blocks on default branch unless `--force-default-branch`; aborts (exit 4) when HEAD is ahead of upstream unless `--allow-unpushed` (prevents silent loss of unpushed commits). Always dry-run before `--apply`. Files git could not delete (locked / in use) are reported (`Unremovable:`), not silently left.
 
-## Protected paths — NEVER cleaned (any tier)
+## Protected paths: NEVER cleaned (any tier)
 
 Three classes:
 
 ### Secrets / config / user data
 
-- `.azure-cli/`, `.aws/`, `.gcloud/` — cloud / CLI credential bundles
-- `.env*` (`.env`, `.env.local`, `.envrc`, `.envrc.local`, …), `**/*.local.json`, `**/*.local.jsonc`, `**/*.local.md` — local-only env / config overrides (gitignored by convention; `.env.example` IS also matched and, being tracked, is never cleaned regardless)
-- `.vscode/`, `.idea/` — IDE user config (the regenerable `.vs/` cache IS cleanable — see caches tier)
-- `**/*.csproj.user`, `**/*.suo` — .NET IDE user state (VS debug profile, sln docstates)
-- `.codex/config.toml`, `.codex/hooks.json`, `.codex/rules/` — Codex CLI config (only `.codex/logs/` is cleanable — see caches tier)
+- `.azure-cli/`, `.aws/`, `.gcloud/`: cloud / CLI credential bundles
+- `.env*` (`.env`, `.env.local`, `.envrc`, `.envrc.local`, …), `**/*.local.json`, `**/*.local.jsonc`, `**/*.local.md`: local-only env / config overrides (gitignored by convention; `.env.example` IS also matched and, being tracked, is never cleaned regardless)
+- `.vscode/`, `.idea/`: IDE user config (the regenerable `.vs/` cache IS cleanable, see caches tier)
+- `**/*.csproj.user`, `**/*.suo`: .NET IDE user state (VS debug profile, sln docstates)
+- `.codex/config.toml`, `.codex/hooks.json`, `.codex/rules/`: Codex CLI config (only `.codex/logs/` is cleanable, see caches tier)
 
 ### Runtime dependencies (deleting breaks running tools / MCP servers / skills)
 
 - `**/node_modules/`
 - `**/.venv/`
-- `**/vendor/` — Go modules / Ruby Bundler / PHP Composer
+- `**/vendor/`: Go modules / Ruby Bundler / PHP Composer
 
 ### Skill-owned data directories
 
-- `.claude/skills/*/data/` — user-generated synthesis (transcripts, summaries, accumulated LLM outputs). NEVER cleaned. Folder name MAY vary; the owning skill documents its data convention.
+- `.claude/skills/*/data/`: user-generated synthesis (transcripts, summaries, accumulated LLM outputs). NEVER cleaned. Folder name MAY vary; the owning skill documents its data convention.
 
 ## Extending the protected set
 

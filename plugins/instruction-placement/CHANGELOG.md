@@ -48,10 +48,10 @@ All notable changes to the `instruction-placement` plugin are documented here. F
 
 ### Added
 
-- **`reference/artifact-protocol.md`** — the marketplace's shared lifecycle artifact protocol,
+- **`reference/artifact-protocol.md`**: the marketplace's shared lifecycle artifact protocol,
   byte-identical to the canonical copy. This plugin is now a protocol participant, and
   `scripts/validate-plugin-contracts.mjs` checks its copy alongside the other five.
-- **`reference/topic-docs.md` — the binding that resolves both memory-tier homes.** Constant slug
+- **`reference/topic-docs.md`: the binding that resolves both memory-tier homes.** Constant slug
   `instruction-placement`, branch-keyed below it, with the rung order, the child-slice
   non-predicate, the detached-`HEAD` consequence, and the self-ignore guard all cited from the
   contract rather than restated. The slice root carries an `INDEX.md` because it holds two artifact
@@ -69,17 +69,17 @@ All notable changes to the `instruction-placement` plugin are documented here. F
   personal and are never keys here. One declared deviation, recorded in that document: a scoped run
   adds a fifth reporting-only disposition, `not evaluated this run`, for entries outside its scope.
 - **`instruction-placement:realign` writes the decline.** Two writes: `declined` into the
-  branch-scoped findings artifact, and an entry on the tracked surface — offered in full, written
-  only on an explicit yes, team layer only, with a required operator-authored reason and the run
-  stating that the file must be committed to reach another checkout.
+  branch-scoped findings artifact, and an entry on the tracked surface. That entry is offered in
+  full, written only on an explicit yes, team layer only, with a required operator-authored reason
+  and the run stating that the file must be committed to reach another checkout.
 - **Finding ids and their constituents**, in `context/findings-artifact.md`: what `check`, `claim`,
-  and `sites` hold for a placement finding, and this plugin's `anchor/v1` — `sha256` of the
+  and `sites` hold for a placement finding, and this plugin's `anchor/v1`, the `sha256` of the
   `US`-joined enclosing heading path, truncated to 8 hex. Deliberately not a digest of the section's
   bytes, so a copy-edit cannot resurrect an accepted decline; the collision that trade accepts is
   recorded beside it.
 - **The Finding record carries its `Suppression key` and its ordered heading path**, written by
   `audit`, which holds the detector stream. `realign` has no detector and carries those values
-  verbatim rather than re-deriving an anchor from its own heading parse — a second parse that
+  verbatim rather than re-deriving an anchor from its own heading parse. A second parse that
   disagreed would mint a well-formed entry nothing ever matches, losing the decline with no error.
 
 ### Changed
@@ -93,7 +93,7 @@ All notable changes to the `instruction-placement` plugin are documented here. F
   `invisible`, and refuses to carry this file class with `.worktreeinclude` ("never baselines or raw
   scratch"). This is the same split the sibling `overengineering` plugin makes.
 - **The state key is removed rather than re-scoped.** Its second segment was a
-  `<worktree-discriminator>` — a hash of the checkout root, present by design so two worktrees "must
+  `<worktree-discriminator>`, a hash of the checkout root, present by design so two worktrees "must
   not share a report". Correct for a per-checkout report, and exactly wrong for a decline.
 - **`audit` and `delta` read the suppression surface and never write it**, reporting every entry
   that did and did not suppress with its contributing layer, and excluding the surface and its
@@ -105,7 +105,7 @@ All notable changes to the `instruction-placement` plugin are documented here. F
   from a finding no record carries, so the discovery is lost with no error. It writes records, and
   the only status it ever writes is the `accepted` to `pending` reset below. All four
   baseline/artifact combinations are enumerated, including the bootstrap where an artifact exists
-  and no baseline does — the shape a first run in a fresh worktree takes.
+  and no baseline does, the shape a first run in a fresh worktree takes.
 - **A `RULE` row in the spine carries its glob-validation verdict.** `broken-glob` is a transition,
   not a state, and a rule whose file and glob text are both unchanged is exactly the case where
   nothing else in the row moves when the code the glob described is renamed elsewhere. Without the
@@ -249,7 +249,7 @@ All notable changes to the `instruction-placement` plugin are documented here. F
 
 - **Vendored `hook-utils.sh` drops two `buffer_stdin` startup subshells and a
   `tr` exec on every `repo_root`.** Timeout and slice resolution write into
-  caller variables (`printf -v`) instead of `$( )` / process substitution —
+  caller variables (`printf -v`) instead of `$( )` / process substitution.
   GNU Bash forks a subshell for both even when the body is builtins only.
   `hook::repo_root` strips CR with parameter expansion, the same substitution
   `buffer_stdin` already uses for the payload. New `hook::json_str_object_to`
@@ -390,7 +390,7 @@ All notable changes to the `instruction-placement` plugin are documented here. F
 ### Changed
 
 - **`routing-rubric.md`: Gate 0 names its deletion counterpart.** The six hard-deny classes now
-  govern two operations across two owners — this rubric decides relocation, and the marketplace's
+  govern two operations across two owners. This rubric decides relocation, and the marketplace's
   instruction exception register adopts the same classes by reference to decide deletion. Gate 0
   gained a note saying so, and saying which question routes where, so a consumer asking "may this
   be deleted" does not read a relocation verdict as an answer. The class list is not re-enumerated
@@ -626,7 +626,7 @@ Four defects raised in review on #3225, each reproduced before it was fixed.
   `find .claude/rules`, which is the exact line whose four bugs motivated `lib/discover.sh` in
   0.2.0: it sees only the root tree and only real directories. On a repository with a nested
   `packages/*/.claude/rules` and a symlinked shared set it reports **1** where the gate walks
-  **3**. Nothing downstream used the number — the engines were already consolidated — but the
+  **3**. Nothing downstream used the number, since the engines were already consolidated, but the
   header is what the model reads before any work starts, and an orientation that understates the
   repository by two thirds sets the wrong expectation for the sweep it introduces. Both sites now
   count through `ip_discover_rules`, and the nested-instruction count through
@@ -655,22 +655,22 @@ Five defects raised in review on #3225, each reproduced first and then fixed. Fo
 - **A `.claude/rules` that is itself a symlink was invisible.** The outer `find` required `-type d`
   without `-L`, so a symlinked rules root never matched and the inner symlink-following scan was
   never reached. This is strictly worse than the symlink bug fixed in 0.2.0: that one lost a single
-  linked rule, this one loses an **entire shared rule set** — and sharing a whole set by symlink is
+  linked rule, this one loses an **entire shared rule set**, and sharing a whole set by symlink is
   the documented layout. A symlinked `.claude` directory had the same shape one level up. Both are
   now covered.
 
 - **Brace commas inside an inline flow list were treated as list separators.** A valid
-  `paths: ["src/*.{ts,tsx}"]` was split into `src/*.{ts` and `tsx}` — two zero-match failures
+  `paths: ["src/*.{ts,tsx}"]` was split into `src/*.{ts` and `tsx}`, two zero-match failures
   reported against a rule that was correct. The parser now splits only at brace depth zero and
   outside quotes.
 
   **The same bug existed in three copies**, in `glob-tools.sh`, `render-index.sh`, and `detect.sh`,
   so the fix is one parser (`ip_parse_paths` in `lib/discover.sh`) and the deletion of all three.
-  Three copies meant three places to fix and three places to drift — the same reasoning that moved
+  Three copies meant three places to fix and three places to drift, the same reasoning that moved
   discovery into that file in 0.2.0.
 
 - **The brace budget was charged per pattern instead of per rule.** The documentation is explicit
-  that "a rule's whole `paths:` list shares one budget of 1,000 expanded patterns" — quoted
+  that "a rule's whole `paths:` list shares one budget of 1,000 expanded patterns", quoted
   correctly in the script's own header while the code reset the counter for every pattern. A rule
   with two 512-expansion globs passed the gate while its combined 1,024 expansions exceed what the
   loader will expand, so `check` reported green for a rule Claude Code silently leaves unexpanded.
@@ -684,7 +684,7 @@ Five defects raised in review on #3225, each reproduced first and then fixed. Fo
 
 - **The declared `userConfig` options did nothing.** `breadth_max` and `index_max_rows` were
   advertised in the manifest and reported by `setup`, while both scripts hardcoded their defaults
-  and only command-line flags had any effect — an option that is documented and inert is worse than
+  and only command-line flags had any effect. An option that is documented and inert is worse than
   one that does not exist. Both scripts now read the native `$CLAUDE_PLUGIN_OPTION_<KEY>` mirror,
   fall back to the default on a non-numeric value, and still let an explicit flag win.
 
@@ -698,16 +698,16 @@ Five defects raised in review on #3225, each reproduced first and then fixed. Fo
 ### Changed
 
 - **The findings artifact declares its stability guarantees, and its owner doc is deliberately not
-  written.** Promoting the contract to a `docs/conventions/` cross-plugin seam was considered and
-  declined *for now*: the artifact has three consumers, all inside this plugin, so a shared seam
-  would fix a shape against requirements that do not exist yet — an interface with one
+  written.** Promoting the contract to a `docs/conventions/` cross-plugin convention was considered
+  and declined *for now*: the artifact has three consumers, all inside this plugin, so a shared
+  convention would fix a shape against requirements that do not exist yet. An interface with one
   implementation is a guess. The convention registry's rule is a deadline ("before a second plugin
   adopts it"), not an instruction to publish early.
 
   What landed instead is the part that is defensible today: explicit guarantees a future consumer
   can hold (`schema: 1` is a real version; field names and the status vocabulary are fixed within a
   version; fields may be added; identifiers are stable and never reused; the location formula is
-  fixed), and the three prerequisites promotion would need — a real second consumer with stated
+  fixed), and the three prerequisites promotion would need: a real second consumer with stated
   needs, a decision on the auto-apply boundary that does not launder the per-item gate, and the
   owner doc landing before that consumer ships.
 
@@ -715,20 +715,20 @@ Five defects raised in review on #3225, each reproduced first and then fixed. Fo
 
 ### Added
 
-- **`delta` skill — report only what moved.** A full audit is worth running rarely and reading
+- **`delta` skill: report only what moved.** A full audit is worth running rarely and reading
   carefully; this is the lane for the other times. The failure it exists to prevent is specific: a
   re-run that re-presents the same forty findings the operator already worked through trains them to
   skim, and a skimmed report is how a bad migration gets approved.
 
-  Five movement shapes — `new`, `changed`, `broken-glob`, `index-drift`, `stale` — and an explicit
-  list of what is *not* movement. **`broken-glob` is the shape that most justifies a cadence**: a
+  The five movement shapes are `new`, `changed`, `broken-glob`, `index-drift`, and `stale`, with an
+  explicit list of what is *not* movement. **`broken-glob` is the shape that most justifies a cadence**: a
   glob breaks when the code it described is renamed or moved, which is an ordinary refactor nowhere
   near the rules tree, produces no signal at the time, and leaves the rule silently not firing.
   Nothing else in the plugin notices between `check` runs.
 
   Decisions are respected rigorously: `declined` stays declined and is never resurrected as `new`,
-  `changed`, or "for review". Suppression below the noise budget is always **counted in the report**
-  — a delta that hides its own filtering is precisely the failure it was built to avoid. A quiet run
+  `changed`, or "for review". Suppression below the noise budget is always **counted in the report**.
+  A delta that hides its own filtering is precisely the failure it was built to avoid. A quiet run
   is one line, with no padding to look useful.
 
 ## [0.9.0]
@@ -740,7 +740,7 @@ Five defects raised in review on #3225, each reproduced first and then fixed. Fo
   documented fallback each, owned by
   [`skills/audit/context/routing-out.md`](skills/audit/context/routing-out.md), plus two rules that
   keep routing from degrading into silent dropping: a routed candidate is reported *as routed*, and
-  routing one question never cancels a placement finding on the same section — a section can be both
+  routing one question never cancels a placement finding on the same section. A section can be both
   misplaced and duplicated.
 
 - **The audit skill practices the disclosure it preaches.** Adding the routing table pushed
@@ -756,7 +756,7 @@ Five defects raised in review on #3225, each reproduced first and then fixed. Fo
 - **`PostToolUse` index-drift hook (14 contract tests).** Index drift is silent by construction: a
   rule added without regenerating the index is a rule no subagent can reach, and nothing about the
   repository looks wrong until someone runs the gate. This shortens the feedback loop from "next CI
-  run" to "next tool call". Advisory and non-blocking — always exits 0, and
+  run" to "next tool call". Advisory and non-blocking: it always exits 0, and
   `/instruction-placement:check` remains the authoritative gate.
 
   **The matcher is `Write|Edit`, which the fleet hook-budget convention counts as always-on**, so
@@ -772,7 +772,7 @@ Five defects raised in review on #3225, each reproduced first and then fixed. Fo
 ### Fixed
 
 - **`hook::repo_root` was handed a file path instead of a directory** during development. It returns
-  the input unchanged with a non-zero status, which an `|| true` swallowed into a silent no-op — the
+  the input unchanged with a non-zero status, which an `|| true` swallowed into a silent no-op, the
   exact failure shape (`hook_non_blocking_error`, hook enforces nothing, nobody notices) that this
   repository's hook conventions exist to prevent. Caught by the drift-detection tests failing while
   every robustness test passed.
@@ -783,10 +783,11 @@ Five defects raised in review on #3225, each reproduced first and then fixed. Fo
 
 - **Eval fixtures replace narration.** Four of the audit's six cases were graded against a described
   situation rather than real content, which grades the description as much as the skill. They now
-  run against two committed fixtures: a bloated `AGENTS.md` carrying the full spread the rubric has
-  to separate — safety rails, path-local conventions, a creation-governing checklist, a derivable
-  directory listing — and a contributor guide with genuine conventions buried among history, setup
-  prose, and release process, which is the promote lane's actual discrimination problem.
+  run against two committed fixtures. The first is a bloated `AGENTS.md` carrying the full spread
+  the rubric has to separate: safety rails, path-local conventions, a creation-governing checklist,
+  and a derivable directory listing. The second is a contributor guide with genuine conventions
+  buried among history, setup prose, and release process, which is the promote lane's actual
+  discrimination problem.
 
   The two remaining cases keep `narration: true` honestly: both describe repository state (a repo
   with no Rust files; a bare invocation's coverage report) that no single fixture file can express.
@@ -802,15 +803,15 @@ Five defects raised in review on #3225, each reproduced first and then fixed. Fo
   verdict, because it is the single failure every other gate reports green through.
 
   Also verifies `git` (tracked-file discovery degrades without it) and reports the Claude Code CLI
-  and `jq` as *optional* prerequisites that affect only the empirical load probe — "optional,
-  absent" and "missing" are stated as different things.
+  and `jq` as *optional* prerequisites that affect only the empirical load probe. The report states
+  "optional, absent" and "missing" as different things.
 
   Configuration reporting names each value's **source**, not just its value: "75 (default)" and
   "75 (configured)" are different facts about a repository, and only one of them explains a
   surprising result.
 
   `apply` writes nothing on its own. Every remediation here edits a file that steers agent behavior,
-  so it presents the exact change and asks — then re-verifies, because an apply that does not
+  so it presents the exact change and asks, then re-verifies, because an apply that does not
   re-verify has not finished.
 
 - `userConfig`: `breadth_max` (default 75) and `index_max_rows` (default 40). Both have defaults that
@@ -823,7 +824,7 @@ Five defects raised in review on #3225, each reproduced first and then fixed. Fo
 
 - **The index has a size posture.** It had none: no cap, no ranking, no truncation. Since the index
   is always-loaded, a large monorepo would have turned the mechanism that *frees* always-loaded
-  budget into a consumer of it — and with the adherence claim gone (0.5.0), reachability is now the
+  budget into a consumer of it, and with the adherence claim gone (0.5.0), reachability is now the
   main thing the index is for, so it cannot be allowed to become the bloat it prevents.
 
   Past `--max-rows` (default 40, roughly a screenful), the index lists that many surfaces
@@ -839,7 +840,7 @@ Five defects raised in review on #3225, each reproduced first and then fixed. Fo
   delivered when a matching file is read is followed more reliably than the same text buried in a
   large always-loaded file. `evals/adherence-experiment.sh` tested exactly that, and it did not
   reproduce: **32 trials, two bloat levels, 100% compliance in every cell.** Even a 1,927-line
-  always-loaded file — nearly ten times the official 200-line guidance — produced no measurable
+  always-loaded file, nearly ten times the official 200-line guidance, produced no measurable
   difference against a path-scoped rule.
 
   The claim is removed from the README and from the audit skill's framing rather than hedged; an
@@ -848,14 +849,14 @@ Five defects raised in review on #3225, each reproduced first and then fixed. Fo
   Claude loads *never* has no presence to lose), and index reachability.
 
   The run's limits are stated as plainly as its result in
-  [`evals/adherence-results.md`](evals/adherence-results.md) — the control arm scored 100%, so the
+  [`evals/adherence-results.md`](evals/adherence-results.md). The control arm scored 100%, so the
   experiment had a ceiling and could not have detected a smaller effect. Untested: conventions that
   conflict with a strong default or with each other, many rivalrous conventions at once, weaker
   models, and instruction shapes subtler than a crisp checkable rule.
 
 ### Added
 
-- **`evals/adherence-experiment.sh`** — the harness, kept so the result can be re-derived rather
+- **`evals/adherence-experiment.sh`**: the harness, kept so the result can be re-derived rather
   than trusted. Interleaves arms so service drift hits both alike, defines compliance before any
   trial runs, and takes `--filler` to vary bloat. It is built to be able to fail, and did.
 
@@ -869,7 +870,7 @@ fixtures. Both over-firings were invisible at fixture scale and obvious at repos
 - **Directory names were being reported as file extensions.** `.claude` was the single most common
   "extension" in the corpus at 840 hits, with `.work`, `.github`, `.git`, and `.local` close behind.
   Three rules now apply: a token followed by `/` is a directory component, a known config dotdir or
-  dotfile is never an extension, and an extension must be lowercase — which also drops `.NET` and
+  dotfile is never an extension, and an extension must be lowercase, which also drops `.NET` and
   `.DS_Store` without listing either.
 - **Language hints matched ordinary English.** Lowercase `go` produced 338 false hits from the verb,
   and `shell`/`bash` produced 675 more from prose about shells. The table is now case-sensitive and
@@ -885,9 +886,9 @@ repository scale: 1,137 files and 11,084 sections in 11 seconds, with clean stde
 
 ### Added
 
-- **`scripts/verify-load.sh` — empirical load verification (16 tests, including a live one).** Every
+- **`scripts/verify-load.sh`: empirical load verification (16 tests, including a live one).** Every
   other check in this plugin is static: the glob parses, it matches tracked files, the index is in
-  sync. None of them observes Claude Code actually loading anything — and that gap is precisely
+  sync. None of them observes Claude Code actually loading anything, and that gap is precisely
   where this plugin's own four bugs lived. A rule can pass every static gate and still never enter
   context.
 
@@ -897,7 +898,7 @@ repository scale: 1,137 files and 11,084 sections in 11 seconds, with clean stde
   confined to `--allowedTools Read`, and the log is written outside the tree.
 
   It is honest about not knowing. Absent CLI, missing `jq`, a timeout, or a hook that produced no
-  records all report `VERDICT UNKNOWN` and exit 3 — never a pass. A verification tool that reports
+  records all report `VERDICT UNKNOWN` and exit 3, never a pass. A verification tool that reports
   success because it could not measure is worse than no tool.
 
   Its own suite drives the real CLI, and asserts **both directions**: reading a `.cs` file loads the
@@ -912,7 +913,7 @@ repository scale: 1,137 files and 11,084 sections in 11 seconds, with clean stde
 
 ### Added
 
-- **`scripts/detect.sh` — deterministic fact emitter for the audit (38 tests).** The judgment layer
+- **`scripts/detect.sh`: deterministic fact emitter for the audit (38 tests).** The judgment layer
   decides *where* content belongs; it should not also be enumerating the corpus, finding section
   boundaries, or counting normative markers by reading. Emits `FILE` / `SECTION` / `SIGNAL` / `HINT`
   / `RULE` / `SKIP` / `SUMMARY` records as sorted TSV and adjudicates nothing.
@@ -930,7 +931,7 @@ repository scale: 1,137 files and 11,084 sections in 11 seconds, with clean stde
 
 - **`detect.sh` regex portability, caught before release.** The first implementation used an
   interval expression (`{0,7}`) in a hint pattern; mawk 1.3.4 does not merely mismatch it, it
-  panics — and with stderr suppressed the script emitted an empty fact set, which reads exactly like
+  panics, and with stderr suppressed the script emitted an empty fact set, which reads exactly like
   "this file has no sections". Rewritten without intervals, stderr is no longer suppressed, and the
   suite asserts both that no panic reaches the output and that a headed file yields a non-zero
   section count.
@@ -940,7 +941,7 @@ repository scale: 1,137 files and 11,084 sections in 11 seconds, with clean stde
 ### Fixed
 
 Four discovery-layer bugs, all found by probing 0.1.0 rather than by its own test suite. The suite
-covered glob *semantics* exhaustively and file *discovery* barely — every bug lived in one
+covered glob *semantics* exhaustively and file *discovery* barely. Every bug lived in one
 open-coded `find .claude/rules` line, which is why discovery is now a shared `lib/discover.sh` with
 its own fixtures and 24 tests of its own.
 
@@ -950,22 +951,22 @@ its own fixtures and 24 tests of its own.
   traverse a symlinked directory. Since symlinking is the *documented* way to share one rule set
   across projects, a team using it got zero coverage and zero index entries, silently.
 - **Untracked and gitignored files were indexed.** `corpus.md` promises neither is swept, but both
-  reached the generated index — including vendored third-party `AGENTS.md` files, which put someone
+  reached the generated index, including vendored third-party `AGENTS.md` files, which put someone
   else's instructions into the consuming repository's always-loaded surface.
 - **The index could be written where Claude Code never reads it.** Claude Code reads `CLAUDE.md`,
   not `AGENTS.md`. A repository carrying both with no import between them got a correct, in-sync
-  index that never entered context — the entire subagent-gap mitigation inert while every gate
+  index that never entered context, the entire subagent-gap mitigation inert while every gate
   reported green.
 
 ### Added
 
-- **`render-index.sh reachable`** — answers whether Claude Code would load a given index target at
+- **`render-index.sh reachable`**: answers whether Claude Code would load a given index target at
   all, by walking the import graph from each root memory file (depth-bounded at the documented four
   hops, skipping fenced blocks and inline code spans, and honoring the `CLAUDE.md`-symlinked-to-
   `AGENTS.md` form). `write` now warns on stderr when it writes into an unreachable target rather
   than leaving it for a later gate, and the `check` skill gates on it. Sync and reachability are
   independent questions and a repository can pass one while failing the other.
-- **`lib/discover.sh`** — the shared discovery layer, with the two asymmetries documented in
+- **`lib/discover.sh`**: the shared discovery layer, with the two asymmetries documented in
   `corpus.md`: rules follow symlinks and do not require tracked status; nested instruction files
   require tracked status and skip vendored trees.
 
@@ -973,14 +974,14 @@ its own fixtures and 24 tests of its own.
 
 - **Two previously-inferred claims are now measured** on 2.1.238 and recorded in
   `verified-mechanics.md`: an undocumented `description:` key in rule frontmatter is harmless, and
-  block-level HTML comments are stripped from an `AGENTS.md` reached by `@import` — which is what
+  block-level HTML comments are stripped from an `AGENTS.md` reached by `@import`, which is what
   makes the index markers genuinely free.
 
 ## [0.1.0]
 
 ### Added
 
-- **`audit` — read-only placement sweep.** Two lanes over a two-tier corpus: **demote** (content in
+- **`audit`: read-only placement sweep.** Two lanes over a two-tier corpus: **demote** (content in
   an always-loaded `CLAUDE.md`/`AGENTS.md` or an unscoped rule whose real scope is one file kind or
   one subtree) and **promote** (normative conventions stranded in ordinary markdown that Claude
   loads never). Candidates are classified against a decision ladder, every path-scoped proposal
@@ -988,24 +989,24 @@ its own fixtures and 24 tests of its own.
   its saving. Emits a diffable findings artifact under a project-keyed plugin-data path; mutates
   nothing in the repository.
 
-- **`realign` — per-item human-gated apply.** Consumes the audit's artifact and never re-judges the
+- **`realign`: per-item human-gated apply.** Consumes the audit's artifact and never re-judges the
   surface. Five recipes (path-scoped rule, nested `AGENTS.md` plus shim, promote-by-move or
   promote-by-pointer, re-scope in place, delete) each create before excising, so an interruption
   leaves content duplicated rather than deleted. Every accepted move regenerates the always-loaded
   index. No blanket-approve path exists, including on request.
 
-- **`check` — deterministic gate.** Verifies every `.claude/rules/` glob still resolves and that the
+- **`check`: deterministic gate.** Verifies every `.claude/rules/` glob still resolves and that the
   index matches the rules on disk. Read-only, CI-shaped, and deliberately blind to the findings
   artifact so a stale audit can never make a broken repository look healthy.
 
-- **`scripts/glob-tools.sh` — glob validation engine (45 tests).** Validates `paths:` globs against
+- **`scripts/glob-tools.sh`: glob validation engine (45 tests).** Validates `paths:` globs against
   the repository's tracked files: zero-match, malformed bracket expression, and the documented
   1,000-pattern / 4 MiB brace-expansion budget are all hard failures, over-broad is a warning. Brace
   expansion is hand-rolled rather than delegated to shell `eval`, because the input is repository
-  content and a crafted rule file must not be able to run commands — covered by a test asserting
+  content and a crafted rule file must not be able to run commands, covered by a test asserting
   exactly that.
 
-- **`scripts/render-index.sh` — always-loaded index generator (47 tests).** Renders, checks, and
+- **`scripts/render-index.sh`: always-loaded index generator (47 tests).** Renders, checks, and
   writes a marked block listing every instruction surface that loads on demand. Indexes only
   surfaces that defer: an unscoped rule already loads every session, so indexing it would spend
   always-loaded budget restating what is already present. Delimited by HTML comments, which Claude

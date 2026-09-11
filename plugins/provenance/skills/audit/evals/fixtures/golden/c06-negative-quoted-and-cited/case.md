@@ -7,7 +7,7 @@ The runner's own documentation states the shape:
 > event live under a `data` key, so a consumer that does not recognize an event can still read
 > its identity and its ordering.
 >
-> — Widget Runner docs, `https://example.invalid/widget-runner/docs/logs`, read 2026-08-26
+> Source: Widget Runner docs, `https://example.invalid/widget-runner/docs/logs`, read 2026-08-26
 
 Our parser leans on that last guarantee. We match on the event name and ignore anything under
 `data` we were not written to expect, which is how the parser survived two runner upgrades
