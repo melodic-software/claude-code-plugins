@@ -285,7 +285,7 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
 - **The batch-common suite drops a dead array reset.** Its low-fd case runs the
   read inside a subshell that declares its own array and asserts on that
   subshell's stdout, so the outer reset was never read; it mimicked the sibling
-  cases that do assert on the outer array, which made it look load-bearing. A
+  cases that do assert on the outer array, which made it look required. A
   comment now records why this case is the exception. Every other caller keeps
   its reset, which is required because the read function appends rather than
   assigns. Tested adversarially: with a stale array injected so the edited file
