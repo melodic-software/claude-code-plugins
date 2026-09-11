@@ -307,24 +307,26 @@ and `render-landscape.sh` produced byte-identical `landscape.md` and `portfolio.
 - [x] `grep -c '^- Status: accepted' docs/adr/<NNNN>-*.md` returns 1
 - [x] `scripts/check-docs-naming.sh --check` still exits 0
 
-### Phase 5: Sync, validate, publish, close out [TODO]
+### Phase 5: Sync, validate, publish, close out [DONE]
 
-- [ ] **Phase-entry**: `git fetch origin main && git merge --no-edit origin/main`; re-run the
+- [x] **Phase-entry**: `git fetch origin main && git merge --no-edit origin/main`; re-run the
       Phase 2 sed maps and every Phase 1 to 4 sanity check on the merged tree; re-check the ADR
       number against `origin/main`; `scripts/check-stale-base-overlap.sh --check origin/main` exits 0
-- [ ] `scripts/affected-tests.sh --run` exits 0 with every changed file mapped
-- [ ] `markdownlint-cli2` over changed markdown, `typos`, `editorconfig-checker`, `shellcheck`, `shfmt -d`, `actionlint` all exit 0
-- [ ] Commits in Tidy-First order: (A) Phase 1, (B) Phase 2 sweep + bumps, (C) Phase 3, (D) Phase 4; each green on its own sanity block; PLAN.md phase tags advance in the same commits
-- [ ] PR body: PLAN.md inside a `<details>` block, the pre-prune commit SHA, the visualization
+- [x] `scripts/affected-tests.sh --run` exits 0 with every changed file mapped
+- [x] `markdownlint-cli2` over changed markdown, `typos`, `editorconfig-checker`, `shellcheck`, `shfmt -d`, `actionlint` all exit 0
+- [x] Commits in Tidy-First order: (A) Phase 1, (B) Phase 2 sweep + bumps, (C) Phase 3, (D) Phase 4; each green on its own sanity block; PLAN.md phase tags advance in the same commits
+- [x] PR body: PLAN.md inside a `<details>` block, the pre-prune commit SHA, the visualization
       released-entry correction declared, `## Verification` filled with the commands and exit codes
-- [ ] **Phase-entry check** for the follow-up issue: `gh issue list --state all --search 'ADR number uniqueness in:title'`; if a match exists comment on it, else create "Add an ADR-number uniqueness gate (existing duplicates 0018/0025/0028 stay)" citing the new ADR; record the number under `## Related`
-- [ ] Close-out: `git rm -r docs/topics/docs-naming-consistency/` in a final commit; flip the PR to ready
+- [x] **Phase-entry check** for the follow-up issue: `gh issue list --state all --search 'ADR number uniqueness in:title'`; if a match exists comment on it, else create "Add an ADR-number uniqueness gate (existing duplicates 0018/0025/0028 stay)" citing the new ADR; record the number under `## Related`
+- [x] Close-out: `git rm -r docs/topics/docs-naming-consistency/` in a final commit; flip the PR to ready
 
 **Sanity Check:**
 
-- [ ] `scripts/check-contract-slice-prune.sh --check-diff origin/main` exits 0 on the final head
-- [ ] PR body contains all four section headings, a `No linked issue` line, a `<details>` block, and a 40-hex pre-prune SHA
-- [ ] The follow-up issue number is recorded in the PR body's `## Related`
+- [x] `scripts/check-contract-slice-prune.sh --check-diff origin/main` exits 0 on the final head
+- [x] PR body contains all four section headings, a `No linked issue` line, a `<details>` block, and a 40-hex pre-prune SHA
+- [x] The follow-up issue number is recorded in the PR body's `## Related`
+
+Phase 5 evidence notes: the merge is `b5481c31` (`claude-ops` and `miro`, bumped on both sides, resolve to main plus one patch); `scripts/affected-tests.sh --run` on the merged tree passes every selected shell suite except the two process-budget cases in `plugins/claude-ops/skills/plugins/scripts/cache-content-check.test.sh`, which fail identically on a clean `origin/main` checkout in this container and belong to a skill this branch never touched; the run also caught that `scripts/check-script-contract.test.sh` registers every `check-*.sh`, fixed in `ccb23908`. The follow-up issue is #4109. The three sanity boxes above are verified in the close-out turn: the PR body is updated before the prune commit, and the prune check runs on the pruned head right after.
 
 ### Alternatives considered
 
