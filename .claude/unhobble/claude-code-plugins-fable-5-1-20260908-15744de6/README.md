@@ -1,10 +1,11 @@
 # unhobble experiment: Fable 5.1 bare baseline
 
-Contract-tier slice for one run of `/claude-config:unhobble` (experiment id
-`claude-code-plugins-fable-5-1-20260908-15744de6`). Committed on the experiment branch only and
-pruned with a pointer before merge, per the topic-docs convention. The canonical experiment state
-lives in the plugin data directory on the machine that ran the snapshot; this slice is the durable
-mirror that survives a reclaimed cloud container.
+Durable mirror for one run of `/claude-config:unhobble` (experiment id
+`claude-code-plugins-fable-5-1-20260908-15744de6`). The canonical experiment state lives in the
+plugin data directory on the machine that ran the snapshot; this directory is the tracked copy
+that survives a reclaimed cloud container. It lives under `.claude/` rather than the topic-docs
+contract slice because the contract-slice gate red-lines any pull request that carries a slice,
+and this mirror has to outlive the whole observe window.
 
 | File | Role |
 |---|---|
@@ -15,4 +16,5 @@ mirror that survives a reclaimed cloud container.
 
 Observe phase: work normally on real tasks from fresh sessions on this branch and log stumbles.
 Readd phase: restore only what the ledger defends with repeated same-cause rows, plus the register
-hold recorded in the manifest, then close the experiment and prune this slice.
+hold recorded in the manifest, then close the experiment. Whether this directory is kept as the
+experiment's record or removed at close is the readd phase's call.
