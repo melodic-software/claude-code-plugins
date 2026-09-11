@@ -110,8 +110,10 @@
 #      markdown file over 300 lines whose first 40 lines hold fewer than three
 #      `](#` in-page anchor links WARNs (advisory heuristic)
 #  27. `## Next` successor section: absent is INFO (a terminal skill has
-#      none); present but after `## Gotchas`, last in the file, or neither
-#      the one-invocation nor the two-to-four-outcome-bullet shape is WARN
+#      none); present but after `## Gotchas`, last in the file, neither
+#      the one-invocation nor the two-to-four-outcome-bullet shape, or
+#      carrying operative-chain phrasing (Skill tool, installed, fallback,
+#      otherwise) anywhere in the block is WARN
 #
 # Notes (static, git-diff-based design):
 #   - Checks 3/8/9 diff the working tree against CHECK_SKILL_BASE_REF (default
@@ -1885,11 +1887,14 @@ else
   NEXT_BULLETS="$(grep -cE '^- ' <<<"$NEXT_BLOCK" || true)"
   NEXT_TOKEN='/[a-z0-9-]+:[a-z0-9-]+'
   if ((NEXT_BULLETS == 0)); then
+    # The single shape opens with the invocation itself (a leading backtick
+    # allowed), not with prose that happens to mention one: prose first is
+    # how an operative chain reads.
     NEXT_FIRST="$(grep -vE '^[[:space:]]*$' <<<"$NEXT_BLOCK" | head -1 || true)"
     if [[ -z "$NEXT_FIRST" ]]; then
       NEXT_HIT="${NEXT_HIT:+$NEXT_HIT; }body is empty"
-    elif ! grep -qE "$NEXT_TOKEN" <<<"$NEXT_FIRST"; then
-      NEXT_HIT="${NEXT_HIT:+$NEXT_HIT; }first line carries no /plugin:skill invocation"
+    elif ! grep -qE "^\`?${NEXT_TOKEN}(\`|[[:space:]]|[.,;:]|$)" <<<"$NEXT_FIRST"; then
+      NEXT_HIT="${NEXT_HIT:+$NEXT_HIT; }first line does not open with a /plugin:skill invocation"
     fi
   else
     if ((NEXT_BULLETS < 2 || NEXT_BULLETS > 4)); then
@@ -1904,6 +1909,13 @@ else
     if ((NEXT_BAD > 0)); then
       NEXT_HIT="${NEXT_HIT:+$NEXT_HIT; }$NEXT_BAD bullet(s) name no /plugin:skill successor"
     fi
+  fi
+  # Either shape is a mention for the human, so the whole block, not just the
+  # line that names the successor, is read for the three things the rule
+  # excludes: Skill-tool phrasing, an installed-ness gate, a fallback clause.
+  NEXT_OPERATIVE="$(grep -oiE 'skill tool|installed|fall ?back|otherwise' <<<"$NEXT_BLOCK" | head -1 || true)"
+  if [[ -n "$NEXT_OPERATIVE" ]]; then
+    NEXT_HIT="${NEXT_HIT:+$NEXT_HIT; }carries operative-chain phrasing ('$NEXT_OPERATIVE'); a successor is a mention, with no Skill-tool phrasing, installed-ness gate, or fallback clause"
   fi
   if [[ -n "$NEXT_HIT" ]]; then
     warn "'## Next' section $NEXT_HIT. The skill-bodies rule wants one /plugin:skill line, or two to four '<outcome>: /plugin:skill' bullets, placed before '## Gotchas'"

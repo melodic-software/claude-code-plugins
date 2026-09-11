@@ -14,7 +14,10 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
   one. Absence is an INFO note rather than a WARN, because whether a skill has a natural successor
   is the author's call and most skills in a large fleet have none wired yet; a section that is
   present but placed after `## Gotchas`, last in the file, or in neither shape is a WARN. The
-  check stays advisory, so the gate's PASS/FAIL verdict is unchanged.
+  single shape has to open with the invocation, not with prose that mentions one, and either
+  shape is read whole for the phrasing the rule excludes (Skill tool, installed, fallback,
+  otherwise), so an operative chain dressed as a successor also warns. The check stays advisory,
+  so the gate's PASS/FAIL verdict is unchanged.
 
 ## [0.22.2]
 

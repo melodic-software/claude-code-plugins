@@ -4113,6 +4113,60 @@ else
   fail "malformed '## Next' should warn on count and token (rc=$rc): $out"
 fi
 
+make_skill next-operative '---
+name: next-operative
+description: "Next fixture. Use when: '"'"'next operative'"'"'."
+---
+
+## Purpose
+
+Single-shape successor section written as an operative chain: prose first, a
+Skill-tool instruction, an installed-ness gate, and a fallback clause.
+
+## Next
+
+Ask the Skill tool to invoke /code-metrics:audit-complexity when it is installed.
+Otherwise measure by hand.
+
+## Gotchas
+
+None known.
+'
+out="$(run next-operative 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q "WARN: '## Next' section first line does not open with a /plugin:skill invocation; carries operative-chain phrasing ('Skill tool')" <<<"$out"; then
+  pass "a prose-first operative '## Next' warns on the opening and the chain phrasing"
+else
+  fail "operative '## Next' should warn on opening and phrasing (rc=$rc): $out"
+fi
+
+make_skill next-bullets-fallback '---
+name: next-bullets-fallback
+description: "Next fixture. Use when: '"'"'next bullets fallback'"'"'."
+---
+
+## Purpose
+
+Bullet-shape successor section whose second bullet carries a fallback clause.
+
+## Next
+
+- The numbers feed a comparison: `/verification:measure metrics`.
+- A number is about to be quoted: `/code-metrics:principles`, or fall back to
+  the README when that plugin is absent.
+
+## Gotchas
+
+None known.
+'
+out="$(run next-bullets-fallback 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q "WARN: '## Next' section carries operative-chain phrasing ('fall back')" <<<"$out"; then
+  pass "a bullet-shape '## Next' with a fallback clause warns on the chain phrasing"
+else
+  fail "bullet '## Next' with a fallback should warn on phrasing (rc=$rc): $out"
+fi
+
 if [[ $fails -ne 0 ]]; then
   printf '%d assertion(s) failed\n' "$fails" >&2
   exit 1
