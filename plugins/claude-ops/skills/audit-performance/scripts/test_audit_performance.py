@@ -303,6 +303,13 @@ class TestIfGateClassification(unittest.TestCase):
         self.assertEqual(gate["kind"], "extension")
         self.assertEqual(gate["extension"], ".md")
 
+    def test_a_mixed_case_extension_folds_into_its_lowercase_file_kind(self):
+        """A `.MD` gate must land in the `.md` row and over-count, never vanish from all rows."""
+        gate = engine.classify_if_gate("Edit(*.MD)")
+        self.assertEqual(gate["kind"], "extension")
+        self.assertEqual(gate["extension"], ".md")
+        self.assertIn(gate["extension"], engine.PROJECTION_FILE_KINDS)
+
     def test_an_absent_rule_is_absent_not_unclassified(self):
         self.assertEqual(engine.classify_if_gate(None)["kind"], "absent")
 

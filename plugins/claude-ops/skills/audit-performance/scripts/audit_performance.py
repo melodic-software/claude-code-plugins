@@ -1319,7 +1319,13 @@ def classify_if_gate(rule: object) -> dict:
     text = str(rule).strip()
     match = IF_EXTENSION_GATE.match(text)
     if match:
-        return {"kind": "extension", "extension": match.group(1), "reason": None}
+        # Lower-cased so a mixed-case extension folds into its projection row and
+        # over-counts at worst; kept as-is it would match no file kind and vanish.
+        return {
+            "kind": "extension",
+            "extension": match.group(1).lower(),
+            "reason": None,
+        }
     if not text.startswith("Edit("):
         named = text.split("(", 1)[0] or text
         return {
