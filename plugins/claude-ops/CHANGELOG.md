@@ -3,6 +3,12 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.54.1]
+
+### Changed
+
+- **`audit-install-state`, `audit-skill-visibility`: description prose no longer addresses the reader, except for the presence-gate token.** Anthropic's skill-authoring guidance keeps first and second person out of a description because it is injected into the system prompt; the rewritten clauses name the user, the session, or the repository instead. The one clause kept as it was is the native-surface presence gate ("resolves in your session"): the native-overlap registry self-check matches that literal token against every baked row, so the two descriptions keep it until the token itself is changed fleet-wide. Quoted trigger phrases are unchanged.
+
 ## [0.54.0]
 
 ### Added

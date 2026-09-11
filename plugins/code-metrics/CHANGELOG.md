@@ -3,7 +3,7 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.2.3]
+## [0.2.4]
 
 ### Added
 
@@ -52,6 +52,12 @@ All notable changes to the `code-metrics` plugin are documented here. Format fol
   still states `duplicated_lines: 0`.
 - **A run from a subdirectory matches the same registry lines as a run from the root**, because
   instance paths are normalized against the repository root before matching.
+
+## [0.2.3]
+
+### Changed
+
+- **`audit-type-debt`, `principles`: description prose no longer addresses the reader.** Anthropic's skill-authoring guidance keeps first and second person out of a description because it is injected into the system prompt; the rewritten clauses name the user, the session, or the repository instead. Quoted trigger phrases are unchanged.
 
 ## [0.2.2]
 
