@@ -3,6 +3,27 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.0]
+
+### Fixed
+
+- **`audit-type-debt`: an aborted mypy run no longer reads as 100% typed.** mypy exits 2 on a
+  blocking error (a duplicate module name, a usage or config error) before analysing anything and
+  still writes a report whose only row is `Total 0 0 100.00%`; the collector accepted that as a
+  measurement labelled `mypy-reported-errors`, so a repository carrying sanctioned replication read
+  as fully typed over zero expressions. Exit 2 is now the adapter contract's exit 4: the Python row
+  reads `unavailable` with mypy's own message and the run continues. A Total row with zero
+  expressions reports `type_coverage_pct: null`, never 100.
+- **`audit-type-debt`: sanctioned replication measures instead of aborting.** The collector passes
+  `--explicit-package-bases`, so mypy names each module by its path (`plugins.a.lib.x`) and two
+  same-named files under identifier-named directories no longer collide. Same-named files under
+  two hyphenated directories still collide, because mypy's module walk stops at a directory whose
+  name is not a Python identifier; that case reaches the `unavailable` row above.
+- **`audit-type-debt`: no `.mypy_cache/` in the consumer's tree.** The collector passes
+  `--cache-dir` with the platform's null device, mypy's documented value for disabling the cache;
+  a one-shot report gained nothing from it (6.8s without a cache against 8.2s with a warm one over
+  this repository's 179 Python files).
+
 ## [0.2.0]
 
 ### Added

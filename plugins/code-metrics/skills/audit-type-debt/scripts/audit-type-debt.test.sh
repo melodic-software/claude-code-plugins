@@ -20,6 +20,7 @@ PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 SOURCES="$PLUGIN_ROOT/scripts/fixtures/sources"
 TC_CAPTURE="$PLUGIN_ROOT/scripts/fixtures/tool-output/type-coverage.json"
 MYPY_CAPTURE="$PLUGIN_ROOT/scripts/fixtures/tool-output/mypy-any-exprs.txt"
+MYPY_ABORTED="$PLUGIN_ROOT/scripts/fixtures/tool-output/mypy-any-exprs-aborted.txt"
 cd "$REPO_ROOT" || exit 2
 PY=python3
 command -v python3 >/dev/null 2>&1 || PY=python
@@ -158,6 +159,38 @@ assert_doc "its reason states that type-coverage needs a resolvable typescript" 
   '"needs a resolvable typescript" in next(r for r in d["run"] if r["lane"]=="typescript")["reason"]'
 assert_doc "the python lane still reports while typescript cannot" "$out" \
   'any(r["lane"]=="python" and r["status"]=="ok" for r in d["run"]) and d["status"]=="partial"'
+
+# 3b. mypy resolves but a blocking error (a duplicate module name) stops it
+# before analysis: it exits 2 and still writes an empty report. The adapter
+# exits 4, the python row reads `unavailable` with mypy's own message rather
+# than a 100% measurement, and the run is not a failure.
+ABORT_STUBS="$WORK/abort-stubs"
+mkdir -p "$ABORT_STUBS"
+cp "$STUBS/type-coverage" "$ABORT_STUBS/type-coverage"
+cat >"$ABORT_STUBS/mypy" <<EOF
+#!/usr/bin/env bash
+if [[ "\${1:-}" == "--version" ]]; then printf 'mypy 1.19.1 (compiled: yes)\n'; exit 0; fi
+dir=""
+prev=""
+for arg in "\$@"; do
+  [[ "\$prev" == "--any-exprs-report" ]] && dir="\$arg"
+  prev="\$arg"
+done
+[[ -n "\$dir" ]] && mkdir -p "\$dir"
+cp "$MYPY_ABORTED" "\$dir/any-exprs.txt"
+printf '%s\n' 'b/lib/x.py: error: Duplicate module named "lib.x" (also at "a/lib/x.py")' >&2
+exit 2
+EOF
+chmod +x "$ABORT_STUBS/mypy"
+out="$(cd "$PROJECT" && PATH="$ABORT_STUBS:$EMPTY_PATH" CODE_METRICS_HOME="$HOME_DIR" bash "$SCRIPT" --json --all "$SOURCES")"
+rc=$?
+assert_eq "exit 0 when mypy aborts before analysis" 0 "$rc"
+assert_doc "the python row is unavailable and no python measure is emitted" "$out" \
+  'next(r for r in d["run"] if r["lane"]=="python")["status"]=="unavailable" and not any(r["lane"]=="python" for r in d["measures"])'
+assert_doc "its reason carries mypy's own duplicate-module message" "$out" \
+  '"Duplicate module named" in next(r for r in d["run"] if r["lane"]=="python")["reason"]'
+assert_doc "the typescript lane still reports while mypy cannot" "$out" \
+  'any(r["lane"]=="typescript" and r["status"]=="ok" for r in d["run"]) and d["status"]=="partial"'
 
 # 4. Neither tool present: exit 0, nothing measured, the install hint is named.
 out="$(cd "$BARE" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$HOME_DIR" bash "$SCRIPT" --json --all "$SOURCES")"

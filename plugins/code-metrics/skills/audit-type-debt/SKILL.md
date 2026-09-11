@@ -56,8 +56,11 @@ your notes and compare by hand.
 - A value the tool did not produce is `null`, never `0`: `any_count` is `null` when
   `type-coverage` listed no locations, and `type_coverage_pct` is `null` when nothing was counted
   at all (a TypeScript project with no `tsconfig.json` reaches this).
-- mypy exits non-zero on any type error and still writes its report; the row is kept and labelled
-  `mypy-reported-errors`, because a type error is not a missing measurement.
+- mypy exits 1 on any type error and still writes its report; the row is kept and labelled
+  `mypy-reported-errors`, because a type error is not a missing measurement. mypy exits 2 when a
+  blocking error (a duplicate module name, a usage or config error) stops it before analysis; the
+  Python lane then reads `unavailable` with mypy's own message, never a percentage, and the run
+  continues.
 - Exit 0 whenever a report was produced, including a run that measured nothing; exit 2 for a usage
   error such as an explicitly named path that does not exist; exit 3 when a collector resolved but
   produced nothing parseable, with its stderr in the run table.
@@ -98,3 +101,11 @@ the collectors.
   covers what mypy followed, not only the files in scope. Compare like-scoped runs.
 - The Python percentage moves when a dependency ships or drops type stubs, because an unfollowed
   import turns into `Any`. A drop with no local edit is usually that.
+- mypy runs with `--explicit-package-bases`, so a file vendored into several plugins (sanctioned
+  replication) is named by its path (`plugins.a.lib.x`) and measured once per copy instead of
+  aborting the lane. mypy's module walk stops at a directory whose name is not a Python
+  identifier, so two same-named files under two hyphenated directories (`my-pkg/mod.py`,
+  `other-pkg/mod.py`) still collide; that run reads `unavailable` with the duplicate-module
+  message.
+- mypy runs with its cache disabled (`--cache-dir` set to the platform's null device), so no
+  `.mypy_cache/` is written into the working tree. A one-shot report gains nothing from the cache.

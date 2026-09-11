@@ -11,14 +11,34 @@ per-lane row (`file` and `function` are `null`, per the report contract). The
 report directory is a temporary one, created and removed here, because mypy
 overwrites the whole directory.
 
-Two facts probed against mypy 1.19.1 in this repository on 2026-09-05, and
-replayed by fixtures/tool-output/mypy-any-exprs.txt:
+Facts probed against mypy 1.19.1 (its documentation and source at that tag,
+unchanged at 2.3.1) and replayed by fixtures/tool-output/mypy-any-exprs.txt and
+mypy-any-exprs-aborted.txt:
 
 - the table is whitespace-aligned and the Coverage column carries a trailing
   percent sign;
-- mypy exits 1 on any type error and still writes the report (design T1), so a
-  non-zero exit with a readable report is exit 0 here, with the row labelled
-  `mypy-reported-errors`. Only an unwritten or unreadable report is exit 3.
+- mypy exits 1 on any type error and still writes the report (design T1), so
+  exit 1 with a readable report is exit 0 here, with the row labelled
+  `mypy-reported-errors`;
+- mypy exits 2 on a blocking error (a duplicate module name, a usage or config
+  error) before analysing anything, and still writes a report whose only row
+  is `Total 0 0 100.00%`. Nothing was measured, so exit 2 is the adapter
+  contract's exit 4 (the tool resolved but cannot run on these files) with
+  mypy's stderr relayed, never a 100% row. An unwritten or unreadable report on
+  any other exit is exit 3;
+- a Total row with 0 expressions is `type_coverage_pct: null`, because nothing
+  was counted; mypy's 100.00% for an empty build is not a measurement;
+- `--explicit-package-bases` derives each module name from its path relative
+  to the working directory (or a MYPYPATH entry), so two same-named files under
+  identifier-named directories (`a/foo.py`, `b/foo.py`) no longer collide. The
+  walk stops at a directory whose name is not a Python identifier, so
+  same-named files under two hyphenated directories still collide and reach the
+  exit-4 path with mypy's message;
+- `--cache-dir os.devnull` is mypy's documented "disable caching" value (mypy
+  compares the option to os.devnull by string equality, `/dev/null` on POSIX
+  and `nul` on Windows), so no `.mypy_cache` is written into the consumer's
+  tree; over this repository's 179 files caching saved nothing (6.8s without a
+  cache against 8.2s with a warm one).
 
 The percentage is mypy's own Coverage figure over expressions, which is not the
 `type-coverage` identifier ratio the TypeScript lane reports. The two are never
@@ -40,6 +60,9 @@ NAME = "mypy-report"
 TOOL = "mypy"
 MEASURE = "type_coverage"
 LANE = "python"
+# mypy's exit for a blocking error (duplicate module, usage or config error):
+# it stops before analysing anything and its report carries no measurement.
+FATAL_EXIT = 2
 
 
 def probe() -> int:
@@ -84,11 +107,37 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
     report_dir = tempfile.mkdtemp(prefix="code-metrics-mypy-")
     try:
         result = subprocess.run(
-            [exe, "--any-exprs-report", report_dir, "--no-error-summary", *files],
+            [
+                exe,
+                "--any-exprs-report",
+                report_dir,
+                "--no-error-summary",
+                "--explicit-package-bases",
+                "--cache-dir",
+                os.devnull,
+                *files,
+            ],
             capture_output=True,
             text=True,
             check=False,
         )
+        if result.returncode == FATAL_EXIT:
+            # A blocking error stopped mypy before analysis; the report it still
+            # wrote is empty, so there is no measurement to read. The tool
+            # resolved but cannot run on these files: the dispatcher writes an
+            # `unavailable` row carrying this reason (exit 4).
+            # mypy prints its error lines to stdout and usage errors to
+            # stderr, so the reason carries both.
+            said = " ".join(
+                part.strip().replace("\n", " ")
+                for part in (result.stdout, result.stderr)
+                if part.strip()
+            )
+            print(
+                f"mypy could not analyse these files (exit {FATAL_EXIT}): {said}",
+                file=sys.stderr,
+            )
+            return 4
         report = os.path.join(report_dir, "any-exprs.txt")
         try:
             with open(report, encoding="utf-8") as handle:
@@ -114,7 +163,7 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
         "values": {
             "any_expressions": anys,
             "expressions_total": exprs,
-            "type_coverage_pct": coverage,
+            "type_coverage_pct": coverage if exprs else None,
         },
         "collector": NAME,
         "labels": ["mypy-reported-errors"] if result.returncode != 0 else [],
