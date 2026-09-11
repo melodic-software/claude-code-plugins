@@ -136,6 +136,10 @@ configuration.
   no artifact covers is `unavailable` with that count; when no artifact was found at all, the
   reason lists every path searched. A lane that left a function unjoined is `partial` for that
   reason too.
+- A row carrying that `N of M` count also says which files: its reason names the first five scope
+  files no artifact mentions (`; missing: a, b, c, d, e, +N more in the JSON`) and the JSON row's
+  `missing` key lists all of them, root-relative and sorted. The count alone cannot tell a test
+  file an artifact never records from a source file the suites never reach; the paths can.
 - Whether the covered code is actually checked by its tests is a different question, and coverage
   alone cannot answer it: a line can execute under a test that asserts nothing.
   `/mutation-testing:audit` owns that question when the `mutation-testing` plugin is installed;

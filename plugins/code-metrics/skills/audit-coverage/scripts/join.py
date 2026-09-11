@@ -90,6 +90,9 @@ crap_module = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(crap_module)
 
 NO_END_LINES = "the resolved collector reports no function end lines"
+# How many of a lane's unmeasured scope files a run-row reason names before
+# it counts the rest; the JSON row carries every one.
+MISSING_SHOWN = 5
 
 
 def normalize(path: str) -> str:
@@ -800,6 +803,16 @@ def join(
     for lane in sorted(lanes):
         files = lanes[lane]
         matched = [path for path in files if path in merged]
+        # The scope files no artifact mentions, root-relative and sorted. The
+        # count alone says how much of the lane went unmeasured; the paths say
+        # which files, which is what a reader needs to tell a test file that
+        # never appears in an artifact from a source file the suites never
+        # reach. The first few ride on the reason; the JSON row carries all.
+        missing = sorted(path for path in files if path not in merged)
+        shown_missing = ", ".join(missing[:MISSING_SHOWN])
+        if len(missing) > MISSING_SHOWN:
+            shown_missing += f", +{len(missing) - MISSING_SHOWN} more in the JSON"
+        missing_note = f"; missing: {shown_missing}" if missing else ""
         if not artifacts:
             status, reason = (
                 "unavailable",
@@ -809,7 +822,7 @@ def join(
             status = "unavailable"
             reason = (
                 f"partial, 0 of {len(files)} scope files present in the artifacts "
-                f"({', '.join(formats)} read)"
+                f"({', '.join(formats)} read){missing_note}"
             )
         elif len(matched) < len(files):
             # Some of the lane was measured and some was not, which is neither
@@ -819,7 +832,7 @@ def join(
             status = "partial"
             reason = (
                 f"partial, {len(matched)} of {len(files)} scope files present "
-                "in the artifacts"
+                f"in the artifacts{missing_note}"
             )
         else:
             status, reason = "ok", None
@@ -840,15 +853,19 @@ def join(
             )
             or None
         )
-        run.append(
-            {
-                "lane": lane,
-                "measure": "coverage",
-                "collector": collector,
-                "status": status,
-                "reason": reason,
-            }
-        )
+        coverage_row: dict[str, Any] = {
+            "lane": lane,
+            "measure": "coverage",
+            "collector": collector,
+            "status": status,
+            "reason": reason,
+        }
+        if artifacts and missing:
+            # Only a row whose reason carries the `N of M` count lists the
+            # files behind it; a no-artifact row names the paths searched
+            # instead, and an `ok` row has nothing to list.
+            coverage_row["missing"] = missing
+        run.append(coverage_row)
         lane_cyclomatic = [
             row for row in cyclomatic if (row.get("lane") or "*") == lane
         ]

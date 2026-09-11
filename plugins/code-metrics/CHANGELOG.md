@@ -32,6 +32,12 @@ All notable changes to the `code-metrics` plugin are documented here. Format fol
   shape, and the file it writes, with whether that file lands on an auto-discovered name; the
   markdown rendering of a no-artifact run ends with a line pointing at that table. The JSON
   document is unchanged and the script still runs nothing.
+- **A partial coverage row says which scope files the artifacts left out.** The row reported
+  `partial, N of M scope files present in the artifacts` and nothing else, so a reader could not
+  tell whether the M minus N were test files no artifact records or source files the suites never
+  reach. The coverage run row now carries an additive `missing` key in the JSON, every absent
+  scope file root-relative and sorted, and its reason names the first five with a `+N more in the
+  JSON` count; a row that found no artifact at all still names the paths searched instead.
 
 ## [0.1.9]
 

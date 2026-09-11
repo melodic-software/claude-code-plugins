@@ -39,6 +39,13 @@ left a function unjoined, naming those functions in the reason. It counts as hav
 so such a run is `partial` rather than `empty`, and it withholds `complete`, so a document can never
 read as complete while one of its own rows says `N of M`.
 
+A coverage row whose reason carries that `N of M scope files` count also carries `missing`, an
+additive key holding every scope file of the lane that no artifact mentions, root-relative and
+sorted; the reason names the first five and counts the rest (`; missing: a, b, c, d, e, +N more in
+the JSON`). The key is absent on an `ok` row, on a row that found no artifact at all (its reason
+lists the paths searched instead), and on the lane's `crap` row, which repeats the coverage reason
+verbatim when coverage is what it lacks.
+
 ## `measures[]` rows
 
 Common fields: `file`, `function` (`null` for a per-file row), `lane`, `values` (measure name to

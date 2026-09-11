@@ -902,6 +902,56 @@ class RunRowTests(unittest.TestCase):
             "partial, 1 of 2 scope files present in the artifacts", row["reason"]
         )
 
+    def test_a_partial_row_lists_the_missing_scope_files(self) -> None:
+        names = ["g", "b", "e", "a", "d", "c", "f"]
+        with tempfile.TemporaryDirectory() as tmp:
+            case = JoinCase(tmp).complexity(
+                [
+                    complexity_row(f"src/{n}.ts", "fn", 1, 3, "typescript", 2)
+                    for n in names
+                ]
+            )
+            document = case.artifact(
+                "lcov", {"src/a.ts": {"lines": {"1": 1}, "functions": None}}
+            ).join()
+        rows = {r["measure"]: r for r in document["run"]}
+        coverage, crap = rows["coverage"], rows["crap"]
+        # The count says how much of the lane went unmeasured; the paths say
+        # which files, so the JSON carries every one, sorted, and the markdown
+        # reason names the first five and counts the rest.
+        self.assertEqual(
+            coverage["missing"],
+            [f"src/{n}.ts" for n in ("b", "c", "d", "e", "f", "g")],
+        )
+        self.assertIn(
+            "partial, 1 of 7 scope files present in the artifacts; "
+            "missing: src/b.ts, src/c.ts, src/d.ts, src/e.ts, src/f.ts, "
+            "+1 more in the JSON",
+            coverage["reason"],
+        )
+        # The crap row repeats the coverage reason when coverage is what it
+        # lacks, and leaves the list itself to the coverage row.
+        self.assertEqual(crap["reason"], coverage["reason"])
+        self.assertNotIn("missing", crap)
+
+    def test_an_ok_row_and_a_no_artifact_row_carry_no_missing_key(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ok = (
+                JoinCase(tmp)
+                .complexity([complexity_row("src/a.ts", "fn", 1, 3, "typescript", 2)])
+                .artifact("lcov", {"src/a.ts": {"lines": {"1": 1}, "functions": None}})
+                .join()
+            )
+        with tempfile.TemporaryDirectory() as tmp:
+            none = (
+                JoinCase(tmp)
+                .complexity([complexity_row("src/a.ts", "fn", 1, 3, "typescript", 2)])
+                .join("--searched", "coverage/lcov.info")
+            )
+        for document in (ok, none):
+            row = [r for r in document["run"] if r["measure"] == "coverage"][0]
+            self.assertNotIn("missing", row)
+
     def test_a_lane_matched_by_nothing_is_unavailable_with_its_count(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             document = (
