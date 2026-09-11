@@ -17,15 +17,17 @@ needs; `/planning:plan` consumes it.
 
 ```text
 line        := comment | blank | single | cluster
-single      := path-within-plugin                       # unchanged meaning
-cluster     := canonical-path SP+ member (SP+ member)*  # two or more whitespace-separated tokens
+single      := path-within-plugin                          # whole line, spaces included; unchanged
+cluster     := canonical-path " -> " member (SP+ member)*   # the arrow is the marker
 member      := repo-relative path | glob (pathglob.py syntax)
 ```
 
-A group is excluded by a `cluster` line when every instance's repo-relative path matches the
-canonical path or one member, and the instances sit in distinct carrying directories (the prefix in
-front of the matched token; the canonical path's carrying directory is its own parent). The
-`excluded[]` record keeps `{registry, line, path, instances}` with `path` = the line's text.
+Instance paths are normalized to root-relative first (the dispatcher emits them cwd-relative). A
+group is excluded by a `cluster` line when every normalized instance equals the canonical path or
+matches one member, and the instances' `dirname`s are pairwise distinct (the glob matcher anchors
+the whole path, so the single-token line's "prefix before the suffix" rule does not transfer). The
+first matching line in file order wins. The `excluded[]` record keeps
+`{registry, line, path, instances}` with `path` = the line's text.
 
 ### Clone-group row after clustering (unchanged schema, N instances)
 
@@ -48,10 +50,15 @@ pair. Rows from `dupl` and `cpd` pass through untouched (already N-ary).
 ```
 
 Adapter to dispatcher channel: the adapter writes the skip note to the path in
-`CODE_METRICS_RUN_NOTE_FILE` (set by `dispatch.sh` per lane/measure/tool); when the file is
-non-empty after a successful collect, `dispatch.sh` writes the run row as `partial` with that text.
-When the pre-filter leaves zero files, the adapter writes the note and exits 0 without invoking the
-tool; the row is `partial` and no `exit 3` occurs.
+`CODE_METRICS_PARTIAL_REASON_FILE` (set by `dispatch.sh` per lane/measure/tool, in a work dir
+that is fresh per run); when the file is non-empty after a successful collect, `dispatch.sh` writes
+the run row as `partial` with that text. When the variable is unset the note goes to stderr and is
+never a failure. When the pre-filter leaves zero files, the adapter writes the note and exits 0
+without invoking the tool; the row is `partial` and no `exit 3` occurs. A failed probe's run row
+carries the adapter's install hint in an additive `hint` field beside the unchanged `reason`.
+
+The merged clone-group row's instances are sorted by `(file, start_line)`, so the first instance
+is the same whichever jscpd major produced the pairs (4.x hubs on the last input, 5.x on the first).
 
 ### Summary additions (additive `code-metrics/v1`)
 
