@@ -13,13 +13,13 @@ resume-before-discard ordering. The file is
 [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md).
 This file does not restate it.
 
-## Discipline liveness — why a token at all
+## Discipline liveness: why a token at all
 
 A `skills:` entry that is missing or disabled is **skipped silently**: the harness logs a warning to
 the debug log and starts the agent regardless. The dated record for that harness behavior is
 [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
 "Harness facts the dispatch design rests on". The resulting run has no exploration dimensions, no
-output format, and no outcome gate — and it still reads the tree, still writes an artifact, and
+output format, and no outcome gate, and it still reads the tree, still writes an artifact, and
 still returns a payload with `status: complete`. At every seam this design builds, that failure is
 indistinguishable from success, and the artifact it produces is shaped by the dispatch prompt's
 description of the deliverable rather than by the contract.

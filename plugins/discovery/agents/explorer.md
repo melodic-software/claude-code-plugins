@@ -205,7 +205,7 @@ here; that is the entire point of dispatching you.
 
 ```yaml
 preload_token: <echoed verbatim from the skill file, or MISSING>
-preload: fired              # fired | fallback — how the skill body reached you; never inferred from the token
+preload: fired              # fired | fallback, how the skill body reached you; never inferred from the token
 scope_as_received: <the scope from your dispatch prompt, verbatim>
 status: complete            # complete | truncated
 persistence: written        # written | by-value
@@ -237,9 +237,11 @@ more read.
 **Do not rely on budgeting a turn at the end for it.** You cannot observe your own remaining turn
 budget, so "leave a turn spare" is a schedule against a limit you cannot see. Instead **emit the
 payload block early and keep it current**: as soon as the scope is resolved, write the block with
-`status: truncated`, `preload_token` echoed, `scope_as_received` quoted, and the fields you do not
-have yet left as placeholders; then re-emit it, updated, whenever a section lands. A stop at any
-point after that leaves the parent a well-formed payload instead of silence.
+`status: truncated`, `preload_token` echoed, `preload:` set, `scope_as_received` quoted, and the
+fields you do not have yet left as placeholders; then re-emit it, updated, whenever a section lands.
+A stop at any point after that leaves the parent a well-formed payload instead of silence. Setting
+`preload:` in the early block matters most on the fallback path: an interrupted recovery that
+copied the template's default would report `fired` for a body it Read from disk.
 
 ### `persistence:` when the work finished but the write did not
 

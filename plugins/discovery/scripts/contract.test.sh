@@ -260,6 +260,8 @@ else
 fi
 assert_present 'researcher payload contract carries preload: fired|fallback' \
   'agents/researcher.md' 'preload: fired'
+assert_present 'researcher early-emission checklist sets preload: beside the token' \
+  'agents/researcher.md' '`preload_token` echoed, `preload:` set'
 assert_present 'research SKILL.md demotes the token to file-identity' \
   'skills/research/SKILL.md' 'file-identity, \*\*not\*\* proof that preload fired'
 assert_present 'research SKILL.md requires the structured preload field' \
@@ -277,6 +279,8 @@ assert_present 'explorer reads the skill body from disk when preload did not del
   'agents/explorer.md' 'skills/explore/SKILL\.md'
 assert_present 'explorer payload contract carries preload: fired|fallback' \
   'agents/explorer.md' 'preload: fired'
+assert_present 'explorer early-emission checklist sets preload: beside the token' \
+  'agents/explorer.md' '`preload_token` echoed, `preload:` set'
 assert_present 'explorer never reports a token it Read from disk as fired' \
   'agents/explorer.md' 'Never treat a token you found by'
 assert_present 'explore SKILL.md demotes the token to file-identity' \
@@ -296,6 +300,8 @@ else
 fi
 assert_present 'intent-tracer payload contract carries preload: fired|fallback' \
   'agents/intent-tracer.md' 'preload: fired'
+assert_present 'intent-tracer early-emission checklist sets preload: beside the token' \
+  'agents/intent-tracer.md' '`preload_token` echoed, `preload:` set'
 assert_present 'trace-intent SKILL.md demotes the token to file-identity' \
   'skills/trace-intent/SKILL.md' 'file-identity, \*\*not\*\* proof that preload fired'
 assert_present 'trace-intent SKILL.md requires the structured preload field' \
