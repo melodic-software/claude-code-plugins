@@ -11,6 +11,25 @@ All notable changes to the `claude-memory` plugin are documented here. Format fo
   prose (the audit skill's criteria and official-guidance references, and its bloated-CLAUDE.md
   eval fixture) are rewritten as a comma, a period, a colon where a definition or list follows, or
   a restructured sentence. No criterion, threshold, or eval expectation changed.
+- **Forty-seven quotation attributions render as their own paragraph.** The two
+  `official-guidance.md` references carried `> — <source>` attribution lines inside blockquotes.
+  Rather than rewriting an attribution, each now sits after a blank `>` line, six of them at a list
+  item's continuation indent so the surrounding list does not end.
+- **The bloated-CLAUDE.md eval fixture holds its shape.** Its file length stays at 259 lines so
+  eval 12's "more than 200 visible lines" expectation still fires, and the section names, runbook
+  path, and `pnpm build:proto` gotcha that case pins are untouched.
+- **Reflexive `load-bearing` and `seam` become the concrete thing.** "the topic-docs seam" keeps
+  its name: it is this repository's term for that config surface, used verbatim in
+  `orphan-rule-check.sh` and `lib/parse-concern-value.sh`.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`,** so the gate defends
+  it from here on.
+- **Changelog, in-place wording corrections to released entries:** the same rewrite was applied
+  inside
+  `[0.11.0]`, `[0.10.0]`, `[0.9.2]`, `[0.9.0]`, `[0.8.1]`, `[0.8.0]`, `[0.7.1]`, `[0.7.0]`,
+  `[0.6.0]`, `[0.5.9]`, `[0.5.8]`, `[0.5.7]`, `[0.5.6]`, `[0.5.5]`, `[0.5.4]`, `[0.5.3]`,
+  `[0.5.2]`, `[0.5.1]`, `[0.5.0]`, `[0.4.1]`, `[0.4.0]`, `[0.3.5]`, `[0.3.4]`, `[0.3.3]`,
+  `[0.3.1]`, `[0.3.0]`, `[0.2.3]`, `[0.2.1]`, `[0.2.0]`, and `[0.1.0]`. Wording only; every entry's
+  facts are unchanged.
 
 ## [0.12.0]
 

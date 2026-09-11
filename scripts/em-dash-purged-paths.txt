@@ -88,6 +88,12 @@ docs/conventions/tracker-reference-form/*.md
 docs/conventions/untrusted-content/*.md
 docs/conventions/upstream-drift/*.md
 docs/conventions/windows-path-emit/*.md
+# The design specs under docs/specs were purged whole. Five regions keep their em dashes inside
+# markers: quotations of the #3118 detector table, the #3124 brief, and three spans of the measured
+# corpus at revision dff09429, which the committed harness reproduces byte for byte. Rewriting
+# those would desync the record from what it measured.
+docs/specs/*.md
+docs/specs/*/*.md
 
 # Plugin instruction surfaces, purged in the campaign's per-plugin shards. The
 # skills glob is intentionally open: a NEW skill added to one of these plugins
@@ -126,7 +132,12 @@ plugins/claude-config/skills/*/SKILL.md
 plugins/claude-config/skills/*/context/*.md
 plugins/claude-config/skills/*/reference/*.md
 plugins/claude-config/skills/*/templates/*.md
-plugins/claude-memory/README.md
+# The claude-memory plugin was purged whole, its audit eval fixture included.
+plugins/claude-memory/*.md
+plugins/claude-memory/skills/*/SKILL.md
+plugins/claude-memory/skills/*/context/*.md
+plugins/claude-memory/skills/*/reference/*.md
+plugins/claude-memory/skills/audit/evals/fixtures/*.md
 # The claude-ops plugin was purged whole, its changelog eval fixtures included.
 plugins/claude-ops/*.md
 plugins/claude-ops/skills/*/SKILL.md
@@ -238,8 +249,14 @@ plugins/miro/README.md
 plugins/mutation-testing/README.md
 plugins/naming/README.md
 plugins/naming/skills/*/SKILL.md
-plugins/overengineering/README.md
+# The overengineering plugin was purged whole. The findings-artifact member-entry template keeps
+# its em dashes: there they are field delimiters, and the prose below the fence defines the parse
+# by counting them. Fenced blocks are detector-exempt, so the gate honours that.
+plugins/overengineering/*.md
+plugins/overengineering/context/*.md
+plugins/overengineering/reference/*.md
 plugins/overengineering/skills/*/SKILL.md
+plugins/overengineering/skills/*/context/*.md
 plugins/performance/README.md
 plugins/performance/skills/*/SKILL.md
 # The planning plugin was purged whole. `reference/` is declared file by file rather than by a

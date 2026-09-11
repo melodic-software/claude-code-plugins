@@ -8,6 +8,25 @@ All notable changes to the `overengineering` plugin are documented here. Format 
 ### Changed
 
 - **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
+- **Every markdown surface in the plugin passes `/ai-slop:audit`.** Em dashes in the plugin's own
+  prose (this changelog, the scrutiny method, findings artifact, product-code and justification
+  lanes, the consumer-config and topic-docs references, and the audit and delta skill contexts) are
+  rewritten as a comma, a period, a colon where a definition or list follows, or a restructured
+  sentence. Roughly thirty headings took the colon or comma form, each with its in-file Contents
+  list updated in the same pass; no other file links any of those anchors. No verdict, evidence
+  class, liveness rule, threshold, or layer definition changed.
+- **The findings-artifact member-entry template keeps its em dashes, deliberately.** In that fenced
+  block the dashes are field delimiters, and the prose directly below it reads "everything after
+  the second em dash is prose". Rewriting them would change the artifact's parse contract rather
+  than its wording, so the template is unchanged and the sentence describing it stays accurate.
+- **`seam` keeps its place where it names the Feathers testing term** ("testability seams", "the
+  seams that make code testable"), which the surrounding text defines. Reflexive uses elsewhere
+  became the concrete thing.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`,** so the gate defends
+  it from here on.
+- **Changelog, in-place wording corrections to released entries:** the same rewrite was applied
+  inside `[0.3.0]`, `[0.2.1]`, `[0.2.0]`, `[0.1.1]`, and `[0.1.0]`. Wording only; every entry's
+  facts are unchanged.
 
 ## [0.4.8]
 
