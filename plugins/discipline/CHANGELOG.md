@@ -504,7 +504,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   (`#1621`).** The runbook said "if forks are unavailable, report that the inheriting audit
   fan-out cannot run and stop," but no part of the plugin defined how to determine that.
   A rule whose guard cannot be evaluated is inert, not merely under-specified: the path that
-  actually ran was the blind one: non-inheriting subagents fabricating ledgers from their
+  actually ran was the blind one, with non-inheriting subagents fabricating ledgers from their
   system prompt, merged at step 3 and **written to the working tree** at step 4. Observed, not
   hypothetical: a real full-batch run dispatched eight forks, all eight came back with no
   inherited conversation, and only two subagents' refusal to invent a ledger stopped eight
@@ -594,7 +594,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 
 ### Added
 
-- **`sweep-all` evals: two entries for paths every existing eval assumed away**: the
+- **`sweep-all` evals: two entries for paths every existing eval assumed away.** They cover the
   failed-canary degrade, and the fork tool pool being verified rather than enforced.
 
 ## [0.9.0]
@@ -691,8 +691,8 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   re-derived / needs-confirm verdict rather than a fabricated citation.
 - **Configurable verification depth** for `do-your-research-deep`, the expensive
   tier by design. New `research_deep_verification` `userConfig` scalar (the plugin's
-  fourth option): `tiered` (the default: resolve trivial and non-load-bearing items
-  inline, fan subagents out only over load-bearing ones) or `full` (subagent-verify
+  fourth option): `tiered` (the default, resolving trivial and non-load-bearing items
+  inline and fanning subagents out only over load-bearing ones) or `full` (subagent-verify
   every item). An invocation argument (`argument-hint: [tiered|full]`) overrides the
   configured default; an empty value, an unexpanded token, or an unrecognized string
   all fall back to `tiered` without erroring. Existing wave-throttle, failed-subset
