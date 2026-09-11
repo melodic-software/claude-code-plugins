@@ -188,9 +188,17 @@ The claude-ops reference sink reads the spine key first and falls back to `data.
 key the nine claude-ops audit hooks added under the additive rule before 1.1 and still send: an
 envelope carrying a well-formed id is appended to `<root>/sessions/<session_id>.jsonl` beside the
 per-session event log, and an envelope without one (a producer on 1.0, or a hook whose payload
-carries no session) goes to the shared `<root>/hook-events.jsonl` in the legacy shape. The
-per-session report therefore covers every fleet producer from their 1.1 versions on (#3758, which
-finishes the thread #930 opened).
+carries no session) goes to the shared `<root>/hook-events.jsonl`. The per-session report therefore
+covers every fleet producer from their 1.1 versions on (#3758, which finishes the thread #930
+opened).
+
+A sink's own store shape is the sink's business, not this contract's. A store a reader has to
+reconcile per query is the sink's own defect. The claude-ops reference sink writes ONE record shape
+on both routes, alongside the per-session event log's rows: the routes differ by destination and by
+whether the record carries `session_id`, and `hook_event_name` names the event on every row, so no
+reader normalizes an event key. The key set and the group each route contributes are stated once,
+where the formatter every writer calls lives:
+`plugins/claude-ops/hooks/session-log-lib.sh` (`slog_event_record_to`).
 
 ## Implementers
 

@@ -3,7 +3,7 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.48.1]
+## [0.48.2]
 
 ### Changed
 
@@ -57,6 +57,33 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   drops the filler phrase `in order to` (`to recompute a block the caller was already holding`).
   Wording only; the entry's facts are unchanged. Found by the repo-wide `/ai-slop:audit` run
   (#3987).
+
+## [0.48.1]
+
+### Changed
+
+- **Seven thin audit hooks collapsed into one event-dispatching emitter.**
+  Each hook was a near-copy of its siblings differing only in the event it
+  answered and the fields it reported, so a fix to the envelope had to be
+  applied seven times. One emitter now dispatches all seven rows. Every
+  envelope is byte-identical to the one its hook produced, verified per row.
+- **Every JSONL record is built by one formatter.** The record shape was
+  spelled at each write site, so a field could be added in one place and
+  missed in another. Writers now hand fields to one formatter that builds and
+  escapes the line from shell builtins, which also removes a `jq` process per
+  event from the telemetry sink.
+- **The skill-usage store path is resolved by one policy for the writer and
+  the reader.** The two had resolved it separately, so a configuration that
+  moved the store could be honored by one and not the other. The reader's
+  `--print-store` arm, which is how the Python auditor gets that one path,
+  needs no `jq`: it resolves and prints, and only the report reads the store.
+  The skill body's own call now passes `--data-root`, which the `data-dir`
+  scope requires and the other two ignore, so one documented command serves
+  every scope.
+- **Vendored `hook-utils.sh` refresh**, carrying the shared library's single
+  exit arm, its ceiling-bounded parent walk, and the retirement of seven
+  value-printing helpers that only wrapped their caller-writes-to-a-variable
+  twin.
 
 ## [0.48.0]
 

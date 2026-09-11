@@ -3,7 +3,7 @@
 All notable changes to the `biome-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.6.44]
+## [0.6.45]
 
 ### Changed
 
@@ -13,6 +13,24 @@ All notable changes to the `biome-format` plugin are documented here. Format fol
 - **The plugin's prose drops its em dashes.** This changelog and `skills/setup/SKILL.md` were rewritten. Wording only, with no change to any hook, extension filter, or config opt-in. The quoted emitted string `Formatting with Biome...` still matches all ten `statusMessage` values in `hooks/hooks.json`, and no heading was touched. Shared vendored `hook-utils.sh` entries take the wording already-purged siblings settled on. The released sections corrected in place are 0.6.33, 0.6.19, 0.6.17, 0.6.5, 0.6.3, 0.6.2, 0.6.1, 0.6.0, 0.5.9, 0.5.8, 0.5.7, 0.5.6, 0.5.5, 0.5.4, 0.5.2, 0.5.1, 0.5.0, 0.4.0, and 0.2.0: their wording changed, their facts did not.
 - **Two entries say what they mean instead of reaching for jargon.** The 0.5.8 temp-tree exemption is "deliberate and required", and the 0.2.0 entry reads "Consumer-side telemetry through `HOOK_TELEMETRY_SINK` is unaffected".
 - **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md` and every `skills/*/SKILL.md`.
+
+## [0.6.44]
+
+### Changed
+
+- **The hook's exit arms go through the shared `hook::finish`**, which takes
+  the rewrite guard's disclosure, emits telemetry with the arm's verdict,
+  emits exactly one channels document and exits, instead of each arm spelling
+  that sequence itself.
+- **Running the formatter, accumulating its output, classifying the outcome
+  and encoding findings moved behind a shared engine.** This hook states only
+  its invocation, its exit-code map and its message text. The missing-binary
+  notice comes from the same place as its siblings'.
+- **The config walk and the `node_modules/.bin` walk go through
+  `hook::walk_up_to`, which requires a ceiling.** A walk whose ceiling does
+  not resolve now stops rather than continuing to the filesystem root, so the
+  hook cannot adopt configuration from directories the repository does not
+  own.
 
 ## [0.6.43]
 

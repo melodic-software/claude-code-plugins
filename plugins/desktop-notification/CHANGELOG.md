@@ -3,7 +3,7 @@
 All notable changes to the `desktop-notification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.6.38]
+## [0.6.39]
 
 ### Changed
 
@@ -13,6 +13,17 @@ All notable changes to the `desktop-notification` plugin are documented here. Fo
 - **The plugin's prose drops its em dashes.** This changelog and `skills/setup/SKILL.md` were rewritten. Wording only, with no change to any channel, gate, or notification text. Every emitted string quoted in prose is byte-identical, and no heading was touched. The released sections corrected in place are 0.6.30, 0.6.17, 0.6.15, 0.6.5, 0.6.3, 0.6.2, 0.6.1, 0.6.0, 0.5.10, 0.5.9, 0.5.8, 0.5.6, 0.5.5, 0.5.3, 0.5.2, 0.5.1, 0.5.0, 0.4.3, 0.4.0, and 0.2.0: their wording changed, their facts did not.
 - **Two entries say what they mean instead of reaching for jargon.** The temp-tree exemption is "deliberate and required", and the 0.2.0 entry reads "Consumer-side telemetry through `HOOK_TELEMETRY_SINK` is unaffected", the wording its sibling plugins share.
 - **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md` and every `skills/*/SKILL.md`.
+
+## [0.6.38]
+
+### Changed
+
+- **Vendored `hook-utils.sh` refresh.** The shared library gained one exit arm
+  (`hook::finish`) and one ceiling-bounded parent walk (`hook::walk_up_to`),
+  and retired seven value-printing helpers whose whole body called their
+  caller-writes-to-a-variable twin, so each call site stops paying a subshell
+  fork for a value the shell already has. This plugin's own hooks are
+  unchanged; the version moves so consumers receive the library.
 
 ## [0.6.37]
 

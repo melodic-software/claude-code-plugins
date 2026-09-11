@@ -56,7 +56,7 @@ scope precedence, never from `list`/`details` text.
 never matches on Windows: the in-repo detection this skill's primary value depends on (Step 2 of
 `sync.md`) would quietly no-op, and nobody would notice because the *rest* of sync (marketplace
 refresh, user-scope sweep) still runs and still produces *a* report. `fleet-state.sh` avoids this by
-routing both sides through `hook::normalize_path` (from the plugin's own `hooks/hook-utils.sh`
+routing both sides through `hook::normalize_path_to` (from the plugin's own `hooks/hook-utils.sh`
 copy) before comparing, empirically verified to fold both representations to the identical
 canonical string. Never hand-roll a separate path comparison anywhere else in this skill; always go
 through the `currentProject` field `fleet-state.sh` already computed.

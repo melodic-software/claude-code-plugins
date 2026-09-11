@@ -5,7 +5,7 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.7.55]
+## [0.7.56]
 
 ### Changed
 
@@ -38,6 +38,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `[0.1.0]`. Wording only; every entry's facts are unchanged, verified by a case-insensitive
   word-level diff against the fork point: the only tokens that leave the file are the `seam` and
   `load-bearing` replacements named above.
+
+## [0.7.55]
+
+### Changed
+
+- **Vendored `hook-utils.sh` refresh.** The shared library gained one exit arm
+  (`hook::finish`) and one ceiling-bounded parent walk (`hook::walk_up_to`),
+  and retired seven value-printing helpers whose whole body called their
+  caller-writes-to-a-variable twin, so each call site stops paying a subshell
+  fork for a value the shell already has. This plugin's own hooks are
+  unchanged; the version moves so consumers receive the library.
 
 ## [0.7.54]
 

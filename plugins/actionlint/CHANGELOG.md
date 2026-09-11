@@ -3,7 +3,7 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.8.45]
+## [0.8.46]
 
 ### Changed
 
@@ -13,6 +13,28 @@ All notable changes to the `actionlint` plugin are documented here. Format follo
 - **The plugin's prose drops its em dashes.** This changelog and `skills/setup/SKILL.md` were rewritten. Wording only, with no change to any hook, matcher, or workflow filter. No heading was touched, so every release still parses, and the setup body keeps every trigger phrase byte-identical. The released sections corrected in place are 0.8.34, 0.8.18, 0.8.16, 0.8.5, 0.8.3, 0.8.2, 0.8.1, 0.8.0, 0.7.8, 0.7.7, 0.7.6, 0.7.5, 0.7.4, 0.7.3, 0.7.1, 0.7.0, 0.6.0, 0.5.2, 0.5.1, 0.5.0, 0.4.0, and 0.2.0: their wording changed, their facts did not.
 - **Two entries say what they mean instead of reaching for jargon.** The 0.7.7 temp-tree exemption is "deliberate and required", and the 0.2.0 entry reads "Consumer-side telemetry through `HOOK_TELEMETRY_SINK` is unaffected", the wording its sibling plugins share.
 - **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md` and every `skills/*/SKILL.md`.
+
+## [0.8.45]
+
+### Changed
+
+- **The hook's exit arms go through the shared `hook::finish`**, which emits
+  telemetry with the arm's verdict, emits exactly one channels document and
+  exits, instead of each arm spelling that sequence itself.
+- **Running the linter, accumulating its output, classifying the outcome and
+  encoding findings moved behind a shared engine.** This hook states only its
+  invocation, its exit-code map and its message text. The missing-binary
+  notice comes from the same place as its siblings'.
+- **Emitting accumulated context no longer forks `jq`.** The accumulator's
+  flush now composes through the fork-free emitter that builds the same
+  document, which removes one process from every run that emits context.
+- **One glob list serves both of the hook's gates, and it names the separator
+  a workflow path actually has.** The jq-free pre-filter reads the payload's
+  JSON string literal, where a Windows separator is escaped, so the list used
+  to be written loose on separators to survive normalizing each escaped
+  backslash into two slashes. The shared pre-filter collapses that escape
+  before matching, so `*/.github/workflows/*.yml` is now the spelling in both
+  places.
 
 ## [0.8.44]
 

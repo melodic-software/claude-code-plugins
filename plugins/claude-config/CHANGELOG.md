@@ -3,7 +3,7 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.42.1]
+## [0.42.2]
 
 ### Changed
 
@@ -36,6 +36,15 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   `[0.17.0]`, `[0.16.0]`, `[0.15.0]`, `[0.14.0]`, `[0.13.0]`, `[0.12.0]`, `[0.11.0]`,
   `[0.10.0]`, `[0.9.2]`, `[0.9.0]`, `[0.8.1]`, `[0.8.0]`, `[0.7.0]`, and `[0.6.0]`. Wording
   only; every entry's facts are unchanged.
+
+## [0.42.1]
+
+### Changed
+
+- **The audit-pass skill body names the check-script calling contract** the
+  repository now states in one place: exit 0 clean, 1 findings, 2 environment
+  or usage, with findings on stderr. The skill previously relied on each
+  check script's own header, which four scripts disagreed with.
 
 ## [0.42.0]
 

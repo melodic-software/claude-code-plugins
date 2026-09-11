@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Contract test for hook-telemetry-sink.sh (claude-ops plugin). Black-box.
-# The sink reads one envelope on stdin and appends one line: to
-# <root>/hook-events.jsonl (legacy shape) when the envelope carries no
-# data.session_id, to <root>/sessions/<session_id>.jsonl (spine shape) when it
-# does. <root> is .observability/claude under the project.
+# The sink reads one envelope on stdin and appends one line in the hook event
+# record shape session-log-lib.sh documents: to <root>/hook-events.jsonl when
+# the envelope carries no session id, to <root>/sessions/<session_id>.jsonl
+# when it does. <root> is .observability/claude under the project.
 set -uo pipefail
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -31,15 +31,34 @@ run_sink() {
   printf '%s\n' "$line" | env CLAUDE_PROJECT_DIR="$proj" bash "$SINK" >/dev/null 2>&1
 }
 
+# The hook event record schema session-log-lib.sh documents, as one jq -e over
+# every line of a store. `source: "envelope"` rows describe a hook run, so they
+# carry the run group; the retired `event` key must be absent, which is what
+# lets a reader query `.hook_event_name` with no normalization prelude.
+RECORD_SCHEMA='(.ts|type)=="string" and (.hook_event_name|type)=="string"
+  and (.status|type)=="string" and .source=="envelope"
+  and ((.duration_ms|type)=="number" or .duration_ms==null)
+  and (has("event")|not)
+  and (.hook|type)=="string" and (.exit_code|type)=="number"
+  and (.subject|type)=="string" and (.tool|type)=="string"'
+
+# assert_record <label> <file> [<extra jq clause>]
+assert_record() {
+  jq -e -s "all(.[]; $RECORD_SCHEMA${3:+ and ($3)})" "$2" >/dev/null 2>&1
+  assert_exit "$1" 0 "$?"
+}
+
 ROOT_REL=".observability/claude"
 
 # --- ok → status success, exit_code 0, field mapping (legacy route) ---------
-P="$TEST_TMPDIR/p1"; mkdir -p "$P"
+P="$TEST_TMPDIR/p1"
+mkdir -p "$P"
 run_sink "$P" "$(envelope config-change-audit ConfigChange ok 4 project_settings '')"
 LOG="$P/$ROOT_REL/hook-events.jsonl"
 if [[ -s "$LOG" ]]; then
   assert_eq "ts mapped from timestamp" "2026-07-12T00:00:00Z" "$(jq -r '.ts' "$LOG")"
-  assert_eq "event from hook_event" "ConfigChange" "$(jq -r '.event' "$LOG")"
+  assert_eq "hook_event_name from hook_event" "ConfigChange" "$(jq -r '.hook_event_name' "$LOG")"
+  assert_record "legacy route: the line satisfies the record schema" "$LOG" '.source=="envelope"'
   assert_eq "hook mapped" "config-change-audit" "$(jq -r '.hook' "$LOG")"
   assert_eq "duration_ms mapped" "4" "$(jq -r '.duration_ms' "$LOG")"
   assert_eq "subject from data" "project_settings" "$(jq -r '.subject' "$LOG")"
@@ -51,7 +70,8 @@ fi
 assert_file_absent "old .claude/observability path is no longer written" "$P/.claude/observability/hook-events.jsonl"
 
 # --- error → status error, exit_code 2 -------------------------------------
-P2="$TEST_TMPDIR/p2"; mkdir -p "$P2"
+P2="$TEST_TMPDIR/p2"
+mkdir -p "$P2"
 run_sink "$P2" "$(envelope tool-failure-audit PostToolUseFailure error 5 Bash:dotnet Bash)"
 LOG2="$P2/$ROOT_REL/hook-events.jsonl"
 assert_eq "error → status error" "error" "$(jq -r '.status' "$LOG2")"
@@ -59,14 +79,16 @@ assert_eq "error → exit_code 2" "2" "$(jq -r '.exit_code' "$LOG2")"
 assert_eq "tool mapped from data" "Bash" "$(jq -r '.tool' "$LOG2")"
 
 # --- blocked → status blocked preserved, exit_code 2 -----------------------
-P3="$TEST_TMPDIR/p3"; mkdir -p "$P3"
+P3="$TEST_TMPDIR/p3"
+mkdir -p "$P3"
 run_sink "$P3" "$(envelope permission-denied-audit PermissionDenied blocked 5 Bash:git Bash)"
 LOG3="$P3/$ROOT_REL/hook-events.jsonl"
 assert_eq "blocked → status blocked" "blocked" "$(jq -r '.status' "$LOG3")"
 assert_eq "blocked → exit_code 2" "2" "$(jq -r '.exit_code' "$LOG3")"
 
 # --- Malformed / empty stdin → no crash, no line ---------------------------
-P4="$TEST_TMPDIR/p4"; mkdir -p "$P4"
+P4="$TEST_TMPDIR/p4"
+mkdir -p "$P4"
 printf 'not json\n' | env CLAUDE_PROJECT_DIR="$P4" bash "$SINK" >/dev/null 2>&1
 RC=$?
 assert_exit "malformed stdin → exit 0" 0 "$RC"
@@ -76,12 +98,14 @@ printf '' | env CLAUDE_PROJECT_DIR="$P4" bash "$SINK" >/dev/null 2>&1
 assert_exit "empty stdin → exit 0" 0 "$?"
 
 # --- Missing required envelope key → dropped -------------------------------
-P5="$TEST_TMPDIR/p5"; mkdir -p "$P5"
+P5="$TEST_TMPDIR/p5"
+mkdir -p "$P5"
 printf '%s\n' '{"schema_version":"1.0","hook":"x"}' | env CLAUDE_PROJECT_DIR="$P5" bash "$SINK" >/dev/null 2>&1
 assert_file_absent "incomplete envelope → no line" "$P5/$ROOT_REL/hook-events.jsonl"
 
 # --- data.session_id routes the line per session, in the spine shape --------
-P6="$TEST_TMPDIR/p6"; mkdir -p "$P6"
+P6="$TEST_TMPDIR/p6"
+mkdir -p "$P6"
 run_sink "$P6" "$(envelope api-error-audit StopFailure error 3 rate_limit '' '"session_id":"sess-42"')"
 SLOG="$P6/$ROOT_REL/sessions/sess-42.jsonl"
 if [[ -s "$SLOG" ]]; then
@@ -95,13 +119,15 @@ if [[ -s "$SLOG" ]]; then
   assert_eq "per-session: status mapped" "error" "$(jq -r .status "$SLOG")"
   assert_eq "per-session: exit_code derived" "2" "$(jq -r .exit_code "$SLOG")"
   assert_eq "per-session: no changed key when the producer sent none" "false" "$(jq 'has("changed")' "$SLOG")"
+  assert_record "per-session route: the line satisfies the record schema" "$SLOG" '(.session_id|type)=="string"'
 else
   bad "per-session route wrote nothing at $SLOG"
 fi
 assert_file_absent "per-session route writes no legacy line" "$P6/$ROOT_REL/hook-events.jsonl"
 
 # --- a 1.1 spine session_id routes per session too, and wins over data ------
-P6B="$TEST_TMPDIR/p6b"; mkdir -p "$P6B"
+P6B="$TEST_TMPDIR/p6b"
+mkdir -p "$P6B"
 run_sink "$P6B" "$(envelope bash-format PostToolUse ok 9 s.sh Write | jq -c '.schema_version = "1.1" | . + {session_id: "sess-spine", prompt_id: "p-1"} | .data.session_id = "sess-data"')"
 assert_eq "spine session_id routes the line" "1" "$(wc -l <"$P6B/$ROOT_REL/sessions/sess-spine.jsonl" 2>/dev/null | tr -d ' ')"
 assert_file_absent "spine session_id wins over data.session_id" "$P6B/$ROOT_REL/sessions/sess-data.jsonl"
@@ -116,29 +142,45 @@ assert_eq "changed: false carried" "false" "$(tail -1 "$SLOG" | jq -r .changed)"
 assert_eq "three lines on the session file" 3 "$(wc -l <"$SLOG" | tr -d ' ')"
 
 # --- a malformed session_id falls back to the legacy route ----------------------
-P7="$TEST_TMPDIR/p7"; mkdir -p "$P7"
+P7="$TEST_TMPDIR/p7"
+mkdir -p "$P7"
 run_sink "$P7" "$(envelope api-error-audit StopFailure error 3 rate_limit '' '"session_id":"../escape"')"
 assert_file_absent "hostile session_id → no session file" "$P7/$ROOT_REL/sessions"
 assert_eq "hostile session_id → legacy line" 1 "$(wc -l <"$P7/$ROOT_REL/hook-events.jsonl" | tr -d ' ')"
 
 # --- inside a checkout the root gets its self-ignoring guard; a changed guard refuses
-P8="$TEST_TMPDIR/p8"; mkdir -p "$P8/.git"
+P8="$TEST_TMPDIR/p8"
+mkdir -p "$P8/.git"
 run_sink "$P8" "$(envelope config-change-audit ConfigChange ok 4 project_settings '')"
 assert_eq "checkout: guard healed" "*" "$(head -1 "$P8/$ROOT_REL/.gitignore")"
 assert_eq "checkout: line written" 1 "$(wc -l <"$P8/$ROOT_REL/hook-events.jsonl" | tr -d ' ')"
-P9="$TEST_TMPDIR/p9"; mkdir -p "$P9/.git" "$P9/$ROOT_REL"
+P9="$TEST_TMPDIR/p9"
+mkdir -p "$P9/.git" "$P9/$ROOT_REL"
 printf 'sessions/\n' >"$P9/$ROOT_REL/.gitignore"
 run_sink "$P9" "$(envelope config-change-audit ConfigChange ok 4 project_settings '')"
 assert_file_absent "checkout with an operator's guard → refuses" "$P9/$ROOT_REL/hook-events.jsonl"
 assert_file_absent "no checkout → no guard" "$P/$ROOT_REL/.gitignore"
 
 # --- a configured root is honored; an uncontained one writes nothing ----------
-P10="$TEST_TMPDIR/p10"; mkdir -p "$P10"
+P10="$TEST_TMPDIR/p10"
+mkdir -p "$P10"
 printf '%s\n' "$(envelope config-change-audit ConfigChange ok 4 x '')" |
   env CLAUDE_PROJECT_DIR="$P10" CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_DIR=telemetry/claude bash "$SINK" >/dev/null 2>&1
 assert_eq "configured root honored" 1 "$(wc -l <"$P10/telemetry/claude/hook-events.jsonl" | tr -d ' ')"
 printf '%s\n' "$(envelope config-change-audit ConfigChange ok 4 x '')" |
   env CLAUDE_PROJECT_DIR="$P10" CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_DIR=../up bash "$SINK" >/dev/null 2>&1
 assert_file_absent "uncontained root writes nothing" "$TEST_TMPDIR/up"
+
+# --- a subject carrying JSON metacharacters round-trips ----------------------
+# The line is built from builtins now, so the escaping is the library's, not
+# jq's: a quote, a backslash or a tab in a subject must come back as itself and
+# must not cost the reader the whole file.
+P11="$TEST_TMPDIR/p11"
+mkdir -p "$P11"
+HOSTILE=$'say "hi" \\ here\tand there'
+run_sink "$P11" "$(envelope cli-flag-verify PostToolUse ok 3 "$HOSTILE" Write)"
+LOG11="$P11/$ROOT_REL/hook-events.jsonl"
+assert_record "a metacharacter subject still satisfies the schema" "$LOG11"
+assert_eq "a metacharacter subject round-trips verbatim" "$HOSTILE" "$(jq -r '.subject' "$LOG11")"
 
 report

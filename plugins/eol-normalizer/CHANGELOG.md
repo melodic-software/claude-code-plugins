@@ -3,7 +3,7 @@
 All notable changes to the `eol-normalizer` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.6.44]
+## [0.6.45]
 
 ### Changed
 
@@ -13,6 +13,20 @@ All notable changes to the `eol-normalizer` plugin are documented here. Format f
 - **The plugin's prose drops its em dashes.** This changelog and `skills/setup/SKILL.md` were rewritten. Wording only, with no change to any `.gitattributes` rule, hook arm, or telemetry field. The emitted string `Normalizing line endings...` still matches `hooks/hooks.json` byte for byte, and no heading was touched. Where an entry restates the same vendored `hook-utils.sh` change a sibling plugin carries, this copy takes the wording those already-purged siblings settled on, so the fleet converges rather than splitting. The released sections corrected in place are 0.6.34, 0.6.18, 0.6.16, 0.6.5, 0.6.3, 0.6.2, 0.6.1, 0.6.0, 0.5.9, 0.5.8, 0.5.7, 0.5.6, 0.5.5, 0.5.4, 0.5.2, 0.5.1, 0.5.0, 0.4.0, and 0.2.0: their wording changed, their facts did not.
 - **Two entries say what they mean instead of reaching for jargon.** The 0.5.8 temp-tree exemption is "deliberate and required", and the 0.2.0 entry reads "Consumer-side telemetry through `HOOK_TELEMETRY_SINK` is unaffected".
 - **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md` and every `skills/*/SKILL.md`.
+
+## [0.6.44]
+
+### Changed
+
+- **The hook's prologue moved into the shared `hook::begin`.** Reading the
+  payload once from the inherited descriptor, parsing the tool name and file
+  path from it, and capturing the start time for the duration measurement were
+  hand-written here and in every sibling hook; they now happen in one place.
+
+This hook keeps its own exit arm rather than using the shared `hook::finish`,
+and stays outside the shared formatter engine. Its status is derived from
+whether the file changed, so folding it in would add a status-derivation flag
+no other caller wants, and it runs no formatter binary at all.
 
 ## [0.6.43]
 

@@ -3,7 +3,7 @@
 All notable changes to the `go-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.3.48]
+## [0.3.49]
 
 ### Changed
 
@@ -13,6 +13,32 @@ All notable changes to the `go-format` plugin are documented here. Format follow
 - **The plugin's prose drops its em dashes.** This changelog and `skills/setup/SKILL.md` were rewritten. Wording only, with no change to any hook, extension filter, or local-prefix probe. No heading was touched. Where a sibling plugin's changelog carries the same vendored `hook-utils.sh` entry, this copy takes the wording those siblings already settled on, so the fleet converges rather than splitting. The released sections corrected in place are 0.3.37, 0.3.25, 0.3.20, 0.3.18, 0.3.5, 0.3.3, 0.3.2, 0.3.1, 0.3.0, 0.2.9, 0.2.8, 0.2.7, 0.2.6, 0.2.5, 0.2.4, 0.2.2, 0.2.1, 0.2.0, 0.1.1, and 0.1.0: their wording changed, their facts did not.
 - **The temp-tree exemption is "deliberate and required" rather than load-bearing**, the wording its sibling plugins share.
 - **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md` and every `skills/*/SKILL.md`.
+
+## [0.3.48]
+
+### Fixed
+
+- **Two `jq` processes were spawned per diagnostic-producing edit to build a
+  findings document nothing read.** The guard that skips the findings encode
+  when no telemetry sink is configured was missing here. The encode now sits
+  behind the shared engine's own guard, so it cannot be omitted.
+
+### Changed
+
+- **The hook's exit arms go through the shared `hook::finish`.** Taking the
+  rewrite guard's disclosure, emitting telemetry with the arm's verdict,
+  emitting exactly one channels document and exiting now happen in one place
+  instead of each arm spelling that sequence itself.
+- **Running the formatter, accumulating its output, classifying the outcome
+  and encoding findings moved behind a shared engine.** This hook states only
+  its invocation, its exit-code map and its message text. The missing-binary
+  notice comes from the same place as its siblings'.
+- **The upward walks for configuration and for a tool binary go through
+  `hook::walk_up_to`, which requires a ceiling.** A walk whose ceiling does
+  not resolve now stops rather than continuing to the filesystem root, so the
+  hook cannot adopt configuration from directories the repository does not
+  own. The ceiling is unresolvable only when the repository root is not a
+  directory.
 
 ## [0.3.47]
 

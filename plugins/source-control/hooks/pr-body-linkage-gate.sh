@@ -168,7 +168,8 @@ while [[ "$HOOK_CWD" == *$'\n' ]]; do HOOK_CWD="${HOOK_CWD%$'\n'}"; done
 [[ "$COMMAND" =~ (^|[^[:alnum:]_.-])[Gg][Hh][^[:alnum:]_-] ]] || exit 0
 [[ "$COMMAND" == *"pr"* ]] || exit 0
 
-REPO_ROOT=$(hook::repo_root "${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}")
+REPO_ROOT=""
+hook::repo_root_to REPO_ROOT "${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}" || :
 
 # The consuming repo's own workflows are the authority: the gate runs only
 # where one of them wires in the `pr-contract` composite step. No step, no

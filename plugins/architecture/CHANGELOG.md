@@ -3,11 +3,98 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.8.8]
+## [0.9.1]
 
 ### Changed
 
 - **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
+
+## [0.9.0]
+
+### Added
+
+- **`map-landscape`:** a bare invocation now charts the current repository plus every repository its
+  tracked files reference, one hop out. `--repos` and `--root` stay as explicit overrides, and the
+  working directory is still never walked for nested repositories.
+- **`map-landscape`:** `reference-edges.sh` extracts typed, counted edges from one repository's
+  tracked files. Each type trusts one syntax: `uses-workflow` a workflow `uses:` step,
+  `installs-plugin` a marketplace source, `depends-on` a module path, and `cites` a github.com URL
+  or a bare `owner/repo` whose owner matches the subject's own. Every edge carries the files that
+  support it.
+- **`map-landscape`:** `landscape-record.sh` assembles both collectors into a committed
+  `landscape.json` (schema_version 1) and compares a fresh collection against it. The drift report
+  names repositories and edges added or removed, facts whose value changed, and cited evidence files
+  that no longer exist; `--check` runs the comparison, writes nothing, and exits non-zero on drift.
+- **`map-landscape`:** `render-landscape.sh` renders both dialects and the portfolio table from the
+  record, so the same record and flags produce byte-identical artifacts. It does only work the
+  record decides; prose lives in a `landscape-notes.md` the script appends and never overwrites.
+- **`map-landscape`:** `--out <dir>` overrides the declared architecture home for one run, and
+  `--remote` / `--remote=all` opt in to facts for referenced repositories that are not checked out
+  locally. Both are off by default, and an unflagged run makes no network call.
+- **`map-landscape`:** a fixed closing report: artifacts, repositories charted, edges by type,
+  unknown count, discovery source, remote state, and drift.
+
+### Fixed
+
+- **`map-landscape`:** the extractor no longer reads this skill's own committed artifacts as evidence.
+  Once `landscape.json` was tracked it named every repository it charted, so each run raised every
+  citation count by one and listed the record among its own sources, and the drift gate could never
+  report clean. The record is now a fixed point: regenerating it twice produces byte-identical output.
+- **`map-landscape`:** a drift comparison against a record built with a different remote posture says
+  so. A record carrying remote-sourced repositories would otherwise report every one of them as
+  removed on a local-only run, because no local collection can produce them.
+- **`map-landscape`:** two checkouts sharing a directory basename are reported as an ambiguous
+  identity rather than silently matched onto one row.
+- **`map-landscape`:** a clean comparison that carries non-gating differences no longer claims the
+  record "matches" and then lists what moved.
+- **`map-landscape`:** a repository with no resolvable owner is drawn outside every boundary in both
+  dialects. An enterprise boundary or group is captioned with an organisation, and `unknown` is the
+  absence of one.
+- **`map-landscape`:** the Structurizr artifact carries a `styles` block for its `External` tag.
+  Structurizr removed the internal/external `location` property, so the tag is the only carrier left
+  for that fact, and without a style it rendered nothing.
+- **`map-landscape`:** repository-controlled text can no longer break out of the string literal it
+  is written into. A target framework is read out of a manifest with only XML tags stripped, and a
+  raw quote is legal there; the renderer wrote it straight into a quoted `System(...)` or
+  `softwareSystem` string, so a crafted value could splice arbitrary diagram syntax into a committed
+  artifact. Values are now decoded out of the record and their delimiters replaced for the target
+  grammar, and a pipe is escaped before it lands in a portfolio-table cell.
+- **`map-landscape`:** two repository names differing only in punctuation, `a-b` and `a_b`, no
+  longer collapse onto one diagram identifier. Both dialects declared the system twice and pointed
+  every relationship at whichever declaration won; an alias already handed out is now suffixed.
+- **`map-landscape`:** a quoted `uses:` scalar is read. `uses: "owner/repo/.github/workflows/x.yml@v1"`
+  left the opening quote on the owner segment, which failed the character check and dropped the
+  edge without a word, so a repository writing ordinary quoted YAML charted an incomplete graph.
+- **`map-landscape`:** a checkout on disk is no longer a claim of ownership. Every locally collected
+  repository was marked internal whatever its owner, so a third-party checkout was drawn inside an
+  enterprise boundary while the edges to it said external. The record now names its `subject_owner`,
+  resolved by the edge extractor so the nodes and the edges cannot disagree, and a cross-owner
+  checkout renders as an external system with its probed facts intact. It is drawn whatever
+  `--top-external` says: that cap trims the tail of repositories a run only read about.
+- **`map-landscape`:** `--remote` reaches the record. It recorded only a status string, so fetched
+  facts had nowhere to land and every referenced repository stayed factless however much was
+  fetched. `landscape-record.sh --remote-facts <file>` merges them, a local checkout winning
+  outright over an entry of the same name, and an `archived` repository is marked in the node
+  description and the portfolio row as the remote-facts contract already promised.
+
+### Changed
+
+- **`map-landscape`:** relationships are the extractor's output rather than the model's judgment.
+  An edge is drawn because a script matched a string in a tracked file, and its label is the edge
+  type and reference count.
+- **`map-landscape`:** an other-owner repository renders as an external system and is read-only in
+  every mode. Nothing is written to it, and nothing is fetched from it unless `--remote=all`.
+- **`map-landscape`:** the description leads with single-repository-plus-references, and routes
+  module-level questions, fleet hygiene, organisation settings, and in-repo doc drift to the skills
+  that own them by name.
+- **`map-landscape`:** `portfolio-facts.sh` separates runtime scope from development scope. The
+  record gains `tooling` and `dev_dependencies` beside `runtime` and `dependencies`, each with its
+  own evidence; `target_framework` follows the primary runtime only. Cache and build dot-directories
+  are pruned from the manifest index, the CI and container config directories are kept, and every
+  manifest under a dot-directory is pinned to development scope. A manifest whose only dependency
+  section is `devDependencies` reports tooling rather than a runtime, and a root-level manifest now
+  beats a deeper one instead of whichever sorted first. The portfolio table gains a `Tooling`
+  column.
 
 ## [0.8.7]
 

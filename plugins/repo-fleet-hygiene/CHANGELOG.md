@@ -3,13 +3,29 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.23.23]
+## [0.23.24]
 
 ### Changed
 
 - **The plugin's prose drops its em dashes.** Five surfaces were rewritten: this changelog, `skills/setup/SKILL.md`, and three `skills/audit/reference/` documents. Wording only, with no change to any confidence tier, finding kind, collector, or remedy string. The tier table in `confidence-model.md` keeps every finding-kind name in its first column byte-identical, so the set-equality assertion in `audit-fleet.test.sh` still compares the same names. The released sections corrected in place are 0.23.7, 0.23.5, 0.23.2, 0.23.1, 0.23.0, 0.22.2, 0.22.0, 0.21.0, 0.18.0, 0.14.0, 0.13.1, 0.12.1, 0.12.0, 0.11.0, 0.10.0, 0.9.0, 0.8.0, 0.7.1, 0.7.0, 0.6.0, 0.5.0, 0.4.1, 0.4.0, 0.3.0, and 0.2.0: their wording changed, their facts did not.
 - **`confidence-model.md` says what the merged-PR signal carries instead of calling it load-bearing.** On a squash-merging fleet it is now "the signal the classification rests on", which names the thing the reader needs. The `audit` skill's eval for the same scenario was reworded with it, so the document and the answer it expects still describe the evidence the same way.
 - **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md`, every `skills/*/SKILL.md`, and the `skills/audit/reference/` tree.
+
+## [0.23.23]
+
+### Changed
+
+- **A finding's kind is now a registry entry rather than a hand-written
+  argument tuple at each call site.** Severity, confidence, the branch and
+  worktree actions, and the disposition were repeated at every emit, so the
+  same kind could be emitted with different severities from different places.
+  One registry row per kind now carries them, and emitting a finding names
+  only its kind. Four kinds that genuinely vary keep an explicit form. The
+  registry is printable, so a test can assert against it rather than against a
+  transcript.
+- **Classifying branches and worktrees no longer probes.** Collection gathers
+  the evidence and classification reads it, so the classifier is a pure
+  function of arrays and can be tested without a repository.
 
 ## [0.23.22]
 

@@ -3,7 +3,7 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.11.53]
+## [0.11.54]
 
 ### Changed
 
@@ -12,6 +12,29 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
 - **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
 - **The plugin's prose drops its em dashes.** This changelog and `skills/setup/SKILL.md` were rewritten. Wording only, with no change to any hook, handler, option, or default. Every `## [x.y.z]` heading is byte-identical, so each release still parses. The released sections corrected in place are 0.11.43, 0.11.41, 0.11.35, 0.11.27, 0.11.26, 0.11.24, 0.11.23, 0.11.22, 0.11.21, 0.11.18, 0.11.17, 0.11.8, 0.11.7, 0.11.5, 0.11.4, 0.11.3, 0.11.2, 0.11.1, 0.11.0, 0.10.1, 0.10.0, 0.9.1, 0.9.0, 0.8.6, 0.8.5, 0.8.4, 0.8.3, 0.8.2, 0.8.1, 0.8.0, 0.7.1, 0.7.0, 0.6.5, 0.6.4, 0.6.3, 0.6.2, 0.6.1, 0.6.0, 0.5.0, 0.4.0, and 0.3.0: their wording changed, their facts did not.
 - **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md` and every `skills/*/SKILL.md`, so a reintroduced em dash fails a lane rather than waiting for the next audit.
+
+## [0.11.53]
+
+### Fixed
+
+- **Two `jq` processes were spawned per diagnostic-producing edit to build a
+  findings document nothing read.** The guard that skips the findings encode
+  when no telemetry sink is configured was missing here. The encode now sits
+  behind the shared library's own guard, so it cannot be omitted.
+
+### Changed
+
+- **The hook's exit arms go through the shared `hook::finish`**, which takes
+  the rewrite guard's disclosure, emits telemetry with the arm's verdict,
+  emits exactly one channels document and exits, instead of each arm spelling
+  that sequence itself.
+- **The `markdownlint` config walk goes through `hook::walk_up_to`.** The
+  gate's behavior is unchanged: it already refused to walk without a resolved
+  ceiling, and the requirement now lives in the walk's own contract rather
+  than in this hook.
+
+This hook stays outside the shared formatter engine on purpose: it derives its
+disclosure from the tool's own report rather than from an exit-code map.
 
 ## [0.11.52]
 

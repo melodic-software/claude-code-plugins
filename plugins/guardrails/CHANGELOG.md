@@ -3,7 +3,7 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.33.2]
+## [0.33.3]
 
 ### Changed
 
@@ -38,6 +38,32 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   inside 88 released entries, from `[0.32.1]` down to `[0.6.0]`. Wording only; no fact, number,
   path, flag, version, date, or issue number changed in any of them, and the `##` heading list is
   byte-identical to the fork point's.
+
+## [0.33.2]
+
+### Changed
+
+- **The dispatcher and the guards now share one declaration of their
+  contract.** Each guard declares the payload fields it consumes and whether
+  it needs the PowerShell classifier; the dispatcher reads that declaration
+  instead of carrying a hand-maintained union of every guard's filters. The
+  dispatcher had been reading the tool name out of the primed values by
+  position, so inserting a filter ahead of it would have made the dispatcher
+  read a neighbouring value. It is now read by name. The guards also share one
+  spelling of the plugin root and one route to the classifier, which removes a
+  redundant re-source of a large file the dispatcher had already loaded.
+- **`block-hook-bypass` no longer carries its own command tokenizer.** It is
+  now a predicate over the parse the shared library already produces, which
+  carries redirect operators, targets and quoting. The private tokenizer and
+  its literal-stripping and marker machinery are gone.
+- **The guards' own suites drive each command to a verdict through one
+  driver, both directly and through the dispatcher.** Thirty-six cases now run
+  both ways, so a guard that behaves differently under the dispatcher fails.
+  The empty-stdin and cut-short arms stay direct-only, because the dispatcher
+  answers those once for the whole event before any guard is sourced.
+- **The always-on verifiers no longer fork `jq` to emit accumulated context.**
+  The accumulator's flush composes through the fork-free emitter that builds
+  the same document.
 
 ## [0.33.1]
 

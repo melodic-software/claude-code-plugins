@@ -212,6 +212,39 @@ if git -C "$REPO" init -q 2>/dev/null; then
     bad "repo-root store file invisible to git status"
   fi
 fi
+# --- The skill-usage store record -------------------------------------------
+# One writer for the row: claude_ops::record_skill_use formats it through
+# session-log-lib.sh, so the row's escaping is the plugin's one escaping path
+# and costs no jq process. The store keeps its OWN key set (`event:
+# "SkillUse"`), read by skills/audit-skill-visibility; it is not a hook event
+# record, and the schema below is its contract, asserted per emitted row.
+SU_PROJ="$TEST_TMPDIR/su"
+mkdir -p "$SU_PROJ"
+SU_SCHEMA='(.ts|type)=="string" and .event=="SkillUse"
+  and (.skill|type)=="string" and (.branch|type)=="string"
+  and (.project|type)=="string" and (.project_id|type)=="string"
+  and .hook=="skill-usage-audit" and (.source|type)=="string"'
+SU_LOG="$SU_PROJ/.claude/observability/skill-usage.jsonl"
+SU_SKILL='a:one "quoted" \ tricky'
+export CLAUDE_PROJECT_DIR="$SU_PROJ"
+claude_ops::record_skill_use PostToolUse skill-usage-audit \
+  '{"session_id":"s1"}' "$SU_SKILL" tool '' >/dev/null
+claude_ops::record_skill_use UserPromptExpansion skill-usage-expansion-audit \
+  '{"session_id":"s1"}' b:two expansion slash_command >/dev/null
+unset CLAUDE_PROJECT_DIR
+if [[ -s "$SU_LOG" ]]; then
+  jq -e -s "all(.[]; $SU_SCHEMA)" "$SU_LOG" >/dev/null 2>&1
+  assert_exit "skill-usage route: every row satisfies the store schema" 0 "$?"
+  assert_eq "skill-usage route: a metacharacter skill name round-trips" "$SU_SKILL" \
+    "$(head -1 "$SU_LOG" | jq -r '.skill')"
+  assert_eq "skill-usage route: no expansion_type when the producer sent none" "false" \
+    "$(head -1 "$SU_LOG" | jq 'has("expansion_type")')"
+  assert_eq "skill-usage route: expansion_type recorded when present" "slash_command" \
+    "$(tail -1 "$SU_LOG" | jq -r '.expansion_type')"
+else
+  bad "skill-usage route wrote nothing at $SU_LOG"
+fi
+
 NONREPO="$TEST_TMPDIR/nonrepo"
 mkdir -p "$NONREPO"
 claude_ops::ensure_git_exclude "$NONREPO" '.claude/observability'

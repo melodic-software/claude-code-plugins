@@ -8,28 +8,24 @@ set -uo pipefail
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SELF_DIR/check-orphaned-fixtures.sh"
 
-# A fixture runs a COPY of the gate, so it must also carry the shared libraries
-# that copy sources (scripts/lib/*.sh). Without it the copied gate dies on a
-# missing source at line 1 and every assertion below turns into the same opaque
-# failure. See #3161.
-stage_libs() {
-  mkdir -p "$1/lib"
-  cp "$SELF_DIR/lib/read-list.sh" "$1/lib/"
-}
-
 # shellcheck source=lib/test-harness.sh
 . "$SELF_DIR/lib/test-harness.sh"
+# shellcheck source=lib/fixture-tree.sh
+. "$SELF_DIR/lib/fixture-tree.sh"
 
-# mk_repo <baseline-content>: throwaway repo with the detector installed and a
-# baseline file at scripts/orphaned-fixtures-baseline.txt.
+# The builder assigns through a nameref, which shellcheck cannot follow;
+# declaring the out-var here is what tells it (SC2154) the name is written.
+repo=""
+
+# mk_repo <out-var> [baseline-content]: throwaway repo with the detector
+# installed and a baseline file at scripts/orphaned-fixtures-baseline.txt.
+# The builder stages scripts/lib/ alongside the copied gate; without those the
+# copy dies on a missing source at line 1 and every assertion below turns into
+# the same opaque failure.
 mk_repo() {
-  local dir
-  dir="$(mktemp -d)"
-  mkdir -p "$dir/scripts"
-  cp "$SCRIPT" "$dir/scripts/check-orphaned-fixtures.sh"
-  stage_libs "$dir/scripts"
-  printf '%s' "${1:-}" >"$dir/scripts/orphaned-fixtures-baseline.txt"
-  printf '%s' "$dir"
+  local out="$1"
+  fixture_tree::build "$out" --sut "$SCRIPT" || return 1
+  printf '%s' "${2:-}" >"${!out}/scripts/orphaned-fixtures-baseline.txt"
 }
 
 # seed a skill's evals.json with an optional files[] entry
@@ -47,14 +43,14 @@ run_check() {
 }
 
 # --- consumed via an eval files[] entry -> not an orphan --------------------
-repo="$(mk_repo)"
+mk_repo repo
 seed_skill "$repo" "plugins/p/skills/s" '"evals/fixtures/used.md"'
 printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/used.md"
 if run_check "$repo" >/dev/null; then ok "files[]-referenced fixture passes --check"; else fail "files[]-referenced fixture wrongly flagged"; fi
 rm -rf "$repo"
 
 # --- two files[] entries in one evals.json (cached jq extract) -> both consumed
-repo="$(mk_repo)"
+mk_repo repo
 seed_skill "$repo" "plugins/p/skills/s" '"evals/fixtures/a.md", "evals/fixtures/b.md"'
 printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/a.md"
 printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/b.md"
@@ -62,7 +58,7 @@ if run_check "$repo" >/dev/null; then ok "two files[]-referenced fixtures in one
 rm -rf "$repo"
 
 # --- consumed via a test file (basename) -> not an orphan ------------------
-repo="$(mk_repo)"
+mk_repo repo
 seed_skill "$repo" "plugins/p/skills/s" ''
 printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/by-test.md"
 mkdir -p "$repo/plugins/p/skills/s/scripts"
@@ -73,7 +69,7 @@ rm -rf "$repo"
 # --- a single backslash in the fixture basename is ERE-escaped. A quoted
 # `'\\'` case arm matches two backslash chars and leaves `\b` as a word
 # boundary, so a same-skill test that names the file would not consume it.
-repo="$(mk_repo)"
+mk_repo repo
 seed_skill "$repo" "plugins/p/skills/s" ''
 printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/x\\b.json" # portability-ok: literal backslash in the fixture basename, not a GNU grep word boundary
 mkdir -p "$repo/plugins/p/skills/s/scripts"
@@ -84,7 +80,7 @@ rm -rf "$repo"
 # --- REFERENCE-NAME SUFFIX SIBLING: a referenced valid.json must NOT consume
 # a new valid.json.bak (grep -w treated "." as a word boundary; the bounded
 # match rejects filename-character neighbors) -> .bak sibling is an orphan ---
-repo="$(mk_repo)"
+mk_repo repo
 seed_skill "$repo" "plugins/p/skills/s" '"evals/fixtures/valid.json"'
 printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/valid.json"
 printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/valid.json.bak"
@@ -97,7 +93,7 @@ rm -rf "$repo"
 # references the longer evals/fixtures/valid.json.bak must NOT consume a new
 # evals/fixtures/valid.json sibling (shorter $rel is a substring of the longer
 # files[] value) -> valid.json red-lines, valid.json.bak stays consumed -------
-repo="$(mk_repo)"
+mk_repo repo
 seed_skill "$repo" "plugins/p/skills/s" '"evals/fixtures/valid.json.bak"'
 printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/valid.json.bak"
 printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/valid.json"
@@ -109,7 +105,7 @@ rm -rf "$repo"
 # --- SIBLING-SKILL BASENAME CONFLATION: skill a's test naming shared.md must
 # NOT consume skill b's same-named fixture (basename matches count only inside
 # the owning skill; cross-skill consumption needs the plugin-relative path) ----
-repo="$(mk_repo)"
+mk_repo repo
 seed_skill "$repo" "plugins/p/skills/a" ''
 seed_skill "$repo" "plugins/p/skills/b" ''
 printf 'x\n' >"$repo/plugins/p/skills/a/evals/fixtures/shared.md"
@@ -123,7 +119,7 @@ rm -rf "$repo"
 
 # --- CROSS-SKILL CONSUMPTION BY PLUGIN-RELATIVE PATH: a plugin-root test naming
 # skills/b/evals/fixtures/by-plugin-test.md consumes it ------------------------
-repo="$(mk_repo)"
+mk_repo repo
 seed_skill "$repo" "plugins/p/skills/b" ''
 printf 'x\n' >"$repo/plugins/p/skills/b/evals/fixtures/by-plugin-test.md"
 mkdir -p "$repo/plugins/p/tools"
@@ -133,7 +129,7 @@ rm -rf "$repo"
 
 # --- evals.json consumption is limited to files[] VALUES: a fixture named only
 # in a prompt/metadata string, with an empty files[], is NOT consumed -> orphan -
-repo="$(mk_repo)"
+mk_repo repo
 mkdir -p "$repo/plugins/p/skills/s/evals/fixtures"
 cat >"$repo/plugins/p/skills/s/evals/evals.json" <<'JSON'
 { "evals": [ { "id": 1, "prompt": "open evals/fixtures/prose-only.md and grade the summary", "files": [] } ] }
@@ -145,7 +141,7 @@ if [[ $rc -ne 0 && "$out" == *"ORPHANED FIXTURE"*"prose-only.md"* ]]; then ok "f
 rm -rf "$repo"
 
 # --- SYNTHETIC ORPHAN: consumed by nothing -> --check fails ----------------
-repo="$(mk_repo)"
+mk_repo repo
 seed_skill "$repo" "plugins/p/skills/s" ''
 printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/orphan.md"
 out="$(cd "$repo" && bash scripts/check-orphaned-fixtures.sh --check 2>&1)"
@@ -154,7 +150,7 @@ if [[ $rc -ne 0 && "$out" == *"ORPHANED FIXTURE"*"orphan.md"* ]]; then ok "un-co
 rm -rf "$repo"
 
 # --- orphan grandfathered by an exact baseline path -> passes --------------
-repo="$(mk_repo $'plugins/p/skills/s/evals/fixtures/orphan.md\n')"
+mk_repo repo $'plugins/p/skills/s/evals/fixtures/orphan.md\n'
 seed_skill "$repo" "plugins/p/skills/s" ''
 printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/orphan.md"
 if run_check "$repo" >/dev/null; then ok "grandfathered orphan (exact path) passes --check"; else fail "grandfathered orphan wrongly failed"; fi
@@ -162,7 +158,7 @@ rm -rf "$repo"
 
 # --- baseline entry is EXACT, not a prefix: a .bak/.jsonl sibling of a
 #     baselined file is NOT grandfathered and red-lines --------------------
-repo="$(mk_repo $'plugins/p/skills/s/evals/fixtures/valid.json\n')"
+mk_repo repo $'plugins/p/skills/s/evals/fixtures/valid.json\n'
 seed_skill "$repo" "plugins/p/skills/s" ''
 printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/valid.json"
 printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/valid.json.bak"
@@ -173,7 +169,7 @@ if [[ $rc -ne 0 && "$out" == *"valid.json.bak"* && "$out" == *"valid.jsonl"* ]];
 rm -rf "$repo"
 
 # --- STALE baseline entry (shadows no orphan) -> fails ---------------------
-repo="$(mk_repo $'plugins/p/skills/s/evals/fixtures/gone.md\n')"
+mk_repo repo $'plugins/p/skills/s/evals/fixtures/gone.md\n'
 seed_skill "$repo" "plugins/p/skills/s" '"evals/fixtures/used.md"'
 printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/used.md"
 out="$(cd "$repo" && bash scripts/check-orphaned-fixtures.sh --check 2>&1)"
@@ -182,7 +178,7 @@ if [[ $rc -ne 0 && "$out" == *"STALE BASELINE"* ]]; then ok "stale baseline entr
 rm -rf "$repo"
 
 # --- discover mode labels every fixture ------------------------------------
-repo="$(mk_repo)"
+mk_repo repo
 seed_skill "$repo" "plugins/p/skills/s" '"evals/fixtures/used.md"'
 printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/used.md"
 printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/orphan.md"
@@ -191,7 +187,7 @@ if [[ "$out" == *"CONSUMED"*"used.md"* && "$out" == *"ORPHAN"*"orphan.md"* ]]; t
 rm -rf "$repo"
 
 # --- bad usage -> exit 2 ---------------------------------------------------
-repo="$(mk_repo)"
+mk_repo repo
 (cd "$repo" && bash scripts/check-orphaned-fixtures.sh --nonsense >/dev/null 2>&1)
 if [[ $? -eq 2 ]]; then ok "bad mode -> exit 2"; else fail "bad mode did not exit 2"; fi
 rm -rf "$repo"

@@ -3,7 +3,7 @@
 All notable changes to the `bash-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.7.46]
+## [0.7.47]
 
 ### Changed
 
@@ -11,6 +11,29 @@ All notable changes to the `bash-format` plugin are documented here. Format foll
 - **The plugin's prose drops its em dashes.** This changelog and `skills/setup/SKILL.md` were rewritten. Wording only, with no change to any hook, extension filter, or default. No heading was touched, so every release still parses. The released sections corrected in place are 0.7.35, 0.7.20, 0.7.18, 0.7.5, 0.7.3, 0.7.2, 0.7.1, 0.7.0, 0.6.12, 0.6.11, 0.6.10, 0.6.9, 0.6.8, 0.6.7, 0.6.6, 0.6.5, 0.6.3, 0.6.1, 0.6.0, 0.5.0, 0.4.0, 0.3.0, and 0.2.0: their wording changed, their facts did not.
 - **Two entries say what they mean instead of reaching for jargon.** The 0.6.5 temp-tree exemption is "deliberate and required", and the 0.2.0 entry reads "Consumer-side telemetry through `HOOK_TELEMETRY_SINK` is unaffected", the wording its sibling plugins share.
 - **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md` and every `skills/*/SKILL.md`.
+
+## [0.7.46]
+
+### Fixed
+
+- **The hook took its rewrite disclosure against the wrong file.** The
+  disclosure named the payload's file path while the rewrite had targeted the
+  resolved format target. The shared exit arm now takes the disclosure against
+  the file the hook's prologue was given, so the two cannot diverge.
+
+### Changed
+
+- **The hook's exit arms go through the shared `hook::finish`**, which takes
+  the rewrite guard's disclosure, emits telemetry with the arm's verdict,
+  emits exactly one channels document and exits. The second, message-less
+  disclosure call that existed only to settle `data.changed` is gone.
+- **Running the formatter, accumulating its output, classifying the outcome
+  and encoding findings moved behind a shared engine.** This hook states only
+  its invocation, its exit-code map and its message text.
+- **The `.editorconfig` opt-in walk goes through `hook::walk_up_to`, which
+  requires a ceiling.** A walk whose ceiling does not resolve now stops rather
+  than continuing to the filesystem root, so the hook cannot adopt
+  configuration from directories the repository does not own.
 
 ## [0.7.45]
 

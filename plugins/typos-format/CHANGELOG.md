@@ -3,7 +3,7 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.6.50]
+## [0.6.51]
 
 ### Changed
 
@@ -13,6 +13,21 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
 - **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md` and every `skills/*/SKILL.md`.
 
 - **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
+
+## [0.6.50]
+
+### Changed
+
+- **The hook's exit arms go through the shared `hook::finish`**, which takes
+  the rewrite guard's disclosure, emits telemetry with the arm's verdict,
+  emits exactly one channels document and exits, instead of each arm spelling
+  that sequence itself.
+- **Emitting accumulated context no longer forks `jq`.** The accumulator's
+  flush now composes through the fork-free emitter that builds the same
+  document, which removes two processes from a run that emits context twice.
+
+This hook stays outside the shared formatter engine on purpose: it derives its
+disclosure from the tool's own report rather than from an exit-code map.
 
 ## [0.6.49]
 

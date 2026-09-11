@@ -16,9 +16,16 @@ response. The report gives it its own group for that reason.
 
 ## Every emitted finding kind
 
-The collector emits exactly the kinds below. `scripts/audit-fleet.test.sh` asserts that this table's
-kind set and the collector's emitted kind set are equal, so a new kind cannot ship without a
-documented disposition.
+The collector emits exactly the kinds below. What a kind IS lives in one registry inside
+`scripts/audit-fleet.sh`: its confidence tier, its disposition sentence, and whether it is an
+actionable branch or worktree handoff. Emitters name only the kind, and
+`scripts/audit-fleet.sh --print-finding-registry` prints that registry as tab-separated rows.
+
+`scripts/audit-fleet.test.sh` reads that data mode and asserts two things against this table: its
+kind set equals the registry's, and each row states the same confidence the registry stamps. A new
+kind therefore cannot ship without a documented disposition, and a tier cannot say one thing here
+and another in the collector. The Evidence and Disposition columns below are prose written for a
+reader; the registry's disposition is the shorter sentence the report itself prints.
 
 | Kind | Evidence | Confidence | Disposition |
 |---|---|---|---|

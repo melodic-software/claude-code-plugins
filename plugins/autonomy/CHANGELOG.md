@@ -3,7 +3,7 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.23.6]
+## [0.23.7]
 
 ### Changed
 
@@ -36,6 +36,17 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
   `[0.12.0]`, `[0.11.8]`, `[0.11.7]`, `[0.11.6]`, `[0.11.5]`, `[0.11.3]`, `[0.11.2]`, `[0.11.0]`,
   `[0.10.0]`, `[0.9.0]`, `[0.8.0]`, `[0.7.4]`, `[0.7.3]`, `[0.7.2]`, and `[0.7.1]`. Wording only;
   every entry's facts are unchanged.
+
+## [0.23.6]
+
+### Changed
+
+- **Vendored `hook-utils.sh` refresh.** The shared library gained one exit arm
+  (`hook::finish`) and one ceiling-bounded parent walk (`hook::walk_up_to`),
+  and retired seven value-printing helpers whose whole body called their
+  caller-writes-to-a-variable twin, so each call site stops paying a subshell
+  fork for a value the shell already has. This plugin's own hooks are
+  unchanged; the version moves so consumers receive the library.
 
 ## [0.23.5]
 

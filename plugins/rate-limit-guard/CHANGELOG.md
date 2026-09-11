@@ -3,7 +3,7 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.8.10]
+## [0.8.11]
 
 ### Changed
 
@@ -31,6 +31,17 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
   the thing the reader needs in order to use the table.
 - **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends
   `CHANGELOG.md`, `reference/reader-contract.md`, `bench/README.md`, and every `skills/*/SKILL.md`.
+
+## [0.8.10]
+
+### Changed
+
+- **Vendored `hook-utils.sh` refresh.** The shared library gained one exit arm
+  (`hook::finish`) and one ceiling-bounded parent walk (`hook::walk_up_to`),
+  and retired seven value-printing helpers whose whole body called their
+  caller-writes-to-a-variable twin, so each call site stops paying a subshell
+  fork for a value the shell already has. This plugin's own hooks are
+  unchanged; the version moves so consumers receive the library.
 
 ## [0.8.9]
 

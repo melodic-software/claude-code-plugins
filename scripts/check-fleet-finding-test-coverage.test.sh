@@ -9,14 +9,19 @@ SCRIPT="$SELF_DIR/check-fleet-finding-test-coverage.sh"
 
 # shellcheck source=lib/test-harness.sh
 . "$SELF_DIR/lib/test-harness.sh"
+# shellcheck source=lib/fixture-tree.sh
+. "$SELF_DIR/lib/fixture-tree.sh"
 
+# The builder assigns through a nameref, which shellcheck cannot follow;
+# declaring the out-vars here is what tells it (SC2154) the names are written.
+repo="" hist=""
+
+# mk_tree <out-var> [baseline-content]
 mk_tree() {
-  local dir
-  dir="$(mktemp -d)"
-  mkdir -p "$dir/plugins/repo-fleet-hygiene/skills/audit/scripts" "$dir/scripts"
-  cp "$SCRIPT" "$dir/scripts/check-fleet-finding-test-coverage.sh"
-  printf '%s' "${1:-}" >"$dir/scripts/fleet-finding-test-coverage-baseline.txt"
-  printf '%s' "$dir"
+  local out="$1"
+  fixture_tree::build "$out" --sut "$SCRIPT" --plugins || return 1
+  mkdir -p "${!out}/plugins/repo-fleet-hygiene/skills/audit/scripts"
+  printf '%s' "${2:-}" >"${!out}/scripts/fleet-finding-test-coverage-baseline.txt"
 }
 
 # Pad emit_finding lists so the extraction floor (>=20) is honest without copying
@@ -67,14 +72,14 @@ run_check() {
 }
 
 # Covered kinds pass with an empty baseline.
-repo="$(mk_tree)"
+mk_tree repo
 write_collector "$repo" covered-one covered-two
 write_suite "$repo" covered-one covered-two
 if run_check "$repo" >/dev/null; then ok "fully covered kinds pass --check"; else fail "fully covered kinds wrongly flagged"; fi
 rm -rf "$repo"
 
 # An uncovered kind with no baseline entry fails.
-repo="$(mk_tree)"
+mk_tree repo
 write_collector "$repo" covered-one uncovered-kind
 write_suite "$repo" covered-one
 out="$(run_check "$repo" 2>&1)"
@@ -88,35 +93,51 @@ rm -rf "$repo"
 
 # A baselined uncovered kind passes; removing coverage debt without clearing the
 # baseline is a stale entry.
-repo="$(mk_tree $'uncovered-kind\n')"
+mk_tree repo $'uncovered-kind\n'
 write_collector "$repo" covered-one uncovered-kind
 write_suite "$repo" covered-one
 if run_check "$repo" >/dev/null; then ok "baselined uncovered kind passes --check"; else fail "baselined uncovered kind wrongly flagged"; fi
 write_suite "$repo" covered-one uncovered-kind
 out="$(run_check "$repo" 2>&1)"
 rc=$?
-if [[ $rc -ne 0 && "$out" == *"STALE BASELINE ENTRY: uncovered-kind"* ]]; then
-  ok "stale baseline entry red-lines once coverage lands"
+if [[ $rc -ne 0 && "$out" == *"STALE BASELINE: "*"'uncovered-kind' is now Finding:-asserted"* ]]; then
+  ok "stale baseline entry red-lines once coverage lands, under the shared prefix"
 else
   fail "stale baseline not caught: rc=$rc out='$out'"
 fi
 rm -rf "$repo"
 
 # A baseline entry for a kind the collector no longer emits is stale.
-repo="$(mk_tree $'retired-kind\n')"
+mk_tree repo $'retired-kind\n'
 write_collector "$repo" covered-one
 write_suite "$repo" covered-one
 out="$(run_check "$repo" 2>&1)"
 rc=$?
-if [[ $rc -ne 0 && "$out" == *"STALE BASELINE ENTRY: retired-kind"* ]]; then
-  ok "baseline entry for a retired kind red-lines"
+if [[ $rc -ne 0 && "$out" == *"STALE BASELINE: "*"'retired-kind' is no longer emitted"* ]]; then
+  ok "baseline entry for a retired kind red-lines, under the shared prefix"
 else
   fail "retired-kind baseline not caught: rc=$rc out='$out'"
 fi
 rm -rf "$repo"
 
+# A FINAL BASELINE ENTRY WITH NO TRAILING NEWLINE is loaded. The hand-rolled
+# reader this replaced used a bare `while IFS= read -r`, whose last iteration
+# returns non-zero even after filling the variable, so the entry was dropped and
+# the gap it grandfathers reported as UNCOVERED.
+mk_tree repo 'uncovered-kind'
+write_collector "$repo" covered-one uncovered-kind
+write_suite "$repo" covered-one
+out="$(run_check "$repo" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]]; then
+  ok "a final baseline entry with no trailing newline is loaded"
+else
+  fail "unterminated final baseline entry should be loaded: rc=$rc out='$out'"
+fi
+rm -rf "$repo"
+
 # A bare token / F_KIND-style mention is not coverage — require Finding: <kind>.
-repo="$(mk_tree)"
+mk_tree repo
 write_collector "$repo" covered-one token-only-kind
 {
   printf '# synthetic suite\n'
@@ -137,7 +158,7 @@ rm -rf "$repo"
 
 # A shorter kind must not be covered by a Finding: assertion for a longer kind
 # that shares its prefix (worktree-root-conformance vs -summary).
-repo="$(mk_tree)"
+mk_tree repo
 write_collector "$repo" covered-one short-kind short-kind-extra
 {
   printf '# synthetic suite\n'
@@ -154,14 +175,52 @@ else
 fi
 rm -rf "$repo"
 
+# Registry-mode acquisition. A collector that answers --print-finding-registry
+# is the primary path: the gate takes the first tab-separated column and never
+# looks at emit_finding call sites, so a kind reachable only through the
+# registry is still gated and the fallback notice must be absent. The synthetic
+# collector below emits a kind its (absent) call sites never name.
+write_registry_collector() {
+  local repo="$1" kind
+  shift
+  {
+    printf '#!/usr/bin/env bash\n'
+    # shellcheck disable=SC2016 # deliberate: the emitted stub must expand this, not this shell
+    printf 'if [[ "${1:-}" == "--print-finding-registry" ]]; then\n'
+    for kind in "${PAD_KINDS[@]}" "$@"; do
+      printf '  printf %%s"\\n" "%s\tHIGH\tno\tno\tsynthetic disposition"\n' "$kind"
+    done
+    printf '  exit 0\n'
+    printf 'fi\n'
+    printf 'exit 2\n'
+  } >"$repo/plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.sh"
+}
+
+mk_tree repo
+write_registry_collector "$repo" registry-only-kind
+write_suite "$repo" registry-only-kind
+out="$(run_check "$repo" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 && "$out" != *"falling back to source scraping"* ]]; then
+  ok "registry mode supplies the kind list without scraping call sites"
+else
+  fail "registry-mode acquisition not used: rc=$rc out='$out'"
+fi
+write_suite "$repo"
+out="$(run_check "$repo" 2>&1)"
+rc=$?
+if [[ $rc -ne 0 && "$out" == *"UNCOVERED FINDING KIND: registry-only-kind"* ]]; then
+  ok "a registry-declared kind with no Finding: assertion red-lines"
+else
+  fail "registry-declared kind not gated: rc=$rc out='$out'"
+fi
+rm -rf "$repo"
 
 # Historical proof (#2656): the gate must go red against the two commits that
 # shipped the coverage gap. Point FLEET_FINDING_* at trees extracted from git.
 if git rev-parse --verify --quiet "cc58cbc5^{commit}" >/dev/null 2>&1 &&
   git rev-parse --verify --quiet "6f0a3110^{commit}" >/dev/null 2>&1; then
-  hist="$(mktemp -d)"
-  mkdir -p "$hist/scripts"
-  cp "$SCRIPT" "$hist/scripts/check-fleet-finding-test-coverage.sh"
+  fixture_tree::build hist --sut "$SCRIPT"
   # Empty baseline: prove the raw invariant fails on both trees.
   : >"$hist/scripts/fleet-finding-test-coverage-baseline.txt"
   for rev in cc58cbc5 6f0a3110; do
