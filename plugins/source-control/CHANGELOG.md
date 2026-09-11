@@ -17,11 +17,15 @@ All notable changes to the `source-control` plugin are documented here. Format f
   head or an earlier rerun cannot stand in for a round that emitted nothing. An absent lane is
   substituted with a local review over the same diff (`/review:fanout`, or the bundled
   `/code-review` against an explicit target for a correctness lane) and named in the report.
-- **The substitution is enforced on every merge path, not only the monitor loop.** The same
-  invariant is now a Gate 5 item in `reference/readiness.md`, which is the single source of truth
-  both `monitor.md` and `merge.md` rerun, so a direct `merge` invocation and the final
-  re-verification in `full` enforce it too. It states what reaching Gate 5's bound hands off to:
-  the bound ends the wait for a silent reviewer, it does not supply the review.
+- **The substitution is enforced on the readiness gate, not only in the monitor loop.** The same
+  invariant is now a Gate 5 item in `reference/readiness.md`, the single source of truth both
+  `monitor.md` (Phase 3.4) and `merge.md` (Phase 4.1) rerun, so a direct `merge` invocation and
+  the final re-verification in `full` enforce it too. It states what reaching Gate 5's bound hands
+  off to: the bound ends the wait for a silent reviewer, it does not supply the review. The
+  `babysit-prs` worker and autopilot tiers merge through their own gate and do not read this file,
+  so they are unchanged by this entry.
+- **Both readiness templates gained a `Review lanes:` line**, so an absent lane and its local
+  substitute are reported rather than dropped from a verdict that otherwise reads all-clear.
 
 ## [0.55.74]
 
