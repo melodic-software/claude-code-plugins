@@ -97,6 +97,19 @@ plugins/work-items/tools/work-item-tracker/adapters/linear/schema-check/*
 # suite names it, which is why it needs this entry.
 scripts/sync-plugin-options-docs.py
 
+# The miro plugin's bundled Node MCP server, a TypeScript project kept one
+# level below the plugin root so that Claude Code's automatic `npm ci` in a
+# consumer's plugin cache (which fires only on a plugin-root lockfile) never
+# installs its dev toolchain. Its tests are vitest (`*.test.ts`), which is not
+# one of the four suite conventions this tool selects, so the whole tree needs
+# this entry. The lane covering it is the miro block of the `test` job in
+# .github/workflows/ci.yml, gated on `run_node` (matcher `plugins/miro/**`):
+# `npm ci`, `npm run typecheck`, `npm run lint`, `npm test`,
+# `npm run verify-bundle` (fails when dist/index.min.js drifts from src/), and
+# a stdio smoke test of the committed bundle. Manifests and prose under the
+# tree are already covered by the *.json and *.md entries above.
+plugins/miro/server/*
+
 # Session-local working docs and this checkout's own Claude Code configuration
 # prose. Ships to no one; the hooks under .claude/hooks/ are NOT covered by
 # this line — they carry their own *.test.sh and are selected normally.

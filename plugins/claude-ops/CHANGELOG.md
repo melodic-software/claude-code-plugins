@@ -3,11 +3,161 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.49.1]
+## [0.53.1]
 
 ### Changed
 
 - Cite the marketplace `docs/` doctrine files by their lower-kebab names (`docs/plugin-philosophy.md`, `docs/migration-playbook.md`, and siblings); the files were renamed and the old uppercase paths no longer resolve.
+
+## [0.53.0]
+
+### Added
+
+- **`audit-skill-visibility` Markdown names what it counts and points at the fix.** The
+  Reachability section tables misconfigured skills with their cause and states each cause's
+  remedy once; the Listing budget section, whenever a row overflows, tables the ten longest
+  competing descriptions ranked by source length beside the capped charge the listing counts,
+  labelled as length and never as a starvation ranking, so it renders the same in an unscored
+  run; and a closing Next actions section names only the fixes the run's findings support,
+  pointing at the budget control the run's provenance says is effective (the env override, a
+  managed-policy file, or the settings file that set the fraction) rather than always at the
+  fraction. Every table caps at ten rows and counts the rest. JSON schema 1.2.0, additive:
+  each listing row carries `description_chars`, the uncapped source length, beside the capped
+  `demand_chars`.
+
+## [0.52.0]
+
+### Added
+
+- **audit-performance: `fan_out.hooks.by_matcher`, one row per (event, matcher) carrying row
+  count, distinct command count, if-gated row count, and sources.** A bucket count cannot tell
+  many unconditional handlers from one dispatcher replicated once per extension behind an `if`
+  gate, and those two fleets cost very differently per tool call. `per_tool_call` keeps `count`
+  as the registered-row ceiling and gains `if_gated_rows` and `distinct_commands` beside it, so
+  the ceiling and its composition are both readable without inferring either.
+- **audit-performance: `fan_out.hooks.projection`, what one tool call actually spawns.** A row
+  per (event, tool, file kind) over a fixed baseline file-kind set (`.md`, `.py`, `.sh`, `.ts`,
+  `.json`, `other`) plus every extension a classified `if` gate names, reported as
+  `discovered_file_kinds`, for `Write`, `Edit`, and `NotebookEdit`, plus a tool-only row for
+  `Bash`, each carrying `fires`, `distinct_commands`, and `fire_always_unclassified`. Matcher
+  evaluation follows the documented character-class rule (`*`, empty, or absent matches all; a
+  matcher of letters, digits, `_`, `-`, spaces, `,`, and `|` is an exact name or alternation
+  list; anything else is an unanchored regex, so `Edit.*` also selects `NotebookEdit`), with the
+  report stating that Python's `re.search` stands in for `RegExp.prototype.test`; a regex
+  Python cannot compile counts as selecting every tool and is listed in `unclassified_rows`
+  with the compile error, never as selecting nothing. The projection
+  is pure: it reads the flattened hook records and touches no filesystem and no subprocess, and
+  `spawn_cost`, `statusline`, `config_liveness`, and `concurrency_ceilings` are unchanged.
+- **audit-performance: `fan_out.hooks.unclassified_rows` and `if_on_non_tool_event`.** The
+  engine decides exactly one `if` shape, `Edit(*.<ext>)`; every other shape (`Bash(...)`,
+  `PowerShell(...)`, `Write(...)`, a directory anchor, a `**` glob, a brace list) is counted as
+  firing and listed with `{event, matcher, source, if, reason}`, so an unmodelled gate inflates
+  the projection where an operator can see it rather than hiding a spawn. An `if` on any
+  non-tool event is reported separately and counted as NEVER firing, which is what the docs say
+  it does. `fan_out.hooks.notes` states the two limits the projection cannot model, an `if`
+  matching only under its anchor and cross-settings-file dedup, alongside the standing note that
+  parallel hook cost is never a sum.
+- **audit-performance: the reference doc carries the matcher rule and a four-part drift record**
+  for the premise that an `Edit(*.<ext>)` gate covers `Write`, `Edit`, and `NotebookEdit`,
+  assembled from the hooks reference, the permissions reference, CHANGELOG 2.1.176, and this
+  repository's own hook-budget convention, with the recheck trigger that would retire the
+  assembly.
+
+### Changed
+
+- **audit-performance: `PER_TOOL_CALL_EVENTS` widens to the five events that accept `if`.**
+  `PostToolUseFailure`, `PermissionRequest`, and `PermissionDenied` join `PreToolUse` and
+  `PostToolUse`, because those five are exactly the events on which a tool call is what fires a
+  hook. Handlers on the three added events previously landed in `other` and were invisible as
+  per-tool-call cost. **`fan_out.hooks.per_tool_call.count` therefore rises on any fleet that
+  registers handlers on them, and `other.count` falls by the same amount.** The number is not a
+  regression and the fleet did not change; the earlier count was short.
+
+## [0.51.0]
+
+### Fixed
+
+- **`audit-skill-visibility` derives the listing budget from the effective settings and a
+  model band instead of hardcoded defaults.** The report read `skillListingBudgetFraction`
+  and `skillListingMaxDescChars` from nowhere and assumed a 200k window at 4 bytes per token,
+  so a repository that tunes the fraction saw an overflow that did not exist. The script now
+  merges both keys across the user, project, local, and managed scopes (the `--settings`
+  flag scope is reported as unread, never absent), enumerates managed policy only through the
+  vendored `lib/managed-scope.sh`, honors `CLAUDE_CODE_DISABLE_1M_CONTEXT` and
+  `CLAUDE_CODE_MAX_CONTEXT_TOKENS` from the process environment, and reports a
+  window x bytes-per-token band when nothing pins the model. `--budget-fraction`,
+  `--max-desc-chars`, and `--bytes-per-token` join `--context-window`, whose silent 200k
+  default is gone. JSON schema 1.1.0, additive.
+- **`audit-skill-visibility` withholds per-skill starvation verdicts when every usage score is
+  zero.** With no observed usage the product's stable sort keeps catalog order, so "which
+  skills are starved" is a tie, not a ranking. The overflow arithmetic and the cannot-fit
+  count stay; the per-skill claim moves to the `withheld` section with its reason.
+- **`audit-skill-visibility` determines reachability in a live run.** `--installed` now reads
+  `enabledPlugins` through the same settings merge and marks a disabled plugin's skills
+  `hidden` with the scope file as evidence; `--plugins-root` says a checkout is not an install
+  instead of reporting every row `unknown`. The `skillOverrides` path is removed: plugin
+  skills are governed by `enabledPlugins`, and `skillOverrides` never applies to them, so the
+  description no longer names it as a way a plugin skill loses visibility.
+
+- **`audit-skill-visibility` honors `defaultEnabled` and keeps disabled plugins out of the listing
+  contest.** A plugin with no `enabledPlugins` entry anywhere falls back to the marketplace entry's
+  `defaultEnabled`, then the plugin's own `plugin.json` field, then enabled, with the source named as
+  evidence. A disabled plugin's skills are `exempt-hidden`: the product never loads them, so they
+  spend no budget and carry no starvation verdict.
+
+### Added
+
+- `lib/managed-scope.sh`, vendored from `claude-config` through `scripts/sync-managed-scope.sh`.
+
+## [0.50.0]
+
+### Added
+
+- **audit-performance: `operator_context`, the paragraph only a human at the machine can
+  supply, carried in the report instead of asked for beside it.** A repeatable `--note TEXT`
+  attaches one fact per flag (what was slow, how many terminals were open, what the session was
+  doing, what Task Manager showed) and `--note-source` declares who supplied them. A run with
+  none records `status: absent` with an empty list, because a silent gap reads like a clean bill
+  of health. The block states that the engine cannot verify the declared origin.
+- **audit-performance: the CLI probe reports WHICH `claude` it measured.** `cli` carries
+  `probe_path`, `resolved_path`, the statement that the search ran over the engine process PATH
+  rather than the operator's login shell, a `layout` of `documented-native`, `legacy-local-npm`,
+  or `unclassified`, and every `claude` found on PATH. Two findings name the ambiguity a bare
+  version claim hides: `cli-probe-project-local` when the resolved binary sits under the
+  containment base (the project directory when one is passed, else the working directory, both
+  reported) or inside a `node_modules` tree, and `cli-multiple-on-path` when more than one
+  install answers to the name. Both route to `claude doctor`, the first-party authority; the
+  engine observes and never adjudicates an install. `version`, `exe`, `seconds`, and
+  `slow_version_probe` keep their meanings.
+- **audit-performance: a second read allowlist, `PROC_TEXT_READS`, enforced in
+  `read_proc_text`.** On Linux the engine reads `/proc/<pid>/status` and `/proc/<pid>/stat`,
+  kernel-generated text with no user content, and the reader raises on any other name the way
+  `read_json` does, so SKILL.md's claim that the prose and the code cannot drift apart holds for
+  both surfaces. `cmdline` is deliberately absent.
+
+### Changed
+
+- **audit-performance: `processes.population.most_active` excludes the kernel's own threads on
+  Linux.** A row is dropped when every classified process behind its name carries `PF_KTHREAD`,
+  read from the `Kthread:` line of `/proc/<pid>/status` where the kernel publishes one and
+  otherwise from bit `0x00200000` of `/proc/<pid>/stat` field 9. Neither parent pid 2 nor an
+  empty `cmdline` is consulted: the kernel reparents user-space helpers onto kthreadd, and a
+  process can rewrite its own argument region. Classification walks the ranked rows until ten
+  non-kernel rows are kept, stops at `kernel_thread_read_cap` processes, and keeps any row it
+  leaves partially examined; the report carries `kernel_threads_excluded` and
+  `kernel_thread_reads`, and off Linux the count is null with the reason. An unclassifiable
+  process counts as user-space, so the failure mode is an investigable false alarm rather than a
+  hidden user-space leak.
+- **audit-performance: a name absent from the first population sample reads `appeared`, not
+  `accumulating`.** The accumulation verdict now requires a non-empty first sample, so one
+  arrival of a name nothing was running seconds earlier stops being written up as a leak.
+- **audit-performance: `orphan_attribution.candidate_names` carries a platform note.** The set
+  is unchanged and stays platform-agnostic: executable-suffixed names are inert on POSIX process
+  tables and are retained for WSL interop processes, which is the hybrid host the orphan probe
+  exists for.
+- **`known-performance-issues.md` gains the kernel-thread identification mechanism** with its
+  four-part drift record, and a gotcha on the probed binary not being the operator's daily
+  `claude`.
 
 ## [0.49.0]
 
