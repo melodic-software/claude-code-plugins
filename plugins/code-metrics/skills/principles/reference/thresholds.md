@@ -11,8 +11,9 @@ the plugin found no defensible value to ship, so it reports the measure and coun
 | Cyclomatic complexity | `20` | ISO/IEC 5055:2021 §8.2.117, the normative detection pattern `ASCQM Limit Algorithmic Complexity via Cyclomatic Complexity Value`, whose `<MaxCyclomaticComplexityValue>` default is 20 | Normative in the standard |
 | Cognitive complexity | `null` | Campbell, SonarSource. The white paper prescribes no threshold | No standard sets one |
 | Halstead difficulty | `null` | Halstead 1977 defines the measure and sets no limit | No standard sets one |
-| Lines per file | `1000` | As the report prints it: the plugin's own number, not ISO-backed: it coincides with the informative figure in ISO/IEC 5055:2021 §6.3 Table 1, which is not normative, while the normative form (§8.2.115) is a function-level percentage; 500 is the operator-list figure, selectable; size.mode iso-8.2.115 selects the normative function-percentage alternative | Plugin default, labelled as such |
-| Function lines percentage | `5` | ISO/IEC 5055:2021 §8.2.115 (normative): a function whose non-empty lines exceed this percentage of the file's | Normative in the standard |
+| Lines per file | `1000` | As the report prints it: the plugin's own number, not ISO-backed: it coincides with the informative figure in ISO/IEC 5055:2021 §6.3 Table 1, which is not normative, while the normative form (§8.2.115) is a function-level percentage; 500 is selectable; size.mode iso-8.2.115 selects the normative function-percentage alternative. The Table 1 row is the CWE-1080 summary row | Plugin default, labelled as such |
+| Function lines percentage | `5` | ISO/IEC 5055:2021 §8.2.115 (normative), read by this plugin as a function's non-empty lines against its file's; the clause states the 5% with no base (see the verification record below) | Normative value, plugin's reading of the base |
+| Duplication | none | No key ships. `duplication.min_tokens` and `duplication.min_lines` are collector floors, not references; ISO/IEC 5055 §8.2.116 measures element similarity between two functions (default 90%), which is a different quantity from a duplicated-lines percentage | Nothing comparable to cite |
 | CRAP | `null` | Savoia and Evans 2007. Their own suggested value was 30, offered as a starting point they reserved the right to change | Authors' suggestion, no standard |
 | Coverage | `null` | No standard states a percentage. ISO/IEC 25023:2016 files test coverage under Reliability and Maturity and sets no value | No standard sets one |
 | Type coverage | `null` | No standard and no CWE anchors the measure | Nothing to cite |
@@ -31,56 +32,57 @@ The two cited alternatives for cyclomatic complexity, selectable through config:
   and a comprehensive test plan". Those six named practices are part of the citation. Reporting 15
   without them presents a conditional figure as an unconditional standard.
 
-Three qualifications the table above cannot hold:
+Four qualifications the table above cannot hold:
 
 - **The ISO clause map matters more than the ISO name.** Clause 7 (the weakness list) and clause 8
   (the detection patterns) are both normative; clause 6 is informative. Clause 7.1.10 names the
   cyclomatic weakness (CWE-1121) and carries no number at all. The number lives at §8.2.117. The
-  1000-line figure lives only in informative clause 6.3 Table 1, while the normative pattern
-  attached to the same file-size weakness, §8.2.115, states 5% of a function against its file. So
-  "1000 lines per file, per ISO/IEC 5055" would cite an informative table against a normative clause
+  1000-line figure lives only in the informative §6.3 Table 1 row for CWE-1080, while the
+  normative pattern attached to the same weakness, §8.2.115, is a percentage on a function. So
+  "1000 lines per file, per ISO/IEC 5055" would cite an informative row against a normative clause
   that says something different at a different granularity, and this plugin does not say it.
-- **ISO/IEC 5055:2021 is the ISO designation of OMG's ASCQM text.** Cite the standard by version and
-  clause, never by page number. The version ISO adopted is OMG's v1.0, dated 2020; OMG's own current
-  release is v1.1 (July 2022), verified by diff to keep the §8.2.115 and §8.2.117 defaults and the
-  clause-7 numbering. The two are not interchangeable if a later revision diverges.
-- **The 25023 coverage row is MEDIUM confidence and preview-sourced.** The official ISO preview
-  confirms the clause structure (8.6 Reliability, 8.6.1 Maturity) and the measure-id grammar, from
-  which `RMa-4-S` is a structurally valid id for a fourth, Specific-category Maturity measure. The
-  normative body naming individual measures is paywalled and was not read. Even if the id is exactly
-  right, the reproduction describes it as counting capabilities, operational scenarios, or functions
-  performed against those included in the test suites, which is scenario coverage rather than the
-  line coverage a coverage tool emits. Grouping a line-coverage percentage under that id would
-  overclaim twice.
+- **The §8.2.115 base is this plugin's reading, not the clause's words.** Verification record.
+  Claim: §8.2.115 `ASCQM Limit Size of Operations Code` flags a `FunctionProcedureOrMethod` whose
+  `NumberOfNonEmptyLinesOfCode` exceeds `MaxNumberOfNonEmptyLinesOfCode`, whose stated default is
+  "5%", and the clause names no base for that percentage; this plugin reads the base as the
+  enclosing file's non-empty lines. Basis: OMG ASCQM v1.1 (formal/2022-07-01) §8.2.115, and the
+  OMG-hosted ISO edition (v1.0, October 2020), whose clause text is identical. As of: 2026-09-11.
+  Recheck when OMG or ISO publishes a new revision of the specification.
+- **ISO/IEC 5055:2021 is the ISO publication of OMG ASCQM v1.0.** Cite the standard by version and
+  clause, never by page number. ISO's first edition (2021-03) carries the v1.0 text dated October
+  2020; OMG's own current release is v1.1 (July 2022), which carries identical text for §8.2.115
+  and §8.2.117. The two are not interchangeable if a later revision diverges.
+- **The 25023 coverage row is MEDIUM confidence.** The official ISO preview confirms the clause
+  structure (8.6 Reliability, 8.6.1 Maturity) and the measure-id grammar, from which `RMa-4-S` is a
+  structurally valid id for a fourth, Specific-category Maturity measure. The normative body naming
+  individual measures is paywalled. Even if the id is exactly right, the measure as reproduced
+  elsewhere counts capabilities, operational scenarios, or functions performed against those
+  included in the test suites, which is scenario coverage rather than the line coverage a coverage
+  tool emits. Grouping a line-coverage percentage under that id would overclaim twice.
 
-## The operator's starting list, checked
+## Popular numbers with no found source
 
-The list this plugin was commissioned from carried ten numbers: 22, 22, 80, 500, 100, 25, and four
-zeros for the count-based concerns. They came from a social post rather than a standard, and the
-interview asked for them to be scrutinized. The result:
+These values circulate as thresholds. None of them traces to a standard or to the author of the
+measure it is applied to, in any source this plugin cites.
 
-| Value | Concern | Verdict |
-|---|---|---|
-| 22 | Cyclomatic complexity | **No provenance found.** McCabe 1976 and NIST SP 500-235 were downloaded and full-text searched twice, along with the threshold pages of Aivosto, ESLint (20), ReSharper (20), Microsoft CA1502 (25), NDepend (15 and 30), and NASA SWEHB (15). None attributes 22 to anyone. Dropped, not shipped |
-| 22 | Cognitive complexity | **No provenance found**, and no standard sets any cognitive threshold. SonarSource's own rule default is 15, which is a vendor product decision |
-| 80 | Halstead difficulty | **No provenance found.** Halstead 1977 defines difficulty and sets no limit, and no source in this plugin's research attributes 80 to anyone |
-| 500 | Lines per file | Traceable to the social post and to nothing else. The nearest standards figure is the informative 1000, and the normative form is a percentage. Selectable through config, labelled as the operator-list figure |
-| 100 | Coverage percentage | A policy, not a standard. No standard sets a coverage percentage, and a coverage number rises whenever a line executes, with or without an assertion |
-| 25 | CRAP | **Not the authors' number.** Savoia and Evans suggested 30, and said so as a starting point after "a LOT of opinions". 25 traces to no source found |
-| 0 | The count-based concerns | A target of zero is a policy choice. Three of those concerns belong to other plugins, which the routing section of `SKILL.md` names with a presence gate |
+| Value | Applied to | Where it was looked for | What was found |
+|---|---|---|---|
+| 22 | Cyclomatic complexity | McCabe 1976 and NIST SP 500-235 (full text); the threshold pages of Aivosto, ESLint (20), ReSharper (20), Microsoft CA1502 (25), NDepend (15 and 30), NASA SWEHB (15) | No source attributes 22 to anyone |
+| 22 | Cognitive complexity | Campbell's white paper; SonarSource rule S3776 | No standard sets a cognitive threshold; SonarSource's rule default is 15, a product decision |
+| 80 | Halstead difficulty | Halstead 1977 as reproduced by NASA NTRS, IBM, and radon; vendor threshold pages | Halstead defines difficulty and sets no limit; nothing attributes 80 to anyone |
+| 500 | Lines per file | ISO/IEC 5055 clauses 6 and 8 | The nearest standards figure is the informative 1000, and the normative form is a percentage. Selectable through config |
+| 100 | Coverage percentage | ISO/IEC 25023 preview; the coverage-effectiveness studies in literature.md | A policy, not a standard. A coverage number rises whenever a line executes, with or without an assertion |
+| 25 | CRAP | The Crap4j FAQ and the 2007 announcement | Not the authors' number. Savoia and Evans suggested 30, as a starting point after "a LOT of opinions" |
+| 0 | Count-based concerns (mutants, dead code, lint) | Not applicable | A target of zero is a policy choice; three of those concerns belong to other plugins, which `SKILL.md` names behind a presence gate |
 
-Two of these numbers, 20 for cyclomatic and 1000 for lines per file, survived in the shipped
-defaults because a citation exists for them, not because the empirical literature validates them.
-No study reviewed in [literature.md](literature.md) supports a fixed threshold that transfers across
-projects, and two of them argue against it directly.
+Sources not checked for any of these rows: vendor products behind a login, and standards bodies
+other than ISO, OMG, NIST, and MITRE. A reader who finds an authoritative source for one of these
+values should send it; the row changes only on a citation.
 
-## Why nothing here fires
-
-The marketplace's ADR 0003 requires a measured corpus sweep before anything emits a finding
-default-on. Reporting a number beside a cited reference is a measurement; deciding that the number
-is a defect is a finding. This version stays on the measurement side, so no sweep is owed, no
-false-positive budget is spent, and there is no `check` gate to argue with. That boundary is stated
-in every audit skill's description. A future gate would need the sweep first.
+Two of the shipped defaults, 20 for cyclomatic and 1000 for lines per file, exist because a citation
+exists for them, not because the empirical literature validates them. No study reviewed in
+[literature.md](literature.md) supports a fixed threshold that transfers across projects, and two of
+them argue against it directly.
 
 ## Setting your own
 

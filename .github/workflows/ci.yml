@@ -1370,7 +1370,7 @@ jobs:
           cache: npm
           cache-dependency-path: |
             package-lock.json
-            plugins/miro/package-lock.json
+            plugins/miro/server/package-lock.json
             plugins/ai-briefing/skills/generate/output/build/package-lock.json
             plugins/knowledge/skills/video-digest/extraction/package-lock.json
             plugins/knowledge/skills/course-digest/extraction/package-lock.json
@@ -1808,26 +1808,26 @@ jobs:
       - name: Install dependencies
         if: needs.changes.outputs.run_node == 'true'
         run: npm ci
-        working-directory: plugins/miro
+        working-directory: plugins/miro/server
       - name: Typecheck
         if: needs.changes.outputs.run_node == 'true'
         run: npm run typecheck
-        working-directory: plugins/miro
+        working-directory: plugins/miro/server
       - name: Lint
         if: needs.changes.outputs.run_node == 'true'
         run: npm run lint
-        working-directory: plugins/miro
+        working-directory: plugins/miro/server
       - name: Test
         if: needs.changes.outputs.run_node == 'true'
         run: npm test
-        working-directory: plugins/miro
+        working-directory: plugins/miro/server
       - name: Verify the committed bundle matches source
         if: needs.changes.outputs.run_node == 'true'
         run: npm run verify-bundle
-        working-directory: plugins/miro
+        working-directory: plugins/miro/server
       - name: Smoke-test the bundled MCP server over stdio
         if: needs.changes.outputs.run_node == 'true'
-        working-directory: plugins/miro
+        working-directory: plugins/miro/server
         run: |
           printf '%s\n%s\n' \
             '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"ci","version":"0.0.0"}}}' \
