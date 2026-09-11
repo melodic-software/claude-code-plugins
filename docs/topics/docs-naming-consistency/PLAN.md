@@ -245,17 +245,17 @@ context files, identical on both trees); the URL check's one hit is a `README.md
 was regenerated through `reference-edges.sh` (edge counts unchanged; six `files` samples re-sorted)
 and `render-landscape.sh` produced byte-identical `landscape.md` and `portfolio.md`.
 
-### Phase 3: Checker, rule file, CI wiring [TODO]
+### Phase 3: Checker, rule file, CI wiring [DONE]
 
 **Checker** (CREATE):
 
-- [ ] `scripts/check-docs-naming.sh`: `--check` mode; walks `git ls-files docs/`; passes a
+- [x] `scripts/check-docs-naming.sh`: `--check` mode; walks `git ls-files docs/`; passes a
       basename when it matches `^[a-z0-9]+([.-][a-z0-9]+)*\.[a-z0-9.]+$`, or is `README.md` /
       `CHANGELOG.md` / `INDEX.md`, or the path is under `docs/topics/`, or the extension is a
       code extension (`py sh mjs js ps1`); additionally fails when any two tracked paths under
       `docs/` differ only by case; prints one `path: reason` line per offender; exit 1 on any
       offender; header comment states the rule and its reason
-- [ ] `scripts/check-docs-naming.test.sh`: black-box, mktemp fixture tree with a throwaway git
+- [x] `scripts/check-docs-naming.test.sh`: black-box, mktemp fixture tree with a throwaway git
       repo built through `scripts/test-git-helpers.sh` (or `unset GIT_DIR GIT_WORK_TREE GIT_CONFIG`)
       so `scripts/check-fixture-git-isolation.sh --check` passes; no `ok "skip"` line; asserts
       pass on a clean tree, fail on `docs/NEW-FILE.md`, pass on `docs/x/README.md`, pass on
@@ -264,29 +264,29 @@ and `render-landscape.sh` produced byte-identical `landscape.md` and `portfolio.
 
 **Rule file and index** (CREATE / MODIFY):
 
-- [ ] `.claude/rules/docs-naming.md`: `paths: ["docs/**"]`; states the rule, the exemptions, that
+- [x] `.claude/rules/docs-naming.md`: `paths: ["docs/**"]`; states the rule, the exemptions, that
       `scripts/check-docs-naming.sh --check` is the gate (path rules load on read, not on file
       creation), and links the ADR from Phase 4; no em dash
-- [ ] `AGENTS.md`: one new row in the "Conventions that load on demand" table
+- [x] `AGENTS.md`: one new row in the "Conventions that load on demand" table
 
 **CI and validation wiring** (MODIFY):
 
-- [ ] `.github/workflows/ci.yml` `lint` job: "Run docs-naming tests" (`bash scripts/check-docs-naming.test.sh`,
+- [x] `.github/workflows/ci.yml` `lint` job: "Run docs-naming tests" (`bash scripts/check-docs-naming.test.sh`,
       gated on `run_shell`) then "Check docs/ filenames are lower-kebab" with `id: docs_naming`
       and `continue-on-error: true`, beside the skill-leaf-names pair; a
       `docs-naming=${{ steps.docs_naming.outcome }}` line in the outcome block that
       `scripts/aggregate-hygiene-results.sh` consumes
-- [ ] `scripts/affected-tests.sh --explain scripts/check-docs-naming.sh .claude/rules/docs-naming.md .github/workflows/ci.yml` returns no `UNMAPPED`
+- [x] `scripts/affected-tests.sh --explain scripts/check-docs-naming.sh .claude/rules/docs-naming.md .github/workflows/ci.yml` returns no `UNMAPPED`
 
 **Sanity Check:**
 
-- [ ] `scripts/check-docs-naming.sh --check` exits 0 on the working tree
-- [ ] `bash scripts/check-docs-naming.test.sh` exits 0 and prints one `ok` line per case above
-- [ ] `shellcheck scripts/check-docs-naming.sh scripts/check-docs-naming.test.sh && shfmt -d scripts/check-docs-naming.sh scripts/check-docs-naming.test.sh` exit 0
-- [ ] `scripts/check-fixture-git-isolation.sh --check && scripts/check-silent-skips.sh` exit 0
-- [ ] `actionlint .github/workflows/ci.yml` exits 0
-- [ ] `grep -c 'docs-naming' AGENTS.md` returns 1 and `grep -c '^paths:' .claude/rules/docs-naming.md` returns 1
-- [ ] `! grep -rqP '\xE2\x80\x94' .claude/rules/docs-naming.md scripts/check-docs-naming.sh scripts/check-docs-naming.test.sh` holds (no em dash in any new file)
+- [x] `scripts/check-docs-naming.sh --check` exits 0 on the working tree
+- [x] `bash scripts/check-docs-naming.test.sh` exits 0 and prints one `ok` line per case above
+- [x] `shellcheck scripts/check-docs-naming.sh scripts/check-docs-naming.test.sh && shfmt -d scripts/check-docs-naming.sh scripts/check-docs-naming.test.sh` exit 0
+- [x] `scripts/check-fixture-git-isolation.sh --check && scripts/check-silent-skips.sh` exit 0
+- [x] `actionlint .github/workflows/ci.yml` exits 0
+- [x] `grep -c 'docs-naming' AGENTS.md` returns 1 and `grep -c '^paths:' .claude/rules/docs-naming.md` returns 1
+- [x] `! grep -rqP '\xE2\x80\x94' .claude/rules/docs-naming.md scripts/check-docs-naming.sh scripts/check-docs-naming.test.sh` holds (no em dash in any new file)
 
 ### Phase 4: ADR at the next free number [TODO]
 

@@ -24,6 +24,7 @@ context, read the file directly.
 | Surface | Covers | Topic |
 |---|---|---|
 | `.claude/rules/catalog-taxonomy.md` | `.claude-plugin/marketplace.json` | Where the marketplace category taxonomy lives; read before adding or changing a plugin's category |
+| `.claude/rules/docs-naming.md` | `docs/**` | Every file under docs/ is lower-kebab-case with a short exemption list, gated by `scripts/check-docs-naming.sh --check`; read before adding or renaming a docs/ file |
 | `.claude/rules/hook-budget.md` | `plugins/*/hooks/**` | Marketplace-wide latency budget for always-on hooks; read before adding or widening a hook |
 | `.claude/rules/ruff-pin.md` | `**/*.py` | Python linting runs through the pinned ruff wrapper, never a bare ruff on PATH |
 | `.claude/rules/skill-bodies-state-current-rules.md` | `plugins/*/skills/**, plugins/*/agents/**` | Skill and agent bodies state the current rule and its reason, never the incident, PR, or model that motivated it, and name their successor in a `## Next` section; read before editing any skill body |
