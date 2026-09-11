@@ -202,6 +202,24 @@ assert_not_contains "noise: a .test.sh fixture name is not a system" "$out" 'Gon
 assert_not_contains "noise: a test-file same-owner token is not a system" "$out" 'fixture-owner/ghost'
 assert_not_contains "noise: an evals fixture is not a system" "$out" 'fixture-owner/eval-only'
 assert_not_contains "noise: the repository does not cite itself" "$out" '"to":"fixture-owner/charted"'
+
+# This skill's own committed output names every repository it charted. Reading
+# it back would raise every count on each run and cite the record as its own
+# evidence, so a drift gate could never report clean.
+mkdir -p "$noise_repo/docs/architecture"
+cat >"$noise_repo/docs/architecture/landscape.json" <<'JSON'
+{"repositories":[],"edges":[{"to":"fixture-owner/from-the-record"}]}
+JSON
+printf 'System(x, "fixture-owner/also-from-the-record")\n' \
+  >"$noise_repo/docs/architecture/landscape.md"
+printf '| fixture-owner/portfolio-row | owner |\n' \
+  >"$noise_repo/docs/architecture/portfolio.md"
+commit_repo "$noise_repo"
+out="$(bash "$SCRIPT" "$noise_repo")"
+assert_not_contains "artifact: the record is not evidence for its own edges" "$out" 'from-the-record'
+assert_not_contains "artifact: nor is the rendered diagram" "$out" 'also-from-the-record'
+assert_not_contains "artifact: nor the portfolio table" "$out" 'portfolio-row'
+assert_contains "artifact: a real doc reference still survives alongside them" "$out" '"to":"fixture-owner/ci-workflows"'
 assert_not_contains "noise: nor in another case" "$out" '"to":"Fixture-Owner/Charted"'
 
 # --- Case group 6: the .git suffix ------------------------------------------

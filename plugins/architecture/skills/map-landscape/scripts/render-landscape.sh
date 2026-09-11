@@ -379,6 +379,14 @@ if [[ "$dialect" == "mermaid" ]]; then
         b = 0
         for (i = 1; i <= n; i++) {
           split(io[i], f, "\t")
+          # An enterprise boundary is captioned with an organisation. "unknown"
+          # is the absence of one, so a repository with no resolvable owner is
+          # drawn at the top level rather than inside a boundary naming nothing.
+          if (f[7] == "unknown") {
+            if (cur != "") { print "  }"; cur = "" }
+            printf "  System(%s, \"%s\", \"%s\")\n", f[2], f[4], f[6]
+            continue
+          }
           if (f[7] != cur) {
             if (cur != "") print "  }"
             printf "  Enterprise_Boundary(b%d, \"%s\") {\n", b++, f[7]
@@ -410,6 +418,13 @@ else
       END {
         for (i = 1; i <= n; i++) {
           split(io[i], f, "\t")
+          # A group is captioned with an organisation. "unknown" is the absence
+          # of one, so an ownerless repository sits outside every group.
+          if (f[7] == "unknown") {
+            if (cur != "") { print "    }"; cur = "" }
+            printf "    %s = softwareSystem \"%s\" \"%s\"\n", f[2], f[4], f[6]
+            continue
+          }
           if (f[7] != cur) {
             if (cur != "") print "    }"
             printf "    group \"%s\" {\n", f[7]
@@ -426,7 +441,14 @@ else
     '
     printf '%s\n' "$model" | awk -F'\t' '$1 == "edge" { printf "    %s -> %s \"%s\"\n", $2, $3, $4 }'
     printf '  }\n  views {\n    systemLandscape "landscape" {\n'
-    printf '      include *\n      autoLayout\n    }\n  }\n}\n'
+    printf '      include *\n      autoLayout\n    }\n'
+    # Structurizr removed the internal/external `location` property, so a tag is
+    # the only carrier left for that fact. Without a style to read it the tag
+    # renders nothing, and the DSL artifact would lose a distinction the mermaid
+    # one keeps through System versus System_Ext.
+    printf '    styles {\n      element "External" {\n'
+    printf '        background #999999\n        color #ffffff\n      }\n    }\n'
+    printf '  }\n}\n'
   } >"$target"
 fi
 

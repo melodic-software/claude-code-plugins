@@ -1,6 +1,6 @@
 # System Landscape
 
-Generated on 2026-09-10 from current repository plus reference graph. Remote facts: not used.
+Generated on 2026-09-11 from current repository plus reference graph. Remote facts: not used.
 
 Every fact traces to the file the probe named. Every edge is typed by the
 syntax that carries it and labelled with how many references support it.
@@ -27,7 +27,7 @@ C4Context
   System_Ext(actions_checkout, "actions/checkout", "not checked out here")
 
   Rel(melodic_software_claude_code_plugins, anthropics_claude_code, "cites (37)")
-  Rel(melodic_software_claude_code_plugins, melodic_software_ci_workflows, "cites (142)")
+  Rel(melodic_software_claude_code_plugins, melodic_software_ci_workflows, "cites (145)")
   Rel(melodic_software_claude_code_plugins, melodic_software_claude_code_plugins_ci, "cites (1)")
   Rel(melodic_software_claude_code_plugins, melodic_software_dotfiles, "cites (4)")
   Rel(melodic_software_claude_code_plugins, melodic_software_github_iac, "cites (18)")
@@ -41,7 +41,7 @@ C4Context
   Rel(melodic_software_claude_code_plugins, melodic_software_ci_workflows, "uses-workflow (24)")
 ```
 
-63 external repositories are referenced but not drawn; the record carries
+67 external repositories are referenced but not drawn; the record carries
 every one of them.
 
 ## Annotations

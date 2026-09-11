@@ -210,6 +210,21 @@ is_fixture_file() {
   */evals/* | evals/*) return 0 ;;
   */fixtures/* | fixtures/*) return 0 ;;
   */testdata/* | testdata/*) return 0 ;;
+  *) is_own_artifact "$1" ;;
+  esac
+}
+
+# This skill's own committed output names every repository it charted, so once
+# those artifacts are tracked the extractor would read them back as fresh
+# evidence: each run would raise every count by one and cite the record as its
+# own source, and a drift gate could never report clean again. The artifact
+# names are fixed by this skill's contract while only their directory varies,
+# so matching the basename is enough to keep derived output out of the input.
+is_own_artifact() {
+  case "${1##*/}" in
+  landscape.json | landscape.md | landscape.dsl | landscape-notes.md | portfolio.md)
+    return 0
+    ;;
   *) return 1 ;;
   esac
 }

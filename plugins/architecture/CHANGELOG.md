@@ -28,6 +28,26 @@ All notable changes to the `architecture` plugin are documented here. Format fol
 - **`map-landscape`:** a fixed closing report: artifacts, repositories charted, edges by type,
   unknown count, discovery source, remote state, and drift.
 
+### Fixed
+
+- **`map-landscape`:** the extractor no longer reads this skill's own committed artifacts as evidence.
+  Once `landscape.json` was tracked it named every repository it charted, so each run raised every
+  citation count by one and listed the record among its own sources, and the drift gate could never
+  report clean. The record is now a fixed point: regenerating it twice produces byte-identical output.
+- **`map-landscape`:** a drift comparison against a record built with a different remote posture says
+  so. A record carrying remote-sourced repositories would otherwise report every one of them as
+  removed on a local-only run, because no local collection can produce them.
+- **`map-landscape`:** two checkouts sharing a directory basename are reported as an ambiguous
+  identity rather than silently matched onto one row.
+- **`map-landscape`:** a clean comparison that carries non-gating differences no longer claims the
+  record "matches" and then lists what moved.
+- **`map-landscape`:** a repository with no resolvable owner is drawn outside every boundary in both
+  dialects. An enterprise boundary or group is captioned with an organisation, and `unknown` is the
+  absence of one.
+- **`map-landscape`:** the Structurizr artifact carries a `styles` block for its `External` tag.
+  Structurizr removed the internal/external `location` property, so the tag is the only carrier left
+  for that fact, and without a style it rendered nothing.
+
 ### Changed
 
 - **`map-landscape`:** relationships are the extractor's output rather than the model's judgment.

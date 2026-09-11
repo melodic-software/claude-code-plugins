@@ -338,6 +338,31 @@ compare_set() {
 
 report="$report"'Landscape drift, fresh collection versus '"$compare_to"$'\n'
 
+# A repository is identified by `name`, its directory basename. Two checkouts
+# sharing a basename would collapse onto one key here and silently match the
+# wrong row below, so an ambiguous identity is reported rather than guessed at.
+dup_names() {
+  printf '%s\n' "$1" | awk "$SPLIT_AWK"'
+    NF { n = unquote(field($0, "name")); if (n != "") seen[n]++ }
+    END { for (k in seen) if (seen[k] > 1) print k }
+  ' | sort
+}
+while IFS= read -r dup; do
+  [[ -n "$dup" ]] || continue
+  say "  ambiguous repository identity: several checkouts are named $dup, so this comparison cannot tell them apart"
+done < <(
+  printf '%s\n%s\n' "$(dup_names "$old_repos")" "$(dup_names "$facts_out")" | sort -u
+)
+
+# The committed record and this collection must describe the same kind of
+# thing. A record built with remote facts carries repositories no local-only
+# run can produce, and every one of them would otherwise report as removed.
+old_remote="$(sed -n 's/^[[:space:]]*"remote"[[:space:]]*:[[:space:]]*"\(.*\)".*$/\1/p' "$compare_to" | head -1)"
+if [[ "$old_remote" != "$remote_text" ]]; then
+  report="$report"'  NOT COMPARABLE: the committed record was built with remote "'"$old_remote"'" and this run declares "'"$remote_text"'".'$'\n'
+  report="$report"'  Repositories present only in the record are reported below, but a posture mismatch, not their removal, may explain them.'$'\n'
+fi
+
 compare_set repository "name" "$old_repos" "$facts_out"
 compare_set edge "to,type" "$old_edges" "$edges_out"
 
@@ -407,8 +432,15 @@ while IFS=$'\t' read -r to f; do
 done <<<"$missing"
 
 if [[ "$drift" -eq 0 ]]; then
-  printf 'Landscape drift: none. The committed record matches a fresh collection.\n'
-  [[ -z "$notes" ]] || printf '%s' "$notes"
+  if [[ -z "$notes" ]]; then
+    printf 'Landscape drift: none. The committed record matches a fresh collection.\n'
+  else
+    # Saying the record "matches" and then listing what moved contradicts
+    # itself. Non-gating lines are still differences; only their consequence
+    # differs.
+    printf 'Landscape drift: none that gates. Non-gating differences follow.\n'
+    printf '%s' "$notes"
+  fi
   exit 0
 fi
 

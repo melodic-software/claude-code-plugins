@@ -124,6 +124,9 @@ assert_contains "structurizr: owners become groups" "$dsl" 'group "acme" {'
 assert_contains "structurizr: a system carries its label as the description" "$dsl" 'softwareSystem "billing.api" "dotnet, net9.0"'
 assert_contains "structurizr: an other-owner system is tagged External" "$dsl" '"actions/checkout" "not checked out here" "External"'
 assert_contains "structurizr: relationships carry the same type-and-count label" "$dsl" 'acme_web_ui -> acme_billing_api "depends-on (3)"'
+# Structurizr dropped the internal/external `location` property, so the tag is
+# the only carrier for that fact — and a tag with no style renders nothing.
+assert_contains "structurizr: the External tag has a style to render through" "$dsl" 'element "External" {'
 
 # The two dialects must agree on which systems exist.
 for sys in acme_web_ui acme_billing_api acme_design_tokens actions_checkout; do
@@ -193,7 +196,14 @@ render solo --record "$TEST_TMPDIR/empty.json"
 assert_equals "empty: an edgeless record still renders" "$?" "0"
 solo="$(cat "$TEST_TMPDIR/solo/landscape.md")"
 assert_contains "empty: the one system is drawn" "$solo" 'System(solo, "solo"'
-assert_contains "empty: an unknown owner does not fabricate a boundary name" "$solo" 'Enterprise_Boundary(b0, "unknown")'
+# An enterprise boundary is captioned with an organisation, so the absence of
+# one is drawn as no boundary rather than as a boundary named "unknown".
+assert_not_contains "empty: an unknown owner does not become a boundary caption" "$solo" 'Enterprise_Boundary'
+assert_contains "empty: the ownerless system is drawn at the top level instead" "$solo" 'System(solo, "solo"'
+render dsl_solo --record "$TEST_TMPDIR/empty.json" --dialect structurizr
+solo_dsl="$(cat "$TEST_TMPDIR/dsl_solo/landscape.dsl")"
+assert_not_contains "empty: nor a group caption in the other dialect" "$solo_dsl" 'group "unknown"'
+assert_contains "empty: where it sits outside every group" "$solo_dsl" 'solo = softwareSystem "solo"'
 assert_contains "empty: a repository with no probed runtime says so" "$solo" 'no probed runtime'
 assert_contains "empty: an empty dependency list reads as none, not blank" \
   "$(cat "$TEST_TMPDIR/solo/portfolio.md")" '| (none) |'

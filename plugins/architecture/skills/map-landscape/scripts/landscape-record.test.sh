@@ -204,6 +204,38 @@ out="$(bash "$SCRIPT" "$ev_repo" --drift-against "$TEST_TMPDIR/ev.json")"
 assert_not_contains "evidence: an edge still cited by one file survives" "$out" "removed edge: fixture-owner/toolkit"
 assert_contains "evidence: but the count change is reported" "$out" "changed"
 
+# --- Case group 8a: comparisons this script cannot honestly make ------------
+#
+# Two checkouts sharing a basename collapse onto one identity, so the field pass
+# would silently match the wrong row. Saying so beats guessing.
+dup_a="$(make_repo dupname)"
+printf 'echo a\n' >"$dup_a/run.sh"
+commit_repo "$dup_a"
+mkdir -p "$TEST_TMPDIR/nested"
+dup_b="$TEST_TMPDIR/nested/dupname"
+mkdir -p "$dup_b"
+git -C "$dup_b" init --quiet 2>/dev/null
+git -C "$dup_b" config user.email "fixture@example.invalid"
+git -C "$dup_b" config user.name "Fixture"
+git -C "$dup_b" config commit.gpgsign false
+git -C "$dup_b" remote add origin "https://github.com/other-owner/dupname.git"
+printf 'echo b\n' >"$dup_b/run.sh"
+commit_repo "$dup_b"
+bash "$SCRIPT" "$dup_a" "$dup_b" --edges-from "$dup_a" >"$TEST_TMPDIR/dup.json"
+out="$(bash "$SCRIPT" "$dup_a" "$dup_b" --edges-from "$dup_a" --drift-against "$TEST_TMPDIR/dup.json")"
+assert_equals "ambiguity: a colliding basename is drift, not a silent wrong match" "$?" "3"
+assert_contains "ambiguity: and the collision is named" "$out" "ambiguous repository identity: several checkouts are named dupname"
+
+# A record built with remote facts carries repositories no local-only run can
+# produce; without this guard every one of them reports as removed.
+sed 's/"remote": "not used"/"remote": "used, owned only"/' \
+  "$TEST_TMPDIR/committed.json" >"$TEST_TMPDIR/remote-posture.json"
+out="$(bash "$SCRIPT" "$repo" --drift-against "$TEST_TMPDIR/remote-posture.json")"
+assert_contains "posture: a mismatched remote posture is called out" "$out" "NOT COMPARABLE"
+assert_contains "posture: naming both sides" "$out" 'built with remote "used, owned only"'
+out="$(bash "$SCRIPT" "$repo" --remote "used, owned only" --drift-against "$TEST_TMPDIR/remote-posture.json")"
+assert_not_contains "posture: matching postures compare normally" "$out" "NOT COMPARABLE"
+
 # --- Case group 9: a record this script will not compare against ------------
 printf '{"schema_version": 2, "repositories": [], "edges": []}\n' >"$TEST_TMPDIR/v2.json"
 bad="$(bash "$SCRIPT" "$repo" --drift-against "$TEST_TMPDIR/v2.json" 2>&1)"
