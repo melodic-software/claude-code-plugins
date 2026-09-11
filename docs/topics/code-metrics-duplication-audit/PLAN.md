@@ -254,7 +254,9 @@ Review: code-design
    (`kb` = 1024, `mb` = 1,048,576, bare digits = bytes) and `CODE_METRICS_DUP_MAX_LINES`; treat an
    empty or `0` value as no cap; pre-filter the file list by `os.stat` size and, only when a line
    cap is set, by a binary-mode newline count; pass `--max-size <bound + 1 bytes>` always and
-   `--max-lines <bound + 1, or 1000000 when null>` always, so the pre-filter is the only gate on both
+   `--max-lines <bound + 1, or 2147483647 when null>` always (the review raised the sentinel from
+   1000000, which a generated file can reach, to the signed 32-bit maximum both majors accept), so
+   the pre-filter is the only gate on both
    majors [EXEC-SHAPE] (4.x reads `--max-lines 0` as "use the 1000 default" and both majors read a
    `0` size as "skip all"); when files were skipped, write one line to the partial-reason file
    (`N of M files skipped by duplication.max_size <v> / max_lines <v>; largest: <path> (<bytes>)`),
@@ -292,7 +294,7 @@ Review: code-design
 - `python3 scripts/check-code-metrics-config-reference.py` exits 0;
   `python3 -m unittest plugins/code-metrics/skills/setup/scripts/test_setup_apply.py` exits 0.
 - `python3 -m unittest plugins/code-metrics/scripts/collectors/test_jscpd.py` exits 0; its argv-log
-  case asserts `--max-size 1048577` and `--max-lines 1000000` present and no argument equal to `0`
+  case asserts `--max-size 1048577` and `--max-lines 2147483647` present and no argument equal to `0`
   follows either flag.
 - `bash plugins/code-metrics/scripts/dispatch.test.sh` exits 0 with a case whose JSON has a run row
   `status == "partial"` and a reason matching `^[0-9]+ of [0-9]+ files skipped`, and a case whose

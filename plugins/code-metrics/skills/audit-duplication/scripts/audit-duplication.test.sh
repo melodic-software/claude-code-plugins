@@ -159,7 +159,7 @@ assert_contains "min_tokens reaches the collector" "$argv" "--min-tokens 77"
 assert_contains "min_lines reaches the collector" "$argv" "--min-lines 9"
 assert_contains "the ignore globs reach the collector" "$argv" "--ignore **/vendor/**"
 assert_contains "max_size reaches the collector one byte above the bound" "$argv" "--max-size 8193"
-assert_contains "a max_lines of 0 means no cap and reaches the collector as the explicit large value" "$argv" "--max-lines 1000000"
+assert_contains "a max_lines of 0 means no cap and reaches the collector as the explicit large value" "$argv" "--max-lines 2147483647"
 
 # 7. Three byte-identical copies are one clone class, its lines counted once.
 # jscpd pairs each later copy with the first, so the capture holds two pairs

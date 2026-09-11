@@ -228,7 +228,7 @@ class JscpdAdapterTests(unittest.TestCase):
                 # One byte above the adapter's own bound, so the pre-filter is
                 # the only gate on either major.
                 self.assertIn("--max-size 1048577", argv, version)
-                self.assertIn("--max-lines 1000000", argv, version)
+                self.assertIn("--max-lines 2147483647", argv, version)
 
     def test_a_zero_cap_means_no_cap_and_is_never_passed(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -249,7 +249,7 @@ class JscpdAdapterTests(unittest.TestCase):
             argv = log.read_text(encoding="utf-8")
             self.assertNotIn("--max-size 0 ", argv + " ")
             self.assertNotIn("--max-lines 0 ", argv + " ")
-            self.assertIn("--max-lines 1000000", argv)
+            self.assertIn("--max-lines 2147483647", argv)
             self.assertIn("--max-size 1099511627776", argv)
 
     def test_the_size_grammar_uses_binary_multipliers(self) -> None:

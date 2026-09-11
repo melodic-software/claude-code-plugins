@@ -69,9 +69,11 @@ REPORT_BASENAME = "jscpd-report.json"
 DEFAULT_MIN_TOKENS = "50"
 DEFAULT_MIN_LINES = "5"
 DEFAULT_MAX_SIZE = "1mb"
-# Passed to jscpd when the adapter applies no cap of its own: bounds no file
-# that survives the pre-filter reaches, valid on both majors (`0` is not).
-NO_LINE_CAP = 1_000_000
+# Passed to jscpd when the adapter applies no cap of its own: bounds no real
+# file reaches, so jscpd's own gate can never skip a file this adapter did not
+# name; both are accepted by both majors (`0` is not), verified 2026-09-11
+# against 4.3.0 and 5.2.0 with the line bound at the signed 32-bit maximum.
+NO_LINE_CAP = 2_147_483_647
 NO_SIZE_CAP = 1 << 40
 _SIZE_UNITS = {"": 1, "b": 1, "kb": 1024, "mb": 1024**2, "gb": 1024**3}
 _SIZE_RE = re.compile(r"^(\d+(?:\.\d+)?)\s*([kmg]?b)?$")
