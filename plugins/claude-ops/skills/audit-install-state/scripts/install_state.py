@@ -16,11 +16,12 @@ The fifth question -- "so what should I delete?" -- is deliberately not
 answered. This engine never writes to, moves, or removes anything in the target
 tree, and it never reads the bytes of a secret-bearing file.
 
-Every emitted claim carries an ``evidence`` tag (``measured`` /
-``documented-default`` / ``inferred``) and every count that can move while the
-scan runs is emitted as ``{min, max, n}`` rather than a single number. Those two
-properties are structural: an unlabeled claim and a bare central tendency are
-not representable in the output schema.
+Every emitted claim carries an ``evidence`` tag drawn from one closed vocabulary
+(``measured`` / ``documented-default`` / ``inferred`` / ``no-upstream-row`` /
+``documented`` / ``observed-undocumented``) and every count that can move while
+the scan runs is emitted as ``{min, max, n}`` rather than a single number. Those
+two properties are structural: an unlabeled claim and a bare central tendency
+are not representable in the output schema.
 
 Python 3.11+.
 """
@@ -47,9 +48,30 @@ MIN_PYTHON = (3, 11)
 # Evidence vocabulary
 # --------------------------------------------------------------------------
 
-MEASURED = "measured"
-DOCUMENTED_DEFAULT = "documented-default"
-INFERRED = "inferred"
+MEASURED = "measured"  # read off the filesystem or a config file in this run
+DOCUMENTED_DEFAULT = (
+    "documented-default"  # absent locally; upstream's documented default
+)
+INFERRED = "inferred"  # a step was taken beyond what was measured
+NO_UPSTREAM_ROW = "no-upstream-row"  # no documentation covers the path either way
+DOCUMENTED = "documented"  # a claim whose basis is an upstream page, cited with a date
+OBSERVED_UNDOCUMENTED = "observed-undocumented"  # seen on real trees; no upstream row
+
+EVIDENCE_VOCABULARY = frozenset(
+    {
+        MEASURED,
+        DOCUMENTED_DEFAULT,
+        INFERRED,
+        NO_UPSTREAM_ROW,
+        DOCUMENTED,
+        OBSERVED_UNDOCUMENTED,
+    }
+)
+
+# Bumped whenever a section is added or a field's meaning changes. /2 added the
+# environment block, size attribution, the report header, shaped unknown samples,
+# grouped PID rows, the content_read flags and the sentinels block.
+SCHEMA = "claude-install-state/2"
 
 # --------------------------------------------------------------------------
 # Secrets: paths whose CONTENTS are never opened by this engine.
@@ -313,6 +335,16 @@ NAME_SCHEMES: tuple[NameScheme, ...] = (
         r"sessions/\d+\.json",
         PID,
         "Genuine OS process id of a running Claude Code session. Liveness is valid here.",
+    ),
+    NameScheme(
+        r"plugins/cache/[^/]+/[^/]+/[^/]+/\.in_use/\d+",
+        PID,
+        "PID of the Claude Code process that loaded this plugin version. Basis: the Claude "
+        "Code CHANGELOG (entry 2.1.169) calls these files `.in_use` PID lock files, and the "
+        "number matched the live session's PID on every observed tree; no docs page carries a "
+        "row. Verified 2026-09-11 against Claude Code 2.1.268. Recheck when claude-directory.md "
+        "or plugins-reference.md gains an .in_use row, or the CHANGELOG names the file again. "
+        "A `<pid>.tmp.<hash>` sibling is a staging temp, not a lock, and stays unknown.",
     ),
     NameScheme(
         r"ide/\d+\.lock",
@@ -703,6 +735,9 @@ def read_retention(root: Path) -> dict:
         "effective_evidence": DOCUMENTED_DEFAULT,
         "last_cleanup": None,
         "last_cleanup_age_hours": None,
+        # The file is read and its advance is real, but its ROLE as the sweep's
+        # watermark is an observation with no upstream row (see `sentinels`).
+        "last_cleanup_evidence": OBSERVED_UNDOCUMENTED,
         "plugin_inuse_sweep": None,
         "findings": [],
         "basis": "https://code.claude.com/docs/en/claude-directory.md (Application data)",
@@ -926,13 +961,22 @@ def rollup(
                 f"Own classification: {note}"
             )
         older = [m for m in members if m.mtime < cutoff]
+        # Which member files the engine opened by content. Orthogonal to the
+        # surface: `settings.json` stays AUTHORED and the two sentinels stay
+        # unclassified; the flag records the engine's own behaviour, so the
+        # retention section and this table agree about what was read.
+        read_paths = sorted(
+            m.relpath for m in members if m.relpath in CONTENT_READ_ALLOWLIST
+        )
         entry = {
             "entry": name,
             "surface": surface,
             "surface_note": note,
             "surface_evidence": (
-                MEASURED if surface != UNCLASSIFIED else "no-upstream-row"
+                MEASURED if surface != UNCLASSIFIED else NO_UPSTREAM_ROW
             ),
+            "content_read": bool(read_paths),
+            "content_read_paths": read_paths,
             "files": len(members),
             "bytes": sum(m.bytes for m in members),
             "oldest": min(m.mtime for m in members),
@@ -1007,7 +1051,7 @@ def staleness_reading(entry: dict, retention_days: int) -> dict:
         }
     return {
         "verdict": "unclassified-report-only",
-        "evidence": "no-upstream-row",
+        "evidence": NO_UPSTREAM_ROW,
         "why": (
             "No upstream table covers this path, so no retention claim can be made about it "
             "either way. Report it; do not infer that unmanaged means disposable."
@@ -1042,39 +1086,124 @@ def recent_writers(rows: list[FileRow], hours: int) -> list[dict]:
     ]
 
 
-def summarize_numeric(rows: list[FileRow], sample_cap: int = 25) -> dict:
-    """Counts per (meaning, liveness), plus a bounded sample of the rows that matter.
+_DIGIT_RUN = re.compile(r"\d+")
 
-    Every PID-typed row is listed, because those are the only ones a liveness
-    verdict was even attempted for. Unrecognised numeric names are sampled --
-    they are the ones a future version of the scheme table should learn.
+
+def name_shape(basename: str) -> str:
+    """`wml-2010.xsd` -> `wml-<n>.xsd`. Presentation only: never feeds classification."""
+    return _DIGIT_RUN.sub("<n>", basename)
+
+
+def auditor_pids() -> set[int]:
+    """The engine's own PID and its ancestors, as far as the platform lets us walk.
+
+    A `.in_use/<pid>` marker held by the Claude Code session that launched
+    this audit is evidence about the auditor, not about the tree. On Linux the
+    chain is read from /proc; elsewhere it stops at the parent.
     """
+    pids = {os.getpid()}
+    try:
+        parent = os.getppid()
+    except OSError:  # pragma: no cover - platform-dependent
+        return pids
+    pids.add(parent)
+    proc = Path("/proc")
+    pid = parent
+    if proc.is_dir():
+        for _ in range(64):
+            try:
+                stat_line = (proc / str(pid) / "stat").read_text(
+                    encoding="utf-8", errors="replace"
+                )
+                ppid = int(stat_line.rsplit(")", 1)[1].split()[1])
+            except (OSError, ValueError, IndexError):
+                break
+            if ppid <= 1 or ppid in pids:
+                break
+            pids.add(ppid)
+            pid = ppid
+    return pids
+
+
+def summarize_numeric(
+    rows: list[FileRow],
+    sample_cap: int = 25,
+    path_cap: int = 10,
+    self_pids: set[int] | None = None,
+) -> dict:
+    """Counts per (meaning, liveness), PID rows grouped by PID, unknown names by shape.
+
+    PID rows are grouped because a plugin cache holds one `.in_use/<pid>` marker
+    per enabled plugin version, all carrying the same PID: seventy identical
+    rows say less than one row with a count. A group whose PID belongs to the
+    auditing process's own ancestry is marked `self_held`.
+
+    Unrecognised numeric names are the ones a future scheme table should learn,
+    so the sample groups them by SHAPE (digit runs collapsed to `<n>`) with a
+    count per shape and a histogram by top-level directory. One repeated
+    schema-file shape can no longer fill the whole sample. Shape derivation is
+    presentational: `classify_name` never sees it, and the fail-closed default
+    is untouched.
+    """
+    self_pids = auditor_pids() if self_pids is None else self_pids
     buckets: dict[str, int] = {}
-    pid_rows: list[dict] = []
-    unknown_sample: list[str] = []
+    pid_groups: dict[int, dict] = {}
+    shapes: dict[str, dict] = {}
+    by_parent: dict[str, int] = {}
     for row in rows:
         if row.number_meaning == NO_NUMBER:
             continue
         key = f"{row.number_meaning}/{row.liveness}"
         buckets[key] = buckets.get(key, 0) + 1
         if row.number_meaning == PID:
-            pid_rows.append(
+            pid = extract_pid(row.relpath) or -1
+            group = pid_groups.setdefault(
+                pid,
                 {
-                    "relpath": row.relpath,
+                    "pid": pid,
                     "liveness": row.liveness,
                     "reason": row.liveness_reason,
+                    "count": 0,
+                    "paths": [],
+                    "self_held": pid in self_pids,
                     "evidence": MEASURED,
-                }
+                },
             )
-        elif row.number_meaning == UNKNOWN_MEANING and len(unknown_sample) < sample_cap:
-            unknown_sample.append(row.relpath)
+            group["count"] += 1
+            if len(group["paths"]) < path_cap:
+                group["paths"].append(row.relpath)
+        elif row.number_meaning == UNKNOWN_MEANING:
+            shape = name_shape(PurePosixPath(row.relpath).name)
+            entry = shapes.setdefault(
+                shape, {"shape": shape, "count": 0, "example": row.relpath}
+            )
+            entry["count"] += 1
+            head = top_level_name(row.relpath)
+            by_parent[head] = by_parent.get(head, 0) + 1
+    pid_typed = []
+    for group in sorted(pid_groups.values(), key=lambda g: g["pid"]):
+        group["paths"] = sorted(group["paths"])
+        group["paths_truncated"] = group["count"] > len(group["paths"])
+        if group["self_held"]:
+            group["self_held_note"] = (
+                "This PID is the auditing process or one of its ancestors. The marker "
+                "records that the session running this audit loaded the plugin; it is "
+                "evidence about the auditor, not about the tree."
+            )
+        pid_typed.append(group)
+    sample = sorted(shapes.values(), key=lambda s: (-s["count"], s["shape"]))[
+        :sample_cap
+    ]
     return {
         "counts_by_meaning_and_liveness": dict(sorted(buckets.items())),
-        "pid_typed": sorted(pid_rows, key=lambda r: r["relpath"]),
-        "unknown_meaning_sample": unknown_sample,
+        "pid_typed": pid_typed,
+        "unknown_meaning_sample": sample,
+        "unknown_shapes_total": len(shapes),
+        "unknown_by_parent": dict(sorted(by_parent.items())),
         "note": (
             "Liveness was attempted for the pid_typed rows only. Every other row reads "
-            "not_applicable BY CONSTRUCTION, not because a lookup missed. The full per-file "
+            "not_applicable BY CONSTRUCTION, not because a lookup missed. The unknown sample "
+            "is grouped by name shape (digit runs collapsed to <n>); the full per-file "
             "classification is in the CSV artifact."
         ),
         "evidence": MEASURED,
@@ -1121,6 +1250,256 @@ def home_root_state(root: Path) -> list[dict]:
     return out
 
 
+# --------------------------------------------------------------------------
+# Environment: is this tree a cloud-session container's, or the operator's?
+#
+# Label only. Nothing below changes a staleness verdict; the block exists so
+# a three-minute-old container tree is never graded as the operator's machine.
+# --------------------------------------------------------------------------
+
+# Tree-level signals: (relpath, kind, evidence, note). A `named` signal decides
+# the verdict on its own. `session-env/`, `remote-settings.json` and
+# `policy-limits.json` are deliberately absent: every install can carry them,
+# so they would fire on every local tree.
+REMOTE_TREE_SIGNALS: tuple[tuple[str, str, str, str], ...] = (
+    (
+        "launcher-settings.json",
+        "named",
+        OBSERVED_UNDOCUMENTED,
+        "Present at the root of every observed Claude Code on the web container; no upstream "
+        "row as of 2026-09-11 (claude-directory.md, env-vars.md, cloud-environments.md, "
+        "CHANGELOG through 2.1.268). Recheck when claude-directory.md gains the row.",
+    ),
+    (
+        "environment-manager",
+        "named",
+        OBSERVED_UNDOCUMENTED,
+        "Same basis and recheck trigger as launcher-settings.json.",
+    ),
+    (
+        "plugins/synced",
+        "named",
+        DOCUMENTED,
+        "plugins-reference.md documents plugins/synced/ as where a cloud session stores the "
+        "skills the session provides. Verified 2026-09-11; recheck when that page changes it.",
+    ),
+)
+
+ROOT_SCRIPT_SUFFIXES = (".sh", ".py")
+
+
+def environment_state(
+    root: Path, own_config_dir: bool, env: dict | None = None
+) -> dict:
+    """Label the tree's origin without touching any verdict below it.
+
+    Two kinds of signal, kept apart because they describe different things:
+
+    * `CLAUDE_CODE_REMOTE` describes the RUNNING PROCESS (upstream: set to
+      `true` when Claude Code is running as a cloud session). With `--root`
+      pointing anywhere else it says nothing about the scanned tree, so it
+      only escalates `local` to `indeterminate`, and only when the root is the
+      process's own config dir.
+    * The tree signals describe the TREE. A named signal decides; root-level
+      hook scripts merely corroborate, because an operator can keep scripts
+      there too. Corroboration alone, or the process variable alone, yields
+      `indeterminate`, never `remote`.
+    """
+    env = dict(os.environ) if env is None else env
+    remote_var = env.get("CLAUDE_CODE_REMOTE")
+    signals: list[dict] = []
+    named_present = 0
+    for rel, kind, evidence, note in REMOTE_TREE_SIGNALS:
+        present = (root / rel).exists()
+        named_present += int(present)
+        signals.append(
+            {
+                "path": rel,
+                "kind": kind,
+                "present": present,
+                "evidence": evidence,
+                "note": note,
+            }
+        )
+    scripts: list[str] = []
+    if root.is_dir():
+        scripts = sorted(
+            p.name
+            for p in root.iterdir()
+            if p.is_file() and p.suffix in ROOT_SCRIPT_SUFFIXES
+        )
+    signals.append(
+        {
+            "path": "<root>/*.sh, <root>/*.py",
+            "kind": "corroborating",
+            "present": bool(scripts),
+            "matches": scripts,
+            "evidence": OBSERVED_UNDOCUMENTED,
+            "note": (
+                "Hook scripts placed at the tree root by the cloud launcher on every observed "
+                "container. Corroborating only: an operator can keep scripts here too."
+            ),
+        }
+    )
+    if named_present:
+        verdict = "remote"
+        why = "At least one named tree signal is present."
+    elif scripts or (own_config_dir and remote_var == "true"):
+        verdict = "indeterminate"
+        why = (
+            "Only a corroborating tree signal, or only the process-level variable, points at "
+            "a cloud session; neither decides the tree on its own."
+        )
+    else:
+        verdict = "local"
+        why = "No tree signal is present."
+    return {
+        "tree_verdict": verdict,
+        "evidence": MEASURED,
+        "why": why + " Label only: no staleness verdict in this report depends on it.",
+        "session_context": {
+            "claude_code_remote": remote_var,
+            "evidence": DOCUMENTED,
+            "basis": (
+                "env-vars.md: CLAUDE_CODE_REMOTE is set automatically to true when Claude Code "
+                "is running as a cloud session. Verified 2026-09-11; recheck when the row changes."
+            ),
+            "root_is_own_config_dir": own_config_dir,
+            "note": "A property of the auditing process, not of the scanned tree.",
+        },
+        "tree_signals": signals,
+    }
+
+
+# --------------------------------------------------------------------------
+# Size attribution: the JSON answers "why is my install so big" itself
+# --------------------------------------------------------------------------
+
+
+def largest_subtrees(
+    rows: list[FileRow],
+    entries: list[dict],
+    top_n: int = 10,
+    min_depth: int = 2,
+    max_depth: int = 6,
+    passthrough: float = 0.95,
+) -> list[dict]:
+    """Top directories by bytes under every rolled-up entry.
+
+    A directory whose single child holds `passthrough` of its bytes is dropped
+    in favour of that child, so the list names `.../node_modules` rather than
+    five nested prefixes of it. Every figure is the sum of measured sizes.
+    """
+    rolled = {e["entry"] for e in entries if e.get("listing") == "rolled-up"}
+    agg: dict[str, list[int]] = {}
+    for row in rows:
+        parts = row.relpath.split("/")
+        if parts[0] not in rolled:
+            continue
+        deepest = min(max_depth, len(parts) - 1)
+        for depth in range(min_depth, deepest + 1):
+            key = "/".join(parts[:depth])
+            bucket = agg.setdefault(key, [0, 0])
+            bucket[0] += row.bytes
+            bucket[1] += 1
+    kept: list[tuple[str, list[int]]] = []
+    for key, (size, files) in agg.items():
+        prefix = key + "/"
+        children = [
+            v[0]
+            for k, v in agg.items()
+            if k.startswith(prefix) and "/" not in k[len(prefix) :]
+        ]
+        if size and children and max(children) >= passthrough * size:
+            continue
+        kept.append((key, [size, files]))
+    ranked = sorted(kept, key=lambda kv: (-kv[1][0], kv[0]))[:top_n]
+    return [
+        {
+            "path": key,
+            "depth": key.count("/") + 1,
+            "bytes": size,
+            "files": files,
+            "evidence": MEASURED,
+        }
+        for key, (size, files) in ranked
+    ]
+
+
+def node_modules_bucket(rows: list[FileRow]) -> dict:
+    """Bytes under any `node_modules` inside `plugins/`, with the upstream reason they exist."""
+    total = 0
+    files = 0
+    dirs: set[str] = set()
+    for row in rows:
+        parts = row.relpath.split("/")
+        if parts[0] != "plugins" or "node_modules" not in parts[1:-1]:
+            continue
+        idx = parts.index("node_modules")
+        dirs.add("/".join(parts[: idx + 1]))
+        total += row.bytes
+        files += 1
+    return {
+        "bytes": total,
+        "files": files,
+        "directories": sorted(dirs),
+        "evidence": MEASURED,
+        "why": (
+            "Product-installed. plugins-reference.md (plugin caching) documents that Claude Code "
+            "installs a plugin's Node.js dependencies into the copied version directory, with "
+            "`npm ci --ignore-scripts` when package.json and a supported lockfile are present, "
+            "and that the automatic install cannot be turned off. `npm ci` includes "
+            "devDependencies unless they are omitted. A timed-out install can leave a partial "
+            "tree, so this figure is the bytes present, not any plugin's full dependency set. "
+            "No verdict on any plugin is implied. Verified 2026-09-11; recheck when that "
+            "page's plugin caching section changes."
+        ),
+    }
+
+
+def engine_version() -> str:
+    """The owning plugin's manifest version, or `unknown` outside a plugin layout."""
+    try:
+        manifest = (
+            Path(__file__).resolve().parents[3] / ".claude-plugin" / "plugin.json"
+        )
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+        return str(data.get("version") or "unknown")
+    except (OSError, ValueError, IndexError):
+        return "unknown"
+
+
+# --------------------------------------------------------------------------
+# Sentinels the engine reads by content and no upstream page names
+# --------------------------------------------------------------------------
+
+SENTINELS: dict[str, str] = {
+    ".last-cleanup": (
+        "Observed to carry an ISO timestamp that advances when the retention sweep runs. No "
+        "upstream row: claude-directory.md, settings-reference.md, monitoring-usage.md and "
+        "the CHANGELOG through 2.1.268 do not name the file (checked 2026-09-11). Cadence "
+        "unknown. Recheck when claude-directory.md gains a row or the CHANGELOG names it."
+    ),
+    "plugins/.last_inuse_sweep": (
+        "Observed to carry an ISO timestamp beside the plugin cache. The CHANGELOG (entry "
+        "2.1.169) describes a daily sweep of stale .in_use markers but does not name this "
+        "file (checked 2026-09-11). Same recheck trigger."
+    ),
+}
+
+
+def sentinels_block(root: Path) -> dict:
+    return {
+        rel: {
+            "present": (root / rel).is_file(),
+            "role": role,
+            "content_read": True,
+            "evidence": OBSERVED_UNDOCUMENTED,
+        }
+        for rel, role in SENTINELS.items()
+    }
+
+
 def self_excluded(root: Path, outputs: list[str | None]) -> set[str]:
     """Paths this run writes, removed from its own scan set.
 
@@ -1150,6 +1529,10 @@ def scan(
     recent_hours: int,
     probe=probe_pid,
     exclude: set[str] | None = None,
+    own_config_dir: bool = True,
+    invocation: dict | None = None,
+    env: dict | None = None,
+    self_pids: set[int] | None = None,
 ) -> dict:
     exclude = exclude or set()
     ledgers = find_deliberate_state(root)
@@ -1175,12 +1558,15 @@ def scan(
             entry["entry"] in VOLATILE_DIRS
         )
 
-    numeric = summarize_numeric(rows)
+    numeric = summarize_numeric(rows, self_pids=self_pids)
 
     return {
-        "schema": "claude-install-state/1",
+        "schema": SCHEMA,
+        "engine_version": engine_version(),
         "generated_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "invocation": dict(invocation or {}),
         "root": str(root),
+        "environment": environment_state(root, own_config_dir, env=env),
         "platform": {
             "system": platform.system(),
             "python": platform.python_version(),
@@ -1196,6 +1582,9 @@ def scan(
         "deny_roots": denied,
         "retention": retention,
         "entries": entries,
+        "largest_subtrees": largest_subtrees(rows, entries),
+        "node_modules": node_modules_bucket(rows),
+        "sentinels": sentinels_block(root),
         "numeric_names": numeric,
         "recent_writers": recent_writers(rows, recent_hours),
         "home_root_state": home_root_state(root),
@@ -1329,6 +1718,15 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: not a directory: {root}", file=sys.stderr)
         return 2
 
+    # Whether the scanned tree is the auditing process's own config dir decides
+    # whether CLAUDE_CODE_REMOTE says anything about it (see environment_state).
+    try:
+        own_config_dir = args.root is None or (
+            root.resolve() == resolve_root(None).resolve()
+        )
+    except OSError:  # pragma: no cover - defensive
+        own_config_dir = args.root is None
+
     report = scan(
         root=root,
         samples=args.samples,
@@ -1336,6 +1734,15 @@ def main(argv: list[str] | None = None) -> int:
         authored_threshold=args.authored_threshold,
         recent_hours=args.recent_hours,
         exclude=self_excluded(root, [args.csv]),
+        own_config_dir=own_config_dir,
+        invocation={
+            "root": str(root),
+            "samples": args.samples,
+            "sample_interval": args.sample_interval,
+            "authored_threshold": args.authored_threshold,
+            "recent_hours": args.recent_hours,
+            "csv": args.csv,
+        },
     )
 
     rows: list[FileRow] = report.pop("_rows")

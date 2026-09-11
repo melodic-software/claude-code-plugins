@@ -22,8 +22,13 @@ Three facts about it that change how a finding should be read:
   therefore a retention outage, not only a config error. The engine reports it as `error`.
 - **Managed settings can supply the value**, at a machine-scope path that varies by OS
   (`/Library/Application Support/ClaudeCode/`, `/etc/claude-code/`, `%ProgramFiles%\ClaudeCode\`).
-- **`.last-cleanup` is the sweep's own watermark.** It advancing is direct evidence the sweep ran.
-  A watermark that advances *during* an audit also tells you the tree is not quiesced.
+- **`.last-cleanup` is an undocumented sentinel the engine reads.** It carries an ISO timestamp
+  observed to advance when the sweep runs, and the engine reports its age. No upstream page names
+  the file (claude-directory.md, settings-reference.md, monitoring-usage.md, and the CHANGELOG
+  through 2.1.268, checked 2026-09-11), so its role carries `observed-undocumented` and its cadence
+  is unknown; recheck when claude-directory.md gains a row or the CHANGELOG names it. An advance
+  *during* an audit still tells you the tree is not quiesced. `plugins/.last_inuse_sweep` is the
+  same kind of sentinel beside the plugin cache.
 
 ## Cleaned up automatically (age-swept)
 
