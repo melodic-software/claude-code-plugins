@@ -160,7 +160,14 @@ plugins/codebase-health/README.md
 plugins/codebase-health/skills/*/SKILL.md
 plugins/computer-use/README.md
 plugins/context-budget/README.md
-plugins/context-guard/README.md
+# The context-guard plugin was purged whole. Its legacy-statusline reference is the canonical copy
+# of a synced cluster; the rate-limit-guard carrier is kept in step by
+# scripts/sync-legacy-statusline-detect.sh, so both are declared.
+plugins/context-guard/*.md
+plugins/context-guard/reference/*.md
+plugins/context-guard/skills/*/SKILL.md
+plugins/context-guard/skills/*/reference/*.md
+plugins/rate-limit-guard/skills/setup/reference/legacy-statusline-detect.md
 plugins/context7/README.md
 plugins/coupling/README.md
 plugins/debugging/README.md

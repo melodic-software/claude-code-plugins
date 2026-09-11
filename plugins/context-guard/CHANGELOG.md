@@ -10,6 +10,32 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Changed
 
 - **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
+- **Every markdown surface in the plugin passes `/ai-slop:audit`.** Em dashes in the plugin's own
+  prose (this changelog, the reader contract, the cloud and headless capture reference, the setup
+  skill body, and the legacy-statusline classification) are rewritten as a comma, a period, a colon
+  where a definition or list follows, or a restructured sentence. No zone band, threshold, token
+  shape, version floor, capture channel, or hook wiring changed.
+- **The eleven phrases `zones-inline-drift.test.sh` pins in the reader contract are byte-identical.**
+  That suite grep-pins the band thresholds, both token-band rows, the token-sum expression,
+  `cli_version`, the `2.1.132` floor, the zone vocabulary, and the compacted-transcript suffix. Each
+  was grepped before its surrounding line was touched, every dash sat outside the pinned span, and
+  the suite reports PASS=11 FAIL=0.
+- **`skills/setup/reference/legacy-statusline-detect.md` is the canonical copy of a synced cluster.**
+  Only this copy was edited; `plugins/rate-limit-guard`'s carrier was brought back into line with
+  `scripts/sync-legacy-statusline-detect.sh`, and `--check` reports the copies matching.
+- **Reflexive `load-bearing` and `seam` become the concrete thing each stood for**, including in
+  three released entries that used the words to describe their own diffs.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`,** so the gate defends
+  it from here on.
+- **Changelog, in-place wording corrections to released entries:** the same rewrite was applied
+  inside
+  `[0.7.49]`, `[0.7.41]`, `[0.7.34]`, `[0.7.17]`, `[0.7.16]`, `[0.7.15]`, `[0.7.14]`, `[0.7.13]`,
+  `[0.7.3]`, `[0.7.2]`, `[0.7.1]`, `[0.7.0]`, `[0.6.6]`, `[0.6.4]`, `[0.6.3]`, `[0.6.2]`,
+  `[0.6.1]`, `[0.6.0]`, `[0.5.3]`, `[0.5.2]`, `[0.5.0]`, `[0.4.9]`, `[0.4.8]`, `[0.4.7]`,
+  `[0.4.6]`, `[0.4.5]`, `[0.4.4]`, `[0.4.3]`, `[0.4.2]`, `[0.4.0]`, `[0.3.0]`, `[0.2.0]`, and
+  `[0.1.0]`. Wording only; every entry's facts are unchanged, verified by a case-insensitive
+  word-level diff against the fork point: the only tokens that leave the file are the `seam` and
+  `load-bearing` replacements named above.
 
 ## [0.7.54]
 

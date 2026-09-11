@@ -204,7 +204,7 @@ out of scope until such a signal exists.
 - **`block-hook-bypass` does not see MCP-provided shell or file-write tools.**
   The matcher is `Bash|PowerShell`. A write issued through an MCP tool is an
   accepted residual, same class as the unmonitored Bash forms above. The two
-  CONTENT guards are the exception since **0.32.0** — see the next note.
+  CONTENT guards are the exception since **0.32.0**. See the next note.
 - **The content guards cover the GitHub MCP write lane; the scope is exactly two
   tools.** `secret-pattern-detection` and `hardcoded-path-check` inspect
   `mcp__github__push_files` (every entry of its `files` array, not just the
@@ -223,13 +223,13 @@ out of scope until such a signal exists.
   Three local-only gates are deliberately not applied on this lane, because an
   MCP write names `owner/repo` and a repo-relative path and has no local file:
   the project-scope guard (a relative path is never under `CLAUDE_PROJECT_DIR`,
-  so applying it would skip every MCP write — a silent hole, not a scope), the
+  so applying it would skip every MCP write, a silent hole rather than a scope), the
   git-working-tree requirement, and `git check-ignore` (which answers what THIS
   checkout ignores, not the destination repo). The path ALLOWLIST is the same
   list, asked of the repo-relative path: an `.env.example` or a test fixture
   tree is the same false positive whichever route writes it.
   `hardcoded-path-check` still resolves its scan root, which is the most
-  valuable half of the lane — it catches this machine's own checkout path
+  valuable half of the lane: it catches this machine's own checkout path
   appearing verbatim in content being pushed.
 - **`block-hook-bypass` ships two scratch roots exempt, and takes more by
   configuration.** Since **0.32.0** the guard exempts the host temp trees, which
@@ -242,8 +242,8 @@ out of scope until such a signal exists.
   of the config dir the plugin data directory is, so the default stands down.
   Neither removes protection: the Write|Edit content gates decline a file outside
   the project root, so a redirect there bypasses nothing. Neither is spelled
-  as a static default, because neither has a fixed spelling — the scratchpad path
-  carries a session id — so it resolves at run time.
+  as a static default, because neither has a fixed spelling: the scratchpad path
+  carries a session id, so it resolves at run time.
 
   **Exempting it gives up no protection**, which is the only reason a default is
   defensible here: `hook::read_file_path`, the entry every `Write|Edit` content
@@ -257,7 +257,7 @@ out of scope until such a signal exists.
   the argument above does not carry to it: `secret-pattern-detection` scans a
   `Write` to `.work/notes.md` today, so exempting Bash redirects there would let
   `printf '<secret>' >> .work/notes.md` reach disk unscanned while the identical
-  `Write` stayed blocked — the same content-guard bypass the MCP lane above
+  `Write` stayed blocked, the same content-guard bypass the MCP lane above
   exists to close. The consequence is that `printf '*' >> .work/.gitignore`
   still blocks; that command is `session-flow`'s own documented procedure, so the
   conflict routes to the skill (use `Write`, which is scanned) rather than to this
@@ -341,7 +341,7 @@ out of scope until such a signal exists.
   them existed before 0.30.0.** A write reaches the drive root either as a
   command string (`echo x > /tmp/f`) or as a tool's own target path (`Write`
   with `file_path: C:\tmp\f`). The hook read `.tool_input.command` only, so the
-  second shape hit an empty-`COMMAND` early exit and passed unexamined — a real
+  second shape hit an empty-`COMMAND` early exit and passed unexamined, and a real
   `C:\tmp\tmp.rSFIkHm5DO` was created on 2026-08-30 with no guard firing. Both
   shapes now feed the shipped `has_drive_root_tmp()`; there is no second matcher
   to drift. The file-path lane carries **none** of the command lane's
@@ -349,13 +349,13 @@ out of scope until such a signal exists.
   the write target by construction, so there is no redirect to parse, no
   producer-utility whitelist, and no quoted-prose ambiguity. Its residual is
   narrower than the command lane's and of a different kind: a path assembled at
-  runtime and passed by a tool this guard does not match — an MCP file-write
-  tool, or a Bash form the command lane's own residuals already allow.
+  runtime and passed by a tool this guard does not match, either an MCP file-write
+  tool or a Bash form the command lane's own residuals already allow.
 - **`block-windows-drive-tmp`'s file-path lane shipped blocking on a measured
   sweep, per [ADR 0003](../../docs/adr/0003-verification-guards-earn-default-on-by-measured-precision.md).**
   Corpus: 259 distinct `file_path` / `notebook_path` values that a real `Write`,
   `Edit`, `MultiEdit` or `NotebookEdit` actually carried across 227 local Claude
-  Code session transcripts on a Windows host — absolute Windows and MSYS paths,
+  Code session transcripts on a Windows host, covering absolute Windows and MSYS paths,
   not the repo-relative ones a drive-root matcher could never match, which is
   what makes a low finding count informative here. **1 finding in 259 (0.39%
   firing), and it was a true positive**: `/tmp/tmp.rSFIkHm5DO/worktree-root`, the
@@ -363,7 +363,7 @@ out of scope until such a signal exists.
   Six seeded spellings were detected end to end.
 
   **What that evidence does and does not support, stated plainly.** Precision is
-  1/1, so the ratio is 100% and the sample is one — this is the ADR's
+  1/1, so the ratio is 100% and the sample is one. This is the ADR's
   near-zero-findings branch, where the seeded-detection burden carries the
   argument and the precision figure by itself does not. The corpus is one
   Windows host and one operator, so it is evidence about this deployment and
@@ -371,7 +371,7 @@ out of scope until such a signal exists.
   entries at all, and those two tools are covered by the contract suite and by
   the shared matcher, not by the sweep. **The ratio considered acceptable for
   this surface is a false-positive rate near zero, and the justification is that
-  the cost of a wrong block here is unusually low** — the agent gets a stderr
+  the cost of a wrong block here is unusually low**: the agent gets a stderr
   line naming `%TEMP%` and reissues the write, which is a second of friction,
   against a missed write that is silent by construction and was found only by
   noticing litter on a volume root days later. The near-misses that would
@@ -385,7 +385,7 @@ out of scope until such a signal exists.
   content.** `.tool_input.content` / `.new_string` / `.new_source` are
   deliberately not requested. `HOOK_JQ_FIELDS_NUL` is computed across every
   requested field, so pulling written content in would make this guard fail
-  closed on a NUL anywhere in a file body — that surface belongs to
+  closed on a NUL anywhere in a file body, and that surface belongs to
   `hardcoded-path-check` and `secret-pattern-detection`. A prose mention of
   `/tmp` inside a written file is therefore never a block on this lane. The
   Bash lane is scoped differently but reaches the same place: it sees only the
@@ -842,7 +842,7 @@ in the dispatcher's primed field set.
 
 *The always-on `Write` path is unchanged, and that took a fix.* Both guards now ask
 for `.tool_input.path`, and the dispatcher's cached `hook::jq_fields` is
-all-or-nothing per call — one filter it cannot serve sends the whole call to an
+all-or-nothing per call: one filter it cannot serve sends the whole call to an
 uncached `jq`. Measured, that cost two extra spawns on EVERY Write/Edit: 50 ms to
 60 ms. Adding the field to `run-guards.sh`'s `PRIME_FILTERS` returns it to the
 dispatcher's single primed `jq`, now nine filters instead of eight: 51 ms before,
@@ -948,8 +948,8 @@ changed is the **per-`Write` tool call**, whose ceiling is ≤ 1 s typical /
 ≤ 2 s worst-case.
 
 **Method** (the convention's, unchanged): `EPOCHREALTIME` wall-clock around
-direct hook invocation with a benign representative payload — a `Write` of a
-short body to an ordinary repo path — sets launched concurrently (`&` + `wait`)
+direct hook invocation with a benign representative payload, a `Write` of a
+short body to an ordinary repo path, with sets launched concurrently (`&` + `wait`)
 to approximate the harness's parallel dispatch. Windows 11 + Git Bash,
 2026-08-30.
 
@@ -970,12 +970,12 @@ that ratio back at 80 ms. The spawn-equivalent figure is the stable one.
 
 **The hook's own cost is the measurement that holds: ≈ 6.3 spawn-equivalents,
 ≈ 505 ms of reference-host work per `Write`.** The set rows are reported for
-completeness and must not be read as a delta, because they do not resolve one —
+completeness and must not be read as a delta, because they do not resolve one:
 `AFTER` measures *lower* than `BEFORE`, and adding a hook cannot make a set
 faster. A separate **paired A/B** (n=15, BEFORE and AFTER launched back to back
 inside each trial in alternating order so load drift biases both arms equally)
-came out at a mean **1.26×**, but its per-trial ratios span **0.55×–1.82×** —
-several trials put AFTER *faster* than BEFORE, which is physically impossible
+came out at a mean **1.26×**, but its per-trial ratios span **0.55×–1.82×**.
+Several trials put AFTER *faster* than BEFORE, which is physically impossible
 and is the host's noise, not the hook's cost. **On this host the set-level delta
 is below the noise floor and this accounting does not state one.** What can be
 said: the harness dispatches matching hooks in parallel, so the set wall is the
@@ -986,7 +986,7 @@ the way to replace this bound with a number, and is the honest follow-up.
 
 **Share of the budget, and the overage.** The convention's ceiling is
 ≤ 1 s typical / ≤ 2 s worst-case **per tool call, counting `PreToolUse` and
-`PostToolUse` together for one matcher** — so the surface this widening lands on
+`PostToolUse` together for one matcher**, so the surface this widening lands on
 is larger than the table above measures: guardrails also runs three `PostToolUse`
 verifiers on `Write|Edit`, and the fleet's binding accounting for the whole
 per-`Write` set is **≈ 1.9 s** (two formatters plus three guardrails verifiers),
@@ -996,7 +996,7 @@ guard's own **≈ 505 ms is ≈ 25% of the ≤ 2 s worst-case ceiling as an uppe
 bound on its contribution**, and less than that in practice because it is
 dispatched in parallel rather than added. Per the convention's rule 2 the budget
 does not relax to absorb the overage: remediation is guardrails' own
-spawn-reduction work (#1403), and this change pays part of its way — it removes
+spawn-reduction work (#1403), and this change pays part of its way: it removes
 the `printf | tr` fork-and-exec pair from the shared normalizer and stops
 resolving the telemetry subject in a subshell when no sink is wired, both costs
 the pre-existing per-Bash-call lane was paying on every call. Operators who

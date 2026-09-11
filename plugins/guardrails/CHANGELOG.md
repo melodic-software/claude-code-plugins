@@ -852,7 +852,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   would have been decorative. The independent counter is what makes the rest
   work: a version reporting through the ordinary assertion helper prints failure
   lines and still exits zero under exactly the sabotage it exists to catch.
-  Stripping the counters from the child environment is not load-bearing today,
+  Stripping the counters from the child environment is not required today,
   but without it, running the suite with those names already set turns all three
   assertions into false reds pointing at a healthy helper.
 
