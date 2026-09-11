@@ -930,6 +930,95 @@ class ListingScoreTest(unittest.TestCase):
         self.assertEqual(listing["score_basis"], "unscored")
         competing = [s for s in listing["skills"] if s["eligibility"] == "competing"]
         self.assertTrue(all(s["confidence"] == "unscored" for s in competing))
+        # The per-row claim is withheld with its reason, never published as a
+        # ranking: no verdict names a row, and no row carries a band.
+        self.assertTrue(all(s["verdict"] == "withheld" for s in competing))
+        self.assertTrue(all(s["reason"] == "unscored" for s in competing))
+        self.assertTrue(all(s["band"] is None for s in competing))
+        # The arithmetic is untouched: the same three rows cannot fit.
+        self.assertEqual(listing["overflow_chars"], 2_000)
+        self.assertEqual(listing["starved_count"], 3)
+
+    def test_unscored_overflow_withholds_once_for_the_run(self):
+        """The refusal is one run-level entry, not one per starved skill."""
+        now = _utc(2026, 8, 31)
+        entries = [
+            {
+                "qualified_name": f"a:{i}",
+                "frontmatter": {"description": "x" * 1000},
+                "plugin_enabled": True,
+            }
+            for i in range(10)
+        ]
+        model = engine.classify(
+            denominator=entries,
+            events=[],
+            config=engine.Config(),
+            clock=now,
+            horizons={"native": now - timedelta(days=400)},
+            listing_config=engine.ListingConfig(context_window_tokens=200_000),
+        )
+        starvation = [w for w in model["withheld"] if w["claim"] == "starvation"]
+        self.assertEqual(len(starvation), 1)
+        self.assertIsNone(starvation[0]["skill"])
+        self.assertEqual(
+            starvation[0]["reason"],
+            "unscored: ordering is catalog-order tie, not usage",
+        )
+        verdicts = {row["starvation"]["verdict"] for row in model["skills"]}
+        self.assertNotIn("likely-starved", verdicts)
+        self.assertEqual(model["listing"]["starved_count"], 3)
+
+    def test_a_listing_that_fits_unscored_withholds_nothing(self):
+        """Nothing is shed, so there is no `which ones` claim to refuse."""
+        now = _utc(2026, 8, 31)
+        entries = [
+            {
+                "qualified_name": "a:one",
+                "frontmatter": {"description": "x" * 10},
+                "plugin_enabled": True,
+            }
+        ]
+        model = engine.classify(
+            denominator=entries,
+            events=[],
+            config=engine.Config(),
+            clock=now,
+            horizons={"native": now - timedelta(days=400)},
+            listing_config=engine.ListingConfig(context_window_tokens=200_000),
+        )
+        self.assertEqual(model["listing"]["score_basis"], "unscored")
+        self.assertEqual(model["skills"][0]["starvation"]["verdict"], "listing-fits")
+        self.assertEqual(
+            [w for w in model["withheld"] if w["claim"] == "starvation"], []
+        )
+
+    def test_band_mode_withholds_the_rows_that_overflow(self):
+        """A band row can be unscored too, and each row answers for itself."""
+        entries = [
+            {
+                "qualified_name": f"a:{i}",
+                "frontmatter": {"description": "x" * 1000},
+                "plugin_enabled": True,
+            }
+            for i in range(10)
+        ]
+        cfg = engine.ListingConfig()
+        axes = engine.ListingAxes(
+            windows=(200_000, 1_000_000), bytes_per_tokens=(4,), inputs={}
+        )
+        listing = engine.compute_listing_band(entries, cfg, axes)
+        self.assertEqual(listing["score_basis"], "unscored")
+        self.assertTrue(engine.starvation_withheld(listing))
+        by_band = listing["skills"][0]["by_band"]
+        # 10 x 1000 overflows the 200k row and fits the 1M one.
+        self.assertEqual(by_band["200k/4"], "withheld")
+        self.assertEqual(by_band["1M/4"], "listing-fits")
+        self.assertEqual(listing["skills"][0]["reason"], "unscored")
+        self.assertIsNone(listing["skills"][0]["band"])
+        # The counts the band reports per row are untouched.
+        starved = {r["label"]: r["starved_count"] for r in listing["band"]}
+        self.assertEqual(starved, {"200k/4": 3, "1M/4": 0})
 
     def test_classify_scores_the_band_from_native_counters(self):
         """Regression: the band used to sort on a field nothing populated."""
@@ -1458,6 +1547,37 @@ class OverflowConsumptionTest(unittest.TestCase):
         # even though it was retained. Band and verdict answer different
         # questions and are allowed to disagree.
         self.assertEqual(by_name["a:cheap"]["band"], 1)
+
+    def test_the_same_fleet_unscored_keeps_the_count_and_withholds_the_names(self):
+        """The count is arithmetic; the names ride on an ordering that is gone.
+
+        Same ten rows as the floor test, with every usage score stripped. The
+        overflow and the starved count are identical, and not one row is named.
+        """
+        entries = [
+            {
+                "qualified_name": f"a:{i}",
+                "frontmatter": {"description": "x" * 1000},
+                "plugin_enabled": True,
+            }
+            for i in range(10)
+        ]
+        unscored = engine.compute_listing(
+            entries, engine.ListingConfig(context_window_tokens=200_000)
+        )
+        scored = self._listing(n=10, chars=1000, budget_tokens=200_000)
+        self.assertEqual(unscored["overflow_chars"], scored["overflow_chars"])
+        self.assertEqual(unscored["starved_count"], scored["starved_count"])
+        competing = [s for s in unscored["skills"] if s["eligibility"] == "competing"]
+        self.assertEqual({s["verdict"] for s in competing}, {"withheld"})
+        self.assertEqual({s["reason"] for s in competing}, {"unscored"})
+        self.assertEqual({s["band"] for s in competing}, {None})
+        # Every field the row can still stand behind is kept.
+        for row in competing:
+            self.assertEqual(row["eligibility"], "competing")
+            self.assertEqual(row["demand_chars"], 1000)
+            self.assertEqual(row["usage_score"], 0)
+            self.assertEqual(row["confidence"], "unscored")
 
 
 class JoinerCharsTest(unittest.TestCase):

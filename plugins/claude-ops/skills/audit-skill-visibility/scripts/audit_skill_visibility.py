@@ -1442,6 +1442,21 @@ def compute_listing(
             row["verdict"] = "not-assessable"
             row["confidence"] = "certain"
 
+    # HOW MANY descriptions cannot fit is arithmetic and survives whatever the
+    # ordering is worth. WHICH ones is a separate claim, settled next.
+    starved_count = sum(1 for r in competing if r["verdict"] == "likely-starved")
+
+    # WHILE no contender carries any usage, every score is 0 and the ordering
+    # above is the catalog-order tie a stable sort leaves behind. Naming the
+    # rows it sheds would publish catalog position as a usage ranking, which is
+    # the defect this report exists to expose, one scope up. So the per-row
+    # claim is withheld with its reason and the count above still stands.
+    if overflow > 0 and score_basis == "unscored":
+        for row in competing:
+            row["verdict"] = "withheld"
+            row["reason"] = "unscored"
+            row["band"] = None
+
     return {
         "label": band_label(cfg.context_window_tokens, cfg.bytes_per_token),
         "context_window_tokens": cfg.context_window_tokens,
@@ -1453,7 +1468,7 @@ def compute_listing(
         "verdict": verdict,
         "score_basis": score_basis,
         "competing_count": len(competing),
-        "starved_count": sum(1 for r in competing if r["verdict"] == "likely-starved"),
+        "starved_count": starved_count,
         "exempt_count": len(rows) - len(competing),
         "skills": rows,
     }
@@ -1512,7 +1527,9 @@ def compute_listing_band(
     skills: list[dict] = []
     for index, base in enumerate(rows[0]["skills"]):
         merged = {
-            k: v for k, v in base.items() if k not in ("verdict", "band", "confidence")
+            k: v
+            for k, v in base.items()
+            if k not in ("verdict", "band", "confidence", "reason")
         }
         per_row = [r["skills"][index] for r in rows]
         verdicts = {r["verdict"] for r in per_row}
@@ -1520,6 +1537,11 @@ def compute_listing_band(
         exposed = most_exposed["skills"][index]
         merged["band"] = exposed["band"]
         merged["confidence"] = exposed["confidence"]
+        # A row that withholds its starvation verdict carries the reason with
+        # it, so the merged row does too: a band whose rows disagree still has
+        # to say why the overflowing ones name nobody.
+        if any(r.get("reason") for r in per_row):
+            merged["reason"] = next(r["reason"] for r in per_row if r.get("reason"))
         if base["eligibility"] == "competing":
             merged["by_band"] = {
                 r["label"]: r["skills"][index]["verdict"] for r in rows
@@ -1543,6 +1565,25 @@ def compute_listing_band(
         "band": [{k: r[k] for k in BAND_ROW_FIELDS} for r in rows],
         "skills": skills,
     }
+
+
+STARVATION_WITHHELD_REASON = "unscored: ordering is catalog-order tie, not usage"
+
+
+def starvation_withheld(listing: dict) -> bool:
+    """Whether this run refused to name WHICH descriptions the budget sheds.
+
+    True exactly when something overflows with no usage behind the ordering:
+    the contest is then decided by the catalog-order tie the product's stable
+    sort leaves, and catalog position is not a preference. Reads the same for a
+    pinned single row and for a band, where one overflowing row is enough.
+    """
+    if listing.get("score_basis") != "unscored":
+        return False
+    band = listing.get("band")
+    if band:
+        return any(row["overflow_chars"] > 0 for row in band)
+    return bool(listing.get("overflow_chars"))
 
 
 # Remedies are phrased as fixes on purpose. Several of these causes are SILENT
@@ -1729,6 +1770,18 @@ def classify(
 
     skills: list[dict] = []
     withheld: list[dict] = []
+
+    # One entry for the run, not one per skill: the refusal is a property of the
+    # ordering, and repeating it per row would bury the observation claims that
+    # really are per skill.
+    if starvation_withheld(listing):
+        withheld.append(
+            {
+                "skill": None,
+                "claim": "starvation",
+                "reason": STARVATION_WITHHELD_REASON,
+            }
+        )
 
     for key, owners in ambiguous_keys:
         withheld.append(
@@ -1939,8 +1992,9 @@ def _render_markdown(model: dict) -> str:
             if listing.get("score_basis") == "unscored":
                 lines += [
                     "**No usage signal was available for any competing skill, so "
-                    "*which* particular skills lost their descriptions is NOT "
-                    "ranked here.** The order below is the catalog order and "
+                    "*which* particular skills lost their descriptions is "
+                    "withheld.** At all-zero scores the product's ordering is "
+                    "the catalog position each skill happens to hold, which "
                     "carries no information about starvation likelihood. The "
                     "over-budget figure above is unaffected and still holds.",
                     "",
@@ -2003,6 +2057,22 @@ def _render_markdown(model: dict) -> str:
 
 def _render_single_budget(listing: dict) -> list[str]:
     """The pinned single-row paragraph."""
+    if listing["overflow_chars"] > 0 and listing.get("score_basis") == "unscored":
+        # The count is the whole claim here. Saying which skills are running
+        # name-only would name the ones the catalog happens to list last.
+        return [
+            f"**Your skill listing is over budget by "
+            f"{listing['overflow_chars']:,} characters** at "
+            f"{listing['label']} (window {listing['context_window_tokens']:,} "
+            f"tokens, {listing['bytes_per_token']} bytes per token). "
+            f"{listing['competing_count']} skills compete for "
+            f"{listing['budget_chars']:,} characters of description budget, "
+            f"and **{listing['starved_count']}** of "
+            f"{listing['competing_count']} competing descriptions cannot fit; "
+            f"which ones is withheld because no usage has been observed, so "
+            f"the ordering is catalog position, not preference.",
+            "",
+        ]
     if listing["overflow_chars"] > 0:
         # The certain half: documented settings vs summed description
         # lengths. No undocumented constant is involved, so this is stated

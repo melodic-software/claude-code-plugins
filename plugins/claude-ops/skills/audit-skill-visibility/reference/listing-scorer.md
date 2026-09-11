@@ -128,7 +128,11 @@ used under its other key. Faithfully reproducing that is the point.
 ordering is then the catalog-order tiebreak and carries no signal, so competing
 rows report `confidence: "unscored"` rather than `inferential`. The distinction
 is load-bearing: `inferential` claims a ranking exists and may be imprecise;
-`unscored` says no ranking was possible. A catalog that happens to be
+`unscored` says no ranking was possible. An unscored listing that overflows
+therefore withholds the per-row verdict as well: every competing row reports
+`verdict: "withheld"` with `reason: "unscored"` and no band, while the count of
+descriptions that cannot fit, which is budget arithmetic rather than ordering,
+is reported as usual. A catalog that happens to be
 alphabetical makes the unscored order look alphabetical, but the mechanism is
 input order under a stable sort, and a catalog in another order would show it.
 

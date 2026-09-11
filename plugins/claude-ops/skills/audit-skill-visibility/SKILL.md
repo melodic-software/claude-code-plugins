@@ -205,6 +205,16 @@ this catalogue is assembled from scattered documentation plus strings in the
 shipped binary, and every row says so in its `provenance`. Do not present it to
 a user as documented.
 
+`starvation.verdict` values: `likely-starved` · `likely-retained` ·
+`listing-fits` · `withheld` · `not-assessable`. A listing that overflows with no
+usage recorded for any competing skill reports `withheld` with
+`reason: "unscored"` on every competing row and no band, because at all-zero
+scores the product's ordering is the catalog-order tie its stable sort leaves,
+and naming rows would sell catalog position as preference. How many descriptions
+cannot fit is arithmetic and is still reported, as `starved_count` and as a
+count in the Markdown; the run carries one run-level `withheld` entry for the
+per-skill claim, never one per skill.
+
 ## Counting rules that are not obvious
 
 - **Never sum sources.** Native counters and the JSONL store both record the
