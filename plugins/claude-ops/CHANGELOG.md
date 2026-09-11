@@ -54,6 +54,8 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 
 - `VALIDATED_AGAINST` is `2.1.263`, validated on the Linux ELF build in a container; the PE
   container path is covered by a byte-layout fixture, not a Windows run.
+- The audit-native-overlap description is under the 1,024-character Skills API cap: the same
+  claims and every trigger phrase, in fewer words.
 - The inventory skill's integrity table, the audit-native-overlap detection posture, and
   `reference/extraction.md` describe the lanes, the region rule, the locality rule, and the
   collision list; the inventory eval for degraded counts names dynamic rosters and lane statuses.
