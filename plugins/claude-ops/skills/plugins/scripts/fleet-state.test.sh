@@ -2031,14 +2031,20 @@ count_creations() {
 run_traced() {
   local case_dir="$1" trace="$2"
   mkdir -p "$case_dir/proj"
+  # PS4 travels through a BASH_ENV startup file, never the environment: bash
+  # 4.4 and later rebind an euid-0 shell's PS4 to '+ ' at startup, before any
+  # startup file runs (CVE-2016-7543), so an exported PS4 never reaches a root
+  # shell and the probe counts nothing. A BASH_ENV assignment lands after that
+  # rebind, and its own unstamped `+ PS4=` trace line matches no pid pattern.
   # shellcheck disable=SC2016  # PS4 must reach bash unexpanded: bash expands it per traced line
+  write "$case_dir/ps4.env" 'PS4='\''+${BASHPID}+ '\'''
   env \
     FLEET_STATE_INSTALLED_JSON="$case_dir/installed_plugins.json" \
     FLEET_STATE_MARKETPLACES_JSON="$case_dir/known_marketplaces.json" \
     FLEET_STATE_USER_SETTINGS="$case_dir/user_settings.json" \
     FLEET_STATE_CATALOG_DIR="$case_dir/catalog" \
     CLAUDE_PROJECT_DIR="$case_dir/proj" \
-    PS4='+${BASHPID}+ ' \
+    BASH_ENV="$case_dir/ps4.env" \
     bash -x "$SCRIPT" "${ARGS[@]}" 2>"$trace"
 }
 
@@ -2070,7 +2076,16 @@ out=$(run_traced "$case_dir" "$case_dir/trace-large.log")
 large=$(count_creations "$case_dir/trace-large.log")
 assert_eq "process budget: the large-catalog run resolves every manifest" \
   "12" "$(jq -r '[.catalog_versions | to_entries[] | select(.value != null)] | length' <<<"$out" 2>/dev/null)"
-if [[ "$large" -le 12 ]]; then
+# Floor first: a probe that parses nothing counts -1 and would pass every
+# ceiling below it, so the ceiling assertion is only meaningful once the count
+# is known to be real.
+if [[ "$large" -ge 1 ]]; then
+  pass "process budget: the trace probe actually counted something (measured $large)"
+else
+  fail "process budget: the trace probe actually counted something" \
+    "measured $large — the pid-stamped PS4 did not reach the traced shell, so the ceilings below are vacuous (trace: $case_dir/trace-large.log)"
+fi
+if [[ "$large" -ge 1 && "$large" -le 12 ]]; then
   pass "process budget: a --marketplace report costs at most 12 process creations (measured $large)"
 else
   fail "process budget: a --marketplace report costs at most 12 process creations" "measured $large (trace: $case_dir/trace-large.log)"
@@ -2089,7 +2104,7 @@ out=$(run_traced "$case_dir" "$case_dir/trace-ids.log")
 ids_count=$(count_creations "$case_dir/trace-ids.log")
 assert_eq "process budget: --ids projects from the same single pass (plugin1 is behind 0.1.0)" \
   "plugin1@market1" "$out"
-if [[ "$ids_count" -le 12 ]]; then
+if [[ "$ids_count" -ge 1 && "$ids_count" -le 12 ]]; then
   pass "process budget: an --ids projection costs at most 12 process creations (measured $ids_count)"
 else
   fail "process budget: an --ids projection costs at most 12 process creations" "measured $ids_count"

@@ -3,6 +3,23 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.47.1]
+
+### Fixed
+
+- **`plugins`: the process-budget probes in `cache-content-check.test.sh` and
+  `fleet-state.test.sh` measure a real count as root.** Both suites traced the script under
+  test with `bash -x` and a pid-stamped `PS4` passed through the environment. Bash 4.4 and
+  later rebind an euid-0 shell's `PS4` to a bare plus sign at startup, before any startup file runs
+  (CVE-2016-7543), so in a root container such as Claude Code on the web the stamp never
+  reached the traced shell and `count_creations` returned -1: `cache-content-check.test.sh`
+  failed its fail-closed floor (2 of 26 cases), and `fleet-state.test.sh`, which had no floor,
+  passed every ceiling vacuously. The stamp now travels through a `BASH_ENV` startup file
+  the case directory holds, which lands after the rebind, and `fleet-state.test.sh` gains the
+  same floor its sibling has, so a probe that counts nothing fails naming the probe. The
+  ceilings themselves are unchanged. Measured in the web container as uid 0: 12 creations for
+  a one-install cache check, 11 for a `--marketplace` fleet report.
+
 ## [0.47.0]
 
 ### Added
