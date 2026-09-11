@@ -175,10 +175,14 @@ MATCHER_EXACT_CHARS = re.compile(r"^[A-Za-z0-9_\- ,|]+$")
 #: Matcher spellings that select every tool. An absent matcher does the same.
 MATCHER_MATCH_ALL = frozenset({"*", ""})
 
-#: The file kinds the fan-out projection runs. A fixed representative set, not a scan of any
-#: tree: the projection answers "how many handlers fire for a write of this kind of file", and
-#: a set that changed with the machine would make two captures incomparable.
+#: The file kinds the fan-out projection always runs. A fixed representative baseline, not a
+#: scan of any tree: the projection answers "how many handlers fire for a write of this kind of
+#: file", and a baseline that changed with the machine would make two captures incomparable.
+#: Every extension a classified `if` gate names is projected as well, so a gate on a kind
+#: outside this baseline gets its own row instead of matching nothing; `other` stays last and
+#: means a file no gate names.
 PROJECTION_FILE_KINDS = (".md", ".py", ".sh", ".ts", ".json", "other")
+PROJECTION_OTHER_KIND = "other"
 #: Tools whose calls carry a file path, so an `Edit(*.<ext>)` gate is decided by extension.
 FILE_WRITING_TOOLS = ("Write", "Edit", "NotebookEdit")
 #: Tools the projection runs. Bash carries no single file path, so it gets one tool-only row.
@@ -1285,14 +1289,32 @@ def matcher_kind(matcher: object) -> str:
     return "regex"
 
 
+def matcher_compile_error(matcher: object) -> str | None:
+    """The reason a regex matcher cannot be evaluated here, or None when it can.
+
+    A JavaScript-only construct (a named group spelled `(?<name>...)`, a `\\p{...}` class, a
+    lookbehind Python rejects) compiles upstream and not here. Such a matcher selects an
+    unknown set of tools, so the projection counts it as selecting every tool and names it,
+    the same over-count-and-report direction an unclassified `if` takes.
+    """
+    if matcher_kind(matcher) != "regex":
+        return None
+    try:
+        re.compile(str(matcher))
+    except re.error as exc:
+        return f"matcher is not a Python-compilable regular expression ({exc})"
+    return None
+
+
 def matcher_matches(matcher: object, tool: str) -> bool:
-    """True when a matcher selects `tool`.
+    """True when a matcher selects `tool`, or when that cannot be decided here.
 
     Python's `re.search` stands in for JavaScript's `RegExp.prototype.test`. Both are
     unanchored, so `Edit.*` also selects `NotebookEdit`. An exact matcher is compared whole,
     which is why a bare `mcp__memory` selects nothing: the tool name is
     `mcp__memory__<tool>`, and server-wide matching needs `mcp__memory.*`. A matcher Python
-    cannot compile is reported as selecting nothing rather than guessed at.
+    cannot compile is treated as selecting every tool, never as selecting nothing: the
+    projection is a ceiling, and a spawn it cannot rule out stays counted.
     """
     kind = matcher_kind(matcher)
     if kind == "all":
@@ -1300,10 +1322,9 @@ def matcher_matches(matcher: object, tool: str) -> bool:
     text = str(matcher)
     if kind == "exact":
         return any(part.strip() == tool for part in re.split(r"[|,]", text))
-    try:
-        return re.search(text, tool) is not None
-    except re.error:
-        return False
+    if matcher_compile_error(matcher) is not None:
+        return True
+    return re.search(text, tool) is not None
 
 
 def classify_if_gate(rule: object) -> dict:
@@ -1399,17 +1420,22 @@ def project_fan_out(entries: list[dict]) -> dict:
     Three levels decide a row, and a registered-row count collapses all three. The event key
     says whether the row is per tool call at all; the group matcher says whether the tool is
     selected; the handler `if` is the only level that sees the call's arguments. A row whose
-    `if` this engine cannot classify counts as firing and is listed, so the number is a ceiling
-    with its uncertainty named rather than a false floor.
+    `if` this engine cannot classify, or whose matcher it cannot compile, counts as firing and
+    is listed, so the number is a ceiling with its uncertainty named rather than a false floor.
+
+    The file kinds projected are the fixed baseline plus every extension a classified gate
+    names, so a gate on `.go` gets a `.go` row rather than silently matching no kind at all.
 
     Pure: it reads the flattened records and touches no filesystem and no subprocess.
     """
-    gated: list[tuple[dict, dict]] = []
+    gated: list[tuple[dict, dict, bool]] = []
     unclassified_rows: list[dict] = []
     if_on_non_tool_event: list[dict] = []
+    gate_kinds: set[str] = set()
     for entry in entries:
         event = entry.get("event") or "unknown"
         gate = classify_if_gate(entry.get("if"))
+        matcher_error = matcher_compile_error(entry.get("matcher"))
         row = {
             "event": event,
             "matcher": entry.get("matcher"),
@@ -1429,19 +1455,22 @@ def project_fan_out(entries: list[dict]) -> dict:
             continue
         if gate["kind"] == "unclassified":
             unclassified_rows.append({**row, "reason": gate["reason"]})
+        elif matcher_error is not None and event in PER_TOOL_CALL_EVENTS:
+            unclassified_rows.append({**row, "reason": matcher_error})
+        if gate["kind"] == "extension":
+            gate_kinds.add(gate["extension"])
         if event in PER_TOOL_CALL_EVENTS:
-            gated.append((entry, gate))
+            gated.append((entry, gate, matcher_error is not None))
 
+    file_kinds = projected_file_kinds(gate_kinds)
     rows: list[dict] = []
-    for event in sorted({(e.get("event") or "unknown") for e, _ in gated}):
+    for event in sorted({(e.get("event") or "unknown") for e, _, _ in gated}):
         for tool in PROJECTION_TOOLS:
-            kinds: tuple = (
-                PROJECTION_FILE_KINDS if tool in FILE_WRITING_TOOLS else (None,)
-            )
+            kinds: tuple = file_kinds if tool in FILE_WRITING_TOOLS else (None,)
             for file_kind in kinds:
                 firing: list[dict] = []
                 fire_always = 0
-                for entry, gate in gated:
+                for entry, gate, matcher_unknown in gated:
                     if (entry.get("event") or "unknown") != event:
                         continue
                     if not matcher_matches(entry.get("matcher"), tool):
@@ -1452,7 +1481,7 @@ def project_fan_out(entries: list[dict]) -> dict:
                             or gate["extension"] != file_kind
                         ):
                             continue
-                    elif gate["kind"] == "unclassified":
+                    if gate["kind"] == "unclassified" or matcher_unknown:
                         fire_always += 1
                     firing.append(entry)
                 rows.append(
@@ -1466,7 +1495,9 @@ def project_fan_out(entries: list[dict]) -> dict:
                     }
                 )
     return {
-        "file_kinds": list(PROJECTION_FILE_KINDS),
+        "file_kinds": list(file_kinds),
+        "baseline_file_kinds": list(PROJECTION_FILE_KINDS),
+        "discovered_file_kinds": sorted(gate_kinds - set(PROJECTION_FILE_KINDS)),
         "tools": list(PROJECTION_TOOLS),
         "rows": rows,
         "unclassified_rows": unclassified_rows,
@@ -1474,12 +1505,25 @@ def project_fan_out(entries: list[dict]) -> dict:
         "note": (
             "Matcher evaluation follows the documented character-class rule, with Python's "
             "`re.search` standing in for JavaScript's `RegExp.prototype.test`: both are "
-            "unanchored, so `Edit.*` also selects `NotebookEdit`. `file_kind` is null on a "
-            "tool that carries no single file path. `fires` is a ceiling: a row whose `if` "
-            "could not be classified is counted as firing and appears in "
+            "unanchored, so `Edit.*` also selects `NotebookEdit`. `file_kinds` is the fixed "
+            "baseline plus every extension a classified `if` gate names; `other` is a file "
+            "no gate names. `file_kind` is null on a tool that carries no single file path. "
+            "`fires` is a ceiling: a row whose `if` could not be classified, or whose "
+            "matcher Python cannot compile, is counted as firing and appears in "
             "`fire_always_unclassified` and in `unclassified_rows`."
         ),
     }
+
+
+def projected_file_kinds(gate_kinds: set[str]) -> tuple[str, ...]:
+    """The baseline kinds in their stated order, then gate-named extras sorted, then `other`.
+
+    Baseline order is kept so two captures stay comparable row for row; the extras follow it so
+    a discovered kind is visibly an addition rather than a reordering.
+    """
+    baseline = tuple(k for k in PROJECTION_FILE_KINDS if k != PROJECTION_OTHER_KIND)
+    extras = sorted(set(gate_kinds) - set(PROJECTION_FILE_KINDS))
+    return baseline + tuple(extras) + (PROJECTION_OTHER_KIND,)
 
 
 def invocation_shape(entry: dict) -> list[str]:

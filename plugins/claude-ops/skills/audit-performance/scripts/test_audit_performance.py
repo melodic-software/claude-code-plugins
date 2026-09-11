@@ -294,6 +294,21 @@ class TestMatcherSemantics(unittest.TestCase):
         self.assertFalse(engine.matcher_matches("mcp__memory", "mcp__memory__create"))
         self.assertTrue(engine.matcher_matches("mcp__memory.*", "mcp__memory__create"))
 
+    def test_a_matcher_python_cannot_compile_selects_every_tool_and_says_why(self):
+        """A JavaScript-only construct is an unknown selection, so it stays counted."""
+        matcher = "(?<prefix>Edit).*"
+        self.assertEqual(engine.matcher_kind(matcher), "regex")
+        error = engine.matcher_compile_error(matcher)
+        self.assertIsNotNone(error)
+        self.assertIn("not a Python-compilable", error)
+        for tool in ("Edit", "Bash", "mcp__memory__create"):
+            self.assertTrue(engine.matcher_matches(matcher, tool), tool)
+
+    def test_a_compilable_regex_and_an_exact_matcher_report_no_compile_error(self):
+        self.assertIsNone(engine.matcher_compile_error("Edit.*"))
+        self.assertIsNone(engine.matcher_compile_error("Write|Edit"))
+        self.assertIsNone(engine.matcher_compile_error(None))
+
 
 class TestIfGateClassification(unittest.TestCase):
     """Exactly one `if` shape is decidable here; everything else says why it is not."""
@@ -491,6 +506,87 @@ class TestFanOutProjection(unittest.TestCase):
         note = engine.project_fan_out([])["note"]
         self.assertIn("re.search", note)
         self.assertIn("RegExp.prototype.test", note)
+
+    def test_the_baseline_kinds_are_projected_with_other_last_when_no_gate_adds_one(
+        self,
+    ):
+        projection = engine.project_fan_out(self.ENTRIES)
+        self.assertEqual(projection["file_kinds"], list(engine.PROJECTION_FILE_KINDS))
+        self.assertEqual(projection["file_kinds"][-1], "other")
+        self.assertEqual(projection["discovered_file_kinds"], [])
+
+    def test_a_gate_on_a_kind_outside_the_baseline_gets_its_own_row(self):
+        """A `.go` gate must fire on a `.go` write, never vanish into no kind at all."""
+        go_gate = {
+            "event": "PostToolUse",
+            "matcher": "Write|Edit|NotebookEdit",
+            "command": "dispatch.sh",
+            "args": ["go"],
+            "if": "Edit(*.go)",
+            "source": "formatter",
+        }
+        projection = engine.project_fan_out(self.ENTRIES + [go_gate])
+        self.assertNotIn(".go", engine.PROJECTION_FILE_KINDS)
+        self.assertEqual(projection["discovered_file_kinds"], [".go"])
+        self.assertEqual(
+            projection["file_kinds"],
+            [k for k in engine.PROJECTION_FILE_KINDS if k != "other"]
+            + [".go", "other"],
+            "baseline order kept, the discovered kind appended, `other` last",
+        )
+        rows = self.rows(projection)
+        self.assertEqual(
+            rows[("PostToolUse", "Edit", ".go")]["fires"],
+            2,
+            "the .go gate and the ungated logger; the match-all row is gated to .md",
+        )
+        self.assertEqual(
+            rows[("PostToolUse", "Write", ".go")]["fires"],
+            1,
+            "only the .go gate; `Edit.*` does not select Write",
+        )
+        self.assertEqual(rows[("PostToolUse", "Edit", "other")]["fires"], 1)
+        self.assertEqual(rows[("PostToolUse", "Edit", ".md")]["fires"], 3)
+
+    def test_a_matcher_python_cannot_compile_counts_as_firing_and_is_listed(self):
+        """An unknown selection over-counts where an operator can see it."""
+        odd = {
+            "event": "PostToolUse",
+            "matcher": "(?<prefix>Edit).*",
+            "command": "odd.sh",
+            "args": [],
+            "if": None,
+            "source": "odd",
+        }
+        projection = engine.project_fan_out(self.ENTRIES + [odd])
+        rows = self.rows(projection)
+        self.assertEqual(rows[("PostToolUse", "Bash", None)]["fires"], 1)
+        self.assertEqual(
+            rows[("PostToolUse", "Bash", None)]["fire_always_unclassified"], 1
+        )
+        self.assertEqual(rows[("PostToolUse", "Edit", ".md")]["fires"], 4)
+        self.assertEqual(
+            rows[("PostToolUse", "Edit", ".md")]["fire_always_unclassified"], 1
+        )
+        listed = [r for r in projection["unclassified_rows"] if r["source"] == "odd"]
+        self.assertEqual(len(listed), 1)
+        self.assertEqual(set(listed[0]), {"event", "matcher", "source", "if", "reason"})
+        self.assertIn("not a Python-compilable", listed[0]["reason"])
+
+    def test_an_uncompilable_matcher_with_an_unclassified_if_is_listed_once(self):
+        both = {
+            "event": "PreToolUse",
+            "matcher": "(?<prefix>Bash)",
+            "command": "both.sh",
+            "args": [],
+            "if": "Bash(git *)",
+            "source": "both",
+        }
+        projection = engine.project_fan_out([both])
+        self.assertEqual(len(projection["unclassified_rows"]), 1)
+        bash = self.rows(projection)[("PreToolUse", "Bash", None)]
+        self.assertEqual(bash["fires"], 1)
+        self.assertEqual(bash["fire_always_unclassified"], 1)
 
 
 class TestByMatcherAndBucketCounters(unittest.TestCase):

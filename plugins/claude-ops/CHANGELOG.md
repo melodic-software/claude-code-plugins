@@ -14,13 +14,16 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   as the registered-row ceiling and gains `if_gated_rows` and `distinct_commands` beside it, so
   the ceiling and its composition are both readable without inferring either.
 - **audit-performance: `fan_out.hooks.projection`, what one tool call actually spawns.** A row
-  per (event, tool, file kind) over a fixed representative file-kind set (`.md`, `.py`, `.sh`,
-  `.ts`, `.json`, `other`) for `Write`, `Edit`, and `NotebookEdit`, plus a tool-only row for
+  per (event, tool, file kind) over a fixed baseline file-kind set (`.md`, `.py`, `.sh`, `.ts`,
+  `.json`, `other`) plus every extension a classified `if` gate names, reported as
+  `discovered_file_kinds`, for `Write`, `Edit`, and `NotebookEdit`, plus a tool-only row for
   `Bash`, each carrying `fires`, `distinct_commands`, and `fire_always_unclassified`. Matcher
   evaluation follows the documented character-class rule (`*`, empty, or absent matches all; a
   matcher of letters, digits, `_`, `-`, spaces, `,`, and `|` is an exact name or alternation
   list; anything else is an unanchored regex, so `Edit.*` also selects `NotebookEdit`), with the
-  report stating that Python's `re.search` stands in for `RegExp.prototype.test`. The projection
+  report stating that Python's `re.search` stands in for `RegExp.prototype.test`; a regex
+  Python cannot compile counts as selecting every tool and is listed in `unclassified_rows`
+  with the compile error, never as selecting nothing. The projection
   is pure: it reads the flattened hook records and touches no filesystem and no subprocess, and
   `spawn_cost`, `statusline`, `config_liveness`, and `concurrency_ceilings` are unchanged.
 - **audit-performance: `fan_out.hooks.unclassified_rows` and `if_on_non_tool_event`.** The

@@ -137,7 +137,10 @@ also selects `NotebookEdit`. And an exact string is compared whole, so a bare `m
 selects nothing at all: the tool names are `mcp__memory__<tool>`, and server-wide matching needs
 `mcp__memory__.*`. The engine's `matcher_matches` uses Python's `re.search` in place of
 JavaScript's `RegExp.prototype.test`; both are unanchored, and the substitution is stated in the
-report because a JavaScript-only regex construct would evaluate differently here.
+report because a JavaScript-only regex construct would evaluate differently here. A matcher
+Python cannot compile at all is counted as selecting every tool and listed in
+`unclassified_rows` with the compile error, so an unknown selection over-counts where an operator
+can see it rather than vanishing.
 
 **Level 3, the handler `if`**, the only level that sees the call's arguments. It "holds exactly
 one permission rule. There is no `&&`, `||`, or list syntax for combining rules; to apply
@@ -149,7 +152,9 @@ at all: "the hook process only spawns when the tool call matches"
 The engine classifies exactly one `if` shape, `Edit(*.<ext>)`, and reports every other shape in
 `unclassified_rows` with the reason, counting it as firing. That direction is deliberate: an
 unmodelled rule inflates the projection, which an operator can investigate, where the opposite
-would hide a spawn nobody goes looking for.
+would hide a spawn nobody goes looking for. The file kinds projected are a fixed baseline plus
+every extension a classified gate names, so a gate on a kind outside the baseline gets its own
+row and `other` means a file no gate names.
 
 **Drift record.** *Claim:* an `Edit(*.<ext>)` `if` rule is evaluated by file extension for all
 three file-writing tools, `Write`, `Edit`, and `NotebookEdit`, so a `Write` of `notes.md` fires a
