@@ -65,7 +65,23 @@ each discovered file. Apply by entity type:
   script computes
 - **RD1**: Always-loaded rules layer (reverse-drift orphan check; deterministic-WARN). Run
   `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/orphan-rule-check.sh"` and fold each WARN
-  line into the report — do NOT re-derive by hand
+  line into the report — do NOT re-derive by hand. Each line already carries the file's
+  provenance and the matching fix route
+- **N1**: Nested `AGENTS.md` reachability (deterministic-FAIL). Run
+  `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/nested-agents-check.sh"` and fold each FAIL
+  line into the report — do NOT re-derive by hand. Discovery stays depth-1 for the C-checks; this
+  check asks only whether each nested file loads at all
+- **C1 counts the expanded file**: the pre-computed header's root-file figure comes from
+  `instruction-load-stats.sh --lines`, imports expanded. For any other CLAUDE.md in scope, run it
+  with `--file <path>`; use `--breakdown` when imports contributed, and carry the per-file rows into
+  the finding
+- **Provenance**: for every FAIL or WARN that proposes an edit to a repository file, run
+  `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/file-provenance.sh" <path>`. A `synced` file
+  keeps its finding, and the fix line names the sync's source (criteria.md, "Provenance routing")
+- **One invocation for the whole spine**: `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/audit-spine.sh"`
+  prints the header the skill pre-computes plus every spine finding (N1, RD1, M2) in one block. It
+  is the same output as the per-check scripts above, so re-running it after a fix is the cheapest
+  way to confirm the spine is clean
 - **REPO checks**: any additional criteria or documented exemptions the consuming repo's own
   `CLAUDE.md` / `.claude/rules/` declare for its instruction layer (see SKILL.md
   "Consumer-convention extension seam")
@@ -73,7 +89,7 @@ each discovered file. Apply by entity type:
 For each check, record PASS or a FAIL/WARN/INFO finding with the evidence its criteria row asks
 for: the line count, file path, or contradicting text.
 
-**Be mechanical on the deterministic spine (C1/M1/RD1, and M2's script-backed half)** — the
+**Be mechanical on the deterministic spine (C1/M1/RD1/N1, and M2's script-backed half)** — the
 criteria file defines what passes and fails there, so same criteria = same results. M2's other
 half stays judgment (the script checks existence, not content — see its criteria row). The
 judgment-tier checks (C2-C9, R1-R4, M3-M4)
@@ -119,7 +135,10 @@ Present the report to the user with:
 2. All FAIL findings first (must fix)
 3. WARN findings grouped by check type
 4. INFO findings (informational only)
-5. Token cost breakdown (from `/context` if available)
+5. Estimated context cost: the `instruction-load-stats.sh --tokens` figure (bytes / 4 over the
+   always-loaded set, labelled as an estimate) with the `--breakdown` rows when the reader would act
+   on them. The model cannot run `/context`; when the `context-budget` plugin is installed, name
+   `/context-budget:audit` as the measured alternative
 
 ## Step 5: Suggest next action
 

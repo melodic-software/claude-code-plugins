@@ -218,13 +218,13 @@ assert_contains "pipeline: session count and newest by mtime" "sessions: 2 file(
 assert_contains "pipeline: shared file count" "shared: 4 event(s) in hook-events.jsonl" "$P_OUT"
 assert_contains "pipeline: no pending prune" "prune-pending: none" "$P_OUT"
 assert_contains "pipeline: options rendered with defaults filled in" \
-  "logging: on; categories: all; keep: 5 sessions or 14 days; pre-prune: none" "$P_OUT"
+  "envelope: 4 row(s) from the audit hooks, outside the switch; event log: on; categories: all; keep: 5 sessions or 14 days; pre-prune: none" "$P_OUT"
 
 P_OUT="$(bash "$SCRIPT" --pipeline --enabled '${user_config.session_event_log_enabled}' \
   --categories '${user_config.session_event_log_categories}' --keep-days '${user_config.session_log_keep_days}' \
   --pre-prune-command 'archive.sh' 2>/dev/null)"
 assert_contains "pipeline: unexpanded placeholders read as the manifest defaults" \
-  "logging: off; categories: all; keep: 30 sessions or 14 days; pre-prune: set (runs detached at SessionEnd)" "$P_OUT"
+  "envelope: 4 row(s) from the audit hooks, outside the switch; event log: off; categories: all; keep: 30 sessions or 14 days; pre-prune: set (runs detached at SessionEnd)" "$P_OUT"
 if [[ "$P_OUT" != *"archive.sh"* ]]; then
   pass "pipeline: the pre-prune command text is never echoed"
 else
@@ -263,6 +263,68 @@ assert_contains "pipeline: outside a checkout no guard is needed" "guard: not ne
 P_OUT="$(bash "$SCRIPT" --pipeline --root ../escape 2>/dev/null)"
 assert_contains "pipeline: an uncontained root is INVALID" "root: ../escape INVALID (uncontained; the hooks write nothing)" "$P_OUT"
 assert_contains "pipeline: guard is n/a on an invalid root" "guard: n/a (root invalid)" "$P_OUT"
+unset STUB_GIT_TOPLEVEL
+
+ENVELOPED="$TMP/enveloped"
+mkdir -p "$ENVELOPED/.git" "$ENVELOPED/.observability/claude/sessions"
+printf '*\n' >"$ENVELOPED/.observability/claude/.gitignore"
+printf '{"source":"envelope","hook":"a"}\n{"source":"envelope","hook":"b"}\n' >"$ENVELOPED/.observability/claude/sessions/s1.jsonl"
+printf '{"source":"envelope","hook":"c"}\n{"hook_event_name":"Stop"}\n' >"$ENVELOPED/.observability/claude/sessions/s2.jsonl"
+export STUB_GIT_TOPLEVEL="$ENVELOPED"
+P_OUT="$(bash "$SCRIPT" --pipeline 2>/dev/null)"
+assert_contains "pipeline: per-session envelope rows are counted apart from the event-log switch" \
+  "envelope: 3 row(s) from the audit hooks, outside the switch; event log: off;" "$P_OUT"
+# Every line of the shared file is a sink envelope in the legacy shape (no
+# `source` marker), so the tier counts the file whole.
+printf '{"event":"PostToolUse","hook":"d"}\n{"event":"Stop","hook":"e"}\n' >"$ENVELOPED/.observability/claude/hook-events.jsonl"
+P_OUT="$(bash "$SCRIPT" --pipeline 2>/dev/null)"
+assert_contains "pipeline: the shared file's legacy envelopes join the count" \
+  "envelope: 5 row(s) from the audit hooks, outside the switch; event log: off;" "$P_OUT"
+# --observed is the pre-compute form: no caller there holds an option value, so
+# the sixth line stops at the observed count and names the call that renders
+# the option tier instead of printing manifest defaults. Option flags passed
+# alongside are ignored, so a stray flag cannot smuggle a default back in.
+P_OUT="$(bash "$SCRIPT" --pipeline --observed --enabled true 2>/dev/null)"
+assert_eq "pipeline --observed: still six lines" "6" "$(printf '%s\n' "$P_OUT" | wc -l | tr -d ' ')"
+assert_contains "pipeline --observed: the sixth line carries the envelope count and points at the re-run" \
+  "envelope: 5 row(s) from the audit hooks, outside the switch; options: rendered by the section 2.6 re-run, not here" "$P_OUT"
+if [[ "$P_OUT" != *"event log:"* ]]; then
+  pass "pipeline --observed: no option tier is printed"
+else
+  fail "pipeline --observed: no option tier is printed" "no event log: text" "$P_OUT"
+fi
+unset STUB_GIT_TOPLEVEL
+
+# --- The skill's own pre-compute lines -----------------------------------------
+# A ${user_config.*} value renders in plain skill content only; a shell line
+# that carries one either re-parses the rendered value or, left unrendered,
+# fails on the `.` in the parameter name, and one failed line aborts the whole
+# invocation. So no pre-compute command may reference user_config at all, and
+# each command that invokes the probe must exit 0 with the probe's own output
+# under the one substitution the harness does make, ${CLAUDE_PLUGIN_ROOT}.
+SKILL_MD="$SCRIPT_DIR/../SKILL.md"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+# shellcheck disable=SC2016  # the literal placeholder text is the thing matched
+assert_eq "SKILL.md pre-compute lines reference no user_config placeholder" "0" \
+  "$(grep -cE '!`[^`]*\$\{user_config\.' "$SKILL_MD")"
+export STUB_GIT_TOPLEVEL="$WIRED"
+probe_lines=0
+# shellcheck disable=SC2016  # a literal backtick pattern, no expansion wanted
+while IFS= read -r line; do
+  probe_lines=$((probe_lines + 1))
+  cmd="${line#*!\`}"
+  cmd="${cmd%\`}"
+  cmd="${cmd//\$\{CLAUDE_PLUGIN_ROOT\}/$PLUGIN_ROOT}"
+  out="$(bash -c "$cmd" 2>&1)"
+  rc=$?
+  label="SKILL.md pre-compute line ${line%%:*} runs to the probe's own output"
+  if [[ $rc -eq 0 && -n "$out" && "$out" != "unknown" ]]; then
+    pass "$label"
+  else
+    fail "$label" "exit 0 with probe output" "rc=$rc out=$out"
+  fi
+done < <(grep -E '!`[^`]*probe-observability-state\.sh' "$SKILL_MD")
+assert_eq "SKILL.md carries the three probe-invoking pre-compute lines this case guards" "3" "$probe_lines"
 unset STUB_GIT_TOPLEVEL
 
 # --- Mode validation ----------------------------------------------------------

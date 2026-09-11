@@ -24,6 +24,12 @@ only after that version increases.
   assumes the bundled skill resolves. The automation pointer in `reference/prompt-caching.md`
   is now gated on the bundled skill resolving in the session.
 
+## [0.9.10]
+
+### Fixed
+
+- `reference/model-adaptation/CLAUDE.md` shim added beside the chapter conventions `AGENTS.md`, so the conventions load when Claude reads a chapter (Claude Code reads `CLAUDE.md`, not `AGENTS.md`).
+
 ## [0.9.9]
 
 ### Added

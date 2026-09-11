@@ -214,7 +214,14 @@ catalog on, and the cloud bootstrap installs from the two together (see
 
 - `extraKnownMarketplaces` declares this repo as its own marketplace via a `directory` source
   with a relative path, so a session exercises the plugin code on the current branch rather than
-  published `main`. Local collaborators are prompted once they trust the folder.
+  published `main`. Local collaborators are prompted once they trust the folder. A cloud
+  snapshot can already carry a marketplace of the same name registered from GitHub and tracking
+  `main`; the bootstrap then never registers the checkout, every install resolves against that
+  clone, and the session runs `main`'s plugin code. The bootstrap detects this from
+  `plugin marketplace list --json`, brings the clone current, measures the refresh decision and
+  the health verdict against the clone's HEAD rather than the checkout's, and prints one
+  warning naming both commits, so a branch that changed a plugin knows its copy is not the one
+  being served.
 - **`skillListingBudgetFraction` is set to `0.05`, and what that buys depends entirely on the
   live model's context window.** Claude Code loads every enabled skill's name and description
   each turn and caps the total at
@@ -395,7 +402,10 @@ catalog on, and the cloud bootstrap installs from the two together (see
   is precisely this repo's relative `directory` source.
 - Entries are sorted alphabetically, one per line, so a single plugin can be flipped to `false`
   without disturbing the rest — a state the gate accepts, since an explicit `false` is a recorded
-  decision where an absent key is drift. The entries that should not start on their own are not
+  decision where an absent key is drift. The one opt-out recorded today is `playgrounds`: its
+  skill is a wrapper over the first-party `playground` plugin on `claude-plugins-official`, which
+  the cloud bootstrap does not install, so enabled here it could only ever print install commands.
+  The entries that should not start on their own are not
   keyed here at all: the catalog ships them `defaultEnabled: false`, and `claude plugin install`
   honors that flag, so a raw install leaves them disabled. They still appear as `true` on the
   fleet list, so this repo's cloud bootstrap includes them in its wanted set and treats an
