@@ -3,6 +3,19 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.6]
+
+### Fixed
+
+- **`implement-dispatch` states the current subagent model resolution order.** The body ranked
+  `CLAUDE_CODE_SUBAGENT_MODEL` first and told orchestrated runs to keep it unset so it could not
+  undercut the frontmatter binding. Upstream reversed that order in v2.1.251: the per-invocation
+  `model` parameter ranks first, frontmatter second, the environment variable third, and the main
+  conversation's model last. The variable is a fallback for subagents that bind neither, so it
+  cannot undercut a frontmatter binding and the keep-it-unset instruction protected nothing. Both
+  the Step 2 parenthetical and the capability-tier gotcha now state the current order, dated, with a
+  recheck trigger.
+
 ## [0.16.5]
 
 ### Changed

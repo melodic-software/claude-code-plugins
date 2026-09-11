@@ -1,10 +1,17 @@
 // Deterministic single-file bundler for the miro MCP server.
 //
-// Plugin install copies the plugin directory verbatim and runs no build step, so
-// the runtime artifact must ship committed. This bundles the TypeScript source and
-// all runtime dependencies into one self-contained `dist/index.min.js` — no shipped
-// `node_modules`, invoked via `node ${CLAUDE_PLUGIN_ROOT}/dist/index.min.js` (a bundled
+// Plugin install copies the plugin directory into the consumer's cache and runs no
+// build step, so the runtime artifact must ship committed. This bundles the TypeScript
+// source and all runtime dependencies into one self-contained `dist/index.min.js`,
+// invoked via `node ${CLAUDE_PLUGIN_ROOT}/server/dist/index.min.js` (a bundled
 // `node <server>` sidesteps the open Windows bare-`npx` spawn bug entirely).
+//
+// The Node project lives under `server/`, not at the plugin root, on purpose: Claude
+// Code runs `npm ci` in the cached copy whenever the plugin ROOT holds both a
+// package.json and a lockfile, and that install cannot be turned off. Kept here, the
+// lockfile still pins the toolchain for CI and Dependabot, but no consumer's cache
+// materialises this project's devDependencies (plugins-reference.md, "Node.js package
+// dependencies", verified 2026-09-11; recheck when that section changes).
 //
 // The source is the single source of truth; the bundle is generated output. `--check`
 // rebuilds in memory and fails on any drift from the committed artifact, so CI proves

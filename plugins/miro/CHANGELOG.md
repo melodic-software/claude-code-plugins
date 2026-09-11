@@ -3,6 +3,22 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0]
+
+### Changed
+
+- **The Node project moves from the plugin root to `server/`, so a consumer's plugin cache
+  no longer installs the dev toolchain.** Claude Code runs `npm ci --ignore-scripts` inside the
+  cached copy whenever the plugin root carries both a `package.json` and a supported lockfile,
+  and that install cannot be turned off; with the lockfile at the root every fresh install,
+  including every cloud-session container, wrote roughly 188 MB of devDependencies (biome,
+  typescript, esbuild, vitest) that the committed bundle never loads. `package.json`,
+  `package-lock.json`, `src/`, `dist/`, `build.mjs`, and the tool configs now sit under
+  `server/`; `.mcp.json` runs `server/dist/index.min.js`. CI, the Dependabot manifest, and the
+  bundle-rebuild workflow point at the new directory, so the lockfile still pins and rebuilds
+  exactly as before. The bundle's bytes are unchanged, and the `build.mjs` header now describes
+  the cache install accurately.
+
 ## [0.3.16]
 
 ### Changed

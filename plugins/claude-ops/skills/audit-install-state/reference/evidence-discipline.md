@@ -18,6 +18,13 @@ Every claim the engine emits carries an `evidence` field:
 | `documented-default` | Not present locally; the value is upstream's documented default |
 | `inferred` | A step was taken beyond what was measured |
 | `no-upstream-row` | No documentation covers this path, so no claim is made either way |
+| `documented` | The claim's basis is an upstream page, cited with the date it was verified and a recheck trigger |
+| `observed-undocumented` | Seen on real trees in this or an earlier run, and no upstream page names it; the role is an observation, never a documented fact |
+
+The vocabulary is closed: `EVIDENCE_VOCABULARY` in the engine enumerates it, and a new value is a
+schema bump (`schema` in the report header), never a silent parallel tag. The last two rows exist
+for the environment block and the sentinels the engine reads by content: `CLAUDE_CODE_REMOTE` has a
+documented row; `launcher-settings.json` and `.last-cleanup` do not, and the tag says so.
 
 Hedging in prose does not work. A downstream reader, human or agent, consumes an inference and an
 observation identically unless the artifact distinguishes them structurally. An unmarked inference
