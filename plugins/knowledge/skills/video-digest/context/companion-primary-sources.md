@@ -1,6 +1,6 @@
-# Video digest watch — companion primary sources
+# Video digest watch: companion primary sources
 
-When an operator queues a video with a companion URL (blog post, doc, paper), the companion is **Tier 1/2 primary framing**; the video is Tier 2/3. Full protocol — cite by heading; do not duplicate bodies into `SKILL.md`.
+When an operator queues a video with a companion URL (blog post, doc, paper), the companion is **Tier 1/2 primary framing**; the video is Tier 2/3. Full protocol: cite by heading; do not duplicate bodies into `SKILL.md`.
 
 ## Queue-time recording
 
@@ -14,7 +14,7 @@ On `queue <url>` when the operator supplies companion URL(s) and intent:
 
 Dedupe by `video-id` unchanged. Companion brief may exist before any `run-watch.js` bootstrap.
 
-## Phase 0b — Companion deep-dive (watch / resume)
+## Phase 0b: Companion deep-dive (watch / resume)
 
 **Gate:** When `source/companion-sources.md` exists, run Phase 0b **before** `run-watch.js` (or before vision on resume if CLI phases already complete but companion phase is not marked).
 
@@ -22,12 +22,12 @@ Dedupe by `video-id` unchanged. Companion brief may exist before any `run-watch.
 
 ### Execution
 
-1. Read `source/companion-sources.md` — section table is the fan-out SSOT.
+1. Read `source/companion-sources.md`; the section table is the fan-out SSOT.
 2. WebFetch each companion URL (full page, not surface skim).
 3. **Divide and conquer:** one subagent per major H2 section in the brief's fan-out table. Dense H2s (`Types of skills`, `Tips for making skills`) may sub-fan-out per `###` when the brief says so.
-4. Each subagent runs deep external research on `<section-topic>` (single-vendor topics can use a lighter research pass) — no surface-level reads.
+4. Each subagent runs deep external research on `<section-topic>` (single-vendor topics can use a lighter research pass), never surface-level reads.
 5. Write `source/companion-digest/<section-slug>.md` per section (claims, examples, gotchas, repo-relevant hooks).
-6. Write hub `source/companion-digest/README.md` — links all section shards + one-paragraph synthesis.
+6. Write hub `source/companion-digest/README.md`, linking all section shards + one-paragraph synthesis.
 7. Seed `source/harvested-links.json` with companion URL(s) typed `doc`, `priority: pre-watch` (create file if bootstrap has not run yet).
 8. `mark-phase <slice-dir> companion` only after every section row in the brief has a digest shard.
 
@@ -45,7 +45,7 @@ If `watch.json` exists with CLI phases done but `companion` not marked, run Phas
 | Research | Video claims cross-check blog; blog URL in `research/sources.md` as primary citation |
 | Synthesis | Menu items cite blog section + video timestamp when both apply |
 
-Trust tiers: apply your project's own source-trust conventions. Repo conventions override both video and blog — surface conflicts explicitly.
+Trust tiers: apply your project's own source-trust conventions. Repo conventions override both video and blog; surface conflicts explicitly.
 
 ## Blocking criteria
 
@@ -53,8 +53,8 @@ When `source/companion-sources.md` exists:
 
 | Criterion | FAIL → |
 | --- | --- |
-| `source/companion-digest/README.md` exists | Phase 0b — write hub after section fan-out |
-| Every section slug in brief has `source/companion-digest/<slug>.md` | Phase 0b — complete subagent fan-out |
+| `source/companion-digest/README.md` exists | Phase 0b: write hub after section fan-out |
+| Every section slug in brief has `source/companion-digest/<slug>.md` | Phase 0b: complete subagent fan-out |
 | `mark-phase companion` in `watch.json` | Only after digest complete; before Phase 1 if starting fresh |
 
 Phase gates table: `context/quality-gates.md`.

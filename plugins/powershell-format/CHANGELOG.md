@@ -3,6 +3,42 @@
 All notable changes to the `powershell-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.48]
+
+### Changed
+
+- **Options reference drops its em dashes.** The generated How-to-set-these block is rewritten by `scripts/sync-plugin-options-docs.py`, which is the fix site: its output is regenerated, never hand-edited. The block no longer needs the ignore marker that exempted it from the repository's em-dash gate, so that marker is gone as well.
+- **The plugin's prose drops its em dashes.** This changelog and `skills/setup/SKILL.md` were rewritten. Wording only, with no change to any hook, guard, or default. Every emitted string quoted in prose is byte-identical to what the hook prints, and no heading was touched, so every release still parses. The released sections corrected in place are 0.7.36, 0.7.34, 0.7.20, 0.7.19, 0.7.17, 0.7.5, 0.7.3, 0.7.2, 0.7.1, 0.7.0, 0.6.6, 0.6.5, 0.6.4, 0.6.3, 0.6.2, 0.6.1, 0.6.0, 0.5.2, 0.5.1, 0.5.0, 0.4.0, 0.3.0, and 0.2.0: their wording changed, their facts did not.
+- **Two entries say what they mean instead of reaching for jargon.** The 0.6.5 temp-tree exemption is "deliberate and required" rather than load-bearing, and the 0.2.0 entry reads "Consumer-side telemetry through `HOOK_TELEMETRY_SINK` is unaffected", which names the variable a reader would check.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md` and every `skills/*/SKILL.md`.
+
+- **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
+
+## [0.7.47]
+
+### Fixed
+
+- **Two `jq` processes were spawned per diagnostic-producing edit to build a
+  findings document nothing read.** The guard that skips the findings encode
+  when no telemetry sink is configured was missing here. The encode now sits
+  behind the shared engine's own guard, so it cannot be omitted.
+
+### Changed
+
+- **The hook's exit arms go through the shared `hook::finish`.** Taking the
+  rewrite guard's disclosure, emitting telemetry with the arm's verdict,
+  emitting exactly one channels document and exiting now happen in one place
+  instead of each arm spelling that sequence itself. Arms that never attempted
+  a rewrite now report `data.changed` as false rather than omitting the key,
+  which is the rewrite guard's documented meaning for them.
+- **Running the analyzer, accumulating its output, classifying the outcome
+  and encoding findings moved behind a shared engine.** This hook states only
+  its invocation, its exit-code map and its message text.
+- **The `PSScriptAnalyzerSettings.psd1` walk goes through
+  `hook::walk_up_to`, which requires a ceiling.** A walk whose ceiling does
+  not resolve now stops rather than continuing to the filesystem root, so the
+  hook cannot adopt settings from directories the repository does not own.
+
 ## [0.7.46]
 
 ### Changed
@@ -174,7 +210,7 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
 
 - **Vendored `hook-utils.sh` drops two `buffer_stdin` startup subshells and a
   `tr` exec on every `repo_root`.** Timeout and slice resolution write into
-  caller variables (`printf -v`) instead of `$( )` / process substitution —
+  caller variables (`printf -v`) instead of `$( )` / process substitution.
   GNU Bash forks a subshell for both even when the body is builtins only.
   `hook::repo_root` strips CR with parameter expansion, the same substitution
   `buffer_stdin` already uses for the payload. New `hook::json_str_object_to`
@@ -206,7 +242,7 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
   through it. The final report at the bottom keeps its inline form on purpose:
   ending the script with a call to a function that itself exits costs ShellCheck
   the control-flow edge into the EXIT trap, and it then reports `cleanup` as
-  never invoked (SC2329) — a permanently weakened dead-code check traded for
+  never invoked (SC2329), a permanently weakened dead-code check traded for
   nothing, since that tail is three lines and was never a copy of the four-line
   one.
 
@@ -372,7 +408,7 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
     CONSTANT string argument was pinned as though it named a file:
     `Invoke-Expression 'Import-Module ./evil.psm1'` read as pinned while the
     load it performs was never examined. Its argument is code, not a path, so
-    binding it would mean recursively parsing evaluated text — the state is
+    binding it would mean recursively parsing evaluated text. The state is
     refused (`UNPINNABLE`) instead.
   - The loader membership test compared the name `GetCommandName()` returns,
     which for a module-qualified call is the qualified spelling. A
@@ -393,11 +429,11 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
   whole stored `pluginConfigs` entry, resetting every declared option to its manifest default.
   On Claude Code 2.1.240 a plain `claude plugin install … --config` against an already-installed
   plugin prints `already installed` and still writes the value, so that is now the documented
-  route — stamped with the CLI version it was verified against
+  route, stamped with the CLI version it was verified against
   ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). `apply` also
   now separates the write from its effect: the stored value changes immediately, but the running
   session's hooks keep the `CLAUDE_PLUGIN_OPTION_*` they were handed at session start, so
-  verification means rerunning `check` in a FRESH session — a same-session rerun reports the old
+  verification means rerunning `check` in a FRESH session. A same-session rerun reports the old
   value, which is not a failed write. It never asserts an unobserved change.
 - **Docs:** the generated options block's headless route no longer implies `--config` applies
   only at install time, and now carries the CLI version its claim was verified against
@@ -427,7 +463,7 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
 
 ### Changed
 
-- Sync `hook-utils.sh` from `lib/` — two header-echo comments removed in
+- Sync `hook-utils.sh` from `lib/`: two header-echo comments removed in
   `hook::emit_telemetry` (comment-only; no behavior change).
 
 ## [0.7.16]
@@ -511,13 +547,13 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
 ### Changed
 
 - **Shared `hook-utils.sh`: the jq gate now has a fail-CLOSED sibling, and the posture reasoning
-  lives at the helper (#2146).** `hook::require_jq` is unchanged and still fails OPEN — one visible
-  skip notice per session, then exit 0 — which is the correct posture for every hook in this plugin,
+  lives at the helper (#2146).** `hook::require_jq` is unchanged and still fails OPEN: one visible
+  skip notice per session, then exit 0. That is the correct posture for every hook in this plugin,
   so **nothing in this plugin's behaviour changes**. What is new is `hook::require_jq_blocking`, a
   second named function that denies the tool call instead, for the narrow class of guards whose job
   is blocking an irreversible operation (today only two, both in `guardrails`). A sibling function
   rather than a parameter, because a flag's omitted value would default to fail-open and a guard
-  whose flag someone forgot would then fail open *silently* — the exact defect #2146 reports,
+  whose flag someone forgot would then fail open *silently*, the exact defect #2146 reports,
   reintroduced at the API. The two postures are now argued together in one block above both
   functions, which is what #2146 asked for: previously each call site asserted a posture in a
   comment and nothing where the decision is made explained it. Synced from `lib/hook-utils.sh`.
@@ -539,12 +575,12 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
 - **Shared `hook-utils.sh`: `hook::jq_fields` now REPORTS a NUL byte in a payload value
   (#2122).** 0.7.1 stopped a NUL from failing the helper's cardinality check, by stripping every
   NUL out of each value. That keeps the helper working, but stripping also silently rewrites the
-  value — `--no-verify<NUL>x` arrives as `--no-verifyx` — so a caller that owns a block/allow
+  value. `--no-verify<NUL>x` arrives as `--no-verifyx`, so a caller that owns a block/allow
   verdict cannot tell a clean payload from one that carried a NUL, and matches against a token the
   payload never held contiguously. The fact is now reported in a new `HOOK_JQ_FIELDS_NUL` global,
   set on EVERY call including every failure path, so such a caller can fail closed on its own terms.
   It is computed from the values as the payload carried them, BEFORE the strip; strip first and the
-  flag would read "0" on every payload. Values themselves are unchanged — still stripped, so a
+  flag would read "0" on every payload. Values themselves are unchanged: still stripped, so a
   scanning caller still sees everything after the NUL. This plugin's own hooks do not consult the
   new global, so their behaviour is unchanged. Synced from `lib/hook-utils.sh`.
 
@@ -556,7 +592,7 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
   git guards (#2124).** `-S` exists so a shebang line can pass OPTIONS to env
   (`#!/usr/bin/env -S -i prog`), so the words it splits out are env's own arguments. The resolver
   spliced them back into the scan but resumed at the COMMAND dispatcher, which read a leading
-  option in the split string as the command NAME and gave up — `env -S '-C <dir> git push --force'`
+  option in the split string as the command NAME and gave up. `env -S '-C <dir> git push --force'`
   resolved to no git at all, so every guard built on `hook::git_resolve_index` skipped the command
   unexamined. Parsing now resumes inside env's own option loop. That also keeps env's single chdir
   slot last-wins across the splice, so `env -C a -S '-C b git …'` reports `b`, matching GNU env.
@@ -568,13 +604,13 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
 
 - **Shared `hook-utils.sh`: a NUL byte inside a payload value no longer makes `hook::jq_fields`
   come back empty (#2120).** The helper delimits its batched fields with NUL, and a JSON string may
-  legitimately encode one — a `Write`/`Edit`/`NotebookEdit` content field can. jq emitted the raw
+  legitimately encode one. A `Write`/`Edit`/`NotebookEdit` content field can. jq emitted the raw
   byte, the read split that value in two, the cardinality check saw one value too many, and the
-  helper returned non-zero — which every caller treats as "skip", so the hook exited without doing
+  helper returned non-zero, which every caller treats as "skip", so the hook exited without doing
   its work. Each value is now NUL-stripped INSIDE the jq filter, so the delimiter provably cannot
   occur in a value. Stripping is not a lesser alternative to an encoding scheme, it is the only
   representable behavior: a bash variable cannot hold a NUL byte, and the per-field command
-  substitution this helper replaced dropped the byte and kept the rest of the value — so content
+  substitution this helper replaced dropped the byte and kept the rest of the value, so content
   AFTER a NUL is returned and scanned exactly as it was before the batching. Synced from
   `lib/hook-utils.sh`.
 
@@ -584,7 +620,7 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
 
 - **The bare `/<skill>` alias for this plugin's skills.** Their `SKILL.md` files no longer
   declare a frontmatter `name`. The field is optional and defaults to the directory name, so
-  declaring it only restated the path while registering a second, unnamespaced command — which
+  declaring it only restated the path while registering a second, unnamespaced command, which
   the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
   namespaced command; the command itself is unchanged.
 
@@ -599,7 +635,7 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
   with jq. On Windows Git Bash, where process creation is `fork()` emulation, each spawn costs
   ~140 ms. Behavior is unchanged: the slice keeps the three-decimal form `read -t` is given, the
   buffer is CR-stripped as before, and the completeness verdict is reused only when jq itself
-  produced it — so a host without jq still fails open exactly as it did. Also adds
+  produced it, so a host without jq still fails open exactly as it did. Also adds
   `hook::jq_fields`, which extracts several fields from one payload in a single jq process for
   hooks that read two or three of them. Synced from `lib/hook-utils.sh`.
 
@@ -609,15 +645,16 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
 
 - **Shared `hook-utils.sh`: the OS temp tree is no longer treated as project content (#1769).**
   `hook::read_file_path` scoped a file to the project by prefix-matching `CLAUDE_PROJECT_DIR`, so a
-  session whose project directory is the user's home admitted everything under the OS temp root —
+  session whose project directory is the user's home admitted everything under the OS temp root,
   including Claude Code's own per-session scratchpad, which lives there. Hooks that lint, rewrite, or
   autocorrect then ran on throwaway files that are not project content and carry no project config to
   opt out with; the reported case was `typos-format` autocorrecting a shell variable in a scratch
   script and silently breaking it. The guard now rejects a file inside the OS temp tree when the
-  project root is outside it. The exemption is deliberate and load-bearing: when the project root
-  itself lives under temp — a `mktemp -d` fixture checkout, which is how this repository's own hook
-  suites run — its files are still accepted. Temp roots come from `TMPDIR` / `TMP` / `TEMP` plus the
-  POSIX defaults, canonicalized through the same pipeline the membership comparison already uses.
+  project root is outside it. The exemption is deliberate and required: when the project root
+  itself lives under temp, its files are still accepted. That case is a `mktemp -d` fixture
+  checkout, which is how this repository's own hook suites run. Temp roots come from `TMPDIR` /
+  `TMP` / `TEMP` plus the POSIX defaults, canonicalized through the same pipeline the membership
+  comparison already uses.
   Synced from `lib/hook-utils.sh`.
 
 ## [0.6.4]
@@ -627,7 +664,7 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
 - **Shared `hook-utils.sh`: a wrapper's working-directory change is no longer lost when a caller
   parses only git's own global options (#1503).** `hook::git_resolve_index` walks wrapper programs
   (`env`, `sudo`, …) to reach the real `git` token, and a caller that scopes its git-global parsing
-  to the slice starting at that token cannot see a relocation the wrapper already performed — GNU env
+  to the slice starting at that token cannot see a relocation the wrapper already performed. GNU env
   documents `-C, --chdir=DIR` as "change working directory to DIR". The resolver now reports those
   directories in a new `HOOK_GIT_RESOLVED_WRAPPER_DIRS` result global, in execution order, so a
   caller composes them ahead of git's own globals instead of dropping them. Five spellings are read
@@ -644,16 +681,16 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
 - **Shared `hook-utils.sh`: an in-project file spelled as a Windows 8.3 short name is no longer
   silently skipped (#1636).** `hook::physical_path` canonicalized with GNU realpath, which under
   Git Bash resolves symlinks but leaves 8.3 short names (`KYLESE~1`) unexpanded, so a short-form
-  `file_path` — the shape Claude Code's own scratchpad paths take — failed the
+  `file_path`, the shape Claude Code's own scratchpad paths take, failed the
   `CLAUDE_PROJECT_DIR` prefix comparison in `hook::read_file_path` and the hook skipped the file
   silently: no lint, no notice, no telemetry. The lib now expands short names on Windows/MSYS
   hosts (new `hook::expand_8dot3`, via `cygpath -l`) before the comparison, and only when the
-  expanded form actually differs — a legitimate long name containing `~` passes through
+  expanded form actually differs. A legitimate long name containing `~` passes through
   untouched, and a genuinely out-of-project file is still skipped: that defense-in-depth scoping
   is deliberate and preserved. 8.3 generation is a per-volume property (`fsutil 8dot3name
-  query`), so the defect was live only for checkouts on a volume that generates short names —
-  and invisible to contributors whose checkouts sit on one that does not. This plugin's own
-  `hook::physical_path` call sites — the settings-walk anchors and ceiling — see the same
+  query`), so the defect was live only for checkouts on a volume that generates short names,
+  and invisible to contributors whose checkouts sit on one that does not. This plugin calls
+  `hook::physical_path` at the settings-walk anchors and ceiling, and both see the same
   expansion, keeping the walk consistent with the membership guard's verdict for short-form
   paths. Synced from `lib/hook-utils.sh`.
 
@@ -666,11 +703,11 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
   pipe one byte at a time (~32 KB/s on Git Bash), so the `stdin_read_timeout` bound was really a
   ~64 KB throughput ceiling rather than the stall detector it was written to be. Past that ceiling
   the read returned a truncated payload and rc 1, and this plugin's hooks took their `|| exit 0`
-  branch — the hook did not run at all, with no diagnostic, on exactly the large writes it was
+  branch. The hook did not run at all, with no diagnostic, on exactly the large writes it was
   most wanted for. The read is now chunked (`read -N`), which bash satisfies with block reads, and
   the bound became a true idle bound: `read -t` is a deadline for the whole requested read rather
   than an inactivity timer, so a timed-out read that nevertheless returned bytes is now treated as
-  progress — its partial chunk is kept and a fresh window is armed. Only a window that delivers
+  progress. Its partial chunk is kept and a fresh window is armed. Only a window that delivers
   nothing at all is a stall. `read -N` is Bash 4.1+, and these hooks support Bash 3.2+ (macOS
   system bash), so the pre-4.1 path falls back to the delimiter read inside the same re-arming
   loop. Measured: 50 KB drops from ~2100 ms to ~20 ms, 200 KB from ~6800 ms to ~85 ms. Synced
@@ -680,7 +717,7 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
 
 ### Changed
 
-- **Test scaffolding: migrated `mktemp -p` temp file/dir creation to the portable `mktemp "$DIR/template"` form.** BSD/macOS `mktemp` has no `-p` flag; the directory now rides in the positional TEMPLATE argument instead, which both GNU and BSD `mktemp` accept identically. Test-only — no hook behavior change. Part of #1527 (`powershell-format.test.sh`).
+- **Test scaffolding: migrated `mktemp -p` temp file/dir creation to the portable `mktemp "$DIR/template"` form.** BSD/macOS `mktemp` has no `-p` flag; the directory now rides in the positional TEMPLATE argument instead, which both GNU and BSD `mktemp` accept identically. Test-only, no hook behavior change. Part of #1527 (`powershell-format.test.sh`).
 
 ## [0.6.0]
 
@@ -690,31 +727,31 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
   `PSScriptAnalyzerSettings.psd1` that declares `CustomRulePath` makes
   PSScriptAnalyzer load and execute repository-supplied rule modules during
   analysis, so the hook no longer runs the formatter/analyzer under such a
-  settings file automatically: it skips the run — with a visible
-  once-per-session notice on both channels — until the user approves that exact
+  settings file automatically: it skips the run, with a visible
+  once-per-session notice on both channels, until the user approves that exact
   settings-and-rule-module content state by creating the marker directory named
   in the notice (under `${CLAUDE_PLUGIN_DATA}/trust-approvals`). The approval
   signature is content-addressed over the settings file AND every file
   reachable under each declared `CustomRulePath` entry (recursively for
   directories), plus every repository file those files reference by string
-  literal (transitively, bounded — a leaf module's dot-sourced or imported
+  literal (transitively, bounded: a leaf module's dot-sourced or imported
   dependencies execute with it; `$PSScriptRoot` and `$PSCommandPath` are
   expanded wherever they appear in the reference, not only as a leading prefix,
   so the standard interpolated dependency form pins instead of dropping out of
   the signature), so a change to
-  the settings or to any referenced rule module —
-  e.g. a branch switch swapping module bytes under an unchanged settings file —
-  revokes the approval. The gate fails closed when `CLAUDE_PLUGIN_DATA` is
+  the settings or to any referenced rule module revokes the approval, e.g. a
+  branch switch swapping module bytes under an unchanged settings file. The gate
+  fails closed when `CLAUDE_PLUGIN_DATA` is
   unavailable, and also when a `CustomRulePath` entry does not resolve to
   hashable content: an unpinnable state offers no approval route at all.
-  A load whose TARGET cannot be pinned to a file is refused the same way — a
+  A load whose TARGET cannot be pinned to a file is refused the same way: a
   variable, an env lookup, a composed expression such as
   `. (Join-Path $PSScriptRoot "deps" "helper.ps1")`, or an interpolated string
   holding any other variable. That verdict comes from PowerShell's own parser
   (`Parser::ParseInput`, examining every `.`/`&` invocation and
   `Import-Module`/`Add-Type`/`Invoke-Expression`-class command) rather than from
   a text pattern, so it cannot be evaded by quoting or comment placement and
-  needs no file-extension guessing — the extensionless
+  needs no file-extension guessing. The extensionless
   `Import-Module "$root/MyModule"` form is caught without one. A loader fed by a
   PIPELINE is refused too: it takes its source from the upstream element rather
   than from its own arguments, so `Get-Content (Join-Path $PSScriptRoot deps
@@ -723,8 +760,8 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
   parser accepts is pinned from the parser too, not left to the quoted-literal
   scan: PowerShell does not require quotes around a command argument, so
   `. $PSScriptRoot\helper.ps1` would otherwise be judged pinnable and then never
-  pinned. `using module <path>` and `using assembly <path>` are collected as well
-  — both are `UsingStatementAst` nodes rather than commands, so neither the
+  pinned. `using module <path>` and `using assembly <path>` are collected as well.
+  Both are `UsingStatementAst` nodes rather than commands, so neither the
   command walk nor a text scan would see them, and an assembly directive loads a
   repository DLL exactly as a module directive loads a `.psm1`. An assembly the
   parser cannot load is reported as a parse error, which already refuses
@@ -732,19 +769,20 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
   unverifiable. `using namespace` and `using type` name no repository file and are
   left alone. An extensionless reference resolves through
   PowerShell module resolution, so the `.psd1`/`.psm1`/`.ps1`/`.dll` candidates
-  and both directory layouts — `MyModule/MyModule.psd1` and the versioned
-  `MyModule/<version>/MyModule.psd1` — are all pinned rather than only an exact
-  leaf. An inline script block is exempt because it is part of the
+  and both directory layouts are all pinned rather than only an exact leaf. The
+  two layouts are `MyModule/MyModule.psd1` and the versioned
+  `MyModule/<version>/MyModule.psd1`. An inline script block is exempt because
+  it is part of the
   already-hashed file, and a composed load nested inside it is still judged on
   its own.
   Detection uses PowerShell's restricted data-file parser
   (`Import-PowerShellDataFile`), not a textual scan, so quoting/escape
-  obfuscation of the key cannot evade it — and a settings file the restricted
+  obfuscation of the key cannot evade it, and a settings file the restricted
   parser rejects stays gated rather than run, since it cannot be proven
   code-free. Previously the hook ran the analyzer unconditionally, so a
   malicious repository's checked-in settings could execute arbitrary PowerShell
   on a routine `.ps1`/`.psm1`/`.psd1` edit. Settings without `CustomRulePath`
-  are unaffected. The edit itself is still never blocked — the hook always
+  are unaffected. The edit itself is still never blocked. The hook always
   exits 0.
 
 ### Fixed
@@ -770,7 +808,7 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
   both halves to `-s user`. When this plugin is installed at `project` or `local` scope, that
   silently uninstalled a separate user-scope record while the effective project/local install kept
   loading, and the reinstall landed at a scope that does not load. Both commands now carry
-  `-s <scope>`, sourced from what `claude plugin list` reports for this plugin — the same fix
+  `-s <scope>`, sourced from what `claude plugin list` reports for this plugin, the same fix
   already applied to `session-flow` and `rate-limit-guard` in #1393.
 
 ## [0.5.1]
@@ -780,7 +818,7 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
 - Sync of the shared `hook-utils.sh`: the git-option parser distinguishes `--config-env`
   (an env-var name) from `-c`/`--config` (an inline value), and a `--config-env` alias for
   a guarded subcommand is refused by shape rather than by resolving the environment
-  variable's value (`#740`). No behavior change for this plugin — it does not inspect git
+  variable's value (`#740`). No behavior change for this plugin. It does not inspect git
   config values; shipped so consumers receive the shared library update.
 
 ## [0.5.0]
@@ -789,7 +827,7 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
 
 - **`statusMessage` declared on the hook's `hooks.json` handler** (hook-observability
   convention, `docs/conventions/hook-observability/`): a spinner label ("Formatting
-  PowerShell...") now shows while the hook runs. Config-only — no runtime behavior
+  PowerShell...") now shows while the hook runs. Config-only, no runtime behavior
   change.
 
 ## [0.4.3]
@@ -825,7 +863,7 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
 
 - **`/powershell-format:setup` skill** (fleet conformance wave: a uniform
   check-centric setup contract across the hook plugins). `check` (default) is
-  read-only — it reads the hook script as the single source of truth and probes
+  read-only: it reads the hook script as the single source of truth and probes
   each runtime prerequisite (Bash, `jq`, `pwsh` 7+, the PSScriptAnalyzer module),
   the `PSScriptAnalyzerSettings.psd1` opt-in, and the effective
   `powershell_format_enabled` toggle, reporting a PASS/FAIL/INFO table with one
@@ -834,8 +872,8 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
   by-design not-applicable INFO. The module and settings probes surface the
   README trust boundary (a settings file's `CustomRulePath` runs during
   analysis). `apply` re-runs `check` then points at the resolution for each
-  finding — `pwsh` install and `Install-Module PSScriptAnalyzer` are user-scope
-  guidance only, never run. `apply` is guidance-only with no write path — it
+  finding. `pwsh` install and `Install-Module PSScriptAnalyzer` are user-scope
+  guidance only, never run. `apply` is guidance-only with no write path: it
   never installs anything and never modifies the repository (including
   `PSScriptAnalyzerSettings.psd1`), user settings, or the plugin cache.
 
@@ -854,7 +892,7 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
   silently skipped feature is a defect). Without `jq` the hook cannot parse its
   input, so it now surfaces a once-per-session notice to both Claude
   (`additionalContext`) and the user (`systemMessage`) instead of a silent
-  no-op. `pwsh`/PSScriptAnalyzer absence deliberately stays quiet — a machine
+  no-op. `pwsh`/PSScriptAnalyzer absence deliberately stays quiet: a machine
   without PowerShell is classified as not-applicable, and the README now says
   so. Notice dedup state lives under `${CLAUDE_PLUGIN_DATA}/skip-notices`.
 - Shared `hook-utils.sh` resynced with the new prerequisite-visibility helpers
@@ -873,5 +911,5 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
 - **BREAKING:** the `HOOK_POWERSHELL_FORMAT_ENABLED` environment variable is
   retired and no longer read. A consumer that set it in a settings `env` block
   must re-express the value as the matching `userConfig` option.
-  Zero-config behavior is unchanged (hook on, same defaults). The `HOOK_TELEMETRY_SINK`
-  consumer-side telemetry seam is unaffected.
+  Zero-config behavior is unchanged (hook on, same defaults). Consumer-side telemetry
+  through `HOOK_TELEMETRY_SINK` is unaffected.

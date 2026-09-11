@@ -1,6 +1,6 @@
 # Fix Workflow
 
-Apply fixes for audit findings. Requires a prior audit — reads findings from **the path SKILL.md
+Apply fixes for audit findings. Requires a prior audit, and reads findings from **the path SKILL.md
 resolves in "Report location"**, `audit/<state-key>/last-audit.md` under the plugin data directory.
 Derive the key there; do not restate a path here.
 
@@ -18,7 +18,7 @@ fresh audit instead of acting on it.
 ## Fix strategy
 
 Process findings by severity: FAIL first, then WARN (only if user opts in). INFO findings are not
-actionable — skip.
+actionable, so skip them.
 
 For each finding, present:
 
@@ -26,7 +26,7 @@ For each finding, present:
 2. The proposed fix
 3. Ask for approval before applying
 
-**Never batch-apply fixes without approval.** Each fix is a judgment call — criteria flag issues; the
+**Never batch-apply fixes without approval.** Each fix is a judgment call: criteria flag issues; the
 user decides resolution.
 
 ## Common fix patterns
@@ -35,11 +35,11 @@ user decides resolution.
 
 Options to reduce CLAUDE.md line count:
 
-1. **Move to rules** — language/framework-specific content → `.claude/rules/`
-2. **Move to skills** — reference material, workflows → `.claude/skills/*/`
-3. **Wrap in HTML comments** — human-only reference info (stripped from context)
-4. **Delete** — content failing the deletion test (C2)
-5. **Compress** — merge redundant sections, tighten wording
+1. **Move to rules**: language/framework-specific content → `.claude/rules/`
+2. **Move to skills**: reference material, workflows → `.claude/skills/*/`
+3. **Wrap in HTML comments**: human-only reference info (stripped from context)
+4. **Delete**: content failing the deletion test (C2)
+5. **Compress**: merge redundant sections, tighten wording
 
 Present specific sections that are candidates for each approach.
 
@@ -61,11 +61,11 @@ cross-references break.
 
 For flagged codebase-description content, in preference order:
 
-1. **Delete** — a file-by-file inventory Claude can rebuild with `ls`/Glob goes first.
-2. **Curate into a navigation pointer** — when the section exists to route to something
-   genuinely non-obvious and load-bearing, compress it to the pointer form C5's KEEP branch
+1. **Delete**: a file-by-file inventory Claude can rebuild with `ls`/Glob goes first.
+2. **Curate into a navigation pointer**: when the section exists to route to something
+   genuinely non-obvious that work depends on, compress it to the pointer form C5's KEEP branch
    describes: where to look, and when to look there.
-3. **Restructure before pointing** — a pointer that exists because changes must be mirrored
+3. **Restructure before pointing**: a pointer that exists because changes must be mirrored
    across distant folders can mask low cohesion; consider restructuring so the things that
    change together live together, and keep a pointer only for what remains genuinely distant.
    (Write-side doctrine for authoring the pointer itself: `docs-hygiene:write-for-agents`, if
@@ -111,7 +111,7 @@ For stale memory entries:
 3. If stale: update memory content, or suggest deletion
 4. Update MEMORY.md index if topic files removed
 
-**Inbound `[[wikilink]]` sweep on any entry deletion** — memory entries cross-link via `[[name]]`:
+**Inbound `[[wikilink]]` sweep on any entry deletion**: memory entries cross-link via `[[name]]`:
 
 ```bash
 # Current repo's memory dir only — a `~/.claude/projects/*/memory/` glob would

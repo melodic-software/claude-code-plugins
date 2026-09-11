@@ -22,21 +22,25 @@ set -uo pipefail
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SELF_DIR/.." && pwd)"
 SCRIPT="$SELF_DIR/check-shell-portability.sh"
+# The scanner engine the gate runs with `awk -f`. Named here so the cases at
+# the foot of this file can drive it on its own two operands, without the gate
+# around it, and so a syntax error in it fails a test rather than only a scan.
+SCAN_AWK="$SELF_DIR/lib/shell-portability-scan.awk"
 
-# A fixture runs a COPY of the gate, so it must also carry the shared
-# libraries that copy sources (scripts/lib/*.sh). Staging them here keeps the
-# fixture a faithful copy; without it the copied gate dies on a missing
-# source at line 1 and every assertion below turns into the same opaque
-# failure. See #2914.
-stage_libs() {
-  mkdir -p "$1/lib"
-  cp "$SELF_DIR/lib/changed-files.sh" "$SELF_DIR/lib/token-scan.sh" "$SELF_DIR/lib/read-list.sh" "$1/lib/"
-}
 REAL_TOKENS="$REPO_ROOT/scripts/shell-portability-tokens.txt"
 . "$SELF_DIR/test-git-helpers.sh"
 
 # shellcheck source=lib/test-harness.sh
 . "$SELF_DIR/lib/test-harness.sh"
+# A fixture runs a COPY of the gate, so the builder stages scripts/lib/ with it:
+# without those, the copy dies on a missing source at line 1 and every assertion
+# below turns into the same opaque failure.
+# shellcheck source=lib/fixture-tree.sh
+. "$SELF_DIR/lib/fixture-tree.sh"
+
+# The builder assigns through a nameref, which shellcheck cannot follow;
+# declaring the out-vars here is what tells it (SC2154) the names are written.
+fx="" TREE=""
 
 # scan_paths <tokens-file> <file>... — run the gate over explicit paths.
 scan_paths() {
@@ -1457,10 +1461,7 @@ rm -f "$f" "$tok"
 # =============================================================================
 
 tok="$(one_token_list '\\b')"
-fx="$(mktemp -d)"
-mkdir -p "$fx/scripts"
-cp "$SCRIPT" "$fx/scripts/"
-stage_libs "$fx/scripts"
+fixture_tree::build fx --sut "$SCRIPT"
 printf 'grep -Eq "\\bfoo\\b" "$file"\n' >"$fx/FOO=bar.sh"
 out="$(cd "$fx" && SHELL_PORTABILITY_TOKENS="$tok" bash scripts/check-shell-portability.sh --paths "FOO=bar.sh" 2>&1)"
 rc=$?
@@ -1484,10 +1485,7 @@ rm -rf "$fx" "$tok"
 # and an absolute path begins with `/`, which awk can only read as a filename.
 # =============================================================================
 tok="$(one_token_list '\\b')"
-fx="$(mktemp -d)"
-mkdir -p "$fx/scripts"
-cp "$SCRIPT" "$fx/scripts/"
-stage_libs "$fx/scripts"
+fixture_tree::build fx --sut "$SCRIPT"
 cp "$tok" "$fx/t=custom.txt"
 cp "$tok" "$fx/plain-tokens.txt"
 printf 'grep -Eq "\\bfoo\\b" "$file"\n' >"$fx/plain.sh"
@@ -1558,11 +1556,9 @@ fi
 # Scope resolution: --all excludes vendor/evals; skill .md is in scope (#2704)
 # =============================================================================
 
-fx="$(mktemp -d)"
-mkdir -p "$fx/scripts" "$fx/plugins/alpha/vendor" "$fx/plugins/alpha/skills/demo/evals" \
+fixture_tree::build fx --sut "$SCRIPT"
+mkdir -p "$fx/plugins/alpha/vendor" "$fx/plugins/alpha/skills/demo/evals" \
   "$fx/plugins/alpha/skills/demo/context"
-cp "$SCRIPT" "$fx/scripts/"
-stage_libs "$fx/scripts"
 printf '%s\n' 'grep -Eq "\\bfoo\\b" "$file"' >"$fx/plugins/alpha/gate.sh"
 printf '%s\n' 'grep -Eq "\\bfoo\\b" "$file"' >"$fx/plugins/alpha/vendor/upstream.sh"
 printf '%s\n' 'grep -Eq "\\bfoo\\b" "$file"' >"$fx/plugins/alpha/notes.md" # non-skill .md stays out
@@ -1582,10 +1578,7 @@ else
 fi
 rm -rf "$fx"
 
-fx="$(mktemp -d)"
-mkdir -p "$fx/scripts"
-cp "$SCRIPT" "$fx/scripts/"
-stage_libs "$fx/scripts"
+fixture_tree::build fx --sut "$SCRIPT"
 if (cd "$fx" && SHELL_PORTABILITY_TOKENS="$(one_token_list '\\b')" bash scripts/check-shell-portability.sh --all >/dev/null 2>&1); then
   ok "an empty tree passes"
 else
@@ -1594,10 +1587,8 @@ fi
 rm -rf "$fx"
 
 # --- diff-mode gates a changed skill markdown file (#2704) -----------------
-fx="$(mktemp -d)"
-mkdir -p "$fx/scripts" "$fx/plugins/alpha/skills/demo/context"
-cp "$SCRIPT" "$fx/scripts/"
-stage_libs "$fx/scripts"
+fixture_tree::build fx --sut "$SCRIPT"
+mkdir -p "$fx/plugins/alpha/skills/demo/context"
 out="$(
   cd "$fx" &&
     git_init_test_repo "$fx" &&
@@ -1617,10 +1608,8 @@ fi
 rm -rf "$fx"
 
 # --- skill-md baseline grandfathers backlog; --paths still sees it (#2704) -
-fx="$(mktemp -d)"
-mkdir -p "$fx/scripts" "$fx/plugins/alpha/skills/demo"
-cp "$SCRIPT" "$fx/scripts/"
-stage_libs "$fx/scripts"
+fixture_tree::build fx --sut "$SCRIPT"
+mkdir -p "$fx/plugins/alpha/skills/demo"
 printf '%s\n' 'grep -Eq "\\bfoo\\b" "$file"' >"$fx/plugins/alpha/skills/demo/SKILL.md"
 printf '%s\n' 'plugins/alpha/skills/demo/SKILL.md' >"$fx/scripts/shell-portability-skill-md-baseline.txt"
 out="$(
@@ -1689,10 +1678,7 @@ fi
 rm -rf "$fx"
 
 # --- diff-mode reads a Git-quoted (non-ASCII) changed path -----------------
-fx="$(mktemp -d)"
-mkdir -p "$fx/scripts"
-cp "$SCRIPT" "$fx/scripts/"
-stage_libs "$fx/scripts"
+fixture_tree::build fx --sut "$SCRIPT"
 quoted_name="$(printf 'quoted-\303\251.sh')" # trailing U+00E9 byte -- non-ASCII, triggers Git quoting
 out="$(
   cd "$fx" &&
@@ -3004,10 +2990,8 @@ rm -f "$f"
 # pins cwd to its own repo root, so the sandbox gets its own copy of the
 # script plus a one-line registry, exercising --all against a synthetic tree --
 TOK="$(one_token_list 'grep[[:space:]]+-P')"
-TREE="$(mktemp -d)"
-mkdir -p "$TREE/scripts" "$TREE/plugins/demo/hooks"
-cp "$SCRIPT" "$TREE/scripts/"
-stage_libs "$TREE/scripts"
+fixture_tree::build TREE --sut "$SCRIPT"
+mkdir -p "$TREE/plugins/demo/hooks"
 printf 'hooks/hook-utils.sh\n' >"$TREE/scripts/cross-plugin-source-registry.txt"
 printf 'grep -P x\n' >"$TREE/plugins/demo/hooks/hook-utils.sh"
 printf 'grep -P x\n' >"$TREE/plugins/demo/hooks/not-registered.sh"
@@ -3027,10 +3011,8 @@ rm -f "$TOK"
 # portability scan — a gate widening itself by a typo. The RHS is quoted, so
 # the entry matches only its own literal path; this pins that. ---
 TOK="$(one_token_list 'grep[[:space:]]+-P')"
-TREE="$(mktemp -d)"
-mkdir -p "$TREE/scripts" "$TREE/plugins/demo/hooks"
-cp "$SCRIPT" "$TREE/scripts/"
-stage_libs "$TREE/scripts"
+fixture_tree::build TREE --sut "$SCRIPT"
+mkdir -p "$TREE/plugins/demo/hooks"
 printf 'hooks/*.sh\n' >"$TREE/scripts/cross-plugin-source-registry.txt"
 printf 'grep -P x\n' >"$TREE/plugins/demo/hooks/hook-utils.sh"
 out="$(SHELL_PORTABILITY_TOKENS="$TOK" bash "$TREE/scripts/check-shell-portability.sh" --all 2>&1)"
@@ -3047,7 +3029,7 @@ rm -f "$TOK"
 # must still be opened as a file. Parsed as `tokens = "custom.txt"` instead, the
 # loading pass never runs, no class is active, every file reports clean and awk
 # still exits 0 — a silent fail-open in the gate itself.
-TREE="$(mktemp -d)"
+fixture_tree::build TREE --label shell-portability-tree
 printf 'grep[[:space:]]+-P\n' >"$TREE/tokens=custom.txt"
 f="$(tmpsh 'grep -P x')"
 if (
@@ -3074,6 +3056,59 @@ else
   fail "empty pattern set did not fail closed: rc=$rc out=$out"
 fi
 rm -f "$TOK" "$f"
+
+# =============================================================================
+# The scanner engine as a file -- scripts/lib/shell-portability-scan.awk.
+# Everything above drives it THROUGH the gate, which is where its behaviour is
+# pinned. These three cases address the program itself: that it compiles, that
+# its two-operand interface is the whole interface, and that the gate refuses
+# to run without it.
+# =============================================================================
+
+# --- the program COMPILES. awk parses a `-f` program in full before executing
+# any of it, so reaching END is proof the whole file parsed: a syntax error
+# anywhere aborts with awk's own diagnostic and never runs a rule. Driven with
+# /dev/null as the only operand, the loading pass reads nothing and END takes
+# the empty-pattern-set branch, which is the observable that says END ran. ---
+out="$(awk -f "$SCAN_AWK" /dev/null 2>&1)"
+rc=$?
+if [[ $rc -eq 2 && "$out" == *"no active patterns"* ]]; then
+  ok "the scanner program compiles and reaches END (awk -f, /dev/null)"
+else
+  fail "scanner program did not compile or did not reach END: rc=$rc out=$out"
+fi
+
+# --- the program is addressable on its OWN two operands: token list, then the
+# file to scan. Its stdout contract is `LINE: token -> text`; the
+# `PORTABILITY: <file>:` prefix belongs to the gate, which is what makes this a
+# different assertion from every one above rather than the same one twice. ---
+tok="$(one_token_list 'grep[[:space:]]+-P')"
+f="$(mktemp --suffix=.sh)"
+printf 'echo first\ngrep -P x\n' >"$f"
+out="$(awk -f "$SCAN_AWK" "$tok" "$f" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 && "$out" == '2: grep[[:space:]]+-P -> grep -P x' ]]; then
+  ok "the scanner program runs on its two operands alone and prints LINE: token -> text"
+else
+  fail "direct two-operand run: rc=$rc out=$out"
+fi
+rm -f "$tok" "$f"
+
+# --- and the gate FAILS CLOSED when the program is not there. Reported here,
+# naming the path, rather than as a bare non-zero awk status once per scanned
+# file: a scanner that cannot run is never a clean corpus. ---
+fixture_tree::build TREE --sut "$SCRIPT"
+rm -f "$TREE/scripts/lib/shell-portability-scan.awk"
+f="$(tmpsh 'grep -P x')"
+out="$(bash "$TREE/scripts/check-shell-portability.sh" --paths "$f" 2>&1)"
+rc=$?
+if [[ $rc -eq 2 && "$out" == *"scanner program not found"* ]]; then
+  ok "a missing scanner program fails the gate closed, naming the path"
+else
+  fail "missing scanner program did not fail closed: rc=$rc out=$out"
+fi
+rm -rf "$TREE"
+rm -f "$f"
 
 # =============================================================================
 # Shell spellings the token classes must not let past -- #1544. All reach the

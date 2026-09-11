@@ -32,9 +32,9 @@
 - [Challenge 4 rhyme practice](#challenge-4-rhyme-practice)
 - [Why `abba` does not close](#why-abba-does-not-close)
 - [Choosing the rhyme type for a slot](#choosing-the-rhyme-type-for-a-slot)
-- [Shelley anchor — through-written without internal fragmentation](#shelley-anchor--through-written-without-internal-fragmentation)
-- [Sound vs order — the two forces](#sound-vs-order--the-two-forces)
-- [Paul Simon "50 Ways to Leave Your Lover" — strategic consonance (*Essential Guide to Rhyming* (2014), Chapter 6)](#paul-simon-50-ways-to-leave-your-lover--strategic-consonance-essential-guide-to-rhyming-2014-chapter-6)
+- [Shelley anchor: through-written without internal fragmentation](#shelley-anchor-through-written-without-internal-fragmentation)
+- [Sound vs order: the two forces](#sound-vs-order-the-two-forces)
+- [Paul Simon "50 Ways to Leave Your Lover": strategic consonance (*Essential Guide to Rhyming* (2014), Chapter 6)](#paul-simon-50-ways-to-leave-your-lover-strategic-consonance-essential-guide-to-rhyming-2014-chapter-6)
 - [The full rhyme search (*Essential Guide to Rhyming* (2014), Chapter 7)](#the-full-rhyme-search-essential-guide-to-rhyming-2014-chapter-7)
 - [Cross-references](#cross-references)
 
@@ -46,18 +46,18 @@ Source images inspected:
 
 - *Essential Guide to Lyric Form and Structure* (1991), Chapter 4: **40 linked
   page-scan figures**, all 40 distinct files, read at 3x-4x upscale. This
-  file's primary source argues in scans — the balance paradigms, every closure
+  file's primary source argues in scans: the balance paradigms, every closure
   type, the exercise answer keys, and all three strategy examples are figures,
   not prose. Earlier revisions of this inventory listed only the *Essential
   Guide to Rhyming* (2014) and *Songwriting Without Boundaries* (2011) images
   and omitted this chapter entirely, which is how the `abba` error below
   survived. Distinct files are not distinct content: `image_rsrc31U` and
   `image_rsrc31X` print the same six-line lyric, because Pat reprints example
-  c) when he comes back to it. Reprints in this chapter are pedagogy — do not
+  c) when he comes back to it. Reprints in this chapter are pedagogy. Do not
   fold them.
 - *Essential Guide to Rhyming* (2014), Chapter 7 (printed pp. 69-75, spine
   082-088; p. 76 is a blank verso): text layer complete and used verbatim.
-  Scans consulted for layout only — `image_A-page2.jpg` (the two-column
+  Scans consulted for layout only: `image_A-page2.jpg` (the two-column
   `safe`/`business` worksheet and the `swiftless` spelling) and
   `image_A-page8.jpg` (Exercise 7.1's three-column fill-in grid, which the text
   layer flattens into an unreadable order, and its bordered keyword box).
@@ -74,8 +74,8 @@ Source images inspected:
   [rhyme types](rhyme-types.md).
 - *Essential Guide to Rhyming* (2014), **Afterword** (printed p. 119, spine
   132, `image_E-page12.jpg`): one page, text layer complete, carried whole
-  below. Note the text layer emits the body *above* the `AFTERWORD` heading —
-  that is extraction ordering, not the printed order.
+  below. Note the text layer emits the body *above* the `AFTERWORD` heading.
+  That is extraction ordering, not the printed order.
 - *Songwriting Without Boundaries* Challenge 4: `image_rsrc5M6.jpg`,
   `image_rsrc5M7.jpg`, `image_rsrc5M8.jpg`.
 
@@ -83,11 +83,10 @@ Source images inspected:
 
 Choose rhyme schemes by the job the section must do. Rhyme can outline idea
 movement, support meaning through prosody, and create relationships between
-sections.
+sections. Pat Pattison writes in *Essential Guide to Lyric Form and Structure*
+(1991), Chapter 4:
 
 > "Prosody is one of the most important strategies you have"
-> — Pat Pattison, *Essential Guide to Lyric Form and Structure* (1991),
-> Chapter 4
 
 This file focuses on decision-making. For definitions and mechanics, see
 [rhyme fundamentals](rhyme-fundamentals.md).
@@ -182,8 +181,8 @@ b)  Some girls like their flirtin'   a
 The first naturally divides into two parts. The second stays in motion because
 the first rhyme waits across intervening material before resolving.
 
-Exercise 27 in the chapter is to reverse them — through-write a) and fragment
-b) — keeping as much of the same meaning as possible.
+Exercise 27 in the chapter is to reverse them, through-writing a) and fragmenting
+b), keeping as much of the same meaning as possible.
 
 ## Through-write when the idea should flow
 
@@ -235,7 +234,7 @@ CHORUS   READY OR NOT                                 d
          READY OR NOT                                 d
 ```
 
-The verse rhymes are spread apart — their leisurely pace works with the idea,
+The verse rhymes are spread apart. Their leisurely pace works with the idea,
 especially for the first three phrases. As the rhymes start to connect the last
 three phrases back to the first three, the pressure pushes the section forward.
 The chorus rhymes are consecutive, one after another, as fast as rhymes can go:
@@ -255,7 +254,7 @@ it:
 > faster your lyric moves. And, like the accelerator and the car floor, the
 > further apart they are, the slower you move.
 
-Pat's example — the consecutive rhymes in lines 3, 4 and 5 accelerate the
+Pat's example, where the consecutive rhymes in lines 3, 4 and 5 accelerate the
 section and build pressure, working in sync with the idea:
 
 ```text
@@ -344,7 +343,7 @@ questions and then hands the strategy forward:
 > chapter on FORMAL ELEMENTS.
 
 That deferral matters. Chapter 4 supplies Strategy 3's questions, not its
-answers, and prints no verse-scheme-to-chorus-scheme recommendations at all —
+answers, and prints no verse-scheme-to-chorus-scheme recommendations at all,
 so treat any such pairing as a reading of a particular draft, never as a menu
 the chapter offers. A through-written verse into a fragmented chorus can feel
 like motion resolving into a hook; a fragmented verse into a through-written
@@ -535,12 +534,12 @@ scheme but also each important rhyme's structural position.
 
 ## Stability scale for strategic use
 
-The scale is Pat's, and so is its name. He introduces it early — *Essential
-Guide to Rhyming* (2014), Chapter 4, "Family Friends" — as "the concept of a
+The scale is Pat's, and so is its name. He introduces it early, in *Essential
+Guide to Rhyming* (2014), Chapter 4, "Family Friends", as "the concept of a
 scale of rhyme types moving in degrees from more to less stable," introduces it
 with "Here's a quick peek:", and prints it as a titled figure. Reproduced from
 the page scan (`image_4-page20.jpg`) rather than the text layer, which flattens
-the figure into two run-together rows and loses its bracket — the five types sit
+the figure into two run-together rows and loses its bracket. The five types sit
 in one row over a spanning bracket whose two ends are labelled:
 
 ```text
@@ -652,7 +651,7 @@ consonance rhyme in the fourth line can feel connected-but-unresolved.
 
 ## Decision matrix
 
-"Decision matrix" is this file's scaffolding, not Pat's term — the word appears
+"Decision matrix" is this file's scaffolding, not Pat's term. The word appears
 nowhere in any of the four books. Chapter 9 prints no table. It walks one `abab`
 frame (`blush / skin / rush / sin`) through nine type substitutions and says
 what each one does. Those nine, in the chapter's own order, are the matrix:
@@ -667,7 +666,7 @@ what each one does. Those nine, in the chapter's own order, are the matrix:
 | Assonance | Family | "A pretty light and dreamy flirtation" |
 | Family | Assonance | "Really off in dreamland, floating, floating in a misty reverie" |
 | Consonance | Family | "Barely nudges forward," yet more forward pressure than leaving lines 1 and 3 unrhymed |
-| Family | Consonance | "The gate is wide open" — longing and uncertainty; the "Feels Like Home" case below |
+| Family | Consonance | "The gate is wide open": longing and uncertainty; the "Feels Like Home" case below |
 
 Family/family, assonance/assonance and consonance/consonance are not among
 them. The chapter never demonstrates those pairings, so this file does not
@@ -680,12 +679,12 @@ assonance rhyme leaves "precious little push" in dominant position, the push
 common meter ... which creates the same dominant push as an abab rhyme scheme)."
 
 Do not narrow "somewhere else" to meter and line length. Chapter 9's own list of
-what else can carry a section is wider — "melody, harmony, message, line lengths,
+what else can carry a section is wider: "melody, harmony, message, line lengths,
 and line rhythms."
 
 The converse holds too, and Chapter 9 states it directly: **if the section has
 little other pressure, a weak rhyme type can read as no structure at all.** Of
-the same assonance-dominant case — "But without a push from somewhere else, our
+the same assonance-dominant case: "But without a push from somewhere else, our
 arrival at rush is pretty light."
 
 ## Repeated-section problem
@@ -785,6 +784,7 @@ If you knew how happy you are making me
 I never thought I’d love anyone so much
 ```
 
+<!-- ai-slop-ignore-start: verbatim blockquote from Essential Guide to Rhyming (2014) Chapter 9 -->
 > Look at the rhyme type now in the shorter second and fourth lines, touch/
 > much. Perfect rhyme. And, boy, does the gate ever slam shut. This is the
 > essence of stability—the same thing, of course, that the lyric is
@@ -793,6 +793,7 @@ I never thought I’d love anyone so much
 > rhyme, long/done, supporting (maybe even creating) the unstable feeling in
 > the first prechorus, and the perfect rhyme, touch/much, supporting (maybe
 > even creating) the stable feeling in the second.
+<!-- ai-slop-ignore-end -->
 
 > Look what happens if we adjust the rhyme type in the second prechorus:
 
@@ -965,14 +966,14 @@ listed under floating instability. *Essential Guide to Lyric Form and Structure*
 prose:
 
 - The balance argument prints `trim / alive / dive` (`abb`, `image_rsrc30U`) and
-  says it "is not balanced by" `trim / live / dive / swim` — which is `abba`
+  says it "is not balanced by" `trim / live / dive / swim`, which is `abba`
   (`image_rsrc30V`). What does balance it is `abbabb` (`image_rsrc30W`) or
   `abbacc` (`image_rsrc30X`). `abba` is the chapter's counter-example to
   balance, not an instance of it. `abba` is likewise absent from the chapter's
   printed paradigms of BALANCE (`image_rsrc30Y`), which are `abab`, `xaxa`,
   `aa`, `aabb`, `abcabc`, and `xxaxxa`.
 - Exercise 24 asks the reader to mark each scheme closed or open, and its answer
-  key — printed upside down at the foot of the page — gives item 6, `a b b a`,
+  key, printed upside down at the foot of the page, gives item 6, `a b b a`,
   as **O** for open (`image_rsrc31B`).
 
 The other two books agree from the other direction. *Essential Guide to Rhyming*
@@ -981,8 +982,8 @@ scheme," and *Songwriting Without Boundaries* (2011), Challenge 4 devotes a day
 to it as "Unstable Structure: abba," noting that it "creates an interesting
 feeling of floating."
 
-Use `abba` when a section should frame an idea without resolving it — loss,
-hope, suspension — not when it needs to land.
+Use `abba` when a section should frame an idea without resolving it, as with
+loss, hope, or suspension, and not when it needs to land.
 
 ## Choosing the rhyme type for a slot
 
@@ -1012,7 +1013,7 @@ Working order at a slot:
 3. Run the worksheet for that type.
 4. If nothing fits the line, move one step down the stability scale.
 5. Sing the result. (This step is this plugin's phrasing, but the discipline is
-   Pat's and he repeats it — "Again, sing them. Trust your ears."
+   Pat's and he repeats it: "Again, sing them. Trust your ears."
    *Essential Guide to Rhyming* (2014), Chapter 5.)
 
 Closure type is a separate lever, not a rhyme type. Deceptive and unexpected
@@ -1020,11 +1021,11 @@ closure are structural moves from *Essential Guide to Lyric Form and Structure*
 (1991), Chapter 4, and they are covered under "Closure as spotlight" above; do
 not read them off this index.
 
-## Shelley anchor — through-written without internal fragmentation
+## Shelley anchor: through-written without internal fragmentation
 
 *Essential Guide to Lyric Form and Structure* (1991), Chapter 4 uses Shelley's "Ozymandias" as a teaching anchor (the
 poem itself is public domain). Pat's scansion is scoped to **"these last
-six lines"**, not the whole poem — do not restate it as a claim about the
+six lines"**, not the whole poem. Do not restate it as a claim about the
 sonnet entire. Across those six lines each rhyme pair is separated, so no
 internal couplet closes early and fragments the single argument.
 
@@ -1038,24 +1039,23 @@ the words are chosen. A long single thought benefits from spread
 rhymes; a section made of short paired thoughts benefits from
 couplet adjacency.
 
-**"The Shelley principle" is not Pat's term** — he names no such principle,
+**"The Shelley principle" is not Pat's term.** He names no such principle,
 and the three-item "use when" list that stood here was invented. The
 preceding paragraph is the actual lesson the chapter draws. Pat's own words
-for what rhyme is doing here:
+for what rhyme is doing here, *Essential Guide to Lyric Form and Structure*
+(1991), Chapter 4:
 
 > "Rhyme is the best way to control a lyric's FLOW. Nothing can match
 > rhyme's power in this area. Not phrase length. Not rhythm."
->
-> — *Essential Guide to Lyric Form and Structure* (1991), Chapter 4
 
-## Sound vs order — the two forces
+## Sound vs order: the two forces
 
 *Essential Guide to Lyric Form and Structure* (1991), Chapter 4 separates two distinct forces that drive rhyme's effect
 in a section:
 
-- **Sound repetition** — the ear's desire for the same sound to come
+- **Sound repetition**: the ear's desire for the same sound to come
   back. Strong rhyme satisfies sound repetition.
-- **Order repetition** — the ear's desire for the same pattern to
+- **Order repetition**: the ear's desire for the same pattern to
   come back. A scheme like `abab` repeating across stanzas
   satisfies order repetition.
 
@@ -1073,10 +1073,10 @@ Diagnostic:
 Most sections want both forces aligned. Mismatches are tools, not
 defaults.
 
-## Paul Simon "50 Ways to Leave Your Lover" — strategic consonance (*Essential Guide to Rhyming* (2014), Chapter 6)
+## Paul Simon "50 Ways to Leave Your Lover": strategic consonance (*Essential Guide to Rhyming* (2014), Chapter 6)
 
 A named example for using consonance rhyme to relax verse motion
-strategically — not by accident.
+strategically, not by accident.
 
 Pat cites verse 3 of Paul Simon's "50 Ways to Leave Your Lover" as the case for
 consonance rhyme when a scheme is already committed and a later verse needs its
@@ -1089,7 +1089,7 @@ motion relaxed:
 
 The three end-rhymes he lists are `pain`, `again`, `explain`. Read what he
 actually says about them: it is `again`, in **second position**, that is the
-consonance rhyme — its stressed vowel differs, while `pain` and `explain` rhyme
+consonance rhyme: its stressed vowel differs, while `pain` and `explain` rhyme
 perfectly with each other. Sitting between them, the odd one out "dampens the
 resolving effect of the consecutive rhymes."
 
@@ -1127,7 +1127,7 @@ I want to play it safe
 > For starters, "business" and "safe" can go on the worksheet. Now, you can find
 > rhymes for them.
 
-His worksheet, exactly as printed (`swiftless` is as printed — do not correct
+His worksheet, exactly as printed (`swiftless` is as printed, so do not correct
 it):
 
 <!-- spellchecker:off -->
@@ -1177,7 +1177,7 @@ skip past:
 2. **The reader has to reverse-engineer the type** ("figure out what kind of
    rhymes they are and how I found them") rather than being handed labels.
 3. **Over-generate first, trim later.** The list "will have to be trimmed down
-   later" — needing a trim is the expected outcome, not a sign of a bad search.
+   later". Needing a trim is the expected outcome, not a sign of a bad search.
 
 The thirteen keywords, as printed in the bordered box on p. 75 (note `scared`
 here; the numbered search columns and the Exercise 7.1 grid both print `scare`):
@@ -1192,7 +1192,7 @@ here; the numbered search columns and the Exercise 7.1 grid both print `scare`):
 ```
 <!-- spellchecker:on -->
 
-**One worked specimen — keyword 9, `leave`.** This is an excerpt, not the whole
+**One worked specimen: keyword 9, `leave`.** This is an excerpt, not the whole
 search; the other ten numbered columns run across pp. 70-74 (spine 083-087) and
 belong under [rhyme worksheets](rhyme-worksheets.md).
 
@@ -1219,7 +1219,7 @@ ho-heave              please           c.o.d.
 <!-- spellchecker:on -->
 
 Note what the columns carry besides words. Pat flags `police` as an **Identity**
-inside the imperfect column — the same separation this file's diagnostic
+inside the imperfect column, the same separation this file's diagnostic
 workflow asks for ("mark identities separately from rhymes"). His other
 annotations across the search work the same way: `dance (cliché?)`,
 `knockout (id.)`, `lookout (id.)`, `(oops!)` printed under `disc` in the perfect
@@ -1238,13 +1238,13 @@ disc
 (oops!)
 ```
 
-The Imperfect column beside it runs thirty-four entries in two sub-columns —
+The Imperfect column beside it runs thirty-four entries in two sub-columns:
 `fist, kissed, mist, resist, tryst, wisp, abyss, avarice, bliss, dismissed,
 wished, dish, drift, gift, hints, shift, swift` alongside
 `cliff, stiff, tiff, quick, kicks,
 lick(s), sick, trick, transfixed, ditch, itch, pitch, switch, bridge, crypt,
 chips, apocalypse`. When a keyword's perfect rhymes amount to `disc`, the full
-search is not a refinement on perfect rhyme — it is the only way that keyword
+search is not a refinement on perfect rhyme. It is the only way that keyword
 gets usable options at all.
 
 ### Why the search is worth the labour
@@ -1262,7 +1262,7 @@ keyword gets searched rather than only the rhyme positions.
 
 ### The book's last word on worksheets
 
-The whole of the Afterword to *Essential Guide to Rhyming* (2014) — the book's
+The whole of the Afterword to *Essential Guide to Rhyming* (2014), the book's
 closing page, and its answer to anyone who finds worksheets too slow to bother
 with. (Cite it as `*Essential Guide to Rhyming* (2014), Afterword`; it is not a
 numbered chapter.)
@@ -1282,13 +1282,13 @@ numbered chapter.)
 >
 > So write. And write fearlessly.
 
-Two things there are load-bearing for coaching. First, **the worksheet is
-training, not overhead** — its payoff is the internalised search ("you do most
+Two things there matter for coaching. First, **the worksheet is
+training, not overhead**. Its payoff is the internalised search ("you do most
 of your work in your head. Effectively. Knowing your options."), so a user who
 resents the labour is being asked to keep practicing until most of the work
 moves into their head. Second, the standard is self-referential: "the hardest
 thing you will ever do is to write as well as *you* can." Do not turn that into a
-comparative judgment against other writers — Pat rules that out in the sentence
+comparative judgment against other writers. Pat rules that out in the sentence
 before it.
 
 "And please keep using your brain as often as you use your heart" is the same
@@ -1305,7 +1305,7 @@ itself."
 
 Printed as a three-column fill-in grid over the thirteen keywords, with writing
 space under each. (In the grid, keyword 1 is printed `scare`; in the boxed
-keyword list on the same page it is `scared`. Both are as printed — do not
+keyword list on the same page it is `scared`. Both are as printed. Do not
 normalise either.)
 
 **EXERCISE 7.2. "Risky Business" Practice**
@@ -1319,15 +1319,15 @@ craft step Chapter 7 exists to force.
 
 ## Cross-references
 
-- [rhyme types](rhyme-types.md) — the stability scale that fills
+- [rhyme types](rhyme-types.md): the stability scale that fills
   the decision matrix.
-- [rhyme worksheets](rhyme-worksheets.md) — full search algorithm
+- [rhyme worksheets](rhyme-worksheets.md): full search algorithm
   per slot, and the twelve "RISKY BUSINESS" perfect/imperfect columns this
   file excerpts only `leave` from.
-- [rhyme generation](rhyme-generation.md) — internal generation discipline.
-- [Five Compositional Elements](five-compositional-elements.md) —
+- [rhyme generation](rhyme-generation.md): internal generation discipline.
+- [Five Compositional Elements](five-compositional-elements.md):
   rhyme scheme (row 3) and rhyme types (row 4) per section.
-- [stable / unstable](stable-unstable-meta.md) — rhyme stability is
+- [stable / unstable](stable-unstable-meta.md): rhyme stability is
   one lever in the song-wide diagnostic.
-- [exercises](exercises.md) "*Essential Guide to Lyric Form and Structure* (1991) — Rhyme exercises" Ex 18-28 drill
+- [exercises](exercises.md) "*Essential Guide to Lyric Form and Structure* (1991): Rhyme exercises (Chapter 4)" Ex 18-28 drill
   the three strategies and the sound-vs-order distinction.

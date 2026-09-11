@@ -1,6 +1,6 @@
-# Leaf roster — fan-out surfaces
+# Leaf roster: fan-out surfaces
 
-Single source of truth for the leaf surfaces this skill fans out across. Both the default lifecycle-tiered mode and run-everything mode cite this file — no duplicated roster.
+Single source of truth for the leaf surfaces this skill fans out across. Both the default lifecycle-tiered mode and run-everything mode cite this file, so there is no duplicated roster.
 
 ## Finding-producing agents (this plugin)
 
@@ -11,22 +11,22 @@ Single source of truth for the leaf surfaces this skill fans out across. Both th
 | `architecture-guardian` | dependency direction / layer boundaries |
 | `doc-drift-detector` | doc↔code drift (Stale / Missing / Aspirational) |
 
-**EXCLUDED** (shipped in this plugin for other purposes — not diff-review leaves):
+**EXCLUDED** (shipped in this plugin for other purposes, not as diff-review leaves):
 
-- `ecosystem-specialist` — build/test/lint PASS/FAIL, not a finding-producing diff review.
-- `ci-log-auditor` — needs a CI run, not a working-tree diff.
+- `ecosystem-specialist`: build/test/lint PASS/FAIL, not a finding-producing diff review.
+- `ci-log-auditor`: needs a CI run, not a working-tree diff.
 
 ## Ownerless slices (discovered from the consuming project)
 
-When the project ships per-concern review criteria documents, each one becomes a slice leaf — a fresh subagent that reads that document plus the diff and reviews against ONLY that document's criteria (prompt template: this plugin's `quality-gate` skill, per-slice mode).
+When the project ships per-concern review criteria documents, each one becomes a slice leaf, a fresh subagent that reads that document plus the diff and reviews against ONLY that document's criteria (prompt template: this plugin's `quality-gate` skill, per-slice mode).
 
-**Discovery recipe (run at dispatch time — never a hardcoded list):**
+**Discovery recipe (run at dispatch time, never a hardcoded list):**
 
 1. Glob the common shapes: `review/*.md`, `review/*/README.md`, `docs/review/*.md`, plus any location the project's `CLAUDE.md` / rules name as review criteria.
-2. **De-overlap:** drop the criteria documents a dispatched agent already covers as its primary concern — code quality, security, and architecture docs are agent-owned (a slice-subagent re-reading the same criteria on the identical diff is pure waste). Everything else is ownerless and dispatches.
-3. Projects with no review-criteria docs simply have zero slice leaves — the agent set still runs.
+2. **De-overlap:** drop the criteria documents a dispatched agent already covers as its primary concern. Code quality, security, and architecture docs are agent-owned (a slice-subagent re-reading the same criteria on the identical diff is pure waste). Everything else is ownerless and dispatches.
+3. Projects with no review-criteria docs simply have zero slice leaves, and the agent set still runs.
 
-**Orchestrator↔agent overlap is NOT de-overlapped.** Orchestrator plugins bring different prompts and lenses; running a plugin and a custom agent on the same dimension is intentional adversarial breadth — the normalization pipeline's dedup stage handles the near-duplicates. De-overlap applies ONLY to agent↔own-criteria-doc.
+**Orchestrator↔agent overlap is NOT de-overlapped.** Orchestrator plugins bring different prompts and lenses; running a plugin and a custom agent on the same dimension is intentional adversarial breadth, and the normalization pipeline's dedup stage handles the near-duplicates. De-overlap applies ONLY to agent↔own-criteria-doc.
 
 ## Total roster
 
@@ -35,7 +35,7 @@ Every agent in the table above + N discovered ownerless slices (N varies by proj
 ## Deep-scan escalation (not a leaf)
 
 The official Claude Security plugin's `/claude-security` scan is a self-orchestrating multi-agent
-workflow, not a dispatchable leaf — never add it to the fan-out. When the request is a whole-repo
+workflow, not a dispatchable leaf. Never add it to the fan-out. When the request is a whole-repo
 security audit rather than a change-set review, recommend it (presence-gated: only when its command
 appears in the skill listing; otherwise suggest installing
 `claude-security@claude-plugins-official`). Contract:

@@ -24,15 +24,15 @@ tuning in `.claude/ai-slop.json`, resolved per the config-cascade convention: us
 | `phrase_remove` | ERE fragment list | Removals from the shipped phrase roster, matched verbatim against the shipped fragments |
 | `disabled_rules` | rule slugs | Rules the audit skips entirely (reported as disabled) |
 | `thresholds` | map | Per-rule density thresholds: `ai_vocabulary`, `copulative_avoidance` (matches per 1000 words; density rules also need at least 3 matches) |
-| `_comment` | string | Free-text rationale for the choices in this file. Read by nobody; JSON has no comment syntax, and a config that disables a rule without recording why is the drift this skill exists to catch. Not drift — do not flag it as an unknown key |
+| `_comment` | string | Free-text rationale for the choices in this file. Read by nobody; JSON has no comment syntax, and a config that disables a rule without recording why is the drift this skill exists to catch. Not drift, so do not flag it as an unknown key |
 
-## check (default — read-only)
+## check (default, read-only)
 
 Report the current state and change nothing:
 
 1. Run the detector's `--show-config` (it names the layer supplying each value) or read the
    layers directly; report which layer wins each key and which layers are absent.
-2. Flag drift: unknown keys, an em-dash threshold key (the rule is zero-tolerance by design —
+2. Flag drift: unknown keys, an em-dash threshold key (the rule is zero-tolerance by design, and
    per-document exemption via `em_dash_allowed_paths` is the supported mechanism), globs that
    match nothing, a `disabled_rules` slug that names no shipped rule, a `phrase_add` fragment
    that is not a valid ERE (the detector skips it with a stderr note; surface it here as

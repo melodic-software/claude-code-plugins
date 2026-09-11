@@ -193,7 +193,8 @@ Three artifacts, one direction of flow:
 3. **The self-check**, a deterministic script over what is locally decidable: store parses and
    declares its schema, every row carries a trigger, records are well-formed including their
    observation class tags, the view matches the store, every baked line traces back to a store row,
-   and the store's recorded CLI version still matches what the environment reports.
+   every non-`defer` extraction row has a Boundary section naming its surface, and the store's
+   recorded CLI version still matches what the environment reports.
 
 **Observation records name their evidence class.** *Extraction-evidence* reads "extracted from
 binary v&lt;X&gt; on &lt;date&gt;"; *live-roster observation* reads "observed in &lt;env&gt; session
@@ -209,26 +210,37 @@ re-fetch an upstream basis.
 
 ## The apply step
 
-`apply` is the only action that edits a component, and it edits one plugin at a time.
+Two baked surfaces exist, and they are gated differently because they cost differently.
 
-Preconditions, all required: the store has a row for the pair; the row's verdict is not `defer`;
-the row's observation class is extraction-evidence (session-provided rows are never baked); and the
-user asked for this plugin by name.
+**The Boundary section lands with the row.** A store row whose verdict is not `defer` and whose
+observation is extraction-evidence is written together with a `## Boundary` section in the
+component's body, in the same change: the surfaces by provenance class, the routing split, and
+the mutation gate, with the four-part detail (basis, as-of, recheck trigger, evidence) in a
+reference file inside the same skill that the section links. A body loads only on invocation, so
+the section spends no listing budget and moves no routing; it is what makes the verdict real for
+the model, and a row without it fails the self-check. Boundary-only baking may cover several
+plugins in one change.
 
-What it emits, per the native-references convention:
+**The section names its surface.** The preferred shape puts the name in the heading, as in
+`## Boundary, the bundled ... skill` with the surface name in backticks. Where one section covers
+a component that overlaps several surfaces, a generic `## Boundary` heading passes as long as the
+section text names each of them. The name is a code span either way, so a surface whose name is
+also an ordinary English word is never satisfied by prose that happens to use the word, and a
+section written for some other surface never passes for this row.
 
-- **A description phrase**. One clause, front-loaded, carrying the presence gate ("when the
-  bundled &lt;name&gt; skill resolves in your session, prefer it for …; this skill for …"), the
-  provenance class, and the routing split. It must fit inside the per-entry cap with the existing
-  description, and it cites nothing outside its own plugin, a shipped plugin has no copy of this
-  repository's registry, so a citation would be a broken reference at install time.
-- **A Boundary section** in the body where the clause is too small for the real distinction,
-  naming each overlapping surface by provenance class with a mutation gate where the surface
-  mutates.
+**The description phrase is the gated `apply`.** `apply` edits one plugin at a time. Preconditions,
+all required: the store has a row for the pair; the row's verdict is not `defer`; the row's
+observation class is extraction-evidence (session-provided rows are never baked); and the user
+asked for this plugin by name. It emits one clause, front-loaded, carrying the presence gate
+("when the bundled &lt;name&gt; skill resolves in your session, prefer it for …; this skill for
+…"), the provenance class, and the routing split. It must fit inside the per-entry cap with the
+existing description, and it cites nothing outside its own plugin, a shipped plugin has no copy of
+this repository's registry, so a citation would be a broken reference at install time.
 
 Then set the row's `baked` flags and re-run the self-check. Parity is **direction-sensitive**:
-every baked line must trace to a store row, while a store row with no baked line is legal
-pending-sweep state.
+every baked line must trace to a store row, and a claimed Boundary section must name that row's
+surface; a row without its Boundary section breaks the self-check; a row without a description
+phrase is legal pending-sweep state.
 
 Agents are registry-rows-only. An agent's role prompt loads after dispatch, so a routing line there
 reaches the model too late to change the routing; the actionable line belongs at the dispatching

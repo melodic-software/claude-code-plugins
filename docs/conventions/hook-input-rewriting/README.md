@@ -1,8 +1,8 @@
-# Hook input rewriting — deny or ask, never a silent rewrite
+# Hook input rewriting: deny or ask, never a silent rewrite
 
 Owner doc for what a `PreToolUse` hook may do to a tool call it disagrees with. The
-[plugin philosophy](../../PLUGIN-PHILOSOPHY.md) owns the posture rule — an advisory hook is a nudge,
-a guard must not block legitimate work — and [hook precision](../hook-precision/README.md) owns
+[plugin philosophy](../../PLUGIN-PHILOSOPHY.md) owns the posture rule: an advisory hook is a nudge,
+a guard must not block legitimate work. [Hook precision](../hook-precision/README.md) owns
 what a hook matches. This doc owns the one question those two leave open: when a hook can see both
 that a call is wrong and what the right call would be, is it allowed to substitute the right one?
 
@@ -27,7 +27,7 @@ would work. It is still refused.
 **Principle of least astonishment.** A silent rewrite means the command that ran is not the command
 anyone wrote. The agent's transcript records one call, the shell ran another, and nothing in
 between says so. The next debugging session starts from a false premise, and the person debugging
-it has no reason to suspect the hook — a rewritten call looks exactly like a call that was never
+it has no reason to suspect the hook. A rewritten call looks exactly like a call that was never
 inspected. A denial is legible: the call did not run, and the reason says why.
 
 **`updatedInput` replaces the ENTIRE input object, not the field you meant.** A hook returning it
@@ -36,8 +36,8 @@ tool no longer receives. This is the failure mode that gets worse as the tool's 
 because the hook was written against the schema of the day it shipped.
 
 **Permission rules are re-evaluated against the HOOK's version, not the user's.** The rewritten
-input is what the permission layer then judges. A rewrite that widens a call — even accidentally,
-even while narrowing the part the hook cared about — is a rewrite that can clear rules the original
+input is what the permission layer then judges. A rewrite that widens a call, even accidentally,
+even while narrowing the part the hook cared about, is a rewrite that can clear rules the original
 call would have tripped. A guard that can launder a call past the permission layer is not a guard.
 
 ## The sanctioned escape hatch
@@ -49,15 +49,15 @@ a human has actually looked at.
 
 Use it when the hook genuinely knows the right call and the correction is worth the interruption. A
 hook that would rather not interrupt should deny and say what to do instead: a denial's reason
-reaches Claude as the blocking explanation — by the JSON field, or by stderr on an `exit 2`, which
-route identically — so the agent can reissue the call itself. That is what makes "deny with
+reaches Claude as the blocking explanation, whether by the JSON field or by stderr on an `exit 2`,
+which route identically, so the agent can reissue the call itself. That is what makes "deny with
 instructions" a complete answer rather than a dead end, and it is why no hook here needs to rewrite
 a call to get the right one run.
 
 ## Boundary
 
 - **Not about `PostToolUse`.** A `PostToolUse` hook that reformats a file it just observed being
-  written is a deterministic transform on an artifact, not a rewrite of a call — that is the
+  written is a deterministic transform on an artifact, not a rewrite of a call. That is the
   formatter plugins' whole job and it is unaffected.
 - **Not about `additionalContext`.** Adding text for the model to read changes no call and is
   governed by [hook observability](../hook-observability/README.md).
@@ -69,8 +69,8 @@ a call to get the right one run.
 ## Conformance
 
 Today every `PreToolUse` hook in this marketplace conforms, and none emits `updatedInput` at all:
-the guards deny (`exit 2` or a JSON `deny`, which route identically — Claude sees the stderr message
-as the denial reason), and the two that ask emit `"ask"` with no rewrite. `block-noncanonical-commit`
+the guards deny (`exit 2` or a JSON `deny`, which route identically, since Claude sees the stderr
+message as the denial reason), and the two that ask emit `"ask"` with no rewrite. `block-noncanonical-commit`
 is the conforming instance of the motivating case: it can identify the canonical form and it denies
 with instructions rather than substituting it.
 

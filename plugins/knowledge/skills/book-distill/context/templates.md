@@ -1,4 +1,4 @@
-# book-distill — templates
+# book-distill templates
 
 The two fill-in templates the SKILL.md phases point to: the progress file (Phase 1.4) and the cross-session continuation prompt (Phase 2, session end).
 
@@ -57,7 +57,7 @@ for Ch {X} and write `{next-file}.md`. Continue the read-write pipeline
 for remaining chapters in the file plan.
 ```
 
-## Continuation prompt — EPUB (Phase 2, session end)
+## Continuation prompt for EPUB (Phase 2, session end)
 
 When the source is EPUB, use this template instead of the PDF page ranges above:
 

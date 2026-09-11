@@ -52,8 +52,8 @@ Why: a second import run currently doubles every row.
 
 ## File roles in this work
 
-- `src/importer.py` — modified; the composite key is in place and green (commit `abc1234`).
-- `tests/test_importer.py` — test that must pass; the re-run case is still missing.
+- `src/importer.py`: modified; the composite key is in place and green (commit `abc1234`).
+- `tests/test_importer.py`: test that must pass; the re-run case is still missing.
 
 ## Decisions already settled
 

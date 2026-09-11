@@ -25,13 +25,13 @@ alternates (use `variations`), or single-rhyme lookup (use `rhyme`).
 - [ ] Stress count of the current line counted
 - [ ] Stressed vowel of the current end-line word identified
 - [ ] Song's developed world summarized (setting / era / character /
-      proper nouns) — feeds the world-vocabulary column
+      proper nouns). This feeds the world-vocabulary column
 - [ ] Cliche pairs flagged to avoid
 
 ## Template output
 
 ```
-LINE BRAINSTORM — "<the line verbatim>"
+LINE BRAINSTORM: "<the line verbatim>"
 
 Source: <section> <line N>
 Function: <closes / sets up / lands title / etc.>
@@ -41,72 +41,72 @@ Current end-line word: <word>
 Song world: <one-line summary>
 
 ──────────────────────────────────────────────
-COLUMN 1 — END-LINE WORD SWAPS
+COLUMN 1: END-LINE WORD SWAPS
 ──────────────────────────────────────────────
 
 Perfect / fully resolved (single-word; identity passed):
-  - <word> — cliche-pair risk: <low/med/high>
-  - <word> —
-  - <word> —
-  - <word> —
+  - <word>: cliche-pair risk <low/med/high>
+  - <word>:
+  - <word>:
+  - <word>:
   (~5)
 
 Family (post-vowel consonant family-related):
-  - <word> — partner/companion + family
-  - <word> —
+  - <word>: partner/companion + family
+  - <word>:
   (~5)
 
 Additive / subtractive (one consonant added/removed):
-  - <word> — additive on <consonant>
-  - <word> —
+  - <word>: additive on <consonant>
+  - <word>:
   (~4)
 
 Assonance (vowel-only match, different post-vowel):
-  - <word> — assonance; openness signal
-  - <word> —
+  - <word>: assonance; openness signal
+  - <word>:
   (~4)
 
 Consonance (post-vowel-only match, different vowel):
-  - <word> — consonance; deceleration signal
-  - <word> —
+  - <word>: consonance; deceleration signal
+  - <word>:
   (~3)
 
-MOSAIC (multi-word, cross-POS, proper nouns OK) — MANDATORY:
-  - <word combo> — POS decomposition; identity-checked
-  - <word combo> —
-  - <word combo> —
-  - <word combo> —
-  - <word combo> —
+MOSAIC (multi-word, cross-POS, proper nouns OK), MANDATORY:
+  - <word combo>: POS decomposition; identity-checked
+  - <word combo>:
+  - <word combo>:
+  - <word combo>:
+  - <word combo>:
   (≥5; more if source is proper noun or rare ending)
 
 From the song's developed world:
-  - <world-word or world-mosaic> — why it fits the song
-  - <world-word> —
+  - <world-word or world-mosaic>: why it fits the song
+  - <world-word>:
   (~5)
 
 ──────────────────────────────────────────────
-COLUMN 2 — CONTENT WORD SWAPS
+COLUMN 2: CONTENT WORD SWAPS
 ──────────────────────────────────────────────
 
 Current load-bearing content word: <word>  [weak / working / surprising]
 
 If the load-bearing word is a VERB:
-  - <verb> — wattage rating (per Pat's verbs-as-amplifiers principle)
-  - <verb> —
-  - <verb> —
+  - <verb>: wattage rating (per Pat's verbs-as-amplifiers principle)
+  - <verb>:
+  - <verb>:
   (~5 verb candidates, ranked by surprise / specificity)
 
 If the load-bearing word is a NOUN-IMAGE:
-  - <noun> — specificity gain
-  - <noun> — sense gained
-  - <noun> — surprise gained
+  - <noun>: specificity gain
+  - <noun>: sense gained
+  - <noun>: surprise gained
   (~5)
 
 If the load-bearing word is an ABSTRACTION:
   - REPLACE with sense-bound image (route to Column 4 image alternates)
 
 ──────────────────────────────────────────────
-COLUMN 3 — INTERNAL RHYME PARTNERS
+COLUMN 3: INTERNAL RHYME PARTNERS
 ──────────────────────────────────────────────
 
 Inside-line sonic-bonding candidates per
@@ -128,7 +128,7 @@ Alliteration (initial / medial / terminal / concealed):
   (~3)
 
 ──────────────────────────────────────────────
-COLUMN 4 — IMAGE / SENSE ALTERNATES
+COLUMN 4: IMAGE / SENSE ALTERNATES
 ──────────────────────────────────────────────
 
 Replaces any abstraction with concrete sense-bound image. All 7 senses
@@ -139,7 +139,7 @@ scanned (sight / hearing / smell / taste / touch / organic / kinesthetic):
 - smell: <concrete image>
 - taste: <concrete image>
 - touch: <concrete image>
-- organic (internal body — heartbeat, breath, gut): <image>
+- organic (internal body, such as heartbeat, breath, gut): <image>
 - kinesthetic (motion / balance / weight): <image>
 
 Rusty's Collar replacement candidates if the line currently TELLS:
@@ -147,17 +147,17 @@ Rusty's Collar replacement candidates if the line currently TELLS:
   - ...
 
 ──────────────────────────────────────────────
-COLUMN 5 — WHOLE-LINE VARIANTS
+COLUMN 5: WHOLE-LINE VARIANTS
 ──────────────────────────────────────────────
 
 Each variant preserves the line's function (close / set up / land title /
 build tension / repaint) but varies content, image, or rhyme partner:
 
-1. <whole line> — change made / cost / gain
-2. <whole line> — change made / cost / gain
-3. <whole line> — change made / cost / gain
-4. <whole line> — change made / cost / gain
-5. <whole line> — change made / cost / gain
+1. <whole line>: change made / cost / gain
+2. <whole line>: change made / cost / gain
+3. <whole line>: change made / cost / gain
+4. <whole line>: change made / cost / gain
+5. <whole line>: change made / cost / gain
 
 ──────────────────────────────────────────────
 SUGGESTIONS (not verdicts)
@@ -165,22 +165,22 @@ SUGGESTIONS (not verdicts)
 
 Top-3 most-promising directions across the columns:
 
-1. <direction> — Pat's craft reason
-2. <direction> — Pat's craft reason
-3. <direction> — Pat's craft reason
+1. <direction>: Pat's craft reason
+2. <direction>: Pat's craft reason
+3. <direction>: Pat's craft reason
 
 Cliche flags to watch:
 - <pair or phrase>
 - <pair or phrase>
 
 Identity-disguise flags caught (rejected):
-- <rejected candidate> — pre-vowel consonant identical
+- <rejected candidate>: pre-vowel consonant identical
 
 Hand-off:
-- `/variations <line>` — for 5-7 polished alternates
-- `/audit <line>` — for pre-lock check on a chosen candidate
-- `/rhyme-generation` — for more rhyme tiers if Column 1 felt thin
-- `/mosaic <word>` — for deeper mosaic search if Column 1 mosaic was rich
+- `/variations <line>`: for 5-7 polished alternates
+- `/audit <line>`: for pre-lock check on a chosen candidate
+- `/rhyme-generation`: for more rhyme tiers if Column 1 felt thin
+- `/mosaic <word>`: for deeper mosaic search if Column 1 mosaic was rich
 ```
 
 ## Section-level template additions
@@ -191,14 +191,14 @@ template for each line, then append:
 
 ```
 ──────────────────────────────────────────────
-STABILITY PROFILE — <section type>
+STABILITY PROFILE: <section type>
 ──────────────────────────────────────────────
 
 Expected stability pattern for this section type (per audit-checklist.md):
   - <pattern>
 
 Current section's stability pattern (line-by-line):
-  - Line 1: stable / unstable — reason
+  - Line 1: stable / unstable, reason
   - Line 2: ...
   - Line N: ...
 
@@ -209,7 +209,7 @@ Mismatch flags:
 HOT-SPOT MAP
 ──────────────────────────────────────────────
 
-- Section line 1: strong content word at start? <yes / no — what's there>
+- Section line 1: strong content word at start? <yes / no, what's there>
 - Section last line: title or punchline-grade content? <yes / no>
 - Title placement in section: line <N>
 - Phrase-internal hot spots: 2nd-most-important word at phrase
@@ -223,7 +223,7 @@ BOX-MODEL CHECK (if verse)
 - Neighbors' boxes:
   - Verse <N-1>: <box>
   - Verse <N+1>: <box>
-- Travelogue risk: <yes / no — name the diagnostic>
+- Travelogue risk: <yes / no, name the diagnostic>
 
 ──────────────────────────────────────────────
 TRIGGER LINE CHECK (line-before-chorus)
@@ -253,10 +253,10 @@ The brainstorm is volume; the curation is dialog.
 
 > "Eminem and Stephen Sondheim approach their writing through the same
 > process. It's called a worksheet process."
-> — Pat Pattison (American Blues Scene interview) — **unaudited**
+> Pat Pattison (American Blues Scene interview), **unaudited**
 
 Non-book source, so it cannot be checked against the four books. Only the
-Sondheim half is corroborated in print — *Writing Better Lyrics* (2009),
+Sondheim half is corroborated in print, in *Writing Better Lyrics* (2009),
 Chapter 24: "Ask Stephen Sondheim: He uses worksheets all the time."
 `Eminem` and the phrase "worksheet process" both return zero hits in all
 four books. Full audit note in
@@ -266,11 +266,11 @@ The line-brainstorm IS the worksheet process applied to a single line.
 
 ## Cross-references
 
-- [line-brainstorm.md](../research/line-brainstorm.md) — full mechanics
-- [response-filter.md](../research/response-filter.md) — §1, §2, §7
+- [line-brainstorm.md](../research/line-brainstorm.md): full mechanics
+- [response-filter.md](../research/response-filter.md): §1, §2, §7
   filter discipline
-- [rhyme-generation.md](../research/rhyme-generation.md) — Column 1 backend
-- [mosaic-rhyme.md](../research/mosaic-rhyme.md) — Column 1 mosaic tier
-- [object-writing.md](../research/object-writing.md) — Column 4 backend
-- [variations.md](../research/variations.md) — 5-7 polished alternates hand-off
-- [coaching-protocol.md](../research/coaching-protocol.md) — dialog posture
+- [rhyme-generation.md](../research/rhyme-generation.md): Column 1 backend
+- [mosaic-rhyme.md](../research/mosaic-rhyme.md): Column 1 mosaic tier
+- [object-writing.md](../research/object-writing.md): Column 4 backend
+- [variations.md](../research/variations.md): 5-7 polished alternates hand-off
+- [coaching-protocol.md](../research/coaching-protocol.md): dialog posture

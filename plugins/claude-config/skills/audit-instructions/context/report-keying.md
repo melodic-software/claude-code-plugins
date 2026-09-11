@@ -1,4 +1,4 @@
-# Report keying — where Phase D persists, and why the key matters here
+# Report keying: where Phase D persists, and why the key matters here
 
 Phase D persists its report to
 `${CLAUDE_PLUGIN_DATA}/audit-instructions/<state-key>/last-audit.md`.
@@ -20,12 +20,12 @@ Do **not** express the path as a condition over `${CLAUDE_PROJECT_DIR}` "when se
 placeholder is substituted inline before the skill body reaches you, so the literal token is never
 visible and the condition is not yours to evaluate.
 
-## Why the key is load-bearing in this skill specifically
+## Why the key matters in this skill specifically
 
 `${CLAUDE_PLUGIN_DATA}` resolves to `~/.claude/plugins/data/{id}/`, keyed to the plugin identifier
 and nothing else ([plugins reference](https://code.claude.com/docs/en/plugins-reference),
 § Persistent data directory). Under a fixed filename every run from every project on the machine
-overwrites the last — and Phase D's cost line would then compute its **per-surface token delta
+overwrites the last, and Phase D's cost line would then compute its **per-surface token delta
 against a prior report belonging to a different project's surface set**, printing a number rather
 than declining.
 

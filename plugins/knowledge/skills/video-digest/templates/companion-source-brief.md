@@ -1,4 +1,4 @@
-# Companion primary sources — {{VIDEO_SLUG}}
+# Companion primary sources: {{VIDEO_SLUG}}
 
 Recorded at queue time. **Watch-time mandate:** deep-dive every section below **before** `run-watch.js`. SSOT: `context/companion-primary-sources.md`.
 

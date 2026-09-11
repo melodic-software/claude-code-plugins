@@ -1,12 +1,12 @@
 # Report contract
 
 The audit's default deliverable: what the report must contain, in what order, and the framing
-rules that keep it honest. The report is read-only and is the durable asset — the fix path, when
+rules that keep it honest. The report is read-only and is the durable asset. The fix path, when
 it exists, is a separate explicitly-invoked override.
 
 ## Framing: smart zone, not dollars
 
-The report leads with **reclaimed reasoning space** — the share of the context window the fixed
+The report leads with **reclaimed reasoning space**: the share of the context window the fixed
 payload occupies and what measured trims would return to the model's working room. Cost per
 million tokens is never the lead and never a required line. When the `context-guard` plugin is
 installed, its zone vocabulary (smart/acceptable/dumb bands) may frame the headline; absent it,
@@ -21,19 +21,20 @@ mode; the displayed fraction in cli-parse mode).
    settings, not the operator's machine.
 2. **Headline.** Fixed payload as tokens and as a share of the window; one sentence of smart-zone
    framing. The deferred pool is stated beside it as *recurring request weight outside the
-   window* — the dual-ledger sentence, exactly once.
-3. **Category totals.** The measured category table from the baseline snapshot, as measured —
-   never reconciled to any external figure, never supplemented from memory.
-4. **Ranked per-tool attribution.** From the attribution record: one row per measured tool —
-   `savedTokens`, split into `prefixDelta` / `deferredDelta`, with the `comparable` flag. Rows
-   the engine marked incomparable appear with their reason instead of their numbers. If the
+   window*. That dual-ledger sentence appears exactly once.
+3. **Category totals.** The measured category table from the baseline snapshot, as measured.
+   Never reconciled to any external figure, never supplemented from memory.
+4. **Ranked per-tool attribution.** From the attribution record: one row per measured tool,
+   carrying `savedTokens`, split into `prefixDelta` / `deferredDelta`, with the `comparable`
+   flag. Rows the engine marked incomparable appear with their reason instead of their
+   numbers. If the
    additivity check ran, state its verdict per bucket, one line each, and report a null verdict as
    not measurable rather than as not additive. Unmeasured tools (candidates this run
-   that were not priced) are listed as unmeasured, not omitted — silence reads as "measured
-   zero". Tools that exist only in an interactive session — Artifact, SendUserFile,
-   AskUserQuestion, plan-mode tools, interactive-only MCP servers — are listed as
-   **known-uncovered**, a distinct category from unmeasured-but-candidate: they were never
-   candidates in this headless sweep. The names come from the attribution record's
+   that were not priced) are listed as unmeasured, not omitted. Silence reads as "measured
+   zero". Some tools exist only in an interactive session: Artifact, SendUserFile,
+   AskUserQuestion, plan-mode tools, and interactive-only MCP servers. These are listed as
+   **known-uncovered**, a distinct category from unmeasured-but-candidate, because they were
+   never candidates in this headless sweep. The names come from the attribution record's
    `knownUncovered.tools` (product-level surfaces) plus `knownUncovered.notes` (the
    interactive-only MCP class). A name that appeared in this run's candidate list is not
    repeated as known-uncovered.
@@ -43,8 +44,8 @@ mode; the displayed fraction in cli-parse mode).
    emitted config, and the official citation. Grouped by category, `removes-weight` first.
    Postures bind: `never-recommend` rows appear under a "priced, not recommended" heading;
    `report-only` vendor weight closes the group as the honest floor.
-6. **Routes.** The catalogue's route-outs (`/doctor` for usage-based removal — operator-run;
-   memory files, hooks, live occupancy to their owners), each in one line.
+6. **Routes.** The catalogue's route-outs (`/doctor` for usage-based removal, which the operator
+   runs; memory files, hooks, live occupancy to their owners), each in one line.
 7. **Degradations and caveats.** Every `caveats[]` entry from the records used, plus anything the
    engine could not measure and why. An audit that hit rung 3 reports the structured error's
    remediation here and stops claiming numbers it does not have.
@@ -59,15 +60,15 @@ mode; the displayed fraction in cli-parse mode).
   that explains it.
 - **Precision is carried, not dropped.** `display-rounded` numbers are presented as approximate
   (`~`); exact integers plain. Never mix the two in one comparison.
-- **The report is persisted** to `<data-dir>/reports/<UTC-timestamp>-audit.md` — one file per
-  run, never overwriting an earlier report — and the ledger's latest rows are summarized at the
+- **The report is persisted** to `<data-dir>/reports/<UTC-timestamp>-audit.md`, one file per
+  run, never overwriting an earlier report. The ledger's latest rows are summarized at the
   end when any exist (each with its own stamp).
 
 ## What the report never does
 
 - Recommend a lever whose category is undetermined for this configuration.
 - Present a deferral as a request-weight saving, or merge the two System tools buckets.
-- Reconcile its numbers to any external source's arithmetic — a mismatch with someone else's
+- Reconcile its numbers to any external source's arithmetic. A mismatch with someone else's
   table is reported as this machine's measurement, full stop.
 - Apply anything. Emitted config is printed for the operator; the measure-toggle-remeasure loop
   verifies whatever they choose to apply.

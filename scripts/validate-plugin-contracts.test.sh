@@ -22,16 +22,8 @@
 # aggregate exit code. The one exit-code assertion is the closing real-corpus
 # case.
 #
-# Bespoke PASS/FAIL counters by design, not drift: this is repo tooling, not a
-# plugin, so no plugin assertion library applies here -- see
-# docs/conventions/shell-test-helpers/README.md.
 # shellcheck disable=SC2016  # fixture rows are literal markdown; the backticks they carry are content, never expansion
 set -uo pipefail
-
-# Fixture git isolation: the append-only cases below run `git init` in mktemp
-# fixtures; an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would redirect those
-# writes into the caller's repository.
-unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -42,15 +34,19 @@ if ! command -v node >/dev/null 2>&1; then
   exit 2
 fi
 
-fails=0
-pass() { printf 'ok   - %s\n' "$1"; }
-fail() {
-  printf 'FAIL - %s\n' "$1" >&2
-  fails=$((fails + 1))
-}
+# shellcheck source=lib/test-harness.sh
+. "$SCRIPT_DIR/lib/test-harness.sh"
+# The builder clears the inherited git environment for the whole suite: the
+# append-only cases below run `git init` in the fixture, and an inherited
+# GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would redirect those writes into the
+# caller's repository.
+# shellcheck source=lib/fixture-tree.sh
+. "$SCRIPT_DIR/lib/fixture-tree.sh"
 
-TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT
+# The builder assigns through a nameref, which shellcheck cannot follow;
+# declaring the out-var here is what tells it (SC2154) the name is written.
+TMP=""
+fixture_tree::build TMP --label plugin-contracts
 
 OWNS_TRACKED_CONFIG='the check-only carve-out is unavailable here'
 NO_DECLARATION='must declare the check-only carve-out it relies on'
@@ -160,7 +156,7 @@ if grep -q "$OWNS_TRACKED_CONFIG" <<<"$out" ||
   grep -q "$NO_USER_CONFIG" <<<"$out"; then
   fail "a conforming userConfig-only carve-out should raise no carve-out failure: $out"
 else
-  pass "a conforming userConfig-only carve-out passes the carve-out assertions"
+  ok "a conforming userConfig-only carve-out passes the carve-out assertions"
 fi
 
 # --- 2. #3137's own failure class: the same skill, but the plugin owns a
@@ -173,7 +169,7 @@ out="$(run_fixture)"
 if has_fail_line "$OWNS_TRACKED_CONFIG" &&
   grep -q 'narrow-write shape' <<<"$out" &&
   grep -qE 'alpha[/\\]skills[/\\]setup[/\\]SKILL\.md' <<<"$out"; then
-  pass "a carve-out claim from a plugin owning tracked consumer config fails the gate"
+  ok "a carve-out claim from a plugin owning tracked consumer config fails the gate"
 else
   fail "a registered tracked-config owner should not reach the carve-out: $out"
 fi
@@ -196,7 +192,7 @@ make_plugin alpha alpha_api_key
 carve_out_body | write_setup_skill alpha check
 out="$(run_fixture)"
 if has_fail_line "$OWNS_TRACKED_CONFIG"; then
-  pass "a plugin named alongside the surface it co-owns is read out of the registry row"
+  ok "a plugin named alongside the surface it co-owns is read out of the registry row"
 else
   fail "a co-owner named in the surface cell should not reach the carve-out: $out"
 fi
@@ -212,7 +208,7 @@ write_setup_skill alpha check <<'BODY'
 BODY
 out="$(run_fixture)"
 if has_fail_line "$NO_DECLARATION"; then
-  pass "a skill offering no apply must declare the carve-out, not merely mention apply"
+  ok "a skill offering no apply must declare the carve-out, not merely mention apply"
 else
   fail "an undeclared carve-out shape should fail the gate: $out"
 fi
@@ -229,7 +225,7 @@ There is no apply action here.
 BODY
 out="$(run_fixture)"
 if has_fail_line "$NO_DOCUMENTED_APPLY"; then
-  pass "advertising apply without documenting it fails the gate"
+  ok "advertising apply without documenting it fails the gate"
 else
   fail "an advertised-but-undocumented apply should fail the gate: $out"
 fi
@@ -240,7 +236,7 @@ make_plugin alpha ''
 carve_out_body | write_setup_skill alpha check
 out="$(run_fixture)"
 if has_fail_line "$NO_USER_CONFIG"; then
-  pass "claiming the userConfig-only carve-out with no declared userConfig fails the gate"
+  ok "claiming the userConfig-only carve-out with no declared userConfig fails the gate"
 else
   fail "an unbacked userConfig-only claim should fail the gate: $out"
 fi
@@ -255,7 +251,7 @@ Check-only under the native `userConfig` surface: `check` reports readiness.
 BODY
 out="$(run_fixture)"
 if has_fail_line "$NO_USER_CONFIG"; then
-  pass "doctrine wording that names userConfig without a manifest declaration fails the gate"
+  ok "doctrine wording that names userConfig without a manifest declaration fails the gate"
 else
   fail "a native-userConfig-surface claim with no userConfig should fail: $out"
 fi
@@ -272,7 +268,7 @@ out="$(run_fixture)"
 if grep -q "$NO_USER_CONFIG" <<<"$out"; then
   fail "denying userConfig should not be read as claiming the surface: $out"
 else
-  pass "a check-only skill that says it has no userConfig is not an unbacked claim"
+  ok "a check-only skill that says it has no userConfig is not an unbacked claim"
 fi
 
 # --- 5. Inverse: the narrow-write shape is untouched by the carve-out
@@ -292,7 +288,7 @@ if grep -q "$OWNS_TRACKED_CONFIG" <<<"$out" ||
   grep -q "$NO_USER_CONFIG" <<<"$out"; then
   fail "a narrow-write setup skill should raise no carve-out failure: $out"
 else
-  pass "a narrow-write setup skill owning tracked config passes the carve-out assertions"
+  ok "a narrow-write setup skill owning tracked config passes the carve-out assertions"
 fi
 
 # --- 6. The registry is an input, so losing it fails loudly rather than
@@ -303,7 +299,7 @@ make_plugin alpha alpha_api_key
 carve_out_body | write_setup_skill alpha check
 out="$(run_fixture)"
 if has_fail_line "$REGISTRY_MISSING"; then
-  pass "a missing consumer-config registry fails the gate"
+  ok "a missing consumer-config registry fails the gate"
 else
   fail "a missing registry should fail rather than silently skip: $out"
 fi
@@ -317,7 +313,7 @@ make_plugin alpha alpha_api_key
 carve_out_body | write_setup_skill alpha check
 out="$(run_fixture)"
 if has_fail_line "$REGISTRY_UNSTRUCTURED"; then
-  pass "a registry with no Implementers section fails the gate"
+  ok "a registry with no Implementers section fails the gate"
 else
   fail "a restructured registry should fail rather than silently skip: $out"
 fi
@@ -339,7 +335,7 @@ make_plugin alpha alpha_api_key
 carve_out_body | write_setup_skill alpha check
 out="$(run_fixture)"
 if has_fail_line "$REGISTRY_EMPTY"; then
-  pass "an Implementers table naming no surfaces fails the gate"
+  ok "an Implementers table naming no surfaces fails the gate"
 else
   fail "an empty registry table should fail rather than silently skip: $out"
 fi
@@ -466,7 +462,7 @@ conforming_retirements_fixture() {
 conforming_retirements_fixture
 out="$(run_fixture)"
 if [[ -z "$(retirement_failure_lines)" ]] && grep -q "$R_SKIPPED" <<<"$out"; then
-  pass "a conforming retirements manifest raises no retirements failure and reports the skipped append-only check"
+  ok "a conforming retirements manifest raises no retirements failure and reports the skipped append-only check"
 else
   fail "a conforming retirements fixture should raise no retirements failure: $out"
 fi
@@ -478,7 +474,7 @@ malformed_case() {
   write_manifest alpha
   out="$(run_fixture)"
   if has_fail_line "$needle" && grep -qE 'alpha[/\\]retirements\.yaml' <<<"$out"; then
-    pass "$title"
+    ok "$title"
   else
     fail "$title -- expected a failure line containing '$needle': $out"
   fi
@@ -654,7 +650,7 @@ conforming_retirements_fixture
 rm "$TMP/plugins/alpha/lib/check-retirements.sh"
 out="$(run_fixture)"
 if has_fail_line "$R_HELPER_MISSING"; then
-  pass "a manifest with no synced helper copy fails the gate"
+  ok "a manifest with no synced helper copy fails the gate"
 else
   fail "a missing helper copy should fail: $out"
 fi
@@ -664,7 +660,7 @@ conforming_retirements_fixture
 printf '\n' >>"$TMP/plugins/alpha/lib/check-retirements.sh"
 out="$(run_fixture)"
 if has_fail_line "$R_HELPER_DRIFT"; then
-  pass "a helper copy that differs by one byte fails the gate"
+  ok "a helper copy that differs by one byte fails the gate"
 else
   fail "a drifted helper copy should fail: $out"
 fi
@@ -674,7 +670,7 @@ conforming_retirements_fixture
 rm "$TMP/plugins/claude-config/lib/check-retirements.sh"
 out="$(run_fixture)"
 if has_fail_line "$R_CANONICAL_MISSING"; then
-  pass "a missing canonical helper fails once by name"
+  ok "a missing canonical helper fails once by name"
 else
   fail "a missing canonical helper should fail: $out"
 fi
@@ -688,7 +684,7 @@ write_setup_skill alpha 'check | apply' <<'BODY'
 BODY
 out="$(run_fixture)"
 if has_fail_line "$R_SETUP_NO_REF"; then
-  pass "a retiring plugin whose setup skill never runs the helper fails the gate"
+  ok "a retiring plugin whose setup skill never runs the helper fails the gate"
 else
   fail "a setup skill not referencing the helper should fail: $out"
 fi
@@ -700,7 +696,7 @@ make_plugin beta ''
 retiring_setup_body | write_setup_skill beta 'check | apply'
 out="$(run_fixture)"
 if has_fail_line "$R_REF_NO_MANIFEST" && grep -qE 'beta[/\\]skills[/\\]setup[/\\]SKILL\.md' <<<"$out"; then
-  pass "a setup skill referencing the helper with no manifest fails the gate"
+  ok "a setup skill referencing the helper with no manifest fails the gate"
 else
   fail "a dangling helper reference should fail: $out"
 fi
@@ -712,7 +708,7 @@ make_plugin beta ''
 sync_helper beta
 out="$(run_fixture)"
 if has_fail_line "$R_REF_NO_MANIFEST" && grep -qE 'beta[/\\]lib[/\\]check-retirements\.sh' <<<"$out"; then
-  pass "a helper copy carried with no manifest fails the gate"
+  ok "a helper copy carried with no manifest fails the gate"
 else
   fail "a dangling helper copy should fail: $out"
 fi
@@ -727,7 +723,7 @@ out="$(run_fixture)"
 if grep -q "$R_REF_NO_MANIFEST" <<<"$out"; then
   fail "claude-config should be exempt from the inverse wiring check: $out"
 else
-  pass "claude-config carries the helper and references it without a manifest"
+  ok "claude-config carries the helper and references it without a manifest"
 fi
 
 # --- R6. Evals: one id uncovered; evals.json missing. -----------------------
@@ -735,7 +731,7 @@ conforming_retirements_fixture
 write_evals alpha alpha-r001
 out="$(run_fixture)"
 if has_fail_line "${R_EVAL_UNCOVERED}alpha-r002" && ! grep -q "${R_EVAL_UNCOVERED}alpha-r001" <<<"$out"; then
-  pass "an id no eval names fails by id, and a covered id does not"
+  ok "an id no eval names fails by id, and a covered id does not"
 else
   fail "an uncovered record id should fail by name: $out"
 fi
@@ -744,7 +740,7 @@ conforming_retirements_fixture
 write_evals alpha alpha-r0010
 out="$(run_fixture)"
 if has_fail_line "${R_EVAL_UNCOVERED}alpha-r001" && has_fail_line "${R_EVAL_UNCOVERED}alpha-r002"; then
-  pass "a longer id that only prefixes a shorter record does not cover it"
+  ok "a longer id that only prefixes a shorter record does not cover it"
 else
   fail "a prefixing eval id should not cover the shorter record: $out"
 fi
@@ -753,7 +749,7 @@ conforming_retirements_fixture
 rm -rf "$TMP/plugins/alpha/skills/setup/evals"
 out="$(run_fixture)"
 if has_fail_line "$R_EVALS_MISSING" && grep -q 'alpha-r001, alpha-r002' <<<"$out"; then
-  pass "a missing evals.json fails naming every record id"
+  ok "a missing evals.json fails naming every record id"
 else
   fail "a missing evals.json should fail naming the ids: $out"
 fi
@@ -776,7 +772,7 @@ commit_fixture
 valid_manifest | sed '/^id: alpha-r002$/,$d' | write_manifest alpha
 out="$(run_fixture_with_base HEAD)"
 if has_fail_line "$R_APPEND_ONLY" && grep -q 'record "alpha-r002"' <<<"$out"; then
-  pass "deleting a merged record fails the append-only check by id"
+  ok "deleting a merged record fails the append-only check by id"
 else
   fail "a deleted record should fail append-only: $out"
 fi
@@ -787,7 +783,7 @@ commit_fixture
 valid_manifest | sed 's|^path: \.gitignore$|path: .git-ignore|' | write_manifest alpha
 out="$(run_fixture_with_base HEAD)"
 if has_fail_line "$R_FIELD_CHANGED" && grep -q 'record "alpha-r001": "path" changed' <<<"$out"; then
-  pass "rewriting a frozen field on a merged record fails naming the field"
+  ok "rewriting a frozen field on a merged record fails naming the field"
 else
   fail "a rewritten frozen field should fail naming it: $out"
 fi
@@ -813,7 +809,7 @@ out="$(run_fixture_with_base HEAD)"
 if grep -q 'append-only' <<<"$out" || grep -q "$R_SKIPPED" <<<"$out"; then
   fail "a status flip, note fix, and appended record should pass append-only and not report it skipped: $out"
 else
-  pass "a status flip, a note fix, and an appended record pass the append-only check"
+  ok "a status flip, a note fix, and an appended record pass the append-only check"
 fi
 
 # The whole manifest deleted since base.
@@ -822,7 +818,7 @@ commit_fixture
 rm "$TMP/plugins/alpha/retirements.yaml"
 out="$(run_fixture_with_base HEAD)"
 if has_fail_line "$R_APPEND_ONLY" && grep -q 'plugins/alpha/retirements.yaml: was present at HEAD' <<<"$out"; then
-  pass "deleting a whole merged manifest fails the append-only check"
+  ok "deleting a whole merged manifest fails the append-only check"
 else
   fail "a deleted manifest should fail append-only: $out"
 fi
@@ -833,7 +829,7 @@ conforming_retirements_fixture
 commit_fixture
 out="$(run_fixture_with_base no-such-ref)"
 if grep -qE "^- .*${R_BASE_UNRESOLVED}" <<<"$out"; then
-  pass "an unresolvable base ref fails loudly instead of skipping"
+  ok "an unresolvable base ref fails loudly instead of skipping"
 else
   fail "an unresolvable base ref should fail: $out"
 fi
@@ -843,13 +839,9 @@ rm -rf "$TMP/.git"
 out="$( (cd "$REPO_ROOT" && node "$SUT" 2>&1))"
 rc=$?
 if [[ $rc -eq 0 ]]; then
-  pass "the shipping plugins/ tree still validates end to end"
+  ok "the shipping plugins/ tree still validates end to end"
 else
   fail "the shipping tree should stay green (rc=$rc): $out"
 fi
 
-if [[ $fails -ne 0 ]]; then
-  printf '%d assertion(s) failed\n' "$fails" >&2
-  exit 1
-fi
-printf 'all assertions passed\n'
+test_harness::report

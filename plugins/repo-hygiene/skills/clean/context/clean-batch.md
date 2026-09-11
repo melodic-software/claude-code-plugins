@@ -1,4 +1,4 @@
-# The batch (fleet) selective tiers — `caches-batch` / `build-batch` / `git-batch` / `all-batch`
+# The batch (fleet) selective tiers: `caches-batch` / `build-batch` / `git-batch` / `all-batch`
 
 Full detail for the fleet form of the selective tiers. SKILL.md §8 carries the
 headline; this file carries the gate, the script contract, and examples. The
@@ -10,7 +10,7 @@ sibling of `tree-batch` ([git-tree-reset-batch.md](git-tree-reset-batch.md)).
 
 Batch mode lives in the skill as a sanctioned script. Without a fleet path, a
 session cleaning a large `ghq` fleet from a non-repo cwd has to hand-roll batch
-dry-run/apply scripts around the per-repo tiers — and a hand-rolled bulk `rm`
+dry-run/apply scripts around the per-repo tiers, and a hand-rolled bulk `rm`
 pipeline is blocked by the auto-mode classifier even after explicit confirmation,
 while the sanctioned skill-script apply passes.
 
@@ -22,12 +22,12 @@ per-repo outcome summary.
 
 **Out:**
 
-- **`tree`** — the destructive tier has its own batch form (`tree-batch`) with a
+- **`tree`**: the destructive tier has its own batch form (`tree-batch`) with a
   dirty guard; it is never folded into `all` and not handled here.
-- **Branch audit / deletion** — the single-repo `git` tier also audits branches
+- **Branch audit / deletion**: the single-repo `git` tier also audits branches
   for interactive per-branch deletion, which cannot sit behind one fleet-wide
   gate. Batch `git` is prune / gc / remote-prune only; run branch cleanup per repo.
-- The actual removal / prune — delegated to the unchanged single-repo child. The
+- The actual removal / prune: delegated to the unchanged single-repo child. The
   batch layer runs no destructive command itself.
 
 ## Script
@@ -86,7 +86,7 @@ reports the deduped count.
 
 **Known limitation.** The plan stores only the first-seen worktree as each store's
 representative. If that specific worktree vanishes before apply while a live
-sibling still shares the store, the prune is reported `skipped`, not run — it is
+sibling still shares the store, the prune is reported `skipped`, not run. It is
 deferred, not lost: `git` prune/gc is non-destructive and idempotent, and a fresh
 dry-run → apply over the live siblings picks a new representative.
 
@@ -99,23 +99,24 @@ errors without it (the fleet gate is mandatory). This is the fleet-level analogu
 of the child's per-repo manifest staleness guard, and it is what makes a live
 fleet safe to sweep: a repo that vanished after the dry-run applies idempotently
 (its manifest paths are already gone); a repo that appeared is not in the plan, so
-it is never touched. Do not re-enumerate at apply — pass the plan back.
+it is never touched. Do not re-enumerate at apply. Pass the plan back.
 
 Apply also validates the plan against the requested `--tier` before touching disk:
-the plan must have been built for the same tier. A plan whose records the tier does
-not authorize — a `build` REPO record (which folds caches) under `--tier caches`, a
-`caches` record under `build`, or a `GITDIR` record under a non-git tier — is
-refused atomically (usage error, nothing removed, no apply banner) so the `--tier`
-flag can never under-report the scope of what a swapped or stale plan removes.
+the plan must have been built for the same tier. A plan carrying a record the tier
+does not authorize is refused atomically (usage error, nothing removed, no apply
+banner), so the `--tier` flag can never under-report the scope of what a swapped or
+stale plan removes. Those records are a `build` REPO record (which folds caches)
+under `--tier caches`, a `caches` record under `build`, and a `GITDIR` record under
+a non-git tier.
 
 The check runs in both directions. `all` authorizes both record kinds, so a
-narrower plan would clear every per-record test and then run only part of the tier
-— a `build` plan (no `GITDIR` records) applied with `--tier all` would skip every
-prune, a `git` plan (no `REPO` records) would skip every build removal. A non-empty
+narrower plan would clear every per-record test and then run only part of the tier.
+A `build` plan (no `GITDIR` records) applied with `--tier all` would skip every
+prune, and a `git` plan (no `REPO` records) would skip every build removal. A non-empty
 plan applied with `--tier all` must therefore carry both kinds, or it is refused
 the same way. An empty plan plans nothing for either kind and stays a no-op.
 
-Only a structurally well-formed record satisfies that both-kinds requirement — a
+Only a structurally well-formed record satisfies that both-kinds requirement. A
 `GITDIR` line naming no representative worktree, or a `REPO` line naming no
 manifest, names no target and so cannot stand in for the tier half it belongs to.
 A malformed record is a different error class from a wrong-tier plan: the plan is
@@ -134,13 +135,13 @@ non-zero when any repo failed.
 ## Gates
 
 - **Single batch-wide gate:** run `--dry-run` once, show the whole-batch plan (the
-  per-repo outcomes + `Summary` + any `UnmatchedSkip`), [confirmation gate](../SKILL.md#confirmation-gate) once —
-  surface the `bytes` reclaimable total — then `--apply --batch-plan <path>` once.
+  per-repo outcomes + `Summary` + any `UnmatchedSkip`), [confirmation gate](../SKILL.md#confirmation-gate) once,
+  surfacing the `bytes` reclaimable total, then `--apply --batch-plan <path>` once.
   One confirmation covers the batch; do not gate per repo.
 - **Autonomous sessions** (`CLAUDE_CODE_REMOTE`, `/loop`, `/schedule`): `--apply`
   aborts, same rule as the single-repo selective tiers.
 - The wrapper runs each child as a subprocess, so the session destructive guard
-  sees only `bash clean-batch.sh`, not an inline `rm -rf` — invoke via the
+  sees only `bash clean-batch.sh`, not an inline `rm -rf`. Invoke via the
   wrapper, and per the selective-tier convention prefix the apply with
   `CLEAN_GUARD_ACK=1` after the gate passes.
 

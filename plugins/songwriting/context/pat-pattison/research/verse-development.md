@@ -3,7 +3,7 @@
 ## Contents
 
 - [Core idea](#core-idea)
-- [The chapter's worked lyric — "Child Again"](#the-chapters-worked-lyric--child-again)
+- [The chapter's worked lyric: "Child Again"](#the-chapters-worked-lyric-child-again)
 - [Travelogue warning](#travelogue-warning)
 - [Travelogue test](#travelogue-test)
 - [Chain reaction model](#chain-reaction-model)
@@ -45,7 +45,7 @@ Related files: [repetition](repetition.md), [form](form.md),
 [object writing](object-writing.md).
 
 **What in this file is Pat's.** Chapters 7 and 8 print running prose, worked
-readings of specific lyrics, one Moral, and — in Chapter 8 only — one
+readings of specific lyrics, one Moral, and, in Chapter 8 only, one
 exercise. (Chapter 7 contains no exercise at all: `EXERCISE` returns zero
 hits in it.) They print **no procedures, no checklists and no taxonomies.**
 So the numbered
@@ -91,7 +91,7 @@ the formulas are not the primary tool:
 > ways. You don't have to use formulas. You don't have to introduce a whole new
 > cast of characters. You just have to pay attention.
 
-## The chapter's worked lyric — "Child Again"
+## The chapter's worked lyric: "Child Again"
 
 Everything below is demonstrated on Beth Nielsen Chapman's "Child Again."
 
@@ -128,7 +128,7 @@ Then her mama calls her home
 ```
 
 The bridge is an overlay of old-fashioned children's songs. Chapter 7 prints it
-as a two-column table — the two voices of the duet sung simultaneously, not
+as a two-column table, the two voices of the duet sung simultaneously, not
 alternately:
 
 | Bridge (duet) | |
@@ -142,7 +142,7 @@ alternately:
 | Little Johnny wants to play | And we'll be jolly friends |
 | Some more | Forever more |
 
-(The chapter prints this bridge **twice** — once in the full lyric and again in
+(The chapter prints this bridge **twice**, once in the full lyric and again in
 the analysis. The second printing reads *And he couldn't get up in the morning*
 where the first reads *And he never got up in the morning*. Both are as printed;
 do not normalize them.)
@@ -153,7 +153,7 @@ first line and reiterated twice. So the first chorus is entered from
 helplessness, and *running* reads as contrast.
 
 Verse 2 "turns the color of her relatives." Four generations crowd her room, and
-her mind wanders off — *Sometimes she remembers / Then her mama calls her home*.
+her mind wanders off: *Sometimes she remembers / Then her mama calls her home*.
 Pat's reading of the second chorus:
 
 > The emphasis is no longer on her running, but on the family (her mama) that
@@ -161,7 +161,7 @@ Pat's reading of the second chorus:
 > brilliantly, a new and different color made possible by strong verse
 > development.
 
-The bridge is "the coup de grâce" — it shows the colors of childhood, and the
+The bridge is "the coup de grâce": it shows the colors of childhood, and the
 third chorus is heard with new eyes: she is back with her mama, able to run
 home, and the listener now knows she is destined to follow her own mother as
 inevitably as the generations in her room will follow her.
@@ -176,9 +176,11 @@ not naturally connect to each other. The chorus is the only glue.
 
 > Verse development should mean verse relationship.
 
+<!-- ai-slop-ignore-start: verbatim Pattison quotation, Writing Better Lyrics (2009) Chapter 8 -->
 The name comes from the travel film: "Ah, fabulous Hawaii — majestic mountains,
 pipeline surfing, luxury hotels, exotic cuisine." Interesting places, dull film,
 because "their only links are accidents of geography."
+<!-- ai-slop-ignore-end -->
 
 Pat's two lyric-summary demonstrations. First:
 
@@ -197,9 +199,11 @@ Refrain: Streets are turning deadly in the dark.
 > Nothing, except that they are all part of fabulous *Streets are turning deadly
 > in the dark*.
 
-Pat then heads off the objection that nobody actually writes that — "Wrong. In
+<!-- ai-slop-ignore-start: verbatim Pattison quotation, Writing Better Lyrics (2009) Chapter 8 -->
+Pat then heads off the objection that nobody actually writes that: "Wrong. In
 fact, it happens all the time — all too often in songs with serious political,
 ethical, or religious messages":
+<!-- ai-slop-ignore-end -->
 
 ```text
 Verse 1: We're screwing up our planet.
@@ -212,10 +216,12 @@ Verse 3: We ignore our poor and homeless.
 Refrain: We're losing the human race.
 ```
 
+<!-- ai-slop-ignore-start: verbatim Pattison quotation, Writing Better Lyrics (2009) Chapter 8 -->
 > No matter how well written and interesting these verses get, the basic defect
 > remains: The verses don't work together to accumulate power — they are simply
 > a travelogue of human ineptitude. Important ideas deserve the most powerful
 > presentation you can muster.
+<!-- ai-slop-ignore-end -->
 
 Travelogues often appear in message songs because the writer tours several
 important issues instead of developing one accumulating situation. Each verse
@@ -273,7 +279,7 @@ Sinking to its home
 Flesh to blood to heart to bone
 ```
 
-Verse 2 then makes "the easy move" and randomly relocates — to "some place like
+Verse 2 then makes "the easy move" and randomly relocates, to "some place like
 fabulous West Beirut":
 
 ```text
@@ -286,8 +292,8 @@ Gargles in their throats
 Infidels and pagan hosts
 ```
 
-Verse 3 makes "one last stop in this travelogue of violence" — "racial hatred
-in fabulous old South Africa":
+Verse 3 makes "one last stop in this travelogue of violence", which is "racial
+hatred in fabulous old South Africa":
 
 ```text
 White boys rock the ancient Ford
@@ -423,7 +429,7 @@ Chapter 7 points at *Essential Guide to Lyric Form and Structure*
 for the full treatment; here it demonstrates on "Child Again."
 
 Chapter 7 never prints a list of power positions. It prints one Moral, and
-that is the whole taxonomy — **three** families, not nine:
+that is the whole taxonomy, **three** families, not nine:
 
 > Moral: First be aware of where your power positions are: opening
 > positions, closing positions, and surprises, like shorter, longer, or
@@ -431,8 +437,9 @@ that is the whole taxonomy — **three** families, not nine:
 > important there. Everything will come up rosy, seafoam green, Tangiers
 > blue, sun yellow …
 
-The extra cases this file used to list as peers of those three — subsection
-openings and closings, the trigger line, an early rhyme — are not a fourth
+<!-- ai-slop-ignore-start: verbatim Pattison quotation, Writing Better Lyrics (2009) Chapter 7 -->
+This file used to list extra cases as peers of those three: subsection
+openings and closings, the trigger line, an early rhyme. They are not a fourth
 and fifth family. They are instances Pat derives inside the chapter's two
 readings: the "Child Again" subsections ("She uses her power positions — the
 first and last positions of the verse, plus the ending and beginning of its
@@ -440,6 +447,7 @@ subsections") and the nursery-rhyme reading ("it gains extra punch by
 rhyming early, at the second rather than the third stress"). Both appear in
 full below. An earlier revision of this file flattened them into a
 nine-bullet "most common power positions" list that Pat does not print.
+<!-- ai-slop-ignore-end -->
 
 Power positions are not decoration. They steer the listener's focus.
 
@@ -500,16 +508,18 @@ Like a húndred tímes befóre             a       3
 ```
 
 (Line 2 reads *While* here and *Till* in the full lyric at the top of this file.
-Chapter 7 prints it **both** ways — *Till the sun moves down the floor* in the
+Chapter 7 prints it **both** ways: *Till the sun moves down the floor* in the
 full lyric and in First Verse Focus, *While the sun moves down the floor* in this
 scan and in the full-verse reprint that follows it. Both are as printed. **Do not
 reconcile them.** The same chapter also prints *Likes a hundred times before*
 once, in First Verse Focus, where every other printing reads *Like*.)
 
+<!-- ai-slop-ignore-start: verbatim Pattison quotation, Writing Better Lyrics (2009) Chapter 7 -->
 > After these four lines, things are balanced. The structure has resolved. This
 > creates a new beginning at line five — another power position.
+<!-- ai-slop-ignore-end -->
 
-And line five is used for it — *Taken* is the first stressed syllable:
+And line five is used for it. *Taken* is the first stressed syllable:
 
 ```text
 She's taken to the garden
@@ -564,7 +574,7 @@ Like a child again
 
 **The accumulation.** Chapter 7 then prints both verses stripped down to their
 four power positions alone, to show what the listener is actually carrying into
-each chorus — "Each verse works beautifully to set up its special view of the
+each chorus: "Each verse works beautifully to set up its special view of the
 chorus. The accumulation of the two systems delivers the knockout":
 
 ```text
@@ -639,7 +649,7 @@ Then later in the garden                  (open of part two)
 Down the hallway's polished floors        (trigger)
 ```
 
-Sunlight, daylight, garden, floors — scenery. The wheelchair, the being *taken*,
+Sunlight, daylight, garden, floors: scenery. The wheelchair, the being *taken*,
 the being *returned* have all slid into weak interior positions. Pat's verdict:
 
 > Even though the beauty of the original verse has suffered, the ideas haven't
@@ -719,7 +729,7 @@ He follows with devoted speed
 ```
 
 Reading of it: phrase 1 is the usual opening power position. Phrase 4 is a power
-position because we expect it to close the section — and it gains extra punch by
+position because we expect it to close the section, and it gains extra punch by
 rhyming *early*, at the second stress rather than the third. Phrase 5 is
 unexpected, "adding special interest." The final phrase is "the most powerful of
 the bunch."
@@ -780,13 +790,13 @@ paragraph. Verbatim:
 > momentum your lyric develops as the verses accumulate into one full-blown
 > strategy.
 
-("The original" is the "Chain Reaction" travelogue above — verse two is
+("The original" is the "Chain Reaction" travelogue above: verse two is
 Camille in West Beirut, verse three the ancient Ford in South Africa.) The
 paragraph runs straight on into "Verse development is probably a lyricist's
 trickiest job …", quoted under "Distance control" above. An earlier revision
-of this file inflated the exercise into six bullets, two of which — "make the
+of this file inflated the exercise into six bullets. Two of those, "make the
 verse sequence accumulate into one full-blown strategy" as an instruction,
-and "check that the verses still make sense when the chorus is removed" — are
+and "check that the verses still make sense when the chorus is removed", are
 not part of what Pat asks for.
 
 ## Skill workflow
@@ -818,7 +828,7 @@ than it did after verse 1? If no, verse 2 is the wrong verse. Verses
 project light; if the lights are the same color, the song's emotional
 target gets the same painting twice.
 
-The color is not literal — it's the emotional / informational filter the
+The color is not literal. It's the emotional / informational filter the
 verse establishes. A You-I-We sequence colors the chorus with three
 different perspectives; a Past-Present-Future sequence colors it with
 three different time positions. The chorus surface text doesn't change;
@@ -847,7 +857,7 @@ No two elements should serve the same function. If the speaker and a secondary
 character do the same job, cut one. If two images establish the same emotional
 tone, pick the stronger.
 
-Pat's case is "Digging for the Line," written as first-person narrative — a
+Pat's case is "Digging for the Line," written as first-person narrative: a
 narrator recalling a father who loved watching greyhounds run, and quoting what
 the father taught. Translating it into third person creates two problems. First,
 pronouns: the child has to become *she* to keep the *he*s from jumbling, which
@@ -875,7 +885,7 @@ What it really means
 
 > Much cleaner than with two characters. Simplify, simplify, simplify.
 
-The cut is not an emotional judgment on the character; it is structural — with
+The cut is not an emotional judgment on the character; it is structural: with
 the story in third person, her function was redundant.
 
 Note how Pat closes it. He frames the remaining choice as one the third verse
@@ -913,6 +923,6 @@ He then states a preference *for this case only*, and hands the decision back:
 
 ## Cross-references (continued)
 
-- [box-model](box-model.md) — full division-of-labor framework, You-I-We,
+- [box-model](box-model.md): full division-of-labor framework, You-I-We,
   Past-Present-Future formulas
-- [bridge](bridge.md) — bridge as Box 3 substitute or alternative
+- [bridge](bridge.md): bridge as Box 3 substitute or alternative

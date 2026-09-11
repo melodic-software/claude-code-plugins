@@ -1,4 +1,4 @@
-# Synthetic /context capture — parser test fixture only
+# Synthetic /context capture: parser test fixture only
 
 This fixture mirrors the section and cell shapes of `claude -p "/context"` output as of the
 format observed at authoring time. Every number in it is invented for the test; none is a

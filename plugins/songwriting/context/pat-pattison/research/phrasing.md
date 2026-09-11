@@ -101,7 +101,7 @@ of the emotion.
 
 Mark musical phrases with brackets and lyric phrases with slashes:
 
-Pattison's mismatch example — a rewrite of an actual song, words changed
+Pattison's mismatch example is a rewrite of an actual song, words changed
 "to protect the innocent (or maybe the guilty)":
 
 ```text
@@ -139,7 +139,7 @@ Count phrases at two levels:
 - Long phrases: combinations that form larger musical or syntactic units.
 
 Both levels matter. Pattison counts the verse of Steely Dan's "Your Gold Teeth
-II" (Donald Fagen and Walter Becker) both ways — eight short phrases, or four
+II" (Donald Fagen and Walter Becker) both ways: eight short phrases, or four
 when you count their combinations into longer phrases. Either count feels
 balanced because it is even.
 
@@ -203,12 +203,12 @@ things before calling a section balanced:
 
 - **Nesting can rescue an odd count.** The first verse of "Fathers and Sons"
   runs five phrases and still *seems* balanced, because two of its short
-  phrases add up to one long one — the two-level counting above doing real
+  phrases add up to one long one, the two-level counting above doing real
   work. Pattison notes the verse is close to limerick form, and that once
   lyrics are set to music the musical rhythms dominate and the limerick feeling
   is shaded.
 - **Closure behavior can unbalance an even count.** The verse of "Southern
-  Comfort" runs eight phrases — even — and is still unbalanced, because its
+  Comfort" runs eight phrases, an even count, and is still unbalanced, because its
   last phrase refuses the three-stress close and the rhyme resolution the
   earlier phrases set up. See [song-forms-examples](song-forms-examples.md).
 
@@ -239,7 +239,7 @@ I'm lonely but no one can tell      4
 ```
 
 The last phrase is in the even-numbered position, balancing the section. That
-position spotlights "I'm lonely but no one can tell" — almost a summary of the
+position spotlights "I'm lonely but no one can tell", almost a summary of the
 section. The even-numbered position makes the line feel like the point of the
 section, not just another detail.
 
@@ -274,8 +274,8 @@ The pressure to move forward builds up simply because the listener feels the
 need for a balancing position.
 
 **Two unbalanced sections can balance each other.** Pattison's stated use for
-motion is connecting one unbalanced section to another equally unbalanced one —
-his worked case pairs three phrases with three more, bracketed as two groups:
+motion is connecting one unbalanced section to another equally unbalanced one.
+His worked case pairs three phrases with three more, bracketed as two groups:
 
 ```text
 [ Who are these children
@@ -316,7 +316,7 @@ You make everything so clear                     5
 ```
 
 **Do not "correct" `everything` to `averything` here.** The 1991 text layer
-prints `You make averything so clear` at this passage — the only occurrence of
+prints `You make averything so clear` at this passage, the only occurrence of
 that spelling in all four books. Two photographic scans of the printed page,
 figures `image_rsrc32V` (Chapter 5) and `image_rsrc34F` (Chapter 7), both print
 `everything`, so the text layer carries the defect and the line above is what
@@ -393,7 +393,7 @@ And go so fast
 ```
 
 Pattison: "It is no accident that Beth Nielsen Chapman's shortest phrase about
-years is, *And go so fast*." The phrase length enacts the idea — the structure
+years is, *And go so fast*." The phrase length enacts the idea: the structure
 speeds up exactly where the lyric says time does.
 
 Use acceleration when the lyric should feel impatient, physically active,
@@ -487,7 +487,7 @@ For any draft section:
 3. Count short phrase units.
 4. Count larger phrase groups.
 5. Mark which position currently spotlights the strongest idea.
-6. Label phrase lengths as constant, accelerating, or decelerating — and use
+6. Label phrase lengths as constant, accelerating, or decelerating, and use
    **more than one label when the section needs it.** These are not mutually
    exclusive. Pattison's "Slow Healing Heart" case speeds up, returns to its
    earlier pace, then slows relative to the original phrase length, and he is
@@ -513,7 +513,7 @@ When slashing a lyric for phrase boundaries, name the kind of phrase each unit
 is. Pat's own word for all of them is "phrases," not "clauses."
 
 > "Phrases are sentences or natural pieces of sentences sometimes called
-> 'clauses.'" — *Essential Guide to Lyric Form and Structure* (1991), Chapter 1
+> 'clauses.'" From *Essential Guide to Lyric Form and Structure* (1991), Chapter 1.
 
 Pat names **five** phrase types, with his own examples. His preamble: "Any book
 on English Grammar has more than enough to say about phrases, clauses, and
@@ -543,7 +543,7 @@ the span that *is* the phrase.
 
 **Noun phrases (used as subject, predicate, or object):**
 
-- *What you* see is a broken man. (Subject) — the italic span closes mid-phrase
+- *What you* see is a broken man. (Subject). The italic span closes mid-phrase
   in the source markup; the noun phrase is "What you see."
 - Sex is not *what it is cracked up to be.* (Predicate)
 - Hit the dealers *where it hurts the most.* (Object)
@@ -560,13 +560,13 @@ and, after them:
 > sentence. (Words like "who, what, when where, why, that.") These words turn
 > the phrases into dependents rather that self-reliant individuals.
 
-(Both oddities in that last sentence — the missing comma in "when where" and
-"rather that" for "rather than" — are in the source XHTML, not extraction
+(Both oddities in that last sentence, the missing comma in "when where" and
+"rather that" for "rather than", are in the source XHTML, not extraction
 artifacts; verified against `raw/`. Do not correct them.)
 
 ## Front-heavy and back-heavy phrases
 
-**Non-book material — and the source has now been READ (2026-08-11).**
+**Non-book material, and the source has now been READ (2026-08-11).**
 "Front-heavy," "back-heavy" and "body language" return **zero hits across all
 four books**. That is because the frame is from Pat's patpattison.com column
 "The Art of Phrasing" (<https://www.patpattison.com/art-of-phrasing>), which
@@ -578,15 +578,15 @@ coins both terms outright:
 
 **These are Pat's terms, not this plugin's.** Cite the column; never cite a
 chapter for them. This file was right to keep them and right not to claim a
-book — it was the only file that had this correct.
+book. It was the only file that had this correct.
 
 Where a lyric phrase begins relative to the bar shapes its emotional
 character. Two states:
 
-- **Front-heavy** — the phrase begins on or picks up to the downbeat.
+- **Front-heavy**: the phrase begins on or picks up to the downbeat.
   The first stressed syllable lands on or just after beat 1. The phrase
   feels anchored, settled, stable. Body language: standing still.
-- **Back-heavy** — the phrase begins after the downbeat (often on
+- **Back-heavy**: the phrase begins after the downbeat (often on
   beat 2, beat 3, or an "and"). The first stressed syllable arrives
   late in the bar. The phrase feels in motion, unsettled, leaning
   forward. Body language: walking, falling, reaching.
@@ -610,7 +610,7 @@ wants back-heavy on a weak bar.
 
 ## Body language
 
-**Unaudited — non-book material**, same scope as the section above: "body
+**Unaudited, non-book material**, same scope as the section above: "body
 language" appears nowhere in the four books, so do not attribute this framing to
 Pat. Two sentences previously stood here as quotations attributed to
 `— Pat (patpattison.com)` and `— Pat (seminar copy)`; the second was also
@@ -623,7 +623,7 @@ phrase sits against the bar communicates emotion before the words register.
 
 Three diagnostic questions:
 
-1. What does this phrase's body language say — standing still, walking,
+1. What does this phrase's body language say: standing still, walking,
    reaching, falling, leaning, pivoting?
 2. Does the body language match the lyric's emotion?
 3. If you swapped front-heavy to back-heavy (or vice versa), would the
@@ -651,28 +651,28 @@ this line walk forward" lands faster than "make this line back-heavy".
 ## Three-use balance taxonomy (*Essential Guide to Lyric Form and Structure* (1991), Chapter 1)
 
 Pat's *Essential Guide to Lyric Form and Structure* (1991), Chapter 1 names
-**at least three** deliberate uses for balanced and unbalanced phrase counts —
-his phrasing is "at least three purposes," so treat the list as open rather
+**at least three** deliberate uses for balanced and unbalanced phrase counts.
+His phrasing is "at least three purposes," so treat the list as open rather
 than as a closed taxonomy. The concept is present elsewhere in the skill; the
 named grouping is 1991's distinctive framing:
 
-1. **Spotlight** — this one is about *position*, not about change. When a
+1. **Spotlight**: this one is about *position*, not about change. When a
    section has an even number of phrases, the last phrase is the balancing
    position: the place where the lyric structure stops moving. Stopping is what
    shines the spotlight, so whatever lands there gets the attention. Decide
    which idea matters most, then put it in that slot. (The *shift* from
-   balanced to unbalanced is use 3, not use 1 — do not merge them.)
-2. **Push sections forward** — use unbalance to refuse closure. An odd
+   balanced to unbalanced is use 3, not use 1. Do not merge them.)
+2. **Push sections forward**: use unbalance to refuse closure. An odd
    phrase count leaves the listener wanting more; that want IS the
    forward push. Balance closes; imbalance opens.
-3. **Contrast one section with another** — use different balance
+3. **Contrast one section with another**: use different balance
    patterns in adjacent sections to make the sections feel structurally
    distinct. A balanced verse + unbalanced bridge contrasts on the
    balance axis itself, independent of content.
 
 Pat uses "The Great Pretender" (*Essential Guide to Lyric Form and Structure*
 (1991), Chapter 1) as an example where the surprise of an extra phrase
-spotlights **both** the normal balancing position and the added line — with the
+spotlights **both** the normal balancing position and the added line, with the
 last phrase getting the most of it. Two lines lit, not one, and they are not
 lit equally.
 
@@ -683,13 +683,13 @@ when picking phrase counts.
 
 ## Cross-references
 
-- [lyric-melodic roadmaps](lyric-melodic-roadmaps.md) — when lyric
+- [lyric-melodic roadmaps](lyric-melodic-roadmaps.md): when lyric
   phrase boundaries fight melodic phrase boundaries.
-- [prosody](prosody.md) — greedy spots (often appear at front/back-heavy
+- [prosody](prosody.md): greedy spots (often appear at front/back-heavy
   mismatches) and motion as emotion; three phrasing types (OSONG-525).
-- [meter](meter.md) — the stress-mapping discipline underneath phrase
+- [meter](meter.md): the stress-mapping discipline underneath phrase
   placement.
-- [stable / unstable](stable-unstable-meta.md) — front/back-heavy as a
+- [stable / unstable](stable-unstable-meta.md): front/back-heavy as a
   stability lever at the bar level.
-- [hook](hook.md) — hot spots and the title's relationship to the
+- [hook](hook.md): hot spots and the title's relationship to the
   downbeat.

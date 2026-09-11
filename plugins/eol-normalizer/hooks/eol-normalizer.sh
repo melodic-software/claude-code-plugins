@@ -15,12 +15,6 @@
 
 set -uo pipefail
 
-# Read inherited fd0 directly (bare cat) — NEVER `</dev/stdin`: on Windows Git
-# Bash, CC spawns hooks with stdin = a Win32 pipe that `/dev/stdin` cannot
-# resolve (ENOENT -> silent no-op). stdin is read ONCE here and reused for both
-# hook::read_file_path (file_path) and the tool_name parse; reading fd0 twice
-# would drain the pipe on the second call.
-#
 # The hook's own directory is derived with parameter expansion rather than
 # `dirname`, and resolved ONCE for all three sources. On the Windows Git Bash
 # host this hook is tuned for, an exec costs about a spawn and a command
@@ -40,23 +34,18 @@ source "$HOOK_DIR/hook-utils.sh"
 # shellcheck source=rewrite-guard.sh
 source "$HOOK_DIR/rewrite-guard.sh"
 
-# Capture $EPOCHREALTIME immediately after the kill switch so duration_ms covers
-# the work below. EPOCHREALTIME is Bash 5.0+; on older bash it is unset, so
-# default to empty — referencing it bare under `set -u` would abort before the
-# advisory exit 0, failing every edit.
-start=${EPOCHREALTIME:-}
-
 # Emit this run's telemetry envelope: $1 status, $2 action taken.
-# Two guards: the high-res start stamp (EPOCHREALTIME is Bash 5.0+; on older
-# bash it is empty and telemetry is skipped, so the hook still normalizes
-# rather than aborting) and the sink opt-in. The data payload costs a jq
-# subprocess, so it is built here after both guards — never on the unwired
-# path. This hook's matcher is every file write, so that is the hottest path in
-# the fleet.
+# Two guards: the high-res start stamp (empty on bash before 5.0, where
+# telemetry is skipped so the hook still normalizes rather than aborting) and
+# the sink opt-in. The data payload costs a jq subprocess, so it is built here
+# after both guards — never on the unwired path. This hook's matcher is every
+# file write, so that is the hottest path in the fleet.
 emit_tel() {
   [[ -n "$start" ]] || return 0
   hook::telemetry_enabled || return 0
-  hook::emit_telemetry "eol-normalizer" "PostToolUse" "$1" "$start" "$(build_data_json "$2")" "$REPO_ROOT"
+  local data=""
+  hook::data_json_to data "$TOOL" "$FILE_REL" "${HOOK_REWRITE_CHANGED:-}" action str "$2"
+  hook::emit_telemetry "eol-normalizer" "PostToolUse" "$1" "$start" "$data" "$REPO_ROOT"
 }
 
 # The bundled EOL library (normalize_eol_file).
@@ -64,65 +53,16 @@ emit_tel() {
 # shellcheck source=normalize-eol.sh
 source "$HOOK_DIR/normalize-eol.sh"
 
-hook::buffer_stdin_to INPUT || exit 0
-
-# jq is load-bearing for input parsing; absent → visible once-per-session skip
-# notice instead of silently disabling the whole hook (dim-9 doctrine).
-hook::require_jq PostToolUse eol-normalizer "$INPUT"
-
-FILE=$(printf '%s' "$INPUT" | hook::read_file_path) || exit 0
-
-# Resolve the repo root that anchors `git check-attr` (CWD-independent — the hook
-# process CWD is not guaranteed to be the repo root). File-anchored so it is
-# correct for clones, linked worktrees, and bare-hub clones.
+# The whole prologue: the start stamp, the buffered payload, the jq gate, the
+# parsed path with its basename and directory, and the repo root that anchors
+# `git check-attr` (file-anchored, so it is correct for clones, linked
+# worktrees and bare-hub clones, and CWD-independent — the hook process CWD is
+# not guaranteed to be the repo root). TOOL and FILE_REL follow behind the sink
+# opt-in. Exits 0 itself on every path this hook has nothing to do on.
 #
-# The directory hint is stripped with parameter expansion rather than `dirname`,
-# for the reason given at the source line above. FILE has already cleared
-# hook::read_file_path's `-f` test, so it names an existing regular file and
-# carries no trailing slash; the fallbacks cover the two shapes where the strip
-# and dirname disagree: a bare relative filename with no separator, where
-# dirname answers `.`, and a file directly under the filesystem root, where the
-# strip leaves an empty string that hook::repo_root would read as `.` (the hook
-# process CWD) while dirname answers `/`.
-FILE_DIR="${FILE%/*}"
-[[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR=.
-[[ -n "$FILE_DIR" ]] || FILE_DIR=/
-REPO_ROOT=""
-hook::repo_root_to REPO_ROOT "$FILE_DIR"
-
-# TOOL and FILE_REL feed the telemetry data object and nothing else, so both are
-# resolved only when a sink is wired: the unwired default path spawns zero
-# telemetry-only subprocesses (the tool_name jq parse, and 2× cygpath on
-# Windows).
-#
-# FILE_REL is the repo-relative path for the telemetry data.file, degrading to
-# the basename when the prefix strip does not match, so an absolute path never
-# reaches telemetry.
-TOOL=""
-FILE_REL="$FILE"
-if hook::telemetry_enabled; then
-  TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
-  FILE_REL=""
-  hook::repo_relative_path_to FILE_REL "$FILE" "$REPO_ROOT"
-fi
-
-# Build the telemetry data object for the current TOOL/FILE_REL. $1 is the
-# action taken. jq is authoritative. The fallback is a fixed empty-shape
-# object — NOT an interpolation of TOOL/FILE_REL, which could inject quotes or
-# backslashes from a path and corrupt the envelope. The fallback is essentially
-# unreachable in practice (it fires only if `jq -n` fails, and when jq is absent
-# hook::emit_telemetry drops the envelope anyway), so losing the values here is
-# harmless and strictly safer than emitting malformed JSON.
-build_data_json() {
-  jq -n \
-    --arg tool "$TOOL" \
-    --arg file "$FILE_REL" \
-    --arg action "$1" \
-    --arg changed "${HOOK_REWRITE_CHANGED:-}" \
-    '{tool:$tool,file:$file,action:$action}
-     + (if $changed == "" then {} else {changed: ($changed == "true")} end)' 2>/dev/null ||
-    printf '{"tool":"","file":"","action":""}'
-}
+# No glob list: this hook's matcher IS its filter — every written file in the
+# consuming repo carries line endings the repo's .gitattributes governs.
+hook::begin eol-normalizer PostToolUse
 
 # Content-mutation disclosure (#1596): line-ending normalization is a structural
 # rewrite the user did not request; name what changed on the user channel and

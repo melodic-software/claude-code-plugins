@@ -4,8 +4,8 @@ Graduated reference for the "Finding Your Unknowns" methodology: an artifact-fir
 working where, before and during an implementation, the agent produces small purpose-built
 artifacts (explainers, brainstorms, interviews, mockups, plans) whose job is to surface
 what you don't yet know while it is still cheap to find out. This doc owns the house
-conventions the methodology graduated into this marketplace — the reply-affordance
-convention, the export-button rule, and the opt-in deviation-log convention — plus the
+conventions the methodology graduated into this marketplace: the reply-affordance
+convention, the export-button rule, and the opt-in deviation-log convention. It also owns the
 pattern catalog and the boundaries (when HTML, when not; what deliberately stays
 un-codified). Sibling docs: `PLUGIN-PHILOSOPHY.md` (governance),
 `GLOSSARY.md` (vocabulary), `MIGRATION-PLAYBOOK.md` (delivery).
@@ -13,8 +13,8 @@ un-codified). Sibling docs: `PLUGIN-PHILOSOPHY.md` (governance),
 **Sources and permission basis.** The material derives from public posts by their named
 author (see [Sources](#sources-and-citation-shape)). This doc quotes short attributed
 verbatim excerpts under fair-quotation practice; no license is claimed and bulk
-reproduction is avoided. Quotes are reproduced exactly as published — punctuation
-included — and are never edited to fit this repo's style rules.
+reproduction is avoided. Quotes are reproduced exactly as published, punctuation
+included, and are never edited to fit this repo's style rules.
 
 ## Contents
 
@@ -38,19 +38,19 @@ interview, prototype, and reference is a cheap way to find out what you didn't k
 it gets expensive to fix." (Field guide, [Sources](#sources-and-citation-shape) S1.) Each
 pass below trades a few minutes of artifact review for a class of rework.
 
-Caution on the framing: the author's stronger thesis — that output quality is now
-bottlenecked by the human's ability to clarify the model's unknowns — is a single
+Caution on the framing: the author's stronger thesis, that output quality is now
+bottlenecked by the human's ability to clarify the model's unknowns, is a single
 practitioner's vendor-published claim and is treated here as direction, not doctrine.
 
 ## The unknowns taxonomy
 
 Four quadrants, asked as "what are your unknowns?" before prompting:
 
-- **Known knowns** — what the prompt already states.
-- **Known unknowns** — questions you know to ask but haven't answered yet.
-- **Unknown knowns** — things you assume without realizing you're assuming them; the
+- **Known knowns**: what the prompt already states.
+- **Known unknowns**: questions you know to ask but haven't answered yet.
+- **Unknown knowns**: things you assume without realizing you're assuming them; the
   agent can't see them until you disclose them.
-- **Unknown unknowns** — the pothole you didn't know the road could have; only an
+- **Unknown unknowns**: the pothole you didn't know the road could have; only an
   artifact that shows you the terrain surfaces these.
 
 The draft article's quadrant taglines ("questions you know to ask", "the pothole you
@@ -74,27 +74,27 @@ Two diagnostics ride the taxonomy:
 
 The lifecycle is a loop: what an artifact teaches you becomes the starting map for the
 next round. The author frames this as matching the map to the territory (S1, "Matching
-map and territory") — cited here as his metaphor, not adopted as house vocabulary (see
+map and territory"), cited here as his metaphor, not adopted as house vocabulary (see
 `GLOSSARY.md` rejected terms).
 
 ## The five-pass pre-implementation workflow
 
 The corpus composes its pre-implementation demos into one ordered flow. This repo ships a
-skill per pass; the composition itself is judgment, not a gate — run the passes whose
+skill per pass; the composition itself is judgment, not a gate. Run the passes whose
 unknowns you actually have, in this order when you run several:
 
-1. **Blindspot pass** — `/discovery:blindspot`: surface unknown unknowns in the task's
+1. **Blindspot pass**, `/discovery:blindspot`: surface unknown unknowns in the task's
    blast radius.
-2. **Brainstorm / prototype** — `/planning:brainstorm` for direction candidates;
+2. **Brainstorm / prototype**, `/planning:brainstorm` for direction candidates;
    `/prototype:explore-directions` or `/prototype:pressure-test` when the unknown is
    visual or interactive.
-3. **Interview** — `/planning:interview`: convert known unknowns into decisions on the
+3. **Interview**, `/planning:interview`: convert known unknowns into decisions on the
    record.
-4. **Reference port** — `/discipline:point-dont-copy` when the work leans on an external
+4. **Reference port**, `/discipline:point-dont-copy` when the work leans on an external
    reference whose semantics must survive the port.
-5. **Plan** — `/planning:plan`: lock the approach with the unknowns now known.
+5. **Plan**, `/planning:plan`: lock the approach with the unknowns now known.
 
-Notes: the sequencing is chat-portable — every pass works as plain conversation, the
+Notes: the sequencing is chat-portable. Every pass works as plain conversation, and the
 artifact form is optional. Running later passes in a fresh session with the earlier
 artifacts carried forward matches this repo's existing session-flow doctrine (the corpus
 independently corroborates it; see `session-flow` plugin).
@@ -103,14 +103,14 @@ independently corroborates it; see `session-flow` plugin).
 
 Patterns the corpus demonstrated that have no owning skill; each entry is one canonical
 prompt-line to adapt. Patterns with an owning skill are listed in the
-[workflow](#the-five-pass-pre-implementation-workflow) above — invoke the skill instead.
+[workflow](#the-five-pass-pre-implementation-workflow) above. Invoke the skill instead.
 
 - **Disclose your starting point** (primer for any pass): "Before we start: my starting
   point is X, my current thinking is Y, my experience level with this area is Z."
 - **Teach me my unknowns** (explainer with a vocabulary ladder): served by
   `/education:explain`; ask it to end with the terms you should now be using.
 - **Design-system HTML file**: "Generate a single HTML page from this codebase's real
-  tokens and components — one section per component family — so future design
+  tokens and components, one section per component family, so future design
   conversations can cite it as the reference."
 - **PR explainer page**: "Make a single-file HTML explainer of this PR for reviewers:
   annotated diff hunks, a module map of what talks to what, and the three questions a
@@ -127,7 +127,7 @@ it needed no new mode here.
 ## Reply-affordance convention
 
 **The rule.** A generated review artifact ends with a structured reply affordance: a
-machine-legible way for the human's reaction to become the next prompt — steal/skip
+machine-legible way for the human's reaction to become the next prompt: steal/skip
 choices, a chip-filled reply template, a decisions table, a confirmation token. Default
 with judgment: apply it to artifacts that exist to collect a decision; skip it for purely
 informational output. In session contexts that render artifacts (the `artifact-design`
@@ -173,23 +173,23 @@ registry row per `PLUGIN-PHILOSOPHY.md` "Convention registry".
 
 ## When HTML, and when not
 
-The corpus's examples index (S3) organizes twenty demos into nine categories —
+The corpus's examples index (S3) organizes twenty demos into nine categories:
 exploration and planning, code review and understanding, design, prototyping,
-illustrations and diagrams, decks, research and learning, reports, custom editing
-interfaces — which double as the "when is HTML worth it" taxonomy: reach for a rendered
-page when the information is spatial (diffs, call graphs), comparative (side-by-side
-directions), interactive (motion you can only feel), or recurring (reports that benefit
-from structure and color).
+illustrations and diagrams, decks, research and learning, reports, and custom editing
+interfaces. Those categories double as the "when is HTML worth it" taxonomy: reach for a
+rendered page when the information is spatial (diffs, call graphs), comparative
+(side-by-side directions), interactive (motion you can only feel), or recurring (reports
+that benefit from structure and color).
 
 - **Density rubric**: HTML earns its cost through tables, CSS, SVG, interaction, and
   spatial layout. Markdown pushed past its density limit produces the degraded
   workarounds (ASCII diagrams, unicode color) that signal you wanted a page.
 - **Reading ceiling**: the author's ~100-line markdown ceiling is a practitioner
-  anecdote, recorded as such — not a measured threshold.
+  anecdote, recorded as such, not a measured threshold.
 - **Sharing**: the publish-and-share argument is satisfied in this environment by the
   Artifact tool; nothing extra to build.
 - **Scoping rule**: HTML artifacts are for ephemeral and published outputs. They never
-  replace version-controlled instruction surfaces — HTML diffs are noisy (the author's
+  replace version-controlled instruction surfaces. HTML diffs are noisy (the author's
   own admission) and generation costs 2-4x the markdown equivalent, so plans, skills,
   and docs stay markdown in git.
 
@@ -200,13 +200,13 @@ sections: demo first; the pitch; pre-answered objections; spec at a glance; risk
 rollback with named per-person asks and a deadline. The pre-answered-objections element
 is the industry-standard core: Amazon's PR/FAQ carries an internal FAQ anticipating hard
 leadership questions (Bezos 2017 shareholder letter; Bryar & Carr's Working Backwards),
-and every surveyed RFC process — Rust RFCs, Oxide RFDs, Google design docs, Uber-style
-RFCs — requires drawbacks/alternatives-considered sections. In all of those orgs the
+and every surveyed RFC process requires drawbacks/alternatives-considered sections: Rust
+RFCs, Oxide RFDs, Google design docs, Uber-style RFCs. In all of those orgs the
 persuasion artifact and the decision record are one document with a lifecycle, which is
 why this repo extends existing planning artifacts rather than minting a parallel one.
 
 **Objection-evidence checklist** (reusable in PR descriptions): for each objection you
-expect, write the question, the factual answer, and the evidence citation — before
+expect, write the question, the factual answer, and the evidence citation, before
 anyone asks. An objection you can't answer factually is an unknown; route it back
 through the [workflow](#the-five-pass-pre-implementation-workflow).
 
@@ -233,26 +233,26 @@ Two companions to the warning:
   forms judgment about fails this criterion even when it satisfies density, sharing, and
   ease.
 - **Throwaway-editor doctrine**: a custom editing interface is "not a product, or a
-  reusable tool" — it is built for the exact thing being worked on and discarded. The
+  reusable tool". It is built for the exact thing being worked on and discarded. The
   marketplace instinct to generalize a good throwaway into a shipped generator is the
   failure mode the warning names.
 
 ## Heuristics awaiting evidence
 
 The following corpus heuristics are recorded here as doc lines and candidate eval cases,
-not as standing skill instructions — per `PLUGIN-PHILOSOPHY.md` "Instruction economy",
+not as standing skill instructions. Per `PLUGIN-PHILOSOPHY.md` "Instruction economy",
 they graduate into a skill body only on observed, repeated stumble evidence:
 
 - **Observed-fact evidence bar** (brainstorming): each candidate option cites an observed,
   falsifiable fact about the codebase (a path plus a claim that could be wrong), not just
   a plausible path.
 - **Already-built-but-disconnected scan**: before proposing new work, scan for dead
-  imports, dark feature flags, and unread tables — the improvement may already exist,
+  imports, dark feature flags, and unread tables. The improvement may already exist,
   disconnected.
 - **Non-obvious-behavior keying** (quizzes): author questions against behaviors a reader
   would skim past, not against what the diff makes obvious.
 - **Collapse self-check** (plans): before collapsing a section as "mechanical, trust me",
-  re-check that nothing in it is actually a judgment call — the corpus's failure case is
+  re-check that nothing in it is actually a judgment call. The corpus's failure case is
   a design decision hidden in a collapsed section.
 
 ## Sources and citation shape
@@ -261,19 +261,19 @@ Citations in this doc use: URL, ISO retrieval date, and `sha256:<hex64>` over th
 snapshot bytes captured at retrieval. Content drift produces a new citation, never an
 in-place hash edit.
 
-- **S1** — "A field guide to Claude Fable 5: Finding your unknowns", Thariq Shihipar,
+- **S1**: "A field guide to Claude Fable 5: Finding your unknowns", Thariq Shihipar,
   Anthropic blog, published 2026-07-06.
   `https://claude.com/blog/a-field-guide-to-claude-fable-finding-your-unknowns`
   (retrieved 2026-09-01,
   `sha256:ac8229699555d38eb0dfe6c80dd2e85353f30471a7abff0894d342b5107aad26`)
-- **S2** — "Using Claude Code: The Unreasonable Effectiveness of HTML", X article by the
+- **S2**: "Using Claude Code: The Unreasonable Effectiveness of HTML", X article by the
   same author. `https://x.com/trq212/status/2052809885763747935` (retrieved 2026-09-01,
   `sha256:07dc71b1a7fabe264b9a80ee003edbcd1e74013895372a8ffe13ee4bb178e63c`)
-- **S3** — HTML-effectiveness examples index (20 demos, 9 categories, plus the 11-demo
+- **S3**: HTML-effectiveness examples index (20 demos, 9 categories, plus the 11-demo
   "Know your unknowns" sub-collection). `https://thariqs.github.io/html-effectiveness`
   (retrieved 2026-08-31,
   `sha256:7e6da98b6b447ec39efdc6deb34602204e4641dc59f4e311e3f05fb23d74f98e`)
-- **S4** — X draft of the field guide (citable only for draft-only content: the quadrant
+- **S4**: X draft of the field guide (citable only for draft-only content: the quadrant
   taglines, the lifecycle-loop image, and three links the published blog dropped).
   `https://x.com/trq212/status/2073100352921215386` (retrieved 2026-09-01; snapshot
   pinned in the corpus work slice)

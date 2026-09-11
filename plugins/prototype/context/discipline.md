@@ -1,13 +1,13 @@
 # Prototype discipline (both facets)
 
 Shared by `/prototype:pressure-test` and `/prototype:explore-directions`. A prototype is **throwaway code that
-answers a question** — the question decides the shape. The `logic` facet is a behavioral /
+answers a question**, and the question decides the shape. The `logic` facet is a behavioral /
 feasibility spike ("does this work / which approach?"); the `ui` facet is a design prototype
 ("what should this look like?").
 
 Prototyping sits between locking product intent and committing to an implementation plan: a
 prototype proves "X works like THIS" cheaply before you architect it. Skip when the question is
-answerable by reading code or thinking — prototype when you need to push buttons and watch state
+answerable by reading code or thinking. Prototype when you need to push buttons and watch state
 change.
 
 ## Model auto-invoke gate
@@ -20,59 +20,59 @@ checkpointing your current work first (`/session-flow:handoff` when installed).
 
 1. **Throwaway from day one, clearly marked.** Locate it close to where production code will live
    so context is obvious. Name it so a reader sees it's a prototype, not production. Obey existing
-   routing/directory conventions — don't invent new structure.
+   routing/directory conventions, and don't invent new structure.
 2. **One command to run.** Use the project's existing task runner. The user starts it without
    thinking.
 3. **No persistence by default.** State lives in memory. Persistence is what the prototype is
    *checking*, not depending on. If the question involves a database, use a scratch DB or local
-   file with a clear "PROTOTYPE — wipe me" name.
+   file with a clear "PROTOTYPE, wipe me" name.
 4. **Skip polish.** No tests, no error handling beyond runnable, no abstractions. Learn fast,
    delete fast.
 5. **Surface the state.** After every action (logic) or variant switch (UI), show the full
    relevant state so the user sees what changed.
-6. **Delete or absorb when done.** The answer is the only thing worth keeping — and the answer is
+6. **Delete or absorb when done.** The answer is the only thing worth keeping, and the answer is
    larger than the winner (see [When done](#when-done)).
 
-One substrate-scoped exception to rules 3 and 6: when `/prototype:explore-directions` offers
-the bundled `design` skill's canvas — an explicit, user-chosen alternative to the throwaway
-HTML mockup — the variants live in a published, persistent Artifact under the user's account.
+One substrate-scoped exception to rules 3 and 6: when `/prototype:explore-directions` offers the
+bundled `design` skill's canvas as an explicit, user-chosen alternative to the throwaway HTML
+mockup, the variants live in a published, persistent Artifact under the user's account.
 That persistence is opted into knowingly at the offer site, not a rule violation; the repo side
 stays clean either way (nothing tracked references the canvas, and the durable answer is still
 captured in markdown before the prototype is closed out).
 
 ## When done
 
-Capture what the prototype taught somewhere durable — wherever your project keeps design
+Capture what the prototype taught somewhere durable: wherever your project keeps design
 decisions (a decision note, commit message, ADR, or issue tracker). If the user is present, a
 quick conversation captures the verdict; if not, leave a placeholder `NOTES.md` next to the
 prototype so the answer gets filled in before deletion. Then delete the throwaway code.
 
 **Record the directions that lost, not only the one that won.** Name each direction that was tried
-and the reason it lost — a losing direction is the cheapest possible answer to "why not just do it
+and the reason it lost. A losing direction is the cheapest possible answer to "why not just do it
 this way?", and it is the only part of the exercise a future reader cannot reconstruct from the
-shipped result. When the verdict is a graft rather than a single winner — "this layout, but that
-one's navigation" — say which piece came from where, and what was in the discarded parts that the
-graft deliberately left behind. The deletion in the next step is irreversible: whatever is not
+shipped result. When the verdict is a graft rather than a single winner, such as "this layout, but
+that one's navigation", say which piece came from where, and what was in the discarded parts that
+the graft deliberately left behind. The deletion in the next step is irreversible: whatever is not
 written here is gone, and the question gets re-litigated from scratch the next time it comes up.
 
 ## What a prototype does NOT do
 
-- **Does not produce production code** — prototype constraints (no tests, minimal error handling)
+- **Does not produce production code.** Prototype constraints (no tests, minimal error handling)
   mean the code is rewritten when folded in.
-- **Does not explore what IS** — reading and tracing the codebase understands what exists; a
+- **Does not explore what IS.** Reading and tracing the codebase understands what exists; a
   prototype tests what *could* be.
-- **Does not generalize** — no "what if we wanted to support X later." One question, one answer.
+- **Does not generalize.** No "what if we wanted to support X later." One question, one answer.
 
 ## Composition
 
 | When | Skill | How it composes |
 |------|-------|-----------------|
-| Product intent locked | `/planning:prd` (when installed) | PRD says "users need X" — prototype proves X works |
+| Product intent locked | `/planning:prd` (when installed) | PRD says "users need X", and the prototype proves X works |
 | Architecture discovery surfaced a design question | `/architecture:improve` (when installed) | Improvement pass surfaces the opportunity → prototype validates the approach |
 | Prototype answered the question | `/planning:plan` (when installed) | Validated decision feeds the plan |
 | Logic module worth keeping | `/implementation:implement` (when installed) | Lift the pure module into production; delete the TUI shell |
 
-Ordering note — **mock before you wire**: when a change has both a "does the interaction work"
+Ordering note: **mock before you wire**. When a change has both a "does the interaction work"
 question and real integration work, run the throwaway mock (this plugin) before any wiring. A
 mock that fails kills the wiring work for free; wiring first turns every design misfire into
 rework of live code.

@@ -1,4 +1,4 @@
-# Actionable outputs — {video title}
+# Actionable outputs: {video title}
 
 Human-facing synthesis hub. Machine/verify artifacts stay in the `key-frames/` lane (`triage/`, `promotion-*.json`, etc.).
 

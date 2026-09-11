@@ -1,6 +1,6 @@
 # Worktrees (Section 28)
 
-Built-in git worktree support — Part 4 (Feb 20, 2026).
+Built-in git worktree support: Part 4 (Feb 20, 2026).
 
 ---
 
@@ -28,7 +28,7 @@ Subagents can use worktree isolation for more parallel work. Especially powerful
 
 ### Custom Agents with Worktree Isolation
 
-Make subagents always run in their own worktree — add `isolation: worktree` to agent frontmatter:
+Make subagents always run in their own worktree by adding `isolation: worktree` to agent frontmatter:
 
 ```yaml
 # .claude/agents/worktree-worker.md

@@ -1,6 +1,6 @@
 # Output schema
 
-This skill emits structured JSON at three levels. The schemas below are normative — every check script, every remediation script, and the orchestrator must produce output validating against them. Keeping the schema stable across OSes is the reason `reference/shared/` exists.
+This skill emits structured JSON at three levels. The schemas below are normative: every check script, every remediation script, and the orchestrator must produce output validating against them. Keeping the schema stable across OSes is the reason `reference/shared/` exists.
 
 ## 1. Check result
 
@@ -158,7 +158,7 @@ Emitted by `scripts/<os>/remediations/*.ps1` and embedded in the run snapshot.
 
 ## 4. History line (`state/history.jsonl`)
 
-Compact. One line per run. Append-only — never rewrite.
+Compact. One line per run. Append-only, never rewritten.
 
 ```json
 {
@@ -177,7 +177,7 @@ Compact. One line per run. Append-only — never rewrite.
 }
 ```
 
-`checks_ran` lists the ids of the checks that produced a usable result this run — cadence-skipped, script-missing, and failed-dispatch (timeout / no output / invalid JSON) checks are absent, so a failed run does not defer the next one. It is the authoritative per-check "when did it last run" signal for cadence selection and `trend.last_run`.
+`checks_ran` lists the ids of the checks that produced a usable result this run. Cadence-skipped, script-missing, and failed-dispatch (timeout / no output / invalid JSON) checks are absent, so a failed run does not defer the next one. It is the authoritative per-check "when did it last run" signal for cadence selection and `trend.last_run`.
 
 `top_metrics` is a small denormalization so trend queries don't rehydrate every run's full JSON. It captures every scalar detail key of every check that ran, keyed `<check.id>.<detailKey>`; the trend engine reads one well-known key per check (`Get-TrendRelevantKey`).
 

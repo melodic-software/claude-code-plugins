@@ -18,16 +18,16 @@
 - [Targeting the next section](#targeting-the-next-section)
 - [Stability reference](#stability-reference)
 - [Sequence](#sequence)
-- [The Structural Pentad — the 1991 frame under all of this](#the-structural-pentad--the-1991-frame-under-all-of-this)
+- [The Structural Pentad, the 1991 frame under all of this](#the-structural-pentad-the-1991-frame-under-all-of-this)
 - [The Pentad carried onto rhyme (*Essential Guide to Lyric Form and Structure* (1991), Chapter 4)](#the-pentad-carried-onto-rhyme-essential-guide-to-lyric-form-and-structure-1991-chapter-4)
 - [Analysis workflow](#analysis-workflow)
 - [Coaching prompts](#coaching-prompts)
 - [Revision moves](#revision-moves)
-- [Motion creates e-motion — the motion controllers](#motion-creates-e-motion--the-motion-controllers)
-- [Greedy spots — the anti-pattern](#greedy-spots--the-anti-pattern)
+- [Motion creates e-motion: the motion controllers](#motion-creates-e-motion-the-motion-controllers)
+- [Greedy spots, the anti-pattern](#greedy-spots-the-anti-pattern)
 - [Ordinary-language preservation](#ordinary-language-preservation)
 - [Tone of voice as a stability lever](#tone-of-voice-as-a-stability-lever)
-- [Origin note — *Essential Guide to Lyric Form and Structure* (1991), Chapter 2](#origin-note--essential-guide-to-lyric-form-and-structure-1991-chapter-2)
+- [Origin note: *Essential Guide to Lyric Form and Structure* (1991), Chapter 2](#origin-note-essential-guide-to-lyric-form-and-structure-1991-chapter-2)
 - [Three phrasing types (Berklee Online OSONG-525)](#three-phrasing-types-berklee-online-osong-525)
 - [Cross-references](#cross-references)
 
@@ -42,7 +42,7 @@ Audited against *Writing Better Lyrics* (2009) Chapters 18-19, and against
 *Essential Guide to Lyric Form and Structure* (1991) Chapters 3 **and 4**, both
 with their figures. **The "Chapters 3-4 (Structural Pentad)" citation above
 holds.** Chapter 3 introduces the Pentad on rhythmic structure; Chapter 4 opens
-by naming all five properties — balance, pace, flow, closure, closure type —
+by naming all five properties, balance, pace, flow, closure, and closure type,
 and gives each its own numbered section, applied to rhyme structure. The
 citation spans both chapters because the framework does.
 
@@ -50,7 +50,7 @@ Everything book-sourced below is now Pat's own text and Pat's own examples,
 quoted rather than described. Two conventions apply to those quotations. Where a
 stress or rhyme label in the source is visibly wrong, the label is omitted
 rather than corrected or propagated. Where the ebook text carries an extraction
-artifact — a lost `ff` ligature, a line-break hyphen — the word is restored to
+artifact, a lost `ff` ligature or a line-break hyphen, the word is restored to
 its normal spelling; Pat's own typos are left alone.
 
 **Ordinary-language preservation is book-sourced, not web-sourced.** The rule
@@ -60,29 +60,29 @@ cited to the book below.
 
 **Web-source status, updated 2026-08-11.** The **American Songwriter column
 "Motion Creates E-Motion In Songwriting" (17 October 2012) has now been fetched
-and read** — see [motion creates e-motion](#motion-creates-e-motion--the-motion-controllers).
+and read.** See [motion creates e-motion](#motion-creates-e-motion-the-motion-controllers).
 Result: it does **not** carry a four-controller framework, and it never mentions
 line length, which dissolves a conflict this file previously recorded as live.
 
-**Still unaudited:** the Berklee Online article, patpattison.com, and OSONG-525
-— distillations nobody has checked against their originals. Two passages rest on
+**Still unaudited:** the Berklee Online article, patpattison.com, and OSONG-525,
+distillations nobody has checked against their originals. Two passages rest on
 those sources alone and stay paraphrased: tone of voice as a stability lever,
 and the third phrasing type. (`tone of voice` is also plugin-authored shorthand
-with 0 corpus hits — see
+with 0 corpus hits, see
 [book-references](book-references.md) "Plugin-authored vocabulary".) Where this
 file's wording and the 1991 chapter's wording diverge, the divergence is marked
 in place rather than silently reconciled.
 
 ## Image inventory
 
-- Chapter 18: `image_rsrcAUE.jpg` — "RHYME TYPES: SCALE OF RESOLUTION
+- Chapter 18: `image_rsrcAUE.jpg`, "RHYME TYPES: SCALE OF RESOLUTION
   STRENGTHS," the five-tier chart. Transcribed under "Rhyme type" below.
-- Chapter 19: `image_rsrcAUF.jpg` — the "Amazing Grace" grid with its Rhyme /
+- Chapter 19: `image_rsrcAUF.jpg`, the "Amazing Grace" grid with its Rhyme /
   Stresses / Overall columns, the figure that defines the capital-letter
   notation. Transcribed under "Motion notation" below.
 - *Essential Guide to Lyric Form and Structure* (1991), Chapter 3: **59 figure
   references, 56 unique**, `image_rsrc2YZ.jpg` through `image_rsrc30P.jpg`. The
-  load-bearing ones for this file are the scansion strips
+  ones this file depends on are the scansion strips
   `image_rsrc2ZB`-`2ZF` (the Sting model plus too hot / too cold / just right,
   transcribed under "Greedy spots") and the Pentad worksheets `image_rsrc309`
   (blank), `image_rsrc30A` (Common Meter) and `image_rsrc30C` (Paradigm Two),
@@ -98,13 +98,16 @@ in place rather than silently reconciled.
 
 *Writing Better Lyrics* (2009), Chapter 18 defines the term through Aristotle:
 
+<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison, Writing Better Lyrics (2009) -->
 > Aristotle said that every great work of art contains the same feature: unity.
 > Everything in the work belongs — it all works to support every other element.
 > Another word for unity is prosody, which is the "appropriate relationship
 > between elements, whatever they may be."
+<!-- ai-slop-ignore-end -->
 
 Pat's three examples of what "elements" can mean:
 
+<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison, Writing Better Lyrics (2009) -->
 > Between words and music: A minor key could support or even create a feeling
 > of sadness in an idea.
 >
@@ -116,6 +119,7 @@ Pat's three examples of what "elements" can mean:
 > Between rhythm and meaning: Obvious examples like "you gotta stop! … (pause)
 > … look and listen" or writing a song about galloping horses in a triplet
 > feel.
+<!-- ai-slop-ignore-end -->
 
 > The elements all join together to support the central intent, idea, and
 > emotion of the work. Everything fits. Prosody: the appropriate relationship
@@ -130,9 +134,11 @@ Tim McGraw. Verse one:
 > She'd never leave that one
 > So she can't be really gone
 
+<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison, Writing Better Lyrics (2009) -->
 > Though the character is giving us evidence that she's not gone for good, we
 > don't believe him. Something just doesn't feel right. The verse itself feels
 > funny — unstable.
+<!-- ai-slop-ignore-end -->
 
 Prosody is the appropriate relationship between elements. In songwriting, that
 means every available element can either support the central intent or work
@@ -146,6 +152,7 @@ romantic strings swelling in a major key under a slow-motion embrace, and then
 "an oboe cuts through the film score in a nasty minor second, and our bodies
 stiffen a little." The shotguns follow. Pat's point about who noticed:
 
+<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison, Writing Better Lyrics (2009) -->
 > Of course, the film score, which is created to stand behind the action, gave
 > it away. Most folks don't really notice it — they just react. The composer is
 > pulling the strings and we, like puppets, react predictably, feeling just what
@@ -154,6 +161,7 @@ stiffen a little." The shotguns follow. Pat's point about who noticed:
 > That's what's going on in "Can't Be Really Gone," but this time it's not the
 > music that creates the film score. It's the structure of the lyric, acting,
 > just like a film score, on our emotions.
+<!-- ai-slop-ignore-end -->
 
 Listeners may not consciously name the structural cue, but they react to it. A
 lyric can say one thing while structure quietly creates a contrary emotional
@@ -167,10 +175,12 @@ more directly:
 *Writing Better Lyrics* (2009), Chapter 18 puts the same claim as an
 unconditional:
 
+<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison, Writing Better Lyrics (2009) -->
 > These elements conspire to act like a film score and, in and of themselves,
 > create motion. And motion always creates emotion, completely independent of
 > what is being said. Ideally, structure should create prosody — support what is
 > being said — strengthening the message, making it more powerful.
+<!-- ai-slop-ignore-end -->
 
 The words carry meaning, but the section's motion carries feeling at the same
 time. When both levels agree, the idea gets stronger. When they disagree on
@@ -195,12 +205,14 @@ Start every structural choice with one question: is the section's emotional
 state stable or unstable? Chapter 18 states why that one question is enough to
 govern the rest:
 
+<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison, Writing Better Lyrics (2009) -->
 > Looking at your sections through the lens of stability or instability is a
 > practical tool for creating prosody because you'll be able to use it for every
 > aspect of your song: the idea, the melody, the rhythm, the chords, the lyric
 > structure — everything. It governs the choices you make. Ask yourself: Is the
 > emotion in this section stable or unstable? Once you answer that question, you
 > have a standard for making all your other choices.
+<!-- ai-slop-ignore-end -->
 
 Stable conditions include resolution, confidence, commitment, factual clarity,
 or emotional steadiness. Stable sections often benefit from even line counts,
@@ -218,8 +230,10 @@ rhythm can make irregular line length feel sharper.
 
 ## Five structural elements
 
+<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison, Writing Better Lyrics (2009) -->
 > Every section of every lyric you write uses five elements — always the same
 > five elements — of structure.
+<!-- ai-slop-ignore-end -->
 
 The five elements of lyric structure are:
 
@@ -278,7 +292,7 @@ Was blind, but now I see               b   3   B
 <!-- spellchecker:on -->
 
 If rhyme structure and line-length structure do not align clearly, omit the
-capital-letter shorthand and mark the separate features directly — Pat's rule
+capital-letter shorthand and mark the separate features directly. Pat's rule
 is exactly that:
 
 > In cases where the arrangement of line lengths doesn't match the rhyme scheme,
@@ -323,10 +337,12 @@ pulls the rug out from under the narrator. It creates irony."
 
 That is the mechanism running under "Can't Be Really Gone" verse one:
 
+<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison, Writing Better Lyrics (2009) -->
 > This feels unstable, though the message is: "Look at the evidence — it proves
 > that she'll be coming back." But the feeling we get from the unstable
 > structure (which is acting like a film score) is that he's wrong and perhaps a
 > bit hysterical or, at least, in denial.
+<!-- ai-slop-ignore-end -->
 
 Pat's control experiment is the same content rebuilt in four lines:
 
@@ -335,8 +351,10 @@ Pat's control experiment is the same content rebuilt in four lines:
 > I know she'd take her hat along
 > So I know she can't be really gone
 
+<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison, Writing Better Lyrics (2009) -->
 > Since the section feels balanced, we'd probably be convinced — there's a sense
 > of resolution, balance, and completeness that we feel here.
+<!-- ai-slop-ignore-end -->
 
 ## Length of lines
 
@@ -350,11 +368,13 @@ Line length is measured by stressed syllables, not raw syllables. Equal stress
 lengths stop the ear; unequal stress lengths push the ear forward.
 
 Pat extends the traffic-cop image in *Songwriting Without Boundaries* (2011),
-Challenge 4, Day 13, and the extension is a **ranking** — line length outranks
+Challenge 4, Day 13, and the extension is a **ranking**, line length outranking
 rhyme as a motion controller:
 
+<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison, Songwriting Without Boundaries (2011) -->
 > Both line length and rhyme are traffic cops, but line length has a higher
 > rank—captain, as opposed to sergeant.
+<!-- ai-slop-ignore-end -->
 
 He shows the same order of authority twice more in that challenge. Of a
 six-line `xxaxxa` section: "Whatever motion there is comes from line lengths
@@ -377,21 +397,25 @@ Lines three and four, taken as a pair:
 
 The verse runs 4 / 4 / 4 / 3 / 3 stresses.
 
+<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison, Writing Better Lyrics (2009) -->
 > The three-stress line leaves us short, creating an unstable feeling — making
 > us feel uncomfortable, like something's not quite right.
+<!-- ai-slop-ignore-end -->
 
 > With yet a second three-stress line, a new expectation kicks in: We'd like one
 > more three-stress line.
 
-Pat supplies that sixth line — `She'll soon be coming home`, another three — and
-the six-line version is the comparison that makes the point audible: "Read it
-through a few times. See how comfortable it feels?" Cut it back to five and the
-narrator is exposed:
+Pat supplies that sixth line, `She'll soon be coming home`, another three-stress
+line, and the six-line version is the comparison that makes the point audible:
+"Read it through a few times. See how comfortable it feels?" Cut it back to five
+and the narrator is exposed:
 
+<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison, Writing Better Lyrics (2009) -->
 > So there's a conspiracy between the number of lines and the line lengths to
 > torpedo this guy — to expose him for the man in denial that he is. It's
 > important to note that he isn't similarly exposed in the previous six-line
 > structure.
+<!-- ai-slop-ignore-end -->
 
 Prosody checks:
 
@@ -407,7 +431,7 @@ Prosody checks:
 **Plugin-authored rule, writer-derived from the Sofía sessions (2026-08-12).**
 A section written with no paradigm chosen and no line length matched to a sibling
 is still heard against the lengths the rest of the song established, because
-[phrasing](phrasing.md) "phrase length controls speed" only works by contrast — a
+[phrasing](phrasing.md) "phrase length controls speed" only works by contrast. A
 phrase is long or short relative to the pace already set. The freedom is from a
 paradigm, not from an envelope.
 
@@ -415,7 +439,7 @@ The rule: **before writing a section without a fixed paradigm, measure the
 stress-length range of the song's other sections and write inside it.** The
 envelope is that measured range and nothing brought in from outside; a line that
 leaves it is a deliberate spotlight and gets named as one, per the traffic-cop
-ranking above — line length is the captain.
+ranking above: line length is the captain.
 
 Measure it in stressed syllables, per the rule at the head of this section. Raw
 syllable counts are recorded alongside only as note counts, never as lengths.
@@ -424,7 +448,7 @@ Observed 2026-08-12: a bridge written free of any paradigm ran to 13- and
 check caught it, because nothing in the method had yet asked what the other
 sections measured.
 
-"Free meter" is workspace shorthand, not a Pat category — the phrase returns zero
+"Free meter" is workspace shorthand, not a Pat category. The phrase returns zero
 hits across the four books. Pat supplies the measurement and the ranking; the
 envelope discipline is the plugin's. Pass 5 of
 [line-edit-rubric](line-edit-rubric.md) is where a candidate is checked against
@@ -472,17 +496,17 @@ Rhythm is the first structural element the listener hears. A first line sets a
 rhythmic and length standard before rhyme or total line count can be known.
 
 The elements become audible in a fixed order. This is what the *listener*
-receives — it explains which expectations exist by which line, and it is not the
+receives. It explains which expectations exist by which line, and it is not the
 order the Analysis workflow below marks them in, which is chosen for ease of
 counting on the page:
 
-1. **Rhythm** — line one.
-2. **Line length** — line one sets the standard; line two either matches it and
+1. **Rhythm**: line one.
+2. **Line length**: line one sets the standard; line two either matches it and
    stops the motion, or does not and pushes it forward.
-3. **Rhyme structure** — end of line two at the earliest, often not until line
+3. **Rhyme structure**: end of line two at the earliest, often not until line
    three, sometimes not until the section ends.
-4. **Number of lines** — only at the end.
-5. **Rhyme type** — colors whichever closures the other four have built.
+4. **Number of lines**: only at the end.
+5. **Rhyme type**: colors whichever closures the other four have built.
 
 Motion rules for rhythm:
 
@@ -493,11 +517,13 @@ Motion rules for rhythm:
 
 ## Rhyme scheme
 
+<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison, Writing Better Lyrics (2009) -->
 > Songs are made for listening — we hear them rather than see them.
 >
 > Rhyme is a sonic event, made for listening. It provides our ear with road
 > signs to guide us through the journey of the song. It shows us connections. It
 > tells us when to stop and when to move forward.
+<!-- ai-slop-ignore-end -->
 
 Pat's demonstration takes one line of the verse and pairs it, then splits the
 pair. Paired, `door` / `floor` "sounds finished. It stops us. It feels resolved,
@@ -556,7 +582,7 @@ Perfect Rhyme    Family Rhyme    Additive/       Assonance    Consonance
 >
 > There are no rules, only tools.
 
-The verse's closing pair is Pat's worked case — the consonance rhyme `one` /
+The verse's closing pair is Pat's worked case, the consonance rhyme `one` /
 `gone`:
 
 > Here, the consonance rhyme, one/gone, conspires, along with the other elements
@@ -589,6 +615,7 @@ Section two (the divorce):
 
 Section three (the promised place):
 
+<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison, Writing Better Lyrics (2009) -->
 > Hmm. Both? Yes. An even number of lines with matched alternating line lengths,
 > rhyming lines two and four. That's what I'm promising you — a place where
 > everything will feel stable again. But alas, though it might still feel
@@ -596,15 +623,18 @@ Section three (the promised place):
 > matter how stable the place we go feels, there's that darn men/wind
 > consonance/additive rhyme, making everything hang. Real stability is now just
 > an illusion. No perfect rhymes in sight.
+<!-- ai-slop-ignore-end -->
 
 Section four (the title):
 
+<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison, Writing Better Lyrics (2009) -->
 > Yep — very unstable. We'll never get our innocence back. Our life is always
 > destined to be an odd number of unequal-length lines topped off by another
 > consonance rhyme, defense/innocence.
 
 > A remarkable journey, where the structure supports — indeed, helps create — the
 > emotional intent of the song.
+<!-- ai-slop-ignore-end -->
 
 This is the model for the Analysis workflow below: ask the stable/unstable
 question per section, then name which of the five elements delivered the answer.
@@ -650,7 +680,7 @@ wobbly table to a capsizing ship."
 ## Closure across whole sections
 
 [meter](meter.md) defines deceptive and unexpected closure and owns the
-distinction — both are named against the listener's prior expectation, and
+distinction. Both are named against the listener's prior expectation, and
 deception requires a setup specific enough to fool.
 
 Chapter 19 extends the same test past common meter to any section shape. Two
@@ -658,11 +688,11 @@ additions:
 
 - **Unexpected closure is what organizes the five-line one-matching-element
   group.** Those sections float, and the ones that read as most stable are the
-  ones resolving where nothing was predicted — `XXAA`'s fourth line surprises
+  ones resolving where nothing was predicted. `XXAA`'s fourth line surprises
   without fooling, because lines two and three raised nothing to be wrong about.
 - **Both can fire in one section, in either order.** `ABAAB` deceives at line
   four (`B` owed, `A` delivered) and then pays the original `B` at line five,
-  where nobody was watching — expected content in an unexpected place, more
+  where nobody was watching: expected content in an unexpected place, more
   stable than either effect alone. `ABABBA` runs two unexpected closures in
   reverse order.
 
@@ -679,12 +709,14 @@ in the oncoming title.
 Pat introduces the tool on an `AAB` pre-chorus whose third line is left hanging,
 against a chorus whose title is "For One Smile in a Million":
 
+<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison, Writing Better Lyrics (2009) -->
 > If it were a pre-chorus or bridge, we could maybe use the third line's vowel
 > sound from while (which is asking to be rhymed) to illuminate an important
 > vowel sound in the oncoming section — for example, in an oncoming chorus where
 > the title of the song was something like "For One Smile in a Million." The
 > while in line three, hanging there unrhymed, will emphasize smile in the
 > chorus. Nifty tool, eh?
+<!-- ai-slop-ignore-end -->
 
 He then re-aims the same third line twice more, holding lines one and two fixed:
 
@@ -720,7 +752,7 @@ For one smile in a million           a   3 = A
 ```
 
 Two things move in that re-notation, not one. The first two lines lose their
-`a` labels and become `XX` once the ear reattaches line three to the title —
+`a` labels and become `XX` once the ear reattaches line three to the title,
 and Pat also shortens line two to two stresses. So the resolved feeling is the
 rhyme plus the line-length change together, which is the same combination the
 two-line ladder above measures. The transition resolves rather than merely
@@ -732,7 +764,7 @@ brightening.
 
 - Target a vowel **inside** the title and the title gets a sonic boost without
   extra resolution.
-- Target the title's **end rhyme** instead and the transition resolves harder —
+- Target the title's **end rhyme** instead and the transition resolves harder,
   neither right nor wrong, just a different feeling.
 - Target nothing and the position is spent.
 
@@ -800,13 +832,15 @@ Pat's verdicts, rung by rung. On 1: "It stops. You can feel the resolution." On
 balance or stability. Not as much as if they rhymed, but enough to keep you from
 wanting to lunge forward." On 3:
 
+<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison, Writing Better Lyrics (2009) -->
 > Even though these rhyme, they rhyme in different positions — most likely on
 > different beats in the musical measure. There's a little stronger push forward
 > here. So line length is a stronger motion creator than rhyme, huh? Yup.
+<!-- ai-slop-ignore-end -->
 
 On 4: "This is the least stable. It leans forward really hard."
 
-Rungs 2 and 3 are the load-bearing pair: matched length without rhyme is more
+Rungs 2 and 3 are the pair that settles the ranking: matched length without rhyme is more
 stable than rhyme without matched length, so **line length is a stronger motion
 creator than rhyme.** When a section's motion is wrong, check the arrangement of
 line lengths before touching the rhyme scheme.
@@ -819,6 +853,7 @@ laying a foundation under the shorter line above them."
 
 Three-line sections:
 
+<!-- ai-slop-ignore-start: inline verbatim quotes from Pat Pattison, Writing Better Lyrics (2009) Chapter 19 -->
 - `AAA`: "the most stable of the three-line sequences. It seems almost to close
   down — almost to resolve. You can look at it as AA+A, and it depends on
   whether you see the third line leaning back or looking forward for more. The
@@ -839,28 +874,31 @@ Three-line sections:
   established here, so few expectations are raised. It sort of 'suspends'
   him — he feels like he's just hanging out, waiting to see what happens next,
   but with no hurry."
+  <!-- ai-slop-ignore-end -->
 - `AAB`: "This leans pretty hard, too, though not in the same way, since our
   expectations are a little less clear; maybe the resolution would be AABB, or
   maybe AAB AAB." Complete it either way and it becomes stable; leave it at
   three lines and "it would be pretty unstable."
 - `ABA`: "not only the most unstable of the three-line sequences, it also
   positively cries out for a resolving fourth line" matching line two's stress
-  count and rhyme — it is three-fourths of a common meter section. Invert the
+  count and rhyme. It is three-fourths of a common meter section. Invert the
   arrangement to short / long / short and the lean survives; stretch line two to
   five stresses and "it seems to lean even harder," which Pat attributes to its
   being "more of a departure from line one."
 
 Four-line sections:
 
+<!-- ai-slop-ignore-start: inline verbatim quote from Pat Pattison, Writing Better Lyrics (2009) Chapter 19 -->
 - `AAAA`: "Lots of stability here — it's basically Eenie Meenie Miney Moe. It
   has two balancing points: at the end of line two and at the end of line four.
   This is as solid as a structure can get." Because it stops in the middle, the
   last line "isn't quite as much a 'point of arrival' as it will be in other
   structures. The spotlights aren't as bright." As a chorus, Pat puts the title
-  in both the first and last line — a nice surprise to hear repeated, "but we
+  in both the first and last line, a nice surprise to hear repeated, "but we
   weren't being pulled inexorably toward it. The journey was much more steady,
   almost matter-of-fact. The structure portrays an attitude."
-- `AABB`: stable couplet motion — a complete stop at the end of line two and
+  <!-- ai-slop-ignore-end -->
+- `AABB`: stable couplet motion, a complete stop at the end of line two and
   again at line four, "creating two two-line sections. A very stable structure.
   When the protagonist says something using this structure, he/she's telling the
   truth. It's a stable fact."
@@ -868,12 +906,12 @@ Four-line sections:
   fully resolved but full of motion. We get a push forward by the shorter line
   two, then a big push when we hear line three match line one in length and
   rhyme."
-- `XAXA`: stable but more relaxed than `ABAB` — "we're missing the big rhyme
+- `XAXA`: stable but more relaxed than `ABAB` because "we're missing the big rhyme
   push forward at line three; the line length pushes, but without the additional
   momentum rhyme creates. This moves forward pretty strongly, but without the
   urgency we feel at line three of ABAB."
 - `ABAA`: deceptive closure; the final `A` fools the expected `B`. Pat's note is
-  an obligation, not a description — "it's a great way to call extra attention
+  an obligation, not a description: "it's a great way to call extra attention
   to the last line. Make sure there's something there worth looking at." It also
   takes a title top and bottom.
 - `XXAA`: a larger unit that closes only at the end. "This is a surprise. We had
@@ -906,7 +944,7 @@ Four-line sections:
   matter, though; it's the effect of the structure that counts." Long lines
   outside make it feel "pretty resolved"; short lines outside with long lines
   inside feel "less stable." With equal-length lines it is the In Memoriam
-  Quatrain, after Tennyson — an `abba` scheme "creating a suspended feeling at
+  Quatrain, after Tennyson, an `abba` scheme "creating a suspended feeling at
   the end of each quatrain, much as you'd do in a eulogy." Pat's listening
   reference is the verses of James Taylor's "Sweet Baby James."
 - `AAAX`, `AXAX`, `XAAX`, and `XXXX`: use when floating or unstable motion
@@ -922,8 +960,9 @@ Five-line sections:
   expecting the resolution. Call it 'unexpected closure.' These structures are
   probably most useful as verses, though they can also work effectively as
   choruses, given the proper combination of ideas." **A five-line section ending
-  in an unmatched line is the most unstable of the group** — "Five-line systems
+  in an unmatched line is the most unstable of the group**: "Five-line systems
   ending with an X will be the most unstable."
+  <!-- ai-slop-ignore-start: inline verbatim quotes from Pat Pattison, Writing Better Lyrics (2009) Chapter 19 -->
 - Two matching elements: `ABABB`, `ABAAB`, `ABBAA`, `ABBAB`, `ABAAA`,
   `ABABA`, `AABBA`, `AABBB`, and `AAABB` create different balances of closure,
   sequence, and forward pull. In the first six the opening two lines differ,
@@ -931,7 +970,7 @@ Five-line sections:
   "creating a system that stops at the couplet before continuing." Pat's notes
   on the ones that carry a mechanism: `ABABB` is "closed and stable, with the
   additional line leaning more backward than forward. You get a nice spotlight
-  at the end." `ABAAB` is the two-effect case — "Line four fools you — call it a
+  at the end." `ABAAB` is the two-effect case: "Line four fools you — call it a
   'deceptive closure': You expected B, but got A instead. Then, at line five, you
   get what you originally expected but where you didn't expect it, so it's a
   cross between expected and unexpected closure, making it feel a bit more
@@ -943,8 +982,9 @@ Five-line sections:
   "a bit, like a limerick," and its final `A` "seems to stop rather than start a
   new sequence, as if it's simply referring back to the opening AA." `AAABB`
   "feels strangely stable. It should be crying out for another B, but it doesn't
-  seem to" — Pat's guess is that "the feel of the couplet interferes" with the
+  seem to", and Pat's guess is that "the feel of the couplet interferes" with the
   sequence's request for `AAABBB`.
+  <!-- ai-slop-ignore-end -->
 - Three matching elements: `ABCAC` and `ABCBC` create deceptive closure because
   the fifth line answers a line other than the expected one. On `ABCAC`: "Line
   four suggests that a sequence is taking shape: ABCABC. Then you get the
@@ -959,7 +999,7 @@ Five-line sections:
   dimming line five with it. Shortening `C` lets line four close solidly and
   brightens the spotlight on line five.
 - `ABCAA` and `ABCAB`: tend to push forward toward a missing `C`. Both remain
-  unstable even with the `C` line shortened — the `ABCAB` version "still wants to
+  unstable even with the `C` line shortened. The `ABCAB` version "still wants to
   move to" its missing `C`, which Pat labels "the power of sequence."
 
 Six-line sections:
@@ -976,9 +1016,11 @@ Six-line sections:
   Cohen's. It doesn't push forward as hard as ABCABC, since the opening couplet
   stops the section. It's also harder for sequence to kick in, though it's in
   full force at the end of line five."
+  <!-- ai-slop-ignore-start: inline verbatim quote from Pat Pattison, Writing Better Lyrics (2009) Chapter 19 -->
 - `ABABAB`: mostly stable, though "the final AB might clear its throat a bit,
   wondering whether the larger ABAB sequence will be matched again to make
   ABABABAB. So, just a touch of instability — looking forward to another AB."
+  <!-- ai-slop-ignore-end -->
 - `ABBABB`: can feel stable but may float. "The challenge with this structure is
   that it doesn't establish sequence, and thus doesn't raise much expectation,
   giving it a tendency to float." Shortening the `A` lines makes it "feel a bit
@@ -991,14 +1033,14 @@ Six-line sections:
 Sequence is expectation created by partial repetition of a structural pattern.
 `ABCAB` wants `C` because the ear has learned the pattern. This can overpower
 the raw number of lines: a five-line section can feel incomplete if the sequence
-points toward a sixth line. Pat runs `ABCAB` twice — once with a five-stress `C`
-and once with the `C` shortened — and it still wants its missing `C` both times.
+points toward a sixth line. Pat runs `ABCAB` twice, once with a five-stress `C`
+and once with the `C` shortened, and it still wants its missing `C` both times.
 His two-word verdict on the demonstration: "That's the power of sequence."
 
-The sequence principle is also what makes `AAA` feel unfinished — "The principle
-of sequence says it's looking to pair off, since we heard a pairing (a resolving
-couplet) after line two" — and what makes `ABCABC` the six-line version of
-common meter.
+The sequence principle is also what makes `AAA` feel unfinished, because "The
+principle of sequence says it's looking to pair off, since we heard a pairing (a
+resolving couplet) after line two", and what makes `ABCABC` the six-line version
+of common meter.
 
 Sequence coaching checks:
 
@@ -1009,12 +1051,13 @@ Sequence coaching checks:
 - Would a shorter or longer version of one line change the stability enough to
   support the lyric's attitude?
 
-## The Structural Pentad — the 1991 frame under all of this
+## The Structural Pentad, the 1991 frame under all of this
 
 *Essential Guide to Lyric Form and Structure* (1991), Chapter 3 builds Common
-Meter up as a reference structure — a PARADIGM — and then reads five properties
+Meter up as a reference structure, a PARADIGM, and then reads five properties
 off it. Pat's five numbered descriptions of Common Meter, verbatim:
 
+<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison, Essential Guide to Lyric Form and Structure (1991) -->
 > 1. BALANCE: It is BALANCED — there is an even number of phrases, each phrase
 > has a counterpart, and the order of the phrases is repeated. Nothing is left
 > "hanging."
@@ -1037,12 +1080,13 @@ off it. Pat's five numbered descriptions of Common Meter, verbatim:
 > We have just developed what we will call the STRUCTURAL PENTAD (penta =
 > "five") — five normal characteristics of any structure, be it a rhythmic
 > structure, a rhyme structure, or even a musical structure.
+<!-- ai-slop-ignore-end -->
 
 Note the wording gap between the prose and the worksheet: the numbered
 description above says "It is BALANCED," but the worksheet's row offers
 **SYMMETRICAL / ASYMMETRICAL**. The worksheet values are the closed list; the
 prose around it uses the looser wording. See [meter](meter.md) "Structural
-Pentad — unified diagnostic," which owns that note.
+Pentad: unified diagnostic," which owns that note.
 
 The worksheet itself (`image_rsrc309.jpg`), reproduced with its exact value
 sets:
@@ -1055,7 +1099,7 @@ CLOSURE:    ___ CLOSED           ___ OPEN
 C. TYPE:    ___ EXPECTED         ___ UNEXPECTED      ___ DECEPTIVE
 ```
 
-Common Meter — Paradigm One — filled in (`image_rsrc30A.jpg`):
+Common Meter, Paradigm One, filled in (`image_rsrc30A.jpg`):
 
 ```text
 BALANCE:     x  SYMMETRICAL      ___ ASYMMETRICAL
@@ -1065,7 +1109,7 @@ CLOSURE:     x  CLOSED           ___ OPEN
 C. TYPE:     x  EXPECTED         ___ UNEXPECTED      ___ DECEPTIVE
 ```
 
-Paradigm Two — four matching four-stress phrases — filled in
+Paradigm Two, four matching four-stress phrases, filled in
 (`image_rsrc30C.jpg`). One row moves:
 
 ```text
@@ -1117,8 +1161,8 @@ Two of those sections carry mechanisms this file uses elsewhere:
   shorten PHRASE LENGTHS."
 - **Flow.** "Rhyme is the best way to control a lyric's FLOW. Nothing can match
   rhyme's power in this area. Not phrase length. Not rhythm." An `aabb` scheme
-  fragments — the `a`s "bond" together and create an internal point of
-  rest — while `abab` stays through-written. Pat's rule of thumb: "when you want
+  fragments, since the `a`s "bond" together and create an internal point of
+  rest, while `abab` stays through-written. Pat's rule of thumb: "when you want
   ideas to flow, through-write the rhyme scheme; when you want ideas to 'section
   off,' fragment it."
 
@@ -1183,8 +1227,8 @@ verbatim wording for the two title-targeting drills is given below because the
   long-first-line and short-first-line versions (Ex 27); for `AAB` and `ABA`,
   run the title-targeting drills (Ex 28, Ex 29).
 - Four-line reference pass (Ex 30-35): draft `AAAA` with your title top and
-  bottom (Ex 30), `AABB`, `ABAB` — then go find five common-meter examples in
-  songs you already know (Ex 31) — `XAXA` by modifying your own `ABAB` (Ex 32),
+  bottom (Ex 30), `AABB`, `ABAB`, then go find five common-meter examples in
+  songs you already know (Ex 31), `XAXA` by modifying your own `ABAB` (Ex 32),
   `ABAA` with second-line targeting (Ex 33), `XXAA`, `XAAA`, `AABA` with
   third-line targeting (Ex 34), `ABBA`, `AAAX`, `AXAX`, `XAAX` (Ex 35), and
   `XXXX`, naming where the ear stops and where it leans forward.
@@ -1207,7 +1251,7 @@ verbatim wording for the two title-targeting drills is given below because the
   closure.
 - Let one stable element sharpen a chosen unstable element.
 - Use line count, line length, rhythm, rhyme scheme, and rhyme type as separate
-  knobs. Revise the biggest mismatch first — with one tiebreak: when line length
+  knobs. Revise the biggest mismatch first, with one tiebreak: when line length
   and rhyme are the competing suspects, turn line length, which moves a section
   harder than rhyme does. Against any other element the ladder says nothing.
 - Use structural mismatch deliberately for irony, not by accident.
@@ -1216,9 +1260,9 @@ verbatim wording for the two title-targeting drills is given below because the
 - Let line length, rhyme scheme, and line count disagree only when the emotional
   effect is worth the instability.
 
-## Motion creates e-motion — the motion controllers
+## Motion creates e-motion: the motion controllers
 
-**The column has now been READ — corrected 2026-08-11.** Fetched at
+**The column has now been READ. Corrected 2026-08-11.** Fetched at
 <https://americansongwriter.com/motion-creates-e-motion-in-songwriting/>
 (Pat Pattison, 17 October 2012). Chapters 18-19 do not contain a
 four-controller list, and **neither does the column.** What the column actually
@@ -1232,29 +1276,30 @@ and one sentence naming the others in passing:
 > But rhyme overlays these and adds yet another layer of motion in the song."
 
 The four items below are a fair distillation of what those two sentences name,
-and they are kept on that basis — but **Pat does not enumerate four
+and they are kept on that basis, but **Pat does not enumerate four
 controllers**, and this list must never be presented as his numbered framework.
 That is the "counts are the tell" failure this project keeps hitting.
 
 Distilled from the column, not enumerated by it:
 
-1. **Rhyme scheme** — pace, flow, closure.
-2. **Musical groove** — the rhythmic feel under the lyric.
-3. **Harmonic rhythm** — how often chords change.
-4. **Melodic rhythm** — long notes vs short notes, syncopation, line-end
+1. **Rhyme scheme**: pace, flow, closure.
+2. **Musical groove**: the rhythmic feel under the lyric.
+3. **Harmonic rhythm**: how often chords change.
+4. **Melodic rhythm**: long notes vs short notes, syncopation, line-end
    note durations.
 
 The bare slogan "motion creates e-motion" is Pat's, but the fuller sentence this
 file used to print inside quotation marks and attribute to `— Pat` traces to no
 readable source and has been removed rather than left to look verbatim.
 
-**The list is INCOMPLETE, not contradicted — corrected 2026-08-11.** An earlier
+**The list is INCOMPLETE, not contradicted. Corrected 2026-08-11.** An earlier
 pass recorded a live conflict here between this list and Challenge 4. Having
 read the column, there is no conflict to resolve: **the phrase "line length"
 does not appear in the column at all**, and the column makes no comparative
 claim about line length against rhyme. It is silent on the question, not
 opposed to the books.
 
+<!-- ai-slop-ignore-start: inline verbatim quote from Pat Pattison, Songwriting Without Boundaries (2011) -->
 What remains true is that the list is not a complete inventory of lyric-side
 motion controllers, because line length is the strongest one and it is missing.
 *Songwriting Without Boundaries* (2011), Challenge 4, Day 13 ranks **line length
@@ -1263,6 +1308,7 @@ a higher rank—captain, as opposed to sergeant." *Writing Better Lyrics* (2009)
 Chapter 19 makes the same ranking independently on the two-line ladder in
 [stability reference](#stability-reference): "So line length is a stronger
 motion creator than rhyme, huh? Yup."
+<!-- ai-slop-ignore-end -->
 
 So: use the column for the music-side controllers it names, and use
 [length of lines](#length-of-lines) and the stability ladder as the book-sourced
@@ -1271,27 +1317,27 @@ account of the lyric side. Do not re-file this as a contradiction.
 See [stable / unstable](stable-unstable-meta.md) for the cross-controller
 diagnostic.
 
-## Greedy spots — the anti-pattern
+## Greedy spots, the anti-pattern
 
 A greedy spot is a stressed syllable that lands on a weak musical beat, or
 an unstressed syllable forced onto a strong beat. The mismatch steals
 emphasis from where the music wants it, distorts the natural shape of the
 words, and breaks the listener's parse of the meaning.
 
-**Scope note — the term covers different ground in two frames.** Keep them
+**Scope note: the term covers different ground in two frames.** Keep them
 apart, because the same word means something narrower in one of them.
 
-- **Lyric against a melody** — the frame this section is in. A mismatch in
+- **Lyric against a melody**: the frame this section is in. A mismatch in
   *either* direction is a greedy spot, because either one distorts the natural
   shape of the words against the bar. That two-directional definition comes
   from the web sources above and has not been checked against them, but it is
   the definition the rest of this plugin's melody-alignment material uses.
-- **Lyric against a model lyric** — matching verse two to verse one. Here the
+- **Lyric against a model lyric**: matching verse two to verse one. Here the
   term originates in *Essential Guide to Lyric Form and Structure* (1991)
   Chapter 3, and it is **one-directional**: greed is putting stressed syllables
   into unstressed positions, the "too hot" failure only. Chapter 3's opposite
   error is not the reverse alignment mismatch and is not a stress problem at
-  all — it is "too cold," a line whose stresses land correctly but whose
+  all. It is "too cold," a line whose stresses land correctly but whose
   important positions carry semantically empty words. See [meter](meter.md)
   "Goldilocks pattern matching."
 
@@ -1310,7 +1356,7 @@ Pat's worked instances there are the rhyme pairs `breeze/harmonies` and
 `company/memory`, where the rhyming syllable of the longer word is its
 secondary stress.
 
-### The 1991 source text — too hot, too cold, just right
+### The 1991 source text: too hot, too cold, just right
 
 Chapter 3's demonstration matches new phrases to a model verse from Sting's "Be
 Still My Beating Heart." The model scans as two triple-pattern phrases followed
@@ -1372,7 +1418,7 @@ Oh give me peace at last
 Read the mechanism off lines one, two and four, where it is unambiguous: `deep`
 and `hold` sit in unstressed slots of the triple pattern; `heart` and `born` do
 the same in phrase two; `God` occupies the unstressed pickup of the closing
-duple. The too-cold version's failure is the opposite kind — its stresses land
+duple. The too-cold version's failure is the opposite kind: its stresses land
 where the model put them, but auxiliaries and filler occupy the strong
 positions.
 
@@ -1421,7 +1467,7 @@ natural shape of the language."
 
 Which syllables count as stressed is settled in *Essential Guide to Lyric Form
 and Structure* (1991) Chapter 3. Multi-syllable words carry conventional stress
-fixed by the dictionary — a stressed syllable is "higher in pitch," "louder,"
+fixed by the dictionary. A stressed syllable is "higher in pitch," "louder,"
 and "longer" than the unstressed syllables around it, so "words of two or more
 syllables have a little melody, with the stressed syllable 'on the beat.'"
 One-syllable words are decided by job: meaning carriers (nouns, verbs,
@@ -1451,7 +1497,7 @@ not.
 
 ## Tone of voice as a stability lever
 
-**Unaudited — web source, paraphrase retained deliberately.** This axis comes
+**Unaudited: web source, paraphrase retained deliberately.** This axis comes
 from the Berklee Online article, which is not in the corpus. *Writing Better
 Lyrics* (2009) Chapters 18-19 contain no tone-of-voice material, so there is no
 book text to restore here and none has been invented. The six levers below are
@@ -1459,21 +1505,21 @@ this file's distillation, not Pat's list.
 
 The axis itself: tone of voice sits outside both rhyme and meter. A line printed
 on the page has one stability character; the same line sung in two different
-voices has two. **Do not attribute this axis to Pat** — the phrase "tone of
+voices has two. **Do not attribute this axis to Pat.** The phrase "tone of
 voice" returns zero hits across all four books, and no book chapter develops it.
 
 Levers carried by tone:
 
-- Volume — soft is less stable; loud is more stable for confidence,
+- Volume: soft is less stable; loud is more stable for confidence,
   less stable for desperation.
-- Attack — clipped attack is stable, decisive; smeared attack is
+- Attack: clipped attack is stable, decisive; smeared attack is
   unstable, hesitant.
-- Pitch direction — rising endings open; falling endings close.
-- Breathiness — breath leakage is unstable, intimate; clean tone is
+- Pitch direction: rising endings open; falling endings close.
+- Breathiness: breath leakage is unstable, intimate; clean tone is
   stable, declarative.
-- Vibrato — held straight tone is stable, frozen; wide vibrato is
+- Vibrato: held straight tone is stable, frozen; wide vibrato is
   unstable, longing.
-- Tempo of phrasing — pushed against the beat is unstable; sitting
+- Tempo of phrasing: pushed against the beat is unstable; sitting
   with the beat is stable.
 
 The skill cannot coach the singer, but the writer must choose lyric
@@ -1484,13 +1530,13 @@ the words, on purpose or by accident.
 The claim in one line, **unattributed and unaudited**: tone of voice can change
 a section's stability without a single word changing. This file previously
 printed that sentence inside quotation marks against "paraphrase of Berklee
-article" — quotation marks around an admitted paraphrase of an unreadable
+article", quotation marks around an admitted paraphrase of an unreadable
 source. It is not a quotation and is no longer set as one.
 
 If a draft "sounds wrong" but the printed page looks fine, the tone
 of voice may be the lever doing the work. Sing the chorus two ways.
 
-## Origin note — *Essential Guide to Lyric Form and Structure* (1991), Chapter 2
+## Origin note: *Essential Guide to Lyric Form and Structure* (1991), Chapter 2
 
 Pat first introduces the term **prosody** in *Essential Guide to Lyric Form and
 Structure* (1991), Chapter 2. **Correction to an earlier version of this
@@ -1503,14 +1549,14 @@ Verbatim:
 
 What was narrow in 1991 was the *application*, not the meaning: Chapter 2 is a
 chapter about phrase length, so its worked examples are phrase pacing matching
-idea pacing. The definition Pat gives alongside them — "things fit well with one
-another … It can also be used in other ways" — already covers everything the
+idea pacing. The definition Pat gives alongside them, "things fit well with one
+another … It can also be used in other ways", already covers everything the
 2009 formulation covers, and Chapter 18's "appropriate relationship between
 elements, whatever they may be" is the same claim in tighter words.
 
 So what grew across the books is coverage, not definition: by 2009 the worked
 examples span all five compositional elements, and across the courses they
-extend to melody, harmony, and melodic rhythm — "structure is your film score."
+extend to melody, harmony, and melodic rhythm: "structure is your film score."
 
 When reading this file, that general meaning is in effect throughout. The
 1991 phrase-length application surfaces specifically in `phrasing.md`'s
@@ -1518,23 +1564,23 @@ phrase-length discussion.
 
 ## Three phrasing types (Berklee Online OSONG-525)
 
-**Unaudited — course source, paraphrase retained deliberately.** OSONG-525 is
+**Unaudited: course source, paraphrase retained deliberately.** OSONG-525 is
 not in the corpus and no book chapter names a third phrasing type, so nothing
 below has been converted to verbatim.
 
 Beyond the front-heavy / back-heavy frame in `phrasing.md`, Pat's
 graduate-level course adds a third type:
 
-1. **Front-heavy** — stress lands early in the bar (on or near downbeat).
+1. **Front-heavy**: stress lands early in the bar (on or near downbeat).
    Anchored feeling. Forward motion suppressed by the early lock.
-2. **Back-heavy** — stress lands late in the bar (after the downbeat).
+2. **Back-heavy**: stress lands late in the bar (after the downbeat).
    Forward-leaning feeling. Motion preserved.
-3. **Strong/weak bar** — a phrase that spans two bars where one bar is
+3. **Strong/weak bar**: a phrase that spans two bars where one bar is
    stress-heavy and the other is stress-light. Creates a strong/weak
    alternation at the bar level, not within a single bar.
 
 The third type is harder to perceive without sight-reading musical
-notation — it requires hearing the bar structure clearly. When the melody
+notation. It requires hearing the bar structure clearly. When the melody
 makes the bar boundaries audible, strong/weak bar phrasing creates
 section-internal motion the other two types can't access alone.
 
@@ -1542,21 +1588,21 @@ No "use when" rule for the third type is sourced. An earlier revision of this
 file carried a three-item trigger list here; it was scaffolding invented on top
 of an already-unreadable source, and it has been removed rather than restated.
 
-If you reach for the strong/weak-bar idea, reach for it descriptively — name
-what the bars are doing — and do not present a selection rule as Pat's.
+If you reach for the strong/weak-bar idea, reach for it descriptively, naming
+what the bars are doing, and do not present a selection rule as Pat's.
 
 ## Cross-references
 
-- [stable / unstable](stable-unstable-meta.md) — the cross-controller
+- [stable / unstable](stable-unstable-meta.md): the cross-controller
   meta-diagnostic; this file is its prosody-specific home.
-- [lyric-melodic roadmaps](lyric-melodic-roadmaps.md) — the three
+- [lyric-melodic roadmaps](lyric-melodic-roadmaps.md): the three
   fixes for roadmap mismatch (which is usually where greedy spots
   cluster).
-- [meter](meter.md) — Structural Pentad and the stress-mapping
+- [meter](meter.md): Structural Pentad and the stress-mapping
   discipline that ordinary-language preservation depends on.
-- [phrasing](phrasing.md) — front-heavy / back-heavy as another
+- [phrasing](phrasing.md): front-heavy / back-heavy as another
   prosody lever at the bar level.
-- [Five Compositional Elements](five-compositional-elements.md) — the
+- [Five Compositional Elements](five-compositional-elements.md): the
   five-row diagnostic that pairs with this file's principles.
-- [beyond-books](beyond-books.md) — OSONG-525 source for the three
+- [beyond-books](beyond-books.md): OSONG-525 source for the three
   phrasing types.

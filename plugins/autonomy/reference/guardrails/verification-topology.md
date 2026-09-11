@@ -9,13 +9,13 @@ contract vocabulary; every concrete model instance is an org-binding outcome on 
 ## Roles
 
 Roles are properties of this pipeline, not of any vendor's roster, so a roster change never edits
-policy — only the binding that resolves a role to an instance.
+policy, only the binding that resolves a role to an instance.
 
 | Role | Adjudicates |
 |---|---|
 | `generator` | produces the artifact under verification |
 | `checker` | judges that artifact, in isolation from every other checker |
-| `cross_vendor_checker` | the role a class uses to require vendor disjointness where its own floor does not — under `cross_vendor_required`, every model-adjudicated slot already carries it |
+| `cross_vendor_checker` | the role a class uses to require vendor disjointness where its own floor does not. Under `cross_vendor_required`, every model-adjudicated slot already carries it |
 | `ranker` | orders candidates or findings relative to each other rather than scoring one absolutely |
 
 ## Checker slots
@@ -23,7 +23,7 @@ policy — only the binding that resolves a role to an instance.
 A class's topology declares a list of checker slots, and a slot is filled by either a deterministic
 layer or a model-adjudicated role. A slot declares which it is: a `scanner_class` naming the
 deterministic layer that fills it marks the slot deterministic, and a slot without one is
-model-adjudicated. The distinction is load-bearing: a deterministic layer has no model or vendor
+model-adjudicated. The distinction decides which rules apply: a deterministic layer has no model or vendor
 identity, so the relational constraints and predicates below bind only model-adjudicated slots and
 are rejected on a deterministic one rather than ignored.
 
@@ -35,12 +35,12 @@ checker**, and a binding whose distinct-slot count falls below its class floor i
 A slot name tells a validator nothing about what the slot resolves to, so distinctness that is only
 intended is not distinctness. **The binding establishes it explicitly**: every model-adjudicated
 checker slot declares `distinct_model_from` against the `generator` and against every other checker
-slot in its class. A binding that leaves it undeclared has not established it and is invalid — an
+slot in its class. A binding that leaves it undeclared has not established it and is invalid. An
 undeclared constraint is the unevaluable case, which is the same failure as declaring none.
 
 Identity equality is the floor of that test, not the whole of it. Two identifiers can name one
-underlying model — an alias, a route through a reseller, adjacent versions of one family — and those
-share every failure mode while comparing unequal. **A binding declaring two slots it knows resolve
+underlying model through an alias, a route through a reseller, or adjacent versions of one family,
+and those share every failure mode while comparing unequal. **A binding declaring two slots it knows resolve
 to the same underlying model has declared one checker.** A check cannot see that, so the contract
 states the requirement and a check enforces the part it can read; the gap is recorded here rather
 than implied away.
@@ -53,9 +53,9 @@ A constraint binds a role by its relationship to another role, never by naming a
 
 | Constraint | Resolves via | Why |
 |---|---|---|
-| `distinct_model_from: <role>` | the model identity the binding declares — static, because a check reads a binding | a model judging its own output measures its own preference, not the artifact |
-| `distinct_vendor_from: <role>` | vendor identity | disjoint model families fail independently; same-vendor checkers share failure modes, so agreement between them is weaker evidence than its count suggests. `cross_vendor_required` therefore obliges vendor disjointness among the model-adjudicated slots as well as from the `generator` — a class whose checkers all share one vendor satisfies neither the constraint nor the reason for it |
-| `not_weaker_than: <role>` | an ordering source the binding declares | present but not defaulted — no cross-vendor capability ordering exists to evaluate it against, so no shipped default uses it. A binding may state it only where it also declares its own ordering source |
+| `distinct_model_from: <role>` | the model identity the binding declares, static because a check reads a binding | a model judging its own output measures its own preference, not the artifact |
+| `distinct_vendor_from: <role>` | vendor identity | disjoint model families fail independently; same-vendor checkers share failure modes, so agreement between them is weaker evidence than its count suggests. `cross_vendor_required` therefore obliges vendor disjointness among the model-adjudicated slots as well as from the `generator`. A class whose checkers all share one vendor satisfies neither the constraint nor the reason for it |
+| `not_weaker_than: <role>` | an ordering source the binding declares | present but not defaulted: no cross-vendor capability ordering exists to evaluate it against, so no shipped default uses it. A binding may state it only where it also declares its own ordering source |
 
 A constraint naming a role that its own class does not declare is invalid, not ignored.
 
@@ -68,18 +68,18 @@ cannot be evaluated is a preference, and preferences are not policy.
 |---|---|
 | `min_context_tokens: N` | the declared input limit of the bound instance |
 | `requires_modality: [...]` | the declared input/output modalities of the bound instance |
-| `requires_feature: [...]` | the bound instance's declared feature set — feature names are vendor-local, so the binding declares the mapping it resolves against |
+| `requires_feature: [...]` | the bound instance's declared feature set. Feature names are vendor-local, so the binding declares the mapping it resolves against |
 
 ## Budget
 
-`max_input_cost_per_mtok` / `max_output_cost_per_mtok` — a per-role ceiling. This refines the
+`max_input_cost_per_mtok` / `max_output_cost_per_mtok` set a per-role ceiling. This refines the
 matrix's cost-tier column and never replaces it: the tier is the class-level cost vocabulary, the
 ceiling is a numeric bound inside it. No vendor supplies a price feed, so the ceiling resolves
 against an org-maintained table.
 
 **The ceiling is recorded, never enforcing.** A price that will not resolve is recorded as
 unresolved; it does not invalidate a binding and does not gate a run. The matrix states that cost
-enforcement is out of scope, and hard spend caps are gated behind their own trigger — a ceiling that
+enforcement is out of scope, and hard spend caps are gated behind their own trigger. A ceiling that
 blocked here would quietly make this leaf the one enforcing exception to both.
 
 ## Pins
@@ -90,8 +90,8 @@ never need updating. A pin never selects a role for new work and is never a poli
 
 ## Rejected vocabulary: capability labels
 
-Capability labels — words naming how capable a model is, rather than what it must do or how it must
-differ — are recorded as rejected as policy vocabulary. Falsified twice over: each such word names a
+Capability labels, words naming how capable a model is rather than what it must do or how it must
+differ, are recorded as rejected as policy vocabulary. Falsified twice over: each such word names a
 different thing at each vendor, and none survives a model release. No such label appears anywhere in
 this contract; a binding that introduces one is expressing preference where the contract requires a
 resolvable constraint.
@@ -112,7 +112,7 @@ checker, and its binding is invalid.
 
 **`min_model_checkers` exists because a total count cannot express which kind of coverage is
 owed.** Without it, a class meets its floor with deterministic slots alone and never faces a model
-judge — and `cross_vendor_required` then binds an empty set and is satisfied by declaring nothing.
+judge, and `cross_vendor_required` then binds an empty set and is satisfied by declaring nothing.
 So it is never vacuously satisfied: **`cross_vendor_required: yes` requires at least two
 model-adjudicated slots, pairwise vendor-disjoint and disjoint from the `generator`**, and a class
 asserting it with fewer is invalid rather than trivially conforming.
@@ -120,28 +120,28 @@ asserting it with fewer is invalid rather than trivially conforming.
 Each class's composition is absolute, stated against the
 [security-review layers](security-review.md) it must not contradict:
 
-- `C1` — one slot: the output-shape check.
-- `C2` — one slot: the deterministic scanner layer.
-- `C3` — two slots: one deterministic layer and one model judge.
-- `C4` and `C5` — three slots: one deterministic layer and two model judges, vendor-disjoint.
+- `C1`: one slot, the output-shape check.
+- `C2`: one slot, the deterministic scanner layer.
+- `C3`: two slots, one deterministic layer and one model judge.
+- `C4` and `C5`: three slots, one deterministic layer and two model judges, vendor-disjoint.
 
 Shipped values are floors: a binding may tighten any cell but never weaken one below its shipped
 value. The weakening-is-invalid rule is the security-review knobs' own; this leaf adds that no
 justification field excuses a weakening either. Floors bind only on the org's security governance
 surface, outside the blast radius of the agents they govern; a floor those agents can lower is no
-floor. An absent or invalid binding fail-closes to the shipped values above, which this leaf owns —
-the matrix cells are their glance restatement.
+floor. An absent or invalid binding fail-closes to the shipped values above, which this leaf owns.
+The matrix cells are their glance restatement.
 
 ## Lenses
 
 A slot fixes who verifies; a lens fixes what that verifier is asked to look for. Diversity of lens
-is the point — two checkers asked the identical question share the blind spot the count exists to
+is the point: two checkers asked the identical question share the blind spot the count exists to
 cover, exactly as two slots resolving to one model do.
 
 Lenses bind model-adjudicated slots only. A deterministic slot is not asked a question; its coverage
 is fixed by its scanner class, and a lens on it would be decoration.
 
-The vocabulary is closed — a lens the pipeline cannot resolve to a question is a preference, and
+The vocabulary is closed: a lens the pipeline cannot resolve to a question is a preference, and
 preferences are not policy.
 
 | Lens | The question the checker is asked |
@@ -170,7 +170,7 @@ to changes how many slots a class runs, how they must differ, or whether one mus
 Two homes, and the difference is not convenience. An axis fixing how much verification a class gets
 binds on the org's security governance surface, outside the blast radius of the agents it governs.
 An axis fixing what angle that verification takes binds on the operator's own plugin-option surface,
-which resolves from user-scope, invocation-scope, and managed settings only — a watched
+which resolves from user-scope, invocation-scope, and managed settings only. A watched
 repository's in-tree settings are not read for plugin options, so a repo an agent can write cannot
 dial its own verification.
 
@@ -184,7 +184,7 @@ dial its own verification.
 **Raise, never lower.** The asymmetry is the whole reason the split exists. Tightening a binding
 cell is legal; weakening one is invalid per the floor rule above. `userConfig` reaches no floor at
 all and cannot be made to: the pool contributes to no count, and the narration lane has no cell to
-weaken. A degenerate pool costs angle, never coverage — the slots still run, still resolve
+weaken. A degenerate pool costs angle, never coverage: the slots still run, still resolve
 distinctly, and still owe unanimity. The reachable outcomes are a lensed checker or an unlensed one,
 never fewer checkers than the class's floor.
 
@@ -201,14 +201,14 @@ and produces nothing.
 
 **It carries no authority cell, by construction rather than by default.** The table above gives it
 no cell on the security binding, its schema carries none, and `userConfig` carries only whether it
-runs. Nothing an org could flip promotes it — a stronger property than a knob shipped off.
+runs. Nothing an org could flip promotes it, a stronger property than a knob shipped off.
 
 **What this does not rule out, stated plainly.** A class may declare a model-adjudicated checker
 slot whose `requires_modality` names an image input, and a security-review layer may gate on that
 slot. That slot is a checker: counted by the floors, held distinct, bound by every relational
 constraint, and owing unanimity. It is a different governance object from this lane, which is
 counted by nothing and owes nothing. The measurements below bear on both, and a class declaring such
-a slot should read them — but only the lane is structurally incapable of gating.
+a slot should read them, but only the lane is structurally incapable of gating.
 
 **Why the lane is shaped this way.** The reasoning is a design argument, not a measurement this
 contract holds. A gate's verdict has to be reproducible, because a check that answers differently
@@ -231,8 +231,8 @@ not reintroduce a figure this contract cannot source.
 
 **Not demonstrated at runtime.** With no runner built there is no runtime in which to exercise the
 ordering, so the property claimed here is structural: no cell exists through which authority could
-be granted. The runtime assertion — that a deterministic pass carrying a narration finding still
-advances — is a deferred item bound to the runner's build trigger, not a claim made here.
+be granted. The runtime assertion, that a deterministic pass carrying a narration finding still
+advances, is a deferred item bound to the runner's build trigger, not a claim made here.
 
 ## Two fixed invariants
 
@@ -240,13 +240,13 @@ Neither is a knob, and no binding may relax either.
 
 **Independent aggregation, never deliberation.** Checkers run isolated: no checker sees another
 checker's verdict or reasoning, and verdicts are combined mechanically. Deliberation between
-checkers is recorded as rejected: agreement reached by discussion is correlation, not corroboration
-— the count of agreeing checkers stops measuring independent confirmation the moment they can hear
+checkers is recorded as rejected: agreement reached by discussion is correlation, not corroboration.
+The count of agreeing checkers stops measuring independent confirmation the moment they can hear
 each other, so a deliberating panel's unanimity means strictly less than an isolated panel's while
 reading as if it meant more.
 
 **Unanimous checker agreement for anything auto-proceeding.** Every transition a run takes without a
-human — not merge alone — requires every checker the class declares to agree. One dissent withholds
+human, not merge alone, requires every checker the class declares to agree. One dissent withholds
 the automatic transition and hands the item to the human gate; divergence routing is owned by the
 matrix's escalation contract.
 
@@ -254,22 +254,22 @@ matrix's escalation contract.
 
 Unanimity needs a checker population and force behind its verdicts. This leaf's floors supply the
 population; the [security-review leaf](security-review.md)'s per-class blocking knob supplies the
-force. Only force is configurable into absence — floors are tighten-only, so no floor value can
+force. Only force is configurable into absence: floors are tighten-only, so no floor value can
 describe a topology that cannot be unanimous, while a knob left below `blocking` lets a dissent be
 recorded and the transition proceed anyway.
 
 **Binding-validity rule.** A class whose merge disposition is bound `auto` is invalid, rejected at
 check time, when either holds:
 
-- any verification layer for that class is bound `advisory` — the checker runs, dissents, and the
+- any verification layer for that class is bound `advisory`, so the checker runs, dissents, and the
   transition proceeds regardless; or
 - the class declares a model-adjudicated checker slot while its model-adjudicated layer is bound
-  `not-required` — the layer that slot judges in never runs, so its agreement can never be obtained
+  `not-required`, so the layer that slot judges in never runs, its agreement can never be obtained
   and unanimity over it is vacuous.
 
 A class declaring no model-adjudicated slot is not caught by the second case: its floor is seated by
 a deterministic slot, whose force is its own layer. The rule is a join across two axes, never a floor
-on either — each axis alone at a legal value can still combine into an automatic transition no
+on either: each axis alone at a legal value can still combine into an automatic transition no
 checker can withhold.
 
 **Dissent routes on the existing channel.** A withheld transition files on the bound route for the
@@ -285,7 +285,7 @@ non-conforming.
 **Why the check is merge-scoped while the obligation is not.** The obligation covers every
 transition a run takes without a human. Merge is the only such transition a binding can express:
 intermediate pipeline transitions are runner-owned, and no runner exists. Autonomous admission is
-not a second hole — admission precedes the artifact, so there is no checker verdict to be unanimous
+not a second hole: admission precedes the artifact, so there is no checker verdict to be unanimous
 about at that point.
 
 **Two limits, stated rather than hidden.** Neither is verified anywhere today.
@@ -297,5 +297,5 @@ about at that point.
   checkers is rejected; a run that does so is not yet detectable.
 - **Force is checked; resolved distinctness is not.** The slot rule above is stated over the binding
   because a binding is what a check can read. Two slots held distinct by declared constraints can
-  still resolve to one instance at run time, and no static check sees that — it is the same
+  still resolve to one instance at run time, and no static check sees that. It is the same
   runner-seam obligation.

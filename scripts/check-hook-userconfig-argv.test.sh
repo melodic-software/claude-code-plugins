@@ -9,26 +9,20 @@ set -uo pipefail
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SELF_DIR/check-hook-userconfig-argv.sh"
 
-# A fixture runs a COPY of the gate, so it must also carry the shared libraries
-# that copy sources (scripts/lib/*.sh). Without it the copied gate dies on a
-# missing source at line 1 and every assertion below turns into the same opaque
-# failure. See #3161.
-stage_libs() {
-  mkdir -p "$1/lib"
-  cp "$SELF_DIR/lib/read-list.sh" "$1/lib/"
-}
-
 # shellcheck source=lib/test-harness.sh
 . "$SELF_DIR/lib/test-harness.sh"
+# shellcheck source=lib/fixture-tree.sh
+. "$SELF_DIR/lib/fixture-tree.sh"
 
-new_fixture() {
-  local dir
-  dir="$(mktemp -d)"
-  mkdir -p "$dir/scripts" "$dir/plugins"
-  cp "$SCRIPT" "$dir/scripts/check-hook-userconfig-argv.sh"
-  stage_libs "$dir/scripts"
-  chmod +x "$dir/scripts/check-hook-userconfig-argv.sh"
-  printf '%s' "$dir"
+# The builder assigns through a nameref, which shellcheck cannot follow;
+# declaring the out-var here is what tells it (SC2154) the name is written.
+f=""
+
+# A fixture runs a COPY of the gate, so the builder stages scripts/lib/ with it:
+# without those, the copied gate dies on a missing source at line 1 and every
+# assertion below turns into the same opaque failure.
+new_fixture() { # <out-var>
+  fixture_tree::build "$1" --sut "$SCRIPT" --plugins
 }
 
 # plugin_file <fixture> <plugin> <relpath> <content>
@@ -69,7 +63,7 @@ CLEAN_HOOK='{
 }'
 
 # --- bare token in default hooks/hooks.json fails ---------------------------
-f="$(new_fixture)"
+new_fixture f
 plugin_file "$f" alpha hooks/hooks.json "$BARE_HOOK"
 if out="$(run_check "$f" 2>&1)"; then
   fail "bare token in hooks/hooks.json should fail, got success: $out"
@@ -83,7 +77,7 @@ fi
 rm -rf "$f"
 
 # --- clean hooks.json passes ------------------------------------------------
-f="$(new_fixture)"
+new_fixture f
 plugin_file "$f" alpha hooks/hooks.json "$CLEAN_HOOK"
 if out="$(run_check "$f" 2>&1)"; then
   ok "clean hooks.json passes"
@@ -93,7 +87,7 @@ fi
 rm -rf "$f"
 
 # --- token in an MCP config is out of scope ---------------------------------
-f="$(new_fixture)"
+new_fixture f
 plugin_file "$f" alpha hooks/hooks.json "$CLEAN_HOOK"
 plugin_file "$f" alpha .mcp.json '{"mcpServers":{"svc":{"env":{"TOKEN":"${user_config.api_token}"}}}}'
 if out="$(run_check "$f" 2>&1)"; then
@@ -104,7 +98,7 @@ fi
 rm -rf "$f"
 
 # --- manifest string-path hook config with token fails ----------------------
-f="$(new_fixture)"
+new_fixture f
 plugin_file "$f" alpha .claude-plugin/plugin.json '{"name":"alpha","hooks":"./config/extra-hooks.json"}'
 plugin_file "$f" alpha config/extra-hooks.json "$BARE_HOOK"
 if out="$(run_check "$f" 2>&1)"; then
@@ -119,7 +113,7 @@ fi
 rm -rf "$f"
 
 # --- manifest array of hook paths: token in one element fails ---------------
-f="$(new_fixture)"
+new_fixture f
 plugin_file "$f" alpha .claude-plugin/plugin.json '{"name":"alpha","hooks":["./hooks/hooks.json","./config/extra-hooks.json"]}'
 plugin_file "$f" alpha hooks/hooks.json "$CLEAN_HOOK"
 plugin_file "$f" alpha config/extra-hooks.json "$BARE_HOOK"
@@ -131,7 +125,7 @@ fi
 rm -rf "$f"
 
 # --- inline manifest hooks object with token fails --------------------------
-f="$(new_fixture)"
+new_fixture f
 plugin_file "$f" alpha .claude-plugin/plugin.json '{"name":"alpha","hooks":{"hooks":[{"matcher":"Bash","hooks":[{"type":"command","command":"x","args":["${user_config.k}"]}]}]}}'
 if out="$(run_check "$f" 2>&1)"; then
   fail "inline manifest hooks object with token should fail, got success: $out"
@@ -145,7 +139,7 @@ fi
 rm -rf "$f"
 
 # --- token elsewhere in the manifest (not hooks) passes ---------------------
-f="$(new_fixture)"
+new_fixture f
 plugin_file "$f" alpha .claude-plugin/plugin.json '{"name":"alpha","mcpServers":{"svc":{"env":{"T":"${user_config.api_token}"}}},"hooks":{"hooks":[]}}'
 if out="$(run_check "$f" 2>&1)"; then
   ok "token in manifest outside the hooks object passes"
@@ -155,7 +149,7 @@ fi
 rm -rf "$f"
 
 # --- unreferenced hooks/*.json sibling is not scanned -----------------------
-f="$(new_fixture)"
+new_fixture f
 plugin_file "$f" alpha hooks/hooks.json "$CLEAN_HOOK"
 plugin_file "$f" alpha hooks/unreferenced.json "$BARE_HOOK"
 if out="$(run_check "$f" 2>&1)"; then
@@ -166,7 +160,7 @@ fi
 rm -rf "$f"
 
 # --- allowlisted file with token passes -------------------------------------
-f="$(new_fixture)"
+new_fixture f
 plugin_file "$f" alpha hooks/hooks.json "$BARE_HOOK"
 printf '%s\n' 'plugins/alpha/hooks/hooks.json' >"$f/scripts/hook-userconfig-argv-allowlist.txt"
 if out="$(run_check "$f" 2>&1)"; then
@@ -177,22 +171,22 @@ fi
 rm -rf "$f"
 
 # --- stale allowlist entry (file clean) fails -------------------------------
-f="$(new_fixture)"
+new_fixture f
 plugin_file "$f" alpha hooks/hooks.json "$CLEAN_HOOK"
 printf '%s\n' 'plugins/alpha/hooks/hooks.json' >"$f/scripts/hook-userconfig-argv-allowlist.txt"
 if out="$(run_check "$f" 2>&1)"; then
   fail "stale allowlist entry should fail, got success: $out"
 else
-  if echo "$out" | grep -q 'STALE ALLOWLIST:'; then
-    ok "stale allowlist entry (clean file) fails"
+  if echo "$out" | grep -q "STALE BASELINE: .*: 'plugins/alpha/hooks/hooks.json' names no scanned hook config"; then
+    ok "stale allowlist entry (clean file) fails under the shared STALE BASELINE prefix"
   else
-    fail "expected STALE ALLOWLIST, got: $out"
+    fail "expected the shared STALE BASELINE diagnostic, got: $out"
   fi
 fi
 rm -rf "$f"
 
 # --- stale allowlist entry (file missing) fails -----------------------------
-f="$(new_fixture)"
+new_fixture f
 plugin_file "$f" alpha hooks/hooks.json "$CLEAN_HOOK"
 printf '%s\n' 'plugins/gone/hooks/hooks.json' >"$f/scripts/hook-userconfig-argv-allowlist.txt"
 if run_check "$f" >/dev/null 2>&1; then
@@ -203,7 +197,7 @@ fi
 rm -rf "$f"
 
 # --- allowlist comments and blank lines are inert ---------------------------
-f="$(new_fixture)"
+new_fixture f
 plugin_file "$f" alpha hooks/hooks.json "$CLEAN_HOOK"
 printf '%s\n' '# reserved for a ratified channel D adoption' '' >"$f/scripts/hook-userconfig-argv-allowlist.txt"
 if out="$(run_check "$f" 2>&1)"; then
@@ -217,7 +211,7 @@ rm -rf "$f"
 # The fixture spells the underscore as the JSON backslash-u005f escape (built
 # via printf so the literal backslash survives this file's own quoting): raw
 # grep cannot see the token, but the loader-equivalent decoded pass must.
-f="$(new_fixture)"
+new_fixture f
 ESCAPED_HOOK="$(printf '{"hooks":[{"matcher":"Bash","hooks":[{"type":"command","command":"x","args":["${user\\u005fconfig.some_toggle}"]}]}]}')"
 plugin_file "$f" alpha hooks/hooks.json "$ESCAPED_HOOK"
 if out="$(run_check "$f" 2>&1)"; then
@@ -232,7 +226,7 @@ fi
 rm -rf "$f"
 
 # --- manifest with no hooks key passes --------------------------------------
-f="$(new_fixture)"
+new_fixture f
 plugin_file "$f" alpha .claude-plugin/plugin.json '{"name":"alpha"}'
 plugin_file "$f" alpha hooks/hooks.json "$CLEAN_HOOK"
 if out="$(run_check "$f" 2>&1)"; then
@@ -243,7 +237,7 @@ fi
 rm -rf "$f"
 
 # --- out-of-tree manifest hooks path is skipped, visibly --------------------
-f="$(new_fixture)"
+new_fixture f
 plugin_file "$f" alpha .claude-plugin/plugin.json '{"name":"alpha","hooks":"../../outside.json"}'
 printf '%s\n' "$BARE_HOOK" >"$f/outside.json"
 if out="$(run_check "$f" 2>&1)"; then
@@ -258,7 +252,7 @@ fi
 rm -rf "$f"
 
 # --- default and manifest-pointed configs both flagged ----------------------
-f="$(new_fixture)"
+new_fixture f
 plugin_file "$f" alpha .claude-plugin/plugin.json '{"name":"alpha","hooks":"./config/extra-hooks.json"}'
 plugin_file "$f" alpha hooks/hooks.json "$BARE_HOOK"
 plugin_file "$f" alpha config/extra-hooks.json "$BARE_HOOK"
@@ -275,7 +269,7 @@ fi
 rm -rf "$f"
 
 # --- unparsable manifest does not crash the gate ----------------------------
-f="$(new_fixture)"
+new_fixture f
 plugin_file "$f" alpha .claude-plugin/plugin.json '{not json'
 plugin_file "$f" alpha hooks/hooks.json "$CLEAN_HOOK"
 if out="$(run_check "$f" 2>&1)"; then

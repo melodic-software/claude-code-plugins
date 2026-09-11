@@ -53,15 +53,19 @@
 # silently — today that is disk-hygiene's destructive_guard.py and
 # context-budget's node handler.
 #
-# Exit 0 = clean; 1 = one or more violations; 1 also for an environment problem
-# (fail closed — never a silent skip).
+# Exit 0 clean, 1 findings, 2 environment or usage; findings on stderr. That is
+# the whole family's contract, stated once in README.md, "The check-script
+# contract", and held by scripts/check-script-contract.test.sh. Two fail-closed
+# stops stay at 1 because they are statements about the TREE rather than about
+# this host: a hook corpus that scans to empty, and an inlined predicate that no
+# longer agrees with the hook::is_enabled it duplicates.
 set -euo pipefail
 
-cd "$(dirname "${BASH_SOURCE[0]}")/.."
+cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 2
 
 if ! command -v jq >/dev/null 2>&1; then
   echo "check-killswitch-hoist: jq is required but not installed" >&2
-  exit 1
+  exit 2
 fi
 
 HOOK_UTILS="lib/hook-utils.sh"

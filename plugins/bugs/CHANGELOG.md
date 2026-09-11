@@ -3,6 +3,17 @@
 All notable changes to the `bugs` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.1]
+
+### Changed
+
+- **Options reference drops its em dashes.** The generated How-to-set-these block is rewritten by `scripts/sync-plugin-options-docs.py`, which is the fix site: its output is regenerated, never hand-edited. The block no longer needs the ignore marker that exempted it from the repository's em-dash gate, so that marker is gone as well.
+
+- **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
+- **The plugin's prose drops its em dashes.** Seven surfaces were rewritten: this changelog, `reference/config.md`, the three `skills/scan/context/` documents, `skills/write/context/template.md`, and the `pagination-correct-offset` eval fixture. Wording only, with no change to any lens, severity rubric, gate rule, or config key. Twelve headings changed anchor; nothing in the repository linked to any of them. The `reference/config.md` H1 moved to the colon form its four sibling plugins already use, so this copy converges rather than diverges. The released sections corrected in place are 0.9.0, 0.8.0, 0.7.3, 0.7.2, 0.7.0, and 0.5.2: their wording changed, their facts did not.
+- **The changelog names the plugin instead of calling it a seam.** It now reads "through the `work-items` plugin", which is the concrete thing a reader goes looking for.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md`, `reference/config.md`, every `skills/*/SKILL.md`, and the `skills/*/context/` tree. One fenced template line in `skills/write/context/template.md` keeps its dash, because two expectations in `skills/write/evals/evals.json` pin that string and the fence already exempts it.
+
 ## [0.10.0]
 
 ### Added
@@ -169,7 +180,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 ### Changed
 
 - **BREAKING: the plugin is renamed `bug-report` → `bugs`.** With `scan` beside `write`, the plugin's
-  identity is the full front half of the bug lifecycle — find them, report them — and the old name
+  identity is the full front half of the bug lifecycle: find them, report them. The old name
   described only the second half. Skills are now `/bugs:scan`, `/bugs:write`, `/bugs:setup`; the
   tracked team config surface renames with it (`.claude/bug-report.md` → `.claude/bugs.md`, same keys,
   same cascade, per `reference/config.md`); the plugin-data root moves with the plugin name, so
@@ -177,19 +188,19 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   the next run). No aliasing or migration shim is shipped. Migration: the two names are distinct
   plugin installations, so install `bugs@<marketplace>` (declare + enable + install), then disable
   and uninstall `bug-report@<marketplace>`; and rename every configured cascade layer, not just the
-  team file — `~/.claude/bug-report.md` → `~/.claude/bugs.md`, `.claude/bug-report.md` →
+  team file: `~/.claude/bug-report.md` → `~/.claude/bugs.md`, `.claude/bug-report.md` →
   `.claude/bugs.md`, and `.claude/bug-report.local.md` → `.claude/bugs.local.md`, keeping the
   overlay gitignored. Historical entries below retain the old name.
-  The persisted report frontmatter keeps `type: bug-report` unchanged — storage-format identifiers
+  The persisted report frontmatter keeps `type: bug-report` unchanged. Storage-format identifiers
   stay stable across renames (ADR 0013).
 
 ## [0.8.0]
 
 ### Added
 
-- **`scan` — proactive bug hunting over resting code.** A third skill,
+- **`scan`: proactive bug hunting over resting code.** A third skill,
   `/bug-report:scan`, that looks for defects **nobody has observed yet**: no diff, no failing test,
-  no stack trace, no comment marker required. One invocation is one bounded pass — hunt a target
+  no stack trace, no comment marker required. One invocation is one bounded pass: hunt a target
   (`/bug-report:scan <path|feature|diff>`) or, bare, the next lane in a rotation, then stop. Findings
   come out in this plugin's existing five-field shape, each labeled `reproduced` or
   `verified-by-reading`.
@@ -201,19 +212,19 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   `skills/scan/context/lenses.md`: contract-vs-body mismatch, boundary and edge cases, cross-file
   consistency drift, state and concurrency hazards, and git-hotspot-guided reads.
 - **Bare invocation is read-only toward the repository; filing needs `--track`.** A bare run never
-  edits, branches, pushes, or files. `--track` files verified findings through the `work-items` seam
-  as **raw intake** — duplicate search first, `needs-triage` resolved from the consumer's live label
+  edits, branches, pushes, or files. `--track` files verified findings through the `work-items` plugin
+  as **raw intake**: duplicate search first, `needs-triage` resolved from the consumer's live label
   set across both label axes, no label creation, and a body provenance line the lane cursor later
   reads. It degrades to report-only with a printed notice when no tracker resolves. `--dry-run`
   persists nothing and advances nothing.
 - **Rotation state is derived statelessly, never from `.work/`.** Bare runs pick their lane down a
-  three-rung ladder — tracker filing history, then the newest report carrying a valid rotation cursor
+  three-rung ladder: tracker filing history, then the newest report carrying a valid rotation cursor
   block, resolved through the same directory precedence persistence uses, then a deterministic
-  date-derived floor — so a fresh clone rotates
+  date-derived floor. A fresh clone therefore rotates
   correctly with zero stored state. The run reports which rung it used. Per-run budget: stop at 3
   verified findings or a complete lane sample, at most 10 candidates per wave, at most 2 refill
   waves. A lane sample being complete is never reported as the lane being bug-free.
-- **`reference/config.md` — the single home for the `.claude/bug-report.md` key contract.** Layers
+- **`reference/config.md`: the single home for the `.claude/bug-report.md` key contract.** Layers
   and resolution order, per-key merge semantics declared beside the keys they govern (`lanes`
   concatenate with an explicit empty-list opt-out; `filing_posture` is a nearest-wins scalar), the
   file format, and the key partition rule that keeps `output_dir` a native `userConfig` value and out
@@ -222,8 +233,8 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 ### Changed
 
 - **`setup` is no longer check-only: it is now `check | apply`.** The plugin gained a second
-  configuration surface — the tracked, cascade-layered `.claude/bug-report.md` that `scan` reads for
-  its lanes and filing posture — which dissolves the check-only carve-out 0.5.0 adopted. `check`
+  configuration surface: the tracked, cascade-layered `.claude/bug-report.md` that `scan` reads for
+  its lanes and filing posture. That surface dissolves the check-only carve-out 0.5.0 adopted. `check`
   still inspects both surfaces read-only; `apply` writes or updates that one tracked file and
   nothing else, drafting lane candidates from the repository, confirming them one decision at a
   time, updating conservatively rather than overwriting, and verifying against the file on disk
@@ -252,9 +263,9 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   whole stored `pluginConfigs` entry, resetting every declared option to its manifest default.
   On Claude Code 2.1.240 a plain `claude plugin install … --config` against an already-installed
   plugin prints `already installed` and still writes the value, so that is now the documented
-  route — stamped with the CLI version it was verified against
+  route, stamped with the CLI version it was verified against
   ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). This skill is
-  check-only — it has no `apply` action — and `check` still closes by telling the reader to
+  check-only, with no `apply` action, and `check` still closes by telling the reader to
   rerun it in a fresh session and report the observed value, never asserting an unobserved
   change.
 - **Docs:** the generated options block's headless route no longer implies `--config` applies
@@ -271,7 +282,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 ### Changed
 
 - **`setup`: the "write a report instead" boundary names the Skill tool (#3002).** "use
-  `/bug-report:write`" became "invoke `/bug-report:write` via the Skill tool". Wording only — the
+  `/bug-report:write`" became "invoke `/bug-report:write` via the Skill tool". Wording only. The
   boundary itself is unchanged. Follows the invocation-mode rubric's cross-skill phrasing rule,
   now unconditional after the fleet sweep.
 
@@ -290,7 +301,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 
 - **The bare `/<skill>` alias for this plugin's skills.** Their `SKILL.md` files no longer
   declare a frontmatter `name`. The field is optional and defaults to the directory name, so
-  declaring it only restated the path while registering a second, unnamespaced command — which
+  declaring it only restated the path while registering a second, unnamespaced command, which
   the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
   namespaced command; the command itself is unchanged.
 
@@ -309,7 +320,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 ### Changed
 
 - Skills with `!` dynamic-context injections now declare `shell: bash` explicitly, per
-  the pinned precompute convention — bash-only pipelines must not fall through to a
+  the pinned precompute convention. Bash-only pipelines must not fall through to a
   PowerShell host.
 
 ## [0.5.1]

@@ -1,6 +1,6 @@
-# Stable / Unstable — the Song-Wide Diagnostic
+# Stable / Unstable: the Song-Wide Diagnostic
 
-Pat Pattison — primary source *Writing Better Lyrics* (2009), Chapter 18
+Pat Pattison, primary source *Writing Better Lyrics* (2009), Chapter 18
 "Prosody: Structure as Film Score" and Chapter 21 "The Great Balancing Act",
 with supporting material from *Essential Guide to Lyric Form and Structure*
 (1991), Chapters 1-3, and *Songwriting Without Boundaries* (2011),
@@ -11,31 +11,38 @@ Use this when a draft is "missing something" but the writer cannot name what.
 Stable/unstable is the meta-question that surfaces prosody mismatches without
 diagnosing rhyme, meter, form, or melody in isolation.
 
+<!-- ai-slop-ignore-start: verbatim Pat Pattison quotation, Writing Better Lyrics Chapter 18; carries the book's em dash -->
 > "Looking at your sections through the lens of stability or instability is a
 > practical tool for creating prosody because you'll be able to use it for
 > every aspect of your song: the idea, the melody, the rhythm, the chords, the
 > lyric structure — everything. It governs the choices you make. Ask yourself:
 > Is the emotion in this section stable or unstable? Once you answer that
 > question, you have a standard for making all your other choices."
-> — *Writing Better Lyrics* (2009), Chapter 18
+>
+> *Writing Better Lyrics* (2009), Chapter 18
+<!-- ai-slop-ignore-end -->
 
 ## Core idea
 
 Stability and instability are the practical lens Pat puts over prosody. In his
 words:
 
+<!-- ai-slop-ignore-start: verbatim Pat Pattison quotation, Writing Better Lyrics Chapter 18; carries the book's em dashes -->
 > "Every section of every lyric you write uses five elements — always the same
 > five elements — of structure. These elements conspire to act like a film
 > score and, in and of themselves, create motion. And motion always creates
 > emotion, completely independent of what is being said. Ideally, structure
 > should create prosody — support what is being said — strengthening the
 > message, making it more powerful."
-> — *Writing Better Lyrics* (2009), Chapter 18
+>
+> *Writing Better Lyrics* (2009), Chapter 18
+<!-- ai-slop-ignore-end -->
 
 > "The elements all join together to support the central intent, idea, and
 > emotion of the work. Everything fits. Prosody: the appropriate relationship
 > between elements."
-> — *Writing Better Lyrics* (2009), Chapter 18 "Prosody: Structure as Film Score"
+>
+> *Writing Better Lyrics* (2009), Chapter 18 "Prosody: Structure as Film Score"
 
 ## The five elements of structure
 
@@ -46,11 +53,11 @@ rhyme scheme / rhyme type."
 
 | Element | Stable | Unstable |
 |---|---|---|
-| **Number of lines** | Even — "solid, resolved, balanced, stable" | Odd — "off balance, unresolved, incomplete, unstable" |
+| **Number of lines** | Even: "solid, resolved, balanced, stable" | Odd: "off balance, unresolved, incomplete, unstable" |
 | **Length of lines** | "Two lines of equal length, because they're balanced, tell you to stop." | "Lines of unequal length, because they do not reach a point of balance, tell you to keep moving" |
-| **Rhythm of lines** | Regular — moves along in even groups of two (da DUM) | Variations that throw the pattern off kilter |
-| **Rhyme scheme** | Rhyme close together — "This sounds finished. It stops us. It feels resolved, stable." | Rhyme delayed or absent — "Now we feel the push forward"; no rhyme leaves "our ear ... a little lost" |
-| **Rhyme type** | Perfect rhyme — full resolution | Family, additive, subtractive, assonance, consonance — leaves things hanging |
+| **Rhythm of lines** | Regular: moves along in even groups of two (da DUM) | Variations that throw the pattern off kilter |
+| **Rhyme scheme** | Rhyme close together: "This sounds finished. It stops us. It feels resolved, stable." | Rhyme delayed or absent: "Now we feel the push forward"; no rhyme leaves "our ear ... a little lost" |
+| **Rhyme type** | Perfect rhyme: full resolution | Family, additive, subtractive, assonance, consonance: leaves things hanging |
 
 <!-- spellchecker:on -->
 
@@ -65,7 +72,7 @@ Lyric stability is not one thing. It is the sum of several smaller choices.
 | Lever | Stable | Unstable |
 |---|---|---|
 | Rhyme type | Perfect rhyme | Family, additive, subtractive, assonance, consonance |
-| Rhyme scheme | Couplets (aabb) — closes each pair | Alternating (abab), enclosed (abba), abbb, no rhyme |
+| Rhyme scheme | Couplets (aabb): closes each pair | Alternating (abab), enclosed (abba), abbb, no rhyme |
 | Closure | Expected closure | Deceptive closure, unexpected closure |
 | Number of phrases | Even | Odd |
 | Length of phrases | Balanced (equal stress counts) | Unbalanced (unequal stress counts) |
@@ -82,7 +89,7 @@ and Structure* (1991), Chapter 1:
 books; "tone of voice" returns 0 hits across all four. Attributed to Berklee
 Online / Coursera material that has not been read. Source unverified. -->
 
-Unaudited (non-book) lever: tone of voice — two recordings of the same lyric
+Unaudited (non-book) lever: tone of voice. Two recordings of the same lyric
 can carry opposite stability, so sing the draft both ways.
 
 ## How to diagnose
@@ -92,17 +99,21 @@ Ask the meta-question of each section, then of each line:
 1. **Ask Pat's question first**: "Is the emotion in this section stable or
    unstable? Once you answer that question, you have a standard for making all
    your other choices."
-2. **Walk the five elements** of that section — number of lines, length of
-   lines, rhythm of lines, rhyme scheme, rhyme type — and mark each stable or
-   unstable.
+2. **Walk the five elements** of that section and mark each stable or
+   unstable: number of lines, length of lines, rhythm of lines, rhyme scheme,
+   rhyme type.
 3. **For each line**, ask the same question, and check the moment it sits in.
 4. **Flag the mismatches.** Pat's test case: "Baby, you're the answer to all
    my prayers. I'll be with you forever. I'm your rock. You can count on me,"
-   said in an odd number of lines — "Do you trust this guy? I don't think so.
-   Something doesn't feel right — there's a mismatch between what is being
-   said and how it's put together, how it moves. Though the message promises
-   stability, the motion creates instability, which pulls the rug out from
-   under the narrator. It creates irony."
+   said in an odd number of lines. His verdict:
+
+   <!-- ai-slop-ignore-start: verbatim Pat Pattison quotation, Writing Better Lyrics Chapter 18; carries the book's em dash -->
+   > "Do you trust this guy? I don't think so. Something doesn't feel right —
+   > there's a mismatch between what is being said and how it's put together,
+   > how it moves. Though the message promises stability, the motion creates
+   > instability, which pulls the rug out from under the narrator. It creates
+   > irony."
+   <!-- ai-slop-ignore-end -->
 
 Diagnosis output template:
 
@@ -127,18 +138,23 @@ Repeat per section.
 
 Three modes:
 
-1. **Match** — stability of writing aligns with stability of the emotion.
+1. **Match**: stability of writing aligns with stability of the emotion.
    The lyric "feels right" because nothing fights the meaning.
-2. **Mismatch** — the structure contradicts the message, and the structure
-   wins. In "Can't Be Really Gone" the narrator's message is "look at the
-   evidence — it proves she'll be coming back," but Pat's reading of the
-   unstable five-line verse is: "the feeling we get from the unstable
-   structure (which is acting like a film score) is that he's wrong and
-   perhaps a bit hysterical or, at least, in denial."
-3. **Mismatch used on purpose** — the same move, chosen. "It creates irony."
+2. **Mismatch**: the structure contradicts the message, and the structure
+   wins. In "Can't Be Really Gone" the narrator's message and Pat's reading
+   of the unstable five-line verse pull apart. The message:
+
+   <!-- ai-slop-ignore-start: verbatim Pat Pattison wording of the narrator's message in "Can't Be Really Gone", Writing Better Lyrics Chapter 18; carries the book's em dash -->
+   > "look at the evidence — it proves she'll be coming back"
+   <!-- ai-slop-ignore-end -->
+
+   Pat's reading: "the feeling we get from the unstable structure (which is
+   acting like a film score) is that he's wrong and perhaps a bit hysterical
+   or, at least, in denial."
+3. **Mismatch used on purpose**: the same move, chosen. "It creates irony."
 
 Pat's framing of the whole question: "There are no rules, only tools." And on
-whether the original writer planned it — "So, did Gary Burr think about all
+whether the original writer planned it: "So, did Gary Burr think about all
 this stuff as he wrote 'Can't Be Really Gone'? Maybe, maybe not. The important
 issue is: You can."
 
@@ -156,16 +172,17 @@ issue is: You can."
 > In general, assuming that phrase lengths are more or less equal, and the
 > rhyme scheme moves more or less evenly, an even number of phrases creates a
 > balanced section; an odd number, an unbalanced section."
-> — *Writing Better Lyrics* (2009), Chapter 21 "The Great Balancing Act"
+>
+> *Writing Better Lyrics* (2009), Chapter 21 "The Great Balancing Act"
 
-Pat's simplest case is bare repetition. Even number of phrases — stable:
+Pat's simplest case is bare repetition. An even number of phrases is stable:
 
 ```text
 Your body is a wonderland
 Your body is a wonderland
 ```
 
-Odd number — unstable:
+An odd number is unstable:
 
 ```text
 Your body is a wonderland
@@ -182,13 +199,15 @@ When am I to touch you
 How am I to hold you
 ```
 
+<!-- ai-slop-ignore-start: table quotes Essential Guide to Lyric Form and Structure verbatim; the Chorus row carries the book's em dashes, and a table cannot be fenced any narrower -->
 | Section | Default | Pat's reason, from the books |
 |---|---|---|
-| Verse | **Closes down** — it sets the standard | Ch 5's verse job list ends "4. To set structural standards for the lyric, / thus, 5. Verses should close down." A verse is the point of comparison, not automatically the unstable section: "Verses establish BALANCE, PACE, FLOW, CLOSURE, AND CLOSURE TYPE for the lyric, setting a point of comparison for other structures in the lyric." |
+| Verse | **Closes down**: it sets the standard | Ch 5's verse job list ends "4. To set structural standards for the lyric, / thus, 5. Verses should close down." A verse is the point of comparison, not automatically the unstable section: "Verses establish BALANCE, PACE, FLOW, CLOSURE, AND CLOSURE TYPE for the lyric, setting a point of comparison for other structures in the lyric." |
 | Chorus | Stable | "Because the Chorus is a CENTRAL SECTION — a place where ideas are completed — the end of the Chorus should stop forward motion. This creates the feeling of 'starting over again' in the next section." Ch 5's chorus list: "4. Is typically the lyric's most balanced section. / thus, 5. Stops forward motion." |
-| Refrain | Not a section — no stability of its own | "This is not a section at all. It is just a name for the part of a Verse that contains the CENTRAL IDEA and gets repeated in the other Verses." Scan the verse it lives in, not the refrain. |
+| Refrain | Not a section, so no stability of its own | "This is not a section at all. It is just a name for the part of a Verse that contains the CENTRAL IDEA and gets repeated in the other Verses." Scan the verse it lives in, not the refrain. |
 | Bridge | Unstable | "3. It unbalances the section by moving away from established structures, creating structural tension. … thus, 5. It is frequently the lyric's most unbalanced section." |
 | Transitional bridge | Unstable, and shortest | "Thus, 5. It is usually the lyric's shortest and most unbalanced section." And from Chapter 1: "Using an odd number of phrases to unbalance a section works wonders if you want to build up pressure, for example, in a transitional section between verse and chorus." |
+<!-- ai-slop-ignore-end -->
 
 Quotes above from *Essential Guide to Lyric Form and Structure* (1991),
 Chapter 5, except the "works wonders" sentence, which is Chapter 1.
@@ -198,7 +217,7 @@ Two corrections to an earlier revision of this table: the Verse row read
 carried "the most balanced element in the lyric", which Chapter 5 says about the
 **chorus** of "Years", not about a refrain.
 
-Pat's technique for pushing a second verse forward — *Essential Guide to Lyric
+Pat's technique for pushing a second verse forward, from *Essential Guide to Lyric
 Form and Structure* (1991), **Chapter 1**, not 2009:
 
 > This unbalancing strategy is also useful when you have two verses that lead
@@ -211,7 +230,7 @@ Form and Structure* (1991), **Chapter 1**, not 2009:
 > just like juggling. Notice that if you reverse the two verses, the motion
 > stops.
 
-Chapter 5 returns to the same verse 2 to make a rhythm point instead — see
+Chapter 5 returns to the same verse 2 to make a rhythm point instead. See
 [section building](section-building.md), "The same trick in 'Can't Fight This
 Feeling'".
 
@@ -250,7 +269,7 @@ Use these when a writer says "something's off":
 
 ## Anti-patterns
 
-- **Treating stable/unstable as a property of the writer's style** — it is
+- **Treating stable/unstable as a property of the writer's style**: it is
   a property of each lever, each section, each line. Reset per song.
 - **Defaulting all verses to unstable and all choruses to stable** without
   checking the central intent, idea, and emotion. Some emotions want a stable
@@ -274,23 +293,23 @@ Online in `prosody.md`; 0 corpus hits), and the **worked diagnostic**, which is
 this file's own applied example rather than a case Pat prints.
 
 A "central emotion" quote attributed to Pat was carried here for eight
-handoffs and is **fabricated** — 0 hits across all four books. It has been
+handoffs and is **fabricated**: 0 hits across all four books. It has been
 replaced with his real sentence from *Writing Better Lyrics* (2009), Chapter 18,
 and the phrase is now used in his wording, "central intent, idea, and emotion".
 
 ## Cross-references
 
-- [rhyme strategy](rhyme-strategy.md) — picking rhyme types by stability intent
-- [prosody](prosody.md) — motion as the umbrella concept; this file gives
+- [rhyme strategy](rhyme-strategy.md): picking rhyme types by stability intent
+- [prosody](prosody.md): motion as the umbrella concept; this file gives
   the diagnostic discipline that prosody decisions answer to
-- [meter](meter.md) — defines the deceptive / unexpected closure the Closure
+- [meter](meter.md): defines the deceptive / unexpected closure the Closure
   row sorts by
-- [form](form.md) — section-level stability defaults
-- [phrasing](phrasing.md) — front-heavy / back-heavy as another stability
+- [form](form.md): section-level stability defaults
+- [phrasing](phrasing.md): front-heavy / back-heavy as another stability
   lever at the bar level
-- [point of view](point-of-view.md) — POV and tense as stability levers
-- [hook](hook.md) — title's stability character vs hook position
-- [Five Compositional Elements](five-compositional-elements.md) — the
+- [point of view](point-of-view.md): POV and tense as stability levers
+- [hook](hook.md): title's stability character vs hook position
+- [Five Compositional Elements](five-compositional-elements.md): the
   five-row diagnostic that pairs with this file's lever table
-- [lyric-melodic roadmaps](lyric-melodic-roadmaps.md) — when lyric stability
+- [lyric-melodic roadmaps](lyric-melodic-roadmaps.md): when lyric stability
   fights the melody's stability shape

@@ -10,8 +10,13 @@ SCRIPT="$SELF_DIR/read-skip-actors.sh"
 # shellcheck source=lib/test-harness.sh
 . "$SELF_DIR/lib/test-harness.sh"
 
-TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT
+# shellcheck source=lib/fixture-tree.sh
+. "$SELF_DIR/lib/fixture-tree.sh"
+
+# The builder assigns through a nameref, which shellcheck cannot follow;
+# declaring the out-var here is what tells it (SC2154) the name is written.
+TMP=""
+fixture_tree::build TMP --label skip-actors
 
 write_list() {
   printf '%s\n' "$@" >"$TMP/list"
