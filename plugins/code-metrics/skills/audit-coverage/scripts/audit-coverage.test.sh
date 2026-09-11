@@ -116,8 +116,8 @@ out="$(cd "$SCRATCH" && PATH="$STUBS:$EMPTY_PATH" HOME="$SCRATCH" CODE_METRICS_H
   bash "$SCRIPT" --json --all "$REPO_ROOT/$SOURCES" 2>/dev/null)"
 rc=$?
 assert_eq "no artifact anywhere still exits 0" 0 "$rc"
-assert_doc "every run row is unavailable and names the paths searched" "$out" \
-  'd["run"] and all(r["status"]=="unavailable" and "searched" in (r["reason"] or "") for r in d["run"])'
+assert_doc "every language-lane run row is unavailable and names the paths searched" "$out" \
+  'd["run"] and all(r["status"]=="unavailable" and "searched" in (r["reason"] or "") for r in d["run"] if r["lane"]!="other") and all(r["status"]=="not-applicable" for r in d["run"] if r["lane"]=="other")'
 assert_doc "the document reports that it measured nothing" "$out" 'd["status"]=="empty"'
 assert_contains "the reason lists a well-known artifact name" "$out" "coverage/lcov.info"
 

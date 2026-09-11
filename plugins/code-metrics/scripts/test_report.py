@@ -139,7 +139,11 @@ class AssembleTests(unittest.TestCase):
             {"files": 2, "functions": 0, "over_reference": {"file_lines": 1}},
         )
         self.assertEqual(doc["unavailable"], [])
-        self.assertNotIn("value_key", doc["thresholds"][0])
+        # The value the reference was applied to, and in which direction,
+        # travel with the document: the renderer orders rows by them and a
+        # consumer comparing two documents needs them.
+        self.assertEqual(doc["thresholds"][0]["value_key"], "lines_non_blank")
+        self.assertEqual(doc["thresholds"][0]["direction"], "at_or_above")
 
     def test_null_reference_counts_nothing_and_null_value_never_counts(self) -> None:
         threshold = dict(self.THRESHOLD, reference=None)
@@ -548,6 +552,149 @@ class RenderTests(unittest.TestCase):
             "| * | * |  | not-applicable | no measurable files in scope |",
             result.stdout,
         )
+        # An empty change is the common empty run: the headline says how to
+        # widen the scope, since the skill body is not in front of the reader.
+        headline = result.stdout.splitlines()[2]
+        self.assertIn("against `abc`", headline)
+        self.assertIn("pass paths or `--all` to widen the scope", headline)
+        self.assertNotIn("Functions:", result.stdout)
+
+    def test_an_empty_all_scope_carries_no_widening_hint(self) -> None:
+        doc = {
+            "schema": "code-metrics/v1",
+            "skill": "audit-size",
+            "status": "empty",
+            "scope": {"mode": "all", "base": None, "files": 0, "excluded": 0},
+            "run": [],
+            "thresholds": [],
+            "measures": [],
+            "summary": {"files": 0, "functions": 0, "over_reference": {}},
+            "excluded": [],
+            "unavailable": [],
+        }
+        result = run("render", stdin=json.dumps(doc))
+        self.assertNotIn("widen the scope", result.stdout)
+
+    def _size_doc(self, rows: list[dict]) -> dict:
+        return {
+            "schema": "code-metrics/v1",
+            "skill": "audit-size",
+            "status": "complete",
+            "scope": {"mode": "all", "base": None, "files": len(rows), "excluded": 0},
+            "run": [],
+            "thresholds": [
+                {
+                    "measure": "file_lines",
+                    "value_key": "lines_non_blank",
+                    "direction": "at_or_above",
+                    "reference": 10,
+                    "provenance": "p",
+                    "layer": "bundled default",
+                }
+            ],
+            "measures": rows,
+            "summary": {"files": len(rows), "functions": 0, "over_reference": {}},
+            "excluded": [],
+            "unavailable": [],
+        }
+
+    def test_rows_are_ordered_by_the_primary_value_largest_first(self) -> None:
+        rows = [
+            {
+                "file": "a.py",
+                "function": None,
+                "lane": "python",
+                "values": {"lines_non_blank": 5},
+                "over_reference": [],
+            },
+            {
+                "file": "b.md",
+                "function": None,
+                "lane": "other",
+                "values": {"lines_non_blank": 12},
+                "over_reference": ["file_lines"],
+            },
+            {
+                "file": "c.py",
+                "function": None,
+                "lane": "python",
+                "values": {"lines_non_blank": None},
+                "over_reference": [],
+            },
+            {
+                "file": "d.sh",
+                "function": None,
+                "lane": "bash",
+                "values": {"lines_non_blank": 7},
+                "over_reference": [],
+            },
+        ]
+        result = run("render", stdin=json.dumps(self._size_doc(rows)))
+        measures_section = result.stdout.split("## Measures", 1)[1]
+        table = [
+            line for line in measures_section.splitlines() if line.startswith("| ")
+        ]
+        files = [line.split(" | ")[0].lstrip("| ") for line in table[1:]]
+        # Largest first, a null value after every number, the over-reference
+        # row leading because it is the extreme rather than by a separate sort.
+        self.assertEqual(files, ["b.md", "d.sh", "a.py", "c.py"])
+
+    def test_a_below_reference_orders_smallest_first(self) -> None:
+        doc = self._size_doc([])
+        doc["thresholds"] = [
+            {
+                "measure": "coverage",
+                "value_key": "coverage_pct",
+                "direction": "below",
+                "reference": None,
+                "provenance": "p",
+                "layer": "bundled default",
+            }
+        ]
+        doc["measures"] = [
+            {
+                "file": "a.py",
+                "function": "f",
+                "lane": "python",
+                "start_line": 1,
+                "values": {"coverage_pct": 90.0},
+                "over_reference": [],
+            },
+            {
+                "file": "b.py",
+                "function": "g",
+                "lane": "python",
+                "start_line": 1,
+                "values": {"coverage_pct": 10.0},
+                "over_reference": [],
+            },
+        ]
+        doc["summary"] = {"files": 2, "functions": 2, "over_reference": {}}
+        result = run("render", stdin=json.dumps(doc))
+        self.assertLess(
+            result.stdout.index("| b.py |"), result.stdout.index("| a.py |")
+        )
+        self.assertIn("Files: 2. Functions: 2. Over reference: none.", result.stdout)
+
+    def test_the_row_cap_names_the_key_it_kept_the_top_rows_by(self) -> None:
+        rows = [
+            {
+                "file": f"f{i:04d}.md",
+                "function": None,
+                "lane": "other",
+                "values": {"lines_non_blank": i},
+                "over_reference": [],
+            }
+            for i in range(250)
+        ]
+        result = run("render", stdin=json.dumps(self._size_doc(rows)))
+        self.assertIn(
+            "50 more rows in the JSON; the 200 shown are the top by lines_non_blank",
+            result.stdout,
+        )
+        self.assertIn("| f0249.md |", result.stdout)
+        self.assertNotIn("| f0049.md |", result.stdout)
+        self.assertIn("Files: 250. Over reference: none.", result.stdout)
 
     def test_measures_table_lists_value_keys_and_over_reference(self) -> None:
         doc = {

@@ -43,6 +43,7 @@ DETECT="$PLUGIN_ROOT/scripts/detect-lanes.sh"
 LADDER="$PLUGIN_ROOT/scripts/collector-ladder.tsv"
 RESOLVER="$PLUGIN_ROOT/scripts/resolve-config.py"
 PATHGLOB="$PLUGIN_ROOT/scripts/pathglob.py"
+TEXT_FILES="$PLUGIN_ROOT/scripts/text-files.py"
 CONFIG=""
 
 usage() {
@@ -378,18 +379,15 @@ change)
 esac
 
 # Normalize: forward slashes, drop `./`, dedupe, keep existing regular files
-# that are not binary.
+# that are not binary. The binary sniff (a NUL in the first 8000 bytes, as
+# GNU grep -I) runs over the whole list in one interpreter process: done per
+# file from bash it costs several spawns per path, which on a whole
+# repository is tens of seconds around a count that takes a fraction of one.
 SCOPED="$WORK/scoped"
 tr -d '\r' <"$FILES_LIST" | sed 's#\\#/#g; s#^\./##' | awk 'NF && !seen[$0]++' >"$WORK/dedup"
-: >"$SCOPED"
-while IFS= read -r f; do
-  [[ -f "$f" ]] || continue
-  # Binary sniff without GNU grep -I: a NUL in the first 8000 bytes.
-  head_bytes="$(head -c 8000 "$f" | wc -c | tr -d ' ')"
-  text_bytes="$(head -c 8000 "$f" | LC_ALL=C tr -d '\000' | wc -c | tr -d ' ')"
-  [[ "$head_bytes" == "$text_bytes" ]] || continue
-  printf '%s\n' "$f" >>"$SCOPED"
-done <"$WORK/dedup"
+if ! "${PY[@]}" "$TEXT_FILES" --paths-from "$WORK/dedup" >"$SCOPED"; then
+  die_usage "the scope listing could not be filtered (see the message above)"
+fi
 # scope.exclude: drop every file a configured glob matches, counting them.
 EXCLUDED=0
 if [[ ${#EXCLUDE_GLOBS[@]} -gt 0 && -s "$SCOPED" ]]; then
@@ -465,17 +463,26 @@ json_str() {
 
 run_row() {
   # run_row <lane> <measure> <collector-or-empty> <status> <reason-or-empty>
-  local collector reason
-  if [[ -n "$3" ]]; then collector="$(json_str "$3")"; else collector=null; fi
-  if [[ -n "$5" ]]; then reason="$(json_str "$5")"; else reason=null; fi
-  printf '{"lane": %s, "measure": %s, "collector": %s, "status": %s, "reason": %s}\n' \
-    "$(json_str "$1")" "$(json_str "$2")" "$collector" "$(json_str "$4")" "$reason" >>"$RUN"
+  # One interpreter call per row rather than one per field; an empty
+  # collector or reason is null.
+  "${PY[@]}" -c '
+import json, sys
+lane, measure, collector, status, reason = sys.argv[1:6]
+print(json.dumps({"lane": lane, "measure": measure, "collector": collector or None,
+                  "status": status, "reason": reason or None}))
+' "$1" "$2" "$3" "$4" "$5" >>"$RUN"
 }
 
 IFS=',' read -r -a MEASURE_LIST <<<"$MEASURES"
 mapfile -t LANES < <(cut -f1 "$LANES_TSV" | awk 'NF && !seen[$0]++' | sort)
 
-if [[ "$FILE_COUNT" -eq 0 || ${#LANES[@]} -eq 0 ]]; then
+if [[ "$FILE_COUNT" -eq 0 && "$MODE" == "change" ]]; then
+  # A change with nothing in it is the common empty run, and the reason is
+  # where the reader learns how to widen the scope; the skill body is not in
+  # front of them when the report is.
+  run_row '*' '*' '' not-applicable \
+    "no files differ from the merge-base ${BASE_SHA:0:12} and none are uncommitted; pass paths or --all to widen the scope"
+elif [[ "$FILE_COUNT" -eq 0 || ${#LANES[@]} -eq 0 ]]; then
   run_row '*' '*' '' not-applicable 'no measurable files in scope'
 fi
 

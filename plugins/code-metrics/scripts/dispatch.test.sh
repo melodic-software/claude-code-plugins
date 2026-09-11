@@ -73,15 +73,17 @@ assert_eq "exit 0 with the bundled counter" 0 "$rc"
 assert_doc "schema, skill, and status complete" "$out" \
   'd["schema"]=="code-metrics/v1" and d["skill"]=="audit-size" and d["status"]=="complete"'
 assert_doc "every lane row is ok on line-counter" "$out" \
-  'all(r["status"]=="ok" and r["collector"].startswith("line-counter") for r in d["run"]) and len(d["run"])==5'
+  'all(r["status"]=="ok" and r["collector"].startswith("line-counter") for r in d["run"]) and len(d["run"])==6'
 assert_doc "rows carry comment-agnostic label and non-blank counts" "$out" \
-  'all("comment-agnostic" in r["labels"] and r["values"]["lines_non_blank"]>0 for r in d["measures"]) and d["summary"]["files"]==7'
-assert_doc "markdown fixture is outside every lane" "$out" 'not any(r["file"].endswith("cm-notes.md") for r in d["measures"])'
-# The five lane fixtures by name (cm-sample.ts, cm_sample.py, cm-sample.sh, cm-sample.go,
-# CmSample.cs) plus the two byte-identical bash copies of the duplication cluster fixture
+  'all("comment-agnostic" in r["labels"] and r["values"]["lines_non_blank"]>0 for r in d["measures"]) and d["summary"]["files"]==8'
+assert_doc "markdown fixture is measured in the other lane" "$out" \
+  'any(r["file"].endswith("cm-notes.md") and r["lane"]=="other" for r in d["measures"]) and d["scope"]["unclassified"]==0'
+# The five language-lane fixtures by name (cm-sample.ts, cm_sample.py, cm-sample.sh,
+# cm-sample.go, CmSample.cs), the markdown fixture (cm-notes.md) in the other lane, plus the
+# two byte-identical bash copies of the duplication cluster fixture
 # (cluster/{alpha,beta}/shared/shared-utils.sh): the assertion is also what maps them to this suite.
-assert_doc "every lane fixture is measured exactly once" "$out" \
-  'sorted(r["file"].rsplit("/",1)[1] for r in d["measures"])==["CmSample.cs","cm-sample.go","cm-sample.sh","cm-sample.ts","cm_sample.py","shared-utils.sh","shared-utils.sh"]'
+assert_doc "every fixture is measured exactly once" "$out" \
+  'sorted(r["file"].rsplit("/",1)[1] for r in d["measures"])==["CmSample.cs","cm-notes.md","cm-sample.go","cm-sample.sh","cm-sample.ts","cm_sample.py","shared-utils.sh","shared-utils.sh"]'
 assert_doc "threshold carries the plugin-default provenance" "$out" \
   'd["thresholds"][0]["measure"]=="file_lines" and d["thresholds"][0]["reference"]==1000 and "not normative" in d["thresholds"][0]["provenance"]'
 
@@ -98,7 +100,7 @@ out="$(PATH="$EMPTY_PATH" CODE_METRICS_DISABLE_BUNDLED=1 bash "$SCRIPT" audit-si
 rc=$?
 assert_eq "exit 0 when nothing could be measured" 0 "$rc"
 assert_doc "status empty and every row unavailable with a reason" "$out" \
-  'd["status"]=="empty" and d["run"] and all(r["status"]!="ok" and r["reason"] for r in d["run"]) and len(d["unavailable"])==5 and d["measures"]==[]'
+  'd["status"]=="empty" and d["run"] and all(r["status"]!="ok" and r["reason"] for r in d["run"]) and len(d["unavailable"])==6 and d["measures"]==[]'
 assert_doc "the reason names both rungs and the install hint" "$out" \
   '"scc: scc not on PATH" in d["run"][0]["reason"] and "line-counter: disabled by CODE_METRICS_DISABLE_BUNDLED" in d["run"][0]["reason"] and "boyter/scc" in d["run"][0]["reason"]'
 
@@ -116,6 +118,10 @@ rc=$?
 assert_eq "exit 0 with deferred and none rows" 0 "$rc"
 assert_doc "dotnet cyclomatic is deferred with the research tag" "$out" \
   'any(r["lane"]=="dotnet" and r["measure"]=="cyclomatic" and r["status"]=="deferred" and "probe:dotnet-metrics-linux" in r["reason"] for r in d["run"])'
+# The other lane carries a line count and nothing else, so every other measure
+# is not-applicable there, which never withholds a complete status.
+assert_doc "the other lane is not-applicable for every complexity measure" "$out" \
+  'sorted((r["measure"], r["status"]) for r in d["run"] if r["lane"]=="other")==[("cognitive","not-applicable"),("cyclomatic","not-applicable")] and all(r["reason"] for r in d["run"] if r["lane"]=="other")'
 assert_doc "python cognitive is unavailable with the validated-date reason" "$out" \
   'any(r["lane"]=="python" and r["measure"]=="cognitive" and r["status"]=="unavailable" and "2026-09-04" in r["reason"] for r in d["run"])'
 assert_doc "typescript cyclomatic lists both rungs with their probe reasons and hints" "$out" \
@@ -192,6 +198,30 @@ rc=$?
 assert_eq "--all from a subdirectory exits 0" 0 "$rc"
 assert_doc "--all from a subdirectory measures the whole repository, paths relative to the cwd" "$out" \
   'sorted(r["file"] for r in d["measures"])==["../base.py","../changed.py","../untracked.sh","inner.py"]'
+# 9c. A change with nothing in it: the run row's reason is where the reader
+#     learns how to widen the scope, since the skill body is not in front of
+#     them when the report is.
+(cd "$repo" && rm -f untracked.sh && git checkout -q main)
+out="$(cd "$repo" && PATH="$EMPTY_PATH" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines)"
+rc=$?
+assert_eq "an empty change exits 0" 0 "$rc"
+assert_doc "an empty change names the base and says how to widen the scope" "$out" \
+  'd["status"]=="empty" and d["scope"]["mode"]=="change" and d["scope"]["files"]==0 and len(d["run"])==1 and d["run"][0]["status"]=="not-applicable" and d["scope"]["base"] in d["run"][0]["reason"] and "--all" in d["run"][0]["reason"] and "paths" in d["run"][0]["reason"]'
+# 9d. A file in the other lane that cannot be read: its lane's row is
+#     unavailable with the collector's reason, exit 3, and the python lane is
+#     still measured. Root reads everything, so the case is skipped there.
+(cd "$repo" && git checkout -q feature && printf '# notes\n' >locked.md && chmod 000 locked.md)
+if [[ -r "$repo/locked.md" ]]; then
+  pass "an unreadable other-lane file (skipped: this user can read a mode-000 file)"
+  pass "the unreadable file leaves the python lane measured (skipped)"
+else
+  out="$(cd "$repo" && PATH="$EMPTY_PATH" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines)"
+  rc=$?
+  assert_eq "an unreadable other-lane file exits 3" 3 "$rc"
+  assert_doc "the unreadable file leaves the python lane measured" "$out" \
+    'any(r["lane"]=="other" and r["status"]=="unavailable" and "locked.md" in r["reason"] for r in d["run"]) and any(r["lane"]=="python" and r["status"]=="ok" for r in d["run"]) and d["status"]=="partial"'
+fi
+(cd "$repo" && chmod 644 locked.md && rm -f locked.md)
 # An explicitly named directory holding only ignored files lists nothing. Asking
 # git whether it listed anything cannot tell that apart from a path outside the
 # repository, and reading it as "outside" walks the very tree the ignore rules
@@ -281,9 +311,11 @@ repo="$(mktemp -d)"
   git add -A && git commit -q -m base
 )
 from_root="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$repo" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all --print-scope)"
-assert_eq "the exclusion applies from the repository root" "python	src/keep/keep.py" "$from_root"
+assert_eq "the exclusion applies from the repository root" "other	.claude/code-metrics.yaml
+python	src/keep/keep.py" "$from_root"
 from_sub="$(cd "$repo/src" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$repo" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all --print-scope)"
-assert_eq "the same exclusion applies from a subdirectory" "python	keep/keep.py" "$from_sub"
+assert_eq "the same exclusion applies from a subdirectory" "other	../.claude/code-metrics.yaml
+python	keep/keep.py" "$from_sub"
 # 17. The same exclusion, reached through an explicitly scoped sibling. Mapping
 #     a path back to the root by prefixing alone leaves the `..` in place, so
 #     `src/keep/../vendor/skip.py` is what the matcher sees and a `src/vendor/**`
@@ -369,17 +401,18 @@ home="$(mktemp -d)"
   printf 'scope:\n  base: mark\n' >.claude/code-metrics.yaml
 )
 out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines)"
+# The untracked configuration file is part of the change too, in the other lane.
 assert_doc "a configured scope.base narrows the change to the commits after it" "$out" \
-  'sorted(r["file"] for r in d["measures"])==["third.py"]'
+  'sorted(r["file"] for r in d["measures"])==[".claude/code-metrics.yaml","third.py"]'
 out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --base main)"
 assert_doc "an explicit --base wins over the configured one" "$out" \
-  'sorted(r["file"] for r in d["measures"])==["changed.py","third.py"]'
+  'sorted(r["file"] for r in d["measures"])==[".claude/code-metrics.yaml","changed.py","third.py"]'
 (cd "$repo" && printf 'scope:\n  default: all\nlanes:\n  python:\n    collectors:\n      file_lines: []\n' >.claude/code-metrics.yaml)
 out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines)"
 assert_doc "a configured scope.default of all widens the run to the tree" "$out" \
   'd["scope"]["mode"]=="all" and d["scope"]["files"]==4'
 assert_doc "an empty collector list runs nothing for that lane and says so" "$out" \
-  'any(r["lane"]=="python" and r["measure"]=="file_lines" and r["status"]=="unavailable" and "no collector" in r["reason"] for r in d["run"]) and d["measures"]==[]'
+  'any(r["lane"]=="python" and r["measure"]=="file_lines" and r["status"]=="unavailable" and "no collector" in r["reason"] for r in d["run"]) and not any(r["lane"]=="python" for r in d["measures"])'
 # An explicit --base asks for a diff, so it beats a configured `default: all`
 # the same way --all and a path do; widening to the tree would discard the ref.
 out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --base mark)"
@@ -391,13 +424,15 @@ assert_doc "an explicit --base beats a configured scope.default of all" "$out" \
 (cd "$repo" && git checkout -q main && printf 'x = 1\nx = 2\n' >base.py &&
   git add base.py && git commit -q -m "main moves on" && git checkout -q feature)
 out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --base main --print-scope)"
-assert_eq "a base branch's own later edit is not part of the change" "python	changed.py
+assert_eq "a base branch's own later edit is not part of the change" "other	.claude/code-metrics.yaml
+python	changed.py
 python	third.py" "$(printf '%s\n' "$out" | sort)"
 listing="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --print-scope)"
-assert_eq "--print-scope prints each measurable file with its lane" "python	base.py
+assert_eq "--print-scope prints each measurable file with its lane" "other	.claude/code-metrics.yaml
+python	base.py
 python	changed.py
 python	third.py" "$(printf '%s\n' "$listing" | sort)"
-assert_eq "--print-scope leaves out a file no lane claims" "" \
+assert_eq "--print-scope lists a file no language lane claims under other" "other	.claude/code-metrics.yaml" \
   "$(printf '%s\n' "$listing" | grep 'code-metrics.yaml')"
 # A value the resolver refuses must stop the run. Reading a derived format from
 # a process substitution would report only the read's own success, so the audit

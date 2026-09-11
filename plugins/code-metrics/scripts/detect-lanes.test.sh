@@ -24,13 +24,18 @@ assert_eq() {
   if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "$2" "$3"; fi
 }
 
-out="$(bash "$SCRIPT" a/one.ts b/two.py c/three.sh d/four.go e/Five.cs f/notes.md g/six.MJS)"
-assert_eq "extension map classifies every lane and skips markdown" \
-  "$(printf 'typescript\ta/one.ts\npython\tb/two.py\nbash\tc/three.sh\ngo\td/four.go\ndotnet\te/Five.cs\ntypescript\tg/six.MJS')" "$out"
+out="$(bash "$SCRIPT" a/one.ts b/two.py c/three.sh d/four.go e/Five.cs f/notes.md g/six.MJS h/Makefile i/data.JSON)"
+assert_eq "extension map classifies every language lane and the rest as other" \
+  "$(printf 'typescript\ta/one.ts\npython\tb/two.py\nbash\tc/three.sh\ngo\td/four.go\ndotnet\te/Five.cs\nother\tf/notes.md\ntypescript\tg/six.MJS\nother\th/Makefile\nother\ti/data.JSON')" "$out"
 
 out="$(bash "$SCRIPT" --disable python a/one.ts b/two.py)"
 assert_eq "--disable drops the lane" "$(printf 'typescript\ta/one.ts')" "$out"
 
+out="$(bash "$SCRIPT" --disable other a/one.ts f/notes.md)"
+assert_eq "--disable other drops the catch-all lane" "$(printf 'typescript\ta/one.ts')" "$out"
+
+# A file the consumer's globs leave out of its extension's lane is dropped,
+# not moved to `other`: the consumer scoped that lane deliberately.
 out="$(bash "$SCRIPT" --globs 'bash=scripts/**/*.bats,*.zsh' scripts/x/y.bats top.zsh other.sh)"
 assert_eq "--globs replaces the extension map for that lane" \
   "$(printf 'bash\tscripts/x/y.bats\nbash\ttop.zsh')" "$out"
