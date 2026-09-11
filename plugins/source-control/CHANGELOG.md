@@ -3,6 +3,30 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.75]
+
+### Added
+
+- **The PR monitor judges a review lane by what it produced, not by its check row.** New step B2
+  in the per-iteration checklist: an AI-review lane that concluded success having produced no
+  review body and no finding **for the current round** reviewed nothing, and is classified ABSENT
+  rather than PASS. These lanes report on their session rather than on their output, so a session
+  that ends without error goes green whether or not it reviewed anything, and cost is no signal
+  either since the session is billed either way. Productivity is scoped to the head under review
+  through the per-surface commit fields Gate 5 already names, so an artifact left by an earlier
+  head or an earlier rerun cannot stand in for a round that emitted nothing. An absent lane is
+  substituted with a local review over the same diff (`/review:fanout`, or the bundled
+  `/code-review` against an explicit target for a correctness lane) and named in the report.
+- **The substitution is enforced on the readiness gate, not only in the monitor loop.** The same
+  invariant is now a Gate 5 item in `reference/readiness.md`, the single source of truth both
+  `monitor.md` (Phase 3.4) and `merge.md` (Phase 4.1) rerun, so a direct `merge` invocation and
+  the final re-verification in `full` enforce it too. It states what reaching Gate 5's bound hands
+  off to: the bound ends the wait for a silent reviewer, it does not supply the review. The
+  `babysit-prs` worker and autopilot tiers merge through their own gate and do not read this file,
+  so they are unchanged by this entry.
+- **Both readiness templates gained a `Review lanes:` line**, so an absent lane and its local
+  substitute are reported rather than dropped from a verdict that otherwise reads all-clear.
+
 ## [0.55.74]
 
 ### Changed
