@@ -112,7 +112,8 @@ blocked)
   ;;
 esac
 
-project_dir=$(hook::repo_root "${CLAUDE_PROJECT_DIR:-.}")
+project_dir=""
+hook::repo_root_to project_dir "${CLAUDE_PROJECT_DIR:-.}" || :
 root=""
 slog_root_to root "$project_dir"
 [[ -n "$root" ]] || exit 0

@@ -609,18 +609,11 @@ case $PWSH_EXIT in
   # Findings — advisory context, exit 0. Status "ok": the analyzer RAN and
   # produced a judgment (findings live in data.findings), mirroring the sibling
   # formatter plugins where status reflects whether the tool ran, not clean-ness.
-  PS_CTX="powershell-format: $FILE_BASE has PSScriptAnalyzer findings (advisory):"
-  findings_raw=""
-  while IFS= read -r line; do
-    [[ -n "$line" ]] || continue
-    PS_CTX+=$'\n'"  $line"
-    findings_raw+="$line"$'\n'
-  done <<<"$PSSA_OUTPUT"
-
+  PS_CTX=""
   FINDINGS_JSON='[]'
-  if [[ -n "$findings_raw" ]]; then
-    FINDINGS_JSON=$(printf '%s' "$findings_raw" | jq -R . | jq -s . 2>/dev/null) || FINDINGS_JSON='[]'
-  fi
+  hook::findings_to PS_CTX \
+    "powershell-format: $FILE_BASE has PSScriptAnalyzer findings (advisory):" \
+    "$PSSA_OUTPUT" FINDINGS_JSON
   # Findings AND a rewrite disclosure compose into one document. Emitting the
   # context and the systemMessage as two objects would break the single-JSON-doc
   # stdout contract, which is what hook::finish exists to uphold.
@@ -710,11 +703,10 @@ case $PWSH_EXIT in
   # judgment was made. Surface via additionalContext (NOT stderr — an advisory
   # hook's exit-0 stderr can trip a false "Hook Error" label). Record as
   # "skipped" (the analyzer never ran to judgment).
-  PS_CTX="powershell-format: pwsh failed for $FILE_BASE (no diagnostics; tool break, not a finding):"
-  while IFS= read -r line; do
-    [[ -n "$line" ]] || continue
-    PS_CTX+=$'\n'"  $line"
-  done <<<"$PSSA_OUTPUT"
+  PS_CTX=""
+  hook::findings_to PS_CTX \
+    "powershell-format: pwsh failed for $FILE_BASE (no diagnostics; tool break, not a finding):" \
+    "$PSSA_OUTPUT"
   # Invoke-Formatter writes back BEFORE Invoke-ScriptAnalyzer runs, and both sit
   # inside the same try/catch that raises exit 4 — so a rewrite can already be on
   # disk when pwsh breaks. The disclosure is still owed and composes with the

@@ -342,16 +342,19 @@ else
 fi
 rm -f "$ABS10" "$OUT10"
 
-# --- Test 11: hook::normalize_path is host-gated on OSTYPE --------------------
+# --- Test 11: hook::normalize_path_to is host-gated on OSTYPE -----------------
 # The drive-letter fold is for Windows/MSYS only (case-insensitive FS). On a
 # case-sensitive POSIX host a real single-letter top dir like /c/Repo must pass
 # through unchanged, or the membership guard collapses it with /c/repo and
-# admits a sibling outside CLAUDE_PROJECT_DIR. normalize_path reads the shell's
-# OSTYPE, so override it in a subshell per case (the global stays intact).
+# admits a sibling outside CLAUDE_PROJECT_DIR. normalize_path_to reads the
+# shell's OSTYPE, so override it in a subshell per case (the global stays
+# intact) and print the answer from there.
 # shellcheck disable=SC2030 # the subshell-local override is the point; Test 12b's later read of the host's real OSTYPE is what pairs this with SC2031
 norm_as() { (
   OSTYPE="$1"
-  hook::normalize_path "$2"
+  local __norm=""
+  hook::normalize_path_to __norm "$2"
+  printf '%s' "$__norm"
 ); }
 assert_norm() { # <ostype> <input> <expected> <desc>
   local got
@@ -479,7 +482,7 @@ rm -rf "$PROJ12" "$OUTSIDE12" "$SIB12"
 
 # --- Test 12b: read_file_path membership guard — Windows 8.3 short names ------
 # GNU realpath under Git Bash does not expand 8.3 short names, so without
-# hook::expand_8dot3 a short-form spelling of an IN-project file (the shape
+# hook::expand_8dot3_to a short-form spelling of an IN-project file (the shape
 # Claude Code's own scratchpad paths take) fails the prefix comparison and is
 # silently skipped. Both sides are passed in Windows mixed form (C:/...), the
 # form production hooks receive — a POSIX/mixed cross-form pair is a case
@@ -567,7 +570,13 @@ PROJ12C=""
 if [[ -n "${HOME:-}" && -d "${HOME:-}" ]]; then
   PROJ12C=$(mktemp -d "$HOME/.hook-utils-test.XXXXXX" 2>/dev/null) || PROJ12C=""
 fi
-if [[ -n "$PROJ12C" ]] && ! hook::under_temp_root "$(hook::normalize_path "$(hook::physical_path "$PROJ12C")")"; then
+PROJ12C_NORM=""
+if [[ -n "$PROJ12C" ]]; then
+  PROJ12C_PHYS=""
+  hook::physical_path_to PROJ12C_PHYS "$PROJ12C" || :
+  hook::normalize_path_to PROJ12C_NORM "$PROJ12C_PHYS"
+fi
+if [[ -n "$PROJ12C" ]] && ! hook::under_temp_root "$PROJ12C_NORM"; then
   mkdir -p "$PROJ12C/scratchpad"
   echo 'y = 2' >"$PROJ12C/scratchpad/inventory.py"
   echo 'x = 1' >"$PROJ12C/inside.py"
@@ -755,7 +764,7 @@ else
   fail "json_escape_to: got '$esc14_to' want '$esc'"
 fi
 
-# --- Test 14b: hook::json_escape_jq matches jq's own string escaping ----------
+# --- Test 14b: hook::json_escape_jq_to matches jq's own string escaping -------
 # The telemetry envelope's string fields are escaped by this function instead
 # of by jq; the corpus covers every class jq treats specially (backslash,
 # quote, the five short-form controls, the other C0 bytes, DEL) plus the
@@ -770,11 +779,13 @@ corpus14b=(
 )
 for s in "${corpus14b[@]}"; do
   want=$(jq -cn --arg s "$s" '$s' | tr -d '\r')
-  got="\"$(hook::json_escape_jq "$s")\""
+  esc14b=""
+  hook::json_escape_jq_to esc14b "$s"
+  got="\"$esc14b\""
   if [[ "$got" == "$want" ]]; then
-    ok "json_escape_jq: matches jq for $(printf '%q' "${s:0:24}")"
+    ok "json_escape_jq_to: matches jq for $(printf '%q' "${s:0:24}")"
   else
-    fail "json_escape_jq: bash=$got jq=$want"
+    fail "json_escape_jq_to: bash=$got jq=$want"
   fi
 done
 
@@ -2109,7 +2120,7 @@ rm -f "$bs_big_file" "$bs_payload_file" "$bs_rc_file" "$bs_out_file"
 # far worse than the problem being fixed: with a zero-length tick the producer
 # emits all 20 bytes at once, the read never has to re-arm, and the case passes
 # while testing nothing. So the support is probed the way
-# hook::resolve_read_slice probes it — a `read -t` against /dev/null, judged by
+# hook::resolve_read_slice_to probes it — a `read -t` against /dev/null, judged by
 # whether it printed a usage error — before the FIFO is created at all, and the
 # `sleep` spawn is the fallback for that host as well as for one where a FIFO
 # cannot be made. Falling back is no worse than what this replaces. The tick is
@@ -2311,17 +2322,27 @@ for bs_submin in "0.0000001" "0.000001"; do
   fi
   rm -f "$bs_rc_file" "$bs_out_file" "$bs_err_file"
 done
-resolved=$(CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=0.00001 hook::resolve_read_timeout)
+# The library has one spelling, `_to`. The subshell here is the test's own
+# isolation for the option override, not a calling convention.
+resolve_timeout_under() { # <option-value>
+  (
+    CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT="$1"
+    local __t=""
+    hook::resolve_read_timeout_to __t
+    printf '%s' "$__t"
+  )
+}
+resolved=$(resolve_timeout_under 0.00001)
 if [[ "$resolved" == "0.00001" ]]; then
-  ok "resolve_read_timeout: floor value 0.00001 is honored"
+  ok "resolve_read_timeout_to: floor value 0.00001 is honored"
 else
-  fail "resolve_read_timeout floor: got '$resolved' (expected 0.00001)"
+  fail "resolve_read_timeout_to floor: got '$resolved' (expected 0.00001)"
 fi
-resolved=$(CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=0.0000001 hook::resolve_read_timeout)
+resolved=$(resolve_timeout_under 0.0000001)
 if [[ "$resolved" == "2" ]]; then
-  ok "resolve_read_timeout: below-floor value degrades to default"
+  ok "resolve_read_timeout_to: below-floor value degrades to default"
 else
-  fail "resolve_read_timeout below floor: got '$resolved' (expected 2)"
+  fail "resolve_read_timeout_to below floor: got '$resolved' (expected 2)"
 fi
 
 # Bash 3.2 has no fractional `read -t` (CHANGES bash-4.0-alpha). Override the
@@ -2335,25 +2356,29 @@ if [[ "$frac_branch" == "legacy" ]]; then
 else
   fail "fractional-timeout override did not flip the branch (got '$frac_branch')"
 fi
-frac_slice=$(bash -c "${force_no_frac}"'hook::resolve_read_slice 2' _ "$HOOK_DIR/hook-utils.sh")
+# shellcheck disable=SC2016 # the dest vars are the child shell's, not this one's
+print_slice='s=""; c=""; hook::resolve_read_slice_to "$2" s c; printf "%s %s" "$s" "$c"'
+# shellcheck disable=SC2016 # the dest var is the child shell's, not this one's
+print_timeout='t=""; hook::resolve_read_timeout_to t; printf "%s" "$t"'
+frac_slice=$(bash -c "${force_no_frac}${print_slice}" _ "$HOOK_DIR/hook-utils.sh" 2)
 if [[ "$frac_slice" == "2 1" ]]; then
-  ok "resolve_read_slice: Bash 3.2 fallback is unsliced '<timeout> 1'"
+  ok "resolve_read_slice_to: Bash 3.2 fallback is unsliced '<timeout> 1'"
 else
-  fail "resolve_read_slice 3.2 fallback: got '$frac_slice' (expected '2 1')"
+  fail "resolve_read_slice_to 3.2 fallback: got '$frac_slice' (expected '2 1')"
 fi
-frac_t=$(CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=0.5 bash -c "${force_no_frac}"'hook::resolve_read_timeout' \
+frac_t=$(CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=0.5 bash -c "${force_no_frac}${print_timeout}" \
   _ "$HOOK_DIR/hook-utils.sh")
 if [[ "$frac_t" == "2" ]]; then
-  ok "resolve_read_timeout: fractional custom value degrades to default on Bash 3.2"
+  ok "resolve_read_timeout_to: fractional custom value degrades to default on Bash 3.2"
 else
-  fail "resolve_read_timeout 3.2 fractional: got '$frac_t' (expected 2)"
+  fail "resolve_read_timeout_to 3.2 fractional: got '$frac_t' (expected 2)"
 fi
-frac_int=$(CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=5 bash -c "${force_no_frac}"'hook::resolve_read_timeout' \
+frac_int=$(CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=5 bash -c "${force_no_frac}${print_timeout}" \
   _ "$HOOK_DIR/hook-utils.sh")
 if [[ "$frac_int" == "5" ]]; then
-  ok "resolve_read_timeout: integer custom value is honored on Bash 3.2"
+  ok "resolve_read_timeout_to: integer custom value is honored on Bash 3.2"
 else
-  fail "resolve_read_timeout 3.2 integer: got '$frac_int' (expected 5)"
+  fail "resolve_read_timeout_to 3.2 integer: got '$frac_int' (expected 5)"
 fi
 
 # A VALID non-default value must still be honored — the guard must not collapse
@@ -2442,16 +2467,13 @@ bs_time_stall() { # $1 = shell prelude; prints elapsed ms (empty if untimed)
 # hook::read_supports_nchars), not a command-substitution probe, so the
 # unsliced override matches that work: no TMPDIR file, no substitution fork.
 # shellcheck disable=SC2016 # $1 is the overriding function's own positional, not this shell's
-bs_unsliced='hook::resolve_read_slice() {
-  printf "%s 1" "$1"
-}
-hook::resolve_read_slice_to() {
+bs_unsliced='hook::resolve_read_slice_to() {
   printf -v "$2" "%s" "$1"
   printf -v "$3" "%s" "1"
 }'
-bs_slices=$(bash -c 'source "$1"; hook::resolve_read_slice 3.6' _ "$HOOK_DIR/hook-utils.sh")
-bs_slices_forced=$(bash -c 'source "$1"; '"$bs_unsliced"'; hook::resolve_read_slice 3.6' \
-  _ "$HOOK_DIR/hook-utils.sh")
+bs_slices=$(bash -c "source \"\$1\"; ${print_slice}" _ "$HOOK_DIR/hook-utils.sh" 3.6)
+bs_slices_forced=$(bash -c "source \"\$1\"; ${bs_unsliced}; ${print_slice}" \
+  _ "$HOOK_DIR/hook-utils.sh" 3.6)
 if [[ "$bs_slices" == "0.900 4" ]] && [[ "$bs_slices_forced" == "3.6 1" ]]; then
   ok "buffer_stdin: slice resolution splits the bound, and the unsliced override engages"
 else
@@ -2932,19 +2954,20 @@ else
   ok "a self-referential env -S terminates and resolves no git"
 fi
 
-# --- resolve_read_slice: shell fixed-point division ---------------------------
+# --- resolve_read_slice_to: shell fixed-point division ------------------------
 # The slice is produced by shell arithmetic rather than an awk spawn, and its
-# printed form is load-bearing twice over: it is fed to `read -t` and it is
-# re-matched against ^[0-9]+\.[0-9]+$ / ^0+\.0+$ by resolve_read_slice itself.
+# format is load-bearing twice over: it is fed to `read -t` and it is
+# re-matched against ^[0-9]+\.[0-9]+$ / ^0+\.0+$ by the helper itself.
 # A format regression would not fail loudly — it would silently degrade every
 # hook to the unsliced bound.
 slice_is() {
-  local label="$1" input="$2" want="$3" got
-  got=$(hook::resolve_read_slice "$input")
+  local label="$1" input="$2" want="$3" slice="" count="" got
+  hook::resolve_read_slice_to "$input" slice count
+  got="$slice $count"
   if [[ "$got" == "$want" ]]; then
-    ok "resolve_read_slice: $label"
+    ok "resolve_read_slice_to: $label"
   else
-    fail "resolve_read_slice $label: got '$got', want '$want'"
+    fail "resolve_read_slice_to $label: got '$got', want '$want'"
   fi
 }
 slice_is "the default bound splits into four 500 ms slices" 2 "0.500 4"
@@ -3320,10 +3343,10 @@ RR_NOGIT="$(mktemp -d)"
 repo_root_unresolved "$RR_NOGIT"
 rm -rf "$RR_NOGIT"
 
-# --- hook::repo_relative_path: strip, redact, and say which happened ---------
-# The helper answers on three channels like the two above: stdout, the return
-# code, and HOOK_REPO_RELATIVE_DEGRADED. The return code is the one a caller in
-# a command substitution can read, so every case asserts all three.
+# --- hook::repo_relative_path_to: strip, redact, and say which happened ------
+# The helper answers on three channels like the two above: the destination
+# variable, the return code, and HOOK_REPO_RELATIVE_DEGRADED. All three land in
+# the caller's own shell, so every case asserts all three.
 #
 # BOTH arms run on EVERY host. Which arm the helper takes is decided by
 # `command -v cygpath`, so each case drives it in a child shell whose PATH holds
@@ -3371,8 +3394,8 @@ chmod +x "$RRP_DIR/cyg/cygpath"
 # rrp_case <mode> <label> <file> <root> <expected-out> <expected-degraded>
 #   mode nocyg → no cygpath on PATH, helper takes the direct-strip arm
 #   mode cyg   → stub cygpath on PATH, helper takes the normalization arm
-# The child calls the helper twice on purpose: command substitution captures
-# stdout but runs in a subshell, so the global has to be read from a plain call.
+# One call answers all three channels: the helper writes _out in the child's own
+# shell, so the return code and the degraded global are readable right after it.
 # Only shell builtins are used inside, because PATH is deliberately near-empty.
 rrp_case() {
   local mode="$1" label="$2" file="$3" root="$4" want="$5" want_deg="$6" probe
@@ -3385,9 +3408,9 @@ rrp_case() {
     PATH="$RRP_DIR/$mode" "$BASH" -c '
       # shellcheck source=hook-utils.sh
       source "$1"
-      _out=$(hook::repo_relative_path "$2" "$3")
+      _out=""
+      hook::repo_relative_path_to _out "$2" "$3"
       _rc=$?
-      hook::repo_relative_path "$2" "$3" >/dev/null
       printf "%s\n%s\n%s\n" "$_rc" "$HOOK_REPO_RELATIVE_DEGRADED" "$_out"
     ' _ "$HOOK_DIR/hook-utils.sh" "$file" "$root"
   )
@@ -3489,11 +3512,12 @@ if [[ "$acd_to" == $'tab\tx' ]]; then
 else
   fail "ansi_c_decode_to: got $(printf %q "$acd_to")"
 fi
-acd_print=$(hook::ansi_c_decode 'a\nb')
-if [[ "$acd_print" == $'a\nb' ]]; then
-  ok "ansi_c_decode: print form still decodes"
+acd_nl=""
+hook::ansi_c_decode_to acd_nl 'a\nb'
+if [[ "$acd_nl" == $'a\nb' ]]; then
+  ok "ansi_c_decode_to: decodes a newline escape"
 else
-  fail "ansi_c_decode print form: got $(printf %q "$acd_print")"
+  fail "ansi_c_decode_to newline: got $(printf %q "$acd_nl")"
 fi
 
 # The tokenizer and $'…' decode must run in this shell, not a leftover
@@ -3591,7 +3615,8 @@ else
   fail "bash_parse_segments per-word quoting provenance: got [$bps_word_q], want [0 2 1]"
 fi
 
-# repo_root_to / repo_relative_path_to write in this shell (print forms wrap them).
+# repo_root_to / repo_relative_path_to write in this shell. hook::repo_root is
+# the one path helper that keeps a print form, and it must agree with its twin.
 rr_to=""
 hook::repo_root_to rr_to "."
 rr_print=$(hook::repo_root ".")
@@ -3619,15 +3644,12 @@ fi
 
 # --- buffer_stdin resolve_* run in-process (no wrapper subshell) -------------
 # GNU Bash forks a subshell for $( ) and process substitution even when the
-# body is builtins only. The previous buffer_stdin startup paid two of those
-# (timeout + slice). The _to helpers must run in this shell; the print forms
-# must not be reached from buffer_stdin (that would be a regression to $( )).
+# body is builtins only. The buffer_stdin startup must pay neither of those
+# (timeout + slice): the _to helpers run in this shell.
 pin_dir="$(mktemp -d)"
 pin_file="$pin_dir/pids"
 eval "$(declare -f hook::resolve_read_timeout_to | sed '1s/^hook::resolve_read_timeout_to/__pin_timeout_to/')"
 eval "$(declare -f hook::resolve_read_slice_to | sed '1s/^hook::resolve_read_slice_to/__pin_slice_to/')"
-eval "$(declare -f hook::resolve_read_timeout | sed '1s/^hook::resolve_read_timeout/__pin_timeout_print/')"
-eval "$(declare -f hook::resolve_read_slice | sed '1s/^hook::resolve_read_slice/__pin_slice_print/')"
 hook::resolve_read_timeout_to() {
   printf 'timeout %s %s\n' "$$" "$BASHPID" >>"$pin_file"
   __pin_timeout_to "$@"
@@ -3635,14 +3657,6 @@ hook::resolve_read_timeout_to() {
 hook::resolve_read_slice_to() {
   printf 'slice %s %s\n' "$$" "$BASHPID" >>"$pin_file"
   __pin_slice_to "$@"
-}
-hook::resolve_read_timeout() {
-  printf 'PRINT_TIMEOUT\n' >>"$pin_file"
-  __pin_timeout_print
-}
-hook::resolve_read_slice() {
-  printf 'PRINT_SLICE\n' >>"$pin_file"
-  __pin_slice_print "$@"
 }
 # Redirect, not a pipe: a function on the right of `|` runs in a subshell, which
 # would make BASHPID != $$ even when the _to helpers are in-process. A here-doc
@@ -3655,17 +3669,25 @@ if grep -q "^timeout $$ $$" "$pin_file" && grep -q "^slice $$ $$" "$pin_file"; t
 else
   fail "buffer_stdin resolve_*_to not in-process: $(tr '\n' ';' <"$pin_file")"
 fi
-if grep -q 'PRINT_' "$pin_file"; then # portability-ok: grep -q quiet match, not grep -P
-  fail "buffer_stdin reached the print-form resolve_* (regression to \$( )): $(tr '\n' ';' <"$pin_file")"
-else
-  ok "buffer_stdin: does not call the print-form resolve_* wrappers"
-fi
 # Restore the real functions so later cases (none today) see the originals.
 eval "$(declare -f __pin_timeout_to | sed '1s/^__pin_timeout_to/hook::resolve_read_timeout_to/')"
 eval "$(declare -f __pin_slice_to | sed '1s/^__pin_slice_to/hook::resolve_read_slice_to/')"
-eval "$(declare -f __pin_timeout_print | sed '1s/^__pin_timeout_print/hook::resolve_read_timeout/')"
-eval "$(declare -f __pin_slice_print | sed '1s/^__pin_slice_print/hook::resolve_read_slice/')"
 rm -rf "$pin_dir"
+
+# --- one calling convention: the retired print twins stay retired ------------
+# A value-producing helper is spelled `_to` and writes the caller's variable.
+# A print twin reintroduced beside one is a per-call-site fork decision the
+# interface does not state, so each retired name must stay absent.
+for retired_fn in \
+  hook::normalize_path hook::expand_8dot3 hook::json_escape_jq \
+  hook::repo_relative_path hook::resolve_read_timeout hook::resolve_read_slice \
+  hook::ansi_c_decode hook::emit_additional_context; do
+  if declare -F "$retired_fn" >/dev/null 2>&1; then
+    fail "retired print form is defined again: $retired_fn"
+  else
+    ok "retired print form stays retired: $retired_fn"
+  fi
+done
 
 # --- buffer_stdin_to writes in-process; fused filters are one jq -------------
 # Drive _to WITHOUT $( ): a command substitution is a subshell, so dest would

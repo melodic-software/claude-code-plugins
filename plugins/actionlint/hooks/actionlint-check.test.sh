@@ -449,7 +449,7 @@ fi
 
 # --- Symlinked repo root: the lint target must stay the edited file ----------
 # The hook cd's to the repo root and passes actionlint a repo-relative path so
-# diagnostics read cleanly. That path comes from hook::repo_relative_path, which
+# diagnostics read cleanly. That path comes from hook::repo_relative_path_to, which
 # REDACTS to a bare basename when the repo-root prefix strip does not match.
 # Reaching one repo through a symlink produces exactly that mismatch: file_path
 # keeps the symlinked spelling while `git rev-parse --show-toplevel` answers with

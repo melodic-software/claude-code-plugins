@@ -136,8 +136,11 @@ command -v goimports >/dev/null 2>&1 && GOIMPORTS_BIN=goimports
 
 if [[ -z "$GOIMPORTS_BIN" ]]; then
   if hook::notice_once "go-format-goimports" "$INPUT"; then
-    hook::emit_skip_notice PostToolUse "go-format: no 'goimports' binary found on this hook's PATH — format/import-fix skipped for this edit (probe re-runs on every matching edit; only this notice latches once per session — there is no skip latch). Hook processes inherit Claude Code's own environment, not the interactive shell's profile, so a version-manager install the Bash tool can see may be invisible here. Install: go install golang.org/x/tools/cmd/goimports@latest
-PATH probed: ${PATH:-<unset>}"
+    GO_NOTICE=""
+    hook::tool_missing_notice_to GO_NOTICE \
+      "go-format: no 'goimports' binary found on this hook's PATH — format/import-fix skipped for this edit" \
+      matching ". Install: go install golang.org/x/tools/cmd/goimports@latest"
+    hook::emit_skip_notice PostToolUse "$GO_NOTICE"
   fi
   emit_skipped
 fi
@@ -196,18 +199,11 @@ if [[ $RC -eq 2 && -n "$STDERR" ]]; then
   # goimports ran and produced a judgment: the file has a syntax error it
   # cannot parse. This is a finding, not a tool break — mirrors how
   # ruff-format surfaces a mid-edit syntax error as a finding.
-  GO_CTX="go-format: $FILE_BASE has a syntax error goimports could not parse (advisory):"
-  findings_raw=""
-  while IFS= read -r line; do
-    [[ -n "$line" ]] || continue
-    GO_CTX+=$'\n'"  $line"
-    findings_raw+="$line"$'\n'
-  done <<<"$STDERR"
-
+  GO_CTX=""
   FINDINGS_JSON='[]'
-  if [[ -n "$findings_raw" ]]; then
-    FINDINGS_JSON=$(printf '%s' "$findings_raw" | jq -R . | jq -s . 2>/dev/null) || FINDINGS_JSON='[]'
-  fi
+  hook::findings_to GO_CTX \
+    "go-format: $FILE_BASE has a syntax error goimports could not parse (advisory):" \
+    "$STDERR" FINDINGS_JSON
   # Findings AND a rewrite disclosure compose into one document (#3406 class).
   hook::finish --context "$GO_CTX" --disclose "$GO_REWRITE_MESSAGE" \
     ok findings array "$FINDINGS_JSON"
@@ -217,11 +213,10 @@ fi
 # code) — no judgment was made. Surface the diagnostic via additionalContext
 # (NOT stderr — an advisory hook's exit-0 stderr can trip a false "Hook
 # Error" label). Record as "skipped" (the tool never ran to judgment).
-GO_CTX="go-format: goimports failed for $FILE_BASE (no diagnostics; tool break, not a finding):"
-while IFS= read -r line; do
-  [[ -n "$line" ]] || continue
-  GO_CTX+=$'\n'"  $line"
-done <<<"$STDERR"
+GO_CTX=""
+hook::findings_to GO_CTX \
+  "go-format: goimports failed for $FILE_BASE (no diagnostics; tool break, not a finding):" \
+  "$STDERR"
 # goimports may have written the file before breaking, so the disclosure is
 # still owed and composes with the tool-break context as one document; the take
 # inside hook::finish is also what records that rewrite in data.changed.

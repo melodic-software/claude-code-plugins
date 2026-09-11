@@ -61,8 +61,11 @@ hook::begin --no-membership --relative actionlint PostToolUse \
 # status so a consumer sink can observe the coverage gap.
 if ! command -v actionlint >/dev/null 2>&1; then
   if hook::notice_once "actionlint-missing" "$INPUT"; then
-    hook::emit_skip_notice PostToolUse "actionlint: 'actionlint' was not found on this hook's PATH — workflow lint skipped for this edit (probe re-runs on every matching edit; only this notice latches once per session — there is no skip latch). Hook processes inherit Claude Code's own environment, not the interactive shell's profile, so a version-manager install the Bash tool can see may be invisible here. Install: https://github.com/rhysd/actionlint/blob/main/docs/install.md
-PATH probed: ${PATH:-<unset>}"
+    AL_NOTICE=""
+    hook::tool_missing_notice_to AL_NOTICE \
+      "actionlint: 'actionlint' was not found on this hook's PATH — workflow lint skipped for this edit" \
+      matching ". Install: https://github.com/rhysd/actionlint/blob/main/docs/install.md"
+    hook::emit_skip_notice PostToolUse "$AL_NOTICE"
   fi
   hook::finish --id actionlint-check skipped findings array '[]'
 fi
@@ -94,45 +97,20 @@ AL_STATUS=$?
 # CLI, 3 fatal, 126/127 launch failure -- means the lint DID NOT run. Report it
 # as an error (output captured as findings for the sink), never as clean.
 if [[ "$AL_STATUS" -ge 2 ]]; then
+  # The raw encode, not hook::findings_to's per-line one: a lint that did not
+  # run leaves a diagnostic whose blank lines are part of the shape a sink is
+  # meant to read back, so this branch keeps actionlint's stdout+stderr
+  # verbatim. There is no agent-channel report on this arm.
   FINDINGS_JSON='[]'
-  # FINDINGS_JSON feeds the telemetry envelope and nothing else, so the encode
-  # sits behind the sink opt-in, the same rule TOOL above already follows.
-  # Without the guard a run reaching this branch paid two jq spawns on the
-  # unwired default path for a value emit_tel then discards (measured with
-  # strace -f -e trace=execve: 5 jq execs per run, 3 with the guard).
-  #
-  # The two-process `jq -R . | jq -s .` shape stays. Folding it into one
-  # `jq -R -s 'split("\n")...'` was tried and is wrong: slurp mode decodes the
-  # whole stream as a single string, so a truncated UTF-8 lead byte sitting
-  # immediately before a newline absorbs that newline into one U+FFFD and
-  # merges two output lines into one array element. Line mode splits on the raw
-  # byte first and keeps them apart. That matters most here: this branch
-  # encodes actionlint's raw stdout+stderr, blank lines and all, with none of
-  # the per-line filtering the findings branch below applies.
-  if [[ -n "$AL_OUTPUT" ]] && hook::telemetry_enabled; then
-    FINDINGS_JSON=$(printf '%s' "$AL_OUTPUT" | jq -R . | jq -s . 2>/dev/null) || FINDINGS_JSON='[]'
-  fi
+  hook::findings_encode_to FINDINGS_JSON "$AL_OUTPUT"
   hook::finish --id actionlint-check error findings array "$FINDINGS_JSON"
 fi
 
 FINDINGS_JSON='[]'
 AL_CTX=""
 if [[ -n "$AL_OUTPUT" ]]; then
-  hook::ctx_reset
-  hook::ctx_append "actionlint: $FILE_BASE has findings:"
-  findings_raw=""
-  while IFS= read -r line; do
-    [[ -n "$line" ]] || continue
-    hook::ctx_append "  $line"
-    findings_raw+="$line"$'\n'
-  done <<<"$AL_OUTPUT"
-  hook::ctx_take_to AL_CTX
-
-  # Behind the sink opt-in, and the two-process jq shape kept, for the reasons
-  # recorded at the AL_STATUS >= 2 branch above.
-  if [[ -n "$findings_raw" ]] && hook::telemetry_enabled; then
-    FINDINGS_JSON=$(printf '%s' "$findings_raw" | jq -R . | jq -s . 2>/dev/null) || FINDINGS_JSON='[]'
-  fi
+  hook::findings_to AL_CTX "actionlint: $FILE_BASE has findings:" \
+    "$AL_OUTPUT" FINDINGS_JSON
 fi
 
 hook::finish --id actionlint-check --context "$AL_CTX" ok findings array "$FINDINGS_JSON"

@@ -1342,13 +1342,12 @@ fi
 # telemetry findings array — is clean without a per-string strip.
 CTX="${CTX%"${CTX##*[![:space:]]}"}"
 
-# Build the findings array in one jq pass (one JSON string per matched line).
-# The telemetry payload is NOT capped — a sink is a machine, and the cap exists
-# to protect the model's context, not a log file.
+# Build the findings array (one JSON string per matched line). The telemetry
+# payload is NOT capped — a sink is a machine, and the cap exists to protect the
+# model's context, not a log file. hook::findings_encode_to owns the sink
+# opt-in, so the encode costs nothing on the unwired default path.
 FINDINGS_JSON='[]'
-if [[ -n "$findings_raw" ]]; then
-  FINDINGS_JSON=$(printf '%s' "$findings_raw" | jq -R . | jq -s . 2>/dev/null) || FINDINGS_JSON='[]'
-fi
+hook::findings_encode_to FINDINGS_JSON "$findings_raw"
 
 hook::finish --context "$CTX" --message "$SYSMSG" --changed "$MD_CHANGED" \
   ok findings array "$FINDINGS_JSON"

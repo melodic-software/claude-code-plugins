@@ -1702,7 +1702,7 @@ fi
 
 # --- Symlinked repo root: the scan target must stay the edited file ----------
 # The hook passes typos a repo-relative path so diagnostics read cleanly, and it
-# computes that path with hook::repo_relative_path, which REDACTS to a bare
+# computes that path with hook::repo_relative_path_to, which REDACTS to a bare
 # basename when the repo-root prefix strip does not match. Reaching one repo
 # through a symlink produces exactly that mismatch: file_path keeps the
 # symlinked spelling while `git rev-parse --show-toplevel` answers with the
@@ -1860,7 +1860,7 @@ fi
 
 # One external, the typos binary, which is the point of the hook. The two
 # cygpath calls that build its repository-relative argument are inside
-# hook::repo_relative_path, which is shared library code.
+# hook::repo_relative_path_to, which is shared library code.
 OWN_LIST="$(own_externals "$TRACE" | tr '\n' ' ')"
 OWN_LIST="${OWN_LIST% }"
 OWN_N="$(own_externals "$TRACE" | grep -c .)"

@@ -7,6 +7,19 @@
 # copies at plugins/*/hooks/hook-utils.sh exist because installed plugins are
 # cache-isolated and must be self-contained — never edit a copy. Edit the
 # source and run scripts/sync-hook-utils.sh; CI rejects drifted copies.
+#
+# CALLING CONVENTION: a helper that produces a value is spelled
+# `hook::<name>_to <var> [args…]` and writes into the caller's variable. That
+# is the one convention; call it directly rather than wrapping it in `$( )`.
+# GNU Bash forks a subshell for every command substitution even when the body
+# is only builtins (Command Substitution, Bash Reference Manual;
+# https://mywiki.wooledge.org/CommandSubstitution), and on Windows Git Bash a
+# fork is a non-copy-on-write Win32 CreateProcess costing milliseconds, so a
+# capture around a `_to` helper is pure loss on hooks that run per edit.
+# Five helpers still print instead — hook::json_escape, hook::physical_path,
+# hook::repo_root, hook::buffer_stdin and hook::read_file_path (which reads
+# fd0 and has no `_to` twin). Each carries, at its definition, the one-line
+# reason its capture is still paid for.
 
 # Guard against double-sourcing.
 [[ -n "${_HOOK_UTILS_LOADED:-}" ]] && return 0
@@ -57,10 +70,13 @@ hook::check_enabled() {
 # never carries meaningful control bytes beyond line structure. Byte-safe under
 # UTF-8: every escaped byte is ASCII, and UTF-8 continuation bytes are >= 0x80.
 #
-# hook::json_escape_to <var> <string> writes in THIS shell. The print form is
-# the public contract. A `$(hook::json_escape …)` capture is a fork even when
-# the body is only builtins (Command Execution Environment, Bash Reference
-# Manual; https://mywiki.wooledge.org/CommandSubstitution). The previous
+# hook::json_escape_to <var> <string> writes in THIS shell and is the form to
+# call. hook::json_escape is kept as a print form for the two Stop/PostCompact
+# marker builders that splice an escaped field into a single-quoted JSON
+# literal, where a capture is the shape; a `$(hook::json_escape …)` capture is
+# still a fork even when the body is only builtins (Command Execution
+# Environment, Bash Reference Manual;
+# https://mywiki.wooledge.org/CommandSubstitution). The previous
 # `printf | tr -d` pipeline added two more process creations and a `tr` exec
 # per notice; Cygwin's fork is a non-copy-on-write Win32 CreateProcess
 # (Cygwin User's Guide, "Process Creation": "fork will almost certainly
@@ -90,8 +106,11 @@ hook::json_escape() {
 # user-channel message (systemMessage) as ONE document — CC parses the hook's
 # whole stdout as a single JSON doc, so a run that has both lint findings and a
 # pending skip notice must compose them here rather than print twice. Either
-# channel may be empty; emits nothing when both are.
+# channel may be empty; emits nothing when both are. One entry point for both
+# channels, so a hook with only one of them passes "" for the other rather
+# than picking between two spellings of the same emit.
 #   hook::emit_channels PostToolUse "$ctx" "$sysmsg"
+#   hook::emit_channels PreToolUse "$ctx" ""      # agent channel only
 hook::emit_channels() {
   local event="$1" ctx="$2" sysmsg="$3"
   [[ -n "$ctx" || -n "$sysmsg" ]] || return 0
@@ -447,14 +466,10 @@ hook::require_jq_blocking() {
 # outside CLAUDE_PROJECT_DIR. The result is used ONLY for comparison; the
 # emitted path is always the caller's original.
 #
-# Two spellings of every path helper below: `hook::<name>` prints the answer
-# (the public, subshell-friendly form every caller already uses) and
-# `hook::<name>_to <var> <path>` stores it in the caller's variable instead.
-# The `_to` form is what the hot path uses: a `$(...)` capture is a fork, and
-# on Windows Git Bash a fork costs milliseconds, so the file_path guard that
-# ran a dozen of them per hook now runs none it does not need. The `_to`
-# helpers keep their locals under a `__hu_` prefix so the caller's variable
-# name cannot collide with them.
+# Every path helper below is spelled `hook::<name>_to <var> <path>` and stores
+# its answer in the caller's variable: one convention, no per-call-site choice.
+# The `_to` helpers keep their locals under a `__hu_` prefix so the caller's
+# variable name cannot collide with them.
 hook::normalize_path_to() {
   local __hu_p="${2//\\//}"
   case "${OSTYPE:-}" in
@@ -468,12 +483,6 @@ hook::normalize_path_to() {
   *) ;; # POSIX hosts: case-sensitive FS, no drive fold — pass through below
   esac
   printf -v "$1" '%s' "$__hu_p"
-}
-
-hook::normalize_path() {
-  local __hu_n
-  hook::normalize_path_to __hu_n "$1"
-  printf '%s' "$__hu_n"
 }
 
 # Expand Windows 8.3 short-name components (KYLESE~1 → KyleSexton) on
@@ -516,12 +525,6 @@ hook::expand_8dot3_to() {
   printf -v "$1" '%s' "$__hu_p"
 }
 
-hook::expand_8dot3() {
-  local __hu_e
-  hook::expand_8dot3_to __hu_e "$1"
-  printf '%s' "$__hu_e"
-}
-
 # Canonicalize to a physical path — symlinks resolved, Windows 8.3 short names
 # expanded — for the membership comparison below, so an in-project symlink
 # pointing outside the project root cannot defeat the guard (the lexical path
@@ -553,6 +556,8 @@ hook::physical_path_to() {
   return 1
 }
 
+# Kept as a print form because markdown-format's directory walk resolves each
+# queue entry inline inside an array append, where a capture is the shape.
 # shellcheck disable=SC2034  # public contract: advisory callers may read HOOK_PHYSICAL_PATH_UNRESOLVED
 hook::physical_path() {
   local __hu_v __hu_rc=0
@@ -1088,7 +1093,7 @@ hook::json_compact_to() {
   printf -v "$1" '%s' "$__hu_out"
 }
 
-# hook::json_escape_jq_to <var> <string> / hook::json_escape_jq <string>
+# hook::json_escape_jq_to <var> <string>
 # Escape <string> exactly as jq serializes a string value (without the
 # quotes): backslash and double quote, the five short forms \b \f \n \r \t,
 # every other byte from 0x01 to 0x1f and 0x7f as lowercase \u00xx, and
@@ -1115,12 +1120,6 @@ hook::json_escape_jq_to() {
     done
   fi
   printf -v "$1" '%s' "$__hu_s"
-}
-
-hook::json_escape_jq() {
-  local __hu_e
-  hook::json_escape_jq_to __hu_e "$1"
-  printf '%s' "$__hu_e"
 }
 
 # hook::json_str_object_to <var> [key value]...
@@ -1284,12 +1283,10 @@ hook::read_file_path() {
 # means git answered; advisory callers that ignore the status are unchanged.
 # Guards that must fail closed branch on the return code or on
 # HOOK_REPO_ROOT_UNRESOLVED.
-#   ROOT=$(hook::repo_root "$some_path")
 #   hook::repo_root_to ROOT "$some_path"
-# The print form is the public contract. `_to` writes in THIS shell so a
-# caller that was about to capture with `$(hook::repo_root …)` does not pay
-# an extra subshell around the necessary git process (Command Substitution,
-# Bash Reference Manual; https://mywiki.wooledge.org/CommandSubstitution).
+# `_to` writes in THIS shell so the caller does not pay an extra subshell
+# around the necessary git process (Command Substitution, Bash Reference
+# Manual; https://mywiki.wooledge.org/CommandSubstitution).
 # shellcheck disable=SC2034  # public contract: advisory callers may read HOOK_REPO_ROOT_UNRESOLVED
 hook::repo_root_to() {
   local __hu_rr_dest="$1"
@@ -1314,6 +1311,9 @@ hook::repo_root_to() {
   return 1
 }
 
+# Kept as a print form for the callers outside this repo's hook tree (a skill
+# script, a repo-local sink copy) that read the root once at top level and are
+# not on a per-edit hot path.
 hook::repo_root() {
   local __hu_rr
   hook::repo_root_to __hu_rr "${1:-.}"
@@ -1400,14 +1400,12 @@ hook::walk_up_to() {
 # repo-relative. Telemetry callers that ignore the status still get the safe
 # value; a caller that feeds the result to a TOOL must branch on it, because a
 # bare basename resolved against the repo root names a different file.
-#   FILE_REL=$(hook::repo_relative_path "$FILE" "$REPO_ROOT")
 #   hook::repo_relative_path_to FILE_REL "$FILE" "$REPO_ROOT"
 #
-# Callers under `set -e` must not take the status from a bare assignment: a
-# degraded answer returns 1, and `FILE_REL=$(hook::repo_relative_path ...)`
-# would abort the shell. Append `|| <flag>=1` (what every tool-feeding caller
-# here does) or `|| :` to keep the failure handled. The `_to` form writes in
-# THIS shell so a Linux caller (no cygpath) does not pay a leftover capture
+# Callers under `set -e` must not take the status from a bare call: a degraded
+# answer returns 1 and would abort the shell. Append `|| <flag>=1` (what every
+# tool-feeding caller here does) or `|| :` to keep the failure handled. The
+# helper writes in THIS shell so a Linux caller (no cygpath) pays no capture
 # subshell around builtins-only work (Command Substitution, Bash Reference
 # Manual; https://mywiki.wooledge.org/CommandSubstitution).
 # shellcheck disable=SC2034  # public contract: callers may read HOOK_REPO_RELATIVE_DEGRADED
@@ -1444,14 +1442,6 @@ hook::repo_relative_path_to() {
   esac
   printf -v "$__hu_rp_dest" '%s' "$__hu_rp_rel"
   ((HOOK_REPO_RELATIVE_DEGRADED == 0))
-}
-
-hook::repo_relative_path() {
-  local __hu_rp
-  hook::repo_relative_path_to __hu_rp "$1" "$2"
-  local __hu_rp_st=$?
-  printf '%s' "$__hu_rp"
-  return "$__hu_rp_st"
 }
 
 # Buffer a complete JSON payload from stdin, tolerating Windows Win32-pipe
@@ -1578,12 +1568,10 @@ hook::read_supports_fractional_timeout() {
 }
 
 # hook::resolve_read_timeout_to <var>
-# Write the resolved timeout into <var> in THIS shell. The print form below
-# is the public contract (tests and callers that capture stdout). GNU Bash
-# runs command substitution in a subshell even when the body is only
-# builtins (Command Execution Environment), so hook::buffer_stdin must call
-# this _to form — `read_timeout=$(hook::resolve_read_timeout)` was one of
-# the two startup forks the suite documents.
+# Write the resolved timeout into <var> in THIS shell. GNU Bash runs command
+# substitution in a subshell even when the body is only builtins (Command
+# Execution Environment), so a capture here is a startup fork on every hook;
+# this is the only spelling, and the suite pins that buffer_stdin uses it.
 hook::resolve_read_timeout_to() {
   local __hu_dest="$1"
   local __hu_t="${CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT:-2}"
@@ -1604,12 +1592,6 @@ hook::resolve_read_timeout_to() {
   printf -v "$__hu_dest" '%s' "$__hu_t"
 }
 
-hook::resolve_read_timeout() {
-  local t
-  hook::resolve_read_timeout_to t
-  printf '%s' "$t"
-}
-
 # How many slices the idle bound is divided into. `read -t` reports only that a
 # window expired, never WHEN inside it the last byte arrived, so a bound armed as
 # one window declares a stall anywhere between one and two bounds after the pipe
@@ -1620,14 +1602,14 @@ hook::resolve_read_timeout() {
 HOOK_STDIN_READ_SLICES=4
 
 # Resolve the per-read slice for an already-resolved timeout into two caller
-# variables (slice, count). The print form below is the public contract:
-# "<slice> <count>", falling back to "<timeout> 1" — exactly the unsliced
-# behavior — when this shell cannot accept a fractional `read -t` (Bash 3.2;
-# CHANGES bash-4.0-alpha introduced fractional timeouts). Version-tested via
-# hook::read_supports_fractional_timeout, not probed: a TMPDIR stderr file
-# leaked on every buffer_stdin. hook::buffer_stdin calls the _to form so the
-# resolution does not pay a process-substitution fork (GNU Bash: commands
-# grouped for substitution run in a subshell).
+# variables (slice, count), falling back to "<timeout> 1" — exactly the
+# unsliced behavior — when this shell cannot accept a fractional `read -t`
+# (Bash 3.2; CHANGES bash-4.0-alpha introduced fractional timeouts).
+# Version-tested via hook::read_supports_fractional_timeout, not probed: a
+# TMPDIR stderr file leaked on every buffer_stdin. Two variables, never a
+# printed "<slice> <count>" pair the caller re-splits, so the resolution pays
+# no substitution fork (GNU Bash: commands grouped for substitution run in a
+# subshell).
 hook::resolve_read_slice_to() {
   local __hu_t="$1" __hu_slice=""
   local __hu_slice_dest="$2" __hu_count_dest="$3"
@@ -1662,12 +1644,6 @@ hook::resolve_read_slice_to() {
   fi
   printf -v "$__hu_slice_dest" '%s' "$__hu_t"
   printf -v "$__hu_count_dest" '%s' "1"
-}
-
-hook::resolve_read_slice() {
-  local slice count
-  hook::resolve_read_slice_to "$1" slice count
-  printf '%s %s' "$slice" "$count"
 }
 
 # hook::buffer_stdin_to <var> [jq-filter...]
@@ -1725,7 +1701,7 @@ hook::buffer_stdin_to() {
     if ((__hu_read_rc == 0)); then
       # A full chunk (or a delimiter) — more may still be coming. A SUCCESSFUL
       # read that consumed nothing, however, cannot make progress, so continuing
-      # would spin: break instead. hook::resolve_read_timeout already excludes
+      # would spin: break instead. hook::resolve_read_timeout_to already excludes
       # the only known way to reach that (`read -t 0`, which returns success
       # without consuming); this keeps loop termination a structural property
       # rather than a consequence of validation staying correct.
@@ -1855,6 +1831,9 @@ hook::buffer_stdin_to() {
   printf -v "$__hu_dest" '%s' "$__hu_input"
 }
 
+# Kept as a print form because the guardrails dispatcher overrides both
+# spellings to answer every sourced guard from one already-read payload, and a
+# guard that captures must still reach the override.
 hook::buffer_stdin() {
   local __hu_buf
   hook::buffer_stdin_to __hu_buf || return $?
@@ -2031,8 +2010,8 @@ hook::raw_notebook_path() {
 # ordinary shell patterns and `*` spans separators.
 #
 # Each glob is tried against the path as it arrived AND against its
-# hook::normalize_path form (backslashes folded to slashes; on Windows also a
-# drive fold), so one `*.sh` or `*/.github/workflows/*.yml` list covers a
+# hook::normalize_path_to form (backslashes folded to slashes; on Windows also
+# a drive fold), so one `*.sh` or `*/.github/workflows/*.yml` list covers a
 # JSON-escaped raw path, a POSIX path and a Win32 path alike. Normalizing is
 # builtins-only, so the second try costs no process.
 #   hook::path_matches "$FILE" '*.sh' '*.bash' || exit 0
@@ -2793,19 +2772,6 @@ hook::emit_telemetry() {
   printf '%s\n' "$envelope" | ("$sink" >/dev/null 2>&1) &
 }
 
-# Agent-channel-only spelling of hook::emit_channels, for a hook that has no
-# user-channel message to compose. No-op when context is empty. Shape:
-# { hookSpecificOutput: { hookEventName, additionalContext } }.
-#
-# The document is built by hook::emit_channels, so it costs no process and it
-# is emitted whether or not jq is installed. A `jq -n` twin of this builder
-# stood here and returned 0 in silence on a host without jq — a feature that
-# skips itself is a defect, and on an always-on PostToolUse hook the fork was
-# charged to every run that had anything to say.
-hook::emit_additional_context() {
-  hook::emit_channels "$1" "$2" ""
-}
-
 # ---------------------------------------------------------------------------
 # Argv-grammar-faithful Bash command parsing for git guards. The command is
 # parsed the way the shell builds argv — top-level segments split on unquoted
@@ -2823,22 +2789,16 @@ hook::emit_additional_context() {
 # `--` guards a body that begins with `-`. Errors are swallowed (fail-open on a
 # malformed body — the raw text still flows through the caller unchanged).
 #
-# hook::ansi_c_decode_to <var> <body> writes in THIS shell. The print form is
-# the public contract. A `$(hook::ansi_c_decode …)` capture is a fork even
-# though the body is only `printf` (Command Substitution, Bash Reference
-# Manual; https://mywiki.wooledge.org/CommandSubstitution). Cygwin's fork is
-# a non-copy-on-write Win32 CreateProcess (Cygwin User's Guide, Process
+# hook::ansi_c_decode_to <var> <body> writes in THIS shell and is the only
+# spelling. A capture around it would be a fork even though the body is only
+# `printf` (Command Substitution, Bash Reference Manual;
+# https://mywiki.wooledge.org/CommandSubstitution), and Cygwin's fork is a
+# non-copy-on-write Win32 CreateProcess (Cygwin User's Guide, Process
 # Creation).
 hook::ansi_c_decode_to() {
   local __hu_acd_b="${2//%/%%}"
   # shellcheck disable=SC2059  # the body IS the format — that is how ANSI-C escapes decode; %-escaped above so it cannot inject a specifier
   printf -v "$1" -- "$__hu_acd_b" 2>/dev/null || printf -v "$1" '%s' ""
-}
-
-hook::ansi_c_decode() {
-  local __hu_acd
-  hook::ansi_c_decode_to __hu_acd "$1"
-  printf '%s' "$__hu_acd"
 }
 
 # Split a GNU `env -S` operand the way env does: whitespace-separated words
@@ -2955,7 +2915,7 @@ hook::shell_c_operand() {
 
 # Does an argv word name the git executable? Basename compared exactly on
 # POSIX; on Windows/MSYS also case-folded and `.exe`-stripped (mirrors the
-# OS-gate in hook::normalize_path) so `GIT` / `git.exe` are caught there but a
+# OS-gate in hook::normalize_path_to) so `GIT` / `git.exe` are caught there but a
 # case-variant stays distinct on a case-sensitive POSIX filesystem.
 hook::git_is_bin() {
   local b="${1##*/}"
@@ -4025,4 +3985,93 @@ hook::bash_parse_segments() {
   done
   ((have)) && hook::_bps_close_word
   hook::_bps_flush_segment
+}
+
+# ============================================================================
+# Reporting one tool's judgment on one file
+# ============================================================================
+#
+# A hook that drives a formatter or linter over the edited file turns that
+# tool's output into the same two things, for two different readers:
+#
+#   the agent channel   a heading with one indented line per diagnostic
+#   data.findings       those same lines as a JSON array, for a telemetry sink
+#
+# Both are built here, so such a hook states only what differs — how to invoke
+# its tool, how to read its exit code, and what its headings say.
+
+# Encode raw tool output as a data.findings array: one JSON string per line.
+#
+#   hook::findings_encode_to <dest> <raw>
+#
+# The encode sits behind the sink opt-in because data.findings has exactly one
+# reader — hook::emit_telemetry, which returns immediately when no sink is
+# wired. Keeping the check INSIDE is what makes it hold: no caller can obtain
+# the array without paying it, so the unwired default path spends no process on
+# a value nothing reads. Empty output, no sink, or a jq that is missing or
+# fails all answer `[]`.
+#
+# The two-process `jq -R . | jq -s .` shape is load-bearing. A single
+# `jq -R -s 'split("\n")'` decodes the whole stream as ONE string first, so a
+# truncated UTF-8 lead byte sitting immediately before a newline absorbs that
+# newline into a single U+FFFD and merges two diagnostics into one array
+# element. Line mode splits on the raw byte before decoding and keeps them
+# apart.
+hook::findings_encode_to() {
+  local __hu_fe_json='[]'
+  if [[ -n "$2" ]] && hook::telemetry_enabled; then
+    __hu_fe_json=$(printf '%s' "$2" | jq -R . | jq -s . 2>/dev/null) ||
+      __hu_fe_json='[]'
+  fi
+  printf -v "$1" '%s' "$__hu_fe_json"
+}
+
+# Build the agent-channel report from a tool's output, and optionally the
+# matching data.findings array.
+#
+#   hook::findings_to <ctx-dest> <heading> <output> [<findings-dest>]
+#
+# <ctx-dest> receives <heading> followed by one `  `-indented line per NON-EMPTY
+# line of <output>; a tool that printed nothing leaves the heading standing
+# alone. Blank lines are dropped on both channels because they carry no
+# diagnostic and cost the model context.
+#
+# <findings-dest>, when given, receives those same lines through
+# hook::findings_encode_to. Omit it on an arm reporting a TOOL BREAK rather than
+# a judgment: the break diagnostic belongs on the agent channel, while
+# data.findings stays empty because the tool produced no findings. An arm that
+# needs the unfiltered stream in data.findings — blank lines and all — calls
+# hook::findings_encode_to directly instead.
+hook::findings_to() {
+  local __hu_ft_ctx="$2" __hu_ft_raw="" __hu_ft_line
+  while IFS= read -r __hu_ft_line; do
+    [[ -n "$__hu_ft_line" ]] || continue
+    __hu_ft_ctx+=$'\n'"  $__hu_ft_line"
+    __hu_ft_raw+="$__hu_ft_line"$'\n'
+  done <<<"$3"
+  printf -v "$1" '%s' "$__hu_ft_ctx"
+  [[ -n "${4:-}" ]] && hook::findings_encode_to "$4" "$__hu_ft_raw"
+  return 0
+}
+
+# Compose the skip notice a hook emits when the tool it drives is not on this
+# hook's PATH.
+#
+#   hook::tool_missing_notice_to <dest> <lead> <scope> [<tail>]
+#
+#   <lead>   the first sentence, through "skipped for this edit": which plugin,
+#            which tool was not found and where it was looked for, and what was
+#            skipped as a result
+#   <scope>  the edit class the probe re-runs on ("matching", "shell")
+#   <tail>   the install route and any tool-specific advice, appended before the
+#            PATH line
+#
+# The sentence between them is the part that answers the question the reader
+# actually has, and it is the same for every tool: a hook process inherits
+# Claude Code's own environment rather than the interactive shell's profile, so
+# a tool the Bash tool can see may genuinely be absent here, and the PATH that
+# WAS probed is the evidence. Stating it once keeps it from drifting per plugin.
+hook::tool_missing_notice_to() {
+  printf -v "$1" '%s' "$2 (probe re-runs on every $3 edit; only this notice latches once per session — there is no skip latch). Hook processes inherit Claude Code's own environment, not the interactive shell's profile, so a version-manager install the Bash tool can see may be invisible here${4:-}
+PATH probed: ${PATH:-<unset>}"
 }

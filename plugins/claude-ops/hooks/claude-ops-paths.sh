@@ -45,10 +45,15 @@ claude_ops::resolve_project_relative_dir() {
     ancestor="$parent"
   done
 
-  local physical_project physical_ancestor
-  physical_project=$(hook::normalize_path "$(hook::physical_path "$project_dir")")
+  # `_to` throughout: the library's one calling convention, and a `$( )`
+  # capture around it is a subshell fork per resolution even though the body
+  # is builtins plus one realpath.
+  local physical_project="" physical_ancestor="" physical=""
+  hook::physical_path_to physical "$project_dir" || :
+  hook::normalize_path_to physical_project "$physical"
   physical_project="${physical_project%/}"
-  physical_ancestor=$(hook::normalize_path "$(hook::physical_path "$ancestor")")
+  hook::physical_path_to physical "$ancestor" || :
+  hook::normalize_path_to physical_ancestor "$physical"
   if [[ "$physical_ancestor" != "$physical_project" && "$physical_ancestor" != "$physical_project"/* ]]; then
     return 1
   fi
@@ -63,8 +68,9 @@ claude_ops::resolve_project_relative_dir() {
 # /tmp/a/b would collide), so the digest carries the uniqueness. sha1sum ships
 # with Git Bash and Linux; cksum is the POSIX fallback.
 claude_ops::repo_slug() {
-  local p base hash
-  p=$(hook::normalize_path "$(hook::physical_path "$1")")
+  local p="" base hash physical=""
+  hook::physical_path_to physical "$1" || :
+  hook::normalize_path_to p "$physical"
   base="${p##*/}"
   base="${base//[^A-Za-z0-9._-]/-}"
   hash=$(printf '%s' "$p" | sha1sum 2>/dev/null | cut -c1-8)
@@ -175,9 +181,9 @@ claude_ops::ensure_git_exclude() {
 # recorded only when non-empty (the tool-path producer passes "").
 claude_ops::record_skill_use() {
   local hook_event="$1" notice_prefix="$2" input="$3" skill="$4" src="$5" exp_type="$6"
-  local project_dir rel_dir scope log_dir verified_log_dir ts branch line=""
+  local project_dir="" rel_dir scope log_dir verified_log_dir ts branch line=""
   local -a exp_keys=()
-  project_dir=$(hook::repo_root "${CLAUDE_PROJECT_DIR:-.}")
+  hook::repo_root_to project_dir "${CLAUDE_PROJECT_DIR:-.}" || :
   rel_dir="${CLAUDE_PLUGIN_OPTION_SKILL_USAGE_DIR:-.claude/observability}"
   scope="${CLAUDE_PLUGIN_OPTION_SKILL_USAGE_SCOPE:-repo}"
   case "$scope" in

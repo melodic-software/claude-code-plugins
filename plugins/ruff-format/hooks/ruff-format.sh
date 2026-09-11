@@ -140,8 +140,11 @@ fi
 # once-per-session skip notice, not a silent gap (dim-9 doctrine).
 if [[ -z "$RUFF_BIN" ]]; then
   if hook::notice_once "ruff-format-ruff" "$INPUT"; then
-    hook::emit_skip_notice PostToolUse "ruff-format: a Ruff config governs this repo but no 'ruff' binary was found (.venv or this hook's PATH) — format/lint skipped for this edit (probe re-runs on every matching edit; only this notice latches once per session — there is no skip latch). Hook processes inherit Claude Code's own environment, not the interactive shell's profile, so a version-manager install the Bash tool can see may be invisible here; a project .venv install is the reliable route. Install: https://docs.astral.sh/ruff/installation/
-PATH probed: ${PATH:-<unset>}"
+    RUFF_NOTICE=""
+    hook::tool_missing_notice_to RUFF_NOTICE \
+      "ruff-format: a Ruff config governs this repo but no 'ruff' binary was found (.venv or this hook's PATH) — format/lint skipped for this edit" \
+      matching "; a project .venv install is the reliable route. Install: https://docs.astral.sh/ruff/installation/"
+    hook::emit_skip_notice PostToolUse "$RUFF_NOTICE"
   fi
   emit_skipped
 fi
@@ -207,18 +210,11 @@ if [[ $RC -eq 0 ]]; then
 fi
 
 if [[ $RC -eq 1 && -n "$OUTPUT" ]]; then
-  RUFF_CTX="ruff-format: $FILE_BASE has Ruff findings (advisory):"
-  findings_raw=""
-  while IFS= read -r line; do
-    [[ -n "$line" ]] || continue
-    RUFF_CTX+=$'\n'"  $line"
-    findings_raw+="$line"$'\n'
-  done <<<"$OUTPUT"
-  # Findings AND a rewrite disclosure compose into one document (#3406).
+  RUFF_CTX=""
   FINDINGS_JSON='[]'
-  if [[ -n "$findings_raw" ]]; then
-    FINDINGS_JSON=$(printf '%s' "$findings_raw" | jq -R . | jq -s . 2>/dev/null) || FINDINGS_JSON='[]'
-  fi
+  hook::findings_to RUFF_CTX "ruff-format: $FILE_BASE has Ruff findings (advisory):" \
+    "$OUTPUT" FINDINGS_JSON
+  # Findings AND a rewrite disclosure compose into one document (#3406).
   # Status "ok" — the linter RAN and produced a judgment (findings live in
   # data.findings), mirroring the sibling formatter plugins where status
   # reflects whether the tool ran, not whether it was clean.
@@ -231,11 +227,10 @@ fi
 # an advisory hook's exit-0 stderr can trip a false "Hook Error" label). Record
 # as "skipped" (the linter never ran to judgment), the same status as the
 # no-config / no-binary paths.
-RUFF_CTX="ruff-format: ruff failed for $FILE_BASE (no diagnostics; tool break, not a finding):"
-while IFS= read -r line; do
-  [[ -n "$line" ]] || continue
-  RUFF_CTX+=$'\n'"  $line"
-done <<<"$OUTPUT"
+RUFF_CTX=""
+hook::findings_to RUFF_CTX \
+  "ruff-format: ruff failed for $FILE_BASE (no diagnostics; tool break, not a finding):" \
+  "$OUTPUT"
 # The fix/format passes may already have rewritten the file before the verify
 # pass broke, so the disclosure is still owed and composes with the tool-break
 # context as one document (#3406); the take inside hook::finish is also what

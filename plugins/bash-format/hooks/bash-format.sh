@@ -177,8 +177,11 @@ if shell_editorconfig_opt_in; then
       ran_any=1
     fi
   elif hook::notice_once "bash-format-shfmt" "$INPUT"; then
-    append_notice "bash-format: .editorconfig opts this repo into shell formatting but 'shfmt' was not found on this hook's PATH — formatting skipped for this edit (probe re-runs on every shell edit; only this notice latches once per session — there is no skip latch). Hook processes inherit Claude Code's own environment, not the interactive shell's profile, so a version-manager install the Bash tool can see may be invisible here. Install: https://github.com/mvdan/sh#shfmt
-PATH probed: ${PATH:-<unset>}"
+    SHFMT_NOTICE=""
+    hook::tool_missing_notice_to SHFMT_NOTICE \
+      "bash-format: .editorconfig opts this repo into shell formatting but 'shfmt' was not found on this hook's PATH — formatting skipped for this edit" \
+      shell ". Install: https://github.com/mvdan/sh#shfmt"
+    append_notice "$SHFMT_NOTICE"
   fi
 fi
 
@@ -206,41 +209,24 @@ if command -v shellcheck >/dev/null 2>&1; then
       SC_OUTPUT=$(printf '%s\n' "$SC_OUTPUT" | grep -v 'openBinaryFile' || true)
     fi
     if [[ -n "$SC_OUTPUT" ]]; then
-      CTX="bash-format: $FILE_BASE has ShellCheck findings:"$'\n'
-      findings_raw=""
-      while IFS= read -r line; do
-        [[ -n "$line" ]] || continue
-        CTX+="  $line"$'\n'
-        findings_raw+="$line"$'\n'
-      done <<<"$SC_OUTPUT"
-      # FINDINGS_JSON feeds the telemetry envelope and nothing else, so the
-      # encode sits behind the sink opt-in, the same rule TOOL/FILE_REL above
-      # already follow. Without the guard a findings-bearing edit paid two jq
-      # spawns on the unwired default path for a value emit_tel then discards
-      # (measured with strace -f -e trace=execve: 3 jq execs per run, 1 with
-      # the guard).
-      #
-      # The two-process `jq -R . | jq -s .` shape stays. Folding it into one
-      # `jq -R -s 'split("\n")...'` was tried and is wrong: slurp mode decodes
-      # the whole stream as a single string, so a truncated UTF-8 lead byte
-      # sitting immediately before a newline absorbs that newline into one
-      # U+FFFD and merges two ShellCheck findings into one array element. Line
-      # mode splits on the raw byte first and keeps them apart.
-      if [[ -n "$findings_raw" ]] && hook::telemetry_enabled; then
-        FINDINGS_JSON=$(printf '%s' "$findings_raw" | jq -R . | jq -s . 2>/dev/null) || FINDINGS_JSON='[]'
-      fi
+      hook::findings_to CTX "bash-format: $FILE_BASE has ShellCheck findings:" \
+        "$SC_OUTPUT" FINDINGS_JSON
     fi
   fi
 elif hook::notice_once "bash-format-shellcheck" "$INPUT"; then
-  append_notice "bash-format: 'shellcheck' was not found on this hook's PATH — shell lint skipped for this edit (probe re-runs on every shell edit; only this notice latches once per session — there is no skip latch). Hook processes inherit Claude Code's own environment, not the interactive shell's profile, so a version-manager install the Bash tool can see may be invisible here. Install: https://github.com/koalaman/shellcheck#installing
-PATH probed: ${PATH:-<unset>}"
+  SC_NOTICE=""
+  hook::tool_missing_notice_to SC_NOTICE \
+    "bash-format: 'shellcheck' was not found on this hook's PATH — shell lint skipped for this edit" \
+    shell ". Install: https://github.com/koalaman/shellcheck#installing"
+  append_notice "$SC_NOTICE"
 fi
 
 # hook::finish is the exit: it takes the shfmt disclosure (settling data.changed
 # and releasing the snapshot whether or not shfmt ever ran), emits telemetry
 # with that verdict, and composes the one JSON document — findings on the agent
 # channel, missing-tool notice on both, rewrite disclosure on the user channel.
-CTX="${CTX%$'\n'}"
+# CTX arrives from hook::findings_to unterminated, so the notice joins onto it
+# with a single newline.
 if [[ -n "$NOTICE" ]]; then
   [[ -n "$CTX" ]] && CTX+=$'\n'
   CTX+="$NOTICE"

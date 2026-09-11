@@ -116,8 +116,11 @@ fi
 # once-per-session skip notice, not a silent gap (dim-9 doctrine).
 if [[ -z "$BIOME_BIN" ]]; then
   if hook::notice_once "biome-format-biome" "$INPUT"; then
-    hook::emit_skip_notice PostToolUse "biome-format: a Biome config governs this repo but no 'biome' binary was found (node_modules/.bin or this hook's PATH) — format/lint skipped for this edit (probe re-runs on every matching edit; only this notice latches once per session — there is no skip latch). Hook processes inherit Claude Code's own environment, not the interactive shell's profile, so a version-manager install the Bash tool can see may be invisible here; a repo-local install (npm i -D @biomejs/biome) is the reliable route.
-PATH probed: ${PATH:-<unset>}"
+    BIOME_NOTICE=""
+    hook::tool_missing_notice_to BIOME_NOTICE \
+      "biome-format: a Biome config governs this repo but no 'biome' binary was found (node_modules/.bin or this hook's PATH) — format/lint skipped for this edit" \
+      matching "; a repo-local install (npm i -D @biomejs/biome) is the reliable route."
+    hook::emit_skip_notice PostToolUse "$BIOME_NOTICE"
   fi
   emit_skipped
 fi
@@ -170,30 +173,10 @@ fi
 # reflects whether the tool ran, not whether it was clean.
 FINDINGS=$(grep -E '^::(warning|error|notice)' <<<"$OUTPUT" || true)
 if [[ -n "$FINDINGS" ]]; then
-  BIOME_CTX="biome-format: $FILE_BASE has Biome findings (advisory):"
-  findings_raw=""
-  while IFS= read -r line; do
-    [[ -n "$line" ]] || continue
-    BIOME_CTX+=$'\n'"  $line"
-    findings_raw+="$line"$'\n'
-  done <<<"$FINDINGS"
-
+  BIOME_CTX=""
   FINDINGS_JSON='[]'
-  # FINDINGS_JSON feeds the telemetry envelope and nothing else, so the encode
-  # sits behind the sink opt-in, the same rule TOOL/FILE_REL above already
-  # follow. Without the guard a findings-bearing edit paid two jq spawns on the
-  # unwired default path for a value emit_tel then discards (measured with
-  # strace -f -e trace=execve: 3 jq execs per run, 1 with the guard).
-  #
-  # The two-process `jq -R . | jq -s .` shape stays. Folding it into one
-  # `jq -R -s 'split("\n")...'` was tried and is wrong: slurp mode decodes the
-  # whole stream as a single string, so a truncated UTF-8 lead byte sitting
-  # immediately before a newline absorbs that newline into one U+FFFD and
-  # merges two Biome diagnostics into one array element. Line mode splits on
-  # the raw byte first and keeps them apart.
-  if [[ -n "$findings_raw" ]] && hook::telemetry_enabled; then
-    FINDINGS_JSON=$(printf '%s' "$findings_raw" | jq -R . | jq -s . 2>/dev/null) || FINDINGS_JSON='[]'
-  fi
+  hook::findings_to BIOME_CTX "biome-format: $FILE_BASE has Biome findings (advisory):" \
+    "$FINDINGS" FINDINGS_JSON
   # Findings AND a rewrite disclosure compose into one document (#3406).
   hook::finish --context "$BIOME_CTX" --disclose "$BIOME_REWRITE_MESSAGE" \
     ok findings array "$FINDINGS_JSON"
@@ -216,11 +199,10 @@ fi
 # an advisory hook's exit-0 stderr can trip a false "Hook Error" label). Record
 # as "skipped" (the linter never ran), the same status as the no-config /
 # no-binary paths.
-BIOME_CTX="biome-format: biome failed for $FILE_BASE (no diagnostics; tool break, not a finding):"
-while IFS= read -r line; do
-  [[ -n "$line" ]] || continue
-  BIOME_CTX+=$'\n'"  $line"
-done <<<"$OUTPUT"
+BIOME_CTX=""
+hook::findings_to BIOME_CTX \
+  "biome-format: biome failed for $FILE_BASE (no diagnostics; tool break, not a finding):" \
+  "$OUTPUT"
 # The --write pass may already have rewritten the file before Biome broke, so
 # the disclosure composes with the tool-break context as one document.
 hook::finish --context "$BIOME_CTX" --disclose "$BIOME_REWRITE_MESSAGE" \
