@@ -3,6 +3,35 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.1]
+
+### Changed
+
+- **`check`: check 1's reserved-word limb is a WARN, with its basis corrected.** The 0.22.0 entry
+  attributed both name limbs to the Agent Skills specification and its `skills-ref` validator.
+  Only the 64-codepoint cap is the spec's; the reserved words `anthropic` and `claude` are a
+  Skills API upload requirement
+  (<https://platform.claude.com/docs/en/build-with-claude/skills-guide#creating-a-skill>, repeated
+  under "Limits and constraints", and the overview's `name` rules at
+  <https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview#skill-structure>),
+  which the best-practices page restates and `skills-ref` never checks. Claude Code loads such a
+  name and ships bundled skills named `claude-api` and `claude-in-chrome`, so a hard FAIL on it in
+  a checker whose consumers mostly never upload was over-broad: the limb now WARNs, naming the
+  upload surface that rejects the name, while the 64 limb stays a FAIL. The script comment, the
+  README, and the error text now name the correct source for each limb. Recheck trigger: the
+  spec's validator gaining a word list, the upload requirements changing, or a Claude Code release
+  rejecting either form.
+
+### Fixed
+
+- **`check`: "Claude Code loads it" is now measured, not assumed.** The check 1 and check 4 comment
+  blocks record a `--plugin-dir` load probe on Claude Code 2.1.263 (2026-09-11, `claude -p`): an
+  88-codepoint skill name containing `claude` and a 608-line SKILL.md both loaded and were invoked.
+  `claude plugin validate` exiting 0 had established only what validate inspects.
+- **`check`: check 4 and check 26 comments cite anchored URLs.** The best-practices page sections
+  are linked by anchor, the Claude Code Tip by its section anchor, and the skill-creator threshold
+  by its SKILL.md in the anthropics/skills repository, per the upstream-drift record form.
+
 ## [0.22.0]
 
 ### Added

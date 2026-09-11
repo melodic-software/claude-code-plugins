@@ -48,6 +48,24 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   unused versus their cost, right now", this skill separates starved from unwanted from
   unobservable and never disables. Four-part records in `reference/bundled-doctor.md`.
 
+## [0.47.1]
+
+### Fixed
+
+- **`session-event-log.sh` no longer accepts a `stdin_read_timeout` that disables the log.** A
+  `0` (also `0.0`, `00`), a positive value under 10 µs, or a fractional value on a Bash before 4.0
+  reached `read -t` unchanged; `read` returned at once with nothing read, the loop broke on the
+  empty chunk, and the hook exited 0 having written no event line and printed nothing. The
+  producer now applies the same rejection rules `hook::resolve_read_timeout_to` applies to the
+  variable and falls back to the default of 2, so an env-block value outside the manifest's
+  `min: 1` cannot silently empty the observability store. Regression cases cover the four values.
+
+### Changed
+
+- **`lib/state-key.sh`:** replica synced with the canonical copy. The non-repository rung now
+  hashes the physical working directory, so one directory reached through two spellings keys once,
+  and an exported `CDPATH` can no longer redirect `cd` or add a line to stdout.
+
 ## [0.47.0]
 
 ### Added
