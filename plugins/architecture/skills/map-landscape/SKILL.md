@@ -87,6 +87,11 @@ The record carries `repositories[]` from `portfolio-facts.sh` (`name`, `remote`,
 and `edges[]` from `reference-edges.sh` (`from`, `to` as `owner/repo`, `type`, `relation`, `count`,
 `files[]`).
 
+It also records `subject_owner`, the organisation the graph was drawn from, resolved by the edge
+extractor so the nodes and the edges cannot disagree about it. That is what makes a checkout
+internal: having a repository on disk says where someone works, not who owns the system, so a
+cross-owner checkout is the same external system the edges to it already call external.
+
 Anything no probe could derive is the literal `unknown`. Carry it through to the artifacts as-is;
 never replace it with a guess, and never fill it from a commit author, a directory name, or
 ecosystem memory.
@@ -130,6 +135,11 @@ the default and it is not negotiable by a referenced repository looking empty.
 With `--remote` (or `--remote=all` for externals too), read
 [scope-modes.md](${CLAUDE_PLUGIN_ROOT}/skills/map-landscape/reference/scope-modes.md) for the
 presence gate, the fact list, the evidence shape, and the rule that a local checkout always wins.
+
+Fetched facts reach the record through `--remote-facts <file>`, one JSON object per line in the
+shape `portfolio-facts.sh` emits. Without it the flag records only that a fetch happened, and every
+referenced repository stays factless. Pass the same file to the drift run: a merged record compared
+against a local-only collection reads every fetched repository as removed.
 
 ## Emit artifacts
 
@@ -203,6 +213,16 @@ End every run with this block, in this order, filled from the record and the scr
   installs `ruff` reports `runtime: shell` with `tooling: python`. The same rule makes a
   `package.json` carrying only `devDependencies` report tooling, which is why `target_framework` can
   be `unknown` while a `Tooling` entry is present.
+- **A checkout on disk is not a claim of ownership.** A repository whose owner differs from
+  `subject_owner` renders as an external system with its probed facts intact, outside every
+  enterprise boundary, even though this run read its files. It is drawn whatever `--top-external`
+  says: that cap trims the tail of repositories the run only read about, never the set someone
+  asked it to chart.
+- **A quote or a pipe read out of a manifest is replaced, not preserved.** A target framework, an
+  owner from `CODEOWNERS` and a repository name are all repository-controlled text that lands
+  inside a quoted string in both dialects and inside a cell in the portfolio table. Neither diagram
+  grammar has a portable escape for its own delimiter, so the delimiter is swapped for one that
+  cannot close the literal. A value that comes out altered is a value that was never a fact.
 - **`owner` is a ladder, and commit authors are not on it.** The `CODEOWNERS` default `*` rule's
   first owner, then the owner segment of the `origin` remote, then `unknown`. Who edits a repository
   most is not who owns it, so neither the script nor the write-up looks at git authorship.

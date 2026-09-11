@@ -20,6 +20,11 @@
 #                        external. Defaults to the edges-from origin owner.
 #   --source <text>      Discovery source recorded verbatim in the record.
 #   --remote <text>      Remote-facts status recorded verbatim in the record.
+#   --remote-facts <f>   Merge fetched facts for repositories with no local
+#                        checkout. One JSON object per line, each opening with
+#                        "name", in the shape portfolio-facts.sh emits. A local
+#                        checkout wins: an entry whose name a collector already
+#                        produced is discarded, not merged field by field.
 #   --drift-against <f>  Compare the fresh collection with committed record <f>.
 #                        Prints a drift report instead of the record.
 #
@@ -30,9 +35,15 @@
 #     "generated_on": "YYYY-MM-DD",
 #     "discovery_source": "…",
 #     "remote": "…",
+#     "subject_owner": "…",
 #     "repositories": [ <one portfolio-facts object per line> ],
 #     "edges": [ <one reference-edges object per line> ]
 #   }
+#
+# `subject_owner` is the organisation the graph was drawn from, resolved by the
+# edge extractor so the nodes and the edges cannot disagree about it. It is what
+# makes a checkout internal: having a repository on disk says where someone
+# works, not who owns the system.
 #
 # One object per line is deliberate: it keeps the record diffable in review and
 # parseable here without a JSON library. The collector's `path` field is dropped
@@ -77,6 +88,7 @@ edges_from=""
 owner=""
 source_text="explicit list"
 remote_text="not used"
+remote_facts=""
 compare_to=""
 
 while [[ $# -gt 0 ]]; do
@@ -121,6 +133,15 @@ while [[ $# -gt 0 ]]; do
     remote_text="${1#--remote=}"
     shift
     ;;
+  --remote-facts)
+    [[ $# -ge 2 ]] || die "--remote-facts needs a path" 2
+    remote_facts="$2"
+    shift 2
+    ;;
+  --remote-facts=*)
+    remote_facts="${1#--remote-facts=}"
+    shift
+    ;;
   --drift-against)
     [[ $# -ge 2 ]] || die "--drift-against needs a path" 2
     compare_to="$2"
@@ -157,6 +178,46 @@ facts_out="$(bash "$FACTS" "${repos[@]}")" || die "fact collection failed" 1
 edge_args=("$edges_from")
 [[ -n "$owner" ]] && edge_args+=(--owner "$owner")
 edges_out="$(bash "$EDGES" "${edge_args[@]}")" || die "edge extraction failed" 1
+subject_owner="$(bash "$EDGES" "${edge_args[@]}" --print-owner)" || die "owner resolution failed" 1
+[[ -n "$subject_owner" ]] || subject_owner="unknown"
+
+# Fetched facts for repositories nobody has checked out. They arrive already
+# assembled, because fetching them is model work against an API and this script
+# reaches no network. A local checkout wins outright rather than field by field:
+# a probe that read the files is a better witness than an API summary of them,
+# and merging the two would produce a repository row no single source stands
+# behind.
+if [[ -n "$remote_facts" ]]; then
+  [[ -r "$remote_facts" ]] || die "cannot read remote facts: $remote_facts" 1
+  merged="$(printf '%s\n' "$facts_out" | awk '
+    NR == FNR { if (NF) { local[++l] = $0; name[objname($0)] = 1 } ; next }
+    NF {
+      if ($0 !~ /^[[:space:]]*\{"name":/)
+        { printf "line %d is not a repository object\n", FNR > "/dev/stderr"; bad = 1; next }
+      n = objname($0)
+      if (n in name) next
+      name[n] = 1
+      remote[++r] = n "\t" $0
+    }
+    function objname(s,   t) {
+      t = s
+      sub(/^[^{]*\{"name":[[:space:]]*"/, "", t)
+      sub(/".*$/, "", t)
+      return t
+    }
+    END {
+      if (bad) exit 1
+      for (i = 1; i <= l; i++) print local[i]
+      # Sorted, so the record does not depend on the order the fetches
+      # happened to come back in.
+      for (i = 1; i <= r; i++)
+        for (j = i + 1; j <= r; j++)
+          if (remote[j] < remote[i]) { t = remote[i]; remote[i] = remote[j]; remote[j] = t }
+      for (i = 1; i <= r; i++) { sub(/^[^\t]*\t/, "", remote[i]); print remote[i] }
+    }
+  ' - "$remote_facts")" || die "malformed remote facts: $remote_facts" 1
+  facts_out="$merged"
+fi
 
 # --- Emit -------------------------------------------------------------------
 
@@ -262,6 +323,7 @@ if [[ -z "$compare_to" ]]; then
   printf '  "generated_on": "%s",\n' "$(date -u +%Y-%m-%d)"
   printf '  "discovery_source": "%s",\n' "$(json_escape "$source_text")"
   printf '  "remote": "%s",\n' "$(json_escape "$remote_text")"
+  printf '  "subject_owner": "%s",\n' "$(json_escape "$subject_owner")"
   # `path` is dropped on the way in. It records where a checkout happened to sit
   # on one machine at one moment, which is not a fact about the architecture and
   # would make the committed record differ on every machine that regenerates it.

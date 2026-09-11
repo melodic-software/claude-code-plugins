@@ -47,6 +47,29 @@ All notable changes to the `architecture` plugin are documented here. Format fol
 - **`map-landscape`:** the Structurizr artifact carries a `styles` block for its `External` tag.
   Structurizr removed the internal/external `location` property, so the tag is the only carrier left
   for that fact, and without a style it rendered nothing.
+- **`map-landscape`:** repository-controlled text can no longer break out of the string literal it
+  is written into. A target framework is read out of a manifest with only XML tags stripped, and a
+  raw quote is legal there; the renderer wrote it straight into a quoted `System(...)` or
+  `softwareSystem` string, so a crafted value could splice arbitrary diagram syntax into a committed
+  artifact. Values are now decoded out of the record and their delimiters replaced for the target
+  grammar, and a pipe is escaped before it lands in a portfolio-table cell.
+- **`map-landscape`:** two repository names differing only in punctuation, `a-b` and `a_b`, no
+  longer collapse onto one diagram identifier. Both dialects declared the system twice and pointed
+  every relationship at whichever declaration won; an alias already handed out is now suffixed.
+- **`map-landscape`:** a quoted `uses:` scalar is read. `uses: "owner/repo/.github/workflows/x.yml@v1"`
+  left the opening quote on the owner segment, which failed the character check and dropped the
+  edge without a word, so a repository writing ordinary quoted YAML charted an incomplete graph.
+- **`map-landscape`:** a checkout on disk is no longer a claim of ownership. Every locally collected
+  repository was marked internal whatever its owner, so a third-party checkout was drawn inside an
+  enterprise boundary while the edges to it said external. The record now names its `subject_owner`,
+  resolved by the edge extractor so the nodes and the edges cannot disagree, and a cross-owner
+  checkout renders as an external system with its probed facts intact. It is drawn whatever
+  `--top-external` says: that cap trims the tail of repositories a run only read about.
+- **`map-landscape`:** `--remote` reaches the record. It recorded only a status string, so fetched
+  facts had nowhere to land and every referenced repository stayed factless however much was
+  fetched. `landscape-record.sh --remote-facts <file>` merges them, a local checkout winning
+  outright over an entry of the same name, and an `archived` repository is marked in the node
+  description and the portfolio row as the remote-facts contract already promised.
 
 ### Changed
 

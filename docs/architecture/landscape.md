@@ -25,8 +25,14 @@ C4Context
   }
   System_Ext(anthropics_claude_code, "anthropics/claude-code", "not checked out here")
   System_Ext(actions_checkout, "actions/checkout", "not checked out here")
+  System_Ext(crate_ci_typos, "crate-ci/typos", "not checked out here")
+  System_Ext(Dometrain_mcp, "Dometrain/mcp", "not checked out here")
+  System_Ext(koalaman_shellcheck, "koalaman/shellcheck", "not checked out here")
 
+  Rel(melodic_software_claude_code_plugins, Dometrain_mcp, "cites (8)")
   Rel(melodic_software_claude_code_plugins, anthropics_claude_code, "cites (37)")
+  Rel(melodic_software_claude_code_plugins, crate_ci_typos, "cites (9)")
+  Rel(melodic_software_claude_code_plugins, koalaman_shellcheck, "cites (7)")
   Rel(melodic_software_claude_code_plugins, melodic_software_ci_workflows, "cites (145)")
   Rel(melodic_software_claude_code_plugins, melodic_software_claude_code_plugins_ci, "cites (1)")
   Rel(melodic_software_claude_code_plugins, melodic_software_dotfiles, "cites (4)")
@@ -41,7 +47,7 @@ C4Context
   Rel(melodic_software_claude_code_plugins, melodic_software_ci_workflows, "uses-workflow (24)")
 ```
 
-67 external repositories are referenced but not drawn; the record carries
+64 external repositories are referenced but not drawn; the record carries
 every one of them.
 
 ## Annotations

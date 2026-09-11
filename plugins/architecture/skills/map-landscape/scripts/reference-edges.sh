@@ -17,11 +17,16 @@
 #
 # Usage:
 #   reference-edges.sh <repo-path> [--owner <owner>]
+#   reference-edges.sh <repo-path> [--owner <owner>] --print-owner
 #   reference-edges.sh --help
 #
 # --owner overrides the owner segment taken from the `origin` remote. It decides
 # which references are `internal` (same owner) and which are `external`, and it
 # is the only way a bare `owner/repo` token is trusted at all.
+#
+# --print-owner prints the owner this run resolved and extracts nothing, so a
+# caller can record which organisation the graph was drawn from without
+# reimplementing the resolution. `unknown` when none resolves.
 #
 # Output: JSON Lines on stdout, one object per (target, type) pair, sorted:
 #
@@ -72,6 +77,7 @@ fi
 
 repo_arg=""
 owner_override=""
+print_owner=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --owner)
@@ -83,6 +89,7 @@ while [[ $# -gt 0 ]]; do
     owner_override="$1"
     ;;
   --owner=*) owner_override="${1#--owner=}" ;;
+  --print-owner) print_owner=1 ;;
   -*)
     printf 'reference-edges.sh: unknown option: %s\n' "$1" >&2
     exit 2
@@ -147,6 +154,15 @@ remote_owner_segment() {
 
 owner="$owner_override"
 [[ -n "$owner" ]] || owner="$(remote_owner_segment)" || owner=""
+
+# The owner this run resolved, for a caller that has to record which
+# organisation the graph was drawn from. Reading it back from here keeps one
+# resolution: a second implementation elsewhere would drift from this one about
+# what counts as the subject, and then the edges and the nodes would disagree.
+if [[ "$print_owner" -eq 1 ]]; then
+  printf '%s\n' "${owner:-unknown}"
+  exit 0
+fi
 
 # ---------------------------------------------------------------------------
 # Reserved GitHub path prefixes
@@ -299,6 +315,20 @@ while IFS= read -r line; do
   match="${line#*:}"
   ref="${match#*uses:}"
   ref="${ref#"${ref%%[![:space:]]*}"}"
+  # A YAML scalar may be quoted either way. The quotes belong to the syntax and
+  # not to the repository, and the owner segment carrying one fails the segment
+  # check, so an ordinary quoted `uses:` would drop out of the graph in silence.
+  case "$ref" in
+  \"?*\")
+    ref="${ref#\"}"
+    ref="${ref%\"}"
+    ;;
+  \'?*\')
+    ref="${ref#\'}"
+    ref="${ref%\'}"
+    ;;
+  *) ;;
+  esac
   case "$ref" in
   ./* | docker://*) continue ;;
   *) ;;

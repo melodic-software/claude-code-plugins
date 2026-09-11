@@ -229,6 +229,161 @@ owners="$(cat "$TEST_TMPDIR/owners/landscape.md")"
 assert_contains "owners: the first owner gets a boundary" "$owners" 'Enterprise_Boundary(b0, "acme")'
 assert_contains "owners: the second gets its own, not a shared one" "$owners" 'Enterprise_Boundary(b1, "zeta")'
 
+# --- Case group 8a: repository content stays inside its string literal ------
+#
+# A target framework is read out of a manifest with only XML tags stripped, and
+# a raw quote is legal there. Both dialects then carry it inside a quoted string
+# literal, and neither offers a portable escape for its own delimiter, so the
+# delimiter is replaced rather than escaped: what arrives here is corrupt data
+# or an attempt to splice diagram syntax, never a fact worth keeping verbatim.
+cat >"$TEST_TMPDIR/hostile.json" <<'JSON'
+{
+  "schema_version": 1,
+  "generated_on": "2026-01-02",
+  "discovery_source": "explicit list",
+  "remote": "not used",
+  "subject_owner": "acme",
+  "repositories": [
+    {"name":"payments","path":"/srv/payments","remote":"","owner":"acme","runtime":"dotnet","tooling":"unknown","target_framework":"net9.0\" } click n1 \"javascript:alert(1)\" \"pwn","dependencies":[],"dev_dependencies":[],"last_touched":"unknown","evidence":{"runtime":"a | b"}}
+  ],
+  "edges": []
+}
+JSON
+render hostile --record "$TEST_TMPDIR/hostile.json"
+hostile="$(cat "$TEST_TMPDIR/hostile/landscape.md")"
+assert_not_contains "injection: the payload cannot close the mermaid literal" "$hostile" '"pwn'
+assert_contains "injection: the system is still drawn, with the value neutralised" \
+  "$hostile" 'System(acme_payments, "payments", "dotnet, net9.0'"'"' } click n1'
+quote_count="$(printf '%s\n' "$hostile" | grep -c '^    System(acme_payments, "payments", "[^"]*")$')"
+assert_equals "injection: the mermaid call has exactly its own four quotes" "$quote_count" "1"
+render hostile_dsl --record "$TEST_TMPDIR/hostile.json" --dialect structurizr
+hostile_dsl="$(cat "$TEST_TMPDIR/hostile_dsl/landscape.dsl")"
+assert_not_contains "injection: nor the structurizr one" "$hostile_dsl" '"pwn'
+dsl_count="$(printf '%s\n' "$hostile_dsl" | grep -c '^      acme_payments = softwareSystem "payments" "[^"]*"$')"
+assert_equals "injection: whose string closes where it should" "$dsl_count" "1"
+# A pipe read out of a manifest ends the cell it lands in and shifts every
+# column after it, which corrupts the table the same way.
+hostile_portfolio="$(cat "$TEST_TMPDIR/hostile/portfolio.md")"
+assert_contains "injection: a pipe in a fact is escaped, not a new column" \
+  "$hostile_portfolio" '| a \| b |'
+ev_row="$(printf '%s\n' "$hostile_portfolio" | grep -F '| payments | runtime |')"
+assert_equals "injection: so the evidence row stays three cells wide" \
+  "$ev_row" '| payments | runtime | a \| b |'
+
+# --- Case group 8b: one alias per system ------------------------------------
+#
+# Every character outside the alphabet folds to the same underscore, so two
+# names differing only in punctuation arrive at one identifier and take each
+# other's relationships with them.
+cat >"$TEST_TMPDIR/collide.json" <<'JSON'
+{
+  "schema_version": 1,
+  "generated_on": "2026-01-02",
+  "discovery_source": "explicit list",
+  "remote": "not used",
+  "subject_owner": "acme",
+  "repositories": [
+    {"name":"a-b","path":"/srv/a-b","remote":"","owner":"acme","runtime":"shell","tooling":"unknown","target_framework":"unknown","dependencies":[],"dev_dependencies":[],"last_touched":"unknown","evidence":{}},
+    {"name":"a_b","path":"/srv/a_b","remote":"","owner":"acme","runtime":"shell","tooling":"unknown","target_framework":"unknown","dependencies":[],"dev_dependencies":[],"last_touched":"unknown","evidence":{}}
+  ],
+  "edges": [
+    {"from":"a-b","to":"acme/a_b","type":"depends-on","relation":"internal","count":1,"files":["go.mod"]}
+  ]
+}
+JSON
+render collide --record "$TEST_TMPDIR/collide.json"
+collide="$(cat "$TEST_TMPDIR/collide/landscape.md")"
+decls="$(printf '%s\n' "$collide" | grep -c '^    System(')"
+assert_equals "alias: two systems, two declarations" "$decls" "2"
+uniq_aliases="$(printf '%s\n' "$collide" | sed -n 's/^    System(\([^,]*\),.*$/\1/p' | sort -u | wc -l | tr -d ' ')"
+assert_equals "alias: and two distinct identifiers" "$uniq_aliases" "2"
+assert_contains "alias: the collision is broken with a counted suffix" "$collide" 'acme_a_b_2'
+assert_contains "alias: the relationship points at one of them, not at both" \
+  "$collide" 'Rel(acme_a_b, acme_a_b_2'
+render collide2 --record "$TEST_TMPDIR/collide.json"
+if diff -q "$TEST_TMPDIR/collide/landscape.md" "$TEST_TMPDIR/collide2/landscape.md" >/dev/null; then
+  pass "alias: the same record breaks the collision the same way twice"
+else
+  fail "alias: the same record breaks the collision the same way twice" \
+    "$(diff "$TEST_TMPDIR/collide/landscape.md" "$TEST_TMPDIR/collide2/landscape.md")"
+fi
+
+# --- Case group 8c: a checkout is not a claim of ownership ------------------
+#
+# Having a repository on disk says where someone works, not who owns the system.
+# A third-party checkout is the same external system the edges to it call
+# external, so the recorded subject owner decides and the local facts stay.
+cat >"$TEST_TMPDIR/foreign.json" <<'JSON'
+{
+  "schema_version": 1,
+  "generated_on": "2026-01-02",
+  "discovery_source": "explicit list",
+  "remote": "not used",
+  "subject_owner": "acme",
+  "repositories": [
+    {"name":"web-ui","path":"/srv/web-ui","remote":"","owner":"acme","runtime":"node","tooling":"unknown","target_framework":"unknown","dependencies":[],"dev_dependencies":[],"last_touched":"unknown","evidence":{}},
+    {"name":"vendor-sdk","path":"/srv/vendor-sdk","remote":"","owner":"thirdparty","runtime":"go","tooling":"unknown","target_framework":"unknown","dependencies":[],"dev_dependencies":[],"last_touched":"unknown","evidence":{}}
+  ],
+  "edges": []
+}
+JSON
+render foreign --record "$TEST_TMPDIR/foreign.json"
+foreign="$(cat "$TEST_TMPDIR/foreign/landscape.md")"
+assert_contains "foreign: the cross-owner checkout is drawn as external" \
+  "$foreign" 'System_Ext(thirdparty_vendor_sdk, "thirdparty/vendor-sdk"'
+assert_not_contains "foreign: and not inside an enterprise boundary for its owner" \
+  "$foreign" 'Enterprise_Boundary(b1'
+assert_contains "foreign: the subject owner still gets one" "$foreign" 'Enterprise_Boundary(b0, "acme")'
+assert_contains "foreign: the facts the probe read are kept" "$foreign" '"go"'
+# --top-external trims the tail of repositories this run only read about, never
+# the set someone asked it to chart.
+render foreign_capped --record "$TEST_TMPDIR/foreign.json" --top-external 0
+assert_contains "foreign: a probed external survives the external cap" \
+  "$(cat "$TEST_TMPDIR/foreign_capped/landscape.md")" 'System_Ext(thirdparty_vendor_sdk'
+# A record that names no subject owner cannot make the call, so nothing moves.
+cat >"$TEST_TMPDIR/nosubject.json" <<'JSON'
+{
+  "schema_version": 1,
+  "generated_on": "2026-01-02",
+  "discovery_source": "explicit list",
+  "remote": "not used",
+  "repositories": [
+    {"name":"vendor-sdk","path":"/srv/vendor-sdk","remote":"","owner":"thirdparty","runtime":"go","tooling":"unknown","target_framework":"unknown","dependencies":[],"dev_dependencies":[],"last_touched":"unknown","evidence":{}}
+  ],
+  "edges": []
+}
+JSON
+render nosubject --record "$TEST_TMPDIR/nosubject.json"
+assert_contains "foreign: with no subject owner recorded, the drawing is unchanged" \
+  "$(cat "$TEST_TMPDIR/nosubject/landscape.md")" 'System(thirdparty_vendor_sdk, "vendor-sdk"'
+
+# --- Case group 8d: an archived system is charted and marked ----------------
+#
+# Archiving is a fact about the system, and the most consequential one a reader
+# can learn about it: a landscape that quietly drops archived repositories hides
+# exactly the dependencies worth acting on.
+cat >"$TEST_TMPDIR/archived.json" <<'JSON'
+{
+  "schema_version": 1,
+  "generated_on": "2026-01-02",
+  "discovery_source": "explicit list",
+  "remote": "used, owned only",
+  "subject_owner": "acme",
+  "repositories": [
+    {"name":"legacy-api","remote":"https://github.com/acme/legacy-api","owner":"acme","runtime":"ruby","tooling":"unknown","target_framework":"unknown","dependencies":[],"dev_dependencies":[],"last_touched":"2024-05-05T00:00:00+00:00","archived":true,"evidence":{"last_touched":"pushed_at (remote)"}}
+  ],
+  "edges": []
+}
+JSON
+render archived --record "$TEST_TMPDIR/archived.json"
+assert_contains "archived: the node says so before it says anything else" \
+  "$(cat "$TEST_TMPDIR/archived/landscape.md")" 'System(acme_legacy_api, "legacy-api", "archived, ruby")'
+assert_contains "archived: and the portfolio row is marked" \
+  "$(cat "$TEST_TMPDIR/archived/portfolio.md")" '| legacy-api (archived) |'
+assert_not_contains "archived: it is charted, not hidden" \
+  "$(cat "$TEST_TMPDIR/archived/portfolio.md")" '| (none) | unknown | unknown |
+'
+
 # --- Case group 9: markdown that lints --------------------------------------
 #
 # Probed on a file known to be clean first. `npx --no-install` exits non-zero

@@ -58,8 +58,38 @@ the record says `remote: not used`.
 - **Every remote fact names its call.** Its `evidence` entry is the API call or `gh` command that
   supplied it, and it reads `pushed_at (remote)` rather than the local-HEAD wording, so a later
   local-only run can explain why `last_touched` moved backwards.
-- **An archived repository is charted and marked.** Archiving is a fact about the system, not a
-  reason to hide it: a landscape that quietly drops archived repositories hides exactly the
-  dependencies worth acting on. Mark it in the node annotation and in the portfolio row.
 - **Externals stay read-only.** `--remote=all` reads facts about an external repository. It never
   writes to one, and it does not extend the graph a second hop.
+
+### Getting the fetched facts into the record
+
+Assemble what you fetched into a file of one JSON object per line, in the shape
+`portfolio-facts.sh` emits, and hand it to the record:
+
+```bash
+"${CLAUDE_SKILL_DIR}/scripts/landscape-record.sh" \
+  --source "…" --remote "used, owned only" \
+  --remote-facts "<memory_dir>/<topic-slug>/remote-facts.jsonl" \
+  --edges-from <subject-repo> <repo-path>...
+```
+
+Each line opens with `"name"` and carries the same keys a probed repository does, plus the ones
+only a fetch can supply: `archived`, `default_branch`, `visibility`. A malformed line fails the run
+rather than dropping out of the record in silence.
+
+A local checkout wins outright: an entry whose name a collector already produced is discarded, not
+merged field by field. A probe that read the files is a better witness than an API summary of them,
+and a row assembled from both is one no single source stands behind.
+
+Pass the same file to the `--drift-against` run. A merged record compared against a local-only
+collection reports every fetched repository as removed, which is why the comparison refuses a run
+whose `--remote` posture differs from the record's.
+
+The file is a temp artifact and lives in the memory slice, next to `fleet-plan.json`. Never commit
+it; the record it produced is the committed thing.
+
+**An archived repository is charted and marked.** Archiving is a fact about the system, not a
+reason to hide it: a landscape that quietly drops archived repositories hides exactly the
+dependencies worth acting on. `archived: true` leads the node description and marks the portfolio
+row on its own. `default_branch` and `visibility` are carried in the record and read from there;
+neither changes what the diagram means, so neither is drawn.

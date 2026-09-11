@@ -249,7 +249,55 @@ rc=$?
 assert_equals "quiet: no edges is exit 0, not an error" "$rc" "0"
 assert_equals "quiet: and emits nothing" "$out" ""
 
-# --- Case group 9: usage and bad paths --------------------------------------
+# --- Case group 9: quoted YAML scalars --------------------------------------
+#
+# `uses:` takes an ordinary YAML scalar, which may be quoted either way. The
+# quote belongs to the syntax, and an owner segment still carrying one fails the
+# character check and drops the edge without saying so.
+quoted_repo="$(make_repo quoted)"
+mkdir -p "$quoted_repo/.github/workflows"
+{
+  printf 'jobs:\n  build:\n'
+  printf '    uses: "fixture-owner/ci-workflows/.github/workflows/build.yml@v1"\n'
+  printf '    steps:\n'
+  printf "      - uses: 'actions/checkout@v4'\n"
+  printf '      - uses: actions/setup-node@v4\n'
+} >"$quoted_repo/.github/workflows/ci.yml"
+commit_repo "$quoted_repo"
+quoted_out="$(bash "$SCRIPT" "$quoted_repo")"
+# By TYPE, not just by target. A same-owner bare token is also a `cites` hit, so
+# asserting the target alone would pass on the citation while the workflow edge
+# this case exists for stayed missing.
+uses_line() { printf '%s\n' "$quoted_out" | grep -F '"type":"uses-workflow"' | grep -F "\"to\":\"$1\""; }
+assert_contains "quoted: a double-quoted reusable workflow is still a workflow edge" \
+  "$(uses_line fixture-owner/ci-workflows)" '"type":"uses-workflow"'
+assert_contains "quoted: a single-quoted action is too" \
+  "$(uses_line actions/checkout)" '"type":"uses-workflow"'
+assert_contains "quoted: the unquoted form is unaffected" \
+  "$(uses_line actions/setup-node)" '"type":"uses-workflow"'
+assert_not_contains "quoted: no quote survives into a repository name" \
+  "$quoted_out" '"to":"\"'
+
+# --- Case group 10: --print-owner -------------------------------------------
+#
+# The record has to name the organisation the graph was drawn from, and a second
+# implementation of that resolution would eventually disagree with this one.
+owner_out="$(bash "$SCRIPT" "$quoted_repo" --print-owner)"
+assert_equals "print-owner: the origin owner, and no edges" "$owner_out" "fixture-owner"
+override_out="$(bash "$SCRIPT" "$quoted_repo" --owner other-co --print-owner)"
+assert_equals "print-owner: the override wins" "$override_out" "other-co"
+noremote_repo="$TEST_TMPDIR/no-remote"
+mkdir -p "$noremote_repo"
+git -C "$noremote_repo" init --quiet 2>/dev/null
+git -C "$noremote_repo" config user.email "fixture@example.invalid"
+git -C "$noremote_repo" config user.name "Fixture"
+git -C "$noremote_repo" config commit.gpgsign false
+printf 'no origin here\n' >"$noremote_repo/README.md"
+commit_repo "$noremote_repo"
+assert_equals "print-owner: no resolvable owner reads unknown" \
+  "$(bash "$SCRIPT" "$noremote_repo" --print-owner)" "unknown"
+
+# --- Case group 11: usage and bad paths --------------------------------------
 bash "$SCRIPT" >/dev/null 2>&1
 assert_equals "usage: no arguments exits 2" "$?" "2"
 

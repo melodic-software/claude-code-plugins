@@ -245,7 +245,71 @@ assert_contains "schema: and says which version it wanted" "$bad" "schema_versio
 bad="$(bash "$SCRIPT" "$repo" --drift-against "$TEST_TMPDIR/absent.json" 2>&1)"
 assert_equals "schema: an unreadable record exits 1" "$?" "1"
 
-# --- Case group 10: usage ---------------------------------------------------
+# --- Case group 10: the subject owner is recorded ---------------------------
+#
+# Whether a checkout is internal turns on who owns it, not on someone having it
+# on disk, so the record has to name the organisation it was drawn from.
+out="$(bash "$SCRIPT" "$repo")"
+assert_contains "subject: the origin owner is recorded" "$out" '"subject_owner": "fixture-owner"'
+out="$(bash "$SCRIPT" "$repo" --owner other-org)"
+assert_contains "subject: an override is recorded instead" "$out" '"subject_owner": "other-org"'
+noremote="$TEST_TMPDIR/ownerless"
+mkdir -p "$noremote"
+git -C "$noremote" init --quiet 2>/dev/null
+git -C "$noremote" config user.email "fixture@example.invalid"
+git -C "$noremote" config user.name "Fixture"
+git -C "$noremote" config commit.gpgsign false
+printf 'nothing\n' >"$noremote/README.md"
+commit_repo "$noremote"
+out="$(bash "$SCRIPT" "$noremote")"
+assert_contains "subject: an unresolvable owner reads unknown, not empty" "$out" '"subject_owner": "unknown"'
+
+# --- Case group 11: fetched remote facts reach the record -------------------
+#
+# Fetching is model work against an API, so the facts arrive assembled. Without
+# somewhere to put them the flag would only record that it ran.
+cat >"$TEST_TMPDIR/remote.jsonl" <<'JSONL'
+{"name":"standards","remote":"https://github.com/fixture-owner/standards","owner":"fixture-owner","runtime":"unknown","tooling":"unknown","target_framework":"unknown","dependencies":[],"dev_dependencies":[],"last_touched":"2026-02-01T00:00:00+00:00","archived":true,"default_branch":"main","visibility":"public","evidence":{"last_touched":"pushed_at (remote)"}}
+{"name":"ci-workflows","remote":"https://github.com/fixture-owner/ci-workflows","owner":"fixture-owner","runtime":"unknown","tooling":"unknown","target_framework":"unknown","dependencies":[],"dev_dependencies":[],"last_touched":"2026-02-02T00:00:00+00:00","evidence":{"owner":"repos API"}}
+JSONL
+out="$(bash "$SCRIPT" "$repo" --remote "used, owned only" --remote-facts "$TEST_TMPDIR/remote.jsonl")"
+assert_equals "remote-facts: a merged build exits 0" "$?" "0"
+assert_contains "remote-facts: a repository with no checkout gains facts" "$out" '{"name":"standards",'
+assert_contains "remote-facts: and the second one too" "$out" '{"name":"ci-workflows",'
+assert_contains "remote-facts: the archived flag survives into the record" "$out" '"archived":true'
+assert_contains "remote-facts: so does a field only a fetch can supply" "$out" '"visibility":"public"'
+assert_contains "remote-facts: the local checkout is still there" "$out" '{"name":"hub",'
+# Sorted, so the record does not encode the order the fetches came back in.
+merged_order="$(printf '%s\n' "$out" | sed -n 's/^    {"name":"\([^"]*\)".*$/\1/p' | tr '\n' ' ')"
+assert_equals "remote-facts: locals first, then fetched entries in name order" \
+  "$merged_order" "hub ci-workflows standards "
+
+# A probe that read the files beats an API summary of them, so a local checkout
+# wins outright rather than being merged field by field.
+printf '{"name":"hub","owner":"impostor","runtime":"cobol","tooling":"unknown","target_framework":"unknown","dependencies":[],"dev_dependencies":[],"last_touched":"unknown","evidence":{}}\n' \
+  >"$TEST_TMPDIR/clash.jsonl"
+out="$(bash "$SCRIPT" "$repo" --remote-facts "$TEST_TMPDIR/clash.jsonl")"
+assert_not_contains "remote-facts: a fetch never overwrites a probed checkout" "$out" '"runtime":"cobol"'
+hub_rows="$(printf '%s\n' "$out" | grep -c '{"name":"hub",')"
+assert_equals "remote-facts: nor does it add a second row for it" "$hub_rows" "1"
+
+# A merged record is compared as one, or the fetched rows read as removals.
+bash "$SCRIPT" "$repo" --remote "used, owned only" --remote-facts "$TEST_TMPDIR/remote.jsonl" \
+  >"$TEST_TMPDIR/merged.json"
+bash "$SCRIPT" "$repo" --remote "used, owned only" --remote-facts "$TEST_TMPDIR/remote.jsonl" \
+  --drift-against "$TEST_TMPDIR/merged.json" >/dev/null 2>&1
+assert_equals "remote-facts: the same merge compares clean" "$?" "0"
+
+bad="$(bash "$SCRIPT" "$repo" --remote-facts "$TEST_TMPDIR/nowhere.jsonl" 2>&1)"
+assert_equals "remote-facts: an unreadable path exits 1" "$?" "1"
+assert_contains "remote-facts: and says which one" "$bad" "nowhere.jsonl"
+
+printf 'not an object\n' >"$TEST_TMPDIR/junk.jsonl"
+bad="$(bash "$SCRIPT" "$repo" --remote-facts "$TEST_TMPDIR/junk.jsonl" 2>&1)"
+assert_equals "remote-facts: a malformed line exits 1 rather than dropping quietly" "$?" "1"
+assert_contains "remote-facts: naming the line" "$bad" "line 1"
+
+# --- Case group 12: usage ---------------------------------------------------
 bash "$SCRIPT" >/dev/null 2>&1
 assert_equals "usage: no repository path exits 2" "$?" "2"
 
@@ -257,6 +321,9 @@ assert_equals "usage: an unknown option exits 2" "$?" "2"
 
 bash "$SCRIPT" "$repo" --edges-from "$TEST_TMPDIR/nowhere" >/dev/null 2>&1
 assert_equals "usage: an --edges-from path that is not there exits 1" "$?" "1"
+
+bash "$SCRIPT" "$repo" --remote-facts >/dev/null 2>&1
+assert_equals "usage: --remote-facts without a value exits 2" "$?" "2"
 
 help_out="$(bash "$SCRIPT" --help 2>&1)"
 assert_equals "usage: --help exits 0" "$?" "0"

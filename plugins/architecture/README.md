@@ -66,9 +66,12 @@ redirects one run's output without touching your declared home. The working
 directory is never walked for nested repositories under any of them.
 
 Nothing reaches the network unless you pass `--remote`, which fills facts for
-referenced repositories that are not checked out here. A repository outside your
-own owner is read-only reference in every mode: it is drawn and recorded, never
-written to.
+referenced repositories that are not checked out here. An archived one is
+charted and marked rather than dropped, because a landscape that hides archived
+repositories hides exactly the dependencies worth acting on. A repository
+outside your own owner is read-only reference in every mode: it is drawn and
+recorded, never written to, and having a clone of it on disk does not move it
+inside your enterprise boundary.
 
 ## Record a decision
 

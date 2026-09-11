@@ -133,6 +133,13 @@ esac
 grep -q '"schema_version"[[:space:]]*:[[:space:]]*1' "$record" ||
   die "not a schema_version 1 record: $record" 1
 
+# Which organisation the landscape is drawn from. A checkout is internal because
+# its owner matches this one, not because someone happened to have it on disk.
+# A record that names no subject owner cannot make that call, so every checkout
+# in it stays internal and the drawing is the same as it was.
+subject_owner="$(sed -n 's/^[[:space:]]*"subject_owner"[[:space:]]*:[[:space:]]*"\(.*\)".*$/\1/p' "$record" | head -1)"
+[[ -n "$subject_owner" ]] || subject_owner="unknown"
+
 # The top-level key/value split, shared with landscape-record.sh: it walks the
 # object rather than matching a pattern, so a value carrying a brace, a comma or
 # an escaped quote does not split the record in the wrong place.
@@ -202,9 +209,22 @@ function field(line, want,   keys, vals, n, i) {
   for (i = 1; i <= n; i++) if (keys[i] == want) return vals[i]
   return ""
 }
-function unquote(v) {
-  if (substr(v, 1, 1) == "\"") return substr(v, 2, length(v) - 2)
-  return v
+# The record is JSON, so a quote or a backslash inside a value arrives escaped.
+# Stripping the delimiters without undoing the escapes hands the next stage a
+# stray backslash and a quote it will read as its own, so the value is decoded
+# here and neutralised for the target grammar where it is written out.
+function unquote(v,   out, i, c, last) {
+  if (substr(v, 1, 1) != "\"") return v
+  v = substr(v, 2, length(v) - 2)
+  if (index(v, "\\") == 0) return v
+  out = ""
+  last = length(v)
+  for (i = 1; i <= last; i++) {
+    c = substr(v, i, 1)
+    if (c == "\\" && i < last) { i++; c = substr(v, i, 1) }
+    out = out c
+  }
+  return out
 }
 # A JSON string array to a plain list, "" when empty.
 function arraylist(v, sep,   inner, parts, n, i, out) {
@@ -235,12 +255,37 @@ AWK
 #   edge<TAB>from-alias<TAB>to-alias<TAB>label<TAB>relation
 #   omit<TAB>external-systems-not-drawn
 
-model="$(awk -v top="$top_external" "$SPLIT_AWK"'
+model="$(awk -v top="$top_external" -v subject_owner="$subject_owner" "$SPLIT_AWK"'
 function alias(s,   a) {
   a = s
   gsub(/[^A-Za-z0-9]/, "_", a)
   if (a ~ /^[0-9]/) a = "n_" a
   return a
+}
+# Every character outside the alphabet folds to the same underscore, so two
+# repository names that differ only in punctuation, `a-b` and `a_b`, arrive at
+# one identifier. Both dialects would then declare the system twice and point
+# every relationship at whichever declaration won, so an alias already handed
+# out is never handed out again.
+function uniq(a,   c, cand) {
+  cand = a
+  c = 1
+  while (cand in taken) { c++; cand = a "_" c }
+  taken[cand] = 1
+  return cand
+}
+# A repository name, an owner read out of CODEOWNERS and a target framework
+# read out of a manifest are all repository-controlled text, and both dialects
+# carry them inside a double-quoted string literal. Neither grammar offers a
+# portable escape for its own delimiter, so the delimiter is replaced rather
+# than escaped: a quote in any of these values is corrupt data or an attempt to
+# splice diagram syntax, never a fact worth carrying through verbatim. A tab
+# would split the model row itself, one field early.
+function safe(s) {
+  gsub(/\\/, "/", s)
+  gsub(/"/, "\047", s)
+  gsub(/\t/, " ", s)
+  return s
 }
 function primary(list,   parts) {
   split(list, parts, ",")
@@ -255,6 +300,10 @@ function primary(list,   parts) {
   desc = primary(run)
   if (fw != "unknown" && fw != "") desc = desc ", " fw
   if (desc == "unknown" || desc == "") desc = "no probed runtime"
+  # Archiving is a fact about the system, and the most consequential one a
+  # reader of the diagram can learn about it, so it leads the description
+  # rather than trailing a runtime nobody will read that far for.
+  if (unquote(field($0, "archived")) == "true") desc = "archived, " desc
   order[++ln] = key
   ldesc[key] = desc
   ldisp[key] = name
@@ -278,13 +327,22 @@ function primary(list,   parts) {
   next
 }
 END {
-  # Every locally collected repository is a node, keyed by owner/name.
+  # Every locally collected repository is a node, keyed by owner/name. Having a
+  # checkout on disk says where someone works, not who owns the system: a
+  # third-party repository charted from a local clone is the same external
+  # system the edges to it already call external, so the owner decides. An
+  # ownerless repository has nothing to compare and stays internal, which is
+  # where it was already drawn.
   for (i = 1; i <= ln; i++) {
     k = order[i]
+    split(k, oseg, "/")
     isnode[k] = 1
-    nrel[k] = "internal"
+    if (subject_owner != "unknown" && oseg[2] != "" && oseg[1] != subject_owner)
+      nrel[k] = "external"
+    else
+      nrel[k] = "internal"
     ndesc[k] = ldesc[k]
-    ndisp[k] = ldisp[k]
+    ndisp[k] = (nrel[k] == "external" ? k : ldisp[k])
   }
   # Edge targets that are not local checkouts become nodes with no probed facts.
   for (i = 1; i <= tn; i++) {
@@ -324,18 +382,31 @@ END {
       a = exts[i]; b = exts[j]
       if (weight[b] > weight[a] || (weight[b] == weight[a] && b < a)) { exts[i] = b; exts[j] = a }
     }
+  # Aliases are handed out once, in the order the two sorted lists will be
+  # emitted in, so the same record always yields the same identifiers and a
+  # collision is broken the same way every time.
+  for (i = 1; i <= ni; i++) aliasof[ints[i]] = uniq(alias(ints[i]))
+  for (i = 1; i <= ne; i++) aliasof[exts[i]] = uniq(alias(exts[i]))
   for (i = 1; i <= ni; i++) drawn[ints[i]] = 1
-  shown_ext = (top < ne ? top : ne)
-  for (i = 1; i <= shown_ext; i++) drawn[exts[i]] = 1
+  shown_ext = 0
+  for (i = 1; i <= ne; i++) {
+    # --top-external trims the long tail of repositories this run only read
+    # about. A repository it actually probed was named by the operator or found
+    # in the subject checkout, so it is drawn whatever its reference weight.
+    if (i > top && !(exts[i] in ldesc)) continue
+    drawn[exts[i]] = 1
+    shown_ext++
+  }
   for (i = 1; i <= ni; i++) {
     k = ints[i]
     split(k, seg, "/")
-    printf "node\t%s\t%s\t%s\t%s\t%s\t%s\n", alias(k), k, ndisp[k], "internal", ndesc[k], (seg[2] == "" ? "unknown" : seg[1])
+    printf "node\t%s\t%s\t%s\t%s\t%s\t%s\n", aliasof[k], k, safe(ndisp[k]), "internal", safe(ndesc[k]), safe(seg[2] == "" ? "unknown" : seg[1])
   }
-  for (i = 1; i <= shown_ext; i++) {
+  for (i = 1; i <= ne; i++) {
     k = exts[i]
+    if (!(k in drawn)) continue
     split(k, seg, "/")
-    printf "node\t%s\t%s\t%s\t%s\t%s\t%s\n", alias(k), k, ndisp[k], "external", ndesc[k], (seg[2] == "" ? "unknown" : seg[1])
+    printf "node\t%s\t%s\t%s\t%s\t%s\t%s\n", aliasof[k], k, safe(ndisp[k]), "external", safe(ndesc[k]), safe(seg[2] == "" ? "unknown" : seg[1])
   }
   for (i = 1; i <= en; i++) {
     if (!(etarget[i] in drawn)) continue
@@ -344,7 +415,7 @@ END {
     # the answer at the mercy of the unspecified array order in awk.
     fk = localkey[efrom[i]]
     if (fk == "" || !(fk in isnode)) continue
-    printf "edge\t%s\t%s\t%s\t%s\n", alias(fk), alias(etarget[i]), elabel[i], erel[i]
+    printf "edge\t%s\t%s\t%s\t%s\n", aliasof[fk], aliasof[etarget[i]], elabel[i], erel[i]
   }
   printf "omit\t%d\n", ne - shown_ext
 }
@@ -477,20 +548,31 @@ fi
   printf '| Repository | Owner | Target framework | Runtime | Dependencies | Tooling | Last touched |\n'
   printf '|---|---|---|---|---|---|---|\n'
   awk "$SPLIT_AWK"'
-    function cell(v) { return (v == "" ? "unknown" : v) }
+    # A pipe read out of a manifest ends the cell it lands in and shifts every
+    # column after it, so it is escaped to the pipe GFM renders as text.
+    # Joined rather than substituted: a backslash in a gsub replacement is
+    # underspecified, and mawk and gawk disagree on how many survive it.
+    function md(v,   n, parts, i, out) {
+      n = split(v, parts, "|")
+      out = parts[1]
+      for (i = 2; i <= n; i++) out = out "\\|" parts[i]
+      return out
+    }
+    function cell(v) { return (v == "" ? "unknown" : md(v)) }
     function deplist(v,   n, list, parts, i, out) {
       n = arraycount(v)
       if (n == 0) return "(none)"
       list = arraylist(v, ", ")
-      if (n <= 10) return list
+      if (n <= 10) return md(list)
       split(list, parts, ", ")
       out = ""
       for (i = 1; i <= 10; i++) out = out (i > 1 ? ", " : "") parts[i]
-      return out " (+" (n - 10) ")"
+      return md(out) " (+" (n - 10) ")"
     }
     /^[[:space:]]*\{"name":/ {
       rows[++n] = sprintf("| %s | %s | %s | %s | %s | %s | %s |", \
-        unquote(field($0, "name")), \
+        md(unquote(field($0, "name"))) \
+          (unquote(field($0, "archived")) == "true" ? " (archived)" : ""), \
         cell(unquote(field($0, "owner"))), \
         cell(unquote(field($0, "target_framework"))), \
         cell(gensub_commas(unquote(field($0, "runtime")))), \
@@ -538,11 +620,19 @@ fi
   printf '\n## Evidence\n\n'
   printf '| Repository | Fact | Source |\n|---|---|---|\n'
   awk "$SPLIT_AWK"'
+    # Joined rather than substituted: a backslash in a gsub replacement is
+    # underspecified, and mawk and gawk disagree on how many survive it.
+    function md(v,   n, parts, i, out) {
+      n = split(v, parts, "|")
+      out = parts[1]
+      for (i = 2; i <= n; i++) out = out "\\|" parts[i]
+      return out
+    }
     /^[[:space:]]*\{"name":/ {
-      name = unquote(field($0, "name"))
+      name = md(unquote(field($0, "name")))
       ev = field($0, "evidence")
       n = split_object(ev, k, v)
-      for (i = 1; i <= n; i++) printf "| %s | %s | %s |\n", name, k[i], unquote(v[i])
+      for (i = 1; i <= n; i++) printf "| %s | %s | %s |\n", name, md(k[i]), md(unquote(v[i]))
     }
   ' "$record"
 } >"$outdir/portfolio.md"
