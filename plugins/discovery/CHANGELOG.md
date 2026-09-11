@@ -44,6 +44,23 @@
   `[0.8.2]`, `[0.8.1]`, `[0.8.0]`, `[0.7.3]`, `[0.7.2]`, `[0.7.0]`, `[0.6.0]`, `[0.5.1]`,
   `[0.5.0]`, and `[0.4.0]`. Wording only; every entry's facts are unchanged.
 
+## [0.19.9]
+
+### Fixed
+
+- **`explorer`, `explore`:** the explore lane now carries the same preload-miss recovery the
+  research and trace-intent lanes have. `agents/explorer.md` tells a dispatched explorer to confirm
+  the skill body is in context before any exploration work and otherwise Read
+  `skills/explore/SKILL.md` from disk, and its payload gains the `preload: fired | fallback`
+  provenance field. Previously the agent's only instruction on a miss was to set
+  `preload_token: MISSING` and stop, and a run that looked for the token in the dispatch prompt or
+  the memory slice instead ran undisciplined and wrote an artifact shaped like the prompt's
+  description of the deliverable rather than `EXPLORE.md` plus sidecars. `skills/explore/SKILL.md`
+  now demotes a matching token to file-identity, grades `preload:` in gate step 1, and treats a
+  payload without the field as an out-of-date agent definition; `reference/dispatch.md` carries
+  the rationale; `contract.test.sh` section 11 pins the explore lane beside the other two; the
+  explore evals gain the fallback-recovery case.
+
 ## [0.19.8]
 
 ### Added

@@ -13,6 +13,32 @@ resume-before-discard ordering. The file is
 [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md).
 This file does not restate it.
 
+## Discipline liveness — why a token at all
+
+A `skills:` entry that is missing or disabled is **skipped silently**: the harness logs a warning to
+the debug log and starts the agent regardless. The dated record for that harness behavior is
+[`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
+"Harness facts the dispatch design rests on". The resulting run has no exploration dimensions, no
+output format, and no outcome gate — and it still reads the tree, still writes an artifact, and
+still returns a payload with `status: complete`. At every seam this design builds, that failure is
+indistinguishable from success, and the artifact it produces is shaped by the dispatch prompt's
+description of the deliverable rather than by the contract.
+
+So the skill file carries a token, the agent echoes it verbatim, and **the parent discards any run
+whose `preload_token` is missing or mismatched**. Not downgrade, not warn, not accept-with-a-note:
+the artifact of an undisciplined run is worse than no artifact, because it will be read as though
+the workflow ran.
+
+The token lives in `SKILL.md` and nowhere in the agent definition. An agent that never received the
+skill has no way to produce it. That is **file-identity** evidence: the skill body reached the agent
+by some route.
+
+It is **not** preload evidence. The agent's disk fallback Reads this same file before any exploration
+work, so a recovered agent echoes the same token a preloaded agent would. Provenance is the
+structured `preload: fired | fallback` field. The parent grades that field and MUST NOT infer `fired`
+from a matching token. `fallback` is the accepted recovery, not a discard. A missing or unrecognized
+`preload:` field is an out-of-date agent definition, the same class as a missing `scope_as_received`.
+
 ## Why the gate reads the slice path, not the payload
 
 A dispatched `explorer` can return `status: complete` with a mid-stream narration line as its whole

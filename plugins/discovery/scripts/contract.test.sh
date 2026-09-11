@@ -268,6 +268,27 @@ assert_present 'research dispatch contract forbids inferring fired from the toke
   'skills/research/context/dispatch.md' 'MUST NOT infer'
 assert_present 'research evals grade matching-token-is-not-preload-proof' \
   'skills/research/evals/evals.json' 'matching-token-is-file-identity-not-preload-proof'
+if grep -qE 'discovery-explore-preload-8e2b7d' "$PLUGIN_ROOT/agents/explorer.md"; then
+  fail 'agents/explorer.md does not embed the preload token'
+else
+  pass 'agents/explorer.md does not embed the preload token'
+fi
+assert_present 'explorer reads the skill body from disk when preload did not deliver it' \
+  'agents/explorer.md' 'skills/explore/SKILL\.md'
+assert_present 'explorer payload contract carries preload: fired|fallback' \
+  'agents/explorer.md' 'preload: fired'
+assert_present 'explorer never reports a token it Read from disk as fired' \
+  'agents/explorer.md' 'Never treat a token you found by'
+assert_present 'explore SKILL.md demotes the token to file-identity' \
+  'skills/explore/SKILL.md' 'file-identity, \*\*not\*\* proof that preload fired'
+assert_present 'explore SKILL.md requires the structured preload field' \
+  'skills/explore/SKILL.md' 'preload: fired \| fallback'
+assert_present 'explore SKILL.md gate treats a missing preload field as out-of-date' \
+  'skills/explore/SKILL.md' 'A missing or unrecognized `preload:` field is an out-of-date agent definition'
+assert_present 'explore dispatch contract forbids inferring fired from the token' \
+  'skills/explore/reference/dispatch.md' 'MUST NOT infer'
+assert_present 'explore evals grade matching-token-is-not-preload-proof' \
+  'skills/explore/evals/evals.json' 'matching-token-is-file-identity-not-preload-proof'
 if grep -qE 'discovery-trace-intent-preload-7b3e2d' "$PLUGIN_ROOT/agents/intent-tracer.md"; then
   fail 'agents/intent-tracer.md does not embed the discipline-liveness token'
 else
