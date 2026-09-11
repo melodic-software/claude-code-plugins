@@ -279,7 +279,7 @@ workspace is the known false positive and is excluded by path.
 - [ ] `scripts/check-fixture-git-isolation.sh --check && scripts/check-silent-skips.sh` exit 0
 - [ ] `actionlint .github/workflows/ci.yml` exits 0
 - [ ] `grep -c 'docs-naming' AGENTS.md` returns 1 and `grep -c '^paths:' .claude/rules/docs-naming.md` returns 1
-- [ ] `! grep -rq $'—' .claude/rules/docs-naming.md scripts/check-docs-naming.sh scripts/check-docs-naming.test.sh` holds
+- [ ] `! grep -rqP '\xE2\x80\x94' .claude/rules/docs-naming.md scripts/check-docs-naming.sh scripts/check-docs-naming.test.sh` holds (no em dash in any new file)
 
 ### Phase 4: ADR at the next free number [TODO]
 
