@@ -3,6 +3,18 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.52.0]
+
+### Added
+
+- **`audit-skill-visibility` Markdown names what it counts and points at the fix.** The
+  Reachability section tables misconfigured skills with their cause and states each cause's
+  remedy once; the Listing budget section, whenever a row overflows, tables the ten longest
+  competing descriptions with their character counts, labelled as description length and never
+  as a starvation ranking, so it renders the same in an unscored run; and a closing Next actions
+  section names only the fixes the run's findings support. Every table caps at ten rows and
+  counts the rest. The JSON model is unchanged.
+
 ## [0.51.0]
 
 ### Fixed

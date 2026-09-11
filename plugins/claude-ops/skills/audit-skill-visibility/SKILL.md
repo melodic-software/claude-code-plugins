@@ -282,6 +282,16 @@ disabled, so the product never loads the skill). Exempt rows contribute no
 `listing-fits`. Only a settled disabled plugin exempts: a `not-assessed`
 checkout row or an `unknown` one keeps competing, because unknown is not hidden.
 
+The Markdown names what these fields hold rather than only counting it. Under
+Reachability, hidden plugins are tabled with the scope file that disabled them,
+and misconfigured skills with their cause and one remedy per cause. Under
+Listing budget, when any row overflows, the ten longest competing descriptions
+are tabled with their character counts: that is the lever on demand and is
+labelled as length, never as a starvation ranking, so it renders the same in an
+unscored run. Each table caps at ten rows and counts the rest. A closing Next
+actions section names only the fixes this run's findings support, and says so
+when there are none.
+
 ## Counting rules that are not obvious
 
 - **Never sum sources.** Native counters and the JSONL store both record the

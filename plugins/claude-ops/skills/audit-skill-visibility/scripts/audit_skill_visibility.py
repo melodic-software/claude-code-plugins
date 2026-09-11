@@ -1765,6 +1765,11 @@ def starvation_withheld(listing: dict) -> bool:
     """
     if listing.get("score_basis") != "unscored":
         return False
+    return listing_overflows(listing)
+
+
+def listing_overflows(listing: dict) -> bool:
+    """Whether any budget row overflows: one row is enough for a band."""
     band = listing.get("band")
     if band:
         return any(row["overflow_chars"] > 0 for row in band)
@@ -2224,6 +2229,8 @@ def _render_markdown(model: dict) -> str:
             f"(bundled, user-only, and disabled-plugin skills spend no budget)",
             "",
         ]
+        if any_overflow:
+            lines += _render_longest(model["skills"])
         if listing.get("inputs"):
             lines += _render_inputs(listing["inputs"])
     authored = [s for s in model["skills"] if s.get("churn")]
@@ -2253,6 +2260,8 @@ def _render_markdown(model: dict) -> str:
                 f"observation: {row['observation']['value']}"
             )
         lines.append("")
+
+    lines += _render_next_actions(model)
 
     if model["withheld"]:
         lines += [
@@ -2308,7 +2317,115 @@ def _render_reachability(skills: list[dict]) -> list[str]:
         lines.append("")
         if len(hidden) > 10:
             lines += [f"…and {len(hidden) - 10} more", ""]
+    lines += _render_misconfigured(skills)
     return lines
+
+
+def _render_misconfigured(skills: list[dict]) -> list[str]:
+    """The misconfigured table, with each cause's remedy stated once.
+
+    Every row here is a fix, never a removal candidate: the causes are silent,
+    so a misconfigured skill reads exactly like an unwanted one until it is
+    named. The remedy is keyed by cause rather than repeated per row, because
+    two rows with the same cause need the same fix.
+    """
+    rows = sorted(
+        (r for r in skills if r["reachability"]["value"] == "misconfigured"),
+        key=lambda r: r["qualified_name"],
+    )
+    if not rows:
+        return []
+    lines = [
+        "Misconfigured: the frontmatter keeps the skill from ever matching a "
+        "request. Each row is a fix, not a removal candidate.",
+        "",
+        "| Skill | Cause |",
+        "|---|---|",
+    ]
+    for row in rows[:10]:
+        causes = ", ".join(row["reachability"]["causes"])
+        lines.append(f"| `{row['qualified_name']}` | {causes} |")
+    lines.append("")
+    if len(rows) > 10:
+        lines += [f"…and {len(rows) - 10} more", ""]
+    causes_seen = sorted({c for r in rows for c in r["reachability"]["causes"]})
+    lines += [f"- `{cause}`: {MISCONFIGURED_REMEDIES[cause]}" for cause in causes_seen]
+    lines.append("")
+    return lines
+
+
+def _render_longest(skills: list[dict]) -> list[str]:
+    """The competing descriptions that spend the most budget, largest first.
+
+    Rendered only when something overflows, because on a listing that fits
+    there is nothing to trim. It is arithmetic over description length and is
+    labelled that way: which skills LOSE their descriptions is a separate,
+    usage-ordered claim that an unscored run withholds, and this table must
+    not be read as that ranking.
+    """
+    competing = [r for r in skills if r["starvation"].get("eligibility") == "competing"]
+    if not competing:
+        return []
+    ranked = sorted(
+        competing,
+        key=lambda r: (-r["starvation"]["demand_chars"], r["qualified_name"]),
+    )
+    lines = [
+        "Longest competing descriptions. This is the lever on demand: trimming "
+        "the top of this table lowers the overflow. It ranks description "
+        "length only, not starvation, so it says nothing about which skills "
+        "lose theirs.",
+        "",
+        "| Skill | Description chars |",
+        "|---|---|",
+    ]
+    for row in ranked[:10]:
+        lines.append(
+            f"| `{row['qualified_name']}` | {row['starvation']['demand_chars']:,} |"
+        )
+    lines.append("")
+    if len(ranked) > 10:
+        lines += [f"…and {len(ranked) - 10} more competing", ""]
+    return lines
+
+
+def _render_next_actions(model: dict) -> list[str]:
+    """One line naming the actions this run's findings support, and no other.
+
+    Built only from conditions present in the model, so a clean run says there
+    is nothing to fix rather than listing generic advice. Usage and token cost
+    per skill belong to the bundled `/skill-doctor` and are not pointed at.
+    """
+    counts: dict[str, int] = defaultdict(int)
+    for row in model["skills"]:
+        counts[row["reachability"]["value"]] += 1
+    listing = model.get("listing") or {}
+    steps: list[str] = []
+    if counts.get("misconfigured"):
+        steps.append(
+            f"fix the frontmatter of the {counts['misconfigured']} misconfigured "
+            f"{_plural(counts['misconfigured'], 'skill')} listed under Reachability"
+        )
+    if counts.get("hidden"):
+        steps.append(
+            "enable the hidden plugins in the scope that disables them, or "
+            "leave them off on purpose"
+        )
+    if listing and listing_overflows(listing):
+        steps.append(
+            "trim the longest competing descriptions, or raise "
+            "`skillListingBudgetFraction` in settings"
+        )
+        if listing.get("score_basis") == "unscored":
+            steps.append(
+                "collect usage through the skill-usage hooks before trusting "
+                "any per-skill starvation ranking"
+            )
+    lines = ["## Next actions", ""]
+    if not steps:
+        return lines + ["Nothing to fix from this run.", ""]
+    joined = "; ".join(steps)
+    return lines + [joined[0].upper() + joined[1:] + ".", ""]
 
 
 def _render_single_budget(listing: dict) -> list[str]:

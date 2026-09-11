@@ -1243,6 +1243,108 @@ class ExemptionTest(unittest.TestCase):
         self.assertEqual(listing["skills"][0]["eligibility"], "exempt-user-only")
 
 
+class RenderTablesTest(unittest.TestCase):
+    """The Markdown names what the JSON already holds, and points at the fix.
+
+    Three tables and one next-actions line, each built from fields the model
+    carries already: the tables add no claim. The description-length table is
+    arithmetic and renders the same scored or unscored, because which skills
+    LOSE their descriptions is a different, withheld claim.
+    """
+
+    def _model(self, entries):
+        now = _utc(2026, 8, 18)
+        return engine.classify(
+            denominator=entries,
+            events=[],
+            config=engine.Config(),
+            clock=now,
+            horizons={"native": now - timedelta(days=400)},
+            listing_config=engine.ListingConfig(context_window_tokens=200_000),
+        )
+
+    @staticmethod
+    def _described(name, chars):
+        entry = _skill(name)
+        entry["frontmatter"] = {"description": "x" * chars}
+        return entry
+
+    @staticmethod
+    def _section(markdown, heading, next_heading):
+        start = markdown.index(heading)
+        end = markdown.index(next_heading, start)
+        return markdown[start:end]
+
+    def test_misconfigured_rows_render_with_cause_and_one_remedy_per_cause(self):
+        malformed = _skill("c:three")
+        malformed["frontmatter"] = {"_malformed": True}
+        model = self._model([_skill("a:one"), _skill("b:two"), malformed])
+        md = engine._render_markdown(model)
+        reach = self._section(md, "## Reachability", "## Listing budget")
+        self.assertIn("| `a:one` | no-description |", reach)
+        self.assertIn("| `b:two` | no-description |", reach)
+        self.assertIn("| `c:three` | malformed-frontmatter |", reach)
+        self.assertEqual(reach.count("- `no-description`:"), 1)
+        self.assertEqual(reach.count("- `malformed-frontmatter`:"), 1)
+        self.assertIn("Fix the frontmatter of the 3 misconfigured skills", md)
+
+    def test_tables_cap_at_ten_and_count_the_rest(self):
+        model = self._model([_skill(f"p:s{i:02d}") for i in range(12)])
+        reach = self._section(
+            engine._render_markdown(model), "## Reachability", "## Listing budget"
+        )
+        self.assertEqual(reach.count("| no-description |"), 10)
+        self.assertIn("…and 2 more", reach)
+
+    def test_no_length_table_when_the_listing_fits(self):
+        model = self._model(
+            [self._described("a:one", 100), self._described("b:two", 90)]
+        )
+        md = engine._render_markdown(model)
+        self.assertNotIn("Longest competing descriptions", md)
+        self.assertIn("Nothing to fix from this run.", md)
+
+    def test_length_table_ranks_by_demand_when_overflowing_even_unscored(self):
+        # Nine 1,000-character descriptions overflow the 8,000-character budget
+        # with no usage anywhere, so the per-skill starvation claim is withheld
+        # while the length table, which is arithmetic, still renders.
+        entries = [self._described(f"p:s{i}", 1000 + i) for i in range(9)]
+        model = self._model(entries)
+        self.assertEqual(model["listing"]["score_basis"], "unscored")
+        md = engine._render_markdown(model)
+        listing = self._section(md, "## Listing budget", "## Next actions")
+        self.assertIn("Longest competing descriptions", listing)
+        rows = [line for line in listing.splitlines() if line.startswith("| `")]
+        self.assertEqual(rows[0], "| `p:s8` | 1,008 |")
+        self.assertEqual(rows[-1], "| `p:s0` | 1,000 |")
+        self.assertNotIn("likely-starved", listing)
+        self.assertIn("withheld", listing)
+        self.assertIn("Trim the longest competing descriptions", md)
+        self.assertIn("collect usage through the skill-usage hooks", md)
+
+    def test_length_table_counts_the_rows_past_ten(self):
+        entries = [self._described(f"p:s{i:02d}", 800) for i in range(12)]
+        listing = self._section(
+            engine._render_markdown(self._model(entries)),
+            "## Listing budget",
+            "## Next actions",
+        )
+        self.assertEqual(listing.count("| Description chars |"), 1)
+        self.assertIn("…and 2 more competing", listing)
+
+    def test_next_actions_names_only_the_conditions_present(self):
+        hidden = self._described("off:one", 50)
+        hidden["plugin_enabled"] = False
+        hidden["plugin_enabled_evidence"] = engine.DEFAULT_ENABLED_MARKETPLACE
+        md = engine._render_markdown(self._model([hidden, _skill("a:one")]))
+        # Nothing is withheld in this run, so the section runs to the end.
+        actions = md[md.index("## Next actions") :]
+        self.assertIn("Fix the frontmatter of the 1 misconfigured skill", actions)
+        self.assertIn("enable the hidden plugins", actions)
+        self.assertNotIn("Trim", actions)
+        self.assertNotIn("collect usage", actions)
+
+
 class InferentialBandTest(unittest.TestCase):
     """Which skills lose descriptions is inferential and must say so."""
 
