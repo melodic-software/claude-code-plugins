@@ -52,28 +52,28 @@ constrained verdict otherwise; human grading only with stated justification.
 
 Case authoring ([eval-design.md](../methodology/reference/eval-design.md)):
 
-- Mirror the target's real input distribution; include edge cases explicitly — irrelevant or
+- Mirror the target's real input distribution. Include edge cases explicitly: irrelevant or
   nonexistent input, overly long input, poor/harmful/irrelevant user input for chat surfaces,
   ambiguous cases.
 - Every case carries a golden answer: an exact answer for code-graded cases, rubric-instructions
   for LLM/human-graded cases.
-- Draft a baseline set by hand with the consumer, then offer to generate more cases from it —
-  volume over polish — and have the consumer review the generated batch before it lands.
+- Draft a baseline set by hand with the consumer, then offer to generate more cases from it,
+  favoring volume over polish. Have the consumer review the generated batch before it lands.
 
 **Target = app:** scaffold `evals/<target>/cases.jsonl` (one JSON object per case: `id`, `input`,
 `golden_answer`, `grading` (`exact|string_match|llm_rubric|human`), optional `rubric`) plus a
 `README.md` documenting how the consumer's own tooling should run and grade them, with the grader
 prompt skeleton from [grading.md](../methodology/reference/grading.md) inlined for `llm_rubric`
-cases. Honor an existing consumer eval layout when one is already present — extend, don't rename.
+cases. Honor an existing consumer eval layout when one is already present. Extend, don't rename.
 
-**Target = skill:** emit `<skills-root>/<skill>/evals/evals.json` in this shape — `skill_name`,
-`evals[]` of `{id, name (kebab-case), prompt, expected_output, expectations[]}` — covering
+**Target = skill:** emit `<skills-root>/<skill>/evals/evals.json` with `skill_name` and
+`evals[]` of `{id, name (kebab-case), prompt, expected_output, expectations[]}`, covering
 trigger/routing, the happy path, at least one refusal/guardrail, and one anti-pattern the skill
 must not exhibit. When the `skill-quality` plugin is installed, validate with
 `/skill-quality:check validate-evals <skill>` (its bundled schema is the contract);
 otherwise state that the file follows the marketplace's evals schema and validation was skipped.
 
-## Phase 3 — grading hygiene gate
+## Phase 3: grading hygiene gate
 
 Before finishing, confirm and record in the criteria doc:
 
@@ -93,7 +93,7 @@ Before finishing, confirm and record in the criteria doc:
   evals when installed).
 - Does not overwrite an existing criteria doc or eval suite without showing the diff and getting
   explicit confirmation.
-- Does not invent baselines — a target with no anchor is recorded as provisional.
+- Does not invent baselines. A target with no anchor is recorded as provisional.
 
 ## Next
 
@@ -101,7 +101,7 @@ Before finishing, confirm and record in the criteria doc:
 
 ## Gotchas
 
-- A consumer saying "just write some tests" still gets Phase 1 — criteria first is the method, not
-  a preference; keep it to the few questions that unblock measurable targets.
-- Refuse to emit an eval case with no golden answer or rubric — a case that can't be graded is not
+- A consumer saying "just write some tests" still gets Phase 1. Criteria first is the method, not
+  a preference. Keep it to the few questions that unblock measurable targets.
+- Refuse to emit an eval case with no golden answer or rubric. A case that can't be graded is not
   an eval.

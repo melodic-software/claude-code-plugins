@@ -1,5 +1,5 @@
 ---
-description: "Answers LLM-evaluation design questions from Anthropic's official evaluation guidance — success criteria, eval-suite design, and grading methods for LLM-based applications and Claude Code skills. Use when: 'define success criteria', 'how do I eval this', 'LLM eval', 'measure prompt quality', 'LLM judge', 'model-graded eval', 'golden answer', 'grading rubric', 'eval grading method', 'exact match vs LLM-graded', 'how many eval cases', 'is my success criteria measurable' — knowledge (WHY/WHAT of eval design), not a runner; for scaffolding a suite use /evals:design, and no marketplace command executes model-graded evals."
+description: "Answers LLM-evaluation design questions from Anthropic's official evaluation guidance: success criteria, eval-suite design, and grading methods for LLM-based applications and Claude Code skills. Use when: 'define success criteria', 'how do I eval this', 'LLM eval', 'measure prompt quality', 'LLM judge', 'model-graded eval', 'golden answer', 'grading rubric', 'eval grading method', 'exact match vs LLM-graded', 'how many eval cases', 'is my success criteria measurable'. Knowledge (WHY/WHAT of eval design), not a runner; for scaffolding a suite use /evals:design, and no marketplace command executes model-graded evals."
 argument-hint: "[question or concept]"
 user-invocable: true
 disable-model-invocation: false
@@ -35,13 +35,13 @@ Load the most relevant file first; a second only if the first doesn't fully answ
   target, and ties to a user need. "Good performance" fails all four.
 - "Which grading method?" → The fastest, most reliable, most scalable that fits: code-based if the
   output can be constrained to allow it; LLM-graded for judgment; human only as a last resort.
-- "Can I automate this seemingly subjective eval?" → Usually — constrain the output format,
+- "Can I automate this seemingly subjective eval?" → Usually. Constrain the output format,
   reformat to multiple choice, or use an LLM grader with a tight rubric and constrained verdict.
 - "How many cases?" → Prefer volume with automated grading over a few hand-graded showpieces;
   generate more from a baseline set with Claude, human-reviewed.
 - "Can I trust my LLM grader?" → Only after reading samples of its verdicts against your own
   judgment; and grade with a different model than the one that generated the output.
-- "One metric or several?" → Several — most use cases need multidimensional criteria (fidelity +
+- "One metric or several?" → Several. Most use cases need multidimensional criteria (fidelity +
   safety + latency + cost); a single headline metric hides regressions.
 
 ## Maintainer `update` action

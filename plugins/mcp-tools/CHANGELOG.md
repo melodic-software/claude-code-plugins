@@ -48,7 +48,7 @@ All notable changes to the `mcp-tools` plugin are documented here. Format follow
 
 - **The bare `/<skill>` alias for this plugin's skills.** Their `SKILL.md` files no longer
   declare a frontmatter `name`. The field is optional and defaults to the directory name, so
-  declaring it only restated the path while registering a second, unnamespaced command — which
+  declaring it only restated the path while registering a second, unnamespaced command, which
   the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
   namespaced command; the command itself is unchanged.
 
@@ -59,8 +59,8 @@ All notable changes to the `mcp-tools` plugin are documented here. Format follow
 - The Phase 3 aggregate surfaces now account for the whole result vocabulary
   instead of three buckets. The `Overall` line and the summary-by-server table
   gain an `Info` column, and the reporting guidance states that those counts
-  cover a server's server-level criterion rows as well as its tools' rows —
-  previously the per-server score aggregated "across all tools", structurally
+  cover a server's server-level criterion rows as well as its tools' rows.
+  Previously the per-server score aggregated "across all tools", structurally
   excluding the server-level C4 outcome the report had just rendered. `n/a` and
   `undetermined` are named as non-severities that appear only in the
   server-level criterion table, closing the gap where the text referred to a
@@ -68,7 +68,7 @@ All notable changes to the `mcp-tools` plugin are documented here. Format follow
 - C4's size budget is stated in the unit its cited source uses: the Claude Code
   MCP page says descriptions and server instructions truncate at 2KB each, so
   the evaluation reads "over 2KB" in bytes rather than "~2000 characters", and
-  notes that non-ASCII UTF-8 characters spend more than one byte — the two
+  notes that non-ASCII UTF-8 characters spend more than one byte. The two
   diverge on any multibyte text.
 - `reference/server-discovery.md` describes the server `instructions` field by
   how the protocol delivers it rather than by a single emission site: via
@@ -80,8 +80,8 @@ All notable changes to the `mcp-tools` plugin are documented here. Format follow
 
 ### Removed
 
-- `skills/audit/templates/checklist.md` — an unreferenced second copy of the
-  result vocabulary, and so a drift seam. The skill's "Track progress" section
+- `skills/audit/templates/checklist.md`, an unreferenced second copy of the
+  result vocabulary, and so a source of drift. The skill's "Track progress" section
   already asks for an in-response checklist and never pointed at the file.
 
 ## [0.2.3]
@@ -89,7 +89,7 @@ All notable changes to the `mcp-tools` plugin are documented here. Format follow
 ### Added
 
 - Checklist section 7 (C17-C19): the Claude-Code-specific `_meta` annotations
-  documented on the Claude Code MCP page — `anthropic/maxResultSizeChars`
+  documented on the Claude Code MCP page. They are `anthropic/maxResultSizeChars`
   (per-tool result-size ceiling, hard-capped at 500,000 characters),
   `anthropic/requiresUserInteraction` (per-call consent prompt; JSON boolean
   `true` only; Claude Code v2.1.199+), and `anthropic/alwaysLoad` (per-tool
@@ -117,7 +117,7 @@ All notable changes to the `mcp-tools` plugin are documented here. Format follow
 
 ### Changed
 
-- C4's size budget now also covers the server `instructions` field — Claude
+- C4's size budget now also covers the server `instructions` field. Claude
   Code truncates tool descriptions and server instructions at 2KB each.
   `discover.sh` emits per-tool records only, so Phase 2 gains a once-per-server
   step that resolves `instructions` from the server's construction site; without
@@ -132,12 +132,12 @@ All notable changes to the `mcp-tools` plugin are documented here. Format follow
   steering a connecting LLM, so it is read only to measure its length.
 - The Python SDK is named by its package (`mcp`) rather than by `FastMCP`,
   which [v2.0.0](https://github.com/modelcontextprotocol/python-sdk/releases/tag/v2.0.0)
-  renamed to `MCPServer` with no back-compat alias. Discovery is unaffected —
-  the `@mcp.tool` marker survives the rename — and the package name is correct
-  for both the 1.x and 2.x lines, matching how the TypeScript and .NET entries
+  renamed to `MCPServer` with no back-compat alias. The `@mcp.tool` marker
+  survives the rename, so discovery is unaffected, and the package name is
+  correct for both the 1.x and 2.x lines, matching how the TypeScript and .NET entries
   already name theirs.
 - The OPINION authority row now states that C4 and C17-C19 draw their
-  client-behavior facts from the Claude Code page — the tag stays OPINION
+  client-behavior facts from the Claude Code page. The tag stays OPINION
   because that page documents Claude Code's behavior rather than mandating the
   criterion, but the Source column no longer reads as if the facts were
   ungrounded.
@@ -157,7 +157,7 @@ All notable changes to the `mcp-tools` plugin are documented here. Format follow
 
 - README gains a Requirements section declaring the audit's Bash + coreutils
   and `jq` mechanics with their Windows path (Git Bash; `jq` is a separate
-  install there) — cross-platform declaration wave.
+  install there). Part of the cross-platform declaration wave.
 
 ## [0.2.0]
 

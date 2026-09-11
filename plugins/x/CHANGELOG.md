@@ -44,7 +44,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - **The bare `/<skill>` alias for this plugin's skills.** Their `SKILL.md` files no longer
   declare a frontmatter `name`. The field is optional and defaults to the directory name, so
-  declaring it only restated the path while registering a second, unnamespaced command — which
+  declaring it only restated the path while registering a second, unnamespaced command, which
   the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
   namespaced command; the command itself is unchanged.
 
@@ -52,11 +52,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- `skills/read` — returns an X post, note tweet, or X Article as Markdown via a documented three-step
+- `skills/read` returns an X post, note tweet, or X Article as Markdown via a documented three-step
   fallback ladder: `xtomd.com` `POST /api/markdown` for a single post or article, Thread Reader App
   over `WebFetch` for an unrolled reply chain, then an explicit ask for the remaining post URLs.
-- Handle-less `/i/web/status/<id>` links — the form embeds, feeds, and legacy clients emit — match a
-  separately anchored pattern and rebuild to `https://x.com/i/web/status/<id>`. The shape is kept
+- Handle-less `/i/web/status/<id>` links match a separately anchored pattern and rebuild to
+  `https://x.com/i/web/status/<id>`. Embeds, feeds, and legacy clients emit that form. The shape is kept
   rather than folded into the handle form: no handle was captured, and inventing one would breach
   rebuild-from-captures. The two `/i/` patterns are tried before the handle patterns, since `i` is a
   legal handle character and would otherwise capture `/i/web/status/<id>` as a handle of `i`.
@@ -64,20 +64,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   refusal on no match, and rebuild-from-captures (`[A-Za-z0-9_]`, `[0-9]`) that discards the input
   string. Closes an argument-injection surface found in pre-release review, where a URL containing an
   apostrophe broke out of the request body's quoting and contributed a second unconstrained URL plus
-  an `-o` arbitrary-write flag to the receiving process — reproduced at `argv` level in both bash and
-  PowerShell. Rebuilding also discards the host and any query string, so the `x.com`, `twitter.com`,
+  an `-o` arbitrary-write flag to the receiving process. The breakout was reproduced at `argv` level
+  in both bash and PowerShell. Rebuilding also discards the host and any query string, so the `x.com`, `twitter.com`,
   `www.`, and legacy `mobile.` forms are all accepted and all collapse to a canonical `x.com` URL,
   and share-tracking tokens are never transmitted. Scheme and host match case-insensitively via a
-  `(?i: … )` group that stops at `.com` — RFC 3986 makes both case-insensitive (§3.1, §3.2.2) while
-  the path is not — so `HTTPS://X.COM/…` is admitted by the pattern rather than repaired into it. The
-  scheme is discarded on rebuild like the host, so an `http://` link matches and still emits
+  `(?i: … )` group that stops at `.com`, since RFC 3986 makes both case-insensitive (§3.1, §3.2.2)
+  while the path is not, so `HTTPS://X.COM/…` is admitted by the pattern rather than repaired into
+  it. The scheme is discarded on rebuild like the host, so an `http://` link matches and still emits
   `https://`; `--proto '=https'` is the runtime backstop, and no plaintext request can be issued.
 - Trust boundary in the skill body: converter output is attacker-authored text, treated as data to
   report and never as instructions, with fetched text barred from introducing any URL, host, or file
   path. Every URL re-enters the gate, including ones supplied at step 3 or surfaced inside fetched
   content. Documented as an advisory, model-honored defense rather than a runtime-enforced one.
 - Transport bounds on the step-1 call: `--proto '=https'`, `--max-time`, `--max-filesize`, and no
-  `-L`, so no redirect-driven egress. The byte cap is documented as best-effort — before curl 8.4.0
+  `-L`, so no redirect-driven egress. The byte cap is documented as best-effort. Before curl 8.4.0
   `--max-filesize` does not stop an unknown-length response, so `--max-time` is the bound that always
   holds.
 - `-q` leads every curl invocation. curl reads a default `.curlrc` "even when `--config` is used" and
@@ -85,23 +85,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   a consumer's ambient config could set `location` and silently re-enable redirect following,
   defeating the egress bounds above.
 - `curl` declared as a required-for-correctness prerequisite at step 1, with a visible degrade to
-  step 2 on absence — the xtomd endpoint is POST-only, so `WebFetch` cannot substitute.
+  step 2 on absence. The xtomd endpoint is POST-only, so `WebFetch` cannot substitute.
 - Thread Reader App miss detection by final URL (`.../thread/<id>/error`) rather than status code,
   which stays `200` on a miss.
-- Evidence-driven escalation: step 2 runs only on positive continuation evidence — an explicit thread
-  request, text ending mid-thought, or `1/`-style markers — with length treated as evidence in
+- Evidence-driven escalation: step 2 runs only on positive continuation evidence, meaning an explicit
+  thread request, text ending mid-thought, or `1/`-style markers. Length is treated as evidence in
   neither direction. Empirically grounded: a genuine 12-post chain returns `isNoteTweet: false` with
   a 346-character root. The flag reports a long-form representation rather than the absence of
   replies, so it suppresses length-only escalation without overriding continuation evidence.
 - Success requires **exactly `200`**; the status table names the codes with specific advice, not the
   set that can arrive. A redirect proves the point: without `-L` curl does not follow a `3xx`, so it
-  completes with exit `0` and a short `text/plain` body — and plain text is syntactically valid
+  completes with exit `0` and a short `text/plain` body, and plain text is syntactically valid
   Markdown, so only the status code can reject it.
 - The spool is read to EOF **or to 256 KB total, whichever comes first**. Bounded slices cap each
   tool result, never their sum, so reading a near-cap response through to EOF still puts every byte
   in the session. The ceiling is a fixed number rather than a per-invocation judgement: faced with a
   5 MB response, "set a budget" admits 5 MB. 256 KB sits well above a long X Article and well below
-  the transport cap. Stopping short is allowed; stopping short *silently* is not — a partial read is
+  the transport cap. Stopping short is allowed; stopping short *silently* is not. A partial read is
   reported as partial, with where it stops.
 - curl's **exit status** is checked ahead of the HTTP code and the body. The two disagree when a
   transfer dies after its status line arrives: verified against curl 8.19.0, an over-cap response

@@ -57,7 +57,7 @@ All notable changes to the `context7` plugin are documented here. Format follows
 
 - **The bare `/<skill>` alias for this plugin's skills.** Their `SKILL.md` files no longer
   declare a frontmatter `name`. The field is optional and defaults to the directory name, so
-  declaring it only restated the path while registering a second, unnamespaced command — which
+  declaring it only restated the path while registering a second, unnamespaced command, which
   the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
   namespaced command; the command itself is unchanged.
 
@@ -79,7 +79,7 @@ All notable changes to the `context7` plugin are documented here. Format follows
   conforming the illustrative CLI composability example to the topic-docs
   ephemeral tier. The temp root rides in the positional template
   (`mktemp "${TMPDIR:-/tmp}/ctx7-XXXXXX"`) so the form works on both GNU and
-  BSD/macOS, and the example echoes the generated path in the same call — the
+  BSD/macOS, and the example echoes the generated path in the same call. The
   docs output is redirected, so without the echo a following `Read` has no way
   to locate the randomly named file.
 
@@ -88,7 +88,7 @@ All notable changes to the `context7` plugin are documented here. Format follows
 ### Changed
 
 - Skills with `!` dynamic-context injections now declare `shell: bash` explicitly, per
-  the pinned precompute convention — bash-only pipelines must not fall through to a
+  the pinned precompute convention. Bash-only pipelines must not fall through to a
   PowerShell host.
 
 ## [0.4.1]
@@ -124,7 +124,7 @@ All notable changes to the `context7` plugin are documented here. Format follows
   `remove`/`uninstall` + `upgrade` commands are listed.
 - **Claude Code unset-env-var MCP behavior corrected**: the config loads with
   a missing-variable warning and the literal `${VAR}` text is sent as-is
-  (silently broken auth) — it is not a parse failure. Both context docs now
+  (silently broken auth). It is not a parse failure. Both context docs now
   carry verified-date + official-link riders.
 
 ## [0.3.0]

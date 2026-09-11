@@ -53,11 +53,11 @@ All notable changes to the `naming` plugin are documented here. Format follows
   rubric, which was rejected outright: this skill's criteria are deliberately the consuming
   project's own declared standards, which are public by construction, so withholding them would
   fight that design rather than improve it. What was taken is the anti-retrofit property without the
-  secrecy — the mode now fixes *when* the rubric is settled, not who may see it. Which resolved
+  secrecy. The mode now fixes *when* the rubric is settled, not who may see it. Which resolved
   criteria decide a given name, and how they rank against each other, is a judgement made in this
   skill, and it must be made and written down while the pool is still unknown. Criteria fixed after
   the candidates land get shaped by the candidates, and a rubric that already fits the pool cannot
-  eliminate anything — the independent judges then score against a standard the pool itself
+  eliminate anything. The independent judges then score against a standard the pool itself
   authored. The existing "does not copy or invent criteria" rule is unchanged and explicitly
   reasserted for the mid-bracket case: a criterion discovered missing still routes upstream to the
   source of truth, and adding it means re-scoring the round it changes rather than applying it from
@@ -78,7 +78,7 @@ All notable changes to the `naming` plugin are documented here. Format follows
 
 - **The bare `/<skill>` alias for this plugin's skills.** Their `SKILL.md` files no longer
   declare a frontmatter `name`. The field is optional and defaults to the directory name, so
-  declaring it only restated the path while registering a second, unnamespaced command — which
+  declaring it only restated the path while registering a second, unnamespaced command, which
   the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
   namespaced command; the command itself is unchanged.
 
@@ -88,10 +88,10 @@ All notable changes to the `naming` plugin are documented here. Format follows
 
 - **Four tournament lessons from the running-retro naming round** folded into
   `name-it-better`:
-  - a **terms-of-art brief field** — the field's established names for the act,
+  - a **terms-of-art brief field**: the field's established names for the act,
     with researched (not recalled) meanings, so generators neither borrow a
     divergent term blindly nor miss the honest established one;
-  - **blocklist provenance** — every word-level blocklist entry records
+  - **blocklist provenance**: every word-level blocklist entry records
     user-stated vs agent-inferred origin; agent-inferred entries are proposals
     to confirm, never silently hard constraints;
   - the **sentence-form test** as an early merge filter for utterance names
@@ -104,15 +104,15 @@ All notable changes to the `naming` plugin are documented here. Format follows
 ### Changed
 
 - **Structured context brief.** The loose "distill a brief" step is now a
-  brief with named fields — responsibility, firing/usage context, scope
+  brief with named fields: responsibility, firing/usage context, scope
   boundaries (what it is NOT), collision vocabulary, and word-level
-  blocklist (with reasons) — mirroring the replicated concept → word →
-  structure naming model. The generators receive this brief, and only this
+  blocklist (with reasons). The fields mirror the replicated concept →
+  word → structure naming model. The generators receive this brief, and only this
   brief; rejected incumbent NAMES stay on the main-thread reject list and
   never enter it.
 - **Declared criteria priority.** The fallback general criteria are now
-  research-ordered — semantic accuracy (anti-misleading) > scope fit >
-  comprehensibility > trigger/evocative utility — and this ordering governs
+  research-ordered: semantic accuracy (anti-misleading) > scope fit >
+  comprehensibility > trigger/evocative utility. This ordering governs
   scoring and judging. A consuming project's declared conventions still
   override it.
 
@@ -126,8 +126,8 @@ All notable changes to the `naming` plugin are documented here. Format follows
   modality/vendor-specific syntactic layer; documented style conflicts
   (abbreviation policy, acronym casing, casing style) route to the
   consuming ecosystem's own style guide rather than a house verdict. For
-  Claude Code skills, the description — not the name — drives discovery, so
-  the name optimises for human semantic accuracy.
+  Claude Code skills, the description drives discovery rather than the name,
+  so the name optimises for human semantic accuracy.
 - **Strengthened domain-concept pointer.** When the target is a domain
   concept, route to a domain-modelling capability to settle what it IS
   before naming it (pointer only).
@@ -141,10 +141,10 @@ All notable changes to the `naming` plugin are documented here. Format follows
 
 ### Added
 
-- **Initial release.** `/naming:name-it-better` — generate fresh name
+- **Initial release.** `/naming:name-it-better`: generate fresh name
   candidates by fanning out blind, fresh-context generators from distinct lenses
   (responsibility-literal, moment-of-use, domain-lore), score a shortlist against
-  the consuming org's naming criteria, and recommend — the human always picks,
+  the consuming org's naming criteria, and recommend. The human always picks,
   never an auto-locked name. Optional `tournament` action adds elimination rounds
   with independent judges for high-stakes, hard-to-refactor names.
 - Repo-agnostic: scores against the consuming project's declared naming
