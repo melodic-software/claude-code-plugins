@@ -73,6 +73,37 @@ class MultimetricAdapterTests(unittest.TestCase):
             result = run("probe", path_prefix=Path(tmp))
             self.assertEqual((result.returncode, result.stdout.strip()), (0, "2.4.4"))
 
+    def test_probe_asks_the_launchers_interpreter_when_there_is_no_version_flag(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            # A launcher whose shebang names an interpreter that answers the
+            # metadata question, the shape pip writes for a console script.
+            fake_python = Path(tmp) / "fakepython"
+            fake_python.write_text(
+                "#!/usr/bin/env bash\nprintf '9.9.9\\n'\n", encoding="utf-8"
+            )
+            fake_python.chmod(0o755)
+            stub = Path(tmp) / "multimetric"
+            stub.write_text(
+                f"#!{fake_python} -s\nprintf 'usage: multimetric [-h]\\n'\n",
+                encoding="utf-8",
+            )
+            stub.chmod(0o755)
+            result = run("probe", path_prefix=Path(tmp))
+            self.assertEqual((result.returncode, result.stdout.strip()), (0, "9.9.9"))
+
+    def test_probe_says_the_version_is_unavailable_when_nothing_answers(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            make_stub(Path(tmp), version_line="usage: multimetric [-h]")
+            result = run("probe", path_prefix=Path(tmp))
+            self.assertEqual(
+                (result.returncode, result.stdout.strip()),
+                (0, "version unavailable (multimetric has no version flag)"),
+            )
+
     def test_measures_lists_every_lane_and_measure_pair(self) -> None:
         self.assertEqual(
             sorted(run("measures").stdout.split()),

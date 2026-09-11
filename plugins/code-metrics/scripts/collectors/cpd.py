@@ -49,6 +49,8 @@ import sys
 import tempfile
 import xml.etree.ElementTree as ElementTree
 
+from adapter_paths import files_from
+
 MIN_PYTHON = (3, 9)
 NAME = "cpd"
 DEFAULT_MIN_TOKENS = "50"
@@ -218,7 +220,7 @@ def main(argv: list[str]) -> int:
         if len(rest) < 2:
             print("usage: cpd.py collect <lane> <measure> <file>...", file=sys.stderr)
             return 2
-        return collect(rest[0], rest[1], rest[2:])
+        return collect(rest[0], rest[1], files_from(rest[2:]))
     print(f"cpd.py: unknown verb {verb}", file=sys.stderr)
     return 2
 

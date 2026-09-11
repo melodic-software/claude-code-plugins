@@ -1,0 +1,7 @@
+# Team layer for the code-metrics plugin (reference: plugins/code-metrics/reference/config.md).
+# Every key is optional; an absent key keeps the bundled default.
+scope:
+  # The files this repository vendors into several plugins on purpose. An audit
+  # collapses their rows to one per function with a replica count instead of
+  # counting each copy, and a clone across the copies is an exclusion, not debt.
+  registries: [scripts/cross-plugin-source-registry.txt]

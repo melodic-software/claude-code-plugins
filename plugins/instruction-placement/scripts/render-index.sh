@@ -25,21 +25,31 @@
 #   check --file F      compare F's block against a fresh render
 #   write --file F      replace F's block in place (creates it at end if absent)
 #   reachable --file F  would Claude Code actually load F?
+#   wiring              does every nested AGENTS.md the index lists actually load?
 #
 # `reachable` exists because Claude Code reads CLAUDE.md, not AGENTS.md. A
 # repository carrying both with no import between them gets an index nothing
 # ever reads, while every other gate reports green — the entire subagent-gap
 # mitigation silently doing nothing.
 #
+# `wiring` asks the same question one level down. The index lists every nested
+# AGENTS.md as a surface that "enters context automatically when Claude reads a
+# file it covers", and that is true only when a CLAUDE.md or CLAUDE.local.md
+# beside it imports or symlinks it. A nested AGENTS.md with no such sibling is
+# indexed, in sync, and never loaded; `check` cannot see the difference because
+# it compares text, not wiring.
+#
 # Usage:
 #   render-index.sh render [--root <dir>]
 #   render-index.sh check --file <path> [--root <dir>]
 #   render-index.sh write --file <path> [--root <dir>]
 #   render-index.sh reachable --file <path> [--root <dir>]
+#   render-index.sh wiring [--root <dir>]
 #   render-index.sh --help
 #
-# Exit: 0 success / in sync / reachable
-#       1 check found drift, write failed, or target unreachable
+# Exit: 0 success / in sync / reachable / every nested AGENTS.md wired
+#       1 check found drift, write failed, target unreachable, or a nested
+#         AGENTS.md unwired
 #       2 usage error or unusable path
 #       3 check found no index block in the file
 
@@ -73,6 +83,7 @@ Usage:
   render-index.sh check --file <path> [--root <dir>]
   render-index.sh write --file <path> [--root <dir>]
   render-index.sh reachable --file <path> [--root <dir>]
+  render-index.sh wiring [--root <dir>]
   render-index.sh --help
 
 render     print the generated block to stdout
@@ -80,13 +91,17 @@ check      compare the block inside <path> against a fresh render
 write      replace the block inside <path> in place, appending it if absent
 reachable  report whether Claude Code would load <path> at all (it reads
            CLAUDE.md, not AGENTS.md, so an unimported AGENTS.md is inert)
+wiring     report, for every nested AGENTS.md the index would list, whether a
+           CLAUDE.md or CLAUDE.local.md beside it imports or symlinks it
+           (WIRED / UNWIRED rows; exit 1 when any row is UNWIRED)
 
 Indexes only surfaces that load on demand: path-scoped rules (`paths:`
 frontmatter) and nested CLAUDE.md / AGENTS.md files below the repository root.
 Unscoped rules and root-level instruction files already load every session and
 are deliberately left out.
 
-Exit: 0 success or in sync; 1 drift or write failure; 2 usage error; 3 no block found.
+Exit: 0 success, in sync, or every nested AGENTS.md wired; 1 drift, write failure,
+an unreachable target, or an unwired nested AGENTS.md; 2 usage error; 3 no block found.
 EOF
 }
 
@@ -265,11 +280,11 @@ case "${1:-}" in
   usage
   exit 0
   ;;
-render | check | write | reachable)
+render | check | write | reachable | wiring)
   SUBCOMMAND="$1"
   shift
   ;;
-*) die "unknown subcommand: $1 (expected render, check, write, or reachable)" ;;
+*) die "unknown subcommand: $1 (expected render, check, write, reachable, or wiring)" ;;
 esac
 
 ROOT="$PWD"
@@ -302,7 +317,7 @@ done
 
 [[ -d "$ROOT" ]] || die "--root is not a directory: $ROOT"
 
-if [[ "$SUBCOMMAND" != "render" && -z "$TARGET" ]]; then
+if [[ "$SUBCOMMAND" != "render" && "$SUBCOMMAND" != "wiring" && -z "$TARGET" ]]; then
   die "$SUBCOMMAND needs --file"
 fi
 
@@ -359,6 +374,52 @@ REL_TARGET="${TARGET_NORM#"$PWD"/}"
 # before the (comparatively expensive) block render.
 if [[ "$SUBCOMMAND" == "reachable" ]]; then
   ip_index_target_loaded "." "$REL_TARGET"
+  exit $?
+fi
+
+# One `WIRED|UNWIRED\t<nested AGENTS.md>\t<detail>` row per nested AGENTS.md
+# discovery returns. Wired means some instruction entry point IS the file (a
+# symlink) or reaches it through the import chase the rest of this plugin
+# uses: the CLAUDE.md or CLAUDE.local.md beside it (the prescribed layout,
+# checked first), one in any ancestor directory, or the root's
+# .claude/CLAUDE.md. An import from any of those brings the file into context,
+# so a file reached that way loads and is not a finding. Entry points are read
+# from the filesystem, so a gitignored CLAUDE.local.md shim counts. Returns 1
+# when any row is UNWIRED.
+nested_agents_wiring() {
+  local nested dir want entry wired unwired=0
+  while IFS= read -r nested; do
+    [[ -n "$nested" ]] || continue
+    [[ "$(basename "$nested")" == "AGENTS.md" ]] || continue
+    dir="$(dirname "$nested")"
+    want="$(ip_realpath "$nested")"
+    wired=""
+    while :; do
+      for entry in "$dir/CLAUDE.md" "$dir/CLAUDE.local.md"; do
+        [[ -f "$entry" ]] || continue
+        if _ip_reaches "$entry" "$want" 0; then
+          wired="$entry"
+          break 2
+        fi
+      done
+      [[ "$dir" == "." ]] && break
+      dir="$(dirname "$dir")"
+    done
+    if [[ -z "$wired" && -f ".claude/CLAUDE.md" ]] && _ip_reaches ".claude/CLAUDE.md" "$want" 0; then
+      wired=".claude/CLAUDE.md"
+    fi
+    if [[ -n "$wired" ]]; then
+      printf 'WIRED\t%s\t%s reaches it\n' "$nested" "$wired"
+    else
+      printf 'UNWIRED\t%s\tno CLAUDE.md or CLAUDE.local.md beside it imports it; Claude Code reads CLAUDE.md, not AGENTS.md, so it never loads\n' "$nested"
+      unwired=1
+    fi
+  done < <(ip_discover_nested_instructions .)
+  return "$unwired"
+}
+
+if [[ "$SUBCOMMAND" == "wiring" ]]; then
+  nested_agents_wiring
   exit $?
 fi
 
@@ -441,6 +502,14 @@ write)
     if ! reach="$(ip_index_target_loaded "." "$REL_TARGET")"; then
       printf 'WARNING\t%s\n' "${reach#*$'\t'}" >&2
     fi
+    # The same silence one level down: a nested AGENTS.md row the block just
+    # wrote is a promise that the file loads on demand, and an unwired one does
+    # not. The row stays (the shim is the fix, not the row's removal); the
+    # warning names each file so the operator can add the shim now.
+    while IFS=$'\t' read -r state nested detail; do
+      [[ "$state" == "UNWIRED" ]] || continue
+      printf 'WARNING\t%s is indexed but %s\n' "$nested" "$detail" >&2
+    done < <(nested_agents_wiring || true)
     exit 0
   fi
   rm -f "$tmp"

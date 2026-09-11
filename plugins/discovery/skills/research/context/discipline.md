@@ -65,6 +65,23 @@ When the research topic matches any trigger below, double all phase minimums:
 
 **Why:** multi-vendor topics have N times more drift surface. Each vendor ships its own changelog cadence, docs site, and naming-convention shifts. Single-vendor minimums under-cover the cross-vendor edges where hallucinations concentrate.
 
+## Effort, source breadth
+
+Effort scales **source breadth**, not outcome-gate honesty. Default `high` (and `xhigh` / `max`)
+is the current full Phase 0 through Phase 3 workflow, plus conditional Phase 4. Task size never
+trims phases; only the Effort table in the skill body does.
+
+Criteria that need a skipped phase are N/A at that effort. Criteria that still apply still bite,
+including the coverage-ledger script verdict when Phase 0 wrote a ledger, and Phase 2
+falsification at every level that runs Phase 2. Name skipped phases in the artifact and report so
+a narrower run is not mistaken for a complete one.
+
+**The Effort row is the ceiling over [Broad-topic auto-detect](#broad-topic-auto-detect).**
+Doubling still applies to a phase the table actually runs at its floor (Phase 1 at every
+level that runs it; Phase 2 at `medium` and above). Skipped phases stay skipped, and Phase 2
+at `low` stays the one falsification query, even when the topic would otherwise double every
+phase to 6+ queries.
+
 ## Query scaling — floors are not targets
 
 The per-phase minimums (3+ standard, 6+ broad-topic) are floors to start from, not targets to stop at. The query count is a function of the open-question count: a flat per-phase number would stop a run while numbered gaps are still open.

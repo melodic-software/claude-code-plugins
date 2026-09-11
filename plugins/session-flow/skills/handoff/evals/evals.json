@@ -284,6 +284,22 @@
         "The checklist box reads `validate: SKIPPED (no interpreter)`; the skill does not claim `validate: exit 0`",
         "The rails resume prompt is still emitted as the response's final text, taken from the file's `## Resume prompt` section, with the invoke-the-skill sentence in the directive and the `claude --resume` line below the bottom rail"
       ]
+    },
+    {
+      "id": 21,
+      "name": "idle-named-subagents-stopped-at-save-point",
+      "prompt": "Handoff. This session spawned three named subagents: reviewer and researcher have finished with nothing pending; installer is still running a long job we want to keep.",
+      "expected_output": "The post-write checklist inventories this session's named subagents plus any leftover names inherited from the previous handoff, inspects each one's actual output or transcript before judging idle (off-thread-work inspect-real-state invariant), asks the operator to cancel reviewer and researcher with x in /tasks (user-cancel, not TaskStop: TaskStop still auto-resumes on SendMessage), and records installer as deliberately left running with why in Environment to re-establish (full path) so the resuming session inherits that list. Named subagents stay live across /clear; unreaped idle agents accumulate.",
+      "files": [],
+      "expectations": [
+        "Named subagents spawned by this session, and leftover names inherited from the previous handoff, are inventoried this turn rather than assumed absent",
+        "Idleness is judged by reading each subagent's actual output or transcript (inspect real state, never assume), not by inferring that they finished",
+        "The idle named subagents (reviewer, researcher) are retired by asking the operator to cancel with x in /tasks, not by TaskStop",
+        "The reasoning states that TaskStop leaves an agent auto-resumable on SendMessage, citing the SendMessage worker continuation record",
+        "The installer is left running on purpose and recorded in the handoff with why, so the resuming session inherits the list",
+        "The reasoning states that named subagents stay live and addressable across /clear and across sessions, which is why idle ones must be reaped at the save-point",
+        "The validator ran (`save_point.py validate <file>`) and exited 0 before the rails were printed, and the on-screen rails block is the `save_point.py emit` output, byte-equal to the file's `## Resume prompt` section"
+      ]
     }
   ]
 }
