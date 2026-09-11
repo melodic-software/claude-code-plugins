@@ -18,7 +18,7 @@
 - [14. Verification (The #1 Tip)](#14-verification-the-1-tip)
 - [15. Learning with Claude](#15-learning-with-claude)
 
-Core workflow tips — Parts 1–2 (Jan 2, Jan 31, 2026).
+Core workflow tips: Parts 1–2 (Jan 2, Jan 31, 2026).
 
 ---
 
@@ -36,7 +36,7 @@ git worktree add .claude/worktrees/my-worktree origin/main # portability-ok: ver
 cd .claude/worktrees/my-worktree && claude
 ```
 
-**Why worktrees over checkouts:** Claude Code team prefers worktrees — why native support was built into Claude Desktop.
+**Why worktrees over checkouts:** Claude Code team prefers worktrees, which is why native support was built into Claude Desktop.
 
 **Pro tips:**
 
@@ -110,7 +110,7 @@ nit: use a string literal, not ts enum
 always prefer literal unions
 ```
 
-"Compounding Engineering" — Claude auto-updates CLAUDE.md with the learning.
+"Compounding Engineering": Claude auto-updates CLAUDE.md with the learning.
 
 ---
 
@@ -135,7 +135,7 @@ Use slash commands for workflows done many times a day. Commands checked into gi
 > /commit-push-pr
 ```
 
-**Power feature:** Slash commands can include inline Bash to pre-compute info (like git status) for quick execution — no extra model calls.
+**Power feature:** Slash commands can include inline Bash to pre-compute info (like git status) for quick execution, with no extra model calls.
 
 ---
 
@@ -157,14 +157,14 @@ Think of subagents as automations for the most common PR workflows:
 
 **Examples:**
 
-- `code-simplifier` — cleans up code after Claude finishes
-- `verify-app` — detailed instructions for end-to-end testing
+- `code-simplifier`: cleans up code after Claude finishes
+- `verify-app`: detailed instructions for end-to-end testing
 
 ### Leveraging Subagents
 
 - Append "use subagents" to any request where you want Claude to throw more compute at the problem
 - Offload individual tasks to subagents to keep main agent's context window clean and focused
-- Route permission requests to Opus 4.5 via a hook — let it scan for attacks and auto-approve the safe ones
+- Route permission requests to Opus 4.5 via a hook, letting it scan for attacks and auto-approve the safe ones
 
 ---
 
@@ -190,7 +190,7 @@ PostToolUse hook auto-formats Claude's code. Claude generates well-formatted cod
 
 ### Stop Hooks for Long-Running Tasks
 
-For very long-running tasks, use an agent Stop hook for deterministic checks — ensures Claude works uninterrupted.
+For very long-running tasks, use an agent Stop hook for deterministic checks. This ensures Claude works uninterrupted.
 
 ---
 
@@ -250,7 +250,7 @@ Say: "Knowing everything you know now, scrap this and implement the elegant solu
 
 Reduce ambiguity before handing work off. More specific = better output.
 
-**Key insight:** Don't accept the first solution. Push Claude to do better — it usually can.
+**Key insight:** Don't accept the first solution. Push Claude to do better. It usually can.
 
 ---
 
@@ -258,12 +258,12 @@ Reduce ambiguity before handing work off. More specific = better output.
 
 ### Recommended Tools
 
-- **Ghostty** terminal — synchronized rendering, 24-bit color, proper unicode support
+- **Ghostty** terminal: synchronized rendering, 24-bit color, proper unicode support
 - `/statusline` to customize status bar; always show context usage and current git branch
 
 ### Voice Dictation
 
-Use voice dictation! You speak 3x faster than you type — prompts get way more detailed. Hit `fn x2` on macOS.
+Use voice dictation! You speak 3x faster than you type. Prompts get way more detailed. Hit `fn x2` on macOS.
 
 ---
 
@@ -275,7 +275,7 @@ Enable the Slack MCP, paste a Slack bug thread into Claude, say "fix." Zero cont
 
 Or just say "Go fix the failing CI tests." Don't micromanage how.
 
-**Pro tip:** Point Claude at docker logs to troubleshoot distributed systems — surprisingly capable at this.
+**Pro tip:** Point Claude at docker logs to troubleshoot distributed systems. It is surprisingly capable at this.
 
 ---
 

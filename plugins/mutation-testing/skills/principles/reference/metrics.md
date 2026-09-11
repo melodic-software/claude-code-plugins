@@ -3,9 +3,9 @@
 Four ecosystems invented the same two metrics under four names. This file reconciles them and says
 which to report.
 
-Sources: [Stryker — mutant states and
+Sources: [Stryker mutant states and
 metrics](https://stryker-mutator.io/docs/mutation-testing-elements/mutant-states-and-metrics/);
-[Infection — MSI](https://infection.github.io/guide/); [PIT](https://pitest.org/); Ojdanic et al.,
+[Infection MSI](https://infection.github.io/guide/); [PIT](https://pitest.org/); Ojdanic et al.,
 *Mind the Gap: The Difference Between Coverage and Mutation Score Can Guide Testing Efforts*
 (<https://arxiv.org/abs/2309.02395>). Fetched 2026-08-10. Recheck when Stryker, PIT, or Infection renames or redefines a metric on its own docs page, or at the next fleet audit; the two cited papers are fixed.
 
@@ -21,7 +21,7 @@ Valid      = detected + undetected
 Invalid    = runtime errors + compile errors
 ```
 
-Invalid mutants are excluded from scoring — a mutant that would not compile was never a test of
+Invalid mutants are excluded from scoring. A mutant that would not compile was never a test of
 anything.
 
 ## The two scores
@@ -34,7 +34,7 @@ Mutation score based on covered code = detected / covered * 100
 The difference is the denominator, and it is the whole point:
 
 - **Mutation score** includes `no coverage` in the denominator. It answers *"across all the code I
-  asked about, how much is protected?"* — it degrades when you have no tests **and** when you have
+  asked about, how much is protected?"*, and it degrades when you have no tests **and** when you have
   bad tests, without distinguishing them.
 - **Covered-code mutation score** counts only mutants a test actually reached. It answers *"of the
   code my tests do exercise, how much do they genuinely check?"*
@@ -66,7 +66,7 @@ The academic formalization of the same intuition:
 oracle gap = mutation score − code coverage    (per file or per component)
 ```
 
-A file with high coverage and a large negative gap is *exercised but not checked* — the paper's
+A file with high coverage and a large negative gap is *exercised but not checked*. The paper's
 framing is that it identifies "source files where it is likely a weak oracle tests important code."
 
 This is the most actionable single number for prioritization, because it ranks by *surprise*: it
@@ -82,7 +82,7 @@ score is lying to you.
   all be removed, so some fraction of every score is permanently unreachable. The size of that
   fraction is unknown and codebase-specific.
 - **They are gamed by suppression.** Every point of score is purchasable by declaring a mutant
-  uninteresting. This is why a threshold gate is the wrong instrument — see
+  uninteresting. This is why a threshold gate is the wrong instrument. See
   [scaling-and-suppression.md](scaling-and-suppression.md).
 - **They are inflated by flaky tests.** A flaky test kills mutants by accident. Any suite with known
   flakiness reports a mutation score that is too high by an unknown margin; fix the flakes first or

@@ -1,4 +1,4 @@
-# Authoring-formats convention — changelog
+# Changelog for the authoring-formats convention
 
 Notable changes to the authoring-formats contract. Per the README's Versioning section, removing a
 key, removing an allowed value, or changing a default is a major change; adding a key or an allowed
@@ -6,13 +6,13 @@ value is minor; clarification is a patch. A recheck of the Mermaid-C4 record lan
 it produces a drift outcome; refreshing the record's as-of date with no verdict change is no entry
 and no version bump, per the upstream-drift contract's four-part-record rule.
 
-## 1.0.2 — 2026-09-08
+## [1.0.2] - 2026-09-08
 
 Clarification. Ladder step 3 now says the printed home is repo-relative and must be joined to the
 root resolved in step 1 before the convention doc is read, so an agent whose cwd is not the repo
 root does not open the wrong file.
 
-## 1.0.1 — 2026-09-08
+## [1.0.1] - 2026-09-08
 
 Clarification patch: no key, allowed value, or default changes.
 
@@ -28,12 +28,12 @@ Clarification patch: no key, allowed value, or default changes.
   either the experimental banner dropping or mermaid documenting a dedicated landscape type.
   Architecture cites that record rather than carrying a second stamp.
 
-## 1.0.0 — 2026-09-06
+## [1.0.0] - 2026-09-06
 
 First release. Registers the concern, declares both keys, and states the resolution ladder
 consuming skills restate.
 
-- **`acceptance_criteria_format`** — `free-text` (default) or `ears`. `free-text` is today's
+- **`acceptance_criteria_format`** takes `free-text` (default) or `ears`. `free-text` is today's
   behaviour; `ears` selects the five EARS patterns as the shape emitted criteria are tagged with.
 - **`diagram_dialect`, split by artifact kind.** `data` takes `mermaid` (default) or `dbml`;
   `system` takes `likec4` or `c4-plantuml` and has **no default**. The system key is deliberately
@@ -41,11 +41,11 @@ consuming skills restate.
   view they did not ask for. Unset, no C4 view is emitted and the design skill behaves exactly as
   it does today. The `data` key can carry a default because `mermaid` is already what those
   artifacts are emitted in, so the default adds no output.
-- **Mermaid is not offered for the system key**, carrying a four-part upstream-drift record —
+- **Mermaid is not offered for the system key**, carrying a four-part upstream-drift record:
   claim (Mermaid documents its C4 diagram type as experimental), basis
   (<https://mermaid.js.org/syntax/c4.html>, rung-2 `curl` read, 111,058 bytes, page arrived whole),
   as-of date (2026-09-06), and recheck trigger (that page dropping the experimental banner).
-- **Consumer surface in convention-doc expression** — `<home>/authoring-formats/README.md`, one
+- **Consumer surface in convention-doc expression**: `<home>/authoring-formats/README.md`, one
   layer (team, via the pointer line), no overlay channel, unknown keys inert. Neither key is a
   plugin-manifest option: a team-shared format choice has no per-operator axis, per
   `docs/PLUGIN-PHILOSOPHY.md` § Configuration ownership and scope.

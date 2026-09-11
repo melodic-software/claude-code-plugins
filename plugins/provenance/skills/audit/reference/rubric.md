@@ -28,7 +28,7 @@ it. It never says a passage is unlawful.
    and no criterion is graded. Declines are counted, never dropped.
 2. **Then the four criteria**, each graded PASS or FAIL with a quoted span.
 3. **Verdict: STANDS only if all four PASS.** Any FAIL clears the candidate.
-4. **Then the tier**, mapped from evidence by fixed rule — never from the verdict's confidence.
+4. **Then the tier**, mapped from evidence by fixed rule, never from the verdict's confidence.
 
 Carve-outs come first because several of them make the criteria meaningless rather than merely
 satisfied. Grading "attribution adequacy" on a vendored upstream file asks whether a file that
@@ -54,13 +54,13 @@ drift is handled by its sync path, not by this audit.
 
 ### 2. Conforming stamped records
 
-A passage carrying all four parts — claim, basis URL, as-of date, recheck trigger — is already
+A passage carrying all four parts, claim, basis URL, as-of date, and recheck trigger, is already
 the sanctioned fallback for a restatement that has to exist. It is not a copy to be found; it is
 the end state a copy is converted into.
 
 **Conforming is the whole test.** A dated sentence with no trigger is not carved out; it is a
 `rule-trigger-less-stamp` candidate where the repository has enabled that check, and a plain
-candidate where it has not. Do not extend this carve-out to "it has a date, close enough" — that
+candidate where it has not. Do not extend this carve-out to "it has a date, close enough". That
 converts the carve-out into a way to launder any copy by adding a date to it.
 
 ### 3. Quotation contexts
@@ -68,10 +68,10 @@ converts the carve-out into a way to launder any copy by adding a date to it.
 Text that is presented as a quotation and attributed: a blockquote with its source named, an
 inline quoted span with a citation, a fenced excerpt between provenance markers.
 
-Mostly this is settled before judgment reaches you: the fingerprint module strips quoted spans —
-blockquotes, code fences, and inline quotation marks, straight and curly — from the local text
-before shingling, so a properly quoted excerpt never produces a matched span at all. The
-carve-out exists for what the stripper cannot see, chiefly a quotation whose attribution sits a
+Mostly this is settled before judgment reaches you. The fingerprint module strips quoted spans
+from the local text before shingling, meaning blockquotes, code fences, and inline quotation
+marks both straight and curly, so a properly quoted excerpt never produces a matched span at
+all. The carve-out exists for what the stripper cannot see, chiefly a quotation whose attribution sits a
 line or two away rather than inside the quoted span.
 
 ### 4. Owned content
@@ -105,11 +105,11 @@ carve-out does not apply.
 
 **The carve-out covers the file's distillation product. It does not cover a verbatim or
 near-verbatim span the file's own attribution does not enumerate.** Where a distilling file says
-which of its spans are lifted — a Sources section listing the quoted sentences, a marked block, an
-inline citation on the span itself — a lift that appears on none of those lists is a candidate,
-and the file's distilling purpose does not reach it. Reformatting is not distillation: un-fencing
-a source's prompt block into running prose, or turning its prose into a table, is that source's
-content in a different shape, which C4 already says is not transformative.
+which of its spans are lifted, whether through a Sources section listing the quoted sentences, a
+marked block, or an inline citation on the span itself, a lift that appears on none of those
+lists is a candidate, and the file's distilling purpose does not reach it. Reformatting is not
+distillation: un-fencing a source's prompt block into running prose, or turning its prose into a
+table, is that source's content in a different shape, which C4 already says is not transformative.
 
 Grade this the way the surface asks to be graded. A file that never enumerates its lifts is
 judged on purpose alone, as above. A file that does enumerate them has told you where its own
@@ -131,14 +131,14 @@ instead of results.
 
 Each is binary. Each requires **a quoted span from the material in front of you**. A grade
 without a quote is not a grade; if the text you would need to quote is not in front of you,
-grade UNKNOWN and say what you would need. UNKNOWN is not a FAIL and not a PASS — it stops the
+grade UNKNOWN and say what you would need. UNKNOWN is not a FAIL and not a PASS. It stops the
 verdict and routes to the human.
 
 **Polarity, stated once because it is easy to invert: PASS always means the criterion SUPPORTS
 the finding.** All four criteria point the same way, so all four PASS is what makes a verdict
 STAND. A criterion that clears the candidate is a FAIL. This reads backwards for C3 and C4,
-where the exculpatory answer is the intuitive "yes" — adequately attributed, genuinely
-transformative — so both are phrased below in the negative to keep the direction uniform. A
+where the exculpatory answer is the intuitive "yes", adequately attributed and genuinely
+transformative, so both are phrased below in the negative to keep the direction uniform. A
 rubric whose criteria disagree about which way PASS points cannot render a verdict at all: under
 the inverse reading nothing could ever stand.
 
@@ -152,14 +152,14 @@ the passage; nothing else would mean anything. The other two are not symmetric:
   derivation's**. File-scope attribution discharges C3 when the derivation is file-wide; it does
   not when one lift sits inside otherwise-original material, because there the header understates
   and the reader misallocates which sentences came from upstream. "The attribution exists and is
-  complete" is not the test — that reading lets a single lift into an original file escape on a
+  complete" is not the test. That reading lets a single lift into an original file escape on a
   header line about something else.
 - **C4 is graded on the passage**, which is what its worked examples below already do, and what
   its closing replacement test asks. A file can be substantially transformed while the span in
   question adds nothing over its source, and it is the span that was copied.
 
 The asymmetry is the point, and it cuts both ways. Grade both at the file, and a majority-adapted
-file **that carries adequate file-level attribution** clears twice — the qualifier matters, since
+file **that carries adequate file-level attribution** clears twice. The qualifier matters, since
 a file with no attribution anywhere still fails C3 at either scope. Grade both at the span, and a
 well-attributed derived file stands every time.
 
@@ -187,7 +187,7 @@ question, not this one.
 **Is the corresponding text beyond what any competent writer would produce independently?**
 
 Shared technical vocabulary is not a copy. Field names, standard phrasings, the obvious sentence
-for an obvious fact — these recur because the subject constrains them, and flagging them would
+for an obvious fact: these recur because the subject constrains them, and flagging them would
 bury real findings under noise.
 
 - **PASS, worked.** A 27-word span reproducing an unusual ordering of caveats, including a
@@ -223,10 +223,10 @@ that honest. Quote the attribution you are grading, whichever way you grade it.
 
 ### C4-transformative-use
 
-**Is the use NON-transformative — does the local text add nothing the source does not carry?**
+**Is the use NON-transformative, meaning the local text adds nothing the source does not carry?**
 
 Selection, synthesis across sources, application to this repository's own context, worked
-examples the source lacks — these make a passage this repository's own even where it began from
+examples the source lacks: these make a passage this repository's own even where it began from
 someone else's material, and they FAIL this criterion, clearing the candidate. Reformatting is
 not transformation: a table of the source's prose is the source's content in a table, and it
 PASSES.
@@ -278,7 +278,7 @@ convention's Boundary section that cites it.
 
 **A conforming record has four parts.** *Claim:* a record deriving a fact from a source this
 repository does not own carries the claim, the basis (a specific URL or probe), the as-of date,
-and the recheck trigger — the observable event that obliges re-derivation. A date alone does not
+and the recheck trigger, the observable event that obliges re-derivation. A date alone does not
 qualify as a trigger. *Basis:* `docs/conventions/upstream-drift/README.md` "Required parts" and
 "The observability bar" in the marketplace repository. *As of:* 2026-08-28. *Recheck trigger:*
 any change to that convention's required parts, or the org standard broadening the accepted
@@ -286,6 +286,6 @@ trigger forms in a way this repository adopts.
 
 **A date is never authority.** *Claim:* a dated verification stamp records when a claim last
 matched its source and confers no standing authority; a stale stamp reads identically to a fresh
-one, so the trigger is the load-bearing part, not the date. *Basis:*
+one, so what obliges re-derivation is the trigger, not the date. *Basis:*
 `docs/conventions/upstream-drift/README.md` "A date is never authority" in the marketplace
 repository. *As of:* 2026-08-28. *Recheck trigger:* any change to that section.

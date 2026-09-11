@@ -103,13 +103,13 @@ only points:
   (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
   which owns the verified-version record): interactive `/plugin configure ruff-format@<marketplace>`
   any time, or headless `claude plugin install ruff-format@<marketplace> -s <scope> --config ruff_format_enabled=true`
-  (repeatable per key) — against an already-installed plugin it prints `already installed` and
+  (repeatable per key). Against an already-installed plugin it prints `already installed` and
   still writes the value. Do **not** uninstall to reconfigure: that drops this plugin's entire
   stored `pluginConfigs` entry, resetting every option in the README's Options reference to its
   manifest default. `-s` defaults to `user`; pass the scope `claude plugin list` reports, and run
   from that project's directory for a `project`/`local` scope, or the write lands at a scope that
   does not load. This skill never writes user settings or `pluginConfigs`. Afterwards rerun
-  `check` in a **fresh session** — the rendered `${user_config.*}` is injected at skill load and
+  `check` in a **fresh session**. The rendered `${user_config.*}` is injected at skill load and
   each hook's `CLAUDE_PLUGIN_OPTION_*` is fixed at session start, so a same-session `check` still
   reports the OLD value; report the observed effective value, never an unobserved change.
 - no Ruff config: offer to create a minimal Ruff config in the repository root only when

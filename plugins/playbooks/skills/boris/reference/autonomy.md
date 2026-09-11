@@ -1,38 +1,38 @@
-# Autonomy & Opus 4.7 Era — Sections 61–77
+# Autonomy & Opus 4.7 Era: Sections 61–77
 
 ## Contents
 
-- [61. Routines — Scheduled & Event-Driven Claude Code](#61-routines--scheduled--event-driven-claude-code)
+- [61. Routines: Scheduled & Event-Driven Claude Code](#61-routines-scheduled--event-driven-claude-code)
 - [62. Rewind Over Correcting](#62-rewind-over-correcting)
-- [63. /compact vs /clear — Know the Difference](#63-compact-vs-clear--know-the-difference)
+- [63. /compact vs /clear: Know the Difference](#63-compact-vs-clear-know-the-difference)
 - [64. Lower Your Auto-Compact Threshold](#64-lower-your-auto-compact-threshold)
 - [65. Delegation over Guidance (Opus 4.7)](#65-delegation-over-guidance-opus-47)
 - [66. Full Task Context Upfront](#66-full-task-context-upfront)
-- [67. xhigh — New Default Effort for Opus 4.7](#67-xhigh--new-default-effort-for-opus-47)
+- [67. xhigh: New Default Effort for Opus 4.7](#67-xhigh-new-default-effort-for-opus-47)
 - [68. Auto Mode + Parallel Claudes (Opus 4.7)](#68-auto-mode--parallel-claudes-opus-47)
-- [69. /fewer-permission-prompts — Tune Your Allowlist](#69-fewer-permission-prompts--tune-your-allowlist)
-- [70. Recaps — Know What Happened While You Were Away](#70-recaps--know-what-happened-while-you-were-away)
-- [71. Focus Mode — See Only the Final Result](#71-focus-mode--see-only-the-final-result)
-- [72. Effort Mastery — xhigh, max, and Adaptive Thinking](#72-effort-mastery--xhigh-max-and-adaptive-thinking)
-- [73. /go — Verify, Simplify, Ship](#73-go--verify-simplify-ship)
-- [74. What Changed from 4.6 — Three Behavioral Shifts](#74-what-changed-from-46--three-behavioral-shifts)
+- [69. /fewer-permission-prompts: Tune Your Allowlist](#69-fewer-permission-prompts-tune-your-allowlist)
+- [70. Recaps: Know What Happened While You Were Away](#70-recaps-know-what-happened-while-you-were-away)
+- [71. Focus Mode: See Only the Final Result](#71-focus-mode-see-only-the-final-result)
+- [72. Effort Mastery: xhigh, max, and Adaptive Thinking](#72-effort-mastery-xhigh-max-and-adaptive-thinking)
+- [73. /go: Verify, Simplify, Ship](#73-go-verify-simplify-ship)
+- [74. What Changed from 4.6: Three Behavioral Shifts](#74-what-changed-from-46-three-behavioral-shifts)
 - [75. Task Completion Notifications](#75-task-completion-notifications)
-- [76. Agent View — One List of All Your Sessions](#76-agent-view--one-list-of-all-your-sessions)
-- [77. /goal — Keep Claude Working Until the Condition Is Met](#77-goal--keep-claude-working-until-the-condition-is-met)
+- [76. Agent View: One List of All Your Sessions](#76-agent-view-one-list-of-all-your-sessions)
+- [77. /goal: Keep Claude Working Until the Condition Is Met](#77-goal-keep-claude-working-until-the-condition-is-met)
 
 Tips from Boris Cherny's Parts 10–12 threads (Apr 14 – May 12, 2026): Opus 4.7 launch, scheduled/event-driven runs, context hygiene, autonomous workflows, `claude agents` control plane, `/goal` Ralph-loop completion conditions.
 
-## 61. Routines — Scheduled & Event-Driven Claude Code
+## 61. Routines: Scheduled & Event-Driven Claude Code
 
-Configure a routine once (prompt, repo, connectors), and it runs on a schedule, from an API call, or in response to a GitHub event. Runs on Anthropic infrastructure — no laptop needed.
+Configure a routine once (prompt, repo, connectors), and it runs on a schedule, from an API call, or in response to a GitHub event. Runs on Anthropic infrastructure, no laptop needed.
 
 Triggers:
 
-- **Schedule** — cron expression
-- **GitHub event** — PR opened/merged, release published, issue opened
-- **API** — POST to a webhook URL with token
+- **Schedule**: cron expression
+- **GitHub event**: PR opened/merged, release published, issue opened
+- **API**: POST to a webhook URL with token
 
-Connectors: GitHub, Linear. Each routine gets its own API endpoint — point alerts, deploy hooks, or internal tools at Claude directly.
+Connectors: GitHub, Linear. Each routine gets its own API endpoint. Point alerts, deploy hooks, or internal tools at Claude directly.
 
 Use cases: POST oncall alert payload to routine's webhook, Claude finds owning service and posts triage summary. PR quality checks on opened PRs. Release notes on release-published events.
 
@@ -55,22 +55,22 @@ The math:
 - Correcting: context = file reads + failed attempt + correction + fix
 - Rewinding: context = file reads + one informed prompt + fix
 
-Also: `"summarize from here"` has Claude summarize learnings into a handoff message before rewinding — a note from the next iteration of Claude to its past self.
+Also: `"summarize from here"` has Claude summarize learnings into a handoff message before rewinding, a note from the next iteration of Claude to its past self.
 
 Source: [@trq212 status 2044548257058328723](https://x.com/trq212/status/2044548257058328723)
 
-## 63. /compact vs /clear — Know the Difference
+## 63. /compact vs /clear: Know the Difference
 
 Two ways to shed weight from a long session. Feel similar; behave very differently.
 
-**/compact — lossy LLM summary:**
+**/compact, lossy LLM summary:**
 
 - Claude summarizes the conversation, replaces history with the summary
 - Cheap, keeps momentum, details can be fuzzy
 - You're trusting Claude to decide what mattered
 - Steer with a hint: `/compact focus on the auth refactor, drop the test debugging`
 
-**/clear — hand-written brief:**
+**/clear, hand-written brief:**
 
 - You write down what matters ("we're refactoring the auth middleware, constraint is X, files are A and B, we've ruled out approach Y")
 - Precise. You decide what carries forward
@@ -84,20 +84,20 @@ Source: [@trq212 status 2044548257058328723](https://x.com/trq212/status/2044548
 
 ## 64. Lower Your Auto-Compact Threshold
 
-Context rot — model performance degrading as context grows — kicks in around 300–400k tokens on the 1M context model. Set autocompact threshold to force earlier compaction, effectively lowering your context window.
+Context rot, model performance degrading as context grows, kicks in around 300–400k tokens on the 1M context model. Set autocompact threshold to force earlier compaction, effectively lowering your context window.
 
 ```bash
 # 400k is Thariq's recommended compromise
 CLAUDE_CODE_AUTO_COMPACT_WINDOW=400000 claude
 ```
 
-Why this works: stays below the rot zone while still getting most of the 1M benefit. Context windows are a hard cutoff — near the end, you're forced to compact. Forcing it earlier means compaction happens while the model is still sharp.
+Why this works: stays below the rot zone while still getting most of the 1M benefit. Context windows are a hard cutoff: near the end, you're forced to compact. Forcing it earlier means compaction happens while the model is still sharp.
 
 Pair with proactive `/compact <hint>` when you feel bad-compact risk.
 
 > **Amended (verified 2026-08-08 against the
 > [Opus 5 prompting guide](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5)):**
-> the rot figure is an Opus 4.7-era calibration and does not carry to Opus 5 — the guide's
+> the rot figure is an Opus 4.7-era calibration and does not carry to Opus 5. The guide's
 > long-context bullet states the 1M window is both default and maximum "and its instruction
 > following, tool calling, and reasoning stay consistent throughout the window." On Opus 5 the
 > degradation premise for early compaction is gone; a lowered auto-compact window remains a
@@ -119,7 +119,7 @@ Mental model shift from Cat Wu (Apr 16, 2026) on Opus 4.7 in Claude Code:
 
 **New workflow:** write a crisp brief, launch Claude, come back when it's done (or asks a real question). Fewer interruptions, more autonomous runs, higher quality output.
 
-When Claude asks too many clarifying questions or goes off-track, that's usually a signal your brief was incomplete — not that the model needs more hand-holding. Invest in the upfront brief (see tip 66), let Opus 4.7 do its thing.
+When Claude asks too many clarifying questions or goes off-track, that's usually a signal your brief was incomplete, not that the model needs more hand-holding. Invest in the upfront brief (see tip 66), let Opus 4.7 do its thing.
 
 Source: [@_catwu status 2044808533905178822](https://x.com/_catwu/status/2044808533905178822)
 
@@ -131,9 +131,9 @@ The delegation model (tip 65) only works if Claude has what it needs. Cat's seco
 
 The three things to include:
 
-- **Goal** — what success looks like in plain language
-- **Constraints** — non-goals, things not to touch, perf/API contracts
-- **Acceptance criteria** — how you'll verify the work is done right
+- **Goal**: what success looks like in plain language
+- **Constraints**: non-goals, things not to touch, perf/API contracts
+- **Acceptance criteria**: how you'll verify the work is done right
 
 Example:
 
@@ -151,20 +151,20 @@ Acceptance criteria:
 - new test case for the rate-limit behavior
 ```
 
-With all three, Claude plans around the full problem space. With just "add rate limiting," it makes assumptions you'll correct later — every correction costs context.
+With all three, Claude plans around the full problem space. With just "add rate limiting," it makes assumptions you'll correct later, and every correction costs context.
 
 Source: [@_catwu status 2044808533905178822](https://x.com/_catwu/status/2044808533905178822)
 
-## 67. xhigh — New Default Effort for Opus 4.7
+## 67. xhigh: New Default Effort for Opus 4.7
 
-Opus 4.7 in Claude Code defaults to `xhigh` — a new effort level beyond the low/medium/high/max scale tip 34 describes. Model reasons longer before acting, pairing with the delegation shift: think harder once, rather than iterate fast and bounce back to you.
+Opus 4.7 in Claude Code defaults to `xhigh`, a new effort level beyond the low/medium/high/max scale tip 34 describes. Model reasons longer before acting, pairing with the delegation shift: think harder once, rather than iterate fast and bounce back to you.
 
 ```bash
 # check or change the effort level
 $ /effort
 ```
 
-**Why xhigh is the new default:** xhigh effort + full-context brief = one-shot completion of bigger tasks than previous Opus models could handle. The default change signals Opus 4.7 is expected to run more autonomously — benefits from more reasoning tokens upfront.
+**Why xhigh is the new default:** xhigh effort + full-context brief = one-shot completion of bigger tasks than previous Opus models could handle. The default change signals Opus 4.7 is expected to run more autonomously and benefits from more reasoning tokens upfront.
 
 Drop it down for speed over depth, or leave it alone for most work. Available through `/effort` like other levels.
 
@@ -172,7 +172,7 @@ Source: [@_catwu status 2044808533905178822](https://x.com/_catwu/status/2044808
 
 ## 68. Auto Mode + Parallel Claudes (Opus 4.7)
 
-Opus 4.7 loves complex, long-running tasks — deep research, refactoring code, building complex features, iterating until it hits a performance benchmark. Previously you babysat permission prompts or used `--dangerously-skip-permissions`.
+Opus 4.7 loves complex, long-running tasks: deep research, refactoring code, building complex features, iterating until it hits a performance benchmark. Previously you babysat permission prompts or used `--dangerously-skip-permissions`.
 
 Auto mode routes permission prompts to a model-based classifier. Safe = auto-approved. No more babysitting.
 
@@ -182,7 +182,7 @@ Shift-tab in the CLI, dropdown in Desktop or VSCode. Available for Max, Teams, E
 
 Source: [@bcherny status 2044847849662505288](https://x.com/bcherny/status/2044847849662505288)
 
-## 69. /fewer-permission-prompts — Tune Your Allowlist
+## 69. /fewer-permission-prompts: Tune Your Allowlist
 
 Skill scans session history for common safe bash and MCP commands that triggered repeated permission prompts. Recommends commands to add to your permissions allowlist.
 
@@ -194,7 +194,7 @@ Tune permissions to avoid unnecessary prompts, especially without auto mode.
 
 Source: [@bcherny status 2044847851591856461](https://x.com/bcherny/status/2044847851591856461)
 
-## 70. Recaps — Know What Happened While You Were Away
+## 70. Recaps: Know What Happened While You Were Away
 
 Shipped alongside Opus 4.7. Recaps are short summaries of what an agent did and what's next. Useful when returning to a long-running session after minutes or hours.
 
@@ -207,11 +207,11 @@ Next: I need a screen recording of the remaining horizontal rewrap
 on cc -c to target that separate cause.
 ```
 
-Pairs naturally with auto mode — launch Claude, switch focus, come back, see what happened immediately. Disable in `/config`.
+Pairs naturally with auto mode: launch Claude, switch focus, come back, see what happened immediately. Disable in `/config`.
 
 Source: [@bcherny status 2044847853030580247](https://x.com/bcherny/status/2044847853030580247)
 
-## 71. Focus Mode — See Only the Final Result
+## 71. Focus Mode: See Only the Final Result
 
 Boris: "I've been loving the new focus mode in the CLI, which hides all the intermediate work to just focus on the final result. The model has reached a point where I generally trust it to run the right commands and make the right edits. I just look at the final result."
 
@@ -219,13 +219,13 @@ Boris: "I've been loving the new focus mode in the CLI, which hides all the inte
 /focus
 ```
 
-Toggle on/off. Natural complement to auto mode — one removes permission prompts, other removes visual clutter.
+Toggle on/off. Natural complement to auto mode: one removes permission prompts, other removes visual clutter.
 
 Source: [@bcherny status 2044847855006024147](https://x.com/bcherny/status/2044847855006024147)
 
-## 72. Effort Mastery — xhigh, max, and Adaptive Thinking
+## 72. Effort Mastery: xhigh, max, and Adaptive Thinking
 
-Opus 4.7 uses adaptive thinking instead of fixed thinking budgets. Model decides when thinking is beneficial — less overthinking, smarter resource use.
+Opus 4.7 uses adaptive thinking instead of fixed thinking budgets. Model decides when thinking is beneficial: less overthinking, smarter resource use.
 
 Boris's setup: "I use xhigh effort for most tasks, and max effort for the hardest tasks."
 
@@ -234,18 +234,18 @@ The effort scale: low → medium → high → xhigh → max (Speed ← → Intel
 **Key detail:** Max applies only to current session. All other effort levels (including xhigh) are sticky and persist for next session too.
 
 > **Amended (verified 2026-08-02 against
-> [model config — adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level)):**
+> [model config: adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level)):**
 > the session-only claim holds for the interactive surfaces Boris is describing, but it is not
-> exhaustive — there is one durable route to `max`. Upstream, verbatim: "`low`, `medium`, `high`,
+> exhaustive: there is one durable route to `max`. Upstream, verbatim: "`low`, `medium`, `high`,
 > and `xhigh` persist across sessions when you set them in an interactive session. `max` provides
 > the deepest reasoning and applies to the current session only, except when set through the
 > `CLAUDE_CODE_EFFORT_LEVEL` environment variable." The persisted `effortLevel` setting takes
-> `low`, `medium`, `high`, or `xhigh` — `max` and `ultracode` "are not accepted here" — and the
+> `low`, `medium`, `high`, or `xhigh`, while `max` and `ultracode` "are not accepted here", and the
 > environment variable "takes precedence over all other methods". Two further limits on "sticky":
 > stickiness comes from setting the level *interactively* (a level set with `/effort` in
 > non-interactive `-p` mode "applies to the current session only and isn't saved as your
 > default"), and first-running Fable 5, Opus 4.8, or Opus 4.7 applies that model's default effort
-> and "holds it across sessions until you make an explicit effort choice" — Opus 5 has no such
+> and "holds it across sessions until you make an explicit effort choice". Opus 5 has no such
 > hold. That page owns the current level names, persistence rules, and per-model availability;
 > read it rather than trusting this snapshot. **Recheck trigger:** a read-time re-fetch of that
 > page finds it no longer matching this record.
@@ -259,7 +259,7 @@ To steer thinking without changing effort level:
 
 Source: [@bcherny status 2044847856872546639](https://x.com/bcherny/status/2044847856872546639)
 
-## 73. /go — Verify, Simplify, Ship
+## 73. /go: Verify, Simplify, Ship
 
 "Give Claude a way to verify its work. This has always been a way to 2-3x what you get out of Claude, and with 4.7 it's more important than ever."
 
@@ -277,7 +277,7 @@ Verification by domain: backend → start server/service end-to-end; frontend �
 
 Source: [@bcherny status 2044847858634064115](https://x.com/bcherny/status/2044847858634064115)
 
-## 74. What Changed from 4.6 — Three Behavioral Shifts
+## 74. What Changed from 4.6: Three Behavioral Shifts
 
 Upgrading from 4.6? Three changes matter. Don't assume old habits carry over.
 
@@ -287,22 +287,22 @@ Upgrading from 4.6? Three changes matter. Don't assume old habits carry over.
 
 **3. More judicious subagent spawning.** 4.7 doesn't fan out on its own as much. For "refactor across 40 files" tasks, explicitly request parallel subagents. Anti-pattern: don't spawn subagents for refactoring a single visible function.
 
-Source: [claude.com blog — best-practices-for-using-claude-opus-4-7-with-claude-code](https://claude.com/blog/best-practices-for-using-claude-opus-4-7-with-claude-code)
+Source: [claude.com blog: best-practices-for-using-claude-opus-4-7-with-claude-code](https://claude.com/blog/best-practices-for-using-claude-opus-4-7-with-claude-code)
 
 ## 75. Task Completion Notifications
 
 Auto mode + focus mode = less time watching Claude work. Set up notifications so you know when it finishes:
 
-- **Sound alert** — ask Claude to play a sound when done
-- **Stop hook** — trigger a Slack message, system notification, or custom action
-- **iTerm2 notifications** — native terminal alerts
-- **Recaps** — when you check back, recaps tell you what happened (see tip 70)
+- **Sound alert**: ask Claude to play a sound when done
+- **Stop hook**: trigger a Slack message, system notification, or custom action
+- **iTerm2 notifications**: native terminal alerts
+- **Recaps**: when you check back, recaps tell you what happened (see tip 70)
 
 Full Opus 4.7 workflow: start Claude in auto mode with focus on. Runs autonomously, verifies via `/go`, notifies when done. You review the recap and the PR.
 
-Source: [claude.com blog — best-practices-for-using-claude-opus-4-7-with-claude-code](https://claude.com/blog/best-practices-for-using-claude-opus-4-7-with-claude-code)
+Source: [claude.com blog: best-practices-for-using-claude-opus-4-7-with-claude-code](https://claude.com/blog/best-practices-for-using-claude-opus-4-7-with-claude-code)
 
-## 76. Agent View — One List of All Your Sessions
+## 76. Agent View: One List of All Your Sessions
 
 Native control plane for managing multiple Claude Code sessions. Shipped May 11, 2026 as a research preview. Run `claude agents` from a root code directory; tracks every session under that root, groups them by **needs input**, **working**, **completed**.
 
@@ -317,10 +317,10 @@ claude agents
 
 **Operational tips (Dickson Tsai):**
 
-- New sessions inherit the directory your cursor is on — start a session in any repo in one keystroke
+- New sessions inherit the directory your cursor is on. Start a session in any repo in one keystroke
 - Renaming is critical for keeping view scannable as sessions pile up. Use `/rename` or set up `UserPromptSubmit` hook to auto-rename
 
-**Why this matters:** productized version of Tip 1 (parallel execution via worktrees). Same productivity goal — many concurrent sessions — but with first-class tooling instead of manual terminal tabs and shell aliases.
+**Why this matters:** productized version of Tip 1 (parallel execution via worktrees). Same productivity goal, many concurrent sessions, but with first-class tooling instead of manual terminal tabs and shell aliases.
 
 Boris's framing: *"The best way to level up from 1 agent => many agents. No more cycling between terminal tabs."* Thariq: *"kind of like tmux built for CC."*
 
@@ -331,9 +331,9 @@ Sources:
 - [@_catwu status 2053999857799672111](https://x.com/_catwu/status/2053999857799672111)
 - [@dickson_tsai status 2054008483402694807](https://x.com/dickson_tsai/status/2054008483402694807)
 
-## 77. /goal — Keep Claude Working Until the Condition Is Met
+## 77. /goal: Keep Claude Working Until the Condition Is Met
 
-Surfaced by @ClaudeDevs on May 12, 2026, described as "shipped recently" (exact ship date pending changelog confirmation). `/goal` sets a completion condition. Claude keeps working until condition is true. Every time it tries to stop, model checks the condition against the transcript. Not done — keeps going. Done — you get a "Goal achieved" summary.
+Surfaced by @ClaudeDevs on May 12, 2026, described as "shipped recently" (exact ship date pending changelog confirmation). `/goal` sets a completion condition. Claude keeps working until condition is true. Every time it tries to stop, model checks the condition against the transcript. If not done, it keeps going. If done, you get a "Goal achieved" summary.
 
 ```bash
 # set a completion condition
@@ -344,10 +344,10 @@ Surfaced by @ClaudeDevs on May 12, 2026, described as "shipped recently" (exact 
 
 **Companion tools (already in this skill):**
 
-- `/loop` (tip 31, 48) — runs Claude on repeat. Good for iterative refactors, cleanups, burning down a backlog.
-- `/schedule` (tip 43, 48) — kicks off Claude on a cadence. Nightly test runs, morning triage, weekly cleanup.
-- `Stop` hook (tip 7, 13, 24) — programmatic control over when Claude can finish. Run your test suite, hit a CI endpoint, gate on anything.
-- Auto mode (tip 42, 68) — lets Claude work uninterrupted without permission prompts.
+- `/loop` (tip 31, 48): runs Claude on repeat. Good for iterative refactors, cleanups, burning down a backlog.
+- `/schedule` (tip 43, 48): kicks off Claude on a cadence. Nightly test runs, morning triage, weekly cleanup.
+- `Stop` hook (tip 7, 13, 24): programmatic control over when Claude can finish. Run your test suite, hit a CI endpoint, gate on anything.
+- Auto mode (tip 42, 68): lets Claude work uninterrupted without permission prompts.
 
 **Pairs with Tip 76 (Agent View):** agent view runs many sessions at once; `/goal` makes each finish what it started. Worktrees (tip 1) + auto mode (tip 68) + `/goal` approximates an autonomous fleet that doesn't need babysitting.
 

@@ -1,27 +1,27 @@
-# `batch` action — multi-candidate orchestration
+# `batch` action: multi-candidate orchestration
 
 ## Contents
 
 - [When to invoke](#when-to-invoke)
 - [Inputs](#inputs)
 - [Steps](#steps)
-- [Step 1 — Pre-flight](#step-1--pre-flight)
-- [Step 2 — Verify filter (HARD GATE for batches ≥5)](#step-2--verify-filter-hard-gate-for-batches-5)
-- [Step 3 — Filter](#step-3--filter)
-- [Step 4 — File-overlap matrix](#step-4--file-overlap-matrix)
-- [Step 5 — Wave grouping (graph coloring)](#step-5--wave-grouping-graph-coloring)
-- [Step 6 — Dispatch policy](#step-6--dispatch-policy)
-- [Step 7 — Lesson injection](#step-7--lesson-injection)
-- [Step 8 — Per-dispatch capture](#step-8--per-dispatch-capture)
-- [Step 9 — Lesson append](#step-9--lesson-append)
-- [Step 10 — Batch audit log](#step-10--batch-audit-log)
+- [Step 1: Pre-flight](#step-1-pre-flight)
+- [Step 2: Verify filter (HARD GATE for batches ≥5)](#step-2-verify-filter-hard-gate-for-batches-5)
+- [Step 3: Filter](#step-3-filter)
+- [Step 4: File-overlap matrix](#step-4-file-overlap-matrix)
+- [Step 5: Wave grouping (graph coloring)](#step-5-wave-grouping-graph-coloring)
+- [Step 6: Dispatch policy](#step-6-dispatch-policy)
+- [Step 7: Lesson injection](#step-7-lesson-injection)
+- [Step 8: Per-dispatch capture](#step-8-per-dispatch-capture)
+- [Step 9: Lesson append](#step-9-lesson-append)
+- [Step 10: Batch audit log](#step-10-batch-audit-log)
 - [Side observations](#side-observations)
 - [Recheck triggers](#recheck-triggers)
 - [Cross-references](#cross-references)
 
 Multi-candidate orchestration. Computes a file-overlap matrix across candidates, dispatches refuse-fast `verify` to filter, then runs `plan`/`execute` in non-overlapping parallel waves OR strict sequential order (concurrent-write risk → sequential by default). Accumulates lessons in `context/lessons.md` between subagent dispatches.
 
-Loaded by `/docs-hygiene:extract-ssot batch <cluster-list>`. Private surface — invoke via `/docs-hygiene:extract-ssot batch`, never cite this file directly (contract: `/docs-hygiene:audit-encapsulation`).
+Loaded by `/docs-hygiene:extract-ssot batch <cluster-list>`. Private surface. Invoke via `/docs-hygiene:extract-ssot batch`, never cite this file directly (contract: `/docs-hygiene:audit-encapsulation`).
 
 ## When to invoke
 
@@ -29,8 +29,8 @@ Loaded by `/docs-hygiene:extract-ssot batch <cluster-list>`. Private surface —
 |----------|--------|
 | `/docs-hygiene:extract-ssot identify` produced 5+ candidates and you want efficient orchestration | YES |
 | Manual list of candidates to migrate in one pass | YES |
-| Single candidate | NO — use `/docs-hygiene:extract-ssot plan <name>` directly |
-| < 3 candidates | NO — manual sequential dispatch is simpler |
+| Single candidate | NO. Use `/docs-hygiene:extract-ssot plan <name>` directly |
+| < 3 candidates | NO. Manual sequential dispatch is simpler |
 
 This is NOT the bundled Claude Code `/batch` skill. Bundled `/batch` orchestrates large-scale changes across a codebase in parallel: it decomposes the work into 5 to 30 independent units and spawns one background subagent per unit in an isolated git worktree, each opening its own pull request. This `batch` action is local SSOT-cluster orchestration instead. Basis: [the slash-command reference](https://code.claude.com/docs/en/commands), whose `/batch` entry carries that description and gives `migrate src/ from JavaScript to TypeScript` as its example. Verified 2026-09-06 against Claude Code 2.1.263 and that page as fetched that day. Recheck when the reference drops the `/batch` entry, changes what it does, or when a release note names the bundled `/batch` skill.
 
@@ -65,19 +65,19 @@ non-abstracting remedy sweep. `--fix` never creates an artifact in any wave.
 10. Write a batch audit log entry to the working notes
 ```
 
-## Step 1 — Pre-flight
+## Step 1: Pre-flight
 
 Read `context/lessons.md` once at batch start. The snapshot is the lesson set injected into all subagent dispatches in this batch. Avoids race conditions where subagent A and B both append simultaneously.
 
-## Step 2 — Verify filter (HARD GATE for batches ≥5)
+## Step 2: Verify filter (HARD GATE for batches ≥5)
 
-For each candidate, invoke `verify` (private action — see `actions/verify.md`). Capture per-candidate output.
+For each candidate, invoke `verify` (a private action, see `actions/verify.md`). Capture per-candidate output.
 
-**HARD GATE rule (per Lesson 10):** when `<cluster-list>` size ≥ 5, `verify` is MANDATORY before any `plan`/`execute` dispatch — refuse-fast at this step rather than spawning subagents on false-positive candidates. Subagent identify passes routinely produce ~95% FP rates without per-cluster Tier 0 verification; gating here prevents wasted dispatches. Smaller batches (1-4 candidates) may skip `verify` per user discretion (the action is still OPTIONAL there).
+**HARD GATE rule (per Lesson 10):** when `<cluster-list>` size ≥ 5, `verify` is MANDATORY before any `plan`/`execute` dispatch. Refuse fast at this step rather than spawning subagents on false-positive candidates. Subagent identify passes routinely produce ~95% FP rates without per-cluster Tier 0 verification; gating here prevents wasted dispatches. Smaller batches (1-4 candidates) may skip `verify` per user discretion (the action is still OPTIONAL there).
 
-If the batch fails the verify-gate (≥80% candidates REFUSE), abort the batch and surface the diagnostic to the user — it likely signals the identify pass needs hardening per the Discrimination rules in `actions/identify.md`. Don't dispatch `plan`/`execute` on the surviving 20%; the user picks scope manually.
+If the batch fails the verify-gate (≥80% candidates REFUSE), abort the batch and surface the diagnostic to the user. It likely signals the identify pass needs hardening per the Discrimination rules in `actions/identify.md`. Don't dispatch `plan`/`execute` on the surviving 20%; the user picks scope manually.
 
-Each verdict carries the bucket `verify` Gate 1 assigned. A sub-three bucket is not a refusal — an
+Each verdict carries the bucket `verify` Gate 1 assigned. A sub-three bucket is not a refusal. An
 N=1 or N=2 candidate PROCEEDs with its non-abstracting remedies and stays in the dispatch list.
 A semantic candidate (`identify` forms c2/i) is counted by `verify` Gate 1's reading-derived roster,
 not by phrase grep, so this filter must not drop it as `REFUSE-not-found` on a one-file grep hit.
@@ -92,19 +92,19 @@ verify-evidence: [...]
 
 Output forms the batch summary's first two columns.
 
-## Step 3 — Filter
+## Step 3: Filter
 
 Drop candidates with `REFUSE-*` status from the dispatch list. Keep `PROCEED` + `WARN` at every
-bucket — N=1 and N=2 candidates survive the filter and dispatch with the non-abstracting remedies
+bucket. N=1 and N=2 candidates survive the filter and dispatch with the non-abstracting remedies
 their bucket permits, never an artifact-creating one. Apply `--min-instances` / `--buckets` here as
 a second, caller-chosen filter; record what they excluded so a suppressed bucket does not read as an
 empty one. Surface the dropped candidates with reasons in the batch audit log so the user sees the
 refuse-fast savings.
 
 The ≥80%-refusal abort check counts only `REFUSE-*` verdicts. Bucket distribution is a reporting
-fact, not a refusal — a roster that is mostly N=1 is a healthy finding, not a failed identify pass.
+fact, not a refusal. A roster that is mostly N=1 is a healthy finding, not a failed identify pass.
 
-## Step 4 — File-overlap matrix
+## Step 4: File-overlap matrix
 
 For each surviving candidate, identify the file set the candidate would touch:
 
@@ -125,7 +125,7 @@ Compute overlap:
 
 Implementation: for each pair (Ci, Cj), grep both candidate specs for ALLOWED files, intersect sets. If the intersection is non-empty, mark `X`. Capture the full intersection list in the audit log.
 
-## Step 5 — Wave grouping (graph coloring)
+## Step 5: Wave grouping (graph coloring)
 
 Build an undirected graph: nodes = candidates, edges = `X` overlaps. Color with greedy graph-coloring; nodes of the same color = one wave.
 
@@ -146,11 +146,11 @@ waves:
     candidates: [C3, C4]
 ```
 
-## Step 6 — Dispatch policy
+## Step 6: Dispatch policy
 
 **SEQUENTIAL within wave when ANY of:**
 
-- Wave has > 1 candidate AND any pair has shared files (collision risk — concurrent agents editing the same file silently overwrite each other; there is no file-level locking)
+- Wave has > 1 candidate AND any pair has shared files (collision risk: concurrent agents editing the same file silently overwrite each other, and there is no file-level locking)
 - Wave touches files that another wave already touched in this batch (chronological dependency)
 - Candidate has `verify-status: WARN` (an extra adversarial-review step is warranted)
 
@@ -167,7 +167,7 @@ dispatches stay under the `context/orchestrated-mode.md` ceiling (default 2, sta
 between-dispatch rate-limit-guard check when the consuming machine exposes the guard's snapshot.
 Wave grouping decides *what may* run together; the ceiling decides *how much* actually does.
 
-## Step 7 — Lesson injection
+## Step 7: Lesson injection
 
 Each subagent dispatched in this batch receives the lesson snapshot from Step 1 in its prompt:
 
@@ -176,13 +176,13 @@ Each subagent dispatched in this batch receives the lesson snapshot from Step 1 
 
 (snapshot of context/lessons.md as of batch start)
 
-Lesson 1 — Discriminating-phrase grep beats keyword density
+Lesson 1: Discriminating-phrase grep beats keyword density
 ... (full lessons.md body)
 ```
 
-The subagent treats lessons as advisory — applies them in its own decision-making but does NOT modify `lessons.md` directly. New lessons from THIS subagent's run are returned in the deliverable summary, not committed by the subagent.
+The subagent treats lessons as advisory. It applies them in its own decision-making but does NOT modify `lessons.md` directly. New lessons from THIS subagent's run are returned in the deliverable summary, not committed by the subagent.
 
-## Step 8 — Per-dispatch capture
+## Step 8: Per-dispatch capture
 
 Each subagent return value contains:
 
@@ -195,13 +195,13 @@ sanity-check-evidence: [...]
 ```
 
 `REMEDIED-{remedy}` is the verdict for a completed non-abstracting remedy, `{remedy}` one of
-`trim-to-citation` / `normalize-wording` / `name-an-owner` / `edit-existing-rule` — the outcome a
-sub-three bucket produces, since none of those creates an artifact. `EXTRACTED` remains the N≥3
+`trim-to-citation` / `normalize-wording` / `name-an-owner` / `edit-existing-rule`. It is the outcome
+a sub-three bucket produces, since none of those creates an artifact. `EXTRACTED` remains the N≥3
 artifact-creation outcome.
 
 `new-lessons` is the field where empirical patterns surface for the orchestrator to codify.
 
-## Step 9 — Lesson append
+## Step 9: Lesson append
 
 After all waves complete, the orchestrator (main session) reviews `new-lessons` from all dispatches:
 
@@ -210,11 +210,11 @@ After all waves complete, the orchestrator (main session) reviews `new-lessons` 
 - The Source field references THIS batch's audit log
 - The Encoded-in field documents which downstream artifacts (anti-patterns.md, verify gates) should consume the new lesson
 
-Subagent-reported lessons are synthesis until the orchestrator re-verifies them with its own grep — verify each novel-lesson claim before the lessons.md append.
+Subagent-reported lessons are synthesis until the orchestrator re-verifies them with its own grep. Verify each novel-lesson claim before the lessons.md append.
 
 If no novel patterns surface, no append. Don't force.
 
-## Step 10 — Batch audit log
+## Step 10: Batch audit log
 
 Append to the working notes:
 
@@ -272,10 +272,10 @@ Keep side notes to the ones a reader must act on now:
 
 ## Cross-references
 
-- `actions/verify.md` — Step 2 sub-routine; refuse-fast gate per candidate
-- `context/lessons.md` — Step 1 snapshot source; Step 9 append destination
-- `context/decision-framework.md` "Pre-extraction Tier 0 checklist" — the same gates `verify` runs, documented for human-readable batch review
-- `context/anti-patterns.md` #11 / #12 / #13 — REFUSE patterns the verify filter encodes
-- SKILL.md "Evidence discipline" — subagent return values are synthesis by default; the orchestrator MUST verify novel-lesson claims before the lessons.md append
-- `/docs-hygiene:extract-ssot identify` — produces the ranked candidate list this batch action consumes
-- Bundled Claude Code `/batch` skill — distinct concern (worktree-parallelized polyglot refactor); the dated record for what it does sits above the Inputs section of this file, and SKILL.md "What this skill does NOT do" carries the same boundary
+- `actions/verify.md`: Step 2 sub-routine; refuse-fast gate per candidate
+- `context/lessons.md`: Step 1 snapshot source; Step 9 append destination
+- `context/decision-framework.md` "Pre-extraction Tier 0 checklist": the same gates `verify` runs, documented for human-readable batch review
+- `context/anti-patterns.md` #11 / #12 / #13: REFUSE patterns the verify filter encodes
+- SKILL.md "Evidence discipline": subagent return values are synthesis by default; the orchestrator MUST verify novel-lesson claims before the lessons.md append
+- `/docs-hygiene:extract-ssot identify`: produces the ranked candidate list this batch action consumes
+- Bundled Claude Code `/batch` skill: a distinct concern (worktree-parallelized polyglot refactor); the dated record for what it does sits above the Inputs section of this file, and SKILL.md "What this skill does NOT do" carries the same boundary

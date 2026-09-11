@@ -3,20 +3,20 @@
 Taxonomy of improvements codifiable from session findings. Each category maps a finding type to a
 specific ecosystem target.
 
-**Research before recommending.** The Claude Code ecosystem evolves constantly — verify current
+**Research before recommending.** The Claude Code ecosystem evolves constantly, so verify current
 capabilities against current official docs (WebSearch, WebFetch, or a docs-lookup agent/MCP
 server) before recommending; never recommend features from training-data assumptions.
 
 ## Placement Decision Tree
 
 Before recommending a target, determine WHERE the finding should live. The key distinction is
-**scope** — who needs this knowledge, and what happens if it is lost?
+**scope**: who needs this knowledge, and what happens if it is lost?
 
 **Two scopes:**
 
-- **project** — git-tracked in the consuming repo (`CLAUDE.md`, `.claude/rules/`,
+- **project.** Git-tracked in the consuming repo (`CLAUDE.md`, `.claude/rules/`,
   `.claude/skills/`, `.claude/settings.json`). Committed, shared, survives machine loss.
-- **personal** — machine-local (auto-memory under the session data directory, user settings). NOT
+- **personal.** Machine-local (auto-memory under the session data directory, user settings). NOT
   committed, NOT backed up. Only affects this user's sessions.
 
 **Decision questions (ask in order, stop at first match):**
@@ -30,7 +30,7 @@ Before recommending a target, determine WHERE the finding should live. The key d
      protects)
    - Example: a source-verification guard for a skill → that skill's own SKILL.md
    - These often *look like* feedback memories ("don't do X") but are quality gates for a shared
-     artifact — would a different agent on a fresh clone make the same mistake? Yes → project.
+     artifact. Would a different agent on a fresh clone make the same mistake? Yes → project.
 3. **Is it about how this specific user wants the agent to behave?**
    - Interaction preferences, behavioral corrections, validated approaches → **personal**
      (feedback memory)
@@ -48,29 +48,29 @@ or would just this user's convenience suffer (→ memory is fine)?
 
 **Common misplacements to watch for:**
 
-- Technical gotchas in memory instead of rules — these affect ALL contributors, not just one user
-- Convention decisions in memory instead of CLAUDE.md — if it's how the project works, commit it
-- **Guard rails for skills/artifacts in feedback memory instead of the artifact itself** — if a
+- Technical gotchas in memory instead of rules. These affect ALL contributors, not just one user
+- Convention decisions in memory instead of CLAUDE.md. If it's how the project works, commit it
+- **Guard rails for skills/artifacts in feedback memory instead of the artifact itself.** If a
   correction prevents corrupting a git-tracked file, it belongs in that file, not in memory
-- "Project status" memories that duplicate git-tracked content — redundant with the file itself
-- Session metrics (retro scores) — personal by default; move into the repo only if the team wants
+- "Project status" memories that duplicate git-tracked content, redundant with the file itself
+- Session metrics (retro scores). Personal by default; move into the repo only if the team wants
   AI quality visibility
 
 ## Memory
 
 Personal learnings that persist across THIS USER's sessions on THIS machine. NOT committed, NOT
-shared — either rediscoverable (preferences, references) or ephemeral (work status).
+shared. It is either rediscoverable (preferences, references) or ephemeral (work status).
 
 ### When to recommend
 
-- **Feedback memory** — the user corrected behavior, or a non-obvious approach was validated
-- **User memory** — learned something about the user's role, preferences, or expertise
-- **Project memory** — learned about ongoing work, deadlines, or context not in code/git
-- **Reference memory** — discovered where information lives in external systems
+- **Feedback memory.** The user corrected behavior, or a non-obvious approach was validated
+- **User memory.** Learned something about the user's role, preferences, or expertise
+- **Project memory.** Learned about ongoing work, deadlines, or context not in code/git
+- **Reference memory.** Discovered where information lives in external systems
 
 ### Format
 
-Match the consumer's existing auto-memory conventions — read a sibling memory file first and follow
+Match the consumer's existing auto-memory conventions. Read a sibling memory file first and follow
 its naming, structure, and any index it maintains rather than inventing a new format.
 
 ### What NOT to save
@@ -84,16 +84,16 @@ Conventions and guidelines that should be documented.
 
 ### When to recommend
 
-- A convention was followed implicitly but isn't documented — future sessions would rediscover it
-- An existing rule was ambiguous and caused confusion — clarify it
-- A rule is outdated and caused incorrect behavior — update or remove it
+- A convention was followed implicitly but isn't documented, so future sessions would rediscover it
+- An existing rule was ambiguous and caused confusion. Clarify it
+- A rule is outdated and caused incorrect behavior. Update or remove it
 - A new pattern was established that should be the default going forward
 
 ### Criteria for CLAUDE.md vs rules files
 
 | Target | Criteria |
 | --- | --- |
-| CLAUDE.md | Repo-wide, always-on context. Keep brief — reference, don't duplicate |
+| CLAUDE.md | Repo-wide, always-on context. Keep brief: reference, don't duplicate |
 | `.claude/rules/*.md` | Scoped to file types. Detailed conventions, gotchas, examples |
 | Neither | General industry knowledge the agent already follows |
 
@@ -104,7 +104,7 @@ lists, formatter settings). CLAUDE.md documents that enforcement exists; it does
 
 ## Hooks
 
-Automated enforcement for agentic workflow. The hook system evolves — verify supported events,
+Automated enforcement for agentic workflow. The hook system evolves, so verify supported events,
 matcher syntax, and environment variables against the current hooks documentation.
 
 ### When to recommend
@@ -116,7 +116,7 @@ matcher syntax, and environment variables against the current hooks documentatio
 ### Hook events
 
 The hook-event catalog (event names, use cases, matchers) is owned by the official docs: read
-the current list at <https://code.claude.com/docs/en/hooks> before recommending — it grows and
+the current list at <https://code.claude.com/docs/en/hooks> before recommending. It grows and
 changes faster than any copy here could track, so no copy is kept here.
 
 ### Recommendation format
@@ -186,7 +186,7 @@ Include: which settings file (user/project), the specific setting key, proposed 
 ## Other Ecosystem Components
 
 Additional component types may be relevant: output styles, plugins, LSP servers, status lines,
-rules files. These evolve — research current capabilities when a session reveals a need that
+rules files. These evolve, so research current capabilities when a session reveals a need that
 doesn't fit the categories above.
 
 ## Priority Levels

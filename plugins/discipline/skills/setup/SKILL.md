@@ -79,7 +79,7 @@ Official contract: <https://code.claude.com/docs/en/plugins-reference#user-confi
    (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>):
    interactive `/plugin configure discipline@<marketplace>` any time; headless, rerun
    `claude plugin install discipline@<marketplace> -s user --config <key>=<value>` (repeatable
-   per key) — against an already-installed plugin it prints `already installed` and still writes
+   per key). Against an already-installed plugin it prints `already installed` and still writes
    the value. Never uninstall to reconfigure: that drops the whole stored `pluginConfigs` entry,
    resetting every option to its manifest default. `-s` defaults to `user`, the only scope whose
    `pluginConfigs` these options load from (see above). Claude Code owns persistence. Do not

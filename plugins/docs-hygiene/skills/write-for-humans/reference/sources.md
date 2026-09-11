@@ -8,7 +8,7 @@ event should send someone back to check.
 Read this when you need to know how faithful a layer is, cite a layer to someone, or decide whether
 a standard has moved since the port.
 
-## Diátaxis — the mode layer
+## Diátaxis: the mode layer
 
 - **Claim.** The four modes, and the doing/understanding × learning/work compass that selects
   between them, are as the framework defines them.
@@ -17,7 +17,7 @@ a standard has moved since the port.
 - **Recheck trigger.** The framework publishes a revision that renames a mode or changes either
   compass axis.
 
-## Google developer documentation style — the address layer
+## Google developer documentation style: the address layer
 
 - **Claim.** The address rules paraphrase the guide's own highlights; they are a selection, not the
   guide, and the guide settles anything this file does not cover.
@@ -25,21 +25,21 @@ a standard has moved since the port.
 - **As of.** 2026-07-18.
 - **Recheck trigger.** The guide's Highlights page changes a rule stated in `sentence-rules.md`.
 
-## ASD-STE100 Simplified Technical English — the load layer
+## ASD-STE100 Simplified Technical English: the load layer
 
 - **Claim.** The load rules are the transferable core of the specification's writing rules. The
   numbered rules and the controlled dictionary live in the specification itself and are **not**
-  reproduced here — this layer is a set of principles derived from the standard, and a document
+  reproduced here. This layer is a set of principles derived from the standard, and a document
   written to it is not thereby STE-conformant.
 - **Basis.** [asd-ste100.org](https://asd-ste100.org), Issue 9 (2025).
 - **As of.** 2026-07-18.
 - **Recheck trigger.** A new Issue of the specification is published.
 
-This caveat is load-bearing rather than boilerplate. Anyone claiming STE conformance for a document
+This caveat is a real constraint, not boilerplate. Anyone claiming STE conformance for a document
 needs the specification; anyone wanting sentences that load one idea at a time can use the
 principles alone.
 
-## Global English — the ambiguity layer
+## Global English: the ambiguity layer
 
 - **Claim.** The ambiguity rules paraphrase Kohl's guidelines for writing prose that survives
   non-native readers, translators, and machine parsers.

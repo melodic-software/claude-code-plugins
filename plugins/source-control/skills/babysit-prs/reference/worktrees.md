@@ -2,7 +2,7 @@
 
 Babysit PR worktrees are ephemeral scratch, not durable state. They live under `<worktree-root>`,
 one per PR, each directory named `<owner>__<repo>__pr-<number>` (e.g.
-`melodic-software__claude-code-plugins__pr-377`) — find the existing worktree for a PR or create it
+`melodic-software__claude-code-plugins__pr-377`). Find the existing worktree for a PR or create it
 under that name; never share a checkout between workers, and never place a worktree inside another
 checkout. Durable state belongs in GitHub, committed PR branches, and `<state-dir>`. Angle-bracket
 slots (`<worktree-root>`, `<state-dir>`) are filled from the effective-configuration block in this
@@ -10,7 +10,7 @@ skill's `SKILL.md`, which renders every key's resolved value and its unset fallb
 `<worktree-root>` defaults to the `worktrees` subdirectory of the plugin data directory, and
 `<state-dir>` is its `state/babysit-prs` subdirectory.
 
-This file is the canonical, sole source for the babysit ephemeral-worktree convention — the
+This file is the canonical, sole source for the babysit ephemeral-worktree convention. The
 plugin owns it, not any external prose doc. Rooting these worktrees outside every repository's
 discoverable tree (the plugin data directory by default) is deliberate: it keeps ephemeral
 scratch out of repository enumeration such as `ghq list`. Repointing `babysit_worktree_root`
@@ -20,7 +20,7 @@ back under a discoverable tree reintroduces that pollution.
 
 - The directory name carries the PR identity the cleanup helper acts on, so the naming convention
   above is required, not cosmetic. A directory under `<worktree-root>` whose name does not match it
-  is reported as an `unrecognized` row — never removed, never silently omitted — and has to be
+  is reported as an `unrecognized` row, never removed or silently omitted, and has to be
   resolved by hand: confirm the PR state, then `git worktree remove` it.
 - At the start of a queue run holding the queue lease, remove only unleased clean babysit
   worktrees for merged or closed PRs. Snapshot and single-PR modes never run global cleanup.
@@ -29,16 +29,16 @@ back under a discoverable tree reintroduces that pollution.
   lease.
 - Never request global open-PR cleanup. The helper rejects `--prune-open-clean` without both
   `--pr` and `--lease-token`.
-- When a merged PR's worktree is removed, delete its local feature branch too — a merged branch
+- When a merged PR's worktree is removed, delete its local feature branch too. A merged branch
   has no further use, and leaving it behind accumulates stale refs and blocks reusing the name.
 - Never remove a dirty or unmerged worktree automatically. Report its path and
   `git status --short --branch`.
 - Never remove a worktree protected by another unexpired worker lease or while a worker is still
-  running in it — lease-protected removal: hold that PR's worker lease for any per-PR removal.
+  running in it. Removal is lease-protected: hold that PR's worker lease for any per-PR removal.
 - Never use raw filesystem deletion for Git worktrees. Use `git worktree remove` through the
   cleanup helper.
 - When a PR branch is already checked out in a sibling or foreign dev worktree, `git checkout`
-  dead-ends — operate from the assigned worktree in detached HEAD under the head assertion and push
+  dead-ends. Operate from the assigned worktree in detached HEAD under the head assertion and push
   by refspec rather than sharing the foreign checkout (`safety.md`, Checkout And Push Invariants).
 
 ## Commands

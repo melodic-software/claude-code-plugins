@@ -2,18 +2,18 @@
 
 Failure patterns from real sessions. Loaded on demand from the handoff SKILL.md.
 
-- **A chain that preserved every fact and lost the point** — a handoff chain preserves state
+- **A chain that preserved every fact and lost the point.** A handoff chain preserves state
   perfectly and intent not at all unless the goal field is mandatory and immutable. Each hop
-  serializes the machinery in front of it — the phase, the bundle, the checklist — as though that
+  serializes the machinery in front of it, the phase, the bundle, the checklist, as though that
   were the mission, and the resumed session optimizes it faithfully. No single hop looks wrong:
   every paraphrase is plausible, and the loss only shows up in the aggregate, many sessions later.
   Quote the user's goal verbatim in section 1, copy it from the prior file read off disk instead of
-  re-deriving it, and write completion criteria as the goal-states they establish — a criterion that
+  re-deriving it, and write completion criteria as the goal-states they establish. A criterion that
   can be satisfied while the goal is no closer is a process milestone under the wrong heading.
-- **The file written, the prompt never emitted** — observed at high context occupancy: the handoff
+- **The file written, the prompt never emitted.** Observed at high context occupancy: the handoff
   file lands on disk with correct content, the checklist reports success, and the turn ends without
   the rails prompt ever reaching the screen. The operator is left holding a `/clear` they cannot
-  resume from — worse than never running the skill, because the skill claimed to have run. The
+  resume from, which is worse than never running the skill, because the skill claimed to have run. The
   inversion is what makes it easy: the engine's optional half (the file) gets delivered and its
   mandatory half ("A resume prompt is ALWAYS emitted") gets dropped, while every STOP instruction in
   the skill reads as licence to end the turn once the file exists. Two rules exist against it, and
@@ -22,16 +22,16 @@ Failure patterns from real sessions. Loaded on demand from the handoff SKILL.md.
   `/loop` re-arm notes are the response's final text (SKILL.md, "Output order is fixed"). Recovery
   when it happens anyway: `/session-flow:find-handoff` rung 1 globs the handoffs dir and needs no
   transcript.
-- **The panel eating the prompt** — the position panel is emitted before the rails block, so it is
+- **The panel eating the prompt.** The position panel is emitted before the rails block, so it is
   text standing between the start of the response and the one thing the operator has to have. Under
-  the same heavy context that produces the failure above, a panel that grows — every unit of a long
-  rail spelled out, blocks wrapping into paragraphs, a divergence explained rather than named — is a
-  turn that runs out of room before the rails. The rules that hold it small are load-bearing, not
-  cosmetic: one line per unit, one line per block, elide above 8 units, 16 lines total. And when
-  anything about the panel is uncertain, the answer is an abbreviated panel or a single line saying
-  the units would not resolve — never a delayed or dropped rails prompt (engine doc, "The panel
-  NEVER gates the rails prompt").
-- **The handoff written free-hand, with no rails at all** — the dominant failure in the transcript
+  the same heavy context that produces the failure above, a panel that grows, with every unit of a
+  long rail spelled out, blocks wrapping into paragraphs, and a divergence explained rather than
+  named, is a turn that runs out of room before the rails. The rules that hold it small are
+  required, not cosmetic: one line per unit, one line per block, elide above 8 units, 16 lines
+  total. And when anything about the panel is uncertain, the answer is an abbreviated panel or a
+  single line saying the units would not resolve, never a delayed or dropped rails prompt (engine
+  doc, "The panel NEVER gates the rails prompt").
+- **The handoff written free-hand, with no rails at all.** The dominant failure in the transcript
   audit (10 of 25 handoff writes on this machine): a session wrote a `*-handoff-*.md` file through
   `Write` or `Edit` without ever invoking `/session-flow:handoff`, so nothing in it had read the
   engine, and no resume prompt reached the screen. The file looked complete; the operator had
@@ -41,20 +41,20 @@ Failure patterns from real sessions. Loaded on demand from the handoff SKILL.md.
   reason, another skill's fallback note) is a defect to close, not a route to take. A handoff
   file that a session did not produce through the skill is a defect to raise, not a save-point
   to resume from.
-- **ASCII rails** — a `-----` or `=====` line typed in place of the U+2500 `─` rail (2 of the 15
+- **ASCII rails.** A `-----` or `=====` line typed in place of the U+2500 `─` rail (2 of the 15
   skill-produced prompts in the audit). It reads as a rail to a human and is invisible to
   `find-handoff`, which keys on the U+2500 glyph, so the prompt is unrecoverable after `/clear`.
   On the full path the script writes the rails and the validator refuses any other glyph; on
   screen, paste the `emit` output rather than retyping it, and never let a terminal or editor
   "normalize" the glyph.
-- **Prompt-only when durability is required** — prompt-only fits small, self-contained follow-ups;
-  when a plan artifact, dead-ends, or load-bearing decisions back the work, write the durable
-  handoff file. Any doubt → full handoff.
-- **Dropping plan-anticipated work on batch pushback** — when the user rejects N≥2 proposed
+- **Prompt-only when durability is required.** Prompt-only fits small, self-contained follow-ups;
+  when a plan artifact, dead-ends, or decisions the work depends on stand behind it, write the
+  durable handoff file. Any doubt → full handoff.
+- **Dropping plan-anticipated work on batch pushback.** When the user rejects N≥2 proposed
   actions, separate by category (plan-anticipated vs invented); never silent-drop all.
-- **Handoff without sanity-check evidence** — a met/unmet mark on a completion criterion needs
+- **Handoff without sanity-check evidence.** A met/unmet mark on a completion criterion needs
   verifiable evidence (a grep hit, a test exit code), not "looks good."
-- **Continuing after the user says stop** — a handoff is a save-point, never permission to keep
+- **Continuing after the user says stop.** A handoff is a save-point, never permission to keep
   implementing. Respect explicit pause/stop.
 - **Idle named subagents surviving `/clear`.** Named subagents stay live and addressable across
   `/clear` and across sessions, unlike `/loop` and `/goal`, which a fresh conversation clears. A
@@ -67,11 +67,11 @@ Failure patterns from real sessions. Loaded on demand from the handoff SKILL.md.
   `SendMessage` (verified snapshot in `skills/orchestrate/context/sources.md`, "SendMessage
   worker continuation"). Record any still running (with why) so the resuming session inherits
   the list.
-- **Saying nothing about the active `/loop`s on resume** — `/clear` starts a fresh conversation,
+- **Saying nothing about the active `/loop`s on resume.** `/clear` starts a fresh conversation,
   which clears every session-scoped scheduled task, so a resume prompt that reads only as a one-shot
   continuation runs once and silently drops the recurring behavior, with no error to signal it. Each
-  re-arm is a SEPARATE follow-up message carrying the ORIGINAL loop prompt, one per surviving loop
-  — never the resume directive wrapped in `/loop`. The engine's counted entry header labels each
+  re-arm is a SEPARATE follow-up message carrying the ORIGINAL loop prompt, one per surviving loop,
+  never the resume directive wrapped in `/loop`. The engine's counted entry header labels each
   re-arm inside the save-point's own output so a consumer can find its edges (engine doc, "Emit the
   copy/paste resume prompt"); the header is not part of what gets sent, and the follow-up message
   itself begins with `/loop`, since a command is recognized only at a message's start. `/loop` re-runs the

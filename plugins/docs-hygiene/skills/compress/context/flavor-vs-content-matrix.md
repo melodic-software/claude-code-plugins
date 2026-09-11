@@ -10,18 +10,18 @@ Canonical FLAVOR / CONTENT taxonomy for the `/docs-hygiene:compress` semantic-di
 - Filler (just/really/basically/actually/simply)
 - Hedging (perhaps/somewhat/might)
 - Pleasantries
-- Redundant restatement of bold rule names (single-file Edit fallback only — batch Phase A LATITUDE does not delete sentences)
+- Redundant restatement of bold rule names (single-file Edit fallback only. Batch Phase A LATITUDE does not delete sentences.)
 - "in order to" / "due to the fact that" verbose forms
 - Conversational connectives ("that said", "in other words") (Edit fallback; batch LATITUDE is word-level)
 - Verbose verb phrases ("make use of" → "use")
 
 ### Content (NEVER cut)
 
-- (a) every directive, including imperative force — "must have" ≠ "has"
+- (a) every directive, including imperative force: "must have" ≠ "has"
 - (b) every concrete prohibited-pattern example with a literal token
-- (c) every counter-example / anti-example — both halves of "X not Y" pairs
+- (c) every counter-example / anti-example: both halves of "X not Y" pairs
 - (d) every qualifier narrowing scope (ONLY, repeatedly, instantly recognized, that appear in)
-- (e) every rule-unique "why" rationale — if removing it lets two readers infer different applicability, keep it
+- (e) every rule-unique "why" rationale. If removing it lets two readers infer different applicability, keep it
 - (f) every cross-reference, file path, env var, SHA, version pin, identifier, slash command, hook name, agent name
 - (g) every exception clause + example
 - (h) every threshold (3+, 5+, ≥30s, <2min)
@@ -36,13 +36,13 @@ The taxonomy is invariant across content types. What varies is the EXPECTED YIEL
 |---|---|---|---|
 | **Always-loaded instruction file** (`.claude/rules/**`, `AGENTS.md`, `CLAUDE.md`, `**/SKILL.md`) | 2-3% | (a) directives, (d) scope qualifiers, (e) rule-unique rationale, (f) cross-references | Author-time-disciplined. Default action will revert per SKILL.md "Hard rules" (<3% AND 0SL → REVERT). `--force` only when a targeted sub-3% diff is intentional. Empirical baseline: 3/3 attempts reverted |
 | **Onboarding doc** (README onboarding, `docs/onboarding-*.md`, contributor guides) | 8-15% | (b) prohibited-pattern tokens, (c) counter-examples, (h) thresholds | Verbose-prose baseline. Hedging + pleasantries dense; restatement of policy across sections common. Revert-pass strictness: keep every "X not Y" pair intact (counter-example loss = ambiguity in onboarding) |
-| **README** (`README.md`, `*/README.md` at app/lib/service roots) | 5-12% | (f) cross-references, (g) exception clauses, (j) inline-code tokens | Project-front-door surface. Inline-code density usually high (commands, paths); revert any (j) drop. Cross-references load-bearing for navigation |
+| **README** (`README.md`, `*/README.md` at app/lib/service roots) | 5-12% | (f) cross-references, (g) exception clauses, (j) inline-code tokens | Project-front-door surface. Inline-code density usually high (commands, paths); revert any (j) drop. Navigation depends on the cross-references |
 | **Drifted skill body** (`**/SKILL.md` past ~250 lines AND not author-time-disciplined) | 4-7% (Edit-fallback / explicit target only) | (a) directives, (e) rule-unique rationale, (i) enumeration items | **Unreachable via the audit gate's batch path:** signal 1 unconditionally SKIPs every `**/SKILL.md`. Drifted skill bodies require an explicitly-named single-file target (or Edit fallback); the matrix row remains for that niche. Revert any directive softening ("must" → "should"); revert any enumeration-item drop |
 | **Third-party pasted prose** (vendor docs, external policy text, copied research notes) | 10-20% | (b) prohibited-pattern tokens, (h) thresholds, (j) inline-code tokens | Highest yield + highest risk. Pasted prose carries verbose flavor authors did not edit. Inline-code tokens (CLI flags, schema field names) MUST survive verbatim; treat any (j) loss as SEMANTIC LOSS not AMBIGUITY |
 
 ## Variants never relax the preservation contract
 
-The (a)–(j) Content list defines the universal preservation contract. Per-content-type framing only changes which list items fire most often and at what yield — it never implies per-type CONTENT relaxation, which is forbidden: every (a)–(j) item is preserved on every content type. The variant table above tunes EXPECTED YIELD + revert-pass FOCUS, never the preservation contract.
+The (a)–(j) Content list defines the universal preservation contract. Per-content-type framing only changes which list items fire most often and at what yield. It never implies per-type CONTENT relaxation, which is forbidden: every (a)–(j) item is preserved on every content type. The variant table above tunes EXPECTED YIELD + revert-pass FOCUS, never the preservation contract.
 
 ## Audit-action expected-yield mapping
 
@@ -56,6 +56,6 @@ Numeric ranges drift; revisit the variant table as empirical evidence accumulate
 
 ## Cross-references
 
-- `../SKILL.md` "Auto-detect default" + "Hard rules" — default action revert rules consuming this variant table
-- `context/target-types.md` — heuristic that feeds the audit-action SKIP/COMPRESS/UNCERTAIN classification
-- `context/semantic-diff-prompt.md` — dispatch template that operationalizes the preservation contract
+- `../SKILL.md` "Auto-detect default" + "Hard rules": default action revert rules consuming this variant table
+- `context/target-types.md`: heuristic that feeds the audit-action SKIP/COMPRESS/UNCERTAIN classification
+- `context/semantic-diff-prompt.md`: dispatch template that operationalizes the preservation contract

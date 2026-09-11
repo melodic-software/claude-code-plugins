@@ -15,19 +15,19 @@
 - [Checkbox inventory pattern](#checkbox-inventory-pattern)
 - [Domain-specialist skills during planning](#domain-specialist-skills-during-planning)
 
-Scale to the task — not every section is needed for every plan. A trivial fix needs 3-5 bullets. A cross-cutting change needs the full template.
+Scale to the task. Not every section is needed for every plan. A trivial fix needs 3-5 bullets. A cross-cutting change needs the full template.
 
 ## Full Template
 
 ```markdown
 ## Goal
 
-**What**: <1-2 sentences — what is being changed>
-**Why**: <1-2 sentences — the motivation, not just "because we need to">
+**What**: <1-2 sentences: what is being changed>
+**Why**: <1-2 sentences: the motivation, not just "because we need to">
 
 ## Standards grounding
 
-<which consumer standards shaped this plan — from the grounding step. Skipped at trivial scale only: state "Skipped: trivial scale, ambient context only">
+<which consumer standards shaped this plan, from the grounding step. Skipped at trivial scale only: state "Skipped: trivial scale, ambient context only">
 
 | Surface | Sections cited | Layer provenance |
 |---------|----------------|------------------|
@@ -51,7 +51,7 @@ Scale to the task — not every section is needed for every plan. A trivial fix 
 
 ### File Inventory (when plan touches ≥10 files)
 
-When a plan or phase touches ≥10 files, emit a checkbox inventory table. Checkboxes enforce verification discipline — the agent ticks each file as processed; the reviewer sees completeness at a glance.
+When a plan or phase touches ≥10 files, emit a checkbox inventory table. Checkboxes enforce verification discipline: the agent ticks each file as processed; the reviewer sees completeness at a glance.
 
 | File | Action | Rationale |
 |------|--------|-----------|
@@ -64,14 +64,14 @@ When a plan or phase touches ≥10 files, emit a checkbox inventory table. Check
 
 **Location:** per-phase in the plan body, not a separate top-level section. Each phase lists only the files IT touches. Files appearing in multiple phases get a row in each.
 
-**When to use KEEP:** include files audited and deliberately left unchanged — documents completeness ("we looked at this and it's fine") vs omission ("we forgot about this").
+**When to use KEEP:** include files audited and deliberately left unchanged. It documents completeness ("we looked at this and it's fine") vs omission ("we forgot about this").
 
-**Below threshold (<10 files):** the "Files Affected" table above is sufficient — no checkboxes needed.
+**Below threshold (<10 files):** the "Files Affected" table above is sufficient, with no checkboxes needed.
 
 ### Dependencies
 
-- <What this plan depends on — existing code, libraries, infrastructure>
-- <What depends on this plan — downstream consumers, tests, CI>
+- <What this plan depends on: existing code, libraries, infrastructure>
+- <What depends on this plan: downstream consumers, tests, CI>
 
 ### Pre-flight consumer check (when migrating a contract)
 
@@ -87,15 +87,15 @@ Without pre-flight, migrations break consumers silently. Example: a frontmatter 
 
 | Alternative | Why rejected |
 |-------------|-------------|
-| <Approach A> | <Specific reason — not just "too complex"> |
+| <Approach A> | <Specific reason, not just "too complex"> |
 | <Approach B> | <Specific reason> |
 
 ## Test Strategy
 
-> **Invoke `/tdd:principles` via the Skill tool (if installed) when writing this section** — it provides authoritative guidance on what to test, testing styles (output/state/communication), when to mock, and testable architecture patterns. Which test type each changed file needs (unit / integration / e2e / architecture / analyzer) is classified by `/testing:plan`'s test-type table when the `testing` plugin is installed — cite it rather than restating; otherwise apply standard test-design judgment. Test-first (Red-Green-Refactor) is the default — specify test-after only when genuinely impractical.
+> **Invoke `/tdd:principles` via the Skill tool (if installed) when writing this section.** It provides authoritative guidance on what to test, testing styles (output/state/communication), when to mock, and testable architecture patterns. Which test type each changed file needs (unit / integration / e2e / architecture / analyzer) is classified by `/testing:plan`'s test-type table when the `testing` plugin is installed; cite it rather than restating, and otherwise apply standard test-design judgment. Test-first (Red-Green-Refactor) is the default; specify test-after only when genuinely impractical.
 
-- <How to verify the changes work — specific test types, not just "write tests">
-- <Test boundaries: the public interfaces the tests drive, each marked existing or newly introduced — approval of this plan settles them, and a boundary implementation picks that is not named here is a deviation>
+- <How to verify the changes work: specific test types, not just "write tests">
+- <Test boundaries: the public interfaces the tests drive, each marked existing or newly introduced. Approval of this plan settles them, and a boundary implementation picks that is not named here is a deviation>
 - <TDD approach: which tests get written first, what assertions prove the behavior>
 - <Bug fixes: name the regression test that fails pre-fix, or document an explicit carve-out with rationale>
 - <Edge cases to cover>
@@ -132,14 +132,14 @@ The plan depth should match the blast radius:
 - **Medium** (new library, module changes, 5-15 files): full template minus alternatives
 - **Large** (architecture change, cross-cutting refactor, new service): full template + stress-test
 
-Standards grounding follows the same scale: trivial plans skip the "Standards grounding" element (ambient context only — no standards fetch); small plans ground the matched surfaces with a brief citation line (the standards a change is built to are the ones it is reviewed against, whatever its size); medium and large plans carry the full element for the surfaces they touch.
+Standards grounding follows the same scale: trivial plans skip the "Standards grounding" element (ambient context only, with no standards fetch); small plans ground the matched surfaces with a brief citation line (the standards a change is built to are the ones it is reviewed against, whatever its size); medium and large plans carry the full element for the surfaces they touch.
 
 Calibration examples by scale:
 
-- **Trivial** — fix a typo in a convention doc; bump an SDK version pin
-- **Small** — add a new lint rule; introduce a single utility in an existing shared library
-- **Medium** — a new shared library; add a cache to a query handler; a new module in a modular monolith
-- **Large** — module extraction; auth-provider integration; a cross-cutting refactor touching multiple apps and libraries
+- **Trivial:** fix a typo in a convention doc; bump an SDK version pin
+- **Small:** add a new lint rule; introduce a single utility in an existing shared library
+- **Medium:** a new shared library; add a cache to a query handler; a new module in a modular monolith
+- **Large:** module extraction; auth-provider integration; a cross-cutting refactor touching multiple apps and libraries
 
 When in doubt, err toward more detail. A plan that's "too detailed" wastes 30 seconds reading. A plan that's "too brief" wastes 30 minutes fixing assumptions.
 
@@ -165,7 +165,7 @@ When any phase includes ≥3 sequential shell commands that could conceivably re
 
 ## Sanity-Check Format (per-phase)
 
-Every phase ends with at least one `**Sanity Check:**` bullet. Criteria MUST be mechanically verifiable — a specific grep, file Read assertion, build exit code, test exit code, or runtime probe a fresh cleared session can execute without inferential judgement.
+Every phase ends with at least one `**Sanity Check:**` bullet. Criteria MUST be mechanically verifiable: a specific grep, file Read assertion, build exit code, test exit code, or runtime probe a fresh cleared session can execute without inferential judgement.
 
 **Verifiable format** (acceptable):
 
@@ -174,7 +174,7 @@ Every phase ends with at least one `**Sanity Check:**` bullet. Criteria MUST be 
 - `**Sanity Check:**` `<file>` line N matches `<regex>`; `<file>` does NOT contain `<deprecated-pattern>`
 - `**Sanity Check:**` the project's pre-commit hooks pass against a staged sample fixture
 
-**Vague format (REJECTED — rewrite as verifiable):**
+**Vague format (REJECTED, rewrite as verifiable):**
 
 - ~~"Documentation looks appropriate"~~
 - ~~"Code behaves as expected"~~
@@ -197,7 +197,7 @@ Sub-topics keep the parent PLAN.md scannable and give the promoted work its own 
 
 ## Execution-Shape Analysis
 
-For plans with ≥2 phases. Single-phase plans and trivial fixes skip this section entirely — skipped = all-main-session execution, stated in one line.
+For plans with ≥2 phases. Single-phase plans and trivial fixes skip this section entirely; skipped = all-main-session execution, stated in one line.
 
 ### Phase file-overlap matrix
 
@@ -212,20 +212,20 @@ For plans with ≥2 phases. Single-phase plans and trivial fixes skip this secti
 - <Phase A → Phase B because B reads A's output / cites A's contract change>
 - <Phase C activates a hook that affects Phase D's commit>
 - <Phase E is independent of A, B, D>
-- (or one-liner: "all phases sequential — semantic-source-first ordering")
-- Integration-first ordering — a third axis beyond dependency-order and parallelism: among phases not forced by a dependency, the integration slice goes first.
+- (or one-liner: "all phases sequential, semantic-source-first ordering")
+- Integration-first ordering is a third axis beyond dependency-order and parallelism: among phases not forced by a dependency, the integration slice goes first.
 
 ### Recommended shape
 
 **Sequential** (when phases share files OR have chain dependencies):
 
-> Fully sequential: 1.1 → 1.2 → 1.3 → ... — <one-line rationale, e.g. "1.2 sweep state required clean before 1.3 detector activates">
+> Fully sequential: 1.1 → 1.2 → 1.3 → ..., <one-line rationale, e.g. "1.2 sweep state required clean before 1.3 detector activates">
 
 **Parallel** (when ≥2 phases are file-disjoint AND the independent work is material):
 
 > Wave A (parallel sub-agents, single message): {phases}
 > Wave B (sequential after Wave A returns): {phases}
-> Cost note: N parallel agents multiply token usage vs sequential — the user picks consciously
+> Cost note: N parallel agents multiply token usage vs sequential, so the user picks consciously
 
 ### Scope-fencing tables (required if parallel recommended)
 
@@ -243,9 +243,9 @@ Each agent gets an explicit ALLOWED whitelist + FORBIDDEN deny-list:
 **Divergence escalation (copy into every worker brief verbatim):**
 
 ```text
-DIVERGENCE ESCALATION (mandatory): if reality diverges from this brief —
+DIVERGENCE ESCALATION (mandatory): if reality diverges from this brief, so
 a precondition fails, a file/symbol named here is absent or different than
-described, scope is blocked, or a design question arises mid-task — STOP.
+described, scope is blocked, or a design question arises mid-task, STOP.
 Do not improvise, fix forward, or expand scope. Report to the orchestrator:
 what you found, what the brief expected, and the exact state of your work
 (files touched, edits applied / not applied). Await a revised brief.
@@ -265,8 +265,8 @@ Assign each phase an execution surface:
 |---|---|---|
 | <N> | <main-session / sub-agent worker> | <one-line task-shape rationale> |
 
-- **Main-session** — judgment-heavy, tightly coupled to conversation context, or requires user interaction
-- **Sub-agent worker** — mechanical, file-disjoint volume work that returns a summary; every worker row implies a dispatch brief carrying the scope fence + the divergence-escalation clause above
+- **Main-session:** judgment-heavy, tightly coupled to conversation context, or requires user interaction
+- **Sub-agent worker:** mechanical, file-disjoint volume work that returns a summary; every worker row implies a dispatch brief carrying the scope fence + the divergence-escalation clause above
 
 ## Large-scale changes (migrations, library swaps, broad refactoring)
 
@@ -286,7 +286,7 @@ Before planning the approach, inventory the full scope:
 |----------|----------|
 | Uniform, repetitive changes (same transform across many files) | Parallel sub-agent workers with scope fences |
 | Complex changes requiring judgment per file | Sequential implementation with per-file commits |
-| Mixed — some uniform, some complex | Hybrid — parallel for the uniform part, sequential for the rest |
+| Mixed, some uniform and some complex | Hybrid: parallel for the uniform part, sequential for the rest |
 
 ### Post-implementation quality passes
 
@@ -297,7 +297,7 @@ The plan should capture migration-specific inputs the downstream quality passes 
 
 ### Tidy First discipline
 
-Per Kent Beck: separate structural commits (renames, extracts, reorganizations) from behavioral commits (new features, API changes). This applies especially to large migrations — the structural scaffolding commit should be reviewable and revertable independently from the behavioral changes.
+Per Kent Beck: separate structural commits (renames, extracts, reorganizations) from behavioral commits (new features, API changes). This applies especially to large migrations: the structural scaffolding commit should be reviewable and revertable independently from the behavioral changes.
 
 ## Phase Review tags (optional per phase)
 
@@ -315,14 +315,14 @@ Omit `Review:` when the phase is docs-only or trivial with no new types/contract
 
 ## Phase-entry checks for tracker writes
 
-When any phase ends in creating a work item (e.g. `gh issue create`), the plan body MUST structure that phase so the create call cannot dispatch without first verifying no duplicate exists. The pivot path (comment on the existing item) MUST be listed explicitly — not deferred to runtime judgement.
+When any phase ends in creating a work item (e.g. `gh issue create`), the plan body MUST structure that phase so the create call cannot dispatch without first verifying no duplicate exists. The pivot path (comment on the existing item) MUST be listed explicitly, not deferred to runtime judgement.
 
 Required phase shape:
 
 ````markdown
 ### Phase N: <name>
 
-- [ ] **Phase-entry check** (first work item — verifies no duplicate exists):
+- [ ] **Phase-entry check** (first work item, verifies no duplicate exists):
 
   ```bash
   gh issue list --state all --search '<key-term> in:title' --json number,title,state
@@ -338,7 +338,7 @@ Required phase shape:
 - [ ] **Sanity Check:** the item number (newly created OR pivoted-to) recorded in the phase notes; URL captured
 ````
 
-`gh pr create` does NOT need an equivalent phase-entry check — it errors out on branches that already have an open PR, so duplicates are structurally prevented.
+`gh pr create` does NOT need an equivalent phase-entry check, because it errors out on branches that already have an open PR, so duplicates are structurally prevented.
 
 ## Checkbox inventory pattern
 
@@ -352,9 +352,9 @@ When a plan involves moving, renaming, or modifying a GROUP of files (batch migr
 - [ ] `git mv old/path/file.test.sh new/path/`
 
 **Reference updates:**
-- [ ] `consumer-a.sh` — source path updated
-- [ ] `consumer-b.md` — documentation ref
-- [ ] `.github/workflows/ci.yml` — CI path trigger
+- [ ] `consumer-a.sh`: source path updated
+- [ ] `consumer-b.md`: documentation ref
+- [ ] `.github/workflows/ci.yml`: CI path trigger
 
 **Sanity Check:**
 - [ ] `grep -rn 'old/path/file' --include='*.sh' --include='*.md' .` returns empty

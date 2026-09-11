@@ -42,18 +42,18 @@
 # reason an unreadable or entirely inactive allowlist is exit 2 rather than a
 # clean run.
 #
-# THE TRACKED DETECTOR CONFIG IS NOT MODIFIED, and must not be. This repository's
-# .claude/ai-slop.json disables rule-em-dash corpus-wide, and re-enabling it there
-# is a separate decision the campaign has explicitly gated on the purge finishing
-# (#2891, checkbox 4). So this gate does not touch that file, and running it
-# changes nothing about what /ai-slop:audit reports. It instead builds a
-# THROWAWAY config layer for its own detector invocation: the tracked config
-# copied, with every switch that can quiet rule-em-dash removed, and with every
-# other detector rule disabled. Copying rather than synthesizing is deliberate:
-# excluded_paths and every threshold stay whatever the tracked file says, so the
-# vendor, catalog and eval-fixture exclusions that exist precisely because they
-# contain em dashes as DATA keep applying here, and keep applying without a
-# second copy of that list to drift.
+# THE TRACKED DETECTOR CONFIG IS NOT MODIFIED, and must not be. This gate does
+# not touch .claude/ai-slop.json, and running it changes nothing about what
+# /ai-slop:audit reports. It instead builds a THROWAWAY config layer for its own
+# detector invocation: the tracked config copied, with every switch that can
+# quiet rule-em-dash removed, and with every other detector rule disabled. The
+# tracked config runs rule-em-dash at its shipped zero-tolerance default, so the
+# removal is a no-op today; it stays because the gate's verdict must never
+# depend on a config edit, in either direction. Copying rather than synthesizing
+# is deliberate: excluded_paths and every threshold stay whatever the tracked
+# file says, so the vendor and eval-fixture exclusions that exist precisely
+# because they contain em dashes as DATA keep applying here, and keep applying
+# without a second copy of that list to drift.
 #
 # THE GATE ONLY JUDGES rule-em-dash. The rest of the roster is wasted work here:
 # each enabled rule greps every declared file, and this script ignores those

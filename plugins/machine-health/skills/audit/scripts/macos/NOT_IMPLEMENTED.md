@@ -1,4 +1,4 @@
-# machine-health — macOS scripts not yet implemented
+# machine-health: macOS scripts not yet implemented
 
 Scaffolding placeholder. Eventually contains:
 
@@ -12,7 +12,7 @@ scripts/macos/
 
 ## Contract for the skill runtime
 
-Owned by [`../../reference/macos/NOT_IMPLEMENTED.md`](../../reference/macos/NOT_IMPLEMENTED.md) § "What the skill should do on macOS today" — detection, the `UNKNOWN` `os-support` report, and the clean exit.
+Owned by [`../../reference/macos/NOT_IMPLEMENTED.md`](../../reference/macos/NOT_IMPLEMENTED.md) § "What the skill should do on macOS today": detection, the `UNKNOWN` `os-support` report, and the clean exit.
 
 **Do not attempt to execute any script from `scripts/windows/` on macOS.** Those scripts call Windows-only cmdlets and fail noisily.
 
@@ -20,7 +20,7 @@ Owned by [`../../reference/macos/NOT_IMPLEMENTED.md`](../../reference/macos/NOT_
 
 See `../../reference/macos/NOT_IMPLEMENTED.md` for the full porting checklist. Short version:
 
-- Semantics stay in `reference/shared/` — no changes.
+- Semantics stay in `reference/shared/`, with no changes.
 - Add `reference/macos/check-catalog.md` and `reference/macos/remediation-policy.md`.
 - Write `scripts/macos/Invoke-MachineHealthCheck.ps1` mirroring Windows orchestrator responsibilities.
 - Write one `checks/Test-*.ps1` per seeded catalog entry (port each Windows check to its macOS equivalent; mark not-applicable checks with rationale in the catalog).

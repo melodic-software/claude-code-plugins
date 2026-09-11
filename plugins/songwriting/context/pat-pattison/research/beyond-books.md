@@ -1,10 +1,10 @@
-# Beyond the Books — Coursera, Berklee, Columns, Podcasts, Workshops
+# Beyond the Books: Coursera, Berklee, Columns, Podcasts, Workshops
 
 ## Contents
 
-- [Coursera — Songwriting (Berklee specialization)](#coursera--songwriting-berklee-specialization)
-- [Berklee Online — Pat's courses](#berklee-online--pats-courses)
-- [patpattison.com — Columns + tip series](#patpattisoncom--columns--tip-series)
+- [Coursera: Songwriting (Berklee specialization)](#coursera-songwriting-berklee-specialization)
+- [Berklee Online: Pat's courses](#berklee-online-pats-courses)
+- [patpattison.com: Columns + tip series](#patpattisoncom-columns--tip-series)
 - [Podcasts and interviews](#podcasts-and-interviews)
 - [Workshops, retreats, masterclasses](#workshops-retreats-masterclasses)
 - [Famous students (with specific craft credit)](#famous-students-with-specific-craft-credit)
@@ -13,118 +13,121 @@
 - [Cross-references](#cross-references)
 
 Pat Pattison's published teaching extends well beyond his 4 books (1991,
-2009, 2011, 2014). This file catalogs the additional material — Coursera
-MOOC, Berklee Online courses, patpattison.com columns, podcast interviews,
-and live workshops — for writers who want to go deeper than the books.
+2009, 2011, 2014). This file catalogs the additional material for writers who
+want to go deeper than the books: the Coursera MOOC, Berklee Online courses,
+patpattison.com columns, podcast interviews, and live workshops.
 
 Material here is synthesized from publicly available sources (Coursera /
 Berklee course descriptions, patpattison.com, podcast episodes, IMRO /
 Songwork seminars, interview transcripts). All citations link to primary
 sources where verifiable.
 
-## Coursera — Songwriting (Berklee specialization)
+## Coursera: Songwriting (Berklee specialization)
 
-**Course:** *Songwriting* — taught by Pat Pattison via Coursera + Berklee
+**Course:** *Songwriting*, taught by Pat Pattison via Coursera + Berklee
 Online. Available in English, Spanish, and Portuguese.
-**URL:** <https://www.coursera.org/specializations/songwriting> (verified 2026-05-13 — specialization page; individual `/learn/songwriting` course page returns 404 post-2026 restructure)
+**URL:** <https://www.coursera.org/specializations/songwriting> (verified 2026-05-13, specialization page; individual `/learn/songwriting` course page returns 404 post-2026 restructure)
 **Enrollment:** 1.5M+ since 2013
 **Format:** 4 modules, ~13 hours total
 
 ### Module structure
 
-1. **The Journey of a Song** — title work, intent, central emotion, object
+1. **The Journey of a Song.** Title work, intent, central emotion, object
    writing as foundation
-2. **Stopping and Going** — line-stop vs phrase-stop, rhyme-controlled
+2. **Stopping and Going.** Line-stop vs phrase-stop, rhyme-controlled
    forward motion, structural pause
-3. **Sonic GPS — Mapping Your Song with Rhyme** — rhyme types, rhyme
+3. **Sonic GPS: Mapping Your Song with Rhyme.** Rhyme types, rhyme
    placement, sonic bonding (overlaps *Essential Guide to Rhyming* (2014), Chapters 4-9)
-4. **Making It Move** — prosody, motion, structural emotion (overlaps
+4. **Making It Move.** Prosody, motion, structural emotion (overlaps
    *Writing Better Lyrics* (2009), Chapters 18-21)
 
 ### Distinctive material vs the books
 
-- **Title rhythm as motif** — the title's stress pattern is treated as a
-  rhythmic motif developed across the song. **Unaudited** — course content,
+- **Title rhythm as motif:** the title's stress pattern is treated as a
+  rhythmic motif developed across the song. **Unaudited**: course content,
   not verifiable from the books. (An earlier draft glossed this as a
   four-stage "state / vary / withhold / deliver" sequence; that phrasing was
   **invented** and has been removed. Pat's actual treatment of motivic
   development is in *Essential Guide to Lyric Form and Structure* (1991),
-  Chapter 7 — "Speed it up, slow it down, say it backwards, turn it upside
-  down" — see `hook.md`.)
-- **Stressed-vowel brainstorming from the title** — take the title's
+  Chapter 7, "Speed it up, slow it down, say it backwards, turn it upside
+  down". See `hook.md`.)
+- **Stressed-vowel brainstorming from the title:** take the title's
   stressed vowels to the rhyming dictionary FIRST, before drafting lines.
   Generate seed words; build verses from them.
-- **Lyric video integration** — students submit weekly lyric videos for
+- **Lyric video integration:** students submit weekly lyric videos for
   peer review. Format itself teaches.
 
-## Berklee Online — Pat's courses
+## Berklee Online: Pat's courses
 
 Course codes verified via Berklee Online catalog (2026-05-10):
 
 | Code | Title | Notes |
 |---|---|---|
-| **OSONG-220** | Lyric Writing — Writing From the Title | Title-first methodology |
-| **OSONG-221** | Lyric Writing — Tools and Strategies | Worksheets, recipes, rhyme types |
-| **OSONG-222** | Lyric Writing — Writing for Stage and Screen | Specialized application |
-| **OLART-215** | Poetry — Stylistic Devices | Cross-listed; supports lyric craft |
-| **OLART-216** | Creative Writing — Finding Your Voice | Cross-listed; supports lyric craft |
+| **OSONG-220** | Lyric Writing: Writing From the Title | Title-first methodology |
+| **OSONG-221** | Lyric Writing: Tools and Strategies | Worksheets, recipes, rhyme types |
+| **OSONG-222** | Lyric Writing: Writing for Stage and Screen | Specialized application |
+| **OLART-215** | Poetry: Stylistic Devices | Cross-listed; supports lyric craft |
+| **OLART-216** | Creative Writing: Finding Your Voice | Cross-listed; supports lyric craft |
 | **OSONG-525** | Graduate Songwriting Workshop | Graduate-level; co-authored / co-taught with Scarlet Keys |
 
 ### Distinctive online-only material
 
 From OSONG-220 (Writing From the Title):
 
-- **Title rhythm as motivic seed** — the title's stress pattern seeds the
+- **Title rhythm as motivic seed:** the title's stress pattern seeds the
   song's rhythm motif
-- **Stressed-vowel rhyming dictionary cascade** — feed each stressed
+- **Stressed-vowel rhyming dictionary cascade:** feed each stressed
   vowel separately to the rhyming dictionary; mine each vowel's
   neighborhood
 
 From OSONG-525 (graduate course):
 
-- **Harmonic prosody** — chord emotion choices (modal interchange,
+- **Harmonic prosody:** chord emotion choices (modal interchange,
   modulation) as part of structural prosody. The chord choice contributes
   to stable/unstable per section, alongside lyric/melody/rhythm.
-- **Three phrasing types** — front-heavy, back-heavy, strong/weak bar
+- **Three phrasing types:** front-heavy, back-heavy, strong/weak bar
   phrasing. Adds a third type beyond the front/back-heavy frame in
   `phrasing.md`.
 
-## patpattison.com — Columns + tip series
+## patpattison.com: Columns + tip series
 
-The author's site hosts a column / tip series titled "Tools, Not Rules" —
+The author's site hosts a column / tip series titled "Tools, Not Rules",
 the recurring framing for Pat's craft stance.
 
 ### Notable columns (publicly documented)
 
-- **"Language & Songwriting"** — uses Wittgenstein as philosophical
+- **"Language & Songwriting":** uses Wittgenstein as philosophical
   grounding for natural-language preservation in lyric setting
-- **"Structure Creates Expectations"** — productive ambiguity + spotlight
+- **"Structure Creates Expectations":** productive ambiguity + spotlight
   rhyme as expectation-management tools
-- **"Rusty's Collar"** — the show-before-tell teaching, naming the Sister
+- **"Rusty's Collar":** the show-before-tell teaching, naming the Sister
   Mary Elizabeth Rule of Songwriting
-- **"Co-Writing"** — No-Free Zone protocol, Title Game as warmup
-- **"Verse Development"** — box model, You-I-We, Past-Present-Future
-- **Various "lyric tips" entries** — short-form craft notes
+- **"Co-Writing":** No-Free Zone protocol, Title Game as warmup
+- **"Verse Development":** box model, You-I-We, Past-Present-Future
+- **Various "lyric tips" entries:** short-form craft notes
 
 ### Anchor stance (≤25 word column quotes)
 
-> "There are no rules, only tools." — *Writing Better Lyrics* (2009),
-> Chapter 18
+> "There are no rules, only tools."
+>
+> *Writing Better Lyrics* (2009), Chapter 18
 
-"Tools, Not Rules" is the **column title**, not a Pat quotation — the phrase
+"Tools, Not Rules" is the **column title**, not a Pat quotation. The phrase
 in that order appears in none of the four books. Pat's printed wording is the
 line above; he prints it again in *Essential Guide to Rhyming* (2014),
 Chapter 4 as "there are no rules. Only tools."
 
 > "Songs should be universal, but don't mistake universal for generic.
-> Sense-bound is universal." — Pat Pattison, *Writing Better Lyrics*
-> (2009), Chapter 5; the point recurs in the columns
+> Sense-bound is universal."
+>
+> Pat Pattison, *Writing Better Lyrics* (2009), Chapter 5; the point recurs in
+> the columns
 
 Columns are short; not all are dated or archived consistently. For
 canonical Pat material, the books are primary; columns extend rather than
 replace.
 
-### Pat's Lyric Tips — full 14-entry enumeration
+### Pat's Lyric Tips: full 14-entry enumeration
 
 URL: <https://www.patpattison.com/pat-s-lyric-tips>
 
@@ -153,10 +156,10 @@ verified 2026-05-10:
 URL: <https://www.patpattison.com/quotes-books-articles>
 
 Pat has 30+ published articles across three magazines, many of which
-became book chapters. The lineage is itself useful — knowing which
+became book chapters. The lineage is itself useful: knowing which
 chapter started life as which column helps writers find the origin.
 
-**American Songwriter — "Tools, Not Rules" column:**
+**American Songwriter, "Tools, Not Rules" column:**
 
 - Tools, Not Rules (canonical column)
 - Americana: Uncharted Territory
@@ -169,7 +172,7 @@ chapter started life as which column helps writers find the origin.
 - Rhyme Schemes: Same Song, Different Journeys
 - Motion Creates E-Motion in Songwriting
 
-**Home And Studio Recording Magazine — Pat's earliest column series (~21 articles):**
+**Home And Studio Recording Magazine, Pat's earliest column series (~21 articles):**
 
 - Better Rhymes with less pain (Parts 1 & 2)
 - Hook Placement and Focus (became *Essential Guide to Lyric Form and Structure* (1991), Chapter 7)
@@ -184,7 +187,7 @@ chapter started life as which column helps writers find the origin.
 - Process (Parts 1 & 2, became *Writing Better Lyrics* (2009), Chapter 24)
 - Song Forms: (Im)potent Packages (Parts 1 & 2, became *Writing Better Lyrics* (2009), Chapters 22-23)
 
-**LASS Musepaper:** Surviving Rhyme (Parts 1 & 2) — predates the
+**LASS Musepaper:** Surviving Rhyme (Parts 1 & 2), which predates the
 *American Songwriter* version; original publication of the rhyme-family
 taxonomy that later expanded into *Essential Guide to Rhyming* (2014).
 
@@ -192,7 +195,7 @@ taxonomy that later expanded into *Essential Guide to Rhyming* (2014).
 
 URL: <https://online.berklee.edu/takenote/author/pat-pattison/>
 
-Written articles on the Berklee Online blog — a distinct medium with its
+Written articles on the Berklee Online blog, a distinct medium with its
 own register (more accessible than columns, less rigorous than books).
 
 | Article | Distinctive content |
@@ -206,7 +209,7 @@ own register (more accessible than columns, less rigorous than books).
 
 Verified episodes with distinctive craft material:
 
-### What's in a Song — multiple episodes (2022, 2024)
+### What's in a Song: multiple episodes (2022, 2024)
 
 | Episode | Year | Distinctive content |
 |---|---|---|
@@ -215,26 +218,26 @@ Verified episodes with distinctive craft material:
 
 ### Songwriter Trysts ep. 40
 
-- **The Title Game** — Pat's most detailed documented explanation of the
+- **The Title Game:** Pat's most detailed documented explanation of the
   co-write Title Game mechanics. See `title-game.md`.
 - "Never discuss technique mid-session" rule reinforced
 - Inner critic operating under No-Free-Zone discipline for solo writing
 
-### Perkins Coie podcast — "How to Use Story and Lyrical Techniques" (2024)
+### Perkins Coie podcast: "How to Use Story and Lyrical Techniques" (2024)
 
 - Pat on Taylor Swift's fast-writing style (contemporary touchpoint)
 - Doobie Brothers / Beach Boys jam stories
 - Structure-emotion-intentionality framing for a non-music audience
 - URL: <https://perkinscoie.com/insights/podcast/how-use-story-and-lyrical-techniques-improve-songwriting-ft-pat-pattison-professor>
 
-### Hard Folk podcast — "Write Something Stupid" (Matt Gower, 2025)
+### Hard Folk podcast: "Write Something Stupid" (Matt Gower, 2025)
 
 - Origin story: transition from teaching philosophy/logic to songwriting
 - Why English is uniquely hard to write in
 - "Write something stupid" framing for breaking through perfectionism
 - The most recent documented Pat appearance; newest stance material
 
-### Berklee Alumni Webinar — Songwriting Master Class
+### Berklee Alumni Webinar: Songwriting Master Class
 
 - Direct critique of audience songs-in-progress
 - Argument against morning pages in favor of object writing
@@ -269,7 +272,7 @@ Verified episodes with distinctive craft material:
 
 ### Unpaved interview (Queensland Australia, 2025)
 
-- Concentrated quote anthology — verbs-as-amplifiers, melody-lyric
+- Concentrated quote anthology: verbs-as-amplifiers, melody-lyric
   marriage rule, "songs are not your children" pod philosophy
 - Pre-7-day-intensive promotional interview revealing Janelle Monáe
   - Justin Tranter + Justin Bieber (via Mayer) as readers of *Writing
@@ -298,28 +301,28 @@ Verified episodes with distinctive craft material:
 titles documented in workshop announcements:
 
 - The Worksheet
-- Object Writing — Sense-Bound Practice
+- Object Writing: Sense-Bound Practice
 - Rhyme Types as Strategic Tools
-- Prosody — Motion Creates Emotion
+- Prosody: Motion Creates Emotion
 - Form and Structure
 - Co-Writing Protocol
 - Metaphor Generation
 - The Title Game
-- Daily Practice — The 56-Day Curriculum
+- Daily Practice: The 56-Day Curriculum
 - Hook Strategies
 
 ### Recurring venues
 
 - 2-day in-person seminars across US states and internationally (10 hours
-  total — 10AM-1PM main seminar Saturday & Sunday + 2-4PM live critique)
+  total: 10AM-1PM main seminar Saturday & Sunday + 2-4PM live critique)
 - 7-day intensives:
-  - **Listening Room Retreat, Inisheer, Ireland** — IMRO-sponsored;
+  - **Listening Room Retreat, Inisheer, Ireland:** IMRO-sponsored;
     "Community Through Co-Writing" theme. URL:
     <https://imro.ie/events/listening-room-retreat-march-9-14-2026-ireland/>
-  - USQ Toowoomba (Queensland, Australia) — January annual format with
+  - USQ Toowoomba (Queensland, Australia): January annual format with
     Mike Scholtes co-teaching
   - West Cork, Ireland varieties (historical)
-- **Nashville Songwriters' Symposium** — Pat brings ~120 students
+- **Nashville Songwriters' Symposium:** Pat brings ~120 students
   annually for 5-day intensive (recurring event tradition)
 - JMC Academy (Australia) recurring masterclasses
 - Songwork video masterclass series (online)
@@ -363,9 +366,9 @@ Documented through interviews + acknowledgments:
 
 Lateral reader credit (read Pat's books, didn't formally study):
 
-- **Janelle Monáe** — per Pat's Unpaved interview, has *Writing Better
+- **Janelle Monáe:** per Pat's Unpaved interview, has *Writing Better
   Lyrics* (2009) on her shelf
-- **Justin Bieber** — per Pat's Unpaved interview via John Mayer, sent
+- **Justin Bieber:** per Pat's Unpaved interview via John Mayer, sent
   Mayer a message "I've written my first metaphor" after reading
 
 These attributions are publicly documented in interviews; absence from
@@ -403,46 +406,61 @@ The one exception below is the last entry, which is a real book quote and is
 cited as such.
 
 > "Music means nothing. Music only feels. Words mean."
-> — Pat Pattison, Berklee Alumni Webinar Master Class
+>
+> Pat Pattison, Berklee Alumni Webinar Master Class
 
 > "Verbs are the amplifiers of language. The difference between great
 > writers and average writers is almost always in their verbs."
-> — Pat Pattison, Unpaved interview
+>
+> Pat Pattison, Unpaved interview
 
 > "Songs are not your children. Get over that."
-> — Pat Pattison, Unpaved interview (writing-pod ego-detachment discipline)
+>
+> Pat Pattison, Unpaved interview (writing-pod ego-detachment discipline)
 
 > "Lyrics are made to be married. When the melody phrase ends, the lyric
 > phrase, in most cases, must end."
-> — Pat Pattison, Unpaved interview
+>
+> Pat Pattison, Unpaved interview
 
 > "There are no rules. There are only tools tools that you put in your
 > tool belt and you pull out as needed."
-> — Pat Pattison, IMRO Seminar 2013
+>
+> Pat Pattison, IMRO Seminar 2013
 
 > "When you're writing a song, it's not about telling people who you are.
 > It's about telling people who they are."
-> — Pat Pattison, Songwriting Planet interview 2014
+>
+> Pat Pattison, Songwriting Planet interview 2014
 
 > "Eminem and Stephen Sondheim approach their writing through the same
 > process. It's called a worksheet process."
-> — Pat Pattison, American Blues Scene interview
+>
+> Pat Pattison, American Blues Scene interview
 
+<!-- ai-slop-ignore-start: quote attributed to Pat Pattison, "How To Write Songs" YouTube series -->
 > "Isolate, identify the muscle group, isolate them and work on them —
 > that creates awareness as you're writing."
-> — Pat Pattison, "How To Write Songs" YouTube series
+>
+> Pat Pattison, "How To Write Songs" YouTube series
+<!-- ai-slop-ignore-end -->
 
 > "Write what only you could write."
-> — Pat Pattison, Berklee Tools and Strategies interview opening
+>
+> Pat Pattison, Berklee Tools and Strategies interview opening
 
+<!-- ai-slop-ignore-start: quote attributed to Pat Pattison, recurring teaching -->
 > "How am I feeling — stable or unstable?"
-> — Pat Pattison, "two key words to opening prosody" (recurring teaching)
+>
+> Pat Pattison, "two key words to opening prosody" (recurring teaching)
+<!-- ai-slop-ignore-end -->
 
 > "Bring two things to the table: who you are, and what you know."
-> — Pat Pattison, Unpaved interview
+>
+> Pat Pattison, Unpaved interview
 
-> "You can't tell unless you show first." — Sister Mary Elizabeth, in
-> *Writing Better Lyrics* (2009), Chapter 2. **This one is from a book and is
+> "You can't tell unless you show first." The speaker is Sister Mary Elizabeth,
+> in *Writing Better Lyrics* (2009), Chapter 2. **This one is from a book and is
 > verbatim.** Pat's name for it is the whole phrase: 'To this day, I call that
 > the "Sister Mary Elizabeth Rule of Song-writing."' (He prints the rule name
 > twice in that chapter, hyphenated as "Song-writing" the first time and
@@ -450,9 +468,9 @@ cited as such.
 
 ## Cross-references
 
-- `title-game.md` — Title Game mechanics from Songwriter Trysts ep. 40
-- `coaching-protocol.md` — coach posture mechanics; uses these anchor
+- `title-game.md`: Title Game mechanics from Songwriter Trysts ep. 40
+- `coaching-protocol.md`: coach posture mechanics; uses these anchor
   quotes as stance grounding
-- `response-filter.md` — pre-flight gate; cites Pat-quotes as authority
+- `response-filter.md`: pre-flight gate; cites Pat-quotes as authority
 - All Pat-craft context files cite books as primary source; this file
   catalogs the supplementary online presence

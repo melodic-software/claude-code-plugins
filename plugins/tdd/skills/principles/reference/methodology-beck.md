@@ -11,9 +11,9 @@ These generate all of TDD's technical and social implications.
 
 ## The Cycle: Red/Green/Refactor
 
-1. **Red** — Write a little test that doesn't work (and perhaps doesn't even compile)
-2. **Green** — Make the test work quickly, committing whatever sins necessary
-3. **Refactor** — Eliminate all duplication created in merely getting the test to work
+1. **Red**: write a little test that doesn't work (and perhaps doesn't even compile)
+2. **Green**: make the test work quickly, committing whatever sins necessary
+3. **Refactor**: eliminate all duplication created in merely getting the test to work
 
 "First we'll solve the 'that works' part. Then we'll solve the 'clean code' part."
 
@@ -21,9 +21,9 @@ These generate all of TDD's technical and social implications.
 
 | Strategy | When to use | Risk |
 |----------|-------------|------|
-| **Fake It** | Default. Return a constant, gradually replace with variables | Low risk — always green |
-| **Obvious Implementation** | When you're confident. Type the real code | Higher risk — demands perfection |
-| **Triangulation** | When completely unsure how to refactor. Add a second example to force generalization | Conservative — "I only use it when I'm really, really unsure" |
+| **Fake It** | Default. Return a constant, gradually replace with variables | Low risk, always green |
+| **Obvious Implementation** | When you're confident. Type the real code | Higher risk, demands perfection |
+| **Triangulation** | When completely unsure how to refactor. Add a second example to force generalization | Conservative, "I only use it when I'm really, really unsure" |
 
 **Shifting gears:** "When everything is going smoothly, I put in Obvious Implementation after Obvious Implementation. As soon as I get an unexpected red bar, I back up, shift to faking implementations, and refactor to the right code."
 
@@ -33,7 +33,7 @@ These generate all of TDD's technical and social implications.
 
 Before you begin, write a list of all tests you know you'll need. "Conservative mountain climbers have a rule that of your four hands and feet, three must be attached at any one time. The pure form of TDD, wherein you are never more than one change away from a green bar, is like that three-out-of-four rule."
 
-Don't implement all tests at once — if you have ten broken tests, you're too far from green.
+Don't implement all tests at once. If you have ten broken tests, you're too far from green.
 
 ### Test First (Ch 25)
 
@@ -41,7 +41,7 @@ Don't implement all tests at once — if you have ten broken tests, you're too f
 
 ### Assert First (Ch 25)
 
-Start writing the test from the assertion backward. "Where should you start writing a test? With the asserts that will pass when it is done." This has a powerful simplifying effect — you solve "what's the right answer?" and "how do I check?" before solving all other problems.
+Start writing the test from the assertion backward. "Where should you start writing a test? With the asserts that will pass when it is done." This has a powerful simplifying effect. You solve "what's the right answer?" and "how do I check?" before solving all other problems.
 
 ### Test Data (Ch 25)
 
@@ -53,7 +53,7 @@ Include expected and actual results in the test itself. Make the relationship be
 
 ### One Step Test (Ch 26)
 
-"Pick a test that will teach you something and that you are confident you can implement." Programs grow from known to unknown — neither purely top-down nor bottom-up.
+"Pick a test that will teach you something and that you are confident you can implement." Programs grow from known to unknown, neither purely top-down nor bottom-up.
 
 ### Starter Test (Ch 26)
 
@@ -95,7 +95,7 @@ Fear makes you tentative, uncommunicative, and avoidant of feedback. TDD inverts
 
 ## The Stress/Testing Loop (Ch 25)
 
-Without TDD (death spiral — positive feedback loop, even number of negative connections):
+Without TDD (death spiral, a positive feedback loop with an even number of negative connections):
 
 ```
 Stress ──⊖──→ Testing ──⊖──→ Errors ────→ Stress
@@ -103,7 +103,7 @@ Stress ──⊖──→ Testing ──⊖──→ Errors ────→ Stre
   └──────────────────────────────────────────┘
 ```
 
-With TDD (virtuous cycle — replace "Testing" with "Automated Testing"):
+With TDD (virtuous cycle, replacing "Testing" with "Automated Testing"):
 
 ```
 Stress ──→ Run Tests ──→ Green Bar ──→ Confidence ──⊖──→ Stress
@@ -128,11 +128,11 @@ Tests should not affect each other. "If I had one test broken, I wanted one prob
 
 ## Step Size Control (Ch 32)
 
-"You should be able to do either" — tiny steps or large leaps. The tendency over time is toward smaller steps. But: "TDD is not about taking teeny-tiny steps, it's about being able to take teeny-tiny steps."
+"You should be able to do either": tiny steps or large leaps. The tendency over time is toward smaller steps. But: "TDD is not about taking teeny-tiny steps, it's about being able to take teeny-tiny steps."
 
 ## When to Test (Ch 32)
 
-"Write tests until fear is transformed into boredom." Test: conditionals, loops, operations, polymorphism — but only those you write. "TDD's view of testing is pragmatic. If our knowledge of the implementation gives us confidence even without a test, then we will not write that test."
+"Write tests until fear is transformed into boredom." Test conditionals, loops, operations, and polymorphism, but only those you write. "TDD's view of testing is pragmatic. If our knowledge of the implementation gives us confidence even without a test, then we will not write that test."
 
 ## Test Quality Signals (Ch 32)
 
@@ -149,20 +149,20 @@ Tests that suggest design problems:
 
 ## How TDD Works (Ch 32)
 
-1. **Reduced defects** — sooner found, cheaper to fix
-2. **Shortened feedback loop** — design decisions get feedback in seconds, not weeks
-3. **Attractor toward correctness** — "Code is more likely to change for the better over time instead of for the worse"
+1. **Reduced defects**: sooner found, cheaper to fix
+2. **Shortened feedback loop**: design decisions get feedback in seconds, not weeks
+3. **Attractor toward correctness**: "Code is more likely to change for the better over time instead of for the worse"
 
 "One of the ironies of TDD is that it isn't a testing technique. It's an analysis technique, a design technique, really a technique for structuring all the activities of development."
 
 ## Rapid Unhurriedness (Fowler, Afterword)
 
-Martin Fowler's key observation: TDD produces "rapid unhurriedness" — progress that feels unhurried but is actually fast. "I remember trying to keep several balls in the air at once, any lapse of concentration and everything would come tumbling down. Test-driven development helps reduce that feeling."
+Martin Fowler's key observation: TDD produces "rapid unhurriedness": progress that feels unhurried but is actually fast. "I remember trying to keep several balls in the air at once, any lapse of concentration and everything would come tumbling down. Test-driven development helps reduce that feeling."
 
-The mechanism: TDD decomposes programming into **monological modes** — each focused on one concern:
+The mechanism: TDD decomposes programming into **monological modes**, each focused on one concern:
 
-- **Adding features test-first** — "I'm not worried about design, I'm just trying to get a test to pass"
-- **Refactoring** — "I'm not worried about adding function, I'm just worried about getting the right design"
-- **Pattern copying** — "I'm just adapting the pattern, not thinking about the problem"
+- **Adding features test-first**: "I'm not worried about design, I'm just trying to get a test to pass"
+- **Refactoring**: "I'm not worried about adding function, I'm just worried about getting the right design"
+- **Pattern copying**: "I'm just adapting the pattern, not thinking about the problem"
 
 "The combination of monological modes and switching gives you the benefits of focus and lowers the stress on the brain without the monotony of the assembly line."

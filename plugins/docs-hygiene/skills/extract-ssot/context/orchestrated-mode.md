@@ -4,20 +4,20 @@
 
 - [Roles](#roles)
 - [Worker tiering](#worker-tiering)
-- [Concurrency — static, conservative, capped](#concurrency--static-conservative-capped)
+- [Concurrency: static, conservative, capped](#concurrency-static-conservative-capped)
 - [Rate-limit guard integration (when present)](#rate-limit-guard-integration-when-present)
 - [Cadence and commits](#cadence-and-commits)
 - [Cross-references](#cross-references)
 
-Defaults for running the extract-ssot pipeline at whole-repo scale —
-hundreds to thousands of tracked markdown files, dozens of candidate
-clusters — where identify/verify/execute becomes a multi-agent batch
-rather than a handful of inline actions. Loaded by the confirm-scope
+Defaults for running the extract-ssot pipeline at whole-repo scale,
+meaning hundreds to thousands of tracked markdown files and dozens of
+candidate clusters, where identify/verify/execute becomes a multi-agent
+batch rather than a handful of inline actions. Loaded by the confirm-scope
 gate (SKILL.md "Bare invocation: confirm scope first") when the user
 opts into a whole-repo run, and by `actions/batch.md` Step 6 when
 sizing dispatches.
 
-Private surface — external consumers invoke
+Private surface. External consumers invoke
 `/docs-hygiene:extract-ssot`, never cite this file directly (contract:
 `/docs-hygiene:audit-encapsulation`).
 
@@ -27,8 +27,8 @@ Private surface — external consumers invoke
   the roster, the wave plan, the commit cadence, and the abort
   thresholds (`actions/batch.md` Step 2); workers hold the per-cluster
   work. It never performs a cluster's verify or execute inline while
-  workers are available — its context is the scarcest resource in the
-  run.
+  workers are available, because its context is the scarcest resource
+  in the run.
 - **Inventory is ONE read-only survey subagent**, not a fan-out. The
   survey's output is unverified synthesis whatever its size, so extra
   survey workers multiply lead lists, not evidence; the verify phase is
@@ -40,11 +40,11 @@ Private surface — external consumers invoke
 
 Verify and execute are judgment stages (gate rulings, wrong-abstraction calls, prose rewrites), so
 workers there run a strong general-purpose tier; resolve the current tier names from the platform's
-model docs at run time. Mechanical stages — phrase sweeps, lint passes, count scripts — run cheaper
-tiers or plain scripts. Never let the whole fleet silently inherit the orchestrator's tier: at fleet
+model docs at run time. Mechanical stages such as phrase sweeps, lint passes, and count scripts run
+cheaper tiers or plain scripts. Never let the whole fleet silently inherit the orchestrator's tier: at fleet
 volume, every notch of over-provisioning multiplies.
 
-## Concurrency — static, conservative, capped
+## Concurrency: static, conservative, capped
 
 Default worker concurrency is **2**, applied as a hard cap in the
 dispatch loop (pairs of workers, sequential between pairs). The default
@@ -75,7 +75,7 @@ below is inlined **verbatim** per the loop-lane convention's
 inline-floor rule (byte-identical across consumers and to the reader
 contract's floor); provenance is the `rate-limit-guard` plugin's reader
 contract (`plugins/rate-limit-guard/reference/reader-contract.md` in
-the marketplace repository) — cited for provenance only, since an
+the marketplace repository), cited for provenance only, since an
 installed plugin cannot read a sibling plugin's files at runtime.
 
 - **Tee file (fixed path):** `~/.claude/rate-limit-guard/rate-limits.json`
@@ -96,7 +96,7 @@ installed plugin cannot read a sibling plugin's files at runtime.
 
 | Observation | Scope | Mode |
 | --- | --- | --- |
-| Fresh snapshot with plausible `rate_limits` | whole guard | **proactive** — apply the operable floor |
+| Fresh snapshot with plausible `rate_limits` | whole guard | **proactive**: apply the operable floor |
 | Tee file absent, stale, or missing `rate_limits` | whole guard | **unknown → reactive-only** |
 | Absurd `used_percentage` or `resets_at` on one window | that window | that window **unknown**; keep applying the floor to every window still plausible |
 | No window plausible | whole guard | **unknown → reactive-only** |
@@ -108,7 +108,7 @@ the whole-guard rows above drop the run to reactive-only.
 **Reactive-only mode:** keep the static concurrency cap, never fabricate a pause from untrusted
 data, and react to (a) detection records in `~/.claude/rate-limit-guard/stop-events.jsonl` (read on
 entering reactive-only and again before each new work claim; records newer than this session's
-start — later, newer than the last resume baseline — are live signal) and (b) rate-limit error text
+start, and later newer than the last resume baseline, are live signal) and (b) rate-limit error text
 this session itself sees. Resume timing comes from that error text where available, otherwise
 backoff-and-retry. A later fresh snapshot with plausible windows upgrades the run back to
 proactive checks. Dynamic *scaling* (raising the cap when windows are healthy) is deliberately out
@@ -129,7 +129,7 @@ ceiling and the guard check between dispatches.
 
 - SKILL.md "Bare invocation: confirm scope first", the gate that
   routes a whole-repo opt-in here
-- `actions/identify.md` — the single-survey inventory this mode retains
-- `actions/batch.md` — wave grouping and dispatch policy (Step 6)
-- `docs/conventions/loop-lane/README.md` §6 (marketplace repository) —
+- `actions/identify.md`: the single-survey inventory this mode retains
+- `actions/batch.md`: wave grouping and dispatch policy (Step 6)
+- `docs/conventions/loop-lane/README.md` §6 (marketplace repository)
   owns the inline-floor rule the block above follows

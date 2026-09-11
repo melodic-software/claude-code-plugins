@@ -1,8 +1,8 @@
 # EventStorming Simulation Iteration Workflow
 
-This document defines the repeatable process for improving the **output of a simulation run** — re-scoring boards, comparing a run against prior runs, correcting the model, and verifying the corrections. It is NOT the simulation itself; it is the quality loop `--evaluate` drives.
+This document defines the repeatable process for improving the **output of a simulation run**: re-scoring boards, comparing a run against prior runs, correcting the model, and verifying the corrections. It is NOT the simulation itself; it is the quality loop `--evaluate` drives.
 
-**Scope note (plugin vs authoring).** The consumer-facing loop is RUN → SCORE → COMPARE → DIFF → board-level FIX → VERIFY against the run's own boards and the plugin's data store. A handful of steps below (editing the skill's own reference docs or evaluation rubric — Step 5 "skill-doc" rows, all of Step 7 CODIFY) are **plugin-authoring** activities: they apply only when developing this plugin from source, because a consumer runs it from an immutable installed cache and cannot edit its reference files. When a consumer hits a genuine skill-level gap, the action is to **report it upstream** (open an issue against the plugin), not to edit the cached files.
+**Scope note (plugin vs authoring).** The consumer-facing loop is RUN → SCORE → COMPARE → DIFF → board-level FIX → VERIFY against the run's own boards and the plugin's data store. A handful of steps below (editing the skill's own reference docs or evaluation rubric: Step 5 "skill-doc" rows, all of Step 7 CODIFY) are **plugin-authoring** activities: they apply only when developing this plugin from source, because a consumer runs it from an immutable installed cache and cannot edit its reference files. When a consumer hits a genuine skill-level gap, the action is to **report it upstream** (open an issue against the plugin), not to edit the cached files.
 
 **When to use this:** After any simulation run, when quality gaps are found, or when you want to validate that a run produced accurate results.
 
@@ -44,7 +44,7 @@ This document defines the repeatable process for improving the **output of a sim
 
 ---
 
-## Step 1: RUN — Execute a Simulation
+## Step 1 RUN: Execute a Simulation
 
 **Inputs:**
 
@@ -66,7 +66,7 @@ This document defines the repeatable process for improving the **output of a sim
 
 ---
 
-## Step 2: SCORE — Evaluate Against Rubric
+## Step 2 SCORE: Evaluate Against Rubric
 
 **Inputs:** Board data + transcripts from Step 1
 
@@ -87,11 +87,11 @@ This document defines the repeatable process for improving the **output of a sim
 
 ---
 
-## Step 3: COMPARE — Source Material Validation *(optional — skip if you don't have the book)*
+## Step 3 COMPARE: Source Material Validation *(optional, skip if you don't have the book)*
 
 **Inputs:** Scored rubric + (optionally) the Brandolini book. This step cross-checks a run against
 the primary source; it needs a copy of *Introducing EventStorming* (EPUB/PDF you own). If you don't
-have it, **skip Step 3 entirely** — the bundled methodology references already encode the book's
+have it, **skip Step 3 entirely**. The bundled methodology references already encode the book's
 guidance, and scoring (Step 2) plus version comparison (Step 4) run without the source. Do not stall
 the workflow waiting on the book.
 
@@ -113,7 +113,7 @@ For each phase overall:
 
 ---
 
-## Step 4: DIFF — Version Comparison
+## Step 4 DIFF: Version Comparison
 
 **Inputs:** Current version metrics + previous version metrics (from memory)
 
@@ -128,7 +128,7 @@ For each phase overall:
 
 ---
 
-## Step 5: FIX — Apply Corrections
+## Step 5 FIX: Apply Corrections
 
 **Inputs:** Gap analysis from Step 3 + version diff from Step 4
 
@@ -144,20 +144,20 @@ Categorize each gap by fix location:
 | **Content gap** | Authoring only | Reference docs | Missing building block, incomplete phase description |
 | **Evaluation gap** | Authoring only | simulation-evaluation.md | Missing rubric criterion, wrong scoring weight |
 
-Consumer fixes apply to the current run. Authoring-only fixes edit the plugin's own files — a consumer cannot make them (immutable cache); report the gap upstream instead. Apply fixes in priority order: Critical failures > High gaps > Medium gaps
+Consumer fixes apply to the current run. Authoring-only fixes edit the plugin's own files. A consumer cannot make them (immutable cache); report the gap upstream instead. Apply fixes in priority order: Critical failures > High gaps > Medium gaps
 
 **Output:** List of files changed with what was fixed
 
 ---
 
-## Step 6: VERIFY — Re-run Affected Phases
+## Step 6 VERIFY: Re-run Affected Phases
 
 **Inputs:** List of fixes applied
 
 **Process:**
 For each fix, determine if it can be verified without a full re-run:
 
-- **Board corrections:** Visual verification via screenshot — does the board now match the source?
+- **Board corrections:** Visual verification via screenshot. Does the board now match the source?
 - **Prompt improvements:** Requires re-running the affected phase with the new prompt on a test board
 - **Process gates:** Requires re-running through the gate to verify it catches the issue
 - **Content gaps:** Read the updated doc and verify it matches the source chapter
@@ -168,9 +168,9 @@ For prompt improvements and process gates: run a MINI simulation (single phase, 
 
 ---
 
-## Step 7: CODIFY — Update Evaluation Infrastructure (plugin-authoring only)
+## Step 7 CODIFY: Update Evaluation Infrastructure (plugin-authoring only)
 
-**Applies only when developing this plugin from source** — a consumer running from the installed cache skips this step and instead reports skill-level gaps upstream (see the scope note at the top). The only consumer-facing carry-over is updating the run-state store (item 6).
+**Applies only when developing this plugin from source.** A consumer running from the installed cache skips this step and instead reports skill-level gaps upstream (see the scope note at the top). The only consumer-facing carry-over is updating the run-state store (item 6).
 
 **Inputs:** Verified fixes + new learnings
 
@@ -181,7 +181,7 @@ For prompt improvements and process gates: run a MINI simulation (single phase, 
 3. If a pre-simulation check was missing: add it to the checklist
 4. If a new best practice emerged: add it to agentic-simulation.md
 5. Update version comparison baselines in simulation-evaluation.md
-6. Update the run-state store (`${CLAUDE_PLUGIN_DATA}/history.jsonl`) with new version metrics — consumer-facing
+6. Update the run-state store (`${CLAUDE_PLUGIN_DATA}/history.jsonl`) with new version metrics. This item is consumer-facing
 
 **Output:** Updated evaluation infrastructure ready for next iteration
 
@@ -192,7 +192,7 @@ For prompt improvements and process gates: run a MINI simulation (single phase, 
 ### After EVERY simulation run
 
 - Score the rubric
-- Compare against source (Step 3 — optional; skip if you don't have the book)
+- Compare against source (Step 3, optional; skip if you don't have the book)
 - Update the run-state store (`${CLAUDE_PLUGIN_DATA}/history.jsonl`) with version metrics
 
 ### After finding a specific gap
@@ -203,8 +203,8 @@ For prompt improvements and process gates: run a MINI simulation (single phase, 
 
 ### Periodically (every 2-3 versions)
 
-- Re-read the EPUB source chapters cover to cover — the book is on Leanpub and may be updated
-- Check for new practitioner insights (web-research search — Perplexity MCP if present, else
+- Re-read the EPUB source chapters cover to cover. The book is on Leanpub and may be updated
+- Check for new practitioner insights (web-research search, Perplexity MCP if present, else
   `WebSearch`: "EventStorming new techniques", restricted to the past year)
 - Review whether the evaluation rubric itself is still calibrated correctly
 - Clean up old boards (keep only latest version)
@@ -225,10 +225,10 @@ For prompt improvements and process gates: run a MINI simulation (single phase, 
 | File | Purpose |
 |------|---------|
 | `simulation-evaluation.md` | Rubric, checklists, chapter index, version comparison template |
-| `iteration-workflow.md` | This file — the per-run quality loop (plus plugin-authoring steps) |
+| `iteration-workflow.md` | This file: the per-run quality loop (plus plugin-authoring steps) |
 | `agentic-simulation.md` | The simulation execution guide |
 | `${CLAUDE_PLUGIN_DATA}/history.jsonl` | Version history, board URLs, findings (per-plugin run-state store) |
-| `agentic-simulation.md` "Session lifecycle" | Process learning: MCP preflight — test the Miro server before starting |
+| `agentic-simulation.md` "Session lifecycle" | Process learning: MCP preflight. Test the Miro server before starting |
 | `agentic-simulation.md` (Agent-invocation guidance) | Process learning: real Agent invocations, not scripted |
 | `miro-integration.md` (frame positioning) | Process learning: frame positioning gotchas |
 
@@ -240,13 +240,13 @@ The skill is ready for production use on a real domain when:
 
 1. **Rubric score >= 80%** across all phases for at least 2 consecutive runs
 2. **Zero Critical failures** in the most recent run
-3. **Source fidelity confirmed** — all phases match Brandolini's book descriptions
-4. **Bounded contexts are meaningful** — divergence signals produce real BC boundaries, not noise
-5. **Ubiquitous language is captured** — 5+ domain-specific terms with precise definitions
-6. **Aggregates are behavior-rich** — aggregate:command ratio <= 1:1 after consolidation
-7. **MCP integration works** — board creation, sticky placement, and reading all via MCP tools
-8. **Visual verification passes, where it applies** — on the live-board path with a browser MCP
+3. **Source fidelity confirmed**: all phases match Brandolini's book descriptions
+4. **Bounded contexts are meaningful**: divergence signals produce real BC boundaries, not noise
+5. **Ubiquitous language is captured**: 5+ domain-specific terms with precise definitions
+6. **Aggregates are behavior-rich**: aggregate:command ratio <= 1:1 after consolidation
+7. **MCP integration works**: board creation, sticky placement, and reading all via MCP tools
+8. **Visual verification passes, where it applies**: on the live-board path with a browser MCP
    connected, screenshots show correct colors, layout, and density at each checkpoint; otherwise the
    markdown artifact is checked instead
-9. **Version progression is positive** — each version scores equal or better than the previous
-10. **No known gaps** — all identified gaps from the gap analysis are either fixed or explicitly deferred with rationale
+9. **Version progression is positive**: each version scores equal or better than the previous
+10. **No known gaps**: all identified gaps from the gap analysis are either fixed or explicitly deferred with rationale

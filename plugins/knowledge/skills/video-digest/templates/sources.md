@@ -1,4 +1,4 @@
-# Sources — {{VIDEO_SLUG}}
+# Sources: {{VIDEO_SLUG}}
 
 Citation-ready list for README, RESEARCH, and synthesis. Deck files live in `source/decks/`; repo analysis in `source/harvested-repo-analysis.json`.
 

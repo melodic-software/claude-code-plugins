@@ -19,7 +19,7 @@ Configured library dir: `${user_config.library_dir}`
 
 This skill's `.work/` root is **formally carved out** of the marketplace topic-docs convention
 (<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md>):
-the work root resolves through the knowledge plugin's own `library_dir` seam, not the concern
+the work root resolves through the knowledge plugin's own `library_dir` setting, not the concern
 file's `memory_dir`.
 
 **Resolve the root once, before the first write**, and record the resolved absolute path in the
@@ -44,7 +44,7 @@ The slice lands at `<resolved-root>/.work/<slug>/`. The root self-ignores (a `.g
 containing `*`) and is never committed by this skill; graduating a slice to a tracked corpus
 repository is a separate, human-gated act.
 
-**Slug guard. Identity, then containment.** A final path segment alone is not an identity: docs
+**Slug guard. Identity, then containment.** A final path segment alone is not an identity, because docs
 sites repeat `overview`, `settings`, and `index` across dozens of pages, and two such pages
 sharing one work root lets a later run overwrite an immutable `source.*` or resume from another
 page's checklist. Derive `<slug>` deterministically from the canonical URL in one fixed form: the post-redirect page URL with no fragment and no trailing slash, BEFORE any channel suffix
@@ -58,8 +58,8 @@ identity unless the matched publisher profile establishes it as tracking-only fo
    hyphen runs.
 3. Append `-<hash8>`: the first 8 lowercase hex characters of the canonical URL's SHA-256
    (`printf '%s' '<canonical-url>' | { sha256sum 2>/dev/null || shasum -a 256; }`, the fallback
-   covers stock macOS, where `sha256sum` is absent). Truncate the host+path prefix — never the hash
-   — so the whole slug is ≤ 40 chars. Truncation is what reintroduces collisions; the hash is the
+   covers stock macOS, where `sha256sum` is absent). Truncate the host+path prefix, never the hash,
+   so the whole slug is ≤ 40 chars. Truncation is what reintroduces collisions; the hash is the
    part a truncated prefix cannot lose, and it recomputes identically on resume. (The hash suffix
    also makes a Windows-reserved base name impossible, so no reserved-name escape is needed.)
 
@@ -100,7 +100,7 @@ work-root lines. Those two are what the next run's collision check reads. Tick e
 completes; the ticked state is the cross-session resume pointer. On resume, re-read the checklist
 plus `SOURCES.md` and continue from the first unticked phase. An older work root
 carries the inventory as `INDEX.md`: accept it as the Phase 2 artifact, rename it to `SOURCES.md`,
-note the rename in the checklist, and continue — never re-inventory over it.
+note the rename in the checklist, and continue. Never re-inventory over it.
 
 ## Phase 1. Fetch
 
