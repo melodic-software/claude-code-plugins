@@ -3,6 +3,20 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.75]
+
+### Added
+
+- **The PR monitor judges a review lane by what it produced, not by its check row.** New step B2
+  in the per-iteration checklist: an AI-review lane that concluded success having posted no review
+  body and no finding reviewed nothing, and is classified ABSENT rather than PASS. These lanes
+  report on their session rather than on their output, so a session that ends without error goes
+  green whether or not it reviewed anything, and an evidence guard that reads posted review bodies
+  has nothing to judge when none was posted. An absent lane is now substituted with a local review
+  over the same diff (`/review:fanout`, or `/review:code-review` for the correctness lane alone)
+  and named in the report; the readiness gate in step E will not clear until every review lane is
+  productive or substituted.
+
 ## [0.55.74]
 
 ### Changed
