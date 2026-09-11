@@ -34,6 +34,9 @@ assert_contains() {
 }
 
 unset CODE_METRICS_DISABLE_BUNDLED
+REPORTS="$(mktemp -d)"
+trap 'rm -rf "$REPORTS"' EXIT
+export CODE_METRICS_REPORT_DIR="$REPORTS"
 
 out="$(bash "$SCRIPT" --json --all "$SOURCES")"
 rc=$?

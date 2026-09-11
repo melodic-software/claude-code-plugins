@@ -11,16 +11,36 @@
 #   1. Settings-declared hooks: project settings.json, project
 #      settings.local.json, and the user-scope settings.json.
 #   2. Plugin-declared hooks: for every plugin enabled in any of those scopes,
-#      the plugin's own hook config, resolved through the installed-plugin
-#      registry so no version-directory guessing is involved.
+#      the plugin's own hook config, read from the directory the session
+#      actually loads. A plugin that comes from a `directory` marketplace is
+#      read from that marketplace's checkout; any other plugin is resolved
+#      through the installed-plugin registry, so no version-directory guessing
+#      is involved either way.
 #   3. The suppression levers that can switch hooks off wholesale, because a
 #      hook that cannot run is not coverage.
+#   4. Cache-versus-loaded divergence: when a plugin resolves through both a
+#      marketplace directory and a registry installPath and the two differ, the
+#      pair is reported as an info note. It never changes the exit code.
 #
-# WHERE A PLUGIN'S HOOKS LIVE. plugins-reference (fetched 2026-08-12) says
-# "Location: `hooks/hooks.json` in plugin root, or inline in plugin.json", and
-# the manifest's `hooks` key is `string|array|object` — a path, several paths,
-# or an inline config. All four shapes are read here; a plugin whose shape this
-# script cannot parse is reported UNREADABLE, never silently as "no hooks".
+# WHERE A PLUGIN'S HOOKS LIVE. Two steps: which directory, then which file.
+#
+# Which directory. A marketplace registered as
+# `{"source": {"source": "directory", "path": "<dir>"}}` (in a settings scope's
+# `extraKnownMarketplaces`, or in the user dir's plugins/known_marketplaces.json
+# as `installLocation`) is loaded from <dir> itself: each plugin runs from
+# `<dir>/<marketplace.json entry .source>`, not from the registry's versioned
+# cache snapshot. That snapshot is taken at install time and can lag the
+# checkout, so the marketplace directory is tried first and the registry's
+# installPath is the fallback for everything else. A relative marketplace path
+# resolves against the project root for the project and local scopes and
+# against the directory that contains the user config dir for the user scope,
+# mirroring where each settings file sits.
+#
+# Which file. plugins-reference says "Location: `hooks/hooks.json` in plugin
+# root, or inline in plugin.json", and the manifest's `hooks` key is
+# `string|array|object`: a path, several paths, or an inline config. All four
+# shapes are read here; a plugin whose shape this script cannot parse is
+# reported UNREADABLE, never silently as "no hooks".
 #
 # WHAT IT DOES NOT DO. It does not decide whether a hook covers a permission
 # family. That judgment is the audit's, and required-permissions.md "Narrowing
@@ -59,13 +79,16 @@ usage() {
 check-hook-coverage.sh — enumerate the hooks actually installed for this project.
 
 Reads settings-declared hooks (project, local, user scope) and plugin-declared
-hooks (via the installed-plugin registry), plus the levers that suppress hooks
-wholesale. Read-only; never runs a hook.
+hooks (from the marketplace directory a directory-source marketplace loads,
+else via the installed-plugin registry), plus the levers that suppress hooks
+wholesale. When a plugin resolves both ways to different directories, the pair
+is reported as an info note. Read-only; never runs a hook.
 
 Usage:
   check-hook-coverage.sh [--json] [--help]
 
   --json   emit the inventory as JSON on stdout instead of a table
+           (project_root, hooks, plugins, divergence, levers, unreadable)
 
 Exit: 0 inventory complete; 1 inventory partial (some plugin unresolved);
       2 fatal (jq missing, or no settings scope readable).
@@ -130,6 +153,10 @@ add_scope() {
   if ! jq empty "$1" 2>/dev/null; then
     UNREADABLE+=("$2 ($1): not valid JSON")
     PARTIAL=1
+    # A scope that exists but does not parse may carry a suppression lever, so
+    # the lever set is unknown rather than empty. An ABSENT scope carries no
+    # lever and leaves the state complete.
+    LEVER_STATE=unknown
     return 0
   fi
   SCOPES+=("$1")
@@ -138,6 +165,8 @@ add_scope() {
 
 PARTIAL=0
 UNREADABLE=()
+LEVER_STATE=complete
+declare -A BAD_CATALOG=()
 
 add_scope "$PROJECT_ROOT/.claude/settings.json" "project"
 add_scope "$PROJECT_ROOT/.claude/settings.local.json" "local"
@@ -169,21 +198,35 @@ fi
 # --- Hook extraction ---------------------------------------------------------
 
 # One jq program, used for every hook source. Input is the object that holds a
-# `hooks` map (a settings file, or a plugin hook config). Output is one TSV row
-# per command: event, matcher, command.
+# `hooks` map (a settings file, or a plugin hook config). Output is one
+# tab-separated row per command: event, matcher, command, and a JSON object of
+# the entry's remaining fields (timeout, type, if, shell, args). The first three
+# are never empty and the fourth is compact JSON, so no field is blank and none
+# carries a tab, which keeps a tab-split `read` from collapsing columns. Tabs and
+# line breaks inside a value become spaces; backslashes pass through verbatim.
 # shellcheck disable=SC2016  # a jq program: $h/$event/$matcher are jq variables and must reach jq unexpanded
 HOOK_ROWS_JQ='
+  def flat: tostring | gsub("[\t\r\n]"; " ");
   (.hooks // {}) as $h
   | [ $h | to_entries[]
       | .key as $event
       | (.value // [])
       | if type == "array" then . else [] end
       | .[]
-      | (.matcher // "*") as $matcher
+      | ((.matcher // "*") | if . == "" then "*" else . end) as $matcher
       | ((.hooks // []) | if type == "array" then . else [] end)[]
-      | [$event, $matcher, ((.command // .url // "<no command>") | tostring)]
+      | [ ($event | flat),
+          ($matcher | flat),
+          ((.command // .url // "<no command>") | if . == "" then "<no command>" else . end | flat),
+          ({ timeout: (if (.timeout | type) == "number" then .timeout else null end),
+             type: ((.type // "command") | tostring),
+             if: ((.if // "") | tostring),
+             shell: ((.shell // "") | tostring),
+             args: (.args // [])
+           } | tojson)
+        ]
     ]
-  | .[] | @tsv
+  | .[] | join("\t")
 '
 
 # Plugin hook configs are documented as `{"hooks": {...}}`. A file that carries
@@ -282,25 +325,151 @@ resolve_install_path() {
   ' "$INSTALLED_JSON"
 }
 
-if [[ ${#ENABLED[@]} -gt 0 && ! -f "$INSTALLED_JSON" ]]; then
-  UNREADABLE+=("installed_plugins.json not found at ${INSTALLED_JSON:-<unset>} — no plugin hook could be enumerated")
-  PARTIAL=1
-fi
+norm_path() {
+  # norm_path <path>: forward slashes only, no trailing slash. Git Bash reports
+  # Windows paths with backslashes; the existence tests below need POSIX form.
+  local p="${1//\\//}"
+  while [[ "$p" == */ && ${#p} -gt 1 ]]; do p="${p%/}"; done
+  printf '%s\n' "$p"
+}
+
+join_path() {
+  # join_path <base> <path>: <path> as is when absolute, else under <base>.
+  # A leading ./ is dropped; an empty or "." path is <base> itself.
+  local base p
+  base="$(norm_path "$1")"
+  p="$(norm_path "$2")"
+  while [[ "$p" == ./* ]]; do p="${p#./}"; done
+  if [[ "$p" == /* || "$p" =~ ^[A-Za-z]:(/|$) ]]; then
+    printf '%s\n' "$p"
+  elif [[ -z "$p" || "$p" == "." ]]; then
+    printf '%s\n' "$base"
+  else
+    printf '%s\n' "$base/$p"
+  fi
+}
+
+canon_dir() {
+  # canon_dir <dir>: the physical path when the directory exists, else as given,
+  # so two spellings of one directory compare equal and a symlinked checkout is
+  # not reported as diverging from itself.
+  (cd -- "$1" 2>/dev/null && pwd -P) || printf '%s\n' "$1"
+}
+
+resolve_marketplace_dir() {
+  # resolve_marketplace_dir <marketplace-name>: echo the directory a
+  # directory-source marketplace is loaded from, or nothing. Looked up in the
+  # extraKnownMarketplaces block of each settings scope read (project, then
+  # local, then user), then in the user dir's plugins/known_marketplaces.json.
+  # A relative path in a settings scope resolves against that file's base: the
+  # project root for project and local, the directory that contains the user
+  # config dir for user. known_marketplaces.json carries installLocation.
+  local name="$1" label i base rel known
+  for label in project local user; do
+    for i in "${!SCOPE_LABELS[@]}"; do
+      [[ "${SCOPE_LABELS[$i]}" == "$label" ]] || continue
+      # shellcheck disable=SC2016  # $n is a jq --arg binding, not a shell variable
+      rel="$(jqs -r --arg n "$name" '
+        ((.extraKnownMarketplaces // {})[$n] // {})
+        | (.source // {})
+        | select(type == "object" and .source == "directory")
+        | .path // empty | tostring
+      ' "${SCOPES[$i]}")"
+      [[ -n "$rel" ]] || continue
+      if [[ "$label" == "user" ]]; then base="$(dirname "$USER_DIR")"; else base="$PROJECT_ROOT"; fi
+      join_path "$base" "$rel"
+      return 0
+    done
+  done
+  [[ -n "$USER_DIR" ]] || return 1
+  known="$USER_DIR/plugins/known_marketplaces.json"
+  [[ -f "$known" ]] || return 1
+  # shellcheck disable=SC2016  # $n is a jq --arg binding, not a shell variable
+  rel="$(jqs -r --arg n "$name" '
+    (.[$n] // {})
+    | select(type == "object" and ((.source // {}) | type) == "object" and (.source // {}).source == "directory")
+    | .installLocation // empty | tostring
+  ' "$known")"
+  [[ -n "$rel" ]] || return 1
+  norm_path "$rel"
+}
+
+resolve_marketplace_plugin_path() {
+  # resolve_marketplace_plugin_path <plugin-key>: echo the directory a
+  # directory-source marketplace loads this plugin from, or nothing. The
+  # marketplace's .claude-plugin/marketplace.json names each plugin and its
+  # `source`, a path relative to the marketplace directory; only a string
+  # source is a local path, so an object source (github, url) is left to the
+  # registry route.
+  local key="$1" plugin mkt mdir catalog src dir
+  [[ "$key" == *@* ]] || return 1
+  plugin="${key%@*}"
+  mkt="${key##*@}"
+  mdir="$(resolve_marketplace_dir "$mkt")" || return 1
+  [[ -n "$mdir" ]] || return 1
+  catalog="$mdir/.claude-plugin/marketplace.json"
+  [[ -f "$catalog" ]] || return 1
+  # A catalog that does not parse is exit 2, distinct from "plugin absent"
+  # (exit 1): the caller records it, since this function runs in a command
+  # substitution where a global assignment would be lost.
+  if ! tr -d '\r' <"$catalog" | jq empty 2>/dev/null; then
+    return 2
+  fi
+  # shellcheck disable=SC2016  # $n is a jq --arg binding, not a shell variable
+  src="$(jqs -r --arg n "$plugin" '
+    (.plugins // []) | if type == "array" then . else [] end
+    | map(select(type == "object" and .name == $n))
+    | .[0].source // empty
+    | if type == "string" then . else empty end
+  ' "$catalog")"
+  [[ -n "$src" ]] || return 1
+  dir="$(join_path "$mdir" "$src")"
+  [[ -d "$dir" ]] || return 1
+  printf '%s\n' "$dir"
+}
+
+# Divergence rows: <plugin-key> <marketplace-dir-path> <registry-path>, one per
+# plugin that resolves both ways to different directories. Info only.
+DIVERGENCE=()
+# Enabled plugins that did not resolve through a marketplace directory and so
+# needed the registry. Only these make a missing registry a reportable gap.
+REGISTRY_FALLBACKS=0
 
 for key in ${ENABLED+"${ENABLED[@]}"}; do
-  path="$(resolve_install_path "$key")"
-  # Git Bash reports a Windows path here; normalize the separators so the
-  # existence test and the reads below work from a POSIX shell.
-  path="${path//\\//}"
-  if [[ -z "$path" ]]; then
-    PLUGIN_STATUS+=("$key	UNRESOLVED	no installPath in the installed-plugin registry")
-    PARTIAL=1
-    continue
+  mpath="$(resolve_marketplace_plugin_path "$key")"
+  mrc=$?
+  if [[ $mrc -eq 2 ]]; then
+    # What the session loads from an unparsable catalog is unknown, so the
+    # inventory is partial even though the registry route still resolves the
+    # plugin. Reported once per marketplace.
+    bad_mkt="${key##*@}"
+    if [[ -z "${BAD_CATALOG[$bad_mkt]:-}" ]]; then
+      BAD_CATALOG[$bad_mkt]=1
+      UNREADABLE+=("marketplace:$bad_mkt: its .claude-plugin/marketplace.json is not valid JSON; plugins it lists resolve through the registry cache instead")
+      PARTIAL=1
+    fi
   fi
-  if [[ ! -d "$path" ]]; then
-    PLUGIN_STATUS+=("$key	UNRESOLVED	registry names $path, which is not a directory")
-    PARTIAL=1
-    continue
+  rpath="$(norm_path "$(resolve_install_path "$key")")"
+  loaded_note=""
+  if [[ -n "$mpath" ]]; then
+    path="$mpath"
+    loaded_note=" (loaded from marketplace directory)"
+    if [[ -n "$rpath" && "$(canon_dir "$mpath")" != "$(canon_dir "$rpath")" ]]; then
+      DIVERGENCE+=("$key	$mpath	$rpath")
+    fi
+  else
+    REGISTRY_FALLBACKS=$((REGISTRY_FALLBACKS + 1))
+    path="$rpath"
+    if [[ -z "$path" ]]; then
+      PLUGIN_STATUS+=("$key	UNRESOLVED	no installPath in the installed-plugin registry	")
+      PARTIAL=1
+      continue
+    fi
+    if [[ ! -d "$path" ]]; then
+      PLUGIN_STATUS+=("$key	UNRESOLVED	registry names $path, which is not a directory	")
+      PARTIAL=1
+      continue
+    fi
   fi
 
   manifest="$path/.claude-plugin/plugin.json"
@@ -352,11 +521,16 @@ for key in ${ENABLED+"${ENABLED[@]}"}; do
 
   added=$((${#ROWS[@]} - before))
   if [[ $found -eq 0 ]]; then
-    PLUGIN_STATUS+=("$key	NO-HOOKS	no hooks/hooks.json and no hooks key in plugin.json")
+    PLUGIN_STATUS+=("$key	NO-HOOKS	no hooks/hooks.json and no hooks key in plugin.json$loaded_note	$path")
   else
-    PLUGIN_STATUS+=("$key	OK	$added hook command(s)")
+    PLUGIN_STATUS+=("$key	OK	$added hook command(s)$loaded_note	$path")
   fi
 done
+
+if [[ $REGISTRY_FALLBACKS -gt 0 && ! -f "$INSTALLED_JSON" ]]; then
+  UNREADABLE+=("installed_plugins.json not found at ${INSTALLED_JSON:-<unset>}; $REGISTRY_FALLBACKS enabled plugin(s) outside a marketplace directory could not be enumerated")
+  PARTIAL=1
+fi
 
 # --- Output ------------------------------------------------------------------
 
@@ -364,22 +538,34 @@ if [[ $EMIT_JSON -eq 1 ]]; then
   {
     printf '{\n'
     printf '  "inventory": "%s",\n' "$([[ $PARTIAL -eq 0 ]] && echo complete || echo partial)"
+    printf '  "lever_state": "%s",\n' "$LEVER_STATE"
+    printf '  "project_root": %s,\n' "$(jq -cn --arg r "$PROJECT_ROOT" '$r')"
     printf '  "hooks": ['
     sep=""
     for r in ${ROWS+"${ROWS[@]}"}; do
-      IFS=$'\t' read -r src event matcher cmd <<<"$r"
+      IFS=$'\t' read -r src event matcher cmd extra <<<"$r"
       printf '%s\n    ' "$sep"
-      jq -cn --arg s "$src" --arg e "$event" --arg m "$matcher" --arg c "$cmd" \
-        '{source:$s,event:$e,matcher:$m,command:$c}'
+      # shellcheck disable=SC2016  # $x is a jq --argjson binding, not a shell variable
+      jq -cn --arg s "$src" --arg e "$event" --arg m "$matcher" --arg c "$cmd" --argjson x "${extra:-{\}}" \
+        '{source:$s,event:$e,matcher:$m,command:$c} + $x'
       sep=","
     done
     printf '\n  ],\n'
     printf '  "plugins": ['
     sep=""
     for p in ${PLUGIN_STATUS+"${PLUGIN_STATUS[@]}"}; do
-      IFS=$'\t' read -r pk st note <<<"$p"
+      IFS=$'\t' read -r pk st note ppath <<<"$p"
       printf '%s\n    ' "$sep"
-      jq -cn --arg k "$pk" --arg s "$st" --arg n "$note" '{plugin:$k,status:$s,note:$n}'
+      jq -cn --arg k "$pk" --arg s "$st" --arg n "$note" --arg p "${ppath:-}" '{plugin:$k,status:$s,note:$n,path:$p}'
+      sep=","
+    done
+    printf '\n  ],\n'
+    printf '  "divergence": ['
+    sep=""
+    for d in ${DIVERGENCE+"${DIVERGENCE[@]}"}; do
+      IFS=$'\t' read -r dk dl dc <<<"$d"
+      printf '%s\n    ' "$sep"
+      jq -cn --arg p "$dk" --arg l "$dl" --arg c "$dc" '{plugin:$p,loaded:$l,cached:$c}'
       sep=","
     done
     printf '\n  ],\n'
@@ -414,7 +600,7 @@ else
     echo "Hooks (${#ROWS[@]}):"
     printf '  %-28s %-22s %-12s %s\n' "SOURCE" "EVENT" "MATCHER" "COMMAND"
     for r in "${ROWS[@]}"; do
-      IFS=$'\t' read -r src event matcher cmd <<<"$r"
+      IFS=$'\t' read -r src event matcher cmd _extra <<<"$r"
       printf '  %-28s %-22s %-12s %s\n' "$src" "$event" "$matcher" "$cmd"
     done
   fi
@@ -422,9 +608,22 @@ else
   if [[ ${#PLUGIN_STATUS[@]} -gt 0 ]]; then
     echo "Enabled plugins (${#PLUGIN_STATUS[@]}):"
     for p in "${PLUGIN_STATUS[@]}"; do
-      IFS=$'\t' read -r pk st note <<<"$p"
+      IFS=$'\t' read -r pk st note _ppath <<<"$p"
       printf '  %-8s %-40s %s\n' "$st" "$pk" "$note"
     done
+    echo
+  fi
+  if [[ ${#DIVERGENCE[@]} -gt 0 ]]; then
+    echo "Cache-versus-loaded divergence (${#DIVERGENCE[@]}):"
+    for d in "${DIVERGENCE[@]}"; do
+      IFS=$'\t' read -r dk dl dc <<<"$d"
+      printf '  %s: loads %s; registry cache at %s\n' "$dk" "$dl" "$dc"
+    done
+    echo "  Info: the session loads the marketplace directory; the cache is what a tool resolving through the registry would read."
+    echo
+  fi
+  if [[ "$LEVER_STATE" != "complete" ]]; then
+    echo "Hook-suppression lever state: UNKNOWN — a settings scope did not parse, so a lever that switches hooks off may be set and unread."
     echo
   fi
   if [[ ${#LEVERS[@]} -gt 0 ]]; then

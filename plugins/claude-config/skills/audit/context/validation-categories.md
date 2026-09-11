@@ -36,6 +36,16 @@ Load the audit checklist alongside these: [audit-checklist.md](../reference/audi
 - **Deny rules in settings.json ONLY** — not in settings.local.json (bug [#8961](https://github.com/anthropics/claude-code/issues/8961))
 - **No overly broad patterns** — `Bash(git *)` should be split into specific operations
 - **Evaluation order** makes sense — deny overrides ask overrides allow
+- **What the engine already settled.** `scripts/audit-engine.sh` decides pattern presence for every
+  baseline row (reading the list from required-permissions.md, never a transcription), the
+  deny-in-local placement, the blanket `Bash(git *)` allow, and the allow-completeness rows, which
+  it reports at `info`: under auto mode the classifier decides those calls, so their absence is a
+  convenience gap, never a security one. It also takes narrowing 3 mechanically wherever an enabled
+  plugin ships `hooks/coverage.json`, checking all three preconditions (the hook is live under the
+  lever reading, the pattern's tool is on the matcher, the pattern is named), and it retires any
+  finding the consumer's `.claude/audit-pass.md` record suppresses by `finding_id`. The model's
+  Category B work is what is left: narrowings 1 and 2, narrowing 3 for guards with no manifest, and
+  the consuming repo's own extra patterns
 
 ## Category C: MCP Servers
 
@@ -51,9 +61,13 @@ Load the audit checklist alongside these: [audit-checklist.md](../reference/audi
 
 ## Category D: Hooks
 
+**The engine decides the mechanical rows of this category** (path resolution and readability,
+millisecond-shaped timeouts, matcher class and anchoring, placeholder quoting in shell form,
+duplicates, the lever reading, cache-versus-loaded divergence) and the model does the rest below.
 **The inventory this category checks is Phase 1.0's**, from
-`scripts/check-hook-coverage.sh` — settings-declared hooks *and* every enabled plugin's own hook
-config, resolved through the installed-plugin registry. That matters for two of the rules below:
+`scripts/check-hook-coverage.sh`, which the engine runs: settings-declared hooks *and* every enabled
+plugin's own hook config, read from the directory the session loads (a `directory` marketplace's
+checkout first, the installed-plugin registry otherwise). That matters for two of the rules below:
 `${CLAUDE_PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_DATA}` only ever appear in a plugin-provided hook, so
 those rules are decidable only against a plugin-inclusive inventory. Where the
 script exited 1, say which sources went unenumerated rather than reporting the inventory as the
@@ -149,11 +163,18 @@ budget". What governs the category:
   `skillListingMaxDescChars`, **default `1536`**. For a 200K-token window, `200,000 × 4 × 0.01 = 8,000`
   characters, which is why the env var's fallback is that number. Without the constant a report can say
   "overflowed" but not "by how much", so quote it. All three are upstream-owned: confirm them in Phase
-  3 against [settings](https://code.claude.com/docs/en/settings) and
+  3 against [settings-reference](https://code.claude.com/docs/en/settings-reference) and
   [env-vars](https://code.claude.com/docs/en/env-vars) before publishing a number (defaults as
   written verified 2026-08-31; recheck trigger: a Phase-3 confirm finding a moved default
   re-derives this paragraph)
-- **Overflow check — two routes, and only one survives a headless run.** `/doctor` estimates the
+- **Overflow check — an existing debug log first, then two routes, and only one of those survives
+  a headless run.** The engine looks for a debug log this session already wrote, at the path
+  `--debug-log` names, else `CLAUDE_CODE_DEBUG_LOGS_DIR`, else the newest file under
+  `<user dir>/debug/`, and parses the over-budget warning from it: skill count, characters, and the
+  budget in one line, which is everything the category needs. A log the operator named reads as
+  fitting when it carries no warning; a log the engine merely found, newest-first, decides only
+  when it names this project root, since the debug directory also holds other sessions' logs.
+  Anything else reads as not measured, never as clean. Only then: `/doctor` estimates the
   listing's cost and its biggest contributors, and it needs an interactive TTY, so prompt the user to
   run it. When this audit runs headless — `-p`, a spawned agent, a background job — use the documented
   debug route instead: *"When the listing exceeds its budget, Claude Code also writes a warning to the

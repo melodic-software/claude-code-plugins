@@ -58,7 +58,8 @@ The third column is written by hand and is not derived from anything. A row whos
 |---|---|---|
 | `scope.default` | `change` | `change` (the merge-base diff plus uncommitted and untracked files) or `all` |
 | `scope.base` | `auto` | The merge-base is taken against the default branch, or against this ref |
-| `scope.exclude` | `[]` | Gitignore-style globs dropped from every measure; the count is reported as `scope.excluded` |
+| `scope.exclude` | `["**/node_modules/**", "**/vendor/**", "**/dist/**", "**/build/**"]` | Gitignore-style globs dropped from every measure. The default names dependency and build-output directories, because measuring a compiled bundle or a vendored tree counts functions nobody in the repository wrote; fixtures and evals stay in scope. A closed list, so a team file that sets it replaces the default whole (`[]` measures everything). The count is reported as `scope.excluded` and each pattern's count as `scope.exclusions[]` |
+| `scope.registries` | `[]` | Sanctioned-replication registries (one path-within-plugin per line, relative to the repository root), applied by every audit: rows for a file the registry names collapse to one row carrying a replica count, and a clone whose every instance sits at a listed path is excluded, not suppressed |
 | `complexity.cyclomatic.reference` | `20` | ISO/IEC 5055:2021 §8.2.117 (normative). Cited alternatives: 10 (McCabe 1976, "reasonable, but not magical") and 15 (NIST SP 500-235, with its six practices) |
 | `complexity.cognitive.reference` | `null` | Campbell, SonarSource; no standard sets a threshold |
 | `complexity.halstead.difficulty` | `null` | Halstead 1977; no standard sets a threshold |
@@ -68,7 +69,7 @@ The third column is written by hand and is not derived from anything. A row whos
 | `duplication.min_tokens` | `50` | Passed to the clone collector |
 | `duplication.min_lines` | `5` | Passed to the clone collector |
 | `duplication.ignore` | `[]` | Collector ignore globs |
-| `duplication.registries` | `[]` | Sanctioned-replication registries (one path-within-plugin per line); a clone whose every instance sits at a listed path is excluded, not suppressed |
+| `duplication.registries` | `[]` | The older name for `scope.registries`, read only when the scope-level list is empty; a team file written against it keeps working unchanged |
 | `coverage.artifacts` | `[]` | Explicit coverage artifact paths; empty means auto-discover. An explicitly named path that does not exist is a usage error |
 | `coverage.path_prefix_strip` | `[]` | Prefixes removed from artifact paths before the join with source paths (compiled-output layouts) |
 | `coverage.reference` | `null` | No default bar; ISO/IEC 25023 files coverage under Reliability and sets no value |

@@ -62,8 +62,34 @@ def probe() -> int:
         if match:
             print(match.group(1))
             return 0
-    print("unknown-version")
+    print(module_version(exe) or "version unavailable (gocognit has no version flag)")
     return 0
+
+
+def module_version(exe: str) -> str | None:
+    """The version stamped into the binary by `go install`, read with
+    `go version -m`, whose `mod` line names the module and its version. A
+    binary built some other way, or a machine with no `go`, yields nothing."""
+    go = shutil.which("go")
+    if not go:
+        return None
+    try:
+        out = subprocess.run(
+            [go, "version", "-m", exe],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    for line in out.stdout.splitlines():
+        parts = line.split()
+        if len(parts) >= 3 and parts[0] == "mod" and "gocognit" in parts[1]:
+            match = VERSION.search(parts[2])
+            if match:
+                return match.group(1)
+    return None
 
 
 def translate(raw: str, lane: str, wanted: list[str]) -> list[dict]:

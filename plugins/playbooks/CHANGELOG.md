@@ -4,6 +4,12 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.9.10]
+
+### Fixed
+
+- `reference/model-adaptation/CLAUDE.md` shim added beside the chapter conventions `AGENTS.md`, so the conventions load when Claude reads a chapter (Claude Code reads `CLAUDE.md`, not `AGENTS.md`).
+
 ## [0.9.9]
 
 ### Added

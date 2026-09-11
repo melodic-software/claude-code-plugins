@@ -158,9 +158,15 @@ for file in "${FILES[@]}"; do
   else
     base="${normalized##*/}"
     ext=""
-    # Lower-cased in the shell itself: a `tr` subshell per file is the single
-    # largest cost of classifying a whole repository.
-    [[ "$base" == *.* ]] && ext="${base##*.}" && ext="${ext,,}"
+    # Lower-cased in the shell rather than through `tr`: this runs once per
+    # file, and two subprocesses per file is most of a whole-tree run's time.
+    if [[ "$base" == *.* ]]; then
+      ext="${base##*.}"
+      ext="${ext,,}"
+    fi
+    # The lookup returns through LANE rather than stdout: a command
+    # substitution forks once per file, and over a whole repository that fork
+    # is most of the classifier's remaining time.
     lane_for_extension "$ext"
     lane="$LANE"
     # A lane the consumer redefined by globs no longer claims files by extension.

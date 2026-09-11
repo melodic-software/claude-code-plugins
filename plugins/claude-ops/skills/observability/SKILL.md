@@ -28,9 +28,14 @@ contains git. The dated record for that composition claim is the `source-control
 ## Pre-computed context
 
 ccusage availability: !`command -v npx >/dev/null 2>&1 && echo "npx present" || echo "npx MISSING"`
-Hook log root (rendered option, empty or unrendered means the default `.observability/claude`): `${user_config.session_event_log_dir}`
-Hook event log: !`bash "${CLAUDE_PLUGIN_ROOT}/skills/observability/scripts/probe-observability-state.sh" --hook-events --root "${user_config.session_event_log_dir}" 2>/dev/null || echo "unknown"`
-Hook logging pipeline: !`bash "${CLAUDE_PLUGIN_ROOT}/skills/observability/scripts/probe-observability-state.sh" --pipeline --root "${user_config.session_event_log_dir}" --enabled "${user_config.session_event_log_enabled}" --categories "${user_config.session_event_log_categories}" --keep-sessions "${user_config.session_log_keep_sessions}" --keep-days "${user_config.session_log_keep_days}" --pre-prune-command "${user_config.session_log_pre_prune_command}" 2>/dev/null || echo "unknown"`
+Rendered options (empty or unrendered means the manifest default): root `${user_config.session_event_log_dir}`; enabled `${user_config.session_event_log_enabled}`; categories `${user_config.session_event_log_categories}`; keep-sessions `${user_config.session_log_keep_sessions}`; keep-days `${user_config.session_log_keep_days}`; pre-prune-command `${user_config.session_log_pre_prune_command}`
+Hook event log (default root): !`bash "${CLAUDE_PLUGIN_ROOT}/skills/observability/scripts/probe-observability-state.sh" --hook-events 2>/dev/null || echo "unknown"`
+Hook logging pipeline (default root, observed state only): !`bash "${CLAUDE_PLUGIN_ROOT}/skills/observability/scripts/probe-observability-state.sh" --pipeline --observed 2>/dev/null || echo "unknown"`
+
+The two probe lines carry no option and print no option tier. The section 2.6 re-run
+(data-sources.md), fed the rendered values above as flags, is the one place the options render:
+run it before reading either line into a report, and pass `--root` when the rendered root is not
+the default.
 OTEL collector :4318: !`bash -c 'source "${CLAUDE_PLUGIN_ROOT}/skills/observability/otel/net-probe.sh" && port_status 4318' 2>/dev/null || echo unknown`
 OTEL store: !`bash "${CLAUDE_PLUGIN_ROOT}/skills/observability/scripts/probe-observability-state.sh" --otel-store 2>/dev/null || echo "unknown"`
 
@@ -181,6 +186,8 @@ retention in effect" section, the six probe lines verbatim.
 ## Gotchas
 
 - Empty stores are normal on first run. Degrade gracefully
+- **No `${user_config.*}` inside a pre-compute command.** A `${user_config.*}` value renders in plain skill content only; shell-executing content rejects it because the shell would re-parse whatever the value holds, and a placeholder left unrendered on a shell line is a bash `bad substitution` that aborts the whole invocation, since one failed pre-compute line aborts every line. The options render as plain content above the probe lines; the probe lines pass none and print no option tier (`--observed`), so a manifest default never appears where an effective value belongs; the model hands the rendered values to the probe through its own Bash call, the one place the options render. Basis: "Fields that run in a shell reject `${user_config.*}`" under "User configuration" at <https://code.claude.com/docs/en/plugins-reference>, and the substitution list under "Dynamic context injection" at <https://code.claude.com/docs/en/skills>. Verified 2026-09-09 against Claude Code 2.1.263 and both pages as fetched that day; recheck when either page names `user_config` for pre-compute lines
+- **The pipeline line names two tiers.** `envelope:` counts rows the telemetry sink wrote for the audit hooks, across `sessions/*.jsonl` (rows marked `source: "envelope"`) and the whole shared `hook-events.jsonl` (the legacy shape for a hook payload with no session id); those follow the per-hook audit toggles and never the event-log switch. `event log:` is the switch. `event log: off` beside a populated root is the normal state, not a contradiction
 - **`session_id` joins only per-session files**. Rows in `sessions/<id>.jsonl` carry the id; rows in the shared `hook-events.jsonl` do not, and are never attributed to a session (say "legacy rows, shared file, time proximity only"). OTEL rows join on `session_id` as before; `cwd` + `branch` + time proximity is the fallback for a producer that sends none. Hook input carries `session_id` on every event (the common input fields at <https://code.claude.com/docs/en/hooks>), so a row without one comes from a producer that dropped it, never from the harness. Verified 2026-09-06 against Claude Code 2.1.263 and that page as fetched that day; recheck when the common input fields drop `session_id`
 - **Per-hook duration per session covers producers that emit `data.session_id`** (the nine claude-ops audit hooks). Other hooks appear in the whole-root tables only
 - **Hooks run in parallel**. Row order within one second is write order, not fire order; group by `prompt_id` or `tool_use_id`, not by adjacency

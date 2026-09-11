@@ -3,17 +3,10 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.1.9]
+## [0.2.1]
 
 ### Changed
 
-- **A whole-tree run no longer spends its time around the measurement.** The dispatcher's binary
-  sniff ran two `head | wc | tr` pipelines per scoped file and lane detection forked a subshell
-  per file to look up the extension, which on a repository of a few thousand files cost tens of
-  seconds while the line count itself took a fraction of one. The sniff now runs over the whole
-  listing in one interpreter process (`scripts/text-files.py`), the extension lookup stays in the
-  shell, and each run row is written with one interpreter call rather than one per field. Every
-  audit skill shares these paths, so every audit gets the same speed-up.
 - **`audit-size` measures every text file in scope.** Files whose extension no language lane
   claims (markdown, JSON, YAML, PowerShell, a `Makefile`) used to count toward `scope.files` and
   then went unmeasured. They now land in a catch-all `other` lane that the ladder serves with
@@ -21,20 +14,93 @@ All notable changes to the `code-metrics` plugin are documented here. Format fol
   carries a `not-applicable` row for the lane, so complexity, duplication, type-debt, and
   coverage runs settle exactly as before. `lanes.other.enabled: false` opts the lane out. A file
   the consumer's ecosystem globs leave out of its extension's lane is still dropped, not moved.
-- **The Measures table is ordered by the number it reports.** Rows sort by the primary
-  reference's value, largest first (smallest first for a `below` reference such as coverage), so
-  a size report lists the longest files first, and the 200-row cap names the key it kept the top
-  rows by. The `thresholds[]` entries now carry `value_key` and `direction` so a consumer of the
-  JSON can tell which value a reference was applied to.
-- **An empty change says how to widen the scope.** A branch with nothing changed reports the
-  merge-base it was measured from and that explicit paths or `--all` widen the scope, in the run
-  row's reason and in the markdown headline, instead of a bare "Measured nothing".
+- **Lane detection and the run table stop forking per file and per field.** The extension lookup
+  returned its lane through a command substitution, one fork per scoped file, and each run row
+  was written with one interpreter call per field; the lookup now returns through a variable and
+  a row is one call. A whole-tree `audit-size` run on this repository takes about two seconds.
+- **The rows under the over-reference block are ordered by the number they report.** After the
+  rows over a reference (furthest past it first), the rest sort by the primary reference's value,
+  largest first (smallest first for a `below` reference such as coverage), so a size report reads
+  longest to shortest instead of alphabetically, and the 200-row cap names the key it kept the
+  top rows by. The `thresholds[]` entries now carry `value_key` and `direction` so a consumer of
+  the JSON can tell which value a reference was applied to.
+- **An empty change says how to widen the scope in the markdown headline too**, beside the run
+  row's reason.
 - **`Functions:` leaves the summary line when no function rows exist**, which is every
   `audit-size` report in `file-lines` mode.
 - **One provenance sentence for the 1000-line reference.** The report, the `audit-size` body, and
   the principles threshold table carry the same words, sourced from `scripts/config-defaults.json`
   and checked by the `audit-size` suite. The `audit-size` description names `--all` as a
   first-class scope alongside the `change` default rather than disowning it.
+
+## [0.2.0]
+
+### Added
+
+- **`scope.registries`**, the sanctioned-replication registry list every audit reads. The
+  dispatcher collapses the per-file and per-function rows of every copy of a listed file into one
+  row labelled `replicated` with a `replicas` object (`count`, `registry`, `line`, `path`,
+  `files`), so a file vendored into ten plugins shows each function once and its over-reference
+  count once, and `summary.files` still counts every copy. `duplication.registries` stays as the
+  older name, read when the scope-level list is empty. New `scripts/replica-collapse.py` and
+  `resolve-config.py --format registries`; `audit-duplication` reads its registries through the
+  same format.
+- **Default scope exclusions.** `scope.exclude` now defaults to `**/node_modules/**`,
+  `**/vendor/**`, `**/dist/**`, and `**/build/**`, and the document carries
+  `scope.exclusions[]` (one `{pattern, files}` per glob that matched) so the markdown can say
+  which exclusion dropped what. Fixtures and evals stay in scope; a team file that sets the key
+  replaces the list whole.
+- **The persisted document.** Every markdown run writes the `code-metrics/v1` document it
+  rendered to `CODE_METRICS_REPORT_DIR`, else `<CLAUDE_PLUGIN_DATA>/reports`, else
+  `~/.claude/plugins/data/code-metrics/reports`, keeping the newest twenty per skill, and the
+  table's cap line and the summary name that path. A directory that cannot be written is
+  reported on stderr and the cap line says to re-run with `--json` instead. New
+  `scripts/persist-report.sh`, sourced by all five entry points, and `report.py render
+  --document`.
+- **Progress on stderr** for a run whose scope passes two hundred files, or under
+  `CODE_METRICS_PROGRESS=1`; `=0` silences it.
+
+### Changed
+
+- **The markdown table joins each function's rows.** One line per function carries every
+  collector's values (a cyclomatic row and a Halstead row no longer print the same function twice
+  with complementary nulls); a row with no start line joins the one function of its name in the
+  file and stays separate when the name is ambiguous, and rows whose values disagree are never
+  merged. The JSON keeps one row per collector. A Labels column now shows `start-line-only`,
+  `file-level`, `multimetric-approximation`, and `replicated`. Rows over a reference sort by how
+  far past it they sit, worst first, then by file. A Halstead value of 0 gets a footnote saying
+  it is a measurement.
+- **Collectors run in parallel**, one process per lane and measure, capped at the CPU count or
+  `CODE_METRICS_JOBS`; the run table and the rows come out in lane order whatever the concurrency.
+  The scope's normalization, deduplication, and binary sniff moved from a shell loop with two
+  subprocesses per file into `scripts/scope-filter.py`, and `detect-lanes.sh` lower-cases
+  extensions in the shell. A whole-tree run on this repository went from 95 seconds to 49, the
+  remainder being shellmetrics' own time.
+- **An empty change scope says why.** The `*/*` run row's reason names the merge-base ref and
+  the `--all` alternative when the branch sits at it with a clean tree, or says the changed files
+  belong to no lane.
+- **ESLint with no configuration is `unavailable`, not a failed run.** The adapter contract
+  gains exit 4, "resolved but cannot run here": `eslint-complexity` returns it when ESLint
+  reports that it found no configuration for the files, and the dispatcher writes an
+  `unavailable` row carrying ESLint's own message instead of failing the run with exit 3. The
+  adapter does not look for a configuration file itself; ESLint resolves it per target file.
+- **Version probes for tools with no version flag.** `multimetric` reports the distribution
+  version from the interpreter its launcher names, `gocognit` the module version from `go
+  version -m`, and both read `version unavailable (<tool> has no version flag)` rather than
+  `unknown-version` when nothing answers.
+
+## [0.1.9]
+
+### Fixed
+
+- **The tool-free PATH in the audit suites is derived from the collector ladder.** Each suite
+  that builds an environment with collectors removed used to keep a second, hardcoded list of
+  tool names off PATH. A collector added to `scripts/collector-ladder.tsv` stayed reachable
+  and the no-collector case stopped being tool-free. The excluded set is now the ladder's tool
+  column (skipping the reserved `none`, `n/a`, and `deferred` rungs) plus the PATH binaries those
+  adapters look up, and after that environment is built the suite asserts that none of those
+  collectors still resolves. Python interpreters on that PATH are resolved to a non-mutating
+  executable so a pyenv (or similar) shim cannot prepend skipped collectors back onto PATH.
 
 ## [0.1.8]
 

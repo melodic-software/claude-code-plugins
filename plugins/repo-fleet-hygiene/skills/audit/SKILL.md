@@ -154,7 +154,7 @@ The bundled collector is authoritative for classifications. Preserve its evidenc
    per repository naming those paths. Disposability (stranded / unknown / safe) is owned by
    `/source-control:worktree status`, and this collector emits no `git status`-based substitute
    verdict. Separately, every linked worktree that passes existence and root-verifiability checks
-   is classified against the configured worktree root (`melodic.worktreeroot` when present on the
+   is classified against the configured worktree root (`worktreeroot.path` when present on the
    first resolvable TARGET, else source-control `worktree_root`): conforming, outside/wrong-layout
    (expected `<root>/<owner>-<repo>-<slug>` or `<root>/<repo>-<slug>` without origin, matching
    `/source-control:worktree create`; create-shaped basenames stay conforming after branch
@@ -163,7 +163,7 @@ The bundled collector is authoritative for classifications. Preserve its evidenc
    Missing, prunable, non-root, and root-unverifiable registrations keep their own finding kinds and
    are excluded from conformance denominators. When no root is configured, placement is reported
    without asserting a convention. The collector uses a single fleet-wide root (first TARGET with
-   `melodic.worktreeroot`, else pluginConfigs); intentionally different per-repository `includeIf`
+   `worktreeroot.path`, else pluginConfigs); intentionally different per-repository `includeIf`
    roots are not modeled. If pluginConfigs cannot be read because `jq` is missing, emit
    `worktree-root-pluginconfigs-unreadable` rather than pretending the key is unset.
    Per-repository and fleet rollups always state the classifiable counts. If either inventory
@@ -288,8 +288,8 @@ Related fleet contracts that remain separate:
 | `worktree-tool-owned` | Leave to Codex/Cursor lifecycle, or migrate deliberately to the configured root |
 | `worktree-root-conformance` | Read the per-worktree outside/wrong-layout findings for expected paths; migrate toward the configured root |
 | `worktree-root-conformance-summary` | Same as per-repository conformance; fleet-scale migration toward the configured root |
-| `worktree-root-unconfigured` | Set `melodic.worktreeroot` (git config) or source-control `worktree_root`, then rerun |
-| `worktree-root-pluginconfigs-unreadable` | Install `jq`, or set `melodic.worktreeroot`; do not treat the fleet as unconfigured |
+| `worktree-root-unconfigured` | Set `worktreeroot.path` (git config) or source-control `worktree_root`, then rerun |
+| `worktree-root-pluginconfigs-unreadable` | Install `jq`, or set `worktreeroot.path`; do not treat the fleet as unconfigured |
 | `worktree-placement-unverifiable` | Inspect the canonical checkout; placement was not checked for any of its worktrees, so their placement is unknown rather than confirmed |
 | `bare-repo-with-working-tree` | Manual review. `core.bare=true` coincides with working-tree content or registered linked worktrees, so the main worktree is disabled while linked worktrees keep working. Nothing is lost; the documented remedy is `git config --local core.bare false` in the named checkout |
 | `github-remote-moved` | Human-reviewed `git remote set-url`; this plugin never changes remotes |

@@ -3,6 +3,27 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.22]
+
+### Changed
+
+- audit: still dual-reads a retired worktree-root alias so old-key-only
+  machines count as configured, but reports `source: worktreeroot.path` and
+  does not write git config (audit stays read-only). The rewrite peel lives
+  in `scripts/worktree-root-legacy.sh`. Remedy strings name only
+  `worktreeroot.path`.
+
+## [0.23.21]
+
+### Changed
+
+- audit: dual-read `worktreeroot.path` then the legacy alias
+  `melodic.worktreeroot` (new key wins; old-key-only still counts as
+  configured). Convention-git allowlist admits both keys and both argv
+  shapes (`--get-all --type=path` and `--get-all --show-origin --type=path`).
+  Remedy strings name `worktreeroot.path`. Shared resolver:
+  `scripts/worktree-root-resolve.sh`.
+
 ## [0.23.20]
 
 ### Changed

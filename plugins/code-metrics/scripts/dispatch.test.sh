@@ -51,19 +51,19 @@ cat "$CAPTURE"
 EOF
 chmod +x "$STUBS/scc"
 # EMPTY_PATH is the caller's PATH with every collector removed: a directory of
-# symlinks to each executable on PATH except the tools the ladder names, so
-# the coreutils, git, and the interpreter stay reachable while `scc` does not.
-COLLECTOR_NAMES=" scc lizard radon multimetric jscpd gocyclo gocognit dupl shellmetrics type-coverage mypy pmd eslint "
-IFS=':' read -r -a path_dirs <<<"$PATH"
-for dir in "${path_dirs[@]}"; do
-  [[ -d "$dir" ]] || continue
-  for exe in "$dir"/*; do
-    [[ -f "$exe" && -x "$exe" ]] || continue
-    name="${exe##*/}"
-    [[ "$COLLECTOR_NAMES" == *" $name "* ]] && continue
-    [[ -e "$EMPTY_PATH/$name" ]] || ln -s "$exe" "$EMPTY_PATH/$name"
-  done
-done
+# symlinks to each executable on PATH except the tools the ladder names (and
+# the binaries those adapters look up), so the coreutils, git, and the
+# interpreter stay reachable while `scc` does not.
+# shellcheck source=tool-free-path.sh
+source "$SCRIPT_DIR/tool-free-path.sh"
+cm_fill_tool_free_path "$EMPTY_PATH"
+leftover="$(cm_resolvable_ladder_collectors "$EMPTY_PATH" | sort -u | tr '\n' ' ')"
+leftover="${leftover% }"
+if [[ -z "$leftover" ]]; then
+  pass "no ladder collector is resolvable on the tool-free PATH"
+else
+  fail "no ladder collector is resolvable on the tool-free PATH" "none" "$leftover"
+fi
 unset CODE_METRICS_DISABLE_BUNDLED
 
 # 1. scc absent: the bundled counter is used and the run row names it.
@@ -447,6 +447,106 @@ case "$err" in
 *) fail "the refusal names the offending key" "mentions scope.exclude" "$err" ;;
 esac
 rm -rf "$repo" "$home"
+
+# 20. The default scope exclusions drop dependency and build-output directories
+# and the scope names each pattern's count.
+repo="$(mktemp -d)"
+(
+  cd "$repo" || exit 1
+  git init -q -b main
+  git config user.email t@example.com
+  git config user.name t
+  mkdir -p src dist vendor
+  printf 'def a():\n    return 1\n' >src/a.py
+  printf 'def g():\n    return 1\n' >dist/gen.py
+  printf 'echo lib\n' >vendor/lib.sh
+  git add -A
+  git commit -qm init
+) >/dev/null 2>&1
+out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$repo/no-home" bash "$SCRIPT" audit-size --measures file_lines --all)"
+assert_doc "the default exclusions drop dist and vendor and name each pattern's count" "$out" \
+  'd["scope"]["excluded"]==2 and sorted((e["pattern"],e["files"]) for e in d["scope"]["exclusions"])==[("**/dist/**",1),("**/vendor/**",1)] and [r["file"] for r in d["measures"]]==["src/a.py"]'
+# 21. An empty change scope says why it is empty and what widens it.
+(cd "$repo" && git checkout -qb feature) >/dev/null 2>&1
+out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$repo/no-home" bash "$SCRIPT" audit-size --measures file_lines)"
+assert_doc "a branch at its merge-base with a clean tree gets the merge-base reason and the --all hint" "$out" \
+  'd["status"]=="empty" and "merge-base" in d["run"][0]["reason"] and "--all" in d["run"][0]["reason"] and d["scope"]["files"]==0'
+# A markdown-only change is measured through the catch-all `other` lane; with
+# that lane opted out through the team file the same change belongs to no lane
+# and the reason says so.
+(cd "$repo" && printf 'notes\n' >notes.md && git add -A && git commit -qm docs) >/dev/null 2>&1
+out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$repo/no-home" bash "$SCRIPT" audit-size --measures file_lines)"
+assert_doc "a change holding only a markdown file is measured in the other lane" "$out" \
+  'd["status"]=="complete" and [(r["file"], r["lane"]) for r in d["measures"]]==[("notes.md","other")] and d["scope"]["unclassified"]==0'
+(cd "$repo" && mkdir -p .claude && printf 'lanes:\n  other:\n    enabled: false\n' >.claude/code-metrics.yaml && git add -A && git commit -qm config) >/dev/null 2>&1
+out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$repo/no-home" bash "$SCRIPT" audit-size --measures file_lines)"
+assert_doc "with lanes.other.enabled false, a change holding only files in no lane says so" "$out" \
+  'd["status"]=="empty" and "belong to no lane" in d["run"][0]["reason"] and d["scope"]["files"]==2 and d["scope"]["unclassified"]==2'
+rm -rf "$repo"
+
+# 22. A sanctioned-replication registry collapses the copies of a shared file
+# into one row per function or file, and a registry that does not exist is a
+# usage error.
+team="$(mktemp -d)"
+printf 'scope:\n  registries: [plugins/code-metrics/scripts/fixtures/registry/cluster.txt]\n' >"$team/team.yaml"
+"$PY" "$SCRIPT_DIR/resolve-config.py" "$team/team.yaml" --ladder "$SCRIPT_DIR/collector-ladder.tsv" >"$team/resolved.json"
+out="$(PATH="$EMPTY_PATH" bash "$SCRIPT" audit-size --measures file_lines --config "$team/resolved.json" --all "$SOURCES")"
+rc=$?
+assert_eq "a registry run exits 0" 0 "$rc"
+assert_doc "the two shared-utils copies collapse to one labelled row standing for both files" "$out" \
+  'len([r for r in d["measures"] if r["file"].endswith("shared-utils.sh")])==1 and next(r for r in d["measures"] if r["file"].endswith("shared-utils.sh"))["replicas"]["count"]==2 and "replicated" in next(r for r in d["measures"] if r["file"].endswith("shared-utils.sh"))["labels"] and d["summary"]["files"]==8'
+out="$(PATH="$EMPTY_PATH" bash "$SCRIPT" audit-size --measures file_lines --config "$team/resolved.json" --no-collapse --all "$SOURCES")"
+assert_doc "--no-collapse keeps one row per copy, for a caller that collapses after its own join" "$out" \
+  'len([r for r in d["measures"] if r["file"].endswith("shared-utils.sh")])==2 and not any("replicas" in r for r in d["measures"]) and d["summary"]["files"]==8'
+printf 'scope:\n  registries: [nope/missing-registry.txt]\n' >"$team/missing.yaml"
+"$PY" "$SCRIPT_DIR/resolve-config.py" "$team/missing.yaml" --ladder "$SCRIPT_DIR/collector-ladder.tsv" >"$team/missing.json"
+PATH="$EMPTY_PATH" bash "$SCRIPT" audit-size --measures file_lines --config "$team/missing.json" --all "$SOURCES" >/dev/null 2>&1
+assert_eq "a registry that does not exist is a usage error" 2 "$?"
+rm -rf "$team"
+
+# 23. Collectors run in parallel; the run table and the rows come out in the
+# same order whatever the concurrency, and progress is on stderr only for a
+# run that asks for it or is large.
+out1="$(PATH="$STUBS:$EMPTY_PATH" bash "$SCRIPT" audit-size --measures file_lines --all "$SOURCES")"
+out2="$(PATH="$STUBS:$EMPTY_PATH" CODE_METRICS_JOBS=1 bash "$SCRIPT" audit-size --measures file_lines --all "$SOURCES")"
+if printf '%s\n\x1e%s' "$out1" "$out2" | "$PY" -c '
+import json, sys
+a, b = (json.loads(part) for part in sys.stdin.read().split("\x1e"))
+same = a["run"] == b["run"] and a["measures"] == b["measures"] and a["summary"] == b["summary"]
+lanes = [(r["lane"], r["measure"]) for r in a["run"]]
+raise SystemExit(0 if same and lanes == sorted(lanes) else 1)
+'; then
+  pass "the run table and rows are identical and lane-ordered at any concurrency"
+else
+  fail "the run table and rows are identical and lane-ordered at any concurrency" "identical documents" "$(printf '%s' "$out1" | head -c 300)"
+fi
+err="$(PATH="$EMPTY_PATH" CODE_METRICS_PROGRESS=1 bash "$SCRIPT" audit-size --measures file_lines --all "$SOURCES" 2>&1 >/dev/null)"
+case "$err" in
+*"file(s) in scope"*"finished in"*) pass "CODE_METRICS_PROGRESS=1 reports the scope and each collector on stderr" ;;
+*) fail "CODE_METRICS_PROGRESS=1 reports the scope and each collector on stderr" "scope and finished lines" "$err" ;;
+esac
+err="$(PATH="$EMPTY_PATH" bash "$SCRIPT" audit-size --measures file_lines --all "$SOURCES" 2>&1 >/dev/null)"
+assert_eq "a small run prints no progress by default" "" "$err"
+
+# 24. An adapter whose collect exits 4 (the tool resolved but cannot run
+# here: ESLint with no configuration for the files) gets an unavailable row
+# carrying the tool's reason, and the run is not a failure.
+noconf="$(mktemp -d)"
+cat >"$noconf/eslint" <<EOF
+#!/usr/bin/env bash
+if [[ "\${1:-}" == "--version" ]]; then printf 'v10.1.0\n'; exit 0; fi
+cat "$SCRIPT_DIR/fixtures/tool-output/eslint-no-config.txt" >&2
+exit 2
+EOF
+chmod +x "$noconf/eslint"
+ladder="$(mktemp)"
+printf 'typescript\tcyclomatic\teslint-complexity\n' >"$ladder"
+out="$(PATH="$noconf:$EMPTY_PATH" bash "$SCRIPT" audit-complexity --measures cyclomatic --ladder "$ladder" "$SOURCES/cm-sample.ts")"
+rc=$?
+assert_eq "a collector that cannot run here exits 0" 0 "$rc"
+assert_doc "the row is unavailable with the tool's own reason and no 'collect failed'" "$out" \
+  'd["status"]=="empty" and d["run"][0]["status"]=="unavailable" and d["run"][0]["collector"]=="eslint-complexity 10.1.0" and "no configuration" in d["run"][0]["reason"] and "eslint.config" in d["run"][0]["reason"] and "collect failed" not in d["run"][0]["reason"] and d["measures"]==[]'
+rm -rf "$noconf" "$ladder"
 
 printf '%d cases, %d failed\n' "$CASE_NUM" "$FAILED"
 exit $((FAILED > 0 ? 1 : 0))
