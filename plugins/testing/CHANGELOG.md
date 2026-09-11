@@ -3,6 +3,28 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.1]
+
+### Changed
+
+- **Every markdown surface in the plugin passes `/ai-slop:audit`.** Em dashes in the plugin's own
+  prose (this changelog, the write and organize contexts, the diagnose investigate and loop
+  contexts, and the run-e2e e2e, e2e-config and non-ui contexts) are rewritten as a comma, a
+  period, a colon where a definition or list follows, or a restructured sentence. No test-writing
+  rule, browser-fit verdict, MCP revision pin, or dated verification stamp changed.
+- **Four headings took the colon form**, in `e2e-config.md` and `organize.md`; no file in the
+  repository links any of the old anchors.
+- **Em dashes inside the `csharp` illustrative fences stay.** They are code comments, which the
+  detector exempts and which this campaign treats as code rather than prose.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`,** so the gate defends
+  it from here on.
+- **Changelog, in-place wording corrections to released entries:** the same rewrite was applied
+  inside
+  `[0.7.10]`, `[0.7.5]`, `[0.7.4]`, `[0.7.2]`, `[0.7.1]`, `[0.7.0]`, `[0.6.2]`, `[0.6.1]`,
+  `[0.6.0]`, `[0.5.1]`, `[0.5.0]`, `[0.4.0]`, `[0.3.4]`, `[0.3.3]`, `[0.3.2]`, `[0.3.1]`,
+  `[0.3.0]`, `[0.2.3]`, `[0.2.2]`, `[0.2.0]`, and `[0.1.0]`. Wording only; every entry's facts are
+  unchanged.
+
 ## [0.8.0]
 
 ### Added
@@ -137,7 +159,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 
 - **`run-e2e`'s outcome handoff carries its presence gate in the file that executes it.** `SKILL.md`
   gated the `/verification:confirm outcome` step on the `verification` plugin being installed and gave
-  a fallback; `context/e2e.md` — which `SKILL.md` names as where the workflow steps live — restated the
+  a fallback; `context/e2e.md`, which `SKILL.md` names as where the workflow steps live, restated the
   same step with neither half. The executed copy now matches the owner. Coupling pass, apply lane.
 
 ## [0.7.9]
@@ -189,7 +211,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   `#foo` and `&foo`. Emitted bare, `#foo` and `&foo` parse to null and `@foo`/`!foo` are outright
   YAML parse errors, so the `branch:` value a consumer reads is not the branch name. The consumer
   admits a findings file only when that value matches the current branch exactly, so the whole
-  file went unmatched — with no error, and nothing distinguishing it from "no findings". That is
+  file went unmatched, with no error, and nothing distinguishing it from "no findings". That is
   the hidden-findings failure mode this scanner exists to prevent, reached through the frontmatter
   rather than through the scan. Frontmatter now goes through a `yaml_scalar()` helper that quotes
   only when the plain form would misparse, so an ordinary branch name stays a byte-identical
@@ -205,7 +227,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 
 - **`audit`'s own unit suite carried a can't-fail assertion for the `date:` frontmatter
   field.** `cant-fail-scan.test.sh` asserted `date: 20` under the name "date frontmatter is
-  present" — a truncated prefix of a structured value, so it passed for the emitter's real
+  present", a truncated prefix of a structured value, so it passed for the emitter's real
   `2026-08-23T04:37:40Z` and equally for `2026-08-21T13-36-00Z`, a hyphenated time that is
   ISO-8601 in neither the extended nor the basic profile. That is the same assertion shape
   that pinned `ai-slop`'s emitter bug rather than catching it (#3097), sitting inside the
@@ -213,7 +235,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   full extended form with an explicit `Z`
   (`^date: [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$`), and was confirmed
   discriminating: it FAILS against both malformed shapes above and PASSES against
-  `cant-fail-scan.sh --findings` output. Test-only — the emitter already stamped the correct
+  `cant-fail-scan.sh --findings` output. Test-only. The emitter already stamped the correct
   format, so no scanner behavior changes.
 
 ### Added
@@ -239,7 +261,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 ### Fixed
 
 - **"Prefer no new test to a bad one" now carries its attribution.** The phrase and the six
-  impracticality triggers 0.7.0 added are the upstream cursor/plugins `tdd` cost branch — the
+  impracticality triggers 0.7.0 added are the upstream cursor/plugins `tdd` cost branch. The
   pinned file at `cursor/plugins@60c641e4` `pstack/skills/tdd/SKILL.md` states "Prefer no new test
   over a bad test" and lists the same six triggers. They are not in `/tdd:principles`: a search of
   that skill and its routed Khorikov files finds neither the phrase nor the triggers. The nearest
@@ -256,7 +278,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   `context/investigate.md`, its genuine-bug fix route, and `context/loop.md`'s replan route;
   `run-e2e`'s three next-step arrows and the matching pair in `context/e2e.md`, plus its
   Playwright-CLI usage pointer; `write`'s run-the-tests / continue-implementation step and its two
-  next-step arrows. Wording only — presence gates, fallbacks, and step order unchanged.
+  next-step arrows. Wording only. Presence gates, fallbacks, and step order unchanged.
 
 ## [0.7.0]
 
@@ -266,16 +288,16 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   cursor/plugins skill (`docs/upstream/cursor-pstack.md`, the `tdd` section) into the existing
   "When NOT to write tests" section.
 
-  That list already covered code that needs no test — pure contracts, constants, one-liner
+  That list already covered code that needs no test: pure contracts, constants, one-liner
   delegation, config wiring. It said nothing about the other axis: code that genuinely needs
   covering, where the only available test would need broad harness setup, brittle mocks, slow
   end-to-end infrastructure, production-only state, a reproduction nobody can state precisely, or
-  large unrelated fixture churn. Prefer no new test to a bad one there — a test that mostly
+  large unrelated fixture churn. Prefer no new test to a bad one there. A test that mostly
   exercises its own mocks, encodes today's implementation, or would be deleted the moment it has
   proved its point costs more to maintain than the confidence it buys.
 
   **Declining is not skipping.** The addition requires naming which trigger made the test
-  impractical and then naming the closest executable check used instead — a targeted script, a
+  impractical and then naming the closest executable check used instead: a targeted script, a
   reproduction command, a snapshot comparison, a log assertion, a focused integration check. That
   matches doctrine this repo already enforces mechanically in CI, where a silent skip is a defect.
 
@@ -289,7 +311,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 ### Fixed
 
 - **The README claimed four skills and documented four, in a plugin that has five.** `/testing:audit`
-  landed in 0.6.0 and reached the plugin manifest's description but never the README — so the front
+  landed in 0.6.0 and reached the plugin manifest's description but never the README, so the front
   page both miscounted the set and omitted a whole skill from its table, and a reader arriving there
   had no way to learn `audit` exists. Both halves are corrected: the count reads five, and `audit`
   has its table row. Found by `scripts/check-skill-count-claims.sh`, a new fleet gate that compares
@@ -304,9 +326,9 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   meets them as documented boundaries rather than rediscovering them as bugs: the C# generic
   `Assert.Equal<T>(a, a)` recall gap in `recomputed-expectation` v1; the JS regex-literal masker's
   deliberately narrow trigger set (never after an identifier, so a regex directly after `return` is
-  unmasked — chosen because misreading division as a regex would mask real code — with the known
+  unmasked, chosen because misreading division as a regex would mask real code, with the known
   cost that an unmasked regex containing a brace can close the test block early and false-positive
-  `rule-zero-assertion`); and the platform-skip blindness boundary — a platform-skipped assertion is
+  `rule-zero-assertion`); and the platform-skip blindness boundary, where a platform-skipped assertion is
   unverified on the platform that skips it, the same defect family this detector hunts approached
   from the environment side and out of static reach, making the dropped skip rule's uncovered axis
   platform as well as ecosystem.
@@ -315,27 +337,27 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 
 ### Added
 
-- **New `/testing:audit` skill — the can't-fail test audit (#2684).** A deterministic script
+- **New `/testing:audit` skill: the can't-fail test audit (#2684).** A deterministic script
   detector (`cant-fail-scan.sh` driving `cant-fail-scan.awk`) for tests that cannot fail, with
   three rules v1, each carrying a qualified rule id and a fixed threshold:
   `testing/audit/rule-zero-assertion` (a runnable test body with 0 assertion tokens),
   `testing/audit/rule-recomputed-expectation` (an equality assertion whose actual and expected
-  sides are the identical expression — the decidable core of the recomputed-expected-value class),
+  sides are the identical expression, the decidable core of the recomputed-expected-value class),
   and `testing/audit/rule-mock-only-oracle` (every assertion in a mock-constructing test is a
   mock-interaction assertion; advisory by default because deliberate interaction-style tests are
   the known benign case, gating only under `--strict`). Ecosystems v1: JS/TS, Python, C#; bash
-  `*.test.sh` is deliberately excluded — the marketplace repo's discriminating-skip gate is the
+  `*.test.sh` is deliberately excluded. The marketplace repo's discriminating-skip gate is the
   incumbent for the skip-vacating shape there. Detection bias errs toward not firing (generous
   assertion tokens, string/comment masking, skipped tests unjudged), guarded by a negative fixture
   that must produce zero findings. `--check` is the fail-closed gate mode: exit 1 on a gating
   finding, exit 2 when inputs could not be fully read or when 0 test files were examined (an
   unread input is never a clean one, and a wrong or empty scan root must not share exit 0 with a
-  healthy suite), exit 0 only for a fully read clean scan of at least one test file — the
+  healthy suite), exit 0 only for a fully read clean scan of at least one test file. That is the
   liveness-assertion contract's fail-loud limb.
   `--persist-findings` (explicit override; bare invocation stays read-only per the `audit` verb
-  contract) writes a detector-findings-conforming file — `Tier` looked up flat per rule
-  (IMPORTANT), `Confidence` high or omitted (never low), root-relative `Location`, cell escaping,
-  `## Surfaces` coverage — that the `review:fanout` `fix` action consumes. Every run reports a
+  contract) writes a detector-findings-conforming file that the `review:fanout` `fix` action
+  consumes, with `Tier` looked up flat per rule (IMPORTANT), `Confidence` high or omitted (never
+  low), root-relative `Location`, cell escaping, and `## Surfaces` coverage. Every run reports a
   coverage denominator, so zero findings over zero examined files is named a scan of nothing
   rather than a clean bill. Deliberate cases are recorded in-file with `cant-fail-ok: <reason>`,
   counted and never silent.
@@ -361,7 +383,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   0.3.x-era wording had drifted: "user-invoked only from v2.1.215" was exact for 2.1.215–2.1.224,
   where the bundled skill carried a hard model-invocation block, but from **2.1.225** that block
   became a runtime gate that can re-enable model invocation. The restriction is therefore the
-  *default* rather than an absolute, and two clients on one version can differ — which an unscoped
+  *default* rather than an absolute, and two clients on one version can differ, which an unscoped
   "only" cannot express. **The instruction this note supports is unchanged and was strengthened, not
   weakened:** suggest `/verify`, never delegate to it. A delegated call is refused at the tool layer,
   so the suggest-don't-delegate rule now holds across either invocability state rather than resting
@@ -369,8 +391,8 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 - **The note becomes a conforming upstream-drift record.** Touching a restatement of an
   upstream-owned specific binds the required parts on touch (`docs/conventions/upstream-drift/README.md`
   §Adopters), so the claim now carries a verification date, the client versions checked, and an
-  observable recheck trigger — a Claude Code release whose changelog names `/verify` or bundled-skill
-  invocability — rather than a bare link.
+  observable recheck trigger rather than a bare link. The trigger is a Claude Code release whose
+  changelog names `/verify` or bundled-skill invocability.
 
 ## [0.5.0]
 
@@ -378,8 +400,8 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 
 - **The bare `/<skill>` alias for this plugin's skills.** Their `SKILL.md` files no longer
   declare a frontmatter `name`. The field is optional and defaults to the directory name, so
-  declaring it only restated the path while registering a second, unnamespaced command — which
-  the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
+  declaring it only restated the path while registering a second, unnamespaced command. The
+  slash-command picker then echoed that back as `/plugin:skill (skill)`. Invoke a skill by its
   namespaced command; the command itself is unchanged.
 
 ## [0.4.0]
@@ -391,7 +413,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   CI logs are shown; reproductions read credentials from env vars so secrets never land in a
   command line, fixture, or committed regression test. Investigation step 4 now tags every
   debug log with a unique short prefix (e.g. `[DEBUG-a4f2]`), and the fix loop's green gate
-  removes tagged instrumentation via a single grep before the atomic commit — the loop commits
+  removes tagged instrumentation via a single grep before the atomic commit. The loop commits
   per iteration, which is exactly where untagged logs leak into history. (Guard and tag
   convention from upstream mattpocock/skills `diagnosing-bugs` v1.2.3; registry: the
   marketplace repository's `docs/upstream/mattpocock-skills.md`.)
@@ -405,7 +427,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   "edit the assertion until it passes" as the shortest path to green. The step now leads with fixing
   the production code, and requires a deliberate, stated correction when the test itself is the thing
   that is wrong.
-- **The e2e prerequisite hard-fail says why workarounds are barred** — a substitute path yields
+- **The e2e prerequisite hard-fail says why workarounds are barred.** A substitute path yields
   unverified pass/fail results, which defeats the point of live verification. Added at both the
   `SKILL.md` and `context/e2e.md` statements of the rule.
 
@@ -422,7 +444,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   Claude Code v2.1.215 made `/verify` user-invoked only, so **from v2.1.215** "delegate surface
   verification to it first" named a surface the skill cannot invoke. The handoff now suggests the
   user run it and consume its findings, and carries the v2.1.215 scope rather than stating the
-  restriction flatly — on 2.1.145–2.1.214 `/verify` is still model-invocable. The instruction itself
+  restriction flatly. On 2.1.145–2.1.214 `/verify` is still model-invocable. The instruction itself
   is uniform across the window, because suggesting is correct on every version `/verify` exists on.
   The orchestrator path was already the fallback and is unchanged. The `≥ 2.1.145` availability floor
   is a separate axis, unchanged and re-verified 2026-08-02.
@@ -431,7 +453,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 
 ### Changed
 
-- **Doc reference updated for the `config-cascade` seam rename (#1188).** The layering-contract links in
+- **Doc reference updated for the `config-cascade` convention rename (#1188).** The layering-contract links in
   `README.md`, `run-e2e/SKILL.md`, and `run-e2e/context/e2e-config.md` now point at
   `docs/conventions/config-cascade/` (formerly `consumer-config-layering`). No behavior change.
 
@@ -440,7 +462,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 ### Changed
 
 - Skills with `!` dynamic-context injections now declare `shell: bash` explicitly, per
-  the pinned precompute convention — bash-only pipelines must not fall through to a
+  the pinned precompute convention. Bash-only pipelines must not fall through to a
   PowerShell host.
 
 ## [0.3.0]
@@ -453,16 +475,16 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   behavior. Keys, defaults, and precedence live in the skill's bundled
   `run-e2e/context/e2e-config.md`; layers resolve per the marketplace
   consumer-config-layering convention.
-- Optional recording evidence tier in the E2E evidence contract — video via the
-  playwright CLI for long flows, GIF via `gif_creator` for short demos — plus a
+- Optional recording evidence tier in the E2E evidence contract: video via the
+  playwright CLI for long flows, GIF via `gif_creator` for short demos, plus a
   session-artifacts record (recording path, session ID, transcript pointer). Screenshots
   remain the evidence floor.
 
 ### Changed
 
-- `/testing:run-e2e` now resolves the config surface before driving — anchors at the
+- `/testing:run-e2e` now resolves the config surface before driving. It anchors at the
   repo root, merges all three layers per key, and reports which layer supplied each
-  effective value — then passes the resolved `browser_mode` and `recording` values
+  effective value, then passes the resolved `browser_mode` and `recording` values
   through to the executor.
 - The drive loop is delegated to a subagent; the orchestrator consumes evidence paths
   only.
@@ -509,7 +531,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   `MonolithApiTestFixture.CollectionName` names). The `write` cases now grade co-located placement and
   naming per the consuming project's documented conventions, and the testable-vs-contracts decision,
   without naming any project, path, or framework (dropping `Platform.Messaging`, `libs/dotnet/`, and the
-  ghost `testing.md` reference to xUnit v3 / Shouldly — this plugin ships `write.md`/`organize.md` and
+  ghost `testing.md` reference to xUnit v3 / Shouldly, since this plugin ships `write.md`/`organize.md` and
   defers framework/assertion choices to the consuming project). Eval prompts/expectations only; no skill
   behavior, routing, or context files changed.
 
@@ -526,7 +548,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   the lone `dotnet test` regression block in `diagnose/context/loop.md` now carry an "illustrative (.NET)"
   label, with the regression block routed through `/toolchain:check` as SSOT for the exact per-ecosystem
   command (falling back to the project's own test command when the `toolchain` plugin is absent, matching
-  `write`'s handoff). Framing and labeling only — TDD cadence, Four Pillars, verify-through-the-interface, the
+  `write`'s handoff). Framing and labeling only. TDD cadence, Four Pillars, verify-through-the-interface, the
   reproduce→fix→retest→regression loop, and all routing/handoff are unchanged; no code, template, or
   command string was altered.
 
@@ -546,7 +568,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 
 ### Changed
 
-- **BREAKING: `/testing:e2e` renamed to `/testing:run-e2e`** (fleet conformance wave —
+- **BREAKING: `/testing:e2e` renamed to `/testing:run-e2e`** (fleet conformance wave:
   naming grammar, verb-first skill names). Update any saved invocations. Skill behavior,
   triggers, and evals are unchanged; only the leaf name and namespace token changed.
 
@@ -566,12 +588,12 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 
 ### Added
 
-- Initial release — four skills extracted and renamed from the `implementation` plugin's `test-*`
-  skills: `/testing:plan` (was `test-plan` — coverage-gap analysis), `/testing:write` (was `test-write` —
-  TDD authoring and placement), `/testing:e2e` (was `test-e2e` — live app + non-UI smoke verification),
-  and `/testing:diagnose` (was `test-diagnose` — failing-test root-cause diagnosis and the fix loop).
+- Initial release, with four skills extracted and renamed from the `implementation` plugin's `test-*`
+  skills: `/testing:plan` (was `test-plan`, coverage-gap analysis), `/testing:write` (was `test-write`,
+  TDD authoring and placement), `/testing:e2e` (was `test-e2e`, live app + non-UI smoke verification),
+  and `/testing:diagnose` (was `test-diagnose`, failing-test root-cause diagnosis and the fix loop).
   Skill trigger phrases and evals are preserved; only the namespace and leaf names changed.
 - Cross-plugin references degrade gracefully: test invocation defers to `/toolchain:build` when the
   `toolchain` plugin is installed (else the project's own test command), and handoffs to
   `/implementation:implement`, `/verification:confirm`, `/tdd:principles`, and `/playwright:playwright`
-  fire only when those plugins are installed — no hard dependencies.
+  fire only when those plugins are installed. No hard dependencies.

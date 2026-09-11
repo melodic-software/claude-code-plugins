@@ -1,4 +1,4 @@
-# Convention engagement — upstream-drift, fired at sweep completion
+# Convention engagement: upstream-drift, fired at sweep completion
 
 Drafted at design time; EXECUTED only when the repo-wide sweep completes (the Brief's execution
 contract names sweep completion, never spike results, as the firing event). One engagement, one

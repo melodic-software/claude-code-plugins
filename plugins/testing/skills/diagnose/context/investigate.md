@@ -1,10 +1,10 @@
 # Investigate Test Failures
 
-When tests fail, investigate — never dismiss, never retry blindly. Activates when a test failure needs diagnosis.
+When tests fail, investigate. Never dismiss, never retry blindly. Activates when a test failure needs diagnosis.
 
 ## Protocol
 
-1. **Capture the full error** — read the complete stack trace, assertion message, test output. Don't truncate. The diagnosis is often in the details
+1. **Capture the full error**. Read the complete stack trace, assertion message, test output. Don't truncate. The diagnosis is often in the details
 
 2. **Classify the failure type:**
 
@@ -12,19 +12,19 @@ When tests fail, investigate — never dismiss, never retry blindly. Activates w
    |---------|-------------|-------------------|
    | Assertion mismatch (expected vs actual) | Logic bug or stale expectation | Compare expected/actual, trace the code path |
    | NullReferenceException in test | Missing setup or DI registration | Check Arrange section, verify DI container |
-   | Process-global singleton "frozen" / "already initialized" error | Multiple WebApplicationFactory (or equivalent) instances | Check the consuming project's fixture conventions — apply the named fixture/collection pattern; avoid ad-hoc workarounds |
+   | Process-global singleton "frozen" / "already initialized" error | Multiple WebApplicationFactory (or equivalent) instances | Check the consuming project's fixture conventions. Apply the named fixture/collection pattern; avoid ad-hoc workarounds |
    | "Unknown option" from test runner | Bad CLI flags (e.g. `--nologo` against a Microsoft Testing Platform run, where the banner switch is `--no-banner`) | Strip the offending flag; confirm which runner and version the project uses. An unrecognized option exits 5, an invalid-argument code, not a zero-test result |
    | Timeout / hung test | Async deadlock, missing cancellation | Check for sync-over-async (`.Result` / `.Wait()`) |
    | Intermittent pass/fail | Shared static state, race condition | Check for process-global singletons, parallel execution |
    | FileNotFoundException for assembly | Missing project reference or build | Run the ecosystem's build by invoking `/toolchain:check` via the Skill tool first; verify project references |
 
-3. **Reproduce deterministically** — run the failing test in isolation. Use the ecosystem's per-framework filter syntax (e.g. `--filter "FullyQualifiedName~TestClassName.TestMethodName"` for xUnit; `-k <pattern>` for pytest; `--testNamePattern` for vitest).
+3. **Reproduce deterministically**. Run the failing test in isolation. Use the ecosystem's per-framework filter syntax (e.g. `--filter "FullyQualifiedName~TestClassName.TestMethodName"` for xUnit; `-k <pattern>` for pytest; `--testNamePattern` for vitest).
 
-   If it passes in isolation but fails with others: shared state problem — check the consuming project's fixture conventions for known workarounds.
+   If it passes in isolation but fails with others: shared state problem. Check the consuming project's fixture conventions for known workarounds.
 
-4. **Trace the root cause** — read the code path from test setup through assertion. Add logging or breakpoints if needed — tag every debug log with a unique short prefix (e.g. `[DEBUG-a4f2]`) so cleanup before commit is a single grep. Understand *why* it fails, not just *where*
+4. **Trace the root cause**. Read the code path from test setup through assertion. Add logging or breakpoints if needed. Tag every debug log with a unique short prefix (e.g. `[DEBUG-a4f2]`) so cleanup before commit is a single grep. Understand *why* it fails, not just *where*
 
-5. **Check for siblings** — is this a pattern? Could the same root cause exist in similar code paths?
+5. **Check for siblings**. Is this a pattern? Could the same root cause exist in similar code paths?
 
 ## The retry-is-not-a-fix rule
 
@@ -32,10 +32,10 @@ If a test passed on retry, the root cause is still present. It WILL surface agai
 
 **Anti-patterns:**
 
-- "It works on my machine" — environment difference is a real bug
-- "Probably a timing issue" — timing issues are deterministic if you look hard enough
-- `Thread.Sleep()` to "fix" a race — you're hiding the bug, not fixing it
-- Ignoring flaky tests — every flaky test is a latent production bug
+- "It works on my machine": environment difference is a real bug
+- "Probably a timing issue": timing issues are deterministic if you look hard enough
+- `Thread.Sleep()` to "fix" a race: you're hiding the bug, not fixing it
+- Ignoring flaky tests: every flaky test is a latent production bug
 
 ## Process-global static state (parallel test runners)
 
@@ -43,7 +43,7 @@ Most test runners parallelize across test classes / assemblies / modules. Proces
 
 **Rule**: only reset shared state in test classes that actually mutate it. Defensive reset in classes that don't touch the singleton introduces the race condition.
 
-**Repo-specific instances** of this pattern are usually catalogued in the consuming project's testing conventions (fixture token, reason, forbidden alternative) — consult them before inventing a new pattern.
+**Repo-specific instances** of this pattern are usually catalogued in the consuming project's testing conventions (fixture token, reason, forbidden alternative). Consult them before inventing a new pattern.
 
 ## After investigation
 

@@ -2,10 +2,10 @@
 
 Index for local Claude Code (CLI) OpenTelemetry capture into a per-developer store, plus the
 optional Aspire dashboard live tail. Machine provisioning owns Collector and dashboard
-lifecycle; this file provides the **Naming** section and topic dispatch table below — detail
+lifecycle; this file provides the **Naming** section and topic dispatch table below, and detail
 lives in the linked concern docs.
 
-**Agents:** read routing — [`read-routing.md`](read-routing.md). Scope reports — `/claude-ops:observability`.
+**Agents:** read routing is [`read-routing.md`](read-routing.md). Scope reports come from `/claude-ops:observability`.
 
 ## Naming
 
@@ -22,7 +22,7 @@ Claude Code → OTLP `http://127.0.0.1:4318` → OTel Collector → fan-out:
 - file exporter → `.claude/observability/otel/{cc-logs,cc-metrics,cc-traces}.json` (persistent
   store, gitignored, **`append: true`** so a Collector restart appends rather than truncating;
   DuckDB `read_json_auto` queries via [`../otel/cc-otel.sql`](../otel/cc-otel.sql))
-- `otlp_grpc/cc_dashboard` → Aspire standalone dashboard (**all three signals** — optional live UI;
+- `otlp_grpc/cc_dashboard` → Aspire standalone dashboard (**all three signals**, optional live UI;
   in-memory, bounded by the dashboard's built-in telemetry caps; restart resets it)
 
 The machine-owned receiver/exporter configuration is

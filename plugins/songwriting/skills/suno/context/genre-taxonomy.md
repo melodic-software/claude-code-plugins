@@ -21,20 +21,20 @@
 - [Bonus 2: Vibe → genre mapping](#bonus-2-vibe--genre-mapping)
 - [Cross-reference](#cross-reference)
 
-Static reference catalog of ~220 genres organized by 12-family tree. Used by the `/songwriting:suno genre` action when no template matches, and as a vibe-to-genre lookup for the `prompt` and `style` actions. Cross-link: when a family has an existing genre template, prefer it for the prompt skeleton — this file supplies the descriptor vocabulary. The complete template set is listed under Cross-reference below.
+Static reference catalog of ~220 genres organized by 12-family tree. Used by the `/songwriting:suno genre` action when no template matches, and as a vibe-to-genre lookup for the `prompt` and `style` actions. Cross-link: when a family has an existing genre template, prefer it for the prompt skeleton. This file supplies the descriptor vocabulary. The complete template set is listed under Cross-reference below.
 
 **Format conventions**
 
 - Wide table per family; leaf genres are rows. Differentiator + signature instrumentation as one-line sub-bullets under each row when the table would otherwise wrap awkwardly.
 - BPM ranges are typical sweet spots, not hard bounds. Suno responds well to a single numeric value inside the range.
 - Confidence column: **H** = multiple authoritative encyclopedia/journalism sources agree (Wikipedia + AllMusic + named music journalism); **M** = community consensus across producer guides + dedicated subreddits but no single canonical encyclopedia entry; **L** = niche/regional, limited cross-source corroboration, treat instrumentation as representative not definitive.
-- "Key tendency" describes the harmonic bias (minor/major, modal). Specifying a key in Suno is HIGH confidence per `style.md` — these tendencies are descriptive defaults, not prescriptions.
-- "Vocal style" is acoustic-descriptor language (clean / raw / melismatic / spoken / growled / falsetto / etc.) — feed these directly into the Suno style prompt's vocal layer.
+- "Key tendency" describes the harmonic bias (minor/major, modal). Specifying a key in Suno is HIGH confidence per `style.md`. These tendencies are descriptive defaults, not prescriptions.
+- "Vocal style" is acoustic-descriptor language (clean / raw / melismatic / spoken / growled / falsetto / etc.). Feed these directly into the Suno style prompt's vocal layer.
 
 **How to use this catalog with the skill**
 
-- `/songwriting:suno genre <name>` — if a template exists, load it; otherwise return the row from this file as a synthesized starter.
-- `/songwriting:suno prompt <intent>` — when a vibe is given, scan the Vibe-to-genre map at the bottom, pick 1-2 candidates, then pull the row to fill the 6-layer formula.
+- `/songwriting:suno genre <name>`: if a template exists, load it; otherwise return the row from this file as a synthesized starter.
+- `/songwriting:suno prompt <intent>`: when a vibe is given, scan the Vibe-to-genre map at the bottom, pick 1-2 candidates, then pull the row to fill the 6-layer formula.
 - Combine families to build a fusion (see Fusion patterns at the bottom).
 
 ---
@@ -89,7 +89,7 @@ Template: `../templates/metal.md`. Down-tuned guitars define the family; subdivi
 | - *Signature instrumentation:* Tremolo-picked rhythm + dual lead Gibson Explorer/Flying V + double-kick acoustic kit + pick-played bass. *Differentiator:* NWOBHM speed × hardcore-punk aggression × prog technicality; vocals NOT growled. |
 | Death metal (Florida) | 1989-1996 | Tampa, FL | 150-210 | Chromatic, diminished | Deep growls, full-throated roars | Studio polish (Morris Sound), tight blast beats | Brutal, technical, ominous | H |
 | Death metal (Stockholm) | 1990-1995 | Stockholm | 150-200 | Minor pentatonic, chromatic | Mid-register growls | Boss HM-2 buzzsaw guitar (maxed), Sunlight Studio mix | Filthy, primal, decaying | H |
-| - *Signature instrumentation:* Boss HM-2 distortion pedal cranked all dials + tremolo-picked downtuned guitars + double-bass kicks. *Differentiator:* Buzzsaw HM-2 tone is the entire identity — without it, this is generic death metal. |
+| - *Signature instrumentation:* Boss HM-2 distortion pedal cranked all dials + tremolo-picked downtuned guitars + double-bass kicks. *Differentiator:* Buzzsaw HM-2 tone is the entire identity. Without it, this is generic death metal. |
 | Melodic death metal (Gothenburg) | 1995-2005 | Gothenburg, SE | 140-180 | Minor, harmonic minor | Mid-range growls, occasional clean | Polished, harmonic-rich, melodic lead-guitar layers | Melancholy, epic, melodic | H |
 | Brutal death metal | 1991-present | NYC (Long Island) | 140-200 with breakdowns | Chromatic | Pitch-shifted gutturals | NY hardcore aggression, breakdown emphasis | Punishing, primitive, suffocating | M |
 | Slam death | 2000s-present | International | 90-160 | Chromatic | Pig-squeal + extreme low gutturals | Compressed breakdowns, drum triggers | Goofy-brutal, crushing | M |
@@ -129,7 +129,7 @@ Template: `../templates/pop.md`. Pop is hook-engineering wrapped around the prod
 | Dream pop | 1985-present | UK/US | 90-120 | Major | Whispered/breathy female (often) | Chorused guitars, reverb tails, warm pads | Hazy, romantic, ethereal | H |
 | Indie pop | 1985-present | UK/US | 100-130 | Major | Nasal/conversational | Twee jangly guitars, light kit, mid-fi mix | Quirky, earnest, melancholic | H |
 | Bedroom pop | 2017-present | online | 75-110 | Major-with-jazz-7ths | Whispered melodic, lo-fi mic | Chillwave keys, drum-machine kit, off-kilter mix | Intimate, hazy, melancholic | H |
-| - *Signature instrumentation:* Cassette-warm chord pads + brushed lo-fi drum machine + reverb-soaked vocal mic + DI bass. *Differentiator:* Production sounds like a teenager's bedroom — not "lo-fi as aesthetic" but actually lo-fi. |
+| - *Signature instrumentation:* Cassette-warm chord pads + brushed lo-fi drum machine + reverb-soaked vocal mic + DI bass. *Differentiator:* Production sounds like a teenager's bedroom: not "lo-fi as aesthetic" but actually lo-fi. |
 | Hyperpop | 2018-present | online | 135-180 | Major, often pitched-up | Heavy Auto-Tune (fast retune), chipmunk formant | Distorted 808s, bitcrushed hi-hats, OTT compression | Chaotic, maximalist, ironic | H |
 | K-pop | 1996-present | South Korea | 90-128 | Major, EDM verse-rap-chorus structure | Multi-vocal-style (rap + sing + ad-lib) | Hyper-polished, multi-genre-blend, EDM drops | Slick, dramatic, choreographic | H |
 | J-pop | 1990-present | Japan | 110-140 | Major, melodic-minor borrowings | Bright clean female melodic | Bright mix, ornate arrangements, anime-friendly | Bright, melodic, sentimental | H |
@@ -171,7 +171,7 @@ Template: `../templates/hip-hop.md` (boom bap, conscious), `../templates/trap.md
 | Chopped and screwed | 1995-present | Houston | 50-70 (slowed 1.5x) | Minor | Pitched-down slurred | Slowed-and-stopped DJ technique, deep bass | Hazy, syrupy, narcotic | H |
 | Chicago drill | 2011-present | Chicago | 60-70 (half-time feel) | Minor | Deadpan, aggressive | Booming 808s, sparse piano, triplet hi-hat rolls | Bleak, menacing, deadpan | H |
 | UK drill | 2014-present | South London | 140-145 | Minor (often Phrygian) | Rapid UK-slang flow, monotone | Sliding 808 bass (3+3+2 polyrhythm hi-hats), dark orchestral strings | Cinematic, paranoid, aggressive | H |
-| - *Signature instrumentation:* Sliding 808 bass + 3+3+2 syncopated hi-hats + dark orchestral strings + pitched vocal sample. *Differentiator:* Speed (140+) + syncopation + orchestral strings — Chicago drill is half-time/slow, UK drill is sprinting. |
+| - *Signature instrumentation:* Sliding 808 bass + 3+3+2 syncopated hi-hats + dark orchestral strings + pitched vocal sample. *Differentiator:* Speed (140+) + syncopation + orchestral strings. Chicago drill is half-time/slow, UK drill is sprinting. |
 | Brooklyn drill | 2019-present | NYC | 140-150 | Minor triads | Melodic-rap hybrid, aggressive | Sliding 808s + dark piano + bells, UK-flavored swing | Bouncy, aggressive, urban | H |
 | Detroit drill / Detroit "scary stories" | 2019-present | Detroit | 130-150 | Minor | Hyped storytelling, Auto-Tune ad-libs | Distorted 808s, eerie piano, horror synths | Goofy-sinister, narrative, frantic | M |
 | Irish drill | 2018-present | Dublin | 140-150 | Minor | Irish-accented fast flow | UK-drill production, rawer mix | Gritty, local, urgent | L |
@@ -335,7 +335,7 @@ The family weaves regional folk traditions, country's evolution (classic → out
 
 ## 9. World / Regional
 
-The largest geographically diverse family. Each region has multiple lineages — Latin (reggaeton/bachata/salsa lineage), Caribbean (reggae/dancehall lineage), African (afrobeats/amapiano), East Asian (K-pop/J-rock), South Asian (Bollywood/qawwali). Confidence skews lower for genres outside the Anglophone music-press canon.
+The largest geographically diverse family. Each region has multiple lineages: Latin (reggaeton/bachata/salsa lineage), Caribbean (reggae/dancehall lineage), African (afrobeats/amapiano), East Asian (K-pop/J-rock), South Asian (Bollywood/qawwali). Confidence skews lower for genres outside the Anglophone music-press canon.
 
 | Genre | Era | Region | BPM | Key | Vocal | Production | Mood | Conf |
 |-------|-----|--------|-----|-----|-------|------------|------|------|
@@ -380,7 +380,7 @@ The largest geographically diverse family. Each region has multiple lineages —
 | Kwaito | 1995-2005 | South Africa | 120-130 | Modal | Spoken/rapped township slang | Deep sub bass + swung kicks + simple stabs + vocal chops | Laid-back, party, township | M |
 | Gqom | 2010-present | Durban, SA | 120-130 | Minor monotonic | Repetitive Zulu chants | Distorted bass synth + constant kicks (no 4-on-floor) + triplet perc | Dark, raw, minimal | M |
 | Amapiano | 2014-present | South Africa | 110-115 | Major-7, jazz changes | Sung/chanted Zulu/Xhosa | Log drum (woody bass) + Rhodes/synth pads + shaker perc + soft 4-on-floor | Laid-back, jazzy, communal | H |
-| - *Signature instrumentation:* Log drum (woody percussive sub-bass) + Rhodes/warm pad with jazz 7ths/9ths + shaker-heavy percussion + soft four-on-the-floor kick. *Differentiator:* Log drum + jazz piano voicings + slower BPM than house — the log drum is the genre-defining sound. |
+| - *Signature instrumentation:* Log drum (woody percussive sub-bass) + Rhodes/warm pad with jazz 7ths/9ths + shaker-heavy percussion + soft four-on-the-floor kick. *Differentiator:* Log drum + jazz piano voicings + slower BPM than house. The log drum is the genre-defining sound. |
 | K-pop | 1996-present | South Korea | 90-128 | Major, EDM/R&B fusion | Multi-vocal-style group | Hyper-polished, multi-genre verse-chorus structure | Slick, choreographic, dramatic | H |
 | J-pop | 1990-present | Japan | 110-140 | Major, melodic-minor borrowings | Bright clean female | Ornate arrangements, anime-friendly | Bright, sentimental | H |
 | J-rock | 1985-present | Japan | 130-180 | Minor, modal | Anguished tenor | Distorted guitars + symphonic/electronic blend | Dramatic, anguished, anthemic | H |
@@ -449,7 +449,7 @@ Genres organized around texture and atmosphere rather than song-form. Tempo is o
 
 ## 12. Niche / Modern / Internet-era
 
-Genres that emerged primarily through SoundCloud, TikTok, YouTube, and Discord communities, often with rapid cycles and shared producer vocabularies. Confidence skews MEDIUM — communities are recent and definitions still shift.
+Genres that emerged primarily through SoundCloud, TikTok, YouTube, and Discord communities, often with rapid cycles and shared producer vocabularies. Confidence skews MEDIUM. Communities are recent and definitions still shift.
 
 <!-- chord/vocal-production vocabulary in table trips the spell-checker --><!-- spellchecker:off -->
 | Genre | Era | Region | BPM | Key | Vocal | Production | Mood | Conf |
@@ -486,7 +486,7 @@ Genres that emerged primarily through SoundCloud, TikTok, YouTube, and Discord c
 
 ## Bonus 1: Fusion patterns
 
-Common AI-music fusion shorthand and how the blend typically works. Suno responds well when one parent is dominant and the other supplies texture or context. **No numeric weight is stated here** — no source states a percentage split, and the 2026-08-12 source pass behind `power-tips.md` "Genre fusion — anchor and accent" found the anchor/accent *hierarchy* attested across three community guides. The mechanism and its sources, confidence rung, and recheck trigger live in that section; this table is the applied shorthand.
+Common AI-music fusion shorthand and how the blend typically works. Suno responds well when one parent is dominant and the other supplies texture or context. **No numeric weight is stated here.** No source states a percentage split, and the 2026-08-12 source pass behind the `power-tips.md` genre-fusion section (anchor and accent) found the anchor/accent *hierarchy* attested across three community guides. The mechanism and its sources, confidence rung, and recheck trigger live in that section; this table is the applied shorthand.
 
 | Fusion | Dominant parent | Supplied by secondary | Suno descriptor sketch |
 |---|---|---|---|

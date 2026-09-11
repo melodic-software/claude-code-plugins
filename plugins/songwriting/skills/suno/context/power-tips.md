@@ -3,7 +3,7 @@
 ## Contents
 
 - [Tag order](#tag-order)
-- [Genre fusion — anchor and accent](#genre-fusion--anchor-and-accent)
+- [Genre fusion: anchor and accent](#genre-fusion-anchor-and-accent)
 - [Stem-loop refinement (Premier)](#stem-loop-refinement-premier)
 - [Two-pass vocal isolation](#two-pass-vocal-isolation)
 - [Persona-as-draft-mode](#persona-as-draft-mode)
@@ -18,7 +18,7 @@
 
 Techniques here are community-reported and **not Suno-documented**. Exact magnitudes vary by prompt.
 
-**Confidence is per section, not per file** — read the flag on the section you are using. This file carries no blanket rung, because two sections inside it are explicitly flagged unverified. A section carrying no flag has not been audited.
+**Confidence is per section, not per file.** Read the flag on the section you are using. This file carries no blanket rung, because two sections inside it are explicitly flagged unverified. A section carrying no flag has not been audited.
 
 Pair with `tips.md` (lyric-side performance tricks) and `lyrics.md` "Per-section style overrides" (lyrics-as-second-style-channel technique).
 
@@ -26,25 +26,25 @@ Pair with `tips.md` (lyric-side performance tricks) and `lyrics.md` "Per-section
 
 **The two halves of this rule have different standing.** An r/SunoAI pass run via the browser route on 2026-08-12 sources the first half at the bottom rung and leaves the second unsourced.
 
-- **Front-loading — now community-attested at LOW-MEDIUM.** An upvoted r/SunoAI guide post, [*"Expanded Insight and Guidance on Suno Style Prompt Writing"*](https://www.reddit.com/r/SunoAI/comments/1h4zc7e/expanded_insight_and_guidance_on_suno_style/) (13 votes, 28 comments), leads with **"Key Insight 1: Order Matters"** and states that Suno assigns importance by order, that the first descriptors set the stage while later ones add flavor, and that you should put the most crucial element first. It gives a paired optimized/less-effective example differing **only** in which half leads. Read by eye from the rendered page on 2026-08-12.
+- **Front-loading: now community-attested at LOW-MEDIUM.** An upvoted r/SunoAI guide post, [*"Expanded Insight and Guidance on Suno Style Prompt Writing"*](https://www.reddit.com/r/SunoAI/comments/1h4zc7e/expanded_insight_and_guidance_on_suno_style/) (13 votes, 28 comments), leads with **"Key Insight 1: Order Matters"** and states that Suno assigns importance by order, that the first descriptors set the stage while later ones add flavor, and that you should put the most crucial element first. It gives a paired optimized/less-effective example differing **only** in which half leads. Read by eye from the rendered page on 2026-08-12.
 
-  **LOW-MEDIUM, not MEDIUM** — and the rung is the ladder's, not a judgment call. `SKILL.md` defines LOW-MEDIUM as *"at most a single community post plus its own comment thread"*, which is exactly what this is: **one** post. MEDIUM needs multiple guides **plus** Reddit consensus, and no second independent source states per-tag weighting — the first-party beat article speaks to category order, not tag weight, and the v4.5 help article points away from prioritized tokens.
-- **Middle-tag softening (roughly 4-7) — still unsourced, in either direction.** The post above says nothing about middle positions, and nothing else found does either. This half stays an untested rule of thumb; do not let the sourcing of the first half carry it.
+  **LOW-MEDIUM, not MEDIUM**, and the rung is the ladder's, not a judgment call. `SKILL.md` defines LOW-MEDIUM as *"at most a single community post plus its own comment thread"*, which is exactly what this is: **one** post. MEDIUM needs multiple guides **plus** Reddit consensus, and no second independent source states per-tag weighting. The first-party beat article speaks to category order, not tag weight, and the v4.5 help article points away from prioritized tokens.
+- **Middle-tag softening (roughly 4-7): still unsourced, in either direction.** The post above says nothing about middle positions, and nothing else found does either. This half stays an untested rule of thumb; do not let the sourcing of the first half carry it.
 - **Grouping negatives at the end is an organizational convention.** No source establishes that end-placement changes exclusion weight; the `no X` syntax itself is community-attested. Searched for directly: no source addresses placement at all.
 
-**Era caveat, and it is load-bearing.** That post is from 2024 (v3/v4 era). Suno's own [help.suno.com 5782849](https://help.suno.com/en/articles/5782849) says of v4.5 that *"In previous models, you would want to prioritize certain genre and style details, but your instructions can now include a more conversational prompt."* First-party guidance is therefore moving **away** from the terse prioritized-token style the front-loading rule is about. Treat front-loading as attested for the terse comma-separated form and **unverified for v5.5 conversational prompts**, which is what this skill targets.
+**Era caveat, and it changes the reading.** That post is from 2024 (v3/v4 era). Suno's own [help.suno.com 5782849](https://help.suno.com/en/articles/5782849) says of v4.5 that *"In previous models, you would want to prioritize certain genre and style details, but your instructions can now include a more conversational prompt."* First-party guidance is therefore moving **away** from the terse prioritized-token style the front-loading rule is about. Treat front-loading as attested for the terse comma-separated form and **unverified for v5.5 conversational prompts**, which is what this skill targets.
 
 Practical: if mood matters more than genre for a specific song, lead with mood. If a single instrument is the song's signature, name it before the genre. Cheap to try.
 
-**Also first-party on ordering:** [how-to-make-beats](https://web.archive.org/web/20260420183956/https://suno.com/hub/how-to-make-beats) (live `suno.com/hub/how-to-make-beats` 404s as of 2026-08-21; this April 2026 snapshot still carries the quote), fetched 2026-08-12 — Suno *"reads prompts as structured instructions. A clear hierarchy matters … A strong prompt follows this order: tempo, genre, rhythm style, instruments, and mood."* That prescribes an ordering of descriptor **categories** and is scoped to beat-making, so it corroborates "order is meaningful" without speaking to per-tag weight.
+**Also first-party on ordering:** [how-to-make-beats](https://web.archive.org/web/20260420183956/https://suno.com/hub/how-to-make-beats) (live `suno.com/hub/how-to-make-beats` 404s as of 2026-08-21; this April 2026 snapshot still carries the quote), fetched 2026-08-12. Suno *"reads prompts as structured instructions. A clear hierarchy matters … A strong prompt follows this order: tempo, genre, rhythm style, instruments, and mood."* That prescribes an ordering of descriptor **categories** and is scoped to beat-making, so it corroborates "order is meaningful" without speaking to per-tag weight.
 
 **Recheck trigger:** Suno documents style-prompt ordering for v5 or later, **or** an r/SunoAI thread dated to the v5.x era tests front-loading on conversational prompts, **or** a re-read finds the cited post no longer carrying its Key Insight 1. Not a date.
 
-## Genre fusion — anchor and accent
+## Genre fusion: anchor and accent
 
 **What is attested is a hierarchy.** Give one genre the lead and let the second supply texture; do not bill two genres equally. All three sources below say this.
 
-**Position remains unestablished. One anecdote does not change that.** The 2026-08-12 r/SunoAI pass found a user reporting a bare order swap — in [*"Style order"*](https://www.reddit.com/r/SunoAI/comments/1g5qzes/style_order/), that `progressive metal, jazz` and `jazz, progressive metal` gave noticeably different results, the first heavier and more prog.
+**Position remains unestablished. One anecdote does not change that.** The 2026-08-12 r/SunoAI pass found a user reporting a bare order swap in [*"Style order"*](https://www.reddit.com/r/SunoAI/comments/1g5qzes/style_order/): that `progressive metal, jazz` and `jazz, progressive metal` gave noticeably different results, the first heavier and more prog.
 
 **It varies the right variable but cannot measure the effect, and this skill's own guidance says why.** `tips.md` "Generate 4 versions per prompt" states *"Variance is high. First generation is rarely best."* Against a stochastic generator, one run per ordering leaves run-to-run variance as an uncontrolled confounder: two different outputs are exactly what you would expect from the *same* prompt twice. Isolating position needs repeated or seed-controlled comparison, which nobody has published. The same thread's other reply says merged styles need no particular order.
 
@@ -60,19 +60,19 @@ vs
 dream-pop with synth-pop production
 ```
 
-These are expected to produce **different outputs** — but note *what* differs. The lead genre is the noun the track **is**; the accent is a thing the track **has**. Grammatical role is the signal the guides describe explicitly, and word order moves with it here. **This example cannot separate the two**, because it changes both at once — so use it as an illustration of anchor/accent, never as evidence about position. The comma-swap report above varies position alone but, as noted, has no power behind it, so **no source here isolates position with evidence**.
+These are expected to produce **different outputs**, but note *what* differs. The lead genre is the noun the track **is**; the accent is a thing the track **has**. Grammatical role is the signal the guides describe explicitly, and word order moves with it here. **This example cannot separate the two**, because it changes both at once, so use it as an illustration of anchor/accent, never as evidence about position. The comma-swap report above varies position alone but, as noted, has no power behind it, so **no source here isolates position with evidence**.
 
-**Three or more genres with no hierarchy degrades the result** — sources describe mush, averaging, and drift. No source states a numeric cap: two sources model exactly one anchor plus one accent, and a third warns against "three-way competition". Treat two as the working default and anything beyond as needing an explicit hierarchy, not as a hard limit.
+**Three or more genres with no hierarchy degrades the result.** Sources describe mush, averaging, and drift. No source states a numeric cap: two sources model exactly one anchor plus one accent, and a third warns against "three-way competition". Treat two as the working default and anything beyond as needing an explicit hierarchy, not as a hard limit.
 
 **Between LOW-MEDIUM and MEDIUM.** `SKILL.md` defines MEDIUM as multiple community guides **plus** Reddit consensus. Three independent guides give the first half. The 2026-08-12 r/SunoAI pass found **one** corroborating post (its "first descriptors set the stage, later ones add flavor" is the same stage/flavor hierarchy) and one thread split on bare order: corroboration, not consensus. One post is the ladder's own LOW-MEDIUM ceiling, so the Reddit clause is **still unmet**, and the section is not rounded up. Surface as an opt-in suggestion, not a default. Reach r/SunoAI through the browser route `workflow-recipes.md` documents; web search and direct fetch both fail there, and a failed search is not a closed corpus.
 
 Verified 2026-08-12; each web page below fetched live by `curl` (bodies arrived whole; character counts are of the extracted text, quotes verbatim), each Reddit thread read by eye from the rendered page.
 
-- [sunopromptpro.com/en/guides/suno-genre-combinations](https://www.sunopromptpro.com/en/guides/suno-genre-combinations) (7,086 chars) — *"A genre combination should not give every style equal authority. Start with the lane that should control the song shape"*; and *"Avoid three-way competition. Most hybrid prompts become weaker when they name three or four genres with no hierarchy."*
-- [brahmstorm.com/blog/suno-genre-blending-prompts-that-actually-work](https://brahmstorm.com/blog/suno-genre-blending-prompts-that-actually-work/) (8,741 chars) — *"pick ONE dominant genre as the anchor … then add ONE accent genre"*; and, **qualifying** rather than refuting the positional reading, *"The cleanest way to signal hierarchy is through sentence structure, not just word order."*
-- [jackrighteous.com — Suno prompt too complicated](https://jackrighteous.com/en-us/blogs/guides-using-suno-ai-music-creation/suno-prompt-too-complicated-clean-workflow) (22,431 chars) — *"Blending Genres Requires a Hierarchy … The problem begins when every genre is treated as an equal foundation."*
-- r/SunoAI [*"Expanded Insight and Guidance on Suno Style Prompt Writing"*](https://www.reddit.com/r/SunoAI/comments/1h4zc7e/expanded_insight_and_guidance_on_suno_style/), 13 votes / 28 comments — "Key Insight 1: Order Matters"; first descriptors set the stage, later ones add flavor. **2024, v3/v4 era.**
-- r/SunoAI [*"Style order"*](https://www.reddit.com/r/SunoAI/comments/1g5qzes/style_order/), 1 vote / 2 comments — a single-run comma-swap anecdote, **and** a reply asserting no particular order is needed. Cited for the split and for the test design it suggests, not for a verdict.
+- [sunopromptpro.com/en/guides/suno-genre-combinations](https://www.sunopromptpro.com/en/guides/suno-genre-combinations) (7,086 chars): *"A genre combination should not give every style equal authority. Start with the lane that should control the song shape"*; and *"Avoid three-way competition. Most hybrid prompts become weaker when they name three or four genres with no hierarchy."*
+- [brahmstorm.com/blog/suno-genre-blending-prompts-that-actually-work](https://brahmstorm.com/blog/suno-genre-blending-prompts-that-actually-work/) (8,741 chars): *"pick ONE dominant genre as the anchor … then add ONE accent genre"*; and, **qualifying** rather than refuting the positional reading, *"The cleanest way to signal hierarchy is through sentence structure, not just word order."*
+- [jackrighteous.com, Suno prompt too complicated](https://jackrighteous.com/en-us/blogs/guides-using-suno-ai-music-creation/suno-prompt-too-complicated-clean-workflow) (22,431 chars): *"Blending Genres Requires a Hierarchy … The problem begins when every genre is treated as an equal foundation."*
+- r/SunoAI [*"Expanded Insight and Guidance on Suno Style Prompt Writing"*](https://www.reddit.com/r/SunoAI/comments/1h4zc7e/expanded_insight_and_guidance_on_suno_style/), 13 votes / 28 comments: "Key Insight 1: Order Matters"; first descriptors set the stage, later ones add flavor. **2024, v3/v4 era.**
+- r/SunoAI [*"Style order"*](https://www.reddit.com/r/SunoAI/comments/1g5qzes/style_order/), 1 vote / 2 comments: a single-run comma-swap anecdote, **and** a reply asserting no particular order is needed. Cited for the split and for the test design it suggests, not for a verdict.
 
 **Not officially documented.** `help.suno.com` articles [5782849](https://help.suno.com/en/articles/5782849) (1,177 chars, whole) and [5782977](https://help.suno.com/en/articles/5782977) (805 chars, whole) were read verbatim on 2026-08-12 and neither addresses genre order or fusion; 5782849 points the other way for v4.5+, saying *"In previous models, you would want to prioritize certain genre and style details, but your instructions can now include a more conversational prompt."* That absence is scoped to those two pages, not to Suno's documentation as a whole.
 
@@ -94,12 +94,12 @@ Result: targeted layer regenerates cleaner; rest of mix preserved when you re-co
 
 Cleaner vocal separation than single-pass generation:
 
-**Pass 1 — instrumental only:**
+**Pass 1, instrumental only:**
 
 - Lyrics field: `[Melodic Instrumental]`
 - Style prompt: target arrangement + `instrumental, no vocals` at end
 
-**Pass 2 — vocals over Pass 1:**
+**Pass 2, vocals over Pass 1:**
 
 - Upload Pass 1's audio
 - Audio Influence ~80% (community-derived starting point; not officially confirmed)
@@ -113,7 +113,7 @@ Output: instrumental + isolated vocal. Trivial to remix or mute either side in e
 Cheap iteration before committing to final Custom prompt:
 
 1. Save a known-good song as Persona ("Make Persona" from song menu)
-2. Generate 4-8 drafts with Persona + minimal new prompt — fast, low effort
+2. Generate 4-8 drafts with Persona + minimal new prompt: fast, low effort
 3. Use drafts to test ARRANGEMENT ideas (verse/chorus pacing, bridge placement)
 4. Lock the arrangement you like
 5. Regenerate that arrangement with FULL Custom prompt (precise instrumentation, mood, production layers) for the production take
@@ -128,10 +128,10 @@ Personas trade fidelity for speed; full Custom mode trades speed for fidelity. U
 | `.` | Full stop pause | ~0.7s |
 | `—` (em dash) | Held note / sustain | varies |
 | `…` (ellipsis) | Natural breath / contemplative pause | 0.5-2s |
-| `!` | Emphasis spike on preceding word | — |
-| `?` | Rising inflection on final word | — |
-| Newline | Melodic boundary / phrase end | — |
-| `(parenthetical)` | Inline performance directive | — |
+| `!` | Emphasis spike on preceding word | n/a |
+| `?` | Rising inflection on final word | n/a |
+| Newline | Melodic boundary / phrase end | n/a |
+| `(parenthetical)` | Inline performance directive | n/a |
 
 Use punctuation as **rhythm notation**, not just orthography. A line with no commas runs together; a line with three commas breathes.
 
@@ -212,7 +212,7 @@ Beats `like The Killers` (filtered) AND beats generic `2000s indie rock`. Specif
 
 ## Empirical Custom Model trick
 
-Train Custom Model on YOUR own reference catalog of songs you LOVE the sonic DNA of (must own — 6+ tracks):
+Train Custom Model on YOUR own reference catalog of songs you LOVE the sonic DNA of (must own, 6+ tracks):
 
 - Style tags now operate relative to YOUR baseline, not generic averages
 - Effectively produces "songs that sound like ME but new"
@@ -242,7 +242,7 @@ Same intent, different cache hits. Often unblocks stuck regenerations.
 
 ## v5.5-specific empirical findings (post-March 2026)
 
-These are tips discovered AFTER v5.5 release, validated through multi-user community testing. Several CONTRADICT earlier-era advice — flagged where applicable.
+These are tips discovered AFTER v5.5 release, validated through multi-user community testing. Several CONTRADICT earlier-era advice, flagged where applicable.
 
 ### v5.5 = personalization layer over v5 audio engine
 
@@ -252,9 +252,9 @@ Practical implication: **detailed prompts override My Taste**; vague prompts let
 
 ### Voice Audio Influence: raise it when resemblance is poor
 
-**First-party direction, narrowly scoped:** Suno's Voices walkthrough says to set Audio Influence "fairly high," and its Voices FAQ says to experiment with turning it up, when fixing poor voice resemblance. **Neither publishes a number**, so every specific threshold below is community-derived and unverified — not officially confirmed.
+**First-party direction, narrowly scoped:** Suno's Voices walkthrough says to set Audio Influence "fairly high," and its Voices FAQ says to experiment with turning it up, when fixing poor voice resemblance. **Neither publishes a number**, so every specific threshold below is community-derived and unverified, not officially confirmed.
 
-Community reports describe higher slider values importing recording artifacts (mic coloration, room tone, breath placement) along with vocal identity. Treat that as a reported tradeoff: raise the slider when resemblance is poor, compare outputs, and back down if artifacts intrude — then improve the source recording rather than chasing a threshold Suno has not published.
+Community reports describe higher slider values importing recording artifacts (mic coloration, room tone, breath placement) along with vocal identity. Treat that as a reported tradeoff: raise the slider when resemblance is poor, compare outputs, and back down if artifacts intrude, then improve the source recording rather than chasing a threshold Suno has not published.
 
 Full detail in [voices.md](voices.md#audio-influence-with-an-active-voice).
 
@@ -264,19 +264,19 @@ Full detail in [voices.md](voices.md#audio-influence-with-an-active-voice).
 
 ### Delivery tags are now per-section local in v5.5
 
-`[Whispered]`, `[Belted]`, `[Falsetto]`, `[Humming]`, `[Scream]`, `[Ad-lib]`, `[Call and Response]` reshape the cloned voice WITHIN the section they appear in — they no longer apply globally.
+`[Whispered]`, `[Belted]`, `[Falsetto]`, `[Humming]`, `[Scream]`, `[Ad-lib]`, `[Call and Response]` reshape the cloned voice WITHIN the section they appear in. They no longer apply globally.
 
 This enables **single-voice album-arc dynamics**: same Voice clone, different delivery character per song or per section, just by adding the right delivery tag inside the section.
 
 ### Custom Model break-in period
 
-First 5-10 generations from a freshly-trained Custom Model feel generic. Quality "activates" after 5-10 exposures — Suno calibrates the model's response to your usage patterns over the first batch.
+First 5-10 generations from a freshly-trained Custom Model feel generic. Quality "activates" after 5-10 exposures. Suno calibrates the model's response to your usage patterns over the first batch.
 
 **Don't judge a Custom Model's quality on first 3 generations.** Burn through 10 before evaluating.
 
 ### My Taste creative flattening (community debate)
 
-Community blind tests found disabled-MyTaste batches show MORE instrumentation/tonal variety than enabled-MyTaste batches. Effect is real but bounded — **detailed verbose prompting neutralizes the flattening**.
+Community blind tests found disabled-MyTaste batches show MORE instrumentation/tonal variety than enabled-MyTaste batches. Effect is real but bounded: **detailed verbose prompting neutralizes the flattening**.
 
 Advanced creators with verbose prompting see no difference. Casual users with terse prompts get flattened toward their voting history.
 
@@ -303,7 +303,7 @@ Generate creatively in v4.5 Plus first → then `Cover Song` → v5.5 with style
 
 Three-dot menu on any song → `Create` → `Make Persona` → select 30s vocal window.
 
-Enables **album-vocal continuity across genre-diverse tracks** — same vocal character on a synth-pop song and an acoustic ballad and a hip-hop track.
+Enables **album-vocal continuity across genre-diverse tracks**: same vocal character on a synth-pop song and an acoustic ballad and a hip-hop track.
 
 ### Studio "Remove Effects" per-stem (v5.5)
 
@@ -319,7 +319,7 @@ If a generated track has subtle tempo drift, in Studio: Transport Bar → tempo 
 
 v5.5 outputs frequently have sibilance buildup around 3.4kHz. **Aggressive de-essing post-export is often required** for vocal-clarity-critical work.
 
-Some creators retain v4.5 Plus access for vocal-critical work and use v5.5 for instrumental-critical work — picking the model based on whether the vocal needs to sit clean.
+Some creators retain v4.5 Plus access for vocal-critical work and use v5.5 for instrumental-critical work, picking the model based on whether the vocal needs to sit clean.
 
 ### Legacy Editor for Extend (workaround)
 

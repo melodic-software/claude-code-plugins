@@ -63,7 +63,7 @@ check.
    `work` have nothing to act on; `apply --seed-schedule` seeds it. (Report this only once the root
    shape validates, probe 3 establishes file presence alone and cannot tell empty from malformed.)
 5. **Tracked, not ignored**, a present schedule (and a present binding) must be committed to be
-   team-shared: probe the pair per path — `git check-ignore -v` (match = FAIL with the pattern)
+   team-shared. Probe the pair per path: `git check-ignore -v` (match = FAIL with the pattern)
    AND `git ls-files --error-unmatch` (non-zero = FAIL: un-ignored but untracked; "commit it").
 6. **Recurring-maintenance role label**. Role-label resolution is an action-entry invariant per the
    tracker-seam reference; probe it. With no binding (probe 2 INFO) the role remap has nothing to

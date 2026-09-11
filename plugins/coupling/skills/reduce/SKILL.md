@@ -1,5 +1,5 @@
 ---
-description: "Iteratively reduce coupling at any altitude — documents, code modules, applications, or repositories: scan for change-transmitting dependencies typed against a coupling model, verify each finding, apply a budgeted batch of safe behavior-preserving reductions, and ledger structural candidates for design routing so repeated runs continue where the last stopped. Use when: 'reduce coupling', 'decouple', 'loosen coupling', 'too tightly coupled', 'high cohesion low coupling', 'break this dependency', 'dependency injection pass', 'externalize this config', 'connascence', 'coupling scan', 'these files always change together', 'stop copying between repos'. Skip when: reviewing a diff before merge (review tools), deep-designing one already-chosen boundary (/architecture:improve), general structural tidyings with no coupling focus (/code-tidying:tidy), or a docs noise/dedup pass with no cross-artifact coupling angle (docs-hygiene)."
+description: "Iteratively reduce coupling at any altitude, whether documents, code modules, applications, or repositories: scan for change-transmitting dependencies typed against a coupling model, verify each finding, apply a budgeted batch of safe behavior-preserving reductions, and ledger structural candidates for design routing so repeated runs continue where the last stopped. Use when: 'reduce coupling', 'decouple', 'loosen coupling', 'too tightly coupled', 'high cohesion low coupling', 'break this dependency', 'dependency injection pass', 'externalize this config', 'connascence', 'coupling scan', 'these files always change together', 'stop copying between repos'. Skip when: reviewing a diff before merge (review tools), deep-designing one already-chosen boundary (/architecture:improve), general structural tidyings with no coupling focus (/code-tidying:tidy), or a docs noise/dedup pass with no cross-artifact coupling angle (docs-hygiene)."
 argument-hint: "[<scope> | dry-run [<scope>] | status | help]"
 user-invocable: true
 disable-model-invocation: false
@@ -181,7 +181,7 @@ The counterweights this skill exists to hold. Add here when a new one surfaces.
 - **Over-abstraction is decoupling's own disease.** An interface with one implementation, an
   event bus for a one-to-one call, a config knob nothing varies. Each adds indirection while
   the coupling remains. Every remediation entry carries a *not when*; honor it. The deletion
-  test: if removing the new seam tomorrow would change nothing but line count, it earned
+  test: if removing the new indirection tomorrow would change nothing but line count, it earned
   nothing.
 - **Cross-file and architectural findings are never auto-applied.** They are designed to
   inform a human; surfacing them ranked is the success state, not a failure to finish.

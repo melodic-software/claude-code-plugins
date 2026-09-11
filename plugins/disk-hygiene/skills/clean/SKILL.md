@@ -285,7 +285,7 @@ Only when `--execute` was requested, write `<run-dir>/plan-<tier>.json`; never m
       "reason": "failed atomic-write staging file",
       "evidence": ["documented name shape", "owner process absent"],
       "why_not_work_product": "generated staging bytes with no durable consumer",
-      "risk": "low — regenerable staging residue; no live consumer",
+      "risk": "low: regenerable staging residue; no live consumer",
       "owner": "unmanaged"
     }
   ]
@@ -330,7 +330,7 @@ After an affirmative answer in this interactive session, run only:
 
 Never use `rm`, `rmdir`, `Remove-Item`, `del`, `find -delete`, or an ad-hoc Python deletion call. The
 skill-frontmatter belt blocks those bypasses and returns a hook-issued `ask`
-(`permissionDecision: "ask"`) for the exact engine apply command — the same mechanism as the
+(`permissionDecision: "ask"`) for the exact engine apply command, the same mechanism as the
 PowerShell deletion lane below, including the `dontAsk` / `permissions.ask` caveats. Confirm that
 prompt only when it matches the tier and paths just approved. If the plan, snapshot,
 path identity, descendant set, VCS state, or handle state changed, re-scan and re-ask; never reuse a

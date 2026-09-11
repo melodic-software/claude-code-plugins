@@ -1,20 +1,20 @@
-# Variations — Labeled Alternates
+# Variations: Labeled Alternates
 
 ## Contents
 
 - [When to load](#when-to-load)
 - [Axes for variation](#axes-for-variation)
-- [Step 1 — Pick the axis](#step-1--pick-the-axis)
-- [Step 2 — Generate 4-6 labeled variations](#step-2--generate-4-6-labeled-variations)
-- [Presenting the candidates — chat vs file (writer-requested, 2026-08-12)](#presenting-the-candidates--chat-vs-file-writer-requested-2026-08-12)
-- [Step 3 — Highlight the trade-offs](#step-3--highlight-the-trade-offs)
-- [Step 4 — Do NOT pick a winner](#step-4--do-not-pick-a-winner)
+- [Step 1: Pick the axis](#step-1-pick-the-axis)
+- [Step 2: Generate 4-6 labeled variations](#step-2-generate-4-6-labeled-variations)
+- [Presenting the candidates: chat vs file (writer-requested, 2026-08-12)](#presenting-the-candidates-chat-vs-file-writer-requested-2026-08-12)
+- [Step 3: Highlight the trade-offs](#step-3-highlight-the-trade-offs)
+- [Step 4: Do NOT pick a winner](#step-4-do-not-pick-a-winner)
 - [Artifact pattern](#artifact-pattern)
 - [Common failure modes](#common-failure-modes)
 - [Cross-references](#cross-references)
 
 When the writer asks for "5 versions of this line" / "another way to say
-this" / "what else could verse 2 be" — generate variations along a chosen
+this" / "what else could verse 2 be", generate variations along a chosen
 axis with explicit labels so the writer compares deliberately.
 
 Pat's stance: more options = better choices. Variations are not waste; they
@@ -32,18 +32,18 @@ differently".
 Six primary axes. Pick the axis that matters for the choice the writer is
 making, not all axes at once.
 
-### Axis 1 — POV shift
+### Axis 1: POV shift
 
 Same line / section, different speaker or address.
 
 - 1st person (I) ↔ 2nd person (you) ↔ 3rd person (he/she/they)
 - Direct address (talking to "you") ↔ Narrative (telling about "you")
-- Inclusive 1st person plural (we) — late shift can land hard
+- Inclusive 1st person plural (we): a late shift can land hard
 
 Per `point-of-view.md` camera distances. POV shifts change emotional
 distance dramatically.
 
-### Axis 2 — Image shift
+### Axis 2: Image shift
 
 Same idea, different concrete image carrying it.
 
@@ -55,7 +55,7 @@ Same idea, different concrete image carrying it.
 Per `object-writing.md` Rusty's-collar rewrite pattern + `metaphor.md`
 metaphor recipes.
 
-### Axis 3 — Vowel shift
+### Axis 3: Vowel shift
 
 Same line meaning, different stressed vowel (changes singability + rhyme
 neighborhood entirely).
@@ -67,7 +67,7 @@ neighborhood entirely).
 
 Each variation lists the new stressed vowel.
 
-### Axis 4 — Stress count shift (length)
+### Axis 4: Stress count shift (length)
 
 Same line, different stress count.
 
@@ -78,7 +78,7 @@ Same line, different stress count.
 Useful for fixing greedy spots, matching melody, restructuring rhyme
 scheme.
 
-### Axis 5 — Rhyme-type shift
+### Axis 5: Rhyme-type shift
 
 Same content, different rhyme stability tier in the rhyme position.
 
@@ -88,7 +88,7 @@ Same content, different rhyme stability tier in the rhyme position.
 
 Per `rhyme-strategy.md` decision matrix.
 
-### Axis 6 — Tone-of-voice shift
+### Axis 6: Tone-of-voice shift
 
 Same content, different emotional register.
 
@@ -100,7 +100,7 @@ Same content, different emotional register.
 Per `prosody.md` tone-of-voice stability. Changes diction, syntax,
 imagery.
 
-## Step 1 — Pick the axis
+## Step 1: Pick the axis
 
 Ask which dimension the writer is uncertain about. If the writer doesn't
 know, surface 2-3 axis options and let them pick:
@@ -111,10 +111,10 @@ know, surface 2-3 axis options and let them pick:
 - "Is the rhyme too closed / open? → rhyme-type axis"
 - "Is the tone right? → tone-of-voice axis"
 
-If multiple axes apply, run them as separate batches — one axis per batch
+If multiple axes apply, run them as separate batches. One axis per batch
 keeps comparison deliberate.
 
-## Step 2 — Generate 4-6 labeled variations
+## Step 2: Generate 4-6 labeled variations
 
 Each variation gets an explicit label naming what changed and why.
 
@@ -160,12 +160,12 @@ VARIATION 6 — [axis: tone-of-voice shift, controlled → raw]
 If the writer chose ONE axis in Step 1, do not span 6 axes. Generate 4-6
 variations within that axis.
 
-## Presenting the candidates — chat vs file (writer-requested, 2026-08-12)
+## Presenting the candidates: chat vs file (writer-requested, 2026-08-12)
 
 *This file's own additions, not book claims:* everything in this section is
 the writer's own stated convention, requested 2026-08-12 after the candidates
 he was shown could not be judged for singability. The `►` marker and the 3-4
-chat-menu cap are HIS notation and HIS number, not Pat's — no book claim is
+chat-menu cap are HIS notation and HIS number, not Pat's. No book claim is
 made for either, and none of it carries a citation. The craft it protects
 (the writer's sing-check as the final test) is cited where it lives, in
 [audit-checklist.md](audit-checklist.md) and
@@ -175,36 +175,36 @@ The Step 2 format block above is the **file** shape: every candidate with its
 full metadata (vowel, stress count, POV, rhyme position) plus its
 per-candidate craft notes, persisted per the "Artifact pattern" section below.
 It is NOT the chat shape. A bare one-line candidate in a table forces the
-writer to re-embed it in the section by hand before he can sing it — and the
+writer to re-embed it in the section by hand before he can sing it, and the
 singing is where the judgement actually happens.
 
-### Dump vs menu — the distinction the word "inline" is about
+### Dump vs menu: the distinction the word "inline" is about
 
 [artifact-persistence.md](artifact-persistence.md) and the co-write skill both
-forbid an "inline dump." That prohibition is about the DUMP — the whole generated
+forbid an "inline dump." That prohibition is about the DUMP: the whole generated
 set pasted into chat, unlabeled and untrimmed. It is not a prohibition on
 candidates appearing in chat at all. The MENU is the opposite thing: 3-4 curated
 candidates, each rendered as a complete singable passage. The dump goes to the
-file. The menu goes to chat, and it is required — a variations response with
+file. The menu goes to chat, and it is required. A variations response with
 nothing singable in it has not been delivered.
 
 ### The chat shape
 
-- **Always show candidates IN CONTEXT** — render the full section, or the
+- **Always show candidates IN CONTEXT**: render the full section, or the
   changed lines plus at least the neighboring line on each side. When the
   edit sits at a section boundary, include the last line of the previous
   section or the first line of the next.
 - **Mark changed lines** with a leading `►` so the eye finds the diff
   instantly; unchanged context lines render plain.
 - **One block per variation**, labeled (A/B/C...), so versions compare as
-  complete singable passages — never as bare one-line fragments in a table.
-- **Keep the chat menu to 3-4 candidates.** Full analysis — scansion maps,
-  rubric results, rhyme-type labels — lives in the `variations/` file, not
-  inline.
+  complete singable passages, never as bare one-line fragments in a table.
+- **Keep the chat menu to 3-4 candidates.** The full analysis lives in the
+  `variations/` file, not inline: scansion maps, rubric results, rhyme-type
+  labels.
 - **Scansion / slot detail appears in chat only when the discussion IS the
   meter**; otherwise reference the worksheet file.
 
-### Worked example — the shape
+### Worked example: the shape
 
 Placeholder content, invented here for the shape only:
 
@@ -221,7 +221,7 @@ B. (image axis — the cars pass instead)
 ```
 
 Two blocks, one changed line each, marked; the writer sings both against the
-same neighbors. Which one wins is his call — Step 4 below still holds.
+same neighbors. Which one wins is his call. Step 4 below still holds.
 
 ### The cap is a display cap, not a generation cap
 
@@ -243,13 +243,13 @@ them later.
 ### Scope of this section
 
 This governs only the SHAPE of what is shown. Whether a candidate is *ready*
-to be shown is [line-edit-rubric.md](line-edit-rubric.md) — the per-edit cycle the
+to be shown is [line-edit-rubric.md](line-edit-rubric.md), the per-edit cycle the
 writer requested in the same 2026-08-12 breath, whose pass 1 must be clean before
 anything reaches the menu, and whose closing sing-check is always the final gate.
 Do not read this section as authorizing emission of a line that has not been
 through it.
 
-## Step 3 — Highlight the trade-offs
+## Step 3: Highlight the trade-offs
 
 For each variation, name what the variation gains AND what it loses
 compared to the original.
@@ -261,7 +261,7 @@ compared to the original.
 
 The writer chooses by trade-off, not by what reads best in isolation.
 
-## Step 4 — Do NOT pick a winner
+## Step 4: Do NOT pick a winner
 
 Surface the labeled list with trade-offs. Let the writer choose.
 
@@ -273,8 +273,8 @@ discipline]. Which matters most for this song?"
 
 Variations land in `songwriting/songs/<slug>/variations/<section>-<line>.md`
 per the SKILL.md "Artifact Persistence" layout. Each variations file is a
-labeled menu — not a
-diff — so the writer can choose later.
+labeled menu, not a
+diff, so the writer can choose later.
 
 Example file structure:
 
@@ -301,25 +301,25 @@ same file rather than deleting them. They may help later songs.
 
 | Failure | Recovery |
 |---|---|
-| Writer wants "best" instead of options | hold the line — Pat's framing: options first, choice second |
+| Writer wants "best" instead of options | hold the line, per Pat's framing: options first, choice second |
 | Variations all on the same axis | re-distribute across 2-3 axes if scope is open |
 | Variations diverge too far from original | reduce variation distance; small moves first |
 | Variations break the section's prosody | drop the variation; surface the prosody constraint as the deciding factor |
-| Writer can't decide | run `audit-checklist.md` per-line on each variation; let the audit surface the load-bearing trade-off |
+| Writer can't decide | run `audit-checklist.md` per-line on each variation; let the audit surface the trade-off that decides it |
 
 ## Cross-references
 
-- `point-of-view.md` — POV axis source
-- `object-writing.md` — image axis source
-- `metaphor.md` — image-shift via metaphor recipes
-- `meter.md` — stress-count axis source
-- `rhyme-strategy.md` — rhyme-type axis source
-- `prosody.md` — tone-of-voice axis source
-- `audit-checklist.md` — per-line evaluation across variations
-- `rhyme-generation.md` — vowel-shift rhyme implications
-- `line-brainstorm.md` — the high-volume dump that feeds this menu; its
+- `point-of-view.md`: POV axis source
+- `object-writing.md`: image axis source
+- `metaphor.md`: image-shift via metaphor recipes
+- `meter.md`: stress-count axis source
+- `rhyme-strategy.md`: rhyme-type axis source
+- `prosody.md`: tone-of-voice axis source
+- `audit-checklist.md`: per-line evaluation across variations
+- `rhyme-generation.md`: vowel-shift rhyme implications
+- `line-brainstorm.md`: the high-volume dump that feeds this menu; its
   volume and this file's 3-4 chat cap are different moments
-- `line-edit-rubric.md` — the per-candidate cycle a variation clears BEFORE it
+- `line-edit-rubric.md`: the per-candidate cycle a variation clears BEFORE it
   reaches the menu this file shapes
-- `artifact-persistence.md` — where the `variations/` file lives, and the
+- `artifact-persistence.md`: where the `variations/` file lives, and the
   "don't dump options inline" wording this file qualifies

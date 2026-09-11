@@ -1,6 +1,6 @@
 # Unit Testing Anti-Patterns (Khorikov)
 
-Six anti-patterns analyzed through the Four Pillars framework: testing private methods, exposing private state, leaking domain knowledge, code pollution, mocking concrete classes, and time as ambient context (Ch 11). Each anti-pattern looks reasonable on the surface but leads to problems — primarily by coupling tests to implementation details and damaging resistance to refactoring.
+Six anti-patterns analyzed through the Four Pillars framework: testing private methods, exposing private state, leaking domain knowledge, code pollution, mocking concrete classes, and time as ambient context (Ch 11). Each anti-pattern looks reasonable on the surface but leads to problems, primarily by coupling tests to implementation details and damaging resistance to refactoring.
 
 ## 1. Unit Testing Private Methods
 
@@ -8,14 +8,14 @@ Six anti-patterns analyzed through the Four Pillars framework: testing private m
 
 > "Exposing methods that you would otherwise keep private just to enable unit testing violates one of the foundational principles: testing observable behavior only."
 
-Testing private methods couples tests to implementation details, damaging resistance to refactoring — the most important of the Four Pillars. Instead, test private methods indirectly through the public API.
+Testing private methods couples tests to implementation details, damaging resistance to refactoring, the most important of the Four Pillars. Instead, test private methods indirectly through the public API.
 
 ### When a Private Method Seems Too Complex to Cover Indirectly
 
 If the observable behavior doesn't provide sufficient coverage for a complex private method, two issues may be at play:
 
-1. **Dead code** — the private method contains unused logic left after a refactoring. Delete it
-2. **Missing abstraction** — the private method contains important logic that deserves its own class
+1. **Dead code**: the private method contains unused logic left after a refactoring. Delete it
+2. **Missing abstraction**: the private method contains important logic that deserves its own class
 
 ```csharp
 // BEFORE — complex private method buried inside Order
@@ -38,7 +38,7 @@ public class PriceCalculator
 }
 ```
 
-`PriceCalculator` is now a public class with a public method — testable with output-based testing. No hidden inputs or outputs.
+`PriceCalculator` is now a public class with a public method, testable with output-based testing. No hidden inputs or outputs.
 
 ### The Rare Exception: Private Methods That Are Observable Behavior
 
@@ -61,7 +61,7 @@ public class Inquiry
 }
 ```
 
-The private constructor fulfills the ORM contract — it's observable behavior from the ORM's perspective. Making it public (with proper preconditions) won't lead to test brittleness and arguably improves the API design. Alternative: use reflection to instantiate in tests (mirrors what the ORM does).
+The private constructor fulfills the ORM contract. It's observable behavior from the ORM's perspective. Making it public (with proper preconditions) won't lead to test brittleness and arguably improves the API design. Alternative: use reflection to instantiate in tests (mirrors what the ORM does).
 
 ## 2. Exposing Private State for Testing
 
@@ -82,7 +82,7 @@ public class Customer
 }
 ```
 
-Don't make `_status` public for testing. The production code uses `GetDiscount()` — test through that:
+Don't make `_status` public for testing. The production code uses `GetDiscount()`, so test through that:
 
 - A newly created customer has no discount (0%)
 - Once promoted, the discount becomes 5%
@@ -93,7 +93,7 @@ If the production code later starts using `_status` directly, it would naturally
 
 ## 3. Leaking Domain Knowledge to Tests
 
-Tests that reproduce the production algorithm in the arrange section are **tautology tests** — they couple to implementation details and have near-zero resistance to refactoring.
+Tests that reproduce the production algorithm in the arrange section are **tautology tests**. They couple to implementation details and have near-zero resistance to refactoring.
 
 ```csharp
 // BAD — leaking the algorithm into the test
@@ -122,7 +122,7 @@ public void Adding_two_numbers(int value1, int value2, int expected)
 
 > **"Don't imply any specific implementation when writing tests."** Hardcode expected results. For complex algorithms, precalculate expected values with the help of a domain expert or (for legacy refactoring) use the old system's output as the expected baseline.
 
-This may seem counterintuitive, but hardcoded values provide an independent checkpoint. Tests that duplicate the algorithm become a mirror — if the algorithm changes, developers copy-paste the new version into the test without investigating whether the change is correct.
+This may seem counterintuitive, but hardcoded values provide an independent checkpoint. Tests that duplicate the algorithm become a mirror. If the algorithm changes, developers copy-paste the new version into the test without investigating whether the change is correct.
 
 ## 4. Code Pollution
 
@@ -165,7 +165,7 @@ public class FakeLogger : ILogger   // Test code only
 }
 ```
 
-The `ILogger` interface is technically a mild form of code pollution (it exists partly for testing), but it's far less damaging — interfaces have no code, can't harbor bugs, and can't accidentally trigger production behavior.
+The `ILogger` interface is technically a mild form of code pollution (it exists partly for testing), but it's far less damaging. Interfaces have no code, can't harbor bugs, and can't accidentally trigger production behavior.
 
 ## 5. Mocking Concrete Classes
 
@@ -259,7 +259,7 @@ inquiry.Approve(DateTime.Now);  // caller provides the value
 
 > "Prefer injecting the time as a value rather than as a service. It's easier to work with plain values in production code, and it's also easier to stub those values in tests."
 
-**Khorikov's recommended compromise**: inject time as a service at the controller level (DI-friendly), then pass it as a plain value to domain classes. The controller in listing 11.17 does exactly this — it accepts `DateTimeServer` (service) but passes `_dateTimeServer.Now` (value) to `inquiry.Approve()`.
+**Khorikov's recommended compromise**: inject time as a service at the controller level (DI-friendly), then pass it as a plain value to domain classes. The controller in listing 11.17 does exactly this. It accepts `DateTimeServer` (service) but passes `_dateTimeServer.Now` (value) to `inquiry.Approve()`.
 
 ## Quick Reference
 

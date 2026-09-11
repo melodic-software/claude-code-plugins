@@ -2,20 +2,20 @@
 
 The durable artifact that makes runs iterative. Location resolves through this plugin's
 topic-docs binding (`../../../reference/topic-docs.md`): memory tier, constant slug, default
-`.work/coupling/coupling-ledger.md`, never committed. One ledger per repository — scoped
+`.work/coupling/coupling-ledger.md`, never committed. One ledger per repository. Scoped
 runs, unscoped runs, and `status` all resolve this same file, with each run's scope recorded
-in the header and each entry carrying its own paths — updated in place: statuses inside it,
-not filenames or per-scope slices, carry run-to-run history.
+in the header and each entry carrying its own paths. The file is updated in place: statuses
+inside it, not filenames or per-scope slices, carry run-to-run history.
 
 ## File shape
 
 ```markdown
-# Coupling ledger — <scope description>
+# Coupling ledger: <scope description>
 
 - updated: <ISO-8601 UTC of the last write>
 - scope: <the resolved scope of the most recent scan>
 
-## <finding title — short, edge-first>
+## <finding title, short and edge-first>
 
 - status: proposed | applied | deferred | routed | rejected
 - altitude: docs | code | app | repo
@@ -23,13 +23,13 @@ not filenames or per-scope slices, carry run-to-run history.
 - strength: <ladder rung or connascence form>
 - degree: <how many sites participate>
 - locality: <same file | same module | cross-module | cross-app | cross-repo>
-- volatility: <evidence that the depended-on side changes — commits, co-change pairs>
+- volatility: <evidence that the depended-on side changes: commits, co-change pairs>
 - evidence: <the concrete reproducible observation, file paths included>
 - evidence-verified: <true only once phase C reproduced this observation>
 - lane: apply | route
 - remediation: <catalog entry name from remediations.md>
 - outcome: <commit/PR/tracker/handoff reference once status leaves proposed>
-- rejected-reason: <only when status is rejected and the reason is load-bearing>
+- rejected-reason: <only when status is rejected and the reason will matter to a later run>
 ```
 
 `evidence` is the observation (what was seen, where); the narrative interpretation lives in
@@ -39,15 +39,15 @@ verified one.
 
 ## Status lifecycle
 
-- `proposed` — verified finding awaiting capacity. The next run's apply lane draws from
+- `proposed`: verified finding awaiting capacity. The next run's apply lane draws from
   these first, before scanning for new ones.
-- `applied` — reduction landed and the batch verification passed; `outcome` names the
+- `applied`: reduction landed and the batch verification passed; `outcome` names the
   commit or PR.
-- `deferred` — apply lane but over this run's budget, or blocked by a soft exclusion;
+- `deferred`: apply lane but over this run's budget, or blocked by a soft exclusion;
   carries what unblocks it.
-- `routed` — route lane, handed off; `outcome` names the design session, tracker item, or
+- `routed`: route lane, handed off; `outcome` names the design session, tracker item, or
   `/architecture:improve` candidate it became.
-- `rejected` — deliberately not pursued (not-a-finding on closer look, counterweight won,
+- `rejected`: deliberately not pursued (not-a-finding on closer look, counterweight won,
   consumer standards sanction the coupling). Keep these: they stop the next run from
   re-proposing the same edge.
 
@@ -60,6 +60,6 @@ verified one.
   (fixed by other work, artifact deleted) → close it with a one-line outcome. Never re-emit
   an entry from memory of a previous run.
 - **New findings merge by edge.** Two findings with the same edge and mechanism are the
-  same entry — update it rather than appending a near-duplicate.
+  same entry. Update it rather than appending a near-duplicate.
 - **`rejected` is sticky.** Do not re-propose a rejected edge unless its evidence has
   materially changed; note the change when reopening.

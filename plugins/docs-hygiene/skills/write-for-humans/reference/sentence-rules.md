@@ -1,12 +1,12 @@
-# Sentence rules — address, load, and ambiguity
+# Sentence rules: address, load, and ambiguity
 
 The three sentence-level layers of the default set, in one file because they apply to every sentence
 at once. Splitting them by standard would make you open three files per sentence.
 
-Read this while drafting. It is the fallback set — when the consuming project declares its own style
+Read this while drafting. It is the fallback set. When the consuming project declares its own style
 guide, that guide replaces everything here, and the skill body says so before you get this far.
 
-## Address — how the sentence talks to the reader
+## Address: how the sentence talks to the reader
 
 Paraphrased from the Google developer documentation style guide.
 
@@ -19,12 +19,12 @@ Paraphrased from the Google developer documentation style guide.
   what does not apply to them.
 - Put the common case first. Exceptions after.
 - Sound like a knowledgeable friend. No buzzwords, no figurative language, no "please" in
-  instructions, and never "simply", "easy", or "quickly" in a procedure — if it were simple the
+  instructions, and never "simply", "easy", or "quickly" in a procedure. If it were simple the
   reader would not be here.
 - Do not pre-announce ("we will soon support…"), and do not start consecutive sentences with the
   same phrase.
 - Read the awkward sentence aloud. If it stays awkward, rewrite it.
-- Link with words that say where the link goes — the page title or a short description, never
+- Link with words that say where the link goes: the page title or a short description, never
   "click here". A sentence of context on the page beats a link off it.
 - Headings carry the point, not just the topic ("Pick the mode first", not "Modes"). Sentence case.
   A task heading is a bare verb phrase; a concept heading is a noun phrase. One h1 per page, no
@@ -34,7 +34,7 @@ Paraphrased from the Google developer documentation style guide.
 - Code goes in code font, UI elements in bold. Use serial commas. Drop "etc." and say up front when
   a list is partial.
 
-## Load — how much one sentence carries
+## Load: how much one sentence carries
 
 Paraphrased from ASD-STE100 Simplified Technical English. The numbered rules and the controlled
 dictionary live in the specification itself; these are the transferable principles, which is why
@@ -52,7 +52,7 @@ this file is a paraphrase and never a substitute for the spec.
   component", not "the component must be installed".
 - Avoid "-ing" words where you can. They take too many grammatical jobs and breed misreadings.
 
-## Ambiguity — can this be read two ways?
+## Ambiguity: can this be read two ways?
 
 Paraphrased from Kohl, *The Global English Style Guide*. The audience these rules protect is the
 non-native reader, the translator, and the agent, all of whom parse plain constructions best.
@@ -76,7 +76,7 @@ non-native reader, the translator, and the agent, all of whom parse plain constr
 - No slashes: write "a, b, or both" instead of "a/b" or "and/or".
 - Call each thing by one name, everywhere. A document that says "the gate", "the ratchet", and "the
   budget check" for one thing teaches three things. Rewording an unchanged sentence between edits
-  costs the same way — do not churn what did not change.
+  costs the same way. Do not churn what did not change.
 - Skip idioms, colloquialisms, Latin abbreviations, and metaphors.
 
 ### Two punctuation rules that a project may well disable
@@ -86,7 +86,7 @@ sentence. Both are here because they are part of the standard being paraphrased,
 first rules a project with a deliberate house style is likely to overrule.
 
 That is the intended outcome, not a defect. A project that uses em dashes on purpose disables this
-pair the same way it disables any other rule — through its own declared style guide or its prose
-linter's configuration — and the disabled rule stays visible as a decision rather than vanishing.
+pair the same way it disables any other rule, through its own declared style guide or its prose
+linter's configuration, and the disabled rule stays visible as a decision rather than vanishing.
 Do not apply either rule to a project that has ruled against it, and do not delete them for
 projects that have not.
