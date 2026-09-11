@@ -3,6 +3,42 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.51.0]
+
+### Fixed
+
+- **`audit-skill-visibility` derives the listing budget from the effective settings and a
+  model band instead of hardcoded defaults.** The report read `skillListingBudgetFraction`
+  and `skillListingMaxDescChars` from nowhere and assumed a 200k window at 4 bytes per token,
+  so a repository that tunes the fraction saw an overflow that did not exist. The script now
+  merges both keys across the user, project, local, and managed scopes (the `--settings`
+  flag scope is reported as unread, never absent), enumerates managed policy only through the
+  vendored `lib/managed-scope.sh`, honors `CLAUDE_CODE_DISABLE_1M_CONTEXT` and
+  `CLAUDE_CODE_MAX_CONTEXT_TOKENS` from the process environment, and reports a
+  window x bytes-per-token band when nothing pins the model. `--budget-fraction`,
+  `--max-desc-chars`, and `--bytes-per-token` join `--context-window`, whose silent 200k
+  default is gone. JSON schema 1.1.0, additive.
+- **`audit-skill-visibility` withholds per-skill starvation verdicts when every usage score is
+  zero.** With no observed usage the product's stable sort keeps catalog order, so "which
+  skills are starved" is a tie, not a ranking. The overflow arithmetic and the cannot-fit
+  count stay; the per-skill claim moves to the `withheld` section with its reason.
+- **`audit-skill-visibility` determines reachability in a live run.** `--installed` now reads
+  `enabledPlugins` through the same settings merge and marks a disabled plugin's skills
+  `hidden` with the scope file as evidence; `--plugins-root` says a checkout is not an install
+  instead of reporting every row `unknown`. The `skillOverrides` path is removed: plugin
+  skills are governed by `enabledPlugins`, and `skillOverrides` never applies to them, so the
+  description no longer names it as a way a plugin skill loses visibility.
+
+- **`audit-skill-visibility` honors `defaultEnabled` and keeps disabled plugins out of the listing
+  contest.** A plugin with no `enabledPlugins` entry anywhere falls back to the marketplace entry's
+  `defaultEnabled`, then the plugin's own `plugin.json` field, then enabled, with the source named as
+  evidence. A disabled plugin's skills are `exempt-hidden`: the product never loads them, so they
+  spend no budget and carry no starvation verdict.
+
+### Added
+
+- `lib/managed-scope.sh`, vendored from `claude-config` through `scripts/sync-managed-scope.sh`.
+
 ## [0.50.0]
 
 ### Added
