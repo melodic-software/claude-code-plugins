@@ -4,7 +4,7 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
-## [0.10.1]
+## [0.11.1]
 
 ### Changed
 
@@ -26,6 +26,47 @@ only after that version increases.
   `[0.6.4]`, `[0.6.3]`, `[0.6.2]`, `[0.6.1]`, `[0.6.0]`, `[0.5.2]`, `[0.5.1]`, `[0.5.0]`,
   `[0.4.0]`, `[0.3.2]`, `[0.3.1]`, `[0.3.0]`, `[0.2.0]`, and `[0.1.0]`. Wording only; every
   entry's facts are unchanged.
+## [0.11.0]
+
+### Added
+
+- **`reference/prompt-caching.md`**: a new API-side prompt-caching and cost chapter (prefix
+  stability, deferred tools, mid-conversation system messages, effort-and-cache with beta
+  boundaries, breakpoints and pre-warming, TTL, cache diagnostics, batching, Admin API spend
+  profiling, output bounding as a request-level lever), with every row verified against the
+  named live doc page and routed from the fable-5 chapter table. Adopted from the vetted
+  ClaudeDevs cost-performance article (`docs/upstream/claudedevs-cost-performance.md`).
+- **`reference/model-adaptation/fable-5-1.md`**: a "Cross-model effort economics" section
+  (test the newer model at lower effort before working the older one harder; flat-curve
+  reading), pricing-free per the chapter's standing rule, with sources.
+- **`fable-5`**: a `## Boundary, the bundled claude-api skill` section stating the composite
+  posture with the bundled skill (prefer it for every current fact a chapter points at and for
+  the cost audit itself; this playbook for the judgment around those facts and the mechanisms
+  that outlive any one price), with a mutation gate and an availability rule that never
+  assumes the bundled skill resolves. The automation pointer in `reference/prompt-caching.md`
+  is now gated on the bundled skill resolving in the session.
+
+## [0.10.1]
+
+### Fixed
+
+- **`skill-authoring`**: `reference/authoring-guidance.md` corrections after an independent audit
+  of its claims against the official pages. The 1,024-character description cap is stated as the
+  Agent Skills specification's, enforced by its `skills-ref` validator and stated as a Skills API
+  upload requirement (the earlier "enforced on upload paths (claude.ai, the Skills API)" named a
+  surface no source documents); the dependency paragraph carries the platform overview's second
+  Claude Code bullet (installs stay local to the project, never global) and scopes its example
+  accordingly; the network sentence separates the Claude API sandbox (no network, no runtime
+  installs, pre-installed list only) from claude.ai (varies with admin settings) instead of one
+  "platform sandbox"; the `/skill-doctor` mention is presence-gated with its version floor stated
+  as "v2.1.252 or later" and its feature-flag and terminal conditions, per the native-references
+  convention; the 500-line rule's "advisory on every surface" now rests on a recorded
+  `--plugin-dir` load probe (Claude Code 2.1.263, 2026-09-11, a 608-line SKILL.md loaded and
+  invoked) as well as the docs; and every Record line cites its basis by anchored URL rather than a
+  quoted section name, with the spoke's intro tightened to match the upstream-drift record form.
+  `evals/evals.json` case 3 follows the cap wording.
+- **`skill-authoring`**: `reference/authoring-checklist.md` gains the presence-gated skill-creator
+  row in its Testing group (attestation), which the guidance spoke carried but the checklist did not.
 
 ## [0.10.0]
 

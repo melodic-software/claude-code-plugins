@@ -122,34 +122,53 @@ the source level.
 
 ## The Boundary section
 
-Where a description clause is too small for the real distinction, the component's **body** carries a
-fuller section, modeled on the `review` plugin's organic pattern
-(`/review:quality-gate` and `/review:fanout` each carry one):
+The Boundary section is the surface a verdict lands on. **A store row whose verdict is not `defer`
+and whose observation is extraction-evidence lands together with its `## Boundary` section in the
+component's body, in the same change.** A verdict that lives only in the store changes nothing the
+model reads: the registry is a maintainer surface and shipped plugins never carry it, so until the
+body says how the two surfaces relate, the overlap the row records is still silent at runtime.
+The section costs nothing the description phrase costs. Bodies load only on invocation, so a
+Boundary section spends no shared listing budget and changes no routing; the gate the phrase
+earns (below) has no reason to hold the section back.
+
+The section carries the conclusion: the surfaces by provenance class, the routing split, and the
+mutation gate. The four-part records behind it (the basis each upstream specific rests on, its
+as-of date, its recheck trigger, the extraction or docs evidence) live in a **reference file inside
+the same skill**, linked from the section with a same-plugin relative path, so the body stays short
+and the detail stays reachable. Modeled on the `review` plugin's organic pattern (`/review:quality-gate`
+and `/review:fanout` each carry one):
 
 ```markdown
-## Boundary: <the native surfaces this skill overlaps>
+## Boundary, the bundled `<name>` skill
 
 <One sentence naming the surfaces and why they are conflated.>
 
-- **<name> (<provenance class>)**: what it does, what it mutates, how it is invoked.
-- **<name> (<provenance class>)**: same.
+- **`<name>` (<provenance class>)**: what it does, what it mutates, how it is invoked.
+- **`<name>` (<provenance class>)**: same.
 
 **Routing:** <when to prefer each>.
 
 **Mutation gate:** <which invocations mutate, and the explicit opt-in they require>.
 ```
 
-Five properties the section keeps:
+Six properties the section keeps:
 
-1. **Surfaces named by provenance class**, exactly as in the description phrase.
-2. **A mutation gate per surface that mutates.** Naming an overlap without naming what it writes
+1. **Every overlapped surface named in the section, as a code span.** `## Boundary` on its own is
+   a heading any prose satisfies, and several components carry one for a surface this convention
+   has no verdict on. The heading naming the surface is the preferred shape and is what the
+   template above shows; a generic `## Boundary` heading is still accepted when the section text
+   names the surface, which is how one section covers a component that overlaps several. Either
+   way the name is a code span, so a surface whose name is also an ordinary English word (`run`,
+   `design`) is never satisfied by a sentence that happens to use the word.
+2. **Surfaces named by provenance class**, exactly as in the description phrase.
+3. **A mutation gate per surface that mutates.** Naming an overlap without naming what it writes
    invites an unrequested mutation.
-3. **One owning description, pointers elsewhere.** Where two components in the *same plugin* both
+4. **One owning description, pointers elsewhere.** Where two components in the *same plugin* both
    overlap the surface, one carries the description and the other points at it with a same-plugin
    relative link and adds only what is specific to itself. Cross-plugin pointers are forbidden.
-4. **Presence-gated language throughout**: the body inherits the description's gate; it never
+5. **Presence-gated language throughout**: the body inherits the description's gate; it never
    promotes a surface to available because the body is longer.
-5. **Upstream specifics carry their basis and date**, per
+6. **Upstream specifics carry their basis and date**, per
    [`upstream-drift`](../upstream-drift/README.md).
 
 ## Self-containment: shipped plugins never cite the registry
@@ -160,9 +179,13 @@ broken reference at install time, and the reader would be routed to a file that 
 
 So: baked text repeats what it needs and cites nothing outside its own plugin. The registry is a
 maintainer surface: it records the verdict, the evidence, and the trigger that would change them;
-the component carries the conclusion. This is the same direction the parity check enforces
-mechanically: every baked line traces back to a store row, while a store row without a baked line
-is legal pending-sweep state.
+the component carries the conclusion. The parity check enforces the forward direction
+mechanically: every baked line traces back to a store row, and a claimed Boundary section must name
+that row's surface rather than merely carry the heading. In the other direction the two baked
+surfaces differ. A row without its Boundary section is a defect the self-check fails on, because
+the section costs nothing and can always land in the change that adds the row; a row without a
+description phrase is legal pending state, because the phrase is the budget-priced,
+routing-affecting half and earns its separate gate.
 
 ## Enforceability
 
@@ -171,6 +194,7 @@ Classified per `melodic-software/standards` `conventions/engineering/enforceabil
 | Judgment | Tier |
 |---|---|
 | A baked native reference traces to a store row | **Deterministic**: built, as the overlap self-check's store↔baked-line parity pass |
+| Every non-`defer` extraction-evidence row has its Boundary section (`baked.boundary_section` true, and a `## Boundary` section in the component naming that row's surface as a code span) | **Deterministic**: built, in the same self-check, as a blocking problem (exit 1). The tier carries no advisory grade: advisory belongs to detect-then-judge, where a tool narrows a set a human then rules on, and nothing here needs a ruling. A consumer gate passes a degraded run because degraded reports what this repository cannot fix by editing its own files; a missing section is fixable in the change that adds the row |
 | Every store row carries a recheck trigger and a class-tagged observation record | **Deterministic**: built, in the same self-check |
 | The phrase uses the presence gate rather than an availability assertion | **Detect-then-judge**: the `resolves in your session` token is greppable, but deciding whether a *different* sentence asserts availability is a judgment about meaning. Candidate check named, not built: flag a component description naming a bundled or built-in surface with no gate token. Build trigger: a second assertion-shaped native reference reaches `main` after this doc |
 | The routing split is the right one | **Reasoning-only**: it is the verdict, and verdicts are human-gated by design |
@@ -182,8 +206,20 @@ Classified per `melodic-software/standards` `conventions/engineering/enforceabil
 | `/claude-ops:audit-install-state` | Description phrase + `## Boundary` section for the bundled `doctor` skill (verdict `complementary`) |
 | `/review:quality-gate`, `/review:fanout` | The organic Boundary pattern this doc generalizes; adopts the phrasing rules on next touch |
 
-Fleet-wide application is a reserved, separately gated sweep: one plugin per unit, each unit running
-apply, verify, PR, close, never a single fleet-wide edit.
+| `/claude-config:audit-instructions` | `## Boundary` section for the bundled `claude-api` skill's `prompt-audit` subcommand (verdict `complementary`, composite posture), four-part detail in the skill's own reference file; no description phrase |
+| `/evals:methodology` | `## Boundary` section for the bundled `claude-api` skill's `hillclimb` and `build-eval` subcommands (verdict `complementary`); detail in the skill's eval-design reference |
+| `/playbooks:fable-5` | `## Boundary` section for the bundled `claude-api` skill as the live-facts and cost-audit surface its chapters defer to (verdict `complementary`); detail in the pack's prompt-caching reference chapter |
+| `/review:code-review`, `/review:security-review` | `## Boundary` sections for the bundled `code-review` skill and the native `security-review` command (verdict `complementary`, CI lane versus session pass); four-part detail in each skill's `reference/` file; no description phrase |
+| `/code-tidying:tidy`, `/code-tidying:batch-simplify` | `## Boundary` sections for the bundled `simplify` skill (verdict `complementary`, diff-anchored versus lane- and sweep-anchored); detail in each skill's reference or context file; no description phrase |
+| `/testing:run-e2e` | `## Boundary` section for the bundled `run` skill (verdict `complementary`, a look versus evidenced verification); detail in the skill's context file; no description phrase |
+| `/claude-ops:audit-performance`, `/claude-ops:audit-skill-visibility` | `## Boundary` sections for the bundled `doctor` skill (and `/skill-doctor` for the second), verdict `complementary`; the second also carries the description phrase; detail in each skill's `reference/` file |
+| `/visualization:visualize`, `/prototype:explore-directions` | `## Boundary` sections for the bundled `design` skill (verdict `complementary`, user-run canvas versus throwaway page or mockup); detail in the catalog spoke and the skill's `reference/` file; no description phrase |
+
+Applying **description phrases** fleet-wide is a reserved, separately gated sweep: one plugin per
+unit, each running apply, verify, PR, close, never a single fleet-wide edit, because each phrase
+and spends shared budget. **Boundary sections** are not routing-affecting and spend no budget, so
+Boundary-only baking may land across several plugins in one change; the unit rule does not apply
+to it.
 
 ## Versioning
 

@@ -5,7 +5,7 @@ All notable changes to the `context-budget` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.6.26]
+## [0.6.27]
 
 ### Changed
 
@@ -15,6 +15,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **The plugin's prose drops its em dashes.** Five surfaces were rewritten: this changelog, two `skills/audit/reference/` documents, `skills/setup/SKILL.md`, and the `context-sample.md` parser fixture. Wording only, with no change to any lever, measurement, or record schema. The fixture's rewritten line is preamble the parser skips, and `measure.test.sh` still passes 90 of 90. The released sections corrected in place are 0.6.6, 0.6.4, 0.6.1, 0.6.0, 0.5.1, 0.4.0, 0.3.0, 0.2.0, and 0.1.0: their wording changed, their facts did not.
 - **The degradation-ladder caveat says what the rung depends on, in the document and in the code that emits it.** `reference/engine.md` and the `caveats` string in `skills/audit/scripts/measure.mjs` now both read "headless /context is undocumented as a -p-capable command, so this rung depends on unsanctioned behavior", instead of calling the mode load-bearing. A reader of the record and a reader of the reference see the same sentence.
 - **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md`, every `skills/*/SKILL.md`, and the `skills/audit/reference/` tree.
+
+## [0.6.26]
+
+### Changed
+
+- **`lib/state-key.sh`:** replica synced with the canonical copy. The non-repository rung now
+  hashes the physical working directory, so one directory reached through two spellings keys once,
+  and an exported `CDPATH` can no longer redirect `cd` or add a line to stdout.
 
 ## [0.6.25]
 

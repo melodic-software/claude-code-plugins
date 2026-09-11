@@ -29,7 +29,7 @@
       "id": 3,
       "name": "description-caps-and-their-sources",
       "prompt": "What length limits apply to a skill description and where does the 1,024 number come from?",
-      "expected_output": "Names both caps with their sources: 1,024 characters is the Agent Skills specification's validation limit on the description field, enforced on upload paths and not by Claude Code; 1,536 characters is Claude Code's skill-listing truncation of description plus when_to_use (skillListingMaxDescChars), under a listing budget of 1% of the context window that shortens least-invoked skills first. States that when_to_use extends the one description in the listing and that the key use case goes first because truncation is tail-first. Serves reference/authoring-guidance.md rather than restating the page as an instruction.",
+      "expected_output": "Names both caps with their sources: 1,024 characters is the Agent Skills specification's validation limit on the description field, enforced by the spec's skills-ref validator and stated as a Skills API upload requirement, not by Claude Code; 1,536 characters is Claude Code's skill-listing truncation of description plus when_to_use (skillListingMaxDescChars), under a listing budget of 1% of the context window that shortens least-invoked skills first. States that when_to_use extends the one description in the listing and that the key use case goes first because truncation is tail-first. Serves reference/authoring-guidance.md rather than restating the page as an instruction.",
       "files": [],
       "expectations": [
         "Output names 1,024 as the Agent Skills specification validation cap on the description field alone and says Claude Code does not validate it",

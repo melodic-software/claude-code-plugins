@@ -679,8 +679,9 @@ else
   fail "a 64-codepoint name should pass the length cap (rc=$rc): $out"
 fi
 
-# 17c. A reserved word anywhere in the effective name FAILs. Directory-leaf form:
-#      no declared name, the leaf carries "claude".
+# 17c. A reserved word anywhere in the effective name WARNs (a Skills API upload
+#      rejects it; Claude Code loads it). Directory-leaf form: no declared name,
+#      the leaf carries "claude".
 make_skill claude-helper '---
 description: "Reserved word in the leaf. Use when: '"'"'checking reserved names'"'"'."
 ---
@@ -695,10 +696,10 @@ None known.
 '
 out="$(run claude-helper 2>&1)"
 rc=$?
-if [[ $rc -eq 1 ]] && grep -q "contains the reserved word 'claude'" <<<"$out"; then
-  pass "a directory leaf containing 'claude' fails the reserved-word rule"
+if [[ $rc -eq 0 ]] && grep -q "WARN: skill name 'claude-helper' contains the word 'claude'" <<<"$out"; then
+  pass "a directory leaf containing 'claude' warns on the reserved-word rule and passes"
 else
-  fail "a leaf containing 'claude' should fail (rc=$rc): $out"
+  fail "a leaf containing 'claude' should warn and pass (rc=$rc): $out"
 fi
 
 # 17d. Declared-name form of 17c: the same rule reads the declared field when
@@ -718,12 +719,12 @@ None known.
 '
 out="$(run anthropic-notes 2>&1)"
 rc=$?
-if [[ $rc -eq 1 ]] &&
-  grep -q "contains the reserved word 'anthropic'" <<<"$out" &&
+if [[ $rc -eq 0 ]] &&
+  grep -q "WARN: skill name 'anthropic-notes' contains the word 'anthropic'" <<<"$out" &&
   grep -q 'rename the declared name' <<<"$out"; then
-  pass "a declared name containing 'anthropic' fails and names the declared field"
+  pass "a declared name containing 'anthropic' warns, passes, and names the declared field"
 else
-  fail "a declared name containing 'anthropic' should fail (rc=$rc): $out"
+  fail "a declared name containing 'anthropic' should warn and pass (rc=$rc): $out"
 fi
 
 # 18a. A fenced shell block of read-only context-gathering commands, with no `!`

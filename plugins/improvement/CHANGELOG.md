@@ -3,7 +3,7 @@
 All notable changes to the `improvement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.1.11]
+## [0.1.12]
 
 ### Changed
 
@@ -11,6 +11,13 @@ All notable changes to the `improvement` plugin are documented here. Format foll
 - **The plugin's prose drops its em dashes.** Six surfaces were rewritten: this changelog, `reference/config.md`, and the four `skills/find/context/` documents. Wording only, with no change to any ranking weight, probe ladder, exclusion default, or config key. Several headings lost a dashed separator and so changed anchor; nothing in the repository linked to any of them. The `gap:` template line in `unattended.md` keeps its dashed separators, because they are the field delimiter the emitted report uses and three inline examples instantiate that shape verbatim. The released sections corrected in place are 0.1.2, 0.1.1, and 0.1.0: their wording changed, their facts did not.
 - **Three documents say what a piece of evidence carries instead of calling it load-bearing or a seam.** `ranking.md` now follows "the weakest piece the citation rests on", `ci-health.md` names "an equivalent raw-request path", and `unattended.md` says "outside the tracker".
 - **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md`, the `reference/` tree, every `skills/*/SKILL.md`, and the `skills/find/context/` tree.
+## [0.1.11]
+
+### Changed
+
+- **`lib/state-key.sh`:** replica synced with the canonical copy. The non-repository rung now
+  hashes the physical working directory, so one directory reached through two spellings keys once,
+  and an exported `CDPATH` can no longer redirect `cd` or add a line to stdout.
 
 ## [0.1.10]
 

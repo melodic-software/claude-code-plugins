@@ -3,7 +3,7 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.41.1]
+## [0.42.1]
 
 ### Changed
 
@@ -36,6 +36,36 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   `[0.17.0]`, `[0.16.0]`, `[0.15.0]`, `[0.14.0]`, `[0.13.0]`, `[0.12.0]`, `[0.11.0]`,
   `[0.10.0]`, `[0.9.2]`, `[0.9.0]`, `[0.8.1]`, `[0.8.0]`, `[0.7.0]`, and `[0.6.0]`. Wording
   only; every entry's facts are unchanged.
+## [0.42.0]
+
+### Added
+
+- **`audit-instructions`**: a `## Boundary, the bundled claude-api skill` section stating the
+  composite posture with the bundled `/claude-api prompt-audit` subcommand (prefer it for
+  model-migration and application-code prompts; this skill for the standing Claude Code
+  instruction catalog, cross-surface conflicts, and harness-claim staleness; run both when a
+  request spans them), a mutation gate that never chains into a prompt-audit apply, and an
+  availability rule that never assumes the bundled skill resolves. Detail, provenance records,
+  and the recheck triggers live in `reference/bundled-claude-api.md`.
+
+## [0.41.1]
+
+### Fixed
+
+- **`lib/state-key.sh` keys a non-repository directory by its physical path.** The `nonrepo`
+  rung hashed `$PWD` as inherited or as `cd` left it, which keeps the logical spelling a symlink
+  was reached through, so `~/projects-link/notes` and `/data/projects/notes` produced two
+  `nonrepo/<hash>/<hash>` trees for one directory and the read-back auditors reported "no prior
+  artifact" under the other spelling. The script now resolves the working directory physically
+  (`cd -P .`, no fork) before hashing, matching what `git rev-parse --show-toplevel` already did
+  for the repository rungs. A symlinked non-repository directory keyed under the old spelling
+  re-keys on the next run. Regression case 5b covers both `--root` and the no-argument form.
+- **`lib/state-key.sh` no longer lets an exported `CDPATH` redirect `cd` or pollute stdout.** With
+  `CDPATH` exported and a relative `--root`, `cd` resolved the operand against `CDPATH` instead of
+  the caller's directory and echoed the path it chose: the caller got two stdout lines where the
+  contract promises exactly the key, and the key described a directory it never named (the
+  `[[ -d ]]` check above validated the relative path while `cd` went elsewhere). The script now
+  clears `CDPATH` once before any `cd`. Regression case 14 covers both halves.
 
 ## [0.41.0]
 

@@ -18,7 +18,7 @@ Locally-owned Melodic Software guidance (not part of the upstream playbook). Ant
 page is cross-product writing guidance; the Claude Code [Skills](https://code.claude.com/docs/en/skills)
 page owns the harness mechanics. Each section states what the page says, what Claude Code enforces
 or does differently, and the rule this marketplace applies, and ends in a **Record** line: basis
-URL with anchor or section, as-of date, recheck trigger. A stamped date is a ceiling on how current
+URL with anchor, as-of date, recheck trigger. A stamped date is a ceiling on how current
 a claim can be, never authority; re-fetch the basis before acting on a number. The page is quoted
 as guidance, not as an instruction to the reader.
 
@@ -35,7 +35,7 @@ Two caps apply at two layers:
 
 | Cap | Layer | Over the cap |
 |---|---|---|
-| 1,024 characters, `description` alone | Agent Skills specification validation, enforced on upload paths (claude.ai, the Skills API); Claude Code does not validate it | Fails validation outside Claude Code; `skill-quality:check` check 2b FAILs it here for portability |
+| 1,024 characters, `description` alone | Agent Skills specification validation, enforced by the spec's `skills-ref` validator and stated as a Skills API upload requirement; Claude Code does not validate it | Fails validation outside Claude Code; `skill-quality:check` check 2b FAILs it here for portability |
 | 1,536 characters, `description` plus `when_to_use` | Claude Code's skill listing (`skillListingMaxDescChars`) | The entry is cut at the cap; the skill still loads |
 
 Beneath both sits the listing budget: the listing scales at 1% of the context window
@@ -43,12 +43,15 @@ Beneath both sits the listing budget: the listing scales at 1% of the context wi
 least-invoked skills while keeping every name. A short, specific description survives that
 pressure; a long, vague one loses its trigger words first.
 
-**Record.** 1,024: <https://agentskills.io/specification> (the `description` field). 1,536 and the
-1% budget: <https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short> and the
-frontmatter reference on the same page (`description` and `when_to_use` rows), which is also where
-"key use case first" comes from. Third person: the page, "Writing effective descriptions". Verified
-2026-09-10. Recheck: either number changes on its owning page, or the Claude Code page begins
-stating a validation cap of its own.
+**Record.** 1,024: <https://agentskills.io/specification> (the `description` field) and
+<https://platform.claude.com/docs/en/build-with-claude/skills-guide#creating-a-skill> (the
+upload requirement). 1,536 and the 1% budget:
+<https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short> and
+<https://code.claude.com/docs/en/skills#frontmatter-reference> (`description` and `when_to_use`
+rows), which is also where "key use case first" comes from. Third person:
+<https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#writing-effective-descriptions>.
+Verified 2026-09-10. Recheck: either number changes on its owning page, or the Claude Code page
+begins stating a validation cap of its own.
 
 ## Conciseness and the listing budget
 
@@ -61,9 +64,10 @@ explanation?", "Can I assume Claude knows this?", "Does this paragraph justify i
 bite hardest on the body, and the truncation rule above governs the description: conciseness there
 is what keeps the trigger inside the budget.
 
-**Record.** Public good and the challenge questions: the page, "Concise is key". Cost shape:
-<https://code.claude.com/docs/en/skills>, "Skill content lifecycle" and "Skill descriptions are cut
-short". Verified 2026-09-10. Recheck: the lifecycle section stops saying the body persists across
+**Record.** Public good and the challenge questions:
+<https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#concise-is-key>.
+Cost shape: <https://code.claude.com/docs/en/skills#skill-content-lifecycle> and
+<https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short>. Verified 2026-09-10. Recheck: the lifecycle section stops saying the body persists across
 turns, or the listing section changes its truncation rule.
 
 ## Degrees of freedom
@@ -87,14 +91,17 @@ cost of a skipped gate is high, a hook is the escalation: deterministic, indepen
 model read, and charged to the marketplace's hook budget (`.claude/rules/hook-budget.md`), which
 is why it is the exception rather than the default.
 
-**Record.** Levels: the page, "Set appropriate degrees of freedom". The exact-command
-`allowed-tools` pattern: <https://code.claude.com/docs/en/skills#frontmatter-reference>. Verified
+**Record.** Levels:
+<https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#set-appropriate-degrees-of-freedom>.
+The exact-command `allowed-tools` pattern:
+<https://code.claude.com/docs/en/skills#frontmatter-reference>. Verified
 2026-09-10. Recheck: the page renames the levels, or the frontmatter reference drops the example.
 
 ## Progressive disclosure
 
 - **500 lines.** Advisory on every surface: the page says body, the Claude Code Tip says the whole
-  file, the Agent Skills specification recommends under 500 lines and under 5,000 tokens. This
+  file, the Agent Skills specification recommends under 500 lines and under 5,000 tokens, and a
+  `--plugin-dir` load probe on Claude Code 2.1.263 loaded and invoked a 608-line SKILL.md. This
   marketplace FAILs at 500 whole-file lines through `skill-quality:check` (check 4), the stricter
   reading, and WARNs above 200 (check 10). Split when approaching the cap, not at it.
 - **One level deep.** Every reference file links directly from SKILL.md. The basis is the Agent
@@ -110,11 +117,16 @@ is why it is the exception rather than the default.
 - **Pointer shape.** Each spoke pointer says what the file holds and when to read it. A bare "see
   X" link is the missed-connection signal the evaluation section watches for.
 
-**Record.** 500: the page, "Progressive disclosure patterns" and "Token budgets";
-<https://code.claude.com/docs/en/skills#add-supporting-files> (Tip); <https://agentskills.io/specification>.
-One level deep: <https://agentskills.io/specification>. TOC over 300: the skill-creator SKILL.md in
-<https://github.com/anthropics/skills>. 5,000 and 25,000: <https://code.claude.com/docs/en/skills>,
-"Skill content lifecycle". Verified 2026-09-10. Recheck: any number changes on its owning surface.
+**Record.** 500:
+<https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#progressive-disclosure-patterns>
+and the same page at `#token-budgets`; <https://code.claude.com/docs/en/skills#add-supporting-files>
+(Tip); <https://agentskills.io/specification>; load probe run 2026-09-11 (`claude -p` with
+`--plugin-dir`, Claude Code 2.1.263). One level deep: <https://agentskills.io/specification>. TOC
+over 300: <https://github.com/anthropics/skills/blob/main/skills/skill-creator/SKILL.md>; over
+100: the best-practices page at `#structure-longer-reference-files-with-table-of-contents`.
+5,000 and 25,000: <https://code.claude.com/docs/en/skills#skill-content-lifecycle>. Verified
+2026-09-10. Recheck: any number changes on its owning surface, or a Claude Code release rejects a
+long file.
 
 ## Runtime model
 
@@ -133,18 +145,26 @@ it resolves at personal, project, and plugin scope, and state the intent with th
 backslash in a plugin component path is rejected at load on macOS and Linux, and
 `skill-quality:check` FAILs one in a skill-internal pointer (check 5).
 
-Dependencies: state the install command and check before use ("Install with `pip install pypdf`;
-the script exits 2 with an install hint when it is missing"), never "use the pdf library". Claude
-Code skills have full network access and install packages on the user's machine, so there is no
-pre-installed list to verify against; the platform sandbox has no network at all, which is why the
-page tells authors to list packages explicitly.
+Dependencies: state the install command and check before use ("Install into the project
+environment with `pip install pypdf` inside its virtualenv; the script exits 2 with an install hint
+when it is missing"), never "use the pdf library". Claude Code skills have full network access and
+install packages on the user's machine, so there is no pre-installed list to verify against, and the
+install must stay local to the project (a project virtualenv, a project `node_modules`, an
+explicitly project-scoped target directory), never global and never the shared user site (a
+`pip install --user` persists across projects), so the skill does not alter the user's computer. The other surfaces differ: the Claude
+API sandbox has no network and no runtime installs, so a package must be on the code execution
+tool's pre-installed list, and claude.ai's network access varies with admin settings. That is why
+the page tells authors to list packages explicitly.
 
-**Record.** Inject-once lifecycle: <https://code.claude.com/docs/en/skills>, "Skill content
-lifecycle"; `${CLAUDE_SKILL_DIR}` and `allowed-tools`: same page, "Frontmatter reference".
-Backslash rejection: <https://code.claude.com/docs/en/plugins-reference>, "Path traversal
-limitations". Network and local installs: <https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview>
-(the Claude Code row of the runtime table). Verified 2026-09-10. Recheck: the lifecycle section
-changes the inject-once claim, or the overview's runtime table changes the Claude Code row.
+**Record.** Inject-once lifecycle: <https://code.claude.com/docs/en/skills#skill-content-lifecycle>;
+`${CLAUDE_SKILL_DIR}` and `allowed-tools`: <https://code.claude.com/docs/en/skills#frontmatter-reference>.
+Backslash rejection: <https://code.claude.com/docs/en/plugins-reference#path-traversal-limitations>.
+Network, local-not-global installs, and the per-surface table:
+<https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview#runtime-environment-constraints>
+(the Claude Code row, both bullets). Package listing:
+<https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#package-dependencies>.
+Verified 2026-09-10 (overview table re-read 2026-09-11). Recheck: the lifecycle section changes
+the inject-once claim, or the overview's runtime table changes any row.
 
 ## MCP tool names
 
@@ -156,9 +176,11 @@ server the user or project configured (for example `mcp__github__get_me`), and
 colon form matches no Claude Code tool. `docs-hygiene:audit-progressive-disclosure` carries the
 same two forms as a pointer-quality criterion, where installed.
 
-**Record.** <https://code.claude.com/docs/en/mcp>, "Plugin-provided MCP servers";
-<https://code.claude.com/docs/en/permissions>, "MCP"; the page, "MCP tool references" (the
-`ServerName:tool_name` form). Verified 2026-09-10. Recheck: any of the three changes the name form.
+**Record.** <https://code.claude.com/docs/en/mcp#plugin-provided-mcp-servers>;
+<https://code.claude.com/docs/en/permissions#mcp>;
+<https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#mcp-tool-references>
+(the `ServerName:tool_name` form). Verified 2026-09-10. Recheck: any of the three changes the name
+form.
 
 ## Output templates and examples
 
@@ -178,8 +200,10 @@ the model has to make mid-task. The page's "unless necessary" means environment-
 availability: a real menu is justified when the right choice depends on something discoverable
 only at run time, and the body then says what that something is.
 
-**Record.** The page, "Common patterns" and "Anti-patterns to avoid". Verified 2026-09-10.
-Recheck: the page changes either framing sentence or drops the escape-hatch example.
+**Record.**
+<https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#common-patterns>
+and the same page at `#anti-patterns-to-avoid`. Verified 2026-09-10. Recheck: the page changes
+either framing sentence or drops the escape-hatch example.
 
 ## Time-sensitive content
 
@@ -192,8 +216,9 @@ collapsed block is still tokens on every turn after invocation, while a separate
 free until read, so history that must travel with the skill goes in a spoke. The owning rule is
 `.claude/rules/skill-bodies-state-current-rules.md`.
 
-**Record.** The page, "Content guidelines" (the "Old patterns" example). Verified 2026-09-10.
-Recheck: the page drops or changes that section.
+**Record.**
+<https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#avoid-time-sensitive-information>
+(the "Old patterns" example). Verified 2026-09-10. Recheck: the page drops or changes that section.
 
 ## Evaluation and iteration
 
@@ -217,20 +242,25 @@ loaded, carry specific observed failures (not impressions) back to the authoring
 the test transcript for four navigation signals: files read in an unexpected order, a reference
 never followed, one file read repeatedly (promote it into the body), a bundled file never read (cut
 it or signal it better). Where the bundled skill-creator plugin is installed, its eval modes run
-this loop with a subagent per case. `/skill-doctor` (documented at v2.1.252) answers "does it
-activate" from usage data, not "is the output right". A `claude plugin eval` subcommand exists in
-the binary but is undocumented, so nothing here depends on it.
+this loop with a subagent per case. Where `/skill-doctor` is available (Claude Code v2.1.252 or
+later, in a session that fetches feature flags, run in the terminal rather than over Remote
+Control), it answers "does it activate" from usage data, not "is the output right". A
+`claude plugin eval` subcommand exists in the binary but is undocumented, so nothing here depends
+on it.
 
 When a rule is being missed, two fixes are on the table: directive wording ("MUST filter test
 accounts") and reasoning-based wording ("filter test accounts because they inflate every metric").
 The page offers the first; the runner's linked guidance prefers the second. The evals settle it.
 
-**Record.** Fresh-session baseline, skill-creator modes, `/skill-doctor`:
-<https://code.claude.com/docs/en/skills>, "Evaluate and iterate on a skill" and "Find unused
-skills". Eval file shape: <https://agentskills.io/skill-creation/evaluating-skills> and
-`plugins/skill-quality/reference/evals.schema.json`. The loop and the four signals: the page,
-"Evaluation and iteration". Verified 2026-09-10. Recheck: the Claude Code page documents
-`claude plugin eval`, or the runner changes its record shape.
+**Record.** Fresh-session baseline and skill-creator modes:
+<https://code.claude.com/docs/en/skills#evaluate-and-iterate-on-a-skill>; `/skill-doctor`, its
+version floor and feature-flag gate: <https://code.claude.com/docs/en/skills#find-unused-skills>
+(the CHANGELOG lists the command under 2.1.261, so treat the docs' 2.1.252 as "or later"). Eval
+file shape: <https://agentskills.io/skill-creation/evaluating-skills> and
+`plugins/skill-quality/reference/evals.schema.json`. The loop and the four signals:
+<https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#evaluation-and-iteration>.
+Verified 2026-09-10. Recheck: the Claude Code page documents `claude plugin eval`, changes the
+`/skill-doctor` gate, or the runner changes its record shape.
 
 ## Model coverage
 
@@ -241,6 +271,7 @@ harness aliases (`haiku`, `sonnet`, `opus`, `fable`) the skill was exercised on.
 under a `model` override or inside a subagent has more than one target, and the attestation names
 them all or says which are untested.
 
-**Record.** Alias list: <https://code.claude.com/docs/en/sub-agents>, "Choose a model". The
-per-tier questions: the page, "Test with all models you plan to use". Verified 2026-09-10. Recheck:
-the alias list changes.
+**Record.** Alias list: <https://code.claude.com/docs/en/sub-agents#choose-a-model>. The per-tier
+questions:
+<https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#test-with-all-models-you-plan-to-use>.
+Verified 2026-09-10. Recheck: the alias list changes.

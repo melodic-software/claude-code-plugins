@@ -3,7 +3,7 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.27.6]
+## [0.28.1]
 
 ### Changed
 
@@ -44,6 +44,21 @@ All notable changes to the `review` plugin are documented here. Format follows
   `[0.14.0]`, `[0.12.0]`, `[0.10.0]`, `[0.9.0]`, `[0.7.0]`, `[0.4.0]`, `[0.3.0]`, and `[0.2.0]`.
   Wording only; every entry's facts are unchanged. The `[0.24.0]` entry's verbatim quotation of
   `cant-fail-scan.sh`'s rule header keeps its dashes inside an ignore marker.
+## [0.28.0]
+
+### Added
+
+- **`code-review`**: a `## Boundary, the bundled code-review skill` section stating how the CI
+  lane relates to the bundled `code-review` skill (alias `/review`) and the managed Code Review
+  service: routing (the bundled skill for a local review before pushing, this lane's criteria for
+  what CI will flag), a mutation gate (never invoke `--fix`, `--comment`, or the managed service
+  on the lane's behalf), and an availability rule that never assumes the bundled skill resolves.
+  Four-part records in `reference/bundled-code-review.md`.
+- **`security-review`**: a `## Boundary, the native security-review command` section with the same
+  shape against the native command (registered plugin-backed in the installed binary, with no
+  Skill label on the commands page), naming the Claude Security plugin and product as further
+  surfaces the lane does not wrap. Four-part records in
+  `reference/bundled-security-review.md`.
 
 ## [0.27.5]
 

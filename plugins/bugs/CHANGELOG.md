@@ -3,7 +3,7 @@
 All notable changes to the `bugs` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.9.14]
+## [0.10.1]
 
 ### Changed
 
@@ -13,6 +13,40 @@ All notable changes to the `bugs` plugin are documented here. Format follows
 - **The plugin's prose drops its em dashes.** Seven surfaces were rewritten: this changelog, `reference/config.md`, the three `skills/scan/context/` documents, `skills/write/context/template.md`, and the `pagination-correct-offset` eval fixture. Wording only, with no change to any lens, severity rubric, gate rule, or config key. Twelve headings changed anchor; nothing in the repository linked to any of them. The `reference/config.md` H1 moved to the colon form its four sibling plugins already use, so this copy converges rather than diverges. The released sections corrected in place are 0.9.0, 0.8.0, 0.7.3, 0.7.2, 0.7.0, and 0.5.2: their wording changed, their facts did not.
 - **The changelog names the plugin instead of calling it a seam.** It now reads "through the `work-items` plugin", which is the concrete thing a reader goes looking for.
 - **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md`, `reference/config.md`, every `skills/*/SKILL.md`, and the `skills/*/context/` tree. One fenced template line in `skills/write/context/template.md` keeps its dash, because two expectations in `skills/write/evals/evals.json` pin that string and the fence already exempts it.
+## [0.10.0]
+
+### Added
+
+- **`scan`:** a sizing rule. Hunters dispatch on the fast tier and gates on the strong tier through
+  the Agent tool's per-invocation `model` parameter; the body names the fleet's ordered capability
+  tiers and resolves the current alias from the loop-lane convention's dated binding rather than
+  restating one of its own.
+  The scope class (small, medium, large, from the enumerated file and line counts) picks the lens
+  count and the gate cap per wave, and `${CLAUDE_EFFORT}` stays the ceiling on lenses and refill
+  waves. The gate's stance does not change with any of it.
+- **`scan`:** a main-thread triage step between the hunters and the gate that seeds from the prior
+  report's "Candidates not gated" rows on a rotation or named-lane run, merges same-cause
+  candidates, parks cosmetic-impact ones as side observations, and cuts to the cap, so no gate is
+  spent on a duplicate and a cut candidate is gated on the next pass over its lane instead of
+  re-derived.
+- **`scan`:** a filing ladder in the hand-off step. An interactive run routes a local finding (one
+  plugin, no documented contract change, a test file to extend) to the implement lane in the same
+  session; a non-local or security-relevant finding, and every finding from an unattended run, is
+  filed. `--track` applies the same ladder. The scan itself still edits nothing.
+- **`scan`:** hunters may follow one hop outside the scope and tag the candidate `out-of-lane`; the
+  report and cursor carry the tag.
+- **`scan`:** the report gains a run-metadata paragraph, a "Candidates not gated" tail, and a "Side
+  observations" section; the cursor block gains `scope-class`, `scope-list`, `not-gated`, and
+  `out-of-lane` keys. Existing keys keep their meaning.
+
+### Changed
+
+- **`scan`:** rung 1 of the cursor ladder requires an exact match on the provenance line; a fuzzy or
+  semantic search prints why and falls through to rung 2.
+- **`scan`:** scope enumeration drops test suites, which hunters read for a unit's contract and never
+  hunt; the persistence step writes the report with the Write tool; and the verb contract says a
+  cloud or scheduled run passes `--track`, because the filed item is the only output that outlives
+  the container.
 
 ## [0.9.13]
 

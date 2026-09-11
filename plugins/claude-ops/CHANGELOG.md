@@ -3,7 +3,7 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.47.1]
+## [0.48.1]
 
 ### Changed
 
@@ -57,6 +57,68 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   drops the filler phrase `in order to` (`to recompute a block the caller was already holding`).
   Wording only; the entry's facts are unchanged. Found by the repo-wide `/ai-slop:audit` run
   (#3987).
+## [0.48.0]
+
+### Added
+
+- **`observability`**: a read-routing boundary row pointing API-application cache health at
+  the platform's cache diagnostics API (beta, per-request miss reasons), keeping the skill
+  scoped to local Claude Code telemetry while routing the other case.
+- **`audit-native-overlap` self-check**: a new blocking problem naming every non-`defer`
+  extraction-evidence store row whose component carries no `## Boundary` section. The
+  convention requires the Boundary section to land in the same change as its row, so a row
+  without one is a recorded verdict the model never reads. It breaks the store (exit 1)
+  rather than degrading it: a consumer gate passes a degraded run because degraded reports a
+  condition this repository cannot fix by editing its own files, and a missing section is
+  fixable in the change that adds the row. `defer` rows and agent components owe nothing.
+- **`audit-native-overlap` parity ties a Boundary section to its row's surface**: a row with
+  `baked.boundary_section` true now needs a `## Boundary` section that names that row's native
+  surface as a code span, not merely the heading. A component can carry a Boundary section for
+  a surface the registry has no row for, and a component overlapping several surfaces carries
+  one section owing each of them a mention, so a presence-only check let a row claim a section
+  written for something else. A leading slash is accepted, so a surface written as a command
+  satisfies a row whose name carries none.
+
+### Changed
+
+- **`audit-native-overlap` apply step**: the skill body now describes the two baked surfaces
+  separately. The `## Boundary` section is budget-free and lands with the store row on
+  invocation; only the description phrase is the gated `apply` step, because it spends
+  description budget on every session. The parity rule is unchanged: every baked description
+  phrase traces to a row, and a row without a phrase is legal pending-sweep state.
+- **`audit-native-overlap` tests**: the fixture repository seeds its default component with a
+  Boundary section naming its surface so the base row is parity-clean, and the suite gains
+  cases for the missing-section problem, for a section written for another surface, for a
+  generic heading whose text names the surface, for one section carrying two rows, for a
+  surface named only in prose, for `defer` rows owing no Boundary, and for a row whose only
+  missing surface is the description phrase.
+- **`audit-performance`**: a `## Boundary, the bundled doctor skill` section: `doctor` inspects
+  slow hooks and the release channel and offers to fix, `claude doctor` prints read-only
+  diagnostics, this skill measures while it is slow and refuses deletion. Routing, a mutation
+  gate (never chain into a `doctor` fix), and an availability rule. Four-part records in
+  `reference/bundled-doctor.md`.
+- **`audit-skill-visibility`**: a `## Boundary, the bundled doctor skill and /skill-doctor`
+  section beside the existing description phrase: both native surfaces answer "which skills are
+  unused versus their cost, right now", this skill separates starved from unwanted from
+  unobservable and never disables. Four-part records in `reference/bundled-doctor.md`.
+
+## [0.47.1]
+
+### Fixed
+
+- **`session-event-log.sh` no longer accepts a `stdin_read_timeout` that disables the log.** A
+  `0` (also `0.0`, `00`), a positive value under 10 µs, or a fractional value on a Bash before 4.0
+  reached `read -t` unchanged; `read` returned at once with nothing read, the loop broke on the
+  empty chunk, and the hook exited 0 having written no event line and printed nothing. The
+  producer now applies the same rejection rules `hook::resolve_read_timeout_to` applies to the
+  variable and falls back to the default of 2, so an env-block value outside the manifest's
+  `min: 1` cannot silently empty the observability store. Regression cases cover the four values.
+
+### Changed
+
+- **`lib/state-key.sh`:** replica synced with the canonical copy. The non-repository rung now
+  hashes the physical working directory, so one directory reached through two spellings keys once,
+  and an exported `CDPATH` can no longer redirect `cd` or add a line to stdout.
 
 ## [0.47.0]
 

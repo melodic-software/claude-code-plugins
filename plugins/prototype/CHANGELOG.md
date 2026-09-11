@@ -3,13 +3,26 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.10.7]
+## [0.11.1]
 
 ### Changed
 
 - **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
 - **The plugin's prose drops its em dashes.** This changelog and `context/discipline.md` were rewritten. Wording only, with no change to any rule, boundary, or run-directory path. Rule 6's quoted phrase, which both the 0.9.0 entry and `docs/upstream/mattpocock-skills.md` cite, survives byte-identical; only the mark after it changed. No heading was touched, so the `#when-done` anchor still resolves. The released sections corrected in place are 0.9.3, 0.9.2, 0.9.0, 0.8.0, 0.7.0, 0.6.0, 0.5.0, 0.4.0, 0.3.3, 0.3.2, 0.3.0, 0.2.4, and 0.2.1: their wording changed, their facts did not.
 - **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md`, the `context/` tree, and every `skills/*/SKILL.md`.
+## [0.11.0]
+
+### Added
+
+- **`explore-directions`**: a `## Boundary, the bundled design skill` section stating the split
+  against the bundled `design` skill (throwaway mockup by default; the persistent, hand-editable
+  canvas offered as an explicit alternative and invoked only on the user's choice), a mutation
+  gate, and an availability rule that names the presence check: a same-named Claude Design hub
+  variant with model invocation disabled registers behind an `allow_design_sync` setting, so the
+  listed description is what distinguishes the canvas from the hub or a shadowing local skill.
+  The design-canvas subsection names that second reason for its description check. Four-part
+  records, re-verified against the installed client and the live docs, in
+  `reference/bundled-design.md`.
 
 ## [0.10.6]
 

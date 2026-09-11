@@ -22,10 +22,13 @@ the reviewer to confirm the description still names that intent, or to restore t
 
 - Frontmatter parses; `description` present; a declared `name` is kebab-case and matches the skill
   directory (in a plugin skill it also WARNs as redundant, because the field defaults to the directory).
-  The effective name (the declared field, else the directory leaf) is at most 64 codepoints and
-  carries neither `anthropic` nor `claude` (FAIL). Both limits are the Agent Skills spec's and the
-  platform guidance's (<https://agentskills.io/specification>; verified 2026-09-10); Claude Code
-  itself enforces neither, so they are portability findings.
+  The effective name (the declared field, else the directory leaf) is at most 64 codepoints
+  (FAIL; the Agent Skills spec's `name` cap, <https://agentskills.io/specification>, enforced by
+  its `skills-ref` validator) and carries neither `anthropic` nor `claude` (WARN; a Skills API
+  upload requirement, <https://platform.claude.com/docs/en/build-with-claude/skills-guide#creating-a-skill>,
+  not a spec rule). Claude Code enforces neither and ships bundled skills named `claude-api` and
+  `claude-in-chrome`, so both are portability findings (verified 2026-09-10; recheck when the
+  spec's validator, the upload requirements, or a Claude Code release changes either rule).
 - `description` + `when_to_use` within the 1536-char **per-skill** listing-entry cap (overflow
   truncates that entry). A different, narrower limit from the shared budget below. The cap and the
   1% budget default are upstream's

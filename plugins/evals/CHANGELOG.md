@@ -1,6 +1,6 @@
 # Changelog: evals
 
-## [0.2.3]
+## [0.2.4]
 
 ### Changed
 
@@ -8,6 +8,23 @@
 - **The plugin's prose drops its em dashes.** Eight surfaces were rewritten: this changelog, the README, both SKILL bodies, and the four `skills/methodology/reference/` documents. Wording only, with no change to any criteria dimension, recipe, or grading rule. Both skill bodies keep every trigger phrase byte-identical (19 across the two, confirmed by `check-skill.sh`), and the quoted cookbook and Likert strings are unchanged inside their quotes. Four headings changed anchor; nothing in the repository linked to them. The released sections corrected in place are 0.2.0 and 0.1.0: their wording changed, their facts did not.
 - **`skills/methodology/SKILL.md` says which detail must be current instead of calling it load-bearing.** It now reads "any detail that must be current", matching the wording the same body already uses a few lines above.
 - **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md`, every `skills/*/SKILL.md`, and the `skills/methodology/reference/` tree.
+
+## [0.2.3]
+
+### Added
+
+- **`methodology`**: an "Effort as an eval axis" section in `reference/eval-design.md`
+  (sweep effort and model together on a non-saturated suite; a flat cost-performance curve
+  means the task is not thinking-bound; the bundled `claude-api` `hillclimb` subcommand
+  automates the search, bundled-only as of 2026-09-09), plus the routing-table keywords for
+  it. Adopted from the vetted ClaudeDevs cost-performance article
+  (`docs/upstream/claudedevs-cost-performance.md` in the marketplace repository).
+- **`methodology`**: a `## Boundary, the bundled claude-api skill` section stating the
+  composite posture with the bundled `hillclimb` and `build-eval` subcommands (this skill owns
+  eval design and grading method; the bundled subcommands own the automated search once a
+  suite exists; run both when a request spans them), with a mutation gate and an availability
+  rule that never assumes the bundled skill resolves. The hillclimb citation in
+  `reference/eval-design.md` is now gated on the bundled skill resolving in the session.
 
 ## [0.2.2]
 

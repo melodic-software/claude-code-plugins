@@ -3,7 +3,7 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.12.1]
+## [0.12.2]
 
 ### Changed
 
@@ -30,6 +30,13 @@ All notable changes to the `claude-memory` plugin are documented here. Format fo
   `[0.5.2]`, `[0.5.1]`, `[0.5.0]`, `[0.4.1]`, `[0.4.0]`, `[0.3.5]`, `[0.3.4]`, `[0.3.3]`,
   `[0.3.1]`, `[0.3.0]`, `[0.2.3]`, `[0.2.1]`, `[0.2.0]`, and `[0.1.0]`. Wording only; every entry's
   facts are unchanged.
+## [0.12.1]
+
+### Changed
+
+- **`lib/state-key.sh`:** replica synced with the canonical copy. The non-repository rung now
+  hashes the physical working directory, so one directory reached through two spellings keys once,
+  and an exported `CDPATH` can no longer redirect `cd` or add a line to stdout.
 
 ## [0.12.0]
 

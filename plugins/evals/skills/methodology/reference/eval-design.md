@@ -44,6 +44,26 @@ one. Size `max_tokens` for the model under evaluation: where thinking is always 
 against the same limit, so a value tight enough to fence a bare integer can cut the response off
 before the answer is written. Constrain the format in the prompt and leave the limit headroom.
 
+## Effort as an eval axis
+
+For applications on models with an effort parameter, effort is an eval dimension, not a fixed
+setting: sweep the suite across effort levels and read cost against score. On a non-saturated
+suite, a flat cost-performance curve across levels means the task is not bound by thinking
+compute, and higher effort buys cost without score; a steep curve locates the cheapest level
+that holds the target. Sweep model and effort together, since a stronger model at low effort can
+beat a weaker one at high effort on both axes (basis:
+`platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#tune-effort`,
+verified 2026-09-09; recheck on that section changing).
+
+When the bundled `claude-api` skill resolves in your session, its `hillclimb` subcommand
+automates this search over a suite: it splits cases into train and test sets, proposes one
+configuration change per round from failing train transcripts, and scores the winner on the
+held-out test set. Distribution record: the subcommand (and its `build-eval` prerequisite) ships in
+the bundled skill inside Claude Code, while the public anthropics/skills repository and the skill's
+docs page do not carry it (verified 2026-09-09 against Claude Code 2.1.263 and the repository
+HEAD of 2026-09-03; recheck when either public surface gains the subcommand). The routing between
+that surface and this skill is the `## Boundary` section in `SKILL.md`.
+
 ## Scaling authoring
 
 Writing hundreds of test cases by hand is hard, so have Claude generate more cases from a baseline

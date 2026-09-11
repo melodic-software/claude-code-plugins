@@ -18,8 +18,8 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 | Lane | Rows | Baked | Verdicts |
 |---|---|---|---|
 | Built-in CLI commands | 2 | 1 | complementary 2 |
-| Bundled skills | 10 | 2 | complementary 9, defer 1 |
-| Plugin-backed built-ins | 1 | 0 | complementary 1 |
+| Bundled skills | 13 | 12 | complementary 12, defer 1 |
+| Plugin-backed built-ins | 1 | 1 | complementary 1 |
 | Session-provided skills (observation-only) | 1 | 0 | defer 1 |
 | First-party marketplace plugins | 2 | 2 | complementary 2 |
 
@@ -58,6 +58,52 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 
 ## Bundled skills
 
+### `claude-api` → `claude-config:audit-instructions`
+
+- **Verdict:** `complementary`: Composite posture, decided at the ClaudeDevs cost-performance adoption interview: wrap or point to the bundled subcommand where it fits the use case, and run our own processes where they fit, rather than routing one way on paper. The bundled skill's prompt-audit subcommand is the vendor's apply-sweep over the working directory's whole prompt surface, application code included; audit-instructions is a standing report-only audit of locally-owned Claude Code instruction surfaces with the versioned I-catalog, target-model scoping, and deterministic pre-scans. ADR-0028 already composes both: run the vendor procedure per model change, feed recurring gap shapes back into the catalog. The app-code surface stays with the bundled skill (scope widening rejected at the same interview).
+- **Native surface:** `claude-api` (bundled skill; markers: none)
+- **Our component:** `claude-config:audit-instructions` (skill)
+- **Evidence:**
+  - binary extraction 2026-09-09 (claude.exe 2.1.263): registerClaudeApiSkill present; subcommand array cost-optimize, migrate, managed-agents-onboard, prompt-audit, upgrade, build-eval, hillclimb
+  - platform docs claude-api-skill page (fetched 2026-09-09): 'The skill comes bundled with Claude Code and is also available in the open-source Anthropic skills repository'
+  - hillclimb and build-eval are bundled-only: absent from anthropics/skills HEAD 41bbe19 (2026-09-03) and from the skill's docs page
+  - executed composition precedent: docs/specs/prompt-audit-skills-2026-09.md (fleet-wide prompt-audit run, 805 findings applied) + ADR-0028 (repeats per model change; findings are edits, not criteria)
+  - verdict recorded from the owner's interview answers in docs/upstream/claudedevs-cost-performance.md Lane M and Lane T2, 2026-09-10
+- **Observation:** extraction: extracted from binary 2.1.263 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (registerClaudeApiSkill string plus subcommand array; bundled shared/evals/eval-hillclimb.md extracted and read); bulk registrar enumeration was broken at this build, so this row's evidence is the targeted extraction, not the inventory JSON (2026-09-09)
+- **Recheck trigger:** a Claude Code release changes the bundled claude-api skill's subcommand set, or the anthropics/skills repo or the platform claude-api-skill docs page gains hillclimb/build-eval (which also fires the docs/upstream/claudedevs-cost-performance.md hillclimb row) (verified 2026-09-10)
+- **Baked:** description phrase no · Boundary section yes
+- **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
+
+### `claude-api` → `evals:methodology`
+
+- **Verdict:** `complementary`: Different jobs on the same object. The bundled skill's hillclimb subcommand consumes an eval suite and searches model and effort for the cheapest configuration that holds the target (train/test split, one change per round, held-out scoring), and build-eval scaffolds the suite it needs; both run evals and change configuration. evals:methodology is knowledge about designing the suite (criteria, anatomy, grading, effort as an axis) and runs nothing. The two chain: design the suite here, hand it to the search. Recorded when the effort-axis note citing hillclimb landed in the methodology reference.
+- **Native surface:** `claude-api` (bundled skill; markers: none)
+- **Our component:** `evals:methodology` (skill)
+- **Evidence:**
+  - binary extraction 2026-09-09 (claude.exe 2.1.263): subcommand array includes build-eval and hillclimb; bundled shared/evals/eval-hillclimb.md read end to end (train/test split, one proposal per round, held-out scoring)
+  - hillclimb and build-eval absent from anthropics/skills HEAD 41bbe19 (2026-09-03) and from the platform claude-api-skill docs page
+  - our description: 'knowledge (WHY/WHAT of eval design), not a runner; ... no marketplace command executes model-graded evals'
+  - reference/eval-design.md 'Effort as an eval axis' cites the subcommand behind the presence gate
+- **Observation:** extraction: extracted from binary 2.1.263 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (subcommand array; bundled shared/evals/eval-hillclimb.md extracted and read); bulk registrar enumeration was broken at this build, so this row's evidence is the targeted extraction, not the inventory JSON (2026-09-09)
+- **Recheck trigger:** a Claude Code release changes the bundled claude-api skill's subcommand set, or the public anthropics/skills repo or the docs page gains hillclimb/build-eval (verified 2026-09-11)
+- **Baked:** description phrase no · Boundary section yes
+- **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
+
+### `claude-api` → `playbooks:fable-5`
+
+- **Verdict:** `complementary`: The playbook's chapters defer every current fact (model ID, price, beta boundary, parameter shape) to the bundled claude-api skill by standing rule, and its API prompt-caching chapter names cost-optimize as the automation for the cost levers it describes. The bundled skill resolves live facts and acts (prompt-audit, cost-optimize, hillclimb edit prompts and configuration when asked); the playbook is operating doctrine and mechanisms that outlive any one price, and performs no work. Neither replaces the other.
+- **Native surface:** `claude-api` (bundled skill; markers: none)
+- **Our component:** `playbooks:fable-5` (skill)
+- **Evidence:**
+  - binary extraction 2026-09-09 (claude.exe 2.1.263): registerClaudeApiSkill present; subcommand array cost-optimize, migrate, managed-agents-onboard, prompt-audit, upgrade, build-eval, hillclimb
+  - platform docs claude-api-skill page (fetched 2026-09-09): bundled with Claude Code and published in the open-source skills repository
+  - reference/model-adaptation/fable-5-1.md standing rule: 'this chapter carries no model ID, price, or limit. Resolve the current details through the claude-api skill at the moment of use'
+  - reference/prompt-caching.md 'Automation' bullet cites cost-optimize behind the presence gate
+- **Observation:** extraction: extracted from binary 2.1.263 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (registerClaudeApiSkill string plus subcommand array); bulk registrar enumeration was broken at this build, so this row's evidence is the targeted extraction, not the inventory JSON (2026-09-09)
+- **Recheck trigger:** a Claude Code release changes the bundled claude-api skill's subcommand set or moves it between bundled and marketplace distribution (verified 2026-09-11)
+- **Baked:** description phrase no · Boundary section yes
+- **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
+
 ### `code-review` → `review:code-review`
 
 - **Verdict:** `complementary`: Same object, different invocation surface. The bundled skill is a session-driven review of the current diff or a named PR, with mutating flags (--fix writes the working tree, --comment posts to the PR). review:code-review is a non-interactive CI lane a reusable workflow invokes for one pull request, deliberately scoped out of security when a security lane exists. Neither replaces the other: a CI lane cannot be typed into a session, and the session surface has no workflow contract.
@@ -70,34 +116,39 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - our description: CI code-review lane for a GitHub pull request. High-signal correctness and maintainability findings only, scoped out of security when a security lane exists
   - the review plugin already documents this overlap organically in plugins/review/skills/quality-gate/context/pr.md's Boundary section, naming the bundled command, the marketplace plugin, and the managed service as three distinct surfaces
 - **Observation:** extraction: extracted from binary v2.1.232 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (integrity: degraded, counts are floors) (2026-08-23)
-- **Recheck trigger:** a Claude Code release changes the bundled `code-review` skill's roster entry, its `review` alias, or its invocation mode. The alias was re-pointed at 2.1.220 and the alias-under-shadowing fix landed at 2.1.233, so this pair has moved twice in one quarter (verified 2026-08-23)
-- **Baked:** description phrase no · Boundary section no
+- **Recheck trigger:** a Claude Code release changes the bundled `code-review` skill's roster entry, its `review` alias, or its invocation mode. The alias was re-pointed at 2.1.220 and the alias-under-shadowing fix landed at 2.1.233, so this pair has moved twice in one quarter (verified 2026-09-11)
+- **Baked:** description phrase no · Boundary section yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `design` → `prototype:explore-directions`
 
-- **Verdict:** `complementary`: explore-directions offers the editable design-canvas Artifact as one of its mockup surfaces where the bundled skill is available, alongside real-stack and self-contained-HTML variants. Same live integration as the visualize row, sibling component; organic body/description text, nothing baked (its presence phrasing predates the registry and carries no gate token).
+- **Verdict:** `complementary`: explore-directions offers the editable design-canvas Artifact as an explicit alternative to its HTML mockup substrate when the bundled skill is listed with the canvas description, invoking it only on the user's choice and keeping the mockup as the default. The canvas persists under the user's account; the mockup is thrown away once the winning-variant key is captured. Same surface as the visualize row, sibling component; the Boundary section states the split and the presence check, and the description's presence phrasing predates the registry and carries no gate token.
 - **Native surface:** `design` (bundled skill; markers: gated)
 - **Our component:** `prototype:explore-directions` (skill)
 - **Evidence:**
-  - our description: 'or, where the bundled design skill is available, an editable design-canvas Artifact'
-  - binary extraction v2.1.251 (2026-08-31): design skill registered, research-preview gated
-- **Observation:** extraction: extracted from binary v2.1.251 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (design-family registrations read from the bundle strings) (2026-08-31)
-- **Recheck trigger:** a Claude Code release names the design canvas skill in its changelog or commands reference, changes bundled-skill invocability, or removes the research-preview gating (verified 2026-09-01)
-- **Baked:** description phrase no · Boundary section no
+  - our description: 'or, where the bundled design skill is available, an editable design-canvas Artifact'; the body's design-canvas subsection offers the canvas before building and the Boundary section states the split, the mutation gate, and the presence check
+  - string search of the installed binary v2.1.263 (2026-09-11): the canvas skill registers model-invocable and user-invocable with no disableModelInvocation, enabled by a first-party-context check, a rollout flag that defaults on, and an Artifact tool whose schema carries capabilities; a second same-named Claude Design hub registration carries disableModelInvocation true behind an allow_design_sync setting (detail in the sibling visualize row and plugins/prototype/skills/explore-directions/reference/bundled-design.md)
+  - commands page (2026-09-11) carries a /design row labeled Skill describing the canvas and its gates (artifacts availability, v2.1.234+); the changelog names no design-family surface through v2.1.268
+  - prior: binary extraction v2.1.251 (2026-08-31) registered the canvas skill research-preview gated with no model-invocation gate; the 2.1.263 registration matches except that the rollout flag now defaults on
+- **Observation:** extraction: targeted string search of the installed binary v2.1.263 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (both design registrations read from the bundle strings), refreshing the v2.1.251 extraction (2026-09-11)
+- **Recheck trigger:** a Claude Code release adds a model-invocation gate to the canvas skill, changes either design registration's enablement or subcommand set, merges the two registrations, a release note first names a design-family surface, or the commands-page row stops describing the canvas (verified 2026-09-11)
+- **Baked:** description phrase no · Boundary section yes
 
 ### `design` → `visualization:visualize`
 
-- **Verdict:** `complementary`: visualize's form matrix already routes hand-tweakable visual layouts (UI mockups, posters, one-pagers) to the bundled design canvas when it is present, with the shadowing check and never-mention-when-absent rule its catalog spoke documents. This row records the live integration the registry was previously blind to; the routing stays organic body text, so nothing is baked.
+- **Verdict:** `complementary`: visualize's form matrix routes hand-tweakable visual layouts (UI mockups, posters, one-pagers) to the bundled design canvas when it is listed with the canvas description, offered as an explicit alternative and invoked only on the user's choice, with the shadowing check and never-mention-when-absent rule its catalog spoke documents. The canvas is a persistent, versioned, shareable Artifact; this skill's page paths are throwaway or plain-static. The Boundary section states the split, the mutation gate, and the presence check; the catalog spoke carries the surface facts.
 - **Native surface:** `design` (bundled skill; markers: gated)
 - **Our component:** `visualization:visualize` (skill)
 - **Evidence:**
-  - our SKILL.md step 2: 'a design canvas. Route to a design-canvas capability (the bundled design skill), when available'
+  - our SKILL.md step 2: 'a design canvas. Route to a design-canvas capability (the bundled design skill), when available'; the Boundary section states the split and the presence check
   - catalog spoke plugins/visualization/skills/visualize/context/decision-matrix.md carries the canvas surface facts with their own verified-on line
-  - binary extraction v2.1.251 (vendored node_modules/@anthropic-ai/claude-code/bin/claude.exe, 2026-08-31): design skill registered with a /design command dispatch table
-- **Observation:** extraction: extracted from binary v2.1.251 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (design-family registrations read from the bundle strings) (2026-08-31)
-- **Recheck trigger:** a Claude Code release names the design canvas skill in its changelog or commands reference, changes bundled-skill invocability, or removes the research-preview gating (verified 2026-09-01)
-- **Baked:** description phrase no · Boundary section no
+  - string search of the installed binary v2.1.263 (2026-09-11): the canvas skill registers model-invocable and user-invocable (menu line 'Draft a design on a canvas Artifact, editable where saving is enabled (Claude Design preview)'; description 'Create a design canvas...'; argument hint '[what to design]'; no disableModelInvocation; enabled by a first-party-context check, a rollout flag that defaults on, and an Artifact tool whose schema carries capabilities); it is listed to the model with the canvas description in a first-party session on that build
+  - string search of the same binary: a second bundled registration named design is a Claude Design hub (menu line 'Work with Claude Design (claude.ai/design): create, import, export, sync, login') with disableModelInvocation true, enabled only behind an allow_design_sync setting, a policy gate, and a feature flag; a local design consent|revoke command beside it; so the listed description is the presence check
+  - commands page (2026-09-11) carries a /design row labeled Skill describing the canvas (artboards on one canvas published as an artifact running a research preview of Claude Design's editor; requires artifacts availability and v2.1.234+); the artifacts page's 'Draft a design canvas' shows /design <brief>; the changelog names no design-family surface through v2.1.268
+  - prior: binary extraction v2.1.251 (2026-08-31) registered the canvas skill with a /design dispatch table and no model-invocation gate, and the rollout flag defaulted off at v2.1.234; the 2.1.263 registration matches except that the flag now defaults on
+- **Observation:** extraction: targeted string search of the installed binary v2.1.263 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (both design registrations read from the bundle strings), refreshing the v2.1.251 extraction (2026-09-11)
+- **Recheck trigger:** a Claude Code release adds a model-invocation gate to the canvas skill, changes either design registration's enablement or subcommand set, merges the two registrations, a release note first names a design-family surface, or the commands-page row stops describing the canvas (verified 2026-09-11)
+- **Baked:** description phrase no · Boundary section yes
 
 ### `design-sync` → `visualization:visualize`
 
@@ -140,8 +191,8 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - native description: Health-check your setup and fix issues: installation, unused extensions, duplicated or bloated memory files, slow hooks, updates, permissions
   - our description: read-only slowness-diagnostic capture run AT THE MOMENT the machine or a session feels slow, before restarting or deleting anything
 - **Observation:** extraction: extracted from binary v2.1.232 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (integrity: degraded, counts are floors) (2026-08-23)
-- **Recheck trigger:** a Claude Code release gives `/doctor` a timed or profiling mode, or changes its status as a bundled skill (verified 2026-08-23)
-- **Baked:** description phrase no · Boundary section no
+- **Recheck trigger:** a Claude Code release gives `/doctor` a timed or profiling mode, or changes its status as a bundled skill (verified 2026-09-11)
+- **Baked:** description phrase no · Boundary section yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `doctor` → `claude-ops:audit-skill-visibility`
@@ -157,8 +208,8 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - recheck trigger fired 2026-09-04 and is discharged as of 2026-09-07: /skill-doctor now has its own row in this store, pinned to the upstream commit that added it, so this row is scoped back to /doctor alone and no longer stands in for two surfaces
   - this row's routing survives the split: the /doctor row of https://code.claude.com/docs/en/commands.md still credits the bundled doctor skill with finding 'unused skills, MCP servers, and plugins versus their context cost' inside its setup checkup, so the deferral recorded here is to a surface that still does the job (read 2026-09-07)
 - **Observation:** extraction: targeted string search of the installed binary v2.1.252 (doctor Check 1 strings confirmed; a spot observation over the sibling rows' full v2.1.232 extraction, not a re-extraction) (2026-08-31)
-- **Recheck trigger:** a Claude Code release changes doctor's unused-components check (Check 1's grouping, its disable offer, or its benefit estimate), gives it a multi-source reconciliation or observation-horizon discipline, or changes /doctor's status as a bundled skill or its gating switch (verified 2026-09-07)
-- **Baked:** description phrase yes · Boundary section no
+- **Recheck trigger:** a Claude Code release changes doctor's unused-components check (Check 1's grouping, its disable offer, or its benefit estimate), gives it a multi-source reconciliation or observation-horizon discipline, or changes /doctor's status as a bundled skill or its gating switch (verified 2026-09-11)
+- **Baked:** description phrase yes · Boundary section yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `run` → `testing:run-e2e`
@@ -172,8 +223,8 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - our description: End-to-end live app verification. Check prerequisites, start the app, drive UI/API flows, and capture evidence; includes a non-UI smoke-test playbook
   - the non-UI smoke lane has no native counterpart in this extraction
 - **Observation:** extraction: extracted from binary v2.1.232 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (integrity: degraded, counts are floors) (2026-08-23)
-- **Recheck trigger:** a Claude Code release changes the bundled `run` skill's roster entry or invocation mode, or gives it an evidence-capture or non-app target mode (verified 2026-08-23)
-- **Baked:** description phrase no · Boundary section no
+- **Recheck trigger:** a Claude Code release changes the bundled `run` skill's roster entry or invocation mode, or gives it an evidence-capture or non-app target mode (verified 2026-09-11)
+- **Baked:** description phrase no · Boundary section yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `simplify` → `code-tidying:batch-simplify`
@@ -187,8 +238,8 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - our description already carries `Skip for single-file cleanup. Use /simplify instead`
   - seeded rationale: same cleanup job at batch scale across many files
 - **Observation:** extraction: extracted from binary v2.1.232 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (integrity: degraded, counts are floors) (2026-08-23)
-- **Recheck trigger:** a Claude Code release gives the bundled `simplify` skill a multi-file or time-window argument form, which would collapse this pair's only distinction (verified 2026-08-23)
-- **Baked:** description phrase no · Boundary section no
+- **Recheck trigger:** a Claude Code release gives the bundled `simplify` skill a time-window argument form, a repository mode, or ecosystem grouping (the multi-file half of this trigger fired by 2026-09-11: the skill accepts a path or PR reference target, so the remaining distinction is the sweep discipline, recorded in the skill's context/bundled-simplify.md) (verified 2026-09-11)
+- **Baked:** description phrase no · Boundary section yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `simplify` → `code-tidying:tidy`
@@ -202,8 +253,8 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - our description already carries `Skip when: /simplify refines the current diff`
   - seeded rationale: both clean up code without changing behavior
 - **Observation:** extraction: extracted from binary v2.1.232 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (integrity: degraded, counts are floors) (2026-08-23)
-- **Recheck trigger:** a Claude Code release adds, removes, or changes the invocation mode of the bundled `simplify` skill, or the skill gains a lane-scoped mode that overlaps tidy's proactive hunt (verified 2026-08-23)
-- **Baked:** description phrase no · Boundary section no
+- **Recheck trigger:** a Claude Code release adds, removes, or changes the invocation mode of the bundled `simplify` skill, or the skill gains a lane-scoped mode that overlaps tidy's proactive hunt (verified 2026-09-11)
+- **Baked:** description phrase no · Boundary section yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ## Plugin-backed built-ins
@@ -218,8 +269,8 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - the extraction's `plugin_backed` map reports {"security-review": "security-review"}; the name appears in neither `builtin_commands` nor `bundled_skills`
   - our description: CI security-review lane for a GitHub pull request. Logic, trust-boundary, and Actions security findings static analysis misses
 - **Observation:** extraction: extracted from binary v2.1.232 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (integrity: degraded, counts are floors) (2026-08-23)
-- **Recheck trigger:** an extraction stops reporting `security-review` under `plugin_backed`: it moves into the bundled-skill or built-in-command lane, or its backing plugin name changes (verified 2026-08-23)
-- **Baked:** description phrase no · Boundary section no
+- **Recheck trigger:** an extraction stops reporting `security-review` under `plugin_backed`: it moves into the bundled-skill or built-in-command lane, or its backing plugin name changes (re-verified 2026-09-11: the installed 2.1.263 binary registers it plugin-backed and the commands page gives the row no Skill label; the skill's reference/bundled-security-review.md carries the record) (verified 2026-09-11)
+- **Baked:** description phrase no · Boundary section yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ## Session-provided skills (observation-only)
