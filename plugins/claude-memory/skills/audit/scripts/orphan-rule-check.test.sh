@@ -165,6 +165,39 @@ printf 'see e.md\n' >"$HASH/.scratch#dir/refE.md"
 OUT=$(cd "$HASH" && bash "$SCRIPT")
 assert_contains "hash: ref in quoted '.scratch#dir' tier is excluded => e.md orphan" "$OUT" "e.md"
 
+# --- Case 10: a self-describing rule is never an orphan --------------------------------
+# An always-loaded rule is in context every session by construction, and the
+# always-loaded rules index deliberately omits unscoped rules, so "unreferenced"
+# alone proves nothing. A `description:` line is the rule naming its own purpose.
+
+DESC="$TEST_TMPDIR/described"
+make_repo "$DESC"
+mkdir -p "$DESC/.claude/rules"
+printf -- '---\ndescription: "House style for prose"\n---\n\n# Described\n\nbody\n' >"$DESC/.claude/rules/described.md"
+printf '# Anonymous\n\nbody\n' >"$DESC/.claude/rules/anonymous.md"
+printf -- '---\nsomething: else\n---\n\n# Other frontmatter\n\nbody\n' >"$DESC/.claude/rules/other-fm.md"
+(cd "$DESC" && git add -A && git commit -q -m "described fixture")
+
+OUT=$(cd "$DESC" && bash "$SCRIPT")
+assert_not_contains "a rule with description: frontmatter is not an orphan" "$OUT" "described.md"
+assert_contains "a rule with no frontmatter and no reference is an orphan" "$OUT" "anonymous.md"
+assert_contains "frontmatter without description: does not exempt" "$OUT" "other-fm.md"
+assert_contains "a local orphan carries the local route" "$OUT" "local: add a description: line"
+OUT=$(cd "$DESC" && bash "$SCRIPT" --count)
+assert_eq "--count == 2 with one self-describing rule" "2" "$OUT"
+
+# --- Case 11: a synced orphan routes its fix upstream ----------------------------------
+
+SYNC="$TEST_TMPDIR/synced"
+make_repo "$SYNC"
+mkdir -p "$SYNC/.claude/rules"
+printf '# Synced rule\n\nbody\n' >"$SYNC/.claude/rules/synced.md"
+(cd "$SYNC" && git add -A && git commit -q -m "chore: sync standards components (#7)")
+
+OUT=$(cd "$SYNC" && bash "$SCRIPT")
+assert_contains "a synced orphan is still reported" "$OUT" "synced.md"
+assert_contains "a synced orphan carries the upstream route" "$OUT" "synced (commit, upstream: unknown): fix at the sync's source"
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
   exit 0

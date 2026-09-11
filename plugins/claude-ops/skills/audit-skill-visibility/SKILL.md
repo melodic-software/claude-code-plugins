@@ -200,6 +200,32 @@ the same engine. It is not needed to get a report.
 Python 3.11+ is the only requirement. No third-party packages, matching
 `inventory.py` and `install_state.py`.
 
+### The skill-usage store the hooks write
+
+The hooks write `skill-usage.jsonl` where the `skill_usage_scope` and `skill_usage_dir` options
+say. Neither script here guesses that location: `audit_skill_visibility.py` takes it as
+`--skill-usage`, and `scripts/skill-pair-cooccurrence.sh` resolves it through the resolver the
+hooks themselves call. Hand it the rendered option values (a skill subprocess inherits no
+`CLAUDE_PLUGIN_OPTION_*` mirror), resolve once, pass the one path to both:
+
+```bash
+STORE="$(bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-skill-visibility/scripts/skill-pair-cooccurrence.sh" \
+  --scope "${user_config.skill_usage_scope}" --dir "${user_config.skill_usage_dir}" \
+  --data-root "${CLAUDE_PLUGIN_DATA}" --print-store)"
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/audit-skill-visibility/scripts/audit_skill_visibility.py" \
+  --skill-usage "$STORE"
+bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-skill-visibility/scripts/skill-pair-cooccurrence.sh" \
+  --store "$STORE" --pair <caller>,<callee>
+```
+
+An empty or unrendered option value reads as its default, as it does in the hooks. `--data-root`
+is the `data-dir` scope's answer and the other two scopes ignore it, so the one call above serves
+all three. It is written out here rather than read from the environment because the script takes
+no `CLAUDE_PLUGIN_DATA` fallback: a skill subprocess can carry another plugin's value, and the
+Bash tool does not inherit this one at all, so the skill body's own expansion is the only
+trustworthy source. Flags, that reason, and missing-store behavior:
+[reference/pair-cooccurrence.md](reference/pair-cooccurrence.md).
+
 ## Reading the output
 
 Three independent fields per skill; a single flat verdict would collapse
@@ -273,6 +299,35 @@ per-skill claim, never one per skill.
 Read-only. It never disables, deletes, or edits a skill, and it never
 recommends deleting one it classified as misconfigured. That class is a
 fix-me, not a removal candidate.
+
+## Boundary, the bundled `doctor` skill and `/skill-doctor`
+
+Two native Claude Code surfaces answer the question this skill starts from, and the three get
+conflated whenever a fleet looks unused:
+
+- **`doctor` (bundled skill, alias `/checkup`).** Ships with Claude Code rather than as a
+  marketplace plugin. Among its checks it finds unused skills, MCP servers, and plugins against
+  their context cost, groups them with a benefit estimate, and offers to disable the groups the
+  user selects. It reports first and asks before changing anything.
+- **`/skill-doctor` (built-in command).** Shows which loaded skills go unused and what they cost in
+  context; the Stats tab carries its report in an interactive session.
+- **This skill (marketplace plugin).** Reconciles the native counters with a JSONL store and OTEL,
+  computes an observed horizon, and separates starved-and-wanted from unwanted from unobservable,
+  withholding every verdict the span cannot support. Read-only.
+
+**Routing.** When either native surface resolves in your session, prefer it for "which skills are
+unused versus their cost, right now". Prefer this skill when the answer has to survive a young
+usage store, when starved and unwanted must be told apart, or when the question is whether skill
+B fires where skill A ran.
+
+**Mutation gate.** `doctor` disables. This skill never disables, deletes, or edits a skill, so
+never chain into a `doctor` disable on this skill's behalf; report the classification and let the
+user act.
+
+**Availability is never assumed.** `doctor` survives the bundled-skill kill switch but an
+environment variable or a `skillOverrides` entry still hides it, and `/skill-doctor` has its own
+gate; this section states what to do when one resolves, never that it is present. The four-part
+records live in [reference/bundled-doctor.md](reference/bundled-doctor.md).
 
 ## Gotchas
 

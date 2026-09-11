@@ -39,7 +39,7 @@ Claude Code's native OTEL cannot see.
 | `/claude-ops:audit-performance` | Read-only slowness-diagnostic capture, run at the moment the machine or a session feels slow, before restarting or deleting anything. One timed engine pass separates four documented suspects: accumulated install-tree state, version regression, component bloat, and the fan-out layer, plus on Windows a kernel-object census that names the host-level Token-object leak beneath all four. Each suspect's evidence and verdict routing is documented in the skill. Phase timings are first-class evidence; content reads are allowlisted to four non-secret config files (`settings.json`, `.last-cleanup`, `hooks.json`, `installed_plugins.json`), so `~/.claude.json` and `history.jsonl` stay stat-only. Reports and routes; never mutates, never elevates, and never executes a discovered hook or statusline command. |
 | `/claude-ops:observability` | Reads locally captured Claude Code telemetry, OTEL DuckDB store, machine-owned collector, optional Aspire dashboard, hook-event JSONL, ccusage, and renders cross-session trend reports (`session`/`day`/`week`/`month`/`since:`/`all` scopes). Read-only except the explicit `clean` action, which prunes the JSONL log and OTEL store by age. |
 | `/claude-ops:known-issues` | Searches known Claude product GitHub bugs before you build on a feature, checks service health and model quality, and maintains a persistent registry of tracked issues (what they block, workarounds, follow-ups when fixed). Actions: `status` (default), `search`, `check-all`, `scan`, `list`, `quality`, `create`. |
-| `/claude-ops:changelog` | Ingests Claude Code changelog entries and integrates them into the current repo: `fetch` (read-only display), `diff` (impact triage, no edits), `status` (applied versions from git history), and `apply` (full explore → research → interview → implement pipeline, explicit user intent only). |
+| `/claude-ops:changelog` | Ingests Claude Code changelog entries and integrates them into the current repo: `fetch` (read-only display), `diff` (impact triage over a release range, no edits), `status` (the read marker from the repo's Claude Code ledger, the default range to the newest release, and the replay cap), and `apply` (full explore → research → interview → implement pipeline, explicit user intent only). |
 | `/claude-ops:plugins` | Brings a machine's plugin fleet current on demand: marketplace refresh, updates for the plugins that actually load (including in-repo project/local-scope installs), new-catalog-plugin install per policy, and scope-divergence detection. Actions: `sync` (default, CLI-mediated mutations only), `audit` (read-only dry run), `converge` (the one action that can touch a committed `.claude/settings.json`. Previews and confirms per plugin first). |
 | `/claude-ops:morning-brief` | Prints the read-only, `gh`-based operator morning view for the current repo in one pass: open counts per queue label (`priority: needs-triage`, `status: ready`, `status: needs-decision`, `needs-human`), the gh-native merge-ready PR list (non-draft + `mergeStateStatus=CLEAN`), parked `status: needs-decision` issues with their RECOMMENDED lines, and loop-lane telemetry freshness (per-lane `last-cycle` age + `flags:`). Never mutates anything; the authoritative PR merge gate stays `/source-control:babysit-prs`. |
 | `/claude-ops:lanes` | Starts, restarts, stops, and reports loop lanes as named background Claude Code sessions seeded from canonical prompt files. `start` (default) / `restart` pull the repo and refresh the plugin marketplace, then launch each configured lane (`claude --bg -n <lane>`) with its per-lane `model`/`effort`; `status` shows per-lane running state and live sessionId; `stop` ends a lane via `claude stop`; `consume-restarts` is the OS-schedulable restart-request consumer. It reads each configured lane's telemetry `restart_request` and relaunches the stopped lanes that asked, through the same launcher (#1653). Acts only on sessions whose name is a configured lane. Lanes come from a JSON config (`--config`, else `$CLAUDE_OPS_LANES_CONFIG`, else `<repo>/.work/lanes/lanes.json`, with a temporary default-only fallback to the pre-move `<repo>/.work/lanes.json` under a deprecation warning); config and prompts live in the reserved `lanes/` concern home under a hardcoded `.work` root, which is a sanctioned placement but still session-local, so a durable cross-machine home stays #480's job. |
@@ -47,13 +47,35 @@ Claude Code's native OTEL cannot see.
 
 ## The audit hooks
 
-Eight advisory `*-audit` hooks, spread across nine hook scripts because `skill-usage-audit` has two
-producers, emit the marketplace
+Eight advisory `*-audit` hooks, registered as nine rows because
+`skill-usage-audit` has two producers, emit the marketplace
 [hook-telemetry envelope](../../docs/conventions/hook-telemetry/README.md). One
 JSON event per run carrying that hook's own `duration_ms`, outcome, and a
 privacy-safe subject. Each is independently toggleable via its own `userConfig`
 boolean (default **on**; see [Per-hook kill switches](#per-hook-kill-switches)).
-The six pure emitters are a no-op until a consumer wires a sink (below);
+
+Three scripts serve those nine rows. `hooks/audit-event-emitter.sh` carries
+seven of them and picks the row from the payload's `hook_event_name`, the way
+`session-event-log.sh` next to it serves about thirty events from one file; the
+seven events are distinct, so the event alone selects the row. Each row still
+reads its own `<name>_enabled` switch and emits the same telemetry `hook` id,
+`hook_event`, `status` and `data` fields it emitted as a standalone script, so
+no downstream reader can tell the difference. The two rows with earned behavior
+of their own keep their files: `skill-usage-audit.sh`, whose kill switch is
+inlined above its library `source` because it sits on the hot `PostToolUse`
+path, and `hook-failure-audit.sh` (below).
+
+The [hook budget](../../docs/conventions/hook-budget/README.md) is accounted per
+`hooks.json` entry, and the collapse changes no entry: the same nine audit rows,
+on the same events, with the same matchers, and one event still spawns exactly
+one process. Per-entry cost is unchanged for an enabled row (the same library,
+the same `jq` passes, plus one bash pattern match to read the event) and lower
+when every switch is off, because the emitter reads all seven switches before it
+parses the library. A row that is off on its own pays one buffered payload it
+did not pay before, because the row is only known once the event has been read;
+it parsed the same library then as now, and no extra process runs either way.
+
+The six pure emitter rows are a no-op until a consumer wires a sink (below);
 `skill-usage-audit` is one exception. Both its producers also write the shared
 `skill-usage.jsonl` second store unconditionally (disable the whole feature with
 `skill_usage_audit_enabled=false`; pick the store's home with `skill_usage_scope`
@@ -116,10 +138,10 @@ None captures a command body, absolute path, error message, or argument body, on
 the repo-relative path of the loaded rule file.
 
 The InstructionsLoaded row carries no matcher on purpose. That event's matcher selects on load
-reason, and `instructions-loaded-audit.sh` passes every reason through verbatim into its subject, so
+reason, and the row passes every reason through verbatim into its subject, so
 scoping to the full documented set would skip nothing and would silently drop any reason a later
 release adds. Scoping below that set is worse: the only reason worth excluding for cost is
-`session_start`, which the script already drops at write time, and it drops it behind the
+`session_start`, which the row already drops at write time, and it drops it behind the
 `instructions_loaded_audit_log_session_start` option. A matcher that excluded `session_start` would
 stop the hook from ever spawning on it, leaving that option switched on but unable to log anything.
 The row therefore stays unscoped until the option is retired.
@@ -129,7 +151,9 @@ The row therefore stays unscoped until the option is retired.
 Each audit hook is toggled by its own `userConfig` boolean (default **on**; set
 to `false` for a clean no-op). Disable one hook without touching the others.
 The hooks read them through the native `CLAUDE_PLUGIN_OPTION_<KEY>` hook-process
-mirror.
+mirror. Seven rows share `audit-event-emitter.sh`, which reads the switch of the
+row the event selected: sharing a script does not share a switch, and turning one
+row off leaves the other six emitting.
 
 | Hook | Option |
 |---|---|

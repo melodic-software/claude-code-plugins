@@ -79,6 +79,21 @@ For contradictions:
 2. Ask which one is correct
 3. Update or remove the incorrect one
 
+### N1 (Nested AGENTS.md reachability) fixes
+
+The fix is mechanical: a `CLAUDE.md` beside the unwired `AGENTS.md` whose whole body is
+`@AGENTS.md`. Present the file list, apply with approval, then re-run
+`nested-agents-check.sh --count` and expect `0`. When the directory already carries a `CLAUDE.md`
+with content of its own, add the `@AGENTS.md` line at its top rather than replacing it.
+
+### Synced files: never edit here
+
+Before proposing any edit, run `file-provenance.sh <path>`. A `synced` file (a `SYNC-MANAGED` marker,
+or a last commit by the standards sync) is overwritten by the next sync, so the fix is a change at
+the sync's source. Say so, name the upstream when the marker names one, and skip the edit. A finding
+on a synced file is closed by the upstream change landing and syncing back, not by anything this
+action does.
+
 ### C7 (Currency) fixes
 
 For stale references:

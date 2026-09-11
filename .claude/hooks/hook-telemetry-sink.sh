@@ -4,23 +4,23 @@
 # the log root (.observability/claude by default, project-relative; the
 # session_event_log_dir option moves it).
 #
-# Two routes, decided by the envelope's session id, read from the spine
-# (`session_id`, which a contract-1.1 producer carries when its payload held a
-# well-formed one and omits otherwise) and falling back to `data.session_id`,
-# which the claude-ops audit hooks still send:
-#   * present and well-formed: one spine-shaped line appended to
-#     sessions/<session_id>.jsonl, beside the per-session event log
-#     (session-event-log.sh); `source: "envelope"` tells the reader which
-#     producer wrote it. No lock: one file per session removes the shared
-#     write.
-#   * absent: the legacy shape ({ts, event, hook, tool, duration_ms, exit_code,
-#     subject, status}) appended to hook-events.jsonl under the same root, the
-#     shared file the observability skill has always read, under its lock.
+# Both routes write ONE record shape — the hook event record session-log-lib.sh
+# documents and formats (slog_event_record_to), `source: "envelope"`. The
+# envelope's session id, read from the spine (`session_id`, which a
+# contract-1.1 producer carries when its payload held a well-formed one and
+# omits otherwise) and falling back to `data.session_id`, which the claude-ops
+# audit hooks still send, decides the DESTINATION and nothing else:
+#   * present and well-formed: appended to sessions/<session_id>.jsonl, beside
+#     the per-session event log (session-event-log.sh). No lock: one file per
+#     session removes the shared write.
+#   * absent: appended to the shared hook-events.jsonl under the same root, the
+#     file the observability skill has always read, under its lock. The record
+#     is the same minus `session_id`, which these rows do not have.
 #
-# Field mapping: ts<-timestamp, event<-hook_event, hook<-hook, tool<-data.tool,
-# subject<-data.subject, changed<-data.changed (when a producer sends one);
-# status translates (ok->success) and exit_code derives from status
-# (error/blocked->2, else 0), since the skill keys errors on it.
+# Field mapping: ts<-timestamp, hook_event_name<-hook_event, hook<-hook,
+# tool<-data.tool, subject<-data.subject, changed<-data.changed (when a
+# producer sends one); status translates (ok->success) and exit_code derives
+# from status (error/blocked->2, else 0), since the skill keys errors on it.
 #
 # The root carries a self-ignoring .gitignore inside a checkout, healed on the
 # first write when absent (session-log-lib.sh); a guard an operator changed is
@@ -115,50 +115,32 @@ blocked)
   ;;
 esac
 
-project_dir=$(hook::repo_root "${CLAUDE_PROJECT_DIR:-.}")
+project_dir=""
+hook::repo_root_to project_dir "${CLAUDE_PROJECT_DIR:-.}" || :
 root=""
 slog_root_to root "$project_dir"
 [[ -n "$root" ]] || exit 0
 slog_guard_ok "$root" "$project_dir" || exit 0
 
+# One record, one formatter, both routes: the line differs only by the session
+# id the spine carries, so the route decides the destination and nothing else.
+# No second jq here — session-log-lib.sh builds and escapes the line from
+# builtins, which is one process fewer per event on both routes.
+RUN_KEYS=(hook s "$HOOK" exit_code n "${EXIT_CODE:-0}" subject s "$SUBJECT" tool s "$TOOL")
+[[ -n "$CHANGED" ]] && RUN_KEYS+=(changed n "$CHANGED")
+
+LINE=""
 if [[ -n "$SESSION_ID" ]] && slog_valid_id "$SESSION_ID"; then
   [[ -d "$root/sessions" ]] || mkdir -p "$root/sessions" 2>/dev/null || exit 0
-  LINE=$(MSYS_NO_PATHCONV=1 jq -nc \
-    --arg ts "$TS" \
-    --arg session_id "$SESSION_ID" \
-    --arg event "$EVENT" \
-    --arg hook "$HOOK" \
-    --arg tool "$TOOL" \
-    --argjson duration_ms "${DURATION_MS:-0}" \
-    --argjson exit_code "${EXIT_CODE:-0}" \
-    --arg subject "$SUBJECT" \
-    --arg status "$STATUS_OUT" \
-    --arg changed "$CHANGED" \
-    '{ts: $ts, session_id: $session_id, hook_event_name: $event, status: $status,
-      duration_ms: $duration_ms, source: "envelope", hook: $hook,
-      exit_code: $exit_code, subject: $subject, tool: $tool}
-     + (if $changed == "" then {} else {changed: ($changed == "true")} end)' 2>/dev/null) || exit 0
-  [[ -n "$LINE" ]] || exit 0
+  slog_event_record_to LINE envelope "$TS" "$SESSION_ID" "$EVENT" "$STATUS_OUT" \
+    "${DURATION_MS:-0}" "${RUN_KEYS[@]}"
   printf '%s\n' "$LINE" >>"$root/sessions/$SESSION_ID.jsonl" 2>/dev/null
   exit 0
 fi
 
 mkdir -p "$root" 2>/dev/null || exit 0
-
-LINE=$(MSYS_NO_PATHCONV=1 jq -nc \
-  --arg ts "$TS" \
-  --arg event "$EVENT" \
-  --arg hook "$HOOK" \
-  --arg tool "$TOOL" \
-  --argjson duration_ms "${DURATION_MS:-0}" \
-  --argjson exit_code "${EXIT_CODE:-0}" \
-  --arg subject "$SUBJECT" \
-  --arg status "$STATUS_OUT" \
-  '{ts: $ts, event: $event, hook: $hook, tool: $tool,
-    duration_ms: $duration_ms, exit_code: $exit_code,
-    subject: $subject, status: $status}' 2>/dev/null) || exit 0
-[[ -n "$LINE" ]] || exit 0
-
+slog_event_record_to LINE envelope "$TS" "" "$EVENT" "$STATUS_OUT" \
+  "${DURATION_MS:-0}" "${RUN_KEYS[@]}"
 hook::append_jsonl "${root}/hook-events.jsonl" "$LINE"
 
 exit 0

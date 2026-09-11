@@ -3,6 +3,187 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.48.1]
+
+### Changed
+
+- **Seven thin audit hooks collapsed into one event-dispatching emitter.**
+  Each hook was a near-copy of its siblings differing only in the event it
+  answered and the fields it reported, so a fix to the envelope had to be
+  applied seven times. One emitter now dispatches all seven rows. Every
+  envelope is byte-identical to the one its hook produced, verified per row.
+- **Every JSONL record is built by one formatter.** The record shape was
+  spelled at each write site, so a field could be added in one place and
+  missed in another. Writers now hand fields to one formatter that builds and
+  escapes the line from shell builtins, which also removes a `jq` process per
+  event from the telemetry sink.
+- **The skill-usage store path is resolved by one policy for the writer and
+  the reader.** The two had resolved it separately, so a configuration that
+  moved the store could be honored by one and not the other. The reader's
+  `--print-store` arm, which is how the Python auditor gets that one path,
+  needs no `jq`: it resolves and prints, and only the report reads the store.
+  The skill body's own call now passes `--data-root`, which the `data-dir`
+  scope requires and the other two ignore, so one documented command serves
+  every scope.
+- **Vendored `hook-utils.sh` refresh**, carrying the shared library's single
+  exit arm, its ceiling-bounded parent walk, and the retirement of seven
+  value-printing helpers that only wrapped their caller-writes-to-a-variable
+  twin.
+
+## [0.48.0]
+
+### Added
+
+- **`observability`**: a read-routing boundary row pointing API-application cache health at
+  the platform's cache diagnostics API (beta, per-request miss reasons), keeping the skill
+  scoped to local Claude Code telemetry while routing the other case.
+- **`audit-native-overlap` self-check**: a new blocking problem naming every non-`defer`
+  extraction-evidence store row whose component carries no `## Boundary` section. The
+  convention requires the Boundary section to land in the same change as its row, so a row
+  without one is a recorded verdict the model never reads. It breaks the store (exit 1)
+  rather than degrading it: a consumer gate passes a degraded run because degraded reports a
+  condition this repository cannot fix by editing its own files, and a missing section is
+  fixable in the change that adds the row. `defer` rows and agent components owe nothing.
+- **`audit-native-overlap` parity ties a Boundary section to its row's surface**: a row with
+  `baked.boundary_section` true now needs a `## Boundary` section that names that row's native
+  surface as a code span, not merely the heading. A component can carry a Boundary section for
+  a surface the registry has no row for, and a component overlapping several surfaces carries
+  one section owing each of them a mention, so a presence-only check let a row claim a section
+  written for something else. A leading slash is accepted, so a surface written as a command
+  satisfies a row whose name carries none.
+
+### Changed
+
+- **`audit-native-overlap` apply step**: the skill body now describes the two baked surfaces
+  separately. The `## Boundary` section is budget-free and lands with the store row on
+  invocation; only the description phrase is the gated `apply` step, because it spends
+  description budget on every session. The parity rule is unchanged: every baked description
+  phrase traces to a row, and a row without a phrase is legal pending-sweep state.
+- **`audit-native-overlap` tests**: the fixture repository seeds its default component with a
+  Boundary section naming its surface so the base row is parity-clean, and the suite gains
+  cases for the missing-section problem, for a section written for another surface, for a
+  generic heading whose text names the surface, for one section carrying two rows, for a
+  surface named only in prose, for `defer` rows owing no Boundary, and for a row whose only
+  missing surface is the description phrase.
+- **`audit-performance`**: a `## Boundary, the bundled doctor skill` section: `doctor` inspects
+  slow hooks and the release channel and offers to fix, `claude doctor` prints read-only
+  diagnostics, this skill measures while it is slow and refuses deletion. Routing, a mutation
+  gate (never chain into a `doctor` fix), and an availability rule. Four-part records in
+  `reference/bundled-doctor.md`.
+- **`audit-skill-visibility`**: a `## Boundary, the bundled doctor skill and /skill-doctor`
+  section beside the existing description phrase: both native surfaces answer "which skills are
+  unused versus their cost, right now", this skill separates starved from unwanted from
+  unobservable and never disables. Four-part records in `reference/bundled-doctor.md`.
+
+## [0.47.1]
+
+### Fixed
+
+- **`session-event-log.sh` no longer accepts a `stdin_read_timeout` that disables the log.** A
+  `0` (also `0.0`, `00`), a positive value under 10 µs, or a fractional value on a Bash before 4.0
+  reached `read -t` unchanged; `read` returned at once with nothing read, the loop broke on the
+  empty chunk, and the hook exited 0 having written no event line and printed nothing. The
+  producer now applies the same rejection rules `hook::resolve_read_timeout_to` applies to the
+  variable and falls back to the default of 2, so an env-block value outside the manifest's
+  `min: 1` cannot silently empty the observability store. Regression cases cover the four values.
+
+### Changed
+
+- **`lib/state-key.sh`:** replica synced with the canonical copy. The non-repository rung now
+  hashes the physical working directory, so one directory reached through two spellings keys once,
+  and an exported `CDPATH` can no longer redirect `cd` or add a line to stdout.
+
+## [0.47.0]
+
+### Added
+
+- **`morning-brief` reads sections 1-4 from REST when the host serves only a pinned
+  set of GraphQL operations.** The `gh` subcommands ride GraphQL; on the HTTP 403 "not
+  enabled for this session" shape the script switches transport for the rest of the
+  run, names it in the header, and re-reads queue counts, the merge-ready list, parked
+  decisions, and lane telemetry from repository-scoped `gh api repos/...` endpoints.
+  The merge-ready REST path reads `mergeable_state` per open PR under a `--pr-limit`
+  cap (default 50) and reports a capped read as PARTIAL; review decisions have no REST
+  field and render `n/a`. The stranded-findings section needs review threads, which
+  have no REST read, so it renders UNREADABLE there instead of an all-clear.
+- **`morning-brief` resolves owner/repo from the checkout's `origin` remote when
+  `gh repo view` is unavailable**, and names the source in the header.
+
+### Fixed
+
+- **`morning-brief` rendered an all-clear or an absence over an unreadable source.**
+  The stranded-findings section only checked the body for an `errors` key and ignored
+  gh's exit status, so a `{"message":...}` error body (the REST and 403 shape) rendered
+  as "every merged PR in the window is clear"; the telemetry section could not tell a
+  failed search from an absent issue and printed "no telemetry issue found"; the queues
+  section printed `?`. Every section is now one of data, empty, or UNREADABLE, the
+  header counts the unreadable sections, every `gh` call checks its exit status, and
+  error detection covers both the `errors[]` and the `message` body shapes. Exit code
+  5 means every section was unreadable; a partial brief still exits 0.
+
+## [0.46.0]
+
+### Changed
+
+- **`changelog` `status` reads a read marker, never commit bodies.** The applied version comes
+  from the marker line of the repository's Claude Code ledger (`docs/upstream/claude-code.md`,
+  override `CLAUDE_OPS_CHANGELOG_LEDGER`), falling back to the highest version a Conventional
+  Commits SUBJECT of the form `address Claude Code v<A>..<B> changelog` names. The previous
+  `git log --grep` over message bodies matched every doc whose recency stamp cited a Claude Code
+  version: on this marketplace it reported 13 applies where the true count was zero.
+- **`diff` and `apply` take a range.** `vA..vB` is inclusive at both ends, `vX` is one release,
+  and no argument means every release newer than the read marker up to the newest published.
+- **`fetch` cites the upstream-drift fetch route** (`curl` the raw `.md`, slice the release
+  blocks locally, check the first heading) instead of carrying its own dated WebFetch caveats.
+  The spoke keeps only the page-specific shape: the `<Update label>` block, `[VSCode]`-tagged
+  items, and the no-change placeholder line.
+
+### Added
+
+- **`scripts/changelog-status.sh`**, the first step of every `changelog` action: marker
+  resolution, installed vs newest release, the range with its release list and core-item count,
+  and the replay cap. It fetches the changelog itself by the raw-markdown route, takes
+  `--changelog <file>` to reuse a copy, and `--no-fetch` to read the marker alone. The skill's
+  pre-computed context line runs it with `--no-fetch`, so the marker is in context on every
+  invocation. `changelog-status.test.sh` covers it.
+- **A replay cap** of ten releases or 300 core items (`--cap-releases`, `--cap-items`, or the
+  `CLAUDE_OPS_CHANGELOG_CAP_*` variables). Past it, `diff` and `apply` stop and recommend a
+  docs-conformance recheck of the components followed by a marker reset, because the current docs
+  already carry the cumulative state and replaying items past the cap costs more than it returns.
+- **Three evals with fixtures**: the marker line is read, commit-body mentions are ignored, and a
+  range past the cap stops with the recommendation. They replace the eval that asserted
+  git-history-derived status.
+
+## [0.45.4]
+
+### Fixed
+
+- **`observability`'s pre-compute pipeline line prints no option tier.** The line could carry no
+  option value (a `${user_config.*}` never rides inside shell-executing content), so its sixth
+  line printed manifest defaults a reader could take for the effective state. The pre-compute
+  line now runs the probe with `--observed`: the sixth line carries the envelope count and names
+  the section 2.6 re-run, which is fed the options the skill body renders as plain content and
+  is the one place the options render.
+
+## [0.45.3]
+
+### Fixed
+
+- **`observability` loads when no `session_event_log_*` option is configured.** The two
+  pre-compute lines passed `${user_config.*}` placeholders inside a shell command; a placeholder
+  the harness leaves unrendered is a bash `bad substitution`, one failed pre-compute line aborts
+  the whole invocation, and a rendered value would be re-parsed by the shell, which is why the
+  plugins reference has shell-executing fields reject `${user_config.*}`. The pre-compute lines
+  now pass no option: the options render as plain content, the probe lines report the manifest
+  defaults, and the skill body re-runs the probe with the rendered values from its own Bash call.
+  A regression test asserts that no pre-compute line references `user_config` and runs each
+  probe-invoking line through bash.
+- **The pipeline line names its two tiers.** `envelope:` counts the rows the telemetry sink wrote
+  for the audit hooks, the `source: "envelope"` rows in `sessions/*.jsonl` plus every line of the
+  shared `hook-events.jsonl` (the legacy shape for a payload with no session id), which the
+  event-log switch never governed, beside `event log: on|off`, so `off` next to a populated root
+  no longer reads as a contradiction.
+
 ## [0.45.2]
 
 ### Fixed

@@ -3,6 +3,43 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.23]
+
+### Changed
+
+- **A finding's kind is now a registry entry rather than a hand-written
+  argument tuple at each call site.** Severity, confidence, the branch and
+  worktree actions, and the disposition were repeated at every emit, so the
+  same kind could be emitted with different severities from different places.
+  One registry row per kind now carries them, and emitting a finding names
+  only its kind. Four kinds that genuinely vary keep an explicit form. The
+  registry is printable, so a test can assert against it rather than against a
+  transcript.
+- **Classifying branches and worktrees no longer probes.** Collection gathers
+  the evidence and classification reads it, so the classifier is a pure
+  function of arrays and can be tested without a repository.
+
+## [0.23.22]
+
+### Changed
+
+- audit: still dual-reads a retired worktree-root alias so old-key-only
+  machines count as configured, but reports `source: worktreeroot.path` and
+  does not write git config (audit stays read-only). The rewrite peel lives
+  in `scripts/worktree-root-legacy.sh`. Remedy strings name only
+  `worktreeroot.path`.
+
+## [0.23.21]
+
+### Changed
+
+- audit: dual-read `worktreeroot.path` then the legacy alias
+  `melodic.worktreeroot` (new key wins; old-key-only still counts as
+  configured). Convention-git allowlist admits both keys and both argv
+  shapes (`--get-all --type=path` and `--get-all --show-origin --type=path`).
+  Remedy strings name `worktreeroot.path`. Shared resolver:
+  `scripts/worktree-root-resolve.sh`.
+
 ## [0.23.20]
 
 ### Changed

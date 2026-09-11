@@ -6,6 +6,13 @@
 # byte-identical fallback, every guard run to completion, exit aggregation,
 # and the merge of several stdout documents into one.
 #
+# Stub guards isolate each of those mechanics, but a mechanic asserted only
+# against a stub is asserted against a stand-in for the thing it serves, so the
+# merge, the no-jq arbitration and the exit aggregation are each also driven
+# with SHIPPED guards, whose documents this file does not write. The guards'
+# own decisions stay covered by their own *.test.sh, which now assert those
+# decisions on both paths (`expect_both` in guardrails-test-helpers.sh).
+#
 # The stub guard bodies below are single-quoted on purpose: they are written
 # verbatim into stub scripts, so their `$` must not expand here.
 # shellcheck disable=SC2016
@@ -67,13 +74,39 @@ stub ask.sh 'printf "%s\n" "{\"hookSpecificOutput\":{\"hookEventName\":\"PreTool
 
 PAYLOAD=$(jq -n '{session_id:"s-1",tool_name:"Bash",cwd:"/x",tool_input:{command:"git status --short"}}')
 
-run() { # run <stdin-string> <guard>... -> stdout captured, stderr to $ERR, rc in $RC
+# run <stdin-string> [--lib <path>]... <guard>... -> OUT, ERR, RC.
+#
+# The invocation itself is the shared driver's (guardrails-test-helpers.sh), so
+# this suite and every guard suite reach the dispatcher through one code path;
+# what is left here is the translation from this suite's positional guard list
+# to the driver's `--hook` / `--also` / `--lib`.
+run() {
   local input="$1"
   shift
   : >"$SEEN"
-  RC=0
-  OUT=$(bash "$DISPATCH" "$@" <<<"$input" 2>"$TEST_TMPDIR/err") || RC=$?
-  ERR=$(cat "$TEST_TMPDIR/err")
+  local -a opts=()
+  local first=1
+  while (($#)); do
+    case "$1" in
+    --lib)
+      opts+=(--lib "$2")
+      shift 2
+      ;;
+    *)
+      if ((first)); then
+        opts+=(--hook "$1")
+        first=0
+      else
+        opts+=(--also "$1")
+      fi
+      shift
+      ;;
+    esac
+  done
+  guard_invoke --via dispatched --payload "$input" ${opts[@]+"${opts[@]}"}
+  OUT="$GUARD_OUT"
+  ERR="$GUARD_ERR"
+  RC="$GUARD_RC"
 }
 
 # --- benign payload, one allowing guard ---------------------------------------
@@ -173,7 +206,6 @@ assert_absent "stalled stdin: no cut-short diagnostic" "$ERR" "cut short"
 assert_contains "stalled stdin: block.sh was sourced (its BLOCKED line is on stderr)" "$ERR" "BLOCKED: stub"
 assert_eq "stalled stdin: the notice-only exit was not taken (no JSON document on stdout)" "0" "$(jq -s 'length' <<<"$OUT")"
 
-
 # --- jq cache: a NUL-bearing payload bypasses the cache ----------------------
 nul_payload=$(jq -n '{tool_name:"Bash",tool_input:{command:("git " + ([0] | implode) + "x")}}')
 run "$nul_payload" "$TEST_TMPDIR/nul.sh"
@@ -200,16 +232,16 @@ assert_eq "dirname inside a dispatched guard is the external command" "file /" "
 # suite. `./run-guards.sh` makes `${BASH_SOURCE[0]%/*}` answer `.` (a relative
 # dir); a bare filename makes the strip a no-op and takes the `=` fallback.
 # Both must still source the sibling library and serve the jq cache.
+# The spelling under test is the dispatcher path the driver invokes, so it is
+# passed by overriding GUARD_DISPATCH for this call's dynamic extent.
 run_from_hooks_dir() {
-  local spelling="$1"
+  local GUARD_DISPATCH="$1"
   shift
   : >"$SEEN"
-  RC=0
-  OUT=$(
-    cd "$HOOK_DIR" || exit 1
-    bash "$spelling" "$@" <<<"$PAYLOAD" 2>"$TEST_TMPDIR/err"
-  ) || RC=$?
-  ERR=$(cat "$TEST_TMPDIR/err")
+  guard_invoke --via dispatched --payload "$PAYLOAD" --chdir "$HOOK_DIR" --hook "$1"
+  OUT="$GUARD_OUT"
+  ERR="$GUARD_ERR"
+  RC="$GUARD_RC"
 }
 run_from_hooks_dir ./run-guards.sh "$TEST_TMPDIR/allow.sh"
 assert_exit "relative ./run-guards.sh exits 0" 0 "$RC"
@@ -318,6 +350,30 @@ else
   run_nojq "$PAYLOAD" "$TEST_TMPDIR/ctx1.sh" "$TEST_TMPDIR/ctx2.sh"
   assert_eq "no jq: with no blocking document the first one is emitted" "$standalone" "$OUT"
   assert_contains "no jq: the second context document is dropped to stderr" "$ERR" "ctx two"
+
+  # The arbitration above runs on documents this file writes. With jq gone, two
+  # SHIPPED guards each emit their own prerequisite notice on the same payload,
+  # so the same code path can be asserted on documents the guards wrote — the
+  # shape an operator without jq actually meets.
+  NOJQ_CMD=$(command_json 'cat > foo.txt && git commit -m x')
+  run_nojq "$NOJQ_CMD" block-hook-bypass.sh block-noncanonical-commit.sh
+  assert_exit "no jq, real guards: the advisory notices exit 0" 0 "$RC"
+  assert_eq "no jq, real guards: exactly one JSON document on stdout" \
+    "1" "$(grep -c '^{' <<<"$OUT")"
+  assert_contains "no jq, real guards: the first guard's notice is the one emitted" \
+    "$OUT" "guardrails-block-hook-bypass: jq not found on PATH"
+  assert_contains "no jq, real guards: the second guard's notice is dropped, prefixed" \
+    "$ERR" "run-guards: dropped without jq:"
+  assert_contains "no jq, real guards: the dropped notice names its guard" \
+    "$ERR" "guardrails-block-noncanonical-commit: jq not found on PATH"
+  assert_absent "no jq, real guards: the emitted notice is not also dropped" \
+    "$ERR" "run-guards: dropped without jq: {\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"additionalContext\":\"guardrails-block-hook-bypass"
+  # A guard that denies on a missing prerequisite still denies through the
+  # arbitration, and its reason still reaches stderr beside the dropped notice.
+  run_nojq "$NOJQ_CMD" block-hook-bypass.sh block-no-verify.sh
+  assert_exit "no jq, real guards: a fail-closed guard still wins the exit code" 2 "$RC"
+  assert_contains "no jq, real guards: the fail-closed reason survives arbitration" \
+    "$ERR" "the required prerequisite \`jq\` is not on PATH"
 fi
 
 # --- an unknown guard is reported, the rest still run ------------------------
@@ -334,6 +390,60 @@ run "$bypass" --lib lib/powershell/ps-command.sh block-no-verify.sh block-danger
 assert_exit "real guard blocks through the dispatcher" 2 "$RC"
 assert_eq "real guard: same exit alone and dispatched" "$alone_rc" "$RC"
 assert_eq "real guard: same stderr alone and dispatched" "$alone_err" "$ERR"
+
+# --- two REAL guards, one merged document ------------------------------------
+# The merge above is asserted with stub guards, whose documents this file writes
+# itself. The PostToolUse lane is where two SHIPPED guards emit on the same
+# payload: a markdown file citing both a deleted path (stale-path-verify) and an
+# unresolvable skill command (skill-reference-verify). Claude Code reads exactly
+# one JSON document per hook process, so the two findings have to arrive merged
+# into one additionalContext, in dispatch order — which is what these guards
+# delivered as two separate hooks.
+POST_REPO="$TEST_TMPDIR/post-lane"
+mkdir -p "$POST_REPO/docs" "$POST_REPO/plugins/alpha/.claude-plugin" \
+  "$POST_REPO/plugins/alpha/skills/setup"
+git -C "$POST_REPO" init -q
+jq -n '{name:"alpha",version:"0.1.0"}' >"$POST_REPO/plugins/alpha/.claude-plugin/plugin.json"
+printf -- '---\nname: setup\ndescription: x\n---\n' >"$POST_REPO/plugins/alpha/skills/setup/SKILL.md"
+printf 'x\n' >"$POST_REPO/docs/gone.md"
+git -C "$POST_REPO" -c user.email=t@t.test -c user.name=t add -A >/dev/null 2>&1
+git -C "$POST_REPO" -c user.email=t@t.test -c user.name=t commit -qm seed >/dev/null 2>&1
+git -C "$POST_REPO" -c user.email=t@t.test -c user.name=t rm -q "docs/gone.md" >/dev/null 2>&1
+git -C "$POST_REPO" -c user.email=t@t.test -c user.name=t commit -qm delete >/dev/null 2>&1
+POST_TARGET="$POST_REPO/notes.md"
+: >"$POST_TARGET"
+POST_PAYLOAD=$(write_json "$POST_TARGET" \
+  'See `docs/gone.md` and run `/alpha:nosuch` for details.')
+POST_ENV=("CLAUDE_PROJECT_DIR=$POST_REPO" "CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=30")
+
+guard_invoke --via dispatched --payload "$POST_PAYLOAD" \
+  --hook stale-path-verify.sh --also skill-reference-verify.sh -- "${POST_ENV[@]}"
+assert_exit "two real emitters: advisory lane still exits 0" 0 "$GUARD_RC"
+assert_eq "two real emitters: exactly one JSON document on stdout" \
+  "1" "$(jq -s 'length' <<<"$GUARD_OUT")"
+POST_CTX=$(jq -r '.hookSpecificOutput.additionalContext' <<<"$GUARD_OUT")
+POST_CTX="${POST_CTX//$'\r'/}" # the Windows jq build writes CRLF
+assert_contains "two real emitters: the stale path is in the merged context" \
+  "$POST_CTX" "STALE_PATH: docs/gone.md"
+assert_contains "two real emitters: the unresolved skill is in the merged context" \
+  "$POST_CTX" "UNRESOLVED_SKILL: /alpha:nosuch"
+assert_eq "two real emitters: merged hookEventName kept" \
+  "PostToolUse" "$(jq -r '.hookSpecificOutput.hookEventName' <<<"$GUARD_OUT")"
+# Dispatch order decides the order of the merged blocks, as it decided the order
+# of the two documents when these were separate hooks.
+if [[ "${POST_CTX%%$'\n'*}" == stale-path-verify* ]]; then
+  ok "two real emitters: merged in dispatch order"
+else
+  bad "two real emitters: merged out of dispatch order: ${POST_CTX%%$'\n'*}"
+fi
+
+# Each guard alone must say the same thing it said inside the merge.
+for one in stale-path-verify skill-reference-verify; do
+  guard_invoke --payload "$POST_PAYLOAD" --hook "$HOOK_DIR/$one.sh" -- "${POST_ENV[@]}"
+  assert_eq "$one alone: one document" "1" "$(jq -s 'length' <<<"$GUARD_OUT")"
+  assert_contains "merged context contains what $one says alone" "$POST_CTX" \
+    "$(jq -r '.hookSpecificOutput.additionalContext' <<<"$GUARD_OUT" | tr -d '\r' | head -2 | tail -1)"
+done
 
 # --- hooks.json wires every guard through the dispatcher by file name ---------
 for g in secret-pattern-detection hardcoded-path-check block-no-verify block-dangerous-git \
@@ -372,5 +482,242 @@ for v in cli-flag-verify skill-reference-verify stale-path-verify; do
     if [[ " $if_exts " == *" $e "* ]]; then ok "$v gate *.$e has an if row"; else bad "$v gate *.$e has no if row"; fi
   done
 done
+
+# --- the dispatcher and the guards declare ONE contract ----------------------
+# hooks/guard-requires.sh is where a guard states what it CONSUMES: the payload
+# fields it reads, and the libraries it calls into. Two things are compiled
+# from that declaration and nothing at run time re-derives either — the
+# dispatcher's PRIME_FILTERS, and the `--lib` arguments in hooks.json — so this
+# is where the three are held to each other, in both directions, against each
+# guard's own source rather than against a second hand-kept list.
+#
+# Both directions cost something real. The cached hook::jq_fields is
+# all-or-nothing per call, so a field a guard reads and the dispatcher does not
+# prime spends a jq process on EVERY payload of that lane; a field primed that
+# no guard reads is jq work nothing reads.
+# shellcheck source=guard-requires.sh
+source "$HOOK_DIR/guard-requires.sh"
+
+prime_filters() { # the dispatcher's compiled union, read out of its own source
+  awk -v q="'" '
+    /^PRIME_FILTERS=\(/ { inarr = 1; next }
+    inarr && /^\)/ { inarr = 0; next }
+    inarr {
+      line = $0
+      while (match(line, q "[^" q "]*" q)) {
+        print substr(line, RSTART + 1, RLENGTH - 2)
+        line = substr(line, RSTART + RLENGTH)
+      }
+    }
+  ' "$1" | sort -u
+}
+guard_reads() { # <guard.sh> -> the literal filters its source hands jq_fields
+  # The call plus its backslash continuations, single-quoted operands only: a
+  # filter built from a variable (`.tool_input.files[$i].path`) names an index
+  # the dispatcher cannot know and is never a candidate for priming.
+  awk -v q="'" '
+    /^[[:space:]]*#/ { next }
+    index($0, "hook::jq_fields \"$INPUT\"") { incall = 1 }
+    incall {
+      cont = ($0 ~ /\\$/)
+      line = $0
+      while (match(line, q "[^" q "]*" q)) {
+        tok = substr(line, RSTART + 1, RLENGTH - 2)
+        if (substr(tok, 1, 1) == ".") print tok
+        line = substr(line, RSTART + RLENGTH)
+      }
+      if (!cont) incall = 0
+    }
+  ' "$HOOK_DIR/$1" | sort -u
+}
+declared_fields() { # <guard.sh> -> its declared primed filters
+  local -a f=()
+  read -r -a f <<<"${GUARD_FIELDS[$1]-}"
+  ((${#f[@]})) && printf '%s\n' "${f[@]}" | sort -u
+  return 0
+}
+declared_unprimed() { # <guard.sh> -> its declared deliberately-unprimed filters
+  local d="${GUARD_FIELDS_UNPRIMED[$1]-}"
+  [[ -n "$d" ]] && printf '%s\n' "$d" | sort -u
+  return 0
+}
+declared_libs() { # <guard.sh> -> the libraries it declared
+  local -a l=()
+  read -r -a l <<<"${GUARD_LIBS[$1]-}"
+  ((${#l[@]})) && printf '%s\n' "${l[@]}" | sort -u
+  return 0
+}
+guards_of() { # <hooks.json command> -> the guard file names it dispatches
+  local -a toks=()
+  read -r -a toks <<<"$1"
+  local i=0 tok
+  while ((i < ${#toks[@]})); do
+    tok="${toks[i]}"
+    if [[ "$tok" == "--lib" ]]; then
+      ((i += 2))
+      continue
+    fi
+    ((i++))
+    [[ "$tok" == *.sh ]] || continue
+    tok="${tok##*/}"
+    [[ "$tok" == run-guards.sh ]] && continue
+    printf '%s\n' "$tok"
+  done
+}
+libs_of() { # <hooks.json command> -> its --lib operands
+  local -a toks=()
+  read -r -a toks <<<"$1"
+  local i=0
+  while ((i < ${#toks[@]})); do
+    if [[ "${toks[i]}" == "--lib" ]] && ((i + 1 < ${#toks[@]})); then
+      printf '%s\n' "${toks[i + 1]}"
+      ((i += 2))
+      continue
+    fi
+    ((i++))
+  done
+}
+lines_of() { # <text> -> its non-empty lines, sorted, for comm
+  printf '%s\n' "$1" | grep -v '^$' | sort -u
+}
+
+PRIMED=$(prime_filters "$DISPATCH")
+PRIMED_N=$(lines_of "$PRIMED" | wc -l | tr -d ' ')
+if ((PRIMED_N > 0)); then
+  ok "PRIME_FILTERS reads back from run-guards.sh ($PRIMED_N filters)"
+else
+  bad "PRIME_FILTERS could not be read out of run-guards.sh"
+fi
+DISPATCH_CMDS=$(jq -r '.hooks[][] | .hooks[] | .command | select(contains("run-guards.sh"))' "$HOOK_DIR/hooks.json")
+ALL_DISPATCHED=$(while IFS= read -r cmd; do guards_of "$cmd"; done <<<"$DISPATCH_CMDS" | sort -u)
+DISPATCHED_N=$(lines_of "$ALL_DISPATCHED" | wc -l | tr -d ' ')
+if ((DISPATCHED_N >= 10)); then
+  ok "hooks.json dispatches $DISPATCHED_N guards through run-guards.sh"
+else
+  bad "hooks.json yielded only $DISPATCHED_N dispatched guards; the checks below would pass vacuously"
+fi
+
+while IFS= read -r g; do
+  [[ -n "$g" ]] || continue
+  decl=$(declared_fields "$g")
+  if [[ -z "$decl" ]]; then
+    bad "$g is dispatched but declares no fields in guard-requires.sh"
+    continue
+  fi
+  known=$(printf '%s\n%s\n' "$decl" "$(declared_unprimed "$g")" | grep -v '^$' | sort -u)
+  undeclared=$(comm -23 <(guard_reads "$g") <(printf '%s\n' "$known"))
+  if [[ -z "$undeclared" ]]; then
+    ok "$g reads only fields it declares"
+  else
+    bad "$g reads undeclared field(s), a jq spawn on every payload of its lane: $(tr '\n' ' ' <<<"$undeclared")"
+  fi
+  unread=$(comm -13 <(guard_reads "$g") <(lines_of "$decl"))
+  if [[ -z "$unread" ]]; then
+    ok "$g declares only fields it reads"
+  else
+    bad "$g declares field(s) its source never reads: $(tr '\n' ' ' <<<"$unread")"
+  fi
+  unprimed=$(comm -13 <(lines_of "$PRIMED") <(lines_of "$decl"))
+  if [[ -z "$unprimed" ]]; then
+    ok "$g's declared fields are all primed by the dispatcher"
+  else
+    bad "$g declares field(s) PRIME_FILTERS does not carry: $(tr '\n' ' ' <<<"$unprimed")"
+  fi
+  # A guard calls into the classifier exactly when it declares it. Declared and
+  # unused is a ~104 KB parse for nothing; used and undeclared runs only
+  # because a sibling guard on the same row happened to pull the library in.
+  uses_ps=0
+  grep -q 'ps::' "$HOOK_DIR/$g" && uses_ps=1
+  has_lib=0
+  [[ -n "$(declared_libs "$g")" ]] && has_lib=1
+  if ((uses_ps == has_lib)); then
+    ok "$g's library declaration matches its ps:: calls"
+  elif ((uses_ps)); then
+    bad "$g calls ps:: but declares no library in guard-requires.sh"
+  else
+    bad "$g declares a library it never calls into"
+  fi
+done <<<"$ALL_DISPATCHED"
+
+# Nothing is primed that no dispatched guard — nor the dispatcher itself — asked
+# for. run-guards.sh declares the two fields it reads under its own name.
+WANTED=$(
+  {
+    declared_fields run-guards.sh
+    while IFS= read -r g; do
+      [[ -n "$g" ]] && declared_fields "$g"
+    done <<<"$ALL_DISPATCHED"
+  } | sort -u
+)
+orphan=$(comm -23 <(lines_of "$PRIMED") <(lines_of "$WANTED"))
+if [[ -z "$orphan" ]]; then
+  ok "every primed filter is declared by the dispatcher or by a guard it runs"
+else
+  bad "PRIME_FILTERS carries filter(s) no guard declares, primed on every payload for no reader: $(tr '\n' ' ' <<<"$orphan")"
+fi
+
+# Each dispatcher row's `--lib` set is the union of its guards' declarations. A
+# guard whose library is missing from a row still loads it itself, so this is a
+# budget statement rather than a correctness one: the load moves from once per
+# event to once per guard.
+while IFS= read -r cmd; do
+  [[ -n "$cmd" ]] || continue
+  row_libs=$(libs_of "$cmd" | sort -u)
+  row_declared=$(while IFS= read -r g; do
+    [[ -n "$g" ]] && declared_libs "$g"
+  done < <(guards_of "$cmd") | sort -u)
+  row_name=$(guards_of "$cmd" | head -1)
+  if [[ "$row_libs" == "$row_declared" ]]; then
+    ok "hooks.json row starting $row_name preloads exactly the libraries its guards declare"
+  else
+    bad "hooks.json row starting $row_name preloads [$(tr '\n' ' ' <<<"$row_libs")] against declarations [$(tr '\n' ' ' <<<"$row_declared")]"
+  fi
+done <<<"$DISPATCH_CMDS"
+
+# --- a primed field is read by NAME, never by position -----------------------
+# The dispatcher reads `.tool_name` to decide whether the event needs the
+# PowerShell classifier. Read by index, a filter inserted ahead of it hands
+# that decision a neighbouring field's value: the classifier is then parsed on
+# the Bash hot path and absent on the PowerShell one, with nothing at run time
+# saying so. abort-boundary.test.sh pins the same property for the event name.
+assert_absent "dispatcher reads no primed value by position" "$DISPATCH_SRC" 'RUN_GUARDS_VALUES['
+SHIFT_DIR="$TEST_TMPDIR/prime-shift"
+mkdir -p "$SHIFT_DIR/hooks" "$SHIFT_DIR/lib"
+cp "$HOOK_DIR"/*.sh "$SHIFT_DIR/hooks/"
+cp -R "$HOOK_DIR/../lib/powershell" "$SHIFT_DIR/lib/"
+awk -v q="'" '{ print } /^PRIME_FILTERS=\(/ { print "  " q ".session_id" q }' \
+  "$DISPATCH" >"$SHIFT_DIR/hooks/run-guards.sh"
+assert_eq "the shifted copy primes one filter more than the shipped dispatcher" \
+  "$((PRIMED_N + 1))" "$(prime_filters "$SHIFT_DIR/hooks/run-guards.sh" | wc -l | tr -d ' ')"
+: >"$SEEN"
+CLAUDE_PLUGIN_ROOT="$SHIFT_DIR" bash "$SHIFT_DIR/hooks/run-guards.sh" \
+  --lib lib/powershell/ps-command.sh "$TEST_TMPDIR/lib.sh" <<<"$PAYLOAD" >/dev/null
+assert_eq "a filter ahead of .tool_name: the Bash lane still skips the classifier" \
+  "ps=unset" "$(cat "$SEEN")"
+: >"$SEEN"
+CLAUDE_PLUGIN_ROOT="$SHIFT_DIR" bash "$SHIFT_DIR/hooks/run-guards.sh" \
+  --lib lib/powershell/ps-command.sh "$TEST_TMPDIR/lib.sh" <<<"$PWSH_PAYLOAD" >/dev/null
+assert_eq "a filter ahead of .tool_name: the PowerShell lane still loads it" \
+  "ps=1" "$(cat "$SEEN")"
+
+# --- a guard reaches its declared library on BOTH paths ----------------------
+# The dispatcher satisfies the declaration once for the event; alone, the guard
+# satisfies the same declaration itself. Neither arm may leave `ps::` unbound,
+# and a guard that declares no library must not gain one from a sibling.
+expect_both "declared library reaches block-dangerous-git either way" 2 \
+  --hook "$HOOK_DIR/block-dangerous-git.sh" --tool PowerShell \
+  --command 'git push --force origin main' \
+  --lib lib/powershell/ps-command.sh
+expect_both "declared library reaches block-no-verify either way" 2 \
+  --hook "$HOOK_DIR/block-no-verify.sh" --tool PowerShell \
+  --command 'git commit --no-verify -m x' \
+  --lib lib/powershell/ps-command.sh
+# With no `--lib` on the row the dispatcher preloads nothing, and the guard's
+# own declaration is what still binds `ps::`. One statement serves both paths,
+# which is why a row that forgets the cue costs a repeated load and never a
+# verdict.
+guard_invoke --via dispatched --hook "$HOOK_DIR/block-dangerous-git.sh" \
+  --tool PowerShell --command 'git push --force origin main'
+assert_exit "a dispatched row with no --lib still reaches the declared library" 2 "$GUARD_RC"
 
 report

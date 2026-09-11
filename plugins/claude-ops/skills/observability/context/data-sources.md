@@ -6,13 +6,13 @@ jq pipelines and CLI invocations for the **hook log root** and **ccusage**. OTEL
 ## Setup — common variables
 
 The hook log root is the plugin's `session_event_log_dir` option, project-relative, default
-`.observability/claude`. Its rendered value is on the skill body's "Hook log root" line: use
-that, never `CLAUDE_PLUGIN_DATA` and never the environment (a skill subprocess inherits no
-`CLAUDE_PLUGIN_OPTION_*`). A `--hook-root REL` token on the invocation overrides it for one
+`.observability/claude`. Its rendered value is the `root` entry on the skill body's "Rendered
+options" line: use that, never `CLAUDE_PLUGIN_DATA` and never the environment (a skill subprocess
+inherits no `CLAUDE_PLUGIN_OPTION_*`). A `--hook-root REL` token on the invocation overrides it for one
 run. Under the root: `sessions/<session_id>.jsonl`, one file per session, holding the
 per-session event log rows (`source: "event-log"`) and the sink's envelope rows for that
-session (`source: "envelope"`); and the shared `hook-events.jsonl`, the legacy shape for
-envelopes that carry no session id.
+session (`source: "envelope"`); and the shared `hook-events.jsonl`, holding the same envelope
+rows for envelopes that carry no session id.
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
@@ -41,20 +41,21 @@ esac
 
 Never call `jq -s` with an empty file set: it would read stdin. Guard with the test above.
 
-Three row shapes share the root, and the queries below normalize them with one prelude so a
-`hook`-keyed query sees the same fields wherever the row came from:
+Every row under the root is one **hook event record** in a single key set, emitted by one
+formatter — `slog_event_record_to` in `hooks/session-log-lib.sh`, which states the schema and is
+the authority for it. `hook_event_name` names the event on every row, wherever it came from, so
+no query normalizes an event key. `source` is the discriminator:
 
-```bash
-# Prepend to every jq program: legacy rows carry `event`, per-session rows carry
-# `hook_event_name`; only envelope-shaped rows (legacy or per-session) describe a hook.
-HOOK_NORM='map(. + {event: (.event // .hook_event_name)})'
-```
-
-| Row | Where | Keys |
+| Group | Present on | Keys |
 |---|---|---|
-| legacy envelope | `hook-events.jsonl` | `ts event hook tool duration_ms exit_code subject status` |
-| per-session envelope (`source: "envelope"`) | `sessions/<id>.jsonl` | the legacy keys with `hook_event_name` for `event`, plus `session_id`, and `changed` (boolean) when the producer sent one |
-| per-session event log (`source: "event-log"`) | `sessions/<id>.jsonl` | `ts session_id hook_event_name category status duration_ms` plus `prompt_id tool_use_id agent_id tool_name file_path reason traceparent` when present; no `hook`, and `duration_ms` is the logger's own cost, not a hook's |
+| spine | every row | `ts hook_event_name status duration_ms source`, plus `session_id` on every row but those in `hook-events.jsonl`, which carry no session by definition |
+| a hook run — `source: "envelope"` | both sink routes | `hook exit_code subject tool`, plus `changed` (boolean) when the producer sent a rewrite verdict |
+| an event the session saw — `source: "event-log"` | `sessions/<id>.jsonl` | `category`, plus `prompt_id tool_use_id agent_id tool_name file_path reason traceparent` when the payload carried them. No `hook`: no hook run is described, and `duration_ms` is the logger's own cost |
+
+Select hook runs with `.source == "envelope"` (equivalently `.hook != null`) and the event
+timeline with `.source == "event-log"`. A store written before this shape holds shared-file rows
+keyed `event` instead; retention ages them out, and a one-off pass over such a store folds them
+in with `map(. + {hook_event_name: (.hook_event_name // .event)})`.
 
 Cross-platform: `date -u -d "..."` is GNU. macOS BSD date uses `date -u -v-7d`. Skill detects platform — see fallback in implementation.
 
@@ -101,10 +102,10 @@ Empty / missing: emit `"ccusage not installed — npm install -g ccusage or wire
 **p50 / p95 / p99 / max per `(hook, event)`:**
 
 ```bash
-jq -s --arg since "$SINCE_ISO" "$HOOK_NORM"' | map(select(.ts >= $since and .hook != null))
-  | group_by(.hook + "|" + .event)
+jq -s --arg since "$SINCE_ISO" 'map(select(.ts >= $since and .hook != null))
+  | group_by(.hook + "|" + .hook_event_name)
   | map({
-      key: (.[0].hook + " " + .[0].event),
+      key: (.[0].hook + " " + .[0].hook_event_name),
       n: length,
       p50: (sort_by(.duration_ms) | .[length/2|floor].duration_ms),
       p95: (sort_by(.duration_ms) | .[(length*0.95)|floor].duration_ms),
@@ -125,7 +126,7 @@ jq -s --arg since "$SINCE_ISO" "$HOOK_NORM"' | map(select(.ts >= $since and .hoo
 **Error rate per hook:**
 
 ```bash
-jq -s --arg since "$SINCE_ISO" "$HOOK_NORM"' | map(select(.ts >= $since and .hook != null))
+jq -s --arg since "$SINCE_ISO" 'map(select(.ts >= $since and .hook != null))
   | group_by(.hook)
   | map({
       hook: .[0].hook,
@@ -151,10 +152,10 @@ one jq over `"${HOOK_FILES[0]}"`.
 **Hooks fired, grouped by hook (envelope rows only):**
 
 ```bash
-jq -s "$HOOK_NORM"' | map(select(.source == "envelope"))
+jq -s 'map(select(.source == "envelope"))
   | group_by(.hook)
   | map({hook: .[0].hook, n: length,
-         events: (map(.event) | unique),
+         events: (map(.hook_event_name) | unique),
          errors: (map(select(.exit_code != 0)) | length),
          p50_ms: (sort_by(.duration_ms) | .[length/2|floor].duration_ms),
          max_ms: (max_by(.duration_ms).duration_ms)})
@@ -165,8 +166,8 @@ jq -s "$HOOK_NORM"' | map(select(.source == "envelope"))
 **Blocked:** what a guard refused, in order.
 
 ```bash
-jq -sc "$HOOK_NORM"' | .[] | select(.status == "blocked")
-  | {ts, hook, event, subject}' "${HOOK_FILES[0]}"
+jq -sc '.[] | select(.status == "blocked")
+  | {ts, hook, hook_event_name, subject}' "${HOOK_FILES[0]}"
 ```
 
 **Rewrote:** what a formatter changed. `changed` is the per-row boolean the sink copies from a
@@ -178,7 +179,7 @@ render that as `_no data — no producer in this session reported a rewrite verd
 carries the key at all, and as `_nothing rewritten_` when rows carry it and every value is false.
 
 ```bash
-jq -sc "$HOOK_NORM"' | .[] | select(.changed == true)
+jq -sc '.[] | select(.changed == true)
   | {ts, hook, subject}' "${HOOK_FILES[0]}"
 ```
 
@@ -208,8 +209,11 @@ per-turn counts; `tool_use_id` joins a `PreToolUse` row to its `PostToolUse` (an
 
 Render the six options, the guard, and the prune state from one probe call, so the report
 shows what the pipeline is doing rather than what the reader assumes. The values are the
-rendered `${user_config.*}` from the skill body, passed as flags; an unrendered placeholder
-reads as the manifest default.
+options the skill body rendered as plain content, passed as flags from this Bash call; an
+unrendered placeholder or an empty value reads as the manifest default. The skill's pre-compute
+probe line passes no option (a `${user_config.*}` value never rides inside shell-executing
+content) and runs with `--observed`, so its sixth line carries the envelope count and no option
+tier; this call is the one place the options render.
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/skills/observability/scripts/probe-observability-state.sh" --pipeline \
@@ -218,8 +222,12 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/observability/scripts/probe-observability-sta
   --keep-days "<session_log_keep_days>" --pre-prune-command "<session_log_pre_prune_command>"
 ```
 
-Six fixed lines: `root:`, `guard:`, `sessions:`, `shared:`, `prune-pending:`, `logging:`. Copy
-them into the report verbatim under "Toggles and retention in effect". A `WARN` on the
+Six fixed lines: `root:`, `guard:`, `sessions:`, `shared:`, `prune-pending:`, `envelope:`. Copy
+them into the report verbatim under "Toggles and retention in effect". The last line names two
+tiers: `envelope:` counts the rows the telemetry sink wrote for the audit hooks, the
+`source: "envelope"` rows in `sessions/*.jsonl` plus every line of the shared `hook-events.jsonl`,
+which follow the per-hook audit toggles and not the event-log switch, and `event log:` is the
+switch. A `WARN` on the
 `prune-pending:` line (a moved-aside set older than 24 h) is a MEDIUM finding: the configured
 pre-prune command is not finishing, and `/claude-ops:observability clean` sweeps the set. A
 `guard: operator-edited` line is a HIGH finding: the hooks are refusing to write. The probe
@@ -254,12 +262,12 @@ DuckDB queries: [otel-queries.md](otel-queries.md) § "Tool decisions".
 
 ## 4. Recurring tool-call patterns
 
-n-gram over `(event, hook)` sequences in hook event log. Flag any 3-gram appearing 5+ times in window.
+n-gram over `(hook_event_name, hook)` sequences in hook event log. Flag any 3-gram appearing 5+ times in window.
 
 ```bash
-jq -sr --arg since "$SINCE_ISO" "$HOOK_NORM"' | map(select(.ts >= $since and .hook != null))
+jq -sr --arg since "$SINCE_ISO" 'map(select(.ts >= $since and .hook != null))
   | sort_by(.ts)
-  | map(.event + ":" + .hook)
+  | map(.hook_event_name + ":" + .hook)
 ' "${HOOK_FILES[@]}" \
   | python3 -c '
 import sys, json, collections
@@ -274,7 +282,7 @@ for k, v in ngrams.most_common(10):
 **Failed-then-fixed sequences:** detect adjacent `exit_code != 0` followed by same-hook `exit_code == 0` — implies user/agent re-edited and same hook fired green.
 
 ```bash
-jq -s "$HOOK_NORM"' | map(select(.hook != null)) | sort_by(.ts) as $e
+jq -s 'map(select(.hook != null)) | sort_by(.ts) as $e
   | [range(1; $e | length)
      | select($e[. - 1].hook == $e[.].hook and $e[. - 1].exit_code != 0 and $e[.].exit_code == 0)
      | $e[. - 1].hook]
@@ -290,8 +298,8 @@ jq -s "$HOOK_NORM"' | map(select(.hook != null)) | sort_by(.ts) as $e
 **Per-period count + per-binary breakdown:**
 
 ```bash
-jq -s --arg since "$SINCE_ISO" "$HOOK_NORM"'
-  | map(select(.event == "PostToolUse" and .hook == "cli-flag-verify" and .ts >= $since))
+jq -s --arg since "$SINCE_ISO" '
+  map(select(.hook_event_name == "PostToolUse" and .hook == "cli-flag-verify" and .ts >= $since))
   | { total: length,
       unique_pairs: (map(.subject) | unique | length),
       by_binary: (group_by(.subject | split(":")[0])
@@ -305,8 +313,8 @@ jq -s --arg since "$SINCE_ISO" "$HOOK_NORM"'
 **Top recurring hallucinations** (same `<bin>:<sha16>` repeating = same flag re-hallucinated):
 
 ```bash
-jq -s --arg since "$SINCE_ISO" "$HOOK_NORM"'
-  | map(select(.event == "PostToolUse" and .hook == "cli-flag-verify" and .ts >= $since) | .subject)
+jq -s --arg since "$SINCE_ISO" '
+  map(select(.hook_event_name == "PostToolUse" and .hook == "cli-flag-verify" and .ts >= $since) | .subject)
   | group_by(.) | map({ subject: .[0], count: length })
   | sort_by(-.count) | .[0:10]
 ' "${HOOK_FILES[@]}"
@@ -367,7 +375,7 @@ The queries run comfortably on a store of ordinary size, and the skill caps its 
 
 ## Cross-references
 
-- Row schemas: the three shapes in "Setup" above. The shared file is whatever the consumer's hook emitter writes — treat the fields used here (`ts`, `hook`, `tool`, `duration_ms`, `exit_code`, `subject`, `status`) as the expected shape and degrade gracefully when fields are absent; the per-session shapes are the reference sink's and `session-event-log.sh`'s (see `hooks/hook-events.registry.json` for which events the event log records)
+- Row schema: the one key set in "Setup" above, whose authority is `slog_event_record_to` in `hooks/session-log-lib.sh` — every writer under the root emits through it (see `hooks/hook-events.registry.json` for which events the event log records). A consumer may point `HOOK_TELEMETRY_SINK` at a sink of their own, whose shared-file rows are whatever that sink writes: degrade gracefully when a field the queries use is absent
 - The old `.claude/observability/hook-events.jsonl` location is retired (`retirements.yaml` `claude-ops-r001`); `/claude-ops:setup` detects and migrates it. The skill-usage store and the OTEL store still live under `.claude/observability/`
 - Privacy filter applied at output time: [privacy.md](privacy.md)
 - Output template: [output-format.md](output-format.md)

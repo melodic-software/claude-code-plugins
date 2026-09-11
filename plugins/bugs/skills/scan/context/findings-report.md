@@ -1,7 +1,15 @@
 # Findings report format — `/bugs:scan`
 
-Loaded on demand by `/bugs:scan` Step 4. Defines the emitted and persisted report: per-finding
-fields, the refuted tail, and the cursor metadata block that the ladder's middle rung reads back.
+Loaded on demand by `/bugs:scan` Step 5. Defines the emitted and persisted report: the run
+metadata, per-finding fields, the refuted tail, the candidates not gated, the side observations, and
+the cursor metadata block that the ladder's middle rung reads back.
+
+## Run metadata
+
+One paragraph under the title, before the first finding: mode, effort level, scope class, lens
+count, the models the hunters and gates ran on, the file count, whether the hotspot ranking ran, the
+cursor rung, and the candidate counts (raw, after triage, gated). A reader who sees only this
+paragraph knows how narrow or wide the sample was.
 
 ## Frontmatter — and the one thing it must never declare
 
@@ -29,7 +37,7 @@ One `##` section per verified finding. The five fields are `/bugs:write`'s. The 
 [`${CLAUDE_PLUGIN_ROOT}/skills/write/context/template.md`](../../write/context/template.md) and the
 severity rubric is the "Severity rubric" section of
 [`${CLAUDE_PLUGIN_ROOT}/skills/write/SKILL.md`](../../write/SKILL.md); neither is restated here. Scan
-adds two lines: the evidence label and the lens id.
+adds three lines: the evidence label, the lens id, and the scope tag.
 
 ````markdown
 ## Finding <n> — <title, present tense, one line>
@@ -38,6 +46,7 @@ adds two lines: the evidence label and the lens id.
 **Suggested fix location**: `<file path>` `<function or class>` (no patch)
 **Evidence**: reproduced | verified-by-reading
 **Lens**: <lens id, e.g. lens-2 boundary/edge-case>
+**Scope**: in-lane | out-of-lane (via `<scoped path>`)
 
 ### Steps to reproduce
 
@@ -91,11 +100,43 @@ gate refuted everything, the report still ships: the refuted tail, the cursor bl
 targeted run uses its no-cursor line instead), and one line saying the lane produced no verified
 findings.
 
+## Candidates not gated (retained tail)
+
+Always present, after the refuted tail. The candidates triage cut above the gate cap, with no
+verdict: Step 3 of the next run over this lane seeds its triage from these rows instead of
+re-deriving them, and a reader can tell a cut from a kill.
+
+```markdown
+## Candidates not gated
+
+| # | Candidate | Lens | Scope | Location |
+|---|---|---|---|---|
+| 1 | <one-line symptom> | <lens id> | in-lane | `<path>:<line>` |
+```
+
+When nothing was cut, write `None.`
+
+## Side observations
+
+Always present, after the candidates not gated. The one-line observations that are not findings:
+a candidate triage dropped as cosmetic, and anything a gate noted in passing while refuting or
+confirming (a stale comment, a weaker sibling check, a missing floor). Cheap signal that would
+otherwise vanish; each line names its source and a `path:line`.
+
+```markdown
+## Side observations
+
+- <observation> (`<path>:<line>`, from <triage | gate on candidate n>)
+```
+
+When there are none, write `None.`
+
 ## Cursor metadata block
 
 The last section of every persisted **rotation-mode** report — a bare invocation or `--lane`, the two
 modes that advance rotation — and rung 2 of the cursor ladder. Keep the key names and the fenced-YAML
-shape stable — a later run parses this, not the prose.
+shape stable — a later run parses this, not the prose. A key, once shipped, never changes meaning;
+new keys are only ever added.
 
 ````markdown
 ## Scan cursor
@@ -106,17 +147,23 @@ lane-index: <0-based index in the resolved lane list>
 lane-count: <number of lanes in the resolved list>
 rung: tracker | report | date-floor
 scanned-at: <ISO-8601 UTC>
+scope-class: small | medium | large
 scope-files: <count of files the hunters read>
+scope-list: [<repo-relative paths the hunters read, in reading order>]
 candidates: <count reaching the gate>
+not-gated: <count in the candidates-not-gated tail>
 verified: <count of findings in this report>
 refuted: <count in the refuted tail>
+out-of-lane: <count of findings and refuted candidates tagged out-of-lane>
 lenses-skipped: [<lens ids skipped, with reason in prose above>]
 ```
 ````
 
 `rung` records how *this* run chose its lane, so an operator can tell tracker-derived rotation from
-the zero-state date floor. `--dry-run` writes no report and therefore no cursor block — that is what
-"neither persists nor advances the cursor" means in practice.
+the zero-state date floor. `scope-list` is what makes a lane pass reproducible: the next run on this
+lane can read the same files, or deliberately sample their complement, instead of re-deriving a
+subset from prose lane definitions. `--dry-run` writes no report and therefore no cursor block — that
+is what "neither persists nor advances the cursor" means in practice.
 
 **A targeted run omits this section entirely**, and says so in one line where it would have sat:
 
@@ -149,5 +196,6 @@ visible. The rotation-run form:
 A targeted run drops that `**Cursor**` line — it advanced nothing — and keeps the `**Lane**` line as
 the scope it hunted.
 
-Followed by the refuted tail and the cursor block — or, for a targeted run, the no-cursor line above.
-Do not pad an empty run with speculative findings.
+Followed by the refuted tail, the candidates not gated, the side observations, and the cursor block
+— or, for a targeted run, the no-cursor line above. Do not pad an empty run with speculative
+findings.

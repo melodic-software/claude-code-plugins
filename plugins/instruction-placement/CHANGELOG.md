@@ -3,6 +3,24 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.1]
+
+### Changed
+
+- **Vendored `hook-utils.sh` refresh.** The shared library gained one exit arm
+  (`hook::finish`) and one ceiling-bounded parent walk (`hook::walk_up_to`),
+  and retired seven value-printing helpers whose whole body called their
+  caller-writes-to-a-variable twin, so each call site stops paying a subshell
+  fork for a value the shell already has. This plugin's own hooks are
+  unchanged; the version moves so consumers receive the library.
+
+## [0.13.0]
+
+### Added
+
+- **render-index:** a `wiring` subcommand reports, for every nested `AGENTS.md` the index lists, whether an instruction entry point reaches it (the `CLAUDE.md` or `CLAUDE.local.md` beside it, one in any ancestor directory, or the root `.claude/CLAUDE.md`, by symlink or by import within the loader's four hops), and exits 1 on any `UNWIRED` row. The shared import chase now stops examining imports at the fourth hop instead of accepting a fifth-hop match. Claude Code reads `CLAUDE.md`, not `AGENTS.md`, so an indexed nested file with no such sibling was in sync, reachable, and never loaded, and `check` could not tell because it compares text. `write` now warns on stderr for each unwired file it indexes; the row stays, since the shim is the fix.
+- **check:** the gate's table and running steps carry the wiring row beside sync and reachability.
+
 ## [0.12.2]
 
 ### Changed

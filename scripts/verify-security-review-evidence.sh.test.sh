@@ -10,12 +10,13 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GUARD_SCRIPT="$SCRIPT_DIR/verify-security-review-evidence.sh"
 
-FAILED=0
-pass() { printf 'PASS: %s\n' "$1"; }
-fail() {
-  FAILED=$((FAILED + 1))
-  printf 'FAIL: %s\n  %s\n' "$1" "$2" >&2
-}
+# shellcheck source=lib/test-harness.sh
+. "$SCRIPT_DIR/lib/test-harness.sh"
+
+pass() { ok "$1"; }
+# Two-argument shape: a label plus the detail that explains the failure. The
+# harness owns the counter and the exit contract.
+bad() { fail "$1${2:+: $2}"; }
 
 # run_guard <expected-exit> <name> [VAR=value ...]
 #
@@ -49,7 +50,7 @@ run_guard() {
     LAST_OUTPUT="$output"
     return 0
   fi
-  fail "$name" "expected exit $expected, got $status; output: $output"
+  bad "$name" "expected exit $expected, got $status; output: $output"
   LAST_OUTPUT="$output"
   return 1
 }
@@ -59,7 +60,7 @@ assert_output_contains() {
   if [[ "$LAST_OUTPUT" == *"$needle"* ]]; then
     pass "$name"
   else
-    fail "$name" "expected output to contain '$needle'; got: $LAST_OUTPUT"
+    bad "$name" "expected output to contain '$needle'; got: $LAST_OUTPUT"
   fi
 }
 
@@ -186,7 +187,7 @@ run_guard 1 "a guard not wired to the lane at all fails closed" \
 # into the same log, so any grep for the phrases that name a skip also matches
 # the source that mentions them (#2517).
 if grep -qE 'gh run view|--log' "$GUARD_SCRIPT"; then
-  fail "the guard reads declared outputs, never the lane's log" \
+  bad "the guard reads declared outputs, never the lane's log" \
     "found a log read; the lane's echoed github-script source contains the skip phrases as string literals (#2517)"
 else
   pass "the guard reads declared outputs, never the lane's log"
@@ -199,14 +200,10 @@ fi
 # defect by naming it, and a check that cannot tell an explanation from an
 # implementation would forbid recording why this shape is gone.
 if grep -vE '^[[:space:]]*#' "$GUARD_SCRIPT" | grep -qE 'python3|fnmatch|pr_touches_security_paths'; then
-  fail "scope comes from the lane's relevant output, not a second matcher" \
+  bad "scope comes from the lane's relevant output, not a second matcher" \
     "found a local scope implementation; the lane already decided this with git check-ignore"
 else
   pass "scope comes from the lane's relevant output, not a second matcher"
 fi
 
-if [[ "$FAILED" -eq 0 ]]; then
-  printf '\nAll checks passed.\n'
-  exit 0
-fi
-exit 1
+test_harness::report

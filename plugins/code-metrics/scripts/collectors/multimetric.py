@@ -21,9 +21,10 @@ per-function parser (its Python cyclomatic read 1 where radon read 3 for the
 same function), so the figure is never used where `lizard` or `radon`
 resolves.
 
-multimetric understands no version flag, so `probe` prints
-`unknown-version` when its usage text carries no version and still exits 0,
-because the tool itself resolved.
+multimetric understands no version flag, so `probe` asks the interpreter
+named in the launcher's shebang for the installed distribution version, and
+prints `version unavailable (multimetric has no version flag)` when that
+fails too; either way it exits 0, because the tool itself resolved.
 """
 
 from __future__ import annotations
@@ -34,6 +35,8 @@ import re
 import shutil
 import subprocess
 import sys
+
+from adapter_paths import files_from
 
 MIN_PYTHON = (3, 9)
 NAME = "multimetric"
@@ -61,8 +64,53 @@ def probe() -> int:
         print(f"{NAME} --version failed: {exc}", file=sys.stderr)
         return 1
     match = re.search(r"(\d+\.\d+(?:\.\d+)?)", out.stdout + out.stderr)
-    print(match.group(1) if match else "unknown-version")
+    if match:
+        print(match.group(1))
+        return 0
+    print(
+        installed_version(exe)
+        or "version unavailable (multimetric has no version flag)"
+    )
     return 0
+
+
+def installed_version(exe: str) -> str | None:
+    """The distribution version, asked of the interpreter the launcher runs.
+
+    multimetric prints its usage for `--version`, so the number has to come
+    from the package metadata, and only the interpreter named in the
+    launcher's shebang line sees the environment the tool was installed into;
+    asking this script's own interpreter would report whatever copy happens to
+    be importable here, which need not be the one on PATH.
+    """
+    try:
+        with open(exe, "rb") as handle:
+            first = handle.readline().decode("utf-8", "replace").strip()
+    except OSError:
+        return None
+    if not first.startswith("#!") or "python" not in first:
+        return None
+    interpreter = first[2:].split()
+    if interpreter and os.path.basename(interpreter[0]) == "env":
+        interpreter = interpreter[1:]
+    if not interpreter:
+        return None
+    try:
+        out = subprocess.run(
+            [
+                *interpreter,
+                "-c",
+                "import importlib.metadata as m; print(m.version('multimetric'))",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    value = out.stdout.strip()
+    return value if out.returncode == 0 and value else None
 
 
 def match_path(location: str, wanted_norm: dict[str, str]) -> str | None:
@@ -165,7 +213,7 @@ def main(argv: list[str]) -> int:
                 f"usage: {NAME}.py collect <lane> <measure> <file>...", file=sys.stderr
             )
             return 2
-        return collect(rest[0], rest[1], rest[2:])
+        return collect(rest[0], rest[1], files_from(rest[2:]))
     print(f"{NAME}.py: unknown verb {verb}", file=sys.stderr)
     return 2
 

@@ -3,6 +3,33 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.5]
+
+### Changed
+
+- **The engine's invocation grammar is declared once and consumed by both the
+  parser and the guard.** The set of subcommands and tiers lived twice: the
+  argument parser built one copy and the destructive guard hand-wrote another
+  to validate against. They could disagree, and only a reader comparing the two
+  would notice. The grammar is now stated in one module that the parser is
+  built from and the guard validates against, so a subcommand cannot exist in
+  one and be missing from the other.
+
+## [0.23.4]
+
+### Fixed
+
+- **Bash denial text names the guard that issued it (#3348).** The always-on engine
+  gate and the session belt previously shared one `_bash_denial_guidance` body, so a
+  session that never invoked `/disk-hygiene:clean` was told its Bash lane was
+  restricted to the skill's scan/preview/handoff-verify/apply shapes. Each mode now
+  explains its own scope: the engine gate says this invocation is gated and the rest
+  of the Bash lane is unaffected; the belt says the skill was invoked, that the belt
+  persists until the session ends, and names recovery as a new session). Skill
+  frontmatter hooks stay registered for the rest of the session and plugin hooks
+  run inside subagents, so the belt is not a subagent-escape hatch. Allow/deny
+  decisions and the classifier allow-list disclosure are unchanged.
+
 ## [0.23.3]
 
 ### Changed

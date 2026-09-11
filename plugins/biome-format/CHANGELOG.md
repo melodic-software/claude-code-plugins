@@ -3,6 +3,24 @@
 All notable changes to the `biome-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.44]
+
+### Changed
+
+- **The hook's exit arms go through the shared `hook::finish`**, which takes
+  the rewrite guard's disclosure, emits telemetry with the arm's verdict,
+  emits exactly one channels document and exits, instead of each arm spelling
+  that sequence itself.
+- **Running the formatter, accumulating its output, classifying the outcome
+  and encoding findings moved behind a shared engine.** This hook states only
+  its invocation, its exit-code map and its message text. The missing-binary
+  notice comes from the same place as its siblings'.
+- **The config walk and the `node_modules/.bin` walk go through
+  `hook::walk_up_to`, which requires a ceiling.** A walk whose ceiling does
+  not resolve now stops rather than continuing to the filesystem root, so the
+  hook cannot adopt configuration from directories the repository does not
+  own.
+
 ## [0.6.43]
 
 ### Changed

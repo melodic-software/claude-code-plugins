@@ -3,6 +3,48 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.73]
+
+### Changed
+
+- **The linkage gates read a parsed git invocation instead of parsing it in
+  five steps.** Deciding whether a command is a git invocation, which
+  subcommand it runs, whether an alias reparse applies and what its effective
+  directory is were separate walks over the same words at each call site. The
+  shared library now returns that as one parsed result.
+- **Vendored `hook-utils.sh` refresh.** The library gained one exit arm and
+  one ceiling-bounded parent walk, and retired seven value-printing helpers
+  whose whole body called their caller-writes-to-a-variable twin, so each call
+  site stops paying a subshell fork for a value the shell already has.
+
+## [0.55.72]
+
+### Changed
+
+- **Worktree root:** a leftover publisher-named git config alias is rewritten
+  onto `worktreeroot.path` at the winning origin and then unset, so
+  downstream machines are left on the current key. Skill bodies and
+  user-facing remedies name only `worktreeroot.path`. The peel lives in
+  `scripts/worktree-root-legacy.sh` (byte-identical copy in
+  `repo-fleet-hygiene`) and is deleted after 2026-12-31. Fleet audit stays
+  read-only. Ruling: ADR 0031.
+
+## [0.55.71]
+
+### Changed
+
+- **Worktree root convention:** the git config vendor section is
+  `worktreeroot.path` (a capability section that collides with neither Git's
+  `worktree.*` nor git-wt's `wt.basedir`). Readers try `worktreeroot.path`
+  first and fall through to the legacy alias `melodic.worktreeroot` when the
+  current key is unset (new key wins if both are set; never auto-write
+  config; a legacy hit prints a stderr migrate notice that quotes the
+  value and, in the doctor, writes `--file` of the winning origin rather
+  than promoting into `--global`). Shared resolver:
+  `scripts/worktree-root-resolve.sh` (byte-identical copy in
+  `repo-fleet-hygiene`). Owner doc: `reference/worktree-root-convention.md`.
+  Ruling: ADR 0031.
+
 ## [0.55.70]
 
 ### Fixed

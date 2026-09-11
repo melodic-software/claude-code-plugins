@@ -56,6 +56,17 @@ Failure patterns from real sessions. Loaded on demand from the handoff SKILL.md.
   verifiable evidence (a grep hit, a test exit code), not "looks good."
 - **Continuing after the user says stop** — a handoff is a save-point, never permission to keep
   implementing. Respect explicit pause/stop.
+- **Idle named subagents surviving `/clear`.** Named subagents stay live and addressable across
+  `/clear` and across sessions, unlike `/loop` and `/goal`, which a fresh conversation clears. A
+  save-point that captures TaskList but never reaps idle named agents leaves them resident for
+  later sessions. Inventory the named subagents this session spawned and any leftover names the
+  previous handoff recorded as deliberately left running. For each one, read its actual output
+  or transcript per `reference/off-thread-work.md` (inspect real state, never assume). Ones
+  whose inspected output proves no pending work: ask the operator to cancel with `x` in `/tasks`
+  (user-cancel). Do not retire with `TaskStop`; a TaskStop'd agent still auto-resumes on
+  `SendMessage` (verified snapshot in `skills/orchestrate/context/sources.md`, "SendMessage
+  worker continuation"). Record any still running (with why) so the resuming session inherits
+  the list.
 - **Saying nothing about the active `/loop`s on resume** — `/clear` starts a fresh conversation,
   which clears every session-scoped scheduled task, so a resume prompt that reads only as a one-shot
   continuation runs once and silently drops the recurring behavior, with no error to signal it. Each

@@ -3,6 +3,20 @@
 All notable changes to the `eol-normalizer` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.44]
+
+### Changed
+
+- **The hook's prologue moved into the shared `hook::begin`.** Reading the
+  payload once from the inherited descriptor, parsing the tool name and file
+  path from it, and capturing the start time for the duration measurement were
+  hand-written here and in every sibling hook; they now happen in one place.
+
+This hook keeps its own exit arm rather than using the shared `hook::finish`,
+and stays outside the shared formatter engine. Its status is derived from
+whether the file changed, so folding it in would add a status-derivation flag
+no other caller wants, and it runs no formatter binary at all.
+
 ## [0.6.43]
 
 ### Changed

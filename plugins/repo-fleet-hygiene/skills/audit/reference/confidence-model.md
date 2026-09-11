@@ -16,9 +16,16 @@ response. The report gives it its own group for that reason.
 
 ## Every emitted finding kind
 
-The collector emits exactly the kinds below. `scripts/audit-fleet.test.sh` asserts that this table's
-kind set and the collector's emitted kind set are equal, so a new kind cannot ship without a
-documented disposition.
+The collector emits exactly the kinds below. What a kind IS lives in one registry inside
+`scripts/audit-fleet.sh`: its confidence tier, its disposition sentence, and whether it is an
+actionable branch or worktree handoff. Emitters name only the kind, and
+`scripts/audit-fleet.sh --print-finding-registry` prints that registry as tab-separated rows.
+
+`scripts/audit-fleet.test.sh` reads that data mode and asserts two things against this table: its
+kind set equals the registry's, and each row states the same confidence the registry stamps. A new
+kind therefore cannot ship without a documented disposition, and a tier cannot say one thing here
+and another in the collector. The Evidence and Disposition columns below are prose written for a
+reader; the registry's disposition is the shorter sentence the report itself prints.
 
 | Kind | Evidence | Confidence | Disposition |
 |---|---|---|---|
@@ -35,13 +42,13 @@ documented disposition.
 | `worktree-not-a-root` | Registered path exists but `git rev-parse --show-prefix` is non-empty, so it is a subdirectory of a work tree rather than its root — `git -C` answers for the CONTAINING repository at exit 0, which is indistinguishable from a healthy clean worktree | `HIGH` | Manual review; never read a `git -C` probe of the path as this worktree's own state |
 | `worktree-root-unverifiable` | `git rev-parse --show-prefix` failed at the registered path, so root-ness is unproven | `UNKNOWN` | Stop worktree classification for that registration; do not infer either way |
 | `worktree-nested-in-repository` | A non-main registration's root is inside the canonical checkout's own working tree, rather than at an external root outside every repository | `MEDIUM` | Manual placement decision; never auto-move or auto-remove |
-| `worktree-outside-configured-root` | A linked worktree is outside the configured worktree root (`melodic.worktreeroot` or source-control `worktree_root`); evidence names the expected `<root>/<owner>-<repo>-<slug>` location and the config origin | `MEDIUM` | Manual placement decision; never auto-move |
+| `worktree-outside-configured-root` | A linked worktree is outside the configured worktree root (`worktreeroot.path` or source-control `worktree_root`); evidence names the expected `<root>/<owner>-<repo>-<slug>` location and the config origin | `MEDIUM` | Manual placement decision; never auto-move |
 | `worktree-wrong-layout` | A linked worktree is under the configured root but not at the expected `<owner>-<repo>-<slug>` (or `<repo>-<slug>` without origin) path; create-shaped basenames stay conforming after branch rename/detach | `MEDIUM` | Manual placement decision; never auto-move |
 | `worktree-tool-owned` | A linked worktree sits under a Codex (`~/.codex/worktrees`) or Cursor (`~/.cursor/worktrees`) tool-owned root; exempt from misplaced-fleet classification | `LOW` | Informational; leave to the owning tool or migrate deliberately |
 | `worktree-root-conformance` | Per-repository rollup of conforming / outside-or-wrong-layout / tool-owned linked worktree counts against the configured root | `LOW` | Informational rollup; per-worktree findings carry expected paths |
 | `worktree-root-conformance-summary` | Fleet-wide rollup of the same counts; emitted even when every linked worktree conforms so the headline is never missing | `LOW` | Fleet migration signal toward the configured root |
-| `worktree-root-unconfigured` | No `melodic.worktreeroot` and no source-control `worktree_root`; linked worktree placement is listed without asserting a convention | `LOW` | Descriptive only; configure a root then rerun for conformance |
-| `worktree-root-pluginconfigs-unreadable` | `melodic.worktreeroot` unset and the source-control `pluginConfigs` fallback could not be read because `jq` is missing from PATH | `UNKNOWN` | Do not treat as unconfigured; install `jq` or set `melodic.worktreeroot` |
+| `worktree-root-unconfigured` | No `worktreeroot.path` and no source-control `worktree_root`; linked worktree placement is listed without asserting a convention | `LOW` | Descriptive only; configure a root then rerun for conformance |
+| `worktree-root-pluginconfigs-unreadable` | `worktreeroot.path` unset and the source-control `pluginConfigs` fallback could not be read because `jq` is missing from PATH | `UNKNOWN` | Do not treat as unconfigured; install `jq` or set `worktreeroot.path` |
 | `worktree-status-handoff` | One or more linked, unlocked registrations with reliable admin exist; disposability is owned by `/source-control:worktree status` (stranded / unknown / safe), not by fleet `git status` | `MEDIUM` | Delegate stranded-work classification; never treat porcelain emptiness as reclaimable; cleanup `--dry-run` only after Work is safe |
 | `worktree-placement-unverifiable` | A non-bare canonical checkout gave no working-tree root, so no registration under it could be placement-checked. A BARE hub is not this finding — it has no working tree for a worktree to be nested inside, so the check is legitimately skipped rather than unanswered | `UNKNOWN` | Do not infer that this repository's worktrees are correctly placed |
 | `bare-repo-with-working-tree` | `core.bare=true` coincides with populated working-tree content and/or registered linked worktrees, so the path is a Git repository but not a work tree | `MEDIUM` | Manual review only; prefer `git config --local core.bare false` (linked worktrees are unaffected); never auto-rewrite |

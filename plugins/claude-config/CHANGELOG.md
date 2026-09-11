@@ -3,6 +3,129 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.1]
+
+### Changed
+
+- **The audit-pass skill body names the check-script calling contract** the
+  repository now states in one place: exit 0 clean, 1 findings, 2 environment
+  or usage, with findings on stderr. The skill previously relied on each
+  check script's own header, which four scripts disagreed with.
+
+## [0.42.0]
+
+### Added
+
+- **`audit-instructions`**: a `## Boundary, the bundled claude-api skill` section stating the
+  composite posture with the bundled `/claude-api prompt-audit` subcommand (prefer it for
+  model-migration and application-code prompts; this skill for the standing Claude Code
+  instruction catalog, cross-surface conflicts, and harness-claim staleness; run both when a
+  request spans them), a mutation gate that never chains into a prompt-audit apply, and an
+  availability rule that never assumes the bundled skill resolves. Detail, provenance records,
+  and the recheck triggers live in `reference/bundled-claude-api.md`.
+
+## [0.41.1]
+
+### Fixed
+
+- **`lib/state-key.sh` keys a non-repository directory by its physical path.** The `nonrepo`
+  rung hashed `$PWD` as inherited or as `cd` left it, which keeps the logical spelling a symlink
+  was reached through, so `~/projects-link/notes` and `/data/projects/notes` produced two
+  `nonrepo/<hash>/<hash>` trees for one directory and the read-back auditors reported "no prior
+  artifact" under the other spelling. The script now resolves the working directory physically
+  (`cd -P .`, no fork) before hashing, matching what `git rev-parse --show-toplevel` already did
+  for the repository rungs. A symlinked non-repository directory keyed under the old spelling
+  re-keys on the next run. Regression case 5b covers both `--root` and the no-argument form.
+- **`lib/state-key.sh` no longer lets an exported `CDPATH` redirect `cd` or pollute stdout.** With
+  `CDPATH` exported and a relative `--root`, `cd` resolved the operand against `CDPATH` instead of
+  the caller's directory and echoed the path it chose: the caller got two stdout lines where the
+  contract promises exactly the key, and the key described a directory it never named (the
+  `[[ -d ]]` check above validated the relative path while `cd` went elsewhere). The script now
+  clears `CDPATH` once before any `cd`. Regression case 14 covers both halves.
+
+## [0.41.0]
+
+### Added
+
+- **audit:** `scripts/audit-engine.sh`, a deterministic engine for every check that needs no
+  reasoning: scope discovery, JSON validity, `$schema`, baseline deny and ask patterns against
+  `reference/required-permissions.md`, the three narrowings, hook inventory, plugin drift, skill
+  listing budget from the session debug log, and the env-vars page cross-check. It prints a table
+  or JSON and, with `--out`, writes a findings artifact in the `audit-pass` identity shape
+  (`check`, `claim`, `sites` with `anchor/v1`, `finding_id`), with `anchor` and `finding-id`
+  subcommands so a judged finding gets the same identity the engine would derive. Scopes the
+  engine cannot read are reported as not inspectable, never as clean.
+- **audit:** the engine reads the `.claude/audit-pass.md` suppression record through the
+  config-cascade layers. Only the team layer suppresses; a personal-only entry is reported as not
+  applied and a malformed entry never suppresses. Every table finding carries a paste-ready
+  `suppress:` line.
+- **audit:** `scripts/check-doc-citations.sh` and `reference/doc-citations.tsv`, which verify that
+  every doc span the skill's references quote still appears on the live upstream page. The
+  permissions page had already moved under one quoted span, which this checker now catches.
+- **audit:** the hook-coverage narrowing consumes a plugin's `hooks/coverage.json` manifest, so a
+  live hook that declares a baseline family turns that family's missing pattern into `info`
+  without the model guessing what the hook covers.
+- **audit-pass:** `/claude-config:audit` is a delegated lane. Its rows append unchanged, engine
+  rows carry the `derived` tier and model rows the `judged` tier, and both skills share one
+  suppression record.
+
+### Changed
+
+- **audit:** `check-plugin-drift.sh` resolves a marketplace with a directory source against
+  `<path>/.claude-plugin/marketplace.json` instead of the registry cache, and reports the source in
+  its JSON. `check-hook-coverage.sh` resolves plugins marketplace-directory first, reports a
+  `DIVERGENCE` when the cache copy differs, and widens its `--json` with the project root, hook
+  timeout and type, plugin paths, and the divergence list.
+- **audit:** the SKILL.md phases run the engine first and reserve the model for judgment: Phase 3
+  runs the citation checker, points every settings key at `settings-reference`, and degrades the
+  known-issues check from the API to `/claude-ops:known-issues` to an unverified statement dated
+  from the row's `Last verified` column. Phase 4 reports suppressed and undecided rows and persists
+  the findings artifact. A `## Next` section names the successor skill.
+- **audit:** B.5 rows in the checklist are `info`, the debug-log check reads the existing log
+  before creating one, and `required-permissions.md` quotes the current permissions page wording
+  in place of the retired word-boundary sentence.
+- **audit:** the readability probe in `check-structure.sh` and the engine silences its own
+  stderr before opening the file, so an unreadable scope no longer prints a shell
+  permission-denied line ahead of the report.
+- **audit:** `check-plugin-drift.sh` no longer exits fatally when curl is absent. Directory-sourced
+  marketplaces need no network, so they still audit, and each repo-sourced one is recorded as a
+  fetch failure instead.
+- **audit:** `check-doc-citations.sh` checks the last manifest row even when the file has no
+  trailing newline.
+- **audit:** narrowing 3 corroborates the claim before taking it. A coverage manifest narrows a
+  baseline family only when the hook it names appears in the enumerated inventory on the event and
+  matcher it declares, and an entry that names no such hook is reported instead. When a settings
+  scope does not parse, the inventory reports the suppression-lever state unknown and the engine
+  refuses the narrowing rather than reading unread levers as unset.
+- **audit:** a debug log the engine discovered rather than was given settles the skill-listing row
+  only when the log names the project being audited; otherwise the row is unverified rather than
+  clean. `reference/doc-citations.tsv` pins the upstream sentence that `CLAUDE_CODE_DEBUG_LOGS_DIR`
+  is a file path despite its name, so a change in that contract fails the citation check.
+- **audit:** `check-hook-coverage.sh` encodes a hook's `args` once, so the engine's
+  placeholder-quoting check sees an array and fires for a shell-form hook again. A
+  directory-source catalog that does not parse is reported as unreadable and leaves the inventory
+  partial instead of reading as "plugin absent".
+- **audit:** the engine reads a hook command's first word the way the shell does, so a quoted
+  path with a space resolves whole. A hook command from a personal scope, or one carrying a
+  token-shaped value in any scope, is named by its excerpt hash in every claim and detail, so the
+  suppression stanza an operator pastes never carries the command. A baseline reference that
+  parses to no pattern is reported as unparsed rather than producing no category B rows.
+  Marketplace names are matched as strings, not patterns, and the drift script runs without curl.
+  A hook with no timeout is checked like any other: the inventory read carries a sentinel for an
+  empty field, where a folded tab used to shift the hook's type into the timeout column and skip
+  it.
+
+## [0.40.41]
+
+### Fixed
+
+- **`lib/resolve-convention-home.sh`:** a UTF-8 BOM (U+FEFF encoded EF BB BF) immediately before
+  the BEGIN marker is stripped when scanning the marker line. POSIX `[:space:]` does not include
+  BOM, so a Windows-authored root file was reported as carrying no region (exit 1) and consuming
+  skills silently served the default. `trim` strips the BOM once, then surrounding whitespace;
+  a second strip was unreachable because a file-start BOM can only be the first three bytes of
+  line 1. The same fixture now resolves at exit 0 with and without the BOM.
+
 ## [0.40.40]
 
 ### Added

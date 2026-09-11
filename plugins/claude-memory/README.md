@@ -19,10 +19,14 @@ FILES, automation SET, and permission GRANTS are audited by the sibling skills i
 
 Audits the files you write that shape Claude's behavior against a codified checklist derived from
 official Claude Code documentation (line budgets, deletion test, content placement, consistency,
-currency, auto-memory index integrity). A deterministic spine (script-backed checks for the MEMORY.md
-index and orphan always-loaded rules) yields identical findings on identical repo state; judgment-tier
-checks apply fixed criteria with model reading. Reports persist to the plugin's data directory. They
-audit contributor-personal auto-memory, so they never land in the repo.
+currency, auto-memory index integrity). A deterministic spine yields identical findings on identical
+repo state: the line budget counts a file with its `@` imports expanded, the way the loader does; a
+nested `AGENTS.md` with no sibling `CLAUDE.md` importing it is reported as a file that never loads;
+the MEMORY.md index and orphan always-loaded rules are script-checked; and each finding on a
+standards-synced file routes its fix upstream rather than proposing an edit the next sync overwrites.
+The context-cost line is a bytes-per-token estimate over the always-loaded set and says so.
+Judgment-tier checks apply fixed criteria with model reading. Reports persist to the plugin's data
+directory. They audit contributor-personal auto-memory, so they never land in the repo.
 
 Scope covers **both** layers that load every session: the project's `CLAUDE.md` / `CLAUDE.local.md` /
 `.claude/rules/`, and the user-global `${CLAUDE_CONFIG_DIR:-~/.claude}/CLAUDE.md` and

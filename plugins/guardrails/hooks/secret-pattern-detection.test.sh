@@ -216,7 +216,7 @@ fi
 # This hook kept its own copy of the repo-relative computation after the helper
 # was hoisted into hook-utils.sh, and the copy's redaction knew only two of the
 # three absolute spellings. Pin the helper so a third copy cannot reappear.
-assert_contains "path helper: uses hook::repo_relative_path" "$HOOK_SRC" 'hook::repo_relative_path'
+assert_contains "path helper: uses hook::repo_relative_path_to" "$HOOK_SRC" 'hook::repo_relative_path_to'
 assert_absent "path helper: no hand-rolled prefix strip" "$HOOK_SRC" '_fwd#'
 
 # Telemetry path helper fixtures. A file_path is read as a string, but the

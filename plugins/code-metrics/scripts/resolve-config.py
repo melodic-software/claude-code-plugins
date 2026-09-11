@@ -35,6 +35,9 @@ Options:
   --format ladder-overrides
                            `lane<TAB>measure<TAB>tool` rows from `lanes.<lane>.collectors`
   --format excludes        one `scope.exclude` glob per line
+  --format registries      one sanctioned-replication registry path per line:
+                           `scope.registries`, or `duplication.registries` when the
+                           scope-level list is empty (the older key is an alias)
   --from-json <file>       skip resolution and derive the format from a document this
                            script printed earlier (the dispatcher's `--config` path)
 
@@ -339,6 +342,32 @@ def excludes(config: dict[str, Any]) -> list[str]:
     return [_field(config, "scope.exclude", p) for p in patterns if str(p).strip()]
 
 
+def registries(config: dict[str, Any]) -> list[str]:
+    """The sanctioned-replication registries every audit applies.
+
+    `scope.registries` is the key; `duplication.registries` is its older name
+    and still resolves when the scope-level list is empty, so a team file
+    written before the key moved keeps working unchanged. Both are closed
+    lists; a scalar is refused for the reason `excludes` refuses one.
+    """
+    scope_list = (config.get("scope") or {}).get("registries")
+    dup_list = (config.get("duplication") or {}).get("registries")
+    for key, value in (
+        ("scope.registries", scope_list),
+        ("duplication.registries", dup_list),
+    ):
+        if value is not None and not isinstance(value, list):
+            layer = (config.get("_layers") or {}).get(key, "bundled default")
+            raise ConfigTypeError(
+                f"{key} (layer {layer}) must be a list of registry paths or null, "
+                f"got {type(value).__name__} {value!r}"
+            )
+    chosen, key = (scope_list, "scope.registries")
+    if not chosen:
+        chosen, key = (dup_list or [], "duplication.registries")
+    return [_field(config, key, p) for p in chosen if str(p).strip()]
+
+
 def emit_or_fail(config: dict[str, Any], fmt: str) -> int:
     """Write one format, turning a refused field into exit 2 with its message.
 
@@ -361,6 +390,8 @@ def emit(config: dict[str, Any], fmt: str) -> None:
         sys.stdout.write("".join(line + "\n" for line in ladder_overrides(config)))
     elif fmt == "excludes":
         sys.stdout.write("".join(line + "\n" for line in excludes(config)))
+    elif fmt == "registries":
+        sys.stdout.write("".join(line + "\n" for line in registries(config)))
     else:
         print(json.dumps(config, indent=2))
 
@@ -379,7 +410,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--from-json")
     parser.add_argument(
         "--format",
-        choices=("json", "dispatch-args", "ladder-overrides", "excludes"),
+        choices=("json", "dispatch-args", "ladder-overrides", "excludes", "registries"),
         default="json",
     )
     args = parser.parse_args(argv)

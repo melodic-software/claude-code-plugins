@@ -3,6 +3,32 @@
 All notable changes to the `ruff-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.45]
+
+### Fixed
+
+- **Two `jq` processes were spawned per diagnostic-producing edit to build a
+  findings document nothing read.** The guard that skips the findings encode
+  when no telemetry sink is configured was missing here. The encode now sits
+  behind the shared engine's own guard, so it cannot be omitted.
+
+### Changed
+
+- **The hook's exit arms go through the shared `hook::finish`.** Taking the
+  rewrite guard's disclosure, emitting telemetry with the arm's verdict,
+  emitting exactly one channels document and exiting now happen in one place
+  instead of each arm spelling that sequence itself.
+- **Running the formatter, accumulating its output, classifying the outcome
+  and encoding findings moved behind a shared engine.** This hook states only
+  its invocation, its exit-code map and its message text. The missing-binary
+  notice comes from the same place as its siblings'.
+- **The config walk and the `.venv` binary walk go through
+  `hook::walk_up_to`, which requires a ceiling.** A walk whose ceiling does
+  not resolve now stops rather than continuing to the filesystem root, so the
+  hook cannot adopt configuration from directories the repository does not
+  own. The ceiling is unresolvable only when the repository root is not a
+  directory.
+
 ## [0.6.44]
 
 ### Changed

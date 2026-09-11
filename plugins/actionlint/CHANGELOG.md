@@ -3,6 +3,28 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.45]
+
+### Changed
+
+- **The hook's exit arms go through the shared `hook::finish`**, which emits
+  telemetry with the arm's verdict, emits exactly one channels document and
+  exits, instead of each arm spelling that sequence itself.
+- **Running the linter, accumulating its output, classifying the outcome and
+  encoding findings moved behind a shared engine.** This hook states only its
+  invocation, its exit-code map and its message text. The missing-binary
+  notice comes from the same place as its siblings'.
+- **Emitting accumulated context no longer forks `jq`.** The accumulator's
+  flush now composes through the fork-free emitter that builds the same
+  document, which removes one process from every run that emits context.
+- **One glob list serves both of the hook's gates, and it names the separator
+  a workflow path actually has.** The jq-free pre-filter reads the payload's
+  JSON string literal, where a Windows separator is escaped, so the list used
+  to be written loose on separators to survive normalizing each escaped
+  backslash into two slashes. The shared pre-filter collapses that escape
+  before matching, so `*/.github/workflows/*.yml` is now the spelling in both
+  places.
+
 ## [0.8.44]
 
 ### Changed
