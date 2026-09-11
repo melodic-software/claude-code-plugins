@@ -7,6 +7,19 @@
 # copies at plugins/*/hooks/hook-utils.sh exist because installed plugins are
 # cache-isolated and must be self-contained — never edit a copy. Edit the
 # source and run scripts/sync-hook-utils.sh; CI rejects drifted copies.
+#
+# CALLING CONVENTION: a helper that produces a value is spelled
+# `hook::<name>_to <var> [args…]` and writes into the caller's variable. That
+# is the one convention; call it directly rather than wrapping it in `$( )`.
+# GNU Bash forks a subshell for every command substitution even when the body
+# is only builtins (Command Substitution, Bash Reference Manual;
+# https://mywiki.wooledge.org/CommandSubstitution), and on Windows Git Bash a
+# fork is a non-copy-on-write Win32 CreateProcess costing milliseconds, so a
+# capture around a `_to` helper is pure loss on hooks that run per edit.
+# Five helpers still print instead — hook::json_escape, hook::physical_path,
+# hook::repo_root, hook::buffer_stdin and hook::read_file_path (which reads
+# fd0 and has no `_to` twin). Each carries, at its definition, the one-line
+# reason its capture is still paid for.
 
 # Guard against double-sourcing.
 [[ -n "${_HOOK_UTILS_LOADED:-}" ]] && return 0
@@ -57,10 +70,13 @@ hook::check_enabled() {
 # never carries meaningful control bytes beyond line structure. Byte-safe under
 # UTF-8: every escaped byte is ASCII, and UTF-8 continuation bytes are >= 0x80.
 #
-# hook::json_escape_to <var> <string> writes in THIS shell. The print form is
-# the public contract. A `$(hook::json_escape …)` capture is a fork even when
-# the body is only builtins (Command Execution Environment, Bash Reference
-# Manual; https://mywiki.wooledge.org/CommandSubstitution). The previous
+# hook::json_escape_to <var> <string> writes in THIS shell and is the form to
+# call. hook::json_escape is kept as a print form for the two Stop/PostCompact
+# marker builders that splice an escaped field into a single-quoted JSON
+# literal, where a capture is the shape; a `$(hook::json_escape …)` capture is
+# still a fork even when the body is only builtins (Command Execution
+# Environment, Bash Reference Manual;
+# https://mywiki.wooledge.org/CommandSubstitution). The previous
 # `printf | tr -d` pipeline added two more process creations and a `tr` exec
 # per notice; Cygwin's fork is a non-copy-on-write Win32 CreateProcess
 # (Cygwin User's Guide, "Process Creation": "fork will almost certainly
@@ -90,8 +106,11 @@ hook::json_escape() {
 # user-channel message (systemMessage) as ONE document — CC parses the hook's
 # whole stdout as a single JSON doc, so a run that has both lint findings and a
 # pending skip notice must compose them here rather than print twice. Either
-# channel may be empty; emits nothing when both are.
+# channel may be empty; emits nothing when both are. One entry point for both
+# channels, so a hook with only one of them passes "" for the other rather
+# than picking between two spellings of the same emit.
 #   hook::emit_channels PostToolUse "$ctx" "$sysmsg"
+#   hook::emit_channels PreToolUse "$ctx" ""      # agent channel only
 hook::emit_channels() {
   local event="$1" ctx="$2" sysmsg="$3"
   [[ -n "$ctx" || -n "$sysmsg" ]] || return 0
@@ -447,14 +466,10 @@ hook::require_jq_blocking() {
 # outside CLAUDE_PROJECT_DIR. The result is used ONLY for comparison; the
 # emitted path is always the caller's original.
 #
-# Two spellings of every path helper below: `hook::<name>` prints the answer
-# (the public, subshell-friendly form every caller already uses) and
-# `hook::<name>_to <var> <path>` stores it in the caller's variable instead.
-# The `_to` form is what the hot path uses: a `$(...)` capture is a fork, and
-# on Windows Git Bash a fork costs milliseconds, so the file_path guard that
-# ran a dozen of them per hook now runs none it does not need. The `_to`
-# helpers keep their locals under a `__hu_` prefix so the caller's variable
-# name cannot collide with them.
+# Every path helper below is spelled `hook::<name>_to <var> <path>` and stores
+# its answer in the caller's variable: one convention, no per-call-site choice.
+# The `_to` helpers keep their locals under a `__hu_` prefix so the caller's
+# variable name cannot collide with them.
 hook::normalize_path_to() {
   local __hu_p="${2//\\//}"
   case "${OSTYPE:-}" in
@@ -468,12 +483,6 @@ hook::normalize_path_to() {
   *) ;; # POSIX hosts: case-sensitive FS, no drive fold — pass through below
   esac
   printf -v "$1" '%s' "$__hu_p"
-}
-
-hook::normalize_path() {
-  local __hu_n
-  hook::normalize_path_to __hu_n "$1"
-  printf '%s' "$__hu_n"
 }
 
 # Expand Windows 8.3 short-name components (KYLESE~1 → KyleSexton) on
@@ -516,12 +525,6 @@ hook::expand_8dot3_to() {
   printf -v "$1" '%s' "$__hu_p"
 }
 
-hook::expand_8dot3() {
-  local __hu_e
-  hook::expand_8dot3_to __hu_e "$1"
-  printf '%s' "$__hu_e"
-}
-
 # Canonicalize to a physical path — symlinks resolved, Windows 8.3 short names
 # expanded — for the membership comparison below, so an in-project symlink
 # pointing outside the project root cannot defeat the guard (the lexical path
@@ -553,6 +556,8 @@ hook::physical_path_to() {
   return 1
 }
 
+# Kept as a print form because markdown-format's directory walk resolves each
+# queue entry inline inside an array append, where a capture is the shape.
 # shellcheck disable=SC2034  # public contract: advisory callers may read HOOK_PHYSICAL_PATH_UNRESOLVED
 hook::physical_path() {
   local __hu_v __hu_rc=0
@@ -1088,7 +1093,7 @@ hook::json_compact_to() {
   printf -v "$1" '%s' "$__hu_out"
 }
 
-# hook::json_escape_jq_to <var> <string> / hook::json_escape_jq <string>
+# hook::json_escape_jq_to <var> <string>
 # Escape <string> exactly as jq serializes a string value (without the
 # quotes): backslash and double quote, the five short forms \b \f \n \r \t,
 # every other byte from 0x01 to 0x1f and 0x7f as lowercase \u00xx, and
@@ -1115,12 +1120,6 @@ hook::json_escape_jq_to() {
     done
   fi
   printf -v "$1" '%s' "$__hu_s"
-}
-
-hook::json_escape_jq() {
-  local __hu_e
-  hook::json_escape_jq_to __hu_e "$1"
-  printf '%s' "$__hu_e"
 }
 
 # hook::json_str_object_to <var> [key value]...
@@ -1188,7 +1187,7 @@ hook::read_file_path() {
     hook::_fast_file_path_to file "${chunks[0]}" || mode=$?
   fi
   case "$mode" in
-  0) ;; # proven: `file` holds jq's answer
+  0) ;;          # proven: `file` holds jq's answer
   1) return 1 ;; # proven absent
   *)
     file=$(hook::_print_nul_joined "${chunks[@]}" | jq -r '(.tool_input.file_path // empty) | gsub("\r";"")' 2>/dev/null)
@@ -1196,6 +1195,23 @@ hook::read_file_path() {
   esac
   [[ -n "$file" ]] || return 1
   [[ -f "$file" ]] || return 1
+  # Scope opt-out, off unless the caller sets it for the duration of ONE call
+  # (`local HOOK_READ_FILE_PATH_UNSCOPED=1` in the calling frame). Parse and
+  # existence only, no membership.
+  #
+  # For an advisory PostToolUse linter whose own location filter already bounds
+  # what it reads, the membership guard protects nothing it can act on —
+  # PostToolUse cannot block or undo the write, so every guard false negative
+  # is a silent coverage loss instead. The concrete one: GNU realpath under Git
+  # Bash does not expand Windows 8.3 short names, so a short-form file_path
+  # (<drive>:\...\SOMEDIR~1\...) fails the prefix match against a long-form
+  # project dir and the lint never runs. A hook that MUTATES a file keeps the
+  # guard: there the scope is what stops a rewrite of something outside the
+  # project.
+  if [[ "${HOOK_READ_FILE_PATH_UNSCOPED:-0}" == 1 ]]; then
+    printf '%s' "$file"
+    return 0
+  fi
   if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
     local norm_file norm_project phys_file phys_project file_resolved=0 project_resolved=0
     hook::_temp_root_candidates
@@ -1267,12 +1283,10 @@ hook::read_file_path() {
 # means git answered; advisory callers that ignore the status are unchanged.
 # Guards that must fail closed branch on the return code or on
 # HOOK_REPO_ROOT_UNRESOLVED.
-#   ROOT=$(hook::repo_root "$some_path")
 #   hook::repo_root_to ROOT "$some_path"
-# The print form is the public contract. `_to` writes in THIS shell so a
-# caller that was about to capture with `$(hook::repo_root …)` does not pay
-# an extra subshell around the necessary git process (Command Substitution,
-# Bash Reference Manual; https://mywiki.wooledge.org/CommandSubstitution).
+# `_to` writes in THIS shell so the caller does not pay an extra subshell
+# around the necessary git process (Command Substitution, Bash Reference
+# Manual; https://mywiki.wooledge.org/CommandSubstitution).
 # shellcheck disable=SC2034  # public contract: advisory callers may read HOOK_REPO_ROOT_UNRESOLVED
 hook::repo_root_to() {
   local __hu_rr_dest="$1"
@@ -1297,12 +1311,74 @@ hook::repo_root_to() {
   return 1
 }
 
+# Kept as a print form for the callers outside this repo's hook tree (a skill
+# script, a repo-local sink copy) that read the root once at top level and are
+# not on a per-edit hot path.
 hook::repo_root() {
   local __hu_rr
   hook::repo_root_to __hu_rr "${1:-.}"
   local __hu_rr_st=$?
   printf '%s' "$__hu_rr"
   return "$__hu_rr_st"
+}
+
+# Walk from <start> toward the filesystem root, asking <predicate> about each
+# directory, and write the directory it accepted into <dest>. Returns 0 when
+# one was accepted, 1 when none was. Every consumer opt-in gate and repo-local
+# binary probe in this marketplace is this walk; only the predicate differs.
+#
+#   hook::walk_up_to <dest> <start> <ceiling> <predicate> [first|topmost]
+#
+# <predicate> is called as `<predicate> <dir>` and answers with an exit status:
+#
+#   0  accept this directory
+#   1  keep walking
+#   2  stop the walk here, without accepting this directory — for a search
+#      whose own rules end it above a hit, such as EditorConfig's `root = true`
+#
+# <mode> is `first` (default: the closest accepted directory, the answer a
+# file-anchored tool resolves) or `topmost` (keep walking past a hit and answer
+# with the highest one, the answer a CWD-anchored tool that treats the outermost
+# config as the orchestrator resolves).
+#
+# THE CEILING IS REQUIRED, AND AN UNRESOLVED CEILING FAILS CLOSED: an empty
+# <ceiling> accepts nothing and walks nowhere. These walks decide whether a
+# repository opted into having its files rewritten, and a walk that runs past
+# the repository reads configuration from directories the consuming repository
+# does not own — a home directory, a build agent's workspace root — and answers
+# "yes, format this" on their say-so. A missed opt-in is a file left alone; a
+# ceiling-less walk is somebody else's config governing an edit. To walk to the
+# filesystem root deliberately, pass `/`, which is a resolved ceiling and stops
+# the walk in the same place.
+#
+# The terminator is the whole reason this is one function: `${dir%/*}` leaves an
+# empty string for a directory directly under the filesystem root and leaves the
+# string unchanged for a bare relative name, so the `/` fallback and the
+# self-comparison are both load-bearing, and eight hand-rolled copies of them
+# were eight places for one of the two to go missing.
+hook::walk_up_to() {
+  local __hu_wu_dest="$1" __hu_wu_dir="$2" __hu_wu_ceiling="$3"
+  local __hu_wu_pred="$4" __hu_wu_mode="${5:-first}"
+  local __hu_wu_hit="" __hu_wu_parent __hu_wu_rc
+  printf -v "$__hu_wu_dest" '%s' ""
+  [[ -n "$__hu_wu_dir" && -n "$__hu_wu_ceiling" ]] || return 1
+  while :; do
+    "$__hu_wu_pred" "$__hu_wu_dir"
+    __hu_wu_rc=$?
+    if ((__hu_wu_rc == 0)); then
+      __hu_wu_hit="$__hu_wu_dir"
+      [[ "$__hu_wu_mode" == topmost ]] || break
+    elif ((__hu_wu_rc != 1)); then
+      break
+    fi
+    [[ "$__hu_wu_dir" == "$__hu_wu_ceiling" ]] && break
+    __hu_wu_parent="${__hu_wu_dir%/*}"
+    [[ -n "$__hu_wu_parent" ]] || __hu_wu_parent=/
+    [[ "$__hu_wu_parent" == "$__hu_wu_dir" ]] && break
+    __hu_wu_dir="$__hu_wu_parent"
+  done
+  printf -v "$__hu_wu_dest" '%s' "$__hu_wu_hit"
+  [[ -n "$__hu_wu_hit" ]]
 }
 
 # Repo-relative form of <file> under <repo-root> — the shape the telemetry
@@ -1324,14 +1400,12 @@ hook::repo_root() {
 # repo-relative. Telemetry callers that ignore the status still get the safe
 # value; a caller that feeds the result to a TOOL must branch on it, because a
 # bare basename resolved against the repo root names a different file.
-#   FILE_REL=$(hook::repo_relative_path "$FILE" "$REPO_ROOT")
 #   hook::repo_relative_path_to FILE_REL "$FILE" "$REPO_ROOT"
 #
-# Callers under `set -e` must not take the status from a bare assignment: a
-# degraded answer returns 1, and `FILE_REL=$(hook::repo_relative_path ...)`
-# would abort the shell. Append `|| <flag>=1` (what every tool-feeding caller
-# here does) or `|| :` to keep the failure handled. The `_to` form writes in
-# THIS shell so a Linux caller (no cygpath) does not pay a leftover capture
+# Callers under `set -e` must not take the status from a bare call: a degraded
+# answer returns 1 and would abort the shell. Append `|| <flag>=1` (what every
+# tool-feeding caller here does) or `|| :` to keep the failure handled. The
+# helper writes in THIS shell so a Linux caller (no cygpath) pays no capture
 # subshell around builtins-only work (Command Substitution, Bash Reference
 # Manual; https://mywiki.wooledge.org/CommandSubstitution).
 # shellcheck disable=SC2034  # public contract: callers may read HOOK_REPO_RELATIVE_DEGRADED
@@ -1368,14 +1442,6 @@ hook::repo_relative_path_to() {
   esac
   printf -v "$__hu_rp_dest" '%s' "$__hu_rp_rel"
   ((HOOK_REPO_RELATIVE_DEGRADED == 0))
-}
-
-hook::repo_relative_path() {
-  local __hu_rp
-  hook::repo_relative_path_to __hu_rp "$1" "$2"
-  local __hu_rp_st=$?
-  printf '%s' "$__hu_rp"
-  return "$__hu_rp_st"
 }
 
 # Buffer a complete JSON payload from stdin, tolerating Windows Win32-pipe
@@ -1502,12 +1568,10 @@ hook::read_supports_fractional_timeout() {
 }
 
 # hook::resolve_read_timeout_to <var>
-# Write the resolved timeout into <var> in THIS shell. The print form below
-# is the public contract (tests and callers that capture stdout). GNU Bash
-# runs command substitution in a subshell even when the body is only
-# builtins (Command Execution Environment), so hook::buffer_stdin must call
-# this _to form — `read_timeout=$(hook::resolve_read_timeout)` was one of
-# the two startup forks the suite documents.
+# Write the resolved timeout into <var> in THIS shell. GNU Bash runs command
+# substitution in a subshell even when the body is only builtins (Command
+# Execution Environment), so a capture here is a startup fork on every hook;
+# this is the only spelling, and the suite pins that buffer_stdin uses it.
 hook::resolve_read_timeout_to() {
   local __hu_dest="$1"
   local __hu_t="${CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT:-2}"
@@ -1528,12 +1592,6 @@ hook::resolve_read_timeout_to() {
   printf -v "$__hu_dest" '%s' "$__hu_t"
 }
 
-hook::resolve_read_timeout() {
-  local t
-  hook::resolve_read_timeout_to t
-  printf '%s' "$t"
-}
-
 # How many slices the idle bound is divided into. `read -t` reports only that a
 # window expired, never WHEN inside it the last byte arrived, so a bound armed as
 # one window declares a stall anywhere between one and two bounds after the pipe
@@ -1544,14 +1602,14 @@ hook::resolve_read_timeout() {
 HOOK_STDIN_READ_SLICES=4
 
 # Resolve the per-read slice for an already-resolved timeout into two caller
-# variables (slice, count). The print form below is the public contract:
-# "<slice> <count>", falling back to "<timeout> 1" — exactly the unsliced
-# behavior — when this shell cannot accept a fractional `read -t` (Bash 3.2;
-# CHANGES bash-4.0-alpha introduced fractional timeouts). Version-tested via
-# hook::read_supports_fractional_timeout, not probed: a TMPDIR stderr file
-# leaked on every buffer_stdin. hook::buffer_stdin calls the _to form so the
-# resolution does not pay a process-substitution fork (GNU Bash: commands
-# grouped for substitution run in a subshell).
+# variables (slice, count), falling back to "<timeout> 1" — exactly the
+# unsliced behavior — when this shell cannot accept a fractional `read -t`
+# (Bash 3.2; CHANGES bash-4.0-alpha introduced fractional timeouts).
+# Version-tested via hook::read_supports_fractional_timeout, not probed: a
+# TMPDIR stderr file leaked on every buffer_stdin. Two variables, never a
+# printed "<slice> <count>" pair the caller re-splits, so the resolution pays
+# no substitution fork (GNU Bash: commands grouped for substitution run in a
+# subshell).
 hook::resolve_read_slice_to() {
   local __hu_t="$1" __hu_slice=""
   local __hu_slice_dest="$2" __hu_count_dest="$3"
@@ -1586,12 +1644,6 @@ hook::resolve_read_slice_to() {
   fi
   printf -v "$__hu_slice_dest" '%s' "$__hu_t"
   printf -v "$__hu_count_dest" '%s' "1"
-}
-
-hook::resolve_read_slice() {
-  local slice count
-  hook::resolve_read_slice_to "$1" slice count
-  printf '%s %s' "$slice" "$count"
 }
 
 # hook::buffer_stdin_to <var> [jq-filter...]
@@ -1649,7 +1701,7 @@ hook::buffer_stdin_to() {
     if ((__hu_read_rc == 0)); then
       # A full chunk (or a delimiter) — more may still be coming. A SUCCESSFUL
       # read that consumed nothing, however, cannot make progress, so continuing
-      # would spin: break instead. hook::resolve_read_timeout already excludes
+      # would spin: break instead. hook::resolve_read_timeout_to already excludes
       # the only known way to reach that (`read -t 0`, which returns success
       # without consuming); this keeps loop termination a structural property
       # rather than a consequence of validation staying correct.
@@ -1779,6 +1831,9 @@ hook::buffer_stdin_to() {
   printf -v "$__hu_dest" '%s' "$__hu_input"
 }
 
+# Kept as a print form because the guardrails dispatcher overrides both
+# spellings to answer every sourced guard from one already-read payload, and a
+# guard that captures must still reach the override.
 hook::buffer_stdin() {
   local __hu_buf
   hook::buffer_stdin_to __hu_buf || return $?
@@ -1940,6 +1995,419 @@ hook::jq_fields() {
   HOOK_JQ_FIELDS=("${values[@]:1}")
 }
 
+# Best-effort jq-free extraction of tool_input.notebook_path, the key a
+# NotebookEdit payload carries INSTEAD of file_path (verified against the
+# tool's own input schema). Same escaped-string match and same contract as
+# hook::raw_file_path, so a notebook payload reaches the jq gate like any
+# other. Returns 1 when no notebook_path is present.
+hook::raw_notebook_path() {
+  [[ "$1" =~ \"notebook_path\"[[:space:]]*:[[:space:]]*\"(([^\"\\]|\\.)*)\" ]] || return 1
+  [[ -n "${BASH_REMATCH[1]}" ]] || return 1
+  printf '%s' "${BASH_REMATCH[1]}"
+}
+
+# Does <path> match any of the <glob>s? Matched with `case`, so the globs are
+# ordinary shell patterns and `*` spans separators.
+#
+# Each glob is tried against the path as it arrived AND against its
+# hook::normalize_path_to form (backslashes folded to slashes; on Windows also
+# a drive fold), so one `*.sh` or `*/.github/workflows/*.yml` list covers a
+# JSON-escaped raw path, a POSIX path and a Win32 path alike. Normalizing is
+# builtins-only, so the second try costs no process.
+#   hook::path_matches "$FILE" '*.sh' '*.bash' || exit 0
+hook::path_matches() {
+  local __hu_pm_path="$1" __hu_pm_norm __hu_pm_glob
+  shift
+  hook::normalize_path_to __hu_pm_norm "$__hu_pm_path"
+  for __hu_pm_glob in "$@"; do
+    # shellcheck disable=SC2254  # the glob is the pattern; quoting would match it literally
+    case "$__hu_pm_path" in
+    $__hu_pm_glob) return 0 ;;
+    *) ;; # try the normalized spelling below, then the next glob
+    esac
+    # shellcheck disable=SC2254  # same, on the normalized spelling
+    case "$__hu_pm_norm" in
+    $__hu_pm_glob) return 0 ;;
+    *) ;; # no match for this glob; try the next
+    esac
+  done
+  return 1
+}
+
+# Build the telemetry `data` object a file-edit hook emits.
+#
+#   hook::data_json_to <dest> <tool> <file> <changed> [<key> array|str <value>]...
+#
+# {tool,file} first, then each declared key in the order given, then `changed`:
+# a boolean when <changed> is "true" or "false", and the key omitted entirely
+# when <changed> is empty, which is the honest shape for a skip arm that never
+# decided whether the file was rewritten. Each <key> is a bare jq identifier
+# (`findings`, `applied`, `action`); `array` values are JSON, `str` values are
+# plain strings.
+#
+# jq is authoritative, and every `array` value arrives on STDIN rather than as
+# an --argjson. Those arrays are uncapped by design and Windows caps a process
+# command line at 32767 characters, so a file with a few hundred findings
+# fails `jq` outright there and the fallback would emit an envelope claiming
+# ZERO findings for the noisiest files in the repository. A payload that lies
+# is worse than no payload. <tool> and <file> stay arguments: both are bounded
+# by a path length.
+#
+# The fallback is a fixed empty-shape object — never an interpolation of
+# <tool>/<file>, which could inject a quote or a backslash from a path and
+# corrupt the envelope. It is essentially unreachable (when jq is absent
+# hook::emit_telemetry drops the envelope anyway), so losing the values there
+# is harmless and strictly safer than emitting malformed JSON.
+hook::data_json_to() {
+  local __hu_dj_dest="$1" __hu_dj_tool="$2" __hu_dj_file="$3" __hu_dj_changed="$4"
+  shift 4
+  local __hu_dj_stdin="{" __hu_dj_sep=""
+  # shellcheck disable=SC2016  # jq program text: $tool and $file are jq's own variables
+  local __hu_dj_prog='{tool:$tool,file:$file}'
+  local __hu_dj_fallback='{"tool":"","file":""'
+  local -a __hu_dj_args=(--arg tool "$__hu_dj_tool" --arg file "$__hu_dj_file"
+    --arg changed "$__hu_dj_changed")
+  local __hu_dj_key __hu_dj_kind __hu_dj_val
+  while (($# >= 3)); do
+    __hu_dj_key="$1"
+    __hu_dj_kind="$2"
+    __hu_dj_val="$3"
+    shift 3
+    case "$__hu_dj_kind" in
+    array)
+      __hu_dj_stdin+="${__hu_dj_sep}\"${__hu_dj_key}\":${__hu_dj_val:-[]}"
+      __hu_dj_sep=","
+      __hu_dj_prog+=" + {${__hu_dj_key}: .${__hu_dj_key}}"
+      __hu_dj_fallback+=",\"${__hu_dj_key}\":[]"
+      ;;
+    *)
+      __hu_dj_args+=(--arg "$__hu_dj_key" "$__hu_dj_val")
+      __hu_dj_prog+=" + {${__hu_dj_key}: \$${__hu_dj_key}}"
+      __hu_dj_fallback+=",\"${__hu_dj_key}\":\"\""
+      ;;
+    esac
+  done
+  __hu_dj_stdin+="}"
+  __hu_dj_fallback+="}"
+  # shellcheck disable=SC2016  # jq program text: $changed is jq's own variable
+  __hu_dj_prog+=' + (if $changed == "" then {} else {changed: ($changed == "true")} end)'
+  local __hu_dj_out=""
+  __hu_dj_out=$(printf '%s' "$__hu_dj_stdin" |
+    jq -c "${__hu_dj_args[@]}" "$__hu_dj_prog" 2>/dev/null) || __hu_dj_out=""
+  # The Windows jq build writes stdout in TEXT mode and expands every LF to
+  # CRLF; the envelope is one line, so a trailing CR would ride into it.
+  __hu_dj_out="${__hu_dj_out//$'\r'/}"
+  [[ -n "$__hu_dj_out" ]] || __hu_dj_out="$__hu_dj_fallback"
+  printf -v "$__hu_dj_dest" '%s' "$__hu_dj_out"
+}
+
+# ============================================================================
+# hook::begin — the file-edit hook prologue as ONE call
+# ============================================================================
+#
+# A PostToolUse hook acting on the file just written needs the same context
+# every time, and the ORDER is the load-bearing part: the jq-free
+# applicability pre-filter runs before the jq gate (a missing-jq notice must
+# never fire for an edit the hook would not have processed anyway), the gate
+# before the parsed read, the repo root before the repo-relative path, and the
+# telemetry-only values behind the sink opt-in so the unwired default path
+# spawns nothing to build them.
+#
+#   hook::begin [<flag>...] <plugin> <event> [<glob>...]
+#
+# <plugin> is the label the skip notices carry. Sets, in the CALLER's shell:
+#
+#   start              $EPOCHREALTIME at entry, or empty on bash before 5.0 —
+#                      the caller's signal to skip telemetry rather than abort
+#   INPUT              the buffered payload
+#   RAW_FILE           the JSON-escaped path the pre-filter matched
+#   FILE               the parsed, existence- and scope-checked path
+#   FILE_BASE          FILE's last component, trimmed on either separator so a
+#                      mixed-form Windows path still yields it
+#   FILE_DIR           FILE's directory (`.` for a bare name, `/` under the
+#                      filesystem root, where the strip leaves an empty string
+#                      that hook::repo_root_to would read as the process CWD)
+#   REPO_ROOT          the consuming repo root, anchored at FILE_DIR
+#   TOOL               tool_name, ONLY when a telemetry sink is wired
+#   FILE_REL           the repo-relative path the telemetry schema requires,
+#                      degrading to the basename so an absolute path never
+#                      reaches telemetry; resolved when a sink is wired, or
+#                      always under --relative
+#   FILE_REL_DEGRADED  1 when that degrade happened
+#   HOOK_PLUGIN        <plugin>, the default telemetry hook id at hook::finish
+#   HOOK_EVENT         <event>, the event hook::finish emits under
+#
+# and EXITS 0 itself on every path where the hook has nothing to do: stdin
+# empty, malformed, or cut short mid-document (hook::buffer_stdin_to rc 1, 2
+# and 3 alike — an advisory PostToolUse hook allows all three, since the tool
+# already ran); no path in the payload, or one no <glob> matches; jq absent,
+# after hook::require_jq's once-per-session skip notice; a path
+# hook::read_file_path rejects.
+#
+# No <glob> means "any payload carrying a path", for a hook whose matcher is
+# already its whole filter. The globs are checked twice, once on the jq-free
+# raw path and once on the parsed one, because the raw extraction is a
+# best-effort regex and the parsed path is the authoritative answer.
+#
+# Flags:
+#   --relative       resolve FILE_REL even with no sink wired, for a hook that
+#                    hands its tool a repository-relative argument. Two cygpath
+#                    processes on Windows, which is why it is opt-in.
+#   --no-membership  parse and existence-check the path without the
+#                    CLAUDE_PROJECT_DIR scope (see HOOK_READ_FILE_PATH_UNSCOPED
+#                    at hook::read_file_path).
+#   --notebook       also accept a NotebookEdit payload, whose target is
+#                    tool_input.notebook_path; the path is copied onto
+#                    file_path so the shared reader — and its scoping, which is
+#                    the load-bearing part — stays the single place a path is
+#                    admitted. An explicit file_path always wins.
+#   --repo-root <fn> resolve REPO_ROOT with <fn> (called as `<fn> REPO_ROOT
+#                    <dir>`) instead of hook::repo_root_to, for a hook whose
+#                    ceiling contract is not git's answer.
+#   --pre-jq <fn>    call `<fn> "$RAW_FILE"` immediately before the jq gate,
+#                    for a hook that must settle its own consumer opt-in before
+#                    the gate can nag about a prerequisite that opt-in does not
+#                    need. <fn> may exit 0 itself.
+# shellcheck disable=SC2034  # the caller's contract: every name above is read by the hook, not here
+hook::begin() {
+  local __hu_bg_relative=0 __hu_bg_unscoped=0 __hu_bg_notebook=0
+  local __hu_bg_root_fn="" __hu_bg_prejq_fn=""
+  while (($#)); do
+    case "$1" in
+    --relative) __hu_bg_relative=1 ;;
+    --no-membership) __hu_bg_unscoped=1 ;;
+    --notebook) __hu_bg_notebook=1 ;;
+    --repo-root)
+      __hu_bg_root_fn="$2"
+      shift
+      ;;
+    --pre-jq)
+      __hu_bg_prejq_fn="$2"
+      shift
+      ;;
+    *) break ;;
+    esac
+    shift
+  done
+  local __hu_bg_plugin="$1" __hu_bg_event="$2"
+  shift 2
+  # The label and the event, kept for hook::finish so the exit arm restates
+  # neither. HOOK_PLUGIN doubles as the default telemetry hook id.
+  HOOK_PLUGIN="$__hu_bg_plugin"
+  HOOK_EVENT="$__hu_bg_event"
+
+  # EPOCHREALTIME is Bash 5.0+; on older bash it is unset, so default to empty
+  # — referencing it bare under `set -u` would abort before the advisory
+  # exit 0 and fail every edit. Captured first so duration_ms covers the whole
+  # run; the exits below are pre-work and emit no telemetry.
+  start=${EPOCHREALTIME:-}
+
+  # Read inherited fd0 ONCE, here. Every path-reading step below is fed the
+  # buffered payload, because reading fd0 twice would drain the pipe on the
+  # second read — and on Windows Git Bash that pipe is a Win32 pipe that
+  # `/dev/stdin` cannot resolve at all.
+  hook::buffer_stdin_to INPUT || exit 0
+
+  RAW_FILE=$(hook::raw_file_path "$INPUT") || RAW_FILE=""
+  if [[ -z "$RAW_FILE" ]] && ((__hu_bg_notebook)); then
+    RAW_FILE=$(hook::raw_notebook_path "$INPUT") || RAW_FILE=""
+  fi
+  [[ -n "$RAW_FILE" ]] || exit 0
+  if (($#)); then
+    # Matched on the UNESCAPED spelling. RAW_FILE is the JSON string literal's
+    # contents, still escaped, so a Windows payload carries `C:\\repo\\x.yml`;
+    # normalizing that turns each of the two backslashes into a slash and the
+    # caller's glob then has to be written loose on separators
+    # (`*/.github/*workflows/*.yml`) to survive the doubling. Collapsing the
+    # escape here lets every caller write the separator its path actually has,
+    # and the same glob list serves this pre-filter and the authoritative
+    # re-check on the parsed path below. Only ever widens what the pre-filter
+    # admits, and that re-check is what decides.
+    hook::path_matches "${RAW_FILE//\\\\/\\}" "$@" || exit 0
+  fi
+
+  [[ -n "$__hu_bg_prejq_fn" ]] && "$__hu_bg_prejq_fn" "$RAW_FILE"
+
+  # jq is load-bearing for input parsing; absent → visible once-per-session
+  # skip notice instead of a silent no-op (dim-9 doctrine).
+  hook::require_jq "$__hu_bg_event" "$__hu_bg_plugin" "$INPUT"
+
+  # The jq runs only for a payload whose raw text carries a notebook_path,
+  # because without one the filter's own condition is false and it hands the
+  # payload back unchanged. The textual pre-check is deliberately BROADER than
+  # the filter's `.tool_input.notebook_path`: it can admit a payload the filter
+  # no-ops on, never reject one the filter would have acted on. Every ordinary
+  # Write and Edit reaches this line and none of them is a notebook, so on the
+  # hot path this is one fewer jq. A jq failure leaves INPUT exactly as it
+  # arrived rather than emptying it.
+  if ((__hu_bg_notebook)) && hook::raw_notebook_path "$INPUT" >/dev/null; then
+    local __hu_bg_normalized
+    __hu_bg_normalized=$(printf '%s' "$INPUT" | jq -c '
+      if ((.tool_input.file_path // "") == "") and ((.tool_input.notebook_path // "") != "")
+      then .tool_input.file_path = .tool_input.notebook_path
+      else . end' 2>/dev/null) &&
+      [[ -n "$__hu_bg_normalized" ]] && INPUT="$__hu_bg_normalized"
+  fi
+
+  local HOOK_READ_FILE_PATH_UNSCOPED="$__hu_bg_unscoped"
+  FILE=$(printf '%s' "$INPUT" | hook::read_file_path) || exit 0
+  if (($#)); then
+    hook::path_matches "$FILE" "$@" || exit 0
+  fi
+
+  # Basename and directory by parameter expansion, never `basename`/`dirname`:
+  # GNU Bash forks a subshell for every command substitution even when the body
+  # is a single exec (Command Substitution, Bash Reference Manual;
+  # https://mywiki.wooledge.org/CommandSubstitution), and this runs on every
+  # Write and Edit. The two fallbacks cover the shapes where the strip and
+  # dirname disagree: a bare relative filename, where dirname answers `.`, and
+  # a file directly under the filesystem root, where the strip leaves an empty
+  # string and dirname answers `/`.
+  FILE_BASE="${FILE##*/}"
+  FILE_BASE="${FILE_BASE##*\\}"
+  FILE_DIR="${FILE%/*}"
+  [[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR=.
+  [[ -n "$FILE_DIR" ]] || FILE_DIR=/
+
+  # File-anchored, not CWD-anchored: the hook process CWD is not guaranteed to
+  # be the repo root, and the root bounds every opt-in walk and names data.file.
+  REPO_ROOT=""
+  if [[ -n "$__hu_bg_root_fn" ]]; then
+    "$__hu_bg_root_fn" REPO_ROOT "$FILE_DIR"
+  else
+    hook::repo_root_to REPO_ROOT "$FILE_DIR"
+  fi
+
+  # TOOL feeds the telemetry data object and nothing else, so it is parsed only
+  # when a sink is wired: the unwired default path spawns zero telemetry-only
+  # subprocesses (the tool_name parse, and 2x cygpath on Windows inside
+  # hook::repo_relative_path_to).
+  TOOL=""
+  FILE_REL="$FILE"
+  FILE_REL_DEGRADED=0
+  if ((__hu_bg_relative)); then
+    FILE_REL=""
+    hook::repo_relative_path_to FILE_REL "$FILE" "$REPO_ROOT" || FILE_REL_DEGRADED=1
+  fi
+  if hook::telemetry_enabled; then
+    hook::jq_fields "$INPUT" '.tool_name' && TOOL="${HOOK_JQ_FIELDS[0]}"
+    if ((__hu_bg_relative == 0)); then
+      FILE_REL=""
+      hook::repo_relative_path_to FILE_REL "$FILE" "$REPO_ROOT" || FILE_REL_DEGRADED=1
+    fi
+  fi
+  return 0
+}
+
+# ============================================================================
+# hook::finish — the exit arm as ONE call
+# ============================================================================
+#
+# The bookend to hook::begin. Every arm a file-edit hook can exit on owes the
+# same three steps, and the ORDER is the load-bearing part:
+#
+#   1. take the rewrite disclosure — that is also what settles the byte
+#      verdict data.changed reports and what releases the guard's snapshot;
+#   2. emit telemetry, so the envelope carries the verdict step 1 just settled;
+#   3. emit the ONE stdout document — Claude Code parses a hook's whole stdout
+#      as a single JSON document, so an arm that both rewrote the file and has
+#      findings composes both channels here instead of printing twice.
+#
+#   hook::finish [<flag>...] <status> [<key> <kind> <value>]...
+#
+# <status> is the telemetry status the arm reports ("ok" when the tool ran to
+# judgment, "skipped" when it never did, "error"). The trailing triples are the
+# telemetry data keys, passed through to hook::data_json_to unchanged.
+#
+# EXITS 0. There is no arm after the arm that finishes, and an exiting finish
+# is what makes "exactly one document" structural rather than a rule each hook
+# has to keep.
+#
+# Flags:
+#   --context <text>  the agent channel (additionalContext): findings, a tool
+#                     break diagnostic, whatever the model is owed
+#   --message <text>  the user channel (systemMessage) the caller composed. The
+#                     rewrite disclosure, when there is one, goes FIRST and
+#                     this follows on its own line
+#   --disclose <text> the disclosure to take: emitted on the user channel when
+#                     the file differs from the snapshot hook::rewrite_guard_begin
+#                     took, dropped silently when it does not. Omit it on an arm
+#                     that cannot have rewritten anything — the take still runs,
+#                     because settling data.changed and releasing the snapshot
+#                     are owed on every arm
+#   --changed <v>     the data.changed verdict for a hook that decides it from
+#                     its tool's own report rather than from a byte comparison
+#                     ("true"/"false", or empty to omit the key). Overrides the
+#                     guard's verdict
+#   --id <hook-id>    the telemetry hook id, when it is not the label
+#                     hook::begin was given
+#
+# TOOL, FILE_REL, REPO_ROOT, start, HOOK_PLUGIN and HOOK_EVENT are hook::begin's
+# outputs, read here rather than restated by every caller.
+hook::finish() {
+  local __hu_fi_ctx="" __hu_fi_msg="" __hu_fi_disclose="" __hu_fi_changed=""
+  local __hu_fi_changed_set=0 __hu_fi_id="${HOOK_PLUGIN:-}"
+  while (($#)); do
+    case "$1" in
+    --context)
+      __hu_fi_ctx="$2"
+      shift
+      ;;
+    --message)
+      __hu_fi_msg="$2"
+      shift
+      ;;
+    --disclose)
+      __hu_fi_disclose="$2"
+      shift
+      ;;
+    --changed)
+      __hu_fi_changed="$2"
+      __hu_fi_changed_set=1
+      shift
+      ;;
+    --id)
+      __hu_fi_id="$2"
+      shift
+      ;;
+    *) break ;;
+    esac
+    shift
+  done
+  local __hu_fi_status="$1"
+  shift
+
+  # Only a hook that can rewrite the edited file sources rewrite-guard.sh, so
+  # the take is conditional on the companion lib being loaded. `declare -F` is
+  # a builtin: the probe costs no process on the hooks that never rewrite.
+  local __hu_fi_sysmsg=""
+  if declare -F hook::rewrite_take_disclosure >/dev/null 2>&1; then
+    hook::rewrite_take_disclosure "" "$__hu_fi_disclose"
+    # shellcheck disable=SC2154  # the take's two outputs, assigned in rewrite-guard.sh
+    __hu_fi_sysmsg="$HOOK_REWRITE_MESSAGE"
+    ((__hu_fi_changed_set)) || __hu_fi_changed="${HOOK_REWRITE_CHANGED:-}"
+  fi
+  if [[ -n "$__hu_fi_msg" ]]; then
+    [[ -n "$__hu_fi_sysmsg" ]] && __hu_fi_sysmsg+=$'\n'
+    __hu_fi_sysmsg+="$__hu_fi_msg"
+  fi
+
+  # Two guards, the same two every hand-rolled emit_tel carried: the high-res
+  # start stamp (empty on bash before 5.0, where telemetry is skipped so the
+  # hook still formats rather than aborting) and the sink opt-in. The data
+  # payload costs a jq process, so it is built behind both — never on the
+  # unwired path.
+  if [[ -n "${start:-}" ]] && hook::telemetry_enabled; then
+    local __hu_fi_data=""
+    hook::data_json_to __hu_fi_data "${TOOL:-}" "${FILE_REL:-}" "$__hu_fi_changed" "$@"
+    hook::emit_telemetry "$__hu_fi_id" "${HOOK_EVENT:-}" "$__hu_fi_status" \
+      "$start" "$__hu_fi_data" "${REPO_ROOT:-}"
+  fi
+
+  hook::emit_channels "${HOOK_EVENT:-}" "$__hu_fi_ctx" "$__hu_fi_sysmsg"
+  exit 0
+}
+
 # Reduce a tool + optional Bash command to a privacy-safe subject label. For
 # Bash, returns "Bash:<first-token>" (leading sudo / VAR=val prefixes stripped,
 # basename applied) — never the full command. For any other tool, returns the
@@ -2021,7 +2489,8 @@ hook::append_jsonl() {
 }
 
 # Per-hook stdout context accumulator. ctx_reset at entry, ctx_append per line,
-# ctx_flush once at exit with the hook event name.
+# then either ctx_take_to (handing the agent channel to hook::finish, which
+# owns the emit) or ctx_flush once at exit with the hook event name.
 _HOOK_CTX_BUFFER=""
 
 hook::ctx_reset() {
@@ -2032,13 +2501,23 @@ hook::ctx_append() {
   _HOOK_CTX_BUFFER+="$1"$'\n'
 }
 
-# Emit the accumulated context as hookSpecificOutput JSON, then clear the buffer.
-hook::ctx_flush() {
-  local event_name="$1"
-  local trimmed="${_HOOK_CTX_BUFFER%"${_HOOK_CTX_BUFFER##*[![:space:]]}"}"
-  trimmed="${trimmed#"${trimmed%%[![:space:]]*}"}"
-  hook::emit_additional_context "$event_name" "$trimmed"
+# Write the accumulated context, whitespace-trimmed, into <dest> and clear the
+# buffer — for a hook whose exit arm hands the agent channel to hook::finish,
+# which owns the emit and must not have a second document printed under it.
+hook::ctx_take_to() {
+  local __hu_ct_trimmed="${_HOOK_CTX_BUFFER%"${_HOOK_CTX_BUFFER##*[![:space:]]}"}"
+  __hu_ct_trimmed="${__hu_ct_trimmed#"${__hu_ct_trimmed%%[![:space:]]*}"}"
   hook::ctx_reset
+  printf -v "$1" '%s' "$__hu_ct_trimmed"
+}
+
+# Emit the accumulated context as hookSpecificOutput JSON, then clear the buffer.
+# Composes through hook::emit_channels: one builder for the document, and the
+# agent channel of an always-on hook costs no process to write.
+hook::ctx_flush() {
+  local __hu_cf_trimmed=""
+  hook::ctx_take_to __hu_cf_trimmed
+  hook::emit_channels "$1" "$__hu_cf_trimmed" ""
 }
 
 # Cheap telemetry opt-in probe — true iff a consumer wired a sink. Producers
@@ -2302,22 +2781,6 @@ hook::emit_telemetry() {
   printf '%s\n' "$envelope" | ("$sink" >/dev/null 2>&1) &
 }
 
-# Print cross-host hook JSON to stdout (exit 0). No-op when context is empty.
-# Shape: { hookSpecificOutput: { hookEventName[, additionalContext] } }.
-hook::emit_additional_context() {
-  local event_name="$1"
-  local context="$2"
-  [[ -n "$context" ]] || return 0
-  command -v jq >/dev/null 2>&1 || return 0
-  jq -n \
-    --arg event "$event_name" \
-    --arg ctx "$context" \
-    '{hookSpecificOutput: (
-      {hookEventName: $event}
-      + (if $ctx != "" then {additionalContext: $ctx} else {} end)
-    )}'
-}
-
 # ---------------------------------------------------------------------------
 # Argv-grammar-faithful Bash command parsing for git guards. The command is
 # parsed the way the shell builds argv — top-level segments split on unquoted
@@ -2335,22 +2798,16 @@ hook::emit_additional_context() {
 # `--` guards a body that begins with `-`. Errors are swallowed (fail-open on a
 # malformed body — the raw text still flows through the caller unchanged).
 #
-# hook::ansi_c_decode_to <var> <body> writes in THIS shell. The print form is
-# the public contract. A `$(hook::ansi_c_decode …)` capture is a fork even
-# though the body is only `printf` (Command Substitution, Bash Reference
-# Manual; https://mywiki.wooledge.org/CommandSubstitution). Cygwin's fork is
-# a non-copy-on-write Win32 CreateProcess (Cygwin User's Guide, Process
+# hook::ansi_c_decode_to <var> <body> writes in THIS shell and is the only
+# spelling. A capture around it would be a fork even though the body is only
+# `printf` (Command Substitution, Bash Reference Manual;
+# https://mywiki.wooledge.org/CommandSubstitution), and Cygwin's fork is a
+# non-copy-on-write Win32 CreateProcess (Cygwin User's Guide, Process
 # Creation).
 hook::ansi_c_decode_to() {
   local __hu_acd_b="${2//%/%%}"
   # shellcheck disable=SC2059  # the body IS the format — that is how ANSI-C escapes decode; %-escaped above so it cannot inject a specifier
   printf -v "$1" -- "$__hu_acd_b" 2>/dev/null || printf -v "$1" '%s' ""
-}
-
-hook::ansi_c_decode() {
-  local __hu_acd
-  hook::ansi_c_decode_to __hu_acd "$1"
-  printf '%s' "$__hu_acd"
 }
 
 # Split a GNU `env -S` operand the way env does: whitespace-separated words
@@ -2467,7 +2924,7 @@ hook::shell_c_operand() {
 
 # Does an argv word name the git executable? Basename compared exactly on
 # POSIX; on Windows/MSYS also case-folded and `.exe`-stripped (mirrors the
-# OS-gate in hook::normalize_path) so `GIT` / `git.exe` are caught there but a
+# OS-gate in hook::normalize_path_to) so `GIT` / `git.exe` are caught there but a
 # case-variant stays distinct on a case-sensitive POSIX filesystem.
 hook::git_is_bin() {
   local b="${1##*/}"
@@ -2885,14 +3342,361 @@ hook::git_alias_expansion() {
   return 1
 }
 
+# THE parsed git invocation for one segment. The three functions above are the
+# steps; this is the seam a guard calls. Every git guard needs the same answers
+# about a segment — where git is, what the argv looks like after `env -S`
+# splicing, where the wrappers moved it, which subcommand runs, which config
+# assignments ride along, and whether the subcommand is an inline alias — so
+# they are answered once, in one shape, rather than reassembled per guard.
+#
+# Call as: hook::git_invocation <argv words...> — one segment's argv, as
+# hook::bash_parse_segments hands it to a callback. A `sh -c` wrapper is
+# deliberately NOT unwrapped here: its operand is a whole shell command
+# (operators, quoting, everything), so the caller detects it with
+# hook::shell_c_operand and re-parses the operand through its OWN segment
+# callback, which is the only faithful treatment.
+#
+# Returns 0 with the result below, 1 when no git executable sits at the
+# segment's command position, and 2 when git resolves but names no subcommand
+# (`git --version`, globals only). Every result variable is reset on entry, so a
+# non-zero return can never leave a previous segment's answer standing.
+#
+#   HOOK_GITINV_GI            — index of the git word in HOOK_GITINV_WORDS
+#   HOOK_GITINV_WORDS         — the segment argv AFTER `env -S` splicing; match
+#                               on these, never on the words passed in
+#   HOOK_GITINV_WRAPPER_DIRS  — directories the wrappers chdir into before git
+#                               runs, in execution order (empty when none).
+#                               A caller scoping its git-global parsing to
+#                               [gi, sub_idx) cannot see these and must replay
+#                               them ahead of git's own globals
+#   HOOK_GITINV_SUB           — the subcommand word
+#   HOOK_GITINV_SUB_IDX       — its index in HOOK_GITINV_WORDS
+#   HOOK_GITINV_CONFIG_VALUES — -c/--config/--config-env values, in order
+#   HOOK_GITINV_CONFIG_KINDS  — 1:1 with the values: "inline" (the literal
+#                               assignment) or "env" (a `<key>=<envvar>` operand
+#                               naming a variable whose value is never read)
+#   HOOK_GITINV_ALIAS_EXPS    — the invoked subcommand's inline alias
+#                               expansions, one per present spelling
+#                               (`alias.<sub>` then `alias.<sub>.command`)
+#   HOOK_GITINV_ALIAS_TERM    — why the alias chain stops at this hop:
+#                               "none"       — the subcommand is no inline alias
+#                               "inline"     — HOOK_GITINV_ALIAS_EXPS holds every
+#                                              present spelling's expansion, and
+#                                              a guard must re-check each one so
+#                                              a benign spelling cannot suppress
+#                                              a dangerous sibling
+#                               "config-env" — the alias is defined via
+#                                              --config-env, so its expansion is
+#                                              an environment variable's value
+#                                              this parser deliberately never
+#                                              reads; guards refuse by shape
+#
+# The chain BEYOND this hop stays with the caller: git re-expands an expansion
+# whose first word is another alias, and each guard runs its own predicate at
+# every hop, resolves persisted aliases (or does not) on its own terms, and
+# bounds its own recursion. So a guard splices the expansion and re-enters its
+# segment callback, which calls back into this function for the next hop.
+# shellcheck disable=SC2034  # result globals are consumed by the sourcing guard, not this file
+hook::git_invocation() {
+  HOOK_GITINV_GI=-1
+  HOOK_GITINV_WORDS=()
+  HOOK_GITINV_WRAPPER_DIRS=()
+  HOOK_GITINV_SUB=""
+  HOOK_GITINV_SUB_IDX=-1
+  HOOK_GITINV_CONFIG_VALUES=()
+  HOOK_GITINV_CONFIG_KINDS=()
+  HOOK_GITINV_ALIAS_EXPS=()
+  HOOK_GITINV_ALIAS_TERM="none"
+
+  hook::git_resolve_index "$@" || return 1
+  HOOK_GITINV_GI=$HOOK_GIT_RESOLVED_GI
+  HOOK_GITINV_WORDS=(${HOOK_GIT_RESOLVED_WORDS[@]+"${HOOK_GIT_RESOLVED_WORDS[@]}"})
+  HOOK_GITINV_WRAPPER_DIRS=(${HOOK_GIT_RESOLVED_WRAPPER_DIRS[@]+"${HOOK_GIT_RESOLVED_WRAPPER_DIRS[@]}"})
+
+  hook::git_resolve_subcommand "$HOOK_GITINV_GI" "${HOOK_GITINV_WORDS[@]}" || return 2
+  HOOK_GITINV_SUB="$HOOK_GIT_SUB"
+  HOOK_GITINV_SUB_IDX=$HOOK_GIT_SUB_IDX
+  HOOK_GITINV_CONFIG_VALUES=(${HOOK_GIT_CONFIG_VALUES[@]+"${HOOK_GIT_CONFIG_VALUES[@]}"})
+  HOOK_GITINV_CONFIG_KINDS=(${HOOK_GIT_CONFIG_VALUE_KINDS[@]+"${HOOK_GIT_CONFIG_VALUE_KINDS[@]}"})
+
+  hook::git_alias_expansion "$HOOK_GITINV_SUB"
+  case $? in
+  0)
+    HOOK_GITINV_ALIAS_TERM="inline"
+    HOOK_GITINV_ALIAS_EXPS=(${HOOK_GIT_ALIAS_EXPS[@]+"${HOOK_GIT_ALIAS_EXPS[@]}"})
+    ;;
+  2) HOOK_GITINV_ALIAS_TERM="config-env" ;;
+  *) ;;
+  esac
+  return 0
+}
+
+# Would git IGNORE a config alias named for this subcommand? git-config
+# (https://git-scm.com/docs/git-config, fetched 2026-09-06): "aliases that hide
+# existing Git commands are ignored except for deprecated commands." A current
+# non-deprecated builtin therefore cannot expand to anything, so a guard that
+# probes `alias.<builtin>` spends a fork per call and can false-block on a
+# leftover ignored alias. Asking the installed git for its builtin list would
+# put that spawn right back on every `git status`.
+#
+# This is a static subset of names that were already builtins in git 2.25, minus
+# the names git marks DEPRECATED (`git --list-cmds=deprecated`; git.c
+# `DEPRECATED` bit, master fetched 2026-09-06: `whatchanged` and
+# `pack-redundant`). Names added later (`bugreport` 2.27, `maintenance` 2.31,
+# `diagnose` 2.38) stay probed, so an older git that still honors
+# `alias.bugreport = commit` cannot slip through. git 2.51+ honors
+# `alias.whatchanged = commit` (t/t0014-alias.sh). A name not listed here is
+# still probed: skipping a non-builtin would miss a real alias.
+hook::git_subcommand_ignores_alias() {
+  case "$1" in
+  add | am | annotate | apply | archive | bisect | blame | branch | bundle | \
+    cat-file | check-attr | check-ignore | check-mailmap | check-ref-format | checkout | \
+    checkout-index | cherry | cherry-pick | clean | clone | column | commit | commit-graph | \
+    commit-tree | config | describe | diff | diff-files | diff-index | diff-tree | \
+    difftool | fetch | for-each-ref | format-patch | fsck | gc | grep | hash-object | help | \
+    init | interpret-trailers | log | ls-files | ls-remote | ls-tree | merge | \
+    merge-base | mv | notes | pull | push | range-diff | rebase | reflog | remote | repack | \
+    replace | reset | restore | rev-list | rev-parse | revert | rm | shortlog | show | \
+    show-ref | sparse-checkout | stash | status | switch | symbolic-ref | tag | \
+    update-ref | version | worktree)
+    return 0
+    ;;
+  *) return 1 ;;
+  esac
+}
+
+# The directory a segment's git actually runs in: the base with every `-C` in an
+# already-collected option set composed onto it, left to right — an absolute
+# value replaces, a relative one joins. git applies several `-C` values
+# cumulatively, and a wrapper's chdir happens before git starts, so a caller
+# spells the wrapper dirs (HOOK_GITINV_WRAPPER_DIRS) as LEADING `-C` words and
+# this one composition rule covers both.
+#
+# CALLERS MUST PASS GIT'S OWN GLOBALS ONLY — the slice from the resolved git
+# token (`gi`) up to the subcommand, never from index 0, and never the whole
+# argv:
+#   * Anything before `gi` belongs to a wrapper, and this composition cannot
+#     know which wrapper options take a value. In `env -u -C git …`, GNU env's
+#     `-u NAME` consumes `-C` as the variable to unset and `git` as the command,
+#     so git never moves — while a 0-based slice reads the bare tokens `-C git`
+#     and resolves into `./git`. The hook then reads one repository while git
+#     runs in another, which is a bypass, not a cosmetic mismatch.
+#   * Words after the subcommand are that subcommand's own arguments — or, for
+#     an alias, text git APPENDS to the expansion. Reading a trailing `-C` as a
+#     repository global sent `git -c alias.a='!git b #' a -C <other>` to
+#     <other> while git ran the body in the current repository, and would read
+#     `git commit -C HEAD` (--reuse-message) as a directory named HEAD.
+# The slice is always non-empty: hook::git_resolve_subcommand starts its scan at
+# `gi + 1`, so `sub_idx > gi` holds for every argv that reaches a call site.
+#
+# The composed value is a LITERAL path, never `realpath`/`cd -P`: resolving
+# symlinks is a bypass in both directions (lexical `x/..` is wrong under a POSIX
+# symlink; physical resolution is wrong on Win32, where git itself is lexical).
+# Handing the composed spelling to `git -C` lets git apply its own path
+# semantics. It is a DIRECTORY, not a repository identity — a caller that needs
+# an identity (a cycle key) must canonicalize it itself.
+#
+# hook::git_effective_dir_to <var> <locating-option...> assigns into the variable
+# named by $1 rather than printing. The body is builtins only, so capturing a
+# print form in `$( )` would spend a fork on nothing but carrying a string out of
+# a subshell, and this path runs on every blocked commit. The default base is
+# read into a local before the nameref is written, so a caller may name
+# HOOK_EFFECTIVE_BASE itself as the destination.
+hook::git_effective_dir_to() {
+  # shellcheck disable=SC2178  # nameref to the caller's string variable
+  local -n _ed_out="$1"
+  shift
+  local base="${HOOK_EFFECTIVE_BASE:-${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}}" i n=$# arg
+  local -a a=("$@")
+  for ((i = 0; i < n; i++)); do
+    arg="${a[i]}"
+    if [[ "$arg" == "-C" ]] && ((i + 1 < n)); then
+      if [[ "${a[i + 1]}" == /* || "${a[i + 1]}" =~ ^[A-Za-z]:[\/] ]]; then
+        base="${a[i + 1]}"
+      else
+        base="$base/${a[i + 1]}"
+      fi
+      ((i++))
+    fi
+  done
+  _ed_out="$base"
+}
+
+# The command string a `!` shell alias runs: git executes the body as a shell
+# command with the invocation's trailing arguments appended positionally, so
+# strip the leading `!` and append each trailing argument shell-quoted — the
+# reparse then tokenizes them back into the same words.
+#
+# Call as: hook::git_alias_reparse_to <var> <expansion> <trailing arg...>.
+# `printf -v`, never `$(printf '%q' …)`: the substitution form is a fork per
+# trailing argument (Command Substitution, Bash Reference Manual;
+# https://mywiki.wooledge.org/CommandSubstitution) on every `!` alias hop.
+hook::git_alias_reparse_to() {
+  # shellcheck disable=SC2178  # nameref to the caller's string variable
+  local -n _gar_out="$1"
+  local body="${2#!}" a q
+  shift 2
+  for a in "$@"; do
+    printf -v q '%q' "$a"
+    body+=" $q"
+  done
+  _gar_out="$body"
+}
+
+# Admit one alias re-expansion, or report that it is already decided or over
+# budget. Alias re-expansion BRANCHES: every hop re-checks both alias spellings
+# independently, so a chain where each hop defines both walks 2^depth analysis
+# paths, and a guard that stalls stops guarding.
+#
+# MEMO — a verdict is a pure function of (analysis state, effective base, argv);
+# every other input is invocation-constant. A block is a process-wide `exit 2`,
+# so a state reached a SECOND time while the process still runs provably did not
+# block the first time and cannot decide differently now. Skipping the repeat is
+# exact rather than a coverage trade, and it collapses the common blowup — both
+# spellings of a hop expanding to the same thing — to one path per hop.
+#
+# The key carries, and needs, each of these:
+#   * <kind> — a `!` reparse STRING must never key the same as a one-word argv.
+#   * the effective base — one reparse string reached in two repositories is TWO
+#     analyses (they can disagree on hash width, so collapsing them lets a
+#     movable ref name through the second).
+#   * both seen-sets, each length-prefixed ahead of its own words — they ARE the
+#     analysis state: HOOK_ALIAS_SEEN models git's in-process alias-loop guard,
+#     HOOK_SHELL_ALIAS_SEEN bounds persisted `!` alias hops. A guard that keeps
+#     only one leaves the other empty, which contributes a constant to the key;
+#     keying both here keeps the key shape uniform across guards.
+#   * `%q` on every word, so a word containing a newline cannot merge into its
+#     neighbour and no boundary in the key can shift.
+# `printf -v` keeps the whole key build fork-free — a `$(printf …)` per word
+# would cost more than the walk it bounds.
+#
+# BUDGET — memoization alone cannot bound a chain whose two spellings DIFFER:
+# the splice carries each path's own trailing text forward, so every argv is
+# distinct and the 2^depth walk survives. HOOK_ALIAS_WORK_MAX caps total
+# analyses for the invocation; the caller decides what exhausting it means, and
+# every caller today fails CLOSED (it could not finish deciding, so it must not
+# allow). The ceiling counts ANALYSES rather than seconds because a wall clock
+# is host- and command-length-dependent; a caller sets its own by assigning
+# HOOK_ALIAS_WORK_MAX before the first call.
+#
+# Call as: hook::git_alias_admit <kind> <state-word>... — returns 0 to analyze,
+# 1 when this exact state was already analyzed, 2 when the budget is exhausted.
+# shellcheck disable=SC2154  # HOOK_ALIAS_SEEN / HOOK_SHELL_ALIAS_SEEN are the caller's analysis state, read unset-safely below
+hook::git_alias_admit() {
+  local kind="$1" key q w
+  shift
+  # First call in this process arms the memo and the counter. `declare -gA` is
+  # what makes the string key a hash lookup instead of arithmetic on an indexed
+  # array, so it must happen before any write.
+  if [[ -z "${HOOK_ALIAS_ADMIT_ARMED:-}" ]]; then
+    declare -gA HOOK_ALIAS_MEMO=()
+    HOOK_ALIAS_WORK=0
+    HOOK_ALIAS_ADMIT_ARMED=1
+  fi
+  # Copied through the unset-safe idiom rather than read in place: a guard that
+  # keeps only one of the two seen-sets never declares the other, and `set -u`
+  # would abort on its length.
+  local -a _gaa_seen=(${HOOK_ALIAS_SEEN[@]+"${HOOK_ALIAS_SEEN[@]}"})
+  local -a _gaa_shell_seen=(${HOOK_SHELL_ALIAS_SEEN[@]+"${HOOK_SHELL_ALIAS_SEEN[@]}"})
+  printf -v q '%q' "${HOOK_EFFECTIVE_BASE-}"
+  key="$kind"$'\n'"$q"$'\n'"${#_gaa_seen[@]}"$'\n'"${#_gaa_shell_seen[@]}"$'\n'
+  for w in ${_gaa_seen[@]+"${_gaa_seen[@]}"} ${_gaa_shell_seen[@]+"${_gaa_shell_seen[@]}"} "$@"; do
+    printf -v q '%q' "$w"
+    key+="$q"$'\n'
+  done
+  [[ -n "${HOOK_ALIAS_MEMO[$key]+x}" ]] && return 1
+  HOOK_ALIAS_MEMO["$key"]=1
+  ((++HOOK_ALIAS_WORK <= ${HOOK_ALIAS_WORK_MAX:-128})) && return 0
+  return 2
+}
+
+# Close the word being assembled into the segment: as an argv word, or as the
+# target of the redirection still waiting for its operand. Called from the four
+# places a word can end (blank, redirection operator, control operator, end of
+# input); single-sourced so those four cannot drift apart on the quoting
+# provenance they record. Reads and writes hook::bash_parse_segments's own
+# locals through dynamic scope, so it is not callable on its own.
+# shellcheck disable=SC2154  # every unassigned name here is a local of hook::bash_parse_segments
+hook::_bps_close_word() {
+  local _bps_q=0 _bps_last
+  if ((wq_quoted || wq_esc)); then
+    if ((wq_quoted && !wq_plain && !wq_esc)); then _bps_q=2; else _bps_q=1; fi
+  fi
+  if ((pend)); then
+    _bps_last=$((${#HOOK_SEG_REDIR_OP[@]} - 1))
+    HOOK_SEG_REDIR_TARGET[_bps_last]="$word"
+    ((_bps_q)) && HOOK_SEG_REDIR_QUOTED[_bps_last]=1
+    ((wq_open)) && HOOK_SEG_REDIR_OPAQUE[_bps_last]=1
+    pend=0
+  else
+    seg+=("$word")
+    HOOK_SEG_WORD_QUOTED+=("$_bps_q")
+  fi
+  word=""
+  have=0
+  wq_quoted=0
+  wq_plain=0
+  wq_esc=0
+  wq_open=0
+}
+
+# Hand the finished segment to the callback and start the next one. A pending
+# operand that never arrived leaves its redirection OPAQUE: the operator is
+# real, the path it names is not recoverable from this command string.
+# Dynamic scope, like hook::_bps_close_word.
+# shellcheck disable=SC2154  # every unassigned name here is a local of hook::bash_parse_segments
+hook::_bps_flush_segment() {
+  if ((pend)); then
+    HOOK_SEG_REDIR_OPAQUE[${#HOOK_SEG_REDIR_OP[@]} - 1]=1
+    pend=0
+  fi
+  if ((${#seg[@]})); then
+    "$cb" "${seg[@]}"
+    seg=()
+    HOOK_SEG_WORD_QUOTED=()
+  fi
+  HOOK_SEG_REDIR_OP=()
+  HOOK_SEG_REDIR_FD=()
+  HOOK_SEG_REDIR_TARGET=()
+  HOOK_SEG_REDIR_QUOTED=()
+  HOOK_SEG_REDIR_OPAQUE=()
+}
+
 # Single linear pass: read the command into a char array once (O(n)), then walk
 # it splitting top-level segments on UNQUOTED control operators and tokenizing
 # each segment into argv words honoring '…', "…", $'…', backslash escapes
 # (including backslash-newline continuation), and unquoted `#` comments to EOL
 # (quoted `#` preserved). Each completed segment is passed to the callback as it
 # closes, so no full segment list is retained.
+#
 # Call as: hook::bash_parse_segments <command-string> <callback>; the callback
-# receives one segment's argv words as "$@".
+# receives one segment's argv words as "$@" and reads the segment's OTHER half —
+# the redirections bash strips out of argv — from these arrays, all rebuilt
+# before every call, so a consumer whose subject is the redirect target does not
+# need a second tokenizer over the same string:
+#
+#   HOOK_SEG_WORD_QUOTED[i]   quoting provenance of argv word i: 0 the word is
+#                             literally the text that was written, 1 quoting or
+#                             a backslash escape produced part of it, 2 every
+#                             character of it came from quoted spans (`""`,
+#                             `"a"`, `'a''b'`).
+#   HOOK_SEG_REDIR_OP[j]      operator in source order — `>` `>>` `<` `<>` `>&`
+#                             `<&` `<<` `<<-` `<<<`. `<<`/`<<-` is a here-doc
+#                             OPENER, whose target is the delimiter (the body is
+#                             stdin and is skipped, not tokenized); `<<<` is a
+#                             here-string, whose target is the string.
+#   HOOK_SEG_REDIR_FD[j]      the fd prefix word (`2` of `2>err`), else "".
+#   HOOK_SEG_REDIR_TARGET[j]  the target word as bash would expand quoting away;
+#                             for a dup or close (`>&1`, `>&-`) the fd or `-`.
+#   HOOK_SEG_REDIR_QUOTED[j]  1 when quoting or a backslash escape produced that
+#                             text, so the text written is not the text used.
+#   HOOK_SEG_REDIR_OPAQUE[j]  1 when the operand is not resolvable here at all:
+#                             a quote that never closed, an operand cut short by
+#                             a control operator or end of input, or one a
+#                             process substitution supplied.
+#
+# A segment with redirections but no argv word (`> f` alone) invokes no
+# callback, so its redirections are not reported.
 # shellcheck disable=SC1003  # '\' compares a literal backslash char, not a quote escape
 hook::bash_parse_segments() {
   local cmd="$1" cb="$2"
@@ -2907,8 +3711,20 @@ hook::bash_parse_segments() {
   for ((i = 0; i < n; i++)); do
     chars+=("${cmd:i:1}")
   done
-  local word="" have=0 skipnext=0
+  # `pend` is set while a redirection is waiting for its operand word: the next
+  # word to close becomes that target instead of an argv word.
+  local word="" have=0 pend=0 rop_txt="" rfd_next="" rdup=""
+  # Quoting provenance of the word being assembled — whether a quoted span fed
+  # it, whether any character reached it unquoted, whether a backslash escape
+  # did, and whether a span was still open at end of input. Reset with the word.
+  local wq_quoted=0 wq_plain=0 wq_esc=0 wq_open=0
   local -a seg=()
+  HOOK_SEG_WORD_QUOTED=()
+  HOOK_SEG_REDIR_OP=()
+  HOOK_SEG_REDIR_FD=()
+  HOOK_SEG_REDIR_TARGET=()
+  HOOK_SEG_REDIR_QUOTED=()
+  HOOK_SEG_REDIR_OPAQUE=()
   # Pending heredoc delimiters (FIFO) and their `<<-` tab-strip flags. A
   # heredoc body is the command's stdin, not commands — recorded when `<<`
   # is seen and skipped wholesale at the command-line newline.
@@ -2923,6 +3739,8 @@ hook::bash_parse_segments() {
         word+="${chars[i]}"
         ((i++))
       done
+      ((i >= n)) && wq_open=1
+      wq_quoted=1
       have=1
       ;;
     '"')
@@ -2946,6 +3764,8 @@ hook::bash_parse_segments() {
         word+="${chars[i]}"
         ((i++))
       done
+      ((i >= n)) && wq_open=1
+      wq_quoted=1
       have=1
       ;;
     '$')
@@ -2961,11 +3781,14 @@ hook::bash_parse_segments() {
           body+="${chars[i]}"
           ((i++))
         done
+        ((i >= n)) && wq_open=1
         hook::ansi_c_decode_to __hu_acd "$body"
         word+="$__hu_acd"
+        wq_quoted=1
         have=1
       else
         word+="$c"
+        wq_plain=1
         have=1
       fi
       ;;
@@ -2973,28 +3796,31 @@ hook::bash_parse_segments() {
       if ((i + 1 < n)); then
         nx="${chars[i + 1]}"
         if [[ "$nx" == $'\n' ]]; then
+          # bash removes a backslash-newline outright. It joins a word only when
+          # one is already open, so the escape is provenance for THAT word and
+          # for nothing after it.
+          ((have)) && wq_esc=1
           ((i++))
         else
           word+="$nx"
           ((i++))
+          wq_esc=1
           have=1
         fi
       else
+        wq_esc=1
         have=1
       fi
       ;;
     ' ' | $'\t')
-      if ((have)); then
-        if ((skipnext)); then skipnext=0; else seg+=("$word"); fi
-        word=""
-        have=0
-      fi
+      ((have)) && hook::_bps_close_word
       ;;
     '#')
       # Unquoted `#` starts a shell comment to EOL only at a word boundary (no
       # word currently being assembled). Mid-word `#` (`x#y`) stays literal.
       if ((have)); then
         word+="#"
+        wq_plain=1
       else
         while ((i + 1 < n)) && [[ "${chars[i + 1]}" != $'\n' ]]; do
           ((i++))
@@ -3004,19 +3830,25 @@ hook::bash_parse_segments() {
     '>' | '<')
       # Redirection: bash removes the operator and its target word from
       # argv (redirections may appear anywhere in a simple command), so
-      # `git reset --hard>/tmp/out` still runs reset --hard. A pure-digit
+      # `git reset --hard>/tmp/out` still runs reset --hard. Both halves are
+      # kept — argv for the callback's "$@", the operator, fd, target and its
+      # quoting provenance in HOOK_SEG_REDIR_*. A pure-digit
       # word immediately before the operator is its fd prefix, not argv;
-      # an fd-dup/close form (`2>&1`, `>&-`) has no target word to skip.
+      # an fd-dup/close form (`2>&1`, `>&-`) names an fd, so its target is that
+      # fd (or `-`) and no operand word follows.
+      rfd_next=""
       if ((have)); then
         if [[ "$word" =~ ^[0-9]+$ ]]; then
-          :
-        elif ((skipnext)); then
-          skipnext=0
+          rfd_next="$word"
+          word=""
+          have=0
+          wq_quoted=0
+          wq_plain=0
+          wq_esc=0
+          wq_open=0
         else
-          seg+=("$word")
+          hook::_bps_close_word
         fi
-        word=""
-        have=0
       fi
       # Heredoc `<<` / `<<-` (but NOT here-string `<<<`): the body on the
       # following lines is the command's stdin, so record the delimiter and
@@ -3025,7 +3857,7 @@ hook::bash_parse_segments() {
       if [[ "$c" == '<' ]] && ((i + 1 < n)) && [[ "${chars[i + 1]}" == '<' ]] &&
         { ((i + 2 >= n)) || [[ "${chars[i + 2]}" != '<' ]]; }; then
         ((i++))
-        local hstrip=0
+        local hstrip=0 hquoted=0
         if ((i + 1 < n)) && [[ "${chars[i + 1]}" == '-' ]]; then
           hstrip=1
           ((i++))
@@ -3037,6 +3869,7 @@ hook::bash_parse_segments() {
           case "$nx" in
           ' ' | $'\t' | $'\n' | ';' | '&' | '|' | '<' | '>') break ;;
           "'")
+            hquoted=1
             ((i++))
             while ((i + 1 < n)) && [[ "${chars[i + 1]}" != "'" ]]; do
               delim+="${chars[i + 1]}"
@@ -3045,6 +3878,7 @@ hook::bash_parse_segments() {
             ((i + 1 < n)) && ((i++))
             ;;
           '"')
+            hquoted=1
             ((i++))
             while ((i + 1 < n)) && [[ "${chars[i + 1]}" != '"' ]]; do
               delim+="${chars[i + 1]}"
@@ -3053,6 +3887,7 @@ hook::bash_parse_segments() {
             ((i + 1 < n)) && ((i++))
             ;;
           '\')
+            hquoted=1
             ((i++))
             ((i + 1 < n)) && {
               delim+="${chars[i + 1]}"
@@ -3067,37 +3902,62 @@ hook::bash_parse_segments() {
         done
         hd_delims+=("$delim")
         hd_strip+=("$hstrip")
+        # The opener is a redirection whose target is the delimiter. A pending
+        # operand ahead of it never arrived.
+        if ((pend)); then
+          HOOK_SEG_REDIR_OPAQUE[${#HOOK_SEG_REDIR_OP[@]} - 1]=1
+          pend=0
+        fi
+        if ((hstrip)); then HOOK_SEG_REDIR_OP+=('<<-'); else HOOK_SEG_REDIR_OP+=('<<'); fi
+        HOOK_SEG_REDIR_FD+=("$rfd_next")
+        HOOK_SEG_REDIR_TARGET+=("$delim")
+        HOOK_SEG_REDIR_QUOTED+=("$hquoted")
+        HOOK_SEG_REDIR_OPAQUE+=(0)
         continue
       fi
       if ((i + 1 < n)) && [[ "${chars[i + 1]}" == '(' ]]; then
         # Process substitution <(list)/>(list): the list is a real command
-        # substituted as a filename — it satisfies any pending target and
-        # the '(' separator splits it into a segment that gets scanned.
-        skipnext=0
+        # substituted as a filename — it satisfies any pending target, which no
+        # parse can resolve to a path, and the '(' separator splits it into a
+        # segment that gets scanned.
+        if ((pend)); then
+          HOOK_SEG_REDIR_OPAQUE[${#HOOK_SEG_REDIR_OP[@]} - 1]=1
+          pend=0
+        fi
       else
-        while ((i + 1 < n)) && [[ "${chars[i + 1]}" == [\<\>] ]]; do ((i++)); done # portability-ok: bash glob bracket class matching a literal < or > character, not a GNU grep \< \> word boundary
+        rop_txt="$c"
+        while ((i + 1 < n)) && [[ "${chars[i + 1]}" == [\<\>] ]]; do # portability-ok: bash glob bracket class matching a literal < or > character, not a GNU grep \< \> word boundary
+          rop_txt+="${chars[i + 1]}"
+          ((i++))
+        done
+        # A second operator arriving while one still waits means the first
+        # never got an operand.
+        if ((pend)); then
+          HOOK_SEG_REDIR_OPAQUE[${#HOOK_SEG_REDIR_OP[@]} - 1]=1
+          pend=0
+        fi
+        rdup=""
         if ((i + 1 < n)) && [[ "${chars[i + 1]}" == '&' ]]; then
           ((i++))
-          if ((i + 1 < n)) && [[ "${chars[i + 1]}" == [0-9-] ]]; then
-            while ((i + 1 < n)) && [[ "${chars[i + 1]}" == [0-9-] ]]; do ((i++)); done
-          else
-            skipnext=1
-          fi
-        else
-          skipnext=1
+          rop_txt+='&'
+          while ((i + 1 < n)) && [[ "${chars[i + 1]}" == [0-9-] ]]; do
+            rdup+="${chars[i + 1]}"
+            ((i++))
+          done
         fi
+        HOOK_SEG_REDIR_OP+=("$rop_txt")
+        HOOK_SEG_REDIR_FD+=("$rfd_next")
+        HOOK_SEG_REDIR_TARGET+=("$rdup")
+        HOOK_SEG_REDIR_QUOTED+=(0)
+        HOOK_SEG_REDIR_OPAQUE+=(0)
+        # A dup or close already names its target; every other form takes the
+        # next word.
+        [[ -n "$rdup" ]] || pend=1
       fi
       ;;
     ';' | '&' | '|' | '(' | ')' | '`' | $'\n')
-      if ((have)); then
-        if ((skipnext)); then skipnext=0; else seg+=("$word"); fi
-        word=""
-        have=0
-      fi
-      if ((${#seg[@]})); then
-        "$cb" "${seg[@]}"
-        seg=()
-      fi
+      ((have)) && hook::_bps_close_word
+      hook::_bps_flush_segment
       # A command-line newline ends the line that introduced any pending
       # heredocs; their bodies (up to and including each delimiter line) are
       # stdin, so consume them without tokenizing. Delimiters match in FIFO
@@ -3127,10 +3987,100 @@ hook::bash_parse_segments() {
       ;;
     *)
       word+="$c"
+      wq_plain=1
       have=1
       ;;
     esac
   done
-  if ((have)) && ((!skipnext)); then seg+=("$word"); fi
-  if ((${#seg[@]})); then "$cb" "${seg[@]}"; fi
+  ((have)) && hook::_bps_close_word
+  hook::_bps_flush_segment
+}
+
+# ============================================================================
+# Reporting one tool's judgment on one file
+# ============================================================================
+#
+# A hook that drives a formatter or linter over the edited file turns that
+# tool's output into the same two things, for two different readers:
+#
+#   the agent channel   a heading with one indented line per diagnostic
+#   data.findings       those same lines as a JSON array, for a telemetry sink
+#
+# Both are built here, so such a hook states only what differs — how to invoke
+# its tool, how to read its exit code, and what its headings say.
+
+# Encode raw tool output as a data.findings array: one JSON string per line.
+#
+#   hook::findings_encode_to <dest> <raw>
+#
+# The encode sits behind the sink opt-in because data.findings has exactly one
+# reader — hook::emit_telemetry, which returns immediately when no sink is
+# wired. Keeping the check INSIDE is what makes it hold: no caller can obtain
+# the array without paying it, so the unwired default path spends no process on
+# a value nothing reads. Empty output, no sink, or a jq that is missing or
+# fails all answer `[]`.
+#
+# The two-process `jq -R . | jq -s .` shape is load-bearing. A single
+# `jq -R -s 'split("\n")'` decodes the whole stream as ONE string first, so a
+# truncated UTF-8 lead byte sitting immediately before a newline absorbs that
+# newline into a single U+FFFD and merges two diagnostics into one array
+# element. Line mode splits on the raw byte before decoding and keeps them
+# apart.
+hook::findings_encode_to() {
+  local __hu_fe_json='[]'
+  if [[ -n "$2" ]] && hook::telemetry_enabled; then
+    __hu_fe_json=$(printf '%s' "$2" | jq -R . | jq -s . 2>/dev/null) ||
+      __hu_fe_json='[]'
+  fi
+  printf -v "$1" '%s' "$__hu_fe_json"
+}
+
+# Build the agent-channel report from a tool's output, and optionally the
+# matching data.findings array.
+#
+#   hook::findings_to <ctx-dest> <heading> <output> [<findings-dest>]
+#
+# <ctx-dest> receives <heading> followed by one `  `-indented line per NON-EMPTY
+# line of <output>; a tool that printed nothing leaves the heading standing
+# alone. Blank lines are dropped on both channels because they carry no
+# diagnostic and cost the model context.
+#
+# <findings-dest>, when given, receives those same lines through
+# hook::findings_encode_to. Omit it on an arm reporting a TOOL BREAK rather than
+# a judgment: the break diagnostic belongs on the agent channel, while
+# data.findings stays empty because the tool produced no findings. An arm that
+# needs the unfiltered stream in data.findings — blank lines and all — calls
+# hook::findings_encode_to directly instead.
+hook::findings_to() {
+  local __hu_ft_ctx="$2" __hu_ft_raw="" __hu_ft_line
+  while IFS= read -r __hu_ft_line; do
+    [[ -n "$__hu_ft_line" ]] || continue
+    __hu_ft_ctx+=$'\n'"  $__hu_ft_line"
+    __hu_ft_raw+="$__hu_ft_line"$'\n'
+  done <<<"$3"
+  printf -v "$1" '%s' "$__hu_ft_ctx"
+  [[ -n "${4:-}" ]] && hook::findings_encode_to "$4" "$__hu_ft_raw"
+  return 0
+}
+
+# Compose the skip notice a hook emits when the tool it drives is not on this
+# hook's PATH.
+#
+#   hook::tool_missing_notice_to <dest> <lead> <scope> [<tail>]
+#
+#   <lead>   the first sentence, through "skipped for this edit": which plugin,
+#            which tool was not found and where it was looked for, and what was
+#            skipped as a result
+#   <scope>  the edit class the probe re-runs on ("matching", "shell")
+#   <tail>   the install route and any tool-specific advice, appended before the
+#            PATH line
+#
+# The sentence between them is the part that answers the question the reader
+# actually has, and it is the same for every tool: a hook process inherits
+# Claude Code's own environment rather than the interactive shell's profile, so
+# a tool the Bash tool can see may genuinely be absent here, and the PATH that
+# WAS probed is the evidence. Stating it once keeps it from drifting per plugin.
+hook::tool_missing_notice_to() {
+  printf -v "$1" '%s' "$2 (probe re-runs on every $3 edit; only this notice latches once per session — there is no skip latch). Hook processes inherit Claude Code's own environment, not the interactive shell's profile, so a version-manager install the Bash tool can see may be invisible here${4:-}
+PATH probed: ${PATH:-<unset>}"
 }

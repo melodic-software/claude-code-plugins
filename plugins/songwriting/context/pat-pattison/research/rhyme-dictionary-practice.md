@@ -30,10 +30,10 @@ Source images inspected for this chapter span: `image_2-page14.jpg`,
 
 Finding rhymes is mostly mechanical. The creative act is choosing and deploying
 the available sounds so they create the right tension, resolution, tone, and
-prosodic fit.
+prosodic fit. Pat Pattison writes in *Essential Guide to Rhyming* (2014),
+Chapter 1:
 
 > "Rhyme is a connection between the sounds of syllables, not words."
-> — Pat Pattison, *Essential Guide to Rhyming* (2014), Chapter 1
 
 The future skill should not coach a writer to wait for rhymes to arrive from
 inspiration. It should coach them to build a useful sound inventory, then make
@@ -47,18 +47,18 @@ Rhyme happens at the level of syllables. Pat's opening example:
 underwear / repair
 ```
 
-Only the last syllables rhyme. The other syllables —
+Only the last syllables rhyme. The other syllables are these:
 
 ```text
 under / re
 ```
 
-— "don't figure in at all."
+Those syllables, Pat writes, "don't figure in at all."
 
 Perfect rhyme needs three conditions, and Pat demonstrates all three on the
 same pair:
 
-1. **The syllables' vowel sounds are identical.** `wear/pair` — different
+1. **The syllables' vowel sounds are identical.** `wear/pair`: different
    letters, same sound. "Only your ears count, not your eyes."
 2. **The consonant sounds after the vowels (if any) are identical.**
    `wear/pair` again. Note the same letters `ea` make different sounds in
@@ -66,7 +66,7 @@ same pair:
    in consonants: `disagree/referee`.
 3. **The syllables begin differently.** `wear/pair`.
 
-The third condition is load-bearing. It shows rhyme working by "the basic
+The third condition is the one that does the work. It shows rhyme working by "the basic
 musical principle of tension/resolution: difference moving into sameness."
 The differing beginnings are what let the ear notice the identical sounds that
 follow.
@@ -126,7 +126,7 @@ chanting, fixation, or deliberately static repetition.
 
 ## Masculine rhyme
 
-Every rhyme is either masculine or feminine — "Never to both." Masculine
+Every rhyme is either masculine or feminine: "Never to both." Masculine
 rhymes are one-syllable words, or words that end on a stressed syllable:
 
 ```text
@@ -141,7 +141,7 @@ uses the final stressed sound:
 appreciate / fate / relate
 ```
 
-Better still, use **secondary stress** — a syllable that is not the word's
+Better still, use **secondary stress**, a syllable that is not the word's
 primary stress but is stronger than the syllables around it. Pat marks it
 `//` (single `/` marks primary stress) and tells you to listen for pitch: in
 `ap–pre–ci–ate`, "you can tell by the pitch of the last syllable that it is
@@ -175,7 +175,7 @@ mánd-ing / lánd-ing / stánd-ing / pánd-ing / stránd-ing
 creators of rhyme's tension and resolution." The unstressed syllables at the
 end are all identities, "which is normal for feminine rhyme. These identities
 only continue the resolution." They are usually identities, but they don't
-have to be — which is the door mosaic rhyme walks through.
+have to be, which is the door mosaic rhyme walks through.
 
 Skill behavior: when checking a feminine rhyme, isolate the second-to-last
 stressed syllables first. Then check whether the unstressed tail supports the
@@ -192,9 +192,10 @@ commander / understand her
 expand me / strand thee
 ```
 
+Pat names them, *Essential Guide to Rhyming* (2014), Chapter 1:
+
 > "Call these pairs above mosaic rhymes, since they are put together with
 > syllables of different words, like stained glass pieces in a church window."
-> — Pat Pattison, *Essential Guide to Rhyming* (2014), Chapter 1
 
 Mosaic rhymes are useful because they expand the available choices beyond
 single dictionary headwords. They also raise the risk of cleverness becoming
@@ -237,9 +238,9 @@ search."
 
 His source is *The Complete Rhyming Dictionary*, edited by Clement Wood (Dell,
 1992), which he calls "the best rhyming dictionary around." It divides rhymes
-into three sections — masculine (I), feminine (II), three-syllable (III) — is
-organized phonetically by vowel sound, italicizes archaic words, and carries a
-vowel index at the bottom of every page. Its one gap: "Nothing can keep up with
+into three sections, masculine (I), feminine (II), and three-syllable (III). It
+is organized phonetically by vowel sound, italicizes archaic words, and carries
+a vowel index at the bottom of every page. Its one gap: "Nothing can keep up with
 current slang. But you can write those in."
 
 To find a rhyme, ask two questions:
@@ -252,13 +253,13 @@ To find a rhyme, ask two questions:
 
 <!-- phonetic vowel markings trip the spell-checker --><!-- spellchecker:off -->
 
-**Worked lookup 1 — masculine.** Look up `attack`. It is masculine: `attáck`,
+**Worked lookup 1, masculine.** Look up `attack`. It is masculine: `attáck`,
 so section I. The vowel sound of the stressed syllable `tack` is the short `ă`
 as in "add." The dictionary lists rhyme columns by vowel sound and, within
 that, alphabetically by ending consonant, so `attack` sits under the header
-`ĂK` — every masculine word ending in short `ă` + `k`.
+`ĂK`, every masculine word ending in short `ă` + `k`.
 
-**Worked lookup 2 — feminine.** Look up `hóllow`. Section II. The vowel of the
+**Worked lookup 2, feminine.** Look up `hóllow`. Section II. The vowel of the
 stressed syllable `hol` is the short `ŏ` as in "ŏdd," so look in the feminine
 section under vowel `Ŏ`, then alphabetically for `ŎL + o` (stressed syllables
 in CAPS, unstressed in lowercase). You find `hollow` plus `Apollo`, `swallow`,
@@ -283,21 +284,20 @@ better with practice."
 
 *Essential Guide to Rhyming* (2014), Chapter 3 adds the one dictionary skill
 Chapter 1 does not cover: what to do when the word you looked up is not where you
-expected it. Pat's comment 5 on his own search, verbatim:
+expected it. Pat's comment 5 on his own search, verbatim from *Essential Guide
+to Rhyming* (2014), Chapter 3:
 
 > "Ignored" didn't appear under "ORD," where I thought it should. But at the end
 > of the column, I saw "adored, etc." which referred me to *OR*. The reference
 > means to look at the *OR* column and add *D* whenever you can. The Wood book
 > uses this shorthand to avoid unnecessary duplication. So, I went to the *OR*
 > column and added *D*. I like the list.
->
-> — *Essential Guide to Rhyming* (2014), Chapter 3
 
 An absent column is not an absent rhyme family. There is no `ORD` heading because
 every word that would sit under it is an `OR` word with a `D` added, and the Wood
 book declines to print the same list twice. So read to the end of a column before
-concluding the search is over, and follow the `etc.` — Pat's `ignored` column is
-ten words deep only because he did.
+concluding the search is over, and follow the `etc.`. Pat's `ignored`
+column is ten words deep only because he did.
 
 Skill behavior: when a lookup comes back empty or thin, try the same stressed
 vowel with the final consonant stripped, then add that consonant back across the
@@ -318,7 +318,7 @@ knack   zach
 pack
 ```
 
-The `tack` slip is the point of the exercise — the alphabet process does not
+The `tack` slip is the point of the exercise: the alphabet process does not
 even run the identity check.
 
 Mentally running the alphabet misses in two predictable areas:
@@ -343,24 +343,22 @@ When a user is stuck, do not only mutate the first consonant. Search for:
 
 ## Exercises to preserve
 
-Exercise 1.1 is deliberately minimal — the heading carries half of it. Verbatim:
+Exercise 1.1 is deliberately minimal. The heading carries half of it. Verbatim,
+from *Essential Guide to Rhyming* (2014), Chapter 1:
 
 > EXERCISE 1.1. Walk to a Bookstore
 >
 > …and get a rhyming dictionary.
->
-> — *Essential Guide to Rhyming* (2014), Chapter 1
 
 In skill terms, the user needs a searchable sound inventory, not just memory.
 
-Exercise 1.2, verbatim, including Pat's numbering:
+Exercise 1.2, verbatim from *Essential Guide to Rhyming* (2014), Chapter 1,
+including Pat's numbering:
 
 > EXERCISE 1.2. Rhyming Dictionary Practice
 >
 > Using your rhyming dictionary, find two interesting rhymes for each of the
 > following words.
->
-> — *Essential Guide to Rhyming* (2014), Chapter 1
 
 ```text
  1. love

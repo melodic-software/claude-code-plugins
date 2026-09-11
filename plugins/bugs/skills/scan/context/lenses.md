@@ -1,19 +1,19 @@
-# Hunter lenses — the recall stage of `/bugs:scan`
+# Hunter lenses: the recall stage of `/bugs:scan`
 
 Loaded on demand by `/bugs:scan` Step 2. Each lens below is a **dispatch contract for one
 fresh-context hunter subagent**, written in the four-part shape that keeps a fan-out from duplicating
 work or leaving gaps: **objective**, **output format**, **tool and source guidance**, **task
 boundaries**.
 
-Dispatch one subagent per lens over the resolved scope. Do not merge two lenses into one agent — the
-whole point of the decomposition is that each hunter reads a narrow context and finds whatever lives
+Dispatch one subagent per lens over the resolved scope. Do not merge two lenses into one agent. The
+decomposition exists so that each hunter reads a narrow context and finds whatever lives
 there.
 
 ## Rules that apply to every lens (paste into every hunter prompt)
 
 - **Evidence quote is mandatory.** Every candidate must carry a verbatim quote of the offending source
   lines, with `path:line`. Extract the quote before writing the claim. If you cannot find a quote that
-  establishes the fault, **drop the claim** — do not weaken it into a suspicion.
+  establishes the fault, **drop the claim**. Do not weaken it into a suspicion.
 - **Reason only from the code in front of you.** Do not assert how a library "usually" behaves from
   memory; if the behavior matters and is not visible in the repo, say the claim is unverifiable and
   drop it.
@@ -21,7 +21,11 @@ there.
   empty return is a successful run. Never manufacture a candidate to look productive.
 - **You are read-only.** Read, search, and (where a cheap check exists) run it. Never edit, never
   write to the repository, never branch, never file anything.
-- **Excluded classes — do not report these**: denial of service, rate-limiting, resource exhaustion,
+- **One hop outside the scope is allowed, and tagged.** A fault often straddles a boundary, so you
+  may follow a scoped file into one direct caller or callee and report a candidate there. Such a
+  candidate carries `Scope: out-of-lane (via <scoped path>)`; every other candidate carries
+  `Scope: in-lane`. Two hops is wandering, not hunting.
+- **Excluded classes.** Do not report these: denial of service, rate-limiting, resource exhaustion,
   generic input validation with no stated impact, open redirects, secrets-at-rest, and style or
   formatting opinions. They are FP-prone or belong to another lane.
 - **Cap yourself.** Return at most 5 candidates, ranked by evidence strength. Quality of evidence beats
@@ -32,9 +36,10 @@ there.
 Return each candidate as:
 
 ```markdown
-### Candidate <n> — <one-line present-tense symptom>
+### Candidate <n>: <one-line present-tense symptom>
 
 - **Lens**: <lens id>
+- **Scope**: in-lane | out-of-lane (via `<scoped path>`)
 - **Location**: `<path>:<line>` in `<function or class>`
 - **Evidence**: verbatim quote of the offending lines
 - **Fault**: what is wrong, in one or two sentences
@@ -44,13 +49,13 @@ Return each candidate as:
 
 If the lens found nothing, return exactly: `No candidates for <lens id>.`
 
-## Lens 1 — contract vs body (same unit)
+## Lens 1: contract vs body (same unit)
 
 - **Objective**: find places where a unit of code does not do what its own contract says. The contract
   is the unit's signature, parameter and return types, nullability, docstring or doc comment, and any
   invariant named in that same unit (asserts, guard clauses, `@throws`, documented ranges).
 - **Boundaries**: **same unit only.** The contract and the body must both be visible in the one
-  function/method/class you are examining. A mismatch between a doc file and code is not yours — it
+  function/method/class you are examining. A mismatch between a doc file and code is not yours. It
   belongs to the docs/config drift lane. Do not follow callers.
 - **Sources**: the function bodies and their immediately attached documentation in the assigned files.
 - **Look for**: a documented return that the body can never produce; a parameter documented as optional
@@ -58,12 +63,12 @@ If the lens found nothing, return exactly: `No candidates for <lens id>.`
   an error the docstring promises that no path raises; a range or unit stated in the comment and
   violated in the arithmetic.
 
-## Lens 2 — boundary and edge cases
+## Lens 2: boundary and edge cases
 
-- **Objective**: find inputs at the edges of a domain that the code mishandles — empty, zero, one,
+- **Objective**: find inputs at the edges of a domain that the code mishandles: empty, zero, one,
   negative, maximum, off-by-one, duplicate, unicode, unsorted, `null`/`None`, overflow, timezone and
   DST edges, leap day, and the empty-collection case.
-- **Boundaries**: only report an edge case whose *reachability* you can argue from the code — name the
+- **Boundaries**: only report an edge case whose *reachability* you can argue from the code. Name the
   caller, entry point, or input source that can supply the value. A theoretically-possible value with
   no path to it is not a candidate.
 - **Sources**: loops, slices and index arithmetic, comparisons (`<` vs `<=`), parsing and formatting,
@@ -72,14 +77,14 @@ If the lens found nothing, return exactly: `No candidates for <lens id>.`
   zero guard; a slice whose start can exceed its end; an accumulator that assumes at least one item; a
   default that silently substitutes for a missing required value.
 
-## Lens 3 — cross-file consistency drift
+## Lens 3: cross-file consistency drift
 
-- **Objective**: find **behavioral divergence between code units that must agree** — duplicated logic
+- **Objective**: find **behavioral divergence between code units that must agree**: duplicated logic
   that has drifted apart, parallel implementations of one rule, and caller/callee assumption
   mismatches (a caller that passes what the callee cannot accept, or handles a result shape the callee
   no longer returns).
 - **Boundaries**: this lens is about **code vs code**. Factual claims in documentation or configuration
-  measured against code are **not** in scope here — that is `codebase-health:audit`'s surface across
+  measured against code are **not** in scope here. That is `codebase-health:audit`'s surface across
   all of its dimensions. If your candidate's evidence is a sentence in a doc or a value in a config
   file, drop it and say so.
 - **Sources**: pairs of files that implement the same rule (validation in two layers, a constant
@@ -88,12 +93,12 @@ If the lens found nothing, return exactly: `No candidates for <lens id>.`
   not on its sibling; an enum extended in one place and switched on exhaustively in another; a
   caller-side null check that the callee's contract makes wrong.
 
-## Lens 4 — state and concurrency hazards
+## Lens 4: state and concurrency hazards
 
-- **Objective**: find defects that depend on ordering, sharing, or lifetime — mutable state escaping
+- **Objective**: find defects that depend on ordering, sharing, or lifetime: mutable state escaping
   its owner, check-then-act races, unsynchronized shared access, resources not released on the error
   path, and re-entrancy or reuse of a single-use object.
-- **Boundaries**: only report a hazard where the code shows the sharing or the ordering — a real
+- **Boundaries**: only report a hazard where the code shows the sharing or the ordering: a real
   concurrent entry point, a shared/global/static, a cached instance, a callback, or a documented
   reentrant path. Do not speculate that "this might be called concurrently".
 - **Sources**: module-level and static state, caches, connection and file handles, locks, async and

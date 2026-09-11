@@ -1,22 +1,22 @@
 # Advanced (Sections 34–45)
 
-Power features and automation — Parts 7–8 (Mar 13, Mar 23–26, 2026).
+Power features and automation: Parts 7–8 (Mar 13, Mar 23–26, 2026).
 
 ---
 
-## 34. /effort — Max Reasoning Mode
+## 34. /effort: Max Reasoning Mode
 
-Set effort to 'max' — Claude reasons longer, uses as many tokens as needed. Burns usage limits faster; activate per session.
+Set effort to 'max'. Claude reasons longer, uses as many tokens as needed. Burns usage limits faster; activate per session.
 
 ```
 > /effort max
 ```
 
-Five levels: low, medium, high, xhigh, max — default is `high` (`xhigh` on Opus 4.7). Use 'max' for hard debugging, architecture decisions, tricky code where Claude needs to think it through.
+Five levels: low, medium, high, xhigh, max. The default is `high` (`xhigh` on Opus 4.7). Use 'max' for hard debugging, architecture decisions, tricky code where Claude needs to think it through.
 
 Source: https://x.com/trq212/status/2032632596572811575
 
-## 35. Remote Control — Spawn New Sessions
+## 35. Remote Control: Spawn New Sessions
 
 Run `claude remote-control` and spawn a new local session from the mobile app. Available on Max, Team, and Enterprise (v2.1.74+).
 
@@ -25,15 +25,15 @@ $ claude remote-control
 # Open Claude mobile app → tap "Code" → start new session
 ```
 
-Walk away from desk, think of something, kick off task from mobile — Claude runs on your machine.
+Walk away from desk, think of something, kick off task from mobile. Claude runs on your machine.
 
 > **Amended (verified 2026-08-04 against
 > [Remote Control](https://code.claude.com/docs/en/remote-control)):** the plan list has widened and
 > the feature is still a research preview. Upstream, verbatim: "Remote Control is in research
 > preview and available on all plans"; Requirements reads "available on Pro, Max, Team, and
 > Enterprise plans. API keys are not supported. On Team and Enterprise, an Owner must first enable
-> the Remote Control toggle". That section also carries conditions this tip predates —
-> authentication, API endpoint, feature-flag evaluation, and workspace trust — and owns the current
+> the Remote Control toggle". That section also carries conditions this tip predates:
+> authentication, API endpoint, feature-flag evaluation, and workspace trust. It owns the current
 > list; read it rather than this snapshot. **Recheck trigger:** a read-time re-fetch finds it no
 > longer matching this record.
 
@@ -49,7 +49,7 @@ Source: https://x.com/trq212/status/2032632599429136753
 
 ## 37. Setup Scripts for Cloud Environments
 
-Add a setup script in Claude Code on web and desktop. Runs before Claude Code launches on cloud — install dependencies, configure settings, set env vars.
+Add a setup script in Claude Code on web and desktop. Runs before Claude Code launches on cloud: install dependencies, configure settings, set env vars.
 
 ```bash
 # Setup script (runs on new session start, skipped on resume):
@@ -61,7 +61,7 @@ Particularly useful for installing dependencies, settings, configs before Claude
 
 Source: https://x.com/trq212/status/2032632601064907037
 
-## 38. claude --name — Name Your Sessions
+## 38. claude --name: Name Your Sessions
 
 Name your session at launch via `--name`.
 
@@ -69,7 +69,7 @@ Name your session at launch via `--name`.
 claude --name "auth-refactor"
 ```
 
-Especially useful juggling multiple worktrees or sessions — tells at a glance which session is doing what.
+Especially useful juggling multiple worktrees or sessions. Tells at a glance which session is doing what.
 
 Source: https://x.com/trq212/status/2032632602629386348
 
@@ -77,11 +77,11 @@ Source: https://x.com/trq212/status/2032632602629386348
 
 After plan mode, Claude automatically names your session based on what you're working on. No manual naming needed.
 
-Pairs with `claude --name` — use `--name` when you know upfront, let auto-naming handle when you start by planning.
+Pairs with `claude --name`. Use `--name` when you know upfront, and let auto-naming handle it when you start by planning.
 
 Source: https://x.com/trq212/status/2032632602629386348
 
-## 40. /color — Customize Prompt Color
+## 40. /color: Customize Prompt Color
 
 Change prompt input color via `/color`. With 3-5 sessions open in different terminals, color-coding makes it instantly clear which is which.
 
@@ -106,9 +106,9 @@ Hook event firing after Claude compresses conversation context. Re-inject critic
 
 Source: https://x.com/trq212/status/2032632602629386348
 
-## 42. Auto Mode — Safer Permission Skipping
+## 42. Auto Mode: Safer Permission Skipping
 
-Instead of approving every file write and bash command, or skipping permissions entirely, auto mode lets Claude decide on your behalf. Classifiers evaluate each action before it runs — safe operations auto-approved, risky ones still flagged.
+Instead of approving every file write and bash command, or skipping permissions entirely, auto mode lets Claude decide on your behalf. Classifiers evaluate each action before it runs. Safe operations are auto-approved, risky ones still flagged.
 
 ```bash
 # Enable auto mode
@@ -122,9 +122,9 @@ Boris's take: "no 👏 more 👏 permission prompts 👏"
 
 Source: https://x.com/bcherny/status/2036555259997462541
 
-## 43. /schedule — Cloud Jobs from Your Terminal
+## 43. /schedule: Cloud Jobs from Your Terminal
 
-`/schedule` creates recurring cloud-based jobs from the terminal. Unlike `/loop` (session-scoped on your machine), scheduled jobs run in the cloud — work even when your laptop is closed.
+`/schedule` creates recurring cloud-based jobs from the terminal. Unlike `/loop` (session-scoped on your machine), scheduled jobs run in the cloud and work even when your laptop is closed.
 
 ```
 > /schedule a daily job that looks at all PRs shipped since yesterday
@@ -136,24 +136,24 @@ Anthropic team uses these internally to auto-resolve CI failures, push doc updat
 
 Source: https://x.com/noahzweben/status/2036129220959805859
 
-## 44. iMessage Plugin — Text Claude from Your Phone
+## 44. iMessage Plugin: Text Claude from Your Phone
 
-iMessage is available as a Claude Code channel. Install the plugin and text Claude like a friend — from any Apple device.
+iMessage is available as a Claude Code channel. Install the plugin and text Claude like a friend, from any Apple device.
 
 ```bash
 /plugin install imessage@claude-plugins-official
 ```
 
-Claude Code becomes a contact in Messages. Send tasks, get responses as iMessages. Works from iPhone, iPad, Mac — no terminal needed. Pairs with remote control sessions for kicking off work from anywhere.
+Claude Code becomes a contact in Messages. Send tasks, get responses as iMessages. Works from iPhone, iPad, Mac, no terminal needed. Pairs with remote control sessions for kicking off work from anywhere.
 
 Source: https://x.com/trq212/status/2036959638646866021
 
-## 45. Auto-Memory & Auto-Dream — Persistent, Self-Cleaning Memory
+## 45. Auto-Memory & Auto-Dream: Persistent, Self-Cleaning Memory
 
 Claude Code has a built-in memory system. Run `/memory` to configure it.
 
 **Auto-memory:** When enabled, Claude auto-saves preferences, corrections, patterns between sessions. User memory → `~/.claude/CLAUDE.md`, project memory → `./CLAUDE.md`.
 
-**Auto-dream:** As memory accumulates, it gets messy — outdated assumptions, overlapping notes, low-signal entries. Auto-dream runs a subagent that periodically reviews past sessions, keeps what matters, removes what doesn't, merges insights into cleaner structured memory. Run `/dream` to trigger manually, or enable auto-dream in `/memory` settings.
+**Auto-dream:** As memory accumulates, it gets messy: outdated assumptions, overlapping notes, low-signal entries. Auto-dream runs a subagent that periodically reviews past sessions, keeps what matters, removes what doesn't, merges insights into cleaner structured memory. Run `/dream` to trigger manually, or enable auto-dream in `/memory` settings.
 
 Naming maps to how REM sleep consolidates short-term memory into long-term storage.

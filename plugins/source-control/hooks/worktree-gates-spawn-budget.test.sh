@@ -67,7 +67,7 @@ git -C "$REPO" commit -q -m seed
 mkdir -p "$REPO/sub"
 # Present so the block message's root lookup runs its `git config --get-all`
 # read, which is one of the hoists this suite guards.
-git -C "$REPO" config melodic.worktreeroot "$OUTSIDE"
+git -C "$REPO" config worktreeroot.path "$OUTSIDE"
 
 payload() { # payload <cwd> <command> <event>
   jq -n --arg cwd "$1" --arg cmd "$2" --arg ev "$3" \

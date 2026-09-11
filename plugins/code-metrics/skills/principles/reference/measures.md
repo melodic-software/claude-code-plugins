@@ -76,7 +76,7 @@ total plus non-blank from the bundled counter otherwise. The comparison runs aga
 lines.
 
 ISO/IEC 5055:2021 files a large-file weakness at 7.1.26 (CWE-1080, usage name "Excessively large
-file"), and its informative clause 6 summary row for that weakness carries a 1000-line figure. The
+file"), and its informative §6.3 Table 1 row for that weakness carries a 1000-line figure. The
 normative detection pattern attached to the weakness, §8.2.115, measures something different: a
 `FunctionProcedureOrMethod` whose `NumberOfNonEmptyLinesOfCode` exceeds a
 `MaxNumberOfNonEmptyLinesOfCode` whose stated default is "5%", with no base named in the clause.

@@ -3,7 +3,7 @@
 Use when writer asks "write me a bridge", "do I need a bridge here", or
 when a draft bridge isn't doing the bridge work.
 
-## Step 1 — Diagnose need (writer-facing)
+## Step 1: Diagnose need (writer-facing)
 
 ```
 Bridge decision first.
@@ -22,7 +22,7 @@ What does the song still need to SAY but hasn't said yet?
 - A speaker's interior the verses haven't shown?
 ```
 
-## Step 2 — Find the missing angle (model-side, surface to writer)
+## Step 2: Find the missing angle (model-side, surface to writer)
 
 Pat's strongest bridge-finding move (*Writing Better Lyrics* (2009), Chapter 23): look at what the song
 has NOT said.
@@ -36,17 +36,17 @@ Probe the writer:
 
 Surface 2-3 candidate missing angles. Writer picks one.
 
-## Step 3 — Three bridge functions check (*Essential Guide to Lyric Form and Structure* (1991), Chapter 6)
+## Step 3: Three bridge functions check (*Essential Guide to Lyric Form and Structure* (1991), Chapter 6)
 
 ```
 A bridge must do AT LEAST ONE of:
 
-1. **Break monotony** — contrasts established structure to reset the ear
-2. **Different-size song system** — the SYSTEM changes size, not the bridge's
+1. **Break monotony**: contrasts established structure to reset the ear
+2. **Different-size song system**: the SYSTEM changes size, not the bridge's
    own phrase count. Verse/chorus: the last system gets shorter, so the final
    chorus arrives early. Verse/refrain or AABA: bridge + last verse make a
    LONGER system than the verse-only ones before it. Different, not shorter.
-3. **New perspective** — says something the verses haven't said
+3. **New perspective**: says something the verses haven't said
 
 Your bridge will serve function: <which ones>
 
@@ -54,37 +54,37 @@ If your draft serves NONE → that's not a bridge, that's another verse.
 Rewrite or remove.
 ```
 
-## Step 4 — Choose contrast axes (writer-facing)
+## Step 4: Choose contrast axes (writer-facing)
 
 ```
 Pick 2-3 axes to contrast against the verses:
 
-- **Phrase length** — verses 4-stress → bridge 5-stress (slowdown) or 3-stress (speedup)
-- **Line count** — different number of lines per system
-- **Rhyme scheme** — verses xaxa → bridge aabb (tighter), or verses tight → loose
-- **Rhyme type** — verses perfect → bridge consonance (less closure)
-- **Tempo/rhythm** — verses duple → bridge triple, or steady → syncopated
-- **POV** — verses 3rd person → bridge 1st person (perspective shift)
-- **Tense** — verses present → bridge past or future
-- **Tone-of-voice** — verses controlled → bridge raw (or vice versa)
+- **Phrase length**: verses 4-stress → bridge 5-stress (slowdown) or 3-stress (speedup)
+- **Line count**: different number of lines per system
+- **Rhyme scheme**: verses xaxa → bridge aabb (tighter), or verses tight → loose
+- **Rhyme type**: verses perfect → bridge consonance (less closure)
+- **Tempo/rhythm**: verses duple → bridge triple, or steady → syncopated
+- **POV**: verses 3rd person → bridge 1st person (perspective shift)
+- **Tense**: verses present → bridge past or future
+- **Tone-of-voice**: verses controlled → bridge raw (or vice versa)
 
-Pick 2-3. NOT all 8 — that overshoots into chaos.
+Pick 2-3. NOT all 8. That overshoots into chaos.
 
 Which axes match the perspective shift?
 ```
 
-## Step 5 — Object-write the missing angle (writer-facing)
+## Step 5: Object-write the missing angle (writer-facing)
 
 ```
 Before drafting, object-write the perspective angle from Step 2 for 10
-minutes. Per Pat's seven senses. Generate raw vocabulary for the bridge —
+minutes. Per Pat's seven senses. Generate raw vocabulary for the bridge,
 specifically from the angle the verses haven't carried.
 
 This is where the bridge's freshness comes from. Without it, the bridge
 will recycle verse vocabulary.
 ```
 
-## Step 6 — Draft the bridge (model-side guidance)
+## Step 6: Draft the bridge (model-side guidance)
 
 Draft the bridge using:
 
@@ -96,7 +96,7 @@ Draft the bridge using:
 If draft bridge starts to look like a verse, stop. Re-examine: did the
 contrast axes actually contrast?
 
-## Step 7 — Test homecoming / transition (writer-facing)
+## Step 7: Test homecoming / transition (writer-facing)
 
 ```
 Sing the transition aloud:
@@ -110,7 +110,7 @@ If the return feels jarring → bridge contrasted too aggressively; reduce
 to 2 axes.
 ```
 
-## Step 8 — Pre-lock bridge audit
+## Step 8: Pre-lock bridge audit
 
 Run per-line and per-section audit (per `audit-checklist.md`). Key bridge
 items:
@@ -150,11 +150,11 @@ items:
 
 ## Cross-references
 
-- `bridge.md` — full context, three functions, contrast mechanics, AABA homecoming
-- `form.md` — section identification, candy bar discipline
-- `song-forms.md` — form-fit decision, four-times-a-lot warning
-- `song-forms-examples.md` — "This Bottle and Me" bridge demonstration
-- `box-model.md` — bridge as Box 3 substitute
-- `point-of-view.md` — camera distance shifts
-- `object-writing.md` — Step 5 method
-- `audit-checklist.md` — Step 8 audit
+- `bridge.md`: full context, three functions, contrast mechanics, AABA homecoming
+- `form.md`: section identification, candy bar discipline
+- `song-forms.md`: form-fit decision, four-times-a-lot warning
+- `song-forms-examples.md`: "This Bottle and Me" bridge demonstration
+- `box-model.md`: bridge as Box 3 substitute
+- `point-of-view.md`: camera distance shifts
+- `object-writing.md`: Step 5 method
+- `audit-checklist.md`: Step 8 audit

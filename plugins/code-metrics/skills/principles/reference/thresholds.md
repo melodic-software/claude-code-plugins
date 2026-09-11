@@ -11,7 +11,7 @@ the plugin found no defensible value to ship, so it reports the measure and coun
 | Cyclomatic complexity | `20` | ISO/IEC 5055:2021 §8.2.117, the normative detection pattern `ASCQM Limit Algorithmic Complexity via Cyclomatic Complexity Value`, whose `<MaxCyclomaticComplexityValue>` default is 20 | Normative in the standard |
 | Cognitive complexity | `null` | Campbell, SonarSource. The white paper prescribes no threshold | No standard sets one |
 | Halstead difficulty | `null` | Halstead 1977 defines the measure and sets no limit | No standard sets one |
-| Lines per file | `1000` | This plugin's own number. It coincides with the figure in the informative CWE-1080 summary row of ISO/IEC 5055:2021 clause 6, which is not normative | Plugin default, labelled as such |
+| Lines per file | `1000` | As the report prints it: the plugin's own number, not ISO-backed. It coincides with the informative figure in the ISO/IEC 5055:2021 §6.3 Table 1 row for CWE-1080, which is not normative, while the normative form (§8.2.115) is a function-level percentage; 500 is selectable, and `size.mode: iso-8.2.115` selects the normative alternative | Plugin default, labelled as such |
 | Function lines percentage | `5` | ISO/IEC 5055:2021 §8.2.115 (normative), read by this plugin as a function's non-empty lines against its file's; the clause states the 5% with no base (see the verification record below) | Normative value, plugin's reading of the base |
 | Duplication | none | No key ships. `duplication.min_tokens` and `duplication.min_lines` are collector floors, not references; ISO/IEC 5055 §8.2.116 measures element similarity between two functions (default 90%), which is a different quantity from a duplicated-lines percentage | Nothing comparable to cite |
 | CRAP | `null` | Savoia and Evans 2007. Their own suggested value was 30, offered as a starting point they reserved the right to change | Authors' suggestion, no standard |
@@ -37,7 +37,7 @@ Four qualifications the table above cannot hold:
 - **The ISO clause map matters more than the ISO name.** Clause 7 (the weakness list) and clause 8
   (the detection patterns) are both normative; clause 6 is informative. Clause 7.1.10 names the
   cyclomatic weakness (CWE-1121) and carries no number at all. The number lives at §8.2.117. The
-  1000-line figure lives only in the informative clause 6 summary row for CWE-1080, while the
+  1000-line figure lives only in the informative §6.3 Table 1 row for CWE-1080, while the
   normative pattern attached to the same weakness, §8.2.115, is a percentage on a function. So
   "1000 lines per file, per ISO/IEC 5055" would cite an informative row against a normative clause
   that says something different at a different granularity, and this plugin does not say it.

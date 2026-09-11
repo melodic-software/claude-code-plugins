@@ -1,6 +1,6 @@
 # Windows / Git Bash quirks
 
-Our content — not from upstream. Captures empirically-verified behavior on Windows 11 + Git Bash + locally-installed Chrome.
+Our content, not from upstream. Captures empirically-verified behavior on Windows 11 + Git Bash + locally-installed Chrome.
 
 ## `--headed` browser opens but doesn't auto-focus
 
@@ -18,7 +18,7 @@ Get-Process chrome | Where-Object { $_.MainWindowHandle -ne 0 } |
 
 **Workarounds, in order:**
 
-1. **Alt-tab** — the window is there, just not focused
+1. **Alt-tab**: the window is there, just not focused
 2. **Force foreground via dedicated PowerShell helper** after opening:
 
    ```bash
@@ -28,15 +28,15 @@ Get-Process chrome | Where-Object { $_.MainWindowHandle -ne 0 } |
 
    Helper (`scripts/force-chrome-foreground.ps1`) wraps the Win32 `SetForegroundWindow` / `ShowWindow` P/Invoke and no-ops on non-Windows. Pass `-TitleMatch <regex>` to disambiguate when multiple Chrome windows are open.
 
-3. **`playwright-cli show`** — opens Microsoft's visual dashboard that auto-focuses and lets you inspect all running sessions with live screencasts
+3. **`playwright-cli show`**: opens Microsoft's visual dashboard that auto-focuses and lets you inspect all running sessions with live screencasts
 
-4. **Accept headless as default** — for autonomous E2E (the primary use case), you don't need to watch. Screenshots and snapshots give you everything
+4. **Accept headless as default**: for autonomous E2E (the primary use case), you don't need to watch. Screenshots and snapshots give you everything
 
 ## `playwright-cli install` resets shell CWD on Windows
 
 **Symptom:** after running `playwright-cli install`, subsequent commands behave as if CWD changed.
 
-**Actual behavior:** `install` emits `Shell cwd was reset to <path>` on Windows/Git Bash. Cosmetic in the tool's view — Bash tool's CWD state is unaffected and subsequent commands work normally. But `install` step does NOT leave you inside the `.playwright/` workspace dir it created.
+**Actual behavior:** `install` emits `Shell cwd was reset to <path>` on Windows/Git Bash. Cosmetic in the tool's view. The Bash tool's CWD state is unaffected and subsequent commands work normally. But `install` step does NOT leave you inside the `.playwright/` workspace dir it created.
 
 **Rule:** run `install` once when prompted, then operate from your repo's CWD. Subsequent `playwright-cli` commands respect current shell CWD.
 
@@ -63,7 +63,7 @@ Add `.playwright-cli/` to the project's `.gitignore` so artifacts never land in 
 
 ## Google and other anti-bot sites may captcha
 
-Chromium under Playwright control has a fingerprint that Google, Cloudflare, and similar services detect. Search results may redirect to `/sorry/index` or a CAPTCHA page. Not a CLI bug — anti-automation countermeasure.
+Chromium under Playwright control has a fingerprint that Google, Cloudflare, and similar services detect. Search results may redirect to `/sorry/index` or a CAPTCHA page. This is an anti-automation countermeasure, not a CLI bug.
 
 **Workarounds:**
 
@@ -73,4 +73,4 @@ Chromium under Playwright control has a fingerprint that Google, Cloudflare, and
 
 ## Cloud session limitation (inherited from infrastructure)
 
-In Claude Code cloud sessions (Ubuntu 24.04 sandbox), `playwright-cli install-browser` fails — the sandbox blocks browser downloads to `storage.googleapis.com/chrome-for-testing-public`. Local sessions on Windows/macOS/Linux are unaffected because they auto-detect system Chrome.
+In Claude Code cloud sessions (Ubuntu 24.04 sandbox), `playwright-cli install-browser` fails. The sandbox blocks browser downloads to `storage.googleapis.com/chrome-for-testing-public`. Local sessions on Windows/macOS/Linux are unaffected because they auto-detect system Chrome.

@@ -1,4 +1,4 @@
-# Capability matrix — copied-external-content plugin
+# Capability matrix: copied-external-content plugin
 
 Design-stage decomposition per /planning:design, written 2026-08-27 against the Brief in
 `../PLAN.md`. Working plugin name: `provenance` (recommended by the naming pass; final pick is

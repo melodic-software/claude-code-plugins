@@ -163,6 +163,44 @@ if [[ -x "$claude_bin" ]] && command -v jq >/dev/null 2>&1; then
       echo "cloud-bootstrap: warning: could not register the $marketplace_name marketplace" >&2
   fi
 
+  # Where installs actually resolve from. The registration above runs only
+  # when no marketplace of this name exists, and a cloud snapshot arrives with
+  # one of the same name registered from GitHub and tracking main. `plugin
+  # install` then pulls THAT clone and records its commit as gitCommitSha, so
+  # the checkout's HEAD is the wrong reference for both the refresh decision
+  # and the verification below: a branch ahead of main, or a checkout behind
+  # it, scored every healthy install as failed and re-ran the refresh on every
+  # resume. The reference is therefore the repository the installs come from.
+  # When that is not this checkout, bring it current first (the CLI-sanctioned
+  # pull, the one `plugin install` performs anyway) and say so once: the
+  # session then runs that clone's plugin code and not this branch's, which is
+  # the property the directory source exists for and the one thing an operator
+  # on a branch that changed a plugin needs to hear. A location that is not a
+  # git repository (a copied directory source) keeps the checkout.
+  source_repo="$repo_root"
+  marketplace_entry="$("$claude_bin" plugin marketplace list --json 2>/dev/null |
+    jq -c --arg n "$marketplace_name" 'first(.[]? | select(.name == $n)) // {}' 2>/dev/null || true)"
+  [[ -n "$marketplace_entry" ]] || marketplace_entry='{}'
+  marketplace_location="$(jq -r '.installLocation // ""' <<<"$marketplace_entry" 2>/dev/null | tr -d '\r')"
+  if [[ -n "$marketplace_location" ]] &&
+    git -C "$marketplace_location" rev-parse --verify HEAD >/dev/null 2>&1 &&
+    [[ "$(cd -P -- "$marketplace_location" && pwd)" != "$(cd -P -- "$repo_root" && pwd)" ]]; then
+    # A pull that fails (no network, a clone the CLI refuses to fast-forward)
+    # leaves the clone as it stands, which is still what the installs serve,
+    # so the verdict below stays truthful about serving; what it cannot claim
+    # is currency, and that is said here rather than swallowed.
+    if ! "$claude_bin" plugin marketplace update "$marketplace_name" >/dev/null 2>&1; then
+      echo "cloud-bootstrap: warning: could not bring the $marketplace_name marketplace clone current (\`plugin marketplace update\` failed); verifying against the clone as it stands" >&2
+    fi
+    source_repo="$marketplace_location"
+    # `plugin marketplace list --json` reports `source` as a plain string
+    # (claude 2.1.263: "github"), while known_marketplaces.json nests it as an
+    # object with a `repo`; `jq -r` pretty-prints an object over several
+    # lines, so the one-line warning below takes either shape.
+    marketplace_source="$(jq -r 'if (.source | type) == "object" then (.source.repo // .source.source // "an unknown source") else (.source // "an unknown source") end' <<<"$marketplace_entry" 2>/dev/null | tr -d '\r')"
+    echo "cloud-bootstrap: warning: marketplace $marketplace_name is registered from ${marketplace_source:-an unknown source} at $marketplace_location, not this checkout; plugins serve that clone at $(git -C "$source_repo" rev-parse --short HEAD 2>/dev/null), not $(git branch --show-current 2>/dev/null || echo detached) at $(git rev-parse --short HEAD 2>/dev/null)" >&2
+  fi
+
   # Enabled set: the fleet list the shared environment baked into the snapshot
   # (standards cloud-environment component), overlaid with the tracked
   # settings file, so a repo entry set to false opts out of a fleet entry and
@@ -211,12 +249,13 @@ if [[ -x "$claude_bin" ]] && command -v jq >/dev/null 2>&1; then
   # disabled by default", and `plugin list --json` showing scope=user with
   # enabled=false. So DISABLED is the EXPECTED end state for these ids, and
   # scoring it as a failed install printed a standing failure count on every
-  # fresh snapshot — the shape that teaches operators to skip the log. This
-  # checkout is the registered marketplace (`marketplace add "$repo_root"`
-  # above), so the catalog reads off disk at no CLI or network cost.
+  # fresh snapshot — the shape that teaches operators to skip the log. The
+  # catalog is read from the repository the installs resolve against (this
+  # checkout, or the clone found above), so it reads off disk at no CLI or
+  # network cost.
   mapfile -t default_disabled < <(
     jq -r '.plugins[]? | select(.defaultEnabled == false) | .name' \
-      .claude-plugin/marketplace.json 2>/dev/null | tr -d '\r'
+      "$source_repo/.claude-plugin/marketplace.json" 2>/dev/null | tr -d '\r'
   )
 
   # A directory-source install cache is keyed by the semver in plugin.json, not
@@ -233,7 +272,7 @@ if [[ -x "$claude_bin" ]] && command -v jq >/dev/null 2>&1; then
   # playbook's answer for that loop is `claude --plugin-dir ./plugins/<name>`,
   # which takes session precedence over the cached install.
   plugins_registry="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/installed_plugins.json"
-  head_sha="$(git rev-parse HEAD 2>/dev/null || true)"
+  head_sha="$(git -C "$source_repo" rev-parse HEAD 2>/dev/null || true)"
   needs_refresh() {
     # needs_refresh <plugin-id> — true when the cached snapshot predates a
     # change to that plugin's directory in this checkout.
@@ -245,8 +284,8 @@ if [[ -x "$claude_bin" ]] && command -v jq >/dev/null 2>&1; then
     [[ -n "$recorded" && "$recorded" != "$head_sha" ]] || return 1
     # A commit this clone doesn't have (shallow fetch, force-push): refresh
     # rather than guess that the snapshot is current.
-    git cat-file -e "${recorded}^{commit}" 2>/dev/null || return 0
-    ! git diff --quiet "$recorded" HEAD -- "plugins/$name" 2>/dev/null
+    git -C "$source_repo" cat-file -e "${recorded}^{commit}" 2>/dev/null || return 0
+    ! git -C "$source_repo" diff --quiet "$recorded" HEAD -- "plugins/$name" 2>/dev/null
   }
 
   # snapshot_problem <plugin-id> — the VERIFICATION counterpart of
@@ -283,12 +322,12 @@ if [[ -x "$claude_bin" ]] && command -v jq >/dev/null 2>&1; then
       return 0
     fi
     [[ "$recorded" != "$head_sha" ]] || return 0
-    if ! git cat-file -e "${recorded}^{commit}" 2>/dev/null; then
+    if ! git -C "$source_repo" cat-file -e "${recorded}^{commit}" 2>/dev/null; then
       printf 'cannot verify snapshot: installed from commit %s, which this clone does not have' \
         "$recorded"
       return 0
     fi
-    if ! git diff --quiet "$recorded" HEAD -- "plugins/$name" 2>/dev/null; then
+    if ! git -C "$source_repo" diff --quiet "$recorded" HEAD -- "plugins/$name" 2>/dev/null; then
       printf 'plugins/%s changed between the installed commit %s and HEAD' "$name" "$recorded"
     fi
     return 0

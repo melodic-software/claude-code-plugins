@@ -382,16 +382,32 @@ new_repo "$TRACE_REPO"
 printf '* text=auto eol=lf\n' >"$TRACE_REPO/.gitattributes"
 printf '# sample\n\nhello\n' >"$TRACE_REPO/benign.md"
 TRACE="$WORK/benign-trace.txt"
+# PS4 cannot reach the traced shell through the environment: bash rebinds PS4
+# to its default "+ " at startup and ignores an inherited value, so an exported
+# one leaves every trace line unmarked and every assertion below matches an
+# empty word list — passing on no evidence. A BASH_ENV preload is read BY that
+# shell before the hook, so the assignment happens inside it. The
+# instrument-live assertion is what keeps the arrangement honest.
+PS4_PRELOAD="$WORK/ps4-preload.sh"
+# The quoted heredoc keeps ${FUNCNAME[0]} literal: it is the traced shell that
+# expands it, once per trace line.
+cat >"$PS4_PRELOAD" <<'PS4EOF'
+PS4='+@${FUNCNAME[0]:-MAIN}@ '
+PS4EOF
 (
   cd "$UNRELATED" || exit 1
-  # shellcheck disable=SC2016  # PS4 must reach the traced shell UNEXPANDED: it
-  # is that shell which expands ${FUNCNAME[0]}, once per trace line.
   printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$TRACE_REPO/benign.md" |
     env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR="$TRACE_REPO" \
       CLAUDE_PLUGIN_OPTION_EOL_NORMALIZER_ENABLED=true \
-      PS4='+@${FUNCNAME[0]:-MAIN}@ ' \
+      BASH_ENV="$PS4_PRELOAD" \
       bash -x "$HOOK" >/dev/null 2>"$TRACE"
 )
+MARKED="$(grep -cE '^\++@' "$TRACE")"
+if [[ "$MARKED" -gt 0 ]]; then
+  ok "traced benign: PS4 instrument live ($MARKED marked trace line(s))"
+else
+  fail "traced benign: PS4 instrument marked 0 trace lines; the spawn assertions below would pass on no evidence"
+fi
 if [[ "$(cr_count "$TRACE_REPO/benign.md")" == "0" ]]; then
   ok "traced benign: fixture is already LF, so the hook has nothing to rewrite"
 else
@@ -433,14 +449,14 @@ fi
 # A file directly under the filesystem root (`/README.md`) cannot be created
 # without privileges on any CI host, and hook::read_file_path's `-f` test runs
 # before FILE_DIR is computed, so no black-box input reaches that block. The
-# hook's own FILE_DIR lines are lifted from its source and run here instead.
-# The parameter-expansion strip leaves an empty string for such a path, and
-# hook::repo_root reads an empty hint as `.`, the hook process CWD, where the
-# `dirname` it replaced answered `/`. An empty extraction fails loudly so a
-# refactor that moves the block cannot pass by testing nothing.
-FILE_DIR_LINES="$(awk 'index($0, "FILE_DIR=\"${FILE%/*}\"") == 1 { p = 1 } /^REPO_ROOT=/ { p = 0 } p' "$HOOK")"
+# FILE_DIR lines of hook::begin are lifted from the copy this plugin ships and
+# run here instead. The parameter-expansion strip leaves an empty string for
+# such a path, and hook::repo_root reads an empty hint as `.`, the hook process
+# CWD, where the `dirname` it replaced answered `/`. An empty extraction fails
+# loudly so a refactor that moves the block cannot pass by testing nothing.
+FILE_DIR_LINES="$(awk 'index($0, "FILE_DIR=\"${FILE%/*}\"") { p = 1 } index($0, "REPO_ROOT=") { p = 0 } p' "$HOOK_DIR/hook-utils.sh")"
 if [[ -z "$FILE_DIR_LINES" ]]; then
-  fail "root-level: FILE_DIR block not found in $(basename "$HOOK")"
+  fail "root-level: FILE_DIR block not found in hook-utils.sh"
 else
   for pair in "/README.md=/" "README.md=." "/a/b.md=/a" "/a/b/c.md=/a/b"; do
     IN="${pair%%=*}"

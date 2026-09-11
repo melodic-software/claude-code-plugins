@@ -15,7 +15,7 @@ Severity is computed per finding, not per section. A section with all-INFO findi
 ## Skeleton
 
 ```markdown
-# Claude observability — <SCOPE> (<window>)
+# Claude observability: <SCOPE> (<window>)
 
 Generated: <ISO timestamp>
 Repo: <slug> · Branch: <name>
@@ -47,13 +47,13 @@ rates, while subscription usage is plan-priced.
 | **Total** | **8.9M** | **3.5M** | **2.5:1** |
 
 A high read-to-creation ratio means caching is working. Creation staying high turn after turn means
-something keeps changing the request prefix — causes:
+something keeps changing the request prefix. Causes:
 <https://code.claude.com/docs/en/prompt-caching#actions-that-invalidate-the-cache>
 
 ## Rate-limit velocity
 
-- five_hour: avg <V%>/hr, current used <U%>, projected 100% in <T hr> (resets in <R hr>) — <severity>
-- seven_day: avg <V%>/hr, current used <U%>, projected exhaustion <date> — <severity>
+- five_hour: avg <V%>/hr, current used <U%>, projected 100% in <T hr> (resets in <R hr>): <severity>
+- seven_day: avg <V%>/hr, current used <U%>, projected exhaustion <date>: <severity>
 
 <table of paired-sample deltas>
 
@@ -88,12 +88,12 @@ Failed-then-fixed retries:
 
 Top recurring (same `<bin>:<sha16>` ≥ 3×):
 
-- `5× claude:<sha16>` — repeated hallucination, escalation candidate
+- `5× claude:<sha16>`: repeated hallucination, escalation candidate
 - (or) `_no recurrences_`
 
 ## Drift candidates
 
-- `MEDIUM` `<rule.md>` cites `<path>` — not tracked in repo
+- `MEDIUM` `<rule.md>` cites `<path>`: not tracked in repo
 - (or) `No drift detected.`
 
 ## Calibration
@@ -112,7 +112,7 @@ guard: ok
 sessions: 12 file(s), newest <session_id>
 shared: 340 event(s) in hook-events.jsonl
 prune-pending: none
-logging: on; categories: all; keep: 30 sessions or 14 days; pre-prune: none
+envelope: 1210 row(s) from the audit hooks, outside the switch; event log: on; categories: all; keep: 30 sessions or 14 days; pre-prune: none
 ```
 
 The last section is the six lines of `probe-observability-state.sh --pipeline`, verbatim. A
@@ -121,7 +121,7 @@ The last section is the six lines of `probe-observability-state.sh --pipeline`, 
 ## Per-session skeleton (`session` and `session:<id>` scopes)
 
 ```markdown
-# Claude observability — session <session_id>
+# Claude observability: session <session_id>
 
 Generated: <ISO timestamp>
 Repo: <slug> · Branch: <name> · File: sessions/<session_id>.jsonl (<N> rows, <first ts> → <last ts>)
@@ -142,14 +142,14 @@ emit `data.session_id`; other hooks appear only in the whole-root report.
 
 ## Blocked
 
-- `<ts>` `<hook>` `<event>` — `<subject>`
+- `<ts>` `<hook>` `<event>`: `<subject>`
 - (or) `_nothing blocked_`
 
 ## Rewrote
 
-- `<ts>` `<hook>` — `<subject>`
+- `<ts>` `<hook>`: `<subject>`
 - (or) `_nothing rewritten_` when rows carry `changed` and every value is false
-- (or) `_no data — no producer in this session reported a rewrite verdict_` when no row carries it
+- (or) `_no data: no producer in this session reported a rewrite verdict_` when no row carries it
 
 ## Event timeline
 
@@ -157,7 +157,7 @@ emit `data.session_id`; other hooks appear only in the whole-root report.
 |---|---|---|---|---|---|
 
 Per turn (`prompt_id`): <N> turns, <max> events in the busiest. Subagents (`agent_id`): <N>.
-(or) `_no data — session_event_log_enabled is off; /claude-ops:setup to turn it on_`
+(or) `_no data: session_event_log_enabled is off; /claude-ops:setup to turn it on_`
 
 ## Toggles and retention in effect
 
@@ -174,12 +174,12 @@ mentions them the line reads "legacy rows, shared file, time proximity only".
 - **Counts before percents** in summary lines (`12× retries` not `0.85% of events`)
 - **Currencies** always 2-decimal, prefixed `$`
 - **Durations** ms when < 1000, otherwise `Xs` with one decimal
-- **Empty sections** render with `_no data — <reason>_` not omitted (presence-of-section is itself signal)
-- **Cache health is reported, never graded** — upstream documents the read-to-creation direction but
+- **Empty sections** render with `_no data: <reason>_` not omitted (presence-of-section is itself signal)
+- **Cache health is reported, never graded.** Upstream documents the read-to-creation direction but
   publishes no threshold, so any HIGH/MEDIUM cutoff would be invented here rather than sourced. It
   is also the one section sourced from the OTEL store rather than ccusage, which is why it sits
   apart from Token / cost instead of adding columns to it
-- **The Token / cost caveat line is fixed copy** — Claude Code documents the same list-rate
+- **The Token / cost caveat line is fixed copy.** Claude Code documents the same list-rate
   limitation for its own locally computed dollar figures
   (<https://code.claude.com/docs/en/costs.md>, verified 2026-08-10)
 
@@ -209,10 +209,10 @@ That prints `${CLAUDE_PLUGIN_DATA}/reports/<state-key>/claude-observability-<dat
 
 One file per project per date is the deliberate retention shape: a same-day rerun of the same project replaces its own earlier report. Any `claude-observability-<date>.md` sitting directly under `reports/` is an unkeyed leftover from the older layout. The script names it on stderr: offer it to the operator as a file they may delete, and do not read it.
 
-Reports are working artifacts — copy one into the consumer project only if it is durably useful (rare).
+Reports are working artifacts. Copy one into the consumer project only if it is durably useful (rare).
 
 ## What this template intentionally omits
 
-- Recommendations / action items — `/claude-ops:observability` surfaces signals, user decides what to act on
-- Per-session token and cost drill-down — the per-session skeleton covers hooks and events; use ccusage MCP directly for a session's tokens
-- Cross-repo data — out of scope; observability is project-local
+- Recommendations / action items: `/claude-ops:observability` surfaces signals, user decides what to act on
+- Per-session token and cost drill-down: the per-session skeleton covers hooks and events; use ccusage MCP directly for a session's tokens
+- Cross-repo data: out of scope; observability is project-local

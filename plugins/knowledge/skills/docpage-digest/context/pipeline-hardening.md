@@ -6,12 +6,12 @@ rules and each gate's blind spots; this file owns the format, invocation, and
 pin-manifest shape so `SKILL.md` stays a procedure.
 
 **Prerequisite:** `python3` (3.9+) on PATH for the two standing gates under
-`scripts/`. Missing Python means say so and stop — there is no agent-judgment
+`scripts/`. Missing Python means say so and stop. There is no agent-judgment
 fallback for a deterministic quote/snippet check.
 
 ## Fence mandate
 
-Every verbatim quote — Key claims and Prompt snippets — lives in a **column-0
+Every verbatim quote, both Key claims and Prompt snippets, lives in a **column-0
 fenced container**. Labels on Key claims are bold `**CN.**` (C1, C2, …).
 
 Why fencing is the only remedy that held:
@@ -26,7 +26,7 @@ Shape (Key claims):
 
 - A `## Key claims` (or `## Key claims (verbatim)`) heading.
 - One `**CN.**` label per claim, optional tag after the label.
-- Immediately after, a column-0 fence whose payload is the quote *bytes* —
+- Immediately after, a column-0 fence whose payload is the quote *bytes*:
   trailing spaces kept, no indent on the opener, no `.strip()` anywhere.
 
 Shape (Prompt snippets):
@@ -64,7 +64,7 @@ two gates the evidence is `scripts/test_check_fences_exact.py` and
 `scripts/test_check_snippets.py` (empty input, zero-parse, indented fence,
 stripped trailing space, blockquote/inline substitutes, fabricated
 quote/snippet). A newly written gate is not a required artifact until that
-suite is green — the ordering is the one `SKILL.md` already states.
+suite is green. The ordering is the one `SKILL.md` already states.
 
 ## Freeze / pin
 
@@ -94,7 +94,7 @@ After every dispatched digest agent has *returned*:
 
 That manifest freezes the tree for the verification window. Each arm hashes
 what it audits and states those hashes in its verdict. A mismatch is BLOCKED,
-not a content finding — re-pin and re-run the arm.
+not a content finding. Re-pin and re-run the arm.
 
 **A verdict file on disk is an intermediate write, never a report.** Do not
 apply corrections, re-pin, or tick an arm complete because a verdict file
@@ -107,12 +107,12 @@ Dominant failure mode of the cloud-fleet run, ahead of any content defect
 refused fan-out). `SKILL.md`'s degraded-verifier rule covers a *missing*
 cross-vendor arm, not a session that cannot spawn.
 
-1. **Retry window** — re-dispatch the same brief once; record the death and
+1. **Retry window**: re-dispatch the same brief once; record the death and
    the retry.
-2. **Inline-with-disclosure** — if the retry also dies, the orchestrator
+2. **Inline-with-disclosure**: if the retry also dies, the orchestrator
    completes that unit inline and records `inline-with-disclosure` naming the
    dead slot and the unit.
-3. **Degraded marker + re-run trigger** — if inline is impossible, write the
+3. **Degraded marker + re-run trigger**: if inline is impossible, write the
    marker on the checklist (and the verdict header if an arm is what died)
    and name the unfinished units. Do not tick the phase complete.
 

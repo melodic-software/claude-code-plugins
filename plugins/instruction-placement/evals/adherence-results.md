@@ -1,4 +1,4 @@
-# Adherence measurement — result: no detectable effect
+# Adherence measurement result: no detectable effect
 
 This plugin shipped with a claim it had not measured: that a convention delivered at the moment a
 matching file is read is followed more reliably than the same convention buried in a large
@@ -64,7 +64,7 @@ had a ceiling and could not have detected a smaller effect. Specifically unteste
 - Many competing conventions at once, where attention is genuinely rivalrous.
 - Weaker or older models. The official guidance predates current models, and long-context
   instruction-following has moved; a result on today's model is not a result on last year's.
-- Instruction shapes other than a crisp, checkable rule — a nuanced judgment call may behave
+- Instruction shapes other than a crisp, checkable rule. A nuanced judgment call may behave
   differently from "declare it sealed".
 
 ## What changed because of it
@@ -74,11 +74,11 @@ an unmeasured claim that measurement contradicts does not get to stay as a hedge
 
 The plugin's justification now rests on the three things that **are** demonstrable:
 
-1. **Context economy** — always-loaded lines released are directly measurable, and the trade is
+1. **Context economy**: always-loaded lines released are directly measurable, and the trade is
    stated per proposal rather than assumed.
-2. **The promote lane** — conventions Claude currently loads *never* have no presence to lose, so
+2. **The promote lane**: conventions Claude currently loads *never* have no presence to lose, so
    any working destination is a strict improvement. No adherence claim is needed for this to hold.
-3. **Reachability** — the generated index makes deferred surfaces reachable from subagents, which is
+3. **Reachability**: the generated index makes deferred surfaces reachable from subagents, which is
    a measured mechanic, not an inference.
 
 Anyone weighing whether to run a migration should weigh it on context cost and on the promote lane,

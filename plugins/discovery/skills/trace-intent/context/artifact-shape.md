@@ -1,4 +1,4 @@
-# Artifact shape — `INTENT.md` and its sidecars
+# Artifact shape: `INTENT.md` and its sidecars
 
 The on-disk shape of a `/discovery:trace-intent` run's output. `SKILL.md` carries the mandate; this
 file carries the header schema and the reasoning behind it.
@@ -15,23 +15,23 @@ It is deliberately **not** a shared lifecycle-protocol kind: it has no entry in
 `reference/artifact-protocol.md`, no downstream skill consumes it by name, and nothing outside this
 plugin is entitled to its shape.
 
-## The index — `INTENT.md`
+## The index: `INTENT.md`
 
 Everything the shared shape requires, plus one section the other two families do not have:
 
 1. **The why-question restated**, with the code anchor it was asked about.
 2. **One-line abstract per sidecar**, copied verbatim from that sidecar's `abstract` field.
 3. **Section → file + anchor table.**
-4. **Sources consulted** — one line per evidence category, *including every category that found
+4. **Sources consulted**: one line per evidence category, *including every category that found
    nothing*, in the form `SKILL.md`'s Output section specifies.
 
-**Item 4 lives in the index, not in a sidecar, and that placement is load-bearing.** The coverage map
+**Item 4 lives in the index, not in a sidecar, and that placement is deliberate.** The coverage map
 is the part of this artifact a reader most needs and is least likely to go looking for: someone who
 opens `INTENT.md`, finds a confident-sounding answer, and stops has taken the answer without the
 shape of the record behind it. A sidecar is opt-in reading; the index is not. Where a run's whole
 census sits in `Speculative` and `Unknown`, the index is where a reader has to meet that.
 
-## The sidecars — `INTENT-<section>.md`
+## The sidecars: `INTENT-<section>.md`
 
 Siblings of the index, inside the same slice directory, each opening with this header:
 
@@ -52,24 +52,24 @@ produced_by: <evidence category or investigation pass>
 ---
 ```
 
-`Unknown` claims carry `sources[]` too, and theirs name **what was searched**, not what was found —
-that is what makes "we looked and it is not written down anywhere" a checkable statement rather than
+`Unknown` claims carry `sources[]` too, and theirs name **what was searched**, not what was found.
+That is what makes "we looked and it is not written down anywhere" a checkable statement rather than
 a shrug.
 
 ## Two properties are why this is a contract rather than prose
 
 **`tier` is readable off the header.** A verifier who never saw the run can grade tier assignment
-mechanically — pull every `tier: Direct` claim, check that each one's `sources[]` actually contains
+mechanically: pull every `tier: Direct` claim, check that each one's `sources[]` actually contains
 someone stating the intent. That is the same property `verified:` buys the exploration header and
 `sources[]` buys the research one, and it is the reason the outcome gate can split: the producer
 assembles the evidence, and a fresh context renders the verdict.
 
 **`reliability` is a sibling of `ref`, not of `tier`.** Every comparator scheme separates evidence
-directness from source reliability and forbids merging them — ICD 203 explicitly, and GRADE and
+directness from source reliability and forbids merging them: ICD 203 explicitly, and GRADE and
 Admiralty AJP-2.1 by construction. Only `tier` routes a claim to an output section; `reliability`
 annotates the citation and never routes. Collapsing them would put a review comment by the change's
 author and a four-year-old wiki page in different tiers when they are both, factually, someone
-writing down why — and the whole scale would stop measuring inferential distance and start measuring
+writing down why, and the whole scale would stop measuring inferential distance and start measuring
 a vague feeling about the source.
 
 ## Why not either sibling's header
@@ -79,7 +79,7 @@ and it is the mistake this file exists to prevent:
 
 - **The research header's fields are `confidence`, source `tier` (0-3), and publishing `pool`.**
   Those describe external evidence and its authority. An intent run has no publishing pool, and its
-  tier measures a different thing entirely — inferential distance from an explicit statement, not
+  tier measures a different thing entirely: inferential distance from an explicit statement, not
   source authority. A run handed that header either fabricates pool values it has none of, or
   improvises a shape no consumer can parse. The fabrication is the worse outcome, because it
   launders "someone hinted at this in a merge thread" into the field a fetched primary source
@@ -90,4 +90,4 @@ and it is the mistake this file exists to prevent:
   entirely rather than landing at its bottom rung.
 
 **The header set is closed; the sidecar set is open.** Adding a sidecar needs no schema change.
-Adding a header *field* does — keep the header small enough that widening it stays cheap.
+Adding a header *field* does, so keep the header small enough that widening it stays cheap.

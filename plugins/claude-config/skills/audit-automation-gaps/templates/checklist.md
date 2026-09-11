@@ -4,10 +4,10 @@ Copy into your working task notes. Tick as each phase completes.
 
 ## Phases
 
-- [ ] Phase 1: Discover candidates (self-generated) — enumerate automation gaps across hooks + MCP + skills + agents + scheduled routines
-- [ ] Phase 2: Deep-dive each candidate — evaluate against the enforcement hierarchy (compiler / analyzer / hook / CI / docs); cost-benefit analysis
-- [ ] Phase 3: Present results — categorized recommendations with rationale + anti-noise doctrine compliance
-- [ ] Phase 4: Implement (if `--implement` or user requests) — apply approved candidates with plan + incremental validation
+- [ ] Phase 1: Discover candidates (self-generated). Enumerate automation gaps across hooks + MCP + skills + agents + scheduled routines
+- [ ] Phase 2: Deep-dive each candidate. Evaluate against the enforcement hierarchy (compiler / analyzer / hook / CI / docs); cost-benefit analysis
+- [ ] Phase 3: Present results. Categorized recommendations with rationale + anti-noise doctrine compliance
+- [ ] Phase 4: Implement (if `--implement` or user requests). Apply approved candidates with plan + incremental validation
 
 ## Anti-noise doctrine (applied throughout Phase 2)
 

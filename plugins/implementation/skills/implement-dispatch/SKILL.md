@@ -50,10 +50,11 @@ Because the orchestrator stays on the default branch, **every source-touching op
    frontier routing, dispatches at the frontier tier's current alias, and a run that cannot
    resolve that alias STOPs (autonomously: escalates) rather than dispatching lower, and a session
    whose own model resolves above the binding may pass that model. Never pass a `model` that
-   undercuts the frontmatter binding for source-editing work. (Model resolution order:
-   `CLAUDE_CODE_SUBAGENT_MODEL` when set to anything but `inherit`, then the per-invocation `model`
-   parameter, then the definition's `model` frontmatter, then the main conversation's model, per
-   <https://code.claude.com/docs/en/sub-agents>, verified 2026-08-10.)
+   undercuts the frontmatter binding for source-editing work. (Model resolution order: the
+   per-invocation `model` parameter, then the definition's `model` frontmatter, then
+   `CLAUDE_CODE_SUBAGENT_MODEL` when set to a model alias or id, then the main conversation's model,
+   per <https://code.claude.com/docs/en/sub-agents#choose-a-model>, verified 2026-09-11. Recheck when
+   a release note touches subagent model selection.)
    Dispatch a wave and keep working while it runs: verify returns from the same phase as they
    arrive, compose the next brief, and run the build/test gate on accepted returns. Intervene when
    a worker goes off track or is missing context. Do not block on the slowest worker before
@@ -121,5 +122,5 @@ The phase-boundary ritual and resume-prompt emission are the same either way. Re
 - **New shebang files need `chmod`, then `git add`, then `git update-index --chmod=+x`. In that order.** Brief every worker: `chmod +x <path>`, then `git add <path>` (a not-yet-tracked file fails `git update-index --chmod=+x` outright. It can't override the index mode of a path that isn't staged yet), then `git update-index --chmod=+x <path>` to force the index mode explicitly (skip symlinks, staged `120000`, they fail the same command), a shebang file staged non-executable trips the `exec-bit` check
 - **Push early, before the CI-poll tail. But never the PR.** Brief every worker to commit and push as early as practical rather than deferring until its fix-and-verify loop is done, so a mid-session death never orphans unpushed work. This is a source-only checkpoint commit. The phase-boundary plan-mark commit (Step 4) still runs separately, orchestrator-side, once the phase's acceptance criteria are verified. PR creation stays out of every worker brief. It happens in the orchestrator's post-verification flow (`/implementation:implement` Step 5) after every return is verified and the build/test gate passes
 - **Scope-fence drift applies to agent returns.** Every worker return is a decision boundary. Classify proposed follow-ups per `/implementation:implement` "Step 3.5: Scope-fence drift detector (run at every decision boundary)" before announcing them
-- **The capability-tier binding lives in agent frontmatter. Don't undercut it.** Workers dispatch as `implementation:implementer` and phase verifiers as `implementation:phase-verifier`; a generic subagent type inherits the orchestrator's model, which under a fast orchestrator root silently runs implementers at orchestrator strength. A per-invocation `model` routes only upward (frontier-alias for security-surface work, or the session's own higher tier); and a `CLAUDE_CODE_SUBAGENT_MODEL` environment variable set to anything but `inherit` outranks even the frontmatter binding. Keep it unset for orchestrated runs
+- **The capability-tier binding lives in agent frontmatter. Don't undercut it.** Workers dispatch as `implementation:implementer` and phase verifiers as `implementation:phase-verifier`; a generic subagent type inherits the orchestrator's model, which under a fast orchestrator root silently runs implementers at orchestrator strength. A per-invocation `model` routes only upward (frontier-alias for security-surface work, or the session's own higher tier). `CLAUDE_CODE_SUBAGENT_MODEL` ranks below both the per-invocation parameter and the frontmatter, so it cannot undercut the binding; it decides only where neither is set, which is the generic-subagent case this bullet already rules out
 - **An omitted `--wave-cap` keeps the internal 3–5. Never coerce an absent value into a number.** Only cap at `N` when the caller passed a real positive integer; a missing, empty, or unresolved-placeholder argument means "use the internal default," not `0` and not a hard `1`

@@ -1,6 +1,6 @@
-# Coaching Protocol — Dynamic Guided Dialog
+# Coaching Protocol: Dynamic Guided Dialog
 
-Pat Pattison teaches by guiding — never by lecturing. The AI applying this
+Pat Pattison teaches by guiding, never by lecturing. The AI applying this
 skill MUST coach the writer step-by-step, surfacing choice points, applying
 the relevant Pat tool to the writer's answer, and proceeding only when the
 writer has chosen. This file codifies the dialog mechanics.
@@ -10,39 +10,41 @@ loop, no phase list, no option quota and no anti-pattern table; the four books
 are written prose, not transcripts of him coaching. Every count in this file
 (≥3 options, 3-15 labeled options, the six sanity-check phases) is a repo
 default. What is genuinely his is the stance the mechanics serve, and the craft
-tools each step applies — those are cited where they appear.*
+tools each step applies. Those are cited where they appear.*
 
-> "There are no rules, only tools." — *Writing Better Lyrics* (2009),
+> "There are no rules, only tools." From *Writing Better Lyrics* (2009),
 > Chapter 18. He prints the same stance in *Essential Guide to Rhyming*
 > (2014), Chapter 4: "there are no rules. Only tools."
 
+<!-- ai-slop-ignore-start: correction note quoting the retired fabricated attribution line verbatim -->
 <!-- CORRECTED. This block-quoted '"Tools, not rules." — Pat Pattison
      (recurring column / seminar framing…)'. In that word order the phrase
-     appears in NONE of the four books — 0 hits, wrap-safe, all four. It is the
+     appears in NONE of the four books: 0 hits, wrap-safe, all four. It is the
      title of his *American Songwriter* column, not something he is recorded
      saying, so presenting it as a Pat quotation invented a quotation out of a
      masthead. Replaced with the two sentences he actually prints. Note for the
      next sweep: the orchestrator's table records this fabrication as "All
-     fixed" after three sites were repaired. It was not — it survived here, and
+     fixed" after three sites were repaired. It was not. It survived here, and
      still survives in two other files plus one template (see HANDOFF). -->
+<!-- ai-slop-ignore-end -->
 
-The protocol exists because generic LLM defaults — long monologues, 14-step
-plans pre-decided, single-pick recommendations — directly contradict Pat's
-coaching practice. The AI must throttle itself into one-question dialog,
+The protocol exists because generic LLM defaults directly contradict Pat's
+coaching practice: long monologues, 14-step plans pre-decided, single-pick
+recommendations. The AI must throttle itself into one-question dialog,
 even when it could spit out an answer.
 
-## Stance — coach posture, not author posture
+## Stance: coach posture, not author posture
 
 | Author posture (WRONG) | Coach posture (RIGHT) |
 |---|---|
-| "Here's the new chorus I wrote." | "What does this chorus need to do — land the emotion, hold the title, or hand off to the bridge?" |
-| "The title should be X." | "Three title candidates: A / B / C — what does each one tell you about the song?" |
-| "Your second verse is weak. Rewrite it." | "Verse 2 — is it developing the idea or restating verse 1? Read it aloud and notice." |
+| "Here's the new chorus I wrote." | "What does this chorus need to do: land the emotion, hold the title, or hand off to the bridge?" |
+| "The title should be X." | "Three title candidates: A / B / C. What does each one tell you about the song?" |
+| "Your second verse is weak. Rewrite it." | "Verse 2: is it developing the idea or restating verse 1? Read it aloud and notice." |
 | "I'll give you 5 options." | "What's the dominant feeling you're chasing in this line? Then we can generate options that serve it." |
 
 The author posture imposes the AI's voice. The coach posture surfaces the
 writer's voice. Pat's books, columns, courses, and workshops all model
-coach posture — the AI's job is to do the same.
+coach posture. The AI's job is to do the same.
 
 ## The depth-first dialog loop
 
@@ -51,7 +53,7 @@ line, develop a fragment, diagnose a draft, brainstorm options), the AI
 runs this loop:
 
 ```
-1. Ask ONE question that narrows the load-bearing unknown
+1. Ask ONE question that narrows the decisive unknown
 2. Wait for the writer's answer (silence = wait, not assume)
 3. Restate what's decided + what's still open
 4. Apply Pat's relevant tool to the answer
@@ -59,9 +61,9 @@ runs this loop:
 6. Repeat from 1 until a sanity check is satisfied
 ```
 
-The load-bearing unknown is the one whose answer changes the most about
+The decisive unknown is the one whose answer changes the most about
 what follows. Example: "What's the song about" matters more than "What
-key is it in" — settle the larger first.
+key is it in". Settle the larger first.
 
 ## When to ask vs decide
 
@@ -82,18 +84,18 @@ a full revision pass.
 Forbidden patterns:
 
 - ✗ "What's the song about, who's speaking, what's the POV, what form,
-  what tempo, what genre, what era?" — 7 questions, none answered well
-- ✗ "Tell me everything about the song." — vague; the writer doesn't know
+  what tempo, what genre, what era?" That is 7 questions, none answered well
+- ✗ "Tell me everything about the song." Vague; the writer doesn't know
   where to start
 
 Required pattern:
 
-- ✓ "What's the dominant feeling you want the listener to land with?" —
-  one question, narrow, the answer narrows everything else
+- ✓ "What's the dominant feeling you want the listener to land with?"
+  One question, narrow, the answer narrows everything else
 
 After the answer:
 
-- ✓ "Got it — wistful with a thread of hope. So we're chasing forward
+- ✓ "Got it: wistful with a thread of hope. So we're chasing forward
   motion that resolves. What's the closest thing to a title or central
   image so far, or are we starting from feel only?"
 
@@ -139,7 +141,7 @@ through application, not lecture.
 ## Surface choice points, ≥3 options
 
 When the AI generates options for the writer, surface 3-15 labeled
-options — never one pick:
+options, never one pick:
 
 ```
 Title candidates (5):
@@ -166,7 +168,7 @@ When a writer says "you decide", the AI:
 This preserves the writer's agency without forcing the dialog when the
 writer wants a draft.
 
-Example — invented illustrative dialogue, not a Pat quotation. It is fenced
+Example: invented illustrative dialogue, not a Pat quotation. It is fenced
 rather than block-quoted precisely so it cannot be mistaken for one (the
 mechanical quote checker flagged all three of its sentences while it was in a
 `>` block):
@@ -190,7 +192,7 @@ Each coaching phase ends with a sanity check the writer can affirm:
 | Pick the title | Stressed vowel identified, rhyme-stability tested, form-fit named |
 | Draft the central section | Reads aloud naturally, title sits in a hot spot, no greedy spots, ≥1 sense-bound image |
 | Draft verses | Verse 1 sets up, verse 2 develops (not travelogues), POV consistent |
-| Bridge decision | Either no bridge OR a bridge that does all three of the jobs *Essential Guide to Lyric Form and Structure* (1991), Ch 6 lists — he presents them as three things one bridge does together, not a menu to satisfy one of |
+| Bridge decision | Either no bridge OR a bridge that does all three of the jobs *Essential Guide to Lyric Form and Structure* (1991), Ch 6 lists. He presents them as three things one bridge does together, not a menu to satisfy one of |
 | Pre-lock | All applicable response-filter sections pass, writer affirms aloud-reading |
 
 When the sanity check passes, the AI says so out loud and offers the next
@@ -207,7 +209,7 @@ Coaching dialog routes to another action when:
 - Writer wants form / song-shape options → `/songwriting:song-form song-forms`
 
 The AI names the route and asks if the writer wants to take it. The
-coaching dialog doesn't pretend to cover everything — it routes when a
+coaching dialog doesn't pretend to cover everything. It routes when a
 specialized action is the right tool.
 
 ## Anti-pattern catalog
@@ -224,39 +226,39 @@ specialized action is the right tool.
 
 ## Anchor stance
 
-**All three quotes below are UNAUDITED** — spoken, non-book sources catalogued in
+**All three quotes below are UNAUDITED**: spoken, non-book sources catalogued in
 `beyond-books.md`. Measured wrap-safe across all four books: `Music means
 nothing` = 0 hits, `Verbs are the amplifiers` = 0 hits, `telling people who you
 are` = 0 hits. Absence from the corpus is not evidence against a spoken source,
-so they stay — but do not re-cite any of them to a book, and do not treat them as
+so they stay, but do not re-cite any of them to a book, and do not treat them as
 verbatim.
 
 > "Music means nothing. Music only feels. Words mean."
-> — Pat Pattison (Berklee Alumni Webinar Master Class) — **unaudited**
+> Pat Pattison (Berklee Alumni Webinar Master Class), **unaudited**
 
 > "When you're writing a song, it's not about telling people who you are.
 > It's about telling people who they are."
-> — Pat Pattison (Songwriting Planet interview, 2014) — **unaudited**
+> Pat Pattison (Songwriting Planet interview, 2014), **unaudited**
 
 > "Verbs are the amplifiers of language."
-> — Pat Pattison (Unpaved interview) — **unaudited**. Printed and citable
-> instead: "They're the most potent force in language. […] The difference
-> between average and great writing: verbs." — *Songwriting Without Boundaries*
-> (2011), Challenge 2.
+> Pat Pattison (Unpaved interview), **unaudited**. Printed and citable
+> instead, from *Songwriting Without Boundaries* (2011), Challenge 2: "They're
+> the most potent force in language. […] The difference between average and
+> great writing: verbs."
 
-The coaching protocol exists so the AI's process matches Pat's process —
+The coaching protocol exists so the AI's process matches Pat's process:
 the writer's voice arrives at the writer's song.
 
 ## Cross-references
 
-- [response-filter.md](response-filter.md) — pre-flight gate; coaching
+- [response-filter.md](response-filter.md): pre-flight gate; coaching
   protocol is filter §4
-- [workflows.md](workflows.md) — scenario-level guidance the protocol
+- [workflows.md](workflows.md): scenario-level guidance the protocol
   operates inside
-- [process.md](process.md) — Pat's writing process (book-level)
-- [co-writing.md](co-writing.md) — No-Free-Zone protocol; coaching
+- [process.md](process.md): Pat's writing process (book-level)
+- [co-writing.md](co-writing.md): No-Free-Zone protocol; coaching
   posture is the solo-write equivalent
-- [action-routing.md](action-routing.md) — what specialized actions
+- [action-routing.md](action-routing.md): what specialized actions
   exist when coaching dialog routes out
-- [book-references.md](book-references.md) — canonical naming for sourced
+- [book-references.md](book-references.md): canonical naming for sourced
   principles

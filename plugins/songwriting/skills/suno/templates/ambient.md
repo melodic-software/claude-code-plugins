@@ -47,7 +47,7 @@ Slow fade across 60+ seconds
 
 - **Subgenre swap:** `dark ambient` → `bright ambient` (Brian Eno-style), `drone ambient`, `ambient techno`, `ambient pop`, `space ambient`, `dungeon synth`
 - **Mood:** `contemplative and otherworldly` → `unsettling and dread-filled`, `peaceful and meditative`, `cosmic and vast`, `nostalgic and warm`
-- **Tempo:** 60 BPM (default — barely felt) → no tempo at all (`tempo-free`, `rubato`) → 80 BPM ambient pop
+- **Tempo:** 60 BPM (default, barely felt) → no tempo at all (`tempo-free`, `rubato`) → 80 BPM ambient pop
 - **Texture:** `ethereal pads` → `granular synthesis`, `tape-loop loops`, `analog modular drones`, `processed field recordings`
 - **Reverb:** `infinite tail` → `cathedral reverb`, `spring reverb decay`, `dry intimate room`
 

@@ -139,8 +139,9 @@ section names. **Accept hits only from assistant text output**, in two stages:
   the rails markers rejected. No header at all → the session was not looping; surface nothing extra.
   **Do not add the note's placeholder tokens to the template-rejection list.** Unlike the rails
   template, the producer *really does* emit `<interval>` and `<the prompt you originally
-  launched it with>` verbatim on its no-launch-signal branch, under a `Re-arm <i> of <n> — <L>
-  lines:` header like any other entry (save-point.md "Loop-aware re-arm"), so rejecting on them would discard a
+  launched it with>` verbatim on its no-launch-signal branch, under a
+  `Re-arm <i> of <n> — <L> lines:` header like any other entry (save-point.md
+  "Loop-aware re-arm"), so rejecting on them would discard a
   genuine note; a transcript that merely read
   `save-point.md` is already rejected by the existing rails-template filter.
 - **Un-escape before surfacing.** Each transcript message is ONE physical JSONL line with its

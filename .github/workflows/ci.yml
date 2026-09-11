@@ -1027,7 +1027,7 @@ jobs:
       - name: Test the lane-coverage gate
         if: needs.changes.outputs.run_shell == 'true'
         run: bash scripts/check-lane-coverage.test.sh
-      - name: Check every ci.yml job is reachable from the ci-status aggregate
+      - name: Check every ci.yml job and gate step is fed to the ci-status aggregate
         id: lane_coverage
         continue-on-error: true
         run: scripts/check-lane-coverage.sh --check

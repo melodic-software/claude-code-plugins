@@ -11,9 +11,9 @@ This directory is the source of truth: `ecosystem.schema.json` (per-file schema)
 ## Why this contract exists
 
 Before it, the same command truth was encoded independently in at least three places across this
-marketplace — the `toolchain` plugin's `/toolchain:check` reference table, its `/toolchain:lint` reference table
+marketplace, in the `toolchain` plugin's `/toolchain:check` reference table, its `/toolchain:lint` reference table
 (already divergent from `/toolchain:check`'s), and the `review` `ecosystem-specialist` agent's inline
-defaults — with no consumer-declared source any of them could defer to. The concern is cross-plugin
+defaults, with no consumer-declared source any of them could defer to. The concern is cross-plugin
 by demonstrated fact, so the contract lives here in marketplace conventions (the same reasoning as
 `docs/conventions/hook-telemetry/`), not inside any one plugin.
 
@@ -21,18 +21,18 @@ by demonstrated fact, so the contract lives here in marketplace conventions (the
 
 The contract covers exactly one layer and deliberately excludes the other:
 
-- **Canonical verb — ONE concern, owned here.** Which tool and flags constitute "lint Python in this
+- **Canonical verb, ONE concern, owned here.** Which tool and flags constitute "lint Python in this
   repo" (`uv run ruff check . --no-fix`). When the verb changes, every surface that runs it must
   change together; divergence is always a bug. The verb belongs in exactly one place per repo: the
   `.claude/ecosystems/<ecosystem>.yaml` file.
-- **Context binding — SEVERAL concerns, owned elsewhere.** Which file set, when, with what wrapper:
+- **Context binding, SEVERAL concerns, owned elsewhere.** Which file set, when, with what wrapper:
   git hooks bind verbs to staged files (`{staged_files}` templating), CI binds them to the full
   solution with gate-specific flags, an agent binds them to a targeted project or single test.
   Bindings legitimately differ per surface and stay in that surface's own config (lefthook lanes, CI
   workflows), which should cite the ecosystem file for the canonical verb rather than treat their
   binding as a second source of truth.
 
-Tooling design is the evidence for the split: lefthook's file templating and pre-commit's
+The split shows up in tooling design: lefthook's file templating and pre-commit's
 staged-vs-`--all-files` modes exist precisely because the same literal command string is not correct
 across contexts.
 
@@ -43,8 +43,8 @@ identifier):
 
 ```text
 .claude/ecosystems/
-  dotnet.yaml            # tracked — team truth
-  dotnet.local.yaml      # gitignored — personal overlay
+  dotnet.yaml            # tracked, team truth
+  dotnet.local.yaml      # gitignored, personal overlay
   python.yaml
   ...
 ~/.claude/ecosystems/
@@ -57,23 +57,23 @@ resolution the extensibility contract specifies for tracked rich config, and the
 vendor-defaults-plus-drop-in-overrides shape the UAPI configuration-files specification
 standardizes). Recommended consumer `.gitignore` line: the recursive `.claude/**/*.local.*`.
 
-The drop-in folder form is deliberate: each ecosystem is an independent slice with its own lifecycle
-— adding one is a new file, retiring one is a deletion, and a toolchain change is a single-file diff.
+The drop-in folder form is deliberate: each ecosystem is an independent slice with its own lifecycle,
+so adding one is a new file, retiring one is a deletion, and a toolchain change is a single-file diff.
 
 ## Seam classification (recorded deviation)
 
 Extensibility contract v2.1 seam 2 names tracked rich config by *plugin* (`.claude/<plugin>.md|yaml`
 or `.claude/<plugin>/**`). This contract intentionally names the folder by **concern**
-(`.claude/ecosystems/`) instead — a recorded PRECEDENT-EXTENSION, one increment past the folder form:
+(`.claude/ecosystems/`) instead, a recorded PRECEDENT-EXTENSION one increment past the folder form:
 
 - The concern is consumed by more than one plugin (`implementation`, `review`, any future
-  verification-adjacent plugin). Plugin-naming would couple every other consumer — and the consuming
-  repo's tracked files — to one plugin's name.
+  verification-adjacent plugin). Plugin-naming would couple every other consumer, and the consuming
+  repo's tracked files, to one plugin's name.
 - Plugin boundaries are the volatile axis (skills move between plugins across restructures); the
   concern name is the stable one. A plugin split must not force consumer repos to migrate config.
 
 General rule this instance establishes: **when a tracked-config concern is consumed by more than one
-plugin, name the folder by concern and record the contract in `docs/conventions/`** — see
+plugin, name the folder by concern and record the contract in `docs/conventions/`**, per
 `docs/MIGRATION-PLAYBOOK.md` "Extensibility contract v2.1".
 
 The directory is `.claude/`-scoped but not Claude-walled: it is ordinary tracked YAML any agent or
@@ -94,13 +94,13 @@ Plugins resolve the command surface per the convention-resolution ladder
 4. Otherwise → the plugin's bundled portable defaults.
 
 Bundled portable defaults are schema-conformant per-ecosystem files shipped inside the plugin and
-used **only** at rung 4 — they are a fallback, never a peer source of truth, and a plugin never
+used **only** at rung 4. They are a fallback, never a peer source of truth, and a plugin never
 writes them into a consumer repo without the setup interview or an inference to persist.
 
 ## Schema
 
 Each `<ecosystem>.yaml` conforms to [`ecosystem.schema.json`](ecosystem.schema.json). Command values
-are **opaque shell strings** — the contract does not parse, template, or interpret them beyond the
+are **opaque shell strings**: the contract does not parse, template, or interpret them beyond the
 documented placeholders:
 
 | Placeholder | Meaning |
@@ -112,13 +112,13 @@ documented placeholders:
 
 `fix-cmd` is **format-only** (whitespace / import layout / style). Semantic/code-changing
 autofixes belong in optional `code-fix-cmd` and are invoked only by `/toolchain:lint --code-fix`
-behind that skill's confirmation / `--yes` gate — never by bare `--fix`.
+behind that skill's confirmation / `--yes` gate, never by bare `--fix`.
 
 Consumers are tolerant readers: unknown keys are inert, missing optional keys fall back to defaults.
 Consuming repos SHOULD validate their files against the schema in their own gates (a
-`check-jsonschema` hook or CI lane); plugins SHOULD fail soft — a malformed file degrades to rung 2
+`check-jsonschema` hook or CI lane); plugins SHOULD fail soft: a malformed file degrades to rung 2
 of the ladder with a warning, never a hard stop. Tolerant reading has a known edge: a misspelled
-key (`check_cmd` for `check-cmd`) passes the default schema check as an inert unknown key — repos
+key (`check_cmd` for `check-cmd`) passes the default schema check as an inert unknown key, so repos
 that want typo protection run `check-jsonschema --no-additional-properties` in their gate.
 
 ### Gate execution scope
@@ -126,17 +126,17 @@ that want typo protection run `check-jsonschema --no-additional-properties` in t
 A `gates[]` item's `cmd` runs, by default (`run-from: ecosystem`, the implicit default when the key
 is omitted), from the same location the ecosystem's own `build-cmd`/`test-cmd`/`check-cmd` use: once
 per `project-discovery` root, the `anchor`'s directory, or `$REPO_ROOT` when the ecosystem defines
-neither — unchanged from pre-`run-from` behavior. Set `run-from: repo-root` to force a single run
+neither, unchanged from pre-`run-from` behavior. Set `run-from: repo-root` to force a single run
 from `$REPO_ROOT` regardless of the ecosystem's `project-discovery` or `anchor`, for a repo-wide
 check (protobuf generation, schema freshness) declared under a `project-discovery` ecosystem that
-would otherwise run once per discovered project root — redundantly at best, failing in roots that
+would otherwise run once per discovered project root, redundantly at best and failing in roots that
 lack its config at worst. Under `run-from: repo-root`, a `cmd` using the `<files>` placeholder gets
 the full ecosystem-scoped changed-files set (the same base definition the placeholder table above
-gives), not one project's subset — there is no single project root left to scope it to.
+gives), not one project's subset, because there is no single project root left to scope it to.
 
 For the same reason, `<project-dir>` is **undefined** under `run-from: repo-root`: a single run has
-no one project root to bind it to, and both plausible fallbacks — picking a root arbitrarily, or
-iterating them — contradict the single-run guarantee the key exists to give. A gate `cmd` that uses
+no one project root to bind it to, and both plausible fallbacks, picking a root arbitrarily or
+iterating them, contradict the single-run guarantee the key exists to give. A gate `cmd` that uses
 `<project-dir>` while declaring `run-from: repo-root` is a configuration error; a resolver reports it
 as a failure naming the gate and the unresolvable placeholder rather than guessing an expansion. Such
 a gate is per-project by construction and belongs on the `ecosystem` default.
@@ -144,7 +144,7 @@ a gate is per-project by construction and belongs on the `ecosystem` default.
 `run-from` is canonical-verb metadata, not a context binding: like `anchor`
 and `project-discovery` (which already fix a gate's default execution location per repo), it is a
 repo-invariant fact about *this* gate's `cmd` that every execution surface must agree on, not a
-per-surface wrapper choice — so it belongs in the ecosystem file alongside them, not in a consuming
+per-surface wrapper choice, so it belongs in the ecosystem file alongside them, not in a consuming
 surface's own config.
 
 ## Task-runner deferral (recorded decision)
@@ -155,20 +155,20 @@ CI intentionally own divergent context bindings, and a runner adds a toolchain p
 removing the need for the declarative metadata (globs, anchors, install-hints) plugins reason over.
 
 Because command values are opaque strings, later adoption is a mechanical value swap
-(`check-cmd: 'task lint:python'` or `check-cmd: 'lefthook run lint-python'`) with zero schema change
-— the demotion path is designed in.
+(`check-cmd: 'task lint:python'` or `check-cmd: 'lefthook run lint-python'`) with zero schema
+change. The demotion path is designed in.
 
 **Recheck triggers** ([upstream-drift](../upstream-drift/README.md); either fires → re-evaluate):
 
 - The same logical verb's command string is maintained across 3+ execution surfaces such that one
   command bump requires 3+ coordinated edits; or
 - lefthook's `ai:` agent-settings key reaches stable AND the org's standards repo extends its managed
-  lefthook components to cover agent invocation — in which case the runner is lefthook itself, not a
+  lefthook components to cover agent invocation, in which case the runner is lefthook itself, not a
   new tool.
 
 ## Versioning
 
 The schema carries the contract version (`CHANGELOG.md`). Additive schema changes bump minor;
 breaking changes bump major, get a changelog entry with a migration note, and re-trigger the
-consuming plugins' version bumps (the plugin `version` is the only update-delivery vehicle — see
+consuming plugins' version bumps (the plugin `version` is the only update-delivery vehicle, per
 `docs/MIGRATION-PLAYBOOK.md` "Version pinning and update delivery").

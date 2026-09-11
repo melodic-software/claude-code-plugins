@@ -1103,6 +1103,66 @@
         "contents": "read",
         "issues": "write"
       }
+    },
+    "melodic-software/ci-workflows/.github/workflows/claude-review.yml@2c1de45aa0e1b1489afb8edfebc12cb3a4fa6ac3": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": ["runner", "pr-number", "timeout-minutes"],
+      "allowedSecrets": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}"
+      },
+      "allowedCallerPermissions": {
+        "contents": "read",
+        "pull-requests": "write",
+        "id-token": "write"
+      }
+    },
+    "melodic-software/ci-workflows/.github/workflows/checks.yml@2c1de45aa0e1b1489afb8edfebc12cb3a4fa6ac3": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": [
+        "runner",
+        "filters",
+        "timeout-minutes",
+        "typos",
+        "gitleaks",
+        "editorconfig",
+        "markdown",
+        "shellcheck",
+        "actionlint",
+        "exec-bit",
+        "machine-specific-paths",
+        "eol-renormalize",
+        "comment-hygiene",
+        "lychee-offline",
+        "check-jsonschema",
+        "check-jsonschema-files",
+        "check-jsonschema-builtin-schema",
+        "machine-specific-paths-exclude",
+        "comment-hygiene-exclude"
+      ],
+      "allowedSecrets": {},
+      "minimumCallerPermissions": {
+        "contents": "read",
+        "pull-requests": "read"
+      }
+    },
+    "melodic-software/ci-workflows/.github/workflows/link-check.yml@2c1de45aa0e1b1489afb8edfebc12cb3a4fa6ac3": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": [
+        "runner",
+        "args",
+        "issue-title",
+        "issue-labels",
+        "issue-type",
+        "auto-close"
+      ],
+      "allowedSecrets": {},
+      "allowedCallerPermissions": {
+        "contents": "read",
+        "issues": "write"
+      }
     }
   },
   "approvedHostedRunnerLabels": ["ubuntu-24.04", "windows-2025"],

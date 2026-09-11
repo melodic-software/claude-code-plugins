@@ -163,8 +163,8 @@ cites. Both OMG-hosted PDFs are read directly. Cite by version and clause, never
   excessively large source file (CWE-1080). Clause 8 (normative) gives the detection patterns and
   their default measurement parameters, among them §8.2.117 cyclomatic complexity 20, §8.2.115 a
   function's non-empty lines with a default stated as 5% and no base named, and §8.2.116 similar
-  code between two functions at 90%. Clause 6 is informative, and its CWE summary rows carry
-  different defaults from the patterns: 1000 lines per file for CWE-1080 and 10% for CWE-1041.
+  code between two functions at 90%. Clause 6 is informative, and its §6.3 Table 1 summary rows
+  carry different defaults from the patterns: 1000 lines per file for CWE-1080 and 10% for CWE-1041.
   MITRE's CWE entries corroborate the attachments from the other side through the ASCMM node IDs
   (CWE-1080 is ASCMM-MNT-8, CWE-1041 is ASCMM-MNT-19).
 - **Does not claim.** A 1000-line normative default, a threshold anywhere in clause 7, or any

@@ -135,6 +135,7 @@ deferred_ids=""
 expected=1
 
 in_fence=0
+skipped_fenced_row=0
 while IFS= read -r line; do
   # A fenced block inside the register section is documentation (the row shape,
   # a worked example), not data. Grading it would fail a ledger for quoting its
@@ -143,7 +144,12 @@ while IFS= read -r line; do
     in_fence=$((1 - in_fence))
     continue
   fi
-  [[ "$in_fence" -eq 0 ]] || continue
+  if [[ "$in_fence" -ne 0 ]]; then
+    if [[ "$line" =~ ^[[:space:]]*-[[:space:]]+[Qq][0-9]+([^0-9]|$) ]]; then
+      skipped_fenced_row=1
+    fi
+    continue
+  fi
 
   # Any non-fenced `- Q<N>` line is a CANDIDATE row; its shape is validated
   # below. The prefilter deliberately does not require the first pipe: a row
@@ -222,8 +228,12 @@ while IFS= read -r line; do
 done <<<"$section"
 
 if [[ "$registered" -eq 0 ]]; then
+  if [[ "$skipped_fenced_row" -eq 1 ]]; then
+    die_ungradeable "the register section holds no question rows in: $ledger (rows inside a fenced block are ignored by design; register rows must be unfenced)"
+  fi
   die_ungradeable "the register section holds no question rows in: $ledger"
 fi
+
 
 brief_state="unchecked"
 if [[ "$brief_named" -eq 1 ]]; then

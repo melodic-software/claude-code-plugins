@@ -1,4 +1,4 @@
-# Scope — the empty-argument ladder, resolved by script
+# Scope: the empty-argument ladder, resolved by script
 
 The plugin's `scripts/scope-code-files.sh` (`../../../scripts/scope-code-files.sh` from this file)
 resolves the ladder deterministically and prints the rung it landed on, the base it compared

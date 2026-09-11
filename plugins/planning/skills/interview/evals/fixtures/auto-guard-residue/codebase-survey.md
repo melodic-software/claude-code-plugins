@@ -1,4 +1,4 @@
-# Step 1 survey result — payments service (eval fixture)
+# Step 1 survey result: payments service (eval fixture)
 
 Stand in for what a Step 1 survey returns for the task in `task-context.md`. Findings only: what was
 searched, what was found, what was not. It does not say which of the task's open items are settled

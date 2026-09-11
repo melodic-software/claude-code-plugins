@@ -1,6 +1,6 @@
 # Community-validated tips & workflow
 
-Techniques here are **MEDIUM confidence** — multi-source consensus across community guides, YouTube tutorials, Reddit threads, but **NOT officially documented by Suno**. Effects are real (everyone agrees they work); exact magnitudes are folk wisdom.
+Techniques here are **MEDIUM confidence**: multi-source consensus across community guides, YouTube tutorials, Reddit threads, but **NOT officially documented by Suno**. Effects are real (everyone agrees they work); exact magnitudes are folk wisdom.
 
 Surface as **opt-in suggestions**, not commands. Default to HIGH-confidence techniques in `style.md` and `lyrics.md`.
 
@@ -20,7 +20,7 @@ PRESSURE IS RISING
 And I can't breathe anymore
 ```
 
-**Don't:** ALL-CAPS the entire chorus — effect dilutes to no effect.
+**Don't:** ALL-CAPS the entire chorus. The effect dilutes to no effect.
 
 ### Vowel stretching for melisma
 
@@ -57,7 +57,7 @@ L-i-v-e the moment
 W-a-t-c-h me now
 ```
 
-Don't overuse — works as accent, fails as a default.
+Don't overuse it. It works as an accent and fails as a default.
 
 ### Parenthetical cues for inline directives
 
@@ -72,7 +72,7 @@ She's looking at me (softly)
 Building, building (building)
 ```
 
-Reliable. HIGH confidence — close to documented behavior.
+Reliable. HIGH confidence, close to documented behavior.
 
 ### Line breaks for melodic separation
 
@@ -88,7 +88,7 @@ Good: I walked the streets last night
       Looking at me
 ```
 
-**Limit:** the separation a break buys can be too much of a good thing — stacks of very short lines can return with a pause after each one. The fix is a prompt-layer join, applied in the Suno lyrics field only. Bound and evidence: `lyrics.md` "Line breaks cut both ways".
+**Limit:** the separation a break buys can be too much of a good thing: stacks of very short lines can return with a pause after each one. The fix is a prompt-layer join, applied in the Suno lyrics field only. Bound and evidence: `lyrics.md` "Line breaks cut both ways".
 
 ### Manual repetition (vs `(x2)` notation)
 
@@ -117,21 +117,21 @@ She's gone [reverb tail]
 Take it back [crowd noise]
 ```
 
-MEDIUM confidence — works on 5/10 generations. Worth trying, regenerate if missed.
+MEDIUM confidence. Works on 5/10 generations. Worth trying, regenerate if missed.
 
 ### Timing cues
 
-**Effect:** `[at 0:15 vocals enter]`-style cues are reported to nudge timing. **No magnitude is stated here** — see the corpus below for why.
+**Effect:** `[at 0:15 vocals enter]`-style cues are reported to nudge timing. **No magnitude is stated here.** See the corpus below for why.
 
-**Use:** for atmospheric intros / outros, not load-bearing.
+**Use:** for atmospheric intros / outros, not for anything the track depends on.
 
 LOW-MEDIUM confidence. Use structural tags (`[Intro]`, `[Outro]`) as primary control; timing cues as secondary nudge.
 
 **No adherence figure is stated, and none may be added without a citation.** A 2026-08-12 search for a basis for any figure found nothing:
 
-- **In-repo:** `.work/` and `plugins/songwriting/` for `timing cue`, `at 0:15`, `adherence` — nothing states where the figure came from. First recorded at 1.1.1; re-run and still true.
+- **In-repo:** `.work/` and `plugins/songwriting/` for `timing cue`, `at 0:15`, `adherence`: nothing states where the figure came from. First recorded at 1.1.1; re-run and still true.
 - **Official:** `help.suno.com` articles [5782977](https://help.suno.com/en/articles/5782977) (805 chars) and [5782849](https://help.suno.com/en/articles/5782849) (1,177 chars), read verbatim; both bodies arrived whole, and neither mentions timestamp cues in the Lyrics box or any adherence rate. That absence is scoped to those two pages, not to Suno's documentation as a whole.
-- **Community:** two of the largest public meta-tag references — [Jack Righteous' Suno meta tags guide](https://jackrighteous.com/en-us/pages/suno-ai-meta-tags-guide) (22,687 chars) and [Blake Crosley's Suno guide, v5.5](https://blakecrosley.com/guides/suno) (93,464 chars) — carry **zero** occurrences of a `0:1`-style timestamp cue and **zero** occurrences of `70%`. Jack Righteous routes timing problems away from the prompt entirely: *"When timing, balance, cleanup, comping or production precision is the actual problem"* → Studio or DAW.
+- **Community:** two of the largest public meta-tag references, [Jack Righteous' Suno meta tags guide](https://jackrighteous.com/en-us/pages/suno-ai-meta-tags-guide) (22,687 chars) and [Blake Crosley's Suno guide, v5.5](https://blakecrosley.com/guides/suno) (93,464 chars), carry **zero** occurrences of a `0:1`-style timestamp cue and **zero** occurrences of `70%`. Jack Righteous routes timing problems away from the prompt entirely: *"When timing, balance, cleanup, comping or production precision is the actual problem"* → Studio or DAW.
 - r/SunoAI could not be searched from this environment (the search tool refuses `reddit.com`), so the community corpus above is guides only.
 
 **Recheck trigger:** a first-party Suno page documents timestamp cues in the Lyrics box, **or** a community source states a measured adherence rate for them together with its method. Not a date.
@@ -172,14 +172,14 @@ Artist names are filtered or ignored. Use the sound:
 
 Two macro-descriptors that cover the production layer for ~80% of pop / rock prompts:
 
-- `polished radio-ready production` — clean, compressed, modern, balanced
-- `lo-fi bedroom production` — warm, intimate, slightly muddy, low-budget feel
+- `polished radio-ready production`: clean, compressed, modern, balanced
+- `lo-fi bedroom production`: warm, intimate, slightly muddy, low-budget feel
 
 ## Iterative workflow tips
 
 ### 1. Generate 4 versions per prompt
 
-Variance is high. First generation is rarely best — A/B compare across 4 to find the keeper.
+Variance is high. First generation is rarely best. A/B compare across 4 to find the keeper.
 
 ### 2. A/B test one variable at a time
 
@@ -195,7 +195,7 @@ Save favorite vibe templates as Personas. When you find a Voice + style combo th
 
 ### 5. My Taste training
 
-Vote thumbs up / down on early generations. After 50-100 votes, default model behavior shifts toward your preferences. Free tier — costs nothing.
+Vote thumbs up / down on early generations. After 50-100 votes, default model behavior shifts toward your preferences. Free tier. Costs nothing.
 
 ### 6. Custom Model curation (Pro / Premier)
 
@@ -221,8 +221,8 @@ For a sequel-sounding follow-up: reuse exact mood + key + BPM + production tags.
 
 If after 5 regenerations and 3 variable changes the output still misses, the underlying genre/mood/instrumentation triangle may be inconsistent. Examples:
 
-- "country trap with classical violin" — pick ONE direction
-- "aggressive lullaby" — pick energetic OR soft
-- "ambient drum'n'bass" — pick still OR fast
+- "country trap with classical violin": pick ONE direction
+- "aggressive lullaby": pick energetic OR soft
+- "ambient drum'n'bass": pick still OR fast
 
-Rebuild the prompt from the 6-layer formula. Sometimes the issue isn't the prompt's wording — the user is asking for something incoherent.
+Rebuild the prompt from the 6-layer formula. Sometimes the issue isn't the prompt's wording. The user is asking for something incoherent.

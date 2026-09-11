@@ -2,7 +2,8 @@
   "scope": {
     "default": "change",
     "base": "auto",
-    "exclude": []
+    "exclude": ["**/node_modules/**", "**/vendor/**", "**/dist/**", "**/build/**"],
+    "registries": []
   },
   "complexity": {
     "cyclomatic": { "reference": 20 },
@@ -34,7 +35,8 @@
     "python": { "enabled": true },
     "bash": { "enabled": true },
     "go": { "enabled": true },
-    "dotnet": { "enabled": true }
+    "dotnet": { "enabled": true },
+    "other": { "enabled": true }
   },
   "thresholds": [
     {
@@ -63,7 +65,7 @@
       "config_key": "size.file_lines",
       "value_key": "lines_non_blank",
       "direction": "at_or_above",
-      "provenance": "plugin default; coincides with the informative CWE-1080 summary-row figure in ISO/IEC 5055:2021 clause 6, which is not normative; 500 is selectable; size.mode iso-8.2.115 selects the normative function-percentage alternative"
+      "provenance": "the plugin's own number, not ISO-backed: it coincides with the informative figure in ISO/IEC 5055:2021 §6.3 Table 1, which is not normative, while the normative form (§8.2.115) is a function-level percentage; 500 is selectable; size.mode iso-8.2.115 selects the normative function-percentage alternative"
     },
     {
       "measure": "function_lines_pct",

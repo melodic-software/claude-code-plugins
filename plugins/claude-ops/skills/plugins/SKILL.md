@@ -95,7 +95,7 @@ stay in [context/sync.md](context/sync.md); the script is bound to that file.
    directory it deletes) and never `--allow-downgrade`, which it ignores and says so.
 
    `<policy>` is the word from the **Configured value** line under "userConfig: `install_new`"
-   below — `all`, `none`, or `ask`, and `ask` when that line still shows the unset placeholder
+   below: `all`, `none`, or `ask`, and `ask` when that line still shows the unset placeholder
    token. Pass the WORD, never the token: a placeholder inside a command is a shell substitution
    error, not a policy. Any other value is treated as `ask` and named back in the digest's
    `install_new_invalid` so the report can flag it.
@@ -239,35 +239,35 @@ Terse, fixed sections. Detail only where action is required. Do not enumerate ro
 action.
 
 ```text
-Marketplace: <name> — <current | needs update> (autoUpdate: <on|off — suggest enabling if off>)
-  (repeat this line per marketplace in `all` mode — Steps 2–5 run once per marketplace)
+Marketplace: <name>: <current | needs update> (autoUpdate: <on|off, suggest enabling if off>)
+  (repeat this line per marketplace in `all` mode; Steps 2–5 run once per marketplace)
 In-repo: <N> project/local install(s) updated in <project_root>
   (N is `in_repo.updated | length`; it counts FORWARD moves only. An in-repo record moved
    backward, only possible under --allow-downgrade or for an id whose catalog version could
    not be read, renders under `Downgraded:` with its scope and is not counted here)
-  | 0 — <project_root> has no project/local installs
-  | skipped — no project context resolved from <cwd>
-Updated: <N> plugin(s) — <id>@<marketplace>: <old> → <new> (only when N > 0)
+  | 0: <project_root> has no project/local installs
+  | skipped: no project context resolved from <cwd>
+Updated: <N> plugin(s): <id>@<marketplace>: <old> → <new> (only when N > 0)
   (FORWARD moves only, plus any pair whose direction is unreadable, flagged `(direction unknown)`)
 Downgraded: <N> plugin(s), <id>@<marketplace>: <old> → <new>
   (only when N > 0; only possible with --allow-downgrade, or for an id whose catalog version
    fleet-state.sh could not read and which therefore reached the CLI unguarded)
 Catalog regression: <first interval>, <id>: <before> → <after> (only when the snapshot diff finds
   one; names the cause behind the withheld downgrades)
-Installed: <N> new catalog plugin(s) — <id>@<marketplace> (only when N > 0; per install_new policy)
-  (when the policy is `all`, append: policy install_new: all — these reinstall on every sync
+Installed: <N> new catalog plugin(s): <id>@<marketplace> (only when N > 0; per install_new policy)
+  (when the policy is `all`, append: policy install_new: all, meaning these reinstall on every sync
    unless you also disable them)
 Normalized: user enabledPlugins key order (<N> keys reordered)
   (only when Step 4 installed anything AND the user-scope map was rewritten; omit otherwise)
-Divergences: <N> actionable (<M> newly created by this run — <a> by the in-repo update, <b> by the
+Divergences: <N> actionable (<M> newly created by this run: <a> by the in-repo update, <b> by the
   user-scope sweep, <N-M> pre-existing) → run `/claude-ops:plugins converge`
-  (N = actionable only — versionsMatch:false; same-version multi-scope installs are not counted
+  (N = actionable only, versionsMatch:false; same-version multi-scope installs are not counted
   or listed here)
 Stale project records: <K> record(s) across <P> path(s) not present on this machine
-  (omit section entirely when K = 0; never counted in Divergences — see below for the row shape)
+  (omit section entirely when K = 0; never counted in Divergences; see below for the row shape)
 Cache content: <N> install(s) whose cache files disagree with their recorded gitCommitSha
-  (omit the row entirely when N = 0; list the ids and the remediation — see below)
-Action needed: <bulleted list — missing_from_user_install, missing_from_enabled, project-scope
+  (omit the row entirely when N = 0; list the ids and the remediation; see below)
+Action needed: <bulleted list: missing_from_user_install, missing_from_enabled, project-scope
   enable gaps, CLI failures, unknown/orphaned plugins, user_scope_orphans, plugin(s) installed this
   run with unset userConfig options, user-scope enabledPlugins reorder failures, a project-scope
   enabledPlugins map that is unsorted, withheld downgrades> (omit section entirely when empty)
@@ -290,7 +290,7 @@ collapsing them is the whole defect this row exists to close. Two digest fields 
 in this order:
 
 - `project_root` is `null` → `skipped`, naming the cwd.
-- `in_repo_records == 0` → `0 — <project_root> has no project/local installs`.
+- `in_repo_records == 0` → `0: <project_root> has no project/local installs`.
 - `in_repo_records > 0` → the counted variant, with N taken from `in_repo.updated | length`.
 
 `in_repo_records` counts the records belonging to this root whether or not any of them moved, so a
@@ -300,7 +300,7 @@ than claiming the root has nothing installed. See [context/sync.md](context/sync
 Add a self-update row when Step 3's sweep updated `claude-ops` itself:
 
 ```text
-Note: this run updated claude-ops (<old> → <new>). The algorithm that ran is the pre-update one —
+Note: this run updated claude-ops (<old> → <new>). The algorithm that ran is the pre-update one:
   ${CLAUDE_PLUGIN_ROOT} still resolves to the version loaded at session start. /reload-plugins
   before relying on the new version.
 ```
@@ -352,9 +352,9 @@ a dozen directories is a report about a dozen directories:
 
 ```text
 Stale project records: <K> record(s) across <P> path(s) not present on this machine
-  - <projectPath> — <n> record(s)
+  - <projectPath>: <n> record(s)
   (not counted as divergences: converge cannot cd into a path that is not present. A path can also
-   be absent because a volume is unmounted or a share is offline — this is an observation, not a
+   be absent because a volume is unmounted or a share is offline, so this is an observation, not a
    verdict that the directory is gone for good.)
 ```
 
@@ -367,7 +367,7 @@ count, so acting on it is a copy, not a reconstruction:
 
 ```text
 - project-scope enable gap: (cd "<projectPath>" && claude plugin enable <id>@<marketplace> -s project)
-  — writes that repo's committed .claude/settings.json; review the diff before committing
+  Writes that repo's committed .claude/settings.json; review the diff before committing
 ```
 
 Only ids that Step 5 did not enable at `user`/`local` scope in this run appear here. For the rest
@@ -410,13 +410,13 @@ work, rather than a suggestion:
 
 ```text
 Cache content: <N> install(s) whose cache files disagree with their recorded gitCommitSha
-  - <id>@<marketplace> <version> — <n> file(s) differ
+  - <id>@<marketplace> <version>: <n> file(s) differ
   Remediation: remove that version's directory under the plugin cache, then re-run
   `claude plugin update <id>@<marketplace>`, which recreates it from the clone.
 ```
 
 `N` is `cache_content.stale_content`, and one row comes from each `cache_content.stale[]` entry:
-`id`, `version`, and `files_differ`, which sums every direction of disagreement — bytes that
+`id`, `version`, and `files_differ`, which sums every direction of disagreement: bytes that
 changed, files the tree has and the cache lacks, and files the cache holds and the tree does not.
 `files_differ` reads `null` when the digest fell back to the checker's `--ids` form, which knows the
 ids and no per-file detail; report the ids alone then.
@@ -425,7 +425,7 @@ ids and no per-file detail; report the ids alone then.
 does not `git fetch` a commit the marketplace clone lacks. A commit that is not local is reported as
 `sha-not-local` and left alone: fetching is a network mutation this audit does not perform, and it
 would also silently erase the condition the verdict exists to report. Every verdict other than
-`match` and `stale-content` is counted as `unverifiable` — the audit looked and could not decide,
+`match` and `stale-content` is counted as `unverifiable`, meaning the audit looked and could not decide,
 which is its own number and never folded into either side.
 
 **Expect a substantial `unverifiable` share, and never read it as a pass.** Claude Code clones a

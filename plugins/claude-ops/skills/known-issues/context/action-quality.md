@@ -6,7 +6,7 @@ Check current Claude model quality and service health from multiple sources. Use
 
 ## Sources (checked in order)
 
-**Source 1: [Marginlab Performance Tracker](https://marginlab.ai/trackers/claude-code/)** — Independent daily benchmarks on SWE-Bench-Pro. Updated daily, 50 evals/day. Statistical significance testing (p < 0.05).
+**Source 1: [Marginlab Performance Tracker](https://marginlab.ai/trackers/claude-code/).** Independent daily benchmarks on SWE-Bench-Pro. Updated daily, 50 evals/day. Statistical significance testing (p < 0.05).
 
 Fetch via WebFetch or curl and extract:
 
@@ -14,7 +14,7 @@ Fetch via WebFetch or curl and extract:
 - Today's pass rate vs 7-day and 30-day averages
 - Statistical significance of any delta
 
-**Source 2: [status.claude.com](https://status.claude.com/)** — Official Anthropic status page. Covers claude.ai, API, Claude Code, platform.
+**Source 2: [status.claude.com](https://status.claude.com/).** Official Anthropic status page. Covers claude.ai, API, Claude Code, platform.
 
 Fetch and extract:
 
@@ -22,7 +22,7 @@ Fetch and extract:
 - Per-component status
 - Active incidents in last 48 hours
 
-**Source 3: GitHub degradation reports** — Search recent community-reported quality issues:
+**Source 3: GitHub degradation reports.** Search recent community-reported quality issues:
 
 ```bash
 gh search issues "degraded OR degradation OR quality OR nerfed OR slower" --repo anthropics/claude-code --state open --sort updated --limit 10 --json number,title,updatedAt
@@ -57,4 +57,4 @@ gh search issues "degraded OR degradation OR quality OR nerfed OR slower" --repo
 
 ## Fragility note
 
-Marginlab and status.claude.com embed data as JavaScript objects, not REST APIs. HTML scraping via WebFetch is the only option. If either source changes page structure, extraction breaks — fall back to manual browser check and note breakage for repair. Add to quarterly drift check.
+Marginlab and status.claude.com embed data as JavaScript objects, not REST APIs. HTML scraping via WebFetch is the only option. If either source changes page structure, extraction breaks. Fall back to manual browser check and note breakage for repair. Add to quarterly drift check.

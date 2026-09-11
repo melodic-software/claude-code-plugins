@@ -17,7 +17,7 @@ user answers. The failure mode this addresses: people glaze over plans and expla
 the human merging a PR cannot represent the change to a reviewer and their mental model of
 the codebase decays, degrading future prompting.
 
-Three value props:
+Three reasons it exists:
 
 - **Representation accountability**. Can the user explain this change to a reviewer?
 - **Loop retention**. Keeping the user's mental model of the codebase current keeps their
@@ -82,7 +82,7 @@ redundant summaries, or boilerplate.
 - **Each question carries a source anchor, and a miss routes to it.** Anchor every
   question to the report section that teaches its answer (a report-internal anchor, or a
   durable pointer per the reference discipline below). On a missed question, send the
-  reader to that exact section — the skimmed material, quoted or linked — before any
+  reader to that exact section, quoting or linking the skimmed material, before any
   retry; the miss's job is routing, not scoring.
 - **The answer key is fresh-context authored.** Produce or verify the embedded key with a
   fresh-context pass that reads only the report and the diff, not the authoring

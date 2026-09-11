@@ -1,4 +1,4 @@
-# Gotchas — orchestrate
+# Gotchas: orchestrate
 
 Observed failure modes for this skill and for the orchestration it arms. Each one cost something
 real; none is inferable from the skill body alone.

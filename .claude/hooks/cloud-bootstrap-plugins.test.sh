@@ -226,7 +226,45 @@ run_case() {
   git_test_config "$fx" commit -qm two
   head="$(git_test_config "$fx" rev-parse HEAD)"
 
-  local subst="s/@HEAD@/$head/g; s/@FIRST@/$first/g"
+  # The marketplace the stub reports. Absent by default (the pre-existing
+  # shape: a name and nothing else, so the checkout stays the reference).
+  # CASE_CLONE builds a clone of the fixture and reports it as a GitHub-sourced
+  # marketplace's install location: `behind` leaves the clone at the first
+  # commit (a branch that changed a plugin, main untouched), `ahead` adds a
+  # third commit to the clone that changes plugins/alpha again (main moved),
+  # `self` reports the checkout itself (the directory-source shape).
+  local clone_head=""
+  if [[ -n "${CASE_CLONE:-}" ]]; then
+    local location="$fx"
+    if [[ "$CASE_CLONE" != self ]]; then
+      location="$TMP/$name-clone"
+      git_test_config "$fx" clone -q "$fx" "$location"
+      if [[ "$CASE_CLONE" == behind ]]; then
+        git_test_config "$location" reset -q --hard "$first"
+      else
+        printf 'a3\n' >>"$location/plugins/alpha/f.txt"
+        git_test_config "$location" add -A
+        git_test_config "$location" commit -qm three
+      fi
+      clone_head="$(git_test_config "$location" rev-parse HEAD)"
+    fi
+    # `plugin marketplace list --json` reports `source` as a plain string
+    # (claude 2.1.263); CASE_SOURCE_SHAPE=object reports the nested object
+    # known_marketplaces.json carries, which `jq -r` would pretty-print over
+    # several lines if the block read it naively.
+    if [[ "${CASE_SOURCE_SHAPE:-}" == object ]]; then
+      printf '[{"name":"melodic-software","source":{"source":"github","repo":"melodic-software/claude-code-plugins"},"installLocation":"%s"}]\n' "$location" \
+        >"$fx/marketplace-entry.json"
+    else
+      printf '[{"name":"melodic-software","source":"github","installLocation":"%s"}]\n' "$location" \
+        >"$fx/marketplace-entry.json"
+    fi
+    # CASE_UPDATE_FAILS makes the stub's `marketplace update` exit 1: the
+    # no-network / refused-fast-forward shape.
+    [[ -z "${CASE_UPDATE_FAILS:-}" ]] || : >"$fx/update-fails"
+  fi
+
+  local subst="s/@HEAD@/$head/g; s/@FIRST@/$first/g; s/@CLONE@/$clone_head/g"
   if [[ "$registry" != "MISSING" ]]; then
     printf '%s\n' "$registry" | sed "$subst" >"$fx/cfg/plugins/installed_plugins.json"
   fi
@@ -244,7 +282,17 @@ run_case() {
 #!/usr/bin/env bash
 fx="$(cd -- "$(dirname -- "$0")/../.." && pwd)"
 case "$*" in
-*"marketplace list"*) printf '[{"name":"melodic-software"}]\n' ;;
+*"marketplace list"*)
+  if [[ -f "$fx/marketplace-entry.json" ]]; then
+    cat "$fx/marketplace-entry.json"
+  else
+    printf '[{"name":"melodic-software"}]\n'
+  fi
+  ;;
+*"marketplace update"*)
+  printf '%s\n' "$*" >>"$fx/calls.log"
+  if [[ -f "$fx/update-fails" ]]; then exit 1; fi
+  ;;
 *"plugin list --json"*)
   if [[ -f "$fx/.listed" ]]; then
     cat "$fx/list-after.json"
@@ -268,6 +316,11 @@ STUB
   OUT="$(env "${fleet_env[@]}" CLAUDE_CONFIG_DIR="$fx/cfg" bash "$BLOCK" "$fx" 2>&1)"
   RC=$?
   set -e
+  # The stub's mutation log rides along so a case can assert which CLI
+  # mutations the block asked for, not only what it printed.
+  if [[ -f "$fx/calls.log" ]]; then
+    OUT+=$'\n'"calls: $(tr '\n' ';' <"$fx/calls.log")"
+  fi
 
   if [[ "$RC" -eq 0 ]]; then
     ok "$name: the block exits 0, so the rest of the bootstrap still runs"
@@ -460,6 +513,67 @@ CASE_SETTINGS='{"enabledPlugins":{"alpha@melodic-software":true}}' \
   run_case fleet_array "$BOTH_USER" "$BOTH_USER" "$REG_BOTH_HEAD" NONE
 expect "a fleet list that is a bare array degrades to the settings block" \
   "plugins 1 declared, 0 newly installed, 0 refreshed, 0 failed"
+
+# --- the marketplace a snapshot pre-registers is not this checkout -----------
+# A cloud snapshot arrives with a marketplace of this name registered from
+# GitHub, so the checkout is never registered and every install resolves
+# against that clone, which records ITS commit as gitCommitSha. The reference
+# for the refresh decision and the verification is therefore the clone, not
+# the checkout, and the block says so once. Three shapes: the clone behind the
+# checkout (a branch that changed a plugin, main untouched), the clone ahead of
+# it (main moved while the checkout stayed), and a location that IS the
+# checkout (the directory-source shape, whose behaviour must not change).
+
+REG_ALPHA_CLONE='{"plugins":{
+  "alpha@melodic-software":[{"scope":"user","gitCommitSha":"@CLONE@"}],
+  "beta@melodic-software":[{"scope":"user","gitCommitSha":"@HEAD@"}]}}'
+
+CASE_CLONE=behind \
+  run_case github_branch_ahead "$BOTH_USER" "$BOTH_USER" "$REG_BOTH_FIRST" NONE
+expect "a branch ahead of the marketplace clone is healthy against the clone, not stale against itself" \
+  "plugins 2 declared, 0 newly installed, 0 refreshed, 0 failed"
+expect "and the block names the clone the session actually serves" \
+  "is registered from github at"
+expect "and brings the clone current first" \
+  "calls: plugin marketplace update melodic-software"
+refute "and no plugin is called stale" \
+  "failed verification"
+refute "and a pull that worked is not reported as failed" \
+  "could not bring the melodic-software marketplace clone current"
+
+# The pull can fail (no network, a clone the CLI refuses to fast-forward).
+# The clone as it stands is still what the installs serve, so the verdict
+# stays truthful about serving; what the block may not do is claim currency
+# or swallow the failure.
+CASE_CLONE=behind CASE_UPDATE_FAILS=1 \
+  run_case github_update_fails "$BOTH_USER" "$BOTH_USER" "$REG_BOTH_FIRST" NONE
+expect "a failed marketplace pull is surfaced, not swallowed" \
+  "could not bring the melodic-software marketplace clone current (\`plugin marketplace update\` failed); verifying against the clone as it stands"
+expect "and the verdict is still measured against the clone as it stands" \
+  "plugins 2 declared, 0 newly installed, 0 refreshed, 0 failed"
+
+CASE_CLONE=behind CASE_SOURCE_SHAPE=object \
+  run_case github_nested_source "$BOTH_USER" "$BOTH_USER" "$REG_BOTH_FIRST" NONE
+expect "a nested source object still yields a one-line warning naming the repo" \
+  "is registered from melodic-software/claude-code-plugins at"
+expect "and the verdict is unchanged" \
+  "plugins 2 declared, 0 newly installed, 0 refreshed, 0 failed"
+
+CASE_CLONE=ahead \
+  run_case github_clone_ahead "$BOTH_USER" "$BOTH_USER" "$REG_BOTH_HEAD" "$REG_ALPHA_CLONE"
+expect "a reinstall from a clone ahead of the checkout counts as refreshed, not failed" \
+  "plugins 2 declared, 0 newly installed, 1 refreshed, 0 failed"
+refute "and a plugin whose directory the clone did not change is not refreshed" \
+  "beta@melodic-software failed verification"
+
+CASE_CLONE=self \
+  run_case directory_source "$BOTH_USER" "$BOTH_USER" "$REG_BOTH_HEAD" NONE
+expect "a marketplace whose location is the checkout keeps the checkout as the reference" \
+  "plugins 2 declared, 0 newly installed, 0 refreshed, 0 failed"
+refute "with no warning about a foreign clone" \
+  "is registered from"
+refute "and no marketplace update" \
+  "marketplace update"
 
 # --- report -------------------------------------------------------------------
 echo
