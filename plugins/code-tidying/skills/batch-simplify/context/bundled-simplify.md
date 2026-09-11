@@ -7,10 +7,10 @@ worth checking again. The sibling `tidy` skill keeps its own record against the 
 
 | Claim | Basis | As of | Recheck when |
 |---|---|---|---|
-| `simplify` ships with Claude Code as a bundled skill, alias `/readable`: "Simplify the current diff for readability, or a PR number, branch, or path you pass. Pass `--fix` to apply findings", with an effort level argument | The `/simplify` row on <https://code.claude.com/docs/en/commands>, labeled Skill | 2026-09-11 | The row changes its targets, flags, or alias, or the page it links (`/docs/en/simplify`, which returned 404 on 2026-09-11) resolves |
+| `simplify` ships with Claude Code as a bundled skill with no alias, invoked as `/simplify [target]`: "Review the changed code for cleanup opportunities and apply the fixes. Four review agents run in parallel, covering reuse of existing helpers, simplification, efficiency, and whether the change is at the right level of abstraction. The review doesn't look for correctness bugs. Use `/code-review` to find bugs. Pass a path or PR reference to review a specific target" | The `/simplify` row on <https://code.claude.com/docs/en/commands>, labeled Skill | 2026-09-11 | The row changes its targets or flags, or gains an alias |
 | Its registered description reads "Review the changed code for reuse, simplification, efficiency, and altitude cleanups, then apply the fixes. Quality only, it does not hunt for bugs; use /code-review for that" | String search of the installed 2.1.263 binary | 2026-09-11 | A release changes the registration text |
-| It mutates. The binary's prompt says "then apply the fixes"; the commands row says fixes apply when `--fix` is passed. Treat every run as one that may edit the working tree | The two rows above | 2026-09-11 | Either source states the default unambiguously |
-| One run takes one target. The target may already span many files (a PR, a branch, or a directory path), so the registry row's trigger, "a multi-file argument form", is half fired; no time-window form exists | The commands row | 2026-09-11 | The skill gains a time-window argument, a repository mode, or ecosystem grouping |
+| It mutates by default. The binary's description says "then apply the fixes" and the commands row says "apply the fixes"; neither documents a flag that turns applying off | The two rows above | 2026-09-11 | Either source introduces a report-only mode |
+| One run takes one target. The target may already span many files (a PR reference or a directory path), so the registry row's trigger, "a multi-file argument form", is half fired; no time-window form exists | The commands row | 2026-09-11 | The skill gains a time-window argument, a repository mode, or ecosystem grouping |
 
 ## Why the verdict is complementary
 

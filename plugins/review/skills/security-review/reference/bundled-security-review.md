@@ -6,19 +6,16 @@ worth checking again.
 
 | Claim | Basis | As of | Recheck when |
 |---|---|---|---|
-| The commands table lists `/security-review [low\|medium\|high\|xhigh\|max] [--fix] [pr#\|branch\|path]` as a Skill: "Review the current diff, or a PR number, branch, or path you pass, for security vulnerabilities. Pass `--fix` to apply findings" | <https://code.claude.com/docs/en/commands>, the row and its Type label | 2026-09-11 | The row changes its label, flags, or targets |
-| The installed binary still registers it as plugin-backed, not as a bundled skill: `pluginName:"security-review", pluginCommand:"security-review"`, description "Complete a security review of the pending changes on the current branch", and the prompt refuses to run outside a git repository | String search of the installed 2.1.263 binary | 2026-09-11 | An extraction reports the name under bundled skills, or the docs page the row links (`/docs/en/security-review`, which returned 404 on 2026-09-11) resolves and states the class |
-| `--fix` applies findings to the working tree; the bare command reports | The commands row | 2026-09-11 | The flag changes |
+| The commands table lists a bare `/security-review` with no Skill label, no flags, and no target argument: "Analyze the changes on your current branch for security vulnerabilities. Reviews the diff between your branch and origin's default branch, identifying risks like injection, auth issues, and data exposure. Needs an `origin` remote" | <https://code.claude.com/docs/en/commands>, the row and its Purpose column | 2026-09-11 | The row gains a Skill label, a flag, or a target argument |
+| The installed binary still registers it as plugin-backed, not as a bundled skill: `pluginName:"security-review", pluginCommand:"security-review"`, description "Complete a security review of the pending changes on the current branch", and the prompt refuses to run outside a git repository | String search of the installed 2.1.263 binary | 2026-09-11 | An extraction reports the name under bundled skills, or the commands row gains a Skill label |
 | It is the single-pass, on-demand layer of a stack: the security guidance plugin reviews code as Claude writes it; the Claude Security plugin runs a multi-agent deep scan with reviewed patches; Code Review reviews pull requests on Team and Enterprise plans; the managed Claude Security product monitors repositories on Enterprise | The "How the plugin fits with other security tools" table on <https://code.claude.com/docs/en/claude-security> | 2026-09-11 | The table adds, removes, or re-tiers a layer |
 | It is unusable in CI because it diffs against `origin/HEAD`, which the Actions checkout does not create | The body's opening paragraph carries that record with its own basis and recheck trigger; not repeated here | 2026-09-06 | See the body |
 
-The docs label and the binary disagree on the command's class, and the row's argument form (an
-effort level, `--fix`, and a PR, branch, or path target) is absent from the 2.1.263 registration,
-whose description names only the pending changes on the current branch; the same description is
-what a 2.1.263 session lists for the command. The page may describe a build newer than the one
-verified, though the changelog names no such change through 2.1.268. The registry row keeps
-`plugin-backed-builtin`, the class the binary reports, and this record carries the docs label
-beside it; the disagreement itself is the recheck event the row names, half fired.
+The commands page gives the command no Skill label, so nothing on it contradicts the binary's
+plugin-backed registration; both sources scope the command to the pending changes on the current
+branch, with no flag and no target argument, and the same description is what a 2.1.263 session
+lists for the command. The registry row keeps `plugin-backed-builtin`, the class the binary
+reports.
 
 ## Why the verdict is complementary
 

@@ -238,7 +238,7 @@ and when — see [`docs/conventions/native-references/`](conventions/native-refe
   - our description already carries `Skip for single-file cleanup — use /simplify instead`
   - seeded rationale: same cleanup job at batch scale across many files
 - **Observation:** extraction — extracted from binary v2.1.232 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (integrity: degraded — counts are floors) (2026-08-23)
-- **Recheck trigger:** a Claude Code release gives the bundled `simplify` skill a time-window argument form, a repository mode, or ecosystem grouping (the multi-file half of this trigger fired by 2026-09-11: the skill accepts a PR, branch, or path target, so the remaining distinction is the sweep discipline, recorded in the skill's context/bundled-simplify.md) (verified 2026-09-11)
+- **Recheck trigger:** a Claude Code release gives the bundled `simplify` skill a time-window argument form, a repository mode, or ecosystem grouping (the multi-file half of this trigger fired by 2026-09-11: the skill accepts a path or PR reference target, so the remaining distinction is the sweep discipline, recorded in the skill's context/bundled-simplify.md) (verified 2026-09-11)
 - **Baked:** description phrase no · Boundary section yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure — it is the best available routing surface, not a guaranteed one
 
@@ -269,7 +269,7 @@ and when — see [`docs/conventions/native-references/`](conventions/native-refe
   - the extraction's `plugin_backed` map reports {"security-review": "security-review"}; the name appears in neither `builtin_commands` nor `bundled_skills`
   - our description: CI security-review lane for a GitHub pull request — logic, trust-boundary, and Actions security findings static analysis misses
 - **Observation:** extraction — extracted from binary v2.1.232 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (integrity: degraded — counts are floors) (2026-08-23)
-- **Recheck trigger:** an extraction stops reporting `security-review` under `plugin_backed` — it moves into the bundled-skill or built-in-command lane, or its backing plugin name changes (half fired by 2026-09-11: the commands page labels the row a bundled Skill while the installed 2.1.263 binary still registers it plugin-backed; the class stays plugin-backed until an extraction agrees with the docs, and the skill's reference/bundled-security-review.md carries the disagreement) (verified 2026-09-11)
+- **Recheck trigger:** an extraction stops reporting `security-review` under `plugin_backed` — it moves into the bundled-skill or built-in-command lane, or its backing plugin name changes (re-verified 2026-09-11: the installed 2.1.263 binary registers it plugin-backed and the commands page gives the row no Skill label; the skill's reference/bundled-security-review.md carries the record) (verified 2026-09-11)
 - **Baked:** description phrase no · Boundary section yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure — it is the best available routing surface, not a guaranteed one
 

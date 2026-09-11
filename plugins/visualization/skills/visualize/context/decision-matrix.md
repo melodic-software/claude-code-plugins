@@ -160,9 +160,9 @@ Save publishes a new version; otherwise it is view-plus-PNG/PDF-export. It rides
 the published-Artifact surface, so every Artifact gate above applies, **plus** the
 skill's own gates:
 
-- an early **research preview**: enabled by a server-side rollout flag that
-  defaults off, first-party context only, and an Artifact tool that supports
-  `capabilities` — two same-version clients can differ;
+- an early **research preview**: enabled by a server-side rollout flag (on by
+  default at v2.1.263), first-party context only, and an Artifact tool that
+  supports `capabilities` — two same-version clients can differ;
 - removable by settings (`disableBundledSkills`, or `skillOverrides` naming
   `design`) and absent on non-first-party platforms (Bedrock / GCP / Foundry /
   AWS) and in headless SDK/CI/MCP contexts;

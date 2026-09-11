@@ -232,9 +232,9 @@ If zero items were deferred across all groups, state explicitly: *"No items defe
 One native Claude Code surface does this skill's job at single-target scale, and the two get
 conflated whenever the request is "run simplify":
 
-- **`simplify` (bundled skill, alias `/readable`).** Ships with Claude Code rather than as a
-  marketplace plugin. One run takes one target, the current diff or a PR, branch, or path, reviews
-  it for reuse, simplification, efficiency, and altitude cleanups, and applies the fixes.
+- **`simplify` (bundled skill).** Ships with Claude Code rather than as a marketplace plugin. One
+  run takes one target, the changed code or a path or PR reference, reviews it for reuse,
+  simplification, efficiency, and altitude cleanups, and applies the fixes.
 - **This skill (marketplace plugin).** Sweeps a time window, a branch, or the whole repository in
   waves, grouped by ecosystem in dependency order, with a checklist, a deferred-items contract,
   and a docs mode for factual staleness.

@@ -14,9 +14,9 @@ All notable changes to the `review` plugin are documented here. Format follows
   on the lane's behalf), and an availability rule that never assumes the bundled skill resolves.
   Four-part records in `reference/bundled-code-review.md`.
 - **`security-review`**: a `## Boundary, the native security-review command` section with the same
-  shape against the native command (labeled a bundled skill on the commands page, registered
-  plugin-backed in the installed binary; the record carries the disagreement), naming the Claude
-  Security plugin and product as further surfaces the lane does not wrap. Four-part records in
+  shape against the native command (registered plugin-backed in the installed binary, with no
+  Skill label on the commands page), naming the Claude Security plugin and product as further
+  surfaces the lane does not wrap. Four-part records in
   `reference/bundled-security-review.md`.
 
 ## [0.27.5]

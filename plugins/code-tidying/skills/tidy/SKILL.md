@@ -253,16 +253,16 @@ Full template: [reference/scope-budget.md](reference/scope-budget.md). Summary:
 One native Claude Code surface cleans code without changing behavior, as this skill does, and the
 two get conflated whenever the request is "clean this up":
 
-- **`simplify` (bundled skill, alias `/readable`).** Ships with Claude Code rather than as a
-  marketplace plugin. It reviews the current diff, or a PR, branch, or path the user passes, for
-  reuse, simplification, efficiency, and altitude cleanups, and it applies the fixes. Quality
-  only; it does not hunt for bugs.
+- **`simplify` (bundled skill).** Ships with Claude Code rather than as a marketplace plugin. It
+  reviews the changed code, or a path or PR reference the user passes, for reuse,
+  simplification, efficiency, and altitude cleanups, and it applies the fixes. Quality only; it
+  does not hunt for bugs.
 - **This skill (marketplace plugin).** Hunts unfiled structural drift across a rotated,
   glob-scoped lane regardless of recent activity, under a scope budget, and ships one
   structure-only PR.
 
 **Routing.** When the bundled `simplify` skill resolves in your session, prefer it for refining a
-diff that exists: what you just wrote, a branch, a PR. Prefer this skill when nothing has changed
+diff that exists: what you just wrote, a path, a PR. Prefer this skill when nothing has changed
 yet and the question is what small structural improvement one slice of the codebase can take
 today. The sibling `batch-simplify` owns the same cleanup at sweep scale.
 

@@ -8,7 +8,7 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
 ### Added
 
 - **`tidy`**: a `## Boundary, the bundled simplify skill` section: the bundled skill refines a
-  diff that exists (alias `/readable`, applies its fixes); tidy hunts unfiled drift across a
+  diff that exists and applies its fixes; tidy hunts unfiled drift across a
   glob-scoped lane regardless of recent activity. Routing, a mutation gate (never chain into a
   `simplify` run), and an availability rule that never assumes the bundled skill resolves.
   Four-part records in `reference/bundled-simplify.md`.
