@@ -65,9 +65,11 @@ conflated:
 
 Difficulty reads as half the operator vocabulary times the average reuse of each operand. Doubling a
 program's length without changing its operator set or its operand-reuse ratio leaves difficulty
-unchanged while volume and effort both rise. A difficulty figure that scales with file size is
-measuring something else. Effort is defined in terms of difficulty, so it is not an independent
-alternative to it.
+unchanged while volume and effort both rise, so difficulty does not track size. It is not
+independent of how a file is cut, though: splitting or merging files changes each part's distinct
+operators and its operand reuse, so per-file difficulty legitimately moves on a split, in either
+direction. Effort is defined in terms of difficulty, so it is not an independent alternative to
+it.
 
 ## Lines per file, and the ISO function-percentage form
 
