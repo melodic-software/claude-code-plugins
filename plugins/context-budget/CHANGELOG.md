@@ -10,7 +10,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Changed
 
 - **`lib/state-key.sh`:** replica synced with the canonical copy. The non-repository rung now
-  hashes the physical working directory, so one directory reached through two spellings keys once.
+  hashes the physical working directory, so one directory reached through two spellings keys once,
+  and an exported `CDPATH` can no longer redirect `cd` or add a line to stdout.
 
 ## [0.6.25]
 

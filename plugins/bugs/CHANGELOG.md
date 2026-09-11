@@ -7,10 +7,10 @@ All notable changes to the `bugs` plugin are documented here. Format follows
 
 ### Added
 
-- **`scan`:** a sizing rule. Hunters dispatch on a cheap general-purpose tier and gates on a strong
-  reasoning tier through the Agent tool's per-invocation `model` parameter; the body states the
-  capability each stage needs, names the alias that maps to it today (`sonnet`, `opus`) under a
-  dated verification record, and maps by capability where a harness names its tiers differently.
+- **`scan`:** a sizing rule. Hunters dispatch on the fast tier and gates on the strong tier through
+  the Agent tool's per-invocation `model` parameter; the body names the fleet's ordered capability
+  tiers and resolves the current alias from the loop-lane convention's dated binding rather than
+  restating one of its own.
   The scope class (small, medium, large, from the enumerated file and line counts) picks the lens
   count and the gate cap per wave, and `${CLAUDE_EFFORT}` stays the ceiling on lenses and refill
   waves. The gate's stance does not change with any of it.

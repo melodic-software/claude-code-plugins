@@ -69,6 +69,7 @@ adopter derives from, that skill included:
   reached two ways keys once).
 - **`worktree-discriminator`** — `sha256` of the canonicalized worktree root, truncated to 8. Two
   worktrees of one repository legitimately hold different content and must not share an artifact.
+  Outside a repository, the physical working directory — the same value `repo-identity` hashes.
 
 **Do not mint a second scheme.** A shared implementation ships as `lib/state-key.sh`, byte-identical
 across the plugins that carry it and registered in `scripts/cross-plugin-source-registry.txt`.

@@ -35,7 +35,7 @@ lanes:
     globs:
       - 'plugins/work-items/tools/work-item-tracker/*.sh'
       - 'plugins/work-items/tools/work-item-tracker/lib/**'
-      - 'plugins/claude-ops/skills/observability/**/*.py'
+      - 'plugins/claude-ops/skills/observability/otel/**'
       - 'plugins/knowledge/skills/*/extraction/lib/**/*.js'
       - 'plugins/code-metrics/scripts/parsers/**'
       - 'plugins/code-metrics/scripts/collectors/**'

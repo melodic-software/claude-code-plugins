@@ -15,6 +15,12 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   (`cd -P .`, no fork) before hashing, matching what `git rev-parse --show-toplevel` already did
   for the repository rungs. A symlinked non-repository directory keyed under the old spelling
   re-keys on the next run. Regression case 5b covers both `--root` and the no-argument form.
+- **`lib/state-key.sh` no longer lets an exported `CDPATH` redirect `cd` or pollute stdout.** With
+  `CDPATH` exported and a relative `--root`, `cd` resolved the operand against `CDPATH` instead of
+  the caller's directory and echoed the path it chose: the caller got two stdout lines where the
+  contract promises exactly the key, and the key described a directory it never named (the
+  `[[ -d ]]` check above validated the relative path while `cd` went elsewhere). The script now
+  clears `CDPATH` once before any `cd`. Regression case 14 covers both halves.
 
 ## [0.41.0]
 

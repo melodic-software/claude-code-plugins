@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Self-contained tests for lib/state-key.sh (no external test lib — ships with the plugin).
 #
-# The copy in claude-memory is byte-identical and registered in
-# scripts/cross-plugin-source-registry.txt, so this suite covers both.
+# The four copies in claude-memory, claude-ops, context-budget and improvement are
+# byte-identical, registered in scripts/cross-plugin-source-registry.txt and pinned
+# by scripts/sync-state-key.sh --check, so this suite covers all five.
 set -uo pipefail
 
 # Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
@@ -210,6 +211,18 @@ else
 fi
 assert_contains "case 13: documented error" "$err" \
   "ERROR: no sha256sum or shasum on PATH"
+
+# --- Case 14: an exported CDPATH never reaches cd ----------------------------
+# cd echoes the resolved path to stdout on a CDPATH hit and lands elsewhere, so a
+# caller with CDPATH exported would get two stdout lines and a key for a
+# directory it never named.
+cdp="$TEST_TMPDIR/cdpath"
+mkdir -p "$cdp/here/target" "$cdp/elsewhere/target"
+out="$(cd "$cdp/here" && CDPATH="$cdp/elsewhere" bash "$SCRIPT" --root target 2>/dev/null)"
+assert_eq "case 14: stdout is one line under an exported CDPATH" \
+  "$(printf '%s\n' "$out" | wc -l | tr -d ' ')" "1"
+assert_eq "case 14: key is for the named directory, not the CDPATH one" \
+  "$out" "$(key "$cdp/here/target")"
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"

@@ -95,8 +95,9 @@ Which lane comes next is derived **statelessly**, first rung that answers wins:
    search must be an **exact match** on that line (the seam's search verb, or the provider's literal
    body match with the string quoted): a semantic or fuzzy search cannot tell "no match" from
    "missed", so it is not an answer. When only a fuzzy search is available, or no search ran against
-   a bound tracker, print why and fall through to rung 2. An unbound tracker returns nothing, which
-   is not the same answer as "no prior scan filings".
+   a bound tracker, print why and fall through to rung 2; confirm the search actually ran against a
+   bound tracker before trusting an empty result. An unbound tracker returns nothing, which is not
+   the same answer as "no prior scan filings".
 2. **Persisted-report cursor.** Otherwise resolve the report directory by the **same precedence
    persistence uses**. Step 5 below defers to `/bugs:write`'s Step 4, and so does this rung;
    reading a directory reports no longer land in is how a configured `output_dir` silently strands the
@@ -138,22 +139,21 @@ Zero verified findings is a clean, successful outcome. Do **not** invent a findi
 Cost follows what is scanned, and precision never pays for it. Three rules, applied in this order:
 
 **Model by stage.** Each stage runs on the tier its job needs, passed through the Agent tool's
-per-invocation `model` parameter, never on the session's top model. The requirement is a
-capability; the alias is only how the harness names that capability today:
+per-invocation `model` parameter, never on the session's top model. The tiers below are the
+fleet's ordered capability tiers; which alias each one binds today is the loop-lane convention's
+to state, not this skill's. Resolve it from the marketplace's
+`docs/conventions/loop-lane/README.md` "Capability tiers", whose alias binding is dated and
+carries its own recheck trigger:
 
-| Stage | Needs | Alias today | Why |
-|---|---|---|---|
-| Hunters (Step 2) | the cheapest general-purpose tier | `sonnet` | The recall stage is generous by design and every output is refuted downstream, so a cheaper reader costs little precision and most of the run's tokens live here. |
-| Gates (Step 4) | a strong reasoning tier | `opus` | The precision stage; the reproduction it runs is what makes a finding credible. |
-| Main thread | the session's model | none passed | Orchestration and triage only. |
+| Stage | Tier | Why |
+|---|---|---|
+| Hunters (Step 2) | fast | The recall stage is generous by design and every output is refuted downstream, so a cheaper reader costs little precision and most of the run's tokens live here. |
+| Gates (Step 4) | strong | The precision stage; the reproduction it runs is what makes a finding credible. |
+| Main thread | the session's model, nothing passed | Orchestration and triage only. |
 
-When the harness names its tiers differently, map by the "Needs" column and name the alias that
-resolved in the report's run metadata. Verification record: the per-invocation `model` parameter
-accepts the aliases `sonnet`, `opus`, `haiku`, and `fable`, or a full model ID, and takes precedence
-over a subagent's frontmatter and `CLAUDE_CODE_SUBAGENT_MODEL`; basis
-[Subagents, "Choose a model"](https://code.claude.com/docs/en/sub-agents#choose-a-model); as of
-2026-09-09; recheck when a dispatch with either alias is rejected or a Claude Code release note
-touches subagent model selection.
+Name the alias that actually resolved in the report's run metadata, so a reader can tell which
+binding the run used. A dispatch the harness rejects means the binding moved: report it and
+re-read the owner doc rather than substituting an alias here.
 
 **Breadth by scope.** After Step 1 enumerates the files (test suites excluded), classify the scope
 and size the recall stage from it:
@@ -238,9 +238,9 @@ own hunter says nothing observable breaks:
 3. **Drop cosmetic-impact candidates.** A candidate whose stated impact is a comment, a log string,
    or a report field nothing consumes is a side observation, not a bug. Move it to the report's side
    observations rather than gating it.
-4. **Rank by evidence strength and cut to the gate cap.** The tail above the cap is retained in the
-   report's "Candidates not gated" section, which is what item 1 reads back on the next run over
-   this lane.
+4. **Rank by evidence strength and cut to the gate cap.** Done when the remaining list is at or
+   under the cap. The tail above the cap is retained in the report's "Candidates not gated" section,
+   which is what item 1 reads back on the next run over this lane.
 
 Triage never confirms anything: it merges, drops, and orders. Every candidate that remains still
 faces the gate.

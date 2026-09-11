@@ -59,6 +59,12 @@
 
 set -uo pipefail
 
+# `cd` consults CDPATH when the operand is relative and does not start with `.`,
+# and on a hit it ECHOES the resolved path to stdout and lands somewhere the
+# caller never named. Either one breaks this script: stdout must be exactly the
+# key, and the key must describe the requested directory. Clear it once, here.
+CDPATH=
+
 usage() {
   cat <<'EOF'
 state-key.sh — per-project state key for ${CLAUDE_PLUGIN_DATA} writes.
