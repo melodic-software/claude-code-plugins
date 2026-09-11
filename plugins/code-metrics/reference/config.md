@@ -63,9 +63,9 @@ The third column is written by hand and is not derived from anything. A row whos
 | `complexity.cyclomatic.reference` | `20` | ISO/IEC 5055:2021 §8.2.117 (normative). Cited alternatives: 10 (McCabe 1976, "reasonable, but not magical") and 15 (NIST SP 500-235, with its six practices) |
 | `complexity.cognitive.reference` | `null` | Campbell, SonarSource; no standard sets a threshold |
 | `complexity.halstead.difficulty` | `null` | Halstead 1977; no standard sets a threshold |
-| `size.mode` | `file-lines` | `file-lines` compares each file's non-blank lines to `size.file_lines`; `iso-8.2.115` adds each function's non-empty lines as a percentage of the file's, from a collector that reports function ranges |
-| `size.file_lines` | `1000` | The plugin's own number. It coincides with an informative figure in ISO/IEC 5055:2021 §6.3 Table 1, which is not normative; 500, the operator-list figure, is selectable |
-| `size.function_lines_pct` | `5` | ISO/IEC 5055:2021 §8.2.115 (normative), used in `iso-8.2.115` mode |
+| `size.mode` | `file-lines` | `file-lines` compares each file's non-blank lines to `size.file_lines`; `iso-8.2.115` adds each function's non-empty lines as a percentage of the file's (the plugin's reading of the clause, which states 5% with no base), from a collector that reports function ranges |
+| `size.file_lines` | `1000` | The plugin's own number. It coincides with an informative figure in ISO/IEC 5055:2021 §6.3 Table 1, which is not normative; 500 is selectable |
+| `size.function_lines_pct` | `5` | ISO/IEC 5055:2021 §8.2.115 (normative) states the 5%; the percentage-of-file base is the plugin's reading; used in `iso-8.2.115` mode |
 | `duplication.min_tokens` | `50` | Passed to the clone collector |
 | `duplication.min_lines` | `5` | Passed to the clone collector |
 | `duplication.ignore` | `[]` | Collector ignore globs |

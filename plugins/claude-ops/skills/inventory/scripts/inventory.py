@@ -26,6 +26,7 @@ import platform
 import re
 import shutil
 import sys
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -36,7 +37,7 @@ MIN_PYTHON = (3, 11)
 # the skill's evals. Drift from it is not an error - the extraction is designed
 # to survive ordinary releases - but it downgrades every count from "verified"
 # to "believed", which the report has to say out loud.
-VALIDATED_AGAINST = "2.1.228"
+VALIDATED_AGAINST = "2.1.263"
 
 # Commands that have shipped in every build observed. Their absence means the
 # extraction broke, not that Anthropic deleted /help. This is the cheapest
@@ -59,6 +60,8 @@ KNOWN_REGISTRAR_EXPORTS = frozenset(
         "registerRunSkillGeneratorSkill",
         "registerScheduleRemoteAgentsSkill",
         "registerAgentProxyEnvFn",
+        "registerDesignCanvasSkill",
+        "registerWorkflowAuthoringSkill",
     }
 )
 
@@ -66,10 +69,39 @@ KNOWN_REGISTRAR_EXPORTS = frozenset(
 # brace reader is failing to resolve enclosing objects and the list is partial.
 MIN_COMMAND_YIELD = 0.40
 
+# Plugin-backed built-ins that have shipped in every build observed. Absence
+# means the `pluginName` scan broke, not that the product dropped the command.
+PLUGIN_BACKED_CANARY = ("security-review",)
+
 # The bundle is minified JS. These markers sit at the top of the embedded CLI
 # chunk and are stable across the releases observed so far; each is tried in
 # turn so one rename does not break discovery.
 BUNDLE_MARKERS = (b"// @bun @bytecode @bun-cjs", b"// @bun @bun-cjs", b"// @bun")
+
+# Region rule. A bytecode-fragmented bundle scatters its readable JavaScript
+# across thousands of printable runs, some only a few kilobytes, with
+# registrations in the small ones. From the first bundle marker to end of file,
+# every printable run of at least this many bytes is taken and the runs are
+# joined with newlines. The floor is what keeps the single regex pass cheap;
+# below it the regex costs minutes and above it registrations go missing.
+MIN_RUN_BYTES = 256
+RUN_RE = re.compile(rb"[\t\n\r\x20-\x7e]{%d,}" % MIN_RUN_BYTES)
+# Every registration literal, of any registrar, opens with this token. Counting
+# it in the raw region against the joined source is how a registration that
+# sits in a run below the floor is counted rather than silently lost.
+REGISTRATION_TOKEN = b"({name:"
+
+# A single-character identifier is a function-local minifier name reused
+# everywhere, so its nearest preceding string binding is only trusted when it
+# lies within this many bytes of the registration; a longer identifier is a
+# module-level constant and its nearest preceding binding is trusted at any
+# distance (the constants are hoisted megabytes ahead of the registrations in
+# the bytecode layout).
+SHORT_IDENT_LOCALITY_BYTES = 65_536
+
+# Extraction lanes, in the order the self-check prints them. Each lane carries
+# its own status so one broken lane never silently voids the others' counts.
+LANES = ("builtin_commands", "bundled_skills", "plugin_backed")
 
 # Component types a plugin may ship, from the plugin manifest schema and the
 # standard plugin layout. Directory is the default location; the manifest may
@@ -204,7 +236,59 @@ def read_bundle(binary: Path) -> tuple[str | None, dict[str, Any]]:
         return None, meta
 
     meta["container"] = detect_container(data)
+    return _select_region(data, meta)
 
+
+def _select_region(
+    data: bytes, meta: dict[str, Any]
+) -> tuple[str | None, dict[str, Any]]:
+    """Apply the region rule to raw bytes; the legacy longest-run path is the fallback.
+
+    Region rule: from the first bundle marker to end of file, every printable
+    run of at least `MIN_RUN_BYTES`, joined with newlines. A build with no
+    marker at all falls back to the largest printable run around a known
+    anchor, which is what every build before the bytecode layout needed.
+    """
+    started = time.perf_counter()
+    first = -1
+    marker_used = ""
+    for marker in BUNDLE_MARKERS:
+        pos = data.find(marker)
+        if pos >= 0 and (first < 0 or pos < first):
+            first, marker_used = pos, marker.decode("ascii")
+    if first < 0:
+        return _select_longest_run(data, meta)
+
+    runs = [m.group(0) for m in RUN_RE.finditer(data, first)]
+    joined = b"\n".join(runs)
+    meta["anchor"] = marker_used
+    meta["bundle_offset"] = first
+    meta["region_rule"] = (
+        f"first bundle marker to end of file; printable runs of at least "
+        f"{MIN_RUN_BYTES} bytes joined with newlines"
+    )
+    meta["runs"] = len(runs)
+    meta["joined_bytes"] = len(joined)
+    meta["runs_below_floor"] = max(
+        0, data.count(REGISTRATION_TOKEN, first) - joined.count(REGISTRATION_TOKEN)
+    )
+    meta["elapsed_seconds"] = round(time.perf_counter() - started, 3)
+    if len(joined) < 1_000_000:
+        meta["error"] = (
+            f"joined printable region is only {len(joined)} bytes - "
+            "this build does not embed the CLI bundle where expected"
+        )
+        return None, meta
+    return joined.decode("latin1"), meta
+
+
+def _select_longest_run(
+    data: bytes, meta: dict[str, Any]
+) -> tuple[str | None, dict[str, Any]]:
+    """Legacy region selection: the largest printable run around a known anchor."""
+    meta["region_rule"] = (
+        "no bundle marker found; largest printable run around an anchor"
+    )
     printable = bytearray(256)
     for c in b"\t\n\r":
         printable[c] = 1
@@ -519,56 +603,206 @@ def _read_aliases(body: str) -> list[str]:
     return re.findall(r'"([^"]+)"', m.group(1))
 
 
-def discover_registrar(src: str, export_name: str) -> str | None:
-    """Resolve a minified registrar function via its readable export name.
+_IDENT = r"[A-Za-z_$][A-Za-z0-9_$]*"
+# The canary registration: `doctor` has shipped in every build observed and its
+# alias makes the literal unambiguous. The callee immediately before it is the
+# registrar when no export map names one.
+_CANARY_REGISTRATION = r'\(\{name:"doctor",aliases:\["checkup"\]'
+
+
+def discover_registrar_route(
+    src: str, export_name: str
+) -> tuple[str | None, str | None]:
+    """Resolve a minified registrar function, and say which route resolved it.
 
     Minified identifiers are regenerated every release, so hardcoding one dates
-    the script immediately. The bundle's export maps keep the original names
-    (`registerBundledSkill:()=>xu`), which makes them a stable way in.
+    the script immediately. Three routes, tried in order, each keyed on
+    something the bundle keeps readable:
+
+      export-map   the CJS getter `registerBundledSkill:()=>xu`
+      esm-export   the ESM export list `xu as registerBundledSkill`
+      canary       the callee immediately preceding the `doctor` registration
+                   (only for the bundled-skill registrar)
+
+    Returns (identifier, route), or (None, None) when no route resolves.
     """
-    m = re.search(re.escape(export_name) + r":\(\)=>([A-Za-z_$][A-Za-z0-9_$]*)", src)
-    return m.group(1) if m else None
+    m = re.search(re.escape(export_name) + r":\(\)=>(" + _IDENT + ")", src)
+    if m:
+        return m.group(1), "export-map"
+    m = re.search(r"\b(" + _IDENT + r") as " + re.escape(export_name) + r"\b", src)
+    if m:
+        return m.group(1), "esm-export"
+    if export_name == "registerBundledSkill":
+        m = re.search(r"\b(" + _IDENT + r")" + _CANARY_REGISTRATION, src)
+        if m:
+            return m.group(1), "canary"
+    return None, None
 
 
-def build_const_map(src: str) -> dict[str, str]:
-    """Map single-valued identifiers to their kebab-case string literal.
+def discover_registrar(src: str, export_name: str) -> str | None:
+    """The registrar identifier alone; see `discover_registrar_route`."""
+    return discover_registrar_route(src, export_name)[0]
+
+
+_KEBAB_BINDING_RE = re.compile(
+    r"\b(" + _IDENT + r')\s*=\s*"([a-z][a-z0-9]*(?:-[a-z0-9]+)*)"'
+)
+
+
+def build_const_index(
+    src: str, idents: set[str] | None = None
+) -> dict[str, list[tuple[int, str]]]:
+    """Every `ident="kebab-case"` binding, keyed by identifier, in source order.
 
     Several bundled skills are registered as `xu({name:gme,...})` where `gme`
-    is a hoisted constant, so a literal-only scan silently misses them.
+    is a hoisted constant, so a literal-only scan silently misses them. The
+    positions are kept because a name is resolved by locality, never by a
+    single global value: the same identifier is bound to other strings in
+    unrelated modules, and in the bytecode layout the real binding sits
+    megabytes ahead of the registration. Passing the identifiers that need
+    resolving narrows the scan to those names, which is a fraction of the cost
+    of indexing every binding in a 37 MB source.
     """
-    seen: dict[str, set[str]] = {}
-    for m in re.finditer(
-        r'\b([A-Za-z_$][A-Za-z0-9_$]{0,8})\s*=\s*"([a-z][a-z0-9]*(?:-[a-z0-9]+)*)"', src
-    ):
-        seen.setdefault(m.group(1), set()).add(m.group(2))
-    return {k: next(iter(v)) for k, v in seen.items() if len(v) == 1}
+    if idents is not None:
+        if not idents:
+            return {}
+        pattern = re.compile(
+            r"\b("
+            + "|".join(re.escape(i) for i in sorted(idents, key=len, reverse=True))
+            + r')\s*=\s*"([a-z][a-z0-9]*(?:-[a-z0-9]+)*)"'
+        )
+    else:
+        pattern = _KEBAB_BINDING_RE
+    index: dict[str, list[tuple[int, str]]] = {}
+    for m in pattern.finditer(src):
+        index.setdefault(m.group(1), []).append((m.start(), m.group(2)))
+    return index
+
+
+def resolve_name_ident(
+    ident: str, at: int, index: dict[str, list[tuple[int, str]]]
+) -> str | None:
+    """Resolve a registration's name identifier by its nearest preceding binding.
+
+    Locality rule, stated exactly: the binding is the nearest `ident="..."`
+    before the registration; a farther binding never wins over a nearer one,
+    which is what keeps an unrelated module's `oO="ehrpd"` from shadowing the
+    real `oO="artifact-design"` bound closer in. A single-character identifier
+    is trusted only when that nearest binding lies within
+    `SHORT_IDENT_LOCALITY_BYTES`, because such names are function-local and a
+    far binding belongs to some other function. No preceding binding at all is
+    unresolved, never guessed.
+    """
+    bindings = index.get(ident)
+    if not bindings:
+        return None
+    k = bisect.bisect_left(bindings, (at, "")) - 1
+    if k < 0:
+        return None
+    pos, value = bindings[k]
+    if len(ident) == 1 and at - pos > SHORT_IDENT_LOCALITY_BYTES:
+        return None
+    return value
+
+
+_FOR_HEAD_RE = re.compile(r"for\((?P<head>[^()]*)\)\s*\{?\s*$")
+_INVOCATION_FIELDS: tuple[tuple[str, str], ...] = (
+    ("user_invocable", "userInvocable"),
+    ("disable_model_invocation", "disableModelInvocation"),
+    ("terminal_oriented", "terminalOriented"),
+    ("survives_kill_switch", "survivesBundledKillSwitch"),
+)
+
+
+def _is_loop_registration(src: str, call_start: int, ident: str) -> bool:
+    """True when the registration sits inside a `for(... of ...)` whose head binds `ident`.
+
+    Such a registration is a dynamic roster (one call registering many
+    skills from a table), not one skill with a computed name.
+    """
+    pre = src[max(0, call_start - 300) : call_start]
+    m = _FOR_HEAD_RE.search(pre)
+    if not m:
+        return False
+    head = m.group("head")
+    return bool(
+        re.search(r"\bof\b", head) and re.search(r"\b" + re.escape(ident) + r"\b", head)
+    )
+
+
+def read_invocation_fields(body: str) -> dict[str, Any]:
+    """The invocation-control fields a registration carries, when present.
+
+    `!0` is true and `!1` false in the minified source. A function-valued
+    field (`disableModelInvocation:()=>...`) is recorded as true with
+    `flag_driven`, matching the binary's own serializer, which treats any
+    function as disabled.
+    """
+    out: dict[str, Any] = {}
+    for key, field_name in _INVOCATION_FIELDS:
+        m = re.search(
+            r"\b" + field_name + r":(!0|!1|\(\)=>|function\b|[A-Za-z_$])", body
+        )
+        if not m:
+            continue
+        token = m.group(1)
+        if token == "!0":
+            out[key] = True
+        elif token == "!1":
+            out[key] = False
+        else:
+            out[key] = True
+            out.setdefault("flag_driven", []).append(key)
+    return out
+
+
+def registrations_of(entry: Any) -> list[dict[str, Any]]:
+    """Every registration behind one bundled-skill name.
+
+    A name maps to one registration object, or to a list when two distinct
+    registrations share the name (a collision). Consumers read through this
+    helper so neither shape is a special case.
+    """
+    if isinstance(entry, list):
+        return [e for e in entry if isinstance(e, dict)]
+    if isinstance(entry, dict):
+        return [entry]
+    return []
 
 
 def extract_bundled_skills(
     src: str, braces: BraceMap
-) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
+) -> tuple[dict[str, Any], dict[str, Any]]:
     """Bundled skills, keyed by name, plus notes about resolution.
 
     Each registration's fields are bound to its own `{...}` via the brace map,
     for the same reason command extraction is: registrations sit flush against
     one another, so a fixed-width window around one silently adopts the next
     one's description or aliases whenever a field is absent.
+
+    Two distinct registrations sharing one name are both kept, as a list under
+    that name with a `collision` note, never merged and never last-writer-wins:
+    a consumer deciding a per-registration property such as model
+    invocability would otherwise read whichever the bundle happened to place
+    last.
     """
     notes: dict[str, Any] = {}
-    fn = discover_registrar(src, "registerBundledSkill")
+    fn, route = discover_registrar_route(src, "registerBundledSkill")
     notes["registrar"] = fn
+    notes["registrar_route"] = route
     if not fn:
         notes["error"] = "registerBundledSkill export not found - build layout changed"
         return {}, notes
 
-    consts = build_const_map(src)
-    out: dict[str, dict[str, Any]] = {}
-    unresolved: list[str] = []
+    # First pass: bound every call and read its name expression. A call whose
+    # object carries no `name:` is another module's function that happens to
+    # share the minified identifier, not a registration, so it is counted
+    # apart and never inflates the resolved-versus-seen gap.
+    calls: list[tuple[int, str, re.Match[str] | None]] = []
     unbounded = 0
-    seen = 0
-
+    same_ident_calls = 0
+    name_re = re.compile(r"\bname:(?:" + _STR + r"|(" + _IDENT + r")|(`[^`]*`))")
     for m in re.finditer(re.escape(fn) + r"\(\{", src):
-        seen += 1
         open_i = m.end() - 1  # the '{' captured by the pattern
         close_i = braces.pairs.get(open_i)
         if close_i is None:
@@ -577,19 +811,45 @@ def extract_bundled_skills(
             unbounded += 1
             continue
         body = src[open_i : close_i + 1]
-        nm = re.search(r"name:(?:" + _STR + r"|([A-Za-z_$][A-Za-z0-9_$]{0,8}))", body)
+        nm = name_re.search(body)
         if not nm:
+            same_ident_calls += 1
             continue
+        calls.append((m.start(), body, nm))
+
+    idents = {nm.group(2) for _, _, nm in calls if nm is not None and nm.group(2)}
+    index = build_const_index(src, idents)
+    out: dict[str, Any] = {}
+    unresolved: list[str] = []
+    dynamic_rosters = 0
+    dynamic_patterns: list[str] = []
+    seen = 0
+    collisions: list[str] = []
+
+    for call_start, body, nm in calls:
+        seen += 1
+        assert nm is not None
         if nm.group(1) is not None:
             name = _unescape(nm.group(1))
+        elif nm.group(3) is not None:
+            # A template literal builds the name at runtime: one call
+            # registering a family, enumerable only by running it.
+            dynamic_rosters += 1
+            dynamic_patterns.append(nm.group(3))
+            continue
         else:
             ident = nm.group(2)
-            if ident not in consts:
+            if _is_loop_registration(src, call_start, ident):
+                dynamic_rosters += 1
+                dynamic_patterns.append(f"for(... of ...) over {ident}")
+                continue
+            resolved = resolve_name_ident(ident, call_start, index)
+            if resolved is None:
                 unresolved.append(ident)
                 continue
-            name = consts[ident]
+            name = resolved
         desc = _MENUDESC_RE.search(body)
-        out[name] = {
+        rec: dict[str, Any] = {
             "name": name,
             "source": "bundled-skill",
             "description": _unescape(desc.group(1)) if desc else "",
@@ -597,14 +857,47 @@ def extract_bundled_skills(
             "gated": "isEnabled" in body,
             "hidden": "isHidden" in body,
         }
+        rec.update(read_invocation_fields(body))
+        prev = out.get(name)
+        if prev is None:
+            out[name] = rec
+            continue
+        existing = registrations_of(prev)
+        if any(_same_registration(e, rec) for e in existing):
+            continue
+        # A genuine collision: keep every registration, keyed by name.
+        for e in existing:
+            e["collision"] = True
+        rec["collision"] = True
+        out[name] = [*existing, rec]
+        if name not in collisions:
+            collisions.append(name)
 
     notes["registrations_seen"] = seen
-    notes["resolved"] = len(out)
+    notes["resolved"] = sum(len(registrations_of(e)) for e in out.values())
     if unresolved:
         notes["unresolved_dynamic_names"] = sorted(set(unresolved))
+    if dynamic_rosters:
+        notes["dynamic_roster"] = dynamic_rosters
+        notes["dynamic_roster_patterns"] = dynamic_patterns
     if unbounded:
         notes["unbounded_registrations"] = unbounded
+    if same_ident_calls:
+        notes["same_identifier_calls_skipped"] = same_ident_calls
+    if collisions:
+        notes["collisions"] = sorted(collisions)
     return out, notes
+
+
+def _same_registration(a: dict[str, Any], b: dict[str, Any]) -> bool:
+    # `flag_driven` is part of the identity: a constant-true invocation field
+    # and a function-valued one read as the same boolean, and the difference
+    # (decided at runtime versus fixed) is exactly the evidence a collision
+    # exists to preserve.
+    keys = ("description", "aliases", "gated", "hidden", "flag_driven") + tuple(
+        k for k, _ in _INVOCATION_FIELDS
+    )
+    return all(a.get(k) == b.get(k) for k in keys)
 
 
 def extract_plugin_backed(src: str) -> dict[str, str]:
@@ -636,80 +929,155 @@ def detect_cli_version(src: str) -> str | None:
     return best[0] if best[1] >= 20 else None
 
 
+def _lane_status(problems: list[str], advisories: list[str]) -> str:
+    return "broken" if problems else ("degraded" if advisories else "ok")
+
+
 def check_integrity(
     src: str,
     commands: dict[str, Any],
     skills: dict[str, Any],
     skill_notes: dict[str, Any],
+    plugin_backed: dict[str, str] | None = None,
+    runs_below_floor: int = 0,
 ) -> dict[str, Any]:
-    """Decide whether this extraction can be trusted, and say why.
+    """Decide whether this extraction can be trusted, per lane, and say why.
 
     A drifted build usually degrades quietly: the script still returns rows,
     just fewer than exist. Every check here exists to convert that quiet
     shortfall into a stated one, so a downstream reader is never handed a
     confident short list.
+
+    One rule for one state: each lane (`builtin_commands`, `bundled_skills`,
+    `plugin_backed`) carries its own status, and the top-level status is the
+    worst lane. `broken` at the top level means every lane is broken or the
+    binary is unreadable; a run with at least one healthy lane is at most
+    `degraded`, with each broken lane's problems restated as top-level
+    advisories prefixed by the lane name, so the healthy lanes' counts stay
+    reportable and the broken lane is named rather than hidden.
     """
-    problems: list[str] = []
-    advisories: list[str] = []
+    lanes: dict[str, dict[str, Any]] = {
+        lane: {"status": "ok", "problems": [], "advisories": []} for lane in LANES
+    }
+    top_advisories: list[str] = []
 
     version = detect_cli_version(src)
     if version is None:
-        advisories.append(
+        top_advisories.append(
             "could not read a CLI version from the bundle; drift against the last "
             f"validated build {VALIDATED_AGAINST} cannot be checked"
         )
     elif version != VALIDATED_AGAINST:
-        advisories.append(
+        top_advisories.append(
             f"cli {version} differs from the last validated build {VALIDATED_AGAINST}; "
             "counts are believed, not verified - re-run the skill's evals to revalidate"
         )
 
+    builtin = lanes["builtin_commands"]
     missing = [c for c in CANARY_COMMANDS if c not in commands]
     if missing:
-        problems.append(
+        builtin["problems"].append(
             f"canary commands absent: {', '.join(missing)} - extraction is broken, "
             "not merely drifted"
         )
-
     type_tokens = len(_TYPE_RE.findall(src))
     yield_ratio = (len(commands) / type_tokens) if type_tokens else 0.0
     if type_tokens and yield_ratio < MIN_COMMAND_YIELD:
-        problems.append(
+        builtin["problems"].append(
             f"resolved {len(commands)} commands from {type_tokens} type tokens "
             f"({yield_ratio:.0%}); the brace reader is not resolving enclosing objects"
         )
 
+    bundled = lanes["bundled_skills"]
+    # Both export shapes: the CJS getter and the ESM export list. A
+    # registrar-shaped name in either that this script does not know is the
+    # signal of a registration path it is not reading.
     found_registrars = set(re.findall(r"\b(register[A-Za-z]*)\s*:\(\)=>", src))
+    found_registrars |= set(
+        re.findall(
+            r"\b" + _IDENT + r" as (register[A-Za-z]*(?:Skill|Command|Agent))\b", src
+        )
+    )
     registrar_like = {
         r for r in found_registrars if re.search(r"(Skill|Command|Agent)", r)
     }
     unknown = sorted(registrar_like - KNOWN_REGISTRAR_EXPORTS)
     if unknown:
-        advisories.append(
+        bundled["advisories"].append(
             "unrecognised registrar-shaped exports: "
             + ", ".join(unknown)
             + " - a new registration path may exist and this run may under-report"
         )
-
     seen = skill_notes.get("registrations_seen")
     resolved = skill_notes.get("resolved")
-    if isinstance(seen, int) and isinstance(resolved, int) and seen > resolved:
-        advisories.append(
-            f"{seen - resolved} bundled-skill registration(s) used a computed name and "
-            "were not resolved; the bundled-skill list is a floor, not a total"
+    dynamic = skill_notes.get("dynamic_roster", 0)
+    if isinstance(seen, int) and isinstance(resolved, int):
+        gap = seen - resolved - (dynamic if isinstance(dynamic, int) else 0)
+        if gap > 0:
+            bundled["advisories"].append(
+                f"{gap} bundled-skill registration(s) used a computed name and "
+                "were not resolved; the bundled-skill list is a floor, not a total"
+            )
+    if isinstance(dynamic, int) and dynamic > 0:
+        bundled["advisories"].append(
+            f"{dynamic} registration(s) register a dynamic roster (a loop over a "
+            "table); those names are not enumerable statically and the "
+            "bundled-skill list is a floor, not a total"
+        )
+    if not skills:
+        bundled["problems"].append(
+            "no bundled skills resolved - the registrar lookup failed"
         )
 
-    if not skills:
-        problems.append("no bundled skills resolved - the registrar lookup failed")
+    if runs_below_floor > 0:
+        # A registration literal in a run under the floor was never read by
+        # any lane. It is attributed to the bundled-skill lane, where the
+        # small runs sit, so the roster is labelled a floor rather than a
+        # total; the literal is generic, so the command lane may be short too.
+        bundled["advisories"].append(
+            f"{runs_below_floor} registration literal(s) sit in printable runs shorter "
+            f"than the {MIN_RUN_BYTES}-byte floor and were not read; the bundled-skill "
+            "list (and possibly the command list) is a floor, not a total"
+        )
 
-    status = "broken" if problems else ("degraded" if advisories else "ok")
+    backed = lanes["plugin_backed"]
+    if plugin_backed is not None:
+        missing_backed = [c for c in PLUGIN_BACKED_CANARY if c not in plugin_backed]
+        if missing_backed:
+            backed["problems"].append(
+                f"canary plugin-backed built-in(s) absent: {', '.join(missing_backed)} - "
+                "the pluginName scan resolved nothing it should have"
+            )
+
+    problems: list[str] = []
+    advisories: list[str] = list(top_advisories)
+    for lane in LANES:
+        lanes[lane]["status"] = _lane_status(
+            lanes[lane]["problems"], lanes[lane]["advisories"]
+        )
+    all_broken = all(lanes[lane]["status"] == "broken" for lane in LANES)
+    for lane in LANES:
+        entry = lanes[lane]
+        if entry["status"] == "broken" and all_broken:
+            problems.extend(f"{lane}: {p}" for p in entry["problems"])
+        elif entry["status"] == "broken":
+            advisories.extend(
+                f"{lane} lane broken: {p} (its counts are not reportable; the other "
+                "lanes' counts stand)"
+                for p in entry["problems"]
+            )
+        advisories.extend(f"{lane}: {a}" for a in entry["advisories"])
+
+    status = "broken" if all_broken else ("degraded" if advisories else "ok")
     return {
         "status": status,
+        "lanes": lanes,
         "cli_version": version,
         "validated_against": VALIDATED_AGAINST,
         "command_yield": round(yield_ratio, 3),
         "type_tokens": type_tokens,
         "registrars_seen": sorted(registrar_like),
+        "registrar_route": skill_notes.get("registrar_route"),
         "problems": problems,
         "advisories": advisories,
     }
@@ -944,8 +1312,9 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
                         commands[name]["plugin_name"] = plugin
                         commands[name]["source"] = "plugin-backed-builtin"
                     elif name in skills:
-                        skills[name]["plugin_name"] = plugin
-                        skills[name]["source"] = "plugin-backed-builtin"
+                        for registration in registrations_of(skills[name]):
+                            registration["plugin_name"] = plugin
+                            registration["source"] = "plugin-backed-builtin"
 
                 # A name registered as a bundled skill is a skill, not a command.
                 for name in list(commands):
@@ -958,7 +1327,12 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
                 report["bundled_skill_notes"] = skill_notes
                 report["plugin_backed"] = plugin_backed
                 report["integrity"] = check_integrity(
-                    src, commands, skills, skill_notes
+                    src,
+                    commands,
+                    skills,
+                    skill_notes,
+                    plugin_backed,
+                    int(meta.get("runs_below_floor", 0) or 0),
                 )
 
     if not args.binary_only:
@@ -1040,6 +1414,8 @@ def main(argv: list[str] | None = None) -> int:
             f"{integrity['status'].upper()}: cli {integrity['cli_version']}, "
             f"validated against {integrity['validated_against']}"
         )
+        for lane, entry in (integrity.get("lanes") or {}).items():
+            print(f"  lane {lane}: {entry['status']}")
         for p in integrity["problems"]:
             print(f"  problem:  {p}")
         for a in integrity["advisories"]:
