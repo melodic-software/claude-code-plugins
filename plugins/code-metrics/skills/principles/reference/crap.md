@@ -65,8 +65,9 @@ behind it. What the record supports:
 
 - The formula, the variable definitions, and the authors' own suggested cutoff of 30 are documented
   by the authors. The cutoff is presented as a judgement call after "much debate", not as a result.
-- No validation study for CRAP surfaced in this plugin's literature pass. The absence is what the
-  claim rests on, so read it as "no supporting evidence found", not as a refutation.
+- No validation study for CRAP is cited by its authors, and none appears among the sources
+  [literature.md](literature.md) lists. The absence is what the claim rests on, so read it as "no
+  supporting evidence found", not as a refutation.
 - The surrounding literature argues against fixed thresholds generally. Nagappan, Ball and Zeller
   (ICSE 2006) found no single set of complexity metrics that acts as a universally best defect
   predictor, and Majumder, Mody and Menzies (EMSE 2022, 700 projects) warn that metric-importance

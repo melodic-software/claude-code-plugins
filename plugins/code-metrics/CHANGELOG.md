@@ -3,6 +3,59 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.9]
+
+### Fixed
+
+- **`principles`: the Halstead split-file answer overstated what the formula supports.** The
+  quick guide said difficulty "should not have" moved when a file was split, and eval 1 expected
+  the same. Difficulty `(n1/2) * (N2/n2)` carries no explicit length term, but both factors change
+  per half on a split, and a radon run on two functions measured together and apart gave 1.667 for
+  the whole against 1.000 and 1.800 for the halves. The entry and the eval now say per-file
+  difficulty legitimately moves on a split, in either direction.
+- **`principles`: the §8.2.115 reading is labelled as the plugin's.** thresholds.md, measures.md,
+  and the configuration reference presented "a function's non-empty lines as a percentage of the
+  file's" as the clause's words. The clause states `MaxNumberOfNonEmptyLinesOfCode` with a default
+  of "5%" and names no base; the percentage-of-file base is this plugin's reading, and thresholds.md
+  now carries the four-part verification record for it (OMG ASCQM v1.1 and the ISO edition, as of
+  2026-09-11, recheck on a new revision). The same files now name ISO/IEC 5055:2021 as the ISO
+  publication of ASCQM v1.0, with v1.1 identical for the cited clauses, and note that the
+  document's informative CWE summary rows carry different defaults (1000 lines per file, 10%) from
+  its detection patterns (5%, 90%).
+- **`principles`: McCabe's framing and Campbell's switch rule are quoted as written.** McCabe 1976
+  frames cyclomatic complexity for modules that are "testable and maintainable", not testability
+  alone; Campbell v1.7 states "a switch and all its cases combined incurs a single structural
+  increment". measures.md and literature.md carry both verbatim.
+
+### Changed
+
+- **`principles`: the quick guide answers "which measure should I look at" with an intent-keyed
+  tree**, each branch grounded in its primary: testing burden to cyclomatic (McCabe; NIST SP 500-235
+  sets the test count equal to it), readability to cognitive (Campbell), diff size and copying to
+  lines per file and duplication (ISO/IEC 5055 CWE-1080 and CWE-1041), and whether a suite would
+  catch a fault to the mutation-testing presence gate, because coverage records execution and the
+  primary literature disagrees on how well it predicts fault detection (Inozemtseva and Holmes
+  2014 against Gopinath, Jensen and Groce 2014 and Kochhar, Thung and Lo 2015). A duplication entry
+  states that no reference ships and that the percentage moves with `duplication.min_tokens`, and
+  the routing table names the plugin's report-schema reference for the report vocabulary.
+- **`principles`: the no-verdict rule is stated once**, at the top of the skill body, and the
+  reference files no longer cite the marketplace's ADR by number, which a consumer of the installed
+  plugin cannot read.
+- **`principles`: the reference files state present-tense facts and carry no research narrative.**
+  The thresholds file's account of how ten candidate values were commissioned from a social post,
+  scrutinized at an interview, and full-text searched is replaced by a table of popular numbers with
+  no found source, naming what was checked and what was not; literature.md states each source's
+  confidence and its basis without narrating the pass that established it. For the record, that
+  candidate list was 22 (cyclomatic), 22 (cognitive), 80 (Halstead difficulty), 500 (lines per
+  file), 100 (coverage), 25 (CRAP), and four zeros for count-based concerns; 20 and 1000 survived
+  as shipped defaults because a citation exists for them, and the rest traced to no source.
+- **`principles`: a `## Next` section** names the audit skill for the measure in question and
+  `/code-metrics:setup` for setting the reader's own reference values, in the mention-only shape
+  the sibling skills use.
+- **`principles`: literature.md gains a coverage-and-test-effectiveness section** citing the five
+  primaries above with their DOIs, and a duplication row in the thresholds table records that no
+  duplication reference ships and why.
+
 ## [0.1.8]
 
 ### Added

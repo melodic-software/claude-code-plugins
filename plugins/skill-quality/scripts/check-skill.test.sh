@@ -3722,6 +3722,119 @@ else
   fi
 fi
 
+# Check 26: the `## Next` successor section. Absence is INFO and never a
+# warning; a conforming section is silent; a misplaced or malformed one warns
+# and still passes (advisory).
+out="$(run good-skill 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q "INFO: no '## Next' section" <<<"$out" && ! grep -q "WARN: '## Next'" <<<"$out"; then
+  pass "a skill with no '## Next' gets an INFO note and no warning"
+else
+  fail "absent '## Next' should be INFO only (rc=$rc): $out"
+fi
+
+make_skill next-ok '---
+name: next-ok
+description: "Next fixture. Use when: '"'"'next ok'"'"'."
+---
+
+## Purpose
+
+Conforming successor section in the bullet shape.
+
+## Next
+
+- The numbers feed a comparison: `/verification:measure metrics`.
+- A number is about to be quoted at someone, so the caveats come first:
+  `/code-metrics:principles`.
+
+## Gotchas
+
+None known.
+'
+out="$(run next-ok 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q "INFO: '## Next' section present" <<<"$out" && ! grep -q "WARN: '## Next'" <<<"$out"; then
+  pass "a conforming bullet-shape '## Next' before '## Gotchas' passes silently"
+else
+  fail "conforming '## Next' should not warn (rc=$rc): $out"
+fi
+
+make_skill next-single '---
+name: next-single
+description: "Next fixture. Use when: '"'"'next single'"'"'."
+---
+
+## Purpose
+
+Conforming successor section in the single-invocation shape.
+
+## Next
+
+`/code-metrics:audit-complexity`. The sibling skills cover the other measures.
+
+## Gotchas
+
+None known.
+'
+out="$(run next-single 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q "WARN: '## Next'" <<<"$out"; then
+  pass "a conforming single-invocation '## Next' passes silently"
+else
+  fail "single-invocation '## Next' should not warn (rc=$rc): $out"
+fi
+
+make_skill next-late '---
+name: next-late
+description: "Next fixture. Use when: '"'"'next late'"'"'."
+---
+
+## Purpose
+
+Successor section placed after Gotchas.
+
+## Gotchas
+
+None known.
+
+## Next
+
+`/code-metrics:audit-complexity`.
+'
+out="$(run next-late 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q "WARN: '## Next' section placed after '## Gotchas'" <<<"$out"; then
+  pass "a '## Next' after '## Gotchas' warns and passes"
+else
+  fail "misplaced '## Next' should warn and pass (rc=$rc): $out"
+fi
+
+make_skill next-malformed '---
+name: next-malformed
+description: "Next fixture. Use when: '"'"'next malformed'"'"'."
+---
+
+## Purpose
+
+Successor section with one bullet that names no skill.
+
+## Next
+
+- Go do the next thing.
+
+## Gotchas
+
+None known.
+'
+out="$(run next-malformed 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q "WARN: '## Next' section 1 bullet(s); the outcome-bullet shape carries two to four; 1 bullet(s) name no /plugin:skill successor" <<<"$out"; then
+  pass "a malformed '## Next' warns on both the bullet count and the missing successor"
+else
+  fail "malformed '## Next' should warn on count and token (rc=$rc): $out"
+fi
+
 if [[ $fails -ne 0 ]]; then
   printf '%d assertion(s) failed\n' "$fails" >&2
   exit 1

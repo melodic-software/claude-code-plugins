@@ -3,6 +3,19 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.3]
+
+### Added
+
+- **`check`: check 26 reads the `## Next` successor section.** The skill-bodies rule places a
+  skill's successor in a `## Next` section before `## Gotchas`, as one `/plugin:skill` invocation
+  line or two to four `<outcome>: /plugin:skill` bullets, and the gate had no check for it: a skill
+  missing the section passed with 0 warnings while six sibling skills in the same plugin carried
+  one. Absence is an INFO note rather than a WARN, because whether a skill has a natural successor
+  is the author's call and most skills in a large fleet have none wired yet; a section that is
+  present but placed after `## Gotchas`, last in the file, or in neither shape is a WARN. The
+  check stays advisory, so the gate's PASS/FAIL verdict is unchanged.
+
 ## [0.21.2]
 
 ### Fixed

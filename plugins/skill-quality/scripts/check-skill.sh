@@ -99,6 +99,9 @@
 #      elsewhere)
 #  25. Description/verb-contract polarity: read-only vs mutate (WARN;
 #      description lead vs Naming verb vs body; #2896)
+#  26. `## Next` successor section: absent is INFO (a terminal skill has
+#      none); present but after `## Gotchas`, last in the file, or neither
+#      the one-invocation nor the two-to-four-outcome-bullet shape is WARN
 #
 # Notes (static, git-diff-based design):
 #   - Checks 3/8/9 diff the working tree against CHECK_SKILL_BASE_REF (default
@@ -1697,6 +1700,61 @@ if [[ -n "$VC_HIT" ]]; then
   warn "description/verb-contract mismatch: $VC_HIT — a mismatch is a factual defect in the listing surface being routed on, not a style issue. Hand-verify; --fix in the description is the compliant override shape. Out of scope: whether this skill should gain a --fix path, and any rename"
 else
   note "description/verb-contract polarity consistent (or no Naming verb / no polarity language)"
+fi
+
+# --- Check 26: `## Next` successor section (advisory) -------------------------
+# The skill-bodies rule says a skill with a natural successor names it in a
+# `## Next` section placed before `## Gotchas` (or before the last H2 when the
+# file has none), in one of two shapes: one `/plugin:skill` invocation on a
+# line, optionally followed by a sentence; or two to four bullets of
+# `<outcome>: /plugin:skill`. Whether a skill HAS a successor is the author's
+# call, so absence is an INFO note rather than a WARN: most skills in a large
+# fleet are terminal or not yet wired, and a WARN on each would drown the
+# gate. A section that is present but misplaced or malformed is a WARN,
+# because that is a shape the rule names and the author did not intend.
+
+NEXT_LINE="$(grep -nE '^## Next[[:space:]]*$' "$SKILL_MD" | head -1 | cut -d: -f1)"
+if [[ -z "$NEXT_LINE" ]]; then
+  note "no '## Next' section: fine for a terminal skill; a skill with a natural successor names it there (skill-bodies rule)"
+else
+  NEXT_GOTCHAS_LINE="$(grep -nEi '^##[[:space:]]+(gotchas|quirks)' "$SKILL_MD" | head -1 | cut -d: -f1)"
+  NEXT_LAST_H2="$(grep -nE '^## ' "$SKILL_MD" | tail -1 | cut -d: -f1)"
+  NEXT_HIT=""
+  if [[ -n "$NEXT_GOTCHAS_LINE" ]] && ((NEXT_LINE > NEXT_GOTCHAS_LINE)); then
+    NEXT_HIT="placed after '## Gotchas'; the rule puts it before"
+  elif [[ -z "$NEXT_GOTCHAS_LINE" ]] && ((NEXT_LINE == NEXT_LAST_H2)); then
+    NEXT_HIT="is the last section; the rule places it before the last H2"
+  fi
+  # The section body runs from the heading to the next H2 or end of file.
+  NEXT_BLOCK="$(awk -v s="$NEXT_LINE" 'NR > s { if ($0 ~ /^## /) exit; print }' "$SKILL_MD")"
+  NEXT_BULLETS="$(grep -cE '^- ' <<<"$NEXT_BLOCK" || true)"
+  NEXT_TOKEN='/[a-z0-9-]+:[a-z0-9-]+'
+  if ((NEXT_BULLETS == 0)); then
+    NEXT_FIRST="$(grep -vE '^[[:space:]]*$' <<<"$NEXT_BLOCK" | head -1 || true)"
+    if [[ -z "$NEXT_FIRST" ]]; then
+      NEXT_HIT="${NEXT_HIT:+$NEXT_HIT; }body is empty"
+    elif ! grep -qE "$NEXT_TOKEN" <<<"$NEXT_FIRST"; then
+      NEXT_HIT="${NEXT_HIT:+$NEXT_HIT; }first line carries no /plugin:skill invocation"
+    fi
+  else
+    if ((NEXT_BULLETS < 2 || NEXT_BULLETS > 4)); then
+      NEXT_HIT="${NEXT_HIT:+$NEXT_HIT; }$NEXT_BULLETS bullet(s); the outcome-bullet shape carries two to four"
+    fi
+    # A bullet may wrap onto indented continuation lines; judge each bullet
+    # with its continuation joined.
+    NEXT_BAD="$(awk -v tok="$NEXT_TOKEN" '
+      /^- / { if (b != "" && b !~ tok) n++; b = $0; next }
+      /^[[:space:]]+[^[:space:]]/ { b = b " " $0; next }
+      END { if (b != "" && b !~ tok) n++; print n + 0 }' <<<"$NEXT_BLOCK")"
+    if ((NEXT_BAD > 0)); then
+      NEXT_HIT="${NEXT_HIT:+$NEXT_HIT; }$NEXT_BAD bullet(s) name no /plugin:skill successor"
+    fi
+  fi
+  if [[ -n "$NEXT_HIT" ]]; then
+    warn "'## Next' section $NEXT_HIT. The skill-bodies rule wants one /plugin:skill line, or two to four '<outcome>: /plugin:skill' bullets, placed before '## Gotchas'"
+  else
+    note "'## Next' section present and in the mention-only shape"
+  fi
 fi
 
 # --- Summary ---------------------------------------------------------------
