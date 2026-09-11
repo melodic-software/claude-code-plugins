@@ -59,9 +59,10 @@ refused here.
 - **One instruction surface against the model-capability catalog** → `/claude-config:audit-instructions`
   directly. This pass dispatches that skill by invoking it via the Skill tool; it does not
   re-answer it.
-- **Config-file correctness** → `/claude-config:audit`; grant portability →
+- **Config-file correctness** is a delegated lane, not a route-out: this pass invokes
+  `/claude-config:audit` and appends the findings rows it persists (Phase 3). Grant portability →
   `/claude-config:audit-permission-grants`; automation landscape → `/claude-config:audit-automation-gaps`.
-  None is in this pass's surface set.
+  Neither of those two is in this pass's surface set.
 
 ## Arguments
 
@@ -254,6 +255,18 @@ presence-gated with its fallback stated:
   runs. Carry that skip into the report as **unchecked with its reason**, exactly as an absent plugin
   would be. The distinction between "clean" and "not read" is this skill's whole contract and the
   pass must not collapse it.
+- **`/claude-config:audit`**: sibling in this plugin, always available. It owns config-file
+  correctness: settings, hooks, plugins, permissions, MCP servers, environment variables, the
+  skill-listing budget, model and effort values, and deep-link registration. It takes a **category
+  scope and no surface filter**, so it is **exactly one lane** covering its whole catalog. Its
+  engine persists a findings document whose rows already carry this pass's identity tuple
+  (`check`, `claim`, `sites` of `surface` plus `anchor/v1`) with `lane` and `tier` set, so the lane
+  appends each row of that document through `partial append` **unchanged**, adding only the
+  `attempt` id; a row is never re-derived, re-hashed, or re-severed here. Engine rows are
+  derived-tier; the rows the audit's model adds for its judgment categories are judged-tier, and
+  the document marks each. Its own suppression handling reads the same `.claude/audit-pass.md`
+  record this pass reads, so a finding the audit reports as suppressed is carried into the
+  `suppressed` section with its reason, never raised twice.
 - **`/claude-memory:audit`**: invoke when the `claude-memory` plugin is installed; it owns
   memory-layer hygiene and the within-memory-layer consistency check. It takes an **action verb and
   no surface filter**, so it is **exactly one lane** covering the whole memory layer. Not installed:

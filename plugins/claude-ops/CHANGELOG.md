@@ -3,6 +3,97 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.47.0]
+
+### Added
+
+- **`morning-brief` reads sections 1-4 from REST when the host serves only a pinned
+  set of GraphQL operations.** The `gh` subcommands ride GraphQL; on the HTTP 403 "not
+  enabled for this session" shape the script switches transport for the rest of the
+  run, names it in the header, and re-reads queue counts, the merge-ready list, parked
+  decisions, and lane telemetry from repository-scoped `gh api repos/...` endpoints.
+  The merge-ready REST path reads `mergeable_state` per open PR under a `--pr-limit`
+  cap (default 50) and reports a capped read as PARTIAL; review decisions have no REST
+  field and render `n/a`. The stranded-findings section needs review threads, which
+  have no REST read, so it renders UNREADABLE there instead of an all-clear.
+- **`morning-brief` resolves owner/repo from the checkout's `origin` remote when
+  `gh repo view` is unavailable**, and names the source in the header.
+
+### Fixed
+
+- **`morning-brief` rendered an all-clear or an absence over an unreadable source.**
+  The stranded-findings section only checked the body for an `errors` key and ignored
+  gh's exit status, so a `{"message":...}` error body (the REST and 403 shape) rendered
+  as "every merged PR in the window is clear"; the telemetry section could not tell a
+  failed search from an absent issue and printed "no telemetry issue found"; the queues
+  section printed `?`. Every section is now one of data, empty, or UNREADABLE, the
+  header counts the unreadable sections, every `gh` call checks its exit status, and
+  error detection covers both the `errors[]` and the `message` body shapes. Exit code
+  5 means every section was unreadable; a partial brief still exits 0.
+
+## [0.46.0]
+
+### Changed
+
+- **`changelog` `status` reads a read marker, never commit bodies.** The applied version comes
+  from the marker line of the repository's Claude Code ledger (`docs/upstream/claude-code.md`,
+  override `CLAUDE_OPS_CHANGELOG_LEDGER`), falling back to the highest version a Conventional
+  Commits SUBJECT of the form `address Claude Code v<A>..<B> changelog` names. The previous
+  `git log --grep` over message bodies matched every doc whose recency stamp cited a Claude Code
+  version: on this marketplace it reported 13 applies where the true count was zero.
+- **`diff` and `apply` take a range.** `vA..vB` is inclusive at both ends, `vX` is one release,
+  and no argument means every release newer than the read marker up to the newest published.
+- **`fetch` cites the upstream-drift fetch route** (`curl` the raw `.md`, slice the release
+  blocks locally, check the first heading) instead of carrying its own dated WebFetch caveats.
+  The spoke keeps only the page-specific shape: the `<Update label>` block, `[VSCode]`-tagged
+  items, and the no-change placeholder line.
+
+### Added
+
+- **`scripts/changelog-status.sh`**, the first step of every `changelog` action: marker
+  resolution, installed vs newest release, the range with its release list and core-item count,
+  and the replay cap. It fetches the changelog itself by the raw-markdown route, takes
+  `--changelog <file>` to reuse a copy, and `--no-fetch` to read the marker alone. The skill's
+  pre-computed context line runs it with `--no-fetch`, so the marker is in context on every
+  invocation. `changelog-status.test.sh` covers it.
+- **A replay cap** of ten releases or 300 core items (`--cap-releases`, `--cap-items`, or the
+  `CLAUDE_OPS_CHANGELOG_CAP_*` variables). Past it, `diff` and `apply` stop and recommend a
+  docs-conformance recheck of the components followed by a marker reset, because the current docs
+  already carry the cumulative state and replaying items past the cap costs more than it returns.
+- **Three evals with fixtures**: the marker line is read, commit-body mentions are ignored, and a
+  range past the cap stops with the recommendation. They replace the eval that asserted
+  git-history-derived status.
+
+## [0.45.4]
+
+### Fixed
+
+- **`observability`'s pre-compute pipeline line prints no option tier.** The line could carry no
+  option value (a `${user_config.*}` never rides inside shell-executing content), so its sixth
+  line printed manifest defaults a reader could take for the effective state. The pre-compute
+  line now runs the probe with `--observed`: the sixth line carries the envelope count and names
+  the section 2.6 re-run, which is fed the options the skill body renders as plain content and
+  is the one place the options render.
+
+## [0.45.3]
+
+### Fixed
+
+- **`observability` loads when no `session_event_log_*` option is configured.** The two
+  pre-compute lines passed `${user_config.*}` placeholders inside a shell command; a placeholder
+  the harness leaves unrendered is a bash `bad substitution`, one failed pre-compute line aborts
+  the whole invocation, and a rendered value would be re-parsed by the shell, which is why the
+  plugins reference has shell-executing fields reject `${user_config.*}`. The pre-compute lines
+  now pass no option: the options render as plain content, the probe lines report the manifest
+  defaults, and the skill body re-runs the probe with the rendered values from its own Bash call.
+  A regression test asserts that no pre-compute line references `user_config` and runs each
+  probe-invoking line through bash.
+- **The pipeline line names its two tiers.** `envelope:` counts the rows the telemetry sink wrote
+  for the audit hooks, the `source: "envelope"` rows in `sessions/*.jsonl` plus every line of the
+  shared `hook-events.jsonl` (the legacy shape for a payload with no session id), which the
+  event-log switch never governed, beside `event log: on|off`, so `off` next to a populated root
+  no longer reads as a contradiction.
+
 ## [0.45.2]
 
 ### Fixed

@@ -262,8 +262,9 @@ run_git_probe() {
   )
 }
 
-# Convention-root reads (melodic.worktreeroot) must see global/includeIf config, so they are a
-# separate allowlist from run_git_probe. Fixed key and flag order only.
+# Convention-root reads (worktreeroot.path, plus a retired alias the
+# resolver still dual-reads) must see global/includeIf config, so they are
+# a separate allowlist from run_git_probe. Fixed keys and flag orders only.
 convention_git_allowed() {
   case "${1:-}" in
   -C)
@@ -273,8 +274,21 @@ convention_git_allowed() {
       [[ $# -eq 4 && "$4" == "--git-dir" ]]
       ;;
     config)
-      [[ $# -eq 7 && "$4" == "--get-all" && "$5" == "--show-origin" &&
-        "$6" == "--type=path" && "$7" == "melodic.worktreeroot" ]]
+      # Resolver: --get-all --type=path <key>
+      # Origin:   --get-all --show-origin --type=path <key>
+      case "$#" in
+      6)
+        [[ "$4" == "--get-all" && "$5" == "--type=path" &&
+          ("$6" == "${WORKTREE_ROOT_CURRENT_KEY:-worktreeroot.path}" ||
+          (-n "${WORKTREE_ROOT_LEGACY_KEY:-}" && "$6" == "$WORKTREE_ROOT_LEGACY_KEY")) ]]
+        ;;
+      7)
+        [[ "$4" == "--get-all" && "$5" == "--show-origin" && "$6" == "--type=path" &&
+          ("$7" == "${WORKTREE_ROOT_CURRENT_KEY:-worktreeroot.path}" ||
+          (-n "${WORKTREE_ROOT_LEGACY_KEY:-}" && "$7" == "$WORKTREE_ROOT_LEGACY_KEY")) ]]
+        ;;
+      *) return 1 ;;
+      esac
       ;;
     *) return 1 ;;
     esac
@@ -291,7 +305,7 @@ run_convention_git() {
   (
     unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE GIT_OBJECT_DIRECTORY \
       GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_CONFIG GIT_CONFIG_PARAMETERS GIT_PREFIX
-    # Do not null GIT_CONFIG_GLOBAL/SYSTEM: melodic.worktreeroot is expected outside the repo.
+    # Do not null GIT_CONFIG_GLOBAL/SYSTEM: the worktree-root key is expected outside the repo.
     # Subshell-local env only; SC2030/SC2031 are false cross-function hits vs run_git_probe.
     # shellcheck disable=SC2030,SC2031
     export GIT_CONFIG_COUNT=0 GIT_NO_LAZY_FETCH=1 GIT_OPTIONAL_LOCKS=0 GIT_PAGER=cat \
@@ -299,6 +313,13 @@ run_convention_git() {
     command git "$@"
   )
 }
+
+_worktree_root_git() {
+  run_convention_git "$@"
+}
+
+# shellcheck source=../../../scripts/worktree-root-resolve.sh
+source "${BASH_SOURCE[0]%/*}/../../../scripts/worktree-root-resolve.sh"
 
 # Aliased GraphQL merged-PR page size. GitHub admits first/last in 1..100; each alias costs one
 # node. Measured live: cost stays 1 for at least 40 aliases (nodeCount equals the alias count).
@@ -455,7 +476,7 @@ worktree-tool-owned|LOW|no|no|Informational; tool-managed lifecycle, not a mispl
 worktree-root-conformance|LOW|no|no|Informational rollup; per-worktree outside/wrong-layout findings carry the actionable expected paths
 worktree-root-conformance-summary|LOW|no|no|Fleet rollup; migrate non-conforming placements toward the configured root
 worktree-root-unconfigured|LOW|no|no|Descriptive only; no convention asserted
-worktree-root-pluginconfigs-unreadable|UNKNOWN|no|no|Do not treat the fleet as unconfigured; install jq or set melodic.worktreeroot, then rerun
+worktree-root-pluginconfigs-unreadable|UNKNOWN|no|no|Do not treat the fleet as unconfigured; install jq or set worktreeroot.path, then rerun
 worktree-status-handoff|MEDIUM|no|no|Delegate; stranded and unknown outrank stale; never treat porcelain emptiness as reclaimable
 worktree-placement-unverifiable|UNKNOWN|no|no|Do not infer that this repository's worktrees are correctly placed
 worktree-inventory-unavailable|UNKNOWN|no|no|Stop local branch/worktree classification for this repository
@@ -630,7 +651,7 @@ path_key() {
 }
 
 # Physical path for containment comparisons. git worktree list reports resolved
-# paths; melodic.worktreeroot may be a symlink alias. Same realpath||readlink -f
+# paths; worktreeroot.path may be a symlink alias. Same realpath||readlink -f
 # idiom as source-control/hook-utils. Annotate: earlier subshell+continuation join
 # state in this file can miss the shell-portability-lint auto-guard.
 physical_path() {
@@ -647,7 +668,7 @@ physical_path() {
 
 # Worktree-root convention is owned by source-control (#2597 / #2606). This collector reads it and
 # reports conformance; it never invents a default root. Prefer the machine-readable git key
-# (melodic.worktreeroot, #2610) when present; otherwise the source-control pluginConfigs /
+# (worktreeroot.path, #2610) when present; otherwise the source-control pluginConfigs /
 # CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT surface. Every git-config read is gated on rev-parse --git-dir
 # first: under dubious ownership, git config --get returns the global default as though it were the
 # repository's answer (rc=0, no stderr). Attribution uses --show-origin so a conditional include is
@@ -891,8 +912,8 @@ classify_worktrees() {
       print_field 'Worktree placement' \
         "$repo_wt_linked linked; no configured worktree root — locations: $placement_paths"
       emit_finding worktree-root-unconfigured "$canonical" \
-        "$repo_wt_linked linked worktree(s) with no configured worktree root (melodic.worktreeroot and source-control worktree_root unset); placement: $placement_paths" \
-        "Set melodic.worktreeroot or source-control worktree_root, then rerun for conformance"
+        "$repo_wt_linked linked worktree(s) with no configured worktree root (worktreeroot.path and source-control worktree_root unset); placement: $placement_paths" \
+        "Set worktreeroot.path or source-control worktree_root, then rerun for conformance"
     fi
   fi
 }
@@ -1385,12 +1406,10 @@ if [[ "$config_scope_count" -gt 0 ]]; then
   SCOPE_PROVENANCE="${SCOPE_PROVENANCE}config $CONFIG_SOURCE ($config_scope_count fleet.root/fleet.repo entr(ies))"
 fi
 
-# Gate + last-wins read of melodic.worktreeroot from one repository. Sets
-# CONFIGURED_WORKTREE_ROOT / _ORIGIN / _SOURCE on success.
-try_read_melodic_worktree_root() {
-  local probe="$1" line origin value last_origin="" last_value=""
-  [[ -n "$probe" && -d "$probe" ]] || return 1
-  run_convention_git -C "$probe" rev-parse --git-dir >/dev/null 2>&1 || return 1
+# Last --show-origin record for one worktree-root key. Prints the origin
+# token (file:/path, command:, …) or nothing.
+worktree_root_show_origin() {
+  local probe="$1" key="$2" line origin value last_origin=""
   while IFS= read -r line || [[ -n "$line" ]]; do
     line="${line%$'\r'}"
     [[ -n "$line" ]] || continue
@@ -1404,16 +1423,29 @@ try_read_melodic_worktree_root() {
     fi
     [[ -n "$value" ]] || continue
     last_origin="$origin"
-    last_value="$value"
-  done < <(run_convention_git -C "$probe" config --get-all --show-origin --type=path melodic.worktreeroot 2>/dev/null)
-  [[ -n "$last_value" ]] || return 1
-  CONFIGURED_WORKTREE_ROOT="$last_value"
-  CONFIGURED_WORKTREE_ROOT_ORIGIN="$last_origin"
-  CONFIGURED_WORKTREE_ROOT_SOURCE="melodic.worktreeroot"
+  done < <(run_convention_git -C "$probe" config --get-all --show-origin --type=path "$key" 2>/dev/null)
+  [[ -n "$last_origin" ]] || return 1
+  printf '%s' "$last_origin"
+}
+
+# Gate + last-wins read of worktreeroot.path from one repository. Sets
+# CONFIGURED_WORKTREE_ROOT / _ORIGIN / _SOURCE on success. Origin may still
+# live on a retired alias under a read-only git wrapper.
+try_read_worktree_root() {
+  local probe="$1" last_origin=""
+  [[ -n "$probe" && -d "$probe" ]] || return 1
+  worktree_root_resolve "$probe" || return 1
+  last_origin="$(worktree_root_show_origin "$probe" "$WORKTREE_ROOT_CURRENT_KEY" || true)"
+  if [[ -z "$last_origin" && -n "${WORKTREE_ROOT_LEGACY_KEY:-}" ]]; then
+    last_origin="$(worktree_root_show_origin "$probe" "$WORKTREE_ROOT_LEGACY_KEY" || true)"
+  fi
+  CONFIGURED_WORKTREE_ROOT="$WORKTREE_ROOT_VALUE"
+  CONFIGURED_WORKTREE_ROOT_ORIGIN="${last_origin:-unknown}"
+  CONFIGURED_WORKTREE_ROOT_SOURCE="$WORKTREE_ROOT_CURRENT_KEY"
   return 0
 }
 
-# Fallback when #2610's git key is unset: source-control's existing worktree_root userConfig,
+# Fallback when the git key is unset: source-control's existing worktree_root userConfig,
 # surfaced as CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT in a plugin session, else pluginConfigs in the
 # user settings file. Never invents the plugin-data default — an absent key stays unset.
 try_read_source_control_worktree_root() {
@@ -1469,16 +1501,17 @@ resolve_configured_worktree_root() {
   CONFIGURED_WORKTREE_ROOT=""
   CONFIGURED_WORKTREE_ROOT_ORIGIN=""
   CONFIGURED_WORKTREE_ROOT_SOURCE="unset"
-  # Fleet-wide single root: first TARGET whose melodic.worktreeroot resolves wins (discovery
-  # order). Per-repository includeIf roots that intentionally differ are not modeled — the
-  # header and every conformance finding name that one root. Prefer a machine-global
-  # pluginConfigs / CLAUDE_PLUGIN_OPTION value when repositories disagree.
+  # Fleet-wide single root: first TARGET whose worktreeroot.path
+  # resolves wins (discovery order). Per-repository includeIf roots that
+  # intentionally differ are not modeled — the header and every conformance
+  # finding name that one root. Prefer a machine-global pluginConfigs /
+  # CLAUDE_PLUGIN_OPTION value when repositories disagree.
   for probe in "${TARGETS[@]:-}"; do
     [[ -n "$probe" ]] || continue
-    try_read_melodic_worktree_root "$probe" && return 0
+    try_read_worktree_root "$probe" && return 0
   done
   if [[ -n "$PROJECT_DIR" ]]; then
-    try_read_melodic_worktree_root "$PROJECT_DIR" && return 0
+    try_read_worktree_root "$PROJECT_DIR" && return 0
   fi
   try_read_source_control_worktree_root && return 0
   return 1
@@ -2699,7 +2732,7 @@ if [[ -n "$CONFIGURED_WORKTREE_ROOT" ]]; then
   fi
   printf ')\n'
 else
-  printf 'Worktree root: unset (no melodic.worktreeroot git key and no source-control worktree_root; placement reported without asserting a convention)\n'
+  printf 'Worktree root: unset (no worktreeroot.path git key and no source-control worktree_root; placement reported without asserting a convention)\n'
 fi
 if [[ "$GH_READY" == "true" && -n "$GH_ACCOUNT" ]]; then
   printf 'GitHub evidence: available (account: '
@@ -2829,8 +2862,8 @@ done
 # human rollup so kind counts and --detail include these findings.
 if [[ "$PLUGINCONFIGS_JQ_MISSING" == "true" ]]; then
   emit_finding worktree-root-pluginconfigs-unreadable "fleet" \
-    "settings file $PLUGINCONFIGS_SETTINGS_PATH may declare source-control worktree_root, but jq is not installed so the pluginConfigs fallback could not be read (melodic.worktreeroot was also unset)" \
-    "Install jq on PATH, or set melodic.worktreeroot via git config / includeIf"
+    "settings file $PLUGINCONFIGS_SETTINGS_PATH may declare source-control worktree_root, but jq is not installed so the pluginConfigs fallback could not be read (worktreeroot.path was also unset)" \
+    "Install jq on PATH, or set worktreeroot.path via git config / includeIf"
 fi
 if [[ -n "$CONFIGURED_WORKTREE_ROOT" ]]; then
   emit_finding worktree-root-conformance-summary "fleet" \
@@ -2838,8 +2871,8 @@ if [[ -n "$CONFIGURED_WORKTREE_ROOT" ]]; then
     "Use /source-control:worktree create at the configured root; tool-owned entries are exempt"
 else
   emit_finding worktree-root-unconfigured "fleet" \
-    "$FLEET_WT_LINKED linked worktree(s) across the fleet; no configured worktree root (melodic.worktreeroot and source-control worktree_root unset) — placement reported without asserting a convention" \
-    "Set melodic.worktreeroot (git config) or source-control worktree_root, then rerun for conformance"
+    "$FLEET_WT_LINKED linked worktree(s) across the fleet; no configured worktree root (worktreeroot.path and source-control worktree_root unset) — placement reported without asserting a convention" \
+    "Set worktreeroot.path (git config) or source-control worktree_root, then rerun for conformance"
 fi
 
 # --- Human rollup (#2608) ---------------------------------------------------
