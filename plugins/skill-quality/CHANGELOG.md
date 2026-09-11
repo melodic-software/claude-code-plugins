@@ -3,6 +3,51 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.0]
+
+### Added
+
+- **`check`: check 26, a table of contents in long spoke files (WARN).** A markdown file under
+  `reference/`, `references/`, or `context/`, at any depth, over 300 lines whose first 40 lines
+  carry fewer than three `](#` in-page anchor links warns, naming the file relative to the skill
+  root. The threshold is the bundled
+  skill-creator's (a TOC for reference files over 300 lines); the platform best-practices page says
+  over 100, and that 100-to-300 band stays with `docs-hygiene:audit-progressive-disclosure`, whose
+  `has_toc` heuristic this check mirrors so the two never disagree on what counts as a TOC (both
+  verified 2026-09-10; recheck trigger: either source moving its threshold). Advisory only: a long
+  flat catalog that a TOC would not help is a legitimate shape, so a WARN is a candidate to judge.
+- **`check`: check 1 caps the effective name at 64 codepoints and rejects the reserved words
+  `anthropic` and `claude` (FAIL).** The effective name is the declared `name` when there is one,
+  else the directory leaf, which is the name the harness uses when the field is absent. Basis: the
+  Agent Skills specification (<https://agentskills.io/specification>, the `name` field: 64
+  characters, lowercase alphanumerics and hyphens, matching the directory) and the platform
+  best-practices page's reserved words. Claude Code itself enforces neither: `claude plugin
+  validate` (Claude Code 2.1.263) passes an over-long name containing `claude` clean, measured
+  2026-09-10. Both limbs are therefore portability findings, a skill that loads here and fails the
+  spec's `skills-ref` validator on another surface. Recheck trigger: the spec's validator or the
+  page changing either rule. No skill in this marketplace trips either limb.
+- **`check`: check 5 FAILs a backslash-separated pointer.** A backtick-cited or markdown-linked
+  skill-internal path such as `scripts\helper.py` was invisible to the resolve loop (its char-class
+  has no backslash), so a Windows-authored pointer skipped the check silently and shipped. Claude
+  Code rejects a plugin component path containing a backslash at load on macOS and Linux
+  (<https://code.claude.com/docs/en/plugins-reference>, "Path traversal limitations", verified
+  2026-09-10), so the finding names the forward-slash form and the citing file. The scan reads
+  SKILL.md and every markdown spoke under `reference/`, `references/`, or `context/` at any depth,
+  since a spoke's pointers resolve against the same skill root. The pattern is deliberately tight,
+  a known internal dir token, backslash-led segments, and a filename with a known extension, so a
+  prose escape such as `\_`, `\n`, or `[--check\|--apply]` never matches.
+
+### Changed
+
+- **`check` description shortened.** The parenthetical check enumeration is gone from the `check`
+  skill's description, which stood at 1,020 codepoints against the 1,024 field maximum check 2b
+  FAILs on. The count is now stated as "twenty-six-check" with no list, and lands under the 992
+  WARN band, so the next added check costs no listing room.
+- **Check 4 records its scope.** The 500-line cap is counted over the whole file, frontmatter
+  included. The platform best-practices page applies the number to the SKILL.md body and the
+  Claude Code skills page's Tip to the file; whole-file is the stricter reading, so a skill that
+  passes here satisfies both, and it stays.
+
 ## [0.21.2]
 
 ### Fixed
