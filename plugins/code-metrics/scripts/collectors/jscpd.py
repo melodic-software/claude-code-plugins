@@ -39,6 +39,8 @@ import subprocess
 import sys
 import tempfile
 
+from adapter_paths import files_from
+
 MIN_PYTHON = (3, 9)
 NAME = "jscpd"
 REPORT_BASENAME = "jscpd-report.json"
@@ -197,7 +199,7 @@ def main(argv: list[str]) -> int:
         if len(rest) < 2:
             print("usage: jscpd.py collect <lane> <measure> <file>...", file=sys.stderr)
             return 2
-        return collect(rest[0], rest[1], rest[2:])
+        return collect(rest[0], rest[1], files_from(rest[2:]))
     print(f"jscpd.py: unknown verb {verb}", file=sys.stderr)
     return 2
 

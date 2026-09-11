@@ -195,7 +195,7 @@ Decided at interview, 2026-09-10:
 All five lanes interviewed and decided 2026-09-10, in order M, T2, T3, T1, T4; verdicts are
 in each lane's section above. Execution decision: implement the accepted adoptions on this
 branch in this effort (one branch, one draft PR). All five items below are implemented on this
-branch (playbooks 0.10.0, evals 0.2.3, claude-ops 0.48.0, claude-config 0.42.0; git history
+branch (playbooks 0.11.0, evals 0.2.3, claude-ops 0.48.0, claude-config 0.42.0; git history
 of this file's branch records the commits):
 
 1. New playbooks prompt-caching reference chapter (T1 chapter rows + T4 Batch/Admin/

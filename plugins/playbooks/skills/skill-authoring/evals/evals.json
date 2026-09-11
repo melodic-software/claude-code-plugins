@@ -24,6 +24,32 @@
         "Output does NOT instruct invoking a disable-model-invocation / user-invoked-only :setup skill via the Skill tool",
         "Output tells the user (or the authoring guidance says to tell the user) to run the /plugin:setup slash command instead"
       ]
+    },
+    {
+      "id": 3,
+      "name": "description-caps-and-their-sources",
+      "prompt": "What length limits apply to a skill description and where does the 1,024 number come from?",
+      "expected_output": "Names both caps with their sources: 1,024 characters is the Agent Skills specification's validation limit on the description field, enforced on upload paths and not by Claude Code; 1,536 characters is Claude Code's skill-listing truncation of description plus when_to_use (skillListingMaxDescChars), under a listing budget of 1% of the context window that shortens least-invoked skills first. States that when_to_use extends the one description in the listing and that the key use case goes first because truncation is tail-first. Serves reference/authoring-guidance.md rather than restating the page as an instruction.",
+      "files": [],
+      "expectations": [
+        "Output names 1,024 as the Agent Skills specification validation cap on the description field alone and says Claude Code does not validate it",
+        "Output names 1,536 as Claude Code's listing truncation of description plus when_to_use and names the 1% listing budget that shortens least-invoked skills first",
+        "Output states that when_to_use extends the single description in the listing and that the key use case goes first",
+        "Output does NOT present the 1,024 cap as a Claude Code validation error"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "pre-share-checklist-groups-and-tags",
+      "prompt": "Give me the checklist to run before publishing a skill.",
+      "expected_output": "Serves the pre-share checklist from reference/authoring-checklist.md: three groups (core quality, code and scripts, testing), each row tagged mechanical, judgment, or attestation, with mechanical rows naming the skill-quality:check check number that decides them (for example the 500-line cap as check 4 and explicit disable-model-invocation as check 24), and an attestation row for the models the skill was exercised on (haiku, sonnet, opus, fable). Closes by naming /skill-quality:check <skill> as the run that answers the mechanical rows.",
+      "files": [],
+      "expectations": [
+        "Output presents the three groups: core quality, code and scripts, testing",
+        "Output tags rows as mechanical, judgment, or attestation, and mechanical rows name the skill-quality:check check number that decides them",
+        "Output includes an attestation row for the models exercised, naming the alias list (haiku, sonnet, opus, fable)",
+        "Output names /skill-quality:check <skill> as the closing step and does NOT claim a script verified a judgment or attestation row"
+      ]
     }
   ]
 }
