@@ -13,6 +13,37 @@ All notable changes to the `review` plugin are documented here. Format follows
 - **`ci-log-auditor` agent:** the output-format instruction drops the filler phrase `in order to`
   (`what the caller needs to act`); the instruction's meaning is unchanged. Found by the repo-wide
   `/ai-slop:audit` run (#3987).
+- **Every markdown surface in the plugin passes `/ai-slop:audit`.** Em dashes in the plugin's own
+  prose (the README, this changelog, the severity and topic-docs references, the findings-file
+  shape, all six agent definitions, and the fanout and quality-gate contexts) are rewritten as a
+  comma, a period, a colon where a definition or list follows, or a restructured sentence. No
+  severity tier, dispatch rule, findings-file field, or gate condition changed.
+- **The plugin's own report and prompt templates are rewritten too, not just its prose.** The
+  detector strips fenced blocks and declines double-quoted spans, so a template can emit an em dash
+  while the file reports clean. The `self`, `per-slice`, and `downstream` report templates, the
+  fix-pass plan block, and the CI-audit heading now match the plugin's prose style. Two table cells
+  whose whole value was a bare dash render `none` and `never` instead.
+- **Two stale cross-file quotations are refreshed:** the dedup rule quoted from
+  `findings-normalization.md`, and the untrusted-data fence marker this plugin must reuse verbatim
+  from `source-control`'s `babysit-prs` orchestration reference.
+- **`reference/standards-contract.md` is deliberately NOT purged.** It is a byte-for-byte generated
+  copy of `docs/conventions/standards/README.md`, held identical by
+  `scripts/sync-standards-contract.sh --check` in the lint lane, and that source is excluded from
+  the campaign because changing one character forces a `standards-contract` semver bump that makes
+  every consuming repository's index mismatch. It stays undeclared in the purge allowlist, which
+  leaves it unenforced rather than wrongly declared clean.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`,** with the generated
+  standards contract excluded by omission.
+- **Changelog, in-place wording corrections to released entries:** the same rewrite was applied
+  inside
+  `[0.27.2]`, `[0.26.13]`, `[0.26.6]`, `[0.26.4]`, `[0.26.3]`, `[0.26.2]`, `[0.26.0]`, `[0.25.1]`,
+  `[0.25.0]`, `[0.24.0]`, `[0.23.0]`, `[0.22.0]`, `[0.21.1]`, `[0.21.0]`, `[0.20.1]`, `[0.20.0]`,
+  `[0.18.4]`, `[0.18.3]`, `[0.18.1]`, `[0.18.0]`, `[0.17.2]`, `[0.17.1]`, `[0.17.0]`, `[0.16.1]`,
+  `[0.16.0]`, `[0.15.5]`, `[0.15.4]`, `[0.15.3]`, `[0.15.2]`, `[0.15.1]`, `[0.15.0]`, `[0.14.11]`,
+  `[0.14.10]`, `[0.14.9]`, `[0.14.7]`, `[0.14.6]`, `[0.14.5]`, `[0.14.4]`, `[0.14.3]`, `[0.14.2]`,
+  `[0.14.0]`, `[0.12.0]`, `[0.10.0]`, `[0.9.0]`, `[0.7.0]`, `[0.4.0]`, `[0.3.0]`, and `[0.2.0]`.
+  Wording only; every entry's facts are unchanged. The `[0.24.0]` entry's verbatim quotation of
+  `cant-fail-scan.sh`'s rule header keeps its dashes inside an ignore marker.
 
 ## [0.27.5]
 

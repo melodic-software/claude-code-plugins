@@ -127,7 +127,12 @@ plugins/claude-config/skills/*/context/*.md
 plugins/claude-config/skills/*/reference/*.md
 plugins/claude-config/skills/*/templates/*.md
 plugins/claude-memory/README.md
-plugins/claude-ops/README.md
+# The claude-ops plugin was purged whole, its changelog eval fixtures included.
+plugins/claude-ops/*.md
+plugins/claude-ops/skills/*/SKILL.md
+plugins/claude-ops/skills/*/context/*.md
+plugins/claude-ops/skills/*/reference/*.md
+plugins/claude-ops/skills/changelog/evals/fixtures/*.md
 plugins/code-metrics/CHANGELOG.md
 plugins/code-metrics/README.md
 plugins/code-metrics/reference/*.md
@@ -145,7 +150,13 @@ plugins/debugging/README.md
 plugins/debugging/skills/*/SKILL.md
 plugins/desktop-notification/README.md
 plugins/discipline/README.md
-plugins/discovery/README.md
+# The discovery plugin was purged whole.
+plugins/discovery/*.md
+plugins/discovery/agents/*.md
+plugins/discovery/reference/*.md
+plugins/discovery/skills/*/SKILL.md
+plugins/discovery/skills/*/context/*.md
+plugins/discovery/skills/*/reference/*.md
 # The docs-hygiene plugin was purged whole, its eval fixtures included: those
 # fixtures specimen the plugin's OWN noise shapes, which are not em dashes, so
 # declaring them costs nothing. Two marked em dashes survive under these globs and
@@ -164,7 +175,11 @@ plugins/domain-driven-design/README.md
 plugins/dometrain/README.md
 plugins/education/README.md
 plugins/eol-normalizer/README.md
-plugins/event-storming/README.md
+# The event-storming plugin was purged whole, its simulation eval fixtures included.
+plugins/event-storming/*.md
+plugins/event-storming/skills/*/SKILL.md
+plugins/event-storming/skills/*/reference/*.md
+plugins/event-storming/skills/simulation/evals/fixtures/*.md
 plugins/firecrawl/README.md
 # The fleet plugin was authored purged rather than purged later, so its changelog
 # and reference spoke are declared alongside the README and the skill body. The
@@ -209,7 +224,18 @@ plugins/overengineering/README.md
 plugins/overengineering/skills/*/SKILL.md
 plugins/performance/README.md
 plugins/performance/skills/*/SKILL.md
-plugins/planning/README.md
+# The planning plugin was purged whole. `reference/` is declared file by file rather than by a
+# glob because plugins/planning/reference/standards-contract.md is a byte-for-byte generated copy
+# of docs/conventions/standards/README.md, which this campaign deliberately leaves unpurged; the
+# sync gate holds the copy identical to it, so the copy cannot be purged either.
+plugins/planning/*.md
+plugins/planning/reference/artifact-protocol.md
+plugins/planning/reference/topic-docs.md
+plugins/planning/skills/*/SKILL.md
+plugins/planning/skills/*/context/*.md
+plugins/planning/skills/*/templates/*.md
+plugins/planning/skills/design-handoff/evals/fixtures/*.md
+plugins/planning/skills/interview/evals/fixtures/*/*.md
 # The playbooks plugin was purged whole; the Boris and model-adaptation chapters
 # keep their quoted upstream text inside the quotation exemption or a marker.
 plugins/playbooks/*.md
@@ -230,7 +256,17 @@ plugins/provenance/README.md
 plugins/rate-limit-guard/README.md
 plugins/repo-fleet-hygiene/README.md
 plugins/repo-hygiene/README.md
-plugins/review/README.md
+# The review plugin was purged whole. `reference/` is declared file by file for the same reason as
+# planning's: plugins/review/reference/standards-contract.md is a generated copy of the deliberately
+# unpurged standards contract, held identical to it by the sync gate.
+plugins/review/*.md
+plugins/review/agents/*.md
+plugins/review/context/*.md
+plugins/review/reference/findings-file-shape.md
+plugins/review/reference/topic-docs.md
+plugins/review/skills/*/SKILL.md
+plugins/review/skills/*/context/*.md
+plugins/review/skills/audit-enforceability/evals/fixtures/*.md
 plugins/ruff-format/README.md
 # The session-flow plugin was purged whole. The globs stop short of
 # plugins/session-flow/scripts/tests/fixtures/**, whose handoff files are parsed

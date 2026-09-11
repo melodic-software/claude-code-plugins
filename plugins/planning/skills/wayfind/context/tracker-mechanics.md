@@ -35,7 +35,7 @@ t=$(jq -r '.config.container_label | type' "$ROOT/.work-item-tracker.json" 2>/de
 case "$t" in
   string) CONTAINER_LABEL=$(jq -r '.config.container_label' "$ROOT/.work-item-tracker.json" 2>/dev/null) ;;
   null)   CONTAINER_LABEL= ;;   # no binding, no key, or jq missing
-  *)      echo "ERROR: config.container_label must be a string (got $t) — fix .work-item-tracker.json" >&2
+  *)      echo "ERROR: config.container_label must be a string (got $t). Fix .work-item-tracker.json" >&2
           # Real stop — works sourced or standalone; never proceed with a coerced label.
           return 1 2>/dev/null || exit 1
           ;;
@@ -164,7 +164,7 @@ Decisions-so-far pointer: see the Decisions-so-far / Out-of-scope sections in
 ```shell
 # In-scope — comment → Decisions-so-far → close
 # 1. Resolution comment on the item (the decision's durable home).
-gh issue comment <item#> --body "Resolved: <decision> — <one-line basis>"
+gh issue comment <item#> --body "Resolved: <decision>. Basis: <one line>"
 # 2. Add the one-line pointer to the map's Decisions-so-far index (edit the map body).
 # 3. Close the item (closing removes it from the frontier — the claim is assignee + lease, no label to clear).
 gh issue close <item#> --reason completed
@@ -178,5 +178,5 @@ gh issue close <item#> --reason "not planned"
 
 ```shell
 gh issue close <map#> --reason completed \
-  --comment "Destination coherent — handed to <\/planning:interview | \/planning:prd | \/planning:plan>."
+  --comment "Destination coherent, handed to <\/planning:interview | \/planning:prd | \/planning:plan>."
 ```

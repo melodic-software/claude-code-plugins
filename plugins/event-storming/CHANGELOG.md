@@ -8,6 +8,19 @@ All notable changes to the `event-storming` plugin are documented here. Format f
 ### Changed
 
 - **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
+- **Every markdown surface in the plugin passes `/ai-slop:audit`.** Em dashes in the plugin's own
+  prose (the README, this changelog, the methodology skill body and its five references, and the
+  simulation references) are rewritten as a comma, a period, a colon where a definition or list
+  follows, or a restructured sentence. Headings that carried one take the colon or comma form, and
+  each file's own Contents list follows. No workshop phase, sticky colour, notation rule, Miro
+  coordinate, or evaluation criterion changed.
+- **Two Brandolini quotations keep their em dashes** inside ignore markers naming the source, since
+  the dashes are his. The `remote-eventstorming.md` pull-quote instead moves its attribution to the
+  front of the line rather than leaving a dangling dash.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`,** so the gate defends
+  it from here on.
+- **Changelog, in-place wording corrections to released entries:** the same rewrite was applied
+  inside `[0.6.3]`, `[0.6.0]`, and `[0.5.3]`. Wording only; every entry's facts are unchanged.
 
 ## [0.6.9]
 

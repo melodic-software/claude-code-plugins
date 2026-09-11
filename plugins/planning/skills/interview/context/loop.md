@@ -351,10 +351,10 @@ Write this into `<contract_dir>/<topic-slug>/PLAN.md` (default `docs/topics/`; t
 ## Brief
 
 ### TLDR
-<≤5 bullets — what's shipping. Load-bearing scope-review surface for dense briefs (>100 lines). A reviewer reading ONLY TLDR + Goal must know scope. If the summary grows beyond 5 bullets, the brief is too sprawling — surface back to the user and ask which items to defer>
+<≤5 bullets: what's shipping. This is the scope-review surface a reviewer of a dense brief (>100 lines) reads first. A reviewer reading ONLY TLDR + Goal must know scope. If the summary grows beyond 5 bullets, the brief is too sprawling; surface back to the user and ask which items to defer>
 
 ### Goal
-<one paragraph — outcome, not implementation>
+<one paragraph: outcome, not implementation>
 
 ### Constraints
 - <untouchable code, deadline, contract, stack, performance budget>
@@ -363,16 +363,16 @@ Write this into `<contract_dir>/<topic-slug>/PLAN.md` (default `docs/topics/`; t
 - <testable criterion>
 
 ### Captured assumptions
-- <assumption> — revisit if <trigger>
+- <assumption>: revisit if <trigger>
 
 ### Out-of-scope
 - <thing the user raised and explicitly excluded>
 
 ### Deferred questions
-- Q<N> — <question> — defer until <when>; **arbiter: /planning:plan** (default — /planning:plan resolves unilaterally during planning) OR **arbiter: USER-RESERVED** (user must re-confirm at /planning:plan approval gate; /planning:plan proposes, user resolves)
+- Q<N>: <question>, defer until <when>; **arbiter: /planning:plan** (the default, where /planning:plan resolves unilaterally during planning) OR **arbiter: USER-RESERVED** (user must re-confirm at /planning:plan approval gate; /planning:plan proposes, user resolves)
 
 ## Plan
-<empty — populated by /planning:plan>
+<empty, populated by /planning:plan>
 ```
 
 **The criteria bullet stays a plain bullet.** `- <testable criterion>` is the emitted shape in both formats: `free-text` fills it as-is, `ears` fills it as `- [<pattern>] <criterion>`. Never a checkbox: `- [ ]` is decompose's slice shape, and a `[pattern]` prefix on a checkbox line is ambiguous with an unchecked box.

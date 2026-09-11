@@ -57,7 +57,7 @@ created: 2026-05-02T14:30:00Z
 updated: 2026-05-02T14:30:00Z
 ---
 
-# PRD — Gig calendar on artist dashboard
+# PRD: Gig calendar on artist dashboard
 
 ## Problem
 Artists track upcoming gigs in spreadsheets and Google Calendar separately from the platform. Conflicts with rehearsals and song-prep deadlines aren't visible until the day-of.

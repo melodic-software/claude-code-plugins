@@ -48,10 +48,10 @@ Minimal frontmatter + body when full design exploration is not required:
 ---
 outcome: early-exit
 tier: C
-reason: <one line — e.g. single-file bugfix, docs-only>
+reason: <one line, e.g. single-file bugfix, docs-only>
 ---
 
-Optional: type sketch pointer if tier B — link to type-inventory.md
+Optional: type sketch pointer if tier B, linking to type-inventory.md
 ```
 
 ## Action Router

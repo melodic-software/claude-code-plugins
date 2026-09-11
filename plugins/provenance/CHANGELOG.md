@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.5.10]
+
+### Changed
+
+- **audit:** the two citations of the `upstream-drift` convention's fetch-route section now quote
+  its current heading, "Reading the basis: the fetch route". That heading lost its em dash in the
+  marketplace repository, so the quoted wording in `reference/source-fetch.md` no longer matched
+  the section it names. Wording of the citation only; the claim, its basis, the `As of:` date, and
+  the recheck trigger are unchanged.
+
 ## [0.5.9]
 
 ### Fixed

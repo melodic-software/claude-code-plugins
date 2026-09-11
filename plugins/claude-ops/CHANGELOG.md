@@ -10,6 +10,40 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 - **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and
   defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's
   em-dash gate reads.
+- **Every markdown surface in the plugin passes `/ai-slop:audit`.** Em dashes in the plugin's own
+  prose (the README, this changelog, every skill body, and the contexts and references under
+  `plugins`, `observability`, `lanes`, `known-issues`, `changelog`, `inventory`,
+  `audit-install-state`, and `audit-skill-visibility`) are rewritten as a comma, a period, a colon
+  where a definition or list follows, or a restructured sentence. No command, flag, exit code,
+  scope rule, or telemetry field changed.
+- **The sync report template is rewritten at both of its homes, and they match again.** The
+  canonical fenced block lives in `skills/plugins/SKILL.md` and a verbatim copy lives in
+  `skills/plugins/context/sync.md`. The detector strips fenced blocks from prose scanning, so a
+  report template can emit an em dash while its file reports zero findings; rewriting one copy
+  alone would have left the pair mismatched. Both now use the colon form, along with the
+  `observability` report templates in `context/output-format.md` and the four emitted warning
+  strings in `context/data-sources.md`.
+- **A released entry's quotation of an emitted string follows it.** `[0.38.1]` quotes the `In-repo:`
+  row's `skipped` state verbatim, so it now reads `skipped: no project context resolved`, matching
+  what the skill emits.
+- **Reflexive `load-bearing` and `seam` become the concrete word each stood for**, and two table
+  cells whose whole value was a bare em dash, meaning "no note", render `n/a`.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`,** so the gate defends
+  it from here on.
+- **Changelog, in-place wording corrections to released entries:** the same rewrite was applied
+  inside
+  `[0.42.13]`, `[0.42.9]`, `[0.42.7]`, `[0.42.5]`, `[0.42.2]`, `[0.41.0]`, `[0.38.21]`,
+  `[0.38.10]`, `[0.38.1]`, `[0.38.0]`, `[0.37.1]`, `[0.37.0]`, `[0.36.0]`, `[0.35.4]`, `[0.35.2]`,
+  `[0.35.1]`, `[0.35.0]`, `[0.34.0]`, `[0.33.2]`, `[0.33.1]`, `[0.33.0]`, `[0.32.8]`, `[0.32.7]`,
+  `[0.32.6]`, `[0.32.5]`, `[0.32.3]`, `[0.32.1]`, `[0.32.0]`, `[0.31.11]`, `[0.31.8]`, `[0.31.7]`,
+  `[0.31.1]`, `[0.31.0]`, `[0.30.0]`, `[0.29.2]`, `[0.29.1]`, `[0.29.0]`, `[0.28.5]`, `[0.28.4]`,
+  `[0.28.3]`, `[0.28.2]`, `[0.28.1]`, `[0.28.0]`, `[0.27.6]`, `[0.27.5]`, `[0.27.3]`, `[0.27.2]`,
+  `[0.27.1]`, `[0.27.0]`, `[0.26.0]`, `[0.25.1]`, `[0.25.0]`, `[0.24.4]`, `[0.24.3]`, `[0.24.2]`,
+  `[0.24.1]`, `[0.24.0]`, `[0.23.2]`, `[0.23.0]`, `[0.22.1]`, `[0.22.0]`, `[0.21.6]`, `[0.21.4]`,
+  `[0.21.2]`, `[0.21.1]`, `[0.21.0]`, `[0.20.0]`, `[0.19.3]`, `[0.19.1]`, `[0.19.0]`, `[0.18.3]`,
+  `[0.18.2]`, `[0.18.1]`, `[0.17.3]`, `[0.17.2]`, `[0.17.0]`, `[0.16.0]`, `[0.15.4]`, `[0.15.3]`,
+  `[0.15.1]`, `[0.15.0]`, `[0.14.0]`, `[0.13.1]`, `[0.11.0]`, and `[0.9.0]`. Wording only; every
+  entry's facts are unchanged.
 - **`audit-native-overlap` renders `docs/NATIVE-SURFACES.md` without em dashes.** The generated
   view is gated by a sync check, so its em dashes could only be fixed at the source. In
   `scripts/overlap.py` the header prose, the verdict and observation lines, and the budget-caveat

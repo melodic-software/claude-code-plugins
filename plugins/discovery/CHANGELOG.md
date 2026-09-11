@@ -5,6 +5,32 @@
 ### Changed
 
 - **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
+- **Every markdown surface in the plugin passes `/ai-slop:audit`.** Em dashes in the plugin's own
+  prose (the README, this changelog, the parent-contract and topic-docs references, all three agent
+  definitions, and the explore, research, and trace-intent skill contexts and references) are
+  rewritten as a comma, a period, a colon where a definition or list follows, or a restructured
+  sentence. No detection rung, acceptance gate, memory-slice path, or payload field changed.
+- **Ten release headings take the Keep a Changelog bracketed form.** They recorded their date after
+  an em dash (`## [0.8.3] — 2026-…`), and `scripts/check-changelog-parity.sh` parses release
+  headings, so the separator is now the hyphen that gate's own header documents. Versions and dates
+  are unchanged.
+- **Reflexive `load-bearing` and `seam` become the concrete word each stood for.** `adapter seam`
+  keeps its name: it is cross-repo vocabulary that `plugins/autonomy/reference/runner.md` and
+  `docs/upstream/cursor-pstack.md` use for the same concept, and the `[0.16.0]` entry quotes that
+  document.
+- **Both agent definitions now quote the renamed write-boundary heading correctly.**
+  `reference/topic-docs.md` renamed `## The write boundary — stated once` to the comma form, and
+  `explorer.md`, `researcher.md`, and `intent-tracer.md` all cite its current wording.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`,** so the gate defends
+  it from here on.
+- **Changelog, in-place wording corrections to released entries:** the same rewrite was applied
+  inside
+  `[0.19.5]`, `[0.19.0]`, `[0.17.0]`, `[0.16.4]`, `[0.16.3]`, `[0.16.2]`, `[0.16.1]`, `[0.16.0]`,
+  `[0.15.5]`, `[0.15.4]`, `[0.15.2]`, `[0.15.1]`, `[0.15.0]`, `[0.14.0]`, `[0.13.1]`, `[0.13.0]`,
+  `[0.12.2]`, `[0.12.1]`, `[0.12.0]`, `[0.11.3]`, `[0.11.2]`, `[0.11.1]`, `[0.11.0]`, `[0.10.1]`,
+  `[0.10.0]`, `[0.9.3]`, `[0.9.2]`, `[0.9.1]`, `[0.9.0]`, `[0.8.5]`, `[0.8.4]`, `[0.8.3]`,
+  `[0.8.2]`, `[0.8.1]`, `[0.8.0]`, `[0.7.3]`, `[0.7.2]`, `[0.7.0]`, `[0.6.0]`, `[0.5.1]`,
+  `[0.5.0]`, and `[0.4.0]`. Wording only; every entry's facts are unchanged.
 
 ## [0.19.8]
 

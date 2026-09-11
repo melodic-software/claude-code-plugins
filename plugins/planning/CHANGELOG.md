@@ -3,6 +3,45 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.7]
+
+### Changed
+
+- **Every markdown surface in the plugin passes `/ai-slop:audit`.** Em dashes in the plugin's own
+  prose (the README, this changelog, and the skill bodies, contexts, references, templates, and
+  eval fixtures under `interview`, `plan`, `design`, `design-handoff`, `prd`, `questionnaire`,
+  `wayfind`, and `setup`) are rewritten as a comma, a period, a colon where a definition or list
+  follows, or a restructured sentence. No mode, gate, register rule, arbiter tag, or Brief section
+  name changed.
+- **One name for the reflexive-unknown idea, across all three interview files.** `SKILL.md`,
+  `context/loop.md`, and `templates/checklist.md` had drifted into "load-bearing unknown",
+  "consequential unknown", and "unknown the task depends on" for the same gate. All three now use
+  the last of those. Three spellings of one idea across three files describing the same gate is
+  worse than the tell being replaced.
+- **`tests/interview-defenses.test.sh` re-pins the sections it guards.** It holds SHA-256 digests
+  over `SKILL.md` and `context/loop.md` sections and byte-exact copies of nine defense lines, so
+  rewriting that prose turns it red by design. Every re-pinned region was re-read before its digest
+  moved, and every prohibition survives verbatim: "Never fudge", "never synthesized silently", "is
+  NEVER assumed", "never default an unanswered question to its recommendation", "never capped or
+  split across cards". The suite reports PASS=98 FAIL=0.
+- **`reference/standards-contract.md` is deliberately NOT purged.** It is a byte-for-byte generated
+  copy of `docs/conventions/standards/README.md`, held identical by
+  `scripts/sync-standards-contract.sh --check`, and that source is excluded from the campaign
+  because changing one character forces a `standards-contract` semver bump that makes every
+  consuming repository's index mismatch. It stays undeclared in the purge allowlist, which leaves
+  it unenforced rather than wrongly declared clean.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`,** with the generated
+  standards contract excluded by omission.
+- **Changelog, in-place wording corrections to released entries:** the same rewrite was applied
+  inside
+  `[0.39.0]`, `[0.37.0]`, `[0.34.2]`, `[0.34.1]`, `[0.34.0]`, `[0.33.1]`, `[0.33.0]`, `[0.32.0]`,
+  `[0.31.0]`, `[0.30.7]`, `[0.30.5]`, `[0.30.1]`, `[0.30.0]`, `[0.29.0]`, `[0.28.4]`, `[0.28.3]`,
+  `[0.28.2]`, `[0.28.1]`, `[0.28.0]`, `[0.27.3]`, `[0.27.2]`, `[0.27.1]`, `[0.27.0]`, `[0.26.3]`,
+  `[0.26.2]`, `[0.26.1]`, `[0.26.0]`, `[0.25.0]`, `[0.24.5]`, `[0.24.4]`, `[0.24.3]`, `[0.24.2]`,
+  `[0.24.0]`, `[0.23.1]`, `[0.23.0]`, `[0.22.1]`, `[0.22.0]`, `[0.21.2]`, `[0.21.0]`, `[0.20.0]`,
+  `[0.19.0]`, `[0.18.0]`, `[0.17.0]`, `[0.16.0]`, `[0.15.0]`, `[0.14.0]`, `[0.13.0]`, `[0.11.1]`,
+  `[0.10.0]`, and `[0.8.0]`. Wording only; every entry's facts are unchanged.
+
 ## [0.39.6]
 
 ### Fixed
