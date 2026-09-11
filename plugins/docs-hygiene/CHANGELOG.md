@@ -1,5 +1,15 @@
 # Changelog — docs-hygiene plugin
 
+## [0.21.44]
+
+### Changed
+
+- **`audit-progressive-disclosure`**: pointer-quality criterion 6 in `context/tier-model.md`
+  names both Claude Code MCP tool-name forms (`mcp__<server>__<tool>`, and
+  `mcp__plugin_<plugin-name>_<server-name>__<tool-name>` for a plugin-bundled server) with a
+  dated basis and recheck trigger, and notes that the platform page's `ServerName:tool_name`
+  form is not the harness form.
+
 ## [0.21.43]
 
 ### Added

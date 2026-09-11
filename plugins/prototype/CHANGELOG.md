@@ -3,6 +3,20 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.0]
+
+### Added
+
+- **`explore-directions`**: a `## Boundary, the bundled design skill` section stating the split
+  against the bundled `design` skill (throwaway mockup by default; the persistent, hand-editable
+  canvas offered as an explicit alternative and invoked only on the user's choice), a mutation
+  gate, and an availability rule that names the presence check: a same-named Claude Design hub
+  variant with model invocation disabled registers behind an `allow_design_sync` setting, so the
+  listed description is what distinguishes the canvas from the hub or a shadowing local skill.
+  The design-canvas subsection names that second reason for its description check. Four-part
+  records, re-verified against the installed client and the live docs, in
+  `reference/bundled-design.md`.
+
 ## [0.10.6]
 
 ### Added

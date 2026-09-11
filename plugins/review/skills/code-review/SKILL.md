@@ -16,6 +16,35 @@ workflow wrapper supplies `REPO` / `PR NUMBER` /
 `pull_request`, `gh pr review`/`gh pr comment` on `workflow_dispatch`). This
 skill owns **what to look for**; the wrapper owns **how to post**.
 
+## Boundary, the bundled `code-review` skill
+
+Two native Claude Code review surfaces share this lane's name, and the three get conflated on any
+open pull request:
+
+- **`code-review` (bundled skill, alias `/review`).** Ships with Claude Code rather than as a
+  marketplace plugin. A developer runs it in their session against the current diff, a PR number,
+  a branch, or a path; bare, it reports into the session. `--fix` edits the working tree,
+  `--comment` posts inline comments on the PR as that developer, and `ultra` launches a cloud
+  review. Claude may start it on its own where the session allows.
+- **Managed Code Review (GitHub App service).** An org-level research preview on Team and
+  Enterprise plans that reviews pull requests on its own triggers and posts inline findings.
+- **This skill (marketplace plugin).** The review logic the `claude-review` reusable workflow runs
+  in CI. The wrapper supplies the target and owns posting; this skill owns what to look for.
+
+**Routing.** This skill runs only where the workflow invokes it. In a session, when the bundled
+`code-review` skill resolves, prefer it for a local review before pushing; prefer this lane's
+criteria when the question is what the CI review will flag. The two do not chain: the wrapper
+never invokes the bundled skill, and a session review never posts through this lane.
+
+**Mutation gate.** `--fix` and `--comment` mutate the tree or the PR, and the managed service
+posts a full review. This lane posts only through its wrapper's mechanics, so never invoke the
+bundled skill's flags or trigger the managed service on this lane's behalf.
+
+**Availability is never assumed.** Bundled surfaces are gated by settings, environment, plan, and
+host; this section states what to do when one resolves, never that it is present. The four-part
+records behind these statements live in
+[reference/bundled-code-review.md](reference/bundled-code-review.md).
+
 ## Gotchas
 
 - Command/skill frontmatter `allowed-tools` grants permission but does **not**

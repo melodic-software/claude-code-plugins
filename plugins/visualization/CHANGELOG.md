@@ -3,6 +3,20 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.0]
+
+### Added
+
+- **`visualize`**: the `## Boundary` section gains the design-canvas split against the bundled
+  `design` skill: routing (offer the canvas as an explicit alternative when the skill is listed
+  with the canvas description and the medium permits publishing, invoke it only on the user's
+  choice), a mutation gate (the canvas persists under the user's account, so it is never a
+  silent default), and an availability rule that names the presence check. The catalog spoke's
+  design canvas section carries the re-verified surface facts: the canvas registration is
+  model-invocable with a rollout flag that now defaults on, and a same-named Claude Design hub
+  variant with model invocation disabled registers behind an `allow_design_sync` setting, so the
+  listed description is what distinguishes them.
+
 ## [0.5.2]
 
 ### Added

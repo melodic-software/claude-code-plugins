@@ -73,9 +73,19 @@ or as a daily routine. Two properties are worth knowing before you rely on it:
 - **A bare run is read-only toward your repository and stays within a budget**. It stops at
   three verified findings or a complete lane sample. Filing happens only when you pass
   `--track`, and a complete lane sample is never reported as the lane being bug-free.
+- **Cost follows the scope, never the precision.** Hunters run on a cheap general-purpose tier and
+  gates on a strong reasoning tier (the skill's sizing table names the current aliases); the scope's
+  size picks how many lenses run and how many candidates reach a gate, and the session's effort
+  level is the ceiling. A main-thread triage step seeds from the previous run's ungated tail, merges
+  same-cause candidates, and parks cosmetic ones before any gate is spent.
 
-Verified findings are handed off, not fixed here: root-causing routes to `/debugging:debug`,
-and anything security-relevant routes to the `review:security-review` lane.
+Verified findings leave through one ladder: in an interactive session a local finding (one plugin,
+no documented contract change, a test file to extend) is fixed in that session through the implement
+lane; a non-local or security-relevant one, and every finding from an unattended run, is filed with
+`--track`. Root-causing routes to `/debugging:debug`, and anything security-relevant routes to the
+`review:security-review` lane. On a cloud or scheduled session the plugin data directory does not
+outlive the container, so pass `--track`: the filed item is the only durable output and is what the
+next rotation reads back.
 
 ## Configuration
 

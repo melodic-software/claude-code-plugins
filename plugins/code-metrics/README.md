@@ -23,11 +23,14 @@ value to count against, not a bar.
 ## Works in any repo
 
 Lanes are detected from file extensions (TypeScript/JavaScript, Python, Bash, Go, and C#, whose
-complexity lane is deferred and reported as such). When the consuming repository tracks
-`.claude/ecosystems/<lane>.yaml` files, their `globs` override the bundled map for that lane. The
-default scope is the change: files that differ from the merge-base with the default branch plus
-uncommitted and untracked files; explicit paths or `--all` (every tracked or untracked-but-not-
-ignored file) widen it. Nothing depends on a framework, a build system, or the publisher.
+complexity lane is deferred and reported as such). Every other text file, markdown, JSON, YAML,
+PowerShell, a `Makefile`, lands in the catch-all `other` lane, which carries a line count and
+nothing else: `audit-size` measures it, and every other measure reports it as not applicable.
+When the consuming repository tracks `.claude/ecosystems/<lane>.yaml` files, their `globs`
+override the bundled map for that lane. Two scopes are first-class: the default is the change,
+files that differ from the merge-base with the default branch plus uncommitted and untracked
+files, and `--all` is the whole tree (every tracked or untracked-but-not-ignored file); explicit
+paths narrow either. Nothing depends on a framework, a build system, or the publisher.
 
 ## Requirements
 
@@ -72,7 +75,10 @@ This plugin has no `userConfig`. Everything tunable lives in the consumer's
 `.claude/code-metrics.yaml`, layered as user-global (`~/.claude/code-metrics.yaml`), team
 (tracked), and local overlay (`.claude/code-metrics.local.yaml`, gitignored; recommended line
 `.claude/**/*.local.*`) with per-key override, and every key has a bundled default
-(`scripts/config-defaults.json`), so the plugin works with no configuration at all. The consumer's
+(`scripts/config-defaults.json`), so the plugin works with no configuration at all; the one
+opinionated default is `scope.exclude`, which drops `node_modules`, `vendor`, `dist`, and `build`
+directories at any depth and reports what it dropped, and a team file that sets the key replaces
+the list whole. The consumer's
 `.claude/ecosystems/<lane>.yaml` files, when tracked, override lane detection with their `globs`
 and `enabled`. References ship with their provenance: cyclomatic 20 cites ISO/IEC 5055:2021
 §8.2.117; the 1000-line file default is the plugin's own number and says so. Files are written in
@@ -84,8 +90,13 @@ a documented YAML subset (block style, flow sequences of scalars, no flow mappin
 Every audit prints one `code-metrics/v1` JSON document (`--json`) or its markdown rendering. The
 document opens with a "Coverage of this run" table naming, per lane and measure, the collector
 used or the reason none did, and a `status` of `complete`, `partial`, or `empty`, so a run that
-measured nothing can never read as green. Field reference: `reference/report-schema.md`. Tool
-provenance stamps: `reference/collectors.md`.
+measured nothing can never read as green. The markdown table shows each function once with every
+collector's values on that line, rows over a reference first, and stops at 200 rows; every
+markdown run also writes the whole document under `CLAUDE_PLUGIN_DATA` (else
+`~/.claude/plugins/data/code-metrics/reports`) and names the path, so the rows past the cap need no
+second run. A repository that declares its deliberate replication in a registry
+(`scope.registries`) sees each replicated function once, with the copy count beside the path.
+Field reference: `reference/report-schema.md`. Tool provenance stamps: `reference/collectors.md`.
 
 ## Listing budget
 

@@ -1,5 +1,14 @@
 # Fresh-eyes declaration contract (check 21)
 
+## Contents
+
+- [Why](#why)
+- [Form 1: delegation wording (visible prose)](#form-1--delegation-wording-visible-prose)
+- [Form 2: exemption directive (HTML comment)](#form-2--exemption-directive-html-comment)
+- [Check semantics](#check-semantics)
+- [Scan mechanics](#scan-mechanics)
+- [Parsing contract](#parsing-contract)
+
 The contract check 21 enforces. It is generic: it assumes nothing about your repo's doctrine —
 only that a skill step whose output judges work produced in the same context either declares
 delegation to a fresh-context worker or declares an exemption, in the skill's own files.
