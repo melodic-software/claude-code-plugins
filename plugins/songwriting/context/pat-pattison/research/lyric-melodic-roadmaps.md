@@ -4,7 +4,7 @@
 
 - [Core idea](#core-idea)
 - [What a roadmap is](#what-a-roadmap-is)
-- [Ways out — Pat's options, with this file's decision aid layered on](#ways-out--pats-options-with-this-files-decision-aid-layered-on)
+- [Ways out: Pat's options, with this file's decision aid layered on](#ways-out-pats-options-with-this-files-decision-aid-layered-on)
 - [How to diagnose](#how-to-diagnose)
 - [Greedy spots and roadmap mismatch](#greedy-spots-and-roadmap-mismatch)
 - [Front-heavy / back-heavy phrases as a roadmap variable](#front-heavy--back-heavy-phrases-as-a-roadmap-variable)
@@ -14,12 +14,12 @@
 - [When a roadmap mismatch is good](#when-a-roadmap-mismatch-is-good)
 - [Cross-references](#cross-references)
 
-Pat Pattison — *patpattison.com* "Lyric and Melodic Phrases" plus
+Pat Pattison, *patpattison.com* "Lyric and Melodic Phrases", plus
 *Essential Guide to Lyric Form and Structure* (1991) Chapters 1-2 on
 phrasing. Books bracket the music; this file is the bridge between a lyric's
 natural phrasing and a melody's actual phrasing.
 
-**Source status — the non-book source has now been READ.** The "roadmap" framing
+**Source status: the non-book source has now been READ.** The "roadmap" framing
 is not in the four books. Measured wrap-safe across all four: `roadmap` returns
 **one** hit, in *Essential Guide to Rhyming* (2014) and in a different sense
 ("Rhyme creates a sonic roadmap"); `compatible roadmaps` and `maximum meaning`
@@ -30,10 +30,10 @@ It is, however, genuinely Pat's, from outside the books. The article
 <https://www.patpattison.com/lyric-and-melodic-phrases>, and it uses "roadmap"
 throughout as its governing metaphor. The "maximum meaning" quote below is
 **confirmed verbatim** against that page, and the three fixes below are **Pat's
-own numbered options**, not this file's invention — see that section.
+own numbered options**, not this file's invention. See that section.
 
 The `"body language"` quote further down is **also confirmed**, but to a
-different column — "The Art of Phrasing"
+different column, "The Art of Phrasing"
 (<https://www.patpattison.com/art-of-phrasing>), not this one. It was briefly
 demoted this session on the mistaken grounds that no source carried it; a
 refuting pass found the page immediately. Its tail "of your song" had been
@@ -50,14 +50,15 @@ a melody first.
 
 ## Core idea
 
-Lyric has a roadmap — where phrases naturally begin and end based on
-grammar and meaning. Melody has a roadmap — where musical phrases begin
+Lyric has a roadmap: where phrases naturally begin and end based on
+grammar and meaning. Melody has a roadmap: where musical phrases begin
 and end based on breath, cadence, and rest. When the two disagree, the
 listener hears two competing structures and the meaning blurs.
 
 > "Creating compatible roadmaps melodically and lyrically is essential to
 > getting maximum meaning and impact from your song."
-> — Pat Pattison, patpattison.com, "Lyric and Melodic Phrases"
+>
+> Pat Pattison, patpattison.com, "Lyric and Melodic Phrases"
 > (fetched and verified 2026-08-11)
 
 The diagnostic is whether the lyric's phrase boundaries align with the
@@ -69,28 +70,28 @@ options** from that article, not this file's organisation of the problem.
 A roadmap is the listener's mental map of where the writer wants to
 breathe, pause, and arrive. Two roadmaps exist in every sung song:
 
-- **Lyric roadmap** — natural pauses derived from grammar (sentence ends,
+- **Lyric roadmap**: natural pauses derived from grammar (sentence ends,
   comma breath, dependent-clause boundaries) and meaning (the spot where
   the idea logically pivots).
-- **Melodic roadmap** — actual pauses derived from rest durations, phrase
+- **Melodic roadmap**: actual pauses derived from rest durations, phrase
   arcs, breath marks, and harmonic cadences.
 
 When the lyric reads as one continuous thought even though the melody phrases it
 in two, the two roadmaps disagree. That can be a good effect (deliberate
 suspension) or a bad one (the listener has to re-parse to catch the meaning).
 
-<!-- CORRECTED — TERM HIJACK. This paragraph called that state "a
+<!-- CORRECTED: TERM HIJACK. This paragraph called that state "a
      through-written character" and asserted "Pat names this state explicitly."
      He does not. `through-written` has 10 hits, all in *Essential Guide to
      Lyric Form and Structure* (1991) Ch 3-4, and it means something else
-     entirely — a property of a rhyme/phrase STRUCTURE, opposed to *fragmented*:
+     entirely, a property of a rhyme/phrase STRUCTURE opposed to *fragmented*:
      "the structure is through-written: that is, there is no place of resolution
      before the end of the last phrase. The structure keeps pushing you
      forward." Nothing to do with lyric-vs-melody disagreement. Borrowing his
      word and then claiming he named this state was the fabrication; the
      observation itself is fine, so it is kept, unattributed. -->
 
-## Ways out — Pat's options, with this file's decision aid layered on
+## Ways out: Pat's options, with this file's decision aid layered on
 
 *Corrected 2026-08-11 after the source article was fetched and read.* Split the
 two things carefully, because an earlier pass got this backwards in both
@@ -98,7 +99,7 @@ directions:
 
 - **Pat's, and citable.** The options themselves are his. "Lyric and Melodic
   Phrases" lists **four**, and the first three are what this file calls Fix 1,
-  Fix 2 and Fix 3 — change the music to match the lyric's roadmap; change the
+  Fix 2 and Fix 3: change the music to match the lyric's roadmap; change the
   lyric to match the melodic roadmap; repeat a word from the first line at the
   beginning of the next line. An earlier pass demoted these as "this file's own
   framing, not Pat's." That demotion was wrong.
@@ -111,7 +112,7 @@ directions:
 
 When a roadmap mismatch is breaking the lyric, pick one:
 
-### Fix 1 — Change the music to match the lyric
+### Fix 1: Change the music to match the lyric
 
 Move a melodic rest to align with the lyric's natural pause. Lengthen or
 shorten a melodic phrase to fit a phrase whose word count the writer
@@ -123,10 +124,10 @@ Use when:
 - the melody is flexible (still being written, co-writer open),
 - the lyric line is doing something specific that other words cannot do.
 
-Risk: melodic memorability suffers if the original phrase shape was
-load-bearing.
+Risk: melodic memorability suffers if the original phrase shape was the
+part listeners remember.
 
-### Fix 2 — Change the lyric to match the music
+### Fix 2: Change the lyric to match the music
 
 Trim, expand, restructure, or rewrite the line so its natural phrase
 endings land on melodic rests. Most common professional fix.
@@ -141,7 +142,7 @@ Risk: writers under-trim because they love the original line. The fix
 only counts if the rewrite is sayable in spoken English with the melody's
 phrase boundaries.
 
-### Fix 3 — Bridge with a repeated word
+### Fix 3: Bridge with a repeated word
 
 Place a repeated word at the start of line 2 that connects back to a word
 in line 1. The repetition spans the gap the listener would otherwise
@@ -154,9 +155,11 @@ Use when:
   listener to read past as a single thought,
 - a deliberate suspension effect is desired.
 
-<!-- REMOVED — FABRICATED ATTRIBUTION. This read: 'Song example: Lady Antebellum
-     "Love Don't Live Here" — Pat cites verses 1-3 lines 3-4 for this pattern.'
-     Measured wrap-safe across all four books: `Lady Antebellum` = 0 hits,
+<!-- REMOVED: FABRICATED ATTRIBUTION. This read: -->
+<!-- ai-slop-ignore-start: quoted retired wording, the removed fabricated attribution recorded verbatim -->
+<!-- 'Song example: Lady Antebellum "Love Don't Live Here" — Pat cites verses 1-3 lines 3-4 for this pattern.' -->
+<!-- ai-slop-ignore-end -->
+<!-- Measured wrap-safe across all four books: `Lady Antebellum` = 0 hits,
      `Love Don't Live Here` = 0 hits. Pat cites nothing of the kind anywhere in
      the corpus. The song may well do what the bullet says, but "Pat cites" was
      invented, and a bare verse-and-line reference reads as a book reference.
@@ -165,18 +168,19 @@ Use when:
 
 Risk: overuse becomes a tic.
 
-### Pat's fourth option — recorded because leaving it out is what caused the error
+### Pat's fourth option, recorded because leaving it out is what caused the error
 
 The article's list does not stop at three. Its fourth option is:
 
 > "Keep it the way it is, since no one listens to lyrics anyway."
-> — Pat Pattison, patpattison.com, "Lyric and Melodic Phrases"
+>
+> Pat Pattison, patpattison.com, "Lyric and Melodic Phrases"
 > (fetched and verified 2026-08-11)
 
 It is a joke, and it is doing real work: it names the thing a writer is
 actually tempted to do, so that declining to fix a mismatch is a visible
 choice rather than a silent default. Do not present it as a craft
-recommendation — and do not drop it again. Counting his four options as three
+recommendation, and do not drop it again. Counting his four options as three
 is precisely what made an earlier pass conclude the taxonomy was invented.
 
 ## How to diagnose
@@ -194,10 +198,10 @@ is precisely what made an earlier pass conclude the taxonomy was invented.
 
 ## Greedy spots and roadmap mismatch
 
-**Frame first — the term covers different ground in two frames**, and this file
+**Frame first: the term covers different ground in two frames**, and this file
 is in the second one. Matching a lyric to a *model lyric* (verse 2 against verse
 1), greed is one-directional: Pat's too-hot failure only. Matching a lyric to a
-*melody* — the frame of this whole file — a mismatch in **either** direction is
+*melody*, the frame of this whole file, a mismatch in **either** direction is
 a greedy spot, because either one fights the bar. That two-frame split is the
 plugin's, not Pat's, and it is stated the same way in `prosody.md`, `meter.md`
 and `${CLAUDE_PLUGIN_ROOT}/skills/meter-prosody/SKILL.md`; keep the four consistent.
@@ -209,11 +213,12 @@ Pat's printed passage, which is the *model-lyric* frame:
 > match the original's important words with equally important words. This one is
 > too cold […] You must resist greed. But you must put your important words in
 > the important positions."
-> — *Essential Guide to Lyric Form and Structure* (1991), Chapter 3
+>
+> *Essential Guide to Lyric Form and Structure* (1991), Chapter 3
 
 In that passage greed is the **too-hot** failure only: stressed syllables put in
 unstressed positions. His too-cold failure is **not** its mirror image and is not
-a stress error at all — it is weak or unimportant words occupying the important
+a stress error at all. It is weak or unimportant words occupying the important
 positions, which no stress check finds. Do not scan for it; ask what each strong
 position is *carrying*.
 
@@ -224,9 +229,9 @@ share a root cause with a roadmap mismatch: the lyric's stresses disagree with
 the melody's.
 
 <!-- Verified against the two 1991 Ch 3 figures behind the dangling colons.
-     image_rsrc2ZC ("too hot") puts strong italicised words — deep / hold /
-     heart / born / haunts / God — into unstressed slots. image_rsrc2ZD ("too
-     cold") puts function words — just / now / place / Won't / get / out — into
+     image_rsrc2ZC ("too hot") puts the strong italicised words deep / hold /
+     heart / born / haunts / God into unstressed slots. image_rsrc2ZD ("too
+     cold") puts the function words just / now / place / Won't / get / out into
      the important slots. So too-cold really is a word-choice failure, not a
      stress inversion, and the model-lyric frame above is right.
 
@@ -234,7 +239,7 @@ the melody's.
      and cut it. That was WRONG and it has been restored. The CHANGELOG records
      a deliberate five-file adjudication splitting the two frames, and it names
      this file as belonging to the melody frame, where both directions count.
-     What was actually missing was the frame label and Pat's printed text — both
+     What was actually missing was the frame label and Pat's printed text, both
      now present. Anyone tempted to "fix" this again: read the CHANGELOG entry
      beginning "Greedy spot was defined inconsistently across five files"
      first. -->
@@ -247,27 +252,28 @@ greedy spot as a side effect. See [prosody](prosody.md) "greedy spots".
 
 Where the lyric phrase begins relative to the bar shapes the roadmap.
 
-- **Front-heavy** — phrase starts on or picks up to a downbeat. Feels
+- **Front-heavy**: phrase starts on or picks up to a downbeat. Feels
   anchored, stable.
-- **Back-heavy** — phrase starts after the downbeat. Feels in motion,
+- **Back-heavy**: phrase starts after the downbeat. Feels in motion,
   unstable.
 
 <!-- DEMOTED, THEN RESTORED, both on 2026-08-11. The demotion was WRONG and is
      recorded here so it is not repeated. This quote was demoted on the grounds
-     that the "Lyric and Melodic Phrases" article does not contain it (true —
+     that the "Lyric and Melodic Phrases" article does not contain it (true:
      "body language" does not appear in THAT article) and that no other
      patpattison.com page carrying it had been located (FALSE). A refuting
      verification pass found the source on the first search: it is a DIFFERENT
      column, "The Art of Phrasing". The lesson is that failing to find a source
-     is not evidence it does not exist — search again before demoting. -->
+     is not evidence it does not exist. Search again before demoting. -->
 
 > "Phrasing has the power to create emotion. It's the body language of your
 > song."
-> — Pat Pattison, patpattison.com, "The Art of Phrasing"
+>
+> Pat Pattison, patpattison.com, "The Art of Phrasing"
 > (<https://www.patpattison.com/art-of-phrasing>, fetched 2026-08-11)
 
 Note the tail: the plugin previously printed this as "It's the body language."
-and stopped. The article reads "the body language **of your song**" — the same
+and stopped. The article reads "the body language **of your song**", the same
 truncation this file made to the "maximum meaning" quote above. Both are now
 restored in full.
 
@@ -283,7 +289,7 @@ mechanics.
 Hypothetical chorus opening line where the writer says "the verse is
 fine but the chorus feels jerky":
 
-1. Speak: "<verb> <object> <connector> <verb> <object>" — natural pause
+1. Speak: "<verb> <object> <connector> <verb> <object>". Natural pause
    after the first object, then continuation, then pause.
 2. Sing the melody: phrase rests after beat 2 and beat 6.
 3. Overlay: the natural lyric pause lands on beat 4 (no melodic rest), and
@@ -313,16 +319,16 @@ The writer picks one. The skill does not pick for them.
 
 ## Anti-patterns
 
-- **Forcing the lyric to match an unimportant melodic gesture** — not
+- **Forcing the lyric to match an unimportant melodic gesture**: not
   every melodic rest carries weight. Some rests are notational; the
   singer can phrase through them.
-- **Forcing the melody to match every lyric pause** — a singer's breath
+- **Forcing the melody to match every lyric pause**: a singer's breath
   in the middle of a sentence can be a feature, not a bug, if the lyric
   earns it.
-- **Repeating words to bridge gaps that wanted to stay open** — Fix 3 is
+- **Repeating words to bridge gaps that wanted to stay open**: Fix 3 is
   for moments where a single continuous thought needs to span a melodic
   break. Overuse turns it into filler.
-- **Co-writing without speaking-and-singing each line** — mismatches are
+- **Co-writing without speaking-and-singing each line**: mismatches are
   audible and hard to see; planning a roadmap silently misses them.
   <!-- The figure "misses 80% of mismatches" was here. Invented. No book states
        any such proportion, and round-number thresholds in this plugin have been
@@ -344,12 +350,12 @@ there, the mismatch is probably an accident.
 
 ## Cross-references
 
-- [phrasing](phrasing.md) — lyric phrase mechanics, front-heavy /
+- [phrasing](phrasing.md): lyric phrase mechanics, front-heavy /
   back-heavy
-- [prosody](prosody.md) — greedy spots and ordinary-language preservation
-- [meter](meter.md) — stress mapping inside a phrase
-- [stable / unstable](stable-unstable-meta.md) — phrase-level stability
+- [prosody](prosody.md): greedy spots and ordinary-language preservation
+- [meter](meter.md): stress mapping inside a phrase
+- [stable / unstable](stable-unstable-meta.md): phrase-level stability
   as a roadmap diagnostic input
-- [co-writing](co-writing.md) — co-write context where roadmap fixes
+- [co-writing](co-writing.md): co-write context where roadmap fixes
   surface most often
-- [workflows](workflows.md) "Scenario 4 — Writing to an existing melody"
+- [workflows](workflows.md) "Scenario 4: Writing to an existing melody"

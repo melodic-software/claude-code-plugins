@@ -25,7 +25,7 @@ handles built-in commands.
    the conversation once and "stays there for the rest of the session … Claude Code
    does not re-read the skill file on later turns"; an identical re-invocation gets
    an "already loaded" note, not a fresh read from disk
-   ([skills — Skill content lifecycle](https://code.claude.com/docs/en/skills#skill-content-lifecycle)).
+   ([skills: Skill content lifecycle](https://code.claude.com/docs/en/skills#skill-content-lifecycle)).
    So even an updated on-disk copy is never re-injected into the running loop.
 
 3. **A loop can't reload itself.** `/reload-plugins` is a built-in command; a
@@ -46,7 +46,7 @@ skill body is already fixed in context.
 
 Don't restart blindly. A lane is stale for one of its plugins when the repo's
 default branch carries commits touching that plugin's path since the lane launched.
-Read-only, pure git — resolve the default branch rather than assuming `main`:
+Read-only, pure git. Resolve the default branch rather than assuming `main`:
 
 ```bash
 git fetch origin -q
@@ -81,62 +81,62 @@ not substitute), and the probe runs through the Bash tool (so the env var is
 unset there). An env-var-with-fallback expression would therefore have silently
 resolved to the unqualified `~/.claude/plugins/data/claude-ops` guess, missed
 the marketplace-qualified directory Claude Code actually uses, read no marker,
-and skipped the staleness check without saying so. SKILL.md — which *is* skill
-content — carries the substituted `data_dir=` assignment; take it from there.
+and skipped the staleness check without saying so. SKILL.md, which *is* skill
+content, carries the substituted `data_dir=` assignment; take it from there.
 
 `<lane-launch-commit>` (substitute the lane's own name for `<lane>` above) is the
 repo HEAD `lane-launcher.sh` captured when `lanes start`/`restart` last (re)started
-that lane — written to `<data-dir>/lanes/<repo-key>/<lane>-launch-commit` right
+that lane, written to `<data-dir>/lanes/<repo-key>/<lane>-launch-commit` right
 after the launch's pre-launch pull, for every lane actually (re)started that run
 (`start` leaves the marker untouched for a lane it skipped as already-running; a
 (re)start that cannot record its own commit deletes the previous launch's marker
 rather than leaving it to be misread as this session's launch point). The lane
 name is the marker's filename, so config preflight rejects a lane name that is
-not a single path component — the path above is literally true for every
+not a single path component, so the path above is literally true for every
 accepted name. `<repo-key>` namespaces the marker by repo, because the data
 directory is plugin-wide while a lane name is only unique within one repo: a
 conventional `work` lane in two checkouts would otherwise share one marker and
 each probe would diff against the other repo's unrelated history. It is a digest
-of git's canonical toplevel rather than a readable slug, deliberately — a
+of git's canonical toplevel rather than a readable slug, deliberately. A
 character fold would collapse `/repos/foo-bar` and `/repos/foo/bar` onto one
 key, and the canonical toplevel keeps a symlinked `--repo` argument pointing at
 the same key both sides use. Recompute it for a by-hand inspection with the
 `repo_key=` line above. An empty
 `lane_launch_commit` means no marker exists for that
 lane (never started/restarted through `lane-launcher.sh` on this machine, or the
-last (re)start could not record one) — the probe has nothing to diff against and
+last (re)start could not record one), the probe has nothing to diff against and
 is skipped rather than run against a resolved-empty range. Any probe output = an
 unconsumed merge. Swap the pathspec for whichever installed plugin a lane runs.
 
 **Not an injection vector today, but treat it as untrusted if that ever changes.**
-`lane-launcher.sh` writes `lane_launch_commit` from `git rev-parse HEAD` only — a
+`lane-launcher.sh` writes `lane_launch_commit` from `git rev-parse HEAD` only, a
 bare hex SHA, so reading it back and interpolating it unquoted into `git log
 "${lane_launch_commit}..${default}"` above carries no shell-injection risk. If a
 future change ever sources this value from something other than `git rev-parse`
 (external input, a hand-edited marker file, anything not mechanically
 hex-constrained), that value must never be interpolated unquoted into the probe
-command — validate it (e.g. `[[ "$lane_launch_commit" =~ ^[0-9a-f]{7,64}$ ]]`)
+command. Validate it (e.g. `[[ "$lane_launch_commit" =~ ^[0-9a-f]{7,64}$ ]]`)
 before it reaches `git log`.
 
 **Not an `!` injection candidate.** This probe is deliberately a body instruction,
-not `!` dynamic-context injection — it fails every condition of the precompute
+not `!` dynamic-context injection. It fails every condition of the precompute
 convention (playbooks skill-authoring `reference/precompute-context.md`). It is
 **conditional**, consulted only when weighing a restart rather than up front on
 every `lanes` invocation; it needs a **computed argument** (`<lane-launch-commit>`,
 plus the pathspec of whichever plugin a lane runs) that a single-pass injection
-cannot supply; and its `git fetch` is **neither bounded nor pure-read** — a network
+cannot supply; and its `git fetch` is **neither bounded nor pure-read**, a network
 round-trip that also updates remote-tracking refs. Safe to run by hand (it touches
 no branch or worktree), wrong to inline at load time.
 
 Getting those changes onto disk on restart (marketplace refresh + per-scope
-update) is the `plugins` skill's job — see its
+update) is the `plugins` skill's job. See its
 [context/sync.md](../../plugins/context/sync.md); the lanes launch already runs
 `claude plugin marketplace update`. Not duplicated here.
 
 ## Restart cadence
 
 - **Trigger-based:** when the probe shows a merge touching a plugin a lane runs,
-  restart that lane at its next cycle boundary — `/claude-ops:lanes restart <lane>`
+  restart that lane at its next cycle boundary. `/claude-ops:lanes restart <lane>`
   re-pulls, refreshes the marketplace, and relaunches from the canonical prompt,
   so the merged skill body loads. Restart discards the lane's in-flight
   conversation, so prefer a cycle boundary over mid-cycle.
@@ -144,5 +144,5 @@ update) is the `plugins` skill's job — see its
   harvest/reset cadence (the same restart that clears context bloat). This
   bounds self-fix staleness to at most one cadence interval.
 - **Until restart:** a behavior known-broken-but-fixed-on-main must be carried as a
-  temporary workaround in the loop prompt — the existing prompt rule for *unmerged*
+  temporary workaround in the loop prompt, the existing prompt rule for *unmerged*
   fixes, extended here to *merged-but-not-yet-reloaded* fixes.

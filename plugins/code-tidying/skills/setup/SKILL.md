@@ -10,7 +10,7 @@ disable-model-invocation: true
 Verify and scaffold the consuming repo's tracked lane definitions at `.claude/tidy-lanes/<lane>.md`
 so `/code-tidying:tidy` resolves project-specific scope globs and watch-for patterns deterministically
 instead of falling back to the generic bundled lanes every run. A project lane at
-`${CLAUDE_PROJECT_DIR}/.claude/tidy-lanes/<lane>.md` layers over the bundled lane of the same name. This is the plugin's seam-2 extension surface. How the two combine is governed by the project lane's
+`${CLAUDE_PROJECT_DIR}/.claude/tidy-lanes/<lane>.md` layers over the bundled lane of the same name. This is the plugin's seam-2 extension point. How the two combine is governed by the project lane's
 own `## Merge semantics` section (see the `tidy` skill's Lane resolution): a lane declaring it merges
 per-section with the bundled lane; a lane without it resolves project-only.
 
@@ -35,7 +35,7 @@ against that baseline rather than overwriting a consumer lane blind.
 Never tell the user to "copy the bundled lanes." Scaffold from templates; override a bundled lane only
 when its defaults miss this repo's actual layout.
 
-The plugin's second tracked surface is `${CLAUDE_PROJECT_DIR}/.claude/code-tidying/exclusion-overrides.md`,
+The plugin's second tracked file is `${CLAUDE_PROJECT_DIR}/.claude/code-tidying/exclusion-overrides.md`,
 optional and absent by default: root-relative globs that lift GLOBAL HARD **path** exclusions for every
 run in this repository, the subtracting mirror of the consumer-declared protections that add to them.
 `check` validates it; `apply` writes it only when the user asks. Contract, shape, precedence, and what
@@ -67,9 +67,9 @@ FAIL. Modify nothing, and do NOT run a tidy sweep. That is `/code-tidying:tidy`.
    broken scope glob or watch-for pattern; FAIL, naming the file and the leftover token.
 4. **Tracked, not ignored**. Per lane file, run both halves of the tracked-file pair:
    `git check-ignore -v <file>` (a non-empty result means a `.gitignore` pattern excludes that lane;
-   FAIL with the matching pattern in the remediation line — a directory can be tracked while a
+   FAIL with the matching pattern in the remediation line, since a directory can be tracked while a
    pattern excludes an individual `.md` inside it) AND `git ls-files --error-unmatch <file>`
-   (non-zero exit means the lane is un-ignored but untracked: report it — "commit it to share with
+   (non-zero exit means the lane is un-ignored but untracked: report it as "commit it to share with
    the team", downgraded to INFO only when the user confirms it is a deliberately private,
    uncommitted lane per the declared deviation below).
 5. **Bundled lanes and templates**. INFO: report the bundled lanes and templates available as scaffold

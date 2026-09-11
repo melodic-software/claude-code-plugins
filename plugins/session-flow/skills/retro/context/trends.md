@@ -1,7 +1,7 @@
-# Trends Mode — Cross-Session Performance Analysis
+# Trends Mode: Cross-Session Performance Analysis
 
 Analyze historical session health scores to identify patterns, improvements, and areas needing
-attention. No current-session analysis — purely retrospective across sessions.
+attention. No current-session analysis; purely retrospective across sessions.
 
 ## Data source
 
@@ -33,11 +33,11 @@ history." and exit.
 
 ### 3. Identify patterns
 
-- **Strongest dimensions** — consistently 8+, established habits
-- **Weakest dimensions** — consistently below 7, need focus
-- **Volatility** — high variance suggests inconsistent application
-- **Session type correlation** — do scores vary by session type?
-- **Time trends** — improving, stable, or declining over the recorded span?
+- **Strongest dimensions.** Consistently 8+, established habits
+- **Weakest dimensions.** Consistently below 7, need focus
+- **Volatility.** High variance suggests inconsistent application
+- **Session type correlation.** Do scores vary by session type?
+- **Time trends.** Improving, stable, or declining over the recorded span?
 
 ### 4. Generate actionable insights
 
@@ -48,7 +48,7 @@ Suggest 2-3 specific focus areas for the next session:
 
 ### 5. Notable sessions
 
-Highlight outliers — best sessions (overall 9+, what made them great) and worst (overall <6, what
+Highlight outliers: best sessions (overall 9+, what made them great) and worst (overall <6, what
 went wrong).
 
 ## What this mode does NOT do

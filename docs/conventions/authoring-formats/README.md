@@ -1,4 +1,4 @@
-# Authoring formats — acceptance-criteria format and diagram dialect
+# Authoring formats: acceptance-criteria format and diagram dialect
 
 Owner doc for two **team-shared authoring format choices** a consuming team may declare once and
 have every planning-to-verification skill honour: the format acceptance criteria are written in,
@@ -9,8 +9,8 @@ This directory is the source of truth for the concern: `README.md` (the contract
 
 **An owner doc is not a consumer declaration.** This file states the keys, their values, and the
 ladder that resolves them. The declaration a team actually writes lives in that team's own
-repository, at the consumer surface described below. This repository ships no such declaration —
-see [Zero config, including here](#zero-config-including-here).
+repository, at the consumer surface described below. This repository ships no such declaration.
+See [Zero config, including here](#zero-config-including-here).
 
 ## Boundary
 
@@ -18,7 +18,7 @@ This doc owns the two keys, their allowed values, their defaults, and the resolu
 It does not own:
 
 - **Delivery surface.** [`rendered-views`](../rendered-views/README.md) owns where a person-facing
-  artifact is delivered; this doc owns the syntax an artifact is written in — dialect is source
+  artifact is delivered; this doc owns the syntax an artifact is written in. Dialect is source
   syntax, medium is delivery surface.
 - **Layering and expression form.** [`config-cascade`](../config-cascade/README.md) owns which
   layers exist, how they merge, the pointer-line grammar that binds a consumer's convention home,
@@ -45,7 +45,7 @@ diagram_dialect:
 |---|---|---|
 | `acceptance_criteria_format` | `free-text`, `ears` | `free-text` |
 | `diagram_dialect.data` | `mermaid`, `dbml` | `mermaid` |
-| `diagram_dialect.system` | `likec4`, `c4-plantuml` | **none — deliberately unset** |
+| `diagram_dialect.system` | `likec4`, `c4-plantuml` | **none, deliberately unset** |
 
 `acceptance_criteria_format: ears` selects the five EARS patterns (ubiquitous, event-driven,
 state-driven, unwanted-behaviour, optional-feature) as the shape emitted criteria are tagged with.
@@ -83,7 +83,7 @@ values. The claim rests on an upstream fact and therefore carries a four-part re
   Verbatim: "C4 Diagram: This is an experimental diagram for now. The syntax and properties can
   change in future releases. Proper documentation will be provided when the syntax is stable."
 - **Basis.** <https://mermaid.js.org/syntax/c4.html>, read at rung 2 of the upstream-drift fetch
-  ladder — `curl` of the rendered page to a local file, 111,058 bytes, the page arrived whole and
+  ladder: `curl` of the rendered page to a local file, 111,058 bytes, the page arrived whole and
   the quote above was matched in the local copy rather than in a summarizer's span.
 - **As-of date.** 2026-09-06.
 - **Recheck trigger.** Either of these observable events on the basis page, or on a sibling
@@ -138,7 +138,7 @@ dedicated file:
 - **Path.** `<home>/authoring-formats/README.md`, where `<home>` is the consumer's convention home
   named by the pointer line in the marked `<!-- BEGIN GENERATED: convention-home -->` region of the
   consumer's root instruction file.
-- **Layers.** One — the team's. A convention-doc surface has **no overlay channel** and no
+- **Layers.** One, the team's. A convention-doc surface has **no overlay channel** and no
   user-global layer; there is no `*.local.*` file for this surface and no gitignore line to
   recommend.
 - **Content.** Consumer prose carrying the fenced YAML block above. It is
@@ -166,7 +166,7 @@ verbatim, with only the key name and the emitting behaviour substituted:
    one, then the team convention doc, then the documented default. A convention-doc
    surface has no personal overlay, so there is no further layer to consult.
 5. Defaults: `acceptance_criteria_format` is `free-text`; `diagram_dialect.data` is
-   `mermaid`; `diagram_dialect.system` has NO default — when it is unset, emit no C4
+   `mermaid`; `diagram_dialect.system` has NO default. When it is unset, emit no C4
    container view and behave exactly as with no convention doc at all.
 6. Degrade soft, and say so. No pointer line, no convention home on disk, no
    `authoring-formats/README.md`, no YAML block, an absent key, or an unrecognized value
@@ -174,7 +174,7 @@ verbatim, with only the key name and the emitting behaviour substituted:
    Name the cause in one clause and continue; never hard-fail, and never ask the operator
    to create the surface mid-task.
 7. Report provenance whenever the resolved value shapes output: name the key, the value,
-   and the layer it came from — `argument`, `team convention doc <path>`, `default`, or
+   and the layer it came from: `argument`, `team convention doc <path>`, `default`, or
    `unset (no C4 view emitted)`.
 ```
 

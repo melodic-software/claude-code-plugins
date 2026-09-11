@@ -38,11 +38,11 @@
 - [Timed structures for practice](#timed-structures-for-practice)
 - [Practical workflow](#practical-workflow)
 - [Revision moves](#revision-moves)
-- [Structural Pentad — unified diagnostic](#structural-pentad--unified-diagnostic)
-- [Paradigm One — Common Meter (the exemplar)](#paradigm-one--common-meter-the-exemplar)
-- [Paradigm Two — 4/4/4/4 fragmented](#paradigm-two--4444-fragmented)
-- [Paradigm Three — 4/3/4/4 deceptive closure](#paradigm-three--4344-deceptive-closure)
-- [Paradigm comparison — One vs Two (*Essential Guide to Lyric Form and Structure* (1991), Chapter 3)](#paradigm-comparison--one-vs-two-essential-guide-to-lyric-form-and-structure-1991-chapter-3)
+- [Structural Pentad: unified diagnostic](#structural-pentad-unified-diagnostic)
+- [Paradigm One: Common Meter (the exemplar)](#paradigm-one-common-meter-the-exemplar)
+- [Paradigm Two: 4/4/4/4 fragmented](#paradigm-two-4444-fragmented)
+- [Paradigm Three: 4/3/4/4 deceptive closure](#paradigm-three-4344-deceptive-closure)
+- [Paradigm comparison: One vs Two (*Essential Guide to Lyric Form and Structure* (1991), Chapter 3)](#paradigm-comparison-one-vs-two-essential-guide-to-lyric-form-and-structure-1991-chapter-3)
 - [Duple-to-triple and triple-to-duple physics](#duple-to-triple-and-triple-to-duple-physics)
 - [Goldilocks pattern matching (*Essential Guide to Lyric Form and Structure* (1991), Chapter 3)](#goldilocks-pattern-matching-essential-guide-to-lyric-form-and-structure-1991-chapter-3)
 - [Fitting a replacement line to an already-sung melody](#fitting-a-replacement-line-to-an-already-sung-melody)
@@ -57,7 +57,7 @@ Pat Pattison - *Songwriting Without Boundaries* (2011), Challenge 4.
 
 Notation: `/` = primary stress, `//` = secondary stress, `u` = unstressed. Words
 Pat sets in *italics* inside a scansion figure are rendered here in `CAPS`.
-Pat's own source notation marks unstressed syllables too, with a breve — the
+Pat's own source notation marks unstressed syllables too, with a breve, the
 "slight cup" over the vowel that Chapter 3's exercises ask for by name. `u` is
 this file's ASCII stand-in for that cup, not an addition to Pat's system.
 
@@ -69,7 +69,7 @@ epigraph sets the duple/triple movement the chapter unpacks:
 > Stop before you start
 > BE STILL MY BEATING HEART
 >
-> — Sting, "Be Still My Beating Heart"
+> Sting, "Be Still My Beating Heart"
 
 The first two phrases ride a long triple figure; the last two snap into duples.
 The whole chapter is about hearing that contrast and using it deliberately.
@@ -82,9 +82,9 @@ Pat's own scansion of that verse is reproduced under
   figure references, 56 unique**, running `image_rsrc2YZ.jpg` through
   `image_rsrc30P.jpg` (`image_rsrc30P.jpg` is a closure arrow, used four times).
   This chapter argues *in* its figures: every scansion, all three Paradigms, the
-  4/4 bar settings, and the Structural Pentad worksheets — one blank
+  4/4 bar settings, and the Structural Pentad worksheets, one blank
   (`image_rsrc309.jpg`) plus three filled in for Common Meter, Paradigm Two, and
-  Paradigm Three — exist only as page scans. Earlier revisions of this file
+  Paradigm Three, exist only as page scans. Earlier revisions of this file
   recorded "no linked page-scan images" for this chapter, and that one false
   line is why the too-cold definition and the "When I got home" scansion below
   both survived a full pass uncorrected.
@@ -135,7 +135,7 @@ boil   pail   out   now
 > them to music. Syllables containing only one vowel sound typically are set to
 > one note.
 
-Use a dictionary for word division — Pat's instruction is blunt: "If you do not
+Use a dictionary for word division. Pat's instruction is blunt: "If you do not
 have a dictionary handy, stop here and go out and buy one. It is a tool of your
 trade." His rule of thumb for dividing:
 
@@ -171,7 +171,7 @@ Multi-syllable English words have conventional stress. Pat's three-part
 definition: a stressed syllable is higher in pitch, louder, and
 longer than the unstressed syllables around it. "In effect, words of two or more
 syllables have a little melody, with the stressed syllable 'on the beat.' That's
-how we learn them." His demonstration word is "incision" — say it five times,
+how we learn them." His demonstration word is "incision": say it five times,
 slow down, and hear that "ci" is higher, louder, and longer than the other two.
 The figure sets "ci" physically higher on the page than "in" and "sion": the
 little melody drawn rather than described.
@@ -191,14 +191,14 @@ ju di cious:      u  /  u
 ```
 
 If primary stress is on the first or last syllable of a three-syllable word, the
-opposite end carries secondary stress — and because that secondary is stronger
+opposite end carries secondary stress, and because that secondary is stronger
 than the middle syllable, it is what gives the word its shape. If primary stress
 is on the middle syllable, there is no secondary stress ("relinquish,"
 "judicious"). Words of four or more syllables always carry secondary stress.
 
 Chapter 3's Exercise 9 drills this: divide ten words into syllables and mark the
-stressed syllable with a slash. Three of its ten items are verb/noun pairs —
-"present," "suspect," "perfect" — which is the point of the drill, since those
+stressed syllable with a slash. Three of its ten items, "present," "suspect,"
+and "perfect," are verb/noun pairs, which is the point of the drill, since those
 words move their stress with their part of speech. Exercise 10 adds the
 secondary-stress mark over ten longer words; its worked first item is
 `un re lent ing`, marked `// u / u`.
@@ -213,8 +213,9 @@ with multi-syllable words instead of miscounting on them.
 The dictionary is silent on one-syllable words, so stress depends on what the
 word's job is in the phrase:
 
-- Meaning carriers — "semantic" function: nouns, verbs, adjectives, adverbs —
-  are stressed. Pat's own list of words that will always be stressed:
+- Meaning carriers are stressed. These are the words with a "semantic"
+  function: nouns, verbs, adjectives, adverbs. Pat's own list of words that
+  will always be stressed:
   `track list risk luck slick hard stem strip`. His name for this is **stress by
   importance**.
 - Grammatical road signs are unstressed: prepositions, articles, conjunctions,
@@ -268,7 +269,7 @@ force a pattern onto the phrase.
 
 Pat works his example in two stages, and the staging is the teaching. The first
 figure marks only "home / house / dark" and the two weak syllables between them,
-leaving "When I got" bare — "Some parts are totally clear. Start with those."
+leaving "When I got" bare: "Some parts are totally clear. Start with those."
 The second figure fills the grey area in with the most likely reading:
 
 ```text
@@ -277,17 +278,19 @@ u    u  u   /   u    /    u   /
 ```
 
 Three stresses, not four. "When," "I," and "got" are all grey-area syllables
-that could take stress under contrast — "got" if the lights came up a moment
-later, "I" if someone else had been expected home — but the natural reading
+that could take stress under contrast, "got" if the lights came up a moment
+later, "I" if someone else had been expected home, but the natural reading
 leaves all three unstressed and gives the weight to "home," "house," and "dark."
 
 That asymmetry is Pat's, stated outright:
 
+<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison, Essential Guide to Lyric Form and Structure (1991) -->
 > Although it may not be perfectly clear what the first three syllables are, it
 > is very clear what they are not. They are not the most important syllables in
 > the phrase — typical for words in grey areas. There would be no problem setting
 > this phrase to music — just save the important places in the measures for the
 > most important words.
+<!-- ai-slop-ignore-end -->
 
 What the grey syllables *are* stays arguable, and
 what they are *not* does not. They are not the most important syllables in the
@@ -358,7 +361,7 @@ u   /   u  /   u  /
 Read the marks, not the vocabulary: lines two and four scan against the model
 syllable for syllable and are still dead, because "now," "place," "get," and
 "out" occupy the positions the model gave its meaning carriers. Lines one and
-three go further — "Yet" and "Won't" sit on the model's opening strong position
+three go further: "Yet" and "Won't" sit on the model's opening strong position
 as words Pat marks *unstressed*, so the strong position comes up empty.
 
 ### Just right
@@ -464,7 +467,7 @@ four. His caution on that page is worth keeping:
 
 Deceleration is not only a triple-to-duple move. *Any* reduction in unstressed
 syllables slows the pace, including dropping them entirely so that stresses fall
-adjacent — which is exactly what Pat's deceleration figure shows, two duple
+adjacent, which is exactly what Pat's deceleration figure shows, two duple
 phrases followed by a bare row of stresses:
 
 ```text
@@ -485,7 +488,7 @@ section still feels pushed forward by phrase count.
 ## Stress count vs syllable count
 
 This rule reaches the reader as a parenthesis printed inside a page scan, which
-is why it is easy to miss — it is *Essential Guide to Lyric Form and Structure*
+is why it is easy to miss. It is *Essential Guide to Lyric Form and Structure*
 (1991), Chapter 3, figure `image_rsrc2ZU.jpg`, and it appears nowhere in the
 EPUB text layer. Pat's words:
 
@@ -503,7 +506,7 @@ u u / u u / u u /    9 syllables, 3 stresses   <- the SHORTER phrase
 
 The four-stress line has one syllable *fewer* and is still the longer phrase;
 set to music, it is the one that extends further. A raw-syllable count ranks
-these backwards — which is the whole reason the stressed-syllable count is the
+these backwards, which is the whole reason the stressed-syllable count is the
 measurement this method uses.
 
 Two corollaries follow, and both matter when matching a paradigm:
@@ -532,7 +535,7 @@ Phrase 4: / u / u /       <- closure
 It maps cleanly onto popular music's two-, four-, and eight-bar subdivisions.
 Pat sets the stressed syllables of each phrase in the stressed quarter-note
 positions of 4/4 bars and walks the eight bars one phrase at a time. Phrase one
-fills two bars — four quarter notes, then three and a rest. Phrase two takes
+fills two bars: four quarter notes, then three and a rest. Phrase two takes
 bars three and four:
 
 > The silent third beat of the fourth bar serves to define phrase two's
@@ -568,14 +571,14 @@ u   /    u   /    u  /
 > lines two, three, and four work as pickups; they do not change the pattern
 > either.
 
-He then proves the imbalance by trying to stop early. After two lines —
+He then proves the imbalance by trying to stop early. After two lines:
 
 ```text
 Mary had a little lamb          (4)
 Its fleece was white as snow    (3)
 ```
 
-— "this is unbalanced. You cannot stop here." One word fixes it:
+The verdict is "this is unbalanced. You cannot stop here." One word fixes it:
 
 ```text
 Mary had a little lamb                  (4)
@@ -599,8 +602,8 @@ four-stress second phrase produces once it is carried across all four lines.
 ## Common meter as map
 
 In *Writing Better Lyrics* (2009), Chapter 14, common meter becomes a drafting map, not only
-a scansion label. Pat's image for the eight-bar section is a sea voyage — "the
-sea captain of Western popular music" — and the two- and four-bar subdivisions
+a scansion label. Pat's image for the eight-bar section is a sea voyage, "the
+sea captain of Western popular music", and the two- and four-bar subdivisions
 are landmarks along it. The end of bar two rests, bars three and four tack into
 the wind, bars five and six return to familiar territory, and bars seven and
 eight match three and four to arrive. Marked in strong and weak notes:
@@ -623,8 +626,8 @@ Use common meter by counting strong stresses, not by forcing every unstressed
 syllable into a fixed slot. Pattison shows the same pattern surviving extra
 weak syllables, missing or softened stresses, triple-meter delivery, and lines
 that divide into smaller phrases. The durable relationship is longer / shorter /
-longer / shorter, and his sentence for the "3+ stresses" variation — a four-stress
-line shortened to three plus a trailing unstressed syllable — states the whole
+longer / shorter, and his sentence for the "3+ stresses" variation, a four-stress
+line shortened to three plus a trailing unstressed syllable, states the whole
 principle: "The important point is that the first and second phrases don't match;
 three-plus stresses is still longer than three stresses."
 
@@ -709,7 +712,7 @@ Core spotlight moves:
 - Lengthen line four to four stresses for deceptive rhythmic closure.
 - Keep the extra stress inside line four when the end rhyme still needs to
   answer line two. The insertion is two syllables, one unstressed and one
-  stressed — adding a bare stressed syllable changes the movement as well as
+  stressed. Adding a bare stressed syllable changes the movement as well as
   the count.
 - Rhyme line four with lines one and three instead of line two to make the
   closing rhyme fool the listener.
@@ -771,10 +774,10 @@ A phantom in the night                    b         3
 > each step without losing momentum. All this just because we're expecting a
 > rhyme for bite.
 
-Pat then names the weakness in his own payoff — "my last line, a phantom in the
+Pat then names the weakness in his own payoff: "my last line, a phantom in the
 night, is pretty cheesy, and the cheese really, really shows up in this heavily
 spotlighted position. It would be a great place to put the song's title, wouldn't
-it?" — and Exercise 19 hands the repair to the reader: find a better final line,
+it?" Exercise 19 hands the repair to the reader: find a better final line,
 and remember that at this distance between rhymes the sonic bond has to be pretty
 strong. Exercise 18 asks the reader to refit their own stanza to the two shorter
 structures the same final line could have produced: `a4 b3 a4 a4 b3 b3` and
@@ -819,7 +822,7 @@ basic pattern is four stresses matched by four stresses. Because the line
 lengths match, the listener can stop comfortably after line two.
 
 His paradigm for it is the counting rhyme again, but a different variant from the
-one Chapter 3 of *Essential Guide to Lyric Form and Structure* uses — here every
+one Chapter 3 of *Essential Guide to Lyric Form and Structure* uses. Here every
 line runs four stresses and the second couplet is rewritten to keep them:
 
 ```text
@@ -924,7 +927,7 @@ closed unit, either reopen the unit or stop counting on the rhyme.
 ## Couplet and common-meter models
 
 Chapter 16 closes with Exercise 20: nine models mixing four-stress couplets and
-common meter — "Write a section for each of the following models and watch it in
+common meter: "Write a section for each of the following models and watch it in
 action. Then put a few of the more unusual rhyme schemes in your toolbox for
 later use. Offer your listeners some nice surprises." Line lengths in the table
 are stress counts, not syllable counts, exactly as Pat's figure prints them.
@@ -943,14 +946,14 @@ are stress counts, not syllable counts, exactly as Pat's figure prints them.
 
 Only models 1-3 and 9 run entirely on four-stress lines. The rest set a
 three-stress line against four-stress neighbours, which is where the
-couplet / common-meter contrast becomes audible — and model 8 is long enough
+couplet / common-meter contrast becomes audible, and model 8 is long enough
 for its short fourth line to open an IOU that its short eighth line answers.
 
 ## Composite destabilizing
 
 Chapter 16's closing analysis is worth holding as a pattern rather than a
 single example: several destabilizers can fire in one section at once, and
-their effect compounds. Its chorus lands four simultaneously — an odd number
+their effect compounds. Its chorus lands four simultaneously: an odd number
 of lines, an odd rhyme scheme, a two-stress line where the section had used
 none, and a section that stretches past the eight-bar units the verse and
 prechorus had trained, out to eleven bars.
@@ -1026,7 +1029,7 @@ Couplet-expansion moves:
 - Keep the original couplets intact but insert five-stress rhymed lines around
   them when the couplets are strong enough to survive.
 - Build an eight-line structure of four-stress rhymed lines whose fourth and
-  eighth lines are both **shorter** — three stresses — with the fourth
+  eighth lines are both **shorter**, three stresses, with the fourth
   withholding a rhyme that the eighth answers: `4/4/4/3/4/4/4/3`, `aaabcccb`.
   The shortening is half the move; an unrhymed line of matched length does not
   open the same IOU. Pat credits the rhyme scheme to David Wilcox's "Eye of the
@@ -1101,6 +1104,7 @@ C. TYPE:   _x_ EXPECTED          ___ UNEXPECTED     ___ DECEPTIVE
 
 Pat's own five numbered readings behind those marks:
 
+<!-- ai-slop-ignore-start: Pat Pattison's five Pentad readings and the naming sentence, verbatim from Essential Guide to Lyric Form and Structure (1991) -->
 1. It is BALANCED — there is an even number of phrases, each phrase has a
    counterpart, and the order of the phrases is repeated. Nothing is left
    "hanging."
@@ -1117,6 +1121,7 @@ The name comes from that count: "We have just developed what we will call the
 STRUCTURAL PENTAD (penta = 'five') — five normal characteristics of any
 structure, be it a rhythmic structure, a rhyme structure, or even a musical
 structure."
+<!-- ai-slop-ignore-end -->
 
 ## Paradigm 1: through-written
 
@@ -1136,7 +1141,7 @@ SAME ...`, and the unfinished third term is the point. Paradigm 2 runs `SAME /
 SAME / SAME / SAME`, which finishes itself twice.
 
 **The paradigm is defined by stress count, not syllable count.** Pat states
-Paradigm 1 twice — once in duples and once in triples — and both are the same
+Paradigm 1 twice, once in duples and once in triples, and both are the same
 paradigm:
 
 ```text
@@ -1147,7 +1152,7 @@ duples:   / u / u / u /   |  triples:  / u u / u u / u u /
 ```
 
 Exercise use: Exercise 14 asks for three Paradigm One systems, each with
-different content, and — since Paradigm One is through-written — for each system
+different content, and, since Paradigm One is through-written, for each system
 to carry its idea through to the end. One of the three must be written in
 triples, which is the drill that makes the stress-count definition stick.
 
@@ -1172,7 +1177,7 @@ primary unit rather than making four bars feel like the midpoint of an
 eight-bar journey.
 
 Its Pentad reading differs from Common Meter's in exactly one row: FLOW is
-FRAGMENTED, meaning there is an internal point of resolution — the structure
+FRAGMENTED, meaning there is an internal point of resolution: the structure
 stops after the second phrase and then starts over. It is still CLOSED, and Pat's
 parenthesis is "(Twice, in fact)."
 
@@ -1222,8 +1227,8 @@ Knowing something isn't right
 > PARADIGM THREE is a clear example of DECEPTIVE CLOSURE. The price of the
 > deception is to unbalance the structure.
 
-Exercise 16 of *Essential Guide to Lyric Form and Structure* — distinct from
-Exercise 16 of *Writing Better Lyrics*, which is the grocery-list drill — asks
+Exercise 16 of *Essential Guide to Lyric Form and Structure*, distinct from
+Exercise 16 of *Writing Better Lyrics*, which is the grocery-list drill, asks
 for three Paradigm Three systems put together to tell a story, each advancing
 the idea further, each carrying its content to the end, and each putting its most
 important idea in the deceptive fourth phrase. The suggested opening line is the
@@ -1249,8 +1254,10 @@ that already ended the system and again against the tacked-on line: a four-line
 system from "The Great Pretender" plus a fifth line, and a four-line system
 ending "Strangle all your hopes" that then repeats its own opening line.
 
+<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison, Essential Guide to Lyric Form and Structure (1991) -->
 > When a system creates a place that surprises you — that gets a lot of
 > attention, use it well. It is a good place to put important ideas.
+<!-- ai-slop-ignore-end -->
 
 Exercise 17 is one line long: write two systems ending with unexpected closure.
 
@@ -1259,6 +1266,7 @@ As with deceptive closure, use the surprise position for important content.
 ## Common-meter exercises
 
 <!-- Pat's scansion vocalization; not a misspelling --><!-- spellchecker:off -->
+<!-- ai-slop-ignore-start: inline verbatim quote from Pat Pattison, Writing Better Lyrics (2009) Chapter 14 -->
 - Grocery-list meter (Exercise 16, *Writing Better Lyrics*, Chapter 14): "Try
   doing this with your grocery list. Try one in duples — da DUM da DUM — and one
   in triples — da da DUM da da DUM." Keep the 4/3/4/3 stress relation audible
@@ -1267,6 +1275,7 @@ As with deceptive closure, use the surprise position for important content.
   Times are tough and rent is due / And I've got songs to write") and working up
   the nerve to ask for a date ("I wanna call, I wanna call / I know I'll sound
   too scared / My self-esteem is plunging fast / O do I do I dare?").
+<!-- ai-slop-ignore-end -->
 <!-- spellchecker:on -->
 - Spotlight ladder: write one four-line common-meter stanza, then revise it
   through these versions: shortened fourth line, lengthened fourth line,
@@ -1296,8 +1305,8 @@ As with deceptive closure, use the surprise position for important content.
   the point is learning to chart content into manageable stress groups.
 - Detour test: draft a clean 4/3/4/3 version, then deliberately lengthen or
   shorten one phrase. Keep the detour only if it clarifies the emotional turn.
-  Pat's own "simple detour" runs 4 / 3 / 5 / 3+ / 3 / 5 — two common-meter
-  openings each answered by a five-stress line — and his point is that charting
+  Pat's own "simple detour" runs 4 / 3 / 5 / 3+ / 3 / 5, two common-meter
+  openings each answered by a five-stress line, and his point is that charting
   the course first is what makes the departure safe: "If you need to take a
   detour, you will know where you are when you leave, and it will help you keep
   safely under control."
@@ -1420,7 +1429,7 @@ where the natural language contradicts the intended form.
 - Use delayed rhymes only when the sonic bond is strong enough to be heard
   across the distance.
 
-## Structural Pentad — unified diagnostic
+## Structural Pentad: unified diagnostic
 
 *Essential Guide to Lyric Form and Structure* (1991), Chapter 3 introduces a five-property framework Pat uses across all
 four books. Every section is described by:
@@ -1434,7 +1443,7 @@ four books. Every section is described by:
 | 5 | Type of closure | expected / unexpected / deceptive |
 
 These are the value sets from Pat's own worksheet, and they are closed lists.
-Balance is **symmetrical / asymmetrical** — not "balanced / unbalanced," though
+Balance is **symmetrical / asymmetrical**, not "balanced / unbalanced," though
 the prose around the worksheet uses that looser wording. Closure is **binary**:
 closed or open. There is no third "leans forward" value; a structure that leans
 forward is an *open* one, and how it leans is what the Flow and Type-of-closure
@@ -1478,7 +1487,7 @@ The Pentad pairs with the
 Elements name the levers; the Pentad names the effects those levers
 produce.
 
-## Paradigm One — Common Meter (the exemplar)
+## Paradigm One: Common Meter (the exemplar)
 
 Pat's pedagogical anchor for Common Meter. 4/3/4/3 stresses,
 through-written, expected closure.
@@ -1498,7 +1507,7 @@ Stability: stable
 Use as the home base. Once a writer can write a clean Paradigm One
 system, paradigms Two and Three become deliberate deviations.
 
-## Paradigm Two — 4/4/4/4 fragmented
+## Paradigm Two: 4/4/4/4 fragmented
 
 Same stress count on every line; flow fragmented (often heard as 2 + 2);
 expected closure.
@@ -1518,7 +1527,7 @@ Stability: stable but blocky
 Useful when the section wants to feel even, declarative, or chant-like.
 Avoid when through-written motion is needed.
 
-## Paradigm Three — 4/3/4/4 deceptive closure
+## Paradigm Three: 4/3/4/4 deceptive closure
 
 Through-written like Paradigm One, but the fourth line breaks the
 expected 3-stress closure by extending to 4 stresses. Section sounds
@@ -1539,7 +1548,7 @@ Stability: unstable at the closure point
 Note that Paradigm Three still **closes**. Deception is a property of the
 *type* row, not the closure row: the fourth line resolves the system, it just
 resolves it with a length the listener was not braced for. It can do that only
-because the four-stress phrase is already present in the structure — a resolving
+because the four-stress phrase is already present in the structure. A resolving
 phrase the section had never used would leave the system open instead of
 deceived.
 
@@ -1560,7 +1569,7 @@ u   /    u   /     u  /   u   /
 Use Paradigm Three when the last idea must spotlight or unsettle. The
 expectation of a 3-stress close makes the longer line audible.
 
-## Paradigm comparison — One vs Two (*Essential Guide to Lyric Form and Structure* (1991), Chapter 3)
+## Paradigm comparison: One vs Two (*Essential Guide to Lyric Form and Structure* (1991), Chapter 3)
 
 Pat prints the two paradigms in immediate succession and states why:
 
@@ -1576,7 +1585,7 @@ differences Chapter 3 names behind those arrows:
 |---|---|---|
 | Stress counts | 4/3/4/3 | 4/4/4/4 |
 | Repetition scheme | SAME / DIFFERENT / SAME ... | SAME / SAME / SAME / SAME |
-| Flow | through-written | fragmented — closes internally after phrase two |
+| Flow | through-written | fragmented: closes internally after phrase two |
 
 One consequence follows once the structure is set in bars: Paradigm Two
 "defines a four-bar unit as the primary unit of the structure rather than, like
@@ -1585,7 +1594,7 @@ Common Meter, showing the four-bar unit as a subdivision of an eight-bar unit."
 Chapter 3 assigns neither paradigm a mood, a section type, or a "best for" use;
 the paradigms are characterized only by the Pentad. Earlier revisions of this
 file carried "Length perception," "Default mood," and "Best for" rows here,
-plus a "Teaching move" directing a writer to set the same idea in both — none
+plus a "Teaching move" directing a writer to set the same idea in both. None
 of that is in the chapter, and Exercises 14 and 15 in fact ask for three systems
 of *different* content in each paradigm. Removed rather than re-sourced.
 
@@ -1620,11 +1629,11 @@ diagnostic: too hot, too cold, just right.
 The three states test **two independent things**, and reading them as one test
 is the standing error here:
 
-- **Too hot** — *greed*. A stressed syllable is forced into a slot the model
+- **Too hot**: *greed*. A stressed syllable is forced into a slot the model
   leaves unstressed. This is a scansion failure: the stress map itself is wrong.
   The greedy syllables get buried or sound hurried when set to the original's
   music, and they lose their emotion on the way.
-- **Too cold** — the **important positions filled with the wrong words**. Nothing
+- **Too cold**: the **important positions filled with the wrong words**. Nothing
   trips; the section simply stops being worth listening to. Pat's marked example
   shows two flavours of this, and the file used to claim only the first. In its
   lines two and four the scansion is exactly the model's, syllable for syllable,
@@ -1632,7 +1641,7 @@ is the standing error here:
   model had meaning carriers. In its lines one and three the strong position
   comes up empty instead: "Yet" and "Won't" sit where the model opened with
   "Sink" and "Stop," and Pat marks both of them *unstressed*.
-- **Just right** — **both** conditions met at once: the stresses match, *and*
+- **Just right**: **both** conditions met at once. The stresses match, *and*
   the most important words sit in the same places as the model's most important
   words.
 
@@ -1643,13 +1652,13 @@ strong position.
 
 Use the Goldilocks frame when running pattern-match audits per line. Note the
 scope on the vocabulary: **when matching a lyric to a model lyric, greed is
-one-directional** — it is the too-hot failure only, and Pat names the too-cold
+one-directional**. It is the too-hot failure only, and Pat names the too-cold
 failure separately without ever calling it greed.
 
 That scope does not travel to melody setting. When the lyric is being matched
 to a *melody* rather than to another lyric, a mismatch in either direction is a
-greedy spot — a stressed syllable on a weak beat, or an unstressed syllable
-riding a strong one — because either one fights the bar. See
+greedy spot, a stressed syllable on a weak beat or an unstressed syllable
+riding a strong one, because either one fights the bar. See
 [prosody](prosody.md) "greedy spots" for that frame. Too cold is a third thing
 again: a stress check may or may not catch it, and when it does not, only asking
 what each strong position is *carrying* will.
@@ -1659,15 +1668,15 @@ what each strong position is *carrying* will.
 **Plugin-authored procedure, writer-derived from the Sofía sessions
 (2026-08-12).** The Chapter 3 material above answers "match verse two to verse
 one," where the model is another lyric. This section answers the case the
-paragraph directly above splits off: the melody has already been *sung* — a demo,
-a cover, an AI-generated track — and one line inside it is being replaced while
+paragraph directly above splits off: the melody has already been *sung*, as a
+demo, a cover, or an AI-generated track, and one line inside it is being replaced while
 every note stays exactly where it is. Nothing here is Pat's beyond the quoted
 passages, which are his and are reproduced from elsewhere in this file.
 
 ### A note count is not a length claim
 
 [Stress count vs syllable count](#stress-count-vs-syllable-count) is the
-measurement for how long a phrase *is* — how far it extends when set to music —
+measurement for how long a phrase *is*, how far it extends when set to music,
 and this procedure does not weaken it. Fitting runs one level below it: the notes
 are already recorded, so a raw syllable count here is an **inventory of notes
 already sung**, not a length claim about the line. Each syllable has to land on a
@@ -1680,12 +1689,12 @@ Pat's own note-per-syllable arithmetic, from [syllables](#syllables) above:
 > them to music. Syllables containing only one vowel sound typically are set to
 > one note.
 >
-> — *Essential Guide to Lyric Form and Structure* (1991), Chapter 3
+> *Essential Guide to Lyric Form and Structure* (1991), Chapter 3
 
 ### Notation
 
-The same notation as the rest of this file — `/` primary stress, `//` secondary,
-`u` unstressed — in three labelled rows, because a fitting procedure has to
+The same notation as the rest of this file, `/` primary stress, `//` secondary,
+`u` unstressed, in three labelled rows, because a fitting procedure has to
 *name* positions and not only mark them:
 
 - `line:` the sung line, split into syllables
@@ -1693,7 +1702,7 @@ The same notation as the rest of this file — `/` primary stress, `//` secondar
 - `syl:` the syllable numbers, with the stressed ones in `[brackets]`
 
 The Sofía worksheets also carried a compact `1u 2u 3S` slot digest. Do not carry
-that form forward — its `S` collides with this file's `/`. One notation, extended
+that form forward. Its `S` collides with this file's `/`. One notation, extended
 by one row.
 
 ### The procedure
@@ -1702,8 +1711,8 @@ by one row.
    lyric sheet records the words; only the recording records where the weight
    fell.
 2. **Scan it by importance.** Mark the meaning carriers first and let the grey
-   areas settle around them, per [scansion](#scansion) above. Road signs —
-   prepositions, articles, conjunctions, auxiliaries, pronouns — are unstressed
+   areas settle around them, per [scansion](#scansion) above. Road signs, the
+   prepositions, articles, conjunctions, auxiliaries, and pronouns, are unstressed
    unless the singer pushes them, which is step 6.
 3. **Number the syllables and bracket the stressed ones.** That block is the
    positional template. Write it down: it is the artifact every candidate answers
@@ -1718,10 +1727,10 @@ by one row.
    > You must resist greed. But you must put your important words in the
    > important positions.
    >
-   > — *Essential Guide to Lyric Form and Structure* (1991), Chapter 3
+   > *Essential Guide to Lyric Form and Structure* (1991), Chapter 3
 
 5. **Road signs ride the unbracketed slots.** A stressed word in an unbracketed
-   slot is the too-hot failure — "It is important not to be greedy: do not put
+   slot is the too-hot failure, "It is important not to be greedy: do not put
    stressed syllables in the unstressed positions" (*Essential Guide to Lyric
    Form and Structure* (1991), Chapter 3, quoted in full under
    [too hot](#too-hot) above). A bracketed slot holding a road sign is the
@@ -1733,13 +1742,13 @@ by one row.
    singer pushed it on every take. The original sang a preposition there ("she
    watched me move FROM the window sill"), the push promoted it, and any road
    sign parked at 9 stuck out. A slot the recording pushes is a strong slot
-   whatever the scan says — re-bracket it and put a stressable word there. In
+   whatever the scan says. Re-bracket it and put a stressable word there. In
    that session forced-alignment tooling failed on the talk-sung verse, so the
    writer's own singing stayed the measurement. Where the grid and the ear
    disagree, the ear is the template.
 7. **Exact syllable match is the target; ±1 is a priced trade-off, never spent
    silently.** Writer-derived (Sofía sessions, 2026-08-12). One syllable over or
-   under costs exactly one merged or split note — available because a diphthong
+   under costs exactly one merged or split note, available because a diphthong
    already takes two notes and a single vowel takes one, per the quote above.
    Naming the price is the rule. In production the 14-syllable variant of a
    13-syllable slot was surfaced to the writer as a choice about whether the
@@ -1752,7 +1761,7 @@ by one row.
    strictly safer. Say which of the two a candidate is. Demanding a cleaner map
    than the original has is how this procedure stalls on impossible perfection.
 9. **The writer sing-checks; the procedure cannot.** A candidate that maps
-   perfectly can still crowd — two carriers on adjacent slots is the common case.
+   perfectly can still crowd. Two carriers on adjacent slots is the common case.
    Mapping is a claim about positions, never about singability.
 10. **Hand the fitted line off to the dependency re-verification.** Replacing a
     line can orphan an earlier or later line that referenced it. Observed
@@ -1762,7 +1771,7 @@ by one row.
     [line-edit-rubric](line-edit-rubric.md); this procedure ends by handing over
     to it and does not perform it.
 
-### Worked template — Sofía, verse 1 line 2 (2026-08-12)
+### Worked template: Sofía, verse 1 line 2 (2026-08-12)
 
 The sung line, transcribed from the recording and scanned by importance:
 
@@ -1785,14 +1794,14 @@ syl:  1   2    [3]  4    5    [6]      7    [8]   [9]  10   [11]  12    [13]
 Thirteen syllables on thirteen notes; carriers WA / DROPPED / COIN / LET / EVE /
 SPILL on 3/6/8/9/11/13; every unbracketed slot holds a road sign (by, the, she,
 her, the, ning), so no preposition can be promoted anywhere in the line. That
-is the whole test this procedure applies. Whether the line is *good* — its image,
-its rhyme tier, its register, its dependencies — is decided by the per-edit line
-rubric and by the writer's ear, not here.
+is the whole test this procedure applies. Whether the line is *good*, meaning its
+image, its rhyme tier, its register, and its dependencies, is decided by the
+per-edit line rubric and by the writer's ear, not here.
 
 ## Pitch-based stress model (*Songwriting Without Boundaries* (2011), Challenge 4)
 
 Pat's distinctive Challenge 4 teaching frame: English stressed syllables are
-not only louder and longer than unstressed — they're also **higher in
+not only louder and longer than unstressed, they're also **higher in
 pitch**. Treating stress as pitch makes the underlying music of speech
 audible.
 
@@ -1804,8 +1813,10 @@ Pat's rule, as printed:
 > "tonic" (do) established by the unstressed syllables.
 
 <!-- spellchecker:off -->
-His demonstration word is `release` — "da DUM," with "a melodic leap of a
+<!-- ai-slop-ignore-start: inline verbatim quote from Pat Pattison, Songwriting Without Boundaries (2011) Challenge 4 -->
+His demonstration word is `release`, "da DUM," with "a melodic leap of a
 fourth on 'lease'—(do fa)." His worked list, with his own solfège:
+<!-- ai-slop-ignore-end -->
 <!-- spellchecker:on -->
 
 <!-- Pat's stress-marked spellings trip the spell-checker --><!-- spellchecker:off -->
@@ -1823,7 +1834,7 @@ When a word carries two or more stressed syllables, the primary stress is the
 highest in pitch and is "usually a step above the secondary stress." Multi-
 syllable words with more than one stressed syllable will contain a secondary
 stress. One-syllable meaning carriers are "usually raised somewhere between a
-third and fifth above the tonic (do) set by the unstressed syllable" — Pat
+third and fifth above the tonic (do) set by the unstressed syllable". Pat
 calls those raised pitches "spotlights that shine on these words and draw
 attention to them."
 
@@ -1843,10 +1854,10 @@ hotdog   sunlight   nighttime   newsstand   pigtail   sandstorm
 > In English, the primary stress in compound words is almost always on the
 > first syllable.
 
-### Two-syllable prepositions — secondary stress
+### Two-syllable prepositions: secondary stress
 
 Articles, prepositions and conjunctions are usually unstressed, because their
-job is to show relationships between meaning functions — a grammatical (or
+job is to show relationships between meaning functions, a grammatical (or
 secondary) function. But many prepositions have two or more syllables and so
 contain, within themselves, more and less stressed syllables. Pat's two
 examples: `óver` has a stronger first syllable, `befóre` a stronger second.
@@ -1863,6 +1874,7 @@ by the unstressed syllable."
 
 Pat's own paragraph, and the reason behind it:
 
+<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison, Songwriting Without Boundaries (2011) -->
 > Take a second to notice into, another two-syllable preposition. It is stressed
 > ínto, not intó. It is probably the most badly handled word in
 > songwriting—perhaps since it usually follows a stressed syllable:
@@ -1878,10 +1890,11 @@ Pat's own paragraph, and the reason behind it:
 > She walked intó the room.
 >
 > 'Nuff said.
+<!-- ai-slop-ignore-end -->
 
 The remedy is a **setting** instruction, not a revision one: give "into" its own
 rhythmic space so the first syllable lands where the stress already is. It
-follows directly from the preceding rule — prepositions get relegated to
+follows directly from the preceding rule: prepositions get relegated to
 secondary rhythmic positions in the bar, and "into" breaks most often because
 the stressed syllable in front of it crowds it off that position.
 
@@ -1910,8 +1923,10 @@ Pat's naming paragraph, verbatim:
 So the effect Pat names is **instability**, not resolution. `abba` is the Day 14
 "unstable structure," and his own statement of what it is for is:
 
+<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison, Songwriting Without Boundaries (2011) -->
 > Today you'll work with an unstable structure, one that will help support lyric
 > ideas in the unstable camp—loss, heartbreak, hope, dreaming, etc.
+<!-- ai-slop-ignore-end -->
 
 Distinct from the `abba` Pat drills on that day: Day 14 asks for **tetrameter
 outside lines (1 and 4) and trimeter inside lines (2 and 3)**, and the In
@@ -1925,10 +1940,10 @@ Pat's Structural Pentad (balance / pace / flow / closure / type of closure) is
 introduced as five normal characteristics of **any** structure. He names three
 surfaces:
 
-- **Rhythmic structure** — the pentad properties measured against the song's
+- **Rhythmic structure**: the pentad properties measured against the song's
   stress patterns. This is the surface Chapter 3 develops them on.
-- **Rhyme structure** — the same properties measured against the rhyme scheme.
-- **Musical structure** — named, but not broken down or worked through.
+- **Rhyme structure**: the same properties measured against the rhyme scheme.
+- **Musical structure**: named, but not broken down or worked through.
 
 Pat's word for the third surface is *musical*, and it stops there. Earlier
 revisions of this file split it into "melodic structure" and "harmonic
@@ -1941,29 +1956,29 @@ works from the five elements of structure, not from a musical-domain table.
 
 The pentad is one analysis frame applied across multiple structural
 surfaces. Do not confuse it with the
-[Five Compositional Elements](five-compositional-elements.md) — number of
-lines, length of lines, rhyme scheme, rhyme types, rhythm — which is a
-different five-item list naming the levers rather than the effects.
+[Five Compositional Elements](five-compositional-elements.md), which is a
+different five-item list naming the levers rather than the effects: number of
+lines, length of lines, rhyme scheme, rhyme types, rhythm.
 [stable / unstable](stable-unstable-meta.md) applies a cross-domain
 stability lens of its own with per-domain criteria; it is not the Pentad
 applied across domains.
 
 ## Cross-references
 
-- [Five Compositional Elements](five-compositional-elements.md) —
+- [Five Compositional Elements](five-compositional-elements.md):
   levers under the Pentad.
-- [phrasing](phrasing.md) — front/back-heavy at bar level.
-- [stable / unstable](stable-unstable-meta.md) — a separate song-wide
+- [phrasing](phrasing.md): front/back-heavy at bar level.
+- [stable / unstable](stable-unstable-meta.md): a separate song-wide
   diagnostic with per-domain stability criteria of its own; it does not
   apply the Pentad's five properties.
-- [hook](hook.md) — strategic vs balancing position in Common Meter.
-- [prosody](prosody.md) — greedy spots; pitch-stress in melody setting.
-- [workflows](workflows.md) — Scenario 2's melody-locked precondition composes
+- [hook](hook.md): strategic vs balancing position in Common Meter.
+- [prosody](prosody.md): greedy spots; pitch-stress in melody setting.
+- [workflows](workflows.md): Scenario 2's melody-locked precondition composes
   revision-of-a-demo with Scenario 4 and routes the fitting pass here.
-- [line-edit-rubric](line-edit-rubric.md) — pass 1 checks a candidate against the
+- [line-edit-rubric](line-edit-rubric.md): pass 1 checks a candidate against the
   positional template this file's fitting procedure builds; pass 7 is the
   dependency re-verification that procedure hands off to.
-- [exercises](exercises.md) — *Essential Guide to Lyric Form and Structure*
+- [exercises](exercises.md): *Essential Guide to Lyric Form and Structure*
   (1991), Chapter 3, Exercises 8-17 cover syllables, stress, scansion, pattern
   matching, and the three Paradigm-write drills; *Writing Better Lyrics* (2009),
   Chapters 14-17, Exercises 16-25 cover the grocery list, the common-meter

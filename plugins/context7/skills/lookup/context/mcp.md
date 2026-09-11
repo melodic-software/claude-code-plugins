@@ -1,6 +1,6 @@
 # MCP reference (`mcp__context7__*`)
 
-Context7 HTTP MCP server — reads the same backend as the `ctx7` CLI. This plugin does NOT ship or auto-start an MCP server; the consuming project opts in by declaring it in its own MCP configuration.
+Context7 HTTP MCP server, reading the same backend as the `ctx7` CLI. This plugin does NOT ship or auto-start an MCP server; the consuming project opts in by declaring it in its own MCP configuration.
 
 > Server URL and header facts verified 2026-07-18 against `ctx7` 0.5.5 source and
 > [Context7's docs](https://context7.com/docs); Claude Code config behavior verified against
@@ -8,7 +8,7 @@ Context7 HTTP MCP server — reads the same backend as the `ctx7` CLI. This plug
 
 ## Configuration (consumer-side, optional)
 
-Add to the consuming project's `.mcp.json` (or user-scope MCP config) — server entries live under the top-level `mcpServers` key. Anonymous (low-rate) usage needs no headers:
+Add to the consuming project's `.mcp.json` (or user-scope MCP config). Server entries live under the top-level `mcpServers` key. Anonymous (low-rate) usage needs no headers:
 
 ```json
 {
@@ -21,7 +21,7 @@ Add to the consuming project's `.mcp.json` (or user-scope MCP config) — server
 }
 ```
 
-With an API key (higher limits), add the `CONTEXT7_API_KEY` request header (the header name Context7's server expects). When a referenced env var is unset with no default, Claude Code still loads the config: it reports a missing-variable warning in `claude mcp list` and sends the **literal `${CONTEXT7_API_KEY}` text as-is** — silently broken auth, not a parse failure. Only use this form once `CONTEXT7_API_KEY` is actually set in your environment (or add a `${VAR:-default}` fallback):
+With an API key (higher limits), add the `CONTEXT7_API_KEY` request header (the header name Context7's server expects). When a referenced env var is unset with no default, Claude Code still loads the config: it reports a missing-variable warning in `claude mcp list` and sends the **literal `${CONTEXT7_API_KEY}` text as-is**. That is silently broken auth, not a parse failure. Only use this form once `CONTEXT7_API_KEY` is actually set in your environment (or add a `${VAR:-default}` fallback):
 
 ```json
 {
@@ -44,7 +44,7 @@ With an API key (higher limits), add the `CONTEXT7_API_KEY` request header (the 
 | `mcp__context7__resolve-library-id` | Resolve library name → `/org/project` ID | `ctx7 library <name> <query>` |
 | `mcp__context7__query-docs` | Fetch docs for a resolved ID | `MSYS_NO_PATHCONV=1 ctx7 docs <id> <query>` |
 
-Both tools require a `query` argument for result ranking. Same input shape as CLI, same backend, same output substance — different transport.
+Both tools require a `query` argument for result ranking. Same input shape as CLI, same backend, and same output substance. Only the transport differs.
 
 ## Why prefer MCP over CLI for most lookups
 
@@ -56,8 +56,8 @@ version changes, or when Context7 changes its default response depth.
 | Default content per `query-docs` call | ~1.8× more than `ctx7 docs` at default settings |
 | Output format | Clean markdown (no ANSI codes to strip) |
 | Windows ceremony | None (no `MSYS_NO_PATHCONV=1` prefix) |
-| Auto-discovery by the model | Tool appears in the tool list — model picks it naturally |
-| Latency | ~2.1s (same as CLI — both network-bound) |
+| Auto-discovery by the model | Tool appears in the tool list, so the model picks it naturally |
+| Latency | ~2.1s (same as CLI, both network-bound) |
 
 **Default route for conversational library lookups is MCP** when it is configured. CLI's advantages kick in when you want composability (pipe to grep, dump to disk, script), not when you just want the answer.
 
@@ -68,7 +68,7 @@ version changes, or when Context7 changes its default response depth.
 - `mcp.context7.com` blocked by local firewall
 - Connection failed at session start (check `claude mcp list`)
 
-Fall back to CLI in those cases — same backend, different transport path. If both are blocked, check `CONTEXT7_API_KEY`, or fall back to other documentation sources and tell the user Context7 was unavailable.
+Fall back to CLI in those cases. Same backend, different transport path. If both are blocked, check `CONTEXT7_API_KEY`, or fall back to other documentation sources and tell the user Context7 was unavailable.
 
 ## Do not re-configure via `ctx7 setup --mcp`
 

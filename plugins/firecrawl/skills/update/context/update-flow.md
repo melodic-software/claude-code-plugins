@@ -1,11 +1,11 @@
-# firecrawl — update procedure
+# firecrawl update procedure
 
 Read when running the update action. The update model, preservation invariants, and safety guarantees stay in `../SKILL.md` "Preservation rules" + "Safety"; this file holds the procedural detail (when to invoke, the modes, the full pipeline). Maintainer-facing: run in a working-tree checkout of this plugin, never against an installed marketplace copy.
 
 ## When to invoke
 
 - When a scrape/search call fails with an unexpected flag rejection (command surface drifted)
-- On a weekly-ish cadence — the `--check` mode detects drift without side effects
+- On a weekly-ish cadence: the `--check` mode detects drift without side effects
 - When the upstream release notes mention a new command you want to use
 - When the installed CLI is flagged at an older version by your environment tooling
 

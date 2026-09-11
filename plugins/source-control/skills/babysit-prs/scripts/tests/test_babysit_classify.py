@@ -213,10 +213,11 @@ class ClassificationCountTests(unittest.TestCase):
                 self.assertEqual(bc.count_classified(comments, SELF), 0)
 
     def test_documented_annotated_dispositions_count(self) -> None:
-        """#619: reference/review-discipline.md specifies `VALID -- fixing`,
-        `VALID (defer)` and `VALID -- fix now` as canonical values. A rule that
+        """#619: reference/review-discipline.md specifies `VALID: fixing`,
+        `VALID (defer)` and `VALID (fix now)` as canonical values. A rule that
         demanded the token be the WHOLE cell rejected the annotated forms, so a
-        reply written exactly as documented scored unclassified."""
+        reply written exactly as documented scored unclassified. The dash form
+        pinned below stays accepted."""
         for cell in ("VALID — fixing", "VALID (defer)", "VALID — fix now"):
             with self.subTest(cell=cell):
                 comments = [

@@ -1,6 +1,6 @@
 # Snapshots and element refs
 
-The token-efficiency win of the CLI over MCP: snapshots go to disk as YAML, not into context. Read the YAML file directly to locate refs — never dump into context blindly.
+The token-efficiency win of the CLI over MCP: snapshots go to disk as YAML, not into context. Read the YAML file directly to locate refs. Never dump into context blindly.
 
 ## How refs work
 
@@ -31,7 +31,7 @@ Pass ref to any interaction command: `playwright-cli click e48`, `playwright-cli
 
 ## Snapshot invariants
 
-- **Refs are stable for current snapshot only.** A new navigation or DOM mutation invalidates refs — always take a fresh `snapshot` after anything that changes the page
+- **Refs are stable for current snapshot only.** A new navigation or DOM mutation invalidates refs, so always take a fresh `snapshot` after anything that changes the page
 - **Refs track accessibility roles.** Survives CSS changes, breaks only on semantic HTML changes (which usually indicates a real UI regression)
 - **File paths are CWD-relative.** If you `cd` between commands, snapshot dir changes. Prefer running from a stable CWD (worktree root, typically)
 
@@ -64,7 +64,7 @@ playwright-cli click "getByRole('button', { name: 'Submit' })"
 playwright-cli click "getByTestId('submit-button')"
 ```
 
-**Prefer refs from snapshots** — they're role-based (accessibility-stable) and survive cosmetic CSS changes. CSS selectors are brittle; test-id locators are a middle ground when page has `data-testid` attributes.
+**Prefer refs from snapshots.** They're role-based (accessibility-stable) and survive cosmetic CSS changes. CSS selectors are brittle; test-id locators are a middle ground when page has `data-testid` attributes.
 
 ## Inspecting attributes not shown in snapshot
 

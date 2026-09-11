@@ -1,4 +1,4 @@
-# Operator setup — machine-owned telemetry services
+# Operator setup: machine-owned telemetry services
 
 Parent: [`operator-setup.md`](operator-setup.md). Pipeline detail:
 [`otel-pipeline.md`](otel-pipeline.md).
@@ -35,8 +35,8 @@ Get-NetTCPConnection -LocalAddress 127.0.0.1 -LocalPort 4318 -State Listen
 docker ps --filter "label=local.dev.container.stack=claude-code-observability"
 ```
 
-Expected state is a running `otelcol-contrib` service, a loopback listener on `:4318`, and—when
-the optional dashboard stack is enabled—a `local-otel-dashboard-claude-code` container.
+Expected state is a running `otelcol-contrib` service, a loopback listener on `:4318`, and, when
+the optional dashboard stack is enabled, a `local-otel-dashboard-claude-code` container.
 
 Lifecycle repair belongs in the provisioning repository. Re-run the host's elevated, idempotent
 machine configuration instead of starting plugin-bundled processes. The service control permissions

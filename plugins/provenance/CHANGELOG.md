@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.5.10]
+
+### Changed
+
+- **audit:** the two citations of the `upstream-drift` convention's fetch-route section now quote
+  its current heading, "Reading the basis: the fetch route". That heading lost its em dash in the
+  marketplace repository, so the quoted wording in `reference/source-fetch.md` no longer matched
+  the section it names. Wording of the citation only; the claim, its basis, the `As of:` date, and
+  the recheck trigger are unchanged.
+
 ## [0.5.9]
 
 ### Fixed
@@ -168,7 +178,7 @@
 - **Four case bodies stated their own answer, in the graded passage itself.** `c06` and `c07`
   opened "A hard negative", `c08` called the passage below it "the copied passage", and `c10`
   supplied its own C1 and C2 findings outright along with a tier hint. 0.4.0 recorded these as
-  accepted because withholding them "would mean editing a fixture" — an objection the fixture edit
+  accepted because withholding them "would mean editing a fixture", an objection the fixture edit
   above overtakes. They are removed under the same fix-and-re-measure discipline, and the affected
   `notes.measured` figures are corrected in the same commit: `c06` containment 0.031 to 0.039,
   `c08` 0.473 to 0.570 with jaccard 0.312.
@@ -178,7 +188,7 @@
   the spanned text is byte-identical before and after. No `class` or `tier` field was touched.
 
 - **A weaker date signal could delete a stamp instead of reinforcing it.** `may_form()` reports two
-  signals for the month May — a digit beside the word, and a capital M on the original line —
+  signals for the month May, a digit beside the word and a capital M on the original line,
   through a single `RSTART` that all three call sites read to decide whether the match began inside
   the keyword window. It returned on whichever branch matched first, so a digit-adjacent "may" out
   in the window's slack handed back an out-of-window offset, the caller rejected it, and a capital
@@ -196,8 +206,8 @@
 
 - **The relay boundary leaked through the `## Unparsed` appendix.** A judgment verdict
   (`source-fetched-similar`, `llm-suspected`, `not-found`) carrying no rule id matched no branch in
-  the projection and was dumped verbatim into the findings file, tier name and payload included —
-  the one file those verdicts are withheld from, and the apply relay's input. Withholding is now
+  the projection and was dumped verbatim into the findings file, tier name and payload included,
+  into the one file those verdicts are withheld from, and the apply relay's input. Withholding is now
   decided on the **declared** tier ahead of any rule lookup, read from a fixed key allowlist and
   matched exactly against the three verdict names. The record is still counted in `## Surfaces`, so
   nothing is dropped.
@@ -209,30 +219,30 @@
      four ways: a padded `"  not-found  "`, an array-valued `["not-found"]`, an object-valued
      `{"name":"llm-suspected"}`, and a capitalised `"Tier"` key.
   2. Widening it to any key named `tier` at any depth closed those and **silently dropped
-     relay-eligible findings**: a `fingerprint-confirmed` copy carrying an unrelated nested tier —
-     `"review":{"tier":"one agent argued llm-suspected and was vetoed"}`, a note `SKILL.md` invites
-     — was withheld, reaching neither the relay table nor `## Unparsed`, while `## Surfaces` called
+     relay-eligible findings**: a `fingerprint-confirmed` copy carrying an unrelated nested tier,
+     `"review":{"tier":"one agent argued llm-suspected and was vetoed"}`, a note `SKILL.md` invites,
+     was withheld, reaching neither the relay table nor `## Unparsed`, while `## Surfaces` called
      it a judgment finding that stays on a human report it was never on. Seven vectors.
   3. Narrowing to a key allowlist fixed the drop and **relayed a judgment verdict**: the allowlist
      read `verdict.tier` but not `verdict` itself, so `{"verdict":"not-found"}` on a stamp rule
      reached the relay table.
   4. Reading a whole `verdict` closed that and re-introduced the drop from a different direction. A
-     `verdict` holds the judges' output while the tier is mapped by fixed rule from the evidence —
-     `SKILL.md` step 9, "never from a judge's confidence" — so a confirmed copy beside
+     `verdict` holds the judges' output while the tier is mapped by fixed rule from the evidence,
+     per `SKILL.md` step 9, "never from a judge's confidence", so a confirmed copy beside
      `"verdict":{"prior":"llm-suspected"}` was withheld again, and one shape refused the whole
      sidecar. The same round trimmed invisible characters by enumerating two code points, leaving
      six other `Cf` characters to walk a verdict onto a relay row; an unhandled one at the end even
      neutralised a handled one at the start.
   5. The declared `tier` now wins whenever the record has one, falling back to the `verdict` only
-     when it does not — and the fallback turns on the slot **naming** a known tier rather than the
+     when it does not, and the fallback turns on the slot **naming** a known tier rather than the
      key merely being present, which is what `{"tier":null}`, `{"tier":[]}` and `{"tier":"pending"}`
      beside a verdict had been slipping through.
   6. The same defect one container down: the `verdict` → `verdict.tier` step still keyed off the
      child being present, so `{"verdict":{"tier":"pending","result":"not-found"}}` declared nothing
-     and printed its outcome verbatim. Both steps now share one definition — the first fix in the
+     and printed its outcome verbatim. Both steps now share one definition, the first fix in the
      sequence to address the class rather than an instance.
   7. Format characters were stripped only at the ends of a value, so one sitting *inside* the name
-     — a word joiner placed mid-word in `not-found` — failed the exact match and relayed. Stripped
+     failed the exact match and relayed: a word joiner placed mid-word in `not-found`. Stripped
      everywhere now.
   8. Stripping was by an enumerated class, which missed a variation selector and a combining
      grapheme joiner. It now strips by the Unicode property that defines rendering as nothing.
@@ -243,7 +253,7 @@
      a path like `a|b.md` split the row and a consumer read the Finding cell as a Surface.
   10. The `searched` key was read literally while `tier` and `verdict` were case-folded, so a
       sidecar that **did** name its surfaces under `Searched` was refused whole, taking every
-      relay-eligible finding beside it — the one direction that gate has no excuse for failing in.
+      relay-eligible finding beside it, the one direction that gate has no excuse for failing in.
       And the stamp rules relayed on any tier at all, which falsified round 9's own safety argument
       for the homoglyph limit: a Cyrillic-`о` spelling took a relay row instead of the ordinary
       path. A stamp rule now still relays whatever a record does or does not declare, except when
@@ -258,13 +268,13 @@
   that a legitimate finding still **survives**.
 
   Two limits are stated rather than papered over. A record that is not an object has no declared
-  tier to read, so it is withheld when a verdict name appears anywhere inside it — the blast radius
+  tier to read, so it is withheld when a verdict name appears anywhere inside it, the blast radius
   the malformed-record route exists to avoid. And `source-not-identified`, the neutral tier name
   `SKILL.md` publishes, is not one of the three the reader knows.
 
   `context/persist-findings.md` required both that withheld tier names never appear and that an
   unmappable finding lands in `## Unparsed` verbatim, never a silent drop, without saying how the
-  two coexist — a conflict landing precisely on the leaking record. It now states the ordering and
+  two coexist, a conflict landing precisely on the leaking record. It now states the ordering and
   names the `## Surfaces` count as where the no-silent-drop guarantee is discharged, so the next
   reader does not restore the leak as a bug fix.
 
@@ -272,27 +282,28 @@
   that the version-3 re-score relabelled cases "so no directory name or path reached a judge".
   Nothing in the plugin required it: a grep across `SKILL.md`, every `reference/*.md`,
   `evals/evals.json` and every script found exactly one mention of relabeling in the whole plugin,
-  in that changelog entry. The golden directories are named for their own answers —
-  `c06-negative-quoted-and-cited`, `c08-adversarial-rotation-sparse` — so a judge handed a path
-  reads the class, the carve-out and the rotation density before opening the file.
+  in that changelog entry. The golden directories are named for their own answers, as
+  `c06-negative-quoted-and-cited` and `c08-adversarial-rotation-sparse` show, so a judge handed a
+  path reads the class, the carve-out and the rotation density before opening the file.
 
   `reference/nomination.md`, which constructs all three subagent prompts, now carries "Neutral
-  labels (required)": a case reaches any subagent the run dispatches over it — nominating, judging,
-  reviewing, guarding a fix — under an opaque label, and the run holds the label-to-path mapping.
+  labels (required)": a case reaches any subagent the run dispatches over it, whether nominating,
+  judging, reviewing or guarding a fix, under an opaque label, and the run holds the label-to-path
+  mapping.
   `SKILL.md` and `reference/dispositions.md` reference the rule rather than restating it.
 
   Two channels beyond the directory name are closed with it. `SOURCE TEXT` said "fetched bytes,
   with its URL and the rung it came from"; under the vendored-snapshot route and in the golden set
   the source is served from a local file, so that field could hand over an in-repo path. It now
   carries the source's declared URL and route, never the local path. And every golden `source.md`
-  opens by naming the golden set and calling the page invented for these fixtures — the answer
-  arriving in the body text once the path was shut — so that paragraph is dropped from the copy a
+  opens by naming the golden set and calling the page invented for these fixtures, the answer
+  arriving in the body text once the path was shut, so that paragraph is dropped from the copy a
   subagent is handed. `fingerprint.mjs` is not a subagent and reads the file as committed, so no
   containment, jaccard or span figure moves.
 
   The directories are not renamed: the names carry meaning for the humans maintaining the set, and
   renaming would churn the 30 paths `evals.json` enumerates for no gain over fixing the dispatch.
-  Four verifier rounds went into this, three of which failed — the third catching that a fix had
+  Four verifier rounds went into this, three of which failed. The third caught that a fix had
   quietly narrowed the judge prompt to four of the rubric's six carve-outs, which is a grading
   change this work was not allowed to make. It was reverted. The requirement remains unmeasured:
   no `evals.json` expectation asserts that a run relabelled before dispatch.
@@ -333,8 +344,8 @@
   against the answer key required reading it; those three verdicts are worth less than the other
   seven and are marked contaminated rather than averaged in silently.
 
-  The result reproduces the recorded table — **8 tp / 0 fp / 0 fn / 2 tn, precision 1.00, recall
-  1.00, no verdict moved** — and no class becomes fix-eligible, every one still below
+  The result reproduces the recorded table, **8 tp / 0 fp / 0 fn / 2 tn, precision 1.00, recall
+  1.00, no verdict moved**, and no class becomes fix-eligible, every one still below
   `min_n_per_class` 10 at n = 2, 5, 1, 2. The arithmetic beside it was re-derived independently and
   holds; it is the *method* claim that is narrower than 0.4.0's.
 
@@ -372,7 +383,7 @@
   **The evidence, recorded here rather than in the rubric** (the rubric is inlined into every judge
   prompt, so a measurement written there is read by every judge before it grades). In a repo-wide
   run over 1292 tracked files, carve-out 5 drew **110 of roughly 230 carve-out citations across 138
-  panels** — more than double the next carve-out. An adversarial review pass over the unanimous
+  panels**, more than double the next carve-out. An adversarial review pass over the unanimous
   clears returned three challenges, two of which attacked carve-out 5 specifically and both on the
   rubric rather than on the file: one on `plugins/playbooks/reference/model-adaptation/opus-5.md`,
   whose own Sources section enumerates which spans are verbatim while the matched block appears on
@@ -451,7 +462,7 @@
   another judge's verdict. The deterministic layer was re-run alongside and reproduced every
   containment, jaccard and matched-span figure the fixtures record.
 
-  Result: **8 tp / 0 fp / 0 fn / 2 tn, precision 1.00, recall 1.00** — the table version 2
+  Result: **8 tp / 0 fp / 0 fn / 2 tn, precision 1.00, recall 1.00**, the table version 2
   recorded, now pinned to version 3. Every panel unanimous, **no verdict moved.** `c04` is the
   only case whose attribution reaches grading, so it is the only one C3's stated scope could have
   moved, and all three judges took the new test where version 2 left it: the derivation is one
@@ -525,7 +536,7 @@
 - **The modal "may" is no longer read as a month name.** `may` is a month and an ordinary English
   modal verb, and both stamp detectors matched it bare, so prose like "the first read may raise a
   permission prompt" became a stamp candidate whose date could not be parsed and landed in the
-  declined bucket — indistinguishable, to a reader adjudicating that bucket, from a real stamp the
+  declined bucket, indistinguishable to a reader adjudicating that bucket from a real stamp the
   parser failed on. **19 of the 24 month-name declines carried the word**, measured over 1,352
   files at `--as-of 2026-08-28` on this branch's head.
 
@@ -538,15 +549,15 @@
   a reading at a commit, not a constant, and it needs the commit attached or it will not
   reproduce.
 
-  `may` counts as a date when a digit sits beside it — every date form has one and the modal does
-  not — **or** when the original line capitalises it. The other eleven months still match bare,
+  `may` counts as a date when a digit sits beside it, since every date form has one and the modal
+  does not, **or** when the original line capitalises it. The other eleven months still match bare,
   because over-reporting into a bucket a human reads is the safe direction and this fix must not
   trade it for under-reporting.
 
   **The first version of this fix did trade it, and three independent reviewers caught that.**
   Requiring a digit made a digitless stamp vanish: `Verified this May` and `Checked last May
   against the vendor page` stopped matching anything, and the loss was *upstream* of the declined
-  bucket rather than inside it — `keyword_window()` returned empty, the caller dropped the line
+  bucket rather than inside it: `keyword_window()` returned empty, the caller dropped the line
   before classification, and `is_stamp()` did the same to the inventory. Not declined, not
   inventoried, gone. `Verified in June` was still declined and still visible, so the same shape got
   two different treatments purely because of the modal collision.
@@ -558,7 +569,7 @@
   **The case signal was measured on this corpus, not assumed.** At `3c538bcc`, over 1,352 files:
   1,458 lines carry a lowercase `may`, overwhelmingly the modal; 24 carry a capital `May`, of which
   **14 are month dates and 10 are capitalised modals** in table cells, bullets and sentence
-  openings; and 34 carry an ALL-CAPS `MAY`, of which **none is a date** — they are permission
+  openings; and 34 carry an ALL-CAPS `MAY`, of which **none is a date**. They are permission
   modals. So two costs are accepted knowingly.
   A capitalised modal opening a sentence or a cell now reads as a month when a stamp keyword sits
   in its window, which over-reports into a bucket a human adjudicates. And ALL-CAPS defeats case, so
@@ -570,14 +581,15 @@
   branch, so `RSTART` belongs to that match; when a digit-adjacent `may` sits beyond the window and
   a capital `May` sits inside it, the caller rejects the out-of-window digit match and never
   consults the in-window capital. Appending a stray `7 may` to an otherwise valid line therefore
-  removes its candidacy — under-reporting, the direction this fix exists to prevent. No corpus line
-  has that shape. Returning the leftmost of the two matches would fix it; trying the capital branch
-  first only mirrors the bug, so the obvious one-line swap is not a fix. Both scripts inherit it
+  removes its candidacy, which is under-reporting, the direction this fix exists to prevent. No
+  corpus line has that shape. Returning the leftmost of the two matches would fix it; trying the
+  capital branch first only mirrors the bug, so the obvious one-line swap is not a fix. Both
+  scripts inherit it
   identically, so their cross-script agreement assertion is blind to it, exactly as it was to the
   original regression. Recorded at the rule so the next reader is warned rather than surprised.
 
   **The suites could not have caught this, which is the part worth keeping.** They assert that both
-  scripts return the same count over a shared fixture — an assertion that passes when both are
+  scripts return the same count over a shared fixture, an assertion that passes when both are
   equally wrong, which is exactly what happened. A cross-implementation agreement test detects
   divergence and is blind to a common error, and a shared definition is what makes a common error
   likely. The new cases pin a **non-zero** expected count in both suites, so agreement is now
@@ -591,7 +603,7 @@
   **It stopped being latent one commit later, and this entry is why.** The paragraph above quotes
   `Verified this May` as an example of the shape, inside a `verified` keyword window, in a file the
   corpus scans. So from the commit that documents the fix onward the corpus does carry a
-  digitless-May stamp — the one written to explain that it carried none. Measured at `a827aa58`:
+  digitless-May stamp, the one written to explain that it carried none. Measured at `a827aa58`:
   529 / 499 / 30 / 0 post-fix against 528 / 499 / 29 / 0 pre-fix, an effect of +1 candidate rather than
   none.
 
@@ -609,9 +621,10 @@
   needed a follow-up commit to reach its sibling.
 
   Over 1,352 files: declines 45 to 28, month-name declines 22 to 5, 17 lines removed and none
-  added. **`parsed` is unchanged at 499 and `findings` unchanged at 0** — the load-bearing numbers,
-  because they say no real stamp was reclassified in either direction and none had been masked. A
-  real `May 2026` stamp is still detected in both month-first and day-first forms.
+  added. **`parsed` is unchanged at 499 and `findings` unchanged at 0.** Those two are the numbers
+  the conclusion rests on: they say no real stamp was reclassified in either direction and none
+  had been masked. A real `May 2026` stamp is still detected in both month-first and day-first
+  forms.
 
   Two adjacent false positives are deliberately left in place and recorded rather than fixed:
   `SC2034` read as a bare year, and `read` matching inside `cache_read_input_tokens`. Both have a
@@ -666,7 +679,7 @@
 
   `docs/CLOUD-SESSIONS.md:320` is the worked case, and it is worse than the 0.3.1 one rather than
   a repeat of it. Its date begins at offset 60 of the 60-character window, so the cut left a bare
-  `2` and **no** form matched — not even the bare-year fallback that at least kept the 0.3.1 case
+  `2` and **no** form matched, not even the bare-year fallback that at least kept the 0.3.1 case
   visible in the declined bucket. The line did not decline; it left the inventory entirely, which
   is the quieter failure of the two.
 
@@ -693,7 +706,7 @@
   passage, the source text, and the quoted grades. Its job includes checking the C3 grade and
   whether a carve-out was missed; C3 is graded across the file and carve-outs 1, 4 and 5 are
   file-level. A reviewer without the file either declines the check or waves through an
-  unsupported C3 PASS — and review is the last stage before fix eligibility, so waving one through
+  unsupported C3 PASS, and review is the last stage before fix eligibility, so waving one through
   is what puts an unsupported finding in reach of an automatic edit. The review prompt now carries
   `LOCAL FILE:` on the same terms as the judge prompt.
 
@@ -732,8 +745,8 @@
   (`docs/upstream/aihero-course.md:127`,
   `plugins/context-guard/reference/cloud-headless-capture.md:78`); the other five were not detected
   as candidates at all, because truncation left nothing date-shaped in the window. None of the seven
-  is expired — the oldest is 40 days, and the oldest parsed stamp anywhere in the corpus is 142 days
-  against a 180-day window — so no lapsed stamp had been hidden by this.
+  is expired. The oldest is 40 days, and the oldest parsed stamp anywhere in the corpus is 142 days
+  against a 180-day window, so no lapsed stamp had been hidden by this.
 
   Two new declines appear, both instances of the separate `may` false positive, where the month-name
   test reads the ordinary English word as a month name: `plugins/planning/skills/interview/SKILL.md`
@@ -761,7 +774,7 @@
   stands every time.
 
   Version 3 states it: **C3 is graded outward across the whole file, C4 on the passage.** What C3
-  tests is whether the attribution's declared scope matches the derivation's — file-scope
+  tests is whether the attribution's declared scope matches the derivation's. File-scope
   attribution discharges C3 when the derivation is file-wide, and does not when one lift sits
   inside otherwise-original material, where the header understates and the reader misallocates.
   This is a substantive addition, and version 2's "a bare link at the bottom of a long file does
@@ -774,15 +787,15 @@
   otherwise-original file escape C3 on the strength of a header line about something else.
 
 - **The judge dispatch could not execute the new rule, and now can.** `reference/nomination.md`
-  handed each judge the local passage, the fetched source, and the rubric — never the containing
+  handed each judge the local passage, the fetched source, and the rubric, never the containing
   file. A C3 graded across the whole file is unanswerable from that, and both the rubric and the
   judge prompt instruct UNKNOWN when the text to quote is absent, so a *conforming* judge under
   version 3 would have graded C3 UNKNOWN on every candidate, stopping every verdict and routing
   every run to the human. The motivating case proves it: the attribution that clears it sits about
   35 lines above the passage. The dispatch now supplies `LOCAL FILE:` and says which criteria are
-  graded against which input. Blindness in this panel means blind to the pipeline's own suspicion
-  — the fingerprint numbers, the nomination's reasoning, the other judges — never blind to the
-  material a criterion is defined over. The lens-diversity stance that read for "whether the
+  graded against which input. Blindness in this panel means blind to the pipeline's own suspicion,
+  meaning the fingerprint numbers, the nomination's reasoning and the other judges, never blind to
+  the material a criterion is defined over. The lens-diversity stance that read for "whether the
   attribution present already discharges the obligation" was pointing judges at the reading
   version 3 rejects, and now reads for scope match.
 
@@ -803,7 +816,7 @@
   declined at a carve-out before grading, one fails C1, and the single case with attribution is a
   lift inside an otherwise-original file, which resolves identically at either scope. The re-score
   is expected to reproduce 8 tp / 0 fp / 0 fn / 2 tn. It is still required, because the rule keys
-  on a criterion changing rather than on a recorded case flipping — and inventing a second, weaker
+  on a criterion changing rather than on a recorded case flipping, and inventing a second, weaker
   exception ("substantive change, but the set does not happen to exercise it") to save a ten-case
   re-score that costs nothing is the bad trade.
 
@@ -814,7 +827,7 @@
 - **The Phase 6 corpus baseline is stale: it reports Phase 3 figures.** The 0.2.0 entry records
   1,347 tracked files after carve-outs, 525 stamp candidates, 482 parsed, 43 declined, 0 expired,
   oldest parsed stamp 2026-04-08. All six reproduce exactly at `33dccc59`
-  ("corpus, breadcrumb, and stamp scripts, Phase 3 part 1" — the commit that introduces
+  ("corpus, breadcrumb, and stamp scripts, Phase 3 part 1", the commit that introduces
   `list-corpus.sh`), clean tree, running the scripts as they existed there. They were then carried
   into the Phase 6 paragraph several commits later without re-measuring, so a paragraph presenting
   itself as the Phase 6 measurement reports a Phase 3 one.
@@ -836,7 +849,7 @@
   **The delta is not what a first reading of it suggested.** It is not `main` moving across #3467
   to #3469: those three contribute **+1 in total**, one added file in #3468. #3467 adds 20
   markdown files and contributes **zero**, because every one lands under `evals/fixtures/golden/`
-  inside the excluded tree — which is why it raises `considered` by 20 and the fixture decline
+  inside the excluded tree, which is why it raises `considered` by 20 and the fixture decline
   from 3 to 23 while leaving the corpus untouched. The rest of the gap is the four months of
   corpus growth between Phase 3 and now. Separately, `.claude/provenance.json` is first tracked in
   `d7e391da`, so the `excluded_paths` layer postdates the figures in the 0.2.0 paragraph.
@@ -855,8 +868,8 @@
 
 - **Rubric version 2: an inverted polarity in C3 and C4, caught by blind adjudication.** The
   verdict rule says a finding STANDS only if all four criteria PASS, and it says so three times.
-  But C3 and C4 were phrased as questions whose intuitive "yes" is exculpatory — is the
-  attribution adequate, does the text transform — and their worked examples labelled that
+  But C3 and C4 were phrased as questions whose intuitive "yes" is exculpatory, namely "is the
+  attribution adequate" and "does the text transform", and their worked examples labelled that
   exculpatory answer PASS. Read literally, the two halves of the file contradicted each other and
   **no finding could ever stand**.
 
@@ -870,7 +883,7 @@
 
   Worth recording how it was found: three review passes and a self-check had read this file
   without noticing. What surfaced it was asking an agent to actually apply the rubric with the
-  expectations withheld — the first reader with no way to infer the intended answer.
+  expectations withheld, the first reader with no way to infer the intended answer.
 
 - **A contested class the golden set records rather than settles.** Case `c10` is a copy rotated
   until no five-word window survives. The pipeline classed it `near-verbatim` at tier
@@ -878,15 +891,15 @@
   adjudicator classed it `paraphrase` at `llm-suspected`, on the grounds that zero lexical
   evidence is available to a reader who does not already know it was rotated. Both readings are
   defensible under the current tier table, which is the finding: a rotated copy with a fetched
-  source fits neither tier cleanly. The practical stakes are nil today — both tiers are
-  report-only and neither is fix-eligible — so the disagreement is recorded here and carried to
+  source fits neither tier cleanly. The practical stakes are nil today, since both tiers are
+  report-only and neither is fix-eligible, so the disagreement is recorded here and carried to
   the growth round rather than resolved by picking the answer that flatters the score.
 
 - **The golden set, the first measurement, and the loop that grows it.** Ten synthetic cases under
   `skills/audit/evals/fixtures/golden/`, one directory each carrying `case.md`, `expected.json`,
   and the `source.md` the case is judged against, so every case runs offline: the source is served
   to the fingerprint module directly and the fetch stage is short-circuited rather than mocked.
-  Coverage is two verbatim positives, five near-verbatim, one paraphrase, and two hard negatives —
+  Coverage is two verbatim positives, five near-verbatim, one paraphrase, and two hard negatives:
   a quoted-and-cited excerpt, and the paraphrase-styled-never-copied distractor, which is the false
   positive this detector is most likely to produce. Every fixture describes the same fictional
   build tool the earlier fixtures use. A golden set holding real copied prose would make this
@@ -911,14 +924,14 @@
   was not lowered to meet them: gates bind fix eligibility and release readiness only, never what
   the report shows. `verbatim` and `near-verbatim` reaching n=10 at or above the 0.95 bar is the
   named exit condition of the first growth round. At n near 10 that bar behaves as a ratchet rather
-  than as a statistic — one error demotes a class — and that is accepted.
+  than as a statistic, since one error demotes a class, and that is accepted.
 
   **What a perfect score here does and does not establish.** It does not say the detector is
   accurate on a corpus. Ten cases were authored at chosen points on the separation curve, and in
   this first round the agent that wrote the expectations is the agent that ran the pipeline, so
   recall is measured against expectations written by the same hand. What it does establish is a
   floor: the deterministic half is genuinely measured, not asserted, and the run would have failed
-  the set on any contract violation — a paraphrase promoted to `fingerprint-confirmed`, a hard
+  the set on any contract violation: a paraphrase promoted to `fingerprint-confirmed`, a hard
   negative that fired, a span the scorer could not overlap. The adjudication loop below is what
   breaks the circularity, because a case converted from a rejected finding is a case nobody
   authored to pass. One limit of the tally is worth stating so it is not read as broader than it
@@ -941,13 +954,13 @@
   nine words the span limb dies and containment alone carries it: 0.413 with a longest span of 10,
   below the 15-word floor. At one every four words nothing survives: containment 0.0, no matched
   spans, against a source that was fetched and identity-checked, which lands the finding at
-  `source-fetched-similar` — a human report, not fix-eligible, and deliberately not
+  `source-fetched-similar`, a human report, not fix-eligible, and deliberately not
   `llm-suspected`, because a source was in hand.
 
-  Three consequences, recorded rather than acted on. The two-limb rule is load-bearing: dropping
-  either limb loses c09. Word-shingling is evadable by an author who intends to evade it, and no
+  Three consequences, recorded rather than acted on. Both limbs of the rule are needed: dropping
+  either one loses c09. Word-shingling is evadable by an author who intends to evade it, and no
   value of `min_containment` above zero recovers a passage with zero matching shingles, so the
-  answer is not a different number on this axis — which is why the constants were left at the
+  answer is not a different number on this axis, which is why the constants were left at the
   bundled 0.3 and 15. And c09's containment only clears the threshold because the copy dominates a
   short file; the same rotation inside a long host file would dilute containment toward noise while
   the 10-word spans stayed under the floor, which is the dilution the span axis was added to
@@ -993,8 +1006,8 @@
   skipped every real closer, stripping nothing at all.
 
   Second, and the worse of the two, the opening guard tested only whether a word character preceded
-  the mark. A possessive following markup — `` `Location`'s ``, `(FILE.md)'s ``, forms this
-  repository's own prose is full of — therefore opened a phantom quotation. That was survivable
+  the mark. A possessive following markup, `` `Location`'s ``, `(FILE.md)'s ``, forms this
+  repository's own prose is full of, therefore opened a phantom quotation. That was survivable
   while the closing scan stopped at the next contraction; once pairing learned to skip those, the
   phantom ran to the next stray mark instead. Measured across 1,393 tracked markdown files, it
   blanked 16,031 characters in the worst case and whole paragraphs of original prose in 32 of them.
@@ -1003,7 +1016,7 @@
   start of a paragraph, after whitespace, or after an opening bracket.
 
   The corpus differential over the same 1,393 files now reports 258 differing, of which 256 strip
-  LESS — recovering prose the previous behavior wrongly blanked — and 2 strip more, both in a file
+  LESS, recovering prose the previous behavior wrongly blanked, and 2 strip more, both in a file
   whose subject is regex quoting patterns and whose extra stripping is a genuine wrapped quotation
   being caught correctly. Line-count drift is zero across every file, and all ten golden cases hold
   their recorded values.
@@ -1012,17 +1025,17 @@
   `excluded_paths` lists `**/provenance/skills/audit/evals/fixtures/**`, and that is the whole of
   the file: the separation constants, budgets and gates stay at their bundled defaults because
   nothing measured here justified moving one. The exclusion lives in config and never in
-  `list-corpus.sh`, which is the #3041 resolution — an unconditional exclusion would decline the
+  `list-corpus.sh`, which is the #3041 resolution: an unconditional exclusion would decline the
   fixtures under the eval harness's own config isolation and leave the eval author reading prose
   instead of results. Measured over `plugins/provenance` with the file in place: 33 considered, 10
   included, 23 declined against that one pattern with its reason named.
 
   **The adjudication-to-fixture loop, in `reference/dispositions.md`.** A finding the human rejected
   and a copy the audit walked past are both measurements the set does not yet contain, and both are
-  lost unless they are converted. The section states the conversion in order — synthetic rewrite
+  lost unless they are converted. The section states the conversion in order: synthetic rewrite
   preserving the shape and never the text, the adjudicated verdict rather than the run's,
-  registration in `evals.json` before the case counts as landed, and a re-score of the whole set —
-  plus the two limits that matter as it grows: a rubric change invalidates every recorded figure
+  registration in `evals.json` before the case counts as landed, and a re-score of the whole set.
+  It adds the two limits that matter as it grows: a rubric change invalidates every recorded figure
   while leaving the fixtures intact, and cases harvested from a sweep are a biased estimator
   because they are the cases this detector already got wrong.
 
@@ -1070,7 +1083,7 @@
     that does not exist. Both writing steps are now checked, with a new exit 5.
   - **Configured separation thresholds never reached the fingerprint module.** The module reads
     no config by design, so a repository that tuned `min_containment` or `min_span_words` silently
-    got the bundled 0.3 and 15 — constants that decide which findings become fix-eligible. The
+    got the bundled 0.3 and 15, the constants that decide which findings become fix-eligible. The
     audit flow now resolves them through the cascade and passes them explicitly, and reports the
     values it used.
   - **`--show-config` did not say which layer supplied a value.** The setup skill promises
@@ -1131,7 +1144,7 @@
   `persist-findings.md` resolves the detector-findings contract through three rungs: the `review`
   plugin's bundled copy when that plugin is installed, the publisher's raw URL otherwise, and a
   refusal to write when neither is reachable. The first rung is new against the ai-slop precedent
-  and closes a real gap — fetching a contract from one organization's URL made every offline run
+  and closes a real gap: fetching a contract from one organization's URL made every offline run
   report-only and pointed a portable plugin at a single publisher.
 
   The untrusted-content framing spine is carried inline byte-identical at both Phase 4 ingest
@@ -1159,18 +1172,18 @@
 
   Two findings cost real measurement. **mawk panics at compile time on interval expressions**
   (`{0,4}`), and the panic is quiet enough that the scan simply returns nothing and the script
-  still exits 0 — a whole rule silently stopped firing until the corpus run showed zero
+  still exits 0, so a whole rule silently stopped firing until the corpus run showed zero
   candidates where hundreds were expected. Every regex in these scripts uses explicit repetition
   instead. Second, **"read" is an ordinary English verb**, so at the same keyword window the
   explicit stamp verbs use, prose like "an unconfirmed read of a shipped build" became a stamp
-  candidate, and `context-management-2025-06-27` — an API beta identifier, not a date — became an
-  expired-stamp finding. Narrowing the window for that one keyword dropped every such case while
+  candidate, and `context-management-2025-06-27`, an API beta identifier rather than a date,
+  became an expired-stamp finding. Narrowing the window for that one keyword dropped every such case while
   keeping the real `read <date>` forms: declined candidates fell 54 to 43 and the false finding
   went with them.
 
   Measured over this repository, 1,347 tracked files after carve-outs: 525 stamp candidates, 482
   parsed, 43 declined, 0 expired at the 180-day default (the oldest parsed stamp is 2026-04-08).
-  The declined count is the honest report the design asks for and not a defect to tune away — the
+  The declined count is the honest report the design asks for and not a defect to tune away. The
   corpus genuinely carries month-name and bare-year stamp forms, and a parser that guessed at
   them would manufacture findings against dates nobody wrote down.
 

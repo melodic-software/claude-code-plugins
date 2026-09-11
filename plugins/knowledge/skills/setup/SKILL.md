@@ -65,12 +65,12 @@ reports "already configured".
    (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
    which owns the verified-version record): interactive `/plugin configure knowledge@<marketplace>`
    any time, or headless `claude plugin install knowledge@<marketplace> -s <scope> --config library_dir=<value>`
-   (repeatable per key) — against an already-installed plugin it prints `already installed` and
+   (repeatable per key). Against an already-installed plugin it prints `already installed` and
    still writes the value. Do **not** uninstall to reconfigure: that drops the plugin's entire
    stored `pluginConfigs` entry, resetting every option in the README's Options reference to its
    manifest default. `-s` defaults to `user`; pass the scope `claude plugin list` reports, and run
    from that project's directory for a `project`/`local` scope, or the write lands at a scope that
-   does not load. Afterwards rerun `check` in a **fresh session** — the rendered
+   does not load. Afterwards rerun `check` in a **fresh session**, because the rendered
    `${user_config.*}` is injected at skill load, so a same-session check still reports the OLD
    value; report the observed effective value, never an unobserved change.
    For a root outside the project and home directories, recommend the portable value forms from the
@@ -94,7 +94,7 @@ reports "already configured".
    installs system packages.
 4. **Confirm.** Report the observed `library_dir`, the repository convention and any mismatch, and
    whether extraction dependencies were provisioned or intentionally skipped. Note that
-   `/knowledge:book-distill` writes to its explicitly named target skill rather than this seam.
+   `/knowledge:book-distill` writes to its explicitly named target skill rather than this setting.
 
 ## Output
 

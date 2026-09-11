@@ -2,26 +2,26 @@
 
 ## Contents
 
-- [Organization — one plugin per cohesive concern](#organization--one-plugin-per-cohesive-concern)
+- [Organization: one plugin per cohesive concern](#organization-one-plugin-per-cohesive-concern)
 - [Naming](#naming)
-- [Extensibility model — what works today](#extensibility-model--what-works-today)
-- [Extensibility contract v2.1 — the four seams](#extensibility-contract-v21--the-four-seams)
+- [Extensibility model: what works today](#extensibility-model-what-works-today)
+- [Extensibility contract v2.1: the four seams](#extensibility-contract-v21-the-four-seams)
 - [Convention-resolution ladder](#convention-resolution-ladder)
-- [Setup action — required iff the criteria hold](#setup-action--required-iff-the-criteria-hold)
-- [Upstream sync — every upstream-sourced plugin ships an update path](#upstream-sync--every-upstream-sourced-plugin-ships-an-update-path)
-- [Evals — warrant policy and consumer-verify recipe](#evals--warrant-policy-and-consumer-verify-recipe)
+- [Setup action: required iff the criteria hold](#setup-action-required-iff-the-criteria-hold)
+- [Upstream sync: every upstream-sourced plugin ships an update path](#upstream-sync-every-upstream-sourced-plugin-ships-an-update-path)
+- [Evals: warrant policy and consumer-verify recipe](#evals-warrant-policy-and-consumer-verify-recipe)
 - [Shared tools and scripts seam](#shared-tools-and-scripts-seam)
 - [Version pinning and update delivery](#version-pinning-and-update-delivery)
 - [Retiring a published plugin](#retiring-a-published-plugin)
 - [Persistence, configuration & external integration](#persistence-configuration--external-integration)
-- [MCP servers as a plugin component — carry decision](#mcp-servers-as-a-plugin-component--carry-decision)
+- [MCP servers as a plugin component: carry decision](#mcp-servers-as-a-plugin-component-carry-decision)
 - [Plugin-form caveats (works in-repo, breaks as a plugin)](#plugin-form-caveats-works-in-repo-breaks-as-a-plugin)
 - [Per-plugin migration gate](#per-plugin-migration-gate)
 - [Migration order, PRs & parallelization](#migration-order-prs--parallelization)
 - [Plugin-acceptance security review](#plugin-acceptance-security-review)
 - [Local development loop](#local-development-loop)
 - [Fresh-consumer onboarding](#fresh-consumer-onboarding)
-- [Reintegration — a consumer adopts the published plugin](#reintegration--a-consumer-adopts-the-published-plugin)
+- [Reintegration: a consumer adopts the published plugin](#reintegration-a-consumer-adopts-the-published-plugin)
 - [What to wait on / avoid for now](#what-to-wait-on--avoid-for-now)
 - [Decision records](#decision-records)
 
@@ -33,34 +33,34 @@ The durable design policy is [Plugin philosophy](PLUGIN-PHILOSOPHY.md). This pla
 policy to migration, validation, cutover, and release; it does not redefine the policy.
 
 All schema and behavior claims below were verified against the official docs on 2026-06-22 (the
-"Reintegration" section's marketplace-settings claims — `extraKnownMarketplaces` / `enabledPlugins` in a
-project's `settings.json` — on 2026-06-29, against the discover-plugins "Configure team marketplaces"
+"Reintegration" section's marketplace-settings claims, `extraKnownMarketplaces` / `enabledPlugins` in a
+project's `settings.json`, on 2026-06-29, against the discover-plugins "Configure team marketplaces"
 guide; the "Extensibility contract v2.1" sections and their smoke tests on 2026-07-12 against Claude
 Code 2.1.207; the Organization and Naming sections' skill-namespace and skill-listing claims on
 2026-07-15, and the decomposition/trigger-continuity procedure on 2026-07-16, against the skills doc).
-Re-verify fresh before acting — see `CLAUDE.md` "Fresh-docs mandate".
+Re-verify fresh before acting. See `CLAUDE.md` "Fresh-docs mandate".
 
-## Organization — one plugin per cohesive concern
+## Organization: one plugin per cohesive concern
 
 The philosophy's "one cohesive capability" is also the packaging boundary: **one plugin per cohesive
 concern or capability**, grouped in the catalog through `category` / `tags` rather than by splitting.
-A cohesive plugin MAY hold several units — a first-party plugin bundles many skills of one concern, a
+A cohesive plugin MAY hold several units: a first-party plugin bundles many skills of one concern, a
 hooks plugin bundles many hooks of one concern. One-unit-per-plugin is not the norm; do not ship a
 plugin per hook.
 
 - **Skills group by capability.** Distinct capabilities are distinct plugins; a single capability's
   always-together facets bundle (e.g. a prototyping capability's `logic` and `ui` skills ship together).
 - **A skill splits only on distinct discovery intent, never per subcommand.** Two skills are
-  warranted when their trigger vocabularies differ — a user reaching for each says different things;
-  a capability's subcommands stay action arguments of one skill. The restraint has a context-cost
-  basis: the listing of skill names and descriptions loads into every session, and each entry's
-  combined description text is truncated at 1,536 characters in that listing
+  warranted when their trigger vocabularies differ, because a user reaching for each says different
+  things; a capability's subcommands stay action arguments of one skill. The restraint has a
+  context-cost basis: the listing of skill names and descriptions loads into every session, and each
+  entry's combined description text is truncated at 1,536 characters in that listing
   ([skills: frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference),
-  verified 2026-08-31; recheck trigger: that page moving the cap re-derives this bullet) — every
+  verified 2026-08-31; recheck trigger: that page moving the cap re-derives this bullet). Every
   extra skill is an always-paid context line. The standing exception is the `setup` lane, always its own skill with
-  `disable-model-invocation: true` — see the philosophy's "Setup is explicit and repeatable".
+  `disable-model-invocation: true`. See the philosophy's "Setup is explicit and repeatable".
 - **Hooks group by concern.** Per-hook selectivity comes from a `userConfig` toggle (read through
-  the hook-process `CLAUDE_PLUGIN_OPTION_<KEY>` mirror), a `matcher`, or an `if` guard —
+  the hook-process `CLAUDE_PLUGIN_OPTION_<KEY>` mirror), a `matcher`, or an `if` guard, all
   author-managed control inside the bundle.
 - **Whole-product / vendor-brand bundles** driven by distribution are a separate, allowed shape.
 
@@ -74,10 +74,10 @@ procedure before choosing plugin and skill directories:
    Claude Code uses that listing text to decide whether to load a skill, so trigger phrases are
    behavior, not marketing copy
    ([skills](https://code.claude.com/docs/en/skills), fetched 2026-07-16).
-2. **Classify the seams by discovery intent.** Facets of one capability stay in one plugin but may
-   become focused sibling skills when users reach for them with different vocabulary. Capabilities
+2. **Classify the split points by discovery intent.** Facets of one capability stay in one plugin but
+   may become focused sibling skills when users reach for them with different vocabulary. Capabilities
    with independent purpose, lifecycle, or trust surface become separate plugins. Subcommands and
-   depth variants remain arguments; they are not decomposition seams.
+   depth variants remain arguments; they are not split points.
 3. **Name the focused skills by KIND.** Action skills take focused action verbs; knowledge skills
    take focused noun phrases. When the split is facets-of-one-capability, keep the parent concept as
    the plugin name and move only the focused leaves below it. `prototype` is the worked precedent:
@@ -89,7 +89,7 @@ procedure before choosing plugin and skill directories:
    successor skill's quoted `Use when:` phrase. Add explicit negative routing boundaries where sibling
    intent could overlap. Run `/skill-quality:check` with `CHECK_SKILL_BASE_REF` for every same-path
    rewrite; check 3 fails when a quoted trigger disappears. A rename or split creates new paths, so
-   the checker deliberately skips them — the cross-skill migration table and focused routing evals
+   the checker deliberately skips them. The cross-skill migration table and focused routing evals
    are the required evidence that the union of successor descriptions still covers the source.
 6. **Update callers and exercise routing.** Rewrite slash references for the new namespaced leaves,
    validate every manifest and eval file, then exercise both automatic invocation and explicit slash
@@ -103,10 +103,10 @@ skill still has one discovery intent.
 **Why capability, not grab-bag.** Enabling and disabling happen at the plugin level, and the
 `skillOverrides` setting explicitly *excludes* plugin skills (those are managed through `/plugin`), so
 there is no clean per-skill à-la-carte toggle. Bundling several skills is therefore acceptable only
-*within* one cohesive capability you would never split — it forbids lumping *distinct* capabilities into
+*within* one cohesive capability you would never split. It forbids lumping *distinct* capabilities into
 a single plugin. Hooks differ: a per-hook `userConfig` toggle gives clean per-hook control inside a
-bundle. The discriminating axis is **silent-always-on** components (hooks — keep atomic, or toggle via
-`userConfig`) versus **opt-in-per-invocation** components (skills — group by capability).
+bundle. The discriminating axis is **silent-always-on** components (hooks, kept atomic or toggled via
+`userConfig`) versus **opt-in-per-invocation** components (skills, grouped by capability).
 
 **Buckets are catalog metadata, never structure.** Category grouping lives in `marketplace.json`
 `category` / `tags` and catalog docs only: the disk layout stays flat (`plugins/<name>`, no
@@ -114,39 +114,40 @@ bundle. The discriminating axis is **silent-always-on** components (hooks — ke
 Namespaces name capability domains; categories are curation.
 
 **Boundaries are defended by design arguments, never incumbency.** A plugin's shape is justified by
-change-together, useful-alone, and distinct discovery intent — not by the fact that it already ships
-that way ("current state is evidence, never justification" — `melodic-software/standards`
+change-together, useful-alone, and distinct discovery intent, not by the fact that it already ships
+that way ("current state is evidence, never justification", `melodic-software/standards`
 `conventions/engineering/engineering-philosophy.md`).
 
 ## Naming
 
-Name a plugin and its units by this precedence — an earlier rule wins on conflict:
+Name a plugin and its units by this precedence, where an earlier rule wins on conflict:
 
 1. **Semantic accuracy, zero confusion.** The capability is unambiguous from the name; qualify an
    overloaded generic term (a bare `audit` is collision bait).
 2. **Official docs + ecosystem precedent.** kebab-case, no spaces; the namespace is the plugin's own
    `name` (not the marketplace name); mirror established Claude Code patterns.
 3. **Explicit naming.** A domain-noun plugin name; no noise suffix (`-plugin` / `-tool` / `-helper`);
-   no unit-type suffix (`-hook` / `-skill`) unless load-bearing; names track their semantic scope.
+   no unit-type suffix (`-hook` / `-skill`) unless the suffix distinguishes the unit from a sibling
+   that would otherwise share its name; names track their semantic scope.
 
 Applying that precedence, the grammar of an invocation is `/<namespace>:<skill>`:
 
-- **The namespace (plugin `name`) is a noun, kebab-case — never a bare verb.** A **gerund** for an
+- **The namespace (plugin `name`) is a noun, kebab-case, never a bare verb.** A **gerund** for an
   activity domain (`planning`, `debugging`, `testing`); a **plain noun** for a subject domain
   (`source-control`, `architecture`, `work-items`). Semantic accuracy binds the whole namespace:
   the noun must be true of *every* skill under it.
 - **Skill name follows its KIND.** An action / user-invoked skill is an **action verb**
   (`create-plugin`, `review-pr`); a knowledge / model-invoked skill may be a **noun-phrase**
-  (`principles`, `methodology`). The verb heuristic scopes to action skills only — a `noun:noun`
+  (`principles`, `methodology`). The verb heuristic scopes to action skills only. A `noun:noun`
   invocation is correct for a knowledge skill.
 - **`/name:name` doubling is a naming defect, not idiomatic.** A stutter means one of the two names
-  is failing at its job — the namespace is not naming the domain, or the skill is not naming its
+  is failing at its job: the namespace is not naming the domain, or the skill is not naming its
   action. Fix it by, in preference order: rename the skill to its real action verb; rename the
   plugin to its domain noun; decompose, when the single skill actually hides distinct discovery
   intents (per the Organization section's split rule above). Two exemptions:
-  **root-echo** — the domain's core action shares the domain's root word
-  (`implementation:implement`, `code-tidying:tidy`, `work-items:work`) — and
-  **wrapper-echo** — a single-skill vendor-CLI wrapper whose one router skill repeats the tool
+  **root-echo**, where the domain's core action shares the domain's root word
+  (`implementation:implement`, `code-tidying:tidy`, `work-items:work`), and
+  **wrapper-echo**, a single-skill vendor-CLI wrapper whose one router skill repeats the tool
   name (`firecrawl:firecrawl`, `playwright:playwright`), per the philosophy's Naming section.
   Both are honest naming, not true doubling, and are accepted.
 - **Skill families order base-concept-first.** Sibling skills sharing a base concept put the base
@@ -156,27 +157,27 @@ Applying that precedence, the grammar of an invocation is `/<namespace>:<skill>`
   a sibling. **Execution tier counts as structural when the tier is genuinely not reachable from the
   base skill's execution path:** `discovery`'s `research-deep` is a sibling because its heaviest tier
   needs the `Workflow` tool and its multi-topic path needs the `Agent` tool, neither of which a
-  dispatched context can reach — so the tier cannot be selected at runtime by `research` itself. The
+  dispatched context can reach, so the tier cannot be selected at runtime by `research` itself. The
   `-deep` suffix names that isolation tier, not a depth knob on the same execution path; a true effort
   knob on one execution path still takes an argument.
   **The converse is equally binding: a tier the base skill CAN reach at runtime does not earn a
-  sibling.** `discovery` retired `explore-deep` for exactly this reason — once `/discovery:explore`
+  sibling.** `discovery` retired `explore-deep` for exactly this reason. Once `/discovery:explore`
   dispatched a named agent by default, the `-deep` variant was a second door onto an execution path
   the base skill already had, and the test is same-execution-path vs. a genuinely second one.
 - **A vendor-CLI plugin that decomposes names its skills after the vendor's own CLI verbs.** When a
-  tool-scoped plugin splits into multiple skills, it mirrors that CLI's verb vocabulary —
+  tool-scoped plugin splits into multiple skills, it mirrors that CLI's verb vocabulary:
   `/playwright:test` would mirror `npx playwright test`; a firecrawl decomposition would use
-  `scrape` / `crawl` / `map` per `firecrawl-cli` — the consumer already knows the vendor's verbs.
+  `scrape` / `crawl` / `map` per `firecrawl-cli`. The consumer already knows the vendor's verbs.
   While it remains a single-skill router, the wrapper-echo exemption above applies instead.
-- **Generic skill names are safe under namespacing** (`help`, `list`, `update`) — the overloaded-term
+- **Generic skill names are safe under namespacing** (`help`, `list`, `update`). The overloaded-term
   caution governs plugin *identity*, not a namespaced skill leaf.
 - **Tool-scope shows up as brand-in-name, not a structural split.** A branded name signals a tool-scoped
-  plugin; a plain domain-noun signals a tool-agnostic one. No marketplace separates plugins by tool-scope
-  — do not formalize such a split.
+  plugin; a plain domain-noun signals a tool-agnostic one. No marketplace separates plugins by tool-scope,
+  so do not formalize such a split.
 
 **Built-in collisions never force a plugin skill's name.** "Plugin skills use a
 `plugin-name:skill-name` namespace, so they cannot conflict with other levels"
-([skills](https://code.claude.com/docs/en/skills), fetched 2026-07-15) — a shadow-dodge name is never
+([skills](https://code.claude.com/docs/en/skills), fetched 2026-07-15). A shadow-dodge name is never
 *required*. The catalog's historical dodge names (`quality-gate`, `fanout`,
 `batch-simplify`, `research-deep`) stand or evolve on their own merits, not out of collision fear.
 The one residual caution is model-side: avoid a skill leaf name *identical* to a bundled skill's
@@ -192,50 +193,51 @@ base-concept-first rule above is buying; and a deliberately shared leaf name (`s
 plugin that ships one) still asks the reader to scan prefixes, so each description's first clause
 has to name its object.
 
-## Extensibility model — what works today
+## Extensibility model: what works today
 
 These are the proven, documented mechanisms for consumer customization that do not confuse the agent.
 Prefer them in this order; the earlier ones are simplest and least surprising.
 
 | Mechanism | What it does | Use for |
 |---|---|---|
-| Consumer `CLAUDE.md` / `.claude/rules` | The skill reads the consuming project's own context and rules | Project-specific conventions, naming, policies — the default extension surface |
+| Consumer `CLAUDE.md` / `.claude/rules` | The skill reads the consuming project's own context and rules | Project-specific conventions, naming, policies: the default extension surface |
 | `${CLAUDE_PROJECT_DIR}` | Path to the consumer's project root, substituted in hook/MCP/monitor commands and exported to subprocesses | Referencing project-local scripts/config |
-| `userConfig` → `${user_config.KEY}` | Values Claude Code prompts for at enable time (typed: string/number/boolean/directory/file, optional sensitive). Substitutes as `${user_config.KEY}` in MCP/LSP configs and exec-form hook commands; non-sensitive values also substitute into skill/agent content. Shell-form hook commands, monitor commands, and MCP `headersHelper` reject this substitution. Hook processes receive every value as `CLAUDE_PLUGIN_OPTION_<KEY>`; a Bash tool call made by a skill does not (see the [smoke-test record](extensibility-contract-smoke-tests.md)). Non-sensitive values are stored under `pluginConfigs[<id>].options` in user settings and read from user, `--settings`, or managed settings; project/local entries are ignored. Sensitive values use the macOS Keychain or `~/.claude/.credentials.json` where no supported keychain exists | Endpoints, toggles, tokens — personal or administrator-supplied config without editing the plugin |
+| `userConfig` → `${user_config.KEY}` | Values Claude Code prompts for at enable time (typed: string/number/boolean/directory/file, optional sensitive). Substitutes as `${user_config.KEY}` in MCP/LSP configs and exec-form hook commands; non-sensitive values also substitute into skill/agent content. Shell-form hook commands, monitor commands, and MCP `headersHelper` reject this substitution. Hook processes receive every value as `CLAUDE_PLUGIN_OPTION_<KEY>`; a Bash tool call made by a skill does not (see the [smoke-test record](extensibility-contract-smoke-tests.md)). Non-sensitive values are stored under `pluginConfigs[<id>].options` in user settings and read from user, `--settings`, or managed settings; project/local entries are ignored. Sensitive values use the macOS Keychain or `~/.claude/.credentials.json` where no supported keychain exists | Endpoints, toggles, tokens: personal or administrator-supplied config without editing the plugin |
 | `${CLAUDE_PLUGIN_ROOT}` | Path to the plugin's own installed directory | Referencing bundled scripts/assets (mandatory under cache isolation) |
 | `${CLAUDE_SKILL_DIR}` | Path to the current skill's subdirectory within the plugin (not the plugin root); substituted in skill and agent content per the [skills reference](https://code.claude.com/docs/en/skills#available-string-substitutions) | Pre-compute blocks and `allowed-tools` paths that must resolve to skill-local scripts without hardcoding the plugin root |
 | `${CLAUDE_PLUGIN_DATA}` | Persistent per-plugin directory that survives updates (`~/.claude/plugins/data/<id>/`) | Installed deps, caches, generated state |
 | `hooks/hooks.json` | Event handlers the plugin ships | Behavior consumers opt into by enabling the plugin |
 
 Design a skill so its variable parts route through the table above. "If you need to customize X, set
-`userConfig` Y / add it to your project rules" — never "open an issue" or "fork the skill".
+`userConfig` Y / add it to your project rules", never "open an issue" or "fork the skill".
 
-## Extensibility contract v2.1 — the four seams
+## Extensibility contract v2.1: the four seams
 
 The table above is the raw mechanism inventory ordered simplest-first; this contract is the **adopted**
 policy for how a plugin exposes consumer variability, organizing those mechanisms into four seams. Each
-seam matches a *kind* of variability — typed scalar, rich prose/rules, project convention, machine
-state — not a rung on a preference ladder: choose the seam that fits the need, and within that choice
+seam matches a *kind* of variability (typed scalar, rich prose/rules, project convention, machine
+state), not a rung on a preference ladder: choose the seam that fits the need, and within that choice
 the table's simplest-first ordering still applies. Where the table's ordering and a seam's fit point
-differently, **fit governs** — a typed token belongs in `userConfig` (seam 1) even though the table
+differently, **fit governs**: a typed token belongs in `userConfig` (seam 1) even though the table
 lists consumer `CLAUDE.md` first. Each seam is tagged by its
-authority — **[SPEC]** (documented Claude Code behavior), **[PRECEDENT]** (an official first-party
+authority: **[SPEC]** (documented Claude Code behavior), **[PRECEDENT]** (an official first-party
 plugin does it, not written up as a spec), or **[PRECEDENT-EXTENSION]** (a documented shape extended
 one increment past the precedent). Behavioral gaps the docs leave open are resolved empirically in the
 [smoke-test record](extensibility-contract-smoke-tests.md).
 
 1. **Typed scalars → `userConfig` → `pluginConfigs`. [SPEC]** Declare `string` / `number` /
-   `boolean` / `directory` / `file` options (a `string` may set `multiple` for an array — there is no
+   `boolean` / `directory` / `file` options (a `string` may set `multiple` for an array, since there is no
    `string[]` type); mark a credential `sensitive` so it lands in Claude Code's secure credential
    storage, never `settings.json`.
    Non-sensitive values store under `pluginConfigs[<id>].options` in user settings and are read from
    user settings, `--settings`, or managed settings only; project and local entries are ignored since
    Claude Code 2.1.207. Use for endpoints, toggles, tokens, and personal path knobs. The `directory` /
-   `file` type is a UI hint, not a validator — a `--config` value is stored verbatim with no existence
+   `file` type is a UI hint, not a validator: a `--config` value is stored verbatim with no existence
    check and no normalization to absolute (smoke-test A).
 2. **Tracked rich config under `${CLAUDE_PROJECT_DIR}`. [first-party PRECEDENT; folder form is a
-   PRECEDENT-EXTENSION]** When configuration outgrows typed scalars — prose guidance, rule lists,
-   threat models, structured rulesets — read a checked-in file instead of piling on `userConfig` knobs.
+   PRECEDENT-EXTENSION]** When configuration outgrows typed scalars, whether prose guidance, rule
+   lists, threat models, or structured rulesets, read a checked-in file instead of piling on
+   `userConfig` knobs.
    The proven shape is a single tracked file `.claude/<plugin>.md` (Markdown, for model-facing
    guidance) or `.claude/<plugin>.yaml` (structured rules), each with a gitignored `*.local.*` personal
    overlay and an optional `~/.claude/<plugin>.md` user-global. The precedent is the official
@@ -248,7 +250,7 @@ one increment past the precedent). Behavioral gaps the docs leave open are resol
    resolution rules.
    - **Concern-named folder for multi-plugin-consumed config.** When a tracked-config concern is
      consumed by MORE THAN ONE plugin, name the folder by the concern, not a plugin
-     (`.claude/<concern>/**`) — plugin-naming would couple the other consumers and the consumer
+     (`.claude/<concern>/**`). Plugin-naming would couple the other consumers and the consumer
      repo's tracked files to one plugin's name, and plugin boundaries are the volatile axis across
      restructures. A further one-increment PRECEDENT-EXTENSION; each instance records its schema and
      resolution rules as a versioned contract under `docs/conventions/<concern>/` (template:
@@ -256,32 +258,32 @@ one increment past the precedent). Behavioral gaps the docs leave open are resol
      [`docs/conventions/ecosystem-commands/`](conventions/ecosystem-commands/README.md); second
      instance: [`docs/conventions/topic-docs/`](conventions/topic-docs/README.md)).
    - **Profiled folder for audience/deployment variants.** When ONE plugin's tracked config varies by
-     *audience* or *deployment* — a different framing, ranking lens, or branding per team / client /
-     context — add a profile axis to the folder form. Files at `.claude/<plugin>/` are the **default
+     *audience* or *deployment*, meaning a different framing, ranking lens, or branding per team /
+     client / context, add a profile axis to the folder form. Files at `.claude/<plugin>/` are the **default
      profile**; each `.claude/<plugin>/<profile-name>/` subfolder is a **named profile** that overlays
-     the default per key (the same additive semantics the layering contract below fixes — a named profile
+     the default per key (the same additive semantics the layering contract below fixes: a named profile
      refines the root, absent keys fall through). A single-config consumer never nests: its files sit at
      the root, which *is* the default profile, so growing a profile later is additive (drop a sibling
-     subfolder), never a reorg — and there is no reserved `default/`/`team/` name to collide with. Pick
+     subfolder), never a reorg, and there is no reserved `default/`/`team/` name to collide with. Pick
      the active profile by the convention-resolution ladder: exactly one named profile subfolder present
      → use it; several → an `active_profile` `userConfig` scalar (seam 1) or a per-invocation
      `--profile <name>` argument selects; none → the root default. This is a one-increment PRECEDENT-EXTENSION of the folder
-     form, for a plugin that could ever profile — ship the **folder** form, since the single-file form
+     form, for a plugin that could ever profile: ship the **folder** form, since the single-file form
      cannot grow a profile without a file→folder reorg. Distinct from the concern-named folder above: that
      splits config across *plugins* (concern axis); this splits it across *audiences* within one plugin
-     (profile axis) — the two compose (`.claude/<concern>/<profile-name>/`). Reference adopter:
+     (profile axis), and the two compose (`.claude/<concern>/<profile-name>/`). Reference adopter:
      [`ai-briefing`](ai-briefing-design.md).
    - **Resolution + override semantics, overlay naming, and the recommended consumer `.gitignore`
-     line** are owned by [`docs/conventions/config-cascade/`](conventions/config-cascade/README.md)
-     — the layering axis is cross-cutting, so it is contracted once there rather than restated per
+     line** are owned by [`docs/conventions/config-cascade/`](conventions/config-cascade/README.md).
+     The layering axis is cross-cutting, so it is contracted once there rather than restated per
      seam. A surface declares its own keys and schema here or in its own owner doc, and points there
      for how its layers merge.
 3. **Consumer `CLAUDE.md` / `.claude/rules` steering. [SPEC]** A plugin's skill and agent components
-   run in the model's context and already read the consuming project's own rules — the default surface
-   for project conventions, naming, and policy, requiring no plugin-side wiring. (Hook scripts do not
-   see `CLAUDE.md`; they read env vars and file-based config only.)
+   run in the model's context and already read the consuming project's own rules. That is the default
+   surface for project conventions, naming, and policy, requiring no plugin-side wiring. (Hook scripts
+   do not see `CLAUDE.md`; they read env vars and file-based config only.)
 4. **`${CLAUDE_PLUGIN_DATA}` for machine state only. [SPEC]** The per-plugin directory that survives
-   updates — caches, installed dependencies, generated state. Never a channel for consumer
+   updates: caches, installed dependencies, generated state. Never a channel for consumer
    *configuration* (it is machine-local and untracked); configuration flows through seams 1–3.
 
 ## Convention-resolution ladder
@@ -292,7 +294,7 @@ The **adopted** rule for how a plugin settles a value at runtime, applied to eve
    § Expression doctrine), "present" means the convention home resolves from the root file's
    pointer line and the topic's doc exists there; the doc's prose is read as untrusted input.
 2. Absent → explore the repo and **infer the house style** from repo evidence (existing docs, the
-   consumer's own conventions, ambient instruction files), then **persist the inference** —
+   consumer's own conventions, ambient instruction files), then **persist the inference**,
    *gated*: the inference is proposed and the operator confirms before anything is written, so
    discovery happens once and never silently. For a dedicated-file surface (seam 2) persist into
    tracked project config; for a convention-doc surface persist the pointer line (and, on request,
@@ -302,10 +304,10 @@ The **adopted** rule for how a plugin settles a value at runtime, applied to eve
 4. Otherwise → a safe generic default.
 
 No baked repo assumptions, ever. A plugin never hardcodes a consumer's layout; it reads a declared
-value, infers-and-records (gated), or asks — never guesses silently. Nothing hardcodes
+value, infers-and-records (gated), or asks. It never guesses silently. Nothing hardcodes
 `docs/conventions/`: the home is whatever the pointer line names.
 
-### Retired conventions — the detection and cleanup seam
+### Retired conventions: the detection and cleanup mechanism
 
 When a plugin retires a consumer-facing convention (a config file moves to a convention doc, a
 gitignore line is superseded, a directory is renamed), the old artifact left in consumer repos is
@@ -319,69 +321,69 @@ evaluates every record against the consumer repo. Detection is one fixed step in
 cleanup is per-record and operator-gated in `apply`; judgment-bearing `migrate` content stays with
 the model per the record's `successor` prose. No new setup verb. The owner doc
 `docs/conventions/retired-conventions/README.md` carries the schema, the helper contract, and the
-two fixed setup lines; this playbook only names the seam. Schema is repository-scope only:
+two fixed setup lines; this playbook only names the mechanism. Schema is repository-scope only:
 machine-scope files under `~/.claude/` stay outside it (ADR 0018).
 
 This ladder is the runtime application of the durable convention posture owned by
 [PLUGIN-PHILOSOPHY.md § Two-lane convention posture](PLUGIN-PHILOSOPHY.md): a pre-prescribed
 convention is a hardcoded dependency, so a plugin ships a default only in lane 1 (a good-practice
-value that cannot conflict in any consuming repo) and otherwise takes lane 2 — its setup discovers
+value that cannot conflict in any consuming repo) and otherwise takes lane 2, where its setup discovers
 the consumer's convention and externalizes it as an extensibility point the ladder then resolves.
 
-## Setup action — required iff the criteria hold
+## Setup action: required iff the criteria hold
 
 Whether a plugin needs a `setup` skill, and the uniform contract it follows (`setup` name,
 `disable-model-invocation: true`, `check` + `apply` actions, non-interactive completion), is owned
 by [PLUGIN-PHILOSOPHY.md § Setup is explicit and repeatable](PLUGIN-PHILOSOPHY.md). Migration work
 applies it as-is. Playbook-specific additions: the Thariq `config.json` first-run pattern is
-**rejected** for plugins — it is not an official mechanism, and it writes into
+**rejected** for plugins: it is not an official mechanism, and it writes into
 `${CLAUDE_PLUGIN_ROOT}`, which is replaced on every update (the plugins-reference caching note), so
 its state does not survive. Setup writes only the consumer configuration the plugin owns; Claude
-Code's native configuration surface collects `userConfig` and owns `pluginConfigs` — a setup skill
+Code's native configuration surface collects `userConfig` and owns `pluginConfigs`, and a setup skill
 never edits that key directly.
 
-## Upstream sync — every upstream-sourced plugin ships an update path
+## Upstream sync: every upstream-sourced plugin ships an update path
 
-A plugin that vendors or distills an upstream source — a docs site, a third-party playbook, a tool's
-own documentation — carries a drift-check/update path: either an inline maintainer `update` action on
+A plugin that vendors or distills an upstream source, whether a docs site, a third-party playbook, or
+a tool's own documentation, carries a drift-check/update path: either an inline maintainer `update` action on
 its skill or a dedicated update skill. A self-authored pack has no upstream to drift from; its update
 path states "no upstream" and names the regeneration trigger instead (e.g. a model-version change).
 
-## Evals — warrant policy and consumer-verify recipe
+## Evals: warrant policy and consumer-verify recipe
 
 Evals are model-graded behavior fixtures at `plugins/<plugin>/skills/<skill>/evals/evals.json`,
-schema `plugins/skill-quality/reference/evals.schema.json`. They are **warranted, not mandatory** —
+schema `plugins/skill-quality/reference/evals.schema.json`. They are **warranted, not mandatory**:
 a skill ships them only when they earn their keep.
 
 **Warrant rule.** A skill **warrants** evals when it carries a judgment-bearing behavioral contract
-that could silently regress — how it triggers, how it routes an ambiguous request, when it refuses,
+that could silently regress: how it triggers, how it routes an ambiguous request, when it refuses,
 or the shape of what it emits. A skill is an explicit **skip** when it is pure-reference (answers
-from a knowledge corpus with no decision contract — `playbooks:fable-5`, `tdd`, …). A **hook** plugin
-is a skip only in the case its rationale actually describes — deterministic, silent-always-on,
+from a knowledge corpus with no decision contract, such as `playbooks:fable-5` or `tdd`). A **hook**
+plugin is a skip only in the case its rationale actually describes: deterministic, silent-always-on,
 guarded by `.test.sh`, **no skill carrying a judgment-bearing contract**. The condition is the
 absence of that contract, not the invocation mode. Stating it by invocation mode does not work: a
 `setup` skill sets `disable-model-invocation: true`, so "no model-invoked skill" is satisfied by a
-plugin that ships one — admitting as a skip the very plugin the rest of this rule excludes. A `setup` skill makes interview and write-config decisions that can
+plugin that ships one, admitting as a skip the very plugin the rest of this rule excludes. A `setup` skill makes interview and write-config decisions that can
 silently regress, which is precisely the contract the skip exists to excuse the absence of. The
 plugin's shape does not exempt it: a `setup` skill *is* warrantable (the `codebase-health/setup`
 eval is the model). Gray-zone skills (thin mechanical wrappers, reference-ish
 routers) are **author-confirm**: re-check the warrant against the live `SKILL.md` at authoring time
-and record an explicit skip verdict if it dissolves — a satisfied "looks covered" is not a warrant.
-This section is the policy; current coverage is verified on demand — a live glob of
-`plugins/*/skills/*/evals/evals.json` against the tree, read against the warrant rule above — never a
-checked-in snapshot that decays the moment a skill lands.
+and record an explicit skip verdict if it dissolves, because a satisfied "looks covered" is not a warrant.
+This section is the policy; current coverage is verified on demand. Glob
+`plugins/*/skills/*/evals/evals.json` across the tree and read the result against the warrant rule
+above, never from a checked-in snapshot that decays the moment a skill lands.
 
 **The gate honors a recorded skip.** `scripts/check-changed-skills.sh` passes `--require-evals` for
 every skill whose `SKILL.md` is new or modified, and `plugins/skill-quality/scripts/check-skill.sh`
-then hard-FAILs on a missing `evals/evals.json` — unless that skill is listed in
+then hard-FAILs on a missing `evals/evals.json`, unless that skill is listed in
 `scripts/evals-warrant-exemptions.txt`. A skip becomes a reviewed, diffable line rather than an
 implicit absence; anything unlisted still fails closed. The file is stale-guarded: a row whose
 skill is gone, or that now ships `evals/evals.json`, fails the gate so the list can only shrink.
-This is the Exit A decision from #3135 — the warrant rule above and the CI gate now agree.
+This is the Exit A decision from #3135: the warrant rule above and the CI gate now agree.
 
 **Rich form.** Each case carries `id`, a kebab-case `name`, a `prompt`, an `expected_output`
 description, optional `files` fixtures, and an `expectations` array of objectively-verifiable checks
-(the field may equivalently be named `assertions` — skill-creator upstream uses that name). Aim to
+(the field may equivalently be named `assertions`, the name skill-creator upstream uses). Aim to
 cover trigger/routing, the happy path, at least one refusal/guardrail, and one anti-pattern the skill
 must not do.
 
@@ -389,7 +391,7 @@ must not do.
 build evaluations" ([indexed in OFFICIAL-DOCS.md](OFFICIAL-DOCS.md#evaluation-guidance-platform-docs);
 the `evals` plugin distills it). The rich form is that guidance's eval anatomy with the golden
 answer in its rubric-instructions form (`expected_output` + `expectations` are what a grader is
-told to look for), and every case must carry one — the schema rejects a case with no
+told to look for), and every case must carry one. The schema rejects a case with no
 `expected_output`, `expectations`, or `assertions`, because a case that cannot be graded is not an
 eval. Two deliberate divergences from the guidance, both consequences of the deferred runner
 (medley#1418): case volume stays low (the guidance's volume-over-polish principle assumes cheap
@@ -400,7 +402,7 @@ method the guidance ranks last). Both revisit when the runner lands.
 formats exist and they are not the same. The one shipped here is **`skill-creator`'s**:
 `evals/evals.json` inside the skill directory, cases carrying `id` / `prompt` / `expected_output` /
 `files` / `expectations`, which is why the schema's own `description` notes that upstream names that
-last field `assertions`. It is the ecosystem-wide shape — a public code search returns thousands of
+last field `assertions`. It is the ecosystem-wide shape: a public code search returns thousands of
 `evals.json` files in that form against a handful in any other. **`claude plugin eval` consumes a
 different layout** (`<eval dir>/**/case.yaml`, or `prompt.md` plus `graders/*.md`, with
 `experimental.evals` naming the directory). This repo has none of it, deliberately: the command is
@@ -408,7 +410,7 @@ different layout** (`<eval dir>/**/case.yaml`, or `prompt.md` plus `graders/*.md
 format would trade a corpus CI checks on every PR for one nobody here can execute. Adoption stays
 deferred behind the same `melodic-software/medley#1418` tracker as the runner; revisit when the
 command leaves early access. **The consequence for authors:** no command in *this* marketplace and
-nothing in *this* CI executes a prompt — the gates lint and schema-check them — so a case must be
+nothing in *this* CI executes a prompt, since the gates only lint and schema-check them, so a case must be
 readable and followable by a human or an agent working by hand, and must not depend on a runner
 having been invoked. That is not the same as no runner existing: a consumer with Anthropic's
 `skill-creator` installed can run these suites, which is the format's own runner and which stages a
@@ -416,66 +418,66 @@ case's `files[]` for it. So use `files[]` to declare fixtures and reference them
 path; do not hand-roll staging inside the `prompt` string. A prompt that builds its own workspace is
 neither followable by hand nor compatible with the runner that would otherwise stage it.
 
-**Consumer-verify recipe — "verify this plugin in MY repo".** There is **no first-party command that
-executes model-graded evals today** — automated eval *running* is a deferred surface (owned by
+**Consumer-verify recipe: "verify this plugin in MY repo".** There is **no first-party command that
+executes model-graded evals today**. Automated eval *running* is a deferred surface (owned by
 `melodic-software/medley#1418`); `skill-quality` only checks presence and schema, and it resolves
-skills under `${user_config.skills_root}` → `${CLAUDE_PROJECT_DIR}/.claude/skills` only — it does
+skills under `${user_config.skills_root}` → `${CLAUDE_PROJECT_DIR}/.claude/skills` only. It does
 **not** discover an installed marketplace plugin's skills by plugin name. So the static checks below run
 against the plugin's **source tree**, not against a bare `/plugin install`; the exercise step is the
 part that runs against the plugin as you actually enabled it.
 
 Steps 1-2 are **source-tree verification**: run them against a checkout of this marketplace with
 `<root>` = `plugins/<plugin>/skills`. This is the source, not necessarily the version you have
-*enabled* — installed plugins are copied to a version-keyed cache under `~/.claude/plugins/cache`
+*enabled*: installed plugins are copied to a version-keyed cache under `~/.claude/plugins/cache`
 (cache isolation; see "Cache isolation" and "Local development loop" below and the official plugins
 reference "plugin caching and file resolution"), so after a marketplace update the source `evals.json`
 can differ from the enabled copy. Step 3 (exercise) is the definitive as-enabled check because it runs
 against the plugin you actually invoked. Then:
 
-1. **Presence** — confirm the file `<root>/<skill>/evals/evals.json` exists. The static gate is only a
+1. **Presence.** Confirm the file `<root>/<skill>/evals/evals.json` exists. The static gate is only a
    partial signal: `/skill-quality:check <skill>` (`check` is both the skill's leaf name and its
    default action, run with `skills_root` pointed at `<root>` via `/skill-quality:setup`) flags a
-   *missing* eval file only for action-router-shaped skills — its check fires on a `## Actions` heading —
-   so a warranted non-router skill (e.g. `debug`) passes `check` without flagging the gap. Rely on the
+   *missing* eval file only for action-router-shaped skills, because its check fires on a `## Actions`
+   heading, so a warranted non-router skill (e.g. `debug`) passes `check` without flagging the gap. Rely on the
    direct file check or the coverage snapshot, not a green `check`, to confirm presence.
-2. **Schema + quality lint** — `/skill-quality:check validate-evals <skill>` (same `skills_root`)
+2. **Schema + quality lint.** `/skill-quality:check validate-evals <skill>` (same `skills_root`)
    validates `evals/evals.json` against the bundled schema, then runs the deterministic
    eval-quality lint (`check-evals-quality.sh`: duplicate case ids/names, unresolvable `files`
-   fixtures, empty or vague grading criteria, advisory set-coverage warnings). Still static — it
+   fixtures, empty or vague grading criteria, advisory set-coverage warnings). Still static: it
    does not run the cases, and it treats an absent file as "not a failure", so it is a
    schema-and-content gate, not a presence gate.
-3. **Exercise (manual) — the real consumer check** — enable the plugin in your repo (`/plugin install
+3. **Exercise (manual), the real consumer check.** Enable the plugin in your repo (`/plugin install
    <plugin>@<marketplace>`), then read the eval cases **from the copy you actually enabled**, not from
    `<root>`: the enabled version lives in the version-keyed cache under `~/.claude/plugins/cache`, and
    reading cases from a source checkout that has drifted from it would exercise the installed plugin
    against a different version's prompts/fixtures. To use the source evals *as* the enabled plugin
-   instead, load that source directory with `--plugin-dir` (the local copy then takes session precedence
-   — see "Local development loop" below). For each case paste its `prompt` into a fresh session and read
+   instead, load that source directory with `--plugin-dir` (the local copy then takes session
+   precedence, per "Local development loop" below). For each case paste its `prompt` into a fresh session and read
    the result against that case's `expected_output` / `expectations`; cases with a `files` list need
    those fixtures present relative to the skill directory. This is a human judgment pass, not an
-   automated pass/fail, until the deferred runner lands — at which point it becomes a single command and
+   automated pass/fail, until the deferred runner lands, at which point it becomes a single command and
    this recipe is revised.
 
 ## Shared tools and scripts seam
 
 Separate **plugin-owned** logic from **consumer-owned** extension points:
 
-- Plugin-owned scripts ship inside the plugin and run via `${CLAUDE_PLUGIN_ROOT}/scripts/` (or `bin/`)
-  — bundled and cache-isolated, never reaching outside the plugin directory.
+- Plugin-owned scripts ship inside the plugin and run via `${CLAUDE_PLUGIN_ROOT}/scripts/` (or `bin/`),
+  bundled and cache-isolated, never reaching outside the plugin directory.
 - Consumer-owned extension points are **declared paths**, not assumed layout: expose them through a
   `userConfig` `directory` option or a tracked-config key with a conventional default (e.g. `tools/`).
   A plugin reaches the consumer's own scripts only through a path the consumer declared or the
-  convention the plugin documents — never a hardcoded repo structure.
+  convention the plugin documents, never a hardcoded repo structure.
 
 ## Version pinning and update delivery
 
 - **A `version` bump in `plugin.json` is the only delivery vehicle.** A consumer receives a change only
-  after the plugin's semver `version` increases — the version is the update cache key, so an unbumped
+  after the plugin's semver `version` increases. The version is the update cache key, so an unbumped
   plugin never delivers, even when its files changed (see "Shared code across plugins" below).
 - **Consumers update deliberately** with `/plugin marketplace update <marketplace>`, which refetches
   the marketplace. There is no silent auto-push of plugin changes to a consumer.
 - **Breaking-change / changelog note per plugin.** A version bump that changes behavior a consumer
-  depends on — a renamed option, a moved config path, a removed action — records the change in the
+  depends on, such as a renamed option, a moved config path, or a removed action, records the change in the
   plugin's own changelog (a `CHANGELOG.md` in the plugin), so a consumer updating deliberately sees
   what shifted. A bump that adds a new trust surface additionally re-triggers the plugin-acceptance
   security review below.
@@ -483,9 +485,9 @@ Separate **plugin-owned** logic from **consumer-owned** extension points:
 **The marketplace `renames` map is frozen-historical.** Its twelve entries stay: a consumer whose
 `enabledPlugins` still names a pre-rename plugin id resolves only through the map, and removing an
 entry strands them. But nothing new is added to it. A rename from here on is a clean breaking change
-carried by a version bump and a changelog note — the standing posture locked in
+carried by a version bump and a changelog note, the standing posture locked in
 `docs/topics/shadowed-skill-renames/` (pruned per the topic-docs convention; read it
-in history at `c70d8867ccd9f9921fdde25de70cb9a91e718c80`) — so the map records migrations
+in history at `c70d8867ccd9f9921fdde25de70cb9a91e718c80`). The map therefore records migrations
 already shipped rather than serving as the go-forward mechanism.
 
 ### Same-version commit drift (directory-source marketplaces)
@@ -493,36 +495,36 @@ already shipped rather than serving as the go-forward mechanism.
 For a marketplace registered with a `directory` source (a local clone or a repo-relative path in
 checked-in settings), the installed plugin cache is keyed by the **semver `version` in
 `plugin.json`**, not by the git commit SHA. Claude Code records the commit at install time in
-`installed_plugins.json`, but the cache directory name is only `<version>` — so a later commit under
+`installed_plugins.json`, but the cache directory name is only `<version>`, so a later commit under
 the same version does not replace the snapshot.
 
 That bites the normal PR shape here: a branch lands several commits under one version bump (review
 fixes before merge, audit follow-ups, and the like). Whoever installed on the branch's first commit
 keeps that snapshot until the version changes. Every later commit under the same version is invisible
-to installed sessions — including corrections that would otherwise be live after merge.
+to installed sessions, including corrections that would otherwise be live after merge.
 
 `claude plugin update <name>@<marketplace>` compares **version numbers only**. When the marketplace
 ref and the cache both read `0.7.0`, `update` reports success ("already at the latest version") and
-copies nothing — a false green that confirms the wrong state while the recorded SHA lags the source.
+copies nothing: a false green that confirms the wrong state while the recorded SHA lags the source.
 
-**Workarounds (until upstream fixes this — [melodic-software/claude-code-plugins#2061](https://github.com/melodic-software/claude-code-plugins/issues/2061)):**
+**Workarounds (until upstream fixes this, [melodic-software/claude-code-plugins#2061](https://github.com/melodic-software/claude-code-plugins/issues/2061)):**
 
 - **Force a fresh snapshot:** `claude plugin uninstall <name>@<marketplace> --keep-data` then
-  `install` again, then `enable` — `uninstall` drops enabled state, so skipping `enable` leaves
+  `install` again, then `enable`. `uninstall` drops enabled state, so skipping `enable` leaves
   the plugin silently absent rather than silently stale. `--keep-data` keeps
   `${CLAUDE_PLUGIN_DATA}` only; uninstall still drops the stored `pluginConfigs`
   entry, so options return to manifest defaults on reinstall. Omitting the flag
   would also destroy the data directory.
-- **Ship a version bump** when the merged result must reach consumers — the only delivery vehicle for
+- **Ship a version bump** when the merged result must reach consumers. It is the only delivery vehicle for
   marketplace installs (see bullets above).
 - **Local iteration:** `claude --plugin-dir ./plugins/<name>` loads the working tree and takes
-  session precedence over the cached install (see "Local development loop" below) — no reinstall
-  needed for same-session edits after `/reload-plugins`.
+  session precedence over the cached install (see "Local development loop" below), so no reinstall
+  is needed for same-session edits after `/reload-plugins`.
 
 ## Retiring a published plugin
 
 Creation and update delivery are above; this is the third move. Retirement is **one PR that removes
-both halves at once** — the plugin's `.claude-plugin/marketplace.json` catalog entry and its whole
+both halves at once**: the plugin's `.claude-plugin/marketplace.json` catalog entry and its whole
 `plugins/<name>/` directory. The symmetry is not a convention to remember:
 `scripts/check-plugin-manifest-presence.sh` runs FORWARD (a catalog entry whose directory has no
 readable `plugin.json`) and INVERSE (a `plugins/*/` directory no catalog entry names), so removing
@@ -530,15 +532,15 @@ either half alone fails the gate. Regenerate the derived surfaces in the same PR
 (`node scripts/generate-catalog.mjs`, `node scripts/generate-cheatsheet.mjs`) and sweep the repo for
 references to the dead plugin id.
 
-The plugin's `CHANGELOG.md` goes with its directory — `check-changelog-parity.sh --check-preserved`
+The plugin's `CHANGELOG.md` goes with its directory. `check-changelog-parity.sh --check-preserved`
 deliberately exempts a changelog whose directory is also gone, reading it as a removal rather than
-an absorbed section — so **the retirement is recorded in the PR body**, not in a changelog nobody
+an absorbed section, so **the retirement is recorded in the PR body**, not in a changelog nobody
 can read afterward. A final version bump is pointless: there is no artifact left to deliver.
 
 Consumer guidance to state in that PR body:
 
-- Installed copies keep working. The install is a version-keyed local snapshot — the same property
-  "Same-version commit drift" documents above — so a consumer who already installed the plugin
+- Installed copies keep working. The install is a version-keyed local snapshot, the same property
+  "Same-version commit drift" documents above, so a consumer who already installed the plugin
   keeps it until they uninstall; retirement removes future installs and updates, not the copy on
   disk.
 - Consumers should drop the plugin's `enabledPlugins` entry, which now names a plugin the
@@ -549,29 +551,29 @@ Consumer guidance to state in that PR body:
 
 ## Persistence, configuration & external integration
 
-A skill is a markdown prompt (plus optional scripts), not a compiled runtime — so ports / adapters /
+A skill is a markdown prompt (plus optional scripts), not a compiled runtime, so ports / adapters /
 CQS layering is a **category error** here. Expose variability the way real plugins and the extensibility
 model above already prescribe:
 
 - **Persistence.** Write generated state and caches to `${CLAUDE_PLUGIN_DATA}` (the per-plugin directory
-  that survives updates — see the extensibility table). Choose JSON / JSONL / SQLite per need.
+  that survives updates, per the extensibility table). Choose JSON / JSONL / SQLite per need.
 - **Configurable location or behavior.** One `userConfig` knob (`${user_config.KEY}`, per the
-  extensibility table) with a sane default — never a consumer-bound interface. Add a knob **only** where
-  a real repo-specific behavior surfaces (Rule of Three; no speculative knobs — see the design charter).
+  extensibility table) with a sane default, never a consumer-bound interface. Add a knob **only** where
+  a real repo-specific behavior surfaces (Rule of Three; no speculative knobs, per the design charter).
 - **External systems (issue trackers and the like).** Use backend-neutral **"work item"** vocabulary
-  plus either a direct CLI call (e.g. `gh`) or dependence on an **MCP server** — swapping the backend
+  plus either a direct CLI call (e.g. `gh`) or dependence on an **MCP server**. Swapping the backend
   means swapping the MCP server, not introducing a pluggable-tracker abstraction (every official
   integration is a bare MCP wrapper).
 - **Cross-skill references.** Hand off through the slash invocation when the target skill is present;
   degrade gracefully to prose when it is absent.
 
-This is deliberately **not** ports / adapters: there is no runtime seam to invert in a prompt medium, so
+This is deliberately **not** ports / adapters: there is no runtime interface to invert in a prompt medium, so
 a declared config surface, not an abstraction layer, is the extension point.
 
-## MCP servers as a plugin component — carry decision
+## MCP servers as a plugin component: carry decision
 
 A plugin can ship MCP servers via `.mcp.json` at the plugin root (or an `mcpServers` key in
-`plugin.json`), across all transports — stdio, HTTP, SSE, WS
+`plugin.json`), across all transports: stdio, HTTP, SSE, WS
 ([plugins-reference](https://code.claude.com/docs/en/plugins-reference), MCP servers). Those servers
 **auto-connect when the plugin is enabled** (managed through plugin install, not a second `/mcp`
 approval) and appear as standard tools. The connect cost differs by transport: a **stdio** server
@@ -579,30 +581,30 @@ costs a **local process spawn on every session that enables the plugin**, used o
 server spawns no local process but still auto-connects (its trust prompt + tool-schema context cost).
 Tool-search deferral hides the tool *schema* from context until first use but does **not** defer the
 stdio spawn or the connect. That auto-start cost is why the default is **not** to ship MCP: exactly
-one marketplace plugin ships one (`miro`, the dedicated Miro board capability — below), and the
+one marketplace plugin ships one (`miro`, the dedicated Miro board capability, below), and the
 discriminator below keeps it rare, reserved for a plugin genuinely useless without its server. A
 credentialed SHIP additionally ships `defaultEnabled: false`, so its server does not auto-start for
 consumers who never opt in.
 
-**Uniform discriminator — apply to every server, no exemptions:**
+**Uniform discriminator, applied to every server with no exemptions:**
 
 1. **CLI covers the skill's need → CLI-first.** The plugin **depends on** the CLI (with documented
-   install/setup — the binary is on PATH, not bundled: e.g. `npm install -g ctx7`,
+   install/setup, since the binary is on PATH, not bundled: e.g. `npm install -g ctx7`,
    `npm install -g firecrawl-cli`, `playwright-cli`) and drops the MCP dependency; a CLI-first
    migration MUST carry that install guidance or the plugin breaks on a machine without the CLI.
    Token-economics precedent (results pipe to disk instead of flooding context): context7 (`ctx7`),
-   playwright (`playwright-cli` — Microsoft-recommended, ~4× fewer tokens), firecrawl
-   (`firecrawl-cli`), ccusage (`ccusage daily|monthly|session|blocks --json` — same token/cost
+   playwright (`playwright-cli`, Microsoft-recommended, ~4× fewer tokens), firecrawl
+   (`firecrawl-cli`), ccusage (`ccusage daily|monthly|session|blocks --json`, the same token/cost
    breakdown as the MCP, [ccusage json-output](https://ccusage.com/guide/json-output)).
 2. **No CLI + plugin is *useless* without the server → SHIP.** Bundle it and map each secret to
    `userConfig` `sensitive` (below). "Useless" is a high bar met by a **dedicated** server-wrapper
    plugin (its entire capability *is* the server); a plugin that runs in a reduced mode without the
    server is *degraded-but-functional* (rule 3), not a SHIP. A stdio SHIP owns its spawn: an `npx`
    command needs a `cmd /c` wrapper on Windows (#58510 below), so prefer invoking a bundled
-   `node <server>` — it sidesteps #58510 entirely. Two bundling mechanisms, ratified by the `miro`
+   `node <server>`, which sidesteps #58510 entirely. Two bundling mechanisms, ratified by the `miro`
    SHIP (the first instance, below):
    - **Single self-contained bundle (preferred).** An [esbuild](https://esbuild.github.io/) bundle
-     of the TypeScript source and every runtime dependency into one `dist/index.min.js` — no shipped
+     of the TypeScript source and every runtime dependency into one `dist/index.min.js`, with no shipped
      `node_modules`, so no `NODE_PATH`. The source is the source of truth; the `.min.js` is committed
      generated output (plugin install runs no build step), and a CI lane rebuilds it from source with
      the pinned toolchain, fails on drift, and runs the artifact over stdio so a bundle that compiles
@@ -614,38 +616,38 @@ consumers who never opt in.
      [plugins-reference](https://code.claude.com/docs/en/plugins-reference)) or it fails at startup
      with `MODULE_NOT_FOUND`.
 
-   A SHIP that connects to a **credentialed external service** ships `defaultEnabled: false` — it
+   A SHIP that connects to a **credentialed external service** ships `defaultEnabled: false`. It
    installs disabled and the consumer opts in, so enabling the marketplace does not auto-start a
    credentialed server for users who never asked for it.
 3. **No CLI + plugin is *degraded-but-functional* without it → STAY repo-level.** The skill NAMES the
    dependency and the consumer provides the server in their own `.mcp.json`; the skill degrades
    gracefully or loads the tool via `ToolSearch` when present. This is the extensibility model's
-   "swap the MCP server, not a pluggable abstraction" — declare the dependency, don't fork.
+   "swap the MCP server, not a pluggable abstraction": declare the dependency, don't fork.
 4. **Medley-/infra-bound server (no general-purpose plugin, or repo-coupled identity) → STAY
    repo-level.** Not a plugin concern.
 
-**Secrets → `userConfig` `sensitive` seam.** A SHIP declares each secret as a `userConfig` entry with
+**Secrets go through `userConfig` `sensitive`.** A SHIP declares each secret as a `userConfig` entry with
 `sensitive: true` (masked input; macOS Keychain storage, or `~/.claude/.credentials.json` where no
-supported keychain exists) and substitutes it as `${user_config.KEY}`
-— but **where** it goes depends on transport: a **stdio** server takes it in `.mcp.json` `env`, while
+supported keychain exists) and substitutes it as `${user_config.KEY}`.
+But **where** it goes depends on transport: a **stdio** server takes it in `.mcp.json` `env`, while
 a **remote HTTP/SSE/WS** server takes it in `headers` / `headersHelper` (`env` only reaches a spawned
 stdio process, so an HTTP key placed in `env` never authenticates). medley's own config shows the
 split: `context7`/`ref` are HTTP and pass their key via `headers` (`x-api-key` / `x-ref-api-key`),
 whereas a stdio server like `perplexity` uses `env`. Keychain storage is shared with OAuth tokens
-(~2 KB total) — keep values small. Mapping for the credentialed servers below: `MIRO_API_TOKEN` →
+(~2 KB total), so keep values small. Mapping for the credentialed servers below: `MIRO_API_TOKEN` →
 `miro_api_token` (stdio, `env`), `PERPLEXITY_API_KEY` → `perplexity_api_key` (stdio, `env`),
 `REF_API_KEY` → `ref_api_key` (HTTP, `headers`), `CONTEXT7_API_KEY` → `context7_api_key` (HTTP,
 `headers`). Infra/medley-bound secrets (`AZURE_*`, `AZURE_DEVOPS_PAT`, `GITHUB_EVENTS_SECRET`) do not
-map — those servers stay repo-level.
+map, so those servers stay repo-level.
 
-**The medley launcher stack — only its Node-pinning layer is medley-local.** medley's
+**The medley launcher stack: only its Node-pinning layer is medley-local.** medley's
 `fnm exec + tools/mcp-launcher/launcher.js` stack solves two problems that generalize differently:
 
-- **GUI-host Node PATH via `.nvmrc` pinning — medley-local.** A plugin does not need it; bundle
+- **GUI-host Node PATH via `.nvmrc` pinning, medley-local.** A plugin does not need it; bundle
   assets via `${CLAUDE_PLUGIN_ROOT}` (+ `${CLAUDE_PLUGIN_DATA}` for a built server's `node_modules`).
-- **Windows bare-`npx` `spawn ENOENT` — a general plugin problem, still open.** Plugin-shipped stdio
+- **Windows bare-`npx` `spawn ENOENT`, a general plugin problem, still open.** Plugin-shipped stdio
   MCPs that spawn `npx` fail on native Windows until wrapped with `cmd /c`
-  ([anthropics/claude-code#58510](https://github.com/anthropics/claude-code/issues/58510) — OPEN; the
+  ([anthropics/claude-code#58510](https://github.com/anthropics/claude-code/issues/58510), OPEN; the
   LSP spawn fix #17312 never reached the MCP spawn path). Do **not** assume the plugin runtime wraps
   `npx` for you: a SHIP that runs `npx` must ship its own `cmd /c` wrapper, while a SHIP that runs a
   bundled `node <server>` sidesteps the bug entirely.
@@ -653,63 +655,63 @@ map — those servers stay repo-level.
 So the `.nvmrc`/fnm layer stays medley-bound, but the Windows-`npx` concern travels with any
 `npx`-spawning SHIP.
 
-**Decision table — medley `.mcp.json` (14 servers, audited 2026-07-12).** Verdict is *plugin-carry*,
+**Decision table for medley `.mcp.json` (14 servers, audited 2026-07-12).** Verdict is *plugin-carry*,
 not "is the server useful". `enabled`/`disabled` = medley `.claude/settings.json`
 `enabledMcpjsonServers`/`disabledMcpjsonServers` at audit time.
 
 | Server | Transport | Secret | Verdict | Basis |
 |---|---|---|---|---|
-| miro | stdio (bundled) | `miro_api_token` (`sensitive`) | **SHIP (cutover+bundle)** | Owner-confirmed 2026-07-12: ships as a **dedicated** `miro` plugin whose whole capability *is* the Miro board server, so it is *useless without the server* (rule 2), not event-storming's optional dependency (event-storming stays degraded-but-functional and ships no server, consuming miro only when connected). The server's TypeScript **relocates** out of `mcp-servers/miro/node` into `plugins/miro` (single source of truth, no copy left behind), bundled to one `dist/index.min.js` invoked as `node ${CLAUDE_PLUGIN_ROOT}/dist/index.min.js` (sidesteps #58510); `MIRO_API_TOKEN` → `userConfig` `miro_api_token` (`sensitive`, Claude secure credential storage); `defaultEnabled: false` so it never auto-starts unasked. First instance of the SHIP convention |
-| aspire | stdio (`aspire` native) | — | STAY | medley .NET Aspire orchestration; no general-purpose plugin; infra-bound |
+| miro | stdio (bundled) | `miro_api_token` (`sensitive`) | **SHIP (cutover+bundle)** | Owner-confirmed 2026-07-12: ships as a **dedicated** `miro` plugin whose whole capability *is* the Miro board server, so it is *useless without the server* (rule 2), not event-storming's optional dependency (event-storming stays degraded-but-functional and ships no server, consuming miro only when connected). The server's TypeScript **relocates** out of `mcp-servers/miro/node` into `plugins/miro/server` (single source of truth, no copy left behind; one level below the plugin root since 2026-09-11 so no plugin-root lockfile triggers the automatic `npm ci` in a consumer's plugin cache), bundled to one `server/dist/index.min.js` invoked as `node ${CLAUDE_PLUGIN_ROOT}/server/dist/index.min.js` (sidesteps #58510); `MIRO_API_TOKEN` → `userConfig` `miro_api_token` (`sensitive`, Claude secure credential storage); `defaultEnabled: false` so it never auto-starts unasked. First instance of the SHIP convention |
+| aspire | stdio (`aspire` native) | none | STAY | medley .NET Aspire orchestration; no general-purpose plugin; infra-bound |
 | azure | stdio | `AZURE_CLIENT_SECRET`… | STAY (disabled) | Infra opt-in; disabled (auth-isolation issues); not a plugin concern |
 | azure-devops | stdio | `AZURE_DEVOPS_PAT` | STAY (disabled) | Infra opt-in PAT workflow; disabled; work-item tooling uses `gh`, not ADO |
-| ccusage | stdio | — | STAY | Live consumer `/claude-ops:claude-observability`; CLI covers the need (rule 1) and claude-ops is multi-skill — shipping would spawn it for changelog/troubleshooting sessions. CLI-first is the preferred future direction |
-| chrome-devtools | stdio | — | STAY | Ad-hoc browser/debug; stateful; no migrating plugin structurally requires it (degraded-but-functional) |
+| ccusage | stdio | none | STAY | Live consumer `/claude-ops:claude-observability`; CLI covers the need (rule 1) and claude-ops is multi-skill, so shipping would spawn it for changelog/troubleshooting sessions. CLI-first is the preferred future direction |
+| chrome-devtools | stdio | none | STAY | Ad-hoc browser/debug; stateful; no migrating plugin structurally requires it (degraded-but-functional) |
 | context7 | http | `CONTEXT7_API_KEY` | STAY (CLI-first) | context7 plugin ships `ctx7`; HTTP MCP kept repo-level as fallback |
-| github-events | stdio (repo-built) | `GITHUB_EVENTS_SECRET` | STAY | Repo-local broker; stateful `activeFilter`; repo identity via `CLAUDE_PROJECT_DIR` — not repo-agnostic |
-| microsoft-learn | http | — | STAY | `/discovery:research` + .NET docs; no plugin structurally requires it; degrades to WebSearch/WebFetch |
-| nuget | stdio (`dotnet dnx`) | — | STAY | `/packages` + .NET; no dotnet/packages plugin in the locked slugs; .NET-scoped |
-| openai-developer-docs | http | — | STAY | codex/OpenAI research; degraded-but-functional |
-| perplexity | stdio | `PERPLEXITY_API_KEY` | STAY | `/discovery:research` + ai-briefing; multi-consumer, degrades gracefully — shipping would auto-spawn for all discovery sessions |
-| playwright | stdio | — | STAY (CLI-first, disabled) | playwright plugin ships `@playwright/cli`; MCP disabled in medley in its favor |
+| github-events | stdio (repo-built) | `GITHUB_EVENTS_SECRET` | STAY | Repo-local broker; stateful `activeFilter`; repo identity via `CLAUDE_PROJECT_DIR`, so not repo-agnostic |
+| microsoft-learn | http | none | STAY | `/discovery:research` + .NET docs; no plugin structurally requires it; degrades to WebSearch/WebFetch |
+| nuget | stdio (`dotnet dnx`) | none | STAY | `/packages` + .NET; no dotnet/packages plugin in the locked slugs; .NET-scoped |
+| openai-developer-docs | http | none | STAY | codex/OpenAI research; degraded-but-functional |
+| perplexity | stdio | `PERPLEXITY_API_KEY` | STAY | `/discovery:research` + ai-briefing; multi-consumer, degrades gracefully, and shipping would auto-spawn for all discovery sessions |
+| playwright | stdio | none | STAY (CLI-first, disabled) | playwright plugin ships `@playwright/cli`; MCP disabled in medley in its favor |
 | ref | http | `REF_API_KEY` | STAY | `/discovery:research` doc search; degraded-but-functional |
 
-**SHIP: 1. STAY: 13. DROP: 0** — only `miro` clears the SHIP bar, and only once reframed as its own
+**SHIP: 1. STAY: 13. DROP: 0.** Only `miro` clears the SHIP bar, and only once reframed as its own
 dedicated plugin (rule 2). The other 13 are CLI-first, degraded-but-functional (their consumer plugin
 already runs without them), or infra-bound. Every STAY server has a live consumer; the three disabled
 entries are deliberate documented opt-ins, not dead servers. firecrawl already migrated to
-`firecrawl-cli` (absent from `.mcp.json`) — it confirms rule 1 rather than being a 15th row.
+`firecrawl-cli` (absent from `.mcp.json`), so it confirms rule 1 rather than being a 15th row.
 
 miro was the closest call and initially landed STAY when weighed as event-storming's optional
 dependency. The owner's 2026-07-12 direction reframed it: the Miro board capability becomes a
 **dedicated** `miro` plugin, and a dedicated server-wrapper plugin is useless without its server
-(rule 2 → SHIP). The original STAY objection — that bundling would auto-start a credentialed MCP for
-every event-storming session — is dissolved by `defaultEnabled: false` (the plugin installs disabled;
+(rule 2 → SHIP). The original STAY objection, that bundling would auto-start a credentialed MCP for
+every event-storming session, is dissolved by `defaultEnabled: false` (the plugin installs disabled;
 event-storming keeps its structured-markdown default and consumes miro only when a consumer opts in).
 The mechanism is **cutover + bundle**: relocate the server's source into the plugin (the playbook's
-reintegration end-state — the repo drops its in-repo copy), single-file esbuild bundle, `node <server>`
-over stdio — no npm/registry publish, no consumer token wall, no `npx` (#58510).
+reintegration end-state, where the repo drops its in-repo copy), single-file esbuild bundle, `node <server>`
+over stdio, with no npm/registry publish, no consumer token wall, and no `npx` (#58510).
 
 **§2 first-party trust accept (miro SHIP).** Recorded here as the single SSOT per the security review:
 
-- **Vendor / provenance.** First-party — a thin wrapper (authored in-house) over Miro's official REST
+- **Vendor / provenance.** First-party: a thin wrapper (authored in-house) over Miro's official REST
   API client (`@mirohq/miro-api`); `plugin.json` `author` = Melodic Software. Not a third-party remote
-  MCP (Miro's own `mcp.miro.com` was rejected — no board-delete tool, and a third-party remote-egress
-  acceptance the playbook denies by default).
-- **Transport.** Local `stdio` — a per-session `node dist/index.min.js` process; no listening port, no
+  MCP (Miro's own `mcp.miro.com` was rejected for having no board-delete tool, and for being a
+  third-party remote-egress acceptance the playbook denies by default).
+- **Transport.** Local `stdio`, a per-session `node dist/index.min.js` process; no listening port, no
   auto-connect to any remote MCP host.
 - **Data egress.** Only the Miro REST calls the consumer's own tool invocations make, to
   `api.miro.com`, authenticated by the consumer's own token. No telemetry, no other outbound network.
 - **Token scope.** `MIRO_API_TOKEN` → `userConfig` `miro_api_token`, `sensitive` (macOS Keychain, or
   `~/.claude/.credentials.json` where no supported keychain exists;
   never `settings.json`); the consumer supplies and scopes it. The server exits at startup if unset.
-- **Opt-in.** `defaultEnabled: false` — installs disabled; the consumer enables it deliberately.
+- **Opt-in.** `defaultEnabled: false`, so it installs disabled; the consumer enables it deliberately.
 
 **Consuming a sibling plugin's MCP tools (first instance: `event-storming` → `miro`).** When plugin A's
 skill drives plugin B's bundled MCP server, three rules hold:
 
 - **Namespaced tool names.** A plugin-bundled server's tools are callable as
-  `mcp__plugin_<plugin>_<server>__<tool>` — for `miro`, `mcp__plugin_miro_miro__miro_create_board`
+  `mcp__plugin_<plugin>_<server>__<tool>`, so for `miro` that is `mcp__plugin_miro_miro__miro_create_board`
   ([mcp reference](https://code.claude.com/docs/en/mcp)). A bare `miro_*` name, or a bare-server-key
   `mcp__miro__…`, does **not** resolve for a plugin-bundled server. Any *declarative* reference
   (a skill's `allowed-tools`, a permission rule, a subagent `tools` field, a hook matcher) MUST use the
@@ -718,7 +720,7 @@ skill drives plugin B's bundled MCP server, three rules hold:
   conceptual `<tool>` **provided it states once** that those names denote the provider's tools under
   the `mcp__plugin_<plugin>_<server>__` prefix (`simulation` does this in its availability gate).
 - **Availability gate probes the prefixed form.** The consumer detects the capability by checking a
-  prefixed tool (`mcp__plugin_miro_miro__miro_list_boards`), not a bare name — otherwise the gate can
+  prefixed tool (`mcp__plugin_miro_miro__miro_list_boards`), not a bare name. Otherwise the gate can
   never fire and the consumer silently stays in its degraded default forever.
 - **Soft dependency, never bundle-or-fork.** The consumer does not bundle the provider's server nor
   hard-depend on it: it keeps its no-server default (here structured-markdown), documents that the
@@ -733,19 +735,19 @@ Catalog these per migration; they are the usual failures when an in-repo skill b
 - **Cache isolation.** Installed plugins are copied to `~/.claude/plugins/cache`. Any reference to files
   outside the plugin directory (`../../tools/...`, `.claude/rules/...`) breaks. Fix: bundle dependencies
   inside the plugin and reference them via `${CLAUDE_PLUGIN_ROOT}`; persist state via `${CLAUDE_PLUGIN_DATA}`.
-- **Namespacing.** Components are namespaced by the plugin's own `name`, not the marketplace name —
-  an in-repo `/foo` becomes `/<plugin-name>:foo`. Internal cross-references to the bare name break —
+- **Namespacing.** Components are namespaced by the plugin's own `name`, not the marketplace name, so
+  an in-repo `/foo` becomes `/<plugin-name>:foo`. Internal cross-references to the bare name break, so
   update them.
 - **Agent shadowing.** Project/user `.claude/agents/` override same-named plugin agents. A leftover
   in-repo copy masks the plugin version until removed from the source repo.
 - **Headless registration.** Distinguish the marketplace **source** from the session shape:
   - **Remote or git-sourced catalogs** (GitHub repo, URL, npm, …) in CI or other non-interactive
-    runs: no interactive trust dialog — run `claude plugin marketplace add` explicitly or pre-seed via
-    `CLAUDE_CODE_PLUGIN_SEED_DIR` ([Plugin marketplaces — Pre-populate plugins for containers](https://code.claude.com/docs/en/plugin-marketplaces#pre-populate-plugins-for-containers),
+    runs: no interactive trust dialog, so run `claude plugin marketplace add` explicitly or pre-seed via
+    `CLAUDE_CODE_PLUGIN_SEED_DIR` ([Plugin marketplaces, "Pre-populate plugins for containers"](https://code.claude.com/docs/en/plugin-marketplaces#pre-populate-plugins-for-containers),
     fetched 2026-08-12).
   - **`directory` / `file` source with a relative path in checked-in project `.claude/settings.json`:**
     the path [resolves against the repository checkout](https://code.claude.com/docs/en/plugin-marketplaces#relative-paths),
-    including cloud sessions that install from the clone at session start — no separate
+    including cloud sessions that install from the clone at session start, with no separate
     `marketplace add` step. Local collaborators still see the interactive trust prompt once they
     trust the folder. See [`docs/CLOUD-SESSIONS.md`](CLOUD-SESSIONS.md) "Plugins in sessions on this repo".
 
@@ -763,44 +765,44 @@ For each skill/hook/agent being migrated:
    the userConfig full-potential criterion and the exec-form hook rule from
    [PLUGIN-PHILOSOPHY.md § Configuration ownership and scope](PLUGIN-PHILOSOPHY.md): no custom
    config channel where the native schema fits, and no `${user_config.*}` in shell-form hooks.
-6. **Strip PII / secrets.** Hard gate — before the first commit.
+6. **Strip PII / secrets.** Hard gate, before the first commit.
 7. **Check component stances.** Every component the plugin ships conforms to the component stance
-   table in [PLUGIN-PHILOSOPHY.md](PLUGIN-PHILOSOPHY.md) — no `commands/`, no unjustified
+   table in [PLUGIN-PHILOSOPHY.md](PLUGIN-PHILOSOPHY.md): no `commands/`, no unjustified
    `settings.json` `agent`, wait-listed components absent; setup criteria applied per its setup
    section; runtime prerequisites degrade per its failure-behavior rules.
 8. **Idempotent, modular, extensible.** Re-running is safe; pieces compose; variability is declared.
 9. **Validate.** `claude plugin validate`; test with `--plugin-dir` in a clean repo that is NOT the
    source repo (proves repo-agnosticism).
 10. **Version.** Set an explicit semver `version` in `plugin.json`. A later bump that changes behavior a
-   consumer depends on records the change in the plugin's changelog — see "Version pinning and update
+   consumer depends on records the change in the plugin's changelog. See "Version pinning and update
    delivery" above.
-11. **Publish.** Add the entry to `.claude-plugin/marketplace.json` — the plugin `source` is the
+11. **Publish.** Add the entry to `.claude-plugin/marketplace.json`. The plugin `source` is the
     `./`-prefixed relative path (e.g. `./plugins/<name>`). Bare names fail `claude plugin validate --strict`
     even with `metadata.pluginRoot` set, despite the marketplaces-doc example to the contrary (verified
     2026-06-23). Then run `claude plugin validate --strict <repo-root>` to validate the **catalog manifest
-    itself** — a bad entry surfaces only there, not in per-plugin validation. The catalog page
-    (`docs/CATALOG.md`) regenerates from the manifests — run `node scripts/generate-catalog.mjs`.
+    itself**: a bad entry surfaces only there, not in per-plugin validation. The catalog page
+    (`docs/CATALOG.md`) regenerates from the manifests, so run `node scripts/generate-catalog.mjs`.
 
 ## Migration order, PRs & parallelization
 
-**Seams first** (Fowler's Branch by Abstraction). Establish the shared foundations — the conventions in
-this playbook, the shared `lib/` source of truth (see "Shared code across plugins"), and the
-persistence/config pattern above — in one small sequential PR *before* fanning out. Everything downstream
-builds on those seams.
+**Seams first** (Fowler's Branch by Abstraction). Establish the shared foundations, meaning the
+conventions in this playbook, the shared `lib/` source of truth (see "Shared code across plugins"), and
+the persistence/config pattern above, in one small sequential PR *before* fanning out. Everything
+downstream builds on those seams.
 
 **Per-unit atomic PRs, authored in parallel.** One PR per cohesive migratable unit: small changesets
 review faster and more thoroughly, and the per-unit acceptance gate makes each one atomic and
-rollback-safe. Parallelize with one worktree (or worker) per unit — **conflict-free by design**, because
+rollback-safe. Parallelize with one worktree (or worker) per unit, **conflict-free by design**, because
 each plugin is an isolated `plugins/<name>/` directory, so N units become N concurrent PRs with no merge
 conflicts. Group units into one PR only when they are hard-coupled, or when the change is a single
 mechanical bulk edit.
 
 **Expect one shared-file conflict, resolved at merge.** The two files parallel PRs all touch are the
 catalog manifest (`.claude-plugin/marketplace.json`) and the generated catalog page (`docs/CATALOG.md`). Those conflicts are
-expected — resolve them by **serializing the final merges**, not by serializing authorship.
+expected: resolve them by **serializing the final merges**, not by serializing authorship.
 
-**Gate every unit before publish.** Each unit clears its parity / acceptance gate — the per-plugin
-migration gate and the plugin-acceptance security review below — before it ships.
+**Gate every unit before publish.** Each unit clears its parity / acceptance gate, the per-plugin
+migration gate and the plugin-acceptance security review below, before it ships.
 
 **Sequence heuristic.** Order lowest-coupling units first (clean, self-contained units with graceful
 degradation). Defer risky units (hard external dependencies, no graceful degradation) and any
@@ -808,7 +810,7 @@ license-gated units to per-item triage rather than a blanket hold. The ordering 
 
 **Swim-lane execution (orchestrated fan-out).** When an orchestrator drives several units to merge in
 one effort, each unit is a **swim lane**: a dedicated worktree (created under the same
-identity-scoped directory root as the primary checkout, so the repo's commit/push identity applies —
+identity-scoped directory root as the primary checkout, so the repo's commit/push identity applies,
 never a sibling path outside it), a feature branch named `<type>/<issue>-<slug>`, its own atomic PR
 that closes exactly one issue, driven independently through CI to a clean merge, then post-merge
 cleanup (delete the branch, remove the worktree). A **seams-first** unit whose contract binds
@@ -820,12 +822,12 @@ serializing the final merges, not authorship.
 ## Plugin-acceptance security review
 
 A plugin runs code on the consumer's machine and can wire Claude to external systems. **Every plugin accepted
-here — new, or a version bump that adds a trust surface — passes this review** in addition to the migration
+here, whether new or a version bump that adds a trust surface, passes this review** in addition to the migration
 gate above (whose step 6 gates PII/secrets). **Deny by default** any surface below that can't be justified.
 Facts verified against the plugins/MCP reference 2026-07-09 and re-verified against the plugins,
 plugins-reference, and hooks pages 2026-07-17; re-verify per the `CLAUDE.md` fresh-docs mandate.
 
-1. **Code execution — hooks & scripts.** A hook command runs on the consumer's machine on matched events,
+1. **Code execution: hooks & scripts.** A hook command runs on the consumer's machine on matched events,
    with `${CLAUDE_PLUGIN_ROOT}`, `${CLAUDE_PROJECT_DIR}`, `${CLAUDE_PLUGIN_DATA}`, and any `${ENV_VAR}`
    interpolated in. An exec-form hook may also use `${user_config.*}` in its arguments. A shell-form hook
    rejects that substitution and must read `CLAUDE_PLUGIN_OPTION_*` from the hook process environment.
@@ -836,51 +838,51 @@ plugins-reference, and hooks pages 2026-07-17; re-verify per the `CLAUDE.md` fre
    - **A skill's frontmatter `allowed-tools` is a prompt-free execution grant, and workspace trust does
      not gate it.** Measured on Claude Code 2.1.225: a marketplace-installed skill's `allowed-tools`
      entry takes effect at **user scope** in a **never-trusted** workspace, under `-p` where no trust
-     dialog can appear — the covered command ran without a prompt, the uncovered one blocked with
+     dialog can appear: the covered command ran without a prompt, the uncovered one blocked with
      `This command requires approval`, and a no-grant baseline confirmed that shape blocks. Bounds on
      the measurement: a local-directory marketplace, and user scope only.
-     **Consequence: the install-time plugin trust prompt is the only gate in front of such a grant —
-     there is no second, per-workspace one.** Review every `allowed-tools` entry with the scrutiny a
+     **Consequence: the install-time plugin trust prompt is the only gate in front of such a grant.
+     There is no second, per-workspace one.** Review every `allowed-tools` entry with the scrutiny a
      hook command gets, and deny by default anything broader than the specific command the skill's own
      scripts invoke. A wildcard interpreter grant (`Bash(python*)`, `Bash(*)`, bare `Bash`) is a deny
      outright: it is arbitrary code execution in a workspace the consumer never trusted.
      `claude-config:audit-permission-grants` check P1 detects exactly these shapes and is the
      mechanical half of this criterion.
-2. **MCP servers — `.mcp.json` / inline in `plugin.json`.** `miro` is the only plugin that ships a
+2. **MCP servers: `.mcp.json` / inline in `plugin.json`.** `miro` is the only plugin that ships a
    **local** `stdio`, bundled server (see its §2 trust accept above); `dometrain` is the only plugin
    that ships a **remote** server (see its review record below), which remains the higher-scrutiny
    case. A plugin's MCP server **starts automatically when the plugin is enabled**
    (subject to per-server approval), unless it ships `defaultEnabled: false`. Check: the server host/URL and who runs it (first-party vs a third party you're delegating trust
-   to); transport (local `stdio` vs remote `http`/`sse`/`ws`); **what data leaves the machine** — a remote
+   to); transport (local `stdio` vs remote `http`/`sse`/`ws`); **what data leaves the machine**, since a remote
    server receives whatever Claude sends and, if it returns external content, is a prompt-injection vector
    (official guidance: "Verify you trust each server before connecting it"); auth shape (header/Bearer/OAuth)
    with any token sourced from `userConfig` `sensitive` or an env var, **never hardcoded**; a stated reason the
    capability can't be a local `stdio` server. **Do not accept a third-party remote MCP server** without an
    explicit recorded trust decision naming the vendor, the data egress, and the token scope.
-3. **Consumer config — `userConfig`.** Any credential/token option MUST set `"sensitive": true` — that masks
+3. **Consumer config: `userConfig`.** Any credential/token option MUST set `"sensitive": true`, which masks
    input and stores the value in the macOS Keychain or, on platforms without a supported keychain,
-   `~/.claude/.credentials.json` — **not** `settings.json`.
-   Non-sensitive values land in user `settings.json` under `pluginConfigs[<id>].options` and are readable —
+   `~/.claude/.credentials.json`, and **not** `settings.json`.
+   Non-sensitive values land in user `settings.json` under `pluginConfigs[<id>].options` and are readable, so
    never put a secret there. Claude Code reads this key from user settings, `--settings`, and managed settings,
    not project or local settings. Endpoints and toggles are fine as non-sensitive. Every option is documented.
-4. **Cache isolation — no reach-outs.** References only files inside the plugin via `${CLAUDE_PLUGIN_ROOT}`;
+4. **Cache isolation: no reach-outs.** References only files inside the plugin via `${CLAUDE_PLUGIN_ROOT}`;
    persists state in `${CLAUDE_PLUGIN_DATA}`. No `../` reach-outs, no constructed absolute paths, no reading
    **consumer repository** files outside `${CLAUDE_PROJECT_DIR}`.
    - **The operator's own `~/.claude/` is not consumer repository data.** Reading a documented user-global
      config file there is sanctioned rather than a reach-out: criterion 3 above already stores consumer
      credentials at `~/.claude/.credentials.json`, and seam 2 mandates an optional `~/.claude/<plugin>.md`
-     user-global layer — a criterion that forbade the read would contradict both. Read only the documented
+     user-global layer, so a criterion that forbade the read would contradict both. Read only the documented
      path for the plugin's own declared config; anything broader is a reach-out again. What this criterion
      targets is a plugin wandering out of the repository it was pointed at, not the operator's own Claude
      Code home.
-5. **Data egress — telemetry & network.** Any telemetry (e.g. `HOOK_TELEMETRY_SINK`) is opt-in (unset = exact
-   no-op), never writes to the hook's stdout/`additionalContext` channel, and emits only the declared envelope —
-   no payload beyond the documented schema. Name any other outbound network call and justify it.
+5. **Data egress: telemetry & network.** Any telemetry (e.g. `HOOK_TELEMETRY_SINK`) is opt-in (unset = exact
+   no-op), never writes to the hook's stdout/`additionalContext` channel, and emits only the declared envelope,
+   with no payload beyond the documented schema. Name any other outbound network call and justify it.
 6. **Provenance & third-party trust.** Verify authorship (does `plugin.json` `author` match who actually
    submitted the PR?), license, and that the source is what it claims. A plugin that promotes or wires a
-   third-party SaaS is a trust delegation — record accept/deny with rationale. Note the platform already blocks
-   plugin-shipped **agents** from declaring `hooks` / `mcpServers` / `permissionMode` "for security reasons" —
-   don't design around that.
+   third-party SaaS is a trust delegation, so record accept/deny with rationale. Note the platform already blocks
+   plugin-shipped **agents** from declaring `hooks` / `mcpServers` / `permissionMode` "for security reasons".
+   Don't design around that.
    - **An `archive` marketplace entry MUST carry its `sha256` pin.** A catalog entry may set
      `"source": "archive"` with a `url` and an **optional** `sha256`, installing the plugin from a zip
      downloaded over HTTPS with no git or npm on the consumer's machine
@@ -889,7 +891,7 @@ plugins-reference, and hooks pages 2026-07-17; re-verify per the `CLAUDE.md` fre
      on older versions "a marketplace containing an `archive` entry fails to load entirely"). The
      platform's own floor is **transport-level only**: `url` is "Required. HTTPS URL of the zip archive.
      Claude Code rejects `http://` URLs, along with loopback, link-local, and cloud-metadata hosts. Every
-     redirect hop must satisfy the same rules". Content identity is not in that floor — the `sha256` field
+     redirect hop must satisfy the same rules". Content identity is not in that floor: the `sha256` field
      is documented as "Optional", so an unpinned entry lets the same URL serve different bytes on every
      install with nothing to detect it. That is a mutable-remote-artifact surface, which criterion 6
      denies by default, so **this review requires the pin**: an `archive` entry without `sha256` is a
@@ -898,13 +900,13 @@ plugins-reference, and hooks pages 2026-07-17; re-verify per the `CLAUDE.md` fre
      follow-ons to record when accepting one: the digest doubles as the plugin's version when neither
      `plugin.json` nor the entry declares one, so a repinned archive still needs its `version` bumped or
      "users keep the cached copy"; and organization distribution through claude.ai admin settings does
-     not accept this source at all — "Plugin sources of type `github`, `url`, and `git-subdir` are
+     not accept this source at all: "Plugin sources of type `github`, `url`, and `git-subdir` are
      supported. `npm` and `archive` sources are not." Enforced by `scripts/validate-plugin-contracts.mjs`
      over `.claude-plugin/marketplace.json`. This marketplace publishes every plugin as a relative path
      (`"source": "./plugins/<name>"`), so no entry uses `archive` today; the rule governs the first that
      does.
 7. **Main-thread and PATH surfaces.** A plugin `settings.json` `agent` entry takes over the
-   consumer's main thread — prohibited by default per the component stance table in
+   consumer's main thread, and is prohibited by default per the component stance table in
    [PLUGIN-PHILOSOPHY.md](PLUGIN-PHILOSOPHY.md); an exception requires the documented justification
    the stance demands, reviewed here. `bin/` executables join the Bash tool's `PATH` while the
    plugin is enabled: names must be collision-safe (plugin-prefixed), and each binary's provenance
@@ -913,18 +915,18 @@ plugins-reference, and hooks pages 2026-07-17; re-verify per the `CLAUDE.md` fre
 Record accept/deny + rationale for any plugin touching surfaces 2, 5, 6, or 7; a later version bump
 that introduces a new surface re-triggers this review.
 
-### Review record — `github` (ACCEPT, 2026-07-21)
+### Review record: `github` (ACCEPT, 2026-07-21)
 
 Recorded here as the single SSOT (miro §2 precedent). Reviewed at `0.1.0`; a version bump adding a
 new trust surface re-triggers this review.
 
 - **Code execution (1).** No hooks, no scripts wired to any event. The plugin ships prompt
   artifacts only (skills + reference markdown) plus `github.test.sh`, a repo-CI contract test
-  referenced by nothing in the manifest — inert in a consumer install.
+  referenced by nothing in the manifest, so it is inert in a consumer install.
 - **MCP servers (2).** None.
 - **Consumer config (3).** One `userConfig` boolean (`offer_browser_automation`, non-sensitive,
   documented, default `true`). No credential options: authentication stays entirely in the
-  consumer's own `gh` CLI login — the plugin never prompts for, stores, or transports a token.
+  consumer's own `gh` CLI login, and the plugin never prompts for, stores, or transports a token.
   Consumer-side routing/conventions files live at the documented `.claude/github/` project layers
   and `~/.claude/github/` user-global layer (sanctioned read per criterion 4's operator-home
   carve-out).
@@ -936,15 +938,15 @@ new trust surface re-triggers this review.
     written contract (write-capability guard: no field/input flags, no non-GET method, no GraphQL
     `mutation`); writes exist only behind `--apply` → consumer-declared routing → per-step user
     confirm naming the exact command and its doc provenance.
-  - Official GitHub docs (`docs.github.com` et al.) runtime fetches for grounding — the D4
+  - Official GitHub docs (`docs.github.com` et al.) runtime fetches for grounding, the D4
     zero-vendored-knowledge posture; read-only, with a fetch-integrity rung and a
     refuse-recall-as-grounded branch.
-  - **Browser automation over the consumer's authenticated GitHub session** — the heavy surface,
+  - **Browser automation over the consumer's authenticated GitHub session**, the heavy surface,
     accepted with layered gates: presence-gated (claude-in-chrome tool probe / playwright
-    plugin-installed seam), **never auto-fires**, each action individually offered and confirmed
+    plugin-installed check), **never auto-fires**, each action individually offered and confirmed
     with the resolved settings URL, intended action, and mechanics provenance; post-write
     read-back verification where an API read exists; guided-manual + deep-link fallback always
-    available. `offer_browser_automation: false` suppresses the offer — recorded honestly as an
+    available. `offer_browser_automation: false` suppresses the offer, recorded honestly as an
     **advisory, model-honored gate layered under the per-action confirm, not a runtime-enforced
     kill switch**; the hard gate is the per-action user confirm. Accept rationale: some org-admin
     surfaces are UI-only, the session and credentials remain the user's own, and every action is
@@ -961,10 +963,10 @@ new trust surface re-triggers this review.
   consumer's pre-existing `gh` relationship.
 - **Main-thread / PATH (7).** No `settings.json` `agent`, no `bin/`.
 
-**Verdict: ACCEPT** — surfaces 1/2/7 absent; 3/4 conform; 5's browser-automation channel accepted
+**Verdict: ACCEPT.** Surfaces 1/2/7 absent; 3/4 conform; 5's browser-automation channel accepted
 with the layered gates above; 6 first-party.
 
-### Review record — `dometrain` (ACCEPT, 2026-07-22)
+### Review record: `dometrain` (ACCEPT, 2026-07-22)
 
 Reviewed at `0.1.0`; a version bump adding a new trust surface re-triggers this review.
 
@@ -975,19 +977,19 @@ Answering it takes a review, so it cannot be settled either way by reading this 
 review runs, the ACCEPT below describes `0.1.0` and states nothing about what a consumer installs
 today. The re-review was not performed when this note was written; it is logged as owed.
 
-- **Code execution (1).** None — no hooks; `sync/scripts/update.sh` is not wired to any event
+- **Code execution (1).** None. No hooks; `sync/scripts/update.sh` is not wired to any event
   and is not model-reachable: `sync/SKILL.md` carries `disable-model-invocation: true`, so it
   runs only on a maintainer's explicit `/dometrain:sync` invocation.
 - **MCP servers (2).** The remote server itself: third-party (Dometrain-hosted), `http`
   transport, Bearer auth via `userConfig.dometrain_api_key` (never hardcoded), `defaultEnabled:
   false`. **Data egress / prompt-injection:** search queries and lesson IDs are sent to
   `mcp.dometrain.com`; responses are curated lesson text, which IS a genuine
-  indirect-prompt-injection surface — the risk is that returned text could steer Claude's use of
+  indirect-prompt-injection surface. The risk is that returned text could steer Claude's use of
   *other* tools already in the session (Bash, Write, other MCP servers), not whether Dometrain's
   own tools are mutating (they are all read-only). Mitigated the same way this repo's `github`
   plugin already accepts this class of risk (§740–745): `grounding/SKILL.md` carries a standing
   instruction treating all `search_dometrain`/`search_code`/`get_lesson` results as untrusted
-  reference data, never instructions, backed by an anti-pattern eval case — an advisory,
+  reference data, never instructions, backed by an anti-pattern eval case. That is an advisory,
   model-honored defense, not a runtime-enforced one, stated honestly as such rather than implied
   to be stronger than it is. Explicit trust decision: **ACCEPT**, third-party, rationale =
   read-only course-content grounding, no destructive tool surface, user's own
@@ -999,7 +1001,7 @@ today. The re-review was not performed when this note was written; it is logged 
   fetch reaches `raw.githubusercontent.com`, a documented, justified outbound call (criterion 5),
   not a `../` reach-out.
 - **Data egress (5).** Two channels: (a) the MCP server itself, covered under (2); (b)
-  `sync/scripts/update.sh`'s fetch of Dometrain's public GitHub-raw skill content — read-only,
+  `sync/scripts/update.sh`'s fetch of Dometrain's public GitHub-raw skill content, read-only
   and never model-reachable: `sync/SKILL.md`'s `disable-model-invocation: true` means only a
   human explicitly running `/dometrain:sync` fires it, never the model on its own initiative and
   never from the installed plugin cache absent that explicit human action. No data leaves beyond
@@ -1007,19 +1009,19 @@ today. The re-review was not performed when this note was written; it is logged 
 - **Provenance & third-party trust (6).** First-party plugin manifest/config (Melodic Software
   authored), but it wires TWO third-party trust surfaces: Dometrain's MCP server (the primary
   trust delegation, covered under (2)) and Dometrain's own public skill content as a
-  vendored/reviewed text dependency (covered under (4)/(5)) — every sync is human-reviewed
+  vendored/reviewed text dependency (covered under (4)/(5)). Every sync is human-reviewed
   before a baseline refresh, never auto-applied, so the trust surface is bounded by that review
   gate, not blind ingestion. Note: this plugin's `grounding`/`sync` skill split is a stronger
   enforcement of that boundary than this repo's existing `context7:lookup` precedent, which
-  bundles an equivalent `update` action into a model-invocable skill — a pre-existing gap flagged
+  bundles an equivalent `update` action into a model-invocable skill, a pre-existing gap flagged
   during this review, not remediated here, tracked separately.
 - **Main-thread / PATH (7).** None; no `settings.json` `agent`, no `bin/`.
 
-**Verdict: ACCEPT** — surfaces 1/7 absent; 2 accepted with the stated third-party rationale; 3/4
+**Verdict: ACCEPT.** Surfaces 1/7 absent; 2 accepted with the stated third-party rationale; 3/4
 conform; 5 bounded to two justified, non-telemetry channels; 6 dual third-party surfaces both
 gated (credential scope + human-reviewed sync).
 
-### Review record — `context-guard` (ACCEPT, 2026-07-24)
+### Review record: `context-guard` (ACCEPT, 2026-07-24)
 
 Reviewed at `0.1.0`; a version bump adding a new trust surface re-triggers this review.
 
@@ -1031,20 +1033,20 @@ Reviewed at `0.1.0`; a version bump adding a new trust surface re-triggers this 
   `[A-Za-z0-9_-]` before filename use; `captured_at` is format-gated to strict ISO-8601 UTC before
   being passed to `date -d`; no snapshot value is passed to `eval`, `sh -c`, or any code
   executor. Every failure path is transparent (wrapped statusline output
-  and exit code unchanged). No kill-switch `userConfig` needed — nothing runs unless the operator
+  and exit code unchanged). No kill-switch `userConfig` needed: nothing runs unless the operator
   wires it, and unwiring is the same one-line edit.
 - **MCP servers (2).** None.
 - **Consumer config (3).** No `userConfig`. The one machine file the plugin owns
   (`~/.claude/context-guard/zones.json`) is written only by the setup skill's explicit `apply`.
 - **Cache isolation (4).** Skills reference bundled files via `${CLAUDE_PLUGIN_ROOT}`; no `../`
-  reach-outs. Writes go only to `~/.claude/context-guard/` — the operator-home carve-out —
+  reach-outs. Writes go only to `~/.claude/context-guard/`, the operator-home carve-out,
   deliberately outside `${CLAUDE_PLUGIN_DATA}` because the directory is a documented cross-plugin
-  artifact seam (per-session snapshots + zones SSOT) that sibling-plugin sessions read by path;
-  `${CLAUDE_PLUGIN_DATA}` resolves per-plugin-identity and would hide the seam. Same accepted
+  artifact location (per-session snapshots + zones SSOT) that sibling-plugin sessions read by path;
+  `${CLAUDE_PLUGIN_DATA}` resolves per-plugin-identity and would hide that location. Same accepted
   pattern as `rate-limit-guard`.
 - **Data egress (5).** None. No network, no telemetry. Snapshot data (context-window token
   counts + session id) never leaves the machine. Residual local-integrity limitation, stated
-  honestly: the contract dir's `chmod 700` is best-effort — a no-op on filesystems without POSIX
+  honestly: the contract dir's `chmod 700` is best-effort, a no-op on filesystems without POSIX
   modes (Windows ACL volumes under Git Bash), where another local user could read or forge
   snapshots. The reader contract therefore forbids consumers from attaching security decisions to
   zone words (routing hints only), and the resolver format-gates `captured_at` and requires the
@@ -1053,33 +1055,33 @@ Reviewed at `0.1.0`; a version bump adding a new trust surface re-triggers this 
   third-party delegation.
 - **Main-thread / PATH (7).** None; no `settings.json` `agent`, no `bin/`.
 
-**Verdict: ACCEPT** — surfaces 2/5/6/7 absent; 1 bounded to operator-wired transparent scripts
-with sanitized untrusted input; 3 empty; 4 conforms under the documented operator-home seam
+**Verdict: ACCEPT.** Surfaces 2/5/6/7 absent; 1 bounded to operator-wired transparent scripts
+with sanitized untrusted input; 3 empty; 4 conforms under the documented operator-home
 carve-out.
 
-### Delta review — statusline shim (`context-guard` 0.2.0, `rate-limit-guard` 0.2.0, ACCEPT, 2026-07-24)
+### Delta review: statusline shim (`context-guard` 0.2.0, `rate-limit-guard` 0.2.0, ACCEPT, 2026-07-24)
 
 Triggered by the review record's own rule: both plugins' `setup apply` now writes an EXECUTABLE
 (`bin/statusline-shim.sh`) into the plugin's operator-home directory, where `apply` previously
 wrote only data (`zones.json`) or nothing at all. Reviewed as a delta; the base records stand.
 
-- **Code execution (1).** The write is a byte-identical copy of a reviewed, tested, bundled script
-  — no generation, no templating, no operator-supplied content, so nothing enters it that was not
+- **Code execution (1).** The write is a byte-identical copy of a reviewed, tested, bundled script,
+  with no generation, no templating, and no operator-supplied content, so nothing enters it that was not
   already in the plugin. Critically, **the copy is inert until the operator wires it**: it is not
   on `PATH`, not a hook, and not referenced by any Claude Code surface, so the base record's
-  justification for having no kill switch — "nothing runs unless the operator wires it, and
-  unwiring is the same one-line edit" — survives verbatim. The shim itself has no untrusted input
+  justification for having no kill switch, "nothing runs unless the operator wires it, and
+  unwiring is the same one-line edit", survives verbatim. The shim itself has no untrusted input
   (its only inputs are its own argv and the cache directory listing), performs no filesystem
   writes, and `exec`s either the resolved tee or the wrapped command. The resolution glob skips
-  transient `temp_*` marketplace directories; the residual case — two distinct marketplaces both
-  shipping a plugin of the same name — resolves to the most recently installed one and is
+  transient `temp_*` marketplace directories; the residual case, two distinct marketplaces both
+  shipping a plugin of the same name, resolves to the most recently installed one and is
   documented in the script.
 - **Consumer config (3).** Unchanged. The shim is not configurable and reads no config.
 - **Cache isolation (4).** The write stays inside the same operator-home carve-out already accepted
   for these plugins (`~/.claude/context-guard/`, `~/.claude/rate-limit-guard/`); each plugin's
   `apply` is explicitly forbidden from writing into the sibling's directory. `${CLAUDE_PLUGIN_DATA}`
   was considered and rejected as the shim's home: it is deleted on uninstall, which would leave a
-  wired statusline pointing at a missing file — the exact 127-exit failure this change removes —
+  wired statusline pointing at a missing file, the exact 127-exit failure this change removes,
   and its per-plugin-identity path would hardcode the marketplace name into the operator's
   settings.
 - **Main-thread / PATH (7).** Still none. `bin/` here is a plugin-owned operator-home subdirectory,
@@ -1088,64 +1090,64 @@ wrote only data (`zones.json`) or nothing at all. Reviewed as a delta; the base 
 - **Surfaces 2, 5, 6.** Unchanged: no MCP servers, no network or telemetry of any kind, first-party
   MIT code.
 
-**Verdict: ACCEPT** — the new surface is one inert, byte-identical copy of already-reviewed code
+**Verdict: ACCEPT.** The new surface is one inert, byte-identical copy of already-reviewed code
 into an already-accepted directory, on explicit operator request, with the no-kill-switch
 justification intact. Uninstall leaves the shim behind by design; it then degrades to running the
 operator's statusline unchanged, and both setup skills document the two-step manual cleanup.
 
-### Review record — `plugin-quality` (ACCEPT, 2026-07-24)
+### Review record: `plugin-quality` (ACCEPT, 2026-07-24)
 
 Reviewed at `0.1.0`; a version bump adding a new trust surface re-triggers this review. Data
-surfaces named exhaustively — this plugin READS more than most, and that is its job.
+surfaces named exhaustively, because this plugin READS more than most, and that is its job.
 
 - **Code execution (1).** No hooks, no scripts. Prompt artifacts only (skills, agent, references).
-  The `auditor` agent carries Bash and Write, **named honestly**: neither is read-only — Bash is
+  The `auditor` agent carries Bash and Write, **named honestly**: neither is read-only. Bash is
   justified for `claude plugin validate` and config-resolution probes plus safe fixture
   reproductions; Write is scoped by standing instruction to the evidence-packet directory only
   (the dumb-zone contract needs the agent to persist its own `audit-notes.md` so the main thread
-  can stay summary-only — surfaced by the dumb-zone smoke). Its standing instructions forbid mutation
+  can stay summary-only, surfaced by the dumb-zone smoke). Its standing instructions forbid mutation
   of the audited plugin, installs, writes outside the packet, and network beyond WebFetch.
   Untrusted-content posture (audited source is data, never instructions) is a standing
-  instruction in BOTH the hub skill and the agent, backed by a prompt-injection anti-pattern eval
-  — an advisory, model-honored defense, stated honestly as such.
+  instruction in BOTH the hub skill and the agent, backed by a prompt-injection anti-pattern eval.
+  That is an advisory, model-honored defense, stated honestly as such.
 - **MCP servers (2).** None.
 - **Consumer config (3).** No `userConfig`. Tracked cascade surface `.claude/plugin-quality.md`
-  (+ user-global `~/.claude/plugin-quality.md` and `.local` overlay — sanctioned operator-home
+  (+ user-global `~/.claude/plugin-quality.md` and `.local` overlay, a sanctioned operator-home
   read per criterion 4's carve-out), keys documented in the plugin's `reference/config.md`.
 - **Cache isolation (4).** Reads that leave the plugin's own directory, each justified: (a) the
-  audited plugin's installed source under the plugin cache and its marketplace registration —
-  that IS the audit subject; (b) `~/.claude/context-guard/context/<session_id>.json` +
-  `~/.claude/context-guard/zones.json` — the context-guard reader contract's documented
-  cross-plugin seam, consumed read-only per its inline-floor rule; (c) the documented config
-  layers above. Writes: the evidence packet (session-derived data — hook failures, transcript
-  path, tool errors, contract-lock notes) under `${CLAUDE_PLUGIN_DATA}/evidence/…` with a stated
-  30-day retention, and — only on the markdown sinks — the emitted item file at the
+  audited plugin's installed source under the plugin cache and its marketplace registration, which
+  IS the audit subject; (b) `~/.claude/context-guard/context/<session_id>.json` +
+  `~/.claude/context-guard/zones.json`, the context-guard reader contract's documented
+  cross-plugin interface, consumed read-only per its inline-floor rule; (c) the documented config
+  layers above. Writes: the evidence packet (session-derived data such as hook failures, transcript
+  path, tool errors, and contract-lock notes) under `${CLAUDE_PLUGIN_DATA}/evidence/…` with a stated
+  30-day retention, and, only on the markdown sinks, the emitted item file at the
   operator-chosen directory. No `../` reach-outs.
 - **Data egress (5).** Exactly one network egress: `gh issue create`, gated by an unconditional
   full-draft + target-repo + ACTING-account confirm (no auto-file mode exists; the acting-account
   line exists because one machine can hold multiple GitHub identity domains). WebFetch in the
-  auditor agent reaches official docs pages for claim grounding — read-only GETs. No telemetry.
+  auditor agent reaches official docs pages for claim grounding, all read-only GETs. No telemetry.
 - **Provenance & third-party trust (6).** First-party (Melodic Software authored), MIT, no
   third-party delegation. The producer/consumer split (audit session never implements fixes in
   the audited repo) bounds the blast radius of a hostile audited plugin to the findings text
   itself, which the draft+confirm gate puts in front of the user before it leaves the machine.
 - **Main-thread / PATH (7).** None; no `settings.json` `agent`, no `bin/`.
 
-**Verdict: ACCEPT** — surfaces 2/7 absent; 1 bounded to an honestly-named agent Bash grant under
-standing instructions; 3/4 conform with every cross-boundary read justified at its seam; 5 is a
+**Verdict: ACCEPT.** Surfaces 2/7 absent; 1 bounded to an honestly-named agent Bash grant under
+standing instructions; 3/4 conform with every cross-boundary read justified where it crosses; 5 is a
 single confirm-gated egress plus docs-only WebFetch; 6 first-party with the split as containment.
 
-### Review record — `x` (ACCEPT, 2026-07-24)
+### Review record: `x` (ACCEPT, 2026-07-24)
 
 Reviewed at `0.1.0`; a version bump adding a new trust surface re-triggers this review. This is a
-**third-party trust delegation** — the plugin's entire function is routing a URL through converters
-operated by others — so surfaces 5 and 6 carry the weight here.
+**third-party trust delegation**, since the plugin's entire function is routing a URL through converters
+operated by others, so surfaces 5 and 6 carry the weight here.
 
-- **Code execution (1). Present — remediated, and the remediation is instruction-level.** No hooks,
+- **Code execution (1). Present, remediated, and the remediation is instruction-level.** No hooks,
   no scripts, no `bin/`; no `eval`, no `curl … | sh`. But the skill does interpolate untrusted input
   into a shell command line: the X URL becomes part of a `curl` request body. A first review draft
   claimed this was not shell interpolation of untrusted input; that claim was **false** and is
-  retracted here. An adversarial pass demonstrated the breakout against a real `argv` dump — a URL
+  retracted here. An adversarial pass demonstrated the breakout against a real `argv` dump: a URL
   containing an apostrophe terminates the body's quoting and contributes new `argv` words,
   yielding a second unconstrained URL and an `-o` arbitrary-write flag in the receiving process.
   Because `disable-model-invocation` is `false` and the description carries a research trigger, the
@@ -1154,7 +1156,7 @@ operated by others — so surfaces 5 and 6 carry the weight here.
 
   Remediation: a mandatory gate ahead of step 1 anchors the input against post/article patterns,
   **refuses** on no match, and on match discards the input entirely and rebuilds the URL from
-  captures restricted to `[A-Za-z0-9_]` and `[0-9]` — classes that cannot express a quote, space, or
+  captures restricted to `[A-Za-z0-9_]` and `[0-9]`, classes that cannot express a quote, space, or
   metacharacter. Only handle and id are captured: scheme, host, and query string are all discarded
   and re-emitted canonically, so the accepted input set (`http`/`https`, either case, `x.com` or
   `twitter.com`, optionally `www.` or `mobile.`) is wider than the emitted set, which is always one
@@ -1166,12 +1168,12 @@ operated by others — so surfaces 5 and 6 carry the weight here.
   No kill-switch `userConfig` needed: nothing runs unless the skill is invoked, and scope-level
   `enabledPlugins` is the off switch.
 
-- **Tool pre-approval — no shell grant, and the prompt must stay legible.** An earlier draft
+- **Tool pre-approval: no shell grant, and the prompt must stay legible.** An earlier draft
   pre-approved `Bash(curl … https://xtomd.com/api/*)` and a PowerShell mirror. **Removed.** A prefix
   rule cannot express "and no further flags": the trailing wildcard admits every appended argument,
   so the grant would have suppressed the prompt on exactly the injected command above. The
   permissions documentation warns against argument-constraining Bash patterns for this reason. The
-  network call now prompts, showing the operator the exact command — the only runtime-enforced layer
+  network call now prompts, showing the operator the exact command, the only runtime-enforced layer
   available without shipping a hook.
 
   Review then found that this backstop is only as good as what the prompt *displays*, and that an
@@ -1179,7 +1181,7 @@ operated by others — so surfaces 5 and 6 carry the weight here.
   problem, the request had been moved into a curl config file; the prompt then showed
   `curl.exe -q -K <file>`, hiding the destination URL, the `data` reference, any `output` directive,
   and redirect behavior inside a model-authored file no operator approves. Should attacker-authored
-  content push the model off the gate, the operator would see nothing dangerous — the control failing
+  content push the model off the gate, the operator would see nothing dangerous, the control failing
   exactly when it is needed.
 
   Resolved by **declaring a narrower platform boundary rather than keeping an uninspectable path**:
@@ -1194,30 +1196,30 @@ operated by others — so surfaces 5 and 6 carry the weight here.
   shell grant as its trigger.
 - **MCP servers (2).** None. The user's stated growth path includes a future MCP surface; that would
   be a new trust surface and re-triggers this review at that version.
-- **Consumer config (3).** No `userConfig`. No credential exists to store — both providers are
+- **Consumer config (3).** No `userConfig`. No credential exists to store, since both providers are
   unauthenticated.
 - **Cache isolation (4). One bounded write per invocation.** A first draft claimed "no file reads or
-  writes at all"; that was **wrong** — the skill instructs redirecting the response to a file and
+  writes at all"; that was **wrong**, because the skill instructs redirecting the response to a file and
   reading the slice needed, which is a write plus a read carrying third-party content. Retracted and
   corrected: the redirect target is constrained to `${CLAUDE_PLUGIN_DATA}`, explicitly never an
   agent-chosen absolute path and never a path derived from fetched content. Review then found the
-  redirect had been written as conditional on the response being a long article — unevaluable, since
+  redirect had been written as conditional on the response being a long article, which is unevaluable, since
   an X Article is routinely shared as an ordinary `/status/` link, which would have left the concrete
   documented command streaming an unbounded body to stdout. The redirect is now unconditional, so
   the write happens on every invocation rather than on an unknowable subset, and the file is deleted
   on every exit path. A later round found the spool path was double-quoted, which does not contain
   it: bash expands `$name`, runs a backtick or `$(…)` substitution, and consumes a backslash inside
-  double quotes. Verified against a directory named ``lit$name-`whoami`.txt`` — the variable expanded
+  double quotes. Verified against a directory named ``lit$name-`whoami`.txt``: the variable expanded
   and the substitution executed. The path is now single-quoted at every shell site. Note the
   asymmetry with
   criterion 1: the *URL* is safe by construction because it is rebuilt from quote-free capture
   classes, but the *plugin-data path* comes from the environment, so it carries whatever the
   consumer's home directory contains and must be escaped rather than trusted. No `${CLAUDE_PLUGIN_ROOT}` references beyond the skill body, no
   consumer-repository reads, no `../` reach-outs.
-- **Data egress (5). Present and accepted — conditional on the criterion-1 gate.** Per invocation
+- **Data egress (5). Present and accepted, conditional on the criterion-1 gate.** Per invocation
   the machine emits one datum: the gate's *rebuilt* URL `https://x.com/<handle>/status/<id>`, to
   `xtomd.com` (step 1) and, only on a chain fragment, `threadreaderapp.com` (step 2). No
-  credentials — neither endpoint takes auth. No repository content, no conversation text, no
+  credentials, since neither endpoint takes auth. No repository content, no conversation text, no
   telemetry.
 
   A first draft asserted this unconditionally; that was **false as built**, because the pre-gate
@@ -1225,11 +1227,11 @@ operated by others — so surfaces 5 and 6 carry the weight here.
   attacker-chosen host. The claim is sound only downstream of the gate, and is recorded that way.
 
   Two residuals stated rather than glossed: rebuilding drops the query string, so `?s=`/`?t=` share
-  tracking tokens are **not** transmitted — but the URL itself still identifies both the post and
+  tracking tokens are **not** transmitted. But the URL itself still identifies both the post and
   the reader's interest in it, and neither vendor publishes a retention policy, so assume every
   submitted URL is logged indefinitely. `--proto '=https'`, `--max-time`, and `--max-filesize` bound
   the transport; no `-L`, so no redirect-driven egress. The byte cap is best-effort rather than
-  absolute — before curl 8.4.0 `--max-filesize` does not stop an unknown-length response, so a
+  absolute: before curl 8.4.0 `--max-filesize` does not stop an unknown-length response, so a
   chunked reply can exceed it and `--max-time` is the bound that always holds. When either bound does
   fire it aborts rather than truncating cleanly, and review found the skill would have read the
   wreckage: verified against curl 8.19.0, an over-cap transfer prints `200` on stdout while exiting
@@ -1247,39 +1249,39 @@ operated by others — so surfaces 5 and 6 carry the weight here.
   A P1 in the same round corrected an over-application of the escaping above: the shell quoting had
   been extended to the `Read` tool, whose argument is a literal filesystem path that no shell parses.
   Quotes there become part of the filename, so every successful fetch would have failed to open its
-  own spool. Escaped at the shell sites, raw at `Read` — one path, two renderings.
+  own spool. Escaped at the shell sites, raw at `Read`: one path, two renderings.
 
   Those bounds are only enforceable because `-q` leads the invocation. Review surfaced that curl
   reads a default `.curlrc` "even when `--config` is used", skipping it only when `--disable` "is
   used as the first parameter on the command line" (curl's own manual, verified against the local
   binary). A consumer's ambient `.curlrc` setting `location` would otherwise re-enable redirect
-  following and silently defeat the no-redirect egress claim — an environment-supplied bypass of a
+  following and silently defeat the no-redirect egress claim, an environment-supplied bypass of a
   control this record asserts. The finding predates the removal of the Windows config-file path and
   applied there too.
 - **Provenance & third-party trust (6). Present and accepted.** Two vendors, neither first-party:
-  - `xtomd.com` — publishes a `POST /api/markdown` endpoint under a documented public contract
+  - `xtomd.com` publishes a `POST /api/markdown` endpoint under a documented public contract
     (`/llms.txt`, `/llms-full.txt`, and an OpenAPI 3.1.0 document at `/.well-known/openapi.json`),
     unauthenticated and free. **The operating entity is not identified** on the site, and no terms,
-    jurisdiction, or retention policy is published — material for a trust delegation, and recorded
+    jurisdiction, or retention policy is published, which is material for a trust delegation, and recorded
     as an unknown rather than passed over. Its docs instruct installing an `@xtomd/mcp-server` npm
     package that **does not exist** (registry `404`). That is not merely a documentation-quality
     caveat: the name is unregistered and claimable by anyone, so the vendor's own docs steer users
     into a standing dependency-confusion hazard. The plugin does not wire, install, or reference it,
     and the skill body instructs against hunting for it.
-  - `threadreaderapp.com` — a long-running public thread-unroll service, fetched read-only over
+  - `threadreaderapp.com` is a long-running public thread-unroll service, fetched read-only over
     `WebFetch` with no key. Operator likewise not identified on the fetched surfaces; retention
     unstated.
 
   Both return **attacker-authored content**: X post bodies written by arbitrary third parties. This
   is the prompt-injection vector criterion 2 names, arriving through a different door. Containment
-  lives in the skill body — returned bytes are data to report, never instructions, and fetched text
-  may never introduce a URL, host, or file path — with dedicated eval coverage including a URL
+  lives in the skill body: returned bytes are data to report, never instructions, and fetched text
+  may never introduce a URL, host, or file path, with dedicated eval coverage including a URL
   harvested from page content. Consistent with the `github`, `dometrain`, and `plugin-quality`
   records, this is **an advisory, model-honored defense, not a runtime-enforced one**; an earlier
   draft called it "mandatory" without that qualifier and is corrected here.
 
   Two residual risks stated rather than assumed away: a converter could return content that differs
-  from the source post, and the plugin cannot detect that — consumers get attribution and the gate's
+  from the source post, and the plugin cannot detect that. Consumers get attribution and the gate's
   **rebuilt** URL, never the converter-echoed one, so a claim can be checked against the original
   without trusting a value the converter chose. And step 2's escalation is a decision
   made on the shape of step-1 output, which is third-party text; it is constrained to reusing the
@@ -1294,31 +1296,31 @@ PowerShell and independently reproduced before remediation. Each retraction is r
 rather than silently rewritten, because a review record whose failures are edited out of history
 teaches nothing to the next reviewer.
 
-**Verdict: ACCEPT at the remediated state** — surfaces 2/7 absent; 3 empty. Criterion 1 carries a
+**Verdict: ACCEPT at the remediated state.** Surfaces 2/7 absent; 3 empty. Criterion 1 carries a
 real shell-interpolation surface, remediated by a validate-and-rebuild gate whose model-honored
 nature is stated rather than glossed, and backed by the deliberate absence of any Bash/PowerShell
 pre-approval so the call prompts. Criterion 4 is one write bounded to `${CLAUDE_PLUGIN_DATA}`.
 Criteria 5 and 6 are the substance: egress is a single rebuilt, query-stripped, already-public URL
 with no credential, and the trust delegation buys a capability with no unauthenticated first-party
-alternative. Both vendors are unidentified operators with unstated retention — recorded as a known
-unknown, not waved through — and the untrusted-content risk is contained by advisory instruction
+alternative. Both vendors are unidentified operators with unstated retention, recorded as a known
+unknown rather than waved through, and the untrusted-content risk is contained by advisory instruction
 that is labeled advisory.
 
 **Recheck trigger:** a named trigger on an in-repo decision
-([upstream-drift](conventions/upstream-drift/README.md)) — re-introducing a Bash or PowerShell
+([upstream-drift](conventions/upstream-drift/README.md)). Re-introducing a Bash or PowerShell
 pre-approval, shipping the deferred validating `PreToolUse` hook, or adding an MCP surface each
 re-opens this review.
 
-### Review record — `wizard` (ACCEPT, 2026-08-09)
+### Review record: `wizard` (ACCEPT, 2026-08-09)
 
 Reviewed at `0.1.0`; a version bump adding a new trust surface re-triggers this review. Ported
 from mattpocock/skills v1.2.3 (`main@84fdeff`, MIT), hardened; provenance SSOT
 `docs/upstream/mattpocock-skills.md`. The weight here is a surface no prior record carries: the
 plugin's **product is a model-generated executable**. The statusline-shim delta review (above)
 accepted an executable write precisely because it was "a byte-identical copy of a reviewed,
-tested, bundled script — no generation, no templating". This plugin deliberately breaks that
+tested, bundled script, with no generation, no templating". This plugin deliberately breaks that
 precedent: the skill's whole capability is authoring per-procedure stages onto a bundled
-library. That is accepted here as an explicit, recorded exception with the mitigations below —
+library. That is accepted here as an explicit, recorded exception with the mitigations below,
 not a quiet widening of the shim rationale.
 
 - **Code execution (1). The generated-executable surface, accepted with layered conditions.**
@@ -1326,7 +1328,7 @@ not a quiet widening of the shim rationale.
   bash template. The trust argument for generation, layered:
   - **The agent authors; it never executes.** The skill forbids running the wizard end-to-end
     (verification is `bash -n`/`shellcheck` plus a fresh-context static trace); the human runs
-    the script in their own terminal. The template enforces the same doctrine mechanically —
+    the script in their own terminal. The template enforces the same doctrine mechanically:
     it aborts without a controlling TTY (`exec 3</dev/tty`, fail-closed), so neither an agent
     nor piped/pasted input can drive its gates.
   - **A human reads before anything is runnable.** The skill's verify step is stop-the-line:
@@ -1360,11 +1362,11 @@ not a quiet widening of the shim rationale.
   optional, degrading to warn + summary when absent.
 - **Main-thread / PATH (7).** None; no `settings.json` `agent`, no plugin `bin/`.
 
-**Verdict: ACCEPT** — surfaces 2/3/7 absent; 1 is the recorded model-generated-executable
+**Verdict: ACCEPT.** Surfaces 2/3/7 absent; 1 is the recorded model-generated-executable
 exception, bounded to the below-the-marker region and gated by the mandatory human
 read-and-approve before `chmod +x`, with the library's fail-closed hardening as defense in
 depth; 4 conforms; 5 is operator-driven with names-only output; 6 first-party over an MIT
-upstream. **Conditions shipped, load-bearing for this ACCEPT:** the human STAGES approval gate,
+upstream. **Conditions shipped, and this ACCEPT depends on all of them:** the human STAGES approval gate,
 the agent-never-executes instruction, the TTY-only fail-closed library, https-only `open_url`,
 and the hardened `.env`/gh write path. Removing or weakening any of them re-opens this review,
 as does any move to have the agent execute a generated wizard.
@@ -1378,20 +1380,20 @@ precedence for that session**, so you exercise working-tree edits against the in
 uninstalling it (verified 2026-06-24).
 
 ```shell
-# from this repo root — point at the plugin directory, not the marketplace root
+# from this repo root: point at the plugin directory, not the marketplace root
 claude --plugin-dir ./plugins/<name>
 ```
 
-- **Edit, then `/reload-plugins`** to pick up changes without restarting — it reloads skills, agents,
+- **Edit, then `/reload-plugins`** to pick up changes without restarting. It reloads skills, agents,
   hooks, and plugin MCP/LSP servers, reading the files on disk, so no commit or reinstall is needed.
-- **Multiple plugins at once** — repeat the flag: `claude --plugin-dir ./plugins/<a> --plugin-dir ./plugins/<b>`.
+- **Multiple plugins at once.** Repeat the flag: `claude --plugin-dir ./plugins/<a> --plugin-dir ./plugins/<b>`.
   `--plugin-dir` also accepts a `.zip` archive (Claude Code v2.1.128+). See
   [Create plugins](https://code.claude.com/docs/en/plugins) "Test your plugins locally".
 - **Session-scoped and non-destructive.** The override lasts only for that session and never edits a
   consumer's `extraKnownMarketplaces`; the published registration stays on its GitHub remote. The lone
   exception: `--plugin-dir` cannot override a plugin that *managed* settings force-enable or
   force-disable.
-- **Trust.** A locally loaded plugin carries the same trust considerations as any source — only load
+- **Trust.** A locally loaded plugin carries the same trust considerations as any source, so only load
   directories you control.
 - **Then ship.** Run `claude plugin validate` before opening a PR; after merge, consumers pull the
   change with `/plugin marketplace update melodic-software`, gated by the `version` bump in `plugin.json`.
@@ -1401,131 +1403,131 @@ claude --plugin-dir ./plugins/<name>
 Reintegration (below) covers a repo that already ran an in-repo copy and now switches to the plugin. A
 **brand-new** repo adopting the marketplace for the first time follows this checklist:
 
-1. **Register the marketplace — checked in for clones.** Interactive: the trust dialog on first
+1. **Register the marketplace, checked in for clones.** Interactive: the trust dialog on first
    `/plugin` use registers the marketplace and installs enabled plugins. For project-wide adoption,
    declare the marketplace in the project's checked-in `.claude/settings.json` `extraKnownMarketplaces`
    (headless: `claude plugin marketplace add <repo> --scope project`). A bare `claude plugin marketplace
    add <repo>` writes to *user* settings, so a fresh clone or CI agent on another machine would carry the
-   enabled plugin but have no registered marketplace to resolve it from — mirror the Reintegration
+   enabled plugin but have no registered marketplace to resolve it from. Mirror the Reintegration
    cutover, which pairs both fields in the project settings.
-2. **Enable at project scope** so every clone inherits it — declare `enabledPlugins` in the same
+2. **Enable at project scope** so every clone inherits it: declare `enabledPlugins` in the same
    checked-in `.claude/settings.json` (choose user scope instead for machine-wide, not per-repo).
 3. **Install and seed config.** Pass every option on the install command: `claude plugin
    install <plugin>@<marketplace> --scope project --config KEY=VALUE …` (repeatable, schema-validated).
    Non-sensitive options land in the **user** `settings.json` `pluginConfigs` regardless of the enable
-   scope — documented behavior, not an observation: seam 1 above records that non-sensitive values
+   scope. That is documented behavior, not an observation: seam 1 above records that non-sensitive values
    **store** in user settings, and that a sensitive value routes to secure credential storage
    instead.
    Re-running that command later against an already-installed plugin prints `already installed`
    **and still writes the value** (smoke-test C), so a headless reconfiguration is another `--config`
-   install rather than an uninstall/reinstall — verified for a **non-sensitive option at `user`
+   install rather than an uninstall/reinstall. That was verified for a **non-sensitive option at `user`
    scope** on Claude Code 2.1.240 and **not** at the `--scope project` this step uses, so read the
-   stored value back rather than assuming the write landed — for a non-sensitive option, read it
+   stored value back rather than assuming the write landed. For a non-sensitive option, read it
    from the **user** `settings.json` `pluginConfigs` per the storage rule above, not from the project
    settings this command names; a `sensitive` value is absent from settings entirely (smoke-test A)
    and cannot be verified this way. Interactively, `/plugin configure` owns personal
    `userConfig`; an explicit setup skill owns any separate tracked project configuration declared by
    the plugin.
-4. **Headless prompting caveat.** Install never prompts non-interactively — a required `userConfig`
+4. **Headless prompting caveat.** Install never prompts non-interactively, and a required `userConfig`
    option left unset does **not** block the install; it stays advisory until set (smoke-test C). Seed
    every required option on the install command so the plugin does not run unconfigured.
 
-## Reintegration — a consumer adopts the published plugin
+## Reintegration: a consumer adopts the published plugin
 
 The forward migration (above) ends at *publish*. The lifecycle closes when the source repo stops running
-its in-repo copy and instead **consumes the published plugin** — one source of truth, and the repo
+its in-repo copy and instead **consumes the published plugin**: one source of truth, and the repo
 dogfoods the marketplace. Reintegration is a *consumer-side* change: adapt through the documented
 extension points, never by teaching the plugin a consumer's specifics.
 
-**The plugin is generic; the consumer's own seams restore its specifics.** Map each behavior the
+**The plugin is generic; the consumer's own extension points restore its specifics.** Map each behavior the
 in-repo hook had that the generalized plugin dropped to one of these, in order:
 
 - **Kill switch / toggles** → the plugin's own `userConfig` toggles (`/plugin configure`
-  interactively, `claude plugin install --config` headless) — user-scoped, replacing the in-repo
+  interactively, `claude plugin install --config` headless), which are user-scoped, replacing the in-repo
   `HOOK_<OLD>_ENABLED` env var. Per-repo control is the plugin's `enabledPlugins` entry; a genuinely
   project-scoped per-hook need is a plugin gap (below), not an env var.
 - **Project conventions** → for a hook plugin, the consumer's own tool config files that the hook already
-  reads (`biome.json`, `.shellcheckrc`, `.editorconfig`, …) — that is where these plugins pick up project
+  reads (`biome.json`, `.shellcheckrc`, `.editorconfig`, …). That is where these plugins pick up project
   conventions, **not** `CLAUDE.md`. (`CLAUDE.md` / `.claude/rules` reach only a plugin's *skill/agent*
   components, which run in Claude's model context; hook scripts see only env vars and file-based config.)
-- **Telemetry / observability** → the consumer's own **telemetry sink**. This is the key seam: the
+- **Telemetry / observability** → the consumer's own **telemetry sink**. This is the key extension point: the
   plugin emits the generic telemetry envelope contract to `HOOK_TELEMETRY_SINK`, and the consumer's sink
   script translates that envelope into the consumer's local observability shape. A consumer whose prior
   hook emitted a different status or hook-identity (e.g. `status=error` on a surfaced violation, or a
   legacy hook name) restores that contract **in its own sink**, by remapping the plugin's native envelope
-  (`status=ok` + populated `findings`) — not by changing the plugin. Before remapping, verify how the
+  (`status=ok` + populated `findings`), not by changing the plugin. Before remapping, verify how the
   consumer's observability actually keys events (e.g. on `status` vs a derived `exit_code`/findings count),
   so the remap preserves the real contract rather than a guessed one.
 
-If a genuine specific has **no** seam, that is a real plugin gap → add a declared extension
-(`userConfig`, or a tracked consumer-project config key) — but only when it carries
+If a genuine specific has **no** extension point, that is a real plugin gap → add a declared extension
+(`userConfig`, or a tracked consumer-project config key), but only when it carries
 real behavior, not cosmetic prose a consumer's `CLAUDE.md` already establishes. Resist adding config
 surface to a published plugin for a single consumer's low-value nicety.
 
 **Cutover checklist:**
 
 1. Register the marketplace in the consumer's `extraKnownMarketplaces` and enable the plugin in
-   `enabledPlugins` (project `settings.json`, so clones inherit it on trust — the interactive trust prompt
+   `enabledPlugins` (project `settings.json`, so clones inherit it on trust, and the interactive trust prompt
    both registers and installs the enabled plugin for **local** collaborators). **Headless CI** and other
    non-interactive runs with **remote/git-sourced** catalogs have no such prompt, and registering a
    marketplace does not install its plugins, so do both explicitly at project scope: `claude plugin
    marketplace add <repo> --scope project` then `claude plugin install <plugin>@<marketplace> --scope
    project --config KEY=VALUE …`, seeding every
-   non-default `userConfig` toggle on that install command — re-running it later against an
+   non-default `userConfig` toggle on that install command. Re-running it later against an
    already-installed plugin prints `already installed` **and still writes the value** (smoke-test C),
    so a headless reconfiguration is another `--config` install, not an uninstall/reinstall. That was
    verified for a **non-sensitive option at `user` scope** on Claude Code 2.1.240 and is **untested at
    the `project` scope this step uses**, so read the stored value back before reporting a
-   project-scope reconfiguration as applied — for a non-sensitive option, from the **user**
+   project-scope reconfiguration as applied. For a non-sensitive option, read it from the **user**
    `settings.json` `pluginConfigs`, where such options land regardless of enable scope (seam 1 above
    records that they **store** there), not from the project settings this command names; a
    `sensitive` value is absent from settings entirely (smoke-test A) and cannot be verified this way.
    **Exception:** a `directory`/`file` relative-path entry in checked-in project settings resolves
-   against the repo checkout (cloud sessions included) — see
+   against the repo checkout (cloud sessions included). See
    [`docs/CLOUD-SESSIONS.md`](CLOUD-SESSIONS.md). Otherwise the marketplace is known but the plugin is absent, and step 3's
    verify edit would run with no plugin hook.
 2. Interactively, `/plugin configure` adjusts `userConfig` toggles at any time; keep the
    `HOOK_TELEMETRY_SINK` wiring and the sink script (the bridge), adapting the sink for any
    observability-contract divergence.
-3. **Verify before retiring** the old hook (blue-green — keep it recoverable, but never run both on the
+3. **Verify before retiring** the old hook (blue-green: keep it recoverable, but never run both on the
    same edit). Matching `PostToolUse` hooks run concurrently, so leaving both registered would race two
-   formatters on the just-edited file (last-writer-wins clobbering, plus doubled telemetry and context) —
-   idempotence only makes *serial* re-runs converge, not concurrent writes safe. So **exactly one is
+   formatters on the just-edited file (last-writer-wins clobbering, plus doubled telemetry and context).
+   Idempotence only makes *serial* re-runs converge, not concurrent writes safe. So **exactly one is
    active at a time**: disable the in-repo hook by setting its kill-switch env var to `"false"` (or, if it
-   has none, removing its registration entry — `settings.json` is JSON, so toggling the value or removing
+   has none, removing its registration entry: `settings.json` is JSON, so toggling the value or removing
    the entry is the edit, never a `//` comment). With the old hook off and the plugin enabled, edit a
    governed file and confirm: the plugin formats/lints and surfaces findings, the telemetry sink receives
    the expected envelope (so a broken remap is caught now, not when observability is next needed), and the
-   consumer's hard gate (commit hooks, CI) is untouched — those are independent of the edit-time hook. If
+   consumer's hard gate (commit hooks, CI) is untouched, since those are independent of the edit-time hook. If
    verification fails, **disable the plugin first, then re-enable the old hook** (always flip one off as you
-   turn the other on) and debug before retrying — so the two never run together and there is never a
+   turn the other on) and debug before retrying, so the two never run together and there is never a
    no-hook gap.
 4. Only once verified, remove the in-repo hook's `settings.json` registration and delete the hook script
    **and its test**.
 
 **Bootstrap-direction caveat.** While a repo is still the harvest *source* (its hooks are mid-migration
-out), reintegrating one plugin makes it consume one plugin while still running the rest in-repo — a mixed
+out), reintegrating one plugin makes it consume one plugin while still running the rest in-repo, a mixed
 state. Flip a repo from source to consumer deliberately, not incidentally, and ideally once the repo's
 ported plugins can move together.
 
-**Cross-surface caveat — a repo-built `stdio` MCP server declared on more than the Claude Code surface.**
+**Cross-surface caveat: a repo-built `stdio` MCP server declared on more than the Claude Code surface.**
 The checklist above assumes a hook plugin, whose only consumer is Claude Code. A marketplace plugin is
 Claude-Code-only, so **a marketplace-plugin cutover replaces the Claude Code surface only.** A repo-built
-`stdio` MCP server, however, is often declared on additional surfaces — Cursor (`.cursor/mcp.json`), Codex
-(`.codex/config.toml`), Claude Desktop (a `tools/desktop-mcp` installer) — none of which can consume a
+`stdio` MCP server, however, is often declared on additional surfaces: Cursor (`.cursor/mcp.json`), Codex
+(`.codex/config.toml`), and Claude Desktop (a `tools/desktop-mcp` installer), none of which can consume a
 Claude Code marketplace plugin. When such a server also has **no npx/registry publish** (the playbook's
 `stdio` (repo-built), "No CLI" class), those other surfaces have no path to the plugin at all, so deleting
 the in-repo build strands the server on every non-CC surface. Compounding this, the MCP-parity CI gates
-enforce **exact equality** across `.mcp.json` / `.cursor/mcp.json` / `.codex/config.toml` — removing the
+enforce **exact equality** across `.mcp.json` / `.cursor/mcp.json` / `.codex/config.toml`, so removing the
 server from only the CC surface breaks parity. So **resolve cross-surface consumption before deleting the
 in-repo server**, picking one:
 
-- **Clean-delete** — confirm (with the owner) the other surfaces do not need the server, then remove its
+- **Clean-delete.** Confirm (with the owner) the other surfaces do not need the server, then remove its
   entry from **all** surfaces at once. Parity stays trivially satisfied and no new machinery is needed.
-- **Parity exemption** — keep the in-repo server for Cursor/Codex/Desktop while only the CC surface adopts
+- **Parity exemption.** Keep the in-repo server for Cursor/Codex/Desktop while only the CC surface adopts
   the plugin; this requires an exemption in the parity gates (an `.mcp.json`-only removal otherwise fails
   them) plus a follow-up track for a genuine cross-surface distribution.
-- **Defer** — hold the cutover until the server has a cross-surface distribution path (e.g. repoint the
+- **Defer.** Hold the cutover until the server has a cross-surface distribution path (e.g. repoint the
   other surfaces at the plugin's on-disk bundle, or a shared build), then re-scope.
 
 ## What to wait on / avoid for now
@@ -1533,8 +1535,8 @@ in-repo server**, picking one:
 - Don't pre-build cross-plugin `dependencies` graphs until two plugins genuinely share a need.
 - Don't abstract a shared library before a second consumer exists (Rule of Three); at the threshold,
   [ADR 0019](adr/0019-share-code-across-plugins-by-vendoring-with-a-sync-gate.md) is the settled
-  shape — extend it rather than re-deciding.
-- Don't rely on any mechanism not confirmed from current docs this session — if a customization need has
+  shape, so extend it rather than re-deciding.
+- Don't rely on any mechanism not confirmed from current docs this session. If a customization need has
   no proven native path yet, record it here as a gap and keep the workaround in the consumer's repo until
   the native mechanism is verified.
 
@@ -1554,5 +1556,5 @@ playbook:
   consuming repo and integration flow (2026-07-13).
 - [ADR 0023](adr/0023-scope-skill-quality-to-the-generic-static-checker.md), `skill-quality`
   retrofit scope (2026-07-13).
-- [ADR 0024](adr/0024-decline-forgery-prone-human-ratification-gates.md), convention-seam
+- [ADR 0024](adr/0024-decline-forgery-prone-human-ratification-gates.md), convention
   ratification and the shared-identity limitation (2026-07-23).

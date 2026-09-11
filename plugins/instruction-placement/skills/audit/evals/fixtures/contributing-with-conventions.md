@@ -15,7 +15,7 @@ rewrite. That history explains some of the naming you will see in older modules.
 
 ## Python conventions
 
-Type-annotate every public function. Modules under `analytics/` must not import from `web/` — the
+Type-annotate every public function. Modules under `analytics/` must not import from `web/`. The
 dependency runs one way only. Prefer `pathlib` over `os.path` in new code.
 
 ## How we review
@@ -27,7 +27,7 @@ say what would satisfy them, not only what is wrong.
 
 Every migration under `db/migrations/` must be reversible and must be tested against a copy of
 production-shaped data before merge. Never edit a migration that has already been applied in any
-environment — add a new one.
+environment. Add a new one.
 
 ## Release process
 

@@ -3,6 +3,17 @@
 All notable changes to the `dometrain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.12]
+
+### Changed
+
+- **Options reference drops its em dashes.** The generated How-to-set-these block is rewritten by `scripts/sync-plugin-options-docs.py`, which is the fix site: its output is regenerated, never hand-edited. The block no longer needs the ignore marker that exempted it from the repository's em-dash gate, so that marker is gone as well.
+
+- **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
+- **The plugin's prose drops its em dashes.** Five surfaces were rewritten: this changelog, all three SKILL bodies, and `skills/sync/context/update.md`. Wording only, with no change to any drift mode, exit code, or preservation rule. Every trigger phrase is byte-identical across the three skills (nine in total, confirmed by `check-skill.sh`). The released sections corrected in place are 0.2.3, 0.2.2, 0.2.0, 0.1.3, 0.1.2, and 0.1.1: their wording changed, their facts did not.
+- **A cited Dometrain lesson and course keep their published titles.** The citation example in `skills/grounding/SKILL.md` rewrote only the separator and the prose around it, because the title is the publisher's and a citation that alters it stops matching the thing it cites. The vendored copy under `skills/sync/vendor/` is upstream text and was not touched, so the sync drift check still compares cleanly.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md`, every `skills/*/SKILL.md`, and `skills/sync/context/`. The vendored tree stays excluded as third-party reference material.
+
 ## [0.2.11]
 
 ### Changed
@@ -88,7 +99,7 @@ All notable changes to the `dometrain` plugin are documented here. Format follow
   canonical fleet wording, keeping the operable text inline with a provenance-only citation
   (whole-repo extract-ssot batch, #2698).
 - Normalized fleet-wide framing this plugin restates (cross-vendor advisor
-  fallback, untrusted-content posture, attribution/idiom prose — as touched) to the canonical
+  fallback, untrusted-content posture, and attribution/idiom prose, as touched) to the canonical
   SSOT wording, operable text kept inline with provenance-only citations (#2698).
 
 ## [0.2.2]
@@ -98,18 +109,18 @@ All notable changes to the `dometrain` plugin are documented here. Format follow
 - **`setup` skill:** the destructive `claude plugin uninstall` + reinstall recipe for a headless
   key rotation is removed. It rested on an unversioned claim that `claude plugin install
   --config` is ignored once a plugin is installed, and following it dropped this plugin's whole
-  stored `pluginConfigs` entry. That claim now appears only as the thing it is — unstamped and
+  stored `pluginConfigs` entry. That claim now appears only as the thing it is: unstamped and
   contradicted for a non-sensitive option at `user` scope on Claude Code 2.1.240, where a plain
   `claude plugin install … --config` against an already-installed plugin printed `already
   installed` and still wrote the value
   ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)).
   `dometrain_api_key` is `sensitive: true`, which that observation does **not** cover, so
-  `/plugin configure dometrain@<marketplace>` remains the prescribed rotation path — it also
+  `/plugin configure dometrain@<marketplace>` remains the prescribed rotation path. It also
   masks input, where a key on the command line lands in shell history and the process table.
 - **Docs:** the generated options block no longer presents a post-install `--config` as a
   supported way to rotate this plugin's credential. The 2.1.240 observation behind that claim
   covered a NON-sensitive option, and every option here is `sensitive`, so the block now routes
-  rotation to `/plugin configure` — which also masks input — and says plainly that the
+  rotation to `/plugin configure`, which also masks input, and says plainly that the
   post-install behavior is unverified for a sensitive value
   ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). Two upstream
   links that pointed at empty backward-compatibility anchors on the settings page were
@@ -130,7 +141,7 @@ All notable changes to the `dometrain` plugin are documented here. Format follow
 
 - **The bare `/<skill>` alias for this plugin's skills.** Their `SKILL.md` files no longer
   declare a frontmatter `name`. The field is optional and defaults to the directory name, so
-  declaring it only restated the path while registering a second, unnamespaced command — which
+  declaring it only restated the path while registering a second, unnamespaced command that
   the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
   namespaced command; the command itself is unchanged.
 
@@ -145,7 +156,7 @@ All notable changes to the `dometrain` plugin are documented here. Format follow
   from (`docs/MIGRATION-PLAYBOOK.md` "Fresh-consumer onboarding"). The prose now also names the flag
   asymmetry: `marketplace add` accepts `--scope` only, while `install` and `enable` also take `-s`.
 - Setup skill no longer claims all three rotation commands "default to `user`". `enable`
-  auto-detects the scope, which the same file already said forty lines above — the page
+  auto-detects the scope, which the same file already said forty lines above. The page
   contradicted itself. Corrected to name each command's real default.
 - Setup skill's headless rotation drops the no-op `-y` from `claude plugin uninstall` and the false
   rationale attached to it. `-y` skips only `uninstall`'s `--prune` confirmation; the recipe never
@@ -159,7 +170,7 @@ All notable changes to the `dometrain` plugin are documented here. Format follow
 
 - Setup skill's unreportable-connection bullet now matches the MCP page it cites. Amazon Bedrock,
   Google Cloud's Agent Platform, and Microsoft Foundry form their own group alongside configurations
-  without tool search rather than members of it — upstream's "and on" clause makes them additional,
+  without tool search rather than members of it. Upstream's "and on" clause makes them additional,
   and tool search is on by default for Claude 4.5-generation models on Agent Platform. Microsoft
   Foundry was missing entirely, and the platform names now match upstream's. The bullet also no
   longer instructs a check the skill cannot run: it may not inspect the environment, so it reports
@@ -172,7 +183,7 @@ All notable changes to the `dometrain` plugin are documented here. Format follow
 
 - Setup skill documents the headless bootstrap: `marketplace add`, then `claude plugin install
   --config dometrain_api_key=<your-key>`, then `claude plugin enable`. The enable step is spelled
-  out because the plugin ships `defaultEnabled: false` and therefore installs disabled — a
+  out because the plugin ships `defaultEnabled: false` and therefore installs disabled. A
   bootstrap that stops after `install` looks successful and delivers no tools. Also covered: the
   `--config` fresh-install-only caveat and the headless rotation path (uninstall then reinstall
   carrying the SAME `-s <scope>`, read from `claude plugin list`, run from the project directory

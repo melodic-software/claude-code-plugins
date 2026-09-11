@@ -2,13 +2,13 @@
 
 **Released March 26, 2026** (verified 2026-07-18 against <https://suno.com/blog/v5-5>; still the current model). v5.5 is a personalization-focused upgrade over v5 (Sep 2025). Core prompt syntax unchanged from v5; what changed is **adherence quality** plus three new identity layers.
 
-**Post-baseline addition, 2026-08-12.** The 2026-07-18 verification stamp above predates the **Duration slider**, which Suno's release notes announced on Jul 20 2026 for Web on the V5.5 model — two days after that pass. It is not a March-launch layer and is deliberately **absent from the version-delta table below**, which tracks model capabilities rather than Create-form controls; a row there would misdate it to March. Documented in [advanced.md](advanced.md#duration-slider-create-form).
+**Post-baseline addition, 2026-08-12.** The 2026-07-18 verification stamp above predates the **Duration slider**, which Suno's release notes announced on Jul 20 2026 for Web on the V5.5 model, two days after that pass. It is not a March-launch layer and is deliberately **absent from the version-delta table below**, which tracks model capabilities rather than Create-form controls; a row there would misdate it to March. Documented in [advanced.md](advanced.md#duration-slider-create-form).
 
 ## Three new layers
 
 ### 1. Voices (clone your singing identity)
 
-**Pro / Premier. Free plans got a *trial* on Aug 7 2026 — with an unresolved platform caveat (see below).** Clone your own vocals so generated songs sound like YOU singing.
+**Pro / Premier. Free plans got a *trial* on Aug 7 2026, with an unresolved platform caveat (see below).** Clone your own vocals so generated songs sound like YOU singing.
 
 | Detail | Spec |
 |--------|------|
@@ -17,7 +17,7 @@
 | Auto-selection | System picks the best 2-minute window |
 | Preferred input | Acapella recordings (no music underneath) |
 | Stem extraction | Applied automatically if file contains music |
-| Verification | Speak a random phrase — proves voice ownership |
+| Verification | Speak a random phrase, which proves voice ownership |
 | Privacy | Private by default, account-locked, non-shareable |
 | Activation | Select voice from dropdown in Custom mode + raise Audio Influence |
 
@@ -25,7 +25,7 @@ Clip length, 2-minute auto-selection, verification, and privacy rows verified 20
 
 **Tier corrected 2026-08-08.** The March 2026 Pro/Premier gate (per <https://suno.com/blog/v5-5>) has been superseded. <https://suno.com/release-notes>, Aug 7 2026: "We brought Voices to both iOS and Android. Record your voice once and use it on any song. Now available to try on free plans."
 
-**Unresolved platform caveat — do not assume free Voices on web.** That release-note entry is tagged *Improvement, iOS, Android, Create* with **no `Web` tag**, while every other web-touching entry in the same window carries one. <https://suno.com/pricing> shows no Voices bullet under Free, and both Voices help articles are silent on plan gating. Free-plan Voices may therefore be mobile-only. Unresolved as of 2026-08-08 — verify in-app before relying on it.
+**Unresolved platform caveat: do not assume free Voices on web.** That release-note entry is tagged *Improvement, iOS, Android, Create* with **no `Web` tag**, while every other web-touching entry in the same window carries one. <https://suno.com/pricing> shows no Voices bullet under Free, and both Voices help articles are silent on plan gating. Free-plan Voices may therefore be mobile-only. Unresolved as of 2026-08-08. Verify in-app before relying on it.
 
 **Critical prompting rule when a Voice is active:**
 
@@ -46,13 +46,13 @@ Clip length, 2-minute auto-selection, verification, and privacy rows verified 20
 | Result | Fine-tuned v5.5 reflecting YOUR production patterns, instrumentation, harmonic preferences |
 | Privacy | Private, non-shareable |
 
-Partially verified 2026-07-18: max-3-models and Pro/Premier rows confirmed against <https://help.suno.com/en/articles/11362305>; min-tracks and training-time figures are not in official docs — treat as unverified.
+Partially verified 2026-07-18: max-3-models and Pro/Premier rows confirmed against <https://help.suno.com/en/articles/11362305>; min-tracks and training-time figures are not in official docs. Treat them as unverified.
 
 **Key behavior:** style tags now operate **relative to your baseline**, not generic averages. If your catalog is heavy on lo-fi tape saturation, "polished mix" might still come out warmer than generic Suno polished mix.
 
-**Best practice:** **train separate models for separate sounds.** Don't mix genres in one training set — model averages across them and loses the per-style signal.
+**Best practice:** **train separate models for separate sounds.** Don't mix genres in one training set. The model averages across them and loses the per-style signal.
 
-**Break-in period (community-validated empirical):** first 5-10 generations from a freshly-trained Custom Model feel generic. Quality "activates" after 5-10 exposures as Suno calibrates the model's response. **Don't judge model quality on first 3 generations** — burn through 10 before evaluating.
+**Break-in period (community-validated empirical):** first 5-10 generations from a freshly-trained Custom Model feel generic. Quality "activates" after 5-10 exposures as Suno calibrates the model's response. **Don't judge model quality on the first 3 generations.** Burn through 10 before evaluating.
 
 ### 3. My Taste (passive preference learning)
 
@@ -60,12 +60,12 @@ Partially verified 2026-07-18: max-3-models and Pro/Premier rows confirmed again
 
 - No explicit action needed beyond normal voting
 - Powers the **Magic Wand** style suggestions
-- Effect builds over time — early sessions feel generic; after 50-100 votes the bias is noticeable
+- Effect builds over time. Early sessions feel generic; after 50-100 votes the bias is noticeable
 - **Override:** explicit detailed prompts override My Taste preferences. If you want a specific output, prompt explicitly; My Taste is the silent default-shifter
 
-**Creative flattening debate (MEDIUM confidence):** community blind tests show disabled-MyTaste batches produce more instrumentation/tonal variety than enabled-MyTaste batches. Effect is bounded — verbose detailed prompting neutralizes it. Casual users with terse prompts get flattened toward voting history. For diversity: prompt verbosely OR temporarily disable My Taste in settings (if exposed in your tier).
+**Creative flattening debate (MEDIUM confidence):** community blind tests show disabled-MyTaste batches produce more instrumentation/tonal variety than enabled-MyTaste batches. Effect is bounded: verbose detailed prompting neutralizes it. Casual users with terse prompts get flattened toward voting history. For diversity: prompt verbosely OR temporarily disable My Taste in settings (if exposed in your tier).
 
-## v5.5 vs v5 vs v4 — deltas at a glance
+## v5.5 vs v5 vs v4 deltas at a glance
 
 | Feature | v4 | v5 (Sep 2025) | v5.5 (Mar 2026) |
 |---------|----|----|------|
@@ -73,23 +73,23 @@ Partially verified 2026-07-18: max-3-models and Pro/Premier rows confirmed again
 | Lyrics limit | 3,000 chars | 5,000 chars (quality sweet spot ~3,000) | 5,000 chars (quality sweet spot ~3,000) |
 | Numeric BPM accuracy | ~70% | ~85% | ~90% |
 | Adherence to nuanced descriptors | low | medium | high |
-| Voices | — | — | ✓ |
-| Custom Models | — | — | ✓ |
-| My Taste | — | — | ✓ |
+| Voices | no | no | ✓ |
+| Custom Models | no | no | ✓ |
+| My Taste | no | no | ✓ |
 | Tag syntax | basic | full | full |
 | Multilingual | limited | ~50 langs | ~50 langs |
 
-Char-limit rows verified 2026-07-18 against third-party testers ([hookgenius character limits](https://hookgenius.app/learn/suno-character-limits/), [aimusicapi cheat sheet, 2026-07-03](https://aimusicapi.ai/en/blog/suno-ai-prompt-character-limits)) — no official Suno page states field limits. Other rows unverified community figures.
+Char-limit rows verified 2026-07-18 against third-party testers ([hookgenius character limits](https://hookgenius.app/learn/suno-character-limits/), [aimusicapi cheat sheet, 2026-07-03](https://aimusicapi.ai/en/blog/suno-ai-prompt-character-limits)). No official Suno page states field limits. Other rows unverified community figures.
 
 **This skill targets v5.5 only.** Legacy v4 prompting (200-char era, fewer tags) is out of scope.
 
 ## Multilingual
 
 - ~50 languages supported with varying quality
-- **Best**: English, Spanish, Portuguese, French, Japanese, Korean, Mandarin — these seven are the sourceable set. German, Italian, Russian and Arabic are also commonly listed here but are **unsourced**: no source was found placing them in the top tier, and none was found placing them outside it either. Retained, unverified.
-- **Auto-detected** from lyrics text — no explicit language specification needed
+- **Best**: English, Spanish, Portuguese, French, Japanese, Korean, Mandarin. These seven are the sourceable set. German, Italian, Russian and Arabic are also commonly listed here but are **unsourced**: no source was found placing them in the top tier, and none was found placing them outside it either. Retained, unverified.
+- **Auto-detected** from lyrics text. No explicit language specification needed
 - Optional reinforcement: name the language in style prompt (`Spanish flamenco`, `Mandarin pop ballad`)
-- Language tags (`[Spanish]`, `[Spanglish]`) work as **soft hints** but aren't reliable controllers — write in target language for actual control
+- Language tags (`[Spanish]`, `[Spanglish]`) work as **soft hints** but aren't reliable controllers. Write in the target language for actual control
 - Section tags (`[Verse]`, `[Chorus]`) are language-agnostic
 - Pronunciation, rhyme, and cultural phrasing are strongest in major languages; folk styles in low-resource languages may falter
 
@@ -103,17 +103,17 @@ Char-limit rows verified 2026-07-18 against third-party testers ([hookgenius cha
 | Cover | ✓ | ✓ | ✓ |
 | Extend | ✓ | ✓ | ✓ |
 | Audio upload | up to 8 min | up to 30 min | up to 30 min |
-| Stem separation — Split from Mix (2 stems) | — | ✓ | ✓ |
-| Stem separation — Auto Split (up to 12 stems) | — | ✓ | ✓ |
-| Stem separation — Advanced Split (~100 instruments) | — | — | ✓ |
+| Stem separation: Split from Mix (2 stems) | no | ✓ | ✓ |
+| Stem separation: Auto Split (up to 12 stems) | no | ✓ | ✓ |
+| Stem separation: Advanced Split (~100 instruments) | no | no | ✓ |
 | Voices | trial only (see caveat above) | ✓ | ✓ |
-| Custom Models (up to 3) | — | ✓ | ✓ |
-| Replace Section | — | ✓ | ✓ |
-| Suno Studio | — | — | ✓ |
+| Custom Models (up to 3) | no | ✓ | ✓ |
+| Replace Section | no | ✓ | ✓ |
+| Suno Studio | no | no | ✓ |
 
-(Verify against current Suno pricing page — tier feature lists drift.)
+(Verify against the current Suno pricing page. Tier feature lists drift.)
 
-- Studio row verified 2026-07-18: **Premier-exclusive** per <https://suno.com/pricing> — Pro has no Studio access.
+- Studio row verified 2026-07-18: **Premier-exclusive** per <https://suno.com/pricing>. Pro has no Studio access.
 - Audio-upload row verified 2026-07-18 against <https://suno.com/pricing>: Free up to 8 minutes, Pro/Premier up to 30 minutes.
 - **Stem rows verified 2026-08-08** against <https://suno.com/pricing>. Free reads "No stem separation". Pro carries "2 stem separation types (Auto; Split from mix)"; Premier carries "3 stem separation types (… and Advanced split)". Auto Split / Split from Mix / Advanced Split are three **modes**, not track counts; Auto Split yields up to 12 stems.
 - Free-tier generation runs on **v4.5-all**, not v5.5 (third-party report: TechRadar).

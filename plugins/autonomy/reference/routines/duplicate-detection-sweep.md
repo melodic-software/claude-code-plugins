@@ -1,7 +1,7 @@
 # Duplicate-detection sweep
 
 Normative leaf of the [routine catalog](../routines.md): the `duplicate-detection-sweep` v1
-class definition — a standing sweep that surfaces candidate-duplicate tracker items and links
+class definition, a standing sweep that surfaces candidate-duplicate tracker items and links
 them.
 
 ## Purpose
@@ -15,9 +15,9 @@ a memory-dependent hunt.
 ## Trigger and cadence
 
 Trigger-taxonomy slot: **schedule**. The routine enters work as a `temporal`-class signal
-through the [trigger-dispatch contract](../trigger-dispatch.md)'s temporal adapter — a
+through the [trigger-dispatch contract](../trigger-dispatch.md)'s temporal adapter, a
 scheduled trigger behind the governed queue, never a private execution or merge path.
-Suggested cadence default: **daily** — an org-bindable value set in the org's routine
+Suggested cadence default: **daily**, an org-bindable value set in the org's routine
 binding, never contract-fixed. No vendor scheduling surface is named here; guided setup
 researches scheduling surfaces live.
 
@@ -25,24 +25,24 @@ researches scheduling surfaces live.
 
 Repo-scoped, including CI and the tracker: the sweep reads the tracker's open items and
 writes only through the governed queue and tracker. No production, product, org, or
-external-web access — the connector-prerequisite branch of the mapping rules never applies.
+external-web access, so the connector-prerequisite branch of the mapping rules never applies.
 
 ## Output contract
 
-- **Work-item links** — candidate-duplicate links between tracker items, with the sweep's
+- **Work-item links.** Candidate-duplicate links between tracker items, with the sweep's
   confidence noted; closing or merging a duplicate stays a human disposition.
-- **Advisory report** — one run report: link candidates, clusters, and anything too
+- **Advisory report.** One run report: link candidates, clusters, and anything too
   ambiguous to link.
-- **No direct change** — nothing lands in the repository, and no item is closed by the
+- **No direct change.** Nothing lands in the repository, and no item is closed by the
   sweep.
 
 ## Derived guardrail row
 
 The row is derived through the catalog-to-matrix mapping rules in the
-[routine catalog](../routines.md) — never hand-assigned:
+[routine catalog](../routines.md), never hand-assigned:
 
 1. **Judgment axis.** Judging whether two differently-worded items describe the same thing
-   is semantic similarity no rule engine resolves — agent-judgment (`AGT`), which is what
+   is semantic similarity no rule engine resolves. That is agent-judgment (`AGT`), which is what
    makes the class a routine at all (deterministic work needs no agent session).
 2. **Output axis.** Work-item links plus a report are governed-queue and tracker writes with
    no repository mutation: the `AGT` + report rule and the `AGT` + work-item rule both
@@ -54,7 +54,7 @@ The row is derived through the catalog-to-matrix mapping rules in the
    access class the provenance axis (`C5`) keys on. Composition to the highest matched class
    leaves `C1`.
 4. **Access axis → prerequisite.** Repo scope sets the `L2` unattended floor as the dispatch
-   prerequisite — and `C1`'s matrix row keeps that floor because the exfiltration surface
+   prerequisite, and `C1`'s matrix row keeps that floor because the exfiltration surface
    remains even for read-only work.
 
 Derived row: `C1` in the [guardrail matrix](../guardrails.md).
@@ -72,16 +72,16 @@ Single-posture identity: `duplicate-detection-sweep` (bare class token).
 | Axis | Value |
 |---|---|
 | Access class | `repo` |
-| Isolation floor | `L2` — cited from the [matrix](../guardrails.md#the-matrix) `C1` row and the [unattended floor](../guardrails/isolation-ladder.md#unattended-floor) |
-| Connector entitlements | none — `repo` access; the connector branch of [Access to prerequisites](../routines.md#access-to-prerequisites) does not apply |
+| Isolation floor | `L2`, cited from the [matrix](../guardrails.md#the-matrix) `C1` row and the [unattended floor](../guardrails/isolation-ladder.md#unattended-floor) |
+| Connector entitlements | none. Access is `repo`, so the connector branch of [Access to prerequisites](../routines.md#access-to-prerequisites) does not apply |
 | Connector entitlement rung | n/a (no connector). For `prod` / `product` / `org` / `ext`, entitlement binds at the [Org binding layer](../binding-seam.md#resolution-ladder) |
-| `executor_class` merge cap | cited from [executor surface classes](../trigger-dispatch.md#executor-surface-classes) — security-binding `executor_class`; `vendor-hosted` caps every class at human-gated merge; never repo-derivable. Merge policy for this identity is n/a (`C1`) |
+| `executor_class` merge cap | cited from [executor surface classes](../trigger-dispatch.md#executor-surface-classes). Security-binding `executor_class`; `vendor-hosted` caps every class at human-gated merge; never repo-derivable. Merge policy for this identity is n/a (`C1`) |
 | Repo needs | tracker binding via the work-item tracker seam (`.work-item-tracker.json` + adapter `capabilities.json`); a deterministic repo-file probe that finds those files absent is `unsupported`; `unknown` only when the work-item seam cannot establish the fact (composition fallback) |
 
 ## Admission and escalation
 
 Admission disposition, caps, and fail-closed behavior are imported by citation from the
-[admission policy](../guardrails/admission-policy.md) — the shipped-defaults row for the
+[admission policy](../guardrails/admission-policy.md). The shipped-defaults row for the
 derived class governs, and nothing here restates it. Escalation events and routing are the
 derived row's escalation column in the [guardrail matrix](../guardrails.md), org-bound per
 its routing obligation.

@@ -1,6 +1,6 @@
 # The xUnit Example (Beck, Part II)
 
-Beck's second worked example: building a testing framework test-first, in Python. More complex than the Money example — involves reflection, exceptions, and self-referential bootstrapping ("like performing brain surgery on yourself").
+Beck's second worked example: building a testing framework test-first, in Python. More complex than the Money example, involving reflection, exceptions, and self-referential bootstrapping ("like performing brain surgery on yourself").
 
 ## The Problem
 
@@ -23,9 +23,9 @@ The framework Beck builds has four classes:
 
 Bill Wake's pattern for test structure:
 
-- **Arrange** — Create objects (often shared via setUp)
-- **Act** — Stimulate them
-- **Assert** — Check results
+- **Arrange**: create objects (often shared via setUp)
+- **Act**: stimulate them
+- **Assert**: check results
 
 "The first step, arrange, is often the same from test to test, whereas the second and third steps, act and assert, are unique."
 
@@ -36,7 +36,11 @@ Two constraints in tension:
 - **Performance**: reuse objects across tests
 - **Isolation**: each test gets fresh objects
 
-"Test coupling — don't go there." Beck opts for isolation: create objects fresh every time via `setUp()`. Test coupling can cause order-dependent failures, or worse, hide real bugs because a previous test set up the right state.
+<!-- ai-slop-ignore-start: verbatim Beck quotation, dash is inside the quoted sentence -->
+> "Test coupling — don't go there."
+<!-- ai-slop-ignore-end -->
+
+Beck opts for isolation: create objects fresh every time via `setUp()`. Test coupling can cause order-dependent failures, or worse, hide real bugs because a previous test set up the right state.
 
 ### The Log Pattern (Ch 20)
 
@@ -86,12 +90,14 @@ Test failures are caught via try/except around the test method. When an exceptio
 
 Even if your language has one already:
 
-- **Mastery** — "The spirit of xUnit is simplicity. Rolling your own will give you a tool over which you have a feeling of mastery."
-- **Exploration** — "When I'm faced with a new programming language, I implement xUnit. By the time I have the first eight to ten tests running, I have explored many of the facilities I will be using in daily programming."
+- **Mastery**: "The spirit of xUnit is simplicity. Rolling your own will give you a tool over which you have a feeling of mastery."
+- **Exploration**: "When I'm faced with a new programming language, I implement xUnit. By the time I have the first eight to ten tests running, I have explored many of the facilities I will be using in daily programming."
 
 ### Failures vs. Errors
 
+<!-- ai-slop-ignore-start: verbatim Beck quotation, dashes are inside the quoted sentence -->
 "Assertion failures consistently take much longer to debug. Because of this, most implementations of xUnit distinguish between failures — meaning assertion failures — and errors."
+<!-- ai-slop-ignore-end -->
 
 ## Final To-Do Items Left as Exercises
 

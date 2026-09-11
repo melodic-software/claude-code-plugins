@@ -1,9 +1,9 @@
-# Pair co-occurrence — does skill B get invoked where skill A ran?
+# Pair co-occurrence: does skill B get invoked where skill A ran?
 
 Reference for `scripts/skill-pair-cooccurrence.sh`. A different question from visibility,
 answered from the same `skill-usage.jsonl` store: not *can* the model see a skill, but does
 one skill's run actually coincide with another's. The case it was written for is "skill X's
-instructions tell the model to invoke skill Y — does that happen?"
+instructions tell the model to invoke skill Y, does that happen?"
 
 ```bash
 scripts/skill-pair-cooccurrence.sh --pair implementation:implement,tdd:principles
@@ -54,11 +54,11 @@ under one scope and read under another is the other common reason for that messa
 unresolvable destination (a traversal `--dir`, `data-dir` with no data root) exits `2` with the
 scope named and is never reported as "nothing observed".
 
-## It is a proxy — do not strip the caveat
+## It is a proxy: do not strip the caveat
 
 The `SkillUse` record carries **no caller attribution**. A PostToolUse hook on the Skill tool
 receives `tool_name`, `tool_input`, and `tool_response`; nothing in that payload names the skill
-whose instructions caused the call. So the script cannot observe "Y was invoked *by* X" — only
+whose instructions caused the call. So the script cannot observe "Y was invoked *by* X", only
 that both fired in the same `(project_id, branch)` group, ordered by timestamp. A Y the user
 typed by hand counts identically to one X produced.
 
@@ -71,7 +71,7 @@ the same defect as a human not seeing it.
 
 ## It inherits the refusal
 
-Below the 30-day exposure floor — the same constant `audit_skill_visibility.py` uses — or below
+Below the 30-day exposure floor, the same constant `audit_skill_visibility.py` uses, or below
 the minimum denominator, the script returns `WITHHELD` with a reason instead of a small number.
 
 **The empty denominator is the trap it exists to refuse.** If the caller never ran, "0% of its

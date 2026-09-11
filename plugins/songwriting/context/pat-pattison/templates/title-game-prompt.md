@@ -1,15 +1,15 @@
 # Title Game Prompt Template
 
-Use for the Pat Pattison Title Game — a chained title-generation exercise
+Use for the Pat Pattison Title Game, a chained title-generation exercise
 where each new title is generated from the prior title's stressed vowel
 plus a structural / emotional shift.
 
 Use solo as a warmup or generation drill, or co-write as session opener
 (per Songwriter Trysts ep. 40 protocol).
 
-## Mode 1 — Solo cascade
+## Mode 1: Solo cascade
 
-### Step 1 — Set constraints (writer-facing)
+### Step 1: Set constraints (writer-facing)
 
 ```
 Declare before we start:
@@ -41,15 +41,15 @@ Looser = more variety but harder to mine.
 Pick.
 ```
 
-### Step 2 — Seed (writer-facing)
+### Step 2: Seed (writer-facing)
 
 ```
-Seed title — any title, doesn't have to be good. First one that arrives.
+Seed title: any title, doesn't have to be good. First one that arrives.
 
 Or I can seed if you say "you pick" + a feeling / setting / theme.
 ```
 
-### Step 3 — Run the cascade (model-side, surface chain to writer)
+### Step 3: Run the cascade (model-side, surface chain to writer)
 
 Generate titles one at a time, each derived from the prior:
 
@@ -72,7 +72,7 @@ Title 12: <new title>
 No editing during the chain. Don't pre-judge any title. Push for 10-15
 links.
 
-### Step 4 — Mine the chain (writer-facing)
+### Step 4: Mine the chain (writer-facing)
 
 ```
 Which 2-3 titles pulled hardest? Underline them.
@@ -83,13 +83,13 @@ ones the chain surfaced by phonetic adjacency.
 Pick one to develop further → routes to `idea-to-title.md`.
 ```
 
-## Mode 2 — Co-write cascade
+## Mode 2: Co-write cascade
 
-### Step 1 — Each writer brings 5-10 candidate titles
+### Step 1: Each writer brings 5-10 candidate titles
 
 To the session, before opening. No discussion of which is best.
 
-### Step 2 — Open with No-Free Zone (read aloud)
+### Step 2: Open with No-Free Zone (read aloud)
 
 Per `co-writing.md`:
 
@@ -98,17 +98,17 @@ Per `co-writing.md`:
 - Stay inside the song / cascade
 - No technical talk during the cascade
 
-### Step 3 — Cascade by trade-off
+### Step 3: Cascade by trade-off
 
 Writer A reads a title from their list. Writer B generates a new title
 from A's title's stressed vowel + a shift. Writer B's new title goes to A.
 A generates from B's new title. Repeat.
 
-Strict turn-taking — partner generates EVERY OTHER title, not every third.
+Strict turn-taking: partner generates EVERY OTHER title, not every third.
 
 5-10 minutes without judging.
 
-### Step 4 — Mine together
+### Step 4: Mine together
 
 Both writers underline the 3-5 titles that pulled hardest. Discuss which
 one the room agrees on (by either word or by shared silence-attention).
@@ -118,7 +118,7 @@ That title begins the song. Capture the rest in
 
 ## Constraint examples (vowel chains)
 
-(Describing the cascade shape only — no specific song titles reproduced.)
+(Describing the cascade shape only; no specific song titles reproduced.)
 
 **Same-vowel cascade (long-A territory):**
 Seed → next stays in long-A → next stays in long-A → next stays...
@@ -160,17 +160,17 @@ vowels in spelling.
 
 - Pat's framing: titles cluster in stressed-vowel families. The strongest
   title is usually surfaced by the cascade, not brought into it.
-- Defuse "my title is precious" — after 10 chained titles, no single
-  title feels load-bearing.
+- Defuse "my title is precious": after 10 chained titles, no single
+  title feels indispensable.
 - The cascade is a warmup. Don't expect the song to come out of one
   cascade. Mining + development happen next.
 
 ## Cross-references
 
-- `title-game.md` — full context
-- `co-writing.md` — No-Free Zone protocol
-- `hook.md` — seven title types
-- `rhyme-sonic-bonding.md` — vowel triangle
-- `phrasing.md` — front-/back-heavy
-- `idea-to-title.md` — next-phase development of chosen title
-- `brainstorm.md` — Path D (solo cascade) references this
+- `title-game.md`: full context
+- `co-writing.md`: No-Free Zone protocol
+- `hook.md`: seven title types
+- `rhyme-sonic-bonding.md`: vowel triangle
+- `phrasing.md`: front-/back-heavy
+- `idea-to-title.md`: next-phase development of chosen title
+- `brainstorm.md`: Path D (solo cascade) references this

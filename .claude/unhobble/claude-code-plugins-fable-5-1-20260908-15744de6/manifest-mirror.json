@@ -21,7 +21,10 @@
     "branch_note": "Session-designated branch used as the experiment branch; the suggested experiment/unhobble-fable-5-1 name was not created because this session may push only to its designated branch.",
     "ephemeral_container": true,
     "ephemeral_note": "The snapshot ran in an ephemeral cloud container. The canonical manifest does not survive container reclaim; this mirror is the durable copy and must be restored to the plugin data path (or the experiment re-snapshotted) before readd runs from a durable checkout.",
-    "state_dir": "<CLAUDE_PLUGIN_DATA>/unhobble/claude-code-plugins-fable-5-1-20260908-15744de6"
+    "state_dir": "<CLAUDE_PLUGIN_DATA>/unhobble/claude-code-plugins-fable-5-1-20260908-15744de6",
+    "base_merges": [
+      "2026-09-11: origin/main merged into the experiment branch (7 commits past c41c6422); checked with git log over CLAUDE.md, AGENTS.md, .claude/rules, .claude/settings.json and every nested AGENTS.md: no instruction surface changed, so the bare state is unaffected. Brought in the re-enabled rule-em-dash in .claude/ai-slop.json (PR #3988)."
+    ]
   },
   "target_model": {
     "id": "claude-fable-5-1",

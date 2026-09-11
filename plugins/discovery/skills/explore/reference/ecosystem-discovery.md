@@ -1,4 +1,4 @@
-# Ecosystem discovery — explore
+# Ecosystem discovery for explore
 
 Per-ecosystem discovery primitives consumed by the explore skill's Dimensions 3–6
 (project structure / test discovery / configuration & build state / environment).
@@ -6,8 +6,8 @@ Per-ecosystem discovery primitives consumed by the explore skill's Dimensions 3�
 ## Prefer the toolchain seam
 
 When the `toolchain` plugin is installed, compose `/toolchain:check`'s ecosystem
-detection and command-resolution seam for the shared signal vocabulary it owns —
-do not bake a second inventory of those signals. `/toolchain:check` is the
+detection and command-resolution seam for the shared signal vocabulary it owns.
+Do not bake a second inventory of those signals. `/toolchain:check` is the
 reference skill other plugins compose for that concern instead of baking their
 own tables. Gate and fallback follow `docs/conventions/seam-phrasing/README.md`.
 
@@ -20,8 +20,8 @@ ecosystem present but `enabled: false` is not configured for exploration either.
 |---|---|
 | Which ecosystems are in play | Resolved `globs` (and covered-ecosystem set), **plus** any fallback-table ecosystem the resolved seam does not cover, when its fallback `build-configs` markers are present in the repo |
 | Project / workspace roots (Dimension 3 adjacency) | Resolved `project-discovery` / `anchor` |
-| Build / package / config files to read (Dimension 5) | Explore-owned `build-configs` from the fallback table — seam `globs` / `project-discovery` / `anchor` classify changed files and locate roots; they are not an exhaustive configuration inventory |
-| Runtime / toolchain presence (Dimension 6) | Explore-owned `runtime-version-cmd` from the fallback table — resolved `install-hint` is free-form install prose, not a version probe |
+| Build / package / config files to read (Dimension 5) | Explore-owned `build-configs` from the fallback table. Seam `globs` / `project-discovery` / `anchor` classify changed files and locate roots; they are not an exhaustive configuration inventory |
+| Runtime / toolchain presence (Dimension 6) | Explore-owned `runtime-version-cmd` from the fallback table. Resolved `install-hint` is free-form install prose, not a version probe |
 
 **Explore-only keys the seam does not own.** `dependency-grep`, `test-globs`,
 `test-content-grep`, `build-configs`, and `runtime-version-cmd` have no home in
@@ -33,7 +33,7 @@ project-root adjacency.
 Where the consuming project's own conventions differ (a custom test layout, a
 nonstandard workspace file), the project's conventions win.
 
-## Fallback — toolchain absent
+## Fallback when toolchain is absent
 
 When the `toolchain` plugin is not installed, use the table below for every
 sub-key. This is the documented standalone fallback, not a peer source of truth
@@ -41,18 +41,18 @@ alongside the seam.
 
 Use only the ecosystems the consuming repo actually contains. Where the consuming
 project's own conventions differ (a custom test layout, a nonstandard workspace
-file), the project's conventions win — this table is the generic starting point.
+file), the project's conventions win. This table is the generic starting point.
 
 Sub-keys:
 
-- `test-globs` — glob patterns identifying test projects / files (Dimension 4)
-- `test-content-grep` — content regex for ecosystems that keep tests inside
+- `test-globs`: glob patterns identifying test projects / files (Dimension 4)
+- `test-content-grep`: content regex for ecosystems that keep tests inside
   source files, where no glob can find them (Dimension 4; only where needed)
-- `build-configs` — build / package / config files to read when exploring
+- `build-configs`: build / package / config files to read when exploring
   "Configuration and build state" (Dimension 5)
-- `dependency-grep` — content regex grepped across source / project files to map
+- `dependency-grep`: content regex grepped across source / project files to map
   the dependency graph (Dimension 3)
-- `runtime-version-cmd` — command to check the installed runtime version (Dimension 6)
+- `runtime-version-cmd`: command to check the installed runtime version (Dimension 6)
 
 ```yaml
 ecosystems:

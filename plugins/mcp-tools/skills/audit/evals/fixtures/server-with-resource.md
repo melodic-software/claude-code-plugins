@@ -1,7 +1,7 @@
 # Fixture: MCP server with one tool and one resource
 
 TypeScript MCP server excerpt (`@modelcontextprotocol/sdk`). One tool registration and
-one resource registration — the resource is present to test scope boundaries, since the
+one resource registration. The resource is present to test scope boundaries, since the
 audit evaluates tools only.
 
 ```ts

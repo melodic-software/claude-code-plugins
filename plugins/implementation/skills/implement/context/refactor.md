@@ -13,11 +13,11 @@ These go in separate commits. Squash merge collapses them on main, but separate 
 
 ## Sequence
 
-1. **Verify current tests pass** — run the test suite before touching anything. If tests are already failing, fix them first (separate commit) or flag to the user
-2. **Plan structural moves** — identify what's moving where. For renames and file moves, consider blast radius (what references this? what imports change?)
-3. **One structural change per commit** — extract a method. Commit. Rename a class. Commit. Move a file. Commit. Each commit should leave tests green
-4. **Run tests after each change** — refactoring should never break tests. If a test breaks, your "refactor" changed behavior — investigate
-5. **Update references** — after moves/renames, verify all callers compile. The ecosystem's build catches most; grep for string-based references (config, reflection) the compiler misses
+1. **Verify current tests pass**: run the test suite before touching anything. If tests are already failing, fix them first (separate commit) or flag to the user
+2. **Plan structural moves**: identify what's moving where. For renames and file moves, consider blast radius (what references this? what imports change?)
+3. **One structural change per commit**: extract a method. Commit. Rename a class. Commit. Move a file. Commit. Each commit should leave tests green
+4. **Run tests after each change**: refactoring should never break tests. If a test breaks, your "refactor" changed behavior. Investigate
+5. **Update references**: after moves/renames, verify all callers compile. The ecosystem's build catches most; grep for string-based references (config, reflection) the compiler misses
 
 ## Checkpoints
 
@@ -27,6 +27,6 @@ These go in separate commits. Squash merge collapses them on main, but separate 
 
 ## Common pitfalls
 
-- **Mixing structural and behavioral changes** — "while I'm refactoring this class, I'll also add that feature" makes the PR unreviewable and the refactor unrevertable
-- **Refactoring without tests** — if code lacks test coverage, add characterization tests first (separate commit), then refactor. Otherwise you have no safety net
-- **Big-bang refactors** — moving 20 files in one commit. If something breaks, you can't tell which move caused it. Incremental commits are free on feature branches
+- **Mixing structural and behavioral changes**: "while I'm refactoring this class, I'll also add that feature" makes the PR unreviewable and the refactor unrevertable
+- **Refactoring without tests**: if code lacks test coverage, add characterization tests first (separate commit), then refactor. Otherwise you have no safety net
+- **Big-bang refactors**: moving 20 files in one commit. If something breaks, you can't tell which move caused it. Incremental commits are free on feature branches

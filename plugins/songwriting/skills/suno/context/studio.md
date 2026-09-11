@@ -1,6 +1,6 @@
-# Suno Studio (1.2) — full guide
+# Suno Studio (1.2): full guide
 
-Suno Studio is a **Generative Audio Workstation (GAW)** — multitrack DAW in the browser, with AI generation built into the timeline. **Premier tier** — verified 2026-07-18 against <https://suno.com/pricing> (Pro has no Studio access; tiers drift, re-check before relying).
+Suno Studio is a **Generative Audio Workstation (GAW)**, a multitrack DAW in the browser, with AI generation built into the timeline. **Premier tier**, verified 2026-07-18 against <https://suno.com/pricing> (Pro has no Studio access; tiers drift, re-check before relying).
 
 Where to go AFTER initial generation when you want to: rearrange sections, comp across multiple takes, isolate/replace instruments, fix timing, strip reverb, export stems, or build a song from scratch using AI-generated parts on individual tracks.
 
@@ -8,10 +8,10 @@ Where to go AFTER initial generation when you want to: rearrange sections, comp 
 
 ### Track + clip operations
 
-- **Add tracks** — `Add a new track` button. Each track holds clips on the timeline.
-- **Drag / move clips** — standard DAW timeline gestures.
-- **Right-click context menu** on a clip — includes `Remove FX` (de-reverb / de-delay → "dry version"), `Download .WAV`, more.
-- **Transport** — `Play/Pause` (spacebar). Bottom info panel shows tempo, time signature, position.
+- **Add tracks**: `Add a new track` button. Each track holds clips on the timeline.
+- **Drag / move clips**: standard DAW timeline gestures.
+- **Right-click context menu** on a clip includes `Remove FX` (de-reverb / de-delay → "dry version"), `Download .WAV`, more.
+- **Transport**: `Play/Pause` (spacebar). Bottom info panel shows tempo, time signature, position.
 
 ### Generation on a track (Take Lanes / Alternates)
 
@@ -22,7 +22,7 @@ The killer feature. Generate AI parts directly into a track:
 3. **`Take Lanes` / `Alternates`** show all generated versions in lanes under the main track
 4. Audition each alternate
 5. **`Copy to Main Track`** finalizes the take
-6. Comp across alternates — splice the best parts of each into the main track
+6. Comp across alternates: splice the best parts of each into the main track
 
 ### Warp Markers (timing correction)
 
@@ -54,11 +54,11 @@ Right-click clip → `Remove FX`. Strips reverb / delay processing from the audi
 
 ## MIDI
 
-`Get MIDI` button — extracts a MIDI representation from a stem.
+The `Get MIDI` button extracts a MIDI representation from a stem.
 
 - **Cost: 10 credits** per MIDI extraction (verify current pricing)
 - Useful for: chord analysis, exporting a melody to a notation app, feeding the part into a sampler / soft synth in your external DAW
-- Quality varies by stem — clean monophonic leads convert best; dense polyphonic mixes are noisy
+- Quality varies by stem: clean monophonic leads convert best; dense polyphonic mixes are noisy
 
 ## Stem isolation / export
 
@@ -72,7 +72,7 @@ Studio's export menu has **3 scopes**:
 
 **Stem export formats:** MP3, WAV, Tempo-Locked WAV, MIDI, WAV+MIDI bundle.
 
-**Tempo-Locked WAV** is the key one for DAW workflows — embeds tempo + grid info so the stem snaps cleanly when imported into Logic / Ableton / Pro Tools.
+**Tempo-Locked WAV** is the key one for DAW workflows. It embeds tempo + grid info so the stem snaps cleanly when imported into Logic / Ableton / Pro Tools.
 
 ### Stem separation modes (v5.5)
 
@@ -86,7 +86,7 @@ separation", and these three are **modes**, not track counts.
 | Advanced Split | ~100 instruments | Premier only |
 
 Free has no stem separation at all. Auto Split is what you want for serious
-external mixing — replace any single instrument, automate per-stem, master each
+external mixing: replace any single instrument, automate per-stem, master each
 lane independently.
 
 ## Demo / file upload into Studio
@@ -106,17 +106,17 @@ Upload limits (verified 2026-07-18 against <https://suno.com/pricing>):
 
 ## What Studio does NOT do (current 1.2)
 
-- **Third-party plugins / VSTs** — not documented in any current help article. Treat as unsupported. Do plugin work in your external DAW after stem export.
-- **Time signature in generation** — picker affects grid + metronome only; generative model still works in 4/4 internally.
-- **Real-time MIDI input from external controller** — generation is button-driven, not played-in.
-- **Direct collaboration** — single-user project at a time (verify if Premier ever ships multi-user).
+- **Third-party plugins / VSTs**: not documented in any current help article. Treat as unsupported. Do plugin work in your external DAW after stem export.
+- **Time signature in generation**: picker affects grid + metronome only; generative model still works in 4/4 internally.
+- **Real-time MIDI input from external controller**: generation is button-driven, not played-in.
+- **Direct collaboration**: single-user project at a time (verify if Premier ever ships multi-user).
 
 ## Workflow patterns
 
 **Comp a vocal across alternates:**
 
 1. Generate vocal part on a track → 4 alternates land in Take Lanes
-2. Use Edit Mode to splice — verse 1 from alternate 2, chorus from alternate 4, bridge from alternate 1
+2. Use Edit Mode to splice: verse 1 from alternate 2, chorus from alternate 4, bridge from alternate 1
 3. `Copy to Main Track` to finalize the comp
 4. Run `Remove FX` if the alternates have inconsistent reverb
 5. Export `Multitrack` for external polish

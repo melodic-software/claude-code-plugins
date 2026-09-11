@@ -140,7 +140,7 @@
       "id": 12,
       "name": "squash-merge-makes-the-ancestry-tier-near-inert",
       "prompt": "A fleet squash-merges every pull request. Local ancestry of the default branch held for only 27 of 506 branches, and git rev-list --count <tip> --not --remotes reads non-zero for most of them. Explain what the LOW local-ancestry-only tier is worth here.",
-      "expected_output": "The answer explains that a squash rewrites the branch commits, so the original tip is not an ancestor and the LOW ancestry predicate is near-inert on this fleet, leaving GitHub merged-PR evidence as the load-bearing signal. A non-zero unpushed-commit count and a NONE-UPSTREAM git cherry result are explained as expected consequences of squashing, not as evidence a branch is unmerged.",
+      "expected_output": "The answer explains that a squash rewrites the branch commits, so the original tip is not an ancestor and the LOW ancestry predicate is near-inert on this fleet, leaving GitHub merged-PR evidence as the signal the classification rests on. A non-zero unpushed-commit count and a NONE-UPSTREAM git cherry result are explained as expected consequences of squashing, not as evidence a branch is unmerged.",
       "files": [],
       "expectations": [
         "Attributes the low ancestry hit rate to squash merging rather than to a collector defect",

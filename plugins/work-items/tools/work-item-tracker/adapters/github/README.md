@@ -1,4 +1,4 @@
-# GitHub adapter — operations reference
+# GitHub adapter operations reference
 
 ## Contents
 
@@ -18,10 +18,10 @@
 
 Concrete `gh` mechanics for the `/work-items` skill's **non-coordination** operations against
 the GitHub provider. Coordination (create / claim / lease / link / frontier) runs through the
-seam verbs (`work-item-tracker.sh <verb>`, see `../../CONTRACT.md`); the operations below —
-listing with arbitrary filters, search, aggregation, close, label/comment edits — have no core
-verb by design (they carry provider-specific search/filter syntax the seam contract keeps out of
-core), so the skill core describes them neutrally and resolves the mechanics here.
+seam verbs (`work-item-tracker.sh <verb>`, see `../../CONTRACT.md`); the operations below have
+no core verb by design: listing with arbitrary filters, search, aggregation, close, and label/comment
+edits carry provider-specific search/filter syntax the seam contract keeps out of core, so the skill
+core describes them neutrally and resolves the mechanics here.
 
 The commands below are standard GitHub CLI (`gh`); each layers only the work-items-specific
 `--json`/`--jq` projection on top. **Identity (writes):** reads use bare `gh`; writes (close,
@@ -34,16 +34,16 @@ session identity). Every pipeline parsing `gh` JSON on Windows/Git Bash ends wit
 
 ## Available `--json` fields
 
-Do NOT hardcode the field set — GitHub adds fields over time (the dependency/parent/sub-item
-fields the seam's normalized model reads — `blockedBy`, `parent`, `subIssues` — are recent
+Do NOT hardcode the field set. GitHub adds fields over time (the dependency/parent/sub-item
+fields the seam's normalized model reads, `blockedBy`, `parent`, and `subIssues`, are recent
 additions). Derive the current valid set on demand: `gh issue list --json` (no value) prints it.
 
 ## Resolve item ID
 
 Seam verbs (`get-item`, `claim`, `reclaim`, `link-blocks`, `add-sub-item`) take a
-fully-qualified ID (`github:<owner>/<repo>#<N>` — CONTRACT.md "ID grammar"); a bare `#N` is
+fully-qualified ID (`github:<owner>/<repo>#<N>`, CONTRACT.md "ID grammar"); a bare `#N` is
 rejected. The **seam** verbs (`list-frontier`, `get-item`, `create-item`) already emit the
-qualified `id` — pass it straight through. The adapter's raw `list` / `search` projections below
+qualified `id`, so pass it straight through. The adapter's raw `list` / `search` projections below
 emit only `number`, so build the qualified ID from the number:
 
 ```bash
@@ -75,7 +75,7 @@ gh issue list \
 
 Forward `--assignee` for the `list --assignee` flag and the audit's assigned-only view (use
 `--assignee "@me"` for the current user). `--limit` is mandatory when more than 30 rows are
-needed (`gh` truncates at 30 silently; max page size 100 — for larger sets, page with `--search`
+needed (`gh` truncates at 30 silently; max page size 100, so for larger sets, page with `--search`
 date ranges).
 
 ## Search items
@@ -119,8 +119,8 @@ gh issue view <N> --json assignees,labels \
 
 **Sandboxed sessions: read the item over REST.** `gh issue view --json` routes through GitHub's
 GraphQL API, so every `gh issue view --json` read in this document fails with `HTTP 403` wherever
-only a pinned set of GraphQL operations is served (Claude Code on the web and remote execution) —
-the same restriction the lease protocol's assignee ops work around under "Edit labels /
+only a pinned set of GraphQL operations is served (Claude Code on the web and remote execution).
+It is the same restriction the lease protocol's assignee ops work around under "Edit labels /
 assignees" below. That 403 reads like an expired token or a missing scope and is neither, so take
 it as a signal to switch APIs rather than to re-authenticate. The REST issues endpoint carries
 the same fields under the same names. Use the object-array form when substituting
@@ -146,7 +146,7 @@ gh api "repos/{owner}/{repo}/issues/<N>" \
 `gh api` has no `--repo` flag: `{owner}` and `{repo}` expand from the repository of the current
 directory, or from `GH_REPO`. Run it from the target clone, or prefix `GH_REPO=<owner>/<repo>`.
 
-`comments` is the one projected field that does not carry over — REST returns it as an integer
+`comments` is the one projected field that does not carry over. REST returns it as an integer
 count, not the list `--json comments` gives. Take comments from "List item comments" below, which
 is already REST and paginates for the reason documented there.
 
@@ -164,8 +164,8 @@ gh api --paginate "repos/{owner}/{repo}/issues/<N>/comments?per_page=100" \
   | jq -s '[.[][] | {id, user: .user.login, created_at, body}] | sort_by(.id)' | tr -d '\r'
 ```
 
-`--paginate` is load-bearing. The endpoint returns 30 per page oldest-first and reports nothing
-when it truncates, so an unpaginated read silently drops the newest comments — and this repo
+`--paginate` is required. The endpoint returns 30 per page oldest-first and reports nothing
+when it truncates, so an unpaginated read silently drops the newest comments, and this repo
 already has long-running telemetry items past that count.
 
 The reduction is slurped rather than passed to `--jq` because `gh` applies `--jq` to each page
@@ -174,25 +174,25 @@ separately: `sort_by` there emits one separately-sorted array per page, never on
 
 ## Close item
 
-Close an item (WRITE — see the identity note above):
+Close an item (WRITE, see the identity note above):
 
 ```bash
 gh issue close <N> --comment "<closing note>" --reason completed
 ```
 
-The `done` action closes with `--reason completed` (or `not planned` for `--not-planned`) — the
+The `done` action closes with `--reason completed` (or `not planned` for `--not-planned`), the
 values GitHub's issue-close accepts. `--reason "not planned"` needs the quoted space.
 
-**Duplicate close — native `--duplicate-of`.** GitHub closes a duplicate natively: this sets close
-reason `duplicate` and a structured, API-queryable `duplicateOf` relationship — strictly better than
+**Duplicate close with native `--duplicate-of`.** GitHub closes a duplicate natively: this sets close
+reason `duplicate` and a structured, API-queryable `duplicateOf` relationship, strictly better than
 grepping a body header. `<M>` may be an issue number or URL:
 
 ```bash
 gh issue close <N> --duplicate-of <M> --comment "Duplicate of #<M>"
 ```
 
-**Fallback — not-planned + body-append.** For a **cross-repo** duplicate target the native
-relationship is not confirmed to apply — if the native close is rejected, fall back to this; it is
+**Fallback: not-planned + body-append.** For a **cross-repo** duplicate target the native
+relationship is not confirmed to apply. If the native close is rejected, fall back to this; it is
 also the portable shape for providers/adapters without a native duplicate reason. A superseded item
 uses the same not-planned close. Append a queryable `## Duplicate of <M>` section to the body first
 (`<M>` is `#<M>` same-repo, or the qualified `<owner>/<repo>#<M>` / issue URL cross-repo);
@@ -210,7 +210,7 @@ gh issue close <N> --comment "Duplicate of <M>" --reason "not planned"
 
 ## Edit labels / assignees
 
-Edit labels / assignees (WRITE — see the identity note above). Edits use
+Edit labels / assignees (WRITE, see the identity note above). Edits use
 `--add-label`/`--remove-label` and `--add-assignee`/`--remove-assignee` (NOT `--label`, which
 is `gh issue create` only):
 
@@ -218,14 +218,14 @@ is `gh issue create` only):
 gh issue edit <N> --add-label "<name>" --remove-label "<name>"
 ```
 
-**Carve-out — claim assignment stays on the session identity:** the assignee MUST be the session
+**Carve-out: claim assignment stays on the session identity.** The assignee MUST be the session
 user (not a bot), so it runs on bare `gh`. Coordination claims go through the seam `claim` verb,
 which owns this.
 
 **The lease protocol's own assignee ops are REST, not `gh issue`.** `claim` and `reclaim` do not
 use `gh issue edit --add-assignee` / `gh issue view --json assignees`: those route through
 GitHub's GraphQL API, and sandboxed sessions (Claude Code on the web and remote execution) serve
-only a pinned set of GraphQL operations, refusing the rest with HTTP 403 — which made the lease
+only a pinned set of GraphQL operations, refusing the rest with HTTP 403, which made the lease
 protocol unrunnable there. They use `gh api` against `…/issues/<n>/assignees` instead, through the
 `wit_read_assignees` / `wit_add_assignee` / `wit_remove_assignee` / `wit_try_remove_assignee`
 helpers in `common.sh`. Those helpers take the same `read`/`write` writer argument as
@@ -243,8 +243,8 @@ Verbs beyond the lease protocol (`get-item`, `list-items`, `list-sub-items`, `li
 
 ## Comment on item / edit a comment
 
-Comment on an item; edit a comment via PATCH (preserves the audit trail) — both WRITE (see the
-identity note above):
+Comment on an item, or edit a comment via PATCH (preserves the audit trail). Both are WRITE
+operations (see the identity note above):
 
 ```bash
 gh issue comment <N> --body "<text>"
@@ -254,7 +254,7 @@ gh api --method PATCH "repos/{owner}/{repo}/issues/comments/<CID>" -f body="<tex
 ## PR closing-keyword mechanics
 
 For the `done` action's belt-and-suspenders keyword check. Read the PR body (bare `gh`); the
-read-modify-write body edit uses `--body-file`, which REPLACES the body (WRITE — see the identity
+read-modify-write body edit uses `--body-file`, which REPLACES the body (WRITE, see the identity
 note above):
 
 ```bash
@@ -270,12 +270,12 @@ Match GitHub's issue-closing keyword set (`close`/`closes`/`closed`/`fix`/`fixes
 
 ## Open linked PRs
 
-For `/work-items:work` selection — report whether item `<N>` already has an open PR targeting it
+For `/work-items:work` selection, report whether item `<N>` already has an open PR targeting it
 for closure, so a candidate whose work is in flight is dropped from the pickable frontier rather
-than re-picked — and, with the draft-aware reduction below, for `/work-items:work-loop`'s
+than re-picked. With the draft-aware reduction below, the same check serves `/work-items:work-loop`'s
 drain-exit evaluation. The authoritative signal is **GitHub's own computed close-linkage**, not a text
 match over the PR body: the GraphQL `Issue.closedByPullRequestsReferences` connection returns
-exactly the PRs GitHub links as closing this issue — the same linkage GitHub renders in the
+exactly the PRs GitHub links as closing this issue, the same linkage GitHub renders in the
 issue sidebar and acts on for merge-time auto-close. Keep only the `OPEN`-state nodes: a `MERGED`
 PR that closed the issue already dropped it from the open frontier, and a `CLOSED` (unmerged) PR
 is not in flight (bare read):
@@ -304,7 +304,7 @@ requests `isDraft` so each consumer applies the draft policy its decision needs.
 reduction above deliberately **counts drafts**: for the in-flight exclusion, a draft closing PR is
 still work in flight, and re-picking its issue would be exactly the double-dispatch this operation
 prevents. The drain-exit evaluation in `/work-items:work-loop` instead requires an open
-**non-draft** closing PR — for that consumer, reduce with
+**non-draft** closing PR. For that consumer, reduce with
 
 ```bash
 --jq '[.data.repository.issue.closedByPullRequestsReferences.nodes[] | select(.state=="OPEN" and (.isDraft | not))] | any'
@@ -312,32 +312,32 @@ prevents. The drain-exit evaluation in `/work-items:work-loop` instead requires 
 
 which emits `true` only when a ready (non-draft) open PR closes `#<N>`; every other note in this
 section (failure semantics, pagination, `\r` handling) applies to both reductions unchanged. **On query
-failure it emits no boolean and exits non-zero — a failed in-flight check is not `false`.** The
+failure it emits no boolean and exits non-zero. A failed in-flight check is not `false`.** The
 GraphQL call is captured first and its exit status checked before any reduction: if
 `gh api graphql --paginate` fails (expired token, rate limit, or a network error on a later cursor
 page), the snippet propagates that failure instead of letting an empty/partial result collapse to
-`false`. This is **load-bearing for the caller**: `/work-items:work` treats `false` as "not in
+`false`. This **matters to the caller** because `/work-items:work` treats `false` as "not in
 flight → pickable", so silently converting a failed check to `false` would let it re-dispatch an
-item whose in-flight state could not be confirmed — the exact double-dispatch this operation
+item whose in-flight state could not be confirmed, the exact double-dispatch this operation
 exists to prevent. The caller must fail **closed** on a non-zero exit (keep the item out of this
 cycle), never read the absent boolean as "no open PR". `-F n=<N>` passes the number as a GraphQL
 `Int` (typed); `-f` passes the owner/repo strings; the `tr -d '\r'` on the captured output follows
 the Windows/Git Bash rule under "Gotchas" (each page's boolean can otherwise arrive as `true\r`,
 which `grep -qx true` would then fail to match).
-The `select(.state=="OPEN")` filter is **load-bearing, not redundant with `includeClosedPrs:false`**:
+The `select(.state=="OPEN")` filter is **necessary, not redundant with `includeClosedPrs:false`**:
 that argument suppresses only `CLOSED` (unmerged) PRs, so a `MERGED` PR still appears in the
-connection and must be dropped here — otherwise an issue whose only closing PR merged to a
+connection and must be dropped here. Otherwise an issue whose only closing PR merged to a
 non-default base (or that was reopened after a merge) would be wrongly reported as in-flight.
 `first:100` requests the connection's maximum page (GitHub GraphQL caps `first`/`last` at 100).
 Because the connection retains `MERGED` nodes, this bound counts every PR the issue has *ever*
-linked as closing — not only the open ones — so a long merge/reopen history can push the
+linked as closing, not only the open ones, so a long merge/reopen history can push the
 currently-open PR onto a later page. `--paginate` therefore walks the connection page by page via
 `pageInfo { hasNextPage endCursor }` and the `$endCursor` variable until GitHub reports no further
 pages, the GraphQL analogue of the `--limit` note under "List items"; a single-page `first:100`
 read would miss an `OPEN` closing PR sorted past the first 100 nodes and wrongly report the item
 pickable. `gh` applies `--jq` per page, so each page emits its own `true`/`false`; after the
 exit-status guard confirms every page was fetched, `grep -qx true` collapses the captured booleans
-to one result — `true` when any page carried an `OPEN` node, `false` once every page was exhausted
+to one result: `true` when any page carried an `OPEN` node, `false` once every page was exhausted
 without one. Capturing the full stream first (rather than piping `gh` straight into `grep`) is what
 lets the exit status be checked: in a bare pipeline `gh`'s non-zero exit is masked by `grep`, so a
 mid-pagination failure would reduce to a spurious `false`. Why GitHub's computed
@@ -346,7 +346,7 @@ linkage instead of a body regex over `gh pr list --search`:
 - **Fenced code blocks and HTML comments are inert for free.** GitHub does not link a closing
   keyword that appears only inside a fenced code block or an HTML comment, so an example snippet
   such as a fenced `Closes #<N>` never surfaces here and never spuriously excludes the still-open
-  issue. There is no fence-tracking heuristic to maintain — the retired approach hand-rolled a
+  issue. There is no fence-tracking heuristic to maintain. The retired approach hand-rolled a
   `jq` `gsub` that recognized only exactly-three backticks or tildes and silently missed
   four-or-more-backtick and indented fences. This closes the fence-blindness the prior regex
   carried.
@@ -354,12 +354,12 @@ linkage instead of a body regex over `gh pr list --search`:
   and a keyword cannot match inside a longer word, because the reference is GitHub's parsed issue
   linkage, not a regex over raw text.
 - **Base-branch correctness (behavior change).** GitHub forms the close-link only for a PR that
-  targets the repository's default branch — a closing keyword on any other base branch is ignored
+  targets the repository's default branch. A closing keyword on any other base branch is ignored
   and creates no linkage. This mechanic therefore does not exclude an issue whose only `Closes
   #<N>` lives on a non-default-base PR, whereas the retired raw-body regex counted it. That issue
   now stays pickable, matching GitHub's real merge-time auto-close semantics.
 - **Opt-out is intrinsic.** An intentional `Refs #<num>` (reference without closing) never enters
-  the closing linkage, so it correctly does not exclude its issue — the same opt-out the
+  the closing linkage, so it correctly does not exclude its issue. That is the same opt-out the
   `pr-issue-linkage` gate honors, now with no keyword allow/deny list to keep in sync.
 
 ## Aggregate / count (dashboard + hygiene)
@@ -374,7 +374,7 @@ gh issue list --state open --json labels --limit 500 --jq '
 ' | tr -d '\r'
 ```
 
-Claimed/unassigned counts — a seam claim is an **assignee** (+ lease), so count assignees, NOT
+Claimed/unassigned counts. A seam claim is an **assignee** (+ lease), so count assignees, NOT
 the retired `status:claimed`/`status:considering` labels (which the seam never sets):
 
 ```bash
@@ -401,7 +401,7 @@ gh issue list --state open --json number,title,labels --limit 100 --jq '
 ' | tr -d '\r'
 ```
 
-Stale-claim detection is NOT a label/date query — a claim is a lease, so the `audit` action
+Stale-claim detection is NOT a label/date query. A claim is a lease, so the `audit` action
 runs the seam `reclaim` verb over assigned items (CONTRACT.md "Lease protocol").
 
 ## Gotchas
@@ -430,21 +430,21 @@ items", the `--add-label`-vs-`--label` rule under "Edit labels / assignees"). Cr
   purpose (`tr -d '\r'` drops CRs; `$(cat …)` strips trailing newlines, and the `printf '%s\n'`
   puts exactly one back). Corruption enters when an **ad-hoc** step decodes
   those bytes with a tool whose default is a legacy code page: the body's UTF-8 is read as Windows
-  ANSI and re-encoded, putting every non-ASCII character at risk — the observed case is em-dash
-  U+2014 arriving back as U+00E2 U+20AC U+201D — and that corrupted copy is then written over the
-  good one. Nothing reports it; every command still exits 0. Two Windows defaults decode this way:
-  Python's `open()` with no `encoding=` (the locale encoding, i.e. the ANSI code page —
+  ANSI and re-encoded, putting every non-ASCII character at risk, and that corrupted copy is then
+  written over the good one. The observed case is em-dash U+2014 arriving back as U+00E2 U+20AC
+  U+201D. Nothing reports it; every command still exits 0. Two Windows defaults decode this way:
+  Python's `open()` with no `encoding=` (the locale encoding, i.e. the ANSI code page, since
   [PEP 686](https://peps.python.org/pep-0686/) makes UTF-8 the default only in 3.15+) and Windows
   PowerShell 5.1's `Get-Content` (PowerShell 6+ already defaults to `utf8NoBOM`). Do not reason
-  from the version you happen to be on — state the encoding on both sides of any ad-hoc step,
+  from the version you happen to be on. State the encoding on both sides of any ad-hoc step,
   read *and* write. Python reads with `open(path, encoding='utf-8')` or
   `open(path, 'rb').read().decode('utf-8')` and writes back with
   `open(path, 'w', encoding='utf-8')` (or run under `PYTHONUTF8=1`, which covers both sides).
-  Windows PowerShell 5.1 reads with `Get-Content -Raw -Encoding utf8` — without `-Raw` you get a
-  line array, not the one string the write below takes — and writes back with
+  Windows PowerShell 5.1 reads with `Get-Content -Raw -Encoding utf8` and writes back with
   `[IO.File]::WriteAllText($p, $s, (New-Object Text.UTF8Encoding $false))`, because there
-  `-Encoding utf8` prepends a BOM and `utf8NoBOM` does not exist (PowerShell 6+ has both).
+  `-Encoding utf8` prepends a BOM and `utf8NoBOM` does not exist (PowerShell 6+ has both). Without
+  `-Raw` you get a line array, not the one string that write takes.
 - **Rate limits** (verify current values via GitHub REST docs): batch bulk creates to respect
-  the secondary content-generation limit — e.g. 30 items per batch with short pauses.
-- **Issue Forms auto-labeling** fires only on web-form creation, not `gh issue create` — apply
+  the secondary content-generation limit, e.g. 30 items per batch with short pauses.
+- **Issue Forms auto-labeling** fires only on web-form creation, not `gh issue create`, so apply
   labels explicitly when creating programmatically.

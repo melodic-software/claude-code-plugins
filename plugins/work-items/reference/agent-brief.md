@@ -1,6 +1,6 @@
 # Agent-Brief Template
 
-Template for items carrying the autonomous-eligible role label (default `agent-ready`). An agent brief is the authoritative specification an AFK agent works from. The original issue body and discussion are context — the agent brief is the contract.
+Template for items carrying the autonomous-eligible role label (default `agent-ready`). An agent brief is the authoritative specification an AFK agent works from. The original issue body and discussion are context. The agent brief is the contract.
 
 ## Principles
 
@@ -10,7 +10,7 @@ Issues may sit in `agent-ready` for days or weeks. The codebase changes in the m
 
 - **Do** describe interfaces, types, and behavioral contracts
 - **Do** name specific types, function signatures, or config shapes
-- **Don't** reference file paths — they go stale
+- **Don't** reference file paths, which go stale
 - **Don't** reference line numbers
 - **Don't** assume current implementation structure remains the same
 
@@ -39,7 +39,7 @@ State what is out of scope. Prevents gold-plating or assumptions about adjacent 
 ```markdown
 ## Agent Brief
 
-**Type:** Bug / Feature / Task (the issue's type — native Issue Type on org repos, `type:` label on personal / non-org repos)
+**Type:** Bug / Feature / Task (the issue's type: native Issue Type on org repos, `type:` label on personal / non-org repos)
 **Summary:** one-line description of what needs to happen
 
 **Current behavior:**
@@ -51,9 +51,9 @@ What should happen after the work is complete.
 Be specific about edge cases and error conditions.
 
 **Key interfaces:**
-- `TypeName` — what needs to change and why
-- `FunctionName()` return type — current vs desired
-- Config shape — new configuration options needed
+- `TypeName`: what needs to change and why
+- `FunctionName()` return type: current vs desired
+- Config shape: new configuration options needed
 
 **Acceptance criteria:**
 - [ ] Specific, testable criterion 1
@@ -77,10 +77,10 @@ The brief can be the issue body itself or posted as a comment (prefixed with `##
 
 ### PR-variant briefs
 
-When the item is a pull request (or otherwise carries attached code), keep the same heading and sections — do **not** replace the bug/feature template above. Specialize two fields:
+When the item is a pull request (or otherwise carries attached code), keep the same heading and sections. Do **not** replace the bug/feature template above. Specialize two fields:
 
 - **Current behavior** = **current-behavior-of-the-diff**: what the attached change actually does today (as written), including gaps vs the verified requirement.
-- **Desired behavior** = **finish-what-exists**: remaining work that makes the attached change mergeable — adopt, rework, or complete — rather than restarting from a blank implementation.
+- **Desired behavior** = **finish-what-exists**: remaining work that makes the attached change mergeable, whether by adopting, reworking, or completing it, rather than restarting from a blank implementation.
 
 The brief specifies what's left to do *to the existing diff*. Apply this variant when the item is a PR / attached code; ordinary bug and feature items still use Current/Desired as written in the template.
 

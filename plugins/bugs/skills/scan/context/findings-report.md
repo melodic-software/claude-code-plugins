@@ -1,4 +1,4 @@
-# Findings report format — `/bugs:scan`
+# Findings report format: `/bugs:scan`
 
 Loaded on demand by `/bugs:scan` Step 5. Defines the emitted and persisted report: the run
 metadata, per-finding fields, the refuted tail, the candidates not gated, the side observations, and
@@ -11,7 +11,7 @@ count, the models the hunters and gates ran on, the file count, whether the hots
 cursor rung, and the candidate counts (raw, after triage, gated). A reader who sees only this
 paragraph knows how narrow or wide the sample was.
 
-## Frontmatter — and the one thing it must never declare
+## Frontmatter, and the one thing it must never declare
 
 When persisting (never under `--dry-run`), prepend:
 
@@ -25,7 +25,7 @@ lane: <lane name, or the target expression for a targeted run>
 ---
 ```
 
-**Never declare `type: review-findings` on this report — not now, not as an "also".** That frontmatter
+**Never declare `type: review-findings` on this report, not now and not as an "also".** That frontmatter
 alone is what routes a document into the detector-findings fix relay (`/review:fanout`), and a scan
 report is intake for human judgment, not a machine-consumable detector artifact. `project-root` is
 recorded because `<project-slug>` is only a basename: two checkouts sharing a basename share a
@@ -40,7 +40,7 @@ severity rubric is the "Severity rubric" section of
 adds three lines: the evidence label, the lens id, and the scope tag.
 
 ````markdown
-## Finding <n> — <title, present tense, one line>
+## Finding <n>: <title, present tense, one line>
 
 **Severity**: <low | medium | high | critical>
 **Suggested fix location**: `<file path>` `<function or class>` (no patch)
@@ -78,14 +78,14 @@ adds three lines: the evidence label, the lens id, and the scope tag.
 Rules:
 
 - A finding without a verbatim evidence quote does not go in the report. There is no "needs
-  confirmation" tier for scan findings — the gate already decided.
+  confirmation" tier for scan findings. The gate already decided.
 - `reproduced` findings state the command that was run and what it showed. `verified-by-reading`
   findings state why no cheap check existed.
 - No patch, no diff, no "change line X to Y". The fix location is a pointer; the fixer decides.
 
 ## Refuted candidates (retained tail)
 
-Always present, even when empty — its absence would read as "nothing was rejected".
+Always present, even when empty. Its absence would read as "nothing was rejected".
 
 ```markdown
 ## Refuted candidates
@@ -133,10 +133,10 @@ When there are none, write `None.`
 
 ## Cursor metadata block
 
-The last section of every persisted **rotation-mode** report — a bare invocation or `--lane`, the two
-modes that advance rotation — and rung 2 of the cursor ladder. Keep the key names and the fenced-YAML
-shape stable — a later run parses this, not the prose. A key, once shipped, never changes meaning;
-new keys are only ever added.
+The last section of every persisted **rotation-mode** report, meaning a bare invocation or `--lane`,
+the two modes that advance rotation. It is also rung 2 of the cursor ladder. Keep the key names and
+the fenced-YAML shape stable: a later run parses this, not the prose. A key, once shipped, never
+changes meaning; new keys are only ever added.
 
 ````markdown
 ## Scan cursor
@@ -162,19 +162,19 @@ lenses-skipped: [<lens ids skipped, with reason in prose above>]
 `rung` records how *this* run chose its lane, so an operator can tell tracker-derived rotation from
 the zero-state date floor. `scope-list` is what makes a lane pass reproducible: the next run on this
 lane can read the same files, or deliberately sample their complement, instead of re-deriving a
-subset from prose lane definitions. `--dry-run` writes no report and therefore no cursor block — that
+subset from prose lane definitions. `--dry-run` writes no report and therefore no cursor block. That
 is what "neither persists nor advances the cursor" means in practice.
 
 **A targeted run omits this section entirely**, and says so in one line where it would have sat:
 
 ```markdown
-*No scan cursor — targeted run; rotation not advanced.*
+*No scan cursor: targeted run, rotation not advanced.*
 ```
 
 Its `lane`, `lane-index`, and `rung` keys have no rotation meaning, and a later run reading it as a
 cursor would skip a lane. Rung 2 therefore searches backward for the newest report that *does* carry
-this block, skipping targeted-run reports and `/bugs:write`'s reports — which share the
-directory and never carry one — rather than trusting the newest file blindly.
+this block, skipping targeted-run reports and `/bugs:write`'s reports, which share the
+directory and never carry one, rather than trusting the newest file blindly.
 
 ## Stdout form
 
@@ -183,7 +183,7 @@ The same document minus the frontmatter, exactly as `/bugs:write` emits to stdou
 
 ## Zero-findings form
 
-A run that verified nothing still reports — the rotation only stays credible if empty passes are
+A run that verified nothing still reports. The rotation only stays credible if empty passes are
 visible. The rotation-run form:
 
 ```markdown
@@ -193,9 +193,9 @@ visible. The rotation-run form:
 **Cursor**: advanced to <next lane>
 ```
 
-A targeted run drops that `**Cursor**` line — it advanced nothing — and keeps the `**Lane**` line as
-the scope it hunted.
+A targeted run drops that `**Cursor**` line, having advanced nothing, and keeps the `**Lane**` line
+as the scope it hunted.
 
-Followed by the refuted tail, the candidates not gated, the side observations, and the cursor block
-— or, for a targeted run, the no-cursor line above. Do not pad an empty run with speculative
+Followed by the refuted tail, the candidates not gated, the side observations, and the cursor block,
+or, for a targeted run, the no-cursor line above. Do not pad an empty run with speculative
 findings.
