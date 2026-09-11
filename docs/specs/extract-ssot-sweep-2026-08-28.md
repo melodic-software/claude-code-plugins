@@ -534,7 +534,7 @@ message says so in a clause nobody carried forward:
 > `reference/` — none of them resolved for any reader
 <!-- ai-slop-ignore-end -->
 
-It fixed them in the citing files and left the roster's summary line asserting that all 34 still
+That PR fixed them in the citing files and left the roster's summary line asserting that all 34 still
 resolved to the citing text the audit quoted.
 
 **#3380 did not write the roster, and that is the whole point.** An earlier version of this section,

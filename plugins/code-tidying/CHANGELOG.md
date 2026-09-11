@@ -8,6 +8,28 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
 ### Changed
 
 - **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
+- **Every markdown surface in the plugin passes `/ai-slop:audit`.** Em dashes in the plugin's own
+  prose (this changelog, the tidy lanes, references and lane templates, the dissolve-comments
+  references and skill body, the batch-simplify contexts and checklist, the audit-dead-code
+  contexts, and the setup skill body) are rewritten as a comma, a period, a colon where a
+  definition or list follows, or a restructured sentence. No tidying class, lane scope, exclusion,
+  budget, or suppression format changed.
+- **`load-bearing` keeps its place where it is a defined term, not a reflex.** It names the
+  dissolve-comments class-C criterion, which `plugin.json` and the README also carry verbatim, so
+  rewriting it here would have split one name across three surfaces. The same holds for `seam` in
+  the `config-cascade` rename entry and in `seam 2`, both of which name the extensibility contract
+  that `docs/MIGRATION-PLAYBOOK.md` defines. Reflexive uses elsewhere became the concrete thing.
+- **A renamed heading's quotation followed it.** `reference/tidyings.md` moved its numbered
+  headings to the colon form, and `reference/scope-budget.md`'s template line, which quotes one of
+  them, now reads `"Beck #5: Reading Order"`.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`,** so the gate defends
+  it from here on.
+- **Changelog, in-place wording corrections to released entries:** the same rewrite was applied
+  inside
+  `[0.17.0]`, `[0.14.13]`, `[0.14.4]`, `[0.14.2]`, `[0.14.0]`, `[0.13.3]`, `[0.13.1]`, `[0.13.0]`,
+  `[0.12.0]`, `[0.11.1]`, `[0.11.0]`, `[0.10.1]`, `[0.10.0]`, `[0.9.0]`, `[0.8.0]`, `[0.7.1]`,
+  `[0.7.0]`, `[0.6.0]`, `[0.5.1]`, `[0.5.0]`, and `[0.4.3]`. Wording only; every entry's facts are
+  unchanged.
 
 ## [0.18.2]
 

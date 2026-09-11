@@ -1,4 +1,4 @@
-# Product-code lane — the lane binding
+# Product-code lane, the lane binding
 
 The second lane of this plugin's scrutiny method, covering code-level overengineering in product
 code: speculative abstraction, unearned indirection, premature generality.
@@ -24,10 +24,10 @@ touched:
 - Enforcement mechanisms are sparse and individually named. Product code is dense, so §1's carry
   cost is paid per *reader*, and the item inventory below has to aggregate or it will produce a wall
   of findings rather than a spine.
-- Fowler's YAGNI is *about* product code, which makes §10's boundary load-bearing here rather than a
-  corner case. Restated for this lane below.
+- Fowler's YAGNI is *about* product code, which makes §10's boundary the common case here rather
+  than a corner case. Restated for this lane below.
 
-## 1. Item inventory — what counts as one auditable artifact
+## 1. Item inventory, what counts as one auditable artifact
 
 **The item is the abstraction, never the file.** One item is a construct plus everything that exists
 to serve it: the declaration, its implementations, its registration or wiring, and its call sites. An
@@ -217,7 +217,7 @@ Three handoffs make the boundary operational rather than declarative:
 
 - **A finding whose answer is "keep, but reshape" is not this lane's.** This lane's remediation
   vocabulary is §11's ladder, retire, collapse, inline, narrow. When the evidence supports keeping the
-  seam but the shape is wrong, say so in the finding and hand off to `architecture:improve`, which
+  abstraction but the shape is wrong, say so in the finding and hand off to `architecture:improve`, which
   owns redesign and its Design-It-Twice pass.
 - **A finding that is safe, mechanical, and behavior-preserving is `code-tidying`'s**, even when this
   lane surfaced it. This lane argues about existence; tidying executes structure-preserving changes.

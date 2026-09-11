@@ -22,8 +22,7 @@
 - [External authority](#external-authority)
 
 One markdown file is the whole interface between this plugin's four skills. **Two of them produce
-it**:
-`overengineering:audit` writes a `mode: walk` run over the ten enforcement layers, and
+it**: `overengineering:audit` writes a `mode: walk` run over the ten enforcement layers, and
 `overengineering:justify` writes a `mode: targeted` run over the five justification layers. Both are
 read-only on everything else. `overengineering:realign` is its **only mutating** consumer and its
 only writer of operator judgment. `overengineering:delta` reads it across runs and writes nothing

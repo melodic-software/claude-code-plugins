@@ -138,7 +138,13 @@ plugins/code-metrics/README.md
 plugins/code-metrics/reference/*.md
 plugins/code-metrics/skills/*/SKILL.md
 plugins/code-metrics/skills/principles/reference/*.md
-plugins/code-tidying/README.md
+# The code-tidying plugin was purged whole.
+plugins/code-tidying/*.md
+plugins/code-tidying/skills/*/SKILL.md
+plugins/code-tidying/skills/*/context/*.md
+plugins/code-tidying/skills/*/reference/*.md
+plugins/code-tidying/skills/*/templates/*.md
+plugins/code-tidying/skills/tidy/lanes/*.md
 plugins/codebase-health/README.md
 plugins/codebase-health/skills/*/SKILL.md
 plugins/computer-use/README.md
