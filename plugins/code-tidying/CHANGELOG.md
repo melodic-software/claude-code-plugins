@@ -3,6 +3,20 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.0]
+
+### Added
+
+- **`tidy`**: a `## Boundary, the bundled simplify skill` section: the bundled skill refines a
+  diff that exists (alias `/readable`, applies its fixes); tidy hunts unfiled drift across a
+  glob-scoped lane regardless of recent activity. Routing, a mutation gate (never chain into a
+  `simplify` run), and an availability rule that never assumes the bundled skill resolves.
+  Four-part records in `reference/bundled-simplify.md`.
+- **`batch-simplify`**: the same section at sweep scale: one bundled run takes one target (which
+  may already be a PR, a branch, or a path), this skill sweeps a window, a branch, or the
+  repository in grouped waves with tracking. Four-part records in `context/bundled-simplify.md`,
+  including the note that the registry row's multi-file trigger is half fired.
+
 ## [0.18.2]
 
 ### Fixed

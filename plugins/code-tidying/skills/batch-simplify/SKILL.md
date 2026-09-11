@@ -227,6 +227,29 @@ When any HARD path was lifted, add a `## Lifted HARD exclusions` section naming 
 
 If zero items were deferred across all groups, state explicitly: *"No items deferred. All identified simplifications were applied or determined to be no-ops."*
 
+## Boundary, the bundled `simplify` skill
+
+One native Claude Code surface does this skill's job at single-target scale, and the two get
+conflated whenever the request is "run simplify":
+
+- **`simplify` (bundled skill, alias `/readable`).** Ships with Claude Code rather than as a
+  marketplace plugin. One run takes one target, the current diff or a PR, branch, or path, reviews
+  it for reuse, simplification, efficiency, and altitude cleanups, and applies the fixes.
+- **This skill (marketplace plugin).** Sweeps a time window, a branch, or the whole repository in
+  waves, grouped by ecosystem in dependency order, with a checklist, a deferred-items contract,
+  and a docs mode for factual staleness.
+
+**Routing.** When the bundled `simplify` skill resolves in your session, prefer it for a single
+file or one diff. Prefer this skill when the scope is a window of sessions, a whole branch, or a
+repository, or when the passes need grouping and tracking.
+
+**Mutation gate.** Both edit the working tree. This skill runs its own passes and never chains
+into a `simplify` run; two mutating passes over one file in one sweep would mix their diffs.
+
+**Availability is never assumed.** Bundled surfaces are gated by settings, environment, plan, and
+host; this section states what to do when one resolves, never that it is present. The four-part
+records live in [context/bundled-simplify.md](context/bundled-simplify.md).
+
 ## Edge cases
 
 - **No changes in time window**: report and exit cleanly

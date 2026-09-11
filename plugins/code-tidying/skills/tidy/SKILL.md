@@ -248,6 +248,32 @@ Full template: [reference/scope-budget.md](reference/scope-budget.md). Summary:
 - Body must include: rationale, file list, scope estimate (LOC + files), and a link to the parent tidy PR.
 - Phase H's "Deferred items" follow-up comment (or, when `source-control` isn't installed, the PR body's own "Deferred items" section) links every filed item by number.
 
+## Boundary, the bundled `simplify` skill
+
+One native Claude Code surface cleans code without changing behavior, as this skill does, and the
+two get conflated whenever the request is "clean this up":
+
+- **`simplify` (bundled skill, alias `/readable`).** Ships with Claude Code rather than as a
+  marketplace plugin. It reviews the current diff, or a PR, branch, or path the user passes, for
+  reuse, simplification, efficiency, and altitude cleanups, and it applies the fixes. Quality
+  only; it does not hunt for bugs.
+- **This skill (marketplace plugin).** Hunts unfiled structural drift across a rotated,
+  glob-scoped lane regardless of recent activity, under a scope budget, and ships one
+  structure-only PR.
+
+**Routing.** When the bundled `simplify` skill resolves in your session, prefer it for refining a
+diff that exists: what you just wrote, a branch, a PR. Prefer this skill when nothing has changed
+yet and the question is what small structural improvement one slice of the codebase can take
+today. The sibling `batch-simplify` owns the same cleanup at sweep scale.
+
+**Mutation gate.** `simplify` edits the working tree. This skill makes its own scope-budgeted
+edits and commits them as tidyings, so never chain into a `simplify` run on this skill's behalf;
+the two anchors differ and their diffs would mix.
+
+**Availability is never assumed.** Bundled surfaces are gated by settings, environment, plan, and
+host; this section states what to do when one resolves, never that it is present. The four-part
+records live in [reference/bundled-simplify.md](reference/bundled-simplify.md).
+
 ## Gotchas
 
 - **Beck #4 (New Interface, Old Implementation) is context-dependent.** Safe ONLY when the new interface has zero existing consumers. If consumers exist, treat as behavioral and skip. Don't trust the "structural" label blindly.
