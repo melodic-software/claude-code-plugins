@@ -98,17 +98,22 @@ run_case "docs/a/foo... fails" 1 docs/a/foo...
 run_case "docs/Foo.md beside docs/foo.md fails" 1 docs/Foo.md docs/foo.md
 
 # 9. Discover mode (no flag) lists offenders and still exits 1 on any.
+# A failed fixture build leaves $repo empty, and `git -C ""` would then act on
+# THIS checkout, so the build is checked before any git command runs.
 repo=""
-mk_repo repo
-printf 'seed\n' >"$repo/docs/Bad-Name.md"
-git_test_config "$repo" add -A >/dev/null
-git_test_config "$repo" commit -qm case >/dev/null
-out="$(bash "$repo/scripts/check-docs-naming.sh" 2>&1)"
-rc=$?
-if [[ $rc -eq 1 ]] && grep -qF 'docs/Bad-Name.md' <<<"$out"; then
-  ok "discover mode names the offender and exits 1"
+if mk_repo repo && [[ -n "$repo" ]]; then
+  printf 'seed\n' >"$repo/docs/Bad-Name.md"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm case >/dev/null
+  out="$(bash "$repo/scripts/check-docs-naming.sh" 2>&1)"
+  rc=$?
+  if [[ $rc -eq 1 ]] && grep -qF 'docs/Bad-Name.md' <<<"$out"; then
+    ok "discover mode names the offender and exits 1"
+  else
+    fail "discover mode should name docs/Bad-Name.md and exit 1 (rc=$rc): $out"
+  fi
 else
-  fail "discover mode should name docs/Bad-Name.md and exit 1 (rc=$rc): $out"
+  fail "discover mode: fixture build failed"
 fi
 
 # 10. Unknown mode is a usage error, not a silent pass.
