@@ -55,9 +55,16 @@ What the model still owns, because the script cannot:
 The digest carries, per marketplace: the refresh result, `project_root`, the in-repo and user-scope
 sweep outcomes with each pair's direction, withheld downgrades, the install and enable gaps, what
 was installed and enabled, the project-scope enable rows, the normalizer result, the cache-content
-counts and stale ids, the catalog regression interval, the three-snapshot divergence split, and
-whether the sweep updated this plugin itself. Ids and counts only — the per-file cache detail and
-every snapshot stay in the run directory, which the digest names.
+counts and stale ids, the catalog regression interval, the three-snapshot divergence split,
+whether the sweep updated this plugin itself, and `timings`: seconds to three decimals for
+`pre_refresh_read`, `marketplace_update`, `in_repo_update`, `user_sweep`, `install_enable`,
+`cache_content_check`, `post_read`, and the marketplace's `total`, with `resolution` naming the
+clock that produced them (`microseconds` from bash's `EPOCHREALTIME`, `nanoseconds` from a
+validated `date +%s.%N`, else `seconds`). A step this invocation did not run, because `audit`
+predicted it, the policy stopped before Step 4, or an `--only-install` re-entry reuses the first
+pass's result, reads `null`, never 0. The digest's top-level `timings.total` times the whole
+invocation. Ids and counts only — the per-file cache detail and every snapshot stay in the run
+directory, which the digest names.
 
 ## Concurrency
 

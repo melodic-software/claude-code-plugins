@@ -101,6 +101,57 @@ CLAUDE_BIN="${SYNC_RUN_CLAUDE_BIN:-claude}"
 # by construction (<root>/skills/plugins/scripts), so it is the honest default.
 export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
 
+# --- clock ---------------------------------------------------------------------
+# Every step is stamped so the digest reports where a run spent its time. The
+# stamp source is a ladder, resolved once and named in the digest as `resolution`:
+#   microseconds  bash's EPOCHREALTIME (bash 5.0 and later; the manual documents
+#                 it as seconds since the Epoch with micro-second granularity)
+#   nanoseconds   `date +%s.%N`, accepted only when the output is digits, one dot,
+#                 digits: %N is a GNU extension and an older `date` prints a
+#                 literal `N` instead of a fraction
+#   seconds       `date +%s`, the one form every `date` documents (macOS system
+#                 bash is 3.2 and has no EPOCHREALTIME, so this rung is real there)
+# The timings are a diagnostic measurement with no gate, so a coarse rung is
+# acceptable and labelled rather than an error. Stamps are kept as strings and
+# subtracted in jq at emit time, because bash has no float arithmetic; a `,`
+# radix (the manual leaves EPOCHREALTIME's locale behaviour unstated) is
+# rewritten to `.` first so every field is a JSON number.
+# SYNC_RUN_NO_EPOCHREALTIME=1 is the test seam that forces the `date` rungs on a
+# bash that has the variable: a child shell recreates it at startup, so a caller
+# cannot unset it from outside.
+CLOCK_RESOLUTION=""
+resolve_clock() {
+  local probe
+  [[ "${SYNC_RUN_NO_EPOCHREALTIME:-0}" != "1" ]] || unset EPOCHREALTIME
+  if [[ -n "${EPOCHREALTIME:-}" ]]; then
+    CLOCK_RESOLUTION="microseconds"
+    return 0
+  fi
+  probe=$(LC_ALL=C date +%s.%N 2>/dev/null)
+  if [[ "$probe" =~ ^[0-9]+\.[0-9]+$ ]]; then
+    CLOCK_RESOLUTION="nanoseconds"
+  else
+    CLOCK_RESOLUTION="seconds"
+  fi
+}
+# clock_into VAR: the current stamp, `.` radix, into VAR without a subshell on
+# the EPOCHREALTIME rung.
+clock_into() {
+  local __var="$1" t
+  case "$CLOCK_RESOLUTION" in
+  microseconds) t="${EPOCHREALTIME:-}" ;;
+  nanoseconds) t=$(LC_ALL=C date +%s.%N) ;;
+  *) t=$(date +%s) ;;
+  esac
+  printf -v "$__var" '%s' "${t//,/.}"
+}
+resolve_clock
+T_RUN_S=""
+clock_into T_RUN_S
+# The default-marketplace read main takes before the loop is Step 1's pre-refresh
+# read for that marketplace, so its stamps are handed to the loop body.
+MAIN_READ_MP="" MAIN_READ_S="" MAIN_READ_E=""
+
 MODE="sync"
 TARGET_MP=""
 ALL=0
@@ -522,6 +573,11 @@ INSTALL_GAP="[]" ENABLE_GAP="[]" NORMALIZE_JSON="null" CACHE_JSON="null"
 SELF_UPDATED="false" INSTALL_DEFERRED="false" STOPPED_BEFORE_INSTALL="false"
 REFRESH_RC="null" REFRESH_OUT="" REFRESH_PREDICTED="false" REFRESH_FAILED=0
 CATALOG_LAST_UPDATED="" PROJECT_ROOT_JSON="null"
+# Step stamps (start, end) for this marketplace; an empty pair is a step this
+# invocation did not run and reads `null` in the digest, never 0.
+T_PRR_S="" T_PRR_E="" T_MU_S="" T_MU_E="" T_IR_S="" T_IR_E="" T_US_S="" T_US_E=""
+T_IE_S="" T_IE_E="" T_CC_S="" T_CC_E="" T_PR_S="" T_PR_E="" T_MP_S="" T_MP_E=""
+CACHE_CHECK_RAN=0
 
 reset_marketplace_state() {
   MP_ERRORS=()
@@ -532,6 +588,9 @@ reset_marketplace_state() {
   SELF_UPDATED="false" INSTALL_DEFERRED="false" STOPPED_BEFORE_INSTALL="false"
   REFRESH_RC="null" REFRESH_OUT="" REFRESH_PREDICTED="false" REFRESH_FAILED=0
   CATALOG_LAST_UPDATED="" PROJECT_ROOT_JSON="null"
+  T_PRR_S="" T_PRR_E="" T_MU_S="" T_MU_E="" T_IR_S="" T_IR_E="" T_US_S="" T_US_E=""
+  T_IE_S="" T_IE_E="" T_CC_S="" T_CC_E="" T_PR_S="" T_PR_E="" T_MP_S="" T_MP_E=""
+  CACHE_CHECK_RAN=0
 }
 
 # First-pass result rows that live only in these arrays. Successful moves ride
@@ -592,6 +651,7 @@ restore_first_pass_rows() {
 run_marketplace() {
   local mp="$1"
   reset_marketplace_state
+  clock_into T_MP_S
   # The `--only-install` re-entry APPENDS to the same move ledger. Truncating it
   # would drop the sweep's `<old> → <new>` pairs from the digest that supersedes
   # the first one, and the report would then show an empty `Updated:` for a run
@@ -608,24 +668,32 @@ run_marketplace() {
   # at `pre` and loses the interval that isolates the refresh point.
   if ((ONLY_INSTALL_MODE == 0)); then
     if [[ ! -f "$pre_refresh" ]]; then
+      clock_into T_PRR_S
       "$FLEET_STATE" --marketplace "$mp" >"$pre_refresh" 2>"$RUN_DIR/.fs-err"
       rc=$?
+      clock_into T_PRR_E
       if ((rc != 0)); then
         text=$(<"$RUN_DIR/.fs-err")
         mp_error "pre-refresh fleet-state read failed (exit $rc): ${text//$'\r'/}"
         emit_marketplace_block "$mp"
         return 0
       fi
+    elif [[ "$mp" == "$MAIN_READ_MP" ]]; then
+      T_PRR_S="$MAIN_READ_S"
+      T_PRR_E="$MAIN_READ_E"
     fi
     jq_to CATALOG_LAST_UPDATED -r '.marketplace.lastUpdated // ""' "$pre_refresh"
 
     if [[ "$MODE" == "audit" ]]; then
+      # Predicted, not run: the step's timing stays null.
       predict_cli "claude plugin marketplace update $mp"
       REFRESH_PREDICTED="true"
       REFRESH_RC="null"
       trunc REFRESH_OUT "$CLI_OUT"
     else
+      clock_into T_MU_S
       run_cli "claude plugin marketplace update $mp" plugin marketplace update "$mp"
+      clock_into T_MU_E
       REFRESH_RC="$CLI_RC"
       trunc REFRESH_OUT "$CLI_OUT"
       if ((CLI_RC != 0)); then
@@ -655,6 +723,7 @@ run_marketplace() {
 
   # ---- Step 2 — in-repo update (the primary value path) ------------------------
   if ((ONLY_INSTALL_MODE == 0)); then
+    clock_into T_IR_S
     "$FLEET_STATE" --marketplace "$mp" >"$RUN_DIR/pre.$mp.json" 2>"$RUN_DIR/.fs-err"
     rc=$?
     if ((rc != 0)); then
@@ -696,10 +765,12 @@ run_marketplace() {
           >>"$RUN_DIR/moves.$mp.tsv"
       done <"$RUN_DIR/ids.pre.$mp.txt"
     fi
+    clock_into T_IR_E
   fi
 
   # ---- Step 3 — user-scope update sweep ----------------------------------------
   if ((ONLY_INSTALL_MODE == 0)); then
+    clock_into T_US_S
     "$FLEET_STATE" --marketplace "$mp" >"$RUN_DIR/mid.$mp.json" 2>"$RUN_DIR/.fs-err"
     rc=$?
     if ((rc != 0)); then
@@ -776,6 +847,7 @@ run_marketplace() {
           '{id: $id, scope: $sc, installed: $o, catalog: $n}')")
       fi
     done <"$RUN_DIR/downgrades.$mp.txt"
+    clock_into T_US_E
   fi
 
   # ---- Steps 4 and 5 — install and enable, gated on the FRESH pre-install read ---
@@ -817,16 +889,27 @@ run_marketplace() {
   elif ((gap_count > 0)) || ((enable_gap_count > 0)) || ((ONLY_INSTALL_MODE == 1)); then
     # Both arrays are empty on an already-current fleet, and then Steps 4 and 5 are
     # no-ops with nothing to read: the same gate that keeps the spoke unloaded.
+    clock_into T_IE_S
     run_install_step "$mp" "$gap_count"
     run_enable_step "$mp"
+    clock_into T_IE_E
   fi
 
   # ---- Step 5b — cache content check, exactly once per marketplace ---------------
+  clock_into T_CC_S
   cache_content_block "$mp"
+  if ((CACHE_CHECK_RAN == 1)); then
+    clock_into T_CC_E
+  else
+    # The re-entry reuses the first pass's finding; the checker did not run here.
+    T_CC_S=""
+  fi
 
   # ---- post re-read, then the report inputs Step 6 reads back --------------------
+  clock_into T_PR_S
   "$FLEET_STATE" --marketplace "$mp" >"$RUN_DIR/post.$mp.json" 2>"$RUN_DIR/.fs-err"
   rc=$?
+  clock_into T_PR_E
   if ((rc != 0)); then
     text=$(<"$RUN_DIR/.fs-err")
     mp_error "post fleet-state read failed (exit $rc): ${text//$'\r'/}"
@@ -991,6 +1074,7 @@ cache_content_block() {
   local report="$RUN_DIR/cache-content.$mp.json" rc=0 ids
 
   if [[ ! -f "$report" ]]; then
+    CACHE_CHECK_RAN=1
     "$CACHE_CHECK" --marketplace "$mp" >"$report" 2>"$RUN_DIR/.cc-err"
     rc=$?
   fi
@@ -1013,6 +1097,7 @@ cache_content_block() {
 
   # The JSON is unusable, so the id list is projected with the checker's own `--ids`
   # form rather than left unknown.
+  CACHE_CHECK_RAN=1
   "$CACHE_CHECK" --marketplace "$mp" --ids >"$RUN_DIR/cache-stale-ids.$mp.txt" 2>>"$RUN_DIR/.cc-err"
   rc=$?
   json_lines ids "$RUN_DIR/cache-stale-ids.$mp.txt"
@@ -1122,6 +1207,7 @@ report_extras() {
 emit_marketplace_block() {
   local mp="$1"
   local ir_u ir_f ir_w us_u us_f us_w wh dg inst en pr errs
+  clock_into T_MP_E
   # Written on the first pass only. The re-entry reads this sidecar; overwriting
   # it after restore would drop the first-pass failures from a later re-entry.
   if ((ONLY_INSTALL_MODE == 0)); then
@@ -1174,8 +1260,35 @@ emit_marketplace_block() {
     --arg reg_interval "$reg_interval" --argjson reg_rows "$reg_rows" \
     --argjson div "$div" --argjson self_updated "$SELF_UPDATED" \
     --argjson extras "$extras" \
+    --arg t_prr_s "$T_PRR_S" --arg t_prr_e "$T_PRR_E" \
+    --arg t_mu_s "$T_MU_S" --arg t_mu_e "$T_MU_E" \
+    --arg t_ir_s "$T_IR_S" --arg t_ir_e "$T_IR_E" \
+    --arg t_us_s "$T_US_S" --arg t_us_e "$T_US_E" \
+    --arg t_ie_s "$T_IE_S" --arg t_ie_e "$T_IE_E" \
+    --arg t_cc_s "$T_CC_S" --arg t_cc_e "$T_CC_E" \
+    --arg t_pr_s "$T_PR_S" --arg t_pr_e "$T_PR_E" \
+    --arg t_mp_s "$T_MP_S" --arg t_mp_e "$T_MP_E" \
+    --arg resolution "$CLOCK_RESOLUTION" \
     --argjson errors "$errs" '
+    # Seconds to three decimals; an empty stamp pair is a step that did not run.
+    # Steps round DOWN and the total rounds UP, so the total is never below the
+    # sum of its steps after rounding. Clamped at zero so a wall clock stepped
+    # backwards mid-run cannot report a negative duration.
+    def ms($s; $e): (($e | tonumber) - ($s | tonumber)) * 1000;
+    def dur($s; $e):
+      if $s == "" or $e == "" then null else ([0, ((ms($s; $e) | floor) / 1000)] | max) end;
+    def dur_up($s; $e):
+      if $s == "" or $e == "" then null else ([0, ((ms($s; $e) | ceil) / 1000)] | max) end;
     $extras + {name: $name,
+     timings: {pre_refresh_read: dur($t_prr_s; $t_prr_e),
+               marketplace_update: dur($t_mu_s; $t_mu_e),
+               in_repo_update: dur($t_ir_s; $t_ir_e),
+               user_sweep: dur($t_us_s; $t_us_e),
+               install_enable: dur($t_ie_s; $t_ie_e),
+               cache_content_check: dur($t_cc_s; $t_cc_e),
+               post_read: dur($t_pr_s; $t_pr_e),
+               total: dur_up($t_mp_s; $t_mp_e),
+               resolution: $resolution},
      catalog_last_updated: (if $lastUpdated == "" then null else $lastUpdated end),
      refresh: {rc: $refresh_rc, output: $refresh_out, predicted: $refresh_predicted},
      project_root: $project_root,
@@ -1265,18 +1378,22 @@ elif [[ -n "$TARGET_MP" ]]; then
   MPS=("$TARGET_MP")
 else
   # The default marketplace, resolved dynamically. The resolving read IS Step 1's
-  # pre-refresh snapshot, so it is saved under the resolved name rather than repeated.
+  # pre-refresh snapshot, so it is saved under the resolved name rather than repeated,
+  # and its stamps are that marketplace's `pre_refresh_read` timing.
+  clock_into MAIN_READ_S
   if ! "$FLEET_STATE" >"$RUN_DIR/.default.json" 2>"$RUN_DIR/.fs-err"; then
     echo "ERROR: could not resolve the default marketplace" >&2
     cat "$RUN_DIR/.fs-err" >&2
     exit 2
   fi
+  clock_into MAIN_READ_E
   jq_to DEFAULT_MP -r '.marketplace.name // ""' "$RUN_DIR/.default.json"
   if [[ -z "$DEFAULT_MP" ]]; then
     echo "ERROR: the default marketplace report carries no marketplace name" >&2
     exit 2
   fi
   MPS=("$DEFAULT_MP")
+  MAIN_READ_MP="$DEFAULT_MP"
   [[ -f "$RUN_DIR/pre-refresh.$DEFAULT_MP.json" ]] ||
     mv "$RUN_DIR/.default.json" "$RUN_DIR/pre-refresh.$DEFAULT_MP.json"
 fi
@@ -1301,6 +1418,8 @@ fi
 DIGEST=""
 ALLOW_DOWNGRADE_JSON="false"
 ((ALLOW_DOWNGRADE == 1)) && ALLOW_DOWNGRADE_JSON="true"
+T_RUN_E=""
+clock_into T_RUN_E
 
 # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
 jq_to DIGEST -c -n \
@@ -1310,10 +1429,14 @@ jq_to DIGEST -c -n \
   --arg install_new "$INSTALL_NEW" \
   --arg install_new_invalid "$INSTALL_NEW_INVALID" \
   --argjson marketplaces "$BLOCKS" \
+  --arg t_run_s "$T_RUN_S" --arg t_run_e "$T_RUN_E" \
+  --arg resolution "$CLOCK_RESOLUTION" \
   --argjson errors "$RUN_ERRS" '
   {run_dir: $run_dir, mode: $mode, allow_downgrade: $allow_downgrade,
    install_new: $install_new,
    install_new_invalid: (if $install_new_invalid == "" then null else $install_new_invalid end),
+   timings: {total: ([0, (((($t_run_e | tonumber) - ($t_run_s | tonumber)) * 1000 | ceil) / 1000)] | max),
+             resolution: $resolution},
    marketplaces: $marketplaces, errors: $errors}'
 
 printf '%s\n' "$DIGEST" >"$RUN_DIR/digest.json"

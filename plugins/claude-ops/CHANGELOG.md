@@ -3,6 +3,27 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.48.0]
+
+### Added
+
+- **`plugins`: the sync digest carries per-step timings.** Every marketplace block gains a
+  `timings` object: `pre_refresh_read`, `marketplace_update`, `in_repo_update`, `user_sweep`,
+  `install_enable`, `cache_content_check`, `post_read`, and the marketplace's `total`, each seconds
+  to three decimals, plus `resolution` naming the clock that produced them; the digest's top-level
+  `timings.total` times the whole invocation. A step this invocation did not run (a predicted
+  `audit` mutation, a policy stop before Step 4, an `--only-install` re-entry reusing the first
+  pass's cache finding) reads `null`, never 0. The clock is a ladder resolved once per run:
+  bash's `EPOCHREALTIME` (`microseconds`; bash 5.0 and later, per the GNU bash manual), else
+  `date +%s.%N` accepted only when it prints digits, a dot, and digits (`nanoseconds`; `%N` is a
+  GNU extension and an older `date` prints a literal `N`), else `date +%s` (`seconds`, the one
+  form every `date` documents, and the real rung on macOS's bash 3.2). Stamps are kept as
+  strings and subtracted in jq, with a `,` radix rewritten to `.` first, so every field is a
+  JSON number; steps round down and totals round up so a total is never below the sum of its
+  steps. Timings are a diagnostic measurement with no gate; the rendered report's `Timing:`
+  row lands with the script-rendered report. `SYNC_RUN_NO_EPOCHREALTIME=1` is the test seam
+  that forces the `date` rungs, since a child bash recreates the variable at startup.
+
 ## [0.47.2]
 
 ### Fixed

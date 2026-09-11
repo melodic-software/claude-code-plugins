@@ -254,6 +254,12 @@ assert_eq "audit: the scratch run directory is removed on exit" "absent" \
 # project/local record belongs to the root the run stands in.
 assert_eq "audit: a run with no project context reports zero in-repo records" "0" \
   "$(jq -r '.marketplaces[0].in_repo_records' <<<"$out")"
+# A predicted step did not run, so its timing is null, never 0; the reads it
+# still took are timed.
+assert_eq "audit: the predicted marketplace update has no timing" "null" \
+  "$(jq -c '.marketplaces[0].timings.marketplace_update' <<<"$out")"
+assert_eq "audit: the pre-refresh read it did take is timed" "number" \
+  "$(jq -r '.marketplaces[0].timings.pre_refresh_read | type' <<<"$out")"
 
 # ============================================================================
 # Case: sync calls the cache checker exactly ONCE per marketplace, and reads the
@@ -462,6 +468,15 @@ assert_eq "--only-install: the checker is NOT run a second time" "1" \
   "$(wc -l <"$case_dir/cc.log" | tr -d ' ')"
 assert_eq "--only-install: the cache finding survives into the second digest" "alpha@market1" \
   "$(jq -r '.marketplaces[0].cache_content.stale_ids[0]' <<<"$out2")"
+# Timings follow what each invocation actually ran: the first pass stopped before
+# Step 4, the re-entry ran Steps 4 and 5 and the post read but none of Steps 1-3
+# and not the checker.
+assert_eq "ask: stopping before Step 4 leaves install_enable null, not 0" "null" \
+  "$(jq -c '.marketplaces[0].timings.install_enable' <<<"$out")"
+assert_eq "--only-install: the steps the first pass ran read null" "null null null null" \
+  "$(jq -r '.marketplaces[0].timings | [.marketplace_update, .in_repo_update, .user_sweep, .cache_content_check] | map(tostring) | join(" ")' <<<"$out2")"
+assert_eq "--only-install: the steps it ran are timed" "number number number" \
+  "$(jq -r '.marketplaces[0].timings | [.install_enable, .post_read, .total] | map(type) | join(" ")' <<<"$out2")"
 run_sync "$case_dir" --only-install beta@market2 --run-dir "$run_dir" --marketplace market2 >/dev/null
 assert_exit "--only-install: a marketplace the run never swept is exit 2" 2 $?
 assert_contains "--only-install: and says why" "$(cat "$case_dir/stderr.txt")" "no snapshot for marketplace"
@@ -507,6 +522,8 @@ out=$(run_sync "$case_dir2" --marketplace market1 --install-new all --journal-ro
 assert_eq "all: the gap is installed" "1" "$(grep -c 'plugin install beta@market1' "$case_dir2/claude.log")"
 assert_eq "all: the normalizer heals the key order the install disturbed" "1" \
   "$(grep -cv -- '--report-project' "$case_dir2/normalize.log")"
+assert_eq "all: Steps 4 and 5 ran, so install_enable is timed" "number" \
+  "$(jq -r '.marketplaces[0].timings.install_enable | type' <<<"$out")"
 
 # ============================================================================
 # Case: an empty projection that EXITED 2 is an error, never "nothing to do"
@@ -713,6 +730,105 @@ assert_eq "stale project records: and the single-record path reads 1" "1" \
 # An absent path is not "here": those records must not inflate the In-repo row.
 assert_eq "stale project records: they are not counted as in-repo records" "1" \
   "$(jq -r '.marketplaces[0].in_repo_records' <<<"$out")"
+
+# ============================================================================
+# Case: the digest carries per-step timings from a clock ladder. The same
+# fixture runs three times: on the host's own clock, on a stubbed `date` whose
+# `%N` prints a literal N (an older date), and on the host's `date` with
+# EPOCHREALTIME withheld, so every rung of the ladder is exercised.
+# ============================================================================
+# The `date` stub answers only the `%N` probe; every other call (the run
+# directory's timestamp) goes to the real date.
+REAL_DATE=$(command -v date)
+write_date_stub() {
+  local case_dir="$1" n_output="$2"
+  write "$case_dir/stubs/date" "#!/usr/bin/env bash
+case \"\$*\" in
+*%N*) echo \"$n_output\" ;;
+*) exec \"$REAL_DATE\" \"\$@\" ;;
+esac
+"
+  chmod +x "$case_dir/stubs/date"
+}
+# Every non-null timing is a non-negative number, and the marketplace total is at
+# least the sum of its steps.
+assert_timings_shape() {
+  local label="$1" digest="$2" t
+  t=$(jq -c '.marketplaces[0].timings' <<<"$digest")
+  assert_eq "$label: the timings object carries the eight step keys and resolution" \
+    "cache_content_check,in_repo_update,install_enable,marketplace_update,post_read,pre_refresh_read,resolution,total,user_sweep" \
+    "$(jq -r 'keys | join(",")' <<<"$t")"
+  assert_eq "$label: every non-null timing is a non-negative number" "true" \
+    "$(jq -r 'del(.resolution) | [.[] | select(. != null)] | all(type == "number" and . >= 0)' <<<"$t")"
+  assert_eq "$label: the total is at least the sum of the steps" "true" \
+    "$(jq -r '. as $t | [.pre_refresh_read, .marketplace_update, .in_repo_update, .user_sweep,
+        .install_enable, .cache_content_check, .post_read] | map(select(. != null)) | (add // 0) <= $t.total' <<<"$t")"
+  assert_eq "$label: the whole invocation is timed at top level with the same clock" "true" \
+    "$(jq -r '(.timings.total | type == "number") and .timings.total >= .marketplaces[0].timings.total
+        and .timings.resolution == .marketplaces[0].timings.resolution' <<<"$digest")"
+}
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+catalog_plugin "$case_dir" market1 alpha 0.2.0
+write "$case_dir/installed_plugins.json" '{
+  "version": 1,
+  "plugins": {"alpha@market1": [{"scope": "user", "installPath": "y", "version": "0.1.0"}]}
+}'
+write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m\"}, \"installLocation\": \"$case_dir/mkt\", \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true}}'
+setup_case "$case_dir"
+EXTRA_ENV=(CLAUDE_STUB_NEW_VERSION=0.2.0)
+out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal")
+assert_exit "timings: exit 0" 0 $?
+assert_timings_shape "timings" "$out"
+assert_contains "timings: the resolution names a rung of the ladder" \
+  " microseconds nanoseconds seconds " " $(jq -r '.marketplaces[0].timings.resolution' <<<"$out") "
+assert_eq "timings: the sync steps that ran are all timed" "number number number number number number" \
+  "$(jq -r '.marketplaces[0].timings | [.pre_refresh_read, .marketplace_update, .in_repo_update, .user_sweep, .cache_content_check, .post_read] | map(type) | join(" ")' <<<"$out")"
+assert_eq "timings: an already-current install and enable set leaves install_enable null" "null" \
+  "$(jq -c '.marketplaces[0].timings.install_enable' <<<"$out")"
+if [[ -n "${EPOCHREALTIME:-}" ]]; then
+  assert_eq "timings: a bash with EPOCHREALTIME reports microseconds" "microseconds" \
+    "$(jq -r '.marketplaces[0].timings.resolution' <<<"$out")"
+fi
+
+# A `date` whose %N is a literal N: the fallback is whole seconds, labelled.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir2=$(new_case_dir)
+cp -r "$case_dir"/. "$case_dir2"/
+: >"$case_dir2/claude.log"
+: >"$case_dir2/cc.log"
+: >"$case_dir2/normalize.log"
+write "$case_dir2/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m\"}, \"installLocation\": \"$case_dir2/mkt\", \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+write_date_stub "$case_dir2" "1700000000.N"
+EXTRA_ENV=(CLAUDE_STUB_NEW_VERSION=0.2.0 SYNC_RUN_NO_EPOCHREALTIME=1)
+out=$(run_sync "$case_dir2" --marketplace market1 --install-new none --journal-root "$case_dir2/journal")
+assert_exit "literal-N date: exit 0" 0 $?
+assert_eq "literal-N date: the run falls back to whole seconds and says so" "seconds" \
+  "$(jq -r '.marketplaces[0].timings.resolution' <<<"$out")"
+assert_timings_shape "literal-N date" "$out"
+
+# A `date` that prints a real fraction, with EPOCHREALTIME withheld: the
+# nanosecond rung, on a host whose date has %N; whole seconds otherwise.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir3=$(new_case_dir)
+cp -r "$case_dir"/. "$case_dir3"/
+: >"$case_dir3/claude.log"
+: >"$case_dir3/cc.log"
+: >"$case_dir3/normalize.log"
+write "$case_dir3/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m\"}, \"installLocation\": \"$case_dir3/mkt\", \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+if [[ "$("$REAL_DATE" +%s.%N 2>/dev/null)" =~ ^[0-9]+\.[0-9]+$ ]]; then
+  expected_rung="nanoseconds"
+else
+  expected_rung="seconds"
+fi
+EXTRA_ENV=(CLAUDE_STUB_NEW_VERSION=0.2.0 SYNC_RUN_NO_EPOCHREALTIME=1)
+out=$(run_sync "$case_dir3" --marketplace market1 --install-new none --journal-root "$case_dir3/journal")
+assert_exit "date rung: exit 0" 0 $?
+assert_eq "date rung: without EPOCHREALTIME the run reports the date rung the host has" "$expected_rung" \
+  "$(jq -r '.marketplaces[0].timings.resolution' <<<"$out")"
+assert_timings_shape "date rung" "$out"
 
 # ============================================================================
 # Case: sync mode without --journal-root is a usage error, not a silent scratch run
