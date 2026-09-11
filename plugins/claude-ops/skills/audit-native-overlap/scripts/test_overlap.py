@@ -502,6 +502,21 @@ class SelfCheckTests(unittest.TestCase):
         self.repo.generate()
         self.assertEqual(self.repo.self_check(), 0)
 
+    def test_agent_rows_owe_no_boundary_section(self):
+        # Agents are registry-rows-only: a role prompt loads after dispatch, too
+        # late to route, so no agent row is ever baked and the advisory that
+        # names skills without a Boundary section must not count them.
+        row = deep_copy(BASE_ROW)
+        row["component"] = {"plugin": "demo", "skill": "some-agent", "kind": "agent"}
+        row["baked"]["boundary_section"] = False
+        self.repo.write_store(make_store([row]))
+        self.repo.generate()
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            exit_code = self.repo.self_check()
+        self.assertEqual(exit_code, 0)
+        self.assertNotIn("carry no Boundary section", out.getvalue())
+
     def test_boundary_heading_alone_is_not_a_reverse_parity_break(self):
         # `## Boundary` predates this registry across the fleet; only the
         # frontmatter gate token is a baked-line marker.
