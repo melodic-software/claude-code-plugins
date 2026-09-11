@@ -3,7 +3,7 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.41.2]
+## [0.42.1]
 
 ### Changed
 
@@ -11,6 +11,18 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   repository now states in one place: exit 0 clean, 1 findings, 2 environment
   or usage, with findings on stderr. The skill previously relied on each
   check script's own header, which four scripts disagreed with.
+
+## [0.42.0]
+
+### Added
+
+- **`audit-instructions`**: a `## Boundary, the bundled claude-api skill` section stating the
+  composite posture with the bundled `/claude-api prompt-audit` subcommand (prefer it for
+  model-migration and application-code prompts; this skill for the standing Claude Code
+  instruction catalog, cross-surface conflicts, and harness-claim staleness; run both when a
+  request spans them), a mutation gate that never chains into a prompt-audit apply, and an
+  availability rule that never assumes the bundled skill resolves. Detail, provenance records,
+  and the recheck triggers live in `reference/bundled-claude-api.md`.
 
 ## [0.41.1]
 

@@ -218,6 +218,35 @@ Read-only. It never disables, deletes, or edits a skill, and it never
 recommends deleting one it classified as misconfigured. That class is a
 fix-me, not a removal candidate.
 
+## Boundary, the bundled `doctor` skill and `/skill-doctor`
+
+Two native Claude Code surfaces answer the question this skill starts from, and the three get
+conflated whenever a fleet looks unused:
+
+- **`doctor` (bundled skill, alias `/checkup`).** Ships with Claude Code rather than as a
+  marketplace plugin. Among its checks it finds unused skills, MCP servers, and plugins against
+  their context cost, groups them with a benefit estimate, and offers to disable the groups the
+  user selects. It reports first and asks before changing anything.
+- **`/skill-doctor` (built-in command).** Shows which loaded skills go unused and what they cost in
+  context; the Stats tab carries its report in an interactive session.
+- **This skill (marketplace plugin).** Reconciles the native counters with a JSONL store and OTEL,
+  computes an observed horizon, and separates starved-and-wanted from unwanted from unobservable,
+  withholding every verdict the span cannot support. Read-only.
+
+**Routing.** When either native surface resolves in your session, prefer it for "which skills are
+unused versus their cost, right now". Prefer this skill when the answer has to survive a young
+usage store, when starved and unwanted must be told apart, or when the question is whether skill
+B fires where skill A ran.
+
+**Mutation gate.** `doctor` disables. This skill never disables, deletes, or edits a skill, so
+never chain into a `doctor` disable on this skill's behalf; report the classification and let the
+user act.
+
+**Availability is never assumed.** `doctor` survives the bundled-skill kill switch but an
+environment variable or a `skillOverrides` entry still hides it, and `/skill-doctor` has its own
+gate; this section states what to do when one resolves, never that it is present. The four-part
+records live in [reference/bundled-doctor.md](reference/bundled-doctor.md).
+
 ## Gotchas
 
 - **A short horizon is the normal case, not an error.** Fresh installs, new
