@@ -567,11 +567,18 @@ reap_one() {
 
 launch_collect() {
   # launch_collect <slot> <adapter> <lane> <measure> <files...>
+  #
+  # The file list reaches the adapter through a file (`--paths-from`), not
+  # the argument vector: a whole repository's lane is thousands of paths, and
+  # Git Bash under Windows caps a native process's command line far below
+  # what that needs. Every adapter reads the option through
+  # collectors/adapter_paths.py.
   local slot="$1" adapter="$2" lane="$3" measure="$4"
   shift 4
+  printf '%s\n' "$@" >"$WORK/files.$slot"
   (
     started="$(date +%s)"
-    "${PY[@]}" "$adapter" collect "$lane" "$measure" "$@" >"$WORK/out.$slot" 2>"$WORK/err.$slot"
+    "${PY[@]}" "$adapter" collect "$lane" "$measure" --paths-from "$WORK/files.$slot" >"$WORK/out.$slot" 2>"$WORK/err.$slot"
     rc=$?
     printf '%s %s\n' "$rc" "$(($(date +%s) - started))" >"$WORK/rc.$slot"
   ) &

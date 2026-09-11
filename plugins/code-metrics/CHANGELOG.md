@@ -18,6 +18,19 @@ All notable changes to the `code-metrics` plugin are documented here. Format fol
   returned its lane through a command substitution, one fork per scoped file, and each run row
   was written with one interpreter call per field; the lookup now returns through a variable and
   a row is one call. A whole-tree `audit-size` run on this repository takes about two seconds.
+- **A lane's file list reaches its collector through a file, not the argument vector.** The
+  dispatcher passes `--paths-from <file>` to every adapter's `collect` verb, read through the new
+  shared `scripts/collectors/adapter_paths.py` (positional paths still work and combine with it),
+  because a whole repository's lane is thousands of paths and Git Bash under Windows caps a
+  native process's command line far below that. The `scc` adapter feeds scc itself in chunks
+  under an argument budget (`CODE_METRICS_ARGV_BUDGET` overrides it) for the same reason.
+- **A file the scope filter cannot read is named on stderr.** It is still dropped, so one locked
+  file does not turn its whole lane unavailable, but it no longer vanishes from the scope with
+  nothing said.
+- **A file `scc` says nothing about is still counted.** scc lists only the languages it knows,
+  so a lockfile or an extensionless text file in the catch-all lane came back with no row and the
+  lane still read as measured. The adapter now counts every requested file scc omitted, total and
+  blank lines, and labels the row `comment-agnostic` with `lines_comment` and `lines_code` null.
 - **The rows under the over-reference block are ordered by the number they report.** After the
   rows over a reference (furthest past it first), the rest sort by the primary reference's value,
   largest first (smallest first for a `below` reference such as coverage), so a size report reads

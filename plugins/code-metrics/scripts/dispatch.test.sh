@@ -207,19 +207,27 @@ rc=$?
 assert_eq "an empty change exits 0" 0 "$rc"
 assert_doc "an empty change names the base and says how to widen the scope" "$out" \
   'd["status"]=="empty" and d["scope"]["mode"]=="change" and d["scope"]["files"]==0 and len(d["run"])==1 and d["run"][0]["status"]=="not-applicable" and d["scope"]["base"] in d["run"][0]["reason"] and "--all" in d["run"][0]["reason"] and "paths" in d["run"][0]["reason"]'
-# 9d. A file in the other lane that cannot be read: its lane's row is
-#     unavailable with the collector's reason, exit 3, and the python lane is
-#     still measured. Root reads everything, so the case is skipped there.
+# 9d. A file in the other lane that cannot be read: the scope filter drops it
+#     so one locked file does not turn the lane unavailable, names it on
+#     stderr so it does not vanish unsaid, and the rest of the change is
+#     measured. Root reads everything, so the case is skipped there.
 (cd "$repo" && git checkout -q feature && printf '# notes\n' >locked.md && chmod 000 locked.md)
 if [[ -r "$repo/locked.md" ]]; then
   pass "an unreadable other-lane file (skipped: this user can read a mode-000 file)"
-  pass "the unreadable file leaves the python lane measured (skipped)"
+  pass "the unreadable file is named on stderr (skipped)"
+  pass "the unreadable file leaves the rest of the change measured (skipped)"
 else
-  out="$(cd "$repo" && PATH="$EMPTY_PATH" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines)"
+  err_file="$(mktemp)"
+  out="$(cd "$repo" && PATH="$EMPTY_PATH" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines 2>"$err_file")"
   rc=$?
-  assert_eq "an unreadable other-lane file exits 3" 3 "$rc"
-  assert_doc "the unreadable file leaves the python lane measured" "$out" \
-    'any(r["lane"]=="other" and r["status"]=="unavailable" and "locked.md" in r["reason"] for r in d["run"]) and any(r["lane"]=="python" and r["status"]=="ok" for r in d["run"]) and d["status"]=="partial"'
+  assert_eq "an unreadable other-lane file still exits 0" 0 "$rc"
+  case "$(cat "$err_file")" in
+  *"cannot read: locked.md"*) pass "the unreadable file is named on stderr" ;;
+  *) fail "the unreadable file is named on stderr" "mentions locked.md" "$(head -c 300 "$err_file")" ;;
+  esac
+  assert_doc "the unreadable file leaves the rest of the change measured" "$out" \
+    'd["status"]=="complete" and not any("locked.md" in r["file"] for r in d["measures"]) and any(r["lane"]=="python" and r["status"]=="ok" for r in d["run"])'
+  rm -f "$err_file"
 fi
 (cd "$repo" && chmod 644 locked.md && rm -f locked.md)
 # An explicitly named directory holding only ignored files lists nothing. Asking
