@@ -287,7 +287,7 @@ measurements below carry the conditions they were taken under.
   no longer exists, and neither does the separate Python process that was spawned only to evaluate
   the version predicate. The floor is now recovered inside the candidate interpreter on the cold
   path, and the resolved interpreter is cached, so a **warm invocation spends one process spawn
-  (the guard itself) where it previously spent four** — `dirname`, `sed`, and two `python3`.
+  (the guard itself) where it previously spent four**: `dirname`, `sed`, and two `python3`.
   That spawn census, not a duration, is the durable figure: it is deterministic, whereas the
   wall-clock share above was measured on a host whose process-creation cost was later observed
   varying more than tenfold within a single hour under contention (`bash -c true` at 283 ms and

@@ -83,7 +83,7 @@ All notable changes to the `tdd` plugin are documented here. Format follows
 
 - **Mutation testing named as the partial exception to "no automated way to measure test suite
   quality"** (`code-coverage-khorikov.md`). The chapter's claim is about quality as it defines it and
-  stands; one property — whether assertions can detect a fault rather than merely execute code — is
+  stands; one property, whether assertions can detect a fault rather than merely execute code, is
   automatically measurable, and a file at high coverage with a low mutation score is exercised but
   not checked. The note states the measurement's limits in the same breath (unknowable ceiling from
   equivalent mutants, and targeting the number reproduces the chapter's own perverse incentive).
@@ -101,7 +101,7 @@ fallback stated inline, per the seam-phrasing convention.
 
 - **The bare `/<skill>` alias for this plugin's skills.** Their `SKILL.md` files no longer
   declare a frontmatter `name`. The field is optional and defaults to the directory name, so
-  declaring it only restated the path while registering a second, unnamespaced command — which
+  declaring it only restated the path while registering a second, unnamespaced command, which
   the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
   namespaced command; the command itself is unchanged.
 

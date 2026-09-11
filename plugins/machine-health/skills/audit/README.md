@@ -1,4 +1,4 @@
-# machine-health — developer notes
+# machine-health developer notes
 
 Implements the `machine-health` Claude Code skill. `SKILL.md` is the runtime entry point Claude reads; this file is for humans maintaining the skill.
 
@@ -29,9 +29,9 @@ audit/
 
 ## Separation of semantics from implementation
 
-- `reference/shared/` — *what* health means: severity levels, result schema, report template, discovery procedure, remediation philosophy, catalog-overlay semantics.
-- `reference/<os>/` — *how* to detect it on that OS: cmdlets, registry paths, service models, thresholds.
-- `scripts/<os>/` — executable implementation emitting the shared schema.
+- `reference/shared/`: *what* health means: severity levels, result schema, report template, discovery procedure, remediation philosophy, catalog-overlay semantics.
+- `reference/<os>/`: *how* to detect it on that OS: cmdlets, registry paths, service models, thresholds.
+- `scripts/<os>/`: executable implementation emitting the shared schema.
 
 Adding a new OS should be "populate two folders," not "refactor the skill." If a change feels OS-agnostic but lives under `reference/windows/`, it likely belongs in `reference/shared/`.
 
@@ -39,8 +39,8 @@ Adding a new OS should be "populate two folders," not "refactor the skill." If a
 
 Every check script runs two ways:
 
-- **By Claude** — emits a single JSON object on stdout conforming to the check-result schema (`reference/shared/output-schema.md`).
-- **By a human** — pass `-Human` for readable output. Use `Write-Host` in that mode so structured emitters still work over pipelines.
+- **By Claude:** emits a single JSON object on stdout conforming to the check-result schema (`reference/shared/output-schema.md`).
+- **By a human:** pass `-Human` for readable output. Use `Write-Host` in that mode so structured emitters still work over pipelines.
 
 Human-mode output is the on-ramp for debugging a misbehaving check; keep it readable.
 
@@ -71,7 +71,7 @@ environment variable is set). A single check can run in isolation:
 ## Extending the skill
 
 1. New Windows check (shipped): write `scripts/windows/checks/Test-<Thing>.ps1` emitting the shared schema, add an entry to `catalog/checks.jsonc` with `os: ["windows"]`, document thresholds in `reference/windows/check-catalog.md`, and bump the plugin version.
-2. Machine-local custom check (consumer-side): see `reference/shared/catalog-overlay.md` — script under the state base, entry in `checks.local.jsonc`, no plugin change.
+2. Machine-local custom check (consumer-side): see `reference/shared/catalog-overlay.md`. Script under the state base, entry in `checks.local.jsonc`, no plugin change.
 3. New remediation: write `scripts/windows/remediations/<Verb>-<Noun>.ps1`, add it to the authorization list in `reference/windows/remediation-policy.md`, and wire dispatch in the orchestrator. Remediations always default to not approved.
 4. New OS: replace the matching `NOT_IMPLEMENTED.md` with a populated folder. Consult `reference/shared/discovery-guide.md` for the porting checklist.
 

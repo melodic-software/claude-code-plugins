@@ -1,4 +1,4 @@
-# batch-simplify — grouping & output reference
+# batch-simplify: grouping & output reference
 
 Detail the SKILL.md phases point to: how to group changed files for simplification waves (Phase 4), the summary-report template (Phase 8), and generic per-ecosystem verification fallbacks (Phase 7).
 
@@ -8,21 +8,21 @@ Group files by project/ecosystem relatedness. Each group should contain files th
 
 **Grouping rules** (in priority order):
 
-1. **Same project directory** — files in the same project (identified by the nearest `*.csproj`, `package.json`, `pyproject.toml`, `Cargo.toml`, or equivalent manifest) go together
-2. **Source vs tests** — separate source code from test code within the same project if the combined count exceeds ~15 files
-3. **Root config files** — all root-level config files (`.editorconfig`, build-system props, formatter configs) form one group
-4. **Standalone scripts** — skill/tool scripts group by parent directory
+1. **Same project directory**: files in the same project (identified by the nearest `*.csproj`, `package.json`, `pyproject.toml`, `Cargo.toml`, or equivalent manifest) go together
+2. **Source vs tests**: separate source code from test code within the same project if the combined count exceeds ~15 files
+3. **Root config files**: all root-level config files (`.editorconfig`, build-system props, formatter configs) form one group
+4. **Standalone scripts**: skill/tool scripts group by parent directory
 
-Agent & enforcement configuration (`.claude/hooks/**`, `.claude/settings*.json`, `.mcp.json`, CI workflows, git-hook manager config) is excluded in Phase 2 — it never forms a simplification group; changed files there surface as read-only deferred items.
+Agent & enforcement configuration (`.claude/hooks/**`, `.claude/settings*.json`, `.mcp.json`, CI workflows, git-hook manager config) is excluded in Phase 2. It never forms a simplification group; changed files there surface as read-only deferred items.
 
-**Dependency ordering** — process groups in this order:
+**Dependency ordering.** Process groups in this order:
 
 1. Root build/tooling config (everything depends on these)
 2. Standalone scripts (skills, tools)
 3. Shared/platform libraries (other code depends on these)
 4. Application code (depends on shared libs)
 5. Architecture/cross-cutting tests (depend on libs + apps)
-6. Independent polyglot services — by ecosystem, source before tests
+6. Independent polyglot services, by ecosystem, source before tests
 
 ## Summary report template (Phase 8)
 
@@ -59,16 +59,16 @@ If zero items were deferred across all groups, state explicitly: *"No items defe
 
 ## Ecosystem verification commands (Phase 7)
 
-Resolve each group's verification command through the registered ecosystem-command owner —
-do not maintain a command table here. In order:
+Resolve each group's verification command through the registered ecosystem-command owner.
+Do not maintain a command table here. In order:
 
 1. When the `toolchain` plugin is installed, invoking `/toolchain:check` via the Skill tool
-   (scoped to the group's files) IS the verification step — it resolves the consuming project's tracked
+   (scoped to the group's files) IS the verification step. It resolves the consuming project's tracked
    per-ecosystem command config and its own portable defaults.
 2. Otherwise, the consuming project's own canonical commands (its `CLAUDE.md` / CI config
-   usually names them — e.g. warnings-as-errors flags, custom test runners).
+   usually names them, e.g. warnings-as-errors flags, custom test runners).
 3. Otherwise, the ecosystem's ordinary build/lint/test entry points, inferred from the
-   group's manifests (never a memorized command list — read the project's scripts,
+   group's manifests (never a memorized command list: read the project's scripts,
    `Makefile`, or manifest to pick them).
 
 Include the group's verification step in each simplifier agent's prompt so the agent self-verifies before returning; Phase 7 re-runs it as the safety net.

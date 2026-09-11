@@ -1,4 +1,4 @@
-# Safety model — modes, gates, exclusions, staging
+# Safety model: modes, gates, exclusions, staging
 
 The risk being managed: every applied edit is a code change, and each kind of change has a
 different strongest available proof that it preserved behavior. The gates below match the proof to
@@ -12,7 +12,7 @@ behavior, while a token comparison is exhaustive over the file.
 | Mode | Class A | Class B | Class C |
 |---|---|---|---|
 | **Default** | Applied, each deletion certified by the tier-0 proof | Applied per the tier table below; otherwise proposed | Earn-its-keep triage; a criterion-2 failure is deleted behind the tier-0 proof, an over-budget comment rewritten; narrative staged before either |
-| **`safe`** | Applied, same certification | Always proposed — no code-structure change is applied | Same triage, but **nothing class-C is applied**: a criterion-2 deletion and an over-budget rewrite are both proposed, with the narrative staged. Only class A deletes here |
+| **`safe`** | Applied, same certification | Always proposed: no code-structure change is applied | Same triage, but **nothing class-C is applied**: a criterion-2 deletion and an over-budget rewrite are both proposed, with the narrative staged. Only class A deletes here |
 
 `conservative` is `safe` as a standing default, so it reads the `safe` row. The class-C column is
 the one to get right: the triage still runs in every mode and still returns a verdict, but a
@@ -44,8 +44,8 @@ tacit pass.
 
 **Exit 2 is the common case on a mixed-language repository, not an edge case.** `CODE_EXT` in
 `scope-code-files.sh` admits 28 extensions; `change-shape.py` maps 16 of them and
-`commented-out-code.py` 12, and their union is 16. The 12 with no grammar in either —
-`.c .cpp .go .h .hpp .java .lua .ps1 .psm1 .rb .rs .sql` — reach triage normally and then
+`commented-out-code.py` 12, and their union is 16. The 12 with no grammar in either,
+`.c .cpp .go .h .hpp .java .lua .ps1 .psm1 .rb .rs .sql`, reach triage normally and then
 have **no** applicable tier-0 or tier-1 proof, so every deletion and rename in them is a proposal.
 Say so in the report rather than reporting those files as clean: a file nothing could prove is not
 a file with nothing to fix.
@@ -64,7 +64,7 @@ tier's proof did not pass.
 
 1. **Discover** a runnable test command for the touched code: the repo's declared conventions
    (`CLAUDE.md`, rules, a `test` script in the package manifest, `Makefile`/`justfile` targets,
-   the ecosystem default — `dotnet test`, `npm test`, `pytest`, `go test ./...`, `bats`).
+   the ecosystem default: `dotnet test`, `npm test`, `pytest`, `go test ./...`, `bats`).
 2. **Scope-check**: the discovered suite must plausibly exercise the touched code (same package/
    project/module). A repo-wide suite that cannot reach the touched file is not a net for it.
 3. **Run before and after** the move. Red before the move → stop, report (the skill never fixes
@@ -75,7 +75,7 @@ tier's proof did not pass.
    it counts as absent. Say so in the report with the measured time the run reached before it was
    cut off, so the reader can tell a timed-out suite from a missing one.
 
-Lint and formatters are supplementary hygiene (run them if the repo has them wired) — they never
+Lint and formatters are supplementary hygiene (run them if the repo has them wired). They never
 open the apply path, because they cannot attest behavior preservation.
 
 ## Exempt surfaces (never touched, any mode)
@@ -102,7 +102,7 @@ open the apply path, because they cannot attest behavior preservation.
 
 These three are **not** on the list above, and the distinction is deliberate. They are not
 machine-read, not legal, and not a contract another tool consumes; they are prose that a reader
-needs, which makes them class C — subject to the earn-its-keep test and the line budget like any
+needs, which makes them class C, subject to the earn-its-keep test and the line budget like any
 other class-C comment, not exempt from them.
 
 - **Negative information**: what the code deliberately does NOT do, and why an alternative was
@@ -125,8 +125,9 @@ the class-C test in [triage.md](triage.md), which the skill body applies to prec
 The discriminator the design uses is the **budget, not the category**.
 
 Because this class is the likeliest false positive, its evidence bar is raised rather than lowered:
-a criterion-2 failure here needs the alternative recorded *somewhere a reader would actually reach*
-— a commit message, an ADR, a linked issue — and "it is probably in the history" is not that. Where
+a criterion-2 failure here needs the alternative recorded *somewhere a reader would actually reach*,
+such as a commit message, an ADR, or a linked issue, and "it is probably in the history" is not
+that. Where
 a repository pairs such a comment with a regression test, the comment is half of a two-part record
 and is kept; see the gotcha below.
 
@@ -169,7 +170,7 @@ default rather than betting deletion on a clean discovery pass.
 
 ## Path exclusions
 
-The canonical baseline is the plugin's standard tier — tidy's
+The canonical baseline is the plugin's standard tier, tidy's
 [exclusions reference](../../tidy/reference/exclusions.md), GLOBAL HARD
 list: the whole `.claude/**` tree plus any script wired as a hook command **anywhere**, wherever the
 script itself lives, which includes `.claude/settings.json` and `.claude/settings.local.json`, a
@@ -189,7 +190,7 @@ SELF-UPDATE EXTRA HARD list are not path lists and no channel touches them. The 
 are unchanged on a lifted path, so a language `change-shape.py` cannot parse yields proposals rather
 than applied deletions, whatever lifted it.
 
-## Narrative staging — text is never silently destroyed
+## Narrative staging: text is never silently destroyed
 
 When a removal takes real prose with it (a justification narrative, a why that routes to version
 control), the run's report stages that text **before the deletion is final**:
@@ -203,7 +204,7 @@ Proposed commit-message body (staged from removed comments):
 Hand the block to `/source-control:commit`, invoked via the Skill tool, when committing the tidied
 diff, or fold it into the
 PR description or an ADR when the repo keeps them. For explicit-target runs on already-committed
-code, note in the report that the narrative belongs with the *next* commit touching that code —
+code, note in the report that the narrative belongs with the *next* commit touching that code,
 or keep the comment if no vehicle exists (staging with no landing place is not a deletion
 licence).
 
