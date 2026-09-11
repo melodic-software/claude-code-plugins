@@ -60,12 +60,12 @@ max-mutants: <n>
 
 **There is no score-threshold field.** A mutation score has a permanent, unknowable ceiling below
 100% because equivalent mutants cannot all be removed, and every point of score is purchasable by
-suppressing a mutant — so a gate selects for suppression over testing. Report the number; do not gate
+suppressing a mutant, so a gate selects for suppression over testing. Report the number; do not gate
 on it. The reasoning, with sources, is in the `principles` skill's `scaling-and-suppression.md`.
 
 ## Notes for the reader of a diff
 
-- A change to `mutate` changes what is measured — review it like a coverage-configuration change.
+- A change to `mutate` changes what is measured. Review it like a coverage-configuration change.
 - A change to `operators` changes the denominator of every score. Scores before and after are not
   comparable.
 - A change to `diff-target` can silently scope a run to nothing. Confirm it resolves.

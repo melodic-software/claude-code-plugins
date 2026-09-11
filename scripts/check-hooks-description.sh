@@ -26,14 +26,18 @@
 # "with an optional top-level `description` field"). Recheck trigger: the
 # reference renames, removes, or makes the field required; either way this
 # comment and the rule are re-derived from the page, not patched from memory.
+#
+# Exit 0 clean, 1 findings, 2 environment or usage; findings on stderr. That is
+# the whole family's contract, stated once in README.md, "The check-script
+# contract", and held by scripts/check-script-contract.test.sh.
 
 set -euo pipefail
 
-cd "$(dirname "${BASH_SOURCE[0]}")/.."
+cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 2
 
 if ! command -v jq >/dev/null 2>&1; then
   echo "check-hooks-description: jq is required but not installed" >&2
-  exit 1
+  exit 2
 fi
 
 errors=0

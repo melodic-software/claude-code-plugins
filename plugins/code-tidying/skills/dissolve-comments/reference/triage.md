@@ -1,16 +1,16 @@
 # The three-way triage
 
 Every comment in scope gets exactly one class, and every class has a treatment on **both** sides of
-its test — a comment that fails class C's test is deleted, not kept for want of a branch. On a data
+its test. A comment that fails class C's test is deleted, not kept for want of a branch. On a data
 or config file (TOML, YAML, JSON) class B is empty by construction, because such a file has no
 naming or structure channel to dissolve a comment into; the triage there is class A or class C only.
 
-The classes have **different tests** — class A is judged on information content, class B on
-expressibility, class C on necessity — and conflating them applies the wrong treatment. The classic
+The classes have **different tests**: class A is judged on information content, class B on
+expressibility, class C on necessity. Conflating them applies the wrong treatment. The classic
 failure is deleting a class-B comment as if it were class A: that destroys information the code was
 supposed to absorb first.
 
-## Class A — zero or negative information: delete outright
+## Class A, zero or negative information: delete outright
 
 The comment adds nothing beyond the adjacent code, or is actively wrong.
 
@@ -19,7 +19,7 @@ The comment adds nothing beyond the adjacent code, or is actively wrong.
 - Obsolete: describes behavior the code no longer has
 - Commented-out code (version control owns history)
 
-Deletion is the complete treatment — no refactor needed, no information lost. This class overlaps
+Deletion is the complete treatment: no refactor needed, no information lost. This class overlaps
 `/code-tidying:audit-comment-residue`'s four residue shapes (history narration, plan references,
 conversational antecedents, ticket back-references); when that skill has already produced findings,
 its Tier 1 rows are class-A input here.
@@ -29,12 +29,12 @@ when the reference is its **whole content**. An issue reference that is a citati
 rationale sentence stays with the sentence and takes that sentence's class, because the citation is
 one half of a rationale-and-regression-test pair and deleting either half breaks the pair.
 
-## Class B — real information the code could carry: refactor, then delete
+## Class B, real information the code could carry: refactor, then delete
 
 The comment compensates for a naming or structure deficiency. The information is real; its
 location is wrong. Treatment order is fixed: move the information into code via a
 behavior-preserving refactoring (the named moves in
-[dissolving-moves.md](dissolving-moves.md)), verify, and only then delete the comment —
+[dissolving-moves.md](dissolving-moves.md)), verify, and only then delete the comment, following
 Fowler's "first try to refactor the code so that any comment becomes superfluous."
 
 Signals: the comment names what a block does (extract it), what a vague identifier means (rename
@@ -47,15 +47,15 @@ an additive move needs a discovered test net; an interface-creating move needs t
 proposed first. When the tier's gate does not pass, the item is **proposed**, and the comment stays
 until the proposal lands.
 
-## Class C — information code cannot express: earn-its-keep, keep terse
+## Class C, information code cannot express: earn-its-keep, keep terse
 
 A comment survives only if **all three** hold:
 
-1. **Inexpressible** — the information cannot be carried by names, structure, types, or an
+1. **Inexpressible**: the information cannot be carried by names, structure, types, or an
    assertion: why/rationale, a constraint from outside the code, a warning, a contract detail
    (units, invariants, side effects, boundary conditions), negative information ("this is NOT
    thread-safe").
-2. **Load-bearing at the point of reading** — a future editor risks a bug or misuse without it,
+2. **Load-bearing at the point of reading**: a future editor risks a bug or misuse without it,
    *at this location*. Rationale discoverable from context or version control does not need
    restating here; a constraint whose violation silently breaks something does, because blame
    trails are fragile across refactors.
@@ -86,13 +86,13 @@ A comment survives only if **all three** hold:
 
 **When the test fails.** A comment that passes criterion 1 and fails criterion 2 is **deleted**
 under `strict`, behind the same COMMENT-ONLY token proof class A uses, with its narrative staged
-first per [safety.md](safety.md). It is not reclassified as class A — class A is redundancy with
-code that is present, and this comment is not redundant — and it is not kept for want of a branch.
+first per [safety.md](safety.md). It is not reclassified as class A, since class A is redundancy
+with code that is present and this comment is not redundant, and it is not kept for want of a branch.
 Criterion 3 has its own treatment, the rewrite above; only criterion 2 sends a comment to deletion.
 
 Under `safe` mode and posture `conservative` this deletion is **proposed, never applied**. Those
 modes apply class-A deletions only, and a comment that reached this branch is class C whatever its
-test returned — the mode ladder narrows what is applied, and it does not get to be widened by a
+test returned. The mode ladder narrows what is applied, and it does not get to be widened by a
 verdict reached inside it.
 
 **Whole-file verdict.** Where the majority of a file's class-C comments carry contract, negative, or
@@ -112,18 +112,18 @@ original wording is staged before the deletion is final. Prose quality of what r
 linted by Vale where a repository runs it (tree-sitter-backed, about 25 languages, none of Bash or
 YAML); it is an optional lane, never a dependency.
 
-**Justification routing.** Rationale defaults to routing out of code — commit message, PR
-description, ADR — with a terse in-code why as the legitimate remainder. A lengthy why-comment is
+**Justification routing.** Rationale defaults to routing out of code, to a commit message, a PR
+description, or an ADR, with a terse in-code why as the legitimate remainder. A lengthy why-comment is
 treated as: extract the durable constraint into a one-liner (if there is one), stage the narrative
 as a proposed commit-message block in the run's output, delete the rest. The staging happens
-before the deletion is final — see [safety.md](safety.md).
+before the deletion is final. See [safety.md](safety.md).
 
 ## Doc comments
 
-- **Public-API doc comments are exempt entirely** — docstrings, C# XML docs, JSDoc/TSDoc on
+- **Public-API doc comments are exempt entirely**: docstrings, C# XML docs, JSDoc/TSDoc on
   exported surfaces. They feed documentation generators and IDE surfaces; deleting them is
   quasi-behavioral. Never touched, in any mode.
-- **Private/internal doc comments** get the same three-way triage as any comment — a deliberate
+- **Private/internal doc comments** get the same three-way triage as any comment, a deliberate
   doctrine choice (the Martin pole for internal interfaces): a private method whose docstring
   restates its name and parameters is class A/B; one carrying a real contract is class C.
 
@@ -137,5 +137,5 @@ before the deletion is final — see [safety.md](safety.md).
 | `// 86400 = seconds per day` | B | Replace Magic Literal `SecondsPerDay`, delete |
 | `// items must stay sorted; binary search below depends on it` | C | Keep (constraint, load-bearing, terse) |
 | `// we retry twice here because the upstream 502s on cold start`, and the commit that added it says exactly that | C, criterion 2 fails | Stage the narrative, delete behind the COMMENT-ONLY proof (recoverable where a reader would look) |
-| `// this is NOT thread-safe; callers serialize`, recorded nowhere else | C | Keep (negative information, load-bearing, terse — not exempt, but it passes the test) |
+| `// this is NOT thread-safe; callers serialize`, recorded nowhere else | C | Keep (negative information, load-bearing and terse: not exempt, but it passes the test) |
 | 12-line comment explaining why approach X was chosen over Y | C, criterion 3 fails | Extract any durable constraint to one line; stage the narrative for the commit message; delete the rest |

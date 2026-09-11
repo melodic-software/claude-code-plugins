@@ -1,4 +1,4 @@
-# plugin-quality — consumer configuration
+# plugin-quality consumer configuration
 
 The `audit` skill's team configuration surface: a natural-language **topic doc at the consumer's
 convention home**, bound by the pointer line the consuming marketplace's config-cascade expression
@@ -68,20 +68,20 @@ repo_map:
 
 First hit wins:
 
-1. **Team config** — the resolved `sink` value from the resolution order above.
-2. **Infer** — the audited plugin's marketplace registration (its `source`/repo in the installed
+1. **Team config**: the resolved `sink` value from the resolution order above.
+2. **Infer**: the audited plugin's marketplace registration (its `source`/repo in the installed
    marketplace metadata, overridable per plugin via `repo_map`) names the target repo; propose it.
-3. **Ask + offer persist** — no config, no inference: ask the user, offer to persist the choice
+3. **Ask + offer persist**: no config, no inference, so ask the user and offer to persist the choice
    into the topic doc at the convention home (via `/plugin-quality:setup apply`).
-4. **Local fallback** — no `gh`, no repo, or the user declines: write the markdown item next to
+4. **Local fallback**: with no `gh`, no repo, or a user decline, write the markdown item next to
    the evidence packet and report its path.
 
-Every externally-visible emit — whatever rung resolved the target — passes the unconditional
+Every externally-visible emit, whatever rung resolved the target, passes the unconditional
 draft+confirm egress gate (full draft + destination + ACTING identity), owned by the audit
 skill. This file documents the ladder; the gate lives in the skill.
 
 When the `work-items` plugin is installed, the audit offers its seam (`create-item` via the
-tracker CLI) as the emit vehicle for rungs 1–3 — never by hand-writing files into another
+tracker CLI) as the emit vehicle for rungs 1–3, never by hand-writing files into another
 plugin's storage format (see reconciliation below). The seam emit sits behind the SAME confirm
 surface as `gh issue create`: the tracker performs provider writes, and invoking the audit is
 not itself authorization to create an external item.
@@ -109,7 +109,7 @@ prs: []
 resolution: null
 ```
 
-Body sections: **Summary**, **Findings** (each with evidence + doc citations — URL, fetch
+Body sections: **Summary**, **Findings** (each with evidence + doc citations: URL, fetch
 date, the retrieval channel it came over (rung-1 `curl` of the `.md`, or rung-2
 `WebFetch`), and a byte count or line number; a citation that omits the channel or the
 count is emitted as **unverified**), **Suggested remediations** (cheapest first),
@@ -123,9 +123,9 @@ Two adjacent shapes were diffed against this schema before it was fixed:
 
 - **Cross-terminal handoff inbox contract** (the schema above IS that contract, captured from a
   live inbox README 2026-07-24): key set, state vocabulary, id grammar, and filename rule match
-  byte-for-byte — an operator pointing `markdown_dir` at such an inbox emits compatible items.
-- **`work-items` local-markdown adapter storage**: DIVERGES by design and is NOT a write target —
-  different id grammar (`local-markdown:<owner>/<repo>#<n>` vs timestamp-slug), different state
+  byte-for-byte, so an operator pointing `markdown_dir` at such an inbox emits compatible items.
+- **`work-items` local-markdown adapter storage**: DIVERGES by design and is NOT a write target.
+  It has a different id grammar (`local-markdown:<owner>/<repo>#<n>` vs timestamp-slug), a different state
   key and vocabulary (`state: open` vs `status: unclaimed…`), JSON-valued frontmatter, and
   adapter-owned numbering. The delta is irreconcilable in one file, so the rule is: emit INTO
   `work-items` only through its own seam CLI (rung offer above), never by writing its files by

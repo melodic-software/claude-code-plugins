@@ -121,7 +121,7 @@ as a convention-level input rather than a new convention.**
 The original answer deferred graduation to a later pass. That was wrong for the same reason the
 whole deferral posture was wrong: the memory tier does not survive. Resolved as:
 
-- **Graduated** into `docs/specs/` through the knowledge-vault seam: the corpus knowledge base,
+- **Graduated** into `docs/specs/` through the knowledge-vault route: the corpus knowledge base,
   the critical apparatus, the linked sources, and this decisions record. These are the durable
   artifacts.
 - **Not graduated**: the byte-verified digest slices, pin manifests, verification verdicts, and
@@ -142,7 +142,7 @@ upstream-drift changelog entry shipped separately.**
 
 **Decision: a documented trigger only; no new re-test mechanism.**
 
-Every other V1 answer landed somewhere durable — the deletion threshold became the exception
+Every other V1 answer landed somewhere durable: the deletion threshold became the exception
 register and its attribution design, the conflict-coverage reopen became a tracker item, and the
 `/doctor` and 80%-figure findings are recorded as settled facts and tier posture in
 [`context-engineering-corpus-knowledge.md`](context-engineering-corpus-knowledge.md). One did not,

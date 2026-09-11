@@ -11,21 +11,21 @@ How big is "well-sized" for a tidy PR? This file is the canonical answer. Three 
 | Lines of code (additions + deletions) | ≤200 LOC | ≤400 LOC |
 | Files changed | ≤8 files | ≤15 files |
 
-The **target** is the ideal shape of a tidy PR — small enough to review in under an hour, atomic enough to revert cleanly. The **hard cap** is the absolute upper bound; runs producing more must defer the overflow.
+The **target** is the ideal shape of a tidy PR: small enough to review in under an hour, atomic enough to revert cleanly. The **hard cap** is the absolute upper bound; runs producing more must defer the overflow.
 
 ### Research lineage
 
-- **SmartBear "Best Kept Secrets of Peer Code Review" (Cohen et al.)** — the foundational study showing review effectiveness drops sharply above 200 LOC and reviews above 400 LOC are largely ineffective at finding defects. The 200/400 thresholds match this lineage directly
-- **Cisco's code-review study (Bosu, McIntosh, Wagner)** — confirmed SmartBear's findings on a different codebase; ≤60 minutes of review time correlates with ≤200 LOC
+- **SmartBear "Best Kept Secrets of Peer Code Review" (Cohen et al.)**: the foundational study showing review effectiveness drops sharply above 200 LOC and reviews above 400 LOC are largely ineffective at finding defects. The 200/400 thresholds match this lineage directly
+- **Cisco's code-review study (Bosu, McIntosh, Wagner)**: confirmed SmartBear's findings on a different codebase; ≤60 minutes of review time correlates with ≤200 LOC
 - **CodeScene code-health research (Borg, Hagatulah, Tornhill, and Söderberg)**, AI tooling handles unhealthy code measurably worse than healthy code, so small structure-only PRs keep changes inside the range where an agent is lower risk. The publication is [Code for Machines, Not Just Humans: Quantifying AI-Friendliness with Code Health Metrics](https://arxiv.org/abs/2601.02200), read 2026-09-06; it analyses 5,000 Python files and reports that human-friendly code is also more compatible with AI tooling. No percentage is restated here, so read the figure from the paper before quoting one. Recheck when a revision moves the finding, or when a study measures agentic refactoring defect rates directly.
 
-If a lane consistently overflows the cap, that's a signal the lane scope is too coarse — split the lane, don't raise the cap.
+If a lane consistently overflows the cap, that's a signal the lane scope is too coarse. Split the lane, don't raise the cap.
 
 ### What counts toward LOC
 
 - Net additions + net deletions (a change that adds 50 lines and removes 50 lines = 100 LOC for the cap)
-- Generated / formatted diffs (whitespace-only changes from formatters) DO count toward the cap — they're still code the reviewer must scan past
-- Lockfile changes (`uv.lock`, `package-lock.json`, and similar machine-generated files) DO NOT count — they're inspection-only
+- Generated / formatted diffs (whitespace-only changes from formatters) DO count toward the cap, since they're still code the reviewer must scan past
+- Lockfile changes (`uv.lock`, `package-lock.json`, and similar machine-generated files) DO NOT count, since they're inspection-only
 - Markdown line additions DO count for prose lanes (those lanes are prose-only, so line counts ARE the budget)
 
 ### What counts toward files changed
@@ -42,16 +42,16 @@ When the hunt phase produces more candidates than fit in the budget:
 
 1. **Sort candidates by priority.** Default priority order, highest first:
    - Tidyings that resolve a build warning, lint warning, or analyzer hit
-   - Tidyings that fix a stale cross-reference (P-2) or dead link (P-1) — high reader-experience impact
+   - Tidyings that fix a stale cross-reference (P-2) or dead link (P-1), with high reader-experience impact
    - Tidyings that improve reading order (Beck #5, P-4) in files reviewers visit often
    - Tidyings that delete dead code (Beck #2) or redundant comments (Beck #15)
    - Other Beck/Fowler/prose tidyings, all roughly equal priority
 
 2. **Take the top-priority subset that fits.** Greedy selection: take the highest-priority candidate; if adding it would exceed the cap, skip and try the next; stop when the cap is reached or no remaining candidate fits.
 
-3. **Defer the rest.** For each unselected candidate above a "would-be-worth-doing" threshold (i.e., not trivial micro-tidyings — those just go away), file a work item using the deferred-items template below: invoke `/work-items:track add` via the Skill tool when that plugin is installed, else `gh issue create`, else present the list to the user.
+3. **Defer the rest.** For each unselected candidate above a "would-be-worth-doing" threshold (i.e., not trivial micro-tidyings, which just go away), file a work item using the deferred-items template below: invoke `/work-items:track add` via the Skill tool when that plugin is installed, else `gh issue create`, else present the list to the user.
 
-4. **Record the deferred issue numbers** under a `## Deferred items` section — in Phase H's follow-up PR comment when `source-control` is installed, otherwise directly in the PR body. This makes the PR's review obvious-by-default: "here's what I did, here's what I parked for next time, here are the issue numbers to hold me accountable."
+4. **Record the deferred issue numbers** under a `## Deferred items` section, in Phase H's follow-up PR comment when `source-control` is installed, otherwise directly in the PR body. This makes the PR's review obvious-by-default: "here's what I did, here's what I parked for next time, here are the issue numbers to hold me accountable."
 
 ### Greedy vs. optimal selection
 
@@ -86,7 +86,7 @@ Deferred from tidy run on `<branch-name>` (anchor: `<anchor-sha>`). The hunt fou
 
 ## Tidying type
 
-<one of the named tidyings from reference/tidyings.md, e.g., "Beck #5 — Reading Order">
+<one of the named tidyings from reference/tidyings.md, e.g., "Beck #5: Reading Order">
 
 ## Files
 
@@ -120,14 +120,14 @@ Deferred from tidy run on `<branch-name>` (anchor: `<anchor-sha>`). The hunt fou
 
 ### Frequency
 
-No upper bound on deferred issues per run. If a single run defers >10 items, that's worth noting to the user — the lane may be scope-creep'd or the watch-for list may be too aggressive.
+No upper bound on deferred issues per run. If a single run defers >10 items, that's worth noting to the user. The lane may be scope-creep'd or the watch-for list may be too aggressive.
 
 ---
 
 ## How to apply these numbers during a run
 
-1. **Phase D (Hunt + prioritize + scope-budget enforce)** — after building the prioritized findings table, sum the LOC deltas. Apply the greedy selection.
-2. **Phase E (Implement)** — periodically check actual LOC delta against the running estimate (`git diff --stat origin/<default-branch>...HEAD`). This measures the full branch diff — all commits since the branch point, not just uncommitted changes relative to HEAD. If actual exceeds estimated by >25%, stop the current tidying mid-flight and re-budget.
-3. **Phase H (Ship)** — the `## Deferred items` section (follow-up comment, or PR body when `source-control` isn't installed) comes directly from this protocol's filed-issue list.
+1. **Phase D (Hunt + prioritize + scope-budget enforce)**: after building the prioritized findings table, sum the LOC deltas. Apply the greedy selection.
+2. **Phase E (Implement)**: periodically check actual LOC delta against the running estimate (`git diff --stat origin/<default-branch>...HEAD`). This measures the full branch diff, all commits since the branch point, not just uncommitted changes relative to HEAD. If actual exceeds estimated by >25%, stop the current tidying mid-flight and re-budget.
+3. **Phase H (Ship)**: the `## Deferred items` section (follow-up comment, or PR body when `source-control` isn't installed) comes directly from this protocol's filed-issue list.
 
-If the cap numbers themselves need to change, that's a research-driven update — not a tidy. See the SELF-UPDATE EXTRA HARD list in `reference/exclusions.md`.
+If the cap numbers themselves need to change, that's a research-driven update, not a tidy. See the SELF-UPDATE EXTRA HARD list in `reference/exclusions.md`.

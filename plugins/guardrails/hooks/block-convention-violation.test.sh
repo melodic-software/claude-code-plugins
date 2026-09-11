@@ -27,14 +27,13 @@ newrepo() {
   printf '%s' "$d"
 }
 
+GUARD_UNDER_TEST="$HOOK"
+
 # run <label> <repo> <command> <expected-exit> [tool]
 run() {
-  local label="$1" repo="$2" command="$3" expected="$4" tool="${5:-Bash}" rc json
-  json=$(jq -n --arg t "$tool" --arg c "$command" --arg d "$repo" \
-    '{tool_name:$t,tool_input:{command:$c},cwd:$d}')
-  CLAUDE_PROJECT_DIR="$repo" bash "$HOOK" <<<"$json" >/dev/null 2>&1
-  rc=$?
-  assert_exit "$label" "$expected" "$rc"
+  local label="$1" repo="$2" command="$3" expected="$4" tool="${5:-Bash}"
+  expect "$label" "$expected" --tool "$tool" --command "$command" --cwd "$repo" \
+    -- "CLAUDE_PROJECT_DIR=$repo"
 }
 
 TICKET=$'## subject_pattern\n^[A-Z]+-[0-9]+: .+\n\n## pr_title_pattern\nSame as `subject_pattern`.'
@@ -172,13 +171,13 @@ run "post-2.25 name alias.bugreport: violating subject blocked" "$r" \
 run "post-2.25 name alias.bugreport: conforming subject allowed" "$r" \
   $'git bugreport -F - --cleanup=verbatim <<\'EOF\'\nABC-5: fine\nEOF' 0
 
-# --- effective_dir is git's own slice, plus the wrapper's replayed chdir -------
+# --- the composed dir is git's own slice, plus the wrapper's replayed chdir ----
 # The alias lookup is the reachable consumer: it has no stdin-form gate and no
 # exemption gate, and it fails OPEN — reading the wrong repository's config
 # misses the expansion, so the guard never learns the subcommand is `commit`.
 #
 # `git commit -C HEAD` is deliberately NOT the control here. `-C` sets exempt=1
-# and the hook returns before effective_dir is ever called, so that invocation
+# and the hook returns before the directory is ever composed, so that invocation
 # answers "allowed" on both the old and the new code and would read as already
 # fixed. The positional case is probed through the alias lookup instead.
 
@@ -214,7 +213,7 @@ run "env -u -C git <alias>: decoy repo at <cwd>/git is not read" "$r" \
 # A `-C` AFTER the subcommand is an argument, not a chdir. The alias ends in `--`
 # so the trailing `-C dec` git appends to the expansion cannot re-trigger the
 # reuse-message exemption in the recursed frame — without that, the case answers
-# "allowed" on both trees for a reason unrelated to effective_dir.
+# "allowed" on both trees for a reason unrelated to the composed directory.
 r="$(newrepo "$TICKET")"
 d="$(subrepo "$r" dec)"
 git -C "$d" config alias.qs 'commit -F - --cleanup=verbatim --'
@@ -222,7 +221,7 @@ run "post-subcommand -C is not a chdir (decoy repo not read)" "$r" \
   $'git qs -C dec <<\'EOF\'\njunk subject\nEOF' 0
 
 # A genuine wrapper chdir IS a relocation, and the slice cannot see it — so it is
-# replayed from HOOK_GIT_RESOLVED_WRAPPER_DIRS, matching what #2100 established
+# replayed from HOOK_GITINV_WRAPPER_DIRS, matching what #2100 established
 # for block-dangerous-git. The alias lives only in the moved-to repository.
 r="$(newrepo "$TICKET")"
 d="$(subrepo "$r" inner)"
@@ -244,7 +243,7 @@ run "env -C <dir> git <alias>: conforming subject still allowed" "$r" \
 run "env --chdir=<dir> git <alias>: attached long form is replayed" "$r" \
   $'env --chdir=inner git qc -F - --cleanup=verbatim <<\'EOF\'\njunk subject\nEOF' 2
 
-# The OTHER effective_dir consumer: sequencer_in_progress. Every pre-existing
+# The OTHER consumer of the composed directory: sequencer_in_progress. Every pre-existing
 # `sequencer:` case probes the payload cwd's own repo with no wrapper at all, so
 # nothing reached this call site through a wrapper chdir. `--chdir=` again, so the
 # case discriminates rather than being caught by the old scan.
@@ -327,12 +326,9 @@ assert_exit "kill switch off: violating subject allowed" 0 $?
 
 # cache_run <repo> <plugin-data> <command> -> exit code in $CACHE_RC
 cache_run() {
-  local json
-  json=$(jq -n --arg c "$3" --arg d "$1" \
-    '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}')
-  CACHE_RC=0
-  CLAUDE_PROJECT_DIR="$1" CLAUDE_PLUGIN_DATA="$2" bash "$HOOK" <<<"$json" >/dev/null 2>&1 ||
-    CACHE_RC=$?
+  guard_invoke --command "$3" --cwd "$1" \
+    -- "CLAUDE_PROJECT_DIR=$1" "CLAUDE_PLUGIN_DATA=$2"
+  CACHE_RC=$GUARD_RC
 }
 
 VIOLATING=$'git commit -F - <<\'EOF\'\nnot a ticket subject\nEOF\n'
@@ -600,5 +596,21 @@ else
   BUDGET_ROWS="$(trace_sites "$TRACE_LOG")"
   assert_site alias-probe "$BUDGET_ROWS"
 fi
+
+# --- The same verdicts under the dispatcher ----------------------------------
+# hooks.json ships this guard under run-guards.sh, where stdin is read once and
+# re-served, and `.tool_input.command` / `.cwd` arrive from the dispatcher's
+# primed jq cache instead of the guard's own jq call. Nothing above asserts a
+# verdict on that path; a resolution that only works standalone would pass.
+rd="$(newrepo "$TICKET")"
+expect_both "dispatched parity: violating subject blocked" 2 \
+  --command "$BAD_COMMIT" --cwd "$rd" -- "CLAUDE_PROJECT_DIR=$rd"
+expect_both "dispatched parity: conforming subject allowed" 0 \
+  --command "$GOOD_COMMIT" --cwd "$rd" -- "CLAUDE_PROJECT_DIR=$rd"
+expect_both "dispatched parity: git status is not a commit" 0 \
+  --command "git status --short" --cwd "$rd" -- "CLAUDE_PROJECT_DIR=$rd"
+rn="$(newrepo "")"
+expect_both "dispatched parity: no team file, no enforcement" 0 \
+  --command "$BAD_COMMIT" --cwd "$rn" -- "CLAUDE_PROJECT_DIR=$rn"
 
 report

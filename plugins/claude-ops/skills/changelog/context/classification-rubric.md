@@ -4,7 +4,7 @@ P1/P2/P3 criteria for triaging Claude Code changelog items.
 
 ## Three-tier classification
 
-### P1 — Requires update
+### P1: Requires update
 
 Repo already uses this CC feature or surface, and the changelog changes behavior, adds capability, or fixes a bug that affects our configuration/documentation.
 
@@ -19,7 +19,7 @@ Repo already uses this CC feature or surface, and the changelog changes behavior
 
 **Action:** Update affected files. Document behavioral change.
 
-### P2 — Worth considering
+### P2: Worth considering
 
 New capability the repo does NOT currently use but SHOULD evaluate for adoption.
 
@@ -31,9 +31,9 @@ New capability the repo does NOT currently use but SHOULD evaluate for adoption.
 - New setting enabling automation we currently do manually
 - Platform improvement making a deferred feature tractable
 
-**Action:** Research capability, evaluate fit, recommend adopt/defer with rationale. Do NOT skip because "we don't use it yet" — that's exactly why it needs evaluation.
+**Action:** Research capability, evaluate fit, recommend adopt/defer with rationale. Do NOT skip because "we don't use it yet". That's exactly why it needs evaluation.
 
-### P3 — No action
+### P3: No action
 
 UI/cosmetic fix, internal refactoring, or feature entirely irrelevant to repo.
 

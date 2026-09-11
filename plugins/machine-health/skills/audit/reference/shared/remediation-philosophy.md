@@ -1,12 +1,12 @@
 # Remediation philosophy
 
-Remediations are the highest-risk surface of this skill. A false-positive remediation — fixing something that wasn't broken, or fixing it in a way the user would not have chosen — erodes trust faster than any number of useful findings can rebuild. This file sets the posture every OS-specific `remediation-policy.md` must conform to.
+Remediations are the highest-risk surface of this skill. A false-positive remediation erodes trust faster than any number of useful findings can rebuild: fixing something that wasn't broken, or fixing it in a way the user would not have chosen. This file sets the posture every OS-specific `remediation-policy.md` must conform to.
 
 ## Core posture: fail safe
 
 **When uncertain, don't act.** Report the finding, include the reproduction command, move on. A surfaced issue the human can investigate is always better than an attempted fix that introduces a new problem.
 
-**Do the least that could work.** If an Automatic service is stopped, try one `Start-Service` — not a service reset, not a dependency walk, not a config repair. If that fails, the check upgrades to CRIT with the failure message; human decides next step.
+**Do the least that could work.** If an Automatic service is stopped, try one `Start-Service`, not a service reset, not a dependency walk, not a config repair. If that fails, the check upgrades to CRIT with the failure message; human decides next step.
 
 ## The one-attempt rule
 
@@ -40,11 +40,11 @@ These are **never** allowed, regardless of how obvious the need seems:
 - **No firewall, UAC, or Defender policy changes.** Read Defender status; never modify it.
 - **No uninstalls, repair installs, or version rollbacks.** Surface the finding; the human decides.
 - **No rollback of anything.** Rolling back a driver or a Windows update is destructive and requires context the skill doesn't have.
-- **No editing of user files.** `Documents\`, `Desktop\`, OneDrive, source repos, dotfiles — off-limits.
-- **No network changes.** DNS, proxy, routing table — read-only.
+- **No editing of user files.** `Documents\`, `Desktop\`, OneDrive, source repos, and dotfiles are off-limits.
+- **No network changes.** DNS, proxy, and routing table are read-only.
 - **No scheduled task creation.** The scheduling layer is explicitly out of scope.
 
-A remediation requiring any of the above is not a remediation — it's a proposal for `<StateBase>/TODO.md`.
+A remediation requiring any of the above is not a remediation. It's a proposal for `<StateBase>/TODO.md`.
 
 ## Authorization chain
 
@@ -66,7 +66,7 @@ The first invocation (`RunMode = first-run`) forces `DryRun = true` regardless o
 - Produce a report the human can review before authorizing remediations.
 - Seed `state/history.jsonl` with a baseline.
 
-Nothing is approved by default. A normal `weekly` run does clear `DryRun`, but every remediation still has to pass the authorization chain above — an `approved: true` entry in `<StateBase>/state/approvals.json` (written via `/machine-health:setup`; see [`approvals.md`](approvals.md)) plus the 60-second user-load heuristic. An unapproved remediation is skipped and logged, never attempted; `TODO.md` records the proposal but no checkbox in it grants approval.
+Nothing is approved by default. A normal `weekly` run does clear `DryRun`, but every remediation still has to pass the authorization chain above: an `approved: true` entry in `<StateBase>/state/approvals.json` (written via `/machine-health:setup`; see [`approvals.md`](approvals.md)) plus the 60-second user-load heuristic. An unapproved remediation is skipped and logged, never attempted; `TODO.md` records the proposal but no checkbox in it grants approval.
 
 ## Defer under user load
 
@@ -89,7 +89,7 @@ Failure **does not** trigger another attempt, alternate remediation, or fall-thr
 Example: `Restart-StoppedService` succeeds, but 2 hours later the service dies again. The next weekly run re-detects the stopped service and remediates again. If the same service-target pair is remediated in **3 consecutive runs**, the orchestrator should:
 
 - Log this as a pattern in the run log.
-- Add a `<StateBase>/TODO.md` entry proposing investigation (not another remediation type — investigation by human).
+- Add a `<StateBase>/TODO.md` entry proposing investigation (investigation by a human, not another remediation type).
 - Continue remediating until the human acts.
 
-Don't stop remediating on loop detection — the alternative is leaving a stopped service stopped, which is strictly worse. But make the loop visible.
+Don't stop remediating on loop detection. The alternative is leaving a stopped service stopped, which is strictly worse. But make the loop visible.

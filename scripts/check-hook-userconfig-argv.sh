@@ -24,16 +24,20 @@
 # (`required:true` + argv, no unset case) adoption per the convention's
 # Open-gaps probe. An allowlist entry whose file is missing or clean is stale
 # and fails the gate, so the list can only shrink back to reality.
+#
+# Exit 0 clean, 1 findings, 2 environment or usage; findings on stderr. That is
+# the whole family's contract, stated once in README.md, "The check-script
+# contract", and held by scripts/check-script-contract.test.sh.
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR/.."
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
+cd "$SCRIPT_DIR/.." || exit 2
 # shellcheck source=lib/read-list.sh
-. "$SCRIPT_DIR/lib/read-list.sh"
+. "$SCRIPT_DIR/lib/read-list.sh" || exit 2
 
 if ! command -v jq >/dev/null 2>&1; then
   echo "check-hook-userconfig-argv: jq is required but not installed" >&2
-  exit 1
+  exit 2
 fi
 
 ALLOWLIST="scripts/hook-userconfig-argv-allowlist.txt"
@@ -59,11 +63,14 @@ allowed() {
 }
 
 errors=0
-declare -A flagged_or_allowed=()
 
 flag() {
   local file="$1" where="$2"
-  flagged_or_allowed["$file"]=1
+  # An allowlist entry naming this file is still doing its job. Marked for every
+  # flagged file, allowed or not, so the stale guard below reports only entries
+  # that name nothing the scan reached. scripts/lib/read-list.sh owns the
+  # consumed-set and the diagnostic.
+  read_list::mark_used "$file"
   # shellcheck disable=SC2310  # allowed only greps a static file; nothing inside it can fail unexpectedly
   if allowed "$file"; then
     return 0
@@ -136,11 +143,13 @@ done
 
 # Stale-allowlist guard: every entry must name a scanned hook config that still
 # carries the token; anything else is drift the list must shed.
-for entry in ${ALLOWED_ENTRIES[@]+"${ALLOWED_ENTRIES[@]}"}; do
-  if [[ -z "${flagged_or_allowed[$entry]:-}" ]]; then
-    echo "STALE ALLOWLIST: $ALLOWLIST: '$entry' names no scanned hook config carrying \${user_config.*} — remove it" >&2
-    errors=$((errors + 1))
-  fi
+stale_entries=()
+read_list::stale_to stale_entries ALLOWED_ENTRIES
+for entry in ${stale_entries[@]+"${stale_entries[@]}"}; do
+  # shellcheck disable=SC2016  # ${user_config.*} is the literal token being described
+  read_list::stale_line "$ALLOWLIST" "$entry" \
+    'names no scanned hook config carrying ${user_config.*} — remove it'
+  errors=$((errors + 1))
 done
 
 if ((errors > 0)); then

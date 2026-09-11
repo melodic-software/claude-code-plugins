@@ -14,15 +14,15 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SUT="$SCRIPT_DIR/check-drive-root-litter.sh"
 
-fails=0
-pass() { printf 'ok   - %s\n' "$1"; }
-fail() {
-  printf 'FAIL - %s\n' "$1" >&2
-  fails=$((fails + 1))
-}
+# shellcheck source=lib/test-harness.sh
+. "$SCRIPT_DIR/lib/test-harness.sh"
+# shellcheck source=lib/fixture-tree.sh
+. "$SCRIPT_DIR/lib/fixture-tree.sh"
 
-TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT
+# The builder assigns through a nameref, which shellcheck cannot follow;
+# declaring the out-var here is what tells it (SC2154) the name is written.
+TMP=""
+fixture_tree::build TMP --label drive-root-litter
 
 # run <ostype> <mount-root|-> [args...] — sets OUT (stdout+stderr) and RC.
 # Deliberately NOT called through a command substitution: that would fork a
@@ -91,7 +91,7 @@ mkdir -p "$TMP/both/c/data" "$TMP/both/d/repos" "$TMP/both/c/d" "$TMP/both/d/tmp
 # --- 1. Non-Windows host: no-op, reported, exit 0 ---------------------------
 run linux-gnu -
 if ((RC == 0)) && grep -qi 'no-op on a non-Windows host' <<<"$OUT"; then
-  pass "bare invocation on a POSIX host is a reported no-op (exit 0)"
+  ok "bare invocation on a POSIX host is a reported no-op (exit 0)"
 else
   fail "POSIX host should no-op with a reason: rc=$RC out=$OUT"
 fi
@@ -101,7 +101,7 @@ fi
 # seam able to bypass it would put the guarantee at the mercy of an env var.
 run darwin24 "$TMP/litter"
 if ((RC == 0)) && grep -qi 'no-op on a non-Windows host' <<<"$OUT"; then
-  pass "the mount-root seam does not bypass the non-Windows gate"
+  ok "the mount-root seam does not bypass the non-Windows gate"
 else
   fail "seam bypassed the host gate: rc=$RC out=$OUT"
 fi
@@ -109,12 +109,12 @@ fi
 # --- 3. Clean drive roots: exit 0 -------------------------------------------
 run msys "$TMP/clean"
 if ((RC == 0)) && grep -q 'no drive-root litter found' <<<"$OUT"; then
-  pass "clean drive roots pass (exit 0)"
+  ok "clean drive roots pass (exit 0)"
 else
   fail "clean roots should pass: rc=$RC out=$OUT"
 fi
 if ! grep -q 'worktrees' <<<"$OUT"; then
-  pass "multi-character directories at a drive root are ignored"
+  ok "multi-character directories at a drive root are ignored"
 else
   fail "multi-character directory reported as litter: $OUT"
 fi
@@ -122,27 +122,27 @@ fi
 # --- 4. The fingerprint fires -----------------------------------------------
 run msys "$TMP/litter"
 if ((RC == 1)); then
-  pass "a drive-root directory named for a mounted drive fails (exit 1)"
+  ok "a drive-root directory named for a mounted drive fails (exit 1)"
 else
   fail "litter should fail with exit 1: rc=$RC out=$OUT"
 fi
 if grep -q "$TMP/litter/d/d" <<<"$OUT"; then
-  pass "the failure names the offending path"
+  ok "the failure names the offending path"
 else
   fail "failure output should name the path: $OUT"
 fi
 if grep -q "$TMP/litter/c/d" <<<"$OUT"; then
-  pass "litter is detected on every drive root, not only the first"
+  ok "litter is detected on every drive root, not only the first"
 else
   fail "second drive root not scanned: $OUT"
 fi
 if grep -q 'windows-path-emit' <<<"$OUT"; then
-  pass "the failure routes the reader to the owning convention"
+  ok "the failure routes the reader to the owning convention"
 else
   fail "failure output should cite the convention doc: $OUT"
 fi
 if grep -qi 'may have measured something other than what' <<<"$OUT"; then
-  pass "the failure names the test-validity cost, not just the litter"
+  ok "the failure names the test-validity cost, not just the litter"
 else
   fail "failure output should flag the run's results as suspect: $OUT"
 fi
@@ -150,12 +150,12 @@ fi
 # hit on this machine was (#2870). Deleting it first strands the registry entry,
 # so the remediation text must send the reader to deregistration before removal.
 if grep -qi 'registered git worktree' <<<"$OUT"; then
-  pass "the remediation warns that the tree may hold a registered worktree"
+  ok "the remediation warns that the tree may hold a registered worktree"
 else
   fail "remediation should warn about a registered worktree before removal: $OUT"
 fi
 if grep -q 'worktree remove --force' <<<"$OUT"; then
-  pass "the remediation names the deregistering command, not a bare delete"
+  ok "the remediation names the deregistering command, not a bare delete"
 else
   fail "remediation should name 'git worktree remove --force': $OUT"
 fi
@@ -163,7 +163,7 @@ fi
 # --- 5. Precision: a single letter that is not a mounted drive --------------
 run msys "$TMP/nearmiss"
 if ((RC == 0)) && grep -q 'no drive-root litter found' <<<"$OUT"; then
-  pass "single-letter directories naming no mounted drive are not litter"
+  ok "single-letter directories naming no mounted drive are not litter"
 else
   fail "near-miss names should not fire: rc=$RC out=$OUT"
 fi
@@ -171,7 +171,7 @@ fi
 # --- 6. A mount root with no drives -----------------------------------------
 run msys "$TMP/nodrives"
 if ((RC == 0)) && grep -q 'no drives found' <<<"$OUT"; then
-  pass "a mount root with no drives reports and exits 0"
+  ok "a mount root with no drives reports and exits 0"
 else
   fail "no-drives root should report and pass: rc=$RC out=$OUT"
 fi
@@ -180,7 +180,7 @@ fi
 OUT="$(cd "$TMP/checkout/d/c/work/repo" && OSTYPE=msys DRIVE_ROOT_LITTER_MOUNT_ROOT="$TMP/checkout" DRIVE_ROOT_LITTER_IGNORE_SINKS='' bash "$SUT" 2>&1)"
 RC=$?
 if ((RC == 0)) && grep -q 'no drive-root litter found' <<<"$OUT"; then
-  pass "a drive-root directory containing the cwd is not reported as litter"
+  ok "a drive-root directory containing the cwd is not reported as litter"
 else
   fail "cwd-ancestor exclusion failed: rc=$RC out=$OUT"
 fi
@@ -188,7 +188,7 @@ fi
 # rather than a blanket suppression.
 run msys "$TMP/checkout"
 if ((RC == 1)) && grep -q "$TMP/checkout/d/c" <<<"$OUT"; then
-  pass "the same directory is litter when it does not contain the cwd"
+  ok "the same directory is litter when it does not contain the cwd"
 else
   fail "exclusion suppressed too much: rc=$RC out=$OUT"
 fi
@@ -196,19 +196,19 @@ fi
 # --- 8. Temp-sink class: a drive-root tmp fires ------------------------------
 run msys "$TMP/sink"
 if ((RC == 1)) && grep -q "$TMP/sink/c/tmp" <<<"$OUT"; then
-  pass "a drive-root tmp directory fails and is named (exit 1)"
+  ok "a drive-root tmp directory fails and is named (exit 1)"
 else
   fail "drive-root tmp should fail with exit 1: rc=$RC out=$OUT"
 fi
 if ! grep -q "$TMP/sink/c/data" <<<"$OUT" && ! grep -q "$TMP/sink/d/repos" <<<"$OUT"; then
-  pass "ordinary non-sink directories at a drive root are not reported"
+  ok "ordinary non-sink directories at a drive root are not reported"
 else
   fail "non-sink directory reported as litter: $OUT"
 fi
 # Windows filesystems fold case, so an uppercase TMP is the same sink.
 run msys "$TMP/sinkupper"
 if ((RC == 1)) && grep -q "$TMP/sinkupper/c/TMP" <<<"$OUT"; then
-  pass "an uppercase drive-root TMP is detected (case-insensitive match)"
+  ok "an uppercase drive-root TMP is detected (case-insensitive match)"
 else
   fail "uppercase TMP should be detected: rc=$RC out=$OUT"
 fi
@@ -217,7 +217,7 @@ fi
 OUT="$(OSTYPE=msys DRIVE_ROOT_LITTER_MOUNT_ROOT="$TMP/sink" DRIVE_ROOT_LITTER_IGNORE_SINKS=tmp bash "$SUT" 2>&1)"
 RC=$?
 if ((RC == 0)) && grep -q 'no drive-root litter found' <<<"$OUT"; then
-  pass "DRIVE_ROOT_LITTER_IGNORE_SINKS=tmp exempts a deliberate drive-root tmp"
+  ok "DRIVE_ROOT_LITTER_IGNORE_SINKS=tmp exempts a deliberate drive-root tmp"
 else
   fail "sink opt-out should pass: rc=$RC out=$OUT"
 fi
@@ -225,14 +225,14 @@ fi
 OUT="$(OSTYPE=msys DRIVE_ROOT_LITTER_MOUNT_ROOT="$TMP/sink" DRIVE_ROOT_LITTER_IGNORE_SINKS=TMP bash "$SUT" 2>&1)"
 RC=$?
 if ((RC == 0)) && grep -q 'no drive-root litter found' <<<"$OUT"; then
-  pass "an uppercase opt-out value (TMP) exempts a lowercase tmp"
+  ok "an uppercase opt-out value (TMP) exempts a lowercase tmp"
 else
   fail "uppercase opt-out should exempt: rc=$RC out=$OUT"
 fi
 OUT="$(OSTYPE=msys DRIVE_ROOT_LITTER_MOUNT_ROOT="$TMP/sinkupper" DRIVE_ROOT_LITTER_IGNORE_SINKS=tmp bash "$SUT" 2>&1)"
 RC=$?
 if ((RC == 0)) && grep -q 'no drive-root litter found' <<<"$OUT"; then
-  pass "a lowercase opt-out value exempts an uppercase TMP directory"
+  ok "a lowercase opt-out value exempts an uppercase TMP directory"
 else
   fail "opt-out should exempt an uppercase directory: rc=$RC out=$OUT"
 fi
@@ -240,7 +240,7 @@ fi
 OUT="$(OSTYPE=msys DRIVE_ROOT_LITTER_MOUNT_ROOT="$TMP/litter" DRIVE_ROOT_LITTER_IGNORE_SINKS=tmp bash "$SUT" 2>&1)"
 RC=$?
 if ((RC == 1)); then
-  pass "the sink opt-out leaves the single-letter class armed"
+  ok "the sink opt-out leaves the single-letter class armed"
 else
   fail "sink opt-out suppressed the single-letter class: rc=$RC out=$OUT"
 fi
@@ -249,14 +249,14 @@ fi
 OUT="$(cd "$TMP/sinkcheckout/c/tmp/work/repo" && OSTYPE=msys DRIVE_ROOT_LITTER_MOUNT_ROOT="$TMP/sinkcheckout" DRIVE_ROOT_LITTER_IGNORE_SINKS='' bash "$SUT" 2>&1)"
 RC=$?
 if ((RC == 0)) && grep -q 'no drive-root litter found' <<<"$OUT"; then
-  pass "a drive-root tmp containing the cwd is not reported as litter"
+  ok "a drive-root tmp containing the cwd is not reported as litter"
 else
   fail "sink cwd-ancestor exclusion failed: rc=$RC out=$OUT"
 fi
 # ... and the same tree IS litter from elsewhere.
 run msys "$TMP/sinkcheckout"
 if ((RC == 1)) && grep -q "$TMP/sinkcheckout/c/tmp" <<<"$OUT"; then
-  pass "the same tmp directory is litter when it does not contain the cwd"
+  ok "the same tmp directory is litter when it does not contain the cwd"
 else
   fail "sink exclusion suppressed too much: rc=$RC out=$OUT"
 fi
@@ -264,7 +264,7 @@ fi
 # --- 11. Both classes report together ----------------------------------------
 run msys "$TMP/both"
 if ((RC == 1)) && grep -q "$TMP/both/c/d" <<<"$OUT" && grep -q "$TMP/both/d/tmp" <<<"$OUT"; then
-  pass "single-letter and temp-sink hits are reported in one run"
+  ok "single-letter and temp-sink hits are reported in one run"
 else
   fail "both classes should be reported together: rc=$RC out=$OUT"
 fi
@@ -272,13 +272,9 @@ fi
 # --- 12. Arguments are a usage error -----------------------------------------
 run msys "$TMP/clean" --check
 if ((RC == 2)) && grep -q 'usage' <<<"$OUT"; then
-  pass "an unexpected argument is a usage error (exit 2)"
+  ok "an unexpected argument is a usage error (exit 2)"
 else
   fail "arguments should exit 2: rc=$RC out=$OUT"
 fi
 
-if ((fails > 0)); then
-  printf '\n%d assertion(s) failed.\n' "$fails" >&2
-  exit 1
-fi
-printf '\nAll assertions passed.\n'
+test_harness::report

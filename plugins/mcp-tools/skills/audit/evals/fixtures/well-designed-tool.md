@@ -1,7 +1,7 @@
 # Fixture: well-designed MCP tool
 
 TypeScript MCP server excerpt (`@modelcontextprotocol/sdk`). A single tool that
-satisfies the description, parameter, naming, and annotation criteria — included to
+satisfies the description, parameter, naming, and annotation criteria. It is included to
 test that the audit does not fabricate findings on a strong definition.
 
 ```ts

@@ -2,8 +2,9 @@
 
 This document is the single owner of the marketplace's category vocabulary. Each plugin entry in
 `.claude-plugin/marketplace.json` carries one `category` value drawn from the controlled set below, and
-the generated catalog groups plugins by it. Consumers of this vocabulary — the marketplace file, the
-catalog generator, `docs/CATALOG.md` — conform to this document and cite it; they never restate its definitions.
+the generated catalog groups plugins by it. Three consumers of this vocabulary conform to this document
+and cite it, never restating its definitions: the marketplace file, the catalog generator, and
+`docs/CATALOG.md`.
 
 Category is display-and-grouping metadata only. It never appears in an install identifier
 (`plugin-name@marketplace`) or a skill invocation (`/plugin-name:skill`). Physical layout stays flat
@@ -11,7 +12,7 @@ Category is display-and-grouping metadata only. It never appears in an install i
 
 ## Form rule
 
-Every category value is a lowercase noun or gerund-noun naming a domain of activity or subject matter —
+Every category value is a lowercase noun or gerund-noun naming a domain of activity or subject matter,
 never a bare-verb imperative (`development`, not `build`; `deployment`, not `deploy`; `maintenance`, not
 `support`). This matches the controlled-vocabulary convention (ANSI/NISO Z39.19 §6.4.1), every value in
 the official Claude Code marketplace, and the VS Code and Chrome category enumerations.
@@ -19,8 +20,8 @@ the official Claude Code marketplace, and the VS Code and Chrome category enumer
 ## Assignment principle
 
 The taxonomy is **lifecycle-primary with a subject catch-all**. A plugin that serves the general software
-lifecycle is filed by its lifecycle **activity**. A plugin whose defining trait is a special **subject** —
-Claude Code itself, the workstation, music, personal life — is filed by that subject.
+lifecycle is filed by its lifecycle **activity**. A plugin whose defining trait is a special **subject**,
+such as Claude Code itself, the workstation, music, or personal life, is filed by that subject.
 
 When a plugin is an activity applied to a special subject, **subject wins if the subject is the salient
 reason the plugin exists**. `skill-quality` audits (activity) Claude Code skills (subject) and is filed
@@ -29,20 +30,20 @@ under `quality`; `codebase-health` audits the general codebase and is filed unde
 
 ## Vocabulary
 
-Lifecycle tier — the SDLC spine:
+Lifecycle tier, the SDLC spine:
 
 | Category | Scope |
 |---|---|
 | `discovery` | Explore code, research, ingest external sources. |
 | `design` | Plan, model, architect, prototype before building. |
-| `development` | Implement, format, lint, commit — the construction inner loop. |
+| `development` | Implement, format, lint, commit: the construction inner loop. |
 | `testing` | Design, author, run, and diagnose tests. |
 | `verification` | Prove a change achieved its intended outcome against baseline and intent. |
 | `quality` | Reviews and audits of artifacts (SWEBOK software-quality reviews-and-audits). |
 | `maintenance` | Fix, tidy, and keep an existing codebase healthy (SWEBOK maintenance). |
-| `deployment` | CI/CD, environments, releases. Not yet populated — see triggers. |
+| `deployment` | CI/CD, environments, releases. Not yet populated. See triggers. |
 
-Domain-and-cross-cutting tier — filed by subject:
+Domain-and-cross-cutting tier, filed by subject:
 
 | Category | Scope |
 |---|---|
@@ -52,7 +53,7 @@ Domain-and-cross-cutting tier — filed by subject:
 | `workflow` | Conducting the development session and process: staging, handoff, retrospective, orchestration priming. |
 | `presentation` | Shaping how information is presented to the reader: visual form, medium, rendering, and output register. |
 | `project-management` | Tracking, triaging, and decomposing the work backlog. |
-| `operations` | Workstation day-2 operations — monitoring and remediation. |
+| `operations` | Workstation day-2 operations: monitoring and remediation. |
 | `learning` | Coaching the human through a subject. |
 | `music` | Songwriting and music craft. |
 | `personal` | The owner's personal-life tooling, outside the software-delivery lifecycle. |
@@ -64,7 +65,7 @@ renders them.
 
 A category with one member is legitimate when its label positively predicts its member (Nielsen Norman
 Group: a category name must predict its contents). A value earns its place by naming a genuinely distinct
-discipline — not by balancing bucket sizes. Do not merge a singleton into a broader category if the merge
+discipline, not by balancing bucket sizes. Do not merge a singleton into a broader category if the merge
 would force a vague or junk label onto the combined set; the distinct, honest label is preferred. Revisit
 a singleton only if it would otherwise need a misleading label to survive.
 
@@ -79,7 +80,7 @@ Category-level:
 | Trigger | Action |
 |---|---|
 | First deployment plugin lands | Populate the `deployment` category (already reserved above). |
-| A non-music creative plugin lands | Broaden `music` — rename to `creative` or add a sibling creative category — rather than filing the newcomer under `music`. |
+| A non-music creative plugin lands | Broaden `music`, by renaming it to `creative` or adding a sibling creative category, rather than filing the newcomer under `music`. |
 | A broader automation plugin lands (automation that is not governed-autonomy-scoped) | Broaden `autonomy` or add a sibling category rather than filing the newcomer under `autonomy`. |
 
 Plugin-scoped (owned by the named plugin's README):
@@ -103,4 +104,4 @@ keeps the grouped view and the manifests from diverging.
 The generator's render order is held to this document the same way: on every run it parses the two
 Vocabulary tables above (the backticked first-column values, in order) and fails when its own list
 disagrees, so a value added, dropped, renamed, or reordered on either side is loud. Keep that row shape
-when editing the tables — a reshaping the parse cannot read fails the check rather than passing silently.
+when editing the tables. A reshaping the parse cannot read fails the check rather than passing silently.

@@ -17,17 +17,17 @@ behavior, when a new mutation tool appears for a listed ecosystem, or at the nex
 
 | Ecosystem | Tool | Diff-scoping flag | Write-regime setting | Covered-code metric name |
 |---|---|---|---|---|
-| JavaScript / TypeScript | StrykerJS | `--incremental` (pairs with `--incrementalFile`) | `inPlace` — `false` → out-of-tree; `true` → in-tree whole-file (schemata rewrite once) | Mutation score based on covered code |
-| C# / .NET | Stryker.NET | `--since[:<target>]` | none — fixed out-of-tree | Mutation score based on covered code |
-| Scala | Stryker4s | none | none — fixed out-of-tree | Mutation score based on covered code |
-| Java / JVM | PIT (pitest) | incremental analysis | none — mutants held in memory, never written to disk (out-of-tree) | **Test strength** |
-| PHP | Infection | `--git-diff-lines` (with `--git-diff-base` / `--git-diff-filter`) | none — fixed out-of-tree | **Covered Code MSI** |
-| Python | mutmut | changed-file selection | ≤2.x in-tree per-mutant; ≥3.0.0 out-of-tree — version is the regime | mutation score |
+| JavaScript / TypeScript | StrykerJS | `--incremental` (pairs with `--incrementalFile`) | `inPlace`: `false` → out-of-tree; `true` → in-tree whole-file (schemata rewrite once) | Mutation score based on covered code |
+| C# / .NET | Stryker.NET | `--since[:<target>]` | none, fixed out-of-tree | Mutation score based on covered code |
+| Scala | Stryker4s | none | none, fixed out-of-tree | Mutation score based on covered code |
+| Java / JVM | PIT (pitest) | incremental analysis | none, mutants held in memory, never written to disk (out-of-tree) | **Test strength** |
+| PHP | Infection | `--git-diff-lines` (with `--git-diff-base` / `--git-diff-filter`) | none, fixed out-of-tree | **Covered Code MSI** |
+| Python | mutmut | changed-file selection | ≤2.x in-tree per-mutant; ≥3.0.0 out-of-tree, so the version is the regime | mutation score |
 
 Names differ; the metric is the same one. See [metrics.md](metrics.md).
 
 **Diff-scoping flag** is what `/mutation-testing:audit` Phase 2 passes when the configured tool
-supports scoped generation. `none` means the tool has no git-diff scoping switch — do not invent
+supports scoped generation. `none` means the tool has no git-diff scoping switch. Do not invent
 `--since` or fall back to a whole-project run. Phase 1 scopes to changed lines and Phase 2 generates
 at most one mutant per changed line; a file-level `mutate`/path selector alone cannot express that
 and will mutate every site in a large file for a tiny diff. When the tool cannot express line-level
@@ -36,22 +36,22 @@ file-level generation.
 
 **Write-regime setting** is what Phase 0 reads to resolve the three-way regime
 `/mutation-testing:audit` Phase 0 / Phase 3 gate on: **out-of-tree**, **in-tree whole-file**, or
-**in-tree per-mutant**. Recording only "in-tree" is not enough — whole-file vs per-mutant choose
+**in-tree per-mutant**. Recording only "in-tree" is not enough. Whole-file vs per-mutant choose
 different restoration gates, and per-mutant without observability is a refuse. A named key means
-read the project's own config (defaults are user-changeable). `none — …` means there is nothing to
-read — the regime is a constant for that tool. Evidence classes differ per row and must not be
+read the project's own config (defaults are user-changeable). `none, …` means there is nothing to
+read, because the regime is a constant for that tool. Evidence classes differ per row and must not be
 collapsed across tools:
 
-- **StrykerJS `inPlace`** — documented option with default `false`
+- **StrykerJS `inPlace`** is a documented option with default `false`
   (<https://stryker-mutator.io/docs/stryker-js/configuration/>). `false` is out-of-tree; `true`
   rewrites the working file once under mutant schemata (in-tree whole-file), not per-mutant
   apply/revert cycles.
-- **Stryker.NET / Stryker4s / Infection `none`** — negatives by enumerating the published options
+- **Stryker.NET / Stryker4s / Infection `none`** are negatives by enumerating the published options
   list; an added in-place option would announce itself nowhere, so re-enumerate rather than
   spot-check. Constant **out-of-tree**.
-- **PIT** — documented guarantee that mutants are "held in memory and never written to disk"
+- **PIT** carries a documented guarantee that mutants are "held in memory and never written to disk"
   (<https://pitest.org/faq/>). Constant **out-of-tree**.
-- **mutmut** — execution-model boundary at **3.0.0** (≤2.x rewrites the user's files **per mutant**;
+- **mutmut** has an execution-model boundary at **3.0.0** (≤2.x rewrites the user's files **per mutant**;
   3.x uses an out-of-tree `mutants/` / temp copy). The installed major version *is* the regime;
   ≤2.x is the refuse-without-observability case Phase 0 names.
 
@@ -59,7 +59,7 @@ collapsed across tools:
 
 Read the consuming project before choosing:
 
-1. **Detect the ecosystem** from what exists — `package.json`, `*.csproj` / `*.sln`,
+1. **Detect the ecosystem** from what exists: `package.json`, `*.csproj` / `*.sln`,
    `pom.xml` / `build.gradle`, `composer.json`, `pyproject.toml` / `setup.cfg`.
 2. **Confirm the test runner is one the tool supports.** This is the usual blocker: a mutation tool
    drives the test runner, so an unsupported or heavily customized runner setup fails before any
@@ -74,11 +74,11 @@ Read the consuming project before choosing:
 
 Whatever the tool, three settings carry most of the value:
 
-- **Diff target** — the ref to compare against. Get this wrong and the run either covers nothing or
+- **Diff target**: the ref to compare against. Get this wrong and the run either covers nothing or
   covers everything.
-- **Operator set** — start with defaults. Optional and experimental operators raise both mutant
+- **Operator set**: start with defaults. Optional and experimental operators raise both mutant
   count and unproductive rate.
-- **Timeout** — too tight and slow-but-correct code reports false timeouts; too loose and an
+- **Timeout**: too tight and slow-but-correct code reports false timeouts; too loose and an
   infinite-loop mutant burns the run. Tools derive a default from baseline suite time; override only
   with a measurement.
 
@@ -93,7 +93,7 @@ hand or by agent, but the honesty bar rises because nothing is checking the harn
 
 A defensible manual pass needs all five:
 
-1. **A single operator, applied once.** Prefer statement/block removal (SBR) — the highest-yield
+1. **A single operator, applied once.** Prefer statement/block removal (SBR), the highest-yield
    operator, and the one needing no parser. Inverting a comparison is the second.
 2. **A recorded baseline.** Run the covering tests *before* mutating and record the result. Without
    it, a "killed" verdict cannot be distinguished from a suite that was already red.
@@ -103,7 +103,7 @@ A defensible manual pass needs all five:
    applying it as a patch that is reverted in a trap/finally, never an edit that depends on a later
    step to clean up.
 5. **A cited verdict for anything called unkillable.** An equivalence claim asserted from inspection
-   is where this technique manufactures false confidence. Cite the measurement — the two runs and
+   is where this technique manufactures false confidence. Cite the measurement: the two runs and
    what was identical about them.
 
 That last point is not theoretical. This repository's own `lib/hook-utils.test.sh` carries a worked

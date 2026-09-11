@@ -25,13 +25,12 @@ source "$HOOK_DIR/guardrails-test-helpers.sh"
 # was authored against. A caller that means to exercise the default passes its
 # own CLAUDE_PROJECT_DIR after this one, which wins — env applies assignments in
 # order.
+GUARD_UNDER_TEST="$HOOK"
+
 run() {
   local label="$1" command="$2" expected="$3"
   shift 3
-  local rc
-  env CLAUDE_PROJECT_DIR= "$@" bash "$HOOK" <<<"$(command_json "$command")" >/dev/null 2>&1
-  rc=$?
-  assert_exit "$label" "$expected" "$rc"
+  expect "$label" "$expected" --command "$command" -- CLAUDE_PROJECT_DIR= "$@"
 }
 
 # --- Core bypass forms ------------------------------------------------------
@@ -556,6 +555,13 @@ assert_contains "crash path names guard did not run" "$crash_out" "guard did not
 # idle bound is a stall, and a stall stays fail-closed. The command inside
 # the prefix is a real bypass form, so this also pins that a cut-short
 # payload is never matched.
+#
+# Direct-mode only, and unreachable under the dispatcher by design: run-guards.sh
+# reads stdin once for the whole event and answers rc 3 with its own notice and
+# exit 0 before any guard is sourced, so no dispatched payload can reach this
+# arm. run-guards.test.sh pins the dispatcher's answer ("cut-short stdin (early
+# EOF): loud allow, taken once"); this pins what the guard does when it runs
+# alone.
 CUT_BYPASS='{"tool_name":"Bash","tool_input":{"command":"cat > foo.txt'
 cut_rc=0
 cut_out=$(printf '%s' "$CUT_BYPASS" | env CLAUDE_PROJECT_DIR= bash "$HOOK" 2>"$TEST_TMPDIR/cut.err") || cut_rc=$?
@@ -627,8 +633,8 @@ subject_for() {
   local cmd="$1" tel sink
   tel="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
   sink="$(make_sink "cat >\"$tel\"")"
-  env HOOK_TELEMETRY_SINK="$sink" CLAUDE_PROJECT_DIR="$TEST_TMPDIR" \
-    bash "$HOOK" <<<"$(command_json "$cmd")" >/dev/null 2>&1 || true
+  guard_invoke --command "$cmd" \
+    -- "HOOK_TELEMETRY_SINK=$sink" "CLAUDE_PROJECT_DIR=$TEST_TMPDIR"
   if wait_for_sink "$tel"; then
     jq -r '.data.subject' "$tel"
   else
@@ -653,10 +659,8 @@ assert_contains "telemetry: sudo prefix still resolves to the command" "$SUBJ" "
 # bypass the Write/Edit gate are blocked; content-producer scoping is preserved
 # (a tool's own output redirect is allowed, matching the Bash producer scope).
 run_pwsh() {
-  local label="$1" command="$2" expected="$3" rc
-  bash "$HOOK" <<<"$(pwsh_command_json "$command")" >/dev/null 2>&1
-  rc=$?
-  assert_exit "$label" "$expected" "$rc"
+  local label="$1" command="$2" expected="$3"
+  expect "$label" "$expected" --tool PowerShell --command "$command"
 }
 run_pwsh "PS: Set-Content (blocked)" "Set-Content -Path f.txt -Value 'x'" 2
 run_pwsh "PS: Add-Content (blocked)" "Add-Content f.txt 'x'" 2
@@ -1548,24 +1552,18 @@ run "scratch: > inside single-quoted content keeps it (allowed)" \
 # and was removed in review; the cases below pin that it still blocks, and say
 # why.
 #
-# `cwd_command_json` is local to this suite on purpose. Every payload built by
-# the shared `command_json` omits `.cwd`, which is what keeps the relative-target
-# assertions above (`scratch: relative target (blocked)`) measuring the
-# fail-closed path they were written for: with no cwd in the payload a relative
-# target still resolves to nothing and still blocks.
-cwd_command_json() {
-  jq -n --arg cmd "$1" --arg cwd "$2" '{tool_name:"Bash",tool_input:{command:$cmd},cwd:$cwd}'
-}
-
 # run_cwd <label> <command> <cwd> <expected-exit> [extra-env NAME=VAL ...]
 # Same CLAUDE_PROJECT_DIR pin as `run`; every case below names its own.
+#
+# The `.cwd` is stated only HERE. `run` leaves the field out of the payload,
+# which is what keeps the relative-target assertions above (`scratch: relative
+# target (blocked)`) measuring the fail-closed path they were written for: with
+# no cwd in the payload a relative target still resolves to nothing and still
+# blocks.
 run_cwd() {
   local label="$1" command="$2" cwd="$3" expected="$4"
   shift 4
-  local rc
-  env CLAUDE_PROJECT_DIR= "$@" bash "$HOOK" <<<"$(cwd_command_json "$command" "$cwd")" >/dev/null 2>&1
-  rc=$?
-  assert_exit "$label" "$expected" "$rc"
+  expect "$label" "$expected" --command "$command" --cwd "$cwd" -- CLAUDE_PROJECT_DIR= "$@"
 }
 
 # A project checkout OUTSIDE the temp tree is the shape both defaults are scoped
@@ -2321,5 +2319,42 @@ if command -v strace >/dev/null 2>&1 && strace -o /dev/null -e trace=execve true
 else
   echo "ok: process-creation pin skipped (no working strace on this host)"
 fi
+
+# --- The same verdicts under the dispatcher ----------------------------------
+# The census above drives run-guards.sh but discards stdout and asserts a
+# process count, never a verdict. hooks.json ships this guard under the
+# dispatcher, where stdin is read once and re-served, `.tool_input.command`
+# arrives from the primed jq cache instead of the guard's own jq call, and the
+# guard is `source`d into a subshell rather than exec'd.
+expect_both "dispatched parity: cat > file blocks" 2 \
+  --command "cat > foo.txt" -- CLAUDE_PROJECT_DIR=
+expect_both "dispatched parity: cat file allowed" 0 \
+  --command "cat README.md" -- CLAUDE_PROJECT_DIR=
+expect_both "dispatched parity: python3 -c open write blocks" 2 \
+  --command "python3 -c \"open('x','w').write('a')\"" -- CLAUDE_PROJECT_DIR=
+expect_both "dispatched parity: python3 -c json parse allowed" 0 \
+  --command "python3 -c \"import json; print(json.loads('{}'))\"" -- CLAUDE_PROJECT_DIR=
+expect_both "dispatched parity: no-space redirect blocks" 2 \
+  --command "echo hi>foo.txt" -- CLAUDE_PROJECT_DIR=
+expect_both "dispatched parity: PowerShell Set-Content blocks" 2 \
+  --tool PowerShell --lib lib/powershell/ps-command.sh \
+  --command "Set-Content -Path f.txt -Value 'x'" -- CLAUDE_PROJECT_DIR=
+
+# --- Two guards block one command: still ONE document on stdout ---------------
+# Claude Code reads exactly one JSON document per hook process. This guard emits
+# a systemMessage document when it blocks; block-no-verify blocks the same
+# command on stderr alone. Run both under the dispatcher and the aggregate has to
+# be one document, exit 2, and BOTH reasons on stderr — as it was when the two
+# were separate hooks, each delivering its own document.
+BOTH_BLOCK="cat > foo.txt && git commit --no-verify -m x"
+guard_invoke --via dispatched --command "$BOTH_BLOCK" \
+  --also "$HOOK_DIR/block-no-verify.sh" -- CLAUDE_PROJECT_DIR=
+assert_exit "two blocking guards dispatched: aggregate exit" 2 "$GUARD_RC"
+assert_eq "two blocking guards dispatched: exactly one JSON document on stdout" \
+  1 "$(printf '%s' "$GUARD_OUT" | jq -s 'length')"
+assert_contains "two blocking guards dispatched: this guard's reason survives" \
+  "$GUARD_ERR" "bypasses Write/Edit hooks"
+assert_contains "two blocking guards dispatched: the sibling guard's reason survives" \
+  "$GUARD_ERR" "--no-verify / -n flags are not allowed"
 
 report

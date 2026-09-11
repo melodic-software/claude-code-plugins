@@ -32,6 +32,34 @@ walk that takes minutes IS the cost the product's retention sweep pays on that t
 | Delete a genuinely unmanaged leftover | `/disk-hygiene:clean` |
 | Shed one project's `~/.claude.json` state | `claude project purge <path>` |
 
+## Boundary, the bundled `doctor` skill
+
+One native Claude Code surface inspects two of this skill's four suspects, and the two get
+conflated whenever a session feels slow:
+
+- **`doctor` (bundled skill, alias `/checkup`).** Ships with Claude Code rather than as a
+  marketplace plugin. It health-checks the installation and offers to fix what it finds, and its
+  checks include slow hooks and a newer version on the release channel. It reports first and asks
+  before changing anything; `claude doctor` in the terminal prints read-only diagnostics without a
+  session.
+- **This skill (marketplace plugin).** A timed, read-only capture taken while it is slow: engine
+  phase timings, spawn baselines, per-hook buckets, and the census, with remediation routed out.
+
+**Routing.** When `doctor` resolves in your session, prefer it for the quick health pass and for
+anything the user wants fixed in place, and prefer `claude doctor` when a session will not start.
+Prefer this skill when the question is why it is slow right now: the timings, the fan-out layer,
+and the retention-sweep state have no native counterpart. Its sibling `audit-install-state` owns
+the deep inventory of the tree against the same surface.
+
+**Mutation gate.** `doctor` mutates: fixing is its point. This skill's contract is report-only and
+it refuses deletion, so never chain into a `doctor` fix on this skill's behalf. Surface the
+finding and let the user invoke the fix.
+
+**Availability is never assumed.** `doctor` survives the bundled-skill kill switch but an
+environment variable or a `skillOverrides` entry still hides it; this section states what to do
+when it resolves, never that it is present. The four-part records live in
+[reference/bundled-doctor.md](reference/bundled-doctor.md).
+
 ## Never read
 
 `.credentials.json`, `daemon/*.key`, `ide/*.lock` bodies, the values inside `~/.claude.json`, and

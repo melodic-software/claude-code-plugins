@@ -18,7 +18,7 @@ a number IS a PID before treating a lookup miss as "dead."**
 
 The engine implements this as a gate, not as advice: `verdict_for()` classifies the name first and
 calls the probe *only* when `number_meaning == "pid"`. Every other name returns
-`liveness: not_applicable` **by construction** — including names the table has never seen. A test
+`liveness: not_applicable` **by construction**, including names the table has never seen. A test
 injects a spy probe and asserts it is never invoked for a non-PID name, so the gate is a checked
 property rather than a convention someone has to remember.
 
@@ -27,14 +27,14 @@ property rather than a convention someone has to remember.
 | Pattern | What the number actually is | Liveness valid? |
 |---|---|---|
 | `sessions/<n>.json` | Genuine OS process id | **yes** |
-| `ide/<n>.lock` | Listening **TCP port**; real PID is in the body | no — and the body is not opened |
-| `rate-limit-guard/*.tmp.<n>` | Git Bash / MSYS2 `$$` — a shell PID in its own namespace | no — judge by age and zero length |
-| `shell-snapshots/snapshot-<shell>-<n>-<rand>` | Epoch milliseconds | no — no PID in the name at all |
+| `ide/<n>.lock` | Listening **TCP port**; real PID is in the body | no, and the body is not opened |
+| `rate-limit-guard/*.tmp.<n>` | Git Bash / MSYS2 `$$`, a shell PID in its own namespace | no, judge by age and zero length |
+| `shell-snapshots/snapshot-<shell>-<n>-<rand>` | Epoch milliseconds | no, no PID in the name at all |
 | `backups/.claude.json.backup.<n>` | Epoch milliseconds | no |
 | `paste-cache/<hex>` | Content hash | no |
 | `session-env/<uuid>/`, `file-history/<uuid>/`, `tasks/<uuid>` | Session UUID | no |
 | `projects/<project>/<uuid>.jsonl` | Session UUID | no |
-| `~/.claude.json.tmp.<n>.<hash>` | *Probably* a PID — **unverified** | no, precisely because it is unverified |
+| `~/.claude.json.tmp.<n>.<hash>` | *Probably* a PID, **unverified** | no, precisely because it is unverified |
 | anything else carrying digits | **unknown** | no |
 
 The last row is the safety property. A third-party plugin's own numeric scheme fails closed: it is

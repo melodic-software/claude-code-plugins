@@ -90,7 +90,6 @@ case "$_RG_DIR" in
 /* | ?:[/\\]*) HOOK_DIR="$_RG_DIR" ;;
 *) HOOK_DIR="$(cd "$_RG_DIR" && pwd)" ;;
 esac
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$HOOK_DIR/.." && pwd)}"
 
 GUARDS=()
 LIBS=()
@@ -127,15 +126,19 @@ eval "${_rg_jq_def/hook::jq_fields ()/hook::jq_fields_uncached ()}"
 unset _rg_jq_def
 
 RUN_GUARDS_PRIMED=0
-RUN_GUARDS_FILTERS=()
-RUN_GUARDS_VALUES=()
-# Every field ANY registered guard asks for must be primed here. The cached
-# hook::jq_fields below is all-or-nothing per call: one filter it cannot serve
-# sends the whole call to an uncached jq spawn, so a guard that adds a field
-# without adding it here costs a process on EVERY payload, not just the ones the
-# field belongs to. `.tool_input.path` (the GitHub MCP write lane's file path,
-# #3719) was measured doing exactly that — two extra spawns per Write/Edit,
-# 50 ms to 60 ms on the reference host — before it was added.
+declare -A RUN_GUARDS_FIELD=()
+# The union of every field the guards of this plugin declared in
+# hooks/guard-requires.sh, which is where a guard states what it consumes.
+# This array is that declaration's PROJECTION, not a second opinion about it:
+# run-guards.test.sh derives the union from the declaration and fails when the
+# two disagree, in either direction.
+#
+# Both directions cost. The cached hook::jq_fields below is all-or-nothing per
+# call, so ONE declared field missing here sends every call of that lane to an
+# uncached jq spawn — `.tool_input.path` (the GitHub MCP write lane's file
+# path) was measured doing exactly that, two extra spawns per Write/Edit,
+# 50 ms to 60 ms on the reference host. A field here that no guard declares is
+# the opposite: jq work on every payload of every lane that nothing reads.
 PRIME_FILTERS=(
   '.tool_input.command' '.tool_name' '.cwd'
   '.tool_input.file_path' '.tool_input.notebook_path' '.tool_input.path'
@@ -193,21 +196,20 @@ if ((RUN_GUARDS_STDIN_RC == 0)) &&
   ((${#HOOK_JQ_FIELDS[@]} == ${#PRIME_FILTERS[@]})) &&
   ((HOOK_JQ_FIELDS_NUL == 0)); then
   RUN_GUARDS_PRIMED=1
-  RUN_GUARDS_FILTERS=("${PRIME_FILTERS[@]}")
-  RUN_GUARDS_VALUES=("${HOOK_JQ_FIELDS[@]}")
-  # `.hook_event_name` rides in the same jq process and lets the dispatcher's
-  # own abort notice name the event. It is found by NAME, never by position:
-  # a filter added ahead of it in PRIME_FILTERS would otherwise put a
-  # neighbouring field's value into every abort notice, and nothing at run
-  # time would say so. abort-boundary.test.sh inserts such a filter on a copy
-  # and checks the event is still named.
-  for _rg_i in "${!RUN_GUARDS_FILTERS[@]}"; do
-    if [[ "${RUN_GUARDS_FILTERS[_rg_i]}" == '.hook_event_name' ]]; then
-      [[ "${RUN_GUARDS_VALUES[_rg_i]}" =~ ^[A-Za-z]+$ ]] && _GAB_EVENT="${RUN_GUARDS_VALUES[_rg_i]}"
-      break
-    fi
+  # The primed values are keyed by the FILTER that produced them, so every
+  # later read is by name. A position is not a name: a filter added ahead of
+  # another silently hands its neighbour's value to whatever read the index,
+  # and nothing at run time says so. The dispatcher itself reads two of these
+  # (`.tool_name` below, `.hook_event_name` here); abort-boundary.test.sh
+  # inserts a filter ahead of them on a copy and checks both still resolve.
+  for _rg_i in "${!PRIME_FILTERS[@]}"; do
+    RUN_GUARDS_FIELD["${PRIME_FILTERS[_rg_i]}"]="${HOOK_JQ_FIELDS[_rg_i]}"
   done
   unset _rg_i
+  # The event name rides in the same jq process and lets the dispatcher's own
+  # abort notice name the event.
+  [[ "${RUN_GUARDS_FIELD['.hook_event_name']-}" =~ ^[A-Za-z]+$ ]] &&
+    _GAB_EVENT="${RUN_GUARDS_FIELD['.hook_event_name']}"
 fi
 
 # shellcheck disable=SC2329  # invoked by every guard sourced below
@@ -217,17 +219,12 @@ hook::jq_fields() {
   (($#)) || return 1
   if ((RUN_GUARDS_PRIMED)) && [[ "$input" == "$RUN_GUARDS_INPUT" ]]; then
     local -a out=()
-    local filter i hit
+    local filter
     for filter in "$@"; do
-      hit=0
-      for i in "${!RUN_GUARDS_FILTERS[@]}"; do
-        if [[ "${RUN_GUARDS_FILTERS[i]}" == "$filter" ]]; then
-          out+=("${RUN_GUARDS_VALUES[i]}")
-          hit=1
-          break
-        fi
-      done
-      ((hit)) || break
+      # `+x`, not a non-empty test: a primed field whose value is the empty
+      # string is served, not treated as a miss.
+      [[ -n "${RUN_GUARDS_FIELD[$filter]+x}" ]] || break
+      out+=("${RUN_GUARDS_FIELD[$filter]}")
     done
     if ((${#out[@]} == $#)); then
       HOOK_JQ_FIELDS=("${out[@]}")
@@ -239,18 +236,30 @@ hook::jq_fields() {
 }
 
 # --- PowerShell classifier, once, and only on that tool -----------------------
-# `.tool_name` is PRIME_FILTERS[1]. A Bash payload must not parse ps-command.sh
-# at all; an unprimed payload still loads it so a PowerShell command whose jq
-# cache missed cannot reach a guard with `ps::` unbound.
-_rg_tool=""
-if ((RUN_GUARDS_PRIMED)); then
-  _rg_tool="${RUN_GUARDS_VALUES[1]}"
-fi
+# A Bash payload must not parse ps-command.sh at all; an unprimed payload still
+# loads it so a PowerShell command whose jq cache missed cannot reach a guard
+# with `ps::` unbound.
+#
+# `--lib` in hooks.json is the wiring's cue that this event's guards declare a
+# library at all, which keeps the Bash hot path at one array test and reads
+# nothing. WHAT to load comes from each guard's own declaration in
+# guard-requires.sh, satisfied here ONCE for the event; a guard run alone
+# satisfies the same declaration itself through guard::require_libs, so a row
+# that omits the cue costs a repeated load and never a verdict. A `--lib` path
+# is loaded as well, so an explicit argument still preloads a library no guard
+# declared.
+_rg_tool="${RUN_GUARDS_FIELD['.tool_name']-}"
 if ((${#LIBS[@]})) && [[ "$_rg_tool" != "Bash" ]]; then
-  for _rg_lib in "${LIBS[@]}"; do
-    # shellcheck disable=SC1090
-    source "$PLUGIN_ROOT/$_rg_lib"
+  # shellcheck source=guard-requires.sh
+  source "$_RG_DIR/guard-requires.sh"
+  for _rg_guard in "${GUARDS[@]}"; do
+    guard::require_libs "${_rg_guard##*/}"
   done
+  unset _rg_guard
+  for _rg_lib in "${LIBS[@]}"; do
+    guard::require_lib "$_rg_lib"
+  done
+  unset _rg_lib
 fi
 unset _rg_tool
 

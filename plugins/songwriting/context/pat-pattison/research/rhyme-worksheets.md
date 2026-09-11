@@ -62,7 +62,7 @@ analogy in Pat's own words:
 > with things in common, but you could improve the odds by looking in places
 > you like.
 >
-> — *Essential Guide to Rhyming* (2014), Chapter 3
+> *Essential Guide to Rhyming* (2014), Chapter 3
 
 The whole method is three steps:
 
@@ -74,11 +74,11 @@ The whole method is three steps:
 > 3. Look up those words in your rhyming dictionary, and make lists of
 >    rhyme words that fit your idea.
 >
-> — *Essential Guide to Rhyming* (2014), Chapter 3
+> *Essential Guide to Rhyming* (2014), Chapter 3
 
 Pat does not introduce a fresh example to run the method on. He writes, verbatim,
-"Start with our old idea." — the couplet already in play from earlier in the book,
-and the one he returns to in *Essential Guide to Rhyming* (2014), Chapter 7:
+"Start with our old idea." That is the couplet already in play from earlier in the
+book, and the one he returns to in *Essential Guide to Rhyming* (2014), Chapter 7:
 
 ```text
 I'm sick of all this risky business
@@ -93,7 +93,7 @@ families.
 
 Pat's page 24 summary makes four claims for it, and he ranks them in two tiers:
 no dead ends ("keep from boxing yourself into a corner") and net time saved
-despite the up-front cost, then — "More importantly" — that "it raises quality
+despite the up-front cost, then, "More importantly", that "it raises quality
 and guarantees that your rhyming position will communicate ideas effectively."
 The second tier covers both quality and communication, not communication alone.
 The summary is quoted in full under
@@ -113,7 +113,7 @@ Pat's step 1, verbatim:
 > of dating good-looking men/women? The risk I take being with you? Why? Is
 > "you" a flirt?
 >
-> — *Essential Guide to Rhyming* (2014), Chapter 3
+> *Essential Guide to Rhyming* (2014), Chapter 3
 
 And Pat's own idea sketch for "Risky Business," verbatim:
 
@@ -125,7 +125,7 @@ And Pat's own idea sketch for "Risky Business," verbatim:
 > Worse, I'm afraid you don't find me exciting. Every time you say hello to
 > someone else, I think, "Uh-oh. This is it." I can't stand living this way.
 >
-> — *Essential Guide to Rhyming* (2014), Chapter 3
+> *Essential Guide to Rhyming* (2014), Chapter 3
 
 Pat prints six questions, in that order: "What does your lyric say? What could it
 say? Is it a lyric about the dangers of dating good-looking men/women? The risk I
@@ -158,7 +158,7 @@ Pat's step 2, verbatim:
 > Put them in the middle of a blank sheet of paper, number them, and enclose them
 > in a box for easy reference later on.
 >
-> — *Essential Guide to Rhyming* (2014), Chapter 3
+> *Essential Guide to Rhyming* (2014), Chapter 3
 
 The boxed list, exactly as printed (it sits in a ruled box in the middle of the
 worksheet page so the writer can see every seed at once):
@@ -185,23 +185,23 @@ And the selection rule, verbatim:
 > afraid to switch, add, or take words out. You can even adjust your basic
 > approach as you go.
 >
-> — *Essential Guide to Rhyming* (2014), Chapter 3
+> *Essential Guide to Rhyming* (2014), Chapter 3
 
-Note what the two selection constraints are and are not. They are phonetic —
-mostly masculine, different vowel sounds — not thematic. The theme is already
+Note what the two selection constraints are and are not. They are phonetic, not
+thematic: mostly masculine, different vowel sounds. The theme is already
 handled by where the words come from: "Let the list come from your idea sketch."
 That is about content, not about copying words across. Only three of Pat's
-eleven — `afraid`, `attention`, `left out` — appear as words in the page 20
+eleven, `afraid`, `attention`, and `left out`, appear as words in the page 20
 sketch; `risk` and `flirt` appear only in the focus questions above it; and
 `scared`, `chance`, `dull`, `leave`, `ignored`, `gone` appear on page 20 only in
-the boxed list itself — nowhere in the sketch or the focus questions that
+the boxed list itself, nowhere in the sketch or the focus questions that
 generate it. Pat's instruction leaves room for both routes: the list comes from
 the sketch, "adding any extra inspiration you have."
 
 "Mostly masculine" is exact rather than loose: ten of the eleven are masculine,
 and `attention` is the one feminine word on the sheet. For the second rule Pat
-gives the instruction and no rationale — "Pick words with different vowel
-sounds." — so take it as stated.
+gives the instruction and no rationale, so take it as stated: "Pick words with
+different vowel sounds."
 
 Do not treat the seed list as final. It is only a list of words to test.
 
@@ -211,8 +211,8 @@ Exercise 3.2 makes the title part of the worksheet habit. Pat's instruction:
 "Make it a habit to include each important word from the title in your list."
 
 He does not say why. Two things elsewhere in the chapter do. Comment 6 records
-what happens when the running example's own keywords are tested: "business" —
-half the title "risky business" — and "safe" both get eliminated "because they
+what happens when the running example's own keywords are tested: "business",
+half the title "risky business", and "safe" both get eliminated "because they
 don't yield many rhymes." And Exercise 3.3 adds the parenthetical "(If you use my
 title, be sure not to put it in a rhyming position.)"
 
@@ -230,7 +230,7 @@ Pat's step 3, verbatim:
 >
 > Write down only rhyme words that fit with your idea.
 >
-> — *Essential Guide to Rhyming* (2014), Chapter 3
+> *Essential Guide to Rhyming* (2014), Chapter 3
 
 "Look actively" is Pat's phrase from step 2. Each of the following is a move he
 either instructs on page 20 or performs in his seven comments on page 23,
@@ -254,11 +254,11 @@ After the raw search, filter the list by function. Reject or mark:
 
 Chapter 3 rejects on three grounds, each of which Pat performs rather than states:
 
-- Transitive verbs, which "are awkward in the rhyming position" — comment 1,
+- Transitive verbs, which "are awkward in the rhyming position": comment 1,
   where he drops "desert."
-- Clichés — comment 2, where he drops "romance" and "trance," and the
+- Clichés: comment 2, where he drops "romance" and "trance," and the
   `(Cliché?)` mark he leaves on `dance`.
-- Identities — not discussed in this chapter, only marked, six times, on the
+- Identities: not discussed in this chapter, only marked, six times, on the
   sheet itself.
 
 Two further grounds are worth applying but come from elsewhere in the corpus, not
@@ -281,8 +281,8 @@ had better rhymes. 'Scare' is usually a transitive verb, though it could be used
 as a noun. It might not be much use itself, but I like the rhyme list it
 generates."
 
-Two things there are worth copying. The swap is licensed purely by yield — better
-rhymes — not by the new word being a better lyric word. And Pat keeps the seed
+Two things there are worth copying. The swap is licensed purely by yield, meaning
+better rhymes, not by the new word being a better lyric word. And Pat keeps the seed
 even after admitting it "might not be much use itself," because the seed's job is
 to generate a column, not to appear in the song.
 
@@ -300,7 +300,7 @@ into it at this stage.
 
 Pat's own case: `risk` produces almost nothing ("disc… (oops!)"), and he leaves
 `safe` and `business` off the Chapter 3 list entirely because they "don't yield
-many rhymes" — then puts them back on the worksheet in Chapter 7, once family
+many rhymes", then puts them back on the worksheet in Chapter 7, once family
 and imperfect rhyme are available.
 
 The word can still appear inside a line, in a title, or in an unrhymed position.
@@ -330,7 +330,7 @@ Exercise wording, verbatim:
 > Look up the words on the list on page 20 in your rhyming dictionary, and make
 > a list of rhyme words that fit the idea, using the sheet below.
 >
-> — *Essential Guide to Rhyming* (2014), Chapter 3
+> *Essential Guide to Rhyming* (2014), Chapter 3
 
 "The sheet below" is a printed blank form filling the rest of page 21: the eleven
 seeds spread as headings across three columns with room to write under each, and
@@ -362,7 +362,7 @@ see the whole list while filling in any one column.
 
 ### Pattison's completed Chapter 3 worksheet
 
-"Here is my result:" — Pat's own filled-in sheet, verbatim, three columns across
+"Here is my result:" introduces Pat's own filled-in sheet, verbatim, three columns across
 the page with the boxed seed list sitting in the middle. Marks in parentheses are
 his. One typographic detail the plain-text block cannot carry: in `look out
 (Identity)` the printed page sets `out` alone in italic. `knockout (Identity)` on
@@ -439,7 +439,7 @@ Verbatim, numbered as printed:
 > 7. The purpose of all this preliminary work is to put you in charted territory
 >    when you start writing.
 >
-> — *Essential Guide to Rhyming* (2014), Chapter 3
+> *Essential Guide to Rhyming* (2014), Chapter 3
 
 Those seven comments are the filtering rules in action: transitive-verb rejection
 (1), cliche rejection (2), seed substitution (3), honest reporting of a dead seed
@@ -454,7 +454,7 @@ vocabulary:
 
 - `(Identity)` on `left out / knockout`, `left out / look out`, and on
   `attention / detention`, `intention`, `pretention`, `tension`.
-- `(Cliché?)` — with the question mark — on `chance / dance`.
+- `(Cliché?)`, with the question mark, on `chance / dance`.
 
 He also writes a dead seed down instead of deleting it: `risk` gets `disc…`
 followed by `(oops!)`.
@@ -482,7 +482,7 @@ The chapter opens, verbatim:
 > For starters, "business" and "safe" can go on the worksheet. Now, you can find
 > rhymes for them.
 >
-> — *Essential Guide to Rhyming* (2014), Chapter 7
+> *Essential Guide to Rhyming* (2014), Chapter 7
 
 The chapter's goal is not "more rhymes" in the abstract. It is better phrase-end
 choices than perfect rhyme alone can provide.
@@ -491,7 +491,7 @@ choices than perfect rhyme alone can provide.
 > can lead you in directions you might not have seen otherwise. A good reason to
 > use worksheets.
 >
-> — *Essential Guide to Rhyming* (2014), Chapter 7
+> *Essential Guide to Rhyming* (2014), Chapter 7
 
 Use this chapter when the user has a lyric idea, a seed list, or a draft whose
 line endings feel trapped by obvious perfect rhymes.
@@ -586,7 +586,7 @@ Pat's framing instruction for the big list, verbatim:
 > the general idea of "RISKY BUSINESS." The list will have to be trimmed down
 > later.
 >
-> — *Essential Guide to Rhyming* (2014), Chapter 7
+> *Essential Guide to Rhyming* (2014), Chapter 7
 
 That makes the worksheet diagnostic. The writer should learn which sound move
 created each candidate, not just copy the word.
@@ -771,11 +771,11 @@ worksheet focused on application:
   or less finality.
 
 Reading the list against the scale answers Pat's "figure out how I found them"
-challenge. `scare / snared` is additive — same vowel, an extra consonant on the
+challenge. `scare / snared` is additive: same vowel, an extra consonant on the
 second syllable. `flirt / absurd` is family (`t` traded for its phonetic partner
 `d`). `flirt / church` is assonance, not consonance: the vowel is the same in
 both, and Pat's consonance rhyme requires the vowel sounds to differ.
-`leave / police` is marked `(Identity)` for the reason Pat gives in Chapter 1 —
+`leave / police` is marked `(Identity)` for the reason Pat gives in Chapter 1:
 the rhyming syllables begin the same way, so the ear hears repetition instead of
 sound; `lease/police` is his own printed example of exactly that.
 `attention / mend on, etc.` and `attention / stretchin', etc.` are mosaics.
@@ -811,7 +811,7 @@ Examples from the chapter's practice material:
   availability override listener expectation.
 - `leave` carries `police (Identity)` in the imperfect column; near sound does
   not automatically mean usable craft.
-- `risk` carries `disc` followed by `(oops!)` — Pat's own note that a seed can
+- `risk` carries `disc` followed by `(oops!)`, Pat's own note that a seed can
   simply fail on the perfect-rhyme side and still be worth keeping for what the
   imperfect side produces.
 
@@ -848,7 +848,7 @@ Exercise wording, verbatim:
 > From the columns of perfect and imperfect rhymes above, choose your ten
 > favorite rhymes for each of the keywords and write them down below.
 >
-> — *Essential Guide to Rhyming* (2014), Chapter 7
+> *Essential Guide to Rhyming* (2014), Chapter 7
 
 Chapter 7 keyword set (the Chapter 3 eleven, plus the two seeds Chapter 3 had
 dropped), laid out exactly like the Chapter 3 sheet: thirteen seeds spread as
@@ -883,7 +883,7 @@ box reproduced in the middle of the page, now thirteen slots deep.
 Note the drift between the two printings: the ruled seed box in Chapter 3 and the
 ruled box on this Exercise 7.1 sheet both say `scared`, while the search-result
 headings and the Exercise 7.1 column headings say `scare`. That is comment 3 in
-Chapter 3 taking effect — the seed changed mid-search and the printed boxes were
+Chapter 3 taking effect: the seed changed mid-search and the printed boxes were
 never re-synced.
 
 Skill behavior: when a user asks to continue from a worksheet, ask them to pick
@@ -899,9 +899,9 @@ Exercise wording, verbatim:
 > Rewrite your lyric "Risky Business" using some of your new ideas and rhyme
 > words.
 >
-> — *Essential Guide to Rhyming* (2014), Chapter 7
+> *Essential Guide to Rhyming* (2014), Chapter 7
 
-That single sentence is the whole of Exercise 7.2 on the printed page — an
+That single sentence is the whole of Exercise 7.2 on the printed page: an
 instruction and then blank space. The thirteen-slot ruled seed box on the same
 page (page 75) belongs to the Exercise 7.1 sheet above it, not to this exercise;
 the text layer runs the two together because it reads the box out of column
@@ -974,7 +974,7 @@ Exercise wording, verbatim:
 > Make up a worksheet on "last night's love." Start with an idea sketch. Make it
 > a habit to include each important word from the title in your list.
 >
-> — *Essential Guide to Rhyming* (2014), Chapter 3
+> *Essential Guide to Rhyming* (2014), Chapter 3
 
 The printed sheet has the same two parts as the Chapter 3 and Exercise 7.1
 sheets: title-seeded headings down the left with room to write under each, and a
@@ -1011,7 +1011,7 @@ Exercise wording, verbatim:
 > chorus). You can come up with your own title, or use "risky business." (If you
 > use my title, be sure not to put it in a rhyming position.)
 >
-> — *Essential Guide to Rhyming* (2014), Chapter 3
+> *Essential Guide to Rhyming* (2014), Chapter 3
 
 The parenthetical matters: some titles are better as internal statements,
 section openings, or refrain material. A title does not automatically belong at
@@ -1026,6 +1026,7 @@ draft, not become decoration under it.
 Pattison closes Chapter 3 by explaining why worksheets matter especially in
 English. Verbatim:
 
+<!-- ai-slop-ignore-start: verbatim Pat Pattison quotation, Essential Guide to Rhyming Chapter 3; item 3 carries the book's em dash -->
 > Making a worksheet is a great way to keep from boxing yourself into a corner.
 > It takes time, but it also saves time. More importantly, it raises quality and
 > guarantees that your rhyming position will communicate ideas effectively.
@@ -1055,7 +1056,8 @@ English. Verbatim:
 > even more ways to improve your chances of finding effective rhymes in English.
 > Let's turn to them.
 >
-> — *Essential Guide to Rhyming* (2014), Chapter 3
+> *Essential Guide to Rhyming* (2014), Chapter 3
+<!-- ai-slop-ignore-end -->
 
 Consequences:
 

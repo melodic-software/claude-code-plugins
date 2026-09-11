@@ -1,7 +1,7 @@
 # Routine prerequisite resolution
 
 Normative contract for answering, per repository and per scheduling surface, which routine
-identities can run — and why. This document owns vocabulary, grain, probe classes, precedence,
+identities can run, and why. This document owns vocabulary, grain, probe classes, precedence,
 composition seams, and consumer rules. Per-class prerequisite facts live in each `v1` definition
 leaf under the single-home rule; they are never duplicated here.
 
@@ -12,17 +12,17 @@ precedes that consequence: which identities resolve as eligible against this rep
 
 ## Output grain
 
-One resolution per **routine identity** — `<class-token>` or `<class-token>/<posture-token>` —
+One resolution per **routine identity**, `<class-token>` or `<class-token>/<posture-token>`,
 computed for the pair (identity, its one bound scheduling surface). Class axes (Access class,
 isolation floor, per-class prerequisites) are the derivation source; the posture refines them;
 the identity is the emission key. A class-level verdict cannot express that an advisory posture
-is runnable while its direct-change sibling is not — and every consuming artifact
+is runnable while its direct-change sibling is not, and every consuming artifact
 (`routines.enabled`, prepared admission entries) is already identity-keyed.
 
 Non-repo-file signals are **surface-qualified**: a capability present on one execution surface
 says nothing about another. The same per-surface doctrine the setup contract states for isolation
 substrates binds here. Isolation bindings key on execution-surface ids; the scheduling
-`surfaces` map carries `execution_surface` as a field — the two keyspaces stay distinct.
+`surfaces` map carries `execution_surface` as a field, so the two keyspaces stay distinct.
 
 ## Candidate set
 
@@ -30,7 +30,7 @@ substrates binds here. Isolation bindings key on execution-surface ids; the sche
 - **`join:` and `join (external):` rows** report under the join-row marker
   `deferred(<trigger>)`, where `<trigger>` is the row's own join trigger from its catalog Status
   cell. The trigger is never omitted: a bare marker would record that resolution is postponed
-  while discarding the condition under which the row gains a leaf — the half that makes a
+  while discarding the condition under which the row gains a leaf, the half that makes a
   deferral auditable rather than an indefinite hold. Both deferred status forms have no leaf and
   therefore no identities to resolve; the marker is a catalog-row marker, not a verdict.
 - **`not-a-routine` rows** are outside the domain. No agent session exists to bind, so any
@@ -45,7 +45,7 @@ Four fail-closed verdicts:
 | `supported` | Every required prerequisite for the identity on this surface is established |
 | `conditional` | The identity clears only under named conditions stated in provenance (for example, an enablement gate only partly resolvable from committed surfaces) |
 | `unsupported` | At least one required prerequisite is established as absent on this surface |
-| `unknown` | At least one required prerequisite cannot be established or denied — distinct from `unsupported` |
+| `unknown` | At least one required prerequisite cannot be established or denied, distinct from `unsupported` |
 
 `unknown` is first-class. Both `unsupported` and `unknown` route to the advisory path the
 trigger contract already owns for a missing surface or entitlement. A positive verdict
@@ -64,25 +64,25 @@ Two constraints bind the vocabulary by construction:
 Four classes, named for what they read. Presence-shaped signals are probed by a script with no
 agent session. Semantic questions (does the test suite discriminate; which architecture rules
 apply; what a prose convention implies) are judgment-only: they resolve to `unknown` with a
-named follow-up, or to an interactive proposal pass — never to a file-presence heuristic. The
+named follow-up, or to an interactive proposal pass, never to a file-presence heuristic. The
 catalog's `DET` / `AGT` tokens are judgment verdicts carrying "not a routine, zero agent
 tokens"; they are not reused as probe labels.
 
-1. **repo-file** — build and dependency manifests, test config, CI config, tracker binding,
+1. **repo-file**: build and dependency manifests, test config, CI config, tracker binding,
    flag-system SDK presence: deterministic glob and manifest probes.
-2. **harness-context** — `.mcp.json` server inventory, repo-declared plugins, committed skills:
+2. **harness-context**: `.mcp.json` server inventory, repo-declared plugins, committed skills,
    deterministic reads of structured, committed surfaces. `.mcp.json` **presence is not
    availability**: enablement is settings-gated (`enableAllProjectMcpServers` /
    `enabledMcpjsonServers` / `disabledMcpjsonServers`), owned by the config-audit surface and
    composed presence-gated, never re-implemented here. Servers also arrive from user scope and
    plugins. The probe reports presence and the enablement gate separately.
-3. **machine-context** — CLI availability, local substrates: deterministic, per-surface. A
+3. **machine-context**: CLI availability, local substrates, deterministic and per-surface. A
    result is a claim about the probed surface only, never a repo claim.
-4. **prose-context inference** — host instruction files, agent-instruction files, README:
+4. **prose-context inference**: host instruction files, agent-instruction files, README are a
    judgment-only inference source for *proposing* declarations into non-security keys,
    interactively. The deterministic resolver never parses prose, and prose is never runtime
    authority. Platform bound: the host harness reads its primary instruction file, not a
-   secondary agent-instruction file — a secondary file reaches a session only through a
+   secondary agent-instruction file, and a secondary file reaches a session only through a
    reference the primary file carries. This contract owns that platform bound; the resolution
    slice and the setup skill state it in one clause each and point here.
 
@@ -111,8 +111,8 @@ Both are fail-closed working as designed.
 
 ## Precedence
 
-A declaration is evidence of intent; a probe is evidence of fact. Precedence is directional —
-declared narrows and fills where no contradicting fact exists; intent never outranks a fact.
+A declaration is evidence of intent; a probe is evidence of fact. Precedence is directional:
+declared narrows and fills where no contradicting fact exists, and intent never outranks a fact.
 
 - **A declaration may narrow or disable.** A declared-absent or disabled surface is out of
   consideration whatever a probe finds. Detection fills gaps and proposes declarations; it never
@@ -127,8 +127,8 @@ declared narrows and fills where no contradicting fact exists; intent never outr
   emitted resolution is the agent-readable one; the interactive `apply` path additionally
   proposes correcting the declaration.
 - **A probe that could not run is not a probe that returned negative.** The two states never
-  collapse. Where no probe can execute — an uncommitted layer on a scheduled run, or a surface
-  whose probe can confirm but not deny — the declaration stands and the verdict is qualified
+  collapse. Where no probe can execute, as on an uncommitted layer during a scheduled run, or a
+  surface whose probe can confirm but not deny, the declaration stands and the verdict is qualified
   (`conditional` or `unknown` as the signals warrant), with the unprobeable state named in
   provenance.
 
@@ -149,20 +149,20 @@ presence-gated with a documented fallback per the marketplace's seam-phrasing co
 
 | Concern | Seam | Fallback when absent |
 |---|---|---|
-| Ecosystems | Toolchain seam (when the `toolchain` plugin is installed), reading *resolved* consumer state **with resolution-rung provenance** — consume only consumer-authored or repo-inferred rungs; an ecosystem present but `enabled: false` is not configured; uncommitted user-global and `.local.yaml` layers report unresolvable; **reject the seam's bundled-default rung** as repository evidence | Inference from the repo's own build files; never another plugin's bundled defaults |
-| MCP enablement | Config-audit surface (when the sibling config-audit plugin is installed; marketplace id in README — this `reference/` surface may not name vendors) | Report `.mcp.json` presence only; name enablement as unprobeable in provenance |
-| Tracker | Work-item tracker seam — `.work-item-tracker.json` plus the bound adapter's `capabilities.json` (when the `work-items` plugin is installed) | Treat tracker-dependent prerequisites as unestablished (`unknown`) |
-| Substrates, schedulers, observability | Autonomy setup skill's own discovery slices | Same plugin — no gate |
+| Ecosystems | Toolchain seam (when the `toolchain` plugin is installed), reading *resolved* consumer state **with resolution-rung provenance**: consume only consumer-authored or repo-inferred rungs; an ecosystem present but `enabled: false` is not configured; uncommitted user-global and `.local.yaml` layers report unresolvable; **reject the seam's bundled-default rung** as repository evidence | Inference from the repo's own build files; never another plugin's bundled defaults |
+| MCP enablement | Config-audit surface (when the sibling config-audit plugin is installed; marketplace id in README, since this `reference/` surface may not name vendors) | Report `.mcp.json` presence only; name enablement as unprobeable in provenance |
+| Tracker | Work-item tracker seam: `.work-item-tracker.json` plus the bound adapter's `capabilities.json` (when the `work-items` plugin is installed) | Treat tracker-dependent prerequisites as unestablished (`unknown`) |
+| Substrates, schedulers, observability | Autonomy setup skill's own discovery slices | Same plugin, no gate |
 | Configured-surface enumeration | Each surface's own presence in the repo | Never by reading the config-cascade registry table (a conformance ledger, not a runtime inventory) |
 | Ownerless signals (CI-config presence, flag-SDK presence) | Probes owned by this contract | N/A |
 
 Absence of a composed seam is a verdict input, not an error.
 
-## Consumers — narrows an existing enforcement input and adds none
+## Consumers: narrows an existing enforcement input and adds none
 
 The resolution is never admission data. Its two consumers are:
 
-1. An input to the human-landed *prepared* change to the settings-as-code security binding — the
+1. An input to the human-landed *prepared* change to the settings-as-code security binding. The
    setup slice prepares, never writes, that surface.
 2. A **narrowing-only** influence on the repo-local `routines.enabled` section, which existing
    envelope conformance already validates claims against. An identity may be enabled only when
@@ -183,7 +183,7 @@ consuming routine.
 
 ## Recompute; committed surfaces for scheduled runs
 
-The resolution recomputes at every consumption — a setup `check`, a pre-enablement gate, an
+The resolution recomputes at every consumption: a setup `check`, a pre-enablement gate, an
 advisory read. A persisted verdict is never authority. The only persisted artifacts are
 human-ratified declarations (an additive section of the repo-local binding document that
 references existing scheduling-surface ids and declares no `surfaces` map of its own, keeping
@@ -202,18 +202,18 @@ drift-gated machine-readable emission derived from those leaves (leaves stay the
 the resolver reads structure, never prose), the deterministic resolver, and the setup slice. No
 separate plugin, skill, catalog, or config-file family carries it.
 
-## Disambiguation — five incumbents this term is not
+## Disambiguation: five incumbents this term is not
 
 **Routine prerequisite resolution** uses the catalog's own noun for these facts. It is not:
 
-1. **Guard-plugin "capability detection"** — session-auth, fail-open, session-scoped
+1. **Guard-plugin "capability detection"**: session-auth, fail-open, session-scoped
    (`plugins/rate-limit-guard/reference/reader-contract.md` §Capability detection (fail-open);
    mirrored in `context-guard`; consumed by work-loop, babysit-loop, attend-queue). Fail-open is
    that posture; this contract is fail-closed.
-2. **Autonomy's internal "capability"** — a shipped contract area
+2. **Autonomy's internal "capability"**: a shipped contract area
    ([binding seam](binding-seam.md#layout-convention): "Each capability … lands exactly one
    contract document"; setup skill "capability slices").
-3. **Verification-topology model-capability labels** — rejected vocabulary.
-4. **Loop-lane capability tiers** — model selection (`docs/conventions/loop-lane/`).
-5. **Tracker adapter `capabilities.json`** — declared adapter verb support; a composed input
+3. **Verification-topology model-capability labels**: rejected vocabulary.
+4. **Loop-lane capability tiers**: model selection (`docs/conventions/loop-lane/`).
+5. **Tracker adapter `capabilities.json`**: declared adapter verb support; a composed input
    here, not a synonym.

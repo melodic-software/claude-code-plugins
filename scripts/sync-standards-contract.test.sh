@@ -12,6 +12,12 @@ SCRIPT="$SELF_DIR/sync-standards-contract.sh"
 
 # shellcheck source=lib/test-harness.sh
 . "$SELF_DIR/lib/test-harness.sh"
+# shellcheck source=lib/fixture-tree.sh
+. "$SELF_DIR/lib/fixture-tree.sh"
+
+# The builder assigns through a nameref, which shellcheck cannot follow;
+# declaring the out-var here is what tells it (SC2154) the name is written.
+f=""
 
 CANONICAL="docs/conventions/standards/README.md"
 CHANGELOG="docs/conventions/standards/CHANGELOG.md"
@@ -33,14 +39,11 @@ changelog_v1_1() {
   printf -- '# Changelog\n\n## 1.1.0 — 2026-07-18\n\n- additive\n\n## 1.0.0 — 2026-07-17\n\n- initial\n'
 }
 
-# new_fixture → fresh tree with the script copied in; callers populate content.
+# new_fixture <out-var> → fresh tree with the script copied in; callers populate
+# content.
 new_fixture() {
-  local dir
-  dir="$(mktemp -d)"
-  mkdir -p "$dir/scripts" "$dir/docs/conventions/standards" "$dir/plugins"
-  cp "$SCRIPT" "$dir/scripts/sync-standards-contract.sh"
-  chmod +x "$dir/scripts/sync-standards-contract.sh"
-  printf '%s' "$dir"
+  fixture_tree::build "$1" --sut "$SCRIPT" --plugins || return 1
+  mkdir -p "${!1}/docs/conventions/standards"
 }
 
 # carrying_plugin <fixture> <plugin> <copy-content> <version>
@@ -56,14 +59,14 @@ carrying_plugin() {
 
 # base_fixture → the starting state most cases mutate from: the v1 canonical,
 # its changelog, and two carrying plugins at 0.1.0. Prints the fixture dir.
-base_fixture() {
+base_fixture() { # <out-var>
   local dir
-  dir="$(new_fixture)"
+  new_fixture "$1" || return 1
+  dir="${!1}"
   canonical_v1 >"$dir/$CANONICAL"
   changelog_v1 >"$dir/$CHANGELOG"
   carrying_plugin "$dir" planning "$(canonical_v1)" 0.1.0
   carrying_plugin "$dir" review "$(canonical_v1)" 0.1.0
-  printf '%s' "$dir"
 }
 
 # git_fixture <fixture> → init repo + commit everything as the base ref; prints base sha
@@ -84,7 +87,7 @@ run_mode() (
 )
 
 # --- sync copies the canonical into every carrying plugin -------------------
-f="$(new_fixture)"
+new_fixture f
 canonical_v1 >"$f/$CANONICAL"
 changelog_v1 >"$f/$CHANGELOG"
 carrying_plugin "$f" planning "stale copy" 0.1.0
@@ -99,7 +102,7 @@ fi
 rm -rf "$f"
 
 # --- sync with no carrying plugins errors ----------------------------------
-f="$(new_fixture)"
+new_fixture f
 canonical_v1 >"$f/$CANONICAL"
 changelog_v1 >"$f/$CHANGELOG"
 if out="$(run_mode "$f" 2>&1)"; then
@@ -110,7 +113,7 @@ fi
 rm -rf "$f"
 
 # --- --check passes when identical -----------------------------------------
-f="$(base_fixture)"
+base_fixture f
 if out="$(run_mode "$f" --check 2>&1)"; then
   ok "--check passes when all copies match"
 else
@@ -119,7 +122,7 @@ fi
 rm -rf "$f"
 
 # --- --check fails on a drifted copy ---------------------------------------
-f="$(new_fixture)"
+new_fixture f
 canonical_v1 >"$f/$CANONICAL"
 changelog_v1 >"$f/$CHANGELOG"
 carrying_plugin "$f" planning "$(canonical_v1)" 0.1.0
@@ -134,7 +137,7 @@ fi
 rm -rf "$f"
 
 # --- --check-bump: canonical unchanged vs base → pass ----------------------
-f="$(base_fixture)"
+base_fixture f
 base="$(git_fixture "$f")"
 if out="$(run_mode "$f" --check-bump "$base" 2>&1)"; then
   ok "--check-bump passes when the canonical is unchanged"
@@ -144,7 +147,7 @@ fi
 rm -rf "$f"
 
 # --- --check-bump: change + frontmatter bump + changelog heading + manifest bumps → pass
-f="$(base_fixture)"
+base_fixture f
 base="$(git_fixture "$f")"
 canonical_v1_1 >"$f/$CANONICAL"
 changelog_v1_1 >"$f/$CHANGELOG"
@@ -158,7 +161,7 @@ fi
 rm -rf "$f"
 
 # --- --check-bump: carrying plugin manifest not bumped → fail ---------------
-f="$(base_fixture)"
+base_fixture f
 base="$(git_fixture "$f")"
 canonical_v1_1 >"$f/$CANONICAL"
 changelog_v1_1 >"$f/$CHANGELOG"
@@ -174,7 +177,7 @@ fi
 rm -rf "$f"
 
 # --- --check-bump: content changed but frontmatter semver did not → fail ----
-f="$(base_fixture)"
+base_fixture f
 base="$(git_fixture "$f")"
 canonical_v1_edited >"$f/$CANONICAL"
 changelog_v1_1 >"$f/$CHANGELOG"
@@ -190,7 +193,7 @@ fi
 rm -rf "$f"
 
 # --- --check-bump: content changed but changelog gained no new heading → fail
-f="$(base_fixture)"
+base_fixture f
 base="$(git_fixture "$f")"
 canonical_v1_1 >"$f/$CANONICAL"
 # changelog untouched
@@ -206,7 +209,7 @@ fi
 rm -rf "$f"
 
 # --- --check-bump: compound failure — all three stale conditions report ----
-f="$(base_fixture)"
+base_fixture f
 base="$(git_fixture "$f")"
 canonical_v1_edited >"$f/$CANONICAL"       # content moved, frontmatter did not
 printf -- '# Changelog\n' >"$f/$CHANGELOG" # entry for the head version removed
@@ -223,7 +226,7 @@ fi
 rm -rf "$f"
 
 # --- --check-bump: schema-only change still requires the bumps --------------
-f="$(base_fixture)"
+base_fixture f
 printf '{"title":"standards concern file v1"}\n' >"$f/$SCHEMA"
 base="$(git_fixture "$f")"
 printf '{"title":"standards concern file v1","description":"schema-only change"}\n' >"$f/$SCHEMA"
@@ -237,7 +240,7 @@ fi
 rm -rf "$f"
 
 # --- --check-bump: plugin absent at base is new — skipped, not stale --------
-f="$(new_fixture)"
+new_fixture f
 canonical_v1 >"$f/$CANONICAL"
 changelog_v1 >"$f/$CHANGELOG"
 carrying_plugin "$f" planning "$(canonical_v1)" 0.1.0

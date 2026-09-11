@@ -164,7 +164,7 @@ rows after real work is a licensed permanent deletion.
    the restoring commit or an adjacent comment.
 3. For instructions being rewritten rather than restored verbatim, route the text-level judgment to
    `audit-instructions` (same plugin), which owns instruction-content-vs-doctrine analysis.
-4. Everything the ledger did not defend stays deleted — **except a rule matching a protected class
+4. Everything the ledger did not defend stays deleted, **except a rule matching a protected class
    in the [instruction exception
    register](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/instruction-exception-register/README.md)**,
    which is restored regardless of whether the ledger logged a stumble against it. The strip itself

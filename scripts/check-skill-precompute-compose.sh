@@ -16,7 +16,10 @@
 # 2 = usage / environment error.
 set -uo pipefail
 
-cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 2
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
+cd "$SCRIPT_DIR/.." || exit 2
+# shellcheck source=lib/changed-files.sh
+. "$SCRIPT_DIR/lib/changed-files.sh" || exit 2
 
 STRICT=0
 POSITIONAL=()
@@ -29,7 +32,10 @@ usage() {
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-  --strict) STRICT=1; shift ;;
+  --strict)
+    STRICT=1
+    shift
+    ;;
   -h | --help) usage ;;
   -- | --all | --paths)
     POSITIONAL+=("$1")
@@ -90,39 +96,47 @@ scan_skill() {
   return 0
 }
 
-# Validate the base ref HERE, in the parent shell, and not inside the
-# process substitution below (#3377). An `exit 2` in there terminates only
-# the subshell: `mapfile`'s own status reflects the read, process-substitution
-# exit codes are not propagated, and the parent saw nothing but an empty
-# `targets` -- so a typo'd branch or a shallow clone missing the ref scanned
-# zero files and exited 0. The error text reached stderr, but the exit code CI
-# gates on said success, which is a silent pass in exactly the case this
-# validation was written to catch.
+# The base ref is validated HERE, in the parent shell, and the diff itself is
+# taken through scripts/lib/changed-files.sh. Both halves answer the same
+# failure: a `mapfile` fed from a process substitution sees only the READ's
+# status, so neither an `exit 2` inside nor a failed `git diff` reaches the
+# parent, which saw nothing but an empty `targets` and scanned zero files at
+# exit 0. Validating the ref catches the typo'd branch (#3377); the shared
+# resolver catches everything else a diff can fail on (a shallow clone missing
+# an object, a corrupt pack, an unreadable index), because a failed diff is its
+# own non-zero return rather than an empty scope.
+targets=()
 case "$first" in
---all | --paths) ;;
+--all)
+  mapfile -t targets < <(find plugins -path 'plugins/*/skills/*/SKILL.md' -type f 2>/dev/null | sort)
+  ;;
+--paths)
+  targets=("${rest[@]}")
+  ;;
 *)
-  if ! git rev-parse --verify --quiet "${first}^{commit}" >/dev/null; then
+  if ! changed_files::verify_base "$first"; then
     printf 'Error: base ref %s is not a valid commit\n' "$first" >&2
     exit 2
   fi
+  # Diff on plugins/ then filter the skill path in-script: a `plugins/*/skills/`
+  # git pathspec does not match under git's default (non-pathname) globbing.
+  changed=()
+  changed_files::into changed "$first" -- 'plugins/' || exit 2
+  for f in ${changed[@]+"${changed[@]}"}; do
+    case "$f" in
+    plugins/*/skills/*/SKILL.md)
+      # A `case` glob's `*` spans `/`, so re-check the depth: only a SKILL.md
+      # exactly at plugins/<plugin>/skills/<skill>/ is a target.
+      rest_path="${f#plugins/}"
+      rest_path="${rest_path#*/skills/}"
+      [[ "$rest_path" == "${rest_path%%/*}/SKILL.md" ]] || continue
+      targets+=("$f")
+      ;;
+    *) ;;
+    esac
+  done
   ;;
 esac
-
-mapfile -t targets < <(
-  case "$first" in
-  --all)
-    find plugins -path 'plugins/*/skills/*/SKILL.md' -type f 2>/dev/null | sort
-    ;;
-  --paths)
-    printf '%s\n' "${rest[@]}"
-    ;;
-  *)
-    git diff --name-only "$first" -- 'plugins/' |
-      sed -nE 's#^(plugins/[^/]+/skills/[^/]+)/SKILL\.md$#\1/SKILL.md#p' |
-      sort -u
-    ;;
-  esac
-)
 
 violations=0
 scanned=0

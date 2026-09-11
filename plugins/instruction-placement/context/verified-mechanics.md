@@ -1,4 +1,4 @@
-# Verified loading mechanics — what actually happens, and how it was established
+# Verified loading mechanics: what actually happens, and how it was established
 
 The evidence spine behind every routing decision this plugin makes. Read it before adjudicating a
 candidate whose destination turns on *when* content loads, *whether it survives compaction*, or
@@ -6,7 +6,7 @@ candidate whose destination turns on *when* content loads, *whether it survives 
 
 **Citation posture.** Claims are marked *(doc)* when an official Anthropic page states them,
 *(measured)* when this plugin's own first-party repro established them, and *(inferred)* when
-neither — an inference is never presented as either of the other two. A `measured` claim names the
+neither. An inference is never presented as either of the other two. A `measured` claim names the
 Claude Code version it was taken on, because these mechanics have moved between releases and a
 version-less measurement cannot be re-verified or aged out.
 
@@ -39,7 +39,7 @@ Two rows carry the whole design:
 - **An unscoped rule costs exactly what `CLAUDE.md` costs.** Moving a section from `CLAUDE.md` into
   `.claude/rules/` without `paths:` frontmatter saves nothing at all. The glob is the product; the
   file move is bookkeeping.
-- **Everything that defers is invisible to subagents.** That is not a path-scoping quirk — it is
+- **Everything that defers is invisible to subagents.** That is not a path-scoping quirk. It is
   every on-demand surface, which is why the always-loaded index exists.
 
 ## First-party measurements
@@ -59,15 +59,15 @@ token. An `InstructionsLoaded` hook recorded every load.
 {"file_path":".claude/rules/scoped.md","memory_type":"Project","load_reason":"path_glob_match","globs":["sub/**/*.txt"],"trigger_file_path":"sub/thing.txt"}
 ```
 
-Four findings follow, each load-bearing somewhere in the rubric:
+Four findings follow, each of which a rubric rule depends on:
 
 1. **An `@import` inside a *nested* `CLAUDE.md` defers with its parent.** `sub/AGENTS.md` loads with
-   `load_reason: include` and carries its parent's `trigger_file_path` — it is absent at session
+   `load_reason: include` and carries its parent's `trigger_file_path`. It is absent at session
    start and arrives only when the subtree is touched. This is what makes the portable
    nested-`AGENTS.md` destination viable rather than a session-start cost in disguise.
 2. **It is the opposite of the path-scoped-rule import case.** An `@import` inside a *path-scoped
    rule* inlines at session start and defeats the scoping. Both are "an import inside a deferred
-   surface"; only one defers. Never generalize from one to the other — the rubric treats them as
+   surface"; only one defers. Never generalize from one to the other. The rubric treats them as
    unrelated facts because measurement says they are.
 3. **A nested `AGENTS.md` with no `CLAUDE.md` shim never loads.** `BARE_AGENTS_CANARY` was absent at
    session start and still absent after reading `bare/thing.txt`. The shim is a correctness
@@ -97,18 +97,18 @@ Each gap is a place where a naive migration silently loses coverage. The rubric'
 to close them; none of them is a reason not to migrate.
 
 **The subagent gap.** Demoted content is invisible inside every non-fork subagent. In a repo whose
-work is routinely delegated — a reviewer agent, an implementer agent — demoting a convention can put
-it out of reach of the exact agent that edits the files it governs. *Closed by:* the always-loaded
+work is routinely delegated to a reviewer agent or an implementer agent, demoting a convention can
+put it out of reach of the exact agent that edits the files it governs. *Closed by:* the always-loaded
 generated index, which reaches subagents (finding 4) and makes every rule reachable by an ordinary
-`Read`. The index guarantees **availability**, not attention — injection is automatic, a pointer is
-discretionary — so it mitigates rather than erases, which is why the hard-deny class below is not
-also delegated to it.
+`Read`. The index guarantees **availability**, not attention: injection is automatic and a pointer is
+discretionary. It therefore mitigates rather than erases, which is why the hard-deny class below is
+not also delegated to it.
 
 **The write-trigger gap.** "Path-scoped rules trigger when Claude reads files matching the pattern,
 not on every tool use" *(doc)*. Editing an existing file implies reading it, so the common case
-holds; **creating a new file does not**. Content that governs the *creation* of files — scaffolding
-templates, "every new component must…", file-header requirements — is therefore served badly by a
-path-scoped rule no matter how clean its glob looks. *Closed by:* routing creation-governing content
+holds; **creating a new file does not**. Content that governs the *creation* of files, such as
+scaffolding templates, "every new component must…", and file-header requirements, is therefore
+served badly by a path-scoped rule no matter how clean its glob looks. *Closed by:* routing creation-governing content
 to a directory-nested surface or leaving it always-loaded, never to `paths:`.
 
 **The compaction gap.** Root `CLAUDE.md` is re-read from disk after `/compact`; deferred surfaces
@@ -125,15 +125,15 @@ All *(doc)* unless marked. The `check` skill enforces each mechanically.
 - Brace expansion is supported and multiplies: `src/*.{ts,tsx}` is two patterns,
   `{a,b}/{c,d}/*.{ts,tsx}` is eight. A rule's whole `paths:` list shares one budget of **1,000
   expanded patterns and 4 MiB**. A pattern exceeding the budget is used **unexpanded**, so its
-  literal braces match nothing — a silent no-op, not an error.
-- `[` opens a bracket expression. A `[` that cannot be read as one — `photos [2024/**` — makes that
-  pattern match nothing while the rule's other patterns keep working. Escape a literal one as
+  literal braces match nothing, a silent no-op rather than an error.
+- `[` opens a bracket expression. A `[` that cannot be read as one, as in `photos [2024/**`, makes
+  that pattern match nothing while the rule's other patterns keep working. Escape a literal one as
   `photos \[2024/**`.
 - Symlinked paths into the project directory match as of v2.1.198.
 - Rules are discovered recursively under `.claude/rules/`, so subdirectories are organizational.
 - User-level `~/.claude/rules/` load before project rules, giving project rules higher priority.
 
-A glob that matches **zero** tracked files is not an error to Claude Code — the rule simply never
+A glob that matches **zero** tracked files is not an error to Claude Code. The rule simply never
 fires. That silence is exactly why `check` treats it as a failure.
 
 ## Re-verification
@@ -148,5 +148,5 @@ claim's confidence:
 
 The repro is cheap: a temp git repo with canary tokens on each surface, an `InstructionsLoaded` hook
 appending each payload to a log, one headless run that reads a file in the subtree, and a read of
-the log. `InstructionsLoaded` is observability-only — it cannot block or modify a load — so the
+the log. `InstructionsLoaded` is observability-only and cannot block or modify a load, so the
 measurement never perturbs what it measures.

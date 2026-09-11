@@ -1,11 +1,11 @@
-# Topic-docs placement — where this plugin's artifacts land
+# Topic-docs placement: where this plugin's artifacts land
 
 How `/verification:confirm` and `/verification:measure` resolve where generated documents land in a
 consuming repo. These skills read this one document; neither bakes its own paths.
 
 Implements the topic-docs convention:
 <https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md>.
-The contract owns every general rule — tiers, schema, resolution order, slug spec, runtime guards,
+The contract owns every general rule: tiers, schema, resolution order, slug spec, runtime guards,
 no-project-root fallback, non-interactive/forked mode, the prune-with-pointer lifecycle with its
 redaction bar. This document records only this plugin's deltas.
 
@@ -16,12 +16,12 @@ behavior; this binding and topic-docs remain authoritative for their placement.
 
 | Artifact | Tier | Location (default) |
 |---|---|---|
-| Verification manifest (distilled, `verified_at_sha`-keyed; meets the contract's redaction bar) — written by `/verification:confirm` | Contract | `docs/topics/<slug>/verification/` |
-| Baselines (machine-bound measurements) — written by `/verification:measure` | Memory | `.work/<slug>/baselines/` — never committed |
+| Verification manifest (distilled, `verified_at_sha`-keyed; meets the contract's redaction bar), written by `/verification:confirm` | Contract | `docs/topics/<slug>/verification/` |
+| Baselines (machine-bound measurements), written by `/verification:measure` | Memory | `.work/<slug>/baselines/`, never committed |
 | Raw verification captures | Memory | `.work/<slug>/scratch/` |
 
-`contract_tier: local` moves the contract row into the memory slice with an identical layout —
-the contract's solo/offline mode. Roots are configurable via the concern file's `contract_dir` /
+`contract_tier: local` moves the contract row into the memory slice with an identical layout. That
+is the contract's solo/offline mode. Roots are configurable via the concern file's `contract_dir` /
 `memory_dir` keys.
 
 `/verification:confirm` reads the contract-tier `PLAN.md` (produced upstream) for intent; when a plan
@@ -30,5 +30,5 @@ states a measurable goal, `/verification:measure` records its baseline values + 
 
 Baselines and raw captures are machine-bound and checkout-local; per the contract's pointer
 discipline (≥ 2.0.0), what `/verification:measure` writes into `PLAN.md` is **distilled values
-only** — never a memory-slice capture path. The committed manifest is what isolated contexts and
+only**, never a memory-slice capture path. The committed manifest is what isolated contexts and
 reviewers see; it meets the redaction bar for exactly that reason.

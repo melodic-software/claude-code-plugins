@@ -5,6 +5,17 @@ All notable changes to the `context-budget` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.27]
+
+### Changed
+
+- **Options reference drops its em dashes.** The generated How-to-set-these block is rewritten by `scripts/sync-plugin-options-docs.py`, which is the fix site: its output is regenerated, never hand-edited. The block no longer needs the ignore marker that exempted it from the repository's em-dash gate, so that marker is gone as well.
+
+- **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
+- **The plugin's prose drops its em dashes.** Five surfaces were rewritten: this changelog, two `skills/audit/reference/` documents, `skills/setup/SKILL.md`, and the `context-sample.md` parser fixture. Wording only, with no change to any lever, measurement, or record schema. The fixture's rewritten line is preamble the parser skips, and `measure.test.sh` still passes 90 of 90. The released sections corrected in place are 0.6.6, 0.6.4, 0.6.1, 0.6.0, 0.5.1, 0.4.0, 0.3.0, 0.2.0, and 0.1.0: their wording changed, their facts did not.
+- **The degradation-ladder caveat says what the rung depends on, in the document and in the code that emits it.** `reference/engine.md` and the `caveats` string in `skills/audit/scripts/measure.mjs` now both read "headless /context is undocumented as a -p-capable command, so this rung depends on unsanctioned behavior", instead of calling the mode load-bearing. A reader of the record and a reader of the reference see the same sentence.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md`, every `skills/*/SKILL.md`, and the `skills/audit/reference/` tree.
+
 ## [0.6.26]
 
 ### Changed
@@ -244,7 +255,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   record (and each per-tool row, which had the same coercion) now reports the saving as `null`
   with `comparable: false` and a reason naming the vanished bucket
   ([#3197](https://github.com/melodic-software/claude-code-plugins/issues/3197)). A bucket
-  absent from *both* runs remains a non-event — outside that binary's category vocabulary, not
+  absent from *both* runs remains a non-event: outside that binary's category vocabulary, not
   a missing measurement. In sdk mode, where numbers are exact and the category vocabulary is
   known, an omitted bucket is now recorded as an explicit `0` at snapshot time, so a combined
   deny that empties a bucket yields a real measured delta instead of an incomparable record.
@@ -276,7 +287,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- **`/context-budget:setup`** — the plugin declared `userConfig` but shipped no setup skill.
+- **`/context-budget:setup`**: the plugin declared `userConfig` but shipped no setup skill.
   Adds the fleet's uniform check/apply contract: `check` verifies what the native configuration
   prompt cannot, `apply` routes a reconfiguration and then reads the effective value back before
   reporting it ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)).
@@ -311,12 +322,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the option shipped in 0.4.0; `scripts/sync-plugin-options-docs.py` gate).
 
 - Ledger run IDs are collision-safe: a same-second rerun of the same lever (or a re-appended
-  row) now lands in a numbered-suffix run file instead of silently overwriting the earlier one —
-  the one-file-per-run contract held only by luck before (PR review finding). Test added.
+  row) now lands in a numbered-suffix run file instead of silently overwriting the earlier one.
+  The one-file-per-run contract held only by luck before (PR review finding). Test added.
 - Windows command shims spawn correctly: binary resolution now prefers `claude.exe` over
   `claude.cmd`, and a `.cmd`/`.bat` shim is executed through the shell (Node cannot spawn
   command shims directly), so shim-only Windows installs measure instead of degrading
-  (PR review finding). Untested on real Windows hardware — recorded as a manual-verification
+  (PR review finding). Untested on real Windows hardware and recorded as a manual-verification
   gap, matching the repo's convention.
 
 ## [0.6.0]
@@ -326,7 +337,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Empirical hardening from the first end-to-end shakedown and two fresh-context probes
   (v2.1.232, headless):
   - cli-parse `totalTokens` now excludes every `... (deferred)` category, not only the built-in
-    one — HTTP MCP tools measured deferred in their own `MCP tools (deferred)` category
+    one. HTTP MCP tools measured deferred in their own `MCP tools (deferred)` category
     (anthropics/claude-code#40314's upfront loading did not reproduce), and the headline must
     exclude both pools in both modes; engine.md's headline rule updated to match.
   - The ask-checkpoint's undocumented-`bypassPermissions` caveat upgraded to a measurement: at
@@ -342,8 +353,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Changed
 
 - Tightened the catalogue test's token-figure scan: any k-suffixed figure in a lever row now
-  fails outright, and plain integers adjacent to the word token are caught in either order —
-  closing the gap the fresh-context acceptance verifier flagged (a plain-integer figure could
+  fails outright, and plain integers adjacent to the word token are caught in either order.
+  That closes the gap the fresh-context acceptance verifier flagged (a plain-integer figure could
   previously slip past the mechanical check). Verified against a seeded violation.
 
 ## [0.5.0]
@@ -374,8 +385,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   apply → re-measure → compare → ledger loop.
 - PreToolUse checkpoint hook (`hooks/settings-write-ask.mjs`, exec-form `node` invocation):
   returns `permissionDecision: "ask"` for any Write/Edit targeting a Claude Code settings
-  surface, so auto mode prompts instead of silently approving — documented as a checkpoint, not
-  a guarantee (PermissionRequest hooks, `disableAllHooks`, and the undocumented
+  surface, so auto mode prompts instead of silently approving. It is documented as a checkpoint,
+  not a guarantee (PermissionRequest hooks, `disableAllHooks`, and the undocumented
   `bypassPermissions` interaction are named). Fail-open on internal error; kill switch shipped
   as `settings_write_ask_enabled` userConfig (default true) read via the hook-process mirror;
   hermetic contract test covers ask/silent/kill-switch/garbage/backslash paths.
@@ -385,8 +396,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 
 - The report contract (`skills/audit/reference/report.md`): stamped header, smart-zone headline
-  (reclaimed reasoning space, never cost — with optional context-guard zone framing when that
-  plugin is installed), measured category totals, ranked per-tool attribution with incomparable
+  (reclaimed reasoning space, never cost) with optional context-guard zone framing when that
+  plugin is installed, measured category totals, ranked per-tool attribution with incomparable
   rows carrying reasons instead of numbers and unmeasured tools listed rather than omitted,
   lever findings grouped by honesty category with citations and emitted config, route-outs,
   degradations. Reports persist one-file-per-run under the keyed data directory.
@@ -397,15 +408,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 
 - The lever catalogue (`skills/audit/reference/levers.json`): every known operator-controllable
-  switch over the fixed startup payload as data rows — honesty category (six-term vocabulary with
+  switch over the fixed startup payload as data rows: honesty category (six-term vocabulary with
   a dual-ledger request/context-window distinction), category basis, condition resolution by
   measurement, posture (recommendable / disclose-only / never-recommend / report-only),
   detection, measurement route, exact emitted config, official citations, verified date, and
   recheck trigger per row. Net-negative and unverified levers are structurally barred from the
   recommendable posture.
 - Catalogue contract test (`levers.test.sh`): categories confined to the vocabulary, citations
-  required, postures consistent, and no shipped token figures — the cite-never-transcribe rule
-  made mechanical.
+  required, postures consistent, and no shipped token figures. That makes the cite-never-transcribe
+  rule mechanical.
 - SKILL.md lever-presentation step wiring the catalogue's honesty rules into the audit workflow.
 
 ## [0.1.0]
@@ -413,7 +424,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 
 - Initial release: the measurement engine and the `audit` skill's measurement workflow.
-- `skills/audit/scripts/measure.mjs` — SDK-primary meter over the Agent SDK's structured context
+- `skills/audit/scripts/measure.mjs`: SDK-primary meter over the Agent SDK's structured context
   usage (exact integers, live tool enumeration), degrading to a version-aware parser of headless
   `/context` output (display-rounded, refuses loudly on format drift) and then to a structured
   error with a remediation; per-tool attribution of the built-in tool pools by bare-name-deny A/B
@@ -422,10 +433,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   rows and a per-project ledger (one file per run plus an appended history line) under a
   caller-derived state-keyed data directory; every record stamped with the measured binary path
   and version, mode, precision, and session kind.
-- `/context-budget:audit` — read-only measurement workflow: stamped baseline snapshot, attribution
-  over the live tool list, before/after ledger loop; prints exact config
+- `/context-budget:audit`, the read-only measurement workflow: stamped baseline snapshot,
+  attribution over the live tool list, before/after ledger loop; prints exact config
   (`permissions.deny` bare names) and applies nothing.
-- `reference/engine.md` — record schemas, degradation ladder, mechanism citations, comparability
+- `reference/engine.md`: record schemas, degradation ladder, mechanism citations, comparability
   rules.
 - Hermetic engine test suite (`measure.test.sh`) over the parser, compare, and ledger surfaces.
 - `lib/state-key.sh` adopted from the marketplace's shared per-project state-key cluster.

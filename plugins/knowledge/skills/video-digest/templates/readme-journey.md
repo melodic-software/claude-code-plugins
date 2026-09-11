@@ -6,7 +6,7 @@ updated: YYYY-MM-DDTHH:MM:SSZ
 
 # {Video Title}
 
-**Target:** {resolved synthesis target — portable name only, never a local checkout path; context/watch-pipeline.md "Synthesis target resolution"}
+**Target:** {resolved synthesis target, portable name only, never a local checkout path; context/watch-pipeline.md "Synthesis target resolution"}
 
 ## TLDR
 
@@ -16,7 +16,7 @@ updated: YYYY-MM-DDTHH:MM:SSZ
 
 ### Capture
 
-{yt-dlp acquire, caption rung, transcript cleaning, link harvest — 2–4 sentences.}
+{yt-dlp acquire, caption rung, transcript cleaning, link harvest, in 2–4 sentences.}
 
 ### Vision
 
@@ -24,7 +24,7 @@ updated: YYYY-MM-DDTHH:MM:SSZ
 
 ### Research
 
-{claim clusters researched, consensus vs author, staleness notes — cite `RESEARCH.md`.}
+{claim clusters researched, consensus vs author, staleness notes, citing `RESEARCH.md`.}
 
 ### Synthesis
 
@@ -32,5 +32,5 @@ updated: YYYY-MM-DDTHH:MM:SSZ
 
 ## Status
 
-**Next action:** {one concrete step — often `/planning:interview` from `recommendations/interview.md`}  
+**Next action:** {one concrete step, often `/planning:interview` from `recommendations/interview.md`}  
 **Blockers:** none

@@ -8,11 +8,11 @@ overlays go in `.claude/codebase-health.local.md` (gitignored); a user-global ba
 
 Each dimension carries:
 
-- **primary-sources** — glob patterns for files where factual claims live (docs, conventions,
+- **primary-sources**: glob patterns for files where factual claims live (docs, conventions,
   ADRs, status pages). Discovery reads these top-to-bottom and extracts claims.
-- **verification-sources** — glob patterns for files where claims are verified against ground
+- **verification-sources**: glob patterns for files where claims are verified against ground
   truth (build config, manifests, source, tests).
-- **example-claims** — optional `{ claim, verify-via }` rows teaching the claim-extraction pass
+- **example-claims**: optional `{ claim, verify-via }` rows teaching the claim-extraction pass
   what drifts in THIS repo. The more concrete, the better the audit.
 
 ## documentation
@@ -29,7 +29,7 @@ Each dimension carries:
 
 **example-claims:**
 
-- claim: "<!-- e.g. Doc lists tools 'A, B, C' — verify EACH against the package manifest -->"
+- claim: "<!-- e.g. Doc lists tools 'A, B, C'. Verify EACH against the package manifest -->"
   - verify-via: "<!-- e.g. Grep the package manifest for each tool; check for commented-out entries -->"
 
 ## configuration

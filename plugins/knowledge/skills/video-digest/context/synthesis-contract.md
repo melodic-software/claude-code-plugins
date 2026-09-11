@@ -1,10 +1,10 @@
-# Video digest watch — synthesis contract
+# Video digest watch: synthesis contract
 
 SSOT for what belongs in `key-frames/frames/`. Applies to any `/knowledge:video-digest watch` slice. Cite by heading; do not duplicate floors from `quality-gates.md`.
 
 ## Value test
 
-Promote a frame only when it **closes a gap** the transcript and research do not — multimodal evidence for repo-relevant analysis. Not limited to code, diagrams, URLs, or metrics; judgment allowed with manifest justification.
+Promote a frame only when it **closes a gap** the transcript and research do not, giving multimodal evidence for repo-relevant analysis. Not limited to code, diagrams, URLs, or metrics; judgment allowed with manifest justification.
 
 **Reject:** talking-head-only, title-card-only, content fully in transcript or research/Google, duplicate-of-deck-slide when deck fetched, unreadable, mislabeled.
 
@@ -14,9 +14,9 @@ Promote a frame only when it **closes a gap** the transcript and research do not
 
 Nothing copies into `frames/` until a vision pass outputs:
 
-1. **Verdict** — promote or reject (reason)
-2. **Semantic filename** — kebab-case describing **on-screen content**
-3. **Gap note** — what the transcript misses
+1. **Verdict**: promote or reject (reason)
+2. **Semantic filename**: kebab-case describing **on-screen content**
+3. **Gap note**: what the transcript misses
 
 **Forbidden filenames:** `at-*`, `scene_NNNN`, `anchor_*`, numeric-only, collision suffixes (`-2`, `-2-3`).
 
@@ -44,8 +44,8 @@ run-watch (metadata harvest → harvested-links.json)
 | GitHub repos | `harvested-links` + optional `harvested-repo-analysis.json` | research clusters |
 | Synthesis PNG images | `key-frames/frames/` | `key-frames-manifest.md` |
 
-`synthesis/` is PNG images only — not markdown, decks, or link lists.
+`synthesis/` is PNG images only, not markdown, decks, or link lists.
 
 ## Verify-script stance
 
-**Quality gates block** completion (semantic names, audit, triage coverage). **Count floors warn-only** — do not promote junk to satisfy `synthesis-count-floor`.
+**Quality gates block** completion (semantic names, audit, triage coverage). **Count floors warn-only.** Do not promote junk to satisfy `synthesis-count-floor`.
