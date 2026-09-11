@@ -68,7 +68,7 @@ rendering-surface facts these rest on. The summary:
 | What changes, when the surrounding shape is already in the conversation | a **diff-shaped delta** over any of the shapes above (a code-shape sketch) |
 | Mostly new code, or a copyable target shape, when no sketch is smaller than the code | **the whole block**, the fallback among the code-shape sketches |
 | A composite, interactive, or large multi-part view; an infographic; a short slide deck | a **rich rendered page** |
-| A visual layout the user would rather tweak by hand: a UI mockup, screen flow, poster, banner, one-pager | a **design canvas**. Route to a design-canvas capability (the bundled `design` skill), when available |
+| A visual layout the user would rather tweak by hand: a UI mockup, screen flow, poster, banner, one-pager | a **design canvas**. Offer the bundled `design` skill's canvas as a user-run alternative where the medium permits publishing (Step 3 and the Boundary section) |
 
 **Code-shape sketches** are fenced text: they render in any GFM surface and need
 no page. Tie-break against the mermaid row: when the content is code (named
@@ -87,22 +87,23 @@ fall back to a simple, honest default (a labelled bar/line as inline SVG on a
 page, or a Unicode bar/sparkline in the terminal) and say the craft capability was
 unavailable.
 
-When the form is a hand-tweakable visual layout, route to the design-canvas
-capability. That is the bundled `design` skill, when it appears in this session's
-skill list. The canvas exists only on the published-Artifact tier, so the offer is
-also gated on Step 3's medium selection: when an explicit `terminal`/`file`
-argument or the configured preference pins delivery on-machine ("never
-published"), do not offer the canvas. The rich rendered page or local file
-carries the layout instead. Where the medium permits publishing, offer it as an
-explicit alternative, never a silent default: the canvas is a
-published, versioned, persistent Artifact (default-private, shareable with
-teammates at the user's choice; hand-editable where saving is enabled for the
-account, view-plus-PNG/PDF-export otherwise), where this skill's other page paths
-are throwaway or plain-static. When the skill is **absent from the list**, the
-rich rendered page covers the same ground. Do not mention `/design` (that user
-has no such command). When it is **listed but the invocation is refused**, suggest
-the user run `/design` themselves. The canvas surface facts and their
-verified-on/recheck record live in the catalog spoke.
+When the form is a hand-tweakable visual layout, the design canvas is the bundled
+`design` skill, which only the user can run (its registration disables model
+invocation, so it is hidden from the skill list and cannot be detected there). The
+canvas exists only on the published-Artifact tier, so the offer is gated on the
+Artifact tool resolving in your session and on Step 3's medium selection: when an
+explicit `terminal`/`file` argument or the configured preference pins delivery
+on-machine ("never published"), do not offer the canvas. The rich rendered page or
+local file carries the layout instead. Where the medium permits publishing, name
+`/design <brief>` once as an explicit user-run alternative, never a silent default:
+the canvas is a published, versioned, persistent Artifact (default-private,
+shareable with teammates at the user's choice; hand-editable where saving is
+enabled for the account, view-plus-PNG/PDF-export otherwise), where this skill's
+other page paths are throwaway or plain-static. Then render the rich page unless
+the user picks the canvas. Never assert the skill is present; a user who reports
+no such command has a session without it, and the rich page covers the same
+ground. The canvas surface facts and their verified-on/recheck record live in the
+catalog spoke and the Boundary section below names the split.
 
 ## Step 3: Pick the medium
 
@@ -254,6 +255,17 @@ when that wrapper is installed, which also owns the install uplift and cloud del
 guidance. When neither is installed, say the capability exists as an installable
 plugin and continue with this skill's closest static form (a rich page without the
 round-trip controls), never a hand-built imitation of the explorer.
+
+The **design canvas** is the bundled `design` skill, a native surface this skill overlaps on
+hand-tweakable layouts. It drafts artboards on a persistent, versioned, shareable canvas that the
+user edits by hand; this skill's page paths are throwaway or plain-static. The model never invokes
+it: its registration disables model invocation, so it is hidden from the skill list and cannot be
+detected there. When the Artifact tool resolves in your session and Step 2 lands on a
+hand-tweakable layout, name `/design <brief>` once as a user-run alternative with the lifecycle
+difference stated, then render this skill's rich page unless the user picks the canvas. Never
+assert the skill is present; a user who reports no such command has a session without it. The
+canvas surface facts and their verified-on record live in the catalog spoke's design canvas
+section ([context/decision-matrix.md](context/decision-matrix.md)).
 
 ## What this skill does NOT do
 

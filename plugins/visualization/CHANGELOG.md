@@ -3,6 +3,19 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.0]
+
+### Changed
+
+- **`visualize`**: the design canvas is offered, never invoked. The installed client registers
+  the bundled `design` skill with model invocation disabled, so the skill is hidden from the
+  model's list and its presence cannot be read there; Step 3 and the form table now gate the
+  offer on the Artifact tool resolving and on a medium that permits publishing, name
+  `/design <brief>` once as a user-run alternative, and render the rich page unless the user
+  picks the canvas. The `## Boundary` section gains the design-canvas split, and the catalog
+  spoke's design canvas section carries the re-verified surface facts (commands page row,
+  artifacts availability, binary registration) with the recheck trigger.
+
 ## [0.5.2]
 
 ### Added
