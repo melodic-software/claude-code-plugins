@@ -144,52 +144,52 @@ read this session:
 | `plugins/architecture/skills/record-decision/SKILL.md` Gotchas | never renumber duplicate ADRs; pick highest plus one | team |
 | `docs/conventions/topic-docs/README.md` lines 656-670 | `INDEX.md` reserved; PLAN.md pasted in the PR body; pre-prune SHA named; slice pruned before merge | team |
 
-### Phase 1: Rename the 13 and move the runtime consumers [TODO]
+### Phase 1: Rename the 13 and move the runtime consumers [DONE]
 
 One structural commit. Every `git mv` and every hardcoded path constant moves together so no
 intermediate state has a generator reading a missing file.
 
 **File moves** (all `git mv docs/<OLD>.md docs/<new>.md`):
 
-- [ ] `CATALOG-TAXONOMY.md` -> `catalog-taxonomy.md`
-- [ ] `CATALOG.md` -> `catalog.md`
-- [ ] `CI-RUNNER-ROUTING.md` -> `ci-runner-routing.md`
-- [ ] `CLOUD-FLEET-SETUP.md` -> `cloud-fleet-setup.md`
-- [ ] `CLOUD-SESSIONS.md` -> `cloud-sessions.md`
-- [ ] `FINDING-YOUR-UNKNOWNS.md` -> `finding-your-unknowns.md`
-- [ ] `GLOSSARY.md` -> `glossary.md`
-- [ ] `MIGRATION-PLAYBOOK.md` -> `migration-playbook.md`
-- [ ] `NATIVE-SURFACES.md` -> `native-surfaces.md`
-- [ ] `OFFICIAL-DOCS.md` -> `official-docs.md`
-- [ ] `PLUGIN-ARTIFACT-PROTOCOL.md` -> `plugin-artifact-protocol.md` (no content edit)
-- [ ] `PLUGIN-PHILOSOPHY.md` -> `plugin-philosophy.md`
-- [ ] `SKILL-CHEAT-SHEET.md` -> `skill-cheat-sheet.md`
+- [x] `CATALOG-TAXONOMY.md` -> `catalog-taxonomy.md`
+- [x] `CATALOG.md` -> `catalog.md`
+- [x] `CI-RUNNER-ROUTING.md` -> `ci-runner-routing.md`
+- [x] `CLOUD-FLEET-SETUP.md` -> `cloud-fleet-setup.md`
+- [x] `CLOUD-SESSIONS.md` -> `cloud-sessions.md`
+- [x] `FINDING-YOUR-UNKNOWNS.md` -> `finding-your-unknowns.md`
+- [x] `GLOSSARY.md` -> `glossary.md`
+- [x] `MIGRATION-PLAYBOOK.md` -> `migration-playbook.md`
+- [x] `NATIVE-SURFACES.md` -> `native-surfaces.md`
+- [x] `OFFICIAL-DOCS.md` -> `official-docs.md`
+- [x] `PLUGIN-ARTIFACT-PROTOCOL.md` -> `plugin-artifact-protocol.md` (no content edit)
+- [x] `PLUGIN-PHILOSOPHY.md` -> `plugin-philosophy.md`
+- [x] `SKILL-CHEAT-SHEET.md` -> `skill-cheat-sheet.md`
 
 **Runtime consumers** (path constants, fixtures, allowlist proof):
 
 | File | Action | Rationale |
 |---|---|---|
-| [ ] `scripts/generate-cheatsheet.mjs` | MODIFY | `OUTPUT_PATH` and the header comment |
-| [ ] `scripts/generate-catalog.mjs` | MODIFY | `outputPath`, `taxonomyPath`, error text, header comment |
-| [ ] `scripts/validate-plugin-contracts.mjs` | MODIFY | canonical artifact-protocol path, comments, and the two bare stems at lines 101 and 187 |
-| [ ] `scripts/cheatsheet-config.mjs` | MODIFY | header comment |
-| [ ] `plugins/claude-ops/skills/audit-native-overlap/scripts/overlap.py` | MODIFY | default `--view` path and help text |
-| [ ] `plugins/claude-ops/skills/audit-native-overlap/scripts/test_overlap.py` | MODIFY | fixture path mirrors the default |
-| [ ] `scripts/check-docs-only.test.sh` | MODIFY | fixture files and assertions |
-| [ ] `scripts/generate-cheatsheet.test.sh` | MODIFY | fixture tree paths |
-| [ ] `scripts/docs-only-paths.txt` | MODIFY | the inertness-proof comment |
-| [ ] `docs/native-surfaces/records.json` | MODIFY | the store's own `note` field |
-| [ ] `plugins/*/reference/artifact-protocol.md` (six) | KEEP | byte-identical to the canonical; no content change |
+| [x] `scripts/generate-cheatsheet.mjs` | MODIFY | `OUTPUT_PATH` and the header comment |
+| [x] `scripts/generate-catalog.mjs` | MODIFY | `outputPath`, `taxonomyPath`, error text, header comment |
+| [x] `scripts/validate-plugin-contracts.mjs` | MODIFY | canonical artifact-protocol path, comments, and the two bare stems at lines 101 and 187 |
+| [x] `scripts/cheatsheet-config.mjs` | MODIFY | header comment |
+| [x] `plugins/claude-ops/skills/audit-native-overlap/scripts/overlap.py` | MODIFY | default `--view` path and help text |
+| [x] `plugins/claude-ops/skills/audit-native-overlap/scripts/test_overlap.py` | MODIFY | fixture path mirrors the default |
+| [x] `scripts/check-docs-only.test.sh` | MODIFY | fixture files and assertions |
+| [x] `scripts/generate-cheatsheet.test.sh` | MODIFY | fixture tree paths |
+| [x] `scripts/docs-only-paths.txt` | MODIFY | the inertness-proof comment |
+| [x] `docs/native-surfaces/records.json` | MODIFY | the store's own `note` field |
+| [x] `plugins/*/reference/artifact-protocol.md` (six) | KEEP | byte-identical to the canonical; no content change |
 
 **Sanity Check:**
 
-- [ ] `git ls-files docs/ | grep -E '/[^/]*[A-Z][^/]*$' | grep -vE '/(README|CHANGELOG|INDEX)\.md$' | grep -v '^docs/topics/'` returns empty
-- [ ] `git ls-files | tr 'A-Z' 'a-z' | sort | uniq -d` returns empty
-- [ ] `node scripts/generate-catalog.mjs && git diff --quiet docs/catalog.md` exits 0
-- [ ] `node scripts/generate-cheatsheet.mjs --check` exits 0
-- [ ] `node scripts/validate-plugin-contracts.mjs` exits 0
-- [ ] `bash scripts/check-docs-only.test.sh && bash scripts/generate-cheatsheet.test.sh && bash scripts/validate-plugin-contracts.test.sh` exit 0
-- [ ] `bash plugins/claude-ops/skills/audit-native-overlap/scripts/overlap.test.sh` exits 0
+- [x] `git ls-files docs/ | grep -E '/[^/]*[A-Z][^/]*$' | grep -vE '/(README|CHANGELOG|INDEX)\.md$' | grep -v '^docs/topics/'` returns empty
+- [x] `git ls-files | tr 'A-Z' 'a-z' | sort | uniq -d` returns empty
+- [x] `node scripts/generate-catalog.mjs && git diff --quiet docs/catalog.md` exits 0
+- [x] `node scripts/generate-cheatsheet.mjs --check` exits 0
+- [x] `node scripts/validate-plugin-contracts.mjs` exits 0
+- [x] `bash scripts/check-docs-only.test.sh && bash scripts/generate-cheatsheet.test.sh && bash scripts/validate-plugin-contracts.test.sh` exit 0
+- [x] `bash plugins/claude-ops/skills/audit-native-overlap/scripts/overlap.test.sh` exits 0
 
 ### Phase 2: Reference sweep by the three-way boundary, with plugin bumps [TODO]
 
