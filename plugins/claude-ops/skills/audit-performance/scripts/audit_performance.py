@@ -36,6 +36,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -150,11 +151,60 @@ UNCLASSIFIED_LAYOUT_NOTE = (
     "apt/dnf/apk, npm-global and direct-download installs land wherever they land"
 )
 
-#: Hook events that fire on every matching tool call. These scale with tool-call volume.
-PER_TOOL_CALL_EVENTS = frozenset({"PreToolUse", "PostToolUse"})
+#: Hook events that fire on every matching tool call. These scale with tool-call volume, and
+#: they are also the only events on which the handler `if` field is evaluated: a hook carrying
+#: an `if` on any other event never runs at all.
+PER_TOOL_CALL_EVENTS = frozenset(
+    {
+        "PreToolUse",
+        "PostToolUse",
+        "PostToolUseFailure",
+        "PermissionRequest",
+        "PermissionDenied",
+    }
+)
 #: Hook events that fire once per conversational turn. These are what make a long session degrade.
 PER_TURN_EVENTS = frozenset(
     {"Stop", "SubagentStop", "UserPromptSubmit", "Notification"}
+)
+
+#: A matcher built only from these characters is an exact tool name, or a list of exact names
+#: separated by `|` or `,`. A matcher containing anything else is an unanchored regular
+#: expression instead, which is why `Edit.*` also selects `NotebookEdit`.
+MATCHER_EXACT_CHARS = re.compile(r"^[A-Za-z0-9_\- ,|]+$")
+#: Matcher spellings that select every tool. An absent matcher does the same.
+MATCHER_MATCH_ALL = frozenset({"*", ""})
+
+#: The file kinds the fan-out projection runs. A fixed representative set, not a scan of any
+#: tree: the projection answers "how many handlers fire for a write of this kind of file", and
+#: a set that changed with the machine would make two captures incomparable.
+PROJECTION_FILE_KINDS = (".md", ".py", ".sh", ".ts", ".json", "other")
+#: Tools whose calls carry a file path, so an `Edit(*.<ext>)` gate is decided by extension.
+FILE_WRITING_TOOLS = ("Write", "Edit", "NotebookEdit")
+#: Tools the projection runs. Bash carries no single file path, so it gets one tool-only row.
+PROJECTION_TOOLS = FILE_WRITING_TOOLS + ("Bash",)
+#: The only `if` shape this engine classifies: a bare single-extension glob on an `Edit` rule.
+#: The extension is captured with its dot so it compares directly against PROJECTION_FILE_KINDS.
+IF_EXTENSION_GATE = re.compile(r"^Edit\(\*(\.[A-Za-z0-9_]+)\)$")
+
+#: Hook cost is never a sum. Named once so the block's `note` and its `notes` list cannot drift.
+HOOK_PARALLEL_NOTE = (
+    "Hooks on one event run in parallel, so wall-clock cost is roughly the slowest hook "
+    "plus contention, NOT the sum of their timings. This engine enumerates configured "
+    "hooks and never executes one; a hook is third-party code with arbitrary side "
+    "effects, and running it would make this capture a mutation."
+)
+#: What the projection cannot see. Both are over-counts rather than hidden spawns, and both are
+#: reported so a reader never mistakes a ceiling for a measurement.
+HOOK_ANCHOR_NOTE = (
+    "An `if` rule matches only under its anchor, so an edit to a file outside the project "
+    "directory never matches one; the projection counts those rows as firing and over-counts "
+    "there."
+)
+HOOK_DEDUP_NOTE = (
+    'Cross-settings-file dedup is not modelled. Upstream: "If you define the same handler in '
+    "more than one settings file, it runs once. A plugin's or skill's copy of the same handler "
+    'stays separate." Rows that dedup upstream are counted twice here.'
 )
 #: Shell executables whose repeated appearance in one command line means nested shells.
 SHELL_TOKENS = ("bash", "sh", "zsh", "pwsh", "powershell", "cmd")
@@ -1200,10 +1250,230 @@ def flatten_hook_block(hooks_block: dict, source: str) -> list[dict]:
                         if isinstance(args, list)
                         else [],
                         "timeout": hook.get("timeout"),
+                        "if": hook.get("if"),
                         "source": source,
                     }
                 )
     return entries
+
+
+def command_key(entry: dict) -> str:
+    """What a firing row actually spawns: the command plus its args.
+
+    Counting the command alone would collapse two handlers that share a dispatcher and pass
+    different arguments into one, and those are two process creations, not one.
+    """
+    args = entry.get("args") or []
+    return " ".join([str(entry.get("command") or "")] + [str(a) for a in args])
+
+
+def matcher_kind(matcher: object) -> str:
+    """Classify a hook group's matcher by the documented character-class rule.
+
+    Returns `all`, `exact`, or `regex`. The rule is a character class, not a guess: `*`, an
+    empty string, or an absent matcher selects everything; a matcher built only from letters,
+    digits, `_`, `-`, spaces, `,`, and `|` is an exact name or an alternation list of exact
+    names; anything else is an unanchored regular expression.
+    """
+    if matcher is None:
+        return "all"
+    text = str(matcher)
+    if text in MATCHER_MATCH_ALL:
+        return "all"
+    if MATCHER_EXACT_CHARS.match(text):
+        return "exact"
+    return "regex"
+
+
+def matcher_matches(matcher: object, tool: str) -> bool:
+    """True when a matcher selects `tool`.
+
+    Python's `re.search` stands in for JavaScript's `RegExp.prototype.test`. Both are
+    unanchored, so `Edit.*` also selects `NotebookEdit`. An exact matcher is compared whole,
+    which is why a bare `mcp__memory` selects nothing: the tool name is
+    `mcp__memory__<tool>`, and server-wide matching needs `mcp__memory.*`. A matcher Python
+    cannot compile is reported as selecting nothing rather than guessed at.
+    """
+    kind = matcher_kind(matcher)
+    if kind == "all":
+        return True
+    text = str(matcher)
+    if kind == "exact":
+        return any(part.strip() == tool for part in re.split(r"[|,]", text))
+    try:
+        return re.search(text, tool) is not None
+    except re.error:
+        return False
+
+
+def classify_if_gate(rule: object) -> dict:
+    """Classify one handler `if` rule into what this projection can decide.
+
+    Returns `{kind, extension, reason}` where kind is `absent`, `extension`, or
+    `unclassified`. Exactly one shape is classifiable, `Edit(*.<ext>)`: a bare single-extension
+    glob with no path separator and no `**`. Everything wider stays unclassified and is counted
+    as firing, so an unmodelled rule over-counts the fan-out rather than hiding a spawn.
+    """
+    if rule is None or str(rule).strip() == "":
+        return {"kind": "absent", "extension": None, "reason": None}
+    text = str(rule).strip()
+    match = IF_EXTENSION_GATE.match(text)
+    if match:
+        return {"kind": "extension", "extension": match.group(1), "reason": None}
+    if not text.startswith("Edit("):
+        named = text.split("(", 1)[0] or text
+        return {
+            "kind": "unclassified",
+            "extension": None,
+            "reason": (
+                f"rule names `{named}`; only `Edit(*.<ext>)` is decided by file extension here"
+            ),
+        }
+    if "**" in text:
+        reason = "multi-segment `**` glob; this engine models no directory depth"
+    elif "/" in text:
+        reason = (
+            "directory-anchored pattern; this engine models an extension, never a path"
+        )
+    elif "{" in text or "," in text:
+        reason = "brace or list alternation; this engine models one extension per rule"
+    else:
+        reason = "not a bare `*.<ext>` pattern"
+    return {"kind": "unclassified", "extension": None, "reason": reason}
+
+
+def hooks_by_matcher(entries: list[dict]) -> list[dict]:
+    """Row count, distinct commands, and if-gated rows per (event, matcher).
+
+    `count` alone hides the shape the issue behind this block names: a bucket of 33 rows can be
+    a handful of commands replicated once per extension behind an `if`, which is a very
+    different fan-out from 33 unconditional spawns.
+    """
+    grouped: dict[tuple[str, str | None], dict] = {}
+    for entry in entries:
+        event = entry.get("event") or "unknown"
+        matcher = entry.get("matcher")
+        key = (event, None if matcher is None else str(matcher))
+        row = grouped.setdefault(
+            key,
+            {
+                "event": event,
+                "matcher": key[1],
+                "rows": 0,
+                "commands": set(),
+                "if_gated_rows": 0,
+                "source_set": set(),
+            },
+        )
+        row["rows"] += 1
+        row["commands"].add(command_key(entry))
+        row["source_set"].add(str(entry.get("source")))
+        if classify_if_gate(entry.get("if"))["kind"] != "absent":
+            row["if_gated_rows"] += 1
+    out = []
+    for key in sorted(grouped, key=lambda k: (k[0], k[1] or "")):
+        row = grouped[key]
+        out.append(
+            {
+                "event": row["event"],
+                "matcher": row["matcher"],
+                "matcher_kind": matcher_kind(row["matcher"]),
+                "rows": row["rows"],
+                "distinct_commands": len(row["commands"]),
+                "if_gated_rows": row["if_gated_rows"],
+                "sources": sorted(row["source_set"]),
+            }
+        )
+    return out
+
+
+def project_fan_out(entries: list[dict]) -> dict:
+    """Project how many handlers actually fire per (tool, file kind), from the records alone.
+
+    Three levels decide a row, and a registered-row count collapses all three. The event key
+    says whether the row is per tool call at all; the group matcher says whether the tool is
+    selected; the handler `if` is the only level that sees the call's arguments. A row whose
+    `if` this engine cannot classify counts as firing and is listed, so the number is a ceiling
+    with its uncertainty named rather than a false floor.
+
+    Pure: it reads the flattened records and touches no filesystem and no subprocess.
+    """
+    gated: list[tuple[dict, dict]] = []
+    unclassified_rows: list[dict] = []
+    if_on_non_tool_event: list[dict] = []
+    for entry in entries:
+        event = entry.get("event") or "unknown"
+        gate = classify_if_gate(entry.get("if"))
+        row = {
+            "event": event,
+            "matcher": entry.get("matcher"),
+            "source": entry.get("source"),
+            "if": entry.get("if"),
+        }
+        if gate["kind"] != "absent" and event not in PER_TOOL_CALL_EVENTS:
+            if_on_non_tool_event.append(
+                {
+                    **row,
+                    "reason": (
+                        "`if` is evaluated only on the five tool events; on any other event a "
+                        "handler carrying one never runs"
+                    ),
+                }
+            )
+            continue
+        if gate["kind"] == "unclassified":
+            unclassified_rows.append({**row, "reason": gate["reason"]})
+        if event in PER_TOOL_CALL_EVENTS:
+            gated.append((entry, gate))
+
+    rows: list[dict] = []
+    for event in sorted({(e.get("event") or "unknown") for e, _ in gated}):
+        for tool in PROJECTION_TOOLS:
+            kinds: tuple = (
+                PROJECTION_FILE_KINDS if tool in FILE_WRITING_TOOLS else (None,)
+            )
+            for file_kind in kinds:
+                firing: list[dict] = []
+                fire_always = 0
+                for entry, gate in gated:
+                    if (entry.get("event") or "unknown") != event:
+                        continue
+                    if not matcher_matches(entry.get("matcher"), tool):
+                        continue
+                    if gate["kind"] == "extension":
+                        if (
+                            tool not in FILE_WRITING_TOOLS
+                            or gate["extension"] != file_kind
+                        ):
+                            continue
+                    elif gate["kind"] == "unclassified":
+                        fire_always += 1
+                    firing.append(entry)
+                rows.append(
+                    {
+                        "event": event,
+                        "tool": tool,
+                        "file_kind": file_kind,
+                        "fires": len(firing),
+                        "distinct_commands": len({command_key(e) for e in firing}),
+                        "fire_always_unclassified": fire_always,
+                    }
+                )
+    return {
+        "file_kinds": list(PROJECTION_FILE_KINDS),
+        "tools": list(PROJECTION_TOOLS),
+        "rows": rows,
+        "unclassified_rows": unclassified_rows,
+        "if_on_non_tool_event": if_on_non_tool_event,
+        "note": (
+            "Matcher evaluation follows the documented character-class rule, with Python's "
+            "`re.search` standing in for JavaScript's `RegExp.prototype.test`: both are "
+            "unanchored, so `Edit.*` also selects `NotebookEdit`. `file_kind` is null on a "
+            "tool that carries no single file path. `fires` is a ceiling: a row whose `if` "
+            "could not be classified is counted as firing and appears in "
+            "`fire_always_unclassified` and in `unclassified_rows`."
+        ),
+    }
 
 
 def invocation_shape(entry: dict) -> list[str]:
@@ -1240,6 +1510,11 @@ def classify_hooks(entries: list[dict]) -> dict:
     overlooks. Hooks registered on the same event run in PARALLEL, so their
     wall-clock cost is roughly the slowest hook plus contention. Presenting hook
     cost as a sum overstates it, sometimes by several multiples.
+
+    `count` stays the REGISTERED-ROW ceiling, and `projection` is what a single
+    tool call of a given shape actually spawns. Both ship, because a bucket count
+    alone cannot distinguish many unconditional handlers from one handler
+    replicated per extension behind an `if` gate, and those cost differently.
     """
     buckets: dict[str, list[dict]] = {"per_tool_call": [], "per_turn": [], "other": []}
     by_event: dict[str, int] = {}
@@ -1268,25 +1543,34 @@ def classify_hooks(entries: list[dict]) -> dict:
         rows = buckets[name]
         return {
             "count": len(rows),
+            "distinct_commands": len({command_key(r) for r in rows}),
+            "if_gated_rows": sum(
+                1 for r in rows if classify_if_gate(r.get("if"))["kind"] != "absent"
+            ),
             "matchers": sorted(
                 {str(r.get("matcher")) for r in rows if r.get("matcher")}
             ),
             "sources": sorted({str(r.get("source")) for r in rows}),
         }
 
+    projection = project_fan_out(entries)
     return {
         "total": len(entries),
         "by_event": dict(sorted(by_event.items())),
+        "by_matcher": hooks_by_matcher(entries),
         "per_tool_call": summarize("per_tool_call"),
         "per_turn": summarize("per_turn"),
         "other": summarize("other"),
+        "projection": {
+            key: value
+            for key, value in projection.items()
+            if key not in ("unclassified_rows", "if_on_non_tool_event")
+        },
+        "unclassified_rows": projection["unclassified_rows"],
+        "if_on_non_tool_event": projection["if_on_non_tool_event"],
         "invocation_shape_findings": shape_findings,
-        "note": (
-            "Hooks on one event run in parallel, so wall-clock cost is roughly the slowest hook "
-            "plus contention, NOT the sum of their timings. This engine enumerates configured "
-            "hooks and never executes one; a hook is third-party code with arbitrary side "
-            "effects, and running it would make this capture a mutation."
-        ),
+        "notes": [HOOK_ANCHOR_NOTE, HOOK_DEDUP_NOTE, HOOK_PARALLEL_NOTE],
+        "note": HOOK_PARALLEL_NOTE,
     }
 
 

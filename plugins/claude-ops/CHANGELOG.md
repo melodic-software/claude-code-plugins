@@ -3,6 +3,51 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.51.0]
+
+### Added
+
+- **audit-performance: `fan_out.hooks.by_matcher`, one row per (event, matcher) carrying row
+  count, distinct command count, if-gated row count, and sources.** A bucket count cannot tell
+  many unconditional handlers from one dispatcher replicated once per extension behind an `if`
+  gate, and those two fleets cost very differently per tool call. `per_tool_call` keeps `count`
+  as the registered-row ceiling and gains `if_gated_rows` and `distinct_commands` beside it, so
+  the ceiling and its composition are both readable without inferring either.
+- **audit-performance: `fan_out.hooks.projection`, what one tool call actually spawns.** A row
+  per (event, tool, file kind) over a fixed representative file-kind set (`.md`, `.py`, `.sh`,
+  `.ts`, `.json`, `other`) for `Write`, `Edit`, and `NotebookEdit`, plus a tool-only row for
+  `Bash`, each carrying `fires`, `distinct_commands`, and `fire_always_unclassified`. Matcher
+  evaluation follows the documented character-class rule (`*`, empty, or absent matches all; a
+  matcher of letters, digits, `_`, `-`, spaces, `,`, and `|` is an exact name or alternation
+  list; anything else is an unanchored regex, so `Edit.*` also selects `NotebookEdit`), with the
+  report stating that Python's `re.search` stands in for `RegExp.prototype.test`. The projection
+  is pure: it reads the flattened hook records and touches no filesystem and no subprocess, and
+  `spawn_cost`, `statusline`, `config_liveness`, and `concurrency_ceilings` are unchanged.
+- **audit-performance: `fan_out.hooks.unclassified_rows` and `if_on_non_tool_event`.** The
+  engine decides exactly one `if` shape, `Edit(*.<ext>)`; every other shape (`Bash(...)`,
+  `PowerShell(...)`, `Write(...)`, a directory anchor, a `**` glob, a brace list) is counted as
+  firing and listed with `{event, matcher, source, if, reason}`, so an unmodelled gate inflates
+  the projection where an operator can see it rather than hiding a spawn. An `if` on any
+  non-tool event is reported separately and counted as NEVER firing, which is what the docs say
+  it does. `fan_out.hooks.notes` states the two limits the projection cannot model, an `if`
+  matching only under its anchor and cross-settings-file dedup, alongside the standing note that
+  parallel hook cost is never a sum.
+- **audit-performance: the reference doc carries the matcher rule and a four-part drift record**
+  for the premise that an `Edit(*.<ext>)` gate covers `Write`, `Edit`, and `NotebookEdit`,
+  assembled from the hooks reference, the permissions reference, CHANGELOG 2.1.176, and this
+  repository's own hook-budget convention, with the recheck trigger that would retire the
+  assembly.
+
+### Changed
+
+- **audit-performance: `PER_TOOL_CALL_EVENTS` widens to the five events that accept `if`.**
+  `PostToolUseFailure`, `PermissionRequest`, and `PermissionDenied` join `PreToolUse` and
+  `PostToolUse`, because those five are exactly the events on which a tool call is what fires a
+  hook. Handlers on the three added events previously landed in `other` and were invisible as
+  per-tool-call cost. **`fan_out.hooks.per_tool_call.count` therefore rises on any fleet that
+  registers handlers on them, and `other.count` falls by the same amount.** The number is not a
+  regression and the fleet did not change; the earlier count was short.
+
 ## [0.50.0]
 
 ### Added
