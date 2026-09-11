@@ -42,6 +42,21 @@ project-scope map. `converge` is the one action that can touch committed setting
 an explicit per-plugin confirm. See [context/scope-semantics.md](context/scope-semantics.md) for
 which CLI calls write that file.
 
+**For `sync` and `audit`, the script computes every number and the model reports it.** Steps 1
+through 5b and the Step 6 render are one `sync-run.sh` call; the digest and the rendered report
+are the record, and the model adds the reload guidance and answers questions. Nothing in the
+report is retyped, recounted, or re-derived by the model. `converge` stays model-driven until it
+gains a script of its own, so this invariant does not yet cover it.
+
+**The skill never branches on the host to change its algorithm or its report.** There is no
+cloud-versus-local branch, and no detection of or coordination with a repository's bootstrap hook:
+the same steps run and the same report renders wherever the skill is invoked. Two things this
+invariant does not cover, because they are not algorithm or report branches: the destructive-tier
+autonomy abort `converge` performs before touching anything (`CLAUDE_CODE_REMOTE`, `/loop`,
+`/schedule`; see [context/converge.md](context/converge.md)), and the platform-portability
+detection in `fleet-state.sh` (`$OSTYPE` for MSYS and Cygwin path forms), which changes how a path
+is spelled and never what is computed.
+
 ## Action Router
 
 Parse `$ARGUMENTS` for the action (first token) and an optional marketplace target (second token:
@@ -58,12 +73,12 @@ This table is an index, not a substitute: read the linked detail file before exe
 Each Description names the territory an action covers, never its algorithm, the steps, their
 ordering, and their failure handling live only in the linked file.
 
-Two blocks below are deliberate exceptions to that index-only rule, and both have to live in the hub
-rather than in a spoke. The **Report** template, because every action emits it. The
-**`install_new` render**, because Claude Code substitutes `${user_config.*}` when it renders the
-*skill*; a spoke opened later as a file read is plain bytes, so the same token in a spoke would
-arrive as a literal placeholder with no error to warn anyone. See
-[context/gotchas.md](context/gotchas.md).
+One block below is a deliberate exception to that index-only rule and has to live in the hub
+rather than in a spoke: the **`install_new` render**, because Claude Code substitutes
+`${user_config.*}` when it renders the *skill*; a spoke opened later as a file read is plain bytes,
+so the same token in a spoke would arrive as a literal placeholder with no error to warn anyone.
+See [context/gotchas.md](context/gotchas.md). The Report section below is a pointer: the report
+itself is rendered by the script.
 
 | Action | Mutates | Description | Detail |
 |---|---|---|---|
@@ -76,8 +91,8 @@ action → show this table.
 
 ## Running `sync` and `audit`
 
-Both actions execute Steps 1 through 5b as ONE bundled script call, then the model writes Step 6's
-report from the JSON digest that call prints. The step sequence, and the reason behind every step,
+Both actions execute Steps 1 through 5b and render Step 6's report as ONE bundled script call:
+it prints the JSON digest, then the report. The step sequence, and the reason behind every step,
 stay in [context/sync.md](context/sync.md); the script is bound to that file.
 
 1. **Run it.** Substitute the marketplace target, the policy, and the flags into this command. The
@@ -88,7 +103,7 @@ stay in [context/sync.md](context/sync.md); the script is bound to that file.
    "${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/sync-run.sh \
      [--marketplace <name> | --all] \
      --journal-root "${CLAUDE_PLUGIN_DATA}/plugins-sync/runs" \
-     --install-new <policy> [--allow-downgrade]
+     --install-new <policy> [--allow-downgrade] --render
    ```
 
    `audit` is the same command with `--audit` instead of `--journal-root` (it writes to a scratch
@@ -100,25 +115,27 @@ stay in [context/sync.md](context/sync.md); the script is bound to that file.
    error, not a policy. Any other value is treated as `ask` and named back in the digest's
    `install_new_invalid` so the report can flag it.
 
-2. **Read the digest.** One compact JSON object on stdout, also written to `<run_dir>/digest.json`.
-   It carries everything the Report needs, per marketplace, plus a `run_dir` that holds every
-   snapshot and the journal.
+2. **Read the output.** The first line is one compact JSON digest, also written to
+   `<run_dir>/digest.json`; after a blank line comes the rendered report, also written to
+   `<run_dir>/report.txt`. The digest carries a `run_dir` that holds every snapshot and the
+   journal, and the fields the `ask` re-entry needs.
 
 3. **Resolve an `ask` install gap.** When a block has a non-empty `install_gap` and
-   `stopped_before_install: true`, run the batched multi-select from
-   [context/sync-install-enable.md](context/sync-install-enable.md), then re-enter for Steps 4 and 5
-   against the same run:
+   `stopped_before_install: true` (the report says so under `Action needed`), run the batched
+   multi-select from [context/sync-install-enable.md](context/sync-install-enable.md), then
+   re-enter for Steps 4 and 5 against the same run:
 
    ```bash
    "${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/sync-run.sh \
-     --only-install "<the ids the user picked, comma-separated>" --run-dir "<the digest's run_dir>"
+     --only-install "<the ids the user picked, comma-separated>" --run-dir "<the digest's run_dir>" --render
    ```
 
-   An empty id list is legal and means "install nothing, still complete Step 5". Report from the
-   digest that call prints; it supersedes the first one and reuses the same cache-content finding
-   rather than checking again.
+   An empty id list is legal and means "install nothing, still complete Step 5". The report that
+   call prints supersedes the first one, covers the whole run, and reuses the same cache-content
+   finding rather than checking again.
 
-4. **Report.** Emit the Report section below.
+4. **Report.** Paste the rendered report and append the one model-owned line; see the Report
+   section below.
 
 Load [context/sync.md](context/sync.md) when a digest carries errors, a non-empty gap, a catalog
 regression, or a cache-content finding, and when the user asks why a step behaved the way it did.
@@ -235,82 +252,53 @@ that predicts zero updates has not established that the fleet is current.
 
 ## Report
 
-Terse, fixed sections. Detail only where action is required. Do not enumerate rows that need no
-action.
+Step 6 is rendered by the script. `sync-run.sh --render` prints the fixed-section report after the
+digest line, every run writes the same text to `<run_dir>/report.txt`, and
+`jq -r -f "${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/render-report.jq <run_dir>/digest.json`
+reproduces it from a run directory later. Every section, conditional row, annotation, and
+`Action needed` bullet is a function of digest fields, which is what keeps a number, an id, or a
+scope from being misstated between the run and the report: the `Marketplace:` line with its
+three-way `autoUpdate` slot (`on`; `off` with the suggestion to enable it; `unreadable` for a
+`null`, never rendered as off); the fixed `In-repo:` row in its three variants (`skipped` naming
+the cwd when no project root resolved, `0` naming a root with no project/local installs, and the
+counted variant, forward moves only); `Updated:` (forward moves and pairs flagged
+`(direction unknown)`) and `Downgraded:`; `Catalog regression:`; `Installed:` with the policy-`all`
+recurrence clause; `Normalized:`; `Enabled:`; the `Divergences:` split, led by this project's count
+when a root resolved; the self-update note when the sweep moved this plugin; the stale project
+records and cache content sections; the `Timing:` row (the marketplace total and its slowest step,
+with the clock's resolution; a measurement with no threshold); and `Action needed` (install and
+enable gaps, failed CLI calls, user-scope orphans, installs that left userConfig options unset,
+updated plugins whose installed build declares a monitor, reorder refusals, an unsorted
+project-scope map, withheld downgrades with both versions and the likely cause, and every error).
+In `audit` mode every mutating line carries the `would run:` prefix and `Would withhold:` sits
+beside `Would update:` whether or not a downgrade was found; `--allow-downgrade` is named as
+ignored. Each shape is pinned to a golden file under `scripts/fixtures/render/` by
+`scripts/sync-run.test.sh`.
 
-```text
-Marketplace: <name>: <current | needs update> (autoUpdate: <on | off | unreadable>)
-  (`on` for `auto_update: true`; `off` for `false`, with a suggestion to enable it; `unreadable`
-   for `null`, which means no fleet-state snapshot carried the field. Never render null as `off`)
-  (repeat this line per marketplace in `all` mode; Steps 2–5 run once per marketplace)
-In-repo: <N> project/local install(s) updated in <project_root>
-  (N is `in_repo.updated | length`; it counts FORWARD moves only. An in-repo record moved
-   backward, only possible under --allow-downgrade or for an id whose catalog version could
-   not be read, renders under `Downgraded:` with its scope and is not counted here)
-  | 0: <project_root> has no project/local installs
-  | skipped: no project context resolved from <cwd>
-Updated: <N> plugin(s): <id>@<marketplace>: <old> → <new> (only when N > 0)
-  (FORWARD moves only, plus any pair whose direction is unreadable, flagged `(direction unknown)`)
-Downgraded: <N> plugin(s), <id>@<marketplace>: <old> → <new>
-  (only when N > 0; only possible with --allow-downgrade, or for an id whose catalog version
-   fleet-state.sh could not read and which therefore reached the CLI unguarded)
-Catalog regression: <first interval>, <id>: <before> → <after> (only when the snapshot diff finds
-  one; names the cause behind the withheld downgrades)
-Installed: <N> new catalog plugin(s): <id>@<marketplace> (only when N > 0; per install_new policy)
-  (when the policy is `all`, append: policy install_new: all, meaning these reinstall on every sync
-   unless you also disable them)
-Normalized: user enabledPlugins key order (<N> keys reordered)
-  (only when Step 4 installed anything AND the user-scope map was rewritten; omit otherwise)
-Divergences: <N> actionable (<M> newly created by this run: <a> by the in-repo update, <b> by the
-  user-scope sweep, <N-M> pre-existing) → run `/claude-ops:plugins converge`
-  (N = actionable only, versionsMatch:false; same-version multi-scope installs are not counted
-  or listed here)
-Stale project records: <K> record(s) across <P> path(s) not present on this machine
-  (omit section entirely when K = 0; never counted in Divergences; see below for the row shape)
-Cache content: <N> install(s) whose cache files disagree with their recorded gitCommitSha
-  (omit the row entirely when N = 0; list the ids and the remediation; see below)
-Action needed: <bulleted list: missing_from_user_install, missing_from_enabled, project-scope
-  enable gaps, CLI failures, unknown/orphaned plugins, user_scope_orphans, plugin(s) installed this
-  run with unset userConfig options, user-scope enabledPlugins reorder failures, a project-scope
-  enabledPlugins map that is unsorted, withheld downgrades> (omit section entirely when empty)
-```
+Paste the render as printed. Do not restate a number, an id, a scope, or a count it already
+carries, and do not add rows: a row the render omitted is a row whose digest field was empty. Per
+marketplace in `all` mode the whole block repeats, because Steps 2 through 5 run once per
+marketplace; the trailing `Run journal:` and `Timing:` lines cover the invocation.
 
-The withheld-downgrade row carries both versions and the cause, so acting on it is a decision rather
-than a lookup:
+**The one line the model owns is the reload guidance**, appended after the render and stated as
+the docs' own two-step rather than as a prediction about which case will trigger it: recommend bare
+`/reload-plugins`; if it warns that the reload would re-read the conversation, rerun it as
+`/reload-plugins --force`. The general condition `--force` exists for is prompt-cache
+invalidation; a plugin shipping an MCP server whose tools aren't deferred is the common cause, not
+the only one, so do not present it as the sole trigger and do not tell the user `--force` would be
+wrong when the bare command has already warned them. Never recommend `--force` pre-emptively
+alongside every reload: it opts into a real token cost the bare command declines to pay on its own
+(see [context/scope-semantics.md](context/scope-semantics.md)). Monitors are already covered: the
+render's `Action needed` names each updated plugin whose installed build declares one and
+attributes "monitors require a session restart" to the plugins reference, so the reload line does
+not repeat it. After the line, answer follow-up questions from the digest and the run directory it
+names; load [context/sync.md](context/sync.md) when a question is about why a step behaved the
+way it did.
 
-```text
-- downgrade withheld: <N> plugin(s), <id>@<marketplace>: <installed> → <catalog>; likely cause:
-  marketplace source moved backward (<source>); rerun with --allow-downgrade only if the rollback
-  is intended
-```
-
-**The `In-repo:` row is fixed. It appears whether or not the step did anything.** Step 2 calls
-itself the primary value path, so a run in which it did nothing has to say so in the default output,
-not only when it succeeds. The three variants are not cosmetic: `skipped` and `0` answer genuinely
-different questions ("there was no *here* to update" versus "here has nothing installed"), and
-collapsing them is the whole defect this row exists to close. Two digest fields pick the variant,
-in this order:
-
-- `project_root` is `null` → `skipped`, naming the cwd.
-- `in_repo_records == 0` → `0: <project_root> has no project/local installs`.
-- `in_repo_records > 0` → the counted variant, with N taken from `in_repo.updated | length`.
-
-`in_repo_records` counts the records belonging to this root whether or not any of them moved, so a
-root that HAS project/local installs and updated none of them reads `0` against a named root rather
-than claiming the root has nothing installed. See [context/sync.md](context/sync.md) Step 2.
-
-Add a self-update row when Step 3's sweep updated `claude-ops` itself:
-
-```text
-Note: this run updated claude-ops (<old> → <new>). The algorithm that ran is the pre-update one:
-  ${CLAUDE_PLUGIN_ROOT} still resolves to the version loaded at session start. /reload-plugins
-  before relying on the new version.
-```
-
-(A plugin updated mid-session keeps resolving to the previous version's path. `plugins-reference`,
-re-fetched 2026-09-05 and unchanged; behaviour observed on Claude Code 2.1.240 and not re-run on
-2.1.261, because it needs an interactive session. See
-[context/gotchas.md](context/gotchas.md).)
+(A plugin updated mid-session keeps resolving to the previous version's path, which is what the
+self-update note reports. `plugins-reference`, re-fetched 2026-09-05 and unchanged; behaviour
+observed on Claude Code 2.1.240 and not re-run on 2.1.261, because it needs an interactive session.
+See [context/gotchas.md](context/gotchas.md).)
 
 ## Stale project records. Reported, never converged, never reaped
 
@@ -349,53 +337,26 @@ count and the distinct paths, and name the block as the source when the path's r
 why the skill cannot reap them" holds the sourcing, the precedence rule, the reap boundary, and the
 probe recipe that established the write.
 
-Give the section a count plus the distinct paths, not one row per record, a hundred records naming
-a dozen directories is a report about a dozen directories:
-
-```text
-Stale project records: <K> record(s) across <P> path(s) not present on this machine
-  - <projectPath>: <n> record(s)
-  (not counted as divergences: converge cannot cd into a path that is not present. A path can also
-   be absent because a volume is unmounted or a share is offline, so this is an observation, not a
-   verdict that the directory is gone for good.)
-```
-
-`K` is `stale_project_records.total` and `P` is the length of `stale_project_records.by_path`; each
-`by_path` entry is the `{path, count}` one row renders.
+The render gives the section a count plus the distinct paths, not one row per record, because a
+hundred records naming a dozen directories is a report about a dozen directories: `K` is
+`stale_project_records.total`, `P` is the length of `stale_project_records.by_path`, and each
+`by_path` entry is the `{path, count}` one row renders. The section is omitted when `K` is 0.
 
 A project-scope enable gap is a row `sync` deliberately does not fix. Step 5 enables automatically
-only where the write is not team-shared state. Give each one its runnable command rather than a
-count, so acting on it is a copy, not a reconstruction:
+only where the write is not team-shared state. The render lists each one under `Action needed` as
+its runnable command, `(cd "<projectPath>" && claude plugin enable <id>@<marketplace> -s project)`,
+with the note that it writes that repo's committed `.claude/settings.json`, so acting on it is a
+copy, not a reconstruction. Only ids that Step 5 did not enable at `user`/`local` scope in this run
+appear there. For the rest the command would fail rather than run, and Step 5 explains why.
 
-```text
-- project-scope enable gap: (cd "<projectPath>" && claude plugin enable <id>@<marketplace> -s project)
-  Writes that repo's committed .claude/settings.json; review the diff before committing
-```
-
-Only ids that Step 5 did not enable at `user`/`local` scope in this run appear here. For the rest
-the command would fail rather than run, and Step 5 explains why.
-
-When running inside a project (`CLAUDE_PROJECT_DIR` set and `fleet-state.sh`'s `installed[]` entries
-carry `currentProject: true`), lead the Divergences line with *this* project's actionable count and
-fold the rest of the machine into one trailing clause, e.g. `2 behind here → converge; 27 more
-elsewhere on this machine`. Per-row detail (naming exact `<old> → <new>` versions per repo) is
-reserved for genuine conflicts: an unknown/orphaned plugin id, or a CLI call that failed, never for
-the routine bulk case. (Enable-state mismatches, a plugin `true` in one scope's `enabledPlugins`
-and `false` in another, are a known blind spot, not a reportable category: `fleet-state.sh` only
-exposes the merged effective value, never each scope's raw map, so this skill cannot detect one to
-report it. See [context/converge.md](context/converge.md) "V1 scope".)
-
-Close with reload guidance, stated as the docs' own two-step rather than as a prediction about which
-case will trigger it: **recommend bare `/reload-plugins`; if it warns that the reload would
-re-read the conversation, rerun it as `/reload-plugins --force`.** The general condition `--force`
-exists for is prompt-cache invalidation, a plugin shipping an MCP server whose tools aren't deferred
-is the common cause, not the only one, so do not present it as the sole trigger and do not tell the
-user `--force` would be wrong when the bare command has already warned them. Never recommend
-`--force` pre-emptively alongside every reload: it opts into a real token cost the bare command
-declines to pay on its own (Claude Code ≥ 2.1.163; see
-[context/scope-semantics.md](context/scope-semantics.md)). If any updated component includes a
-monitor, call that out separately. Monitors need a full session restart, `/reload-plugins` doesn't
-cover them.
+When a project root resolved, the render leads the `Divergences:` line with *this* project's
+actionable count and folds the rest of the machine into one trailing clause, e.g. `2 behind here
+→ converge; 27 more elsewhere on this machine`. Per-row detail (naming exact `<old> → <new>`
+versions per repo) is reserved for genuine conflicts: an unknown/orphaned plugin id, or a CLI call
+that failed, never for the routine bulk case. (Enable-state mismatches, a plugin `true` in one
+scope's `enabledPlugins` and `false` in another, are a known blind spot, not a reportable category:
+`fleet-state.sh` only exposes the merged effective value, never each scope's raw map, so this skill
+cannot detect one to report it. See [context/converge.md](context/converge.md) "V1 scope".)
 
 ## Cache content. Reported, never repaired
 
@@ -406,22 +367,17 @@ the new commit while the directory still holds the old build. See
 [context/scope-semantics.md](context/scope-semantics.md) for the observation this rests on.
 
 Step 5b runs `cache-content-check.sh`, which byte-compares every file in each cache directory
-against the recorded commit in the marketplace clone. Omit the `Cache content:` row when it finds
-nothing. When it finds something, name the ids and give the remediation that was actually proved to
-work, rather than a suggestion:
-
-```text
-Cache content: <N> install(s) whose cache files disagree with their recorded gitCommitSha
-  - <id>@<marketplace> <version>: <n> file(s) differ
-  Remediation: remove that version's directory under the plugin cache, then re-run
-  `claude plugin update <id>@<marketplace>`, which recreates it from the clone.
-```
+against the recorded commit in the marketplace clone. The render omits the `Cache content:` row
+when it finds nothing. When it finds something, the render names the ids and gives the remediation
+that was actually proved to work, rather than a suggestion: remove that version's directory under
+the plugin cache, then re-run `claude plugin update <id>@<marketplace>`, which recreates it from
+the clone.
 
 `N` is `cache_content.stale_content`, and one row comes from each `cache_content.stale[]` entry:
 `id`, `version`, and `files_differ`, which sums every direction of disagreement: bytes that
 changed, files the tree has and the cache lacks, and files the cache holds and the tree does not.
 `files_differ` reads `null` when the digest fell back to the checker's `--ids` form, which knows the
-ids and no per-file detail; report the ids alone then.
+ids and no per-file detail; the row then carries the id alone.
 
 **The check never repairs.** It does not delete a cache directory, does not re-run an update, and
 does not `git fetch` a commit the marketplace clone lacks. A commit that is not local is reported as
@@ -433,8 +389,9 @@ which is its own number and never folded into either side.
 **Expect a substantial `unverifiable` share, and never read it as a pass.** Claude Code clones a
 marketplace shallow, so any install whose recorded commit predates that clone's window reports
 `sha-not-local` through no fault of the fleet. On the machine this check was first run against, 11
-of 74 user-scope installs were unverifiable for exactly that reason. When the unverifiable count is
-material, say so alongside the match count rather than leading with the match count alone.
+of 74 user-scope installs were unverifiable for exactly that reason. The render says so alongside
+the match count rather than leading with the match count alone: a row with the unverifiable share
+when nothing is stale, and a sub-line under the finding when something is.
 
 ## userConfig: `install_new`
 

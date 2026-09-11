@@ -3,6 +3,53 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.53.0]
+
+### Added
+
+- **`plugins`: `sync-run.sh` renders the Step 6 report itself; the model appends only the reload
+  guidance.** Every run writes `<run_dir>/report.txt`, and `--render` prints it after the digest
+  line, from a jq program (`scripts/render-report.jq`) over the digest, so `jq -r -f` reproduces
+  the report from a run directory later. Every fixed section, conditional row, annotation and
+  `Action needed` bullet is a function of digest fields: the three-way `autoUpdate` slot, the
+  fixed `In-repo:` row in its three variants, `Updated:` with `(direction unknown)`,
+  `Downgraded:`, `Catalog regression:`, `Installed:` with the policy-`all` recurrence clause,
+  `Normalized:`, `Enabled:`, the `Divergences:` split led by this project's count when a root
+  resolved, the self-update note, the stale project records and cache content sections, a
+  `Timing:` row naming the marketplace total, its slowest step and the clock's resolution (a
+  measurement with no threshold), and the bullets for install and enable gaps, failed CLI calls,
+  user-scope orphans, reorder refusals, an unsorted project-scope map, withheld downgrades with
+  both versions and the marketplace source as the likely cause, and every error. In `audit` mode
+  every mutating line carries `would run:` and `Would withhold:` sits beside `Would update:`
+  whether or not a downgrade was found, with `--allow-downgrade` named as ignored. Golden files
+  under `scripts/fixtures/render/` pin eight shapes: a clean current fleet, a withheld downgrade,
+  stale project records with a cache-content finding, an `ask` run stopped before install and its
+  `--only-install` re-entry, an install that left userConfig options unset, an audit, and an
+  `--all` run with a per-marketplace refresh failure (exit status still 0).
+- **`plugins`: two `Action needed` sources become digest fields.** `installed_with_unset_user_config[]`
+  (`{id, options_unset, required}`) is parsed at capture time from each install's own
+  "userConfig option(s) not yet set" line, and `updated_with_monitors[]` (`{id, scope, monitors}`)
+  counts the monitors each moved plugin's installed build declares, read from the record's cache
+  directory in the post-sweep snapshot: inline under the manifest's `experimental.monitors` key,
+  in the manifest file that key names, or in `monitors/monitors.json` at the plugin root. The
+  render lists both under `Action needed`, the monitor bullet attributing "monitors require a
+  session restart" to the plugins reference. The digest also carries top-level `cwd` (what the
+  `In-repo:` row names when no project root resolved) and per-marketplace `catalog_source`.
+- **`fleet-state.sh`: `installed[]` records carry `installPath` and the marketplace block carries
+  `source`** (a string source as-is, an object source flattened to `<kind>:<locator>`), so a
+  consumer can read an installed build's own manifest and name a marketplace's source without a
+  second reader over the internal files.
+
+### Changed
+
+- **`plugins`: the hub's Scope section states two invariants.** For `sync` and `audit` the script
+  computes every number and the model reports it (`converge` stays model-driven until it gains a
+  script), and the skill never branches on the host to change its algorithm or its report, with
+  `converge`'s destructive-tier autonomy abort and `fleet-state.sh`'s `$OSTYPE` path-form
+  detection named as the two things that invariant does not cover. The hub's Report section is now
+  a pointer to the render plus the one model-owned reload line, and the eval suite gains a case
+  whose expected behaviour is that the model pastes the render and restates none of its numbers.
+
 ## [0.52.0]
 
 ### Added

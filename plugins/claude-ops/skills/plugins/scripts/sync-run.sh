@@ -18,10 +18,18 @@
 #
 # Usage:
 #   sync-run.sh [--marketplace <name> | --all] --journal-root <dir>
-#               [--install-new all|none|ask] [--allow-downgrade]
+#               [--install-new all|none|ask] [--allow-downgrade] [--render]
 #   sync-run.sh [--marketplace <name> | --all] --audit
-#               [--install-new all|none|ask] [--allow-downgrade]
+#               [--install-new all|none|ask] [--allow-downgrade] [--render]
 #   sync-run.sh --only-install <ids> --run-dir <dir> [--marketplace <name> | --all]
+#               [--render]
+#
+# Step 6 is rendered here too: `render-report.jq` turns the digest into the
+# fixed-section report SKILL.md's Report section fixes, written to
+# `<run_dir>/report.txt` on every run and, under `--render`, printed to stdout
+# after the digest line. Every row, annotation and `Action needed` bullet is a
+# function of digest fields, so the caller appends the reload guidance and
+# nothing else.
 #
 # With neither `--marketplace` nor `--all`, the target is the default marketplace
 # `fleet-state.sh` resolves dynamically from `CLAUDE_PLUGIN_ROOT`; no marketplace
@@ -43,17 +51,24 @@
 # the full digest. The cache checker therefore runs exactly ONCE per marketplace
 # across both invocations.
 #
-# Output (stdout): one compact JSON object, also written to `<run_dir>/digest.json`.
-#   {run_dir, mode, allow_downgrade, install_new, install_new_invalid,
-#    marketplaces:[…], errors:[…]}
-#   Each marketplace block: {name, catalog_last_updated, auto_update,
-#    refresh:{rc,output,predicted}, project_root, in_repo:{updated,failed,would_update},
+# Output (stdout): one compact JSON object, also written to `<run_dir>/digest.json`,
+# followed under `--render` by a blank line and the rendered report.
+#   {run_dir, cwd, mode, allow_downgrade, install_new, install_new_invalid,
+#    timings:{total,resolution}, marketplaces:[…], errors:[…]}
+#   Each marketplace block: {name, timings, catalog_last_updated, catalog_source,
+#    auto_update, refresh:{rc,output,predicted}, project_root,
+#    in_repo:{updated,failed,would_update},
 #    user_sweep:{updated,failed,would_update,withheld_downgrades},
-#    downgraded, install_gap, installed, install_enable_deferred,
-#    stopped_before_install, enable_gap, enabled, project_enable_rows, normalize,
-#    cache_content, catalog_regression, divergences, divergences_here,
-#    in_repo_records, in_repo_ids, stale_project_records, user_scope_orphans,
-#    self_updated, errors}
+#    downgraded, install_gap, installed, installed_with_unset_user_config,
+#    install_enable_deferred, stopped_before_install, enable_gap, enabled,
+#    project_enable_rows, normalize, cache_content, catalog_regression,
+#    divergences, divergences_here, in_repo_records, in_repo_ids,
+#    stale_project_records, user_scope_orphans, self_updated,
+#    updated_with_monitors, errors}
+#   `installed_with_unset_user_config[]` is `{id, options_unset, required}` for
+#   each install this run performed whose CLI output named userConfig options
+#   the user has not set; `updated_with_monitors[]` is `{id, scope, monitors}`
+#   for each plugin this run moved whose installed manifest declares a monitor.
 #   `in_repo_records` counts the project/local records belonging to the repo the
 #   run stands in, whether or not any of them moved; `stale_project_records` is
 #   `{total, by_path:[{path,count}]}`; `cache_content.stale[]` is
@@ -162,6 +177,7 @@ JOURNAL_ROOT=""
 RUN_DIR=""
 ONLY_INSTALL=""
 ONLY_INSTALL_MODE=0
+RENDER=0
 
 usage() {
   cat <<'EOF'
@@ -169,10 +185,14 @@ sync-run.sh — run `sync`/`audit` Steps 1-5b and print one JSON digest.
 
 Usage:
   sync-run.sh [--marketplace <name> | --all] --journal-root <dir>
-              [--install-new all|none|ask] [--allow-downgrade]
+              [--install-new all|none|ask] [--allow-downgrade] [--render]
   sync-run.sh [--marketplace <name> | --all] --audit
-              [--install-new all|none|ask] [--allow-downgrade]
+              [--install-new all|none|ask] [--allow-downgrade] [--render]
   sync-run.sh --only-install <ids> --run-dir <dir> [--marketplace <name> | --all]
+              [--render]
+
+--render prints the Step 6 report (render-report.jq over the digest) after the
+digest line; the report is written to <run_dir>/report.txt either way.
 EOF
 }
 
@@ -196,6 +216,10 @@ while [[ $# -gt 0 ]]; do
     ;;
   --allow-downgrade)
     ALLOW_DOWNGRADE=1
+    shift
+    ;;
+  --render)
+    RENDER=1
     shift
     ;;
   --install-new)
@@ -407,6 +431,30 @@ cli_reported_version() {
     printf -v "$__var" '%s' "${BASH_REMATCH[2]}"
   else
     printf -v "$__var" '%s' ""
+  fi
+}
+
+# The install's own line about userConfig options the user has not set, as a
+# JSON object `{options_unset, required}` or `null`. Classified at capture time
+# from the UNTRUNCATED output: the digest row keeps 400 characters, and the line
+# sits after the install's other output.
+#   Claim: `claude plugin install` ends with "<N> userConfig option(s) not yet
+#     set[ (<M> required)] … run /plugin configure <id> in Claude Code, or pass
+#     --config KEY=VALUE." when the installed manifest declares options the
+#     user has not set.
+#   Basis: the shipped binary's own strings (Claude Code 2.1.268); the plugins
+#     reference documents the option schema, not this line.
+#   As of: 2026-09-11.
+#   Recheck: a journaled install that names an unset option in other words, or
+#     a Claude Code release whose `plugin install` output changes shape.
+unset_user_config_of() {
+  local __var="$1" text="$2"
+  if [[ "$text" =~ ([0-9]+)\ userConfig\ options?\ not\ yet\ set(\ \(([0-9]+)\ required\))? ]]; then
+    # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+    jq_to "$__var" -c -n --arg n "${BASH_REMATCH[1]}" --arg r "${BASH_REMATCH[3]:-}" \
+      '{options_unset: ($n | tonumber), required: (if $r == "" then null else ($r | tonumber) end)}'
+  else
+    printf -v "$__var" '%s' "null"
   fi
 }
 
@@ -938,7 +986,7 @@ run_marketplace() {
 # --- Step 4 — install new catalog plugins, per the caller's rendered policy -------
 run_install_step() {
   local mp="$1" gap_count="$2"
-  local id out installed_any=0 wanted=""
+  local id out installed_any=0 wanted="" unset_cfg="null"
 
   if ((ONLY_INSTALL_MODE == 1)); then
     # The narrow re-entry installs exactly the ids the caller's prompt returned,
@@ -948,8 +996,9 @@ run_install_step() {
       [[ "$id" == *"@$mp" ]] || continue
       run_cli "claude plugin install $id -s user" plugin install "$id" -s user
       trunc out "$CLI_OUT"
+      unset_user_config_of unset_cfg "$CLI_OUT"
       INSTALLED_ROWS+=("$(jq -c -n --arg id "$id" --argjson rc "$CLI_RC" --arg out "$out" \
-        '{id: $id, rc: $rc, output: $out}')")
+        --argjson unset "$unset_cfg" '{id: $id, rc: $rc, output: $out, unset_user_config: $unset}')")
       ((CLI_RC == 0)) && installed_any=1
     done
   elif ((gap_count > 0)) && [[ "$INSTALL_NEW" == "all" ]]; then
@@ -963,8 +1012,9 @@ run_install_step() {
       fi
       run_cli "claude plugin install $id -s user" plugin install "$id" -s user
       trunc out "$CLI_OUT"
+      unset_user_config_of unset_cfg "$CLI_OUT"
       INSTALLED_ROWS+=("$(jq -c -n --arg id "$id" --argjson rc "$CLI_RC" --arg out "$out" \
-        '{id: $id, rc: $rc, output: $out}')")
+        --argjson unset "$unset_cfg" '{id: $id, rc: $rc, output: $out, unset_user_config: $unset}')")
       ((CLI_RC == 0)) && installed_any=1
     done <"$RUN_DIR/ids.pre-install.$mp.txt"
   fi
@@ -1177,7 +1227,7 @@ report_extras() {
     src=""
   done
   if [[ -z "$src" ]]; then
-    jq_to "$__var" -c -n '{auto_update: null, user_scope_orphans: [],
+    jq_to "$__var" -c -n '{auto_update: null, catalog_source: null, user_scope_orphans: [],
       stale_project_records: {total: null, by_path: []},
       in_repo_records: null, in_repo_ids: [], divergences_here: null}'
     return 0
@@ -1194,6 +1244,7 @@ report_extras() {
     | ([.installed[]? | select(.currentProject == true) | .id]) as $here
     | ([.installed[]? | select(.projectPathPresent == false)]) as $absent
     | {auto_update: .marketplace.autoUpdate,
+       catalog_source: (.marketplace.source // null),
        user_scope_orphans: (.user_scope_orphans // []),
        stale_project_records: {total: ($absent | length),
                                by_path: ($absent | group_by(.projectPath)
@@ -1203,10 +1254,72 @@ report_extras() {
        divergences_here: ($act | map(select(. as $i | $here | index($i))) | length)}' "$src"
 }
 
+# --- monitors in the plugins this run moved ---------------------------------------
+# A plugin updated mid-session keeps running its previous version, and the
+# reload command does not cover monitors, so the report names every moved
+# plugin whose installed build declares one. The manifest is read from the
+# record's own cache directory in the post-sweep snapshot, which is the build
+# the update left in place.
+#   Claim: a plugin declares monitors either inline under the manifest's
+#     `experimental.monitors` key, as a manifest path string under that key,
+#     or in `monitors/monitors.json` at the plugin root; "monitors require a
+#     session restart".
+#   Basis: code.claude.com/docs/en/plugins-reference (Monitors).
+#   As of: 2026-09-11.
+#   Recheck: the reference renames the key, drops the directory convention, or
+#     says `/reload-plugins` picks monitors up.
+monitor_count_at() {
+  # `__mc_*` names: the caller passes its own variable name in $1, and a local
+  # of the same name here would shadow it, so nothing here is called `n`.
+  local __mc_var="$1" __mc_root="$2" __mc_manifest="$2/.claude-plugin/plugin.json" __mc_n="0" __mc_spec=""
+  printf -v "$__mc_var" '%s' "0"
+  [[ -d "$__mc_root" ]] || return 0
+  if [[ -f "$__mc_manifest" ]]; then
+    # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+    jq_to __mc_spec -r '."experimental.monitors" // "" | if type == "array" then "array:\(length)" else tostring end' \
+      "$__mc_manifest" 2>/dev/null || __mc_spec=""
+    case "$__mc_spec" in
+    array:*) __mc_n="${__mc_spec#array:}" ;;
+    "") ;;
+    *)
+      __mc_spec="${__mc_spec#./}"
+      [[ -f "$__mc_root/$__mc_spec" ]] &&
+        jq_to __mc_n -r 'if type == "array" then length else 0 end' "$__mc_root/$__mc_spec" 2>/dev/null
+      ;;
+    esac
+  fi
+  if [[ "$__mc_n" == "0" && -f "$__mc_root/monitors/monitors.json" ]]; then
+    jq_to __mc_n -r 'if type == "array" then length else 0 end' "$__mc_root/monitors/monitors.json" 2>/dev/null || __mc_n="0"
+  fi
+  [[ "$__mc_n" =~ ^[0-9]+$ ]] || __mc_n="0"
+  printf -v "$__mc_var" '%s' "$__mc_n"
+}
+
+monitor_rows() {
+  local __var="$1" mp="$2"
+  local post="$RUN_DIR/post.$mp.json"
+  local row id scope path n rows=()
+  printf -v "$__var" '%s' "[]"
+  [[ -f "$post" ]] || return 0
+  for row in ${IR_UPDATED[@]+"${IR_UPDATED[@]}"} ${US_UPDATED[@]+"${US_UPDATED[@]}"} \
+    ${DOWNGRADED[@]+"${DOWNGRADED[@]}"}; do
+    jq_to id -r '.id' <<<"$row"
+    jq_to scope -r '.scope' <<<"$row"
+    # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+    jq_to path -r --arg id "$id" --arg sc "$scope" \
+      'first(.installed[]? | select(.id == $id and .scope == $sc) | .installPath) // ""' "$post"
+    [[ -n "$path" ]] || continue
+    monitor_count_at n "${path//\\//}"
+    ((n > 0)) || continue
+    rows+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --argjson n "$n" '{id: $id, scope: $sc, monitors: $n}')")
+  done
+  json_array_of "$__var" ${rows[@]+"${rows[@]}"}
+}
+
 # --- one marketplace block --------------------------------------------------------
 emit_marketplace_block() {
   local mp="$1"
-  local ir_u ir_f ir_w us_u us_f us_w wh dg inst en pr errs
+  local ir_u ir_f ir_w us_u us_f us_w wh dg inst en pr errs unset_cfg monitors
   clock_into T_MP_E
   # Written on the first pass only. The re-entry reads this sidecar; overwriting
   # it after restore would drop the first-pass failures from a later re-entry.
@@ -1236,6 +1349,10 @@ emit_marketplace_block() {
   catalog_regression_rows reg_interval reg_rows "$mp"
   divergence_block div "$mp"
   report_extras extras "$mp"
+  monitor_rows monitors "$mp"
+  # The two Action-needed sources the report used to take from CLI scrollback.
+  jq_to unset_cfg -c '[.[] | select(.unset_user_config != null)
+    | {id, options_unset: .unset_user_config.options_unset, required: .unset_user_config.required}]' <<<"$inst"
   # A field that could not be computed becomes an empty object, never an empty
   # string: an empty --argjson would take the whole digest down with it.
   [[ -n "$div" ]] || div='{}'
@@ -1260,6 +1377,7 @@ emit_marketplace_block() {
     --arg reg_interval "$reg_interval" --argjson reg_rows "$reg_rows" \
     --argjson div "$div" --argjson self_updated "$SELF_UPDATED" \
     --argjson extras "$extras" \
+    --argjson unset_cfg "${unset_cfg:-[]}" --argjson monitors "${monitors:-[]}" \
     --arg t_prr_s "$T_PRR_S" --arg t_prr_e "$T_PRR_E" \
     --arg t_mu_s "$T_MU_S" --arg t_mu_e "$T_MU_E" \
     --arg t_ir_s "$T_IR_S" --arg t_ir_e "$T_IR_E" \
@@ -1298,6 +1416,7 @@ emit_marketplace_block() {
      downgraded: $dg,
      install_gap: $install_gap,
      installed: $inst,
+     installed_with_unset_user_config: $unset_cfg,
      install_enable_deferred: $deferred,
      stopped_before_install: $stopped,
      enable_gap: $enable_gap,
@@ -1309,6 +1428,7 @@ emit_marketplace_block() {
                           else {interval: $reg_interval, rows: $reg_rows} end),
      divergences: $div,
      self_updated: $self_updated,
+     updated_with_monitors: $monitors,
      errors: $errors}'
   printf '%s\n' "$block" >>"$RUN_DIR/.blocks.jsonl"
 }
@@ -1424,6 +1544,7 @@ clock_into T_RUN_E
 # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
 jq_to DIGEST -c -n \
   --arg run_dir "$RUN_DIR" \
+  --arg cwd "$PWD" \
   --arg mode "$MODE" \
   --argjson allow_downgrade "$ALLOW_DOWNGRADE_JSON" \
   --arg install_new "$INSTALL_NEW" \
@@ -1432,7 +1553,7 @@ jq_to DIGEST -c -n \
   --arg t_run_s "$T_RUN_S" --arg t_run_e "$T_RUN_E" \
   --arg resolution "$CLOCK_RESOLUTION" \
   --argjson errors "$RUN_ERRS" '
-  {run_dir: $run_dir, mode: $mode, allow_downgrade: $allow_downgrade,
+  {run_dir: $run_dir, cwd: $cwd, mode: $mode, allow_downgrade: $allow_downgrade,
    install_new: $install_new,
    install_new_invalid: (if $install_new_invalid == "" then null else $install_new_invalid end),
    timings: {total: ([0, (((($t_run_e | tonumber) - ($t_run_s | tonumber)) * 1000 | ceil) / 1000)] | max),
@@ -1440,5 +1561,21 @@ jq_to DIGEST -c -n \
    marketplaces: $marketplaces, errors: $errors}'
 
 printf '%s\n' "$DIGEST" >"$RUN_DIR/digest.json"
+
+# --- Step 6 — the report, rendered from the digest --------------------------------
+# A render failure is a defect in the renderer, never in the run: the digest is
+# complete and printed either way, and the failure is named on stderr rather
+# than swallowed.
+REPORT=""
+if jq_to REPORT -r -f "$SCRIPT_DIR/render-report.jq" "$RUN_DIR/digest.json"; then
+  printf '%s\n' "$REPORT" >"$RUN_DIR/report.txt"
+else
+  echo "ERROR: report render failed; the digest above is complete, report.txt was not written" >&2
+  REPORT=""
+fi
+
 printf '%s\n' "$DIGEST"
+if ((RENDER == 1)) && [[ -n "$REPORT" ]]; then
+  printf '\n%s\n' "$REPORT"
+fi
 exit 0

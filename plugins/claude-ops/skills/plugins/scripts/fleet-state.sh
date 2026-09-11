@@ -54,6 +54,12 @@
 #                        Excludes ids explicitly opted out (false) in any scope,
 #                        like the two missing_* arrays — a deliberate decline is
 #                        not a gap to report as action needed.
+#   marketplace.source   the marketplace's recorded source flattened to one
+#                        line (a string source as-is, an object source as
+#                        `<kind>:<locator>`), or null; report text only.
+#   installed[].installPath  the record's cache directory as recorded, or null:
+#                        where a consumer reads the installed build's own
+#                        manifest (sync's monitor call-out reads it).
 #
 #   Each project/local record in installed[] (and each divergences[].scopes[]
 #   entry) additionally carries projectPathPresent: true|false|null — whether
@@ -842,7 +848,14 @@ PASS1_PROGRAM='
         ($mk | keys[] as $k
           | ("NAME\u001f" + $k),
             (if $mk[$k] then ($mk[$k]
-              | "MP\u001f\($k)\u001f\(.installLocation // "")\u001f\((.autoUpdate // false) | tostring)\u001f\(.lastUpdated // "")")
+              | "MP\u001f\($k)\u001f\(.installLocation // "")\u001f\((.autoUpdate // false) | tostring)\u001f\(.lastUpdated // "")\(
+                  # The source flattened to one line for the report: a string
+                  # source as-is, an object source as `<kind>:<locator>`.
+                  .source
+                  | if type == "string" then .
+                    elif type == "object" then ([(.source // empty), (.repo // .url // .path // empty)] | map(tostring) | join(":"))
+                    else "" end
+                  | gsub("[\n\r\t]"; " "))")
              else empty end)),
         ([$inst.plugins | to_entries[] | .value[] | select(.scope == "project" or .scope == "local") | .projectPath // empty]
           | unique | .[] | "PP\u001f\(.)"),
@@ -897,10 +910,11 @@ mp_keys=()
 mp_loc=()
 mp_au=()
 mp_lu=()
+mp_src=()
 pp_lines=()
 resolved_target=""
 location_target=""
-while IFS=$'\x1f' read -r tag f1 f2 f3 f4; do
+while IFS=$'\x1f' read -r tag f1 f2 f3 f4 f5; do
   case "$tag" in
   ERR)
     echo "ERROR: $f1" >&2
@@ -913,6 +927,7 @@ while IFS=$'\x1f' read -r tag f1 f2 f3 f4; do
     mp_loc+=("$f2")
     mp_au+=("$f3")
     mp_lu+=("$f4")
+    mp_src+=("$f5")
     ;;
   PP) pp_lines+=("$f1") ;;
   TARGET) resolved_target="$f1" ;;
@@ -1014,6 +1029,9 @@ PASS3_PROGRAM='
                 id: $id,
                 scope: .scope,
                 version: .version,
+                # The record'"'"'s cache directory, as recorded: the one place a
+                # consumer can read the installed build'"'"'s own manifest from.
+                installPath: (.installPath // null),
                 projectPath: (.projectPath // null),
                 currentProject: (
                   if (.scope == "project" or .scope == "local") and (.projectPath // "" | length) > 0 and ($cur | length) > 0 then
@@ -1074,7 +1092,8 @@ PASS3_PROGRAM='
           versionsMatch: ((map(.version) | unique | length) == 1)
         })) as $divergences
   | {
-      marketplace: {name: $name, autoUpdate: ($au == "true"), lastUpdated: $lastUpdated},
+      marketplace: {name: $name, autoUpdate: ($au == "true"), lastUpdated: $lastUpdated,
+                    source: (if $src == "" then null else $src end)},
       project_root: (if ($cur | length) > 0 then $cur else null end),
       catalog: $catalog_names,
       catalog_versions: $cv,
@@ -1090,7 +1109,7 @@ PASS3_PROGRAM='
 
 emit_marketplace() {
   local name="$1"
-  local i idx=-1 auto_update_json=false last_updated install_location catalog_json
+  local i idx=-1 auto_update_json=false last_updated install_location source_text catalog_json
 
   for ((i = 0; i < ${#mp_keys[@]}; i++)); do
     if [[ "${mp_keys[i]}" == "$name" ]]; then
@@ -1107,6 +1126,7 @@ emit_marketplace() {
   [[ "${mp_au[idx]}" == "true" ]] && auto_update_json=true
   last_updated="${mp_lu[idx]}"
   install_location="${mp_loc[idx]}"
+  source_text="${mp_src[idx]:-}"
 
   if [[ -n "${FLEET_STATE_CATALOG_DIR:-}" ]]; then
     local fixture="$FLEET_STATE_CATALOG_DIR/$name.json"
@@ -1255,6 +1275,7 @@ emit_marketplace() {
     --arg name "$name" \
     --arg au "$auto_update_json" \
     --arg lastUpdated "$last_updated" \
+    --arg src "$source_text" \
     --arg cur "$current_project_norm" \
     --arg ci "$case_insensitive_os" \
     --arg selector "$IDS_SELECTOR" \
