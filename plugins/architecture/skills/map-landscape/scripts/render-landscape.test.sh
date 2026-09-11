@@ -220,12 +220,23 @@ assert_contains "owners: the first owner gets a boundary" "$owners" 'Enterprise_
 assert_contains "owners: the second gets its own, not a shared one" "$owners" 'Enterprise_Boundary(b1, "zeta")'
 
 # --- Case group 9: markdown that lints --------------------------------------
-if command -v npx >/dev/null 2>&1 && [[ -z "${SKIP_MARKDOWNLINT:-}" ]]; then
+#
+# Probed on a file known to be clean first. `npx --no-install` exits non-zero
+# when the package is simply absent, which is indistinguishable at the exit code
+# from a lint failure, and reading "tool missing" as "the renderer emits bad
+# markdown" would fail this suite on any host without the dependency installed.
+markdownlint_usable() {
+  [[ -z "${SKIP_MARKDOWNLINT:-}" ]] || return 1
+  command -v npx >/dev/null 2>&1 || return 1
+  printf '# Probe\n\nOne clean paragraph.\n' >"$TEST_TMPDIR/probe.md"
+  npx --no-install markdownlint-cli2 "$TEST_TMPDIR/probe.md" >/dev/null 2>&1
+}
+if markdownlint_usable; then
   npx --no-install markdownlint-cli2 "$TEST_TMPDIR/mermaid/landscape.md" \
     "$TEST_TMPDIR/mermaid/portfolio.md" >/dev/null 2>&1
   assert_equals "lint: the rendered markdown passes markdownlint" "$?" "0"
 else
-  pass "lint: markdownlint skipped, npx or the package is unavailable"
+  pass "lint: markdownlint skipped, the package is not installed here"
 fi
 
 # --- Case group 10: usage ---------------------------------------------------
