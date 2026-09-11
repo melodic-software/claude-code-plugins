@@ -8,6 +8,19 @@ All notable changes to the `tdd` plugin are documented here. Format follows
 ### Changed
 
 - **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
+- **Every markdown surface in the plugin passes `/ai-slop:audit`.** Em dashes in the plugin's own
+  prose (this changelog, the principles skill body, and its thirteen references covering the
+  Khorikov and Beck material) are rewritten as a comma, a period, a colon where a definition or
+  list follows, or a restructured sentence. No principle, test-double distinction, coverage
+  argument, or worked example changed.
+- **Quoted Beck and Khorikov sentences keep their em dashes**, inside ignore markers naming the
+  source in five places. Those dashes are the authors'. Where a `> — Author` attribution line
+  carried the dash instead, the attribution moves to its own blockquote paragraph rather than being
+  rewritten.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`,** so the gate defends
+  it from here on.
+- **Changelog, in-place wording corrections to released entries:** the same rewrite was applied
+  inside `[0.4.0]` and `[0.3.0]`. Wording only; every entry's facts are unchanged.
 
 ## [0.4.7]
 

@@ -151,6 +151,11 @@ plugins/debugging/skills/*/SKILL.md
 plugins/desktop-notification/README.md
 plugins/discipline/README.md
 # The discovery plugin was purged whole.
+# The disk-hygiene plugin was purged whole. Its README's generated options block keeps its own
+# pre-existing ignore marker, since that prose belongs to the generator rather than the output.
+plugins/disk-hygiene/*.md
+plugins/disk-hygiene/skills/*/SKILL.md
+plugins/disk-hygiene/skills/*/reference/*.md
 plugins/discovery/*.md
 plugins/discovery/agents/*.md
 plugins/discovery/reference/*.md
@@ -306,7 +311,11 @@ plugins/source-control/skills/setup/reference/*.md
 plugins/source-control/skills/worktree/context/*.md
 plugins/source-control/skills/worktree/fixtures/*.md
 plugins/source-control/skills/worktree/reference/*.md
-plugins/tdd/README.md
+# The tdd plugin was purged whole. Five verbatim Beck and Khorikov quotations keep their em dashes
+# inside markers naming the source; the gate honours those.
+plugins/tdd/*.md
+plugins/tdd/skills/*/SKILL.md
+plugins/tdd/skills/*/reference/*.md
 plugins/testing/README.md
 plugins/toolchain/README.md
 plugins/typos-format/README.md

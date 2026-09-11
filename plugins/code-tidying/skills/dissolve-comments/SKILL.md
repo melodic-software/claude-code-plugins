@@ -67,7 +67,7 @@ line budget, and worked examples: [reference/triage.md](reference/triage.md).
 | **C, information code cannot carry** | Why/rationale, constraint, warning, contract, negative or operational information | **Kept** when load-bearing at the point of reading and not recoverable where a reader would look; held to the line budget once the exempt-surface check has cleared it, rewritten terser when over it, narrative staged |
 | **C, same test failed** | Inexpressible, but the earn-its-keep test's criterion 2 fails: recoverable from version control, an ADR, or an external source | **Deleted** under `strict`, certified by the same token proof class A uses, narrative staged before the deletion is final; **proposed** under `safe` and `conservative`, which apply class-A deletions only. The negative branch of the class-C test, not a fourth class |
 
-The two class-C rows are one class and one test — three criteria that must **all** hold — named on
+The two class-C rows are one class and one test, whose three criteria must **all** hold, named on
 each side, so a comment that fails it has somewhere to go. A criterion-1 failure is not this branch:
 expressible is class B, redundant with code that IS present is class A.
 
@@ -87,8 +87,8 @@ reports an over-budget class-C comment instead of rewriting it.
 
 **The posture ladder only descends.** `strict` is both the default and the ceiling; `balanced`,
 `conservative` and `safe` each narrow what gets applied, `class_c_max_lines` bottoms out at 1, and
-nothing removes more than `strict` does. Deliberate — no knob loosens a gate
-([reference/safety.md](reference/safety.md)) — and stated here because a user wanting a more
+nothing removes more than `strict` does. That is deliberate: no knob loosens a gate
+([reference/safety.md](reference/safety.md)). It is stated here because a user wanting a more
 aggressive pass would otherwise hunt for a setting that does not exist.
 
 In every posture and mode, doubt keeps the comment: "when uncertain, keep or propose" is doctrine,
@@ -105,7 +105,7 @@ the proof tool, the test-discovery procedure, and the mode ladder: [reference/sa
 
 **Class B applies less than it looks like it does**, and a run planned around it should know that
 first: 2 of 15 moves need no test net, 0 of 15 apply with tree-sitter absent, and no move dissolves
-a *why*. Both limits are deliberate — see "Apply capacity" in
+a *why*. Both limits are deliberate. See "Apply capacity" in
 [reference/dissolving-moves.md](reference/dissolving-moves.md) for the numbers and what follows
 from them.
 
@@ -125,7 +125,7 @@ from them.
 - **Exempt surfaces are invisible to this skill** ([reference/safety.md](reference/safety.md)):
   public-API doc comments; legal headers; machine-read directives, universal and repo-local;
   units, sentinels and suppression justifications; `TODO(#issue)` markers; lines carrying
-  `dissolve-comments-ignore`. **Negative and operational information are not on that list** — they
+  `dissolve-comments-ignore`. **Negative and operational information are not on that list.** They
   are class C with a raised evidence bar, held to the same test and budget as any class-C comment.
   Exempting the category outright would contradict this skill's own eval 13.
 - **Path exclusions are the plugin's standard tier**, tidy's
@@ -158,7 +158,7 @@ from them.
    specific lift lets the whole administrative tree compete for the `--top` cutoff against the one
    file the operator named. **Exit 3
    from it or from the census means the analysis layer is missing, never that there is nothing to
-   rank** — relay the script's stderr, which names the install command, and stop rather than
+   rank.** Relay the script's stderr, which names the install command, and stop rather than
    proceeding on an empty ranking. Resolve the section 4 override channels first, then drop excluded
    paths and exempt surfaces, listing **every dropped path with its reason**, not only a per-reason
    tally: a silently dropped file is indistinguishable from one triaged and kept. Check survivors for
@@ -218,12 +218,12 @@ from them.
    **exempt surfaces before the line budget**, never after, since an exempt comment is out of reach
    at any length. A non-exempt comment that **failed** criterion 2 is, under `strict`, staged then
    deleted behind the same COMMENT-ONLY proof class A uses; under `safe` or `conservative` it is
-   proposed instead — those modes apply class-A deletions only, and a rationale comment is not class
+   proposed instead, since those modes apply class-A deletions only, and a rationale comment is not class
    A however its test resolved. A non-exempt comment over budget is rewritten to the budget under
    `strict` with the narrative staged, reported instead under `balanced`; its carve-out reason names
    every kept comment by file and line, written once for a group that enumerates its members. Where
    most of a file's class-C comments carry contract, negative, or operational information, say so
-   once as a whole-file verdict with its count and suspend the budget for that file — criterion 2
+   once as a whole-file verdict with its count and suspend the budget for that file. Criterion 2
    still runs on every comment in it. A failed gate reverts, restores, and demotes to a proposal
    quoting the verdict. Done when every item is applied with its verdict or proposed with a reason.
 7. **Report.** Tooling layer, discovered markers, the per-path drop list from step 1, and every
@@ -236,7 +236,7 @@ from them.
    line is owed only for keeps the run actually searched. Then the census delta, `comment-census.py
    --baseline` pointed at the exact `baseline.json` step 4 wrote, in lines, bytes and estimated
    tokens. A scope whose every file was dropped reports the tally rather than exiting silently. When
-   the census could not run, say so in place of the delta line and name the missing layer — an
+   the census could not run, say so in place of the delta line and name the missing layer. An
    absent delta is never reported as `+0`. The user reviews the diff; this skill does not commit.
    Done when the delta line, or the explicit reason there is none, is printed.
 
