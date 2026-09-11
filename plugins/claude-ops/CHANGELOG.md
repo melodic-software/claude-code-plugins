@@ -36,8 +36,9 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   read from the `Kthread:` line of `/proc/<pid>/status` where the kernel publishes one and
   otherwise from bit `0x00200000` of `/proc/<pid>/stat` field 9. Neither parent pid 2 nor an
   empty `cmdline` is consulted: the kernel reparents user-space helpers onto kthreadd, and a
-  process can rewrite its own argument region. Classification reads the shortlist only and stops
-  at `kernel_thread_read_cap` processes; the report carries `kernel_threads_excluded` and
+  process can rewrite its own argument region. Classification walks the ranked rows until ten
+  non-kernel rows are kept, stops at `kernel_thread_read_cap` processes, and keeps any row it
+  leaves partially examined; the report carries `kernel_threads_excluded` and
   `kernel_thread_reads`, and off Linux the count is null with the reason. An unclassifiable
   process counts as user-space, so the failure mode is an investigable false alarm rather than a
   hidden user-space leak.

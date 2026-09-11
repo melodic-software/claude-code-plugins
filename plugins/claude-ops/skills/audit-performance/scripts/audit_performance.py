@@ -102,6 +102,9 @@ PF_KTHREAD = 0x00200000
 #: Ceiling on how many processes one population read may classify. The shortlist is ten names
 #: wide, and a machine selected for being contended must not pay an unbounded per-pid read.
 KTHREAD_CLASSIFY_CAP = 50
+#: How many non-kernel rows the population shortlist keeps. Ranked rows are walked until this
+#: many survive, so kernel threads at the top of the ranking never crowd out user-space rows.
+SHORTLIST_SIZE = 10
 
 #: Seconds between the two process-population samples that separate churn from accumulation.
 POPULATION_GAP_S = 3.0
@@ -1052,14 +1055,17 @@ def population_trend(
     rows.sort(
         key=lambda r: (r["exited"] + r["started"], r["count_second"]), reverse=True
     )
-    shortlist = rows[:10]
     # The second sample is the live one, so classify its pids; a name that has since drained
-    # entirely falls back to the first sample's pids rather than going unclassified.
+    # entirely falls back to the first sample's pids rather than going unclassified. The
+    # ranked rows are walked until ten non-kernel rows are kept, so kernel threads at the top
+    # of the ranking never crowd user-space rows out of the shortlist.
     live = {
         row["name"]: second.get(row["name"]) or first.get(row["name"], set())
-        for row in shortlist
+        for row in rows
     }
-    kernel = exclude_kernel_threads(shortlist, live, platform, classify, classify_cap)
+    kernel = exclude_kernel_threads(
+        rows, live, platform, classify, classify_cap, keep=SHORTLIST_SIZE
+    )
     return {
         "gap_seconds": gap_seconds,
         "most_active": kernel["rows"],
@@ -1082,16 +1088,20 @@ def exclude_kernel_threads(
     platform: str | None = None,
     classify=is_kernel_thread,
     classify_cap: int = KTHREAD_CLASSIFY_CAP,
+    keep: int = SHORTLIST_SIZE,
 ) -> dict:
-    """Drop shortlist rows whose every classified process is a kernel thread.
+    """Walk ranked rows, dropping those whose every process is a kernel thread, until
+    `keep` rows survive.
 
-    Only the shortlist's processes are read, and only up to `classify_cap` of them, because
+    Only the kept rows' processes are read, and only up to `classify_cap` of them, because
     a per-pid read on a machine chosen for being contended must carry a stated bound. A row
-    the cap leaves unclassified is kept, so the ceiling never silently hides a user process.
+    is excluded only when every one of its processes was examined and every verdict is
+    True; a row the cap leaves partially or wholly unclassified is kept, so the ceiling never
+    silently hides a user process. Rows past the cap are kept unclassified in rank order.
     """
     if (platform or sys.platform) != "linux":
         return {
-            "rows": rows,
+            "rows": rows[:keep],
             "excluded": None,
             "reads": 0,
             "note": (
@@ -1104,13 +1114,17 @@ def exclude_kernel_threads(
     reads = 0
     excluded = 0
     for row in rows:
+        if len(kept) >= keep:
+            break
         verdicts = []
+        complete = True
         for pid in sorted(pids_by_name.get(row["name"], set())):
             if reads >= classify_cap:
+                complete = False
                 break
             verdicts.append(classify(pid))
             reads += 1
-        if verdicts and all(verdict is True for verdict in verdicts):
+        if complete and verdicts and all(verdict is True for verdict in verdicts):
             excluded += 1
             continue
         kept.append(row)
@@ -1119,9 +1133,9 @@ def exclude_kernel_threads(
         "excluded": excluded,
         "reads": reads,
         "note": (
-            "Rows whose every classified process carries PF_KTHREAD are excluded: they are the "
+            "Rows whose every process, all of them examined, carries PF_KTHREAD are excluded: they are the "
             "kernel's own threads, not workload. Classification reads `/proc/<pid>/status` and "
-            "`/proc/<pid>/stat` for the shortlist only, and an unclassifiable process counts as "
+            "`/proc/<pid>/stat` for the ranked rows walked to fill the shortlist, and an unclassifiable or partially examined row counts as "
             "user-space."
         ),
     }

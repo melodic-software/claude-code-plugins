@@ -156,7 +156,7 @@ series was written up as accumulation and had to be retracted.
 `ps -e` lists the kernel's own threads alongside user processes, and a kworker renames its `comm`
 as it moves between queues, so a population keyed on name sees the same worker arrive under a new
 name every few seconds and reads it as accumulation. On Linux the engine classifies the
-shortlist's processes and drops a row whose every classified process is a kernel thread.
+shortlist's processes and drops a row whose every process, all of them examined, is a kernel thread, walking the ranked rows until ten survive so kernel threads at the top never crowd out user-space rows.
 
 The classifier is the kernel's own predicate, `PF_KTHREAD`, read two ways: the `Kthread:` line of
 `/proc/<pid>/status` where the kernel publishes one, else bit `0x00200000` of the task flags word,

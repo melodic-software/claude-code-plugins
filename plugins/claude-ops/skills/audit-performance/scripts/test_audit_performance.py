@@ -611,6 +611,45 @@ class TestKernelThreadExclusion(unittest.TestCase):
         self.assertEqual([r["name"] for r in result["rows"]], ["kworker/1:0"])
         self.assertEqual(result["excluded"], 1)
 
+    def test_a_row_partially_examined_at_the_cap_is_kept(self):
+        """The cap cutting a row mid-way must never convict it on the examined prefix."""
+        rows = [{"name": "kworker/0:2"}]
+        pids = {"kworker/0:2": {1, 2, 3}}
+        result = engine.exclude_kernel_threads(
+            rows,
+            pids,
+            platform="linux",
+            classify=lambda pid, proc_root=None: True,
+            classify_cap=2,
+        )
+        self.assertEqual([r["name"] for r in result["rows"]], ["kworker/0:2"])
+        self.assertEqual(result["excluded"], 0)
+        self.assertEqual(result["reads"], 2)
+
+    def test_kernel_rows_at_the_top_do_not_crowd_out_user_rows(self):
+        """Ranked rows are walked until `keep` non-kernel rows survive."""
+        kernel = [{"name": f"kworker/{i}:0"} for i in range(3)]
+        user = [{"name": f"user-{i}"} for i in range(11)]
+        pids = {row["name"]: {index} for index, row in enumerate(kernel + user)}
+        result = engine.exclude_kernel_threads(
+            kernel + user,
+            pids,
+            platform="linux",
+            classify=lambda pid, proc_root=None: pid < 3,
+            classify_cap=50,
+            keep=10,
+        )
+        self.assertEqual(
+            [r["name"] for r in result["rows"]], [r["name"] for r in user[:10]]
+        )
+        self.assertEqual(result["excluded"], 3)
+        self.assertEqual(result["reads"], 13)
+
+    def test_off_linux_the_shortlist_is_still_capped(self):
+        rows = [{"name": f"proc-{i}"} for i in range(12)]
+        result = engine.exclude_kernel_threads(rows, {}, platform="win32", keep=10)
+        self.assertEqual(len(result["rows"]), 10)
+
     def test_off_linux_the_exclusion_is_null_with_a_reason_rather_than_zero(self):
         result = engine.population_trend([], [], 3.0, platform="win32")
         self.assertIsNone(result["kernel_threads_excluded"])
