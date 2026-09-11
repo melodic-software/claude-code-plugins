@@ -46,7 +46,7 @@ All notable changes to the `debugging` plugin are documented here. Format follow
 
 - **`debug` phase 5: the red step now has to be red for the right reason.** Step 2 said "Watch it
   fail (Red)" and stopped there. A test that errors on a typo, a bad import, or an unrelated defect
-  is also red — and the fix that turns *that* red green has not touched the bug, while the loop
+  is also red, and the fix that turns *that* red green has not touched the bug, while the loop
   reports a clean Red→Green cycle. The step now requires reading the failure message against the
   root cause being targeted, and repairing the test or the reproduction before any implementation
   edit when they do not match.
@@ -62,7 +62,7 @@ All notable changes to the `debugging` plugin are documented here. Format follow
 
 - **`/debugging:debug`'s trigger phrases are now single-quoted.** They were written with escaped
   double quotes inside the double-quoted YAML scalar, and the skill-quality gate's trigger-drop
-  protection tracks only `'single-quoted'` phrases — so all nine (`'diagnose this'`, `'debug this'`,
+  protection tracks only `'single-quoted'` phrases, so all nine (`'diagnose this'`, `'debug this'`,
   `'why is X broken'`, `'X is throwing'`, `'something is wrong with'`, `'investigate this bug'`,
   `'performance regression'`, `'this is slow'`, `'intermittent failure'`) were invisible to it and a
   future rewrite could have dropped any of them unnoticed. The wording is unchanged; only the
@@ -74,7 +74,7 @@ All notable changes to the `debugging` plugin are documented here. Format follow
 
 - **The bare `/<skill>` alias for this plugin's skills.** Their `SKILL.md` files no longer
   declare a frontmatter `name`. The field is optional and defaults to the directory name, so
-  declaring it only restated the path while registering a second, unnamespaced command — which
+  declaring it only restated the path while registering a second, unnamespaced command, which
   the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
   namespaced command; the command itself is unchanged.
 
@@ -96,7 +96,7 @@ All notable changes to the `debugging` plugin are documented here. Format follow
 ### Changed
 
 - Skills with `!` dynamic-context injections now declare `shell: bash` explicitly, per
-  the pinned precompute convention — bash-only pipelines must not fall through to a
+  the pinned precompute convention. Bash-only pipelines must not fall through to a
   PowerShell host.
 
 ## [0.4.1]
@@ -112,10 +112,10 @@ All notable changes to the `debugging` plugin are documented here. Format follow
 
 ### Changed
 
-- **BREAKING: `/debugging:diagnose` is renamed `/debugging:debug`** — the skill runs the full
+- **BREAKING: `/debugging:diagnose` is renamed `/debugging:debug`.** The skill runs the full
   repro → hypothesize → fix → regression-test loop, while "diagnose" promised only the first half
   and twinned confusingly with `/testing:diagnose` (a different skill, which keeps its name).
   Clean break per the marketplace naming effort: no renames-map entry; update invocations to
   `/debugging:debug`. "diagnose" stays a trigger word in the skill description. Claude Code's
-  built-in bundled `/debug` skill is unaffected — the plugin skill has no bare command form and
+  built-in bundled `/debug` skill is unaffected. The plugin skill has no bare command form and
   is invoked only as the namespaced `/debugging:debug`.

@@ -61,7 +61,7 @@ owned by [docs/CATALOG-TAXONOMY.md](CATALOG-TAXONOMY.md).
 | Skill | Plugin | What it does |
 | --- | --- | --- |
 | [`/architecture:improve`](../plugins/architecture/skills/improve/SKILL.md) | `architecture` | Scan the codebase for shallow modules and friction, then design the chosen fix several ways |
-| [`/domain-driven-design:curate-language`](../plugins/domain-driven-design/skills/curate-language/SKILL.md) | `domain-driven-design` | Maintain the domain glossary — resolve terms, record rejected synonyms |
+| [`/domain-driven-design:curate-language`](../plugins/domain-driven-design/skills/curate-language/SKILL.md) | `domain-driven-design` | Maintain the domain glossary. Resolve terms, record rejected synonyms |
 | [`/event-storming:methodology`](../plugins/event-storming/skills/methodology/SKILL.md) | `event-storming` | EventStorming facilitation reference across all three formats |
 | [`/event-storming:simulation`](../plugins/event-storming/skills/simulation/SKILL.md) | `event-storming` | Multi-persona agentic EventStorming workshop on Miro |
 | [`/naming:name-it-better`](../plugins/naming/skills/name-it-better/SKILL.md) | `naming` | Generate and evaluate name candidates from blind fresh-context lenses |

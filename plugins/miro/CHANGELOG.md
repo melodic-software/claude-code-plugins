@@ -117,18 +117,18 @@ All notable changes to the `miro` plugin are documented here. Format follows
 - **`setup` skill:** the destructive `claude plugin uninstall` + reinstall recipe for a headless
   token rotation is removed. It rested on an unversioned claim that `claude plugin install
   --config` is ignored once a plugin is installed, and following it dropped this plugin's whole
-  stored `pluginConfigs` entry. That claim now appears only as the thing it is — unstamped and
+  stored `pluginConfigs` entry. That claim now appears only as the thing it is: unstamped and
   contradicted for a non-sensitive option at `user` scope on Claude Code 2.1.240, where a plain
   `claude plugin install … --config` against an already-installed plugin printed `already
   installed` and still wrote the value
   ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)).
   `miro_api_token` is `sensitive: true`, which that observation does **not** cover, so `/plugin
-  configure miro@<marketplace>` remains the prescribed rotation path — it also masks input,
+  configure miro@<marketplace>` remains the prescribed rotation path. It also masks input,
   where a token on the command line lands in shell history and the process table.
 - **Docs:** the generated options block no longer presents a post-install `--config` as a
   supported way to rotate this plugin's credential. The 2.1.240 observation behind that claim
   covered a NON-sensitive option, and every option here is `sensitive`, so the block now routes
-  rotation to `/plugin configure` — which also masks input — and says plainly that the
+  rotation to `/plugin configure`, which also masks input, and says plainly that the
   post-install behavior is unverified for a sensitive value
   ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). Two upstream
   links that pointed at empty backward-compatibility anchors on the settings page were
@@ -170,7 +170,7 @@ All notable changes to the `miro` plugin are documented here. Format follows
 
 - **The bare `/<skill>` alias for this plugin's skills.** Their `SKILL.md` files no longer
   declare a frontmatter `name`. The field is optional and defaults to the directory name, so
-  declaring it only restated the path while registering a second, unnamespaced command — which
+  declaring it only restated the path while registering a second, unnamespaced command, which
   the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
   namespaced command; the command itself is unchanged.
 
@@ -197,7 +197,7 @@ All notable changes to the `miro` plugin are documented here. Format follows
 - Setup skill documents the headless bootstrap: `marketplace add`, then
   `claude plugin install --config miro_api_token=<token>`, then `claude plugin enable`. The enable
   step is spelled out because the plugin ships `defaultEnabled: false` and therefore installs
-  disabled — a bootstrap that stops after `install` looks successful and delivers no tools. Also
+  disabled. A bootstrap that stops after `install` looks successful and delivers no tools. Also
   covered: the `--config` fresh-install-only caveat, the headless rotation path (uninstall then
   reinstall carrying the SAME `-s <scope>`, read from `claude plugin list`, run from the project
   directory for project/local scope), and the shell-history/process-table exposure caveat
@@ -231,7 +231,7 @@ All notable changes to the `miro` plugin are documented here. Format follows
   conformance wave, dim 8). The plugin's entire configuration is the native
   sensitive `miro_api_token` userConfig, so `check` is the sole action; the
   optional read-only credential probe is now the explicit `check verify-api`
-  argument instead of an in-flow question — setup stays non-interactive and
+  argument instead of an in-flow question. Setup stays non-interactive and
   never touches the token or `pluginConfigs`.
 - MCP server version kept aligned with the plugin: `package.json`, the
   server's MCP `Implementation` version, the lockfile, and the committed

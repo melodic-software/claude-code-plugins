@@ -3,7 +3,7 @@
 This skill tracks one upstream dependency: **Dometrain's own `dometrain-grounding` skill
 content** (`https://raw.githubusercontent.com/Dometrain/mcp/master/skills/dometrain-grounding/SKILL.md`).
 
-It is not consumed verbatim as a live skill — this plugin's `grounding/` skill owns its own
+It is not consumed verbatim as a live skill. This plugin's `grounding/` skill owns its own
 usage surface. Upstream is advisory: watch for changes, evaluate, port anything worth keeping.
 
 ## The check action
@@ -15,10 +15,10 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/sync/scripts/update.sh"
 
 The script does three things:
 
-1. **Fetch** — pulls `skills/dometrain-grounding/SKILL.md` from `Dometrain/mcp` master.
-2. **Diff** — compares current upstream against `vendor/SKILL.md` (the plugin's baseline),
+1. **Fetch** pulls `skills/dometrain-grounding/SKILL.md` from `Dometrain/mcp` master.
+2. **Diff** compares current upstream against `vendor/SKILL.md` (the plugin's baseline),
    stripping the baseline's own attribution comment first since upstream never carries it.
-3. **Report** — prints "no drift" or the diff as "what Dometrain changed since the last review."
+3. **Report** prints "no drift" or the diff as "what Dometrain changed since the last review."
 
 **The script does NOT auto-write changes into `grounding/SKILL.md`.** Dometrain's own prose
 style, frontmatter shape, and structure differ from this plugin's conventions and would clobber
@@ -28,8 +28,8 @@ frontmatter). The human in the loop decides what to port.
 ## Roles: consumer vs plugin maintainer
 
 - **Consumers** run `/dometrain:sync` for report-only drift visibility. A drift finding is input
-  for an issue or PR against this plugin's marketplace repository — not something to patch in
-  the installed copy, which is an ephemeral cache overwritten on plugin update.
+  for an issue or PR against this plugin's marketplace repository. Do not patch the installed
+  copy, which is an ephemeral cache overwritten on plugin update.
 - **Plugin maintainers** port upstream changes in a working clone of the marketplace repository
   (using the `--plugin-dir` local development loop), then refresh the baseline there, from the
   clone root and by the clone-relative path (`${CLAUDE_PLUGIN_ROOT}` resolves to the installed
@@ -46,9 +46,9 @@ frontmatter). The human in the loop decides what to port.
   beyond that.
 
   This overwrites `vendor/SKILL.md` with current upstream (re-add the attribution comment
-  afterward — `--refresh-baseline` writes raw upstream content, which never carries it) and
+  afterward, since `--refresh-baseline` writes raw upstream content, which never carries it) and
   stamps `synced:` in `grounding/SKILL.md`'s frontmatter. It writes next to the script itself,
-  so run it only in a working clone — never in the installed plugin cache. This flag is a raw
+  so run it only in a working clone, never in the installed plugin cache. This flag is a raw
   CLI argument typed directly by a maintainer; `sync/SKILL.md`'s own dispatch never constructs
   or exposes it, so there is no model-reachable path to it.
 
@@ -71,7 +71,7 @@ What to **adopt** from upstream (when present):
 
 ## Escalation
 
-If the drift check surfaces a substantive behavioral change — a new tool, a new auth model, a
-new quota policy — research primary sources (Dometrain's README, release notes, the MCP server
-card) before porting. Upstream's `SKILL.md` is not a changelog; it reflects the current state
+A substantive behavioral change means a new tool, a new auth model, or a new quota policy. When
+the drift check surfaces one, research primary sources (Dometrain's README, release notes, the
+MCP server card) before porting. Upstream's `SKILL.md` is not a changelog; it reflects the current state
 only.

@@ -5,7 +5,7 @@ user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: plan
-  summary: Maintain the domain glossary — resolve terms, record rejected synonyms
+  summary: Maintain the domain glossary. Resolve terms, record rejected synonyms
 ---
 
 ## Variables
