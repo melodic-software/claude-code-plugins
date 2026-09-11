@@ -8,6 +8,9 @@ All notable changes to the `coupling` plugin are documented here. Format follows
 ### Changed
 
 - **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
+- **The plugin's prose drops its em dashes.** Six surfaces were rewritten: this changelog, `reference/topic-docs.md`, `skills/reduce/SKILL.md`, and three `skills/reduce/reference/` documents. Wording only, with no change to any coupling category, connascence level, remediation, or ledger status. The skill body keeps all twelve trigger phrases byte-identical. Two headings changed anchor, and the two Contents rows that linked them were updated in the same pass; nothing outside the file referenced either. `reference/topic-docs.md` now matches its seven sibling copies byte for byte rather than drifting from them. The released sections corrected in place are 0.1.1 and 0.1.0: their wording changed, their facts did not.
+- **`seam` stays where this plugin defines it and goes where it does not.** `reference/coupling-model.md` keeps the published-seam entry, which names an explicit contract, a versioned API, or a documented extension point and then teaches that a seam is the fix working rather than the disease; `skills/reduce/SKILL.md` keeps "introduce a seam" in its list of architectural moves, the Feathers sense that document defines. The deletion test now reads "the new indirection", the word its own neighboring sentences use, and the ledger's rejected-reason placeholder states the condition instead of calling it load-bearing.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md`, `reference/topic-docs.md`, every `skills/*/SKILL.md`, and the `skills/reduce/reference/` tree.
 
 ## [0.1.7]
 
@@ -73,7 +76,7 @@ All notable changes to the `coupling` plugin are documented here. Format follows
   `When | Then` table gains a one-line preamble stating that every skill in the `Then` column is
   invoked via the Skill tool; the PR step (`/source-control:pull-request create`) and the
   design-exploration hand-off (`/architecture:improve`) say so inline, as does the route-lane
-  filing arm (`/work-items:track add`) in the same sentence as that hand-off — the table's
+  filing arm (`/work-items:track add`) in the same sentence as that hand-off. The table's
   preamble does not reach it, since it is prose outside the table. Wording only; presence
   gates and fallbacks unchanged.
 
@@ -82,11 +85,11 @@ All notable changes to the `coupling` plugin are documented here. Format follows
 ### Added
 
 - `reduce` skill: iterative coupling reduction at four altitudes (docs, code, application,
-  repository) — model-typed scan with a verification gate, two-lane partition (safe
+  repository): model-typed scan with a verification gate, two-lane partition (safe
   behavior-preserving reductions applied under a scope budget; cross-file and architectural
   candidates surfaced and routed, never auto-applied), and a durable per-repo ledger via the
   topic-docs memory tier so successive runs resume instead of restarting.
-- `reference/coupling-model.md`: the assessment model — change-centric coupling definition,
+- `reference/coupling-model.md`: the assessment model, covering the change-centric coupling definition,
   structured-design strength ladder, connascence (strength × degree × locality), volatility
   weighting, per-altitude mechanisms, and the not-a-finding list.
 - `reference/remediations.md`: mechanism catalog (dependency injection, owned interfaces at

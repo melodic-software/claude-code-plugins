@@ -10,6 +10,9 @@ All notable changes to the `bugs` plugin are documented here. Format follows
 - **Options reference drops its em dashes.** The generated How-to-set-these block is rewritten by `scripts/sync-plugin-options-docs.py`, which is the fix site: its output is regenerated, never hand-edited. The block no longer needs the ignore marker that exempted it from the repository's em-dash gate, so that marker is gone as well.
 
 - **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
+- **The plugin's prose drops its em dashes.** Seven surfaces were rewritten: this changelog, `reference/config.md`, the three `skills/scan/context/` documents, `skills/write/context/template.md`, and the `pagination-correct-offset` eval fixture. Wording only, with no change to any lens, severity rubric, gate rule, or config key. Twelve headings changed anchor; nothing in the repository linked to any of them. The `reference/config.md` H1 moved to the colon form its four sibling plugins already use, so this copy converges rather than diverges. The released sections corrected in place are 0.9.0, 0.8.0, 0.7.3, 0.7.2, 0.7.0, and 0.5.2: their wording changed, their facts did not.
+- **The changelog names the plugin instead of calling it a seam.** It now reads "through the `work-items` plugin", which is the concrete thing a reader goes looking for.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md`, `reference/config.md`, every `skills/*/SKILL.md`, and the `skills/*/context/` tree. One fenced template line in `skills/write/context/template.md` keeps its dash, because two expectations in `skills/write/evals/evals.json` pin that string and the fence already exempts it.
 
 ## [0.9.13]
 

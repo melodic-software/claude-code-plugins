@@ -10,6 +10,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Changed
 
 - **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
+- **The plugin's prose drops its em dashes.** This changelog and `skills/read/context/failure-modes.md` were rewritten. Wording only, with no change to any status-code rule, transport bound, or security finding. Every specimen in the failure-modes document is already backticked or fenced (the xtomd stub body, the redirect body, the path-traversal string, the curl exit lines), so none was touched; all the findings were the repository's own analysis around them. Five headings changed anchor, nothing in the repository linked to them, and the file's own cross-reference to one was updated in the same pass. The released sections corrected in place are 0.2.0 and 0.1.0: their wording changed, their facts did not.
+- **The nonce-and-delete rule states the requirement instead of calling it load-bearing.** It now reads "The nonce and the delete are both required."
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md`, every `skills/*/SKILL.md`, and the `skills/read/context/` tree.
 
 ## [0.2.3]
 
@@ -56,8 +59,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   fallback ladder: `xtomd.com` `POST /api/markdown` for a single post or article, Thread Reader App
   over `WebFetch` for an unrolled reply chain, then an explicit ask for the remaining post URLs.
 - Handle-less `/i/web/status/<id>` links match a separately anchored pattern and rebuild to
-  `https://x.com/i/web/status/<id>`. Embeds, feeds, and legacy clients emit that form. The shape is kept
-  rather than folded into the handle form: no handle was captured, and inventing one would breach
+  `https://x.com/i/web/status/<id>`. Embeds, feeds, and legacy clients emit that form. The shape is
+  kept rather than folded into the handle form: no handle was captured, and inventing one would breach
   rebuild-from-captures. The two `/i/` patterns are tried before the handle patterns, since `i` is a
   legal handle character and would otherwise capture `/i/web/status/<id>` as a handle of `i`.
 - Mandatory URL gate ahead of the ladder: anchored match against the post and article forms, outright
@@ -65,13 +68,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   string. Closes an argument-injection surface found in pre-release review, where a URL containing an
   apostrophe broke out of the request body's quoting and contributed a second unconstrained URL plus
   an `-o` arbitrary-write flag to the receiving process. The breakout was reproduced at `argv` level
-  in both bash and PowerShell. Rebuilding also discards the host and any query string, so the `x.com`, `twitter.com`,
-  `www.`, and legacy `mobile.` forms are all accepted and all collapse to a canonical `x.com` URL,
-  and share-tracking tokens are never transmitted. Scheme and host match case-insensitively via a
-  `(?i: … )` group that stops at `.com`, since RFC 3986 makes both case-insensitive (§3.1, §3.2.2)
-  while the path is not, so `HTTPS://X.COM/…` is admitted by the pattern rather than repaired into
-  it. The scheme is discarded on rebuild like the host, so an `http://` link matches and still emits
-  `https://`; `--proto '=https'` is the runtime backstop, and no plaintext request can be issued.
+  in both bash and PowerShell. Rebuilding also discards the host and any query string, so the
+  `x.com`, `twitter.com`, `www.`, and legacy `mobile.` forms are all accepted and all collapse to a
+  canonical `x.com` URL, and share-tracking tokens are never transmitted. Scheme and host match
+  case-insensitively via a `(?i: … )` group that stops at `.com`, since RFC 3986 makes both
+  case-insensitive (§3.1, §3.2.2) while the path is not, so `HTTPS://X.COM/…` is admitted by the
+  pattern rather than repaired into it. The scheme is discarded on rebuild like the host, so an
+  `http://` link matches and still emits `https://`; `--proto '=https'` is the runtime backstop, and
+  no plaintext request can be issued.
 - Trust boundary in the skill body: converter output is attacker-authored text, treated as data to
   report and never as instructions, with fetched text barred from introducing any URL, host, or file
   path. Every URL re-enters the gate, including ones supplied at step 3 or surfaced inside fetched
@@ -105,15 +109,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   reported as partial, with where it stops.
 - curl's **exit status** is checked ahead of the HTTP code and the body. The two disagree when a
   transfer dies after its status line arrives: verified against curl 8.19.0, an over-cap response
-  prints `200` on stdout and exits `63`. Any nonzero exit is a failed fetch — the spool is deleted
+  prints `200` on stdout and exits `63`. Any nonzero exit is a failed fetch. The spool is deleted
   unread, because an aborted transfer leaves a syntactically valid Markdown *prefix* that satisfies
   every content check and reads as a complete post.
 - Status capture (`-w '\n%{http_code}'`) and explicit handling for `400`/`429`/`500`/`502`, timeouts,
   and `200` responses carrying no converted content, so a bot-challenge or stub page is never
   reported as an empty post.
-- `skills/read/context/failure-modes.md` — progressive-disclosure spoke holding status-code handling,
-  Thread Reader miss detection, and the observed-gotchas list.
-- `skills/read/evals/evals.json` — sixteen cases: step-1 resolution (1), chain escalation (2),
+- `skills/read/context/failure-modes.md`, the progressive-disclosure spoke holding status-code
+  handling, Thread Reader miss detection, and the observed-gotchas list.
+- `skills/read/evals/evals.json`, sixteen cases: step-1 resolution (1), chain escalation (2),
   note-tweet non-escalation (3), `502` handling without a retry loop (4), refusal of a hostile URL
   string (5), tracking-parameter stripping (6), prompt-injection containment (7), a URL harvested
   from fetched content re-entering the gate (8), the missing-`curl` path (9), a note tweet rooting a
@@ -133,8 +137,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   returned nothing and read as if content had been lost; a single post is now correctly reported as
   unreadable without `curl`.
 - Step 3 now triggers whenever the requested content is still incomplete, not only when both services
-  fail — covering the common step-1-success-plus-step-2-miss case that previously risked presenting a
-  chain root as a complete thread.
+  fail. That covers the common step-1-success-plus-step-2-miss case that previously risked presenting
+  a chain root as a complete thread.
 - Thread Reader miss detection no longer relies solely on the `/error` suffix; a landing, rate-limit,
   or challenge page returning `200` is also treated as a miss.
 - Attribution now uses the gate's rebuilt URL rather than the URL the converter echoed back, which is
@@ -142,8 +146,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Security
 
-- No shell tool pre-approval ships. A prefix permission rule cannot express "and no further flags" —
-  its trailing wildcard admits every appended argument, which would have suppressed the prompt on
+- No shell tool pre-approval ships. A prefix permission rule cannot express "and no further flags".
+  Its trailing wildcard admits every appended argument, which would have suppressed the prompt on
   exactly the injected command above. The step-1 network call therefore prompts, showing the operator
   the exact command. `allowed-tools` retains only `WebFetch(domain:threadreaderapp.com)`, which
   involves no shell. A validating `PreToolUse` hook is deferred, with re-introducing a shell grant as
@@ -155,22 +159,22 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   destination, the `data` reference, any `output` directive, and redirect behavior inside a file no
   operator approves. A declared platform boundary is the honest cost; an unreadable approval is not.
 - Every step-1 response spools to a `<plugin-data-dir>/x-<id>-<nonce>.md` template built from the
-  gate-captured id plus a per-invocation nonce — never an agent-chosen path, never one derived from
-  fetched content — and the file is deleted on every exit path, not only after a successful read. The
+  gate-captured id plus a per-invocation nonce, never an agent-chosen path and never one derived from
+  fetched content. The file is deleted on every exit path, not only after a successful read. The
   redirect is unconditional because it cannot be otherwise: an X Article is routinely shared as an
   ordinary `/status/` link, so the URL gives no advance signal of response size and "redirect when it
   is long" is unevaluable when the command is composed. Streaming to stdout instead would put the
-  whole body in the tool result before any bound applied. A metadata probe first was rejected — it
+  whole body in the tool result before any bound applied. A metadata probe first was rejected. It
   doubles the disclosed egress and its own response has the same unknown size. The spool is read
   through to its end in successive bounded slices before the delete, since a bounded slice is a
   window onto the file rather than the content: deleting after one would discard the tail of exactly
   the long articles this path exists to serve and return truncated Markdown that reads as complete.
   The nonce prevents two sessions reading the same post from sharing a path, where the second `curl`
   would truncate the file between the first request completing and that session's `Read`. The
-  substituted path is **single**-quoted at the shell sites — the `-o` target and the delete — because
-  double quotes still expand `$name`, still run a backtick or `$(…)` substitution, and still consume
-  a backslash, so a home directory carrying any of those characters would retarget the write or
-  execute the embedded text. The `Read` tool takes the **raw** path instead: its argument is a
+  substituted path is **single**-quoted at the `-o` target and at the delete, because double quotes
+  still expand `$name`, still run a backtick or `$(…)` substitution, and still consume a backslash,
+  so a home directory carrying any of those characters would retarget the write or execute the
+  embedded text. The `Read` tool takes the **raw** path instead: its argument is a
   literal filesystem path that no shell parses, so quotes would become part of the filename and every
   successful fetch would fail to open its own spool.
 - Gate patterns are presented in fenced code blocks rather than a Markdown table. In table cells the

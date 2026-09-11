@@ -92,8 +92,8 @@ When auditing SOURCE, accept each SDK's native spelling of these hints as satisf
 
 Claude-Code-specific per-tool annotations set in the tool's `tools/list` response `_meta` object,
 documented in the Claude Code MCP page cited above. They are client behavior, not MCP-spec
-requirements, so every one is authority OPINION. A missing annotation here is at most info (an advisory that the server
-could benefit), and for C19 not a finding at all. Two defect shapes:
+requirements, so every one is authority OPINION. A missing annotation here is at most info (an
+advisory that the server could benefit), and for C19 not a finding at all. Two defect shapes:
 
 - **Declared but ineffective**. Claude Code caps or ignores the value (C17 above the 500,000-character
   ceiling or on an image-returning tool; C18 set to anything but the JSON boolean `true`). WARN

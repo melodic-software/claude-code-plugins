@@ -8,6 +8,9 @@ All notable changes to the `naming` plugin are documented here. Format follows
 ### Changed
 
 - **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
+- **The plugin's prose drops its em dashes.** Two surfaces were rewritten: this changelog and `skills/name-it-better/context/sources.md`. Wording only, with no change to any criterion, tier, or citation. The source rows already used a colon after the citation, so the tier label became its own sentence (`Ottinger's Rules: [ottinger-rules]. AUTHORITATIVE.`) rather than taking a second colon; every book and article title is byte-identical. Four headings changed anchor, and nothing in the repository linked to them. The released sections corrected in place are 0.5.0, 0.4.0, 0.3.0, 0.2.0, and 0.1.0: their wording changed, their facts did not.
+- **`sources.md` says what the two findings support instead of calling them load-bearing.** They are now "two findings the method rests on", which tells a reader what to do with them.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md` and the `skills/name-it-better/context/` tree, alongside the SKILL bodies it already covered.
 
 ## [0.5.4]
 

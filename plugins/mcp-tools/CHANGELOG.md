@@ -8,6 +8,9 @@ All notable changes to the `mcp-tools` plugin are documented here. Format follow
 ### Changed
 
 - **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
+- **The plugin's prose drops its em dashes.** Nine surfaces were rewritten: this changelog, the README, `skills/audit/SKILL.md`, two `skills/audit/reference/` documents, and the four eval fixtures. Wording only, with no change to any criterion, code, severity, or budget. Every criterion keeps its code, and `evals.json` refers to criteria by code rather than by name, so no expectation moved. In each fixture the dash sat in the descriptive header, never in the fenced tool source the audit is graded on, which is byte-identical. The report-output template inside `SKILL.md`'s fenced block was rewritten with the prose it belongs to, so a run still prints what the body describes. No heading changed, so no anchor moved. The released sections corrected in place are 0.3.0, 0.2.4, 0.2.3, and 0.2.1: their wording changed, their facts did not.
+- **The 0.2.4 entry names the duplication instead of calling it a drift seam.** It now reads "and so a source of drift".
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md`, every `skills/*/SKILL.md`, the `skills/audit/reference/` tree, and the audit eval fixtures.
 
 ## [0.3.4]
 

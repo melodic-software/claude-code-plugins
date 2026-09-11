@@ -46,10 +46,10 @@ Load the most relevant file first; a second only if the first doesn't fully answ
 
 ## Maintainer `update` action
 
-`/evals:methodology update` — maintainer-only drift check: re-fetch the source page (raw markdown)
-and the cookbook notebook, diff against the four reference files, apply content corrections, and
-refresh every "fetched YYYY-MM-DD" stamp with the new date. Consumers never need this; it exists
-because this skill distills a live upstream doc.
+`/evals:methodology update` is a maintainer-only drift check. It re-fetches the source page (raw
+markdown) and the cookbook notebook, diffs against the four reference files, applies content
+corrections, and refreshes every "fetched YYYY-MM-DD" stamp with the new date. Consumers never
+need this; it exists because this skill distills a live upstream doc.
 
 ## Scope boundary
 
@@ -62,7 +62,7 @@ marketplace command executes model-graded evals.
 ## Gotchas
 
 - The reference files are a distillation with fetch-date stamps, not the source: for runnable
-  recipe code or any load-bearing specific, re-fetch the source page — its code samples and model
-  names move with releases.
+  recipe code or any detail that must be current, re-fetch the source page. Its code samples and
+  model names move with releases.
 - Do not "verify" a claim about the guidance against this skill's own spokes; the spokes ARE the
   derived copy. Verification means fetching the upstream page.

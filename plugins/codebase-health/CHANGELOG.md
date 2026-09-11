@@ -3,6 +3,14 @@
 All notable changes to the `codebase-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.3]
+
+### Changed
+
+- **The plugin's prose drops its em dashes.** Six surfaces were rewritten: this changelog, two `skills/audit/reference/` documents, `skills/audit/context/discovery-method.md`, and the two templates under `skills/audit/templates/` and `skills/setup/templates/`. Wording only, with no change to any check, severity, source glob, or phase. Both templates were cleared for rewrite rather than marked: the plugin ships no scripts at all, and each em-dash-bearing template line appears nowhere else in the repository, so nothing parsed the separator. In `config-template.md` the dashes sat in the preamble's definition list, never in the `**primary-sources:**` field markers the config actually uses, which are byte-unchanged. Three headings changed anchor; nothing linked to them. The released sections corrected in place are 0.8.2, 0.8.1, 0.8.0, 0.7.2, 0.7.1, 0.7.0, 0.5.0, and 0.3.0: their wording changed, their facts did not.
+- **The 0.8.1 entry quotes `skills/audit/SKILL.md` as it now reads.** That body was rewritten in the same campaign, so the quotation was updated to match it rather than preserve superseded wording.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md`, the `skills/audit/` reference, context, and template trees, and the setup template, alongside the SKILL bodies it already covered.
+
 ## [0.9.2]
 
 ### Changed

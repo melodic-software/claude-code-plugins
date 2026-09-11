@@ -8,6 +8,9 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
 ### Changed
 
 - **Options reference drops its em dashes.** The generated How-to-set-these block is rewritten by `scripts/sync-plugin-options-docs.py`, which is the fix site: its output is regenerated, never hand-edited. The block no longer needs the ignore marker that exempted it from the repository's em-dash gate, so that marker is gone as well.
+- **The plugin's prose drops its em dashes.** This changelog and `skills/setup/SKILL.md` were rewritten. Wording only, with no change to any hook, guard, or default. Every emitted string quoted in prose is byte-identical to what the hook prints, and no heading was touched, so every release still parses. The released sections corrected in place are 0.7.36, 0.7.34, 0.7.20, 0.7.19, 0.7.17, 0.7.5, 0.7.3, 0.7.2, 0.7.1, 0.7.0, 0.6.6, 0.6.5, 0.6.4, 0.6.3, 0.6.2, 0.6.1, 0.6.0, 0.5.2, 0.5.1, 0.5.0, 0.4.0, 0.3.0, and 0.2.0: their wording changed, their facts did not.
+- **Two entries say what they mean instead of reaching for jargon.** The 0.6.5 temp-tree exemption is "deliberate and required" rather than load-bearing, and the 0.2.0 entry reads "Consumer-side telemetry through `HOOK_TELEMETRY_SINK` is unaffected", which names the variable a reader would check.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md` and every `skills/*/SKILL.md`.
 
 - **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
 
@@ -712,7 +715,8 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
   so the standard interpolated dependency form pins instead of dropping out of
   the signature), so a change to
   the settings or to any referenced rule module revokes the approval, e.g. a
-  branch switch swapping module bytes under an unchanged settings file. The gate fails closed when `CLAUDE_PLUGIN_DATA` is
+  branch switch swapping module bytes under an unchanged settings file. The gate
+  fails closed when `CLAUDE_PLUGIN_DATA` is
   unavailable, and also when a `CustomRulePath` entry does not resolve to
   hashable content: an unpinnable state offers no approval route at all.
   A load whose TARGET cannot be pinned to a file is refused the same way: a
@@ -742,7 +746,8 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
   PowerShell module resolution, so the `.psd1`/`.psm1`/`.ps1`/`.dll` candidates
   and both directory layouts are all pinned rather than only an exact leaf. The
   two layouts are `MyModule/MyModule.psd1` and the versioned
-  `MyModule/<version>/MyModule.psd1`. An inline script block is exempt because it is part of the
+  `MyModule/<version>/MyModule.psd1`. An inline script block is exempt because
+  it is part of the
   already-hashed file, and a composed load nested inside it is still judged on
   its own.
   Detection uses PowerShell's restricted data-file parser
@@ -881,5 +886,5 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
 - **BREAKING:** the `HOOK_POWERSHELL_FORMAT_ENABLED` environment variable is
   retired and no longer read. A consumer that set it in a settings `env` block
   must re-express the value as the matching `userConfig` option.
-  Zero-config behavior is unchanged (hook on, same defaults). The `HOOK_TELEMETRY_SINK`
-  consumer-side telemetry seam is unaffected.
+  Zero-config behavior is unchanged (hook on, same defaults). Consumer-side telemetry
+  through `HOOK_TELEMETRY_SINK` is unaffected.

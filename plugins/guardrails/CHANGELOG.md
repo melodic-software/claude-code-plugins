@@ -8,6 +8,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 ### Changed
 
 - **Options reference drops its em dashes.** The generated How-to-set-these block is rewritten by `scripts/sync-plugin-options-docs.py`, which is the fix site: its output is regenerated, never hand-edited. The block no longer needs the ignore marker that exempted it from the repository's em-dash gate, so that marker is gone as well.
+- **The 0.5.0 entry names the variable instead of calling it a telemetry seam.** It now reads "Consumer-side telemetry through `HOOK_TELEMETRY_SINK` is unaffected", which tells a reader which variable to check. Wording only; the retirement it records is unchanged.
 
 - **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
 - **Every markdown surface in the plugin passes `/ai-slop:audit`.** Em dashes in the plugin's own
@@ -5215,5 +5216,5 @@ self-overlapping anchor described above, red against the `grep -o` counter
   `HOOK_CLI_FLAG_VERIFY_SKIP_BINS` environment variables are retired and no
   longer read. A consumer that set any of these in a
   settings `env` block must re-express the value as the matching `userConfig` option.
-  Zero-config behavior is unchanged (all guards on, same defaults). The
-  `HOOK_TELEMETRY_SINK` consumer-side telemetry seam is unaffected.
+  Zero-config behavior is unchanged (all guards on, same defaults).
+  Consumer-side telemetry through `HOOK_TELEMETRY_SINK` is unaffected.

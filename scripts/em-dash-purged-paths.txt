@@ -129,6 +129,10 @@ plugins/autonomy/skills/setup/templates/*.md
 plugins/bash-format/README.md
 plugins/biome-format/README.md
 plugins/bugs/README.md
+plugins/bugs/CHANGELOG.md
+plugins/bugs/reference/*.md
+plugins/bugs/skills/*/SKILL.md
+plugins/bugs/skills/*/context/*.md
 # The claude-config plugin was purged whole. The glob stops short of the
 # audit-instructions eval fixtures, which carry the tells those evals test.
 plugins/claude-config/*.md
@@ -161,7 +165,12 @@ plugins/code-tidying/skills/*/reference/*.md
 plugins/code-tidying/skills/*/templates/*.md
 plugins/code-tidying/skills/tidy/lanes/*.md
 plugins/codebase-health/README.md
+plugins/codebase-health/CHANGELOG.md
 plugins/codebase-health/skills/*/SKILL.md
+plugins/codebase-health/skills/audit/context/*.md
+plugins/codebase-health/skills/audit/reference/*.md
+plugins/codebase-health/skills/audit/templates/*.md
+plugins/codebase-health/skills/setup/templates/*.md
 plugins/computer-use/README.md
 plugins/context-budget/README.md
 # The context-guard plugin was purged whole. Its legacy-statusline reference is the canonical copy
@@ -173,7 +182,14 @@ plugins/context-guard/skills/*/SKILL.md
 plugins/context-guard/skills/*/reference/*.md
 plugins/rate-limit-guard/skills/setup/reference/legacy-statusline-detect.md
 plugins/context7/README.md
+plugins/context7/CHANGELOG.md
+plugins/context7/skills/*/SKILL.md
+plugins/context7/skills/lookup/context/*.md
 plugins/coupling/README.md
+plugins/coupling/CHANGELOG.md
+plugins/coupling/reference/topic-docs.md
+plugins/coupling/skills/*/SKILL.md
+plugins/coupling/skills/reduce/reference/*.md
 plugins/debugging/README.md
 plugins/debugging/skills/*/SKILL.md
 plugins/desktop-notification/README.md
@@ -212,6 +228,10 @@ plugins/education/skills/*/SKILL.md
 plugins/education/skills/teach/context/*.md
 plugins/eol-normalizer/README.md
 # The event-storming plugin was purged whole, its simulation eval fixtures included.
+plugins/evals/README.md
+plugins/evals/CHANGELOG.md
+plugins/evals/skills/*/SKILL.md
+plugins/evals/skills/methodology/reference/*.md
 plugins/event-storming/*.md
 plugins/event-storming/skills/*/SKILL.md
 plugins/event-storming/skills/*/reference/*.md
@@ -262,6 +282,11 @@ plugins/knowledge/skills/map-corpus/verification/*.md
 plugins/knowledge/skills/video-digest/extraction/liveness/*.md
 # The machine-health plugin was purged whole, including the report template the audit
 # orchestrator extracts by regex and the Windows fixture README.
+plugins/mcp-tools/README.md
+plugins/mcp-tools/CHANGELOG.md
+plugins/mcp-tools/skills/*/SKILL.md
+plugins/mcp-tools/skills/audit/reference/*.md
+plugins/mcp-tools/skills/audit/evals/fixtures/*.md
 plugins/machine-health/*.md
 plugins/machine-health/skills/*/SKILL.md
 plugins/machine-health/skills/audit/*.md
@@ -274,7 +299,9 @@ plugins/markdown-format/skills/*/SKILL.md
 plugins/miro/README.md
 plugins/mutation-testing/README.md
 plugins/naming/README.md
+plugins/naming/CHANGELOG.md
 plugins/naming/skills/*/SKILL.md
+plugins/naming/skills/name-it-better/context/*.md
 # The overengineering plugin was purged whole. The findings-artifact member-entry template keeps
 # its em dashes: there they are field delimiters, and the prose below the fence defines the parse
 # by counting them. Fenced blocks are detector-exempt, so the gate honours that.
@@ -314,6 +341,8 @@ plugins/playwright/skills/playwright/actions/*.md
 plugins/playwright/skills/playwright/reference/*.md
 plugins/plugin-quality/README.md
 plugins/powershell-format/README.md
+plugins/powershell-format/CHANGELOG.md
+plugins/powershell-format/skills/*/SKILL.md
 plugins/prototype/README.md
 plugins/prototype/skills/*/SKILL.md
 plugins/provenance/README.md
@@ -396,6 +425,8 @@ plugins/toolchain/reference/*.md
 plugins/toolchain/skills/*/SKILL.md
 plugins/toolchain/skills/check/context/*.md
 plugins/typos-format/README.md
+plugins/typos-format/CHANGELOG.md
+plugins/typos-format/skills/*/SKILL.md
 plugins/verification/README.md
 plugins/verification/CHANGELOG.md
 plugins/verification/reference/topic-docs.md
@@ -429,3 +460,6 @@ plugins/writing/README.md
 plugins/writing/skills/*/SKILL.md
 plugins/writing/skills/*/reference/*.md
 plugins/x/README.md
+plugins/x/CHANGELOG.md
+plugins/x/skills/*/SKILL.md
+plugins/x/skills/read/context/*.md

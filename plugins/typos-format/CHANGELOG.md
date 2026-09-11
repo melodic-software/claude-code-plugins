@@ -8,6 +8,9 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
 ### Changed
 
 - **Options reference drops its em dashes.** The generated How-to-set-these block is rewritten by `scripts/sync-plugin-options-docs.py`, which is the fix site: its output is regenerated, never hand-edited. The block no longer needs the ignore marker that exempted it from the repository's em-dash gate, so that marker is gone as well.
+- **The plugin's prose drops its em dashes.** This changelog and `skills/setup/SKILL.md` were rewritten. Wording only, with no change to any hook, flag, or default. No heading was touched, so every release still parses. The setup body's two reconfiguration lines converged byte-for-byte on the wording its sibling plugins already carry. The released sections corrected in place are 0.6.41, 0.6.26, 0.6.25, 0.6.23, 0.6.21, 0.6.16, 0.6.13, 0.6.6, 0.6.4, 0.6.3, 0.6.2, 0.6.1, 0.6.0, 0.5.3, 0.5.2, 0.5.1, 0.5.0, 0.4.4, 0.4.3, 0.4.2, 0.4.1, 0.4.0, 0.3.4, 0.3.2, 0.3.1, 0.3.0, 0.2.0, and 0.1.0: their wording changed, their facts did not.
+- **Two entries say what a case carries instead of calling it load-bearing.** They now read "the one case where it matters" and "deliberate and required".
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md` and every `skills/*/SKILL.md`.
 
 - **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
 
@@ -913,12 +916,12 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
   contract; one that arrives claiming a heavily-rewritten file was untouched is
   not. The shared `hook::emit_telemetry` still hands the finished payload over
   as an argument (#1595), so an oversized envelope is currently dropped rather
-  than delivered — the correct failure direction, and what the scale assertion
-  pins.
+  than delivered. That is the correct failure direction, and what the scale
+  assertion pins.
 - **The disclosure is bounded by characters, not only by entry count.** Capping
   the list at ten entries does not cap the message: a token or a correction is
   arbitrary text from the file, so ten long ones overrun the 10,000-character
-  `systemMessage` cap and the channel truncates or rejects the disclosure —
+  `systemMessage` cap and the channel truncates or rejects the disclosure,
   after the file has already been rewritten, which is the one outcome this path
   exists to prevent. Rendered tokens are elided at 60 characters and each
   channel carries a hard ceiling, with the truncation stated in the message.
@@ -932,7 +935,7 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
 
 ### Changed
 
-- **Test scaffolding: migrated `mktemp -p` temp file/dir creation to the portable `mktemp "$DIR/template"` form.** BSD/macOS `mktemp` has no `-p` flag; the directory now rides in the positional TEMPLATE argument instead, which both GNU and BSD `mktemp` accept identically. Test-only — no hook behavior change. Part of #1527 (`typos-format.test.sh`).
+- **Test scaffolding: migrated `mktemp -p` temp file/dir creation to the portable `mktemp "$DIR/template"` form.** BSD/macOS `mktemp` has no `-p` flag; the directory now rides in the positional TEMPLATE argument instead, which both GNU and BSD `mktemp` accept identically. Test-only, with no hook behavior change. Part of #1527 (`typos-format.test.sh`).
 
 ## [0.3.3]
 
@@ -959,8 +962,8 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
   both halves to `-s user`. When this plugin is installed at `project` or `local` scope, that
   silently uninstalled a separate user-scope record while the effective project/local install kept
   loading, and the reinstall landed at a scope that does not load. Both commands now carry
-  `-s <scope>`, sourced from what `claude plugin list` reports for this plugin — the same fix
-  already applied to `session-flow` and `rate-limit-guard` in #1393.
+  `-s <scope>`, sourced from what `claude plugin list` reports for this plugin. This is the same
+  fix already applied to `session-flow` and `rate-limit-guard` in #1393.
 
 ## [0.3.1]
 
@@ -969,7 +972,7 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
 - Sync of the shared `hook-utils.sh`: the git-option parser distinguishes `--config-env`
   (an env-var name) from `-c`/`--config` (an inline value), and a `--config-env` alias for
   a guarded subcommand is refused by shape rather than by resolving the environment
-  variable's value (`#740`). No behavior change for this plugin — it does not inspect git
+  variable's value (`#740`). No behavior change for this plugin, which does not inspect git
   config values; shipped so consumers receive the shared library update.
 
 ## [0.3.0]
@@ -978,8 +981,8 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
 
 - **`statusMessage` declared on the hook's `hooks.json` handler** (hook-observability
   convention, `docs/conventions/hook-observability/`): a spinner label ("Fixing
-  typos...") now shows while the hook runs. Config-only — no runtime behavior
-  change.
+  typos...") now shows while the hook runs. Config-only, with no runtime
+  behavior change.
 
 ## [0.2.0]
 
@@ -987,13 +990,13 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
 
 - **Removed the opt-in config-gate.** The hook now runs `typos --write-changes`
   unconditionally on every `Write`/`Edit`, matching `markdown-format`'s existing
-  unconditional pattern — typos ships a built-in spelling dictionary and needs
+  unconditional pattern, because typos ships a built-in spelling dictionary and needs
   no configuration to be useful. Previously the hook silently no-op'd on any
   repo without a hand-authored `typos.toml`/`_typos.toml`/`.typos.toml`/
   `Cargo.toml`/`pyproject.toml`, defeating the plugin's zero-config auto-fix
   purpose on exactly the repos it was meant to help. A consumer typos config,
   when present, is still discovered and honored automatically by typos itself
-  (allowlist/exclude) — this hook never re-implemented that discovery and
+  (allowlist/exclude). This hook never re-implemented that discovery and
   still doesn't; only the activation gate is removed.
 
 ## [0.1.0]
@@ -1006,7 +1009,7 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
   found by an ancestor walk-up, mirroring the `ruff-format`/`markdown-format`
   plugin pattern. Residual (unfixable) findings surface via `additionalContext`
   with remediation guidance pointing at `extend-words` / `extend-identifiers` /
-  `extend-ignore-re` allowlist entries. Advisory only — never blocks the edit.
+  `extend-ignore-re` allowlist entries. Advisory only, never blocking the edit.
 - `hook-telemetry` conformance: emits a schema-valid envelope
   (`docs/conventions/hook-telemetry/data/typos-format.schema.json`) via the
   shared `hook::emit_telemetry` helper.

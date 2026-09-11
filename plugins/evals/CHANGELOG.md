@@ -1,10 +1,13 @@
-# Changelog — evals
+# Changelog: evals
 
 ## [0.2.3]
 
 ### Changed
 
 - **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
+- **The plugin's prose drops its em dashes.** Eight surfaces were rewritten: this changelog, the README, both SKILL bodies, and the four `skills/methodology/reference/` documents. Wording only, with no change to any criteria dimension, recipe, or grading rule. Both skill bodies keep every trigger phrase byte-identical (19 across the two, confirmed by `check-skill.sh`), and the quoted cookbook and Likert strings are unchanged inside their quotes. Four headings changed anchor; nothing in the repository linked to them. The released sections corrected in place are 0.2.0 and 0.1.0: their wording changed, their facts did not.
+- **`skills/methodology/SKILL.md` says which detail must be current instead of calling it load-bearing.** It now reads "any detail that must be current", matching the wording the same body already uses a few lines above.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md`, every `skills/*/SKILL.md`, and the `skills/methodology/reference/` tree.
 
 ## [0.2.2]
 
@@ -27,19 +30,19 @@
 
 - **The bare `/<skill>` alias for this plugin's skills.** Their `SKILL.md` files no longer
   declare a frontmatter `name`. The field is optional and defaults to the directory name, so
-  declaring it only restated the path while registering a second, unnamespaced command — which
-  the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
+  declaring it only restated the path while registering a second, unnamespaced command. The
+  slash-command picker then echoed that back as `/plugin:skill (skill)`. Invoke a skill by its
   namespaced command; the command itself is unchanged.
 
 ## 0.1.0
 
 - Initial release.
-- `/evals:methodology` — knowledge router distilled from Anthropic's "Define success criteria and
+- `/evals:methodology`, the knowledge router distilled from Anthropic's "Define success criteria and
   build evaluations" (platform.claude.com, fetched 2026-08-08) and the evals cookbook
   (`anthropics/claude-cookbooks` `misc/building_evals.ipynb`): four reference spokes
   (success criteria, eval design, grading methods, recipes), a no-load quick decision guide, and a
   maintainer `update` drift-check action.
-- `/evals:design` — interviews for specific/measurable/achievable/relevant success criteria, then
+- `/evals:design` interviews for specific/measurable/achievable/relevant success criteria, then
   scaffolds a criteria doc plus a graded eval suite: `cases.jsonl` + README for an LLM app, or
   `evals/evals.json` in the marketplace schema shape for a consumer-authored Claude Code skill.
   Ships evals covering criteria-first routing, schema-shape emission, grading-ladder choice,

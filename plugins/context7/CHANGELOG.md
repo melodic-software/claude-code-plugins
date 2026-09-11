@@ -3,6 +3,14 @@
 All notable changes to the `context7` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.5]
+
+### Changed
+
+- **The plugin's prose drops its em dashes.** Five surfaces were rewritten: this changelog and the four `skills/lookup/context/` documents. Wording only, with no change to any command, flag, transport, or quota rule. Two em dashes inside fenced bash examples are left alone, because there they sit in a command a reader copies. No heading changed, so no anchor moved. The released sections corrected in place are 0.5.0, 0.4.3, 0.4.2, and 0.3.1: their wording changed, their facts did not.
+- **The vendored upstream tree under `skills/lookup/vendor/` is untouched.** It is reference material from the Context7 project, not this repository's writing, and the repository's own rule keeps its formatting out of the house style.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md`, every `skills/*/SKILL.md`, and the `skills/lookup/context/` tree. The vendor tree stays excluded.
+
 ## [0.5.4]
 
 ### Changed
