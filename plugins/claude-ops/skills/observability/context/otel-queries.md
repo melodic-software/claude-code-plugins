@@ -1,4 +1,4 @@
-# OTEL store queries — DuckDB and Aspire
+# OTEL store queries: DuckDB and Aspire
 
 Init file: [../otel/cc-otel.sql](../otel/cc-otel.sql). Read routing: [read-routing.md](read-routing.md).
 
@@ -79,7 +79,7 @@ the same semantics; `cc-otel.sql` coalesces both into the `source` column.
 **Use when:** "which tool calls were denied?", "why was this tool call blocked?", "how many
 permission denials this session?"
 
-**Do not:** search session transcripts or hook-events.jsonl — those surfaces do not carry
+**Do not:** search session transcripts or hook-events.jsonl. Those surfaces do not carry
 permission outcomes.
 
 **Attribution caveat:** `source='config'` lumps settings, allow/deny rules, managed

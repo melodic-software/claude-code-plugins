@@ -1,4 +1,4 @@
-# Raw candidate items — pre-categorize batch
+# Raw candidate items: pre-categorize batch
 
 Unranked, unfiltered items collected this run via approved source classes (official vendor
 blogs, GitHub releases, RSS/Atom feeds, secondary reporting). Categorize, apply the apolitical

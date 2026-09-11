@@ -19,4 +19,6 @@ The following three plugins consume this rule.
 | `/net-audit` | scans the tree |
 | `/net-lint` | checks the tree |
 
+<!-- ai-slop-ignore-start: detector specimen; scripts/detect.test.sh "bold roster is enum-list" and the `- **Name** — role` matcher in scripts/lib/noise-shapes.sh both require this em dash -->
 - **Agent config** — personal overlay the team file must not absorb
+<!-- ai-slop-ignore-end -->

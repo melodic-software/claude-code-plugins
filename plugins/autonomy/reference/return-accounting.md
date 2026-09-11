@@ -7,14 +7,14 @@ contract owns. No standalone estimation or reporting capability; no new cost.
 
 ## Three-layer data model
 
-1. **Machine / deterministic** — automation cost (tokens, currency, wall time) from existing
+1. **Machine / deterministic**: automation cost (tokens, currency, wall time) from existing
    session telemetry, plus lifecycle metadata definitively calculable from tracker timestamps
    and exports. Never re-instrumented; this layer is the telemetry contract's concern.
-2. **Human-attested** — (a) the counterfactual: would the org have spent engineering effort on
+2. **Human-attested**: (a) the counterfactual, would the org have spent engineering effort on
    this anyway (`yes` | `no` | `partial`); (b) the manual-effort band (below).
-3. **Agent / LLM** — prompts for layer 2 at the task boundary and analyzes/aggregates over
+3. **Agent / LLM**: prompts for layer 2 at the task boundary and analyzes/aggregates over
    layers 1+2. It never estimates, imputes, or backfills the two human-attested fields.
-   Revisit trigger: models proven capable at effort estimation — the constraint is
+   Revisit trigger: models proven capable at effort estimation. The constraint is
    conditional, not permanent.
 
 ## Record schema (v1)
@@ -25,24 +25,24 @@ contract owns. No standalone estimation or reporting capability; no new cost.
 | `work_item_url` | the join key; value contract defined by the telemetry contract's `autonomy.work_item.url` |
 | `attested` | boolean |
 | `counterfactual` | `yes` \| `no` \| `partial` |
-| `effort_band` | one of six contiguous ordinal tokens: `<1h`, `1-4h`, `4h-1d`, `1d-1w`, `1w-1mo`, `>1mo` — serialized as those exact strings; ordinal order is defined by this contract, never lexical |
+| `effort_band` | one of six contiguous ordinal tokens: `<1h`, `1-4h`, `4h-1d`, `1d-1w`, `1w-1mo`, `>1mo`, serialized as those exact strings; ordinal order is defined by this contract, never lexical |
 | `attested_at` | ISO 8601 UTC timestamp |
 | `attested_by` | the attesting human's platform identity, captured from the attestation action |
-| `attestor_role` | `requester` \| `reviewer` \| `maintainer` \| `other` (descriptive — never the trust anchor) |
-| `attestation_source` | absolute https URL of the attestation source event (the human's reply) as the platform serves it — query and fragment preserved (they often identify the comment event); the telemetry contract's strip rule applies only to the work-item join key. The auditable identity citation |
-| `attestation_request` | machine-written at close: absolute https URL of the posted attestation-request event — the identity an admissible reply must respond to; present on the unattested record whenever a request was posted (absent only for attestation-exempt classes, which post no request) |
-| `attestation_owner` | machine-written at close: the resolved accountable human's platform identity the request was addressed to (via the requester-identity source, or the standing-owner routing), with the role the resolution derived. The resolved owner must be a human platform account distinct from the bound automation identity — a resolution yielding a bot/app account (e.g. a bot-filed item under an item-author source) or the automation itself produces no owned record: the item routes to its class's declared standing owner where one exists, else capture for that item stays advisory (a machine owner would let the automation attest its own record, bypassing the never-estimate rule). Reply actors are validated against this snapshot — never a re-resolution: a post-close change of the underlying source (field edit, reassignment) does not move ownership; deliberate rerouting is a new automation-posted request that updates the snapshot |
+| `attestor_role` | `requester` \| `reviewer` \| `maintainer` \| `other` (descriptive, never the trust anchor) |
+| `attestation_source` | absolute https URL of the attestation source event (the human's reply) as the platform serves it, with query and fragment preserved (they often identify the comment event); the telemetry contract's strip rule applies only to the work-item join key. The auditable identity citation |
+| `attestation_request` | machine-written at close: absolute https URL of the posted attestation-request event, the identity an admissible reply must respond to; present on the unattested record whenever a request was posted (absent only for attestation-exempt classes, which post no request) |
+| `attestation_owner` | machine-written at close: the resolved accountable human's platform identity the request was addressed to (via the requester-identity source, or the standing-owner routing), with the role the resolution derived. The resolved owner must be a human platform account distinct from the bound automation identity. A resolution yielding a bot/app account (e.g. a bot-filed item under an item-author source) or the automation itself produces no owned record: the item routes to its class's declared standing owner where one exists, else capture for that item stays advisory (a machine owner would let the automation attest its own record, bypassing the never-estimate rule). Reply actors are validated against this snapshot, never a re-resolution: a post-close change of the underlying source (field edit, reassignment) does not move ownership; deliberate rerouting is a new automation-posted request that updates the snapshot |
 
 This record's `schema_version` uses major-only tokens (`"1"`, never `"1.0"`); the setup
-skill's own binding `schema_version` uses semver strings — the two are separate version
+skill's own binding `schema_version` uses semver strings. The two are separate version
 spaces with independent parsers.
 
 Presence rules: an unattested record carries `attested: false` with `counterfactual`,
 `effort_band`, `attested_at`, `attested_by`, `attestor_role`, and `attestation_source`
-absent — never null-imputed. An attested record carries all fields. `attestation_request`
+absent, never null-imputed. An attested record carries all fields. `attestation_request`
 and `attestation_owner` are machine-layer (never human-attested) and ride both states.
 
-Reply correlation: actor + parseable payload alone never attest — an accountable human can
+Reply correlation: actor + parseable payload alone never attest. An accountable human can
 type a parseable string in an unrelated discussion on the same item. An admissible
 attestation reply must respond to the recorded `attestation_request` event: the platform's
 reply/thread relationship to that event where the tracker has one; on flat-comment trackers
@@ -60,11 +60,11 @@ Per-work-class precision graduation (finer bands for a class the guardrail matri
 deferred with a trigger: aggregate data proving a class needs finer resolution. The record
 never grows a class field for this: segmentation joins each record to its work item (the
 telemetry contract's join attribute) and reads the item's admission-time class from the
-governed queue's protected admission data — the surface that stamped and verified the class
-at admission — falling back to re-derivation through the security-surface classification
+governed queue's protected admission data, the surface that stamped and verified the class
+at admission, falling back to re-derivation through the security-surface classification
 rules (current-epoch class, a stated approximation) where queue history is not retained.
 
-## Record lifecycle — attestation is asynchronous
+## Record lifecycle: attestation is asynchronous
 
 Autonomous-class work has no human at the close boundary by construction, so:
 
@@ -72,20 +72,20 @@ Autonomous-class work has no human at the close boundary by construction, so:
    record plus an attestation request routed to the accountable human. The close flow never
    blocks on a human.
 2. Attestation later upserts the same record to `attested: true`, adding the attested fields.
-3. A never-attested record stays visible as unattested — missing data is visible, never
+3. A never-attested record stays visible as unattested: missing data is visible, never
    imputed.
 
 Attestation routing for requester-less classes (standing routines, scheduled sweeps): the
 binding declares a standing attestation owner per class, or marks the class
-attestation-exempt with its cost reported separately — never a perpetually-unattested
+attestation-exempt with its cost reported separately, never a perpetually-unattested
 default. For ordinary (requester-carrying) items the requester is the routing, but who the
 requester is per tracker class (item author, a named custom field, another tracker-specific
-identity) is not derivable from the tracker class token alone — the binding names the
+identity) is not derivable from the tracker class token alone. The binding names the
 requester-identity source the attestation request is addressed to and the attesting actor is
 validated against; it is never guessed. A requester-less routing entry's per-surface key
 must be recoverable from the item at close time: the filing surface stamps its identifier
 on every item it files (an item-body marker, label, or field the binding records), and the
-close/reply handlers resolve routing by reading that stamp — never by title matching or
+close/reply handlers resolve routing by reading that stamp, never by title matching or
 other ad-hoc correlation. A surface that cannot stamp its identifier leaves its routing
 entry unwired and reported.
 
@@ -93,12 +93,12 @@ Capture scope: autonomous-class work only, per the guardrail contract's class vo
 interactive work is exempt (prompting friction kills compliance; divergence lives where no
 human is in the loop). Expansion trigger: aggregate spend concentrating in interactive work.
 
-## The prompt — two fields, never more
+## The prompt: two fields, never more
 
 Canonical basis, near-verbatim:
 
-1. "Would you have spent engineering effort on this anyway?" — `yes` / `no` / `partial`
-2. "What would it have cost in manual eng-hours?" — one effort band
+1. "Would you have spent engineering effort on this anyway?" Answer: `yes` / `no` / `partial`
+2. "What would it have cost in manual eng-hours?" Answer: one effort band
 
 Non-blocking, with an explicit skip affordance; a skip leaves the record unattested.
 
@@ -107,8 +107,8 @@ Non-blocking, with an explicit skip affordance; a skip leaves the record unattes
 The record surface resolves per tracker class through the binding:
 
 - **Native fields** where the tracker class supports them (org-managed item fields,
-  project-scheme fields, work-item fields) — the stronger surface where entitled: platform
-  ACLs govern writes.
+  project-scheme fields, work-item fields). This is the stronger surface where entitled:
+  platform ACLs govern writes.
 - **Structured comment** as the universal floor (every tracker class has comments): a hidden
   marker `<!-- autonomy:return-accounting:v1 -->` plus one fenced JSON block holding the
   record. Upsert is marker-keyed: find the marker comment, edit it in place, else create it.
@@ -118,17 +118,17 @@ identity; consumers must ignore marker-matching records from any other author. T
 floor carries authorship structurally (every comment is platform-attributed); native field
 values carry no author, so native fields are a conforming record surface only where writes
 to the record fields are restricted to the automation identity by platform ACL, or a
-queryable field-audit trail attributes every write to its actor — absent both, a manually
+queryable field-audit trail attributes every write to its actor. Absent both, a manually
 edited field set would be indistinguishable from an authentic attestation, and the comment
 floor applies. Attestor
-identity derives from the platform actor of the attestation action — on the comment floor
+identity derives from the platform actor of the attestation action. On the comment floor
 the upsert itself is bot-authored, so `attested_by` must be copied from, and the record must
-cite, the attestation source event (the human's reply whose platform actor answered — the
+cite, the attestation source event (the human's reply whose platform actor answered). That
 reply must carry both attested values; an actor-only signal such as a bare reaction cannot
-attest). `attestor_role` is likewise derived, never free-chosen: the derivation runs at
-close time, when the accountable owner is resolved into the `attestation_owner` snapshot —
-`requester` when resolution went through the binding's requester-identity source, else the
-role the matched standing-owner routing entry declares (default `other`) — and the handler
+attest. `attestor_role` is likewise derived, never free-chosen: the derivation runs at
+close time, when the accountable owner is resolved into the `attestation_owner` snapshot,
+as `requester` when resolution went through the binding's requester-identity source, else as
+the role the matched standing-owner routing entry declares (default `other`). The handler
 writes the snapshot's role; the requester-attested versus independently-attested
 aggregation split depends on this derivation.
 
@@ -136,7 +136,7 @@ Duplicate tolerance: the standalone capture path's find-then-create has an inher
 create-create race. Dedupe on read is attestation-preserving: an attested bot-authored record
 outranks any unattested one; only among equally-attested records does the latest win. The
 write rule has the same property: the close trigger creates the unattested record only when
-no marker-matching bot-authored record exists — a re-fired or retried close never overwrites
+no marker-matching bot-authored record exists, so a re-fired or retried close never overwrites
 or downgrades an existing record's attestation fields.
 
 Attestation has the complementary property: it updates an existing close-time unattested
@@ -145,26 +145,26 @@ re-run it, so a parseable reply on an item carrying no close-time bot-authored r
 nothing. On the comment floor the marker lookup enforces this structurally (no marker
 comment, nothing to edit); a native-field handler has no lookup and must verify the
 close-time unattested record is present on the item's fields before writing the attested
-fields — and where the surface was admitted on the audit-trail alternative rather than
+fields. Where the surface was admitted on the audit-trail alternative rather than
 automation-only ACLs, presence alone proves nothing (any field-writer can forge a
 conforming unattested set): the handler must confirm through the audit trail that the bound
-automation identity created the close-time record — and that every subsequent revision of
+automation identity created the close-time record, and that every subsequent revision of
 the record fields was likewise written by it: on this path field writes are not
 ACL-restricted, so a later non-automation edit of any record field (a hand-edited
-`counterfactual` or `effort_band`) makes the record non-conforming — the handler rejects it
+`counterfactual` or `effort_band`) makes the record non-conforming. The handler rejects it
 for attestation and consumers ignore it on read, exactly as they ignore a foreign-authored
 marker comment. Under automation-only ACLs the restriction itself is the authorship proof
 for creation and revisions alike.
 
-## The join — query-side only
+## The join: query-side only
 
 The return record and the cost telemetry both carry the work-item join value; the join
 happens at the sink at query time against cost telemetry (resource-scoped on agent-session
 signals per the telemetry contract). Cost values are never duplicated into the tracker
 record; aggregation and reporting transport are the telemetry contract's sink concern.
 
-Aggregation guidance: report the attestation rate as a first-class health signal — a
-collapsed rate invalidates the dataset as promotion evidence — and separate
+Aggregation guidance: report the attestation rate as a first-class health signal, since a
+collapsed rate invalidates the dataset as promotion evidence, and separate
 requester-attested from independently-attested rows (a self-attested counterfactual is a
 conflict of interest).
 

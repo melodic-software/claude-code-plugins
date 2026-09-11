@@ -4,7 +4,7 @@ Install, configure, command reference, flags, env vars, and Windows-specific got
 
 > Verified 2026-07-18 against `ctx7` 0.5.5 (live `--help`/`--version` output) and
 > [Context7's CLI docs](https://context7.com/docs/clients/cli).
-> The CLI moves fast — re-check against a current install before acting on a row.
+> The CLI moves fast. Re-check against a current install before acting on a row.
 
 ## Install
 
@@ -13,7 +13,7 @@ npm install -g ctx7@latest
 ctx7 --version  # 0.5.5 or later
 ```
 
-Fallback (no global install): `npx ctx7@latest <command>` — slower per-invocation, no PATH ceremony.
+Fallback (no global install): `npx ctx7@latest <command>`. It is slower per invocation, but needs no PATH setup.
 
 ## Authentication
 
@@ -23,9 +23,9 @@ CLI works anonymously for low-rate usage. For higher limits, set the `CONTEXT7_A
 export CONTEXT7_API_KEY="<your-key>"
 ```
 
-Set it wherever your project manages local environment variables (shell profile, a gitignored local settings file, or your secret manager) — never commit the key.
+Set it wherever your project manages local environment variables (shell profile, a gitignored local settings file, or your secret manager). Never commit the key.
 
-**Prefer the env var over `ctx7 login`** — `login` triggers browser OAuth and writes a token to `~/.ctx7/`. The env-var approach is simpler, cross-machine-portable, and doesn't pollute the user profile. If `login` was run anyway, it's harmless but redundant — delete `~/.ctx7/` to revert.
+**Prefer the env var over `ctx7 login`.** `login` triggers browser OAuth and writes a token to `~/.ctx7/`. The env-var approach is simpler, cross-machine-portable, and doesn't pollute the user profile. If `login` was run anyway, it's harmless but redundant. Delete `~/.ctx7/` to revert.
 
 ## Commands
 
@@ -33,13 +33,13 @@ Set it wherever your project manages local environment variables (shell profile,
 |---|---|
 | `ctx7 library <name> [query]` | Resolve library name to a Context7 library ID (the query argument is optional, but pass one: it drives ranking) |
 | `ctx7 docs <libraryId> <query>` | Fetch documentation for a resolved library |
-| `ctx7 setup [flags]` | Configure Context7 for an IDE (this plugin does NOT use it — see below) |
-| `ctx7 login` / `logout` / `whoami` | OAuth flow (this plugin does NOT use it — env var is enough) |
+| `ctx7 setup [flags]` | Configure Context7 for an IDE (this plugin does NOT use it, see below) |
+| `ctx7 login` / `logout` / `whoami` | OAuth flow (this plugin does NOT use it, since the env var is enough) |
 | `ctx7 remove` / `uninstall` | Remove a `setup`-installed agent configuration (this plugin does NOT use it) |
 | `ctx7 upgrade` | Self-upgrade the CLI |
-| `ctx7 skills install <repo> [skill]` | Install skills from a GitHub repo (this plugin does NOT use it — see below) |
+| `ctx7 skills install <repo> [skill]` | Install skills from a GitHub repo (this plugin does NOT use it, see below) |
 
-**The whole `ctx7 skills` surface is deprecated upstream as of 0.5.5** — hidden from `--help`, still
+**The whole `ctx7 skills` surface is deprecated upstream as of 0.5.5**: hidden from `--help`, still
 runnable, with an in-tool warning that it "will stop working in the next major release". This plugin
 never invokes it (see below), so no behavior here depends on it.
 
@@ -65,9 +65,9 @@ never invokes it (see below), so no behavior here depends on it.
 
 `ctx7 setup --claude --project --cli` and `ctx7 skills install /upstash/context7 find-docs --claude --yes` both install Upstash's skills into `.claude/skills/`. **This plugin does not use these** because:
 
-1. They create a parallel `find-docs/` skill that fragments the lookup surface — this plugin owns the lookup workflow
-2. `ctx7 skills install` re-fetched overwrites local customizations with zero warning — it would destroy the Windows gotcha notes, CLI-vs-MCP guidance, and action dispatch
-3. This plugin's `update` action ([update.md](update.md)) fetches upstream skill content for diffing, but integrates changes manually — a human reviews the merge
+1. They create a parallel `find-docs/` skill that fragments the lookup surface. This plugin owns the lookup workflow
+2. `ctx7 skills install` re-fetched overwrites local customizations with zero warning. It would destroy the Windows gotcha notes, CLI-vs-MCP guidance, and action dispatch
+3. This plugin's `update` action ([update.md](update.md)) fetches upstream skill content for diffing, but integrates changes manually. A human reviews the merge
 
 ## Environment variables
 
@@ -99,8 +99,8 @@ MSYS_NO_PATHCONV=1 ctx7 docs /facebook/react "useEffect cleanup"
 ```
 
 - Prefix disables MSYS path conversion for that one invocation
-- No-op on macOS/Linux — safe to always include
-- Double-slash workaround (`//facebook/react`) does **not** work — ctx7 rejects it as malformed
+- No-op on macOS/Linux, so it is safe to always include
+- Double-slash workaround (`//facebook/react`) does **not** work. ctx7 rejects it as malformed
 - `ctx7 library` is unaffected (its first argument doesn't start with `/`)
 
 This is a Git Bash quirk, not a `ctx7` bug. Any CLI taking `/org/project`-style IDs hits the same thing on Windows.
@@ -135,4 +135,4 @@ ctx7 library "Entity Framework Core" "tracking" --json | jq 'sort_by(-.benchmark
 - No MCP server configured, or restricted networks where `mcp.context7.com` is blocked
 - Structured extraction with `--json`
 
-When not to: conversational lookups where the model picks the tool — MCP is more discoverable and returns more content. See [mcp.md](mcp.md) for that side.
+When not to: conversational lookups where the model picks the tool. MCP is more discoverable and returns more content. See [mcp.md](mcp.md) for that side.

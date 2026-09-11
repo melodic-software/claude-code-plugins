@@ -1,5 +1,5 @@
 ---
-description: "Ground an approach in how a Dometrain course teaches it, via the Dometrain MCP server, and cite lessons with timestamped deep links. Use when: 'implementing', 'designing', 'reviewing', or 'debugging' anything covered by a Dometrain course — C#/.NET, ASP.NET Core, EF Core, testing, design patterns, architecture, messaging, databases, cloud/DevOps, TypeScript, or AI development."
+description: "Ground an approach in how a Dometrain course teaches it, via the Dometrain MCP server, and cite lessons with timestamped deep links. Use when: 'implementing', 'designing', 'reviewing', or 'debugging' anything covered by a Dometrain course: C#/.NET, ASP.NET Core, EF Core, testing, design patterns, architecture, messaging, databases, cloud/DevOps, TypeScript, or AI development."
 argument-hint: "[grounding query]"
 user-invocable: true
 disable-model-invocation: false
@@ -62,8 +62,9 @@ unsure whether something is covered.
 When lesson content shapes your code or explanation, cite the deep link so the user can watch
 the source, e.g.:
 
-> Following the approach from [Design Patterns in C#: Builder — Implementing the Classic
-> Builder](https://dometrain.com/take/course/design-patterns-in-csharp-builder-2845456/implementing-the-classic-builder-pattern-57337052/?t=135)
+> Following the approach from [Implementing the Classic
+> Builder](https://dometrain.com/take/course/design-patterns-in-csharp-builder-2845456/implementing-the-classic-builder-pattern-57337052/?t=135),
+> a lesson in *Design Patterns in C#: Builder*
 
 Use the `deep_link` values returned by the tools verbatim (the `?t=<seconds>` fragment jumps to
 the right moment). Name the course using the returned `course` field.

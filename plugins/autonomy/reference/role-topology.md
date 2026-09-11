@@ -1,15 +1,14 @@
 # Role topology
 
-Normative contract for the repository roles an autonomy adoption spans. Contract text — here
-and in every sibling contract document — names roles only; the mapping from each role to an
-adopting org's real repository lives in that org's binding instance document (see
-`binding-seam.md`).
+Normative contract for the repository roles an autonomy adoption spans. Contract text here and
+in every sibling contract document names roles only. The mapping from each role to an adopting
+org's real repository lives in that org's binding instance document (see `binding-seam.md`).
 
 ## Roles
 
 | Role | Owns |
 |---|---|
-| capability-distribution home | The distributable capabilities and their contract documents — this plugin's own home. |
+| capability-distribution home | The distributable capabilities and their contract documents. This plugin's own home. |
 | CI-orchestration home | Reusable pipeline execution logic: event handlers, emission steps, verification lanes. |
 | settings-as-code home | Declarative platform settings: labels, permissions, runner-policy admission, repository configuration. |
 | org-policy home | Org-wide policy and conventions, including the org's binding instance document. |
@@ -19,9 +18,9 @@ adopting org's real repository lives in that org's binding instance document (se
 
 A signal adapter (an event or schedule that starts governed autonomous work) splits by role:
 
-- **Handler logic** — the executable steps a pipeline runs — lands in the CI-orchestration home.
-- **Enabling settings** — labels, permissions, admission policy that let the handler fire —
-  land in the settings-as-code home. Admission-policy changes are reviewed contract changes,
+- **Handler logic**, the executable steps a pipeline runs, lands in the CI-orchestration home.
+- **Enabling settings** land in the settings-as-code home: labels, permissions, and admission
+  policy that let the handler fire. Admission-policy changes are reviewed contract changes,
   never silent edits.
 
 ## Composition stance

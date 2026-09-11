@@ -11,7 +11,7 @@ playwright-cli -s=auth    fill e1 "user@example.com"
 playwright-cli -s=public  snapshot
 ```
 
-Each `-s=<name>` is its own daemon-managed browser. Default (unnamed) session is fine for one-off commands but hard to isolate in multi-step flows — use names.
+Each `-s=<name>` is its own daemon-managed browser. Default (unnamed) session is fine for one-off commands but hard to isolate in multi-step flows, so use names.
 
 ## Session lifecycle
 
@@ -72,7 +72,7 @@ Supported channels: `chrome`, `chrome-beta`, `chrome-dev`, `chrome-canary`, `mse
 
 ## Patterns
 
-**Concurrent scraping** — open N browsers in parallel, then collect:
+**Concurrent scraping**: open N browsers in parallel, then collect:
 
 ```bash
 playwright-cli -s=site1 open https://site1.com &
@@ -85,7 +85,7 @@ playwright-cli -s=site3 snapshot
 playwright-cli close-all
 ```
 
-**A/B comparison** — two sessions, identical flow, diff screenshots:
+**A/B comparison**: two sessions, identical flow, diff screenshots:
 
 ```bash
 playwright-cli -s=variant-a open "https://app.com?variant=a"

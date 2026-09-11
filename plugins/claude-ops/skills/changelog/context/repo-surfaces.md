@@ -1,6 +1,6 @@
 # Repo surfaces for CC changelog integration
 
-Surface categories to check when a CC changelog item lands. Referenced by `/claude-ops:changelog` (Phase 1 explore). The concrete file set varies per consumer repo — enumerate what exists (`ls`, `Glob`) before grepping; skip categories the repo doesn't have.
+Surface categories to check when a CC changelog item lands. Referenced by `/claude-ops:changelog` (Phase 1 explore). The concrete file set varies per consumer repo, so enumerate what exists (`ls`, `Glob`) before grepping; skip categories the repo doesn't have.
 
 ## Surface categories
 
@@ -10,7 +10,7 @@ Surface categories to check when a CC changelog item lands. Referenced by `/clau
 |---|---|
 | `CLAUDE.md` (+ `CLAUDE.local.md`) | CLI references, workflow guidance, feature mentions |
 | `AGENTS.md` | Prerequisites, tool references |
-| `.claude/rules/**/*.md` (when present) | Quirks/workaround docs keyed to CC behavior — behavioral changes may obsolete entries; new features may need new ones |
+| `.claude/rules/**/*.md` (when present) | Quirks/workaround docs keyed to CC behavior. Behavioral changes may obsolete entries; new features may need new ones |
 
 ### Configuration
 

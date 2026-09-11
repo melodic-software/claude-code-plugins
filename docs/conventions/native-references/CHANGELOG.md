@@ -1,4 +1,4 @@
-# Native-references convention — changelog
+# Changelog for the native-references convention
 
 Notable changes to the native-references contract. Per the README's Versioning section, changing a
 required part of the description phrase, the canonical gate token, or an enforceability verdict is a
@@ -6,7 +6,7 @@ major change; additive guidance is minor; clarification is a patch. The doc ship
 unnumbered, which this file reads as **1.0**; the entry below is the first recorded change and lands
 the changelog the README said would arrive with it.
 
-## 1.1.0 — 2026-09-11
+## [1.1.0] - 2026-09-11
 
 Additive: no required part of the description phrase moves and the canonical gate token is
 unchanged. One enforceability row is added, and the meaning of a store row with no baked line is
@@ -33,7 +33,7 @@ split by surface.
 - Adopters table gains `/claude-config:audit-instructions`, `/evals:methodology`, and
   `/playbooks:fable-5`, each carrying a Boundary section for the bundled `claude-api` skill.
 
-## 1.0.1 — 2026-08-28
+## [1.0.1] - 2026-08-28
 
 Clarification patch: no required part of the description phrase moves, the canonical gate token is
 unchanged, and no enforceability verdict changes. Three citations of another plugin's skill

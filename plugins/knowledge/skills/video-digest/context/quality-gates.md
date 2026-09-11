@@ -1,16 +1,16 @@
-# Video digest watch — quality gates
+# Video digest watch: quality gates
 
-Binary criteria for `/knowledge:video-digest watch`. A phase is not done when it *feels* done — it is done when artifact-grounded checks pass. Same discipline as an external-research outcome gate and a workflow checklist tick.
+Binary criteria for `/knowledge:video-digest watch`. A phase is not done when it *feels* done. It is done when artifact-grounded checks pass. Same discipline as an external-research outcome gate and a workflow checklist tick.
 
 **SSOT for numeric floors:** `outcomeFloors()` in `${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/evals/check-watch-outcomes.js` (do not duplicate numbers elsewhere without syncing).
 
 ## Tick discipline
 
 1. Initialize `watch-checklist.md` at skill session start (`init-watch-checklist.js`).
-2. Tick `[ ]` → `[x]` only after **verification evidence** — cite command exit code, artifact path, or verify row in the checklist or adjacent log line.
+2. Tick `[ ]` → `[x]` only after **verification evidence**: cite command exit code, artifact path, or verify row in the checklist or adjacent log line.
 3. **Blocking verify scripts** must exit 0 before ticking the matching phase-complete box or setting `watch.json` `status: complete`.
-4. Satisficing ("we have 14 frames, close enough") is a FAIL — re-run the named phase.
-5. **Synthesis contract:** `context/synthesis-contract.md` — transcript-gap bar, vision-gated names, staged deck-first; overrides count-chasing.
+4. Satisficing ("we have 14 frames, close enough") is a FAIL. Re-run the named phase.
+5. **Synthesis contract:** `context/synthesis-contract.md`: transcript-gap bar, vision-gated names, staged deck-first; overrides count-chasing.
 
 ## Content class → outcome floors
 
@@ -25,15 +25,15 @@ Detected from `key-frames/vision-plan.md` (backtick class tag). Floors apply to 
 
 **Densification coverage:** each window in `key-frames/selection.json` `densificationWindows` must have ≥1 promoted frame timestamp inside the window **or** a gap row in `key-frames/visual-gaps.md` for that region.
 
-**Session coverage:** each session in `research/claim-inventory.md` must have ≥1 promoted synthesis frame whose timestamp falls inside the session boundary (or gap logged — prefer frame).
+**Session coverage:** each session in `research/claim-inventory.md` must have ≥1 promoted synthesis frame whose timestamp falls inside the session boundary (or gap logged, but prefer a frame).
 
 ## Phase gates (ordered)
 
-This table lists the **blocking artifacts per phase** (which must exist before the phase is done). The artifact's **lane, staged verdict, KIND, and producer** are owned by the "Output contract" table in `output-contract.md` — that is the single authoritative enumeration; do not restate staging here.
+This table lists the **blocking artifacts per phase** (which must exist before the phase is done). The artifact's **lane, staged verdict, KIND, and producer** are owned by the "Output contract" table in `output-contract.md`, the single authoritative enumeration; do not restate staging here.
 
 | Phase | Blocking artifacts | Verify script |
 | --- | --- | --- |
-| 0 Prerequisites | deps installed | Pre-computed context in SKILL.md — no MISSING |
+| 0 Prerequisites | deps installed | Pre-computed context in SKILL.md, no MISSING |
 | 0b Companion (when `source/companion-sources.md` exists) | `source/companion-digest/README.md`, `source/companion-digest/<section-slug>.md` per brief | Every section row digested; `mark-phase companion` before Phase 1; SSOT: `companion-primary-sources.md` |
 | 1 CLI bootstrap | `source/transcript.txt`, `run-state/watch.json`, `key-frames/selection.json`, tempSession paths exist | `run-watch.js` exit 0; spot-read transcript; `highVolume` true when sheets ≥8 or duration ≥2h |
 | 2 Vision plan | `key-frames/vision-plan.md` | Content class + segments + triage scope; inspection sample of 3–5 sheets recorded |
@@ -54,26 +54,26 @@ This table lists the **blocking artifacts per phase** (which must exist before t
 
 | ID | Binary criterion | FAIL → |
 | --- | --- | --- |
-| `vision-plan` | `key-frames/vision-plan.md` exists (&gt;100 chars) | Phase 2 — write plan before fan-out |
-| `claim-inventory` | `research/claim-inventory.md` exists | Phase 3 — landscape before research |
-| `synthesis-count-floor` | synthesis PNG count ≥ class floor | **warn** — do not promote junk; see `synthesis-contract.md` |
+| `vision-plan` | `key-frames/vision-plan.md` exists (&gt;100 chars) | Phase 2: write plan before fan-out |
+| `claim-inventory` | `research/claim-inventory.md` exists | Phase 3: landscape before research |
+| `synthesis-count-floor` | synthesis PNG count ≥ class floor | **warn**: do not promote junk; see `synthesis-contract.md` |
 | `synthesis-per-hour` | count / hours ≥ floor | **warn** |
-| `sheet-triage-coverage` | triage log sheets / contact sheets ≥ ratio | Phase 4 — fan out per-sheet triage |
-| `triage-json-present` | `key-frames/triage/manifest.json` validates | Phase 4 — merge batch JSON; no markdown-only triage |
-| `triage-cell-completeness` | cells per sheet match `sheet-frame-index.json` | Phase 4 — re-run sheet fan-out |
-| `triage-agentic-required` | every sheet has agentic `model` (not `selection-signals` / `heuristic` / `prng`) | Phase 4 — vision subagent per sheet |
-| `triage-batch-files-present` | `key-frames/triage/batches/sheet_NNN.json` exists for every manifest sheet | Phase 4 — write batch JSON before merge |
-| `heuristic-triage-forbidden` | markdown triage requires JSON manifest | Phase 4 — do not PRNG/heuristic-fill triage log |
-| `densification-alignment` | windows with frame or gap ≥ ratio | Phase 6 — pass 3 alignment |
-| `session-visual-coverage` | every claim-inventory session has in-window promotion | Phase 6 — per-session frame |
-| `promotion-decisions-present` | `key-frames/promotion-decisions.json` when synthesis PNG images exist | Phase 6 — vision pass before copy |
-| `synthesis-filename-policy` | no pipeline tokens (`dens-*`, `code-code-*`, `-mNNN`, etc.) | Phase 6 — rename from on-screen content; content-class rejects stay agent vision |
-| `actionable-artifacts` | `recommendations/` hub + four docs | Phase 8 — copy `templates/recommendations/` |
-| `watch-checklist-complete` | blocking ticks when `status: complete` | Phase 9 — tick 8.x + 9.1–9.4 with evidence |
-| `promotion-traceability` | every synthesis PNG has promote decision + `promotion-map.json` | Phase 6 — run `vision-gated-promote.js` |
-| `manifest-audit-parity` | manifest + audit JSON rows match PNG count | Phase 6 — render from JSON SSOT |
-| `quality-audit-failures` | no `pass: false` in `key-frame-quality-audit.json` | Phase 6 — delete failures |
-| `quality-audit` | manifest + audit `.md` + `key-frame-quality-audit.json` | Phase 6 — post-promotion review |
+| `sheet-triage-coverage` | triage log sheets / contact sheets ≥ ratio | Phase 4: fan out per-sheet triage |
+| `triage-json-present` | `key-frames/triage/manifest.json` validates | Phase 4: merge batch JSON; no markdown-only triage |
+| `triage-cell-completeness` | cells per sheet match `sheet-frame-index.json` | Phase 4: re-run sheet fan-out |
+| `triage-agentic-required` | every sheet has agentic `model` (not `selection-signals` / `heuristic` / `prng`) | Phase 4: vision subagent per sheet |
+| `triage-batch-files-present` | `key-frames/triage/batches/sheet_NNN.json` exists for every manifest sheet | Phase 4: write batch JSON before merge |
+| `heuristic-triage-forbidden` | markdown triage requires JSON manifest | Phase 4: do not PRNG/heuristic-fill triage log |
+| `densification-alignment` | windows with frame or gap ≥ ratio | Phase 6: pass 3 alignment |
+| `session-visual-coverage` | every claim-inventory session has in-window promotion | Phase 6: per-session frame |
+| `promotion-decisions-present` | `key-frames/promotion-decisions.json` when synthesis PNG images exist | Phase 6: vision pass before copy |
+| `synthesis-filename-policy` | no pipeline tokens (`dens-*`, `code-code-*`, `-mNNN`, etc.) | Phase 6: rename from on-screen content; content-class rejects stay agent vision |
+| `actionable-artifacts` | `recommendations/` hub + four docs | Phase 8: copy `templates/recommendations/` |
+| `watch-checklist-complete` | blocking ticks when `status: complete` | Phase 9: tick 8.x + 9.1–9.4 with evidence |
+| `promotion-traceability` | every synthesis PNG has promote decision + `promotion-map.json` | Phase 6: run `vision-gated-promote.js` |
+| `manifest-audit-parity` | manifest + audit JSON rows match PNG count | Phase 6: render from JSON SSOT |
+| `quality-audit-failures` | no `pass: false` in `key-frame-quality-audit.json` | Phase 6: delete failures |
+| `quality-audit` | manifest + audit `.md` + `key-frame-quality-audit.json` | Phase 6: post-promotion review |
 | `vision-metrics-honesty` (warn) | `watch.json` vision metrics ≈ triage log | Fix metrics drift; never report a triaged count the log does not carry |
 
 ### Structural vs vision fidelity
@@ -100,7 +100,7 @@ Apply your external-research capability's outcome gate per cluster before markin
 
 SSOT: `context/synthesis-contract.md`. JSON checklist: `watching/frame-triage-checklist.json` `synthesisPromotionBar`.
 
-**Reject (delete or skip — do not promote):**
+**Reject (delete or skip, never promote):**
 
 - talking-head-only, empty-or-transition, title-slide-only-without-data
 - unreadable-text, mislabeled-capture, duplicate-of-promoted-frame
@@ -112,9 +112,9 @@ SSOT: `context/synthesis-contract.md`. JSON checklist: `watching/frame-triage-ch
 
 - code-or-diagram, metrics-or-diagram-readable, demo-ui-with-claim, on-screen URL not in harvest
 
-**Pre-promotion:** Vision pass assigns semantic filename + gap note; read the actual PNG — cell index can mislabel.
+**Pre-promotion:** Vision pass assigns semantic filename + gap note; read the actual PNG, since the cell index can mislabel.
 
-**Post-promotion:** Review every `frames/*.png`. **Delete** failures — do not relocate junk under `key-frames/frames/`.
+**Post-promotion:** Review every `frames/*.png`. **Delete** failures. Do not relocate junk under `key-frames/frames/`.
 
 ## Vision triage verdicts
 
@@ -124,7 +124,7 @@ Per cell in contact sheet (`frame-triage-checklist.json` `verdicts`):
 
 **JSON SSOT:** subagents write `key-frames/triage/batches/sheet_NNN.json`; merge to `key-frames/triage/manifest.json`; render `key-frames/frame-triage-log.md` via `render-triage-log.js`. Do not treat markdown-only triage as complete.
 
-**Promotion SSOT:** `key-frames/promotion-decisions.json` → `vision-gated-promote.js` → `promotion-map.json`. **Triage SSOT:** `key-frames/triage/batches/sheet_NNN.json` → `merge-triage-json.js` → `render-triage-log.js`. No signal-derived or bulk-promote shortcuts — verify scripts enforce agentic triage and vision-gated promotion.
+**Promotion SSOT:** `key-frames/promotion-decisions.json` → `vision-gated-promote.js` → `promotion-map.json`. **Triage SSOT:** `key-frames/triage/batches/sheet_NNN.json` → `merge-triage-json.js` → `render-triage-log.js`. No signal-derived or bulk-promote shortcuts. Verify scripts enforce agentic triage and vision-gated promotion.
 
 ## High-volume fan-out
 
@@ -132,19 +132,19 @@ When `watch.json` / `selection.json` sets `highVolume: true`:
 
 - Pass 1: **one subagent per contact sheet** (no band-sampling shortcut)
 - Do not truncate frames in temp session
-- Sheet triage ratio floor is 75% for long conferences — partial triage fails the verify script
+- Sheet triage ratio floor is 75% for long conferences. Partial triage fails the verify script
 
 ## Synthesis artifacts (phase 8)
 
 | Artifact | Required |
 | --- | --- |
-| `recommendations/README.md` | Yes — hub linking menu, takeaways, questions, interview |
-| `recommendations/menu.md` | Yes — P0–P2 repo applicability menu |
+| `recommendations/README.md` | Yes, hub linking menu, takeaways, questions, interview |
+| `recommendations/menu.md` | Yes, P0–P2 repo applicability menu |
 | `recommendations/takeaways.md` | Yes |
 | `recommendations/questions.md` | Yes |
 | `recommendations/interview.md` | Yes |
-| `README.md` updated | Yes — per `templates/readme-journey.md` |
-| Auto-implement | **No** — `/planning:interview` → `/planning:plan` → `/implementation:implement` |
+| `README.md` updated | Yes, per `templates/readme-journey.md` |
+| Auto-implement | **No**: `/planning:interview` → `/planning:plan` → `/implementation:implement` |
 
 ## Complete slice
 

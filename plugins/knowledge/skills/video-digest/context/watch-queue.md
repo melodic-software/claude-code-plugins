@@ -1,8 +1,8 @@
 # Watch queue
 
-Epic-level durable queue for batching public video URLs before `/knowledge:video-digest watch`. **V1 = markdown table + filesystem claim stubs** — no JSON queue schema.
+Epic-level durable queue for batching public video URLs before `/knowledge:video-digest watch`. **V1 = markdown table + filesystem claim stubs**, with no JSON queue schema.
 
-**One queue, every source.** The on-disk epic directory stays the literal `youtube-watch` (a stable storage-format identifier, not a source claim), and there is one `claims/` namespace. Source is **never a directory level** — it lives in slice metadata (`watch.json` `sourceUrl`). A mixed YouTube + X batch shares this one queue and these claim stubs; nothing about a consumer's existing `.work/` tree changes.
+**One queue, every source.** The on-disk epic directory stays the literal `youtube-watch` (a stable storage-format identifier, not a source claim), and there is one `claims/` namespace. Source is **never a directory level**. It lives in slice metadata (`watch.json` `sourceUrl`). A mixed YouTube + X batch shares this one queue and these claim stubs; nothing about a consumer's existing `.work/` tree changes.
 
 - [Artifacts](#artifacts)
 - [Table columns](#table-columns)
@@ -21,7 +21,7 @@ Epic-level durable queue for batching public video URLs before `/knowledge:video
 | `.work/<watch-epic>/claims/<n>.json` | Row-level exclusive claim (concurrency only) |
 | `templates/queue.md` | Empty table copied on first `queue` use |
 
-Per-video work stays under `.work/<watch-epic>/<video-slug>/` (`watch.json`, slices). The queue answers **which URL next** — not phase internals.
+Per-video work stays under `.work/<watch-epic>/<video-slug>/` (`watch.json`, slices). The queue answers **which URL next**, not phase internals.
 
 Deferred queue evolutions (a JSON queue, a CLI, leases, unattended drain) are recorded in
 `${CLAUDE_PLUGIN_ROOT}/reference/ingest-deferred-decisions.md`, section 6, "video-digest queue
@@ -33,14 +33,14 @@ evolutions". Keep the `claims/<n>.json` shape stable so a later implementation c
 | --- | --- |
 | `#` | 1-based row index (stable after insert; do not renumber on complete) |
 | `URL` | Canonical source URL (canonicalized by the source layer before it is written) |
-| `video-id` | The source's slice key — dedupe key. YouTube: the 11-char video id. X: the status id (`display_id`). See `../reference/sources/`. |
-| `title` | Video title from the preflight probe (escaped + 60-char capped) — so the row is legible without opening the URL |
+| `video-id` | The source's slice key, and the dedupe key. YouTube: the 11-char video id. X: the status id (`display_id`). See `../reference/sources/`. |
+| `title` | Video title from the preflight probe (escaped + 60-char capped), so the row is legible without opening the URL |
 | `channel` | `Display Name (@handle)` from the preflight probe |
 | `slug` | Filled after first bootstrap (`derive-video-slug.js`); may be pre-filled at queue time when companion brief materialized |
 | `status` | `pending` \| `in_progress` \| `complete` \| `failed` \| `skipped` |
 | `notes` | Operator/agent notes (terminal label, error one-liner, or `companion — source/companion-sources.md`) |
 
-Claim metadata (`claimedAt`, `claimedBy`) lives in `claims/<n>.json` — not in the table — so two terminals do not fight over the same cell semantics.
+Claim metadata (`claimedAt`, `claimedBy`) lives in `claims/<n>.json`, not in the table, so two terminals do not fight over the same cell semantics.
 
 ## Skill actions
 
@@ -50,7 +50,7 @@ Claim metadata (`claimedAt`, `claimedBy`) lives in `claims/<n>.json` — not in 
 | `queue list` | Display table + list active claim files under `claims/` |
 | `watch` (no URL) | FIFO: first `pending` row with successful exclusive claim |
 | `watch <n>` | Claim row `#n` only (parallel path across terminals) |
-| `watch <url>` | Unchanged — direct single-video watch |
+| `watch <url>` | Unchanged: direct single-video watch |
 
 ## Claim protocol (every dequeue)
 
@@ -87,10 +87,10 @@ Scan rows in `#` order. For each `pending` row, attempt `claim <n>`. On `EEXIST`
 
 | Scenario | Guidance |
 | --- | --- |
-| **Intended parallel** | Terminal A: `watch 2`. Terminal B: `watch 4`. Different claim files — no conflict. |
+| **Intended parallel** | Terminal A: `watch 2`. Terminal B: `watch 4`. Different claim files, no conflict. |
 | **Serial drain** | One terminal repeats `watch` after each video completes. |
 | **Two auto-`watch`** | Claim stub picks winner per row; loser skips to next `pending` or reports queue busy. |
-| **Same row twice** | Second `claim <n>` fails — stop; do not bootstrap duplicate work. |
+| **Same row twice** | Second `claim <n>` fails. Stop; do not bootstrap duplicate work. |
 
 **Operator rule:** For predictable parallel, prefer **`watch <n>` per terminal**.
 
@@ -127,9 +127,9 @@ On first `queue` action (canonical epic dir: `youtube-watch`):
 
 1. `mkdir -p .work/<watch-epic>/claims`
 2. Copy `templates/queue.md` → `.work/<watch-epic>/QUEUE.md` if missing
-3. Preflight each URL (below), then append rows with the next `#` index — **do not renumber existing rows**
+3. Preflight each URL (below), then append rows with the next `#` index. **Do not renumber existing rows**
 
-Paths here are relative to the resolved work root, not always the repo root — see `output-contract.md`.
+Paths here are relative to the resolved work root, not always the repo root. See `output-contract.md`.
 
 ## Companion primary sources (optional at queue)
 
@@ -152,18 +152,18 @@ Emits a JSON array (one entry per URL). Per entry use `action` to decide:
 | `action` | `status` | What to do |
 | --- | --- | --- |
 | `enqueue` | `ok` | Append the row; fill `title`/`channel` from `displayTitle`/`displayChannel`; `notes` stays empty |
-| `enqueue` | `transient` | Append the row (link is real, just blocked this session — bot-check/auth/network); copy `note` into `notes` |
+| `enqueue` | `transient` | Append the row (link is real, just blocked this session by bot-check/auth/network); copy `note` into `notes` |
 | `reject` | `unavailable` | Do **not** enqueue (removed / private / 404); report to the user |
 | `reject` | `invalid-url` | Do **not** enqueue (no supported source claims the URL); report to the user with the supported-source list |
 
 URL acceptance and failure classification are the **owning source adapter's** (`acceptForEnqueue`
 and its declared error patterns), so no YouTube-shaped assumption reaches an X URL. Only a *fatal*
-classification rejects; everything else — bot-check, auth, network, unclassified — enqueues as
+classification rejects. Everything else, whether bot-check, auth, network, or unclassified, enqueues as
 `transient`.
 
 **A 0-video X post enqueues.** Sources declaring media-optional results have preflight pass
 `--ignore-no-formats-error`, so a post with no video reports metadata instead of erroring and
 takes the `enqueue` / `ok` row like any other. Its `title` / `channel` cells may be blank for a
-link post, whose text is not recoverable — see `../reference/sources/x.md`.
+link post, whose text is not recoverable. See `../reference/sources/x.md`.
 
-`displayTitle` / `displayChannel` are already markdown-escaped (`|` → `\|`) and title-capped — paste them directly. Dedupe by `videoId` against existing rows. CLI exit code is `2` when any URL resolved to `reject`.
+`displayTitle` / `displayChannel` are already markdown-escaped (`|` → `\|`) and title-capped, so paste them directly. Dedupe by `videoId` against existing rows. CLI exit code is `2` when any URL resolved to `reject`.

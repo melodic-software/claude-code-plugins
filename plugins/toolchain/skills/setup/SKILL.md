@@ -59,7 +59,7 @@ first**, then report a PASS/FAIL/INFO table; modify nothing.
 Run `check` first. Then write the accepted ecosystem files. After each write, re-run the `check`
 probe pair for that path rather than trusting the write: `git check-ignore -v` reports no match,
 and `git ls-files --error-unmatch` distinguishes tracked from written-but-untracked (the
-guaranteed state right after a fresh write — report "written but untracked: commit it", never
+guaranteed state right after a fresh write, so report "written but untracked: commit it", never
 success).
 
 ### 1. Read existing config first

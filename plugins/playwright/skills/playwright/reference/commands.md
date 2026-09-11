@@ -47,7 +47,7 @@ playwright-cli find --regex "Sign (in|up)"
 playwright-cli find --regex "/sign (in|up)/i"  # wrap in slashes for flags, e.g. case-insensitive
 ```
 
-`find` is cheaper than a full `snapshot` when you only need to locate one or two elements on a large page — it returns matching nodes with a few lines of context, like `grep -C`.
+`find` is cheaper than a full `snapshot` when you only need to locate one or two elements on a large page. It returns matching nodes with a few lines of context, like `grep -C`.
 
 Ref system: see [snapshots-and-refs.md](snapshots-and-refs.md).
 
@@ -98,7 +98,7 @@ playwright-cli dialog-accept ["prompt text"]
 playwright-cli dialog-dismiss
 ```
 
-## Raw mode — pipe into jq, diff, and similar
+## Raw mode: pipe into jq, diff, and similar
 
 The global `--raw` flag strips status/code blocks from stdout and emits only the result value. Makes command output composable with Unix pipes.
 
