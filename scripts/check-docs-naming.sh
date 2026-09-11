@@ -5,9 +5,11 @@
 #   scripts/check-docs-naming.sh --check  same, explicit form matching the
 #                                         sibling gates (exit 1 on any offender)
 #
-# The rule: a basename matches `^[a-z0-9]+([.-][a-z0-9]+)*\.[a-z0-9.]+$`, so
+# The rule: a basename matches `^[a-z0-9]+([.-][a-z0-9]+)*\.[a-z0-9]+$`, so
 # `plugin-philosophy.md`, `v1.2.schema.json`, and `0001-first.md` pass while
-# `UPPER-KEBAB.md`, `snake_case.md`, and `Mixed.md` do not. Exempt:
+# `UPPER-KEBAB.md`, `snake_case.md`, `Mixed.md`, `foo..md`, and `foo.md.` do
+# not (every dot- or hyphen-separated segment is non-empty, and the name ends
+# in a non-empty extension). Exempt:
 #
 #   - `README.md`, `CHANGELOG.md`, `INDEX.md` anywhere under docs/, the
 #     conventional uppercase names tooling and forges look for by exact spelling
@@ -59,7 +61,7 @@ if ! git rev-parse --show-toplevel >/dev/null 2>&1; then
   exit 2
 fi
 
-NAME_RE='^[a-z0-9]+([.-][a-z0-9]+)*\.[a-z0-9.]+$'
+NAME_RE='^[a-z0-9]+([.-][a-z0-9]+)*\.[a-z0-9]+$'
 offenders=()
 
 # One pass for the basename rule. Exemptions are checked in the order the
@@ -82,10 +84,12 @@ done < <(git ls-files -z -- docs/)
 # names included: `docs/README.md` beside `docs/readme.md` still collides).
 # Lower-casing each path and looking for duplicates finds every pair; each
 # member of a colliding group is reported against the group's folded form.
+# The fold goes through `tr`, never `${path,,}`: that expansion is Bash 4+,
+# and the checkouts this rule protects include stock macOS Bash 3.2.
 while IFS= read -r folded; do
   [[ -n "$folded" ]] || continue
   while IFS= read -r -d '' path; do
-    if [[ "${path,,}" == "$folded" ]]; then
+    if [[ "$(printf '%s' "$path" | tr '[:upper:]' '[:lower:]')" == "$folded" ]]; then
       offenders+=("$path: differs only by case from another tracked path ($folded)")
     fi
   done < <(git ls-files -z -- docs/)

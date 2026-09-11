@@ -88,6 +88,11 @@ run_case "docs/a/v1.2.schema.json passes" 0 docs/a/v1.2.schema.json
 # 7. Underscores and mixed case are not kebab.
 run_case "docs/a/snake_case.md fails" 1 docs/a/snake_case.md
 
+# 7b. Empty or trailing dot segments are not an extension.
+run_case "docs/a/foo..md fails" 1 docs/a/foo..md
+run_case "docs/a/foo.md. fails" 1 docs/a/foo.md.
+run_case "docs/a/foo... fails" 1 docs/a/foo...
+
 # 8. Two tracked paths that differ only by case fail even when each is a
 #    conventional name on its own.
 run_case "docs/Foo.md beside docs/foo.md fails" 1 docs/Foo.md docs/foo.md

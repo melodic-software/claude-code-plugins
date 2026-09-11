@@ -23,8 +23,9 @@ No rule stated which form a new file should take, and nothing checked.
 ## Decision
 
 **Every file under `docs/` is named in lower-kebab-case.** A basename matches
-`^[a-z0-9]+([.-][a-z0-9]+)*\.[a-z0-9.]+$`: lowercase letters, digits, single hyphens, a lowercase
-extension, dotted stems and multi-part extensions allowed (`v1.2.schema.json`).
+`^[a-z0-9]+([.-][a-z0-9]+)*\.[a-z0-9]+$`: lowercase letters, digits, single hyphens, a
+non-empty lowercase extension, dotted stems and multi-part extensions allowed
+(`v1.2.schema.json`), and never an empty or trailing segment (`foo..md`, `foo.md.`).
 
 **Three exemptions, and only these.** `README.md`, `CHANGELOG.md`, and `INDEX.md` anywhere under
 `docs/`, the conventional uppercase names forges and tooling look for by exact spelling (`INDEX.md`
