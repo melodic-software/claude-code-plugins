@@ -4159,10 +4159,17 @@ if ((bg_rc == 0)) && [[ "$(bg_field "$bg_out" REACHED)" == "1" &&
 else
   fail "begin happy path (rc=$bg_rc): $bg_out"
 fi
-if [[ "$(bg_field "$bg_out" ROOT)" == "$BG_REPO" ]]; then
+# Expected through git rather than as the fixture path: on Windows Git Bash
+# `rev-parse --show-toplevel` answers in the drive-letter spelling while the
+# fixture path is the MSYS one. Asking git for the same directory keeps the
+# claim discriminating, since a CWD-anchored resolution would name this
+# repository's root, not the fixture's.
+bg_want_root=$(git -C "$BG_REPO/sub" rev-parse --show-toplevel)
+bg_want_root="${bg_want_root//$'\r'/}"
+if [[ "$(bg_field "$bg_out" ROOT)" == "$bg_want_root" ]]; then
   ok "begin: REPO_ROOT is anchored at the file, not the process CWD"
 else
-  fail "begin repo root: $(bg_field "$bg_out" ROOT) want $BG_REPO"
+  fail "begin repo root: $(bg_field "$bg_out" ROOT) want $bg_want_root"
 fi
 
 # Telemetry-only values stay unresolved with no sink wired: TOOL empty and
@@ -4621,7 +4628,12 @@ fin_check changed-unknown 0 absent "$fin_tel"
 : >"$fin_tel"
 fin_arm rewrote "$fin_sink" --context "ctx" --message "notice text" \
   --disclose "fixture: reformatted a.txt." ok findings array '[]'
-if [[ "$(printf '%s' "$fin_out" | jq -r '.systemMessage // empty')" == "fixture: reformatted a.txt."$'\n'"notice text" ]]; then
+# CR-stripped: the Windows jq writes stdout in text mode, so the newline
+# inside this two-line value arrives as CRLF where the single-line cases above
+# lose theirs to the command substitution.
+fin_msg=$(printf '%s' "$fin_out" | jq -r '.systemMessage // empty')
+fin_msg="${fin_msg//$'\r'/}"
+if [[ "$fin_msg" == "fixture: reformatted a.txt."$'\n'"notice text" ]]; then
   ok "finish: the caller's message follows the disclosure on the user channel"
 else
   fail "finish message compose: $(printf '%s' "$fin_out" | jq -c '.systemMessage')"
