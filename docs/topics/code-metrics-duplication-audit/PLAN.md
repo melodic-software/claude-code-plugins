@@ -422,7 +422,7 @@ Committed on its own (the registry edit fans CI's test selection out to roughly 
   from `plugins/code-metrics` with `--registry ../../scripts/cross-plugin-source-registry.txt`
   print the same values.
 
-### Phase 4: Report sort, rollups, additive summary fields, summary line, no-detector headline [TODO]
+### Phase 4: Report sort, rollups, additive summary fields, summary line, no-detector headline [DONE]
 
 Review: code-design
 
@@ -474,7 +474,9 @@ Review: code-design
   `audit-size.sh --all | grep -c 'Functions:'` prints `1`.
 - `audit-duplication.sh --json --all | jq '([.summary.by_lane[].duplicated_lines]|add) == .summary.duplicated_lines and .summary.by_directory["."].duplicated_lines == .summary.duplicated_lines'`
   prints `true`.
-- `PATH=<empty prefix> audit-duplication.sh --all | grep -c 'npm install -g jscpd'` prints `1`.
+- `PATH=<empty prefix> audit-duplication.sh --all | grep -c 'No clone detector ran'` prints `1`;
+  the install hint appears in that headline and again in each lane row's reason, which the
+  dispatcher builds with the hint embedded and this phase leaves unchanged.
 
 ### Phase 5: SKILL.md, README, CHANGELOG, version, dogfood [TODO]
 

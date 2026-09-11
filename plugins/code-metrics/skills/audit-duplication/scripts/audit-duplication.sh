@@ -84,7 +84,7 @@ if [[ -z "$CONFIG" ]]; then
     --home "${CODE_METRICS_HOME:-${HOME:-/}}" >"$CONFIG" || exit 2
 fi
 
-# Five tunables and then one line per configured registry, in that order. A
+# Six tunables and then one line per configured registry, in that order. A
 # cap of null or 0 is exported empty, which the adapter reads as "no cap".
 mapfile -t DUP < <("${PY[@]}" -c '
 import json, sys
@@ -113,10 +113,11 @@ ignore = section.get("ignore")
 print(",".join(str(item) for item in ignore) if isinstance(ignore, list) else "")
 print(cap("max_lines"))
 print(cap("max_size"))
+print(number("rollup_depth", 2))
 for registry in section.get("registries") or []:
     print(str(registry))
 ' "$CONFIG")
-if [[ ${#DUP[@]} -lt 5 ]]; then
+if [[ ${#DUP[@]} -lt 6 ]]; then
   echo "audit-duplication.sh: the resolved configuration could not be read" >&2
   exit 2
 fi
@@ -125,6 +126,7 @@ export CODE_METRICS_DUP_MIN_LINES="${DUP[1]}"
 export CODE_METRICS_DUP_IGNORE="${DUP[2]}"
 export CODE_METRICS_DUP_MAX_LINES="${DUP[3]}"
 export CODE_METRICS_DUP_MAX_SIZE="${DUP[4]}"
+ROLLUP_DEPTH="${DUP[5]}"
 
 FILTER_ARGS=(--root "$ROOT")
 resolve_registry() {
@@ -137,7 +139,7 @@ resolve_registry() {
     return 1
   fi
 }
-for registry in "${REGISTRY_ARGS[@]:-}" "${DUP[@]:5}"; do
+for registry in "${REGISTRY_ARGS[@]:-}" "${DUP[@]:6}"; do
   [[ -n "$registry" ]] || continue
   if ! resolved="$(resolve_registry "$registry")"; then
     echo "audit-duplication.sh: registry not found: $registry" >&2
@@ -155,12 +157,12 @@ rc=$?
 # recomputation drops when every group was excluded.
 "${PY[@]}" "$CLUSTER" <"$WORK/report.json" >"$WORK/clustered.json" || exit 2
 "${PY[@]}" "$FILTER" "${FILTER_ARGS[@]}" <"$WORK/clustered.json" >"$WORK/filtered.json" || exit 2
-"${PY[@]}" "$REPORT" resummarize <"$WORK/filtered.json" >"$WORK/summed.json" || exit 2
+"${PY[@]}" "$REPORT" resummarize --root "$ROOT" <"$WORK/filtered.json" >"$WORK/summed.json" || exit 2
 "${PY[@]}" "$FILTER" --zero-floor --root "$ROOT" <"$WORK/summed.json" >"$WORK/final.json" || exit 2
 
 if [[ $JSON -eq 1 ]]; then
   cat "$WORK/final.json"
 else
-  "${PY[@]}" "$REPORT" render <"$WORK/final.json" || exit 2
+  "${PY[@]}" "$REPORT" render --rollup-depth "$ROLLUP_DEPTH" <"$WORK/final.json" || exit 2
 fi
 exit "$rc"

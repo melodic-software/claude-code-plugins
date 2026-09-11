@@ -264,6 +264,14 @@ class RegistryFilterTests(unittest.TestCase):
         summary = json.loads(result.stdout)["summary"]
         self.assertEqual((summary["duplicated_lines"], summary["clone_groups"]), (0, 0))
 
+    def test_the_zero_floor_states_empty_rollup_maps(self) -> None:
+        doc = document()
+        doc["run"] = [{"lane": "bash", "measure": "duplication", "status": "ok"}]
+        doc["summary"] = {"files": 0, "functions": 0, "over_reference": {}}
+        result = run(doc, "--root", ".", "--zero-floor")
+        summary = json.loads(result.stdout)["summary"]
+        self.assertEqual((summary["by_lane"], summary["by_directory"]), ({}, {}))
+
     def test_the_zero_floor_counts_a_partial_lane_as_measured(self) -> None:
         doc = document()
         doc["run"] = [
