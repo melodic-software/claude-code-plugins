@@ -5,11 +5,11 @@
       "id": 1,
       "name": "routes-a-definition-question-to-one-reference-file",
       "prompt": "/code-metrics:principles the report says Halstead difficulty 41 for a file I just split in two. What does that number mean?",
-      "expected_output": "Answers from the routing table by loading reference/measures.md and no other file: difficulty is (n1/2) * (N2/n2), operator variety times operand reuse, with no length term, so splitting a file should not move it; multimetric reports Halstead per file rather than per function, so the row is file-level. Cites Halstead 1977 and states that no standard sets a difficulty threshold.",
+      "expected_output": "Answers from the routing table by loading reference/measures.md and no other file: difficulty is (n1/2) * (N2/n2), operator variety times operand reuse, with no explicit length term, so it does not track size; a split changes each half's operator count and reuse ratio, so per-file difficulty legitimately moves on a split, in either direction. multimetric reports Halstead per file rather than per function, so the row is file-level. Cites Halstead 1977 and states that no standard sets a difficulty threshold.",
       "files": [],
       "expectations": [
         "Loads reference/measures.md first and does not load all four reference files",
-        "States the difficulty formula and that it carries no length term",
+        "States the difficulty formula, that it carries no explicit length term, and that a split can move per-file difficulty because each half's operator count and operand-reuse ratio change",
         "Names the collector behaviour: Halstead from multimetric is per file, not per function",
         "Says no standard sets a Halstead threshold rather than suggesting a number of its own",
         "Renders no verdict on whether 41 is acceptable"

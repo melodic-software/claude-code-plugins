@@ -3,11 +3,27 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.52.1]
+## [0.53.1]
 
 ### Changed
 
 - **`audit-install-state`, `audit-skill-visibility`: description prose no longer addresses the reader.** Anthropic's skill-authoring guidance keeps first and second person out of a description because it is injected into the system prompt; the rewritten clauses name the user, the session, or the repository instead. Quoted trigger phrases are unchanged.
+
+## [0.53.0]
+
+### Added
+
+- **`audit-skill-visibility` Markdown names what it counts and points at the fix.** The
+  Reachability section tables misconfigured skills with their cause and states each cause's
+  remedy once; the Listing budget section, whenever a row overflows, tables the ten longest
+  competing descriptions ranked by source length beside the capped charge the listing counts,
+  labelled as length and never as a starvation ranking, so it renders the same in an unscored
+  run; and a closing Next actions section names only the fixes the run's findings support,
+  pointing at the budget control the run's provenance says is effective (the env override, a
+  managed-policy file, or the settings file that set the fraction) rather than always at the
+  fraction. Every table caps at ten rows and counts the rest. JSON schema 1.2.0, additive:
+  each listing row carries `description_chars`, the uncapped source length, beside the capped
+  `demand_chars`.
 
 ## [0.52.0]
 
