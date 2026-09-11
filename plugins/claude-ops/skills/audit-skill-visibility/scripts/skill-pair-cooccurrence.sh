@@ -177,11 +177,6 @@ CALLEE="${PAIR#*,}"
 [[ -n "$CALLER" && -n "$CALLEE" ]] || die_usage "--pair needs a non-empty name on both sides: $PAIR"
 [[ "$CALLEE" != *,* ]] || die_usage "--pair takes exactly two names: $PAIR"
 
-command -v jq >/dev/null 2>&1 || {
-  printf 'skill-pair-cooccurrence.sh: jq is required to read the JSONL store\n' >&2
-  exit "$EX_NO_STORE"
-}
-
 # Resolve the store the way the writers do. Sets STORE and STORE_ORIGIN (the
 # phrase the missing-store message names, so a wrong-scope run says which scope
 # it looked in). Exits 2 when the destination itself cannot be resolved: that
@@ -247,6 +242,15 @@ if ((PRINT_STORE)); then
   printf '%s\n' "$STORE"
   exit "$EX_OK"
 fi
+
+# Below the --print-store arm on purpose: printing the resolved path is pure
+# path arithmetic, and the Python auditor this mode bridges to is the one
+# consumer whose host is only promised Python. Everything past here reads the
+# JSONL store, which jq does.
+command -v jq >/dev/null 2>&1 || {
+  printf 'skill-pair-cooccurrence.sh: jq is required to read the JSONL store\n' >&2
+  exit "$EX_NO_STORE"
+}
 
 if [[ ! -r "$STORE" ]]; then
   # Absent store is not a crash: it is the commonest state on a fresh install,

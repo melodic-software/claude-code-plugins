@@ -19,7 +19,12 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   event from the telemetry sink.
 - **The skill-usage store path is resolved by one policy for the writer and
   the reader.** The two had resolved it separately, so a configuration that
-  moved the store could be honored by one and not the other.
+  moved the store could be honored by one and not the other. The reader's
+  `--print-store` arm, which is how the Python auditor gets that one path,
+  needs no `jq`: it resolves and prints, and only the report reads the store.
+  The skill body's own call now passes `--data-root`, which the `data-dir`
+  scope requires and the other two ignore, so one documented command serves
+  every scope.
 - **Vendored `hook-utils.sh` refresh**, carrying the shared library's single
   exit arm, its ceiling-bounded parent walk, and the retirement of seven
   value-printing helpers that only wrapped their caller-writes-to-a-variable

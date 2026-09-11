@@ -146,16 +146,20 @@ hooks themselves call. Hand it the rendered option values (a skill subprocess in
 
 ```bash
 STORE="$(bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-skill-visibility/scripts/skill-pair-cooccurrence.sh" \
-  --scope "${user_config.skill_usage_scope}" --dir "${user_config.skill_usage_dir}" --print-store)"
+  --scope "${user_config.skill_usage_scope}" --dir "${user_config.skill_usage_dir}" \
+  --data-root "${CLAUDE_PLUGIN_DATA}" --print-store)"
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/audit-skill-visibility/scripts/audit_skill_visibility.py" \
   --skill-usage "$STORE"
 bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-skill-visibility/scripts/skill-pair-cooccurrence.sh" \
   --store "$STORE" --pair <caller>,<callee>
 ```
 
-An empty or unrendered option value reads as its default, as it does in the hooks. The
-`data-dir` scope also needs `--data-root <the claude-ops plugin data directory>`, never taken
-from `CLAUDE_PLUGIN_DATA`. Flags, that reason, and missing-store behavior:
+An empty or unrendered option value reads as its default, as it does in the hooks. `--data-root`
+is the `data-dir` scope's answer and the other two scopes ignore it, so the one call above serves
+all three. It is written out here rather than read from the environment because the script takes
+no `CLAUDE_PLUGIN_DATA` fallback: a skill subprocess can carry another plugin's value, and the
+Bash tool does not inherit this one at all, so the skill body's own expansion is the only
+trustworthy source. Flags, that reason, and missing-store behavior:
 [reference/pair-cooccurrence.md](reference/pair-cooccurrence.md).
 
 ## Reading the output

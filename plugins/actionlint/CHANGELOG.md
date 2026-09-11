@@ -17,6 +17,13 @@ All notable changes to the `actionlint` plugin are documented here. Format follo
 - **Emitting accumulated context no longer forks `jq`.** The accumulator's
   flush now composes through the fork-free emitter that builds the same
   document, which removes one process from every run that emits context.
+- **One glob list serves both of the hook's gates, and it names the separator
+  a workflow path actually has.** The jq-free pre-filter reads the payload's
+  JSON string literal, where a Windows separator is escaped, so the list used
+  to be written loose on separators to survive normalizing each escaped
+  backslash into two slashes. The shared pre-filter collapses that escape
+  before matching, so `*/.github/workflows/*.yml` is now the spelling in both
+  places.
 
 ## [0.8.44]
 

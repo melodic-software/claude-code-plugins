@@ -2214,7 +2214,16 @@ hook::begin() {
   fi
   [[ -n "$RAW_FILE" ]] || exit 0
   if (($#)); then
-    hook::path_matches "$RAW_FILE" "$@" || exit 0
+    # Matched on the UNESCAPED spelling. RAW_FILE is the JSON string literal's
+    # contents, still escaped, so a Windows payload carries `C:\\repo\\x.yml`;
+    # normalizing that turns each of the two backslashes into a slash and the
+    # caller's glob then has to be written loose on separators
+    # (`*/.github/*workflows/*.yml`) to survive the doubling. Collapsing the
+    # escape here lets every caller write the separator its path actually has,
+    # and the same glob list serves this pre-filter and the authoritative
+    # re-check on the parsed path below. Only ever widens what the pre-filter
+    # admits, and that re-check is what decides.
+    hook::path_matches "${RAW_FILE//\\\\/\\}" "$@" || exit 0
   fi
 
   [[ -n "$__hu_bg_prejq_fn" ]] && "$__hu_bg_prejq_fn" "$RAW_FILE"

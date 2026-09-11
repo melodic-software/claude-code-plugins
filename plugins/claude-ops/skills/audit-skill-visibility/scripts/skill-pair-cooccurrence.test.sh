@@ -332,6 +332,39 @@ else
   fail "empty --scope and --dir read as the default scope and dir" "expected $expected, got $resolved"
 fi
 
+# --print-store is the bridge to the Python auditor, whose host this skill
+# promises needs only Python. Resolving a path is arithmetic over the option
+# values and reads nothing, so the jq prerequisite belongs to the report and
+# not to this arm. A PATH built from symlinks to the tools the script actually
+# runs, jq deliberately absent, is what makes the distinction observable.
+NOJQ_BIN="$TMP/nojq-bin"
+mkdir -p "$NOJQ_BIN"
+for nojq_tool in bash sh env cat printf sed awk grep dirname basename mkdir rm date git tr head sort; do
+  nojq_path="$(command -v "$nojq_tool")" && ln -sf "$nojq_path" "$NOJQ_BIN/$nojq_tool"
+done
+if [[ -n "$(PATH="$NOJQ_BIN" command -v jq 2>/dev/null)" ]]; then
+  fail "the jq-free PATH really has no jq" "jq is still reachable from $NOJQ_BIN"
+else
+  pass "the jq-free PATH really has no jq"
+  resolved="$(env -u CLAUDE_PLUGIN_DATA -u CLAUDE_PLUGIN_OPTION_SKILL_USAGE_SCOPE \
+    -u CLAUDE_PLUGIN_OPTION_SKILL_USAGE_DIR PATH="$NOJQ_BIN" \
+    HOME="$FAKE_HOME" CLAUDE_PROJECT_DIR="$PROJECT" bash "$SUT" --scope '' --dir '' --print-store)"
+  if [[ "$resolved" == "$expected" ]]; then
+    pass "--print-store resolves with jq absent"
+  else
+    fail "--print-store resolves with jq absent" "expected $expected, got $resolved"
+  fi
+  nojq_err="$(env -u CLAUDE_PLUGIN_DATA -u CLAUDE_PLUGIN_OPTION_SKILL_USAGE_SCOPE \
+    -u CLAUDE_PLUGIN_OPTION_SKILL_USAGE_DIR PATH="$NOJQ_BIN" \
+    HOME="$FAKE_HOME" CLAUDE_PROJECT_DIR="$PROJECT" bash "$SUT" --pair a:b,c:d 2>&1 >/dev/null)"
+  nojq_rc=$?
+  if ((nojq_rc == 2)); then
+    pass "…and the report arm still refuses without jq"
+  else
+    fail "…and the report arm still refuses without jq" "rc=$nojq_rc err=$nojq_err"
+  fi
+fi
+
 # An unknown scope: the writer falls back to repo with an advisory, so the
 # reader does the same, and says so, rather than refusing the store it wrote.
 err="$(run_reader --scope bogus --print-store 2>&1 >/dev/null)"

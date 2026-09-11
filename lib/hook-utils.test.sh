@@ -4252,6 +4252,25 @@ else
   fail "begin out-of-project (rc=$bg_rc): $bg_out"
 fi
 
+# The jq-free pre-filter reads the JSON string literal's contents, so a Windows
+# payload's separators arrive escaped as `\\`. Normalizing that unchanged turns
+# each of the two backslashes into a slash, and a glob naming an interior
+# directory then cannot match. The escape is collapsed first, so one glob list
+# serves both the pre-filter and the re-check on the parsed path. The stub reader
+# stands in for the decode this host's `read_file_path` cannot do for a drive
+# path, which is what makes the pre-filter's own answer reachable here.
+bg_win_file='C:\repo\.github\workflows\ci.yml'                                                                               # portability-ok: literal backslash before the workflows segment of a path fixture, not a GNU grep \w character class
+bg_win_payload='{"session_id":"bg-w","tool_name":"Write","tool_input":{"file_path":"C:\\repo\\.github\\workflows\\ci.yml"}}' # portability-ok: the same fixture path, backslash-escaped as the JSON literal carries it
+bg_env=(CLAUDE_PROJECT_DIR="$BG_REPO" BG_STUB_FILE="$bg_win_file")
+bg_out=$(bg_run "$bg_win_payload" --no-membership sample PostToolUse '*/.github/workflows/*.yml')
+bg_rc=$?
+bg_env=(CLAUDE_PROJECT_DIR="$BG_REPO")
+if ((bg_rc == 0)) && [[ "$(bg_field "$bg_out" REACHED)" == "1" ]]; then
+  ok "begin: an escaped Windows separator matches a glob naming an interior directory"
+else
+  fail "begin escaped separator (rc=$bg_rc): $bg_out"
+fi
+
 # A well-formed JSON PREFIX and then a closed pipe is hook::buffer_stdin_to's
 # rc 3, the transport fault. An advisory hook allows it through: exit 0, no
 # work, and buffer_stdin's own diagnostic on stderr.
