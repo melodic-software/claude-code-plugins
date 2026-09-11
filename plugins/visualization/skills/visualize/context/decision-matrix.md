@@ -1,9 +1,9 @@
-# Visualization decision matrix — grounded catalog
+# Visualization decision matrix: grounded catalog
 
 The form and surface facts behind the `visualize` skill's Step 2 (pick the form)
 and Step 3 (pick the medium). The skill owns the decision *logic*; this spoke owns
-the *facts* it decides over — the rendering surfaces, the diagram families, and the
-zero-dependency chart paths — each grounded in the sources at the end. Re-verify
+the *facts* it decides over: the rendering surfaces, the diagram families, and the
+zero-dependency chart paths, each grounded in the sources at the end. Re-verify
 against those sources before relying on a time-sensitive detail; the platform moves.
 
 ## Rendering surfaces
@@ -15,14 +15,14 @@ against those sources before relying on a time-sensitive detail; the platform mo
   construct set is not officially enumerated; tables and fenced code are the
   dependable structural visuals.
 - A ` ```mermaid ` fence is shown as **source text, not a rendered diagram**. Treat
-  the terminal mermaid path as portable *source* the user can render elsewhere —
+  the terminal mermaid path as portable *source* the user can render elsewhere,
   never as an inline picture.
 - Inline raster images in the terminal are undocumented; do not rely on them.
 
 ### Published Artifact
 
 - Renders a self-contained **HTML** or **Markdown** page.
-- **Mermaid renders natively** — both a ` ```mermaid ` markdown fence and an HTML
+- **Mermaid renders natively** in both a ` ```mermaid ` markdown fence and an HTML
   `<pre class="mermaid">` block.
 - **Bundled mermaid runtime: 11.16.1** (version-specific record). Claim: the
   publish path injects `/_runtime/mermaid-11.16.1.min.js` into the page. Basis:
@@ -41,7 +41,7 @@ against those sources before relying on a time-sensitive detail; the platform mo
   on a network call. There is a page-size cap (~16 MiB). Verified 2026-09-04
   against `https://code.claude.com/docs/en/artifacts`; recheck when that page's
   "Page constraints" or "Allowlist the viewer domain" section changes.
-- **Theme-aware** (light/dark), **responsive**, and **favicon required** — this is
+- **Theme-aware** (light/dark), **responsive**, and **favicon required**. This is
   the Artifact tool's own contract; an artifact-design capability, when installed,
   owns the craft on top of it.
 - **Connector-backed live data** (Claude Code v2.1.209+): a published page can
@@ -58,7 +58,7 @@ Publishing an Artifact is heavily gated. It is unavailable when any of these hol
 and the official fallback is to **write a local HTML file** instead:
 
 - a paid plan and an active claude.ai sign-in are required;
-- the first-party Anthropic API only — not Bedrock or Vertex — and blocked under
+- the first-party Anthropic API only, not Bedrock or Vertex, and blocked under
   CMEK / HIPAA / ZDR configurations;
 - a minimum Claude Code version;
 - off in SDK, CI/Action, and MCP execution contexts;
@@ -69,7 +69,7 @@ and the official fallback is to **write a local HTML file** instead:
 the always-available rich tier and the one that never leaves the machine.
 
 The local HTML file is **not** under the artifact CSP (it is a file, not a
-published page), so it *can* embed scripts inline — but it gets **no runtime for
+published page), so it *can* embed scripts inline, but it gets **no runtime for
 free**, and it must stay self-contained (the README promises no network calls), so
 any script is embedded, never loaded from a remote host. In particular a published
 Artifact renders mermaid natively, whereas a local HTML file renders a mermaid
@@ -108,9 +108,9 @@ one empirically on a throwaway artifact before relying on it.
 
 ### Tables
 
-A markdown table renders in both the terminal and a page — the cheapest form, and
-the one native to genuinely tabular data (rows of attributes across items), needing
-no rendering surface beyond GFM.
+A markdown table renders in both the terminal and a page. It is the cheapest form,
+and the one native to genuinely tabular data (rows of attributes across items),
+needing no rendering surface beyond GFM.
 
 ### Charts (quantitative data)
 
@@ -119,15 +119,16 @@ scripts from four CDN hosts, but the plugin's policy is no network calls, so the
 paths are zero-dependency:
 
 - **On a page:** hand-authored inline **SVG + CSS** primitives (bars, lines,
-  scatter, area, stat tiles). The *craft* — palette, scales, marks, accessibility
-  — is a chart-craft/dataviz capability's concern; route to it when installed.
-- **In the terminal:** Unicode-on-monospace approximations inside a code fence —
-  bar rows (`█▉▊…`) and sparklines (`▁▂▃▄▅▆▇█`) — for small, at-a-glance quantities.
+  scatter, area, stat tiles). The *craft* of palette, scales, marks, and
+  accessibility is a chart-craft/dataviz capability's concern; route to it when
+  installed.
+- **In the terminal:** Unicode-on-monospace approximations inside a code fence.
+  Bar rows (`█▉▊…`) and sparklines (`▁▂▃▄▅▆▇█`) suit small, at-a-glance quantities.
 
 ### ASCII / Unicode art
 
 Box-drawing characters, directory trees, and small structural sketches render
-crisply in a monospace terminal code fence — a zero-dependency structural picture
+crisply in a monospace terminal code fence, a zero-dependency structural picture
 that needs no page surface. A directory tree here is a structure sketch; a file
 tree that carries one line of responsibility per entry is the code-shape form
 below.
@@ -149,35 +150,35 @@ A rich page can carry a composite dashboard, an interactive view, a large
 multi-part layout, or a truly graphical result the terminal cannot represent. It is
 delivered per the delivery tiers above (local HTML file or published Artifact).
 
-### Design canvas (bundled `design` skill — presence-gated preview)
+### Design canvas (bundled `design` skill, presence-gated preview)
 
-A hand-tweakable visual layout — UI mockups and screen flows, landing pages,
-posters/flyers/one-pagers, memos as one flowing artboard — drafted as `.dc.html`
-artboards on one pan/zoom canvas and published as an Artifact running the Claude
-Design canvas editor. Where saving is enabled for the viewer's account the canvas
-is hand-editable (click-to-select, properties panel, inline text, undo/redo) and
-Save publishes a new version; otherwise it is view-plus-PNG/PDF-export. It rides
-the published-Artifact surface, so every Artifact gate above applies, **plus** the
-skill's own gates:
+A hand-tweakable visual layout, drafted as `.dc.html` artboards on one pan/zoom
+canvas and published as an Artifact running the Claude Design canvas editor. It
+covers UI mockups and screen flows, landing pages, posters/flyers/one-pagers, and
+memos as one flowing artboard. Where saving is enabled for the viewer's account
+the canvas is hand-editable (click-to-select, properties panel, inline text,
+undo/redo) and Save publishes a new version; otherwise it is
+view-plus-PNG/PDF-export. It rides the published-Artifact surface, so every
+Artifact gate above applies, **plus** the skill's own gates:
 
 - an early **research preview**: enabled by a server-side rollout flag that
   defaults off, first-party context only, and an Artifact tool that supports
-  `capabilities` — two same-version clients can differ;
+  `capabilities`, so two same-version clients can differ;
 - removable by settings (`disableBundledSkills`, or `skillOverrides` naming
   `design`) and absent on non-first-party platforms (Bedrock / GCP / Foundry /
   AWS) and in headless SDK/CI/MCP contexts;
 - **model-invocable where enabled** (no model-invocation gate in its
-  registration), so the skill can be invoked by name — bare `design`; no
+  registration), so the skill can be invoked by its bare name `design`; no
   namespace exists for bundled skills. A local skill named `design` at any level
   silently overrides the bundled one.
 
 The honest presence check is whether `design` appears in the current session's
-skill list **and its listed description is the design canvas** — because of the
+skill list **and its listed description is the design canvas**. Because of the
 override rule above, a bare name match may be an unrelated local skill; when the
 listed description does not describe a canvas/artboard capability, treat the
 capability as absent rather than invoking a shadowing skill. Absent → the
-rich-page paths above cover the ground (and `/design` must not be suggested —
-that user has no such command). Listed-but-refused → user invocation of
+rich-page paths above cover the ground (and `/design` must not be suggested,
+since that user has no such command). Listed-but-refused → user invocation of
 `/design` survives invocability gates.
 
 > Verified 2026-08-18 against the shipped v2.1.234 client (registration and gating
@@ -203,11 +204,11 @@ Depend on **none** today. The curated first-party marketplace ships no
 visualization plugin. The community candidates are each disqualified on a trust or
 fit ground:
 
-- `antvis/mcp-server-chart` — egresses chart data to a third-party cloud by
+- `antvis/mcp-server-chart`: egresses chart data to a third-party cloud by
   default.
-- `veelenga/claude-mermaid` — a solo-author MCP server (local render), a
+- `veelenga/claude-mermaid`: a solo-author MCP server (local render), a
   code-execution trust surface.
-- `careerhackeralex/visualize` — a solo-author HTML-viz skill that pulls chart
+- `careerhackeralex/visualize`: a solo-author HTML-viz skill that pulls chart
   libraries from hosts outside the artifact allowlist, and this plugin's policy is
   no network calls in any case.
 
@@ -221,7 +222,7 @@ owned by the plugin README's future-change section.
 Verified 2026-07-22 via a research fan-out over official documentation; re-fetch
 before relying on a time-sensitive detail.
 
-- Terminal Markdown rendering (code-block syntax highlighting, hyperlinks) —
+- Terminal Markdown rendering (code-block syntax highlighting, hyperlinks):
   `https://code.claude.com/docs/en/interactive-mode.md`.
 - Mermaid emitted as source, not terminal-rendered (verified 2026-09-04): no
   official page documents terminal mermaid rendering. Absence checked in
@@ -239,14 +240,14 @@ before relying on a time-sensitive detail.
   availability gating, and connector-backed live data (verified 2026-09-04):
   `https://code.claude.com/docs/en/artifacts`.
 - Artifact native mermaid, favicon requirement, theme-awareness
-  (`prefers-color-scheme` / `data-theme`), and responsive rules — the Artifact
+  (`prefers-color-scheme` / `data-theme`), and responsive rules: the Artifact
   tool's own live contract (this session; not restated on the public artifacts
   page).
-- Mermaid diagram families — `https://mermaid.js.org/intro/` and the stable
+- Mermaid diagram families: `https://mermaid.js.org/intro/` and the stable
   sidebar at `https://mermaid.js.org/syntax/flowchart.html`.
-- Plugin manifest / `userConfig` schema (no native enum type) —
+- Plugin manifest / `userConfig` schema (no native enum type):
   `https://code.claude.com/docs/en/plugins-reference` (fetched this session).
-- Third-party survey — `https://code.claude.com/docs/en/discover-plugins`, the
+- Third-party survey: `https://code.claude.com/docs/en/discover-plugins`, the
   community catalog at
   `https://raw.githubusercontent.com/anthropics/claude-plugins-community/main/.claude-plugin/marketplace.json`,
   and the candidate repos `antvis/mcp-server-chart`, `veelenga/claude-mermaid`,
@@ -254,9 +255,9 @@ before relying on a time-sensitive detail.
 
 UNVERIFIED / low-confidence (flagged, not asserted):
 
-- Terminal rendering of a mermaid fence as a *diagram* — verified only as source
+- Terminal rendering of a mermaid fence as a *diagram*: verified only as source
   text; treated as source, never as an inline picture.
-- Inline terminal raster images — undocumented.
+- Inline terminal raster images: undocumented.
 - Rendering of the newest "fire-icon" mermaid families in the artifact viewer
   (present upstream in 11.16.1; see the Published Artifact record): verify
   empirically before use.

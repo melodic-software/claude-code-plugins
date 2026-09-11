@@ -44,8 +44,8 @@ All notable changes to the `firecrawl` plugin are documented here. Format follow
 
 - **`firecrawl`: the `NOT INSTALLED` token could fire on an installed, working CLI.** The status
   probe was
-  `command -v firecrawl >/dev/null 2>&1 && firecrawl --status 2>/dev/null | head -10 || echo "NOT
-  INSTALLED — run: npm install -g firecrawl-cli"`. Under `set -o pipefail` the `&&` list takes the
+  `command -v firecrawl >/dev/null 2>&1 && firecrawl --status 2>/dev/null | head -10 || echo "NOT INSTALLED — run: npm install -g firecrawl-cli"`.
+  Under `set -o pipefail` the `&&` list takes the
   pipeline's status, and `head -10` closing the pipe kills `firecrawl` with SIGPIPE when
   `--status` prints more than the cap, so the `||` fires on a healthy CLI. The rendered context
   then shows ten lines of real status followed by an instruction to install a CLI that is already
@@ -71,8 +71,8 @@ All notable changes to the `firecrawl` plugin are documented here. Format follow
 ### Fixed
 
 - **`update`: the "never synced" fallback could not render.** The last-sync probe was
-  `grep -m1 '^- Last sync:' "${CLAUDE_SKILL_DIR}/UPSTREAM.md" 2>/dev/null | sed 's/^- //' || echo
-  "never — run this skill with --check"`. `sed` exits 0 whether `grep` matched, found nothing, or
+  `grep -m1 '^- Last sync:' "${CLAUDE_SKILL_DIR}/UPSTREAM.md" 2>/dev/null | sed 's/^- //' || echo "never — run this skill with --check"`.
+  `sed` exits 0 whether `grep` matched, found nothing, or
   never opened the file, so a missing or unstamped `UPSTREAM.md` rendered an empty value instead of
   the instruction to run `--check`. Verified by execution: against a missing file the old shape
   rendered `[]` and the new one renders `[never — run this skill with --check]`; against the real
@@ -121,8 +121,8 @@ All notable changes to the `firecrawl` plugin are documented here. Format follow
   opening, never-writes boundary, and/or headless-reconfigure recipe as present) to the
   canonical fleet wording, keeping the operable text inline with a provenance-only citation
   (whole-repo extract-ssot batch, #2698).
-- Normalized fleet-wide framing this plugin restates (cross-vendor advisor
-  fallback, untrusted-content posture, attribution/idiom prose — as touched) to the canonical
+- Normalized the fleet-wide framing this plugin restates, as touched (cross-vendor advisor
+  fallback, untrusted-content posture, attribution/idiom prose), to the canonical
   SSOT wording, operable text kept inline with provenance-only citations (#2698).
 
 ## [0.5.1]
@@ -130,8 +130,8 @@ All notable changes to the `firecrawl` plugin are documented here. Format follow
 ### Changed
 
 - **`/firecrawl:firecrawl`'s `Use when:` list now opens with typed phrases.** It previously listed
-  only *conditions* ("WebFetch returns 403/429", "a page requires JS rendering") — accurate, but
-  nothing a user types, and nothing the gate's trigger-drop protection could track.
+  only *conditions* ("WebFetch returns 403/429", "a page requires JS rendering"). Those are
+  accurate, but nothing a user types, and nothing the gate's trigger-drop protection could track.
   `'scrape this page'`, `'crawl this site'`, `'search the web for X'`, `'WebFetch is blocked'`,
   `'this page needs JS'` and `'extract the text from this PDF'` now front the list; every original
   condition is retained behind them.
@@ -147,7 +147,7 @@ All notable changes to the `firecrawl` plugin are documented here. Format follow
 
 - **The bare `/<skill>` alias for this plugin's skills.** Their `SKILL.md` files no longer
   declare a frontmatter `name`. The field is optional and defaults to the directory name, so
-  declaring it only restated the path while registering a second, unnamespaced command — which
+  declaring it only restated the path while registering a second, unnamespaced command, which
   the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
   namespaced command; the command itself is unchanged.
 
@@ -170,7 +170,7 @@ All notable changes to the `firecrawl` plugin are documented here. Format follow
   `-p` (which GNU also spells `--tmpdir`) is documented in both dialects but does
   not mean the same thing: GNU treats the template as relative to that directory
   and lets the flag beat `TMPDIR`, while BSD/macOS consult it only as a fallback
-  for `-t` when `TMPDIR` is unset — so with a bare template and no `-t` the flag
+  for `-t` when `TMPDIR` is unset. So with a bare template and no `-t` the flag
   does nothing there and the template resolves against the current directory,
   silently writing into the consumer's repo. GNU additionally marks `-t`
   deprecated, and BSD's `-t` takes a prefix rather than a template. An absolute
@@ -183,8 +183,8 @@ All notable changes to the `firecrawl` plugin are documented here. Format follow
   The Windows gotcha states what actually governs the outcome: where the Bash
   tool is Git Bash, `${TMPDIR:-/tmp}` resolves through the `/tmp` mount to `%TEMP%`;
   on a Windows host without Git Bash the PowerShell tool runs and `mktemp` does
-  not exist. The skill's `shell: bash` frontmatter does **not** cover this —
-  that field governs only the `!` dynamic-context injection evaluated at
+  not exist. The skill's `shell: bash` frontmatter does **not** cover this.
+  That field governs only the `!` dynamic-context injection evaluated at
   skill-load time, not the Bash tool calls the skill body issues.
 
 ## [0.4.1]
@@ -192,7 +192,7 @@ All notable changes to the `firecrawl` plugin are documented here. Format follow
 ### Changed
 
 - Skills with `!` dynamic-context injections now declare `shell: bash` explicitly, per
-  the pinned precompute convention — bash-only pipelines must not fall through to a
+  the pinned precompute convention. Bash-only pipelines must not fall through to a
   PowerShell host.
 
 ## [0.4.0]
@@ -225,8 +225,8 @@ All notable changes to the `firecrawl` plugin are documented here. Format follow
 
 - **Uniform-contract `setup` skill** (fleet conformance wave). `/firecrawl:setup check` reads
   the main skill as the single source of truth and probes the `firecrawl` binary (absence is
-  INFO — the plugin is lazy-install by design) and `FIRECRAWL_API_KEY` presence in the OS
-  user environment (presence only — the key value is never printed, logged, or persisted).
+  INFO: the plugin is lazy-install by design) and `FIRECRAWL_API_KEY` presence in the OS
+  user environment (presence only: the key value is never printed, logged, or persisted).
   `apply` is guidance-and-verify with no write path: it defers to the main skill's documented
   `npm install -g firecrawl-cli` flow and points at the OS-appropriate way to set the key,
   writing nothing.

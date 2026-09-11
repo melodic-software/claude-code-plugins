@@ -130,7 +130,7 @@ All notable changes to the `desktop-notification` plugin are documented here. Fo
 
 - **Vendored `hook-utils.sh` drops two `buffer_stdin` startup subshells and a
   `tr` exec on every `repo_root`.** Timeout and slice resolution write into
-  caller variables (`printf -v`) instead of `$( )` / process substitution —
+  caller variables (`printf -v`) instead of `$( )` / process substitution.
   GNU Bash forks a subshell for both even when the body is builtins only.
   `hook::repo_root` strips CR with parameter expansion, the same substitution
   `buffer_stdin` already uses for the payload. New `hook::json_str_object_to`
@@ -267,11 +267,11 @@ All notable changes to the `desktop-notification` plugin are documented here. Fo
   whole stored `pluginConfigs` entry, resetting every declared option to its manifest default.
   On Claude Code 2.1.240 a plain `claude plugin install … --config` against an already-installed
   plugin prints `already installed` and still writes the value, so that is now the documented
-  route — stamped with the CLI version it was verified against
+  route, stamped with the CLI version it was verified against
   ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). `apply` also
   now separates the write from its effect: the stored value changes immediately, but the running
   session's hooks keep the `CLAUDE_PLUGIN_OPTION_*` they were handed at session start, so
-  verification means rerunning `check` in a FRESH session — a same-session rerun reports the old
+  verification means rerunning `check` in a FRESH session. A same-session rerun reports the old
   value, which is not a failed write. It never asserts an unobserved change.
 - **Docs:** the generated options block's headless route no longer implies `--config` applies
   only at install time, and now carries the CLI version its claim was verified against
@@ -301,7 +301,7 @@ All notable changes to the `desktop-notification` plugin are documented here. Fo
 
 ### Changed
 
-- Sync `hook-utils.sh` from `lib/` — two header-echo comments removed in
+- Sync `hook-utils.sh` from `lib/`. Two header-echo comments removed in
   `hook::emit_telemetry` (comment-only; no behavior change).
 
 ## [0.6.14]
@@ -369,13 +369,13 @@ All notable changes to the `desktop-notification` plugin are documented here. Fo
 ### Changed
 
 - **Shared `hook-utils.sh`: the jq gate now has a fail-CLOSED sibling, and the posture reasoning
-  lives at the helper (#2146).** `hook::require_jq` is unchanged and still fails OPEN — one visible
-  skip notice per session, then exit 0 — which is the correct posture for every hook in this plugin,
+  lives at the helper (#2146).** `hook::require_jq` is unchanged and still fails OPEN: one visible
+  skip notice per session, then exit 0. That is the correct posture for every hook in this plugin,
   so **nothing in this plugin's behaviour changes**. What is new is `hook::require_jq_blocking`, a
   second named function that denies the tool call instead, for the narrow class of guards whose job
   is blocking an irreversible operation (today only two, both in `guardrails`). A sibling function
   rather than a parameter, because a flag's omitted value would default to fail-open and a guard
-  whose flag someone forgot would then fail open *silently* — the exact defect #2146 reports,
+  whose flag someone forgot would then fail open *silently*, the exact defect #2146 reports,
   reintroduced at the API. The two postures are now argued together in one block above both
   functions, which is what #2146 asked for: previously each call site asserted a posture in a
   comment and nothing where the decision is made explained it. Synced from `lib/hook-utils.sh`.
@@ -397,12 +397,12 @@ All notable changes to the `desktop-notification` plugin are documented here. Fo
 - **Shared `hook-utils.sh`: `hook::jq_fields` now REPORTS a NUL byte in a payload value
   (#2122).** 0.6.1 stopped a NUL from failing the helper's cardinality check, by stripping every
   NUL out of each value. That keeps the helper working, but stripping also silently rewrites the
-  value — `--no-verify<NUL>x` arrives as `--no-verifyx` — so a caller that owns a block/allow
+  value, turning `--no-verify<NUL>x` into `--no-verifyx`, so a caller that owns a block/allow
   verdict cannot tell a clean payload from one that carried a NUL, and matches against a token the
   payload never held contiguously. The fact is now reported in a new `HOOK_JQ_FIELDS_NUL` global,
   set on EVERY call including every failure path, so such a caller can fail closed on its own terms.
   It is computed from the values as the payload carried them, BEFORE the strip; strip first and the
-  flag would read "0" on every payload. Values themselves are unchanged — still stripped, so a
+  flag would read "0" on every payload. Values themselves are unchanged, still stripped, so a
   scanning caller still sees everything after the NUL. This plugin's own hooks do not consult the
   new global, so their behaviour is unchanged. Synced from `lib/hook-utils.sh`.
 
@@ -414,7 +414,7 @@ All notable changes to the `desktop-notification` plugin are documented here. Fo
   git guards (#2124).** `-S` exists so a shebang line can pass OPTIONS to env
   (`#!/usr/bin/env -S -i prog`), so the words it splits out are env's own arguments. The resolver
   spliced them back into the scan but resumed at the COMMAND dispatcher, which read a leading
-  option in the split string as the command NAME and gave up — `env -S '-C <dir> git push --force'`
+  option in the split string as the command NAME and gave up. `env -S '-C <dir> git push --force'`
   resolved to no git at all, so every guard built on `hook::git_resolve_index` skipped the command
   unexamined. Parsing now resumes inside env's own option loop. That also keeps env's single chdir
   slot last-wins across the splice, so `env -C a -S '-C b git …'` reports `b`, matching GNU env.
@@ -426,13 +426,13 @@ All notable changes to the `desktop-notification` plugin are documented here. Fo
 
 - **Shared `hook-utils.sh`: a NUL byte inside a payload value no longer makes `hook::jq_fields`
   come back empty (#2120).** The helper delimits its batched fields with NUL, and a JSON string may
-  legitimately encode one — a `Write`/`Edit`/`NotebookEdit` content field can. jq emitted the raw
+  legitimately encode one, as a `Write`/`Edit`/`NotebookEdit` content field can. jq emitted the raw
   byte, the read split that value in two, the cardinality check saw one value too many, and the
-  helper returned non-zero — which every caller treats as "skip", so the hook exited without doing
+  helper returned non-zero, which every caller treats as "skip", so the hook exited without doing
   its work. Each value is now NUL-stripped INSIDE the jq filter, so the delimiter provably cannot
   occur in a value. Stripping is not a lesser alternative to an encoding scheme, it is the only
   representable behavior: a bash variable cannot hold a NUL byte, and the per-field command
-  substitution this helper replaced dropped the byte and kept the rest of the value — so content
+  substitution this helper replaced dropped the byte and kept the rest of the value, so content
   AFTER a NUL is returned and scanned exactly as it was before the batching. Synced from
   `lib/hook-utils.sh`.
 
@@ -442,7 +442,7 @@ All notable changes to the `desktop-notification` plugin are documented here. Fo
 
 - **The bare `/<skill>` alias for this plugin's skills.** Their `SKILL.md` files no longer
   declare a frontmatter `name`. The field is optional and defaults to the directory name, so
-  declaring it only restated the path while registering a second, unnamespaced command — which
+  declaring it only restated the path while registering a second, unnamespaced command, which
   the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
   namespaced command; the command itself is unchanged.
 
@@ -457,7 +457,7 @@ All notable changes to the `desktop-notification` plugin are documented here. Fo
   with jq. On Windows Git Bash, where process creation is `fork()` emulation, each spawn costs
   ~140 ms. Behavior is unchanged: the slice keeps the three-decimal form `read -t` is given, the
   buffer is CR-stripped as before, and the completeness verdict is reused only when jq itself
-  produced it — so a host without jq still fails open exactly as it did. Also adds
+  produced it, so a host without jq still fails open exactly as it did. Also adds
   `hook::jq_fields`, which extracts several fields from one payload in a single jq process for
   hooks that read two or three of them. Synced from `lib/hook-utils.sh`.
 
@@ -467,15 +467,16 @@ All notable changes to the `desktop-notification` plugin are documented here. Fo
 
 - **Shared `hook-utils.sh`: the OS temp tree is no longer treated as project content (#1769).**
   `hook::read_file_path` scoped a file to the project by prefix-matching `CLAUDE_PROJECT_DIR`, so a
-  session whose project directory is the user's home admitted everything under the OS temp root —
+  session whose project directory is the user's home admitted everything under the OS temp root,
   including Claude Code's own per-session scratchpad, which lives there. Hooks that lint, rewrite, or
   autocorrect then ran on throwaway files that are not project content and carry no project config to
   opt out with; the reported case was `typos-format` autocorrecting a shell variable in a scratch
   script and silently breaking it. The guard now rejects a file inside the OS temp tree when the
-  project root is outside it. The exemption is deliberate and load-bearing: when the project root
-  itself lives under temp — a `mktemp -d` fixture checkout, which is how this repository's own hook
-  suites run — its files are still accepted. Temp roots come from `TMPDIR` / `TMP` / `TEMP` plus the
-  POSIX defaults, canonicalized through the same pipeline the membership comparison already uses.
+  project root is outside it. The exemption is deliberate and required: when the project root
+  itself lives under temp, its files are still accepted. That covers a `mktemp -d` fixture checkout,
+  which is how this repository's own hook suites run. Temp roots come from `TMPDIR` / `TMP` / `TEMP`
+  plus the POSIX defaults, canonicalized through the same pipeline the membership comparison already
+  uses.
   Synced from `lib/hook-utils.sh`.
 
 ## [0.5.8]
@@ -485,7 +486,7 @@ All notable changes to the `desktop-notification` plugin are documented here. Fo
 - **Shared `hook-utils.sh`: a wrapper's working-directory change is no longer lost when a caller
   parses only git's own global options (#1503).** `hook::git_resolve_index` walks wrapper programs
   (`env`, `sudo`, …) to reach the real `git` token, and a caller that scopes its git-global parsing
-  to the slice starting at that token cannot see a relocation the wrapper already performed — GNU env
+  to the slice starting at that token cannot see a relocation the wrapper already performed. GNU env
   documents `-C, --chdir=DIR` as "change working directory to DIR". The resolver now reports those
   directories in a new `HOOK_GIT_RESOLVED_WRAPPER_DIRS` result global, in execution order, so a
   caller composes them ahead of git's own globals instead of dropping them. Five spellings are read
@@ -519,11 +520,11 @@ All notable changes to the `desktop-notification` plugin are documented here. Fo
   pipe one byte at a time (~32 KB/s on Git Bash), so the `stdin_read_timeout` bound was really a
   ~64 KB throughput ceiling rather than the stall detector it was written to be. Past that ceiling
   the read returned a truncated payload and rc 1, and this plugin's hooks took their `|| exit 0`
-  branch — the hook did not run at all, with no diagnostic, on exactly the large writes it was
+  branch. The hook did not run at all, with no diagnostic, on exactly the large writes it was
   most wanted for. The read is now chunked (`read -N`), which bash satisfies with block reads, and
   the bound became a true idle bound: `read -t` is a deadline for the whole requested read rather
   than an inactivity timer, so a timed-out read that nevertheless returned bytes is now treated as
-  progress — its partial chunk is kept and a fresh window is armed. Only a window that delivers
+  progress: its partial chunk is kept and a fresh window is armed. Only a window that delivers
   nothing at all is a stall. `read -N` is Bash 4.1+, and these hooks support Bash 3.2+ (macOS
   system bash), so the pre-4.1 path falls back to the delimiter read inside the same re-arming
   loop. Measured: 50 KB drops from ~2100 ms to ~20 ms, 200 KB from ~6800 ms to ~85 ms. Synced
@@ -533,7 +534,7 @@ All notable changes to the `desktop-notification` plugin are documented here. Fo
 
 ### Changed
 
-- **Test scaffolding: migrated `mktemp -p` temp file/dir creation to the portable `mktemp "$DIR/template"` form.** BSD/macOS `mktemp` has no `-p` flag; the directory now rides in the positional TEMPLATE argument instead, which both GNU and BSD `mktemp` accept identically. Test-only — no hook behavior change. Part of #1527 (`desktop-notification.test.sh`).
+- **Test scaffolding: migrated `mktemp -p` temp file/dir creation to the portable `mktemp "$DIR/template"` form.** BSD/macOS `mktemp` has no `-p` flag; the directory now rides in the positional TEMPLATE argument instead, which both GNU and BSD `mktemp` accept identically. Test-only, no hook behavior change. Part of #1527 (`desktop-notification.test.sh`).
 
 ## [0.5.4]
 
@@ -557,11 +558,11 @@ All notable changes to the `desktop-notification` plugin are documented here. Fo
 
 - C1 fd1-leak detector in `desktop-notification.test.sh`: the threshold that was
   supposed to widen the slow-sink margin (`#751`, closing `#448`) could not actually
-  widen it — `THRESHOLD_MS` was derived as `SINK_SLEEP * 1000 / 2`, so widening
+  widen it. `THRESHOLD_MS` was derived as `SINK_SLEEP * 1000 / 2`, so widening
   `SINK_SLEEP` widened the threshold by the same ratio and left the margin unchanged
   by construction. `#448` was reopened after this reproduced on clean `main`
   (delta=3697ms false-fail, no leak present). `THRESHOLD_MS` now asserts the real
-  invariant directly — sink-sleep-minus-a-safety-margin, not half the sleep — and
+  invariant directly, sink-sleep-minus-a-safety-margin rather than half the sleep, and
   `SINK_SLEEP` is widened from 6s to 8s (still comfortably under the 10s ceiling
   documented against EXIT-cleanup file-locking on Windows) for more absolute
   separation between ambient noise and the leak signal. The safety margin is sized so
@@ -569,8 +570,8 @@ All notable changes to the `desktop-notification` plugin are documented here. Fo
   just the noise side: a threshold too close to the leak signal lets a load shift that
   inflates every baseline sample and then subsides before the slow run subtract real
   leak signal out of the delta, and the detector reports no leak. At `SINK_SLEEP`=8s
-  and a 3000ms margin the threshold sits at 5000ms — 2850ms of noise-side margin,
-  3000ms of leak-side margin. Verified on Windows Git Bash: 10 consecutive clean runs,
+  and a 3000ms margin the threshold sits at 5000ms, leaving 2850ms of noise-side
+  margin and 3000ms of leak-side margin. Verified on Windows Git Bash: 10 consecutive clean runs,
   40 runs under heavy concurrent load (worst observed no-leak delta ~1590ms), and a
   deliberately reintroduced fd1 leak still fails the case (observed delta ~8065ms).
 
@@ -583,7 +584,7 @@ All notable changes to the `desktop-notification` plugin are documented here. Fo
   both halves to `-s user`. When this plugin is installed at `project` or `local` scope, that
   silently uninstalled a separate user-scope record while the effective project/local install kept
   loading, and the reinstall landed at a scope that does not load. Both commands now carry
-  `-s <scope>`, sourced from what `claude plugin list` reports for this plugin — the same fix
+  `-s <scope>`, sourced from what `claude plugin list` reports for this plugin. It is the same fix
   already applied to `session-flow` and `rate-limit-guard` in #1393.
   The recipe also now requires the reinstall to re-supply **every** key whose value should
   stay non-default, not only the key being changed: uninstalling drops the stored
@@ -597,7 +598,7 @@ All notable changes to the `desktop-notification` plugin are documented here. Fo
 - Sync of the shared `hook-utils.sh`: the git-option parser distinguishes `--config-env`
   (an env-var name) from `-c`/`--config` (an inline value), and a `--config-env` alias for
   a guarded subcommand is refused by shape rather than by resolving the environment
-  variable's value (`#740`). No behavior change for this plugin — it does not inspect git
+  variable's value (`#740`). No behavior change for this plugin, which does not inspect git
   config values; shipped so consumers receive the shared library update.
 
 ## [0.5.0]
@@ -606,7 +607,7 @@ All notable changes to the `desktop-notification` plugin are documented here. Fo
 
 - **`statusMessage` declared on the hook's `hooks.json` handler** (hook-observability
   convention, `docs/conventions/hook-observability/`): a spinner label ("Sending
-  desktop notification...") now shows while the hook runs. Config-only — no
+  desktop notification...") now shows while the hook runs. Config-only, with no
   runtime behavior change.
 
 ## [0.4.3]
@@ -614,9 +615,9 @@ All notable changes to the `desktop-notification` plugin are documented here. Fo
 ### Changed
 
 - C1 fd1-leak detector in `desktop-notification.test.sh` now measures the slow-sink
-  invariant differentially — a fast-sink baseline run captures the machine's current
-  process-spawn overhead, and the slow-sink run's excess over it isolates the leak
-  signal — instead of asserting a fixed `< 2000ms` wall-clock bound. On Windows Git
+  invariant differentially instead of asserting a fixed `< 2000ms` wall-clock bound.
+  A fast-sink baseline run captures the machine's current process-spawn overhead, and
+  the slow-sink run's excess over it isolates the leak signal. On Windows Git
   Bash the hook's own spawn overhead (~1.6s solo, 4-10s under parallel-suite load)
   left the fixed bound with a thin-to-negative margin and false-failed even with no
   leak. The differential form cancels ambient overhead, so the check holds under load
@@ -650,7 +651,7 @@ All notable changes to the `desktop-notification` plugin are documented here. Fo
 
 - **Uniform-contract `setup` skill** (fleet conformance wave). `/desktop-notification:setup
   check` reads the hook scripts as the single source of truth and probes Bash version, `jq`,
-  and — for the current OS only — the `os_toast` channel dependency (Linux `notify-send`;
+  and, for the current OS only, the `os_toast` channel dependency (Linux `notify-send`;
   macOS built-in `osascript`; Windows terminal-only), then reports the four channel toggles'
   effective values. `apply` is guidance-and-verify with no write path: it points at the
   README install steps and `/plugin configure` for a muted toggle, installs nothing, and
@@ -703,4 +704,4 @@ All notable changes to the `desktop-notification` plugin are documented here. Fo
   retired and no longer read. A consumer that set any of
   these in a settings `env` block must re-express the value as the matching
   `userConfig` option. Zero-config behavior is unchanged (all channels on, same
-  defaults). The `HOOK_TELEMETRY_SINK` consumer-side telemetry seam is unaffected.
+  defaults). Consumer-side telemetry through `HOOK_TELEMETRY_SINK` is unaffected.

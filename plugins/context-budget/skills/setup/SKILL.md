@@ -84,8 +84,8 @@ writing. Re-running it after everything passes changes nothing and reports "alre
   which owns the verified-version record): interactive
   `/plugin configure context-budget@<marketplace>` any time, or headless
   `claude plugin install context-budget@<marketplace> -s <scope> --config settings_write_ask_enabled=true`
-  (repeatable per key) — against an already-installed plugin it prints `already installed` **and
-  still writes the value**. Do **not** uninstall to reconfigure: that drops this plugin's entire
+  (repeatable per key). Against an already-installed plugin it prints `already installed`
+  **and still writes the value**. Do **not** uninstall to reconfigure: that drops this plugin's entire
   stored `pluginConfigs` entry, resetting every option in the README's Options reference to its
   manifest default. `-s` defaults to `user`; pass the scope `claude plugin list` reports for this
   plugin, and run from that project's directory for a `project`/`local` scope, or the write lands at

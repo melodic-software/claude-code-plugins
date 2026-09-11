@@ -200,14 +200,14 @@ All notable changes to the `kindle-dedrm` plugin are documented here. Format fol
   `'extract keys from my Kindle library'`, `'sync new Kindle books I bought'`,
   `'check if DeDRM setup is current'`, `'clean up Kindle DRM tools'`, `'undo DeDRM setup'`,
   `'convert Kindle books to EPUB'`) were written with escaped double quotes, which the skill-quality
-  gate's trigger-drop protection does not track — so none of them carried regression cover. Quoting
+  gate's trigger-drop protection does not track, so none of them carried regression cover. Quoting
   only; the wording is unchanged.
 
   `'set up Kindle DRM removal'` is deliberately kept here even though the sibling
   `/kindle-dedrm:setup` also lists it. That looks like a routing ambiguity, but `setup` is
-  `disable-model-invocation: true` — its description is never matched against user text — so
-  `manage` is the only skill that can receive the phrase by model invocation, and its action router
-  delegates to `/kindle-dedrm:setup` from there. Dropping the duplicate would make the phrase
+  `disable-model-invocation: true`, so its description is never matched against user text. That
+  makes `manage` the only skill that can receive the phrase by model invocation, and its action
+  router delegates to `/kindle-dedrm:setup` from there. Dropping the duplicate would make the phrase
   reachable only by an explicit slash command.
 
 ## [0.7.0]
@@ -216,8 +216,8 @@ All notable changes to the `kindle-dedrm` plugin are documented here. Format fol
 
 - **The bare `/<skill>` alias for this plugin's skills.** Their `SKILL.md` files no longer
   declare a frontmatter `name`. The field is optional and defaults to the directory name, so
-  declaring it only restated the path while registering a second, unnamespaced command — which
-  the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
+  declaring it only restated the path while registering a second, unnamespaced command. The
+  slash-command picker then echoed that back as `/plugin:skill (skill)`. Invoke a skill by its
   namespaced command; the command itself is unchanged.
 
 ## [0.6.4]
@@ -236,7 +236,7 @@ All notable changes to the `kindle-dedrm` plugin are documented here. Format fol
 - **`status.sh`/`sync-finalize.sh` annotated for the shell-portability-lint
   gate's newly-active `stat -c` class (#1510).** Both scripts' cached-installer
   size probe (`stat -c%s ... || echo <default>`) has no BSD `stat -f`
-  fallback, which the gate would otherwise flag as a real gap — but this
+  fallback, which the gate would otherwise flag as a real gap. This
   plugin's scripts are Windows-only (Git Bash + PowerShell + the
   `LOCALAPPDATA`/`USERPROFILE`/`APPDATA` env vars they already depend on), so
   a BSD fallback would be dead code. Each site now carries a `portability-ok:`
@@ -259,7 +259,7 @@ All notable changes to the `kindle-dedrm` plugin are documented here. Format fol
   upstream drift confirmed live 2026-07-19). New asset SHA256
   `520cce70…c362947` (1,944,296 bytes, asset date 2026-07-14), fetched and
   hash-verified; the prior pin is recorded for rollback. A full single-book
-  extraction was NOT re-run (manual, machine-bound) — the only consumed file,
+  extraction was NOT re-run (manual, machine-bound). The only consumed file,
   `DeDRM_plugin.zip`, is present; the v10.0.28 additions (Frida/MSIX decrypt
   tools) target the newer MSIX Kindle app and are not used by this skill.
 - **Tutorial URL repointed + drift probe reworked.** The primary tutorial moved
@@ -283,7 +283,7 @@ All notable changes to the `kindle-dedrm` plugin are documented here. Format fol
 
 ### Changed
 
-- **BREAKING: router skill `kindle-dedrm` renamed to `manage`** (fleet conformance wave —
+- **BREAKING: router skill `kindle-dedrm` renamed to `manage`** (fleet conformance wave:
   naming grammar, verb-first skill names). The router now invokes as `/kindle-dedrm:manage` (was
   `/kindle-dedrm:kindle-dedrm`); the `setup` skill is unchanged. Update any saved
   invocations. Skill behavior, actions, scripts, and evals are unchanged; only the leaf
@@ -293,11 +293,11 @@ All notable changes to the `kindle-dedrm` plugin are documented here. Format fol
 
 ### Changed
 
-- **`update` re-pins are checkout-gated** (fleet conformance wave, dim 15 —
+- **`update` re-pins are checkout-gated** (fleet conformance wave, dim 15,
   cache isolation). Applying an accepted drift recommendation now requires
   `${CLAUDE_PLUGIN_ROOT}` to be a git working tree; in installed form the
   skill stops after the drift report and routes the change to the plugin's
-  source repository — bundled reference files are never edited in the
+  source repository. Bundled reference files are never edited in the
   read-only plugin cache.
 - **Pins single-sourced**: `check-drift.sh` now parses every pin from
   `references/versions.md` (fail-hard on a pin it cannot read) instead of
@@ -313,7 +313,7 @@ All notable changes to the `kindle-dedrm` plugin are documented here. Format fol
   (`user-invocable: true`, `disable-model-invocation: true`). `check` probes
   prerequisites and current state read-only (Calibre, Python-not-WindowsApps-stub,
   pwsh, admin, Kindle version, firewall/ICACLS lock, downloads, plugins) via the
-  plugin's own `status.sh`, reporting PASS/FAIL/INFO — a not-yet-provisioned
+  plugin's own `status.sh`, reporting PASS/FAIL/INFO. A not-yet-provisioned
   machine is INFO, a wrong Kindle version or missing hard prerequisite is FAIL,
   and the extracted-key store is reported presence-only. `apply` runs the
   provisioning walkthrough by reference to `references/workflow.md`, with
