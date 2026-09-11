@@ -331,7 +331,10 @@ run_cli() {
   local label="$1"
   shift
   local sink="$RUN_DIR/.last-cli-out"
-  { echo "\$ $label"; "$CLAUDE_BIN" "$@" 2>&1; } | tee -a "$JOURNAL_LOG" >"$sink"
+  {
+    echo "\$ $label"
+    "$CLAUDE_BIN" "$@" 2>&1
+  } | tee -a "$JOURNAL_LOG" >"$sink"
   CLI_RC=${PIPESTATUS[0]}
   CLI_OUT=$(<"$sink")
   CLI_OUT="${CLI_OUT//$'\r'/}"
@@ -1074,6 +1077,13 @@ finalize_moves() {
 # marketplace's own autoUpdate, the stale project records, the user-scope orphans,
 # and the share of actionable divergences that belong to the repo the run stands in.
 # They ride the digest so the report costs no extra read.
+#
+# `auto_update` is read from the snapshot directly, never through `//`: jq's
+# alternative operator treats `false` as absent, so `false // null` is `null`,
+# and a marketplace with autoUpdate off would read as unreadable. fleet-state.sh
+# already normalizes the field to a JSON boolean, so a snapshot that carries it
+# yields `true` or `false`; `null` is reserved for no snapshot at all, or a
+# snapshot whose marketplace block never resolved far enough to carry the field.
 report_extras() {
   local __var="$1" mp="$2" src=""
   for src in "$RUN_DIR/post.$mp.json" "$RUN_DIR/pre-install.$mp.json" "$RUN_DIR/pre.$mp.json" \
@@ -1098,7 +1108,7 @@ report_extras() {
     ([.divergences[]? | select(.versionsMatch == false) | .id]) as $act
     | ([.installed[]? | select(.currentProject == true) | .id]) as $here
     | ([.installed[]? | select(.projectPathPresent == false)]) as $absent
-    | {auto_update: (.marketplace.autoUpdate // null),
+    | {auto_update: .marketplace.autoUpdate,
        user_scope_orphans: (.user_scope_orphans // []),
        stale_project_records: {total: ($absent | length),
                                by_path: ($absent | group_by(.projectPath)

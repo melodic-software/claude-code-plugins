@@ -582,6 +582,40 @@ assert_eq "--all: the other marketplace still refreshed" "0" \
 assert_eq "--all: the checker ran once per marketplace" "2" "$(wc -l <"$case_dir/cc.log" | tr -d ' ')"
 
 # ============================================================================
+# Case: a marketplace's literal `autoUpdate: false` reaches the digest as false,
+# a literal `true` as true. jq's `//` reads false as absent, so a `// null`
+# default would report the off marketplace as unreadable.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+catalog_plugin "$case_dir" market1 alpha 0.1.0
+catalog_plugin "$case_dir" market2 gamma 0.1.0
+write "$case_dir/installed_plugins.json" '{
+  "version": 1,
+  "plugins": {
+    "alpha@market1": [{"scope": "user", "installPath": "a", "version": "0.1.0"}],
+    "gamma@market2": [{"scope": "user", "installPath": "g", "version": "0.1.0"}]
+  }
+}'
+write "$case_dir/known_marketplaces.json" "{
+  \"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m1\"}, \"installLocation\": \"$case_dir/mkt\", \"autoUpdate\": false, \"lastUpdated\": \"2026-01-01T00:00:00Z\"},
+  \"market2\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m2\"}, \"installLocation\": \"$case_dir/mkt2\", \"autoUpdate\": true, \"lastUpdated\": \"2026-01-01T00:00:00Z\"}
+}"
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}]}'
+write "$case_dir/catalog/market2.json" '{"plugins": [{"name": "gamma", "source": "gamma"}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true, "gamma@market2": true}}'
+setup_case "$case_dir"
+EXTRA_ENV=(CLAUDE_STUB_NOOP_ID=alpha@market1)
+out=$(run_sync "$case_dir" --all --journal-root "$case_dir/journal")
+assert_exit "autoUpdate: exit 0" 0 $?
+assert_eq "autoUpdate: a literal false in the marketplace record is false in the digest, not null" "false" \
+  "$(jq -c '.marketplaces[] | select(.name == "market1") | .auto_update' <<<"$out")"
+assert_eq "autoUpdate: a literal true is true" "true" \
+  "$(jq -c '.marketplaces[] | select(.name == "market2") | .auto_update' <<<"$out")"
+assert_eq "autoUpdate: neither marketplace is reported as unreadable" "0" \
+  "$(jq -r '[.marketplaces[] | select(.auto_update == null)] | length' <<<"$out")"
+
+# ============================================================================
 # Case: an enable gap is filled at user scope and REPORTED at project scope
 # ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
@@ -608,8 +642,10 @@ assert_eq "no-op update: an already-current id is NOT an Updated row" "0" \
   "$(jq -r '.marketplaces[0].in_repo.updated | length' <<<"$out")"
 assert_eq "no-op update: and is not a downgrade either" "0" \
   "$(jq -r '.marketplaces[0].downgraded | length' <<<"$out")"
-assert_eq "report inputs: the marketplace's autoUpdate rides the digest" "null" \
-  "$(jq -r '.marketplaces[0] | has("auto_update") | if . then "null" else "missing" end' <<<"$out")"
+# The fixture's marketplace record carries no autoUpdate key; fleet-state.sh
+# normalizes that to `false`, and the digest must carry the boolean, not null.
+assert_eq "report inputs: the marketplace's autoUpdate rides the digest as a boolean" "false" \
+  "$(jq -c '.marketplaces[0].auto_update' <<<"$out")"
 assert_eq "report inputs: the stale-project-record count rides the digest" "0" \
   "$(jq -r '.marketplaces[0].stale_project_records.total' <<<"$out")"
 # The `In-repo:` row's own input. This root HAS a project-scope install and the

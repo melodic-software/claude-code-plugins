@@ -3,6 +3,18 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.47.2]
+
+### Fixed
+
+- **`plugins`: the sync digest carries a marketplace's `autoUpdate: false` as `false`, not
+  `null`.** `sync-run.sh` built the digest's `auto_update` field with jq's alternative operator,
+  which treats `false` the same as absent, so a marketplace with autoUpdate off reached the
+  digest as `null`, the value reserved for "no fleet-state snapshot existed". The field is now
+  read directly (`fleet-state.sh` already normalizes it to a JSON boolean), and the Report
+  template renders the slot three ways: `on`, `off`, and `unreadable` for `null`, so a missing
+  snapshot is never reported as off.
+
 ## [0.47.1]
 
 ### Fixed

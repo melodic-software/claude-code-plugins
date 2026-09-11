@@ -239,7 +239,9 @@ Terse, fixed sections. Detail only where action is required. Do not enumerate ro
 action.
 
 ```text
-Marketplace: <name> — <current | needs update> (autoUpdate: <on|off — suggest enabling if off>)
+Marketplace: <name> — <current | needs update> (autoUpdate: <on | off | unreadable>)
+  (`on` for `auto_update: true`; `off` for `false`, with a suggestion to enable it; `unreadable`
+   for `null`, which means no fleet-state snapshot carried the field. Never render null as `off`)
   (repeat this line per marketplace in `all` mode — Steps 2–5 run once per marketplace)
 In-repo: <N> project/local install(s) updated in <project_root>
   (N is `in_repo.updated | length`; it counts FORWARD moves only. An in-repo record moved
