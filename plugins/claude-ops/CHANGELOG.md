@@ -108,7 +108,6 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   four-part drift record, and a gotcha on the probed binary not being the operator's daily
   `claude`.
 
-
 ## [0.49.0]
 
 ### Added
