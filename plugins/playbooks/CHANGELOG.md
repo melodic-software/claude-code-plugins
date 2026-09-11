@@ -27,6 +27,8 @@ only after that version increases.
   `[0.4.0]`, `[0.3.2]`, `[0.3.1]`, `[0.3.0]`, `[0.2.0]`, and `[0.1.0]`. Wording only; every
   entry's facts are unchanged.
 
+## [0.10.0]
+
 ### Added
 
 - **`skill-authoring`**: `reference/authoring-guidance.md`, a cross-reading of Anthropic's

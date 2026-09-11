@@ -5,6 +5,14 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
 
 ## [0.22.1]
 
+### Changed
+
+- **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and
+  defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's
+  em-dash gate reads. The twenty-six-check wording 0.22.0 introduced is kept.
+
+## [0.22.0]
+
 ### Added
 
 - **`check`: check 26, a table of contents in long spoke files (WARN).** A markdown file under
@@ -47,9 +55,6 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
   included. The platform best-practices page applies the number to the SKILL.md body and the
   Claude Code skills page's Tip to the file; whole-file is the stricter reading, so a skill that
   passes here satisfies both, and it stays.
-- **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and
-  defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's
-  em-dash gate reads. The twenty-six-check wording this release introduces is kept.
 
 ## [0.21.2]
 
