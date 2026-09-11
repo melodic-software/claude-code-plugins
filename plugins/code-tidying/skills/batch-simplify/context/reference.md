@@ -31,7 +31,7 @@ Present a final report:
 ```text
 ## Batch Simplify Results
 
-Scope: {scope}  (e.g., "48h", "branch chore/misc-maintenance vs main", or "repo — whole repository")
+Scope: {scope}  (e.g., "48h", "branch chore/misc-maintenance vs main", or "repo, whole repository")
 Files scanned: {total_files}
 Groups processed: {group_count}
 
@@ -45,12 +45,12 @@ Final cross-ecosystem verification: PASS/FAIL
 
 ## Deferred items resolved in-run
 
-- <path> — <what> (resolution wave; in repo mode add: commit <sha>)
+- <path>: <what> (resolution wave; in repo mode add: commit <sha>)
 - ...
 
 ## Deferred items remaining (user decides)
 
-- <site> — <what>. Ground: <Needs-human|Too-large|the recorded ground of a deferral the resolution wave could not finish>. <agent's recorded rationale> (Group 2)
+- <site>: <what>. Ground: <Needs-human|Too-large|the recorded ground of a deferral the resolution wave could not finish>. <agent's recorded rationale> (Group 2)
 ```
 
 No work items are filed by default; the remaining-deferrals section is where they land. Offer to file them only if the user asks.

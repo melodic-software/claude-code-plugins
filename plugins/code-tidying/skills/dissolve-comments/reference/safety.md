@@ -198,7 +198,7 @@ control), the run's report stages that text **before the deletion is final**:
 ```text
 Proposed commit-message body (staged from removed comments):
 
-  <file>:<line> — <the narrative, condensed but information-complete>
+  <file>:<line>: <the narrative, condensed but information-complete>
 ```
 
 Hand the block to `/source-control:commit`, invoked via the Skill tool, when committing the tidied
