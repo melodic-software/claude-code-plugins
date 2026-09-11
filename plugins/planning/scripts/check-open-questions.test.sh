@@ -523,6 +523,90 @@ cat >"$brief_unterminated" <<'EOF'
 EOF
 expect_exit "unterminated fence in the Brief's deferred questions -> 2" 2 --ledger "$mixed" --brief "$brief_unterminated"
 
+# 37. The Brief is read only when the register retired a row. With nothing
+#     deferred or blocked there is nothing to look up, so a stray unclosed fence
+#     in some unrelated section of a large Brief must not flip a clean register
+#     to ungradeable: the cross-check is vacuously satisfied and says so.
+brief_unrelated_fence="$TMP/plan-unrelated-fence.md"
+cat >"$brief_unrelated_fence" <<'EOF'
+## Brief
+
+### Goal
+
+ship it
+
+## Plan
+
+```bash
+echo "a code sample whose fence was never closed"
+EOF
+expect_exit "nothing retired: an unrelated unterminated fence in the Brief is not graded -> 0" 0 --ledger "$clean" --brief "$brief_unrelated_fence"
+expect_stdout "nothing retired: brief=ok is reported, not unchecked" "brief=ok" --ledger "$clean" --brief "$brief_unrelated_fence"
+
+# 38. A fence closes only on its own delimiter. A four-backtick fence can hold a
+#     three-backtick example (the documented way to show a fenced block inside
+#     one), so the inner ``` must not toggle the outer fence off. Here the outer
+#     fence wraps an example register heading; with a parity toggle it would
+#     count as a second live heading and exit 2.
+nested_fence="$TMP/nested-fence.md"
+cat >"$nested_fence" <<'EOF'
+# Checklist
+
+````markdown
+An example ledger:
+
+```text
+## Open-question register
+
+- Q1 | open | round 1 | example only |
+```
+````
+
+## Open-question register
+
+- Q1 | answered | round 1 | live question | yes
+EOF
+expect_exit "a shorter inner fence does not close a longer outer fence -> 0" 0 --ledger "$nested_fence"
+
+# 39. A tilde fence line inside a backtick fence is content, not a closer, and
+#     the other way round. The heading behind it stays hidden.
+mixed_delims="$TMP/mixed-delims.md"
+cat >"$mixed_delims" <<'EOF'
+# Checklist
+
+```text
+~~~
+## Open-question register
+~~~
+```
+
+~~~text
+```
+## Open-question register
+```
+~~~
+
+## Open-question register
+
+- Q1 | answered | round 1 | live question | yes
+EOF
+expect_exit "a fence of the other character does not close the open one -> 0" 0 --ledger "$mixed_delims"
+
+# 40. A closing fence may be longer than its opener; it still closes.
+longer_closer="$TMP/longer-closer.md"
+cat >"$longer_closer" <<'EOF'
+# Checklist
+
+```text
+## Open-question register
+````
+
+## Open-question register
+
+- Q1 | answered | round 1 | live question | yes
+EOF
+expect_exit "a longer closing fence closes the shorter opener -> 0" 0 --ledger "$longer_closer"
+
 if [[ "$fails" -ne 0 ]]; then
   printf '\n%d test(s) failed.\n' "$fails" >&2
   exit 1
