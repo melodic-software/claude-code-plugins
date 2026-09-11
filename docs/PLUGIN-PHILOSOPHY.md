@@ -936,12 +936,14 @@ above, never below; tedious or mechanical preparation may drop one tier.** The h
 explicit: an agent definition that omits `model` defaults to `inherit`, the main conversation's
 model ([subagents: model resolution](https://code.claude.com/docs/en/sub-agents#choose-a-model),
 verified 2026-08-10; frontmatter accepts `sonnet`, `opus`, `haiku`, `fable`, a full model ID, or
-`inherit`). Consumers hold one global override knob: `CLAUDE_CODE_SUBAGENT_MODEL`, set via the
-settings `env` map, which overrides both the per-invocation `model` parameter and frontmatter,
-except at the value `inherit`, which since v2.1.196 means normal resolution rather than forcing the
-session model, so the knob has an off position as well as an on one
-([model config: environment variables](https://code.claude.com/docs/en/model-config#environment-variables),
-verified 2026-08-10; `env` applies to every session and spawned subprocess,
+`inherit`). Consumers hold one global fallback knob: `CLAUDE_CODE_SUBAGENT_MODEL`, set via the
+settings `env` map. It ranks **third**, below the per-invocation `model` parameter and below
+frontmatter, so it decides only where neither is set; setting it to `inherit` is the same as leaving
+it unset. A structural frontmatter binding therefore holds against it, and the knob is a default for
+unbound subagents rather than an override
+([subagents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model),
+verified 2026-09-11, recheck when a release note touches subagent model selection;
+`env` applies to every session and spawned subprocess,
 [settings](https://code.claude.com/docs/en/settings), verified 2026-08-10). There is no per-plugin
 model surface, because plugin `userConfig` declares only generic typed options with no model semantics
 ([plugins reference: user configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration),
