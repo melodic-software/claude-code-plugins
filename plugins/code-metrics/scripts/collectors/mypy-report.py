@@ -6,20 +6,44 @@ Adapter contract (design/contracts.md section 3): `probe`, `measures`,
 
 mypy writes `any-exprs.txt` into the directory given to `--any-exprs-report`:
 a fixed-width table with the columns Name, Anys, Exprs, Coverage, one row per
-module, and a `Total` row. This adapter reads the `Total` row and prints one
-per-lane row (`file` and `function` are `null`, per the report contract). The
-report directory is a temporary one, created and removed here, because mypy
-overwrites the whole directory.
+module it was given, and a `Total` row. This adapter prints one row per scope
+file whose module mypy listed (`file` set, `function` null) and one lane row
+(`file` null, label `lane-total`) whose values are the sum of those file rows,
+so a change-scoped run reports the scope's own coverage. The report directory
+is a temporary one, created and removed here, because mypy overwrites the
+whole directory.
 
 Facts probed against mypy 1.19.1 (its documentation and source at that tag,
-unchanged at 2.3.1) and replayed by fixtures/tool-output/mypy-any-exprs.txt and
-mypy-any-exprs-aborted.txt:
+unchanged at 2.3.1) and replayed by fixtures/tool-output/mypy-any-exprs.txt,
+mypy-any-exprs-modules.txt and mypy-any-exprs-aborted.txt:
 
 - the table is whitespace-aligned and the Coverage column carries a trailing
-  percent sign;
+  percent sign; the Name column is the module name, never the path;
+- the module name is what `mypy/find_sources.py` (`SourceFinder.crawl_up`)
+  derives with the working directory as the only explicit base: walking up
+  from the file's directory, a directory holding `__init__.py[i]` is a
+  package and its name joins the module; otherwise the walk continues only
+  while each directory name is a Python identifier and reaches the base, and
+  stops with no prefix at the first directory whose name is not one. So
+  `plugins/perf/lib/x.py` is `plugins.perf.lib.x` and `claude-ops/lib/x.py`
+  is the bare `x`. `module_name` re-derives that rule; checked against a
+  real 186-file run of this repository (182 of 182 listed names matched);
 - mypy exits 1 on any type error and still writes the report (design T1), so
-  exit 1 with a readable report is exit 0 here, with the row labelled
-  `mypy-reported-errors`;
+  exit 1 with a readable report is exit 0 here, with the lane row labelled
+  `mypy-reported-errors` and a note on stderr (which the dispatcher relays as
+  the run row's reason) counting the errors and the missing-stub ones, the
+  codes `import-untyped` and `import-not-found`. Error lines go to stdout as
+  `<path>:<line>: error: <text>  [<code>]`; `--show-error-codes` is passed so
+  a consumer config hiding the codes does not hide the count, and
+  `--no-pretty` so a consumer's `pretty = true` does not wrap the code onto a
+  continuation line;
+- mypy lists only the files it was given: a module it follows through an
+  import is type-checked for their sake but has no table row, so every listed
+  module is a scope file under some naming. When the consumer's mypy config
+  adds a base (`mypy_path = src`, the src layout) mypy names `src/pkg/m.py`
+  `pkg.m` while the cwd-based derivation says `src.pkg.m`, so a listed name
+  no derived name equals is matched to the one scope file whose derived name
+  ends in `.` plus that name, and left out when that is ambiguous;
 - mypy exits 2 on a blocking error (a duplicate module name, a usage or config
   error) before analysing anything, and still writes a report whose only row
   is `Total 0 0 100.00%`. Nothing was measured, so exit 2 is the adapter
@@ -54,6 +78,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from typing import Optional
 
 from adapter_paths import files_from
 
@@ -65,6 +90,10 @@ LANE = "python"
 # mypy's exit for a blocking error (duplicate module, usage or config error):
 # it stops before analysing anything and its report carries no measurement.
 FATAL_EXIT = 2
+# mypy's own order: a stub beside a module wins (find_sources.PY_EXTENSIONS).
+PY_EXTENSIONS = (".pyi", ".py")
+# The error codes mypy gives an import it found no stubs or implementation for.
+MISSING_STUB_CODES = ("[import-untyped]", "[import-not-found]")
 
 
 def probe() -> int:
@@ -84,18 +113,117 @@ def probe() -> int:
     return 0
 
 
-def parse_total(table: str) -> tuple[int, int, float]:
-    """Return (anys, exprs, coverage percent) from the table's `Total` row."""
+# (anys, exprs, coverage percent or None); Optional because this alias is
+# evaluated at import time and the floor is Python 3.9.
+Counts = tuple[int, int, Optional[float]]
+
+
+def _counts(fields: list[str]) -> Counts:
+    anys, exprs = int(fields[1]), int(fields[2])
+    # mypy prints 100.00% for an empty module; nothing was counted, so the
+    # percentage is null, never 100.
+    return anys, exprs, float(fields[3].rstrip("%")) if exprs else None
+
+
+def parse_table(table: str) -> tuple[dict[str, Counts], Counts]:
+    """Return ({module: counts}, total counts) from the any-exprs table."""
+    modules: dict[str, Counts] = {}
+    total: Counts | None = None
     for line in table.splitlines():
         fields = line.split()
-        if len(fields) != 4 or fields[0] != "Total":
+        if len(fields) != 4 or fields[0] == "Name" or not fields[1].isdigit():
             continue
-        return (
-            int(fields[1]),
-            int(fields[2]),
-            float(fields[3].rstrip("%")),
-        )
-    raise ValueError("the any-exprs report has no Total row")
+        if fields[0] == "Total":
+            total = _counts(fields)
+        else:
+            modules[fields[0]] = _counts(fields)
+    if total is None:
+        raise ValueError("the any-exprs report has no Total row")
+    return modules, total
+
+
+def parse_total(table: str) -> Counts:
+    """The table's `Total` row alone."""
+    return parse_table(table)[1]
+
+
+def _has_init(directory: str) -> bool:
+    return any(
+        os.path.isfile(os.path.join(directory, "__init__" + ext))
+        for ext in PY_EXTENSIONS
+    )
+
+
+def _join(prefix: str, name: str) -> str:
+    return f"{prefix}.{name}" if prefix else name
+
+
+def _crawl_dir(directory: str, base: str) -> str | None:
+    """The module prefix a directory contributes, or None when the walk
+    reaches neither the base nor a package (mypy's `_crawl_up_helper`)."""
+    if os.path.normcase(directory) == base:
+        return ""
+    parent, name = os.path.split(directory)
+    if not name or parent == directory:
+        return None
+    if name.endswith("-stubs"):
+        name = name[:-6]
+    if _has_init(directory):
+        # A package is always named, whatever lies above it; mypy refuses a
+        # package whose directory name is not an identifier (exit 2, the
+        # exit-4 path here), so the file cannot reach this point.
+        return _join(_crawl_dir(parent, base) or "", name)
+    if not name.isidentifier():
+        return None
+    prefix = _crawl_dir(parent, base)
+    return None if prefix is None else _join(prefix, name)
+
+
+def module_name(path: str, base: str) -> str:
+    """The module mypy names `path` under `--explicit-package-bases` with
+    `base` (an absolute, normcased directory) as the only base."""
+    parent, filename = os.path.split(os.path.abspath(path))
+    stem = filename
+    for ext in PY_EXTENSIONS:
+        if filename.endswith(ext):
+            stem = filename[: -len(ext)]
+            break
+    prefix = _crawl_dir(parent, base) or ""
+    return prefix if stem == "__init__" else _join(prefix, stem)
+
+
+def error_note(stdout: str) -> str:
+    """`mypy reported N errors (M missing stubs)` from mypy's error lines."""
+    lines = [line for line in stdout.splitlines() if ": error:" in line]
+    stubs = [line for line in lines if line.rstrip().endswith(MISSING_STUB_CODES)]
+    return (
+        f"mypy reported {len(lines)} error{'s' if len(lines) != 1 else ''} "
+        f"({len(stubs)} missing stub{'s' if len(stubs) != 1 else ''})"
+    )
+
+
+def _row(lane: str, file: str | None, counts: Counts, labels: list[str]) -> dict:
+    anys, exprs, coverage = counts
+    return {
+        "file": file,
+        "function": None,
+        "lane": lane,
+        "values": {
+            "any_expressions": anys,
+            "expressions_total": exprs,
+            "type_coverage_pct": coverage,
+        },
+        "collector": NAME,
+        "labels": labels,
+    }
+
+
+def _summed(rows: list[Counts]) -> Counts:
+    anys = sum(r[0] for r in rows)
+    exprs = sum(r[1] for r in rows)
+    # mypy's own formatting of the percentage, so a lane row over every
+    # listed module reads exactly as mypy's Total row does.
+    return anys, exprs, float(f"{(exprs - anys) / exprs * 100:.2f}") if exprs else None
 
 
 def collect(lane: str, measure: str, files: list[str]) -> int:
@@ -114,6 +242,8 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
                 "--any-exprs-report",
                 report_dir,
                 "--no-error-summary",
+                "--show-error-codes",
+                "--no-pretty",
                 "--explicit-package-bases",
                 "--cache-dir",
                 os.devnull,
@@ -154,24 +284,73 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
     finally:
         shutil.rmtree(report_dir, ignore_errors=True)
     try:
-        anys, exprs, coverage = parse_total(table)
+        modules, total = parse_table(table)
     except ValueError as exc:
         print(f"{NAME}.py: unparsable report ({exc})", file=sys.stderr)
         return 3
-    row = {
-        "file": None,
-        "function": None,
-        "lane": lane,
-        "values": {
-            "any_expressions": anys,
-            "expressions_total": exprs,
-            "type_coverage_pct": coverage if exprs else None,
-        },
-        "collector": NAME,
-        "labels": ["mypy-reported-errors"] if result.returncode != 0 else [],
-    }
-    print(json.dumps(row))
+    matched = match_modules(modules, files)
+    notes: list[str] = []
+    if result.returncode != 0:
+        notes.append(error_note(result.stdout))
+    labels = ["lane-total"] + (["mypy-reported-errors"] if result.returncode else [])
+    by_path = {path: name for name, path in matched.items()}
+    # File rows in scope order, whatever order the names matched in.
+    file_rows = [_row(lane, p, modules[by_path[p]], []) for p in files if p in by_path]
+    if file_rows:
+        lane_counts = _summed([modules[name] for name in matched])
+        left_out = len(modules) - len(matched)
+        if left_out:
+            notes.append(
+                f"{left_out} listed module(s) matched no scope file and are not "
+                "counted in the lane row"
+            )
+    else:
+        # Nothing listed matched (mypy named its modules from a base this
+        # adapter cannot recover), or nothing was listed at all: the lane row
+        # is mypy's own Total.
+        lane_counts = total
+        if modules:
+            notes.append(
+                f"none of the {len(modules)} listed module(s) matched a scope "
+                "file; the lane row is mypy's own Total and no file rows are emitted"
+            )
+    unlisted = len(files) - len(matched)
+    if unlisted and modules:
+        notes.append(f"{unlisted} scope file(s) mypy did not list")
+    # The lane row leads, so the lane's figure is the first row a reader of
+    # the raw rows meets.
+    for row in [_row(lane, None, lane_counts, labels), *file_rows]:
+        print(json.dumps(row))
+    if notes:
+        print("; ".join(notes), file=sys.stderr)
     return 0
+
+
+def match_modules(modules: dict[str, Counts], files: list[str]) -> dict[str, str]:
+    """Map each listed module to the scope file it names: by the cwd-based
+    derivation first, then, for a listed name no derived name equals, the one
+    scope file whose derived name ends in `.` plus it (a base the consumer's
+    config added, such as `mypy_path = src`); an ambiguous suffix matches
+    nothing."""
+    base = os.path.normcase(os.path.abspath(os.getcwd()))
+    derived = [(module_name(path, base), path) for path in files]
+    matched: dict[str, str] = {}
+    for name, path in derived:
+        if name in modules and name not in matched:
+            matched[name] = path
+    taken = set(matched.values())
+    for listed in modules:
+        if listed in matched:
+            continue
+        candidates = [
+            path
+            for name, path in derived
+            if path not in taken and name.endswith("." + listed)
+        ]
+        if len(candidates) == 1:
+            matched[listed] = candidates[0]
+            taken.add(candidates[0])
+    return matched
 
 
 def main(argv: list[str]) -> int:

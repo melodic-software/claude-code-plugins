@@ -5,6 +5,37 @@ All notable changes to the `code-metrics` plugin are documented here. Format fol
 
 ## [0.3.0]
 
+### Added
+
+- **`audit-type-debt` reports per file.** One row per scope file the tool listed (`function`
+  null) plus one row per lane labelled `lane-total`; the summary's `Files:` count is the file
+  rows, where it read 0 before. The Python lane row sums the file rows, so a change-scoped run
+  reports the scope's own coverage rather than everything mypy followed. mypy names modules, not
+  files, so the collector re-derives its `--explicit-package-bases` naming from each scope path
+  (checked against a real 186-file run of this repository, every listed name matched), matches
+  the shorter names a config base such as `mypy_path = src` gives by suffix, and, when nothing
+  matches, keeps mypy's own Total as the lane row and says so in the run row's reason. A
+  TypeScript file row carries `any_count` alone, the occurrences
+  `type-coverage --detail --show-relative-path` lists for the file, because the CLI exposes no
+  per-file denominator; the tsconfig program's file set is read through the project's own
+  `typescript`, so a scope file the program leaves out gets no row and is counted in the run
+  row's reason rather than reported as 0. In the raw rows the lane row comes first, and the
+  rendered table leads with it and never drops it under the row cap.
+- **mypy's error count reaches the run table.** When mypy exits 1 the Python run row's reason
+  reads `mypy reported N errors (M missing stubs)`, the missing ones being the `import-untyped`
+  and `import-not-found` codes; `--show-error-codes` and `--no-pretty` are passed so a consumer
+  config that hides codes or wraps messages does not hide the count.
+
+### Changed
+
+- **An `ok` run row carries what its collector said on stderr.** The dispatcher dropped an
+  adapter's stderr on exit 0; it is now the row's reason (500 characters, newlines folded), and
+  null when the adapter said nothing. Every skill's run table gains this.
+- **The renderer sorts a `file: null` row among file rows and joins rows per lane.** The
+  `lane-total` row and a file row can tie on every earlier sort key, which compared `None` with a
+  path; and two lanes' rows with the same values used to join into one line, because the join
+  key left the lane out.
+
 ### Fixed
 
 - **`audit-type-debt`: an aborted mypy run no longer reads as 100% typed.** mypy exits 2 on a

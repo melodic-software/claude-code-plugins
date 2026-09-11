@@ -45,7 +45,9 @@ different files whatever the registry says, and all of them stay. Clone-group ro
 ## `run[]` rows
 
 `lane`, `measure`, `collector` (the tool and version that produced the rows, or `null`), `status`
-(`ok`, `partial`, `unavailable`, `not-applicable`, `deferred`), `reason` (`null` only when `ok`). A
+(`ok`, `partial`, `unavailable`, `not-applicable`, `deferred`), `reason` (`null` only when `ok` and
+the collector said nothing; an `ok` row whose collector wrote to stderr while succeeding carries
+that text, such as mypy's `mypy reported 386 errors (349 missing stubs)`). A
 run whose scope holds no measurable file carries one row `*/*` with status `not-applicable` and a
 reason that opens with `no measurable files in scope` and, under `change`, says why: the branch is
 at its merge-base with a clean working tree (naming the ref and the `--all` alternative), or the
@@ -62,7 +64,7 @@ read as complete while one of its own rows says `N of M`.
 
 Common fields: `file`, `function` (`null` for a per-file row), `lane`, `values` (measure name to
 number or `null`), `collector`, `labels` (strings such as `comment-agnostic`, `start-line-only`,
-`file-level`, `replicated`), `over_reference` (the measures whose reference the row is at or
+`file-level`, `replicated`, `lane-total`), `over_reference` (the measures whose reference the row is at or
 beyond), and `replicas` on a collapsed row only (see "Sanctioned replication"). Granularity by
 skill:
 
@@ -72,7 +74,7 @@ skill:
 | `audit-complexity` | function (`start_line`, `end_line` when the collector reports them) | none |
 | `audit-coverage` | function | `cov_source` (`artifact-region`, `line-range`, `statement-ratio`, or `ambiguous`), `hit` (the artifact's function-hit flag or `null`), `reason` (why the join was refused; present only on an `ambiguous` row) |
 | `audit-duplication` | clone group | `instances[]` (`file`, `start_line`, `end_line`) replaces `file` and `function` |
-| `audit-type-debt` | lane | `file` and `function` are `null` |
+| `audit-type-debt` | file | one row per scope file the tool listed (`function` is `null`) plus one lane row per lane with `file` `null` and the label `lane-total`. The Python lane row sums its file rows, so a change-scoped run reports the scope's own coverage; when no listed module matched a scope file it is mypy's own Total and no file row is emitted. A TypeScript file row carries `any_count` alone (the occurrences `type-coverage --detail` listed for that file; the CLI gives no per-file denominator) with the other three values `null`, and the lane row carries all four |
 
 A value the collector did not produce is `null`, never `0`.
 

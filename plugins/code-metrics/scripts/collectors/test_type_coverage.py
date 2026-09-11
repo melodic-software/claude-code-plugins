@@ -23,18 +23,50 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 SCRIPT = SCRIPT_DIR / "type-coverage.py"
 CAPTURE = SCRIPT_DIR.parent / "fixtures" / "tool-output" / "type-coverage.json"
+# A real `--detail --json-output --show-relative-path` capture (2.30.1,
+# typescript 5.9) over a scratch project: src/a.ts and src/sub/b.ts carry
+# any-typed identifiers, src/clean.ts none, and other/outside.ts sits outside
+# the tsconfig's `include`, so the tool never names it.
+DETAIL = SCRIPT_DIR.parent / "fixtures" / "tool-output" / "type-coverage-detail.json"
+DETAIL_SCOPE = ("src/a.ts", "src/sub/b.ts", "src/clean.ts", "other/outside.ts")
 SOURCES = "plugins/code-metrics/scripts/fixtures/sources"
 REPO_ROOT = SCRIPT_DIR.parents[3]
 NO_TYPESCRIPT = "type-coverage needs a resolvable typescript (the probe found none)"
 
 
-def write_stub(path: Path, capture: Path = CAPTURE, exit_code: int = 0) -> None:
+def write_stub(
+    path: Path,
+    capture: Path = CAPTURE,
+    exit_code: int = 0,
+    argv_log: Path | None = None,
+) -> None:
+    """A `type-coverage` stub replaying `capture`; with `argv_log` it also
+    records every argument it received, one per line."""
     path.parent.mkdir(parents=True, exist_ok=True)
+    log = f'printf \'%s\\n\' "$@" >"{argv_log}"\n' if argv_log is not None else ""
     path.write_text(
         "#!/usr/bin/env bash\n"
         'if [[ "${1:-}" == "--version" ]]; then printf \'Version: 2.30.1\\n\'; exit 0; fi\n'
-        f'cat "{capture}"\n'
+        + log
+        + f'cat "{capture}"\n'
         f"exit {exit_code}\n",
+        encoding="utf-8",
+    )
+    path.chmod(path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+
+def write_node_stub(
+    path: Path, program: list[str] | None, exit_code: int = 0, stderr: str = ""
+) -> None:
+    """A `node` stub standing in for the tsconfig-program listing: prints
+    `program` as JSON (`null` for no tsconfig), or fails with `stderr`."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    listing = json.dumps(program) if program is not None else "null"
+    path.write_text(
+        "#!/usr/bin/env bash\n"
+        f"printf '%s\\n' '{listing}'\n"
+        + (f"printf '%s\\n' '{stderr}' >&2\n" if stderr else "")
+        + f"exit {exit_code}\n",
         encoding="utf-8",
     )
     path.chmod(path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
@@ -115,6 +147,7 @@ class TypeCoverageCollectTests(unittest.TestCase):
     def _collect(self, tmp: str, capture: Path = CAPTURE, exit_code: int = 0):
         stubs = Path(tmp) / "bin"
         write_stub(stubs / "type-coverage", capture=capture, exit_code=exit_code)
+        write_node_stub(stubs / "node", [f"{SOURCES}/cm-sample.ts"])
         return run(
             "collect",
             "typescript",
@@ -123,24 +156,112 @@ class TypeCoverageCollectTests(unittest.TestCase):
             path_prefix=stubs,
         )
 
-    def test_collect_translates_the_capture_into_one_per_lane_row(self) -> None:
+    def test_collect_translates_the_capture_into_a_file_row_and_the_lane_row(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             result = self._collect(tmp)
             self.assertEqual(result.returncode, 0, result.stderr)
             rows = [json.loads(line) for line in result.stdout.splitlines()]
-            self.assertEqual(len(rows), 1)
-            row = rows[0]
-            self.assertEqual((row["file"], row["function"]), (None, None))
-            self.assertEqual(row["lane"], "typescript")
-            self.assertEqual(row["collector"], "type-coverage")
+            self.assertEqual(len(rows), 2)
+            # The lane row leads: the lane's figure is the first row.
+            lane_row, file_row = rows
+            self.assertEqual(result.stderr, "")
             self.assertEqual(
-                row["values"],
+                (file_row["file"], file_row["function"], file_row["labels"]),
+                (f"{SOURCES}/cm-sample.ts", None, []),
+            )
+            # The CLI gives no per-file denominator: a file row carries the
+            # occurrences listed for it and nothing else.
+            self.assertEqual(
+                file_row["values"],
+                {
+                    "type_coverage_pct": None,
+                    "typed_identifiers": None,
+                    "total_identifiers": None,
+                    "any_count": 4,
+                },
+            )
+            self.assertEqual((lane_row["file"], lane_row["function"]), (None, None))
+            self.assertEqual(lane_row["lane"], "typescript")
+            self.assertEqual(lane_row["collector"], "type-coverage")
+            self.assertEqual(lane_row["labels"], ["lane-total"])
+            self.assertEqual(
+                lane_row["values"],
                 {
                     "type_coverage_pct": 55.55,
                     "typed_identifiers": 5,
                     "total_identifiers": 9,
                     "any_count": 4,
                 },
+            )
+
+    def test_file_rows_group_the_listed_occurrences_by_scope_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            stubs = Path(tmp) / "bin"
+            argv_log = Path(tmp) / "argv"
+            write_stub(stubs / "type-coverage", capture=DETAIL, argv_log=argv_log)
+            # The program holds the three files under src/, as the real
+            # listing over the scratch project's tsconfig did.
+            write_node_stub(
+                stubs / "node", ["src/a.ts", "src/clean.ts", "src/sub/b.ts"]
+            )
+            result = run(
+                "collect",
+                "typescript",
+                "type_coverage",
+                *DETAIL_SCOPE,
+                path_prefix=stubs,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            rows = [json.loads(line) for line in result.stdout.splitlines()]
+            self.assertEqual(
+                [(r["file"], r["values"]["any_count"]) for r in rows],
+                [
+                    (None, 9),
+                    ("src/a.ts", 5),
+                    ("src/sub/b.ts", 4),
+                    # in the program with no listed occurrence: a measured 0
+                    ("src/clean.ts", 0),
+                    # other/outside.ts is outside the program: no row
+                ],
+            )
+            self.assertEqual(rows[0]["values"]["type_coverage_pct"], 57.14)
+            self.assertEqual(rows[0]["labels"], ["lane-total"])
+            self.assertEqual(
+                result.stderr.strip(),
+                "1 scope file(s) are outside the tsconfig program and were not "
+                "measured: other/outside.ts",
+            )
+            argv = argv_log.read_text(encoding="utf-8").splitlines()
+            self.assertEqual(
+                argv[:5],
+                ["--detail", "--json-output", "--show-relative-path", "--", "src/a.ts"],
+            )
+
+    def test_an_unreadable_program_keeps_only_the_listed_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            stubs = Path(tmp) / "bin"
+            write_stub(stubs / "type-coverage", capture=DETAIL)
+            write_node_stub(
+                stubs / "node", None, exit_code=1, stderr="Cannot find module"
+            )
+            result = run(
+                "collect",
+                "typescript",
+                "type_coverage",
+                *DETAIL_SCOPE,
+                path_prefix=stubs,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            rows = [json.loads(line) for line in result.stdout.splitlines()]
+            self.assertEqual(
+                [r["file"] for r in rows], [None, "src/a.ts", "src/sub/b.ts"]
+            )
+            self.assertEqual(
+                result.stderr.strip(),
+                "the tsconfig program could not be read (Cannot find module); "
+                "only scope files with a listed occurrence have a row",
             )
 
     def test_a_reporting_exit_code_still_yields_a_row(self) -> None:
@@ -182,9 +303,11 @@ class TypeCoverageCollectTests(unittest.TestCase):
             )
             result = self._collect(tmp, capture=empty)
             self.assertEqual(result.returncode, 0, result.stderr)
-            row = json.loads(result.stdout.splitlines()[0])
-            self.assertIsNone(row["values"]["type_coverage_pct"])
-            self.assertEqual(row["values"]["any_count"], 0)
+            rows = [json.loads(line) for line in result.stdout.splitlines()]
+            # Nothing counted: no file row either, only the lane row.
+            self.assertEqual(len(rows), 1)
+            self.assertIsNone(rows[0]["values"]["type_coverage_pct"])
+            self.assertEqual(rows[0]["values"]["any_count"], 0)
 
     def test_unparsable_output_is_exit_3(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Regression tests for the audit-type-debt entry point (audit-type-debt.sh):
-# the per-lane rows both collectors produce, the lanes that are
+# the file rows and the lane row both collectors produce, the lanes that are
 # not-applicable, the null reference, and what an absent tool looks like.
 #
 # Both tools are stubbed at runtime (design T13): a temporary bin/ prepended to
@@ -9,7 +9,10 @@
 # fixtures/tool-output/mypy-any-exprs.txt into the report directory it is
 # given. Every case runs from a scratch working directory, because the
 # type-coverage probe reads ./node_modules/typescript from the current
-# directory; the fixture sources are passed as an absolute path.
+# directory. The fixture sources are copied into that directory under their
+# repository-relative path and passed relative, as the dispatcher passes a
+# scope in a real run, because the type-coverage capture names its file by
+# that relative path and a file row matches a scope file on the path.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
@@ -96,7 +99,19 @@ done
 [[ -n "\$dir" ]] && mkdir -p "\$dir"
 cp "$MYPY_CAPTURE" "\$dir/any-exprs.txt"
 EOF
-chmod +x "$STUBS/type-coverage" "$STUBS/mypy"
+# The type-coverage adapter reads the tsconfig program through `node` and the
+# project's typescript; this stub stands in for that listing, and fails the
+# way node does when the working directory has no typescript, so the probe's
+# `require.resolve('typescript')` check still fails in the bare directory.
+cat >"$STUBS/node" <<'EOF'
+#!/usr/bin/env bash
+if [[ ! -f node_modules/typescript/package.json ]]; then
+  printf '%s\n' "Error: Cannot find module 'typescript'" >&2
+  exit 1
+fi
+printf '%s\n' '["plugins/code-metrics/scripts/fixtures/sources/cm-sample.ts"]'
+EOF
+chmod +x "$STUBS/type-coverage" "$STUBS/mypy" "$STUBS/node"
 
 # A scratch working directory whose node_modules/typescript makes the
 # type-coverage probe pass, and a bare one that makes it fail.
@@ -104,6 +119,9 @@ PROJECT="$WORK/project"
 BARE="$WORK/bare"
 mkdir -p "$PROJECT/node_modules/typescript" "$BARE"
 printf '{"name": "typescript", "version": "5.9.3"}\n' >"$PROJECT/node_modules/typescript/package.json"
+SCOPE="plugins/code-metrics/scripts/fixtures/sources"
+mkdir -p "$PROJECT/${SCOPE%/*}"
+cp -R "$SOURCES" "$PROJECT/$SCOPE"
 
 # The five lane fixtures this suite measures, named so the affected-tests
 # runner maps them here: cm-sample.ts, cm_sample.py, cm-sample.sh,
@@ -115,19 +133,24 @@ done
 pass "the five lane fixtures are present"
 
 # 1. Both tools present: a percentage per typed lane, not-applicable elsewhere.
-out="$(cd "$PROJECT" && PATH="$STUBS:$EMPTY_PATH" CODE_METRICS_HOME="$HOME_DIR" bash "$SCRIPT" --json --all "$SOURCES")"
+out="$(cd "$PROJECT" && PATH="$STUBS:$EMPTY_PATH" CODE_METRICS_HOME="$HOME_DIR" bash "$SCRIPT" --json --all "$SCOPE")"
 rc=$?
 assert_eq "--json exits 0 with both collectors stubbed" 0 "$rc"
 assert_doc "the document is code-metrics/v1 for audit-type-debt" "$out" \
   'd["schema"]=="code-metrics/v1" and d["skill"]=="audit-type-debt"'
-assert_doc "the typescript row carries type_coverage_pct from type-coverage.json" "$out" \
-  'next(r for r in d["measures"] if r["lane"]=="typescript")["values"]["type_coverage_pct"]==55.55'
-assert_doc "the typescript row is per lane, not per file" "$out" \
-  'all(r["file"] is None and r["function"] is None for r in d["measures"])'
-assert_doc "the python row carries any_expressions from mypy-any-exprs.txt" "$out" \
-  'next(r for r in d["measures"] if r["lane"]=="python")["values"]["any_expressions"]==0'
-assert_doc "the python row also carries mypy's own coverage percentage" "$out" \
-  'next(r for r in d["measures"] if r["lane"]=="python")["values"]["type_coverage_pct"]==100.0'
+assert_doc "the typescript lane row carries type_coverage_pct from type-coverage.json" "$out" \
+  'next(r for r in d["measures"] if r["lane"]=="typescript" and r["file"] is None)["values"]["type_coverage_pct"]==55.55'
+assert_doc "each lane has one file row per scope file plus one lane-total row" "$out" \
+  'sorted(r["file"].rsplit("/",1)[-1] for r in d["measures"] if r["file"])==["cm-sample.ts","cm_sample.py"] and sorted(r["lane"] for r in d["measures"] if r["file"] is None and "lane-total" in r["labels"])==["python","typescript"] and all(r["function"] is None for r in d["measures"])'
+assert_doc "the typescript file row carries the occurrences listed for that file and nothing else" "$out" \
+  'next(r for r in d["measures"] if r["lane"]=="typescript" and r["file"])["values"]=={"type_coverage_pct":None,"typed_identifiers":None,"total_identifiers":None,"any_count":4}'
+assert_doc "the summary counts the file rows" "$out" 'd["summary"]["files"]==2'
+assert_doc "the python file row carries any_expressions from mypy-any-exprs.txt" "$out" \
+  'next(r for r in d["measures"] if r["lane"]=="python" and r["file"])["values"]["any_expressions"]==0'
+assert_doc "the python lane row also carries mypy's own coverage percentage" "$out" \
+  'next(r for r in d["measures"] if r["lane"]=="python" and r["file"] is None)["values"]["type_coverage_pct"]==100.0'
+assert_doc "a silent success leaves the ok row's reason null" "$out" \
+  'all(r["reason"] is None for r in d["run"] if r["status"]=="ok")'
 assert_doc "the dotnet row is not-applicable with the C# sentence" "$out" \
   'next(r for r in d["run"] if r["lane"]=="dotnet" and r["measure"]=="type_coverage")["status"]=="not-applicable"'
 assert_doc "the dotnet reason says a count is not comparable to a ratio" "$out" \
@@ -140,12 +163,15 @@ assert_doc "no row is counted over a reference" "$out" \
   'all(r["over_reference"]==[] for r in d["measures"])'
 
 # 2. The markdown rendering carries the coverage table.
-out="$(cd "$PROJECT" && PATH="$STUBS:$EMPTY_PATH" CODE_METRICS_HOME="$HOME_DIR" bash "$SCRIPT" --all "$SOURCES")"
+out="$(cd "$PROJECT" && PATH="$STUBS:$EMPTY_PATH" CODE_METRICS_HOME="$HOME_DIR" bash "$SCRIPT" --all "$SCOPE")"
 rc=$?
 assert_eq "markdown exits 0" 0 "$rc"
 assert_contains "markdown carries the run table" "$out" "## Coverage of this run"
 assert_contains "markdown names the type-coverage collector" "$out" "type-coverage 2.30.1"
 assert_contains "markdown prints the null reference" "$out" "| type_coverage | null |"
+assert_contains "markdown lists the python file row" "$out" "cm_sample.py |"
+assert_contains "markdown marks the lane row" "$out" "| lane-total |"
+assert_contains "markdown counts the files measured" "$out" "Files: 2."
 
 # 3. type-coverage resolves but typescript does not: the probe's requirement
 # reaches the run row's reason (the dispatcher relays the adapter's install
@@ -166,7 +192,7 @@ assert_doc "the python lane still reports while typescript cannot" "$out" \
 # than a 100% measurement, and the run is not a failure.
 ABORT_STUBS="$WORK/abort-stubs"
 mkdir -p "$ABORT_STUBS"
-cp "$STUBS/type-coverage" "$ABORT_STUBS/type-coverage"
+cp "$STUBS/type-coverage" "$STUBS/node" "$ABORT_STUBS/"
 cat >"$ABORT_STUBS/mypy" <<EOF
 #!/usr/bin/env bash
 if [[ "\${1:-}" == "--version" ]]; then printf 'mypy 1.19.1 (compiled: yes)\n'; exit 0; fi
@@ -182,7 +208,7 @@ printf '%s\n' 'b/lib/x.py: error: Duplicate module named "lib.x" (also at "a/lib
 exit 2
 EOF
 chmod +x "$ABORT_STUBS/mypy"
-out="$(cd "$PROJECT" && PATH="$ABORT_STUBS:$EMPTY_PATH" CODE_METRICS_HOME="$HOME_DIR" bash "$SCRIPT" --json --all "$SOURCES")"
+out="$(cd "$PROJECT" && PATH="$ABORT_STUBS:$EMPTY_PATH" CODE_METRICS_HOME="$HOME_DIR" bash "$SCRIPT" --json --all "$SCOPE")"
 rc=$?
 assert_eq "exit 0 when mypy aborts before analysis" 0 "$rc"
 assert_doc "the python row is unavailable and no python measure is emitted" "$out" \
@@ -191,6 +217,35 @@ assert_doc "its reason carries mypy's own duplicate-module message" "$out" \
   '"Duplicate module named" in next(r for r in d["run"] if r["lane"]=="python")["reason"]'
 assert_doc "the typescript lane still reports while mypy cannot" "$out" \
   'any(r["lane"]=="typescript" and r["status"]=="ok" for r in d["run"]) and d["status"]=="partial"'
+
+# 3c. mypy exits 1 (type errors) and still writes the report: the rows are
+# kept, the lane row is labelled, and the run row's reason counts the errors
+# and the missing stubs among them.
+ERROR_STUBS="$WORK/error-stubs"
+mkdir -p "$ERROR_STUBS"
+cp "$STUBS/type-coverage" "$STUBS/node" "$ERROR_STUBS/"
+cat >"$ERROR_STUBS/mypy" <<EOF
+#!/usr/bin/env bash
+if [[ "\${1:-}" == "--version" ]]; then printf 'mypy 1.19.1 (compiled: yes)\n'; exit 0; fi
+dir=""
+prev=""
+for arg in "\$@"; do
+  [[ "\$prev" == "--any-exprs-report" ]] && dir="\$arg"
+  prev="\$arg"
+done
+[[ -n "\$dir" ]] && mkdir -p "\$dir"
+cp "$MYPY_CAPTURE" "\$dir/any-exprs.txt"
+printf '%s\n' 'cm_sample.py:1: error: Library stubs not installed for "yaml"  [import-untyped]' 'cm_sample.py:9: error: Incompatible return value type  [return-value]'
+exit 1
+EOF
+chmod +x "$ERROR_STUBS/mypy"
+out="$(cd "$PROJECT" && PATH="$ERROR_STUBS:$EMPTY_PATH" CODE_METRICS_HOME="$HOME_DIR" bash "$SCRIPT" --json --all "$SCOPE")"
+rc=$?
+assert_eq "exit 0 when mypy reports type errors" 0 "$rc"
+assert_doc "the python run row is ok and its reason counts the errors and missing stubs" "$out" \
+  'next(r for r in d["run"] if r["lane"]=="python")["status"]=="ok" and next(r for r in d["run"] if r["lane"]=="python")["reason"]=="mypy reported 2 errors (1 missing stub)"'
+assert_doc "the python lane row is labelled and the file row is not" "$out" \
+  'next(r for r in d["measures"] if r["lane"]=="python" and r["file"] is None)["labels"]==["lane-total","mypy-reported-errors"] and next(r for r in d["measures"] if r["lane"]=="python" and r["file"])["labels"]==[]'
 
 # 4. Neither tool present: exit 0, nothing measured, the install hint is named.
 out="$(cd "$BARE" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$HOME_DIR" bash "$SCRIPT" --json --all "$SOURCES")"
