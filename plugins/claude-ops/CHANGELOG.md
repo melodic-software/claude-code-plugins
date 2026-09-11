@@ -27,6 +27,15 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   Boundary section so the base row is parity-clean, and the suite gains cases for the new
   advisory, for `defer` rows owing no Boundary, and for a row whose only missing surface is
   the description phrase.
+- **`audit-performance`**: a `## Boundary, the bundled doctor skill` section: `doctor` inspects
+  slow hooks and the release channel and offers to fix, `claude doctor` prints read-only
+  diagnostics, this skill measures while it is slow and refuses deletion. Routing, a mutation
+  gate (never chain into a `doctor` fix), and an availability rule. Four-part records in
+  `reference/bundled-doctor.md`.
+- **`audit-skill-visibility`**: a `## Boundary, the bundled doctor skill and /skill-doctor`
+  section beside the existing description phrase: both native surfaces answer "which skills are
+  unused versus their cost, right now", this skill separates starved from unwanted from
+  unobservable and never disables. Four-part records in `reference/bundled-doctor.md`.
 
 ## [0.47.0]
 
