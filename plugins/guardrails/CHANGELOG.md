@@ -8,6 +8,33 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 ### Changed
 
 - **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
+- **Every markdown surface in the plugin passes `/ai-slop:audit`.** Em dashes in the plugin's own
+  prose (the README, this changelog, and the setup skill body) are rewritten as a comma, a period,
+  a colon where a definition or list follows, or a restructured sentence. No guard, switch,
+  default, exemption, matched form, or exit code changed, and no heading moved.
+- **Two spans keep their em dashes because live code emits or cites them.**
+  - The `[0.28.1]` entry reproduces `_BYPASS_SCOPE_NOTE_BASH` verbatim.
+    `hooks/block-hook-bypass.sh` still emits that exact string, and
+    `hooks/block-hook-bypass.test.sh` pins a substring of it. Rewriting the transcript would make
+    this changelog misquote the guard it documents.
+  - The `[0.7.1]` entry quotes a retired advisory notice as it was emitted, inside a marker naming
+    it, with the marker at the list item's continuation indent so the item does not break.
+- **`## Consumer seams` keeps its name.** `hooks/hardcoded-path-check.sh` and
+  `hooks/secret-pattern-detection.sh` both cite that section by name in their header comments, and
+  the README's own Contents links its anchor. Renaming it to satisfy a jargon finding would strand
+  three references to fix one word.
+- **Reflexive `load-bearing` and `seam` become the concrete thing each stood for** in eight
+  released entries. `seam contract` keeps its name, being a term `docs/adr/0014` and the
+  work-item-tracker contract define.
+- **The README's generated options block is untouched.** It is owned by
+  `scripts/sync-plugin-options-docs.py` and already ignore-fenced; its wording follows the
+  manifest, which this release already corrected.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`,** so the gate defends
+  it from here on.
+- **Changelog, in-place wording corrections to released entries:** the same rewrite was applied
+  inside 88 released entries, from `[0.32.1]` down to `[0.6.0]`. Wording only; no fact, number,
+  path, flag, version, date, or issue number changed in any of them, and the `##` heading list is
+  byte-identical to the fork point's.
 
 ## [0.33.0]
 
