@@ -18,7 +18,7 @@ the reviewer to confirm the description still names that intent, or to restore t
 
 ## Checks
 
-`check` runs `check-skill.sh`. Twenty-five checks, reported as `FAIL:` (blocking) or `WARN:` (advisory):
+`check` runs `check-skill.sh`. Twenty-four checks, reported as `FAIL:` (blocking) or `WARN:` (advisory):
 
 - Frontmatter parses; `description` present; a declared `name` is kebab-case and matches the skill
   directory (in a plugin skill it also WARNs as redundant, because the field defaults to the directory).

@@ -12,7 +12,7 @@ metadata:
 ## Purpose
 
 Static, deterministic quality gate for skill authoring. The `check` action runs the bundled
-`check-skill.sh`. Twenty-five checks with no model invocation, so results are reproducible in CI or a
+`check-skill.sh`. Twenty-four checks with no model invocation, so results are reproducible in CI or a
 pre-commit hook. The `validate-evals` action checks a skill's `<skill>/evals/evals.json` against the bundled
 JSON schema, then runs the bundled `check-evals-quality.sh`, a deterministic eval-quality lint
 (duplicate case ids/names, missing fixtures, empty or vague grading criteria, set-coverage
