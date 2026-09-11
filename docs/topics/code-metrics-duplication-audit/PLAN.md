@@ -94,8 +94,12 @@ this repository the audit reads clean apart from genuine duplication.
   cluster lines present, each under its own annotation block, and its tests cover a marked line
   being skipped.
 - After this change, `audit-duplication.sh --json --registry scripts/cross-plugin-source-registry.txt --all`
-  on this repository reports zero surviving groups whose instances include a file under root `lib/`,
-  from the repository root and from a subdirectory alike.
+  on this repository reports zero surviving groups whose instances include a root `lib/` file that
+  a sync script declares as its canonical copy (`scripts/sync-*.sh --print-manifest` `src`), from
+  the repository root and from a subdirectory alike. Groups over the per-suite test-harness
+  boilerplate that `lib/*.test.sh` files share with plugin test files survive: no sync script
+  declares them and the shell-test-helpers convention keeps those helpers per file, so they are
+  the audit's finding, not sanctioned replication.
 - WHILE no registry is configured and none is passed, the report's `excluded[]` is empty and the
   summary states that no registry was configured.
 - The markdown Measures table for a duplication document lists clone groups in descending order of
@@ -350,7 +354,7 @@ Review: code-design
   `grep -c '^/' plugins/code-metrics/scripts/fixtures/tool-output/jscpd-aligned3.json` prints `0`.
 - `bash plugins/code-metrics/scripts/dispatch.test.sh` exits 0 unchanged.
 
-### Phase 3: Registry cluster lines, drift checker, this repo's five lines [TODO]
+### Phase 3: Registry cluster lines, drift checker, this repo's five lines [DONE]
 
 Review: code-design
 
@@ -411,8 +415,8 @@ Committed on its own (the registry edit fans CI's test selection out to roughly 
   `bash scripts/check-cross-plugin-source-drift.test.sh` exits 0 (including the production-registry
   policy case).
 - Runtime probe (SKIP when absent) with jscpd 5.2.0 on PATH, from the repository root:
-  `audit-duplication.sh --json --registry scripts/cross-plugin-source-registry.txt --all | jq '[.measures[]|select(any(.instances[]; .file|test("^lib/")))]|length'`
-  prints `0`, and `jq '[.excluded[]|select(.path|startswith("lib/hook-utils.sh"))]|length'`
+  `audit-duplication.sh --json --registry scripts/cross-plugin-source-registry.txt --all | jq '[.measures[]|select(any(.instances[]; .file|test("^lib/[^/]*[.]sh$") and (.file|test("[.]test[.]sh$")|not)))]|length'`
+  prints `0` (the surviving `lib/` groups are all `lib/*.test.sh` harness boilerplate), and `jq '[.excluded[]|select(.path|startswith("lib/hook-utils.sh"))]|length'`
   prints `1` with that entry's `instances` length equal to
   `$(scripts/sync-hook-utils.sh --print-manifest | grep -c copy) + 1`; the same two commands run
   from `plugins/code-metrics` with `--registry ../../scripts/cross-plugin-source-registry.txt`

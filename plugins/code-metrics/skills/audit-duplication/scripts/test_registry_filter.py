@@ -147,6 +147,114 @@ class RegistryFilterTests(unittest.TestCase):
         self.assertEqual(out["measures"], [])
         self.assertEqual(out["excluded"][0]["path"], "shared/shared-utils.sh")
 
+    def write_registry(self, text: str) -> Path:
+        path = Path(self.tmp.name) / "clusters.txt"
+        path.write_text(text, encoding="utf-8")
+        return path
+
+    def test_a_cluster_line_excludes_the_canonical_plus_its_copies(self) -> None:
+        registry = self.write_registry(
+            "# canonical and copies\nlib/hook-utils.sh -> plugins/*/hooks/hook-utils.sh\n"
+        )
+        doc = document(
+            [
+                "lib/hook-utils.sh",
+                "plugins/one/hooks/hook-utils.sh",
+                "plugins/two/hooks/hook-utils.sh",
+            ]
+        )
+        result = run(doc, "--root", ".", "--registry", str(registry))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        out = json.loads(result.stdout)
+        self.assertEqual(out["measures"], [])
+        entry = out["excluded"][0]
+        self.assertEqual(
+            entry["path"], "lib/hook-utils.sh -> plugins/*/hooks/hook-utils.sh"
+        )
+        self.assertEqual(entry["line"], 2)
+        self.assertEqual(len(entry["instances"]), 3)
+
+    def test_a_glob_member_matches_and_a_stranger_keeps_the_group(self) -> None:
+        registry = self.write_registry(
+            "lib/parse.sh -> plugins/*/skills/*/scripts/parse.sh "
+            "plugins/*/skills/*/scripts/lib/parse.sh\n"
+        )
+        sanctioned = document(
+            [
+                "lib/parse.sh",
+                "plugins/a/skills/x/scripts/parse.sh",
+                "plugins/b/skills/y/scripts/lib/parse.sh",
+            ]
+        )
+        result = run(sanctioned, "--root", ".", "--registry", str(registry))
+        self.assertEqual(json.loads(result.stdout)["measures"], [])
+        stranger = document(["lib/parse.sh", "plugins/a/hooks/parse.sh"])
+        result = run(stranger, "--root", ".", "--registry", str(registry))
+        out = json.loads(result.stdout)
+        self.assertEqual(len(out["measures"]), 1)
+        self.assertEqual(out["excluded"], [])
+
+    def test_two_cluster_instances_in_one_directory_keep_the_group(self) -> None:
+        registry = self.write_registry("lib/a.sh -> plugins/*/hooks/*.sh\n")
+        doc = document(["lib/a.sh", "plugins/one/hooks/a.sh", "plugins/one/hooks/b.sh"])
+        result = run(doc, "--root", ".", "--registry", str(registry))
+        out = json.loads(result.stdout)
+        self.assertEqual(len(out["measures"]), 1)
+        self.assertEqual(out["excluded"], [])
+
+    def test_a_plain_line_with_a_space_is_one_path(self) -> None:
+        registry = self.write_registry("hooks/shared file.sh\n")
+        doc = document(
+            ["plugins/one/hooks/shared file.sh", "plugins/two/hooks/shared file.sh"]
+        )
+        result = run(doc, "--root", ".", "--registry", str(registry))
+        out = json.loads(result.stdout)
+        self.assertEqual(out["measures"], [])
+        self.assertEqual(out["excluded"][0]["path"], "hooks/shared file.sh")
+
+    def test_the_first_matching_line_in_file_order_wins(self) -> None:
+        registry = self.write_registry("lib/x.sh -> plugins/*/hooks/x.sh\nhooks/x.sh\n")
+        doc = document(["plugins/one/hooks/x.sh", "plugins/two/hooks/x.sh"])
+        result = run(doc, "--root", ".", "--registry", str(registry))
+        entry = json.loads(result.stdout)["excluded"][0]
+        self.assertEqual(
+            (entry["path"], entry["line"]), ("lib/x.sh -> plugins/*/hooks/x.sh", 1)
+        )
+        reversed_registry = self.write_registry(
+            "hooks/x.sh\nlib/x.sh -> plugins/*/hooks/x.sh\n"
+        )
+        result = run(doc, "--root", ".", "--registry", str(reversed_registry))
+        entry = json.loads(result.stdout)["excluded"][0]
+        self.assertEqual((entry["path"], entry["line"]), ("hooks/x.sh", 1))
+
+    def test_cwd_relative_instances_from_a_subdirectory_still_match(self) -> None:
+        root = Path(self.tmp.name)
+        sub = root / "plugins" / "code-metrics"
+        sub.mkdir(parents=True)
+        registry = self.write_registry(
+            "lib/hook-utils.sh -> plugins/*/hooks/hook-utils.sh\n"
+        )
+        doc = document(["../../lib/hook-utils.sh", "../one/hooks/hook-utils.sh"])
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPT),
+                "--root",
+                str(root),
+                "--registry",
+                str(registry),
+            ],
+            input=json.dumps(doc),
+            capture_output=True,
+            text=True,
+            cwd=sub,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        out = json.loads(result.stdout)
+        self.assertEqual(out["measures"], [])
+        self.assertEqual(len(out["excluded"]), 1)
+
     def test_the_zero_floor_states_zero_once_a_collector_ran(self) -> None:
         doc = document()
         doc["run"] = [{"lane": "bash", "measure": "duplication", "status": "ok"}]

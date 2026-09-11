@@ -199,6 +199,37 @@ else
 fi
 rm -rf "$f"
 
+# --- a cluster line (` -> `) is the duplication audit's, not this check's ---
+#
+# `<canonical> -> <member>...` names a root-relative canonical copy and the
+# plugin paths or globs that carry it, for registry-filter.py in the
+# code-metrics plugin. This check keys clusters by path-within-plugin, so the
+# line must be skipped: registering it would report it REGISTRY STALE on every
+# run, since no plugin carries a path spelled `lib/... -> ...`.
+f="$(new_fixture)"
+plugin_file "$f" alpha hooks/shared.sh "same"
+plugin_file "$f" beta hooks/shared.sh "same"
+registry "$f" "hooks/shared.sh" "lib/shared.sh -> plugins/*/hooks/shared.sh"
+if out="$(run_check "$f" 2>&1)"; then
+  if grep -q 'REGISTRY STALE' <<<"$out"; then
+    fail "a cluster line must not be reported stale, got: $out"
+  else
+    ok "--check skips a cluster line instead of registering it"
+  fi
+else
+  fail "--check should pass with a cluster line beside a registered path, got: $out"
+fi
+if out="$(run_discover "$f" 2>&1)"; then
+  if grep -q ' -> ' <<<"$out"; then
+    fail "discover must not list a cluster line, got: $out"
+  else
+    ok "discover leaves a cluster line out of the inventory"
+  fi
+else
+  fail "discover should exit 0 with a cluster line in the registry, got: $out"
+fi
+rm -rf "$f"
+
 # --- production registry: every cluster documents its enforcement path (#2404) -
 REGISTRY="$SELF_DIR/cross-plugin-source-registry.txt"
 if [[ ! -f "$REGISTRY" ]]; then

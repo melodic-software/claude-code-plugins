@@ -154,6 +154,14 @@ if [[ -f "$registry" ]]; then
     line="${line#"${line%%[![:space:]]*}"}"
     line="${line%"${line##*[![:space:]]}"}"
     [[ -z "$line" ]] && continue
+    # A line containing ` -> ` is a cluster line (`<canonical> -> <member>...`,
+    # a root-relative canonical copy and the plugin paths or globs that carry
+    # it). It belongs to the duplication audit's reader
+    # (plugins/code-metrics/skills/audit-duplication/scripts/registry-filter.py),
+    # which excludes the whole class from its clone count; this check keys
+    # clusters by path-within-plugin, so the line is neither registered here
+    # nor reported stale.
+    [[ "$line" == *" -> "* ]] && continue
     registered["$line"]=1
   done <"$registry"
 fi

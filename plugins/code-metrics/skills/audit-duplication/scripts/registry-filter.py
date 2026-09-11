@@ -10,20 +10,33 @@ about itself is an EXCLUSION derived from that declaration, not a suppression
 of a finding, so no suppression record is involved and the excluded groups stay
 visible in the document.
 
-A registry is a text file with one path-within-plugin per line, `#` comments
-and blank lines ignored (this repository's own
-`scripts/cross-plugin-source-registry.txt` is the shape). A clone group is
-dropped when one registry line accounts for EVERY instance: each instance's
-path, relative to `--root` and written with forward slashes, is that line or
-ends with `/` plus that line, and the prefixes in front of that suffix are all
-distinct, so the copies sit in different carrying directories. Two clones
-inside one directory are ordinary duplication and stay.
+A registry is a text file, `#` comments and blank lines ignored (this
+repository's own `scripts/cross-plugin-source-registry.txt` is the shape), with
+two kinds of line:
+
+- A plain line is one path-within-plugin, taken whole, spaces included. It
+  sanctions a group when EVERY instance's path is that line or ends with `/`
+  plus that line, and the prefixes in front of that suffix are all distinct,
+  so the copies sit in different carrying directories.
+- A line containing ` -> ` is a cluster line: the text before the arrow is the
+  root-relative canonical path, the whitespace-separated tokens after it are
+  members, each a literal root-relative path or a gitignore-style glob
+  (`plugins/*/hooks/hook-utils.sh`, matched by the plugin's `pathglob`). It
+  sanctions a group when every instance is the canonical path or matches one
+  member, and the instances' directories are pairwise distinct.
+
+Two clones inside one directory are ordinary duplication under either rule and
+stay. Every instance path is compared root-relative: a cwd-relative path is
+joined onto the working directory and taken relative to `--root`, so a run from
+a subdirectory (where the dispatcher names files `../../lib/x.sh`) matches the
+same lines a run from the root does. Lines are tried in file order and the
+first matching line wins.
 
 Each dropped group is appended to `excluded[]` as `{"registry", "line",
 "path", "instances"}`, naming the registry file, the 1-based line number, and
-the line's text that sanctioned it. Rows without `instances` pass through
-untouched, and `summary` is left alone: the caller recomputes it with
-`report.py resummarize`.
+the line's text that sanctioned it (for a cluster line, the whole line). Rows
+without `instances` pass through untouched, and `summary` is left alone: the
+caller recomputes it with `report.py resummarize`.
 
 `--zero-floor` is the pass the caller runs AFTER that recomputation, with no
 registries: it states `duplicated_lines: 0` and `clone_groups: 0` when a
@@ -41,41 +54,58 @@ import argparse
 import json
 import os
 import sys
+from pathlib import Path
 from typing import Any
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
+from pathglob import matches as glob_matches  # noqa: E402
+
 MIN_PYTHON = (3, 9)
+CLUSTER_MARKER = " -> "
+
+# (line number, line text, canonical path or plain token, members). A plain
+# line has no members.
+Entry = tuple[int, str, str, list[str]]
 
 
-def read_registry(path: str) -> list[tuple[int, str]]:
-    entries: list[tuple[int, str]] = []
+def _clean(path: str) -> str:
+    return path.replace("\\", "/").lstrip("/")
+
+
+def read_registry(path: str) -> list[Entry]:
+    entries: list[Entry] = []
     with open(path, encoding="utf-8") as handle:
         for number, raw in enumerate(handle, 1):
             line = raw.strip()
             if not line or line.startswith("#"):
                 continue
-            entries.append((number, line.replace("\\", "/").lstrip("/")))
+            if CLUSTER_MARKER in line:
+                canonical, _, rest = line.partition(CLUSTER_MARKER)
+                members = [_clean(token) for token in rest.split()]
+                entries.append((number, line, _clean(canonical.strip()), members))
+            else:
+                entries.append((number, line, _clean(line), []))
     return entries
 
 
 def relative(path: str, root: str) -> str:
+    """The instance path root-relative, with forward slashes."""
     path = (path or "").replace("\\", "/")
-    if os.path.isabs(path) and root:
+    if root:
+        absolute = path if os.path.isabs(path) else os.path.join(os.getcwd(), path)
         try:
-            path = os.path.relpath(path, root).replace("\\", "/")
+            path = os.path.relpath(absolute, root).replace("\\", "/")
         except ValueError:
-            return path
+            pass
     while path.startswith("./"):
         path = path[2:]
     return path
 
 
-def sanctions(entry: str, instances: list[dict[str, Any]], root: str) -> bool:
-    """True when this registry line accounts for every instance of the group."""
-    if len(instances) < 2:
-        return False
+def sanctions_plain(entry: str, paths: list[str]) -> bool:
+    """True when this plain line accounts for every instance of the group."""
     prefixes = set()
-    for instance in instances:
-        path = relative(str(instance.get("file", "")), root)
+    for path in paths:
         if path == entry:
             prefix = ""
         elif path.endswith("/" + entry):
@@ -88,9 +118,34 @@ def sanctions(entry: str, instances: list[dict[str, Any]], root: str) -> bool:
     return True
 
 
+def sanctions_cluster(canonical: str, members: list[str], paths: list[str]) -> bool:
+    """True when this cluster line accounts for every instance of the group."""
+    directories = set()
+    for path in paths:
+        if path != canonical and not any(
+            glob_matches(member, path) for member in members
+        ):
+            return False
+        directory = os.path.dirname(path)
+        if directory in directories:
+            return False
+        directories.add(directory)
+    return True
+
+
+def sanctions(entry: Entry, instances: list[dict[str, Any]], root: str) -> bool:
+    if len(instances) < 2:
+        return False
+    paths = [relative(str(instance.get("file", "")), root) for instance in instances]
+    _, _, token, members = entry
+    if members:
+        return sanctions_cluster(token, members, paths)
+    return sanctions_plain(token, paths)
+
+
 def filter_document(
     document: dict[str, Any],
-    registries: list[tuple[str, list[tuple[int, str]]]],
+    registries: list[tuple[str, list[Entry]]],
     root: str,
 ) -> dict[str, Any]:
     kept: list[dict[str, Any]] = []
@@ -100,9 +155,9 @@ def filter_document(
         match = None
         if instances:
             for registry_path, entries in registries:
-                for number, entry in entries:
+                for entry in entries:
                     if sanctions(entry, instances, root):
-                        match = (registry_path, number, entry)
+                        match = (registry_path, entry[0], entry[1])
                         break
                 if match:
                     break
@@ -151,7 +206,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--zero-floor", action="store_true")
     args = parser.parse_args(argv)
 
-    registries: list[tuple[str, list[tuple[int, str]]]] = []
+    registries: list[tuple[str, list[Entry]]] = []
     for path in args.registry:
         if not os.path.isfile(path):
             print(f"registry-filter.py: registry not found: {path}", file=sys.stderr)
