@@ -33,12 +33,14 @@
 # script as the gate: a path-scoped rule loads when a covered file is read,
 # never when one is created, so the rule alone cannot catch a new file.
 #
-# Output: one `path: reason` line per offender, sorted. Exit: 0 clean, 1 any
-# offender, 2 usage.
+# Output follows the check-script contract (README.md, "The check-script
+# contract"): one `path: reason` finding per offender on stderr, the clean-run
+# statement on stdout. Exit: 0 clean, 1 any offender, 2 environment or usage
+# (git missing, repo root unresolved, bad argument).
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR/.."
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
+cd "$SCRIPT_DIR/.." || exit 2
 
 case "${1:-}" in
 '' | --check) ;;
@@ -47,6 +49,15 @@ case "${1:-}" in
   exit 2
   ;;
 esac
+
+if ! command -v git >/dev/null 2>&1; then
+  printf 'check-docs-naming: git is required to list the tracked files under docs/\n' >&2
+  exit 2
+fi
+if ! git rev-parse --show-toplevel >/dev/null 2>&1; then
+  printf 'check-docs-naming: not inside a git repository, nothing inspected\n' >&2
+  exit 2
+fi
 
 NAME_RE='^[a-z0-9]+([.-][a-z0-9]+)*\.[a-z0-9.]+$'
 offenders=()
@@ -85,7 +96,7 @@ if ((${#offenders[@]} == 0)); then
   exit 0
 fi
 
-printf '%s\n' "${offenders[@]}" | sort -u
+printf '%s\n' "${offenders[@]}" | sort -u >&2
 printf 'check-docs-naming: %d offender(s); rename to lower-kebab-case (see the header of %s).\n' \
   "${#offenders[@]}" "scripts/${0##*/}" >&2
 exit 1
