@@ -8,14 +8,20 @@ All notable changes to the `source-control` plugin are documented here. Format f
 ### Added
 
 - **The PR monitor judges a review lane by what it produced, not by its check row.** New step B2
-  in the per-iteration checklist: an AI-review lane that concluded success having posted no review
-  body and no finding reviewed nothing, and is classified ABSENT rather than PASS. These lanes
-  report on their session rather than on their output, so a session that ends without error goes
-  green whether or not it reviewed anything, and an evidence guard that reads posted review bodies
-  has nothing to judge when none was posted. An absent lane is now substituted with a local review
-  over the same diff (`/review:fanout`, or `/review:code-review` for the correctness lane alone)
-  and named in the report; the readiness gate in step E will not clear until every review lane is
-  productive or substituted.
+  in the per-iteration checklist: an AI-review lane that concluded success having produced no
+  review body and no finding **for the current round** reviewed nothing, and is classified ABSENT
+  rather than PASS. These lanes report on their session rather than on their output, so a session
+  that ends without error goes green whether or not it reviewed anything, and cost is no signal
+  either since the session is billed either way. Productivity is scoped to the head under review
+  through the per-surface commit fields Gate 5 already names, so an artifact left by an earlier
+  head or an earlier rerun cannot stand in for a round that emitted nothing. An absent lane is
+  substituted with a local review over the same diff (`/review:fanout`, or the bundled
+  `/code-review` against an explicit target for a correctness lane) and named in the report.
+- **The substitution is enforced on every merge path, not only the monitor loop.** The same
+  invariant is now a Gate 5 item in `reference/readiness.md`, which is the single source of truth
+  both `monitor.md` and `merge.md` rerun, so a direct `merge` invocation and the final
+  re-verification in `full` enforce it too. It states what reaching Gate 5's bound hands off to:
+  the bound ends the wait for a silent reviewer, it does not supply the review.
 
 ## [0.55.74]
 

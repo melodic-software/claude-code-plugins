@@ -157,6 +157,8 @@ gh api --paginate "repos/{owner}/{repo}/issues/<pr_number>/comments?per_page=100
 
   `commit_id` is the wrong field for this question: it re-anchors to the newest head while a comment's hunk still applies, so it counts surviving prior-round comments as current and short-circuits the wait. Unpaginated, the count also undercounts: the comments you are waiting on are the newest, and on a PR with prior review rounds the newest are exactly what page 1 omits. The count is slurped rather than passed to `--jq` for the reason rule 3 gives: a reduction like `length` inside `--jq` runs per page and prints one number per page, never the total.
 
+- [ ] **A review lane that produced nothing for this round is SUBSTITUTED before the gate clears, not merely reported.** Its own check row cannot settle this: these lanes report on their session rather than on their output, so a session that ends without error is green whether or not it reviewed anything, and cost is no signal either since the session is billed either way. Judge the lane by the artifacts the scoping rule above attributes to this head; zero of them means nothing was reviewed, however green the row. Run a local review over the same diff (`/review:fanout` for breadth, or the bundled `/code-review` against an explicit target for a correctness lane, whichever resolves in this session), then record in the readiness verdict which lanes were absent and what stood in for them. A lane whose posted body admits it fell back to a manual pass counts as absent on the same terms. This is what the bound above hands off to: reaching the bound ends the wait, it does not supply the review.
+
 ### Gate 6: No pending work
 
 - [ ] No fix pushes are in flight (a push restarts the entire monitoring loop)
