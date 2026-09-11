@@ -3,11 +3,68 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.53.1]
+## [0.54.1]
 
 ### Changed
 
 - **`audit-install-state`, `audit-skill-visibility`: description prose no longer addresses the reader, except for the presence-gate token.** Anthropic's skill-authoring guidance keeps first and second person out of a description because it is injected into the system prompt; the rewritten clauses name the user, the session, or the repository instead. The one clause kept as it was is the native-surface presence gate ("resolves in your session"): the native-overlap registry self-check matches that literal token against every baked row, so the two descriptions keep it until the token itself is changed fleet-wide. Quoted trigger phrases are unchanged.
+
+## [0.54.0]
+
+### Added
+
+- **`inventory.py` reads a bytecode-fragmented bundle.** Region rule: from the first bundle marker
+  to end of file, every printable run of at least 256 bytes, joined with newlines, in one regex
+  pass; `sources.binary` records `runs`, `joined_bytes`, `region_rule`, `runs_below_floor`
+  (registration tokens sitting under the floor, counted rather than lost, and degrading the
+  bundled-skill lane when positive), and `elapsed_seconds`. A build with no marker keeps the
+  largest-run fallback.
+- **Three registrar discovery routes.** The CJS getter, then the ESM export list
+  (`<ident> as registerBundledSkill`), then the canary registration; `bundled_skill_notes` records
+  `registrar_route`. The registrar-shaped-export advisory sees both export shapes, and the known
+  set gains `registerDesignCanvasSkill` and `registerWorkflowAuthoringSkill`.
+- **Computed names resolve by locality.** A hoisted constant resolves to its nearest preceding
+  binding, never a farther one, so an unrelated module's binding of the same identifier cannot
+  shadow the real one; a single-character identifier is trusted only within a locality window; a
+  loop or template-literal registration is a `dynamic_roster` note, not an unresolved name; a call
+  whose object carries no `name:` is another module's function and is counted apart.
+- **Per-registration invocation fields.** `user_invocable`, `disable_model_invocation`,
+  `terminal_oriented`, and `survives_kill_switch` when present; a function-valued field reads as
+  true with the key listed under `flag_driven`.
+- **Same-name registrations are both kept.** Two distinct bundled registrations sharing a name are
+  a list under that name with `collision: true` and are named in `bundled_skill_notes.collisions`;
+  `registrations_of(entry)` reads either shape.
+- **Integrity per lane.** `integrity.lanes` carries `builtin_commands`, `bundled_skills`, and
+  `plugin_backed`, each with its own status, problems, and advisories; the top-level status is the
+  worst lane, and top-level `broken` means every lane is broken or the binary is unreadable, so one
+  broken lane is a named `degraded` rather than a run with no counts. `plugin_backed` gains a canary
+  (`security-review`). Exit mappings are unchanged in both `inventory.py --self-check` (which now
+  prints each lane) and `overlap.py detect`.
+- **`overlap.py detect` reads the lanes.** The candidate report carries per-lane floors (a lane's
+  counts are totals only when the lane is ok and no run-wide advisory such as an unvalidated CLI
+  version stands; a lane-attributed advisory degrades only its own lane), and every
+  candidate carries `re_derivable`: false when the lane its seeded or observed class maps to is
+  broken (both directions on a class collision), null for session-provided and marketplace classes,
+  which have no lane. A name collision lists every registration with its invocation mode. An
+  inventory without `lanes` keeps the previous reading.
+- **`overlap.py self-check` flags a presence-gated native mention without the gate token.** A
+  description that names a native surface by class and kind inside a `when`, `where`, or `if`
+  clause with an availability word, and carries no gate token in that clause, is an advisory (exit
+  3) naming the row to add or the token to use. Judged per clause, so a gated marketplace clause
+  never excuses an ungated native clause beside it.
+- **`--upstream-sha` repeats.** One value per upstream repository the store cites; a recorded
+  commit matches when any provided value matches it.
+- **Seeded pairs** gain `doctor` and `skill-doctor` against `claude-ops:audit-skill-visibility`.
+
+### Changed
+
+- `VALIDATED_AGAINST` is `2.1.263`, validated on the Linux ELF build in a container; the PE
+  container path is covered by a byte-layout fixture, not a Windows run.
+- The audit-native-overlap description is under the 1,024-character Skills API cap: the same
+  claims and every trigger phrase, in fewer words.
+- The inventory skill's integrity table, the audit-native-overlap detection posture, and
+  `reference/extraction.md` describe the lanes, the region rule, the locality rule, and the
+  collision list; the inventory eval for degraded counts names dynamic rosters and lane statuses.
 
 ## [0.53.0]
 
