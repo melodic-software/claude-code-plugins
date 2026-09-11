@@ -10,6 +10,12 @@
   automates the search, bundled-only as of 2026-09-09), plus the routing-table keywords for
   it. Adopted from the vetted ClaudeDevs cost-performance article
   (`docs/upstream/claudedevs-cost-performance.md` in the marketplace repository).
+- **`methodology`**: a `## Boundary, the bundled claude-api skill` section stating the
+  composite posture with the bundled `hillclimb` and `build-eval` subcommands (this skill owns
+  eval design and grading method; the bundled subcommands own the automated search once a
+  suite exists; run both when a request spans them), with a mutation gate and an availability
+  rule that never assumes the bundled skill resolves. The hillclimb citation in
+  `reference/eval-design.md` is now gated on the bundled skill resolving in the session.
 
 ## [0.2.2]
 

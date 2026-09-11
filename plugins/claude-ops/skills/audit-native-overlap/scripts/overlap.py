@@ -950,6 +950,25 @@ def cmd_self_check(args: argparse.Namespace) -> int:
 
     problems.extend(check_baked_parity(repo, rows))
 
+    # A verdict lives for the model only once the component's body carries its
+    # Boundary section; the store alone ships to nobody. Advisory rather than a
+    # problem so rows that predate the requirement report until their sweep
+    # lands instead of blocking every run.
+    unbaked_boundary = [
+        _row_label(row, index)
+        for index, row in enumerate(rows)
+        if row["verdict"] != "defer"
+        and row["observation"]["class"] == "extraction"
+        and row["component"].get("kind") != "agent"
+        and not row["baked"]["boundary_section"]
+    ]
+    if unbaked_boundary:
+        advisories.append(
+            f"{len(unbaked_boundary)} non-defer extraction row(s) carry no Boundary "
+            "section in their component (the verdict is recorded but the model never "
+            f"reads it): {', '.join(unbaked_boundary)}"
+        )
+
     recorded = sorted(
         {
             match.group(1)

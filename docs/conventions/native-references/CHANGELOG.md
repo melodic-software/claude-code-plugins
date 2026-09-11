@@ -6,6 +6,25 @@ major change; additive guidance is minor; clarification is a patch. The doc ship
 unnumbered, which this file reads as **1.0**; the entry below is the first recorded change and lands
 the changelog the README said would arrive with it.
 
+## 1.1.0 — 2026-09-11
+
+Additive: no required part of the description phrase moves and the canonical gate token is
+unchanged. One enforceability row is added (advisory-graded), and the meaning of a store row with
+no baked line is split by surface.
+
+- **The Boundary section lands with the store row.** A non-`defer`, extraction-evidence row is
+  written together with its `## Boundary` section in the component body, in the same change. The
+  section is invocation-loaded, so it spends no listing budget and moves no routing; nothing the
+  description-phrase gate protects against applies to it. Routing and mutation gate go in the body;
+  the four-part records go in a reference file inside the same skill, linked from the section.
+- **"Pending-sweep" is now phrase-only.** A row without a description phrase remains legal pending
+  state. A row without its Boundary section is a gap the overlap self-check names as an advisory,
+  so legacy rows report until their sweep lands and no new row can be added silently unbaked.
+- **Boundary-only baking may batch across plugins.** The one-plugin-per-unit sweep rule keeps its
+  reason (routing and budget) and therefore keeps its scope: description phrases.
+- Adopters table gains `/claude-config:audit-instructions`, `/evals:methodology`, and
+  `/playbooks:fable-5`, each carrying a Boundary section for the bundled `claude-api` skill.
+
 ## 1.0.1 — 2026-08-28
 
 Clarification patch: no required part of the description phrase moves, the canonical gate token is

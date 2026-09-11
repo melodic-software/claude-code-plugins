@@ -3,13 +3,30 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.45.3]
+## [0.48.0]
 
 ### Added
 
 - **`observability`**: a read-routing boundary row pointing API-application cache health at
   the platform's cache diagnostics API (beta, per-request miss reasons), keeping the skill
   scoped to local Claude Code telemetry while routing the other case.
+- **`audit-native-overlap` self-check**: a new advisory naming every non-`defer`
+  extraction-evidence store row whose component carries no `## Boundary` section. The
+  convention now requires the Boundary section to land in the same change as its row, so a
+  row without one is a recorded verdict the model never reads; the advisory grades the store
+  as degraded (exit 3) rather than broken, and `defer` rows and agent components owe nothing.
+
+### Changed
+
+- **`audit-native-overlap` apply step**: the skill body now describes the two baked surfaces
+  separately. The `## Boundary` section is budget-free and lands with the store row on
+  invocation; only the description phrase is the gated `apply` step, because it spends
+  description budget on every session. The parity rule is unchanged: every baked description
+  phrase traces to a row, and a row without a phrase is legal pending-sweep state.
+- **`audit-native-overlap` tests**: the fixture repository seeds its default component with a
+  Boundary section so the base row is parity-clean, and the suite gains cases for the new
+  advisory, for `defer` rows owing no Boundary, and for a row whose only missing surface is
+  the description phrase.
 
 ## [0.45.2]
 

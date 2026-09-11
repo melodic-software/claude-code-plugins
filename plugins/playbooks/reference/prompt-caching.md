@@ -92,9 +92,11 @@ check or a docs page settles it.
   output ceiling written into a skill body is an anti-pattern the prompt-audit discipline
   removes, and nothing here licenses one. The lever lives in request configuration and
   task-shaped output constraints, not in standing instruction text.
-- **Automation.** The bundled `claude-api` skill's `cost-optimize` subcommand profiles spend and
-  proposes these levers against an application, measuring against an eval when one exists. Wrap
-  or point to it rather than rebuilding the audit; it proposes rather than silently applies.
+- **Automation.** When the bundled `claude-api` skill resolves in your session, its
+  `cost-optimize` subcommand profiles spend and proposes these levers against an application,
+  measuring against an eval when one exists. Wrap or point to it rather than rebuilding the audit;
+  it proposes rather than silently applies. The routing between that surface and this playbook is
+  the `## Boundary` section in the fable-5 skill body.
 
 ## Session-side counterparts
 

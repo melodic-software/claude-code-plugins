@@ -25,9 +25,13 @@ Discovery complete (explore + research, both dispatched, gated, and independentl
 **All five lanes interviewed and decided 2026-09-10**; every row below carries its verdict
 (ADOPT / REJECT with reason / TRACK on event / COVERED with evidence), and the accepted
 adoptions are implemented on this record's branch (see the interview queue section for the
-work list). Open TRACK triggers: the anthropics/skills repo or the claude-api docs page
-gaining hillclimb/build-eval; a Console-side check confirming the cache-diagnostics UI; a
-second real need for API-cost tooling in this marketplace.
+work list). The three native-overlap verdicts this effort produced (bundled `claude-api`
+against `claude-config:audit-instructions`, `evals:methodology`, and `playbooks:fable-5`) are
+baked as `## Boundary` sections in those skill bodies with detail in a same-skill reference
+file, per the amended native-references convention (1.1.0: a non-`defer` extraction-evidence
+row lands together with its Boundary section). Open TRACK triggers: the anthropics/skills repo
+or the claude-api docs page gaining hillclimb/build-eval; a Console-side check confirming the
+cache-diagnostics UI; a second real need for API-cost tooling in this marketplace.
 
 ## Source and verification
 
@@ -133,8 +137,12 @@ Native-first gate row, decided at interview 2026-09-10: the (bundled claude-api,
 `claude-config:audit-instructions`) pair is recorded **complementary** in
 `docs/native-surfaces/records.json` with a composite posture: wrap or point to the bundled
 subcommand where it fits the use case, run our own processes where they fit; no on-paper
-routing restriction. Recheck fires with the store row's trigger (subcommand set changes, or
-the public repo / docs page gains hillclimb).
+routing restriction. The verdict is baked where the model reads it: a `## Boundary, the
+bundled claude-api skill` section in the `audit-instructions` body (routing, mutation gate,
+availability rule) with the four-part records in
+`plugins/claude-config/skills/audit-instructions/reference/bundled-claude-api.md`. Recheck
+fires with the store row's trigger (subcommand set changes, or the public repo / docs page
+gains hillclimb).
 
 | Article claim / practice | Ours | Verdict | Reasoning, basis, as-of |
 |---|---|---|---|
@@ -178,7 +186,7 @@ Decided at interview, 2026-09-10:
 | Question | Verdict | Reasoning, basis, as-of |
 |---|---|---|
 | Record shape | DECIDED: keep this file's shape. Only the row-schema FORMAT is borrowed from aihero-course.md (four-part rows, verdict vocabulary); this source is unrelated to AI Hero and this record stands alone | Owner interview, 2026-09-10 |
-| Native-overlap gate before any new skill: the article's guidance IS the bundled claude-api skill | DECIDED: run `/claude-ops:audit-native-overlap` against the four topics first and record its verdicts as gate rows; adoption scope is NOT pre-restricted on paper. The owner receives full information per topic and decides at each lane interview | Owner interview, 2026-09-10; PLUGIN-PHILOSOPHY Native-first section; ADR-0028 precedent |
+| Native-overlap gate before any new skill: the article's guidance IS the bundled claude-api skill | DECIDED: run `/claude-ops:audit-native-overlap` against the four topics first and record its verdicts as gate rows; adoption scope is NOT pre-restricted on paper. The owner receives full information per topic and decides at each lane interview. Amended 2026-09-11: a registry row alone is not the deliverable; each non-`defer` verdict lands as a `## Boundary` section in the skill body with detail in a same-skill reference file, and the native-references convention (1.1.0) now requires the pair | Owner interview, 2026-09-10 and 2026-09-11; PLUGIN-PHILOSOPHY Native-first section; ADR-0028 precedent |
 | Vendor-internal numbers and beta features | DECIDED: adopt mechanisms only; cite figures as vendor-reported and unreproduced; every adopted line touching a beta feature carries its beta qualifier and GA/model-list boundary | Owner interview, 2026-09-10 |
 | Citing hillclimb while the public repo lags | DECIDED: cite it as a bundled Claude Code command with a four-part record noting the public-repo lag; recheck trigger fires when the anthropics/skills repo or the skill's docs page gains the subcommand | Owner interview, 2026-09-10 |
 
@@ -187,8 +195,8 @@ Decided at interview, 2026-09-10:
 All five lanes interviewed and decided 2026-09-10, in order M, T2, T3, T1, T4; verdicts are
 in each lane's section above. Execution decision: implement the accepted adoptions on this
 branch in this effort (one branch, one draft PR). All five items below are implemented on this
-branch (playbooks 0.10.0, evals 0.2.3, claude-ops 0.45.3; git history of this file's branch
-records the commits):
+branch (playbooks 0.10.0, evals 0.2.3, claude-ops 0.48.0, claude-config 0.42.0; git history
+of this file's branch records the commits):
 
 1. New playbooks prompt-caching reference chapter (T1 chapter rows + T4 Batch/Admin/
    cost-optimize-mention/output-bounding rows), beta qualifiers carried.

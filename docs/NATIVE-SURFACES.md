@@ -18,7 +18,7 @@ and when — see [`docs/conventions/native-references/`](conventions/native-refe
 | Lane | Rows | Baked | Verdicts |
 |---|---|---|---|
 | Built-in CLI commands | 2 | 1 | complementary 2 |
-| Bundled skills | 11 | 2 | complementary 10, defer 1 |
+| Bundled skills | 13 | 5 | complementary 12, defer 1 |
 | Plugin-backed built-ins | 1 | 0 | complementary 1 |
 | Session-provided skills (observation-only) | 1 | 0 | defer 1 |
 | First-party marketplace plugins | 2 | 2 | complementary 2 |
@@ -71,7 +71,37 @@ and when — see [`docs/conventions/native-references/`](conventions/native-refe
   - verdict recorded from the owner's interview answers in docs/upstream/claudedevs-cost-performance.md Lane M and Lane T2, 2026-09-10
 - **Observation:** extraction — extracted from binary 2.1.263 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (registerClaudeApiSkill string plus subcommand array; bundled shared/evals/eval-hillclimb.md extracted and read); bulk registrar enumeration was broken at this build, so this row's evidence is the targeted extraction, not the inventory JSON (2026-09-09)
 - **Recheck trigger:** a Claude Code release changes the bundled claude-api skill's subcommand set, or the anthropics/skills repo or the platform claude-api-skill docs page gains hillclimb/build-eval (which also fires the docs/upstream/claudedevs-cost-performance.md hillclimb row) (verified 2026-09-10)
-- **Baked:** description phrase no · Boundary section no
+- **Baked:** description phrase no · Boundary section yes
+- **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure — it is the best available routing surface, not a guaranteed one
+
+### `claude-api` → `evals:methodology`
+
+- **Verdict:** `complementary` — Different jobs on the same object. The bundled skill's hillclimb subcommand consumes an eval suite and searches model and effort for the cheapest configuration that holds the target (train/test split, one change per round, held-out scoring), and build-eval scaffolds the suite it needs; both run evals and change configuration. evals:methodology is knowledge about designing the suite (criteria, anatomy, grading, effort as an axis) and runs nothing. The two chain: design the suite here, hand it to the search. Recorded when the effort-axis note citing hillclimb landed in the methodology reference.
+- **Native surface:** `claude-api` (bundled skill; markers: none)
+- **Our component:** `evals:methodology` (skill)
+- **Evidence:**
+  - binary extraction 2026-09-09 (claude.exe 2.1.263): subcommand array includes build-eval and hillclimb; bundled shared/evals/eval-hillclimb.md read end to end (train/test split, one proposal per round, held-out scoring)
+  - hillclimb and build-eval absent from anthropics/skills HEAD 41bbe19 (2026-09-03) and from the platform claude-api-skill docs page
+  - our description: 'knowledge (WHY/WHAT of eval design), not a runner; ... no marketplace command executes model-graded evals'
+  - reference/eval-design.md 'Effort as an eval axis' cites the subcommand behind the presence gate
+- **Observation:** extraction — extracted from binary 2.1.263 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (subcommand array; bundled shared/evals/eval-hillclimb.md extracted and read); bulk registrar enumeration was broken at this build, so this row's evidence is the targeted extraction, not the inventory JSON (2026-09-09)
+- **Recheck trigger:** a Claude Code release changes the bundled claude-api skill's subcommand set, or the public anthropics/skills repo or the docs page gains hillclimb/build-eval (verified 2026-09-11)
+- **Baked:** description phrase no · Boundary section yes
+- **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure — it is the best available routing surface, not a guaranteed one
+
+### `claude-api` → `playbooks:fable-5`
+
+- **Verdict:** `complementary` — The playbook's chapters defer every current fact (model ID, price, beta boundary, parameter shape) to the bundled claude-api skill by standing rule, and its API prompt-caching chapter names cost-optimize as the automation for the cost levers it describes. The bundled skill resolves live facts and acts (prompt-audit, cost-optimize, hillclimb edit prompts and configuration when asked); the playbook is operating doctrine and mechanisms that outlive any one price, and performs no work. Neither replaces the other.
+- **Native surface:** `claude-api` (bundled skill; markers: none)
+- **Our component:** `playbooks:fable-5` (skill)
+- **Evidence:**
+  - binary extraction 2026-09-09 (claude.exe 2.1.263): registerClaudeApiSkill present; subcommand array cost-optimize, migrate, managed-agents-onboard, prompt-audit, upgrade, build-eval, hillclimb
+  - platform docs claude-api-skill page (fetched 2026-09-09): bundled with Claude Code and published in the open-source skills repository
+  - reference/model-adaptation/fable-5-1.md standing rule: 'this chapter carries no model ID, price, or limit. Resolve the current details through the claude-api skill at the moment of use'
+  - reference/prompt-caching.md 'Automation' bullet cites cost-optimize behind the presence gate
+- **Observation:** extraction — extracted from binary 2.1.263 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (registerClaudeApiSkill string plus subcommand array); bulk registrar enumeration was broken at this build, so this row's evidence is the targeted extraction, not the inventory JSON (2026-09-09)
+- **Recheck trigger:** a Claude Code release changes the bundled claude-api skill's subcommand set or moves it between bundled and marketplace distribution (verified 2026-09-11)
+- **Baked:** description phrase no · Boundary section yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure — it is the best available routing surface, not a guaranteed one
 
 ### `code-review` → `review:code-review`

@@ -39,9 +39,13 @@ BASE_ROW = {
         "trigger": "a Claude Code release adds, removes, or renames a bundled skill in this lane",
         "verified": "2026-08-23",
     },
-    "baked": {"description_phrase": False, "boundary_section": False},
+    "baked": {"description_phrase": False, "boundary_section": True},
     "budget_caveat": False,
 }
+
+# A verdict lands with its Boundary section, so the default component carries
+# one; the description phrase is the separately gated half and stays absent.
+BOUNDARY_EXTRA = "\n## Boundary, the bundled doctor skill\n\nDetail.\n"
 
 
 def deep_copy(value):
@@ -69,6 +73,10 @@ SKILL_RAW_TEMPLATE = """---
 ## Purpose
 
 Demo body.
+
+## Boundary, the bundled doctor skill
+
+Detail.
 """
 
 
@@ -82,6 +90,9 @@ class TempRepo:
         self.view_path = self.root / "docs" / "NATIVE-SURFACES.md"
         self.store_path.parent.mkdir(parents=True, exist_ok=True)
         self.write_store(make_store(rows if rows is not None else [BASE_ROW]))
+        # BASE_ROW claims a Boundary section, so the component it names exists
+        # from the start; tests that want a different component rewrite it.
+        self.write_skill("demo", "demo-audit", extra=BOUNDARY_EXTRA)
 
     def write_store(self, store):
         self.store_path.write_text(json.dumps(store, indent=2), encoding="utf-8")
@@ -461,9 +472,34 @@ class SelfCheckTests(unittest.TestCase):
         )
         self.assertEqual(self.repo.self_check(), 1)
 
-    def test_row_without_a_baked_line_is_legal_pending_sweep_state(self):
+    def test_row_without_a_description_phrase_is_legal_pending_sweep_state(self):
+        # The phrase is the budget-priced, routing-affecting half and earns its
+        # own gate; a row carrying only its Boundary section is complete.
+        self.repo.generate()
+        self.repo.write_skill("demo", "demo-audit", extra=BOUNDARY_EXTRA)
+        self.assertEqual(self.repo.self_check(), 0)
+
+    def test_row_without_a_boundary_section_is_an_advisory(self):
+        # The verdict is recorded but the model never reads it: degraded, not
+        # broken, so rows that predate the requirement report until swept.
+        row = deep_copy(BASE_ROW)
+        row["baked"]["boundary_section"] = False
+        self.repo.write_store(make_store([row]))
         self.repo.generate()
         self.repo.write_skill("demo", "demo-audit")
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            exit_code = self.repo.self_check()
+        self.assertEqual(exit_code, 3)
+        self.assertIn("carry no Boundary section", out.getvalue())
+        self.assertIn("demo:demo-audit", out.getvalue())
+
+    def test_defer_rows_owe_no_boundary_section(self):
+        row = deep_copy(BASE_ROW)
+        row["verdict"] = "defer"
+        row["baked"]["boundary_section"] = False
+        self.repo.write_store(make_store([row]))
+        self.repo.generate()
         self.assertEqual(self.repo.self_check(), 0)
 
     def test_boundary_heading_alone_is_not_a_reverse_parity_break(self):
@@ -932,7 +968,8 @@ class ScanTests(unittest.TestCase):
         agents.mkdir(parents=True, exist_ok=True)
         (agents / "helper.md").write_text("---\nname: helper\n---\n", encoding="utf-8")
         found = overlap.scan_components(repo.root)
-        self.assertEqual(found["skills"], ["alpha:one", "beta:two"])
+        # TempRepo seeds demo:demo-audit for BASE_ROW; the scan reports it too.
+        self.assertEqual(found["skills"], ["alpha:one", "beta:two", "demo:demo-audit"])
         self.assertEqual(found["agents"], ["alpha:helper"])
 
     def test_scan_of_a_tree_without_plugins_is_empty(self):

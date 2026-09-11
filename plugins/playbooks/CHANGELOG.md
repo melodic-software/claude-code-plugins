@@ -17,6 +17,12 @@ only after that version increases.
 - **`reference/model-adaptation/fable-5-1.md`**: a "Cross-model effort economics" section
   (test the newer model at lower effort before working the older one harder; flat-curve
   reading), pricing-free per the chapter's standing rule, with sources.
+- **`fable-5`**: a `## Boundary, the bundled claude-api skill` section stating the composite
+  posture with the bundled skill (prefer it for every current fact a chapter points at and for
+  the cost audit itself; this playbook for the judgment around those facts and the mechanisms
+  that outlive any one price), with a mutation gate and an availability rule that never
+  assumes the bundled skill resolves. The automation pointer in `reference/prompt-caching.md`
+  is now gated on the bundled skill resolving in the session.
 
 ## [0.9.9]
 

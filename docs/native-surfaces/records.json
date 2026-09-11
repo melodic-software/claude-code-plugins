@@ -412,7 +412,53 @@
         "trigger": "a Claude Code release changes the bundled claude-api skill's subcommand set, or the anthropics/skills repo or the platform claude-api-skill docs page gains hillclimb/build-eval (which also fires the docs/upstream/claudedevs-cost-performance.md hillclimb row)",
         "verified": "2026-09-10"
       },
-      "baked": { "description_phrase": false, "boundary_section": false },
+      "baked": { "description_phrase": false, "boundary_section": true },
+      "budget_caveat": true
+    },
+    {
+      "native": { "name": "claude-api", "class": "bundled-skill", "markers": [] },
+      "component": { "plugin": "evals", "skill": "methodology", "kind": "skill" },
+      "verdict": "complementary",
+      "reason": "Different jobs on the same object. The bundled skill's hillclimb subcommand consumes an eval suite and searches model and effort for the cheapest configuration that holds the target (train/test split, one change per round, held-out scoring), and build-eval scaffolds the suite it needs; both run evals and change configuration. evals:methodology is knowledge about designing the suite (criteria, anatomy, grading, effort as an axis) and runs nothing. The two chain: design the suite here, hand it to the search. Recorded when the effort-axis note citing hillclimb landed in the methodology reference.",
+      "evidence": [
+        "binary extraction 2026-09-09 (claude.exe 2.1.263): subcommand array includes build-eval and hillclimb; bundled shared/evals/eval-hillclimb.md read end to end (train/test split, one proposal per round, held-out scoring)",
+        "hillclimb and build-eval absent from anthropics/skills HEAD 41bbe19 (2026-09-03) and from the platform claude-api-skill docs page",
+        "our description: 'knowledge (WHY/WHAT of eval design), not a runner; ... no marketplace command executes model-graded evals'",
+        "reference/eval-design.md 'Effort as an eval axis' cites the subcommand behind the presence gate"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary 2.1.263 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (subcommand array; bundled shared/evals/eval-hillclimb.md extracted and read); bulk registrar enumeration was broken at this build, so this row's evidence is the targeted extraction, not the inventory JSON",
+        "date": "2026-09-09"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release changes the bundled claude-api skill's subcommand set, or the public anthropics/skills repo or the docs page gains hillclimb/build-eval",
+        "verified": "2026-09-11"
+      },
+      "baked": { "description_phrase": false, "boundary_section": true },
+      "budget_caveat": true
+    },
+    {
+      "native": { "name": "claude-api", "class": "bundled-skill", "markers": [] },
+      "component": { "plugin": "playbooks", "skill": "fable-5", "kind": "skill" },
+      "verdict": "complementary",
+      "reason": "The playbook's chapters defer every current fact (model ID, price, beta boundary, parameter shape) to the bundled claude-api skill by standing rule, and its API prompt-caching chapter names cost-optimize as the automation for the cost levers it describes. The bundled skill resolves live facts and acts (prompt-audit, cost-optimize, hillclimb edit prompts and configuration when asked); the playbook is operating doctrine and mechanisms that outlive any one price, and performs no work. Neither replaces the other.",
+      "evidence": [
+        "binary extraction 2026-09-09 (claude.exe 2.1.263): registerClaudeApiSkill present; subcommand array cost-optimize, migrate, managed-agents-onboard, prompt-audit, upgrade, build-eval, hillclimb",
+        "platform docs claude-api-skill page (fetched 2026-09-09): bundled with Claude Code and published in the open-source skills repository",
+        "reference/model-adaptation/fable-5-1.md standing rule: 'this chapter carries no model ID, price, or limit. Resolve the current details through the claude-api skill at the moment of use'",
+        "reference/prompt-caching.md 'Automation' bullet cites cost-optimize behind the presence gate"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary 2.1.263 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (registerClaudeApiSkill string plus subcommand array); bulk registrar enumeration was broken at this build, so this row's evidence is the targeted extraction, not the inventory JSON",
+        "date": "2026-09-09"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release changes the bundled claude-api skill's subcommand set or moves it between bundled and marketplace distribution",
+        "verified": "2026-09-11"
+      },
+      "baked": { "description_phrase": false, "boundary_section": true },
       "budget_caveat": true
     }
   ]

@@ -55,11 +55,14 @@ beat a weaker one at high effort on both axes (basis:
 `platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#tune-effort`,
 verified 2026-09-09; recheck on that section changing).
 
-The bundled `claude-api` skill's `hillclimb` subcommand automates this search over a suite: it
-splits cases into train and test sets, proposes one configuration change per round from failing
-train transcripts, and scores the winner on the held-out test set. As of 2026-09-09 it ships
-inside Claude Code's bundled skill only; the public anthropics/skills repository and the skill's
-docs page do not carry it yet (recheck: either surface gains the subcommand).
+When the bundled `claude-api` skill resolves in your session, its `hillclimb` subcommand
+automates this search over a suite: it splits cases into train and test sets, proposes one
+configuration change per round from failing train transcripts, and scores the winner on the
+held-out test set. Distribution record: the subcommand (and its `build-eval` prerequisite) ships in
+the bundled skill inside Claude Code, while the public anthropics/skills repository and the skill's
+docs page do not carry it (verified 2026-09-09 against Claude Code 2.1.263 and the repository
+HEAD of 2026-09-03; recheck when either public surface gains the subcommand). The routing between
+that surface and this skill is the `## Boundary` section in `SKILL.md`.
 
 ## Scaling authoring
 

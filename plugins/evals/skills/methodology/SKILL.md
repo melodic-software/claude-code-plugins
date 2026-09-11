@@ -59,6 +59,36 @@ scores, or scaffolds evals. To interview for criteria and scaffold an eval suite
 `/skill-quality:check validate-evals` when the `skill-quality` plugin is installed. No
 marketplace command executes model-graded evals.
 
+## Boundary, the bundled `claude-api` skill
+
+One native surface consumes the eval suites this plugin teaches you to design, and the two get
+conflated when the question is "how do I find the cheapest configuration that holds my target":
+
+- **`claude-api` (bundled skill), `hillclimb` and `build-eval` subcommands.** Ship with Claude Code
+  rather than as a marketplace plugin. Given an eval suite, `hillclimb` splits cases into train and
+  test sets, proposes one configuration change per round from failing train transcripts (prompt
+  text, tool descriptions, model and effort), and scores the winner on the held-out test set;
+  `build-eval` scaffolds the suite it needs. They run evals and change configuration.
+- **This skill (marketplace plugin).** Knowledge about designing the suite in the first place:
+  success criteria, eval anatomy, grading methods, and effort as an eval axis. It runs nothing and
+  edits nothing.
+
+**Routing.** When the bundled `claude-api` skill resolves in your session, prefer its `hillclimb`
+for the search itself: sweeping model and effort against a suite you already have. Prefer this skill
+when the suite does not exist yet or its criteria are not yet measurable, and `/evals:design` to
+scaffold it. The two chain: design the suite here, then hand it to the search.
+
+**Mutation gate.** `hillclimb` proposes and, when accepted, applies configuration and prompt
+changes to the application under test. This skill never runs or scores an eval and never edits a
+prompt, so never chain into a `hillclimb` run on this skill's behalf; name the option and let the
+user invoke it.
+
+**Availability is never assumed.** Bundled surfaces are gated by settings, environment, plan, and
+host; this section states what to do when the surface resolves, never that it is present. The
+distribution facts behind it (the subcommands ship in the bundled skill and not yet in the public
+skills repository) and their recheck trigger are recorded with the effort-axis note in
+[reference/eval-design.md](reference/eval-design.md).
+
 ## Gotchas
 
 - The reference files are a distillation with fetch-date stamps, not the source: for runnable

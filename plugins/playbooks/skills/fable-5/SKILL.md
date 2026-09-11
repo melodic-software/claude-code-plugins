@@ -153,6 +153,36 @@ Read a chapter the first time its trigger fires in the session; once read, it st
 | Author or review code that calls the Claude API directly: request assembly, caching, batching, or spend profiling | `${CLAUDE_PLUGIN_ROOT}/reference/prompt-caching.md` |
 | Arm this playbook on any model other than Claude Fable 5 | `${CLAUDE_PLUGIN_ROOT}/reference/model-adaptation/<model-version>.md`, mandatory, at arm time (meta-rule 3 owns the routing) |
 
+## Boundary, the bundled `claude-api` skill
+
+One native surface owns the live facts this playbook's chapters defer to, and the two get conflated
+when a chapter names a model, a price, or an API mechanism:
+
+- **`claude-api` (bundled skill).** Ships with Claude Code rather than as a marketplace plugin. It is
+  the reference for current model IDs, pricing, parameters, caching, and migration guidance, and its
+  subcommands act: `prompt-audit` sweeps prompts, `cost-optimize` profiles an application's spend
+  and proposes levers, `hillclimb` searches model and effort against an eval. It resolves facts at
+  the moment of use and it changes files when asked.
+- **This skill (marketplace plugin).** Operating doctrine: how to reason, plan, verify, and
+  communicate, with model-adaptation chapters that carry behavioral deltas and an API prompt-caching
+  chapter that carries mechanisms. By standing rule the chapters carry no model ID, price, or limit.
+
+**Routing.** When the bundled `claude-api` skill resolves in your session, prefer it for every
+current fact a chapter points at (a price, a model list, a beta boundary, a parameter's current
+shape) and for the cost audit itself; this playbook for the judgment around those facts and for the
+mechanisms that outlive any one price. A chapter that says "resolve through the `claude-api` skill"
+means exactly that surface.
+
+**Mutation gate.** The bundled skill's subcommands edit prompts and configuration when the request
+asks for it. This playbook performs no work and never chains into a subcommand run; it names the
+surface and leaves the invocation to the user or the task at hand.
+
+**Availability is never assumed.** Bundled surfaces are gated by settings, environment, plan, and
+host; this section states what to do when the surface resolves, never that it is present. The
+subcommand-level facts and their recheck triggers live in
+`${CLAUDE_PLUGIN_ROOT}/reference/prompt-caching.md` (cost levers and automation) and in the
+model-adaptation chapters' Sources sections.
+
 ## What this skill is NOT
 
 - Not project conventions. It never overrides an instruction from the user, the operator, or the project (meta-rule 1).
