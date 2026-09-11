@@ -3,6 +3,163 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.54.0]
+
+### Added
+
+- **`inventory.py` reads a bytecode-fragmented bundle.** Region rule: from the first bundle marker
+  to end of file, every printable run of at least 256 bytes, joined with newlines, in one regex
+  pass; `sources.binary` records `runs`, `joined_bytes`, `region_rule`, `runs_below_floor`
+  (registration tokens sitting under the floor, counted rather than lost, and degrading the
+  bundled-skill lane when positive), and `elapsed_seconds`. A build with no marker keeps the
+  largest-run fallback.
+- **Three registrar discovery routes.** The CJS getter, then the ESM export list
+  (`<ident> as registerBundledSkill`), then the canary registration; `bundled_skill_notes` records
+  `registrar_route`. The registrar-shaped-export advisory sees both export shapes, and the known
+  set gains `registerDesignCanvasSkill` and `registerWorkflowAuthoringSkill`.
+- **Computed names resolve by locality.** A hoisted constant resolves to its nearest preceding
+  binding, never a farther one, so an unrelated module's binding of the same identifier cannot
+  shadow the real one; a single-character identifier is trusted only within a locality window; a
+  loop or template-literal registration is a `dynamic_roster` note, not an unresolved name; a call
+  whose object carries no `name:` is another module's function and is counted apart.
+- **Per-registration invocation fields.** `user_invocable`, `disable_model_invocation`,
+  `terminal_oriented`, and `survives_kill_switch` when present; a function-valued field reads as
+  true with the key listed under `flag_driven`.
+- **Same-name registrations are both kept.** Two distinct bundled registrations sharing a name are
+  a list under that name with `collision: true` and are named in `bundled_skill_notes.collisions`;
+  `registrations_of(entry)` reads either shape.
+- **Integrity per lane.** `integrity.lanes` carries `builtin_commands`, `bundled_skills`, and
+  `plugin_backed`, each with its own status, problems, and advisories; the top-level status is the
+  worst lane, and top-level `broken` means every lane is broken or the binary is unreadable, so one
+  broken lane is a named `degraded` rather than a run with no counts. `plugin_backed` gains a canary
+  (`security-review`). Exit mappings are unchanged in both `inventory.py --self-check` (which now
+  prints each lane) and `overlap.py detect`.
+- **`overlap.py detect` reads the lanes.** The candidate report carries per-lane floors (a lane's
+  counts are totals only when the lane is ok and no run-wide advisory such as an unvalidated CLI
+  version stands; a lane-attributed advisory degrades only its own lane), and every
+  candidate carries `re_derivable`: false when the lane its seeded or observed class maps to is
+  broken (both directions on a class collision), null for session-provided and marketplace classes,
+  which have no lane. A name collision lists every registration with its invocation mode. An
+  inventory without `lanes` keeps the previous reading.
+- **`overlap.py self-check` flags a presence-gated native mention without the gate token.** A
+  description that names a native surface by class and kind inside a `when`, `where`, or `if`
+  clause with an availability word, and carries no gate token in that clause, is an advisory (exit
+  3) naming the row to add or the token to use. Judged per clause, so a gated marketplace clause
+  never excuses an ungated native clause beside it.
+- **`--upstream-sha` repeats.** One value per upstream repository the store cites; a recorded
+  commit matches when any provided value matches it.
+- **Seeded pairs** gain `doctor` and `skill-doctor` against `claude-ops:audit-skill-visibility`.
+
+### Changed
+
+- `VALIDATED_AGAINST` is `2.1.263`, validated on the Linux ELF build in a container; the PE
+  container path is covered by a byte-layout fixture, not a Windows run.
+- The audit-native-overlap description is under the 1,024-character Skills API cap: the same
+  claims and every trigger phrase, in fewer words.
+- The inventory skill's integrity table, the audit-native-overlap detection posture, and
+  `reference/extraction.md` describe the lanes, the region rule, the locality rule, and the
+  collision list; the inventory eval for degraded counts names dynamic rosters and lane statuses.
+
+## [0.53.0]
+
+### Added
+
+- **`audit-skill-visibility` Markdown names what it counts and points at the fix.** The
+  Reachability section tables misconfigured skills with their cause and states each cause's
+  remedy once; the Listing budget section, whenever a row overflows, tables the ten longest
+  competing descriptions ranked by source length beside the capped charge the listing counts,
+  labelled as length and never as a starvation ranking, so it renders the same in an unscored
+  run; and a closing Next actions section names only the fixes the run's findings support,
+  pointing at the budget control the run's provenance says is effective (the env override, a
+  managed-policy file, or the settings file that set the fraction) rather than always at the
+  fraction. Every table caps at ten rows and counts the rest. JSON schema 1.2.0, additive:
+  each listing row carries `description_chars`, the uncapped source length, beside the capped
+  `demand_chars`.
+
+## [0.52.0]
+
+### Added
+
+- **audit-performance: `fan_out.hooks.by_matcher`, one row per (event, matcher) carrying row
+  count, distinct command count, if-gated row count, and sources.** A bucket count cannot tell
+  many unconditional handlers from one dispatcher replicated once per extension behind an `if`
+  gate, and those two fleets cost very differently per tool call. `per_tool_call` keeps `count`
+  as the registered-row ceiling and gains `if_gated_rows` and `distinct_commands` beside it, so
+  the ceiling and its composition are both readable without inferring either.
+- **audit-performance: `fan_out.hooks.projection`, what one tool call actually spawns.** A row
+  per (event, tool, file kind) over a fixed baseline file-kind set (`.md`, `.py`, `.sh`, `.ts`,
+  `.json`, `other`) plus every extension a classified `if` gate names, reported as
+  `discovered_file_kinds`, for `Write`, `Edit`, and `NotebookEdit`, plus a tool-only row for
+  `Bash`, each carrying `fires`, `distinct_commands`, and `fire_always_unclassified`. Matcher
+  evaluation follows the documented character-class rule (`*`, empty, or absent matches all; a
+  matcher of letters, digits, `_`, `-`, spaces, `,`, and `|` is an exact name or alternation
+  list; anything else is an unanchored regex, so `Edit.*` also selects `NotebookEdit`), with the
+  report stating that Python's `re.search` stands in for `RegExp.prototype.test`; a regex
+  Python cannot compile counts as selecting every tool and is listed in `unclassified_rows`
+  with the compile error, never as selecting nothing. The projection
+  is pure: it reads the flattened hook records and touches no filesystem and no subprocess, and
+  `spawn_cost`, `statusline`, `config_liveness`, and `concurrency_ceilings` are unchanged.
+- **audit-performance: `fan_out.hooks.unclassified_rows` and `if_on_non_tool_event`.** The
+  engine decides exactly one `if` shape, `Edit(*.<ext>)`; every other shape (`Bash(...)`,
+  `PowerShell(...)`, `Write(...)`, a directory anchor, a `**` glob, a brace list) is counted as
+  firing and listed with `{event, matcher, source, if, reason}`, so an unmodelled gate inflates
+  the projection where an operator can see it rather than hiding a spawn. An `if` on any
+  non-tool event is reported separately and counted as NEVER firing, which is what the docs say
+  it does. `fan_out.hooks.notes` states the two limits the projection cannot model, an `if`
+  matching only under its anchor and cross-settings-file dedup, alongside the standing note that
+  parallel hook cost is never a sum.
+- **audit-performance: the reference doc carries the matcher rule and a four-part drift record**
+  for the premise that an `Edit(*.<ext>)` gate covers `Write`, `Edit`, and `NotebookEdit`,
+  assembled from the hooks reference, the permissions reference, CHANGELOG 2.1.176, and this
+  repository's own hook-budget convention, with the recheck trigger that would retire the
+  assembly.
+
+### Changed
+
+- **audit-performance: `PER_TOOL_CALL_EVENTS` widens to the five events that accept `if`.**
+  `PostToolUseFailure`, `PermissionRequest`, and `PermissionDenied` join `PreToolUse` and
+  `PostToolUse`, because those five are exactly the events on which a tool call is what fires a
+  hook. Handlers on the three added events previously landed in `other` and were invisible as
+  per-tool-call cost. **`fan_out.hooks.per_tool_call.count` therefore rises on any fleet that
+  registers handlers on them, and `other.count` falls by the same amount.** The number is not a
+  regression and the fleet did not change; the earlier count was short.
+
+## [0.51.0]
+
+### Fixed
+
+- **`audit-skill-visibility` derives the listing budget from the effective settings and a
+  model band instead of hardcoded defaults.** The report read `skillListingBudgetFraction`
+  and `skillListingMaxDescChars` from nowhere and assumed a 200k window at 4 bytes per token,
+  so a repository that tunes the fraction saw an overflow that did not exist. The script now
+  merges both keys across the user, project, local, and managed scopes (the `--settings`
+  flag scope is reported as unread, never absent), enumerates managed policy only through the
+  vendored `lib/managed-scope.sh`, honors `CLAUDE_CODE_DISABLE_1M_CONTEXT` and
+  `CLAUDE_CODE_MAX_CONTEXT_TOKENS` from the process environment, and reports a
+  window x bytes-per-token band when nothing pins the model. `--budget-fraction`,
+  `--max-desc-chars`, and `--bytes-per-token` join `--context-window`, whose silent 200k
+  default is gone. JSON schema 1.1.0, additive.
+- **`audit-skill-visibility` withholds per-skill starvation verdicts when every usage score is
+  zero.** With no observed usage the product's stable sort keeps catalog order, so "which
+  skills are starved" is a tie, not a ranking. The overflow arithmetic and the cannot-fit
+  count stay; the per-skill claim moves to the `withheld` section with its reason.
+- **`audit-skill-visibility` determines reachability in a live run.** `--installed` now reads
+  `enabledPlugins` through the same settings merge and marks a disabled plugin's skills
+  `hidden` with the scope file as evidence; `--plugins-root` says a checkout is not an install
+  instead of reporting every row `unknown`. The `skillOverrides` path is removed: plugin
+  skills are governed by `enabledPlugins`, and `skillOverrides` never applies to them, so the
+  description no longer names it as a way a plugin skill loses visibility.
+
+- **`audit-skill-visibility` honors `defaultEnabled` and keeps disabled plugins out of the listing
+  contest.** A plugin with no `enabledPlugins` entry anywhere falls back to the marketplace entry's
+  `defaultEnabled`, then the plugin's own `plugin.json` field, then enabled, with the source named as
+  evidence. A disabled plugin's skills are `exempt-hidden`: the product never loads them, so they
+  spend no budget and carry no starvation verdict.
+
+### Added
+
+- `lib/managed-scope.sh`, vendored from `claude-config` through `scripts/sync-managed-scope.sh`.
+
 ## [0.50.0]
 
 ### Added

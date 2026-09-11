@@ -21,7 +21,10 @@ cd "$script_dir/.."
 
 sync_cluster_script="sync-managed-scope.sh"
 src="plugins/claude-config/lib/managed-scope.sh"
-copies=(plugins/claude-memory/lib/managed-scope.sh)
+copies=(
+  plugins/claude-memory/lib/managed-scope.sh
+  plugins/claude-ops/lib/managed-scope.sh
+)
 sync_cluster_manifest_strip='/lib/*'
 sync_cluster_noun="Canonical"
 sync_cluster_carrier="carrying"

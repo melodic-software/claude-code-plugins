@@ -177,7 +177,10 @@ spawns. Read `fan_out` in this order:
 2. **`fan_out.hooks`**. `per_tool_call.count` scales with tool-call volume; `per_turn.count` is
    what makes a long conversation degrade and is the bucket most audits never look at.
    `invocation_shape_findings` names hooks paying extra process creations before their own work
-   starts. **Never present hook cost as a sum**: hooks on one event run in parallel, so the
+   starts. `per_tool_call.count` is the registered-row ceiling, so read `by_matcher` and
+   `projection` beside it for what one tool call of a given shape actually spawns, and
+   `unclassified_rows` for the `if` gates the engine could not decide and therefore counted as
+   firing. **Never present hook cost as a sum**: hooks on one event run in parallel, so the
    wall-clock cost is roughly the slowest hook plus contention, and adding them up can overstate
    the total several times over.
 3. **`fan_out.config_liveness`** before attributing any cost to configuration. Claude Code reads
