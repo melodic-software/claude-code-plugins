@@ -3,6 +3,34 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.6]
+
+### Fixed
+
+- **`lib/resolve-convention-home.sh`:** synced from claude-config. A UTF-8 BOM immediately before
+  the BEGIN marker is stripped when scanning the marker line, so a Windows-authored pointer region
+  still resolves.
+
+### Changed
+
+- **`interview`, `prd`, `design`:** ladder step 3 now says the printed home is repo-relative and
+  must be joined to the root resolved in step 1 before reading `<home>/authoring-formats/README.md`.
+  The restated exit contract says exit 0 prints the home on stdout, and exit 3 is a FAIL that
+  includes a pointer whose target directory does not exist, not only grammar failures.
+
+## [0.39.5]
+
+### Fixed
+
+- **`interview`:** the checklist template's open-question register now carries unfenced
+  example rows, and `check-open-questions.sh` names the fenced-block skip when it skipped
+  a row-shaped line inside a fence. The template showed the row shape only inside a fenced
+  code block, which the gate ignores by design (documentation, not data), so copying that
+  visible shape produced an empty ungradeable ledger (exit 2) with no discoverable remedy.
+  A genuinely empty register (no fence) still gets the generic zero-rows message. The
+  fenced block stays as the schema illustration. `context/loop.md`'s fenced example is
+  left as prose documentation, not a copy-me template.
+
 ## [0.39.4]
 
 ### Fixed

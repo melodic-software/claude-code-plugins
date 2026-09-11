@@ -3,6 +3,45 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.1]
+
+### Changed
+
+- **`lib/state-key.sh`:** replica synced with the canonical copy. The non-repository rung now
+  hashes the physical working directory, so one directory reached through two spellings keys once,
+  and an exported `CDPATH` can no longer redirect `cd` or add a line to stdout.
+
+## [0.12.0]
+
+### Added
+
+- **audit:** `instruction-load-stats.sh` measures the instruction layer as Claude Code loads it,
+  `@path` imports expanded (relative to the importing file, four hops, code spans and fences
+  skipped, external imports listed but not expanded). C1 and the pre-computed header use the
+  expanded line count, and the report's context-cost line is a bytes / 4 estimate over the whole
+  always-loaded set in both scopes (the repository's root files and unscoped rules, and the user
+  scope's `CLAUDE.md` and unscoped rules under `CLAUDE_CONFIG_DIR` or `~/.claude`), labelled as
+  one, in place of a `/context` figure the model cannot obtain.
+- **audit:** `nested-agents-check.sh`, a new deterministic check N1: a tracked `AGENTS.md` below
+  the root that no instruction entry point reaches never loads, and is reported as a FAIL with the
+  one-line sibling shim as the fix. Entry points are the sibling `CLAUDE.md` or `CLAUDE.local.md`
+  (the prescribed layout), any ancestor directory's, and the root `.claude/CLAUDE.md`, each
+  chased through at most four import hops, the loader's own bound.
+- **audit:** `file-provenance.sh` classifies a flagged file as `local` or `synced` (a
+  `SYNC-MANAGED` marker, or a last commit by the standards sync); a synced file keeps its finding
+  and its fix line names the sync's source instead of a local edit the next sync overwrites.
+- **audit:** `audit-spine.sh` runs the whole deterministic spine in one invocation, so the
+  pre-computed header and the report's spine findings come from the same run.
+- **audit:** the shared import parser lives in `scripts/lib/imports.sh`, used by both the size
+  count and the reachability check so the two cannot disagree about what an import is.
+
+### Changed
+
+- **audit:** RD1 fires only for an always-loaded rule with no `description:` frontmatter and no
+  reference. An always-loaded rule is in context every session by construction and the
+  always-loaded rules index deliberately omits unscoped rules, so "unreferenced" alone proved
+  nothing; a rule that states its own purpose is not an orphan.
+
 ## [0.11.17]
 
 ### Changed

@@ -7,6 +7,15 @@ by a pointer line). Per-concern keys and schema are versioned by their own owner
 change independently. A change to the precedence order or the meaning of a layer is a major bump;
 adding an optional layer or relaxing a rule additively is a minor bump.
 
+## Implementers table — 2026-09-08
+
+- **`architecture` and `authoring-formats` C4 dialect surfaces (#3910).** The two rows no longer
+  sit as unexplained opposites on mermaid fitness. Each points at the mapping in its owner doc
+  (`plugins/architecture/reference/config.md`, `docs/conventions/authoring-formats/README.md`):
+  `landscape_dialect` is the landscape `/architecture:map-landscape` emits, and
+  `diagram_dialect.system` is the opt-in container view `/planning:design` emits. Defaults and
+  allowed values are unchanged. No contract rule change, so no version bump.
+
 ## Implementers table — 2026-09-02
 
 - **`ai-briefing` team-only, no local overlay (#3580).** The surface no longer recommends a

@@ -58,6 +58,14 @@ load-time machinery, no user turn, no unresolved scope.
   well-formed, and neither side learns it answered the wrong question. Intent is what decides which
   of several defensible readings of a topic is the one wanted.
 - **The budget** — how much depth the parent authorized.
+- **Source breadth** — `low`, `medium`, `high`, `xhigh`, or `max`. This is the *caller's*
+  effort, written by the parent. Your frontmatter pin is `high` so reasoning does not
+  degrade; that pin is why a substituted effort in a preloaded skill body is not this
+  value. Follow the envelope line for the source-breadth table in the research skill.
+  If the line is absent, treat the run as `high`, name that default in the artifact,
+  and mention the omission in `open_questions`. Dated record:
+  [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
+  "Harness facts the dispatch design rests on".
 - **Capability flags** the parent probed. `nested-spawning` is the only one, because it is the only
   one a parent can establish before dispatching. In particular **your own ability to write is not a
   flag** — the parent's pre-dispatch `mkdir`/baseline proves the *parent* can write there, not you.

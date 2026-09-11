@@ -180,7 +180,9 @@ for entry in ${SEARCHED[@]+"${SEARCHED[@]}"}; do
   SEARCHED_ARGS+=(--searched "$entry")
 done
 
-bash "$COMPLEXITY" --json --config "$CONFIG" ${ARGS[@]+"${ARGS[@]}"} >"$WORK/complexity.json"
+# The complexity rows come uncollapsed so every copy of a replicated file
+# gets its coverage looked up; the joined document is collapsed below.
+bash "$COMPLEXITY" --json --config "$CONFIG" --no-collapse ${ARGS[@]+"${ARGS[@]}"} >"$WORK/complexity.json"
 rc=$?
 if [[ $rc -ne 0 && $rc -ne 3 ]]; then
   exit "$rc"
@@ -208,11 +210,23 @@ bash "$PLUGIN_ROOT/scripts/dispatch.sh" audit-coverage --measures coverage --con
 "${PY[@]}" "$REPORT" thresholds --config "$CONFIG" --measures coverage,crap >"$WORK/thresholds.json" || exit 2
 "${PY[@]}" "$REPORT" assemble --skill audit-coverage --scope "$WORK/scope.json" \
   --run "$WORK/run.jsonl" --measures "$WORK/rows.jsonl" \
-  --thresholds "$WORK/thresholds.json" >"$WORK/report.json" || exit 2
+  --thresholds "$WORK/thresholds.json" >"$WORK/assembled.json" || exit 2
+# This document is assembled here rather than by the dispatcher, so the
+# sanctioned-replication collapse the dispatcher applies to every other audit
+# is applied here explicitly, from the same library.
+# shellcheck source=../../../scripts/replica-collapse.sh
+source "$PLUGIN_ROOT/scripts/replica-collapse.sh"
+cm_collapse_replicas "$CONFIG" "$WORK/assembled.json" "$WORK/report.json" || exit 2
 
 if [[ $JSON -eq 1 ]]; then
   cat "$WORK/report.json"
 else
-  "${PY[@]}" "$REPORT" render <"$WORK/report.json" || exit 2
+  # shellcheck source=../../../scripts/persist-report.sh
+  source "$PLUGIN_ROOT/scripts/persist-report.sh"
+  render_args=()
+  if document="$(cm_persist_report audit-coverage "$WORK/report.json")"; then
+    render_args=(--document "$document")
+  fi
+  "${PY[@]}" "$REPORT" render "${render_args[@]}" <"$WORK/report.json" || exit 2
 fi
 exit "$rc"
