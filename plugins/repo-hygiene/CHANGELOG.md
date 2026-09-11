@@ -7,7 +7,12 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
 
 ### Changed
 
+- **Options reference drops its em dashes.** The generated How-to-set-these block is rewritten by `scripts/sync-plugin-options-docs.py`, which is the fix site: its output is regenerated, never hand-edited. The block no longer needs the ignore marker that exempted it from the repository's em-dash gate, so that marker is gone as well.
+
 - **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
+- **The plugin's prose drops its em dashes.** Nine surfaces were rewritten: this changelog, `skills/clean/reference/cleanup-config.md`, the six `skills/clean/context/` documents, and `skills/setup/SKILL.md`. Wording only, with no change to any tier, path, guard, or command. The released sections corrected in place are 0.10.28, 0.10.9, 0.10.4, 0.10.1, 0.10.0, 0.9.1, 0.9.0, 0.8.1, 0.8.0, 0.7.2, 0.7.0, 0.6.0, 0.5.0, 0.4.6, 0.4.5, 0.4.3, 0.4.2, 0.4.1, 0.4.0, 0.3.3, 0.3.2, 0.3.1, 0.3.0, and 0.2.1: their wording changed, their facts did not.
+- **The `git` section of `cleanup-config.md` separates with a colon, and its drift test parses that.** The heading is now `### git: stale-state hygiene (write-safe)`, and the report-only bullet separates its path from its note with `` `: `` rather than a dashed run. `scripts/lib/cleanup-paths.test.sh` reads both: it passes the heading to `extract_section_bullets` verbatim and strips each bullet's note with an awk substitution. Both were updated in the same change, so the drift contract still compares the same bullets against `GIT_PRUNE_OPS`.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md`, every `skills/*/SKILL.md`, and the `skills/clean/context/` and `skills/clean/reference/` trees, so a reintroduced em dash fails a lane rather than waiting for the next audit.
 
 ## [0.10.39]
 

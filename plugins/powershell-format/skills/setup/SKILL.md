@@ -91,7 +91,7 @@ Run `check`, then for each finding point at the resolution. This skill installs 
   which owns the verified-version record): interactive `/plugin configure powershell-format@<marketplace>`
   any time, or headless
   `claude plugin install powershell-format@<marketplace> -s <scope> --config powershell_format_enabled=true`
-  (repeatable per key) — against an already-installed plugin it prints `already installed` and
+  (repeatable per key). Against an already-installed plugin it prints `already installed` and
   still writes the value. Do **not** uninstall to reconfigure: that drops the plugin's entire
   stored `pluginConfigs` entry, resetting every option in the README's Options reference to its
   manifest default. `-s` defaults to `user`; pass the scope `claude plugin list` reports, and run

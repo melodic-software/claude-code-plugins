@@ -105,6 +105,10 @@ plugins/actionlint/README.md
 plugins/adhd/README.md
 plugins/adhd/skills/*/SKILL.md
 plugins/ai-briefing/README.md
+plugins/ai-briefing/CHANGELOG.md
+plugins/ai-briefing/skills/*/SKILL.md
+plugins/ai-briefing/skills/generate/reference/*.md
+plugins/ai-briefing/skills/generate/evals/fixtures/*.md
 plugins/ai-slop/CHANGELOG.md
 plugins/ai-slop/README.md
 plugins/ai-slop/skills/*/SKILL.md
@@ -203,6 +207,9 @@ plugins/docs-hygiene/skills/*/evals/fixtures/*/*/*.md
 plugins/domain-driven-design/README.md
 plugins/dometrain/README.md
 plugins/education/README.md
+plugins/education/CHANGELOG.md
+plugins/education/skills/*/SKILL.md
+plugins/education/skills/teach/context/*.md
 plugins/eol-normalizer/README.md
 # The event-storming plugin was purged whole, its simulation eval fixtures included.
 plugins/event-storming/*.md
@@ -230,7 +237,10 @@ plugins/guardrails/skills/*/context/*.md
 plugins/implementation/README.md
 plugins/implementation/skills/*/SKILL.md
 plugins/improvement/README.md
+plugins/improvement/CHANGELOG.md
+plugins/improvement/reference/*.md
 plugins/improvement/skills/*/SKILL.md
+plugins/improvement/skills/find/context/*.md
 plugins/instruction-placement/README.md
 plugins/instruction-placement/skills/*/SKILL.md
 plugins/kindle-dedrm/README.md
@@ -259,6 +269,8 @@ plugins/machine-health/skills/audit/reference/*/*.md
 plugins/machine-health/skills/audit/scripts/*/*.md
 plugins/machine-health/skills/audit/tests/fixtures/windows/*.md
 plugins/markdown-format/README.md
+plugins/markdown-format/CHANGELOG.md
+plugins/markdown-format/skills/*/SKILL.md
 plugins/miro/README.md
 plugins/mutation-testing/README.md
 plugins/naming/README.md
@@ -296,15 +308,29 @@ plugins/playbooks/skills/skill-authoring/reference/*.md
 plugins/playgrounds/README.md
 plugins/playgrounds/skills/*/SKILL.md
 plugins/playwright/README.md
+plugins/playwright/CHANGELOG.md
 plugins/playwright/skills/*/SKILL.md
+plugins/playwright/skills/playwright/actions/*.md
+plugins/playwright/skills/playwright/reference/*.md
 plugins/plugin-quality/README.md
 plugins/powershell-format/README.md
 plugins/prototype/README.md
 plugins/prototype/skills/*/SKILL.md
 plugins/provenance/README.md
 plugins/rate-limit-guard/README.md
+plugins/rate-limit-guard/CHANGELOG.md
+plugins/rate-limit-guard/bench/README.md
+plugins/rate-limit-guard/reference/*.md
+plugins/rate-limit-guard/skills/*/SKILL.md
 plugins/repo-fleet-hygiene/README.md
+plugins/repo-fleet-hygiene/CHANGELOG.md
+plugins/repo-fleet-hygiene/skills/*/SKILL.md
+plugins/repo-fleet-hygiene/skills/audit/reference/*.md
 plugins/repo-hygiene/README.md
+plugins/repo-hygiene/CHANGELOG.md
+plugins/repo-hygiene/skills/*/SKILL.md
+plugins/repo-hygiene/skills/clean/context/*.md
+plugins/repo-hygiene/skills/clean/reference/*.md
 # The review plugin was purged whole. `reference/` is declared file by file for the same reason as
 # planning's: plugins/review/reference/standards-contract.md is a generated copy of the deliberately
 # unpurged standards contract, held identical to it by the sync gate.
@@ -328,6 +354,9 @@ plugins/session-flow/skills/*/context/*.md
 plugins/session-flow/skills/*/reference/*.md
 plugins/session-flow/skills/*/templates/*.md
 plugins/skill-quality/README.md
+plugins/skill-quality/CHANGELOG.md
+plugins/skill-quality/skills/*/SKILL.md
+plugins/skill-quality/skills/check/reference/*.md
 # The songwriting plugin was purged whole. The research and template trees carry
 # verbatim Pattison quotations inside ignore markers, which the gate honours.
 plugins/songwriting/*.md
@@ -362,9 +391,16 @@ plugins/tdd/skills/*/SKILL.md
 plugins/tdd/skills/*/reference/*.md
 plugins/testing/README.md
 plugins/toolchain/README.md
+plugins/toolchain/CHANGELOG.md
+plugins/toolchain/reference/*.md
+plugins/toolchain/skills/*/SKILL.md
+plugins/toolchain/skills/check/context/*.md
 plugins/typos-format/README.md
 plugins/verification/README.md
+plugins/verification/CHANGELOG.md
+plugins/verification/reference/topic-docs.md
 plugins/verification/skills/*/SKILL.md
+plugins/verification/skills/*/context/*.md
 plugins/visualization/README.md
 plugins/visualization/skills/*/SKILL.md
 plugins/wizard/README.md

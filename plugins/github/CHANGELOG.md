@@ -7,6 +7,8 @@ All notable changes to the `github` plugin are documented here. Format follows
 
 ### Changed
 
+- **Options reference drops its em dashes.** The generated How-to-set-these block is rewritten by `scripts/sync-plugin-options-docs.py`, which is the fix site: its output is regenerated, never hand-edited. The block no longer needs the ignore marker that exempted it from the repository's em-dash gate, so that marker is gone as well.
+
 - **Every markdown surface in the plugin passes `/ai-slop:audit`.** Em dashes in the plugin's own
   prose (this changelog, the method ladder, change routing, browser automation, areas and
   conventions-file references, and the four recipes) are rewritten as a comma, a period, a colon

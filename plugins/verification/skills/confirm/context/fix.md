@@ -60,7 +60,7 @@ If no reproduction test exists, flag this as a gap.
 
 All existing tests must still pass. Reference the Stage 1 mechanical-prerequisite results from `/verification:confirm`.
 
-Pay special attention to tests in same module or feature area as the fix — these are most likely affected by unintended side effects.
+Pay special attention to tests in same module or feature area as the fix. These are most likely affected by unintended side effects.
 
 ### 6. Report
 

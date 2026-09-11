@@ -29,9 +29,7 @@ No build-system clean driver (e.g. `dotnet clean`): the universal artifact globs
 
 App-specific runtime output (application logs written outside the universal artifact dirs) is **not** swept generically, because no portable path exists. A consumer whose app writes logs to a non-artifact directory reclaims them through the `tree` tier (they are untracked/ignored) or their own gitignore + tooling.
 
-<!-- ai-slop-ignore-start: heading pinned byte-for-byte by scripts/lib/cleanup-paths.test.sh line 90, which passes it to extract_section_bullets -->
-### git — stale-state hygiene (write-safe)
-<!-- ai-slop-ignore-end -->
+### git: stale-state hygiene (write-safe)
 
 Prune ops (safe mutations):
 
@@ -41,9 +39,7 @@ Prune ops (safe mutations):
 
 Report-only (no mutation):
 
-<!-- ai-slop-ignore-start: scripts/lib/cleanup-paths.test.sh parses this section's bullets with awk sub(/` —.*/), so the backtick-space-em-dash separator is a delimiter its parser reads, not prose -->
-- `git branch --merged origin/<default-branch>` — default branch resolved at runtime (see `context/git-branch-cleanup.md` §4.2)
-<!-- ai-slop-ignore-end -->
+- `git branch --merged origin/<default-branch>`: default branch resolved at runtime (see `context/git-branch-cleanup.md` §4.2)
 
 ### tree: working-tree realignment (destructive; never in `all`)
 

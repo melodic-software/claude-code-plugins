@@ -1,5 +1,5 @@
 ---
-description: "Design an evaluation suite for an LLM-based application or a Claude Code skill: interview for measurable success criteria, pick a grading method per criterion, and scaffold a criteria doc plus eval cases into the consumer repo. Use when: 'design evals', 'create an eval suite', 'scaffold evals', 'write evals for my skill', 'define success criteria for this app', 'set up LLM testing', 'build a test set for my prompt' — not for eval-design theory questions (use /evals:methodology), not for statically validating an existing evals.json (use /skill-quality:check validate-evals when installed), and it does not execute evals."
+description: "Design an evaluation suite for an LLM-based application or a Claude Code skill: interview for measurable success criteria, pick a grading method per criterion, and scaffold a criteria doc plus eval cases into the consumer repo. Use when: 'design evals', 'create an eval suite', 'scaffold evals', 'write evals for my skill', 'define success criteria for this app', 'set up LLM testing', 'build a test set for my prompt'. Not for eval-design theory questions (use /evals:methodology), not for statically validating an existing evals.json (use /skill-quality:check validate-evals when installed), and it does not execute evals."
 argument-hint: "[target: app | skill <name> | <path>]"
 user-invocable: true
 disable-model-invocation: false
@@ -11,21 +11,21 @@ metadata:
 # Design an evaluation suite
 
 Guides the consumer from "I want to evaluate X" to committed artifacts: a success-criteria document
-and a graded eval suite. Method follows Anthropic's official evaluation guidance — load
+and a graded eval suite. Method follows Anthropic's official evaluation guidance. Load
 `/evals:methodology` reference files as each phase needs them (they carry the distilled source).
 
 ## Arguments
 
 `$ARGUMENTS` names the target. Two shapes:
 
-- **`app`** (or a path/description of an LLM-powered feature) — evals for the consumer's own
+- **`app`** (or a path/description of an LLM-powered feature): evals for the consumer's own
   LLM-based application behavior.
-- **`skill <name>`** — evals for a consumer-authored Claude Code skill, emitted as
+- **`skill <name>`**: evals for a consumer-authored Claude Code skill, emitted as
   `evals/evals.json` next to that skill.
 
 No argument → ask which target, with one example of each.
 
-## Phase 1 — success criteria (before any cases)
+## Phase 1: success criteria (before any cases)
 
 Interview until each criterion is **specific, measurable, achievable, relevant**
 ([success-criteria.md](../methodology/reference/success-criteria.md)):
@@ -34,7 +34,7 @@ Interview until each criterion is **specific, measurable, achievable, relevant**
    measurable rewrite ("good answers" → "≥90% of answers judged correct against their rubric").
 2. Which dimensions matter? Walk the eight (fidelity, consistency, relevance/coherence,
    tone/style, privacy, context use, latency, price); keep the ones with a real user need. Most
-   targets are multidimensional — press for at least fidelity plus one guardrail dimension.
+   targets are multidimensional. Press for at least fidelity plus one guardrail dimension.
 3. What is achievable? Anchor each target to a baseline (current behavior, prior experiment, or a
    published benchmark); when no baseline exists, record the first run AS the baseline.
 
@@ -43,7 +43,7 @@ absent; respect an existing consumer convention for criteria docs if one is docu
 consumer's own `CLAUDE.md` or rules). Each criterion: dimension, metric, target number/scale,
 rationale line.
 
-## Phase 2 — eval suite
+## Phase 2: eval suite
 
 Per criterion, pick the cheapest reliable grading method
 ([grading.md](../methodology/reference/grading.md), [recipes.md](../methodology/reference/recipes.md)):

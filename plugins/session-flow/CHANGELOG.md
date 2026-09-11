@@ -4,6 +4,8 @@
 
 ### Changed
 
+- **Options reference drops its em dashes.** The generated How-to-set-these block is rewritten by `scripts/sync-plugin-options-docs.py`, which is the fix site: its output is regenerated, never hand-edited. The block no longer needs the ignore marker that exempted it from the repository's em-dash gate, so that marker is gone as well.
+
 - **Every markdown surface in the plugin passes `/ai-slop:audit`.** Em dashes in the plugin's own
   prose (the README, this changelog, the gather, observer, off-thread-work, save-point, structure,
   and topic-docs references, all fourteen skill bodies with their contexts, references, and
