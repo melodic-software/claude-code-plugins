@@ -18,8 +18,8 @@ and when — see [`docs/conventions/native-references/`](conventions/native-refe
 | Lane | Rows | Baked | Verdicts |
 |---|---|---|---|
 | Built-in CLI commands | 2 | 1 | complementary 2 |
-| Bundled skills | 13 | 5 | complementary 12, defer 1 |
-| Plugin-backed built-ins | 1 | 0 | complementary 1 |
+| Bundled skills | 13 | 12 | complementary 12, defer 1 |
+| Plugin-backed built-ins | 1 | 1 | complementary 1 |
 | Session-provided skills (observation-only) | 1 | 0 | defer 1 |
 | First-party marketplace plugins | 2 | 2 | complementary 2 |
 
@@ -116,34 +116,38 @@ and when — see [`docs/conventions/native-references/`](conventions/native-refe
   - our description: CI code-review lane for a GitHub pull request — high-signal correctness and maintainability findings only, scoped out of security when a security lane exists
   - the review plugin already documents this overlap organically in plugins/review/skills/quality-gate/context/pr.md's Boundary section, naming the bundled command, the marketplace plugin, and the managed service as three distinct surfaces
 - **Observation:** extraction — extracted from binary v2.1.232 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (integrity: degraded — counts are floors) (2026-08-23)
-- **Recheck trigger:** a Claude Code release changes the bundled `code-review` skill's roster entry, its `review` alias, or its invocation mode — the alias was re-pointed at 2.1.220 and the alias-under-shadowing fix landed at 2.1.233, so this pair has moved twice in one quarter (verified 2026-08-23)
-- **Baked:** description phrase no · Boundary section no
+- **Recheck trigger:** a Claude Code release changes the bundled `code-review` skill's roster entry, its `review` alias, or its invocation mode — the alias was re-pointed at 2.1.220 and the alias-under-shadowing fix landed at 2.1.233, so this pair has moved twice in one quarter (verified 2026-09-11)
+- **Baked:** description phrase no · Boundary section yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure — it is the best available routing surface, not a guaranteed one
 
 ### `design` → `prototype:explore-directions`
 
-- **Verdict:** `complementary` — explore-directions offers the editable design-canvas Artifact as one of its mockup surfaces where the bundled skill is available, alongside real-stack and self-contained-HTML variants. Same live integration as the visualize row, sibling component; organic body/description text, nothing baked (its presence phrasing predates the registry and carries no gate token).
+- **Verdict:** `complementary` — explore-directions names the design canvas as a user-run alternative to its HTML mockup substrate when the Artifact tool resolves, never invoking the bundled skill (its registration disables model invocation) and keeping the mockup as the default. The canvas persists under the user's account; the mockup is thrown away once the winning-variant key is captured. Same surface as the visualize row, sibling component; the Boundary section states the split, and the description's presence phrasing predates the registry and carries no gate token.
 - **Native surface:** `design` (bundled skill; markers: gated)
 - **Our component:** `prototype:explore-directions` (skill)
 - **Evidence:**
-  - our description: 'or, where the bundled design skill is available, an editable design-canvas Artifact'
-  - binary extraction v2.1.251 (2026-08-31): design skill registered, research-preview gated
-- **Observation:** extraction — extracted from binary v2.1.251 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (design-family registrations read from the bundle strings) (2026-08-31)
-- **Recheck trigger:** a Claude Code release names the design canvas skill in its changelog or commands reference, changes bundled-skill invocability, or removes the research-preview gating (verified 2026-09-01)
-- **Baked:** description phrase no · Boundary section no
+  - our description: 'or, where the bundled design skill is available, an editable design-canvas Artifact'; the body's design-canvas subsection and Boundary section make the canvas a user-run offer gated on the Artifact tool resolving, never a model invocation
+  - string search of the installed binary v2.1.263 (2026-09-11): design registered as a Claude Design hub with disableModelInvocation true and userInvocable true, enabled behind an allow_design_sync setting, a policy gate, and a feature flag (detail in the sibling visualize row and plugins/prototype/skills/explore-directions/reference/bundled-design.md)
+  - commands page (2026-09-11) carries a /design row labeled Skill describing the canvas and its gates (artifacts availability, v2.1.234+); the changelog names no design-family surface through v2.1.268
+  - superseded: binary extraction v2.1.251 (2026-08-31) registered the skill research-preview gated with no model-invocation gate
+- **Observation:** extraction — targeted string search of the installed binary v2.1.263 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (design registration read from the bundle strings), replacing the v2.1.251 extraction whose registration it supersedes (2026-09-11)
+- **Recheck trigger:** a Claude Code release changes the design skill's disableModelInvocation flag, its gate, or its subcommand set, a release note first names the skill, or the commands-page row stops describing the canvas (verified 2026-09-11)
+- **Baked:** description phrase no · Boundary section yes
 
 ### `design` → `visualization:visualize`
 
-- **Verdict:** `complementary` — visualize's form matrix already routes hand-tweakable visual layouts (UI mockups, posters, one-pagers) to the bundled design canvas when it is present, with the shadowing check and never-mention-when-absent rule its catalog spoke documents. This row records the live integration the registry was previously blind to; the routing stays organic body text, so nothing is baked.
+- **Verdict:** `complementary` — visualize's form matrix routes hand-tweakable visual layouts (UI mockups, posters, one-pagers) to the bundled design canvas as a user-run offer: the skill's registration disables model invocation, so the model cannot run it or detect it in the skill list, and the offer is gated on the Artifact tool resolving and a medium that permits publishing. The canvas is a persistent, versioned, shareable Artifact; this skill's page paths are throwaway or plain-static. The Boundary section states the split and the offer-only rule; the catalog spoke carries the surface facts.
 - **Native surface:** `design` (bundled skill; markers: gated)
 - **Our component:** `visualization:visualize` (skill)
 - **Evidence:**
-  - our SKILL.md step 2: 'a design canvas. Route to a design-canvas capability (the bundled design skill), when available'
+  - our SKILL.md step 2: 'a design canvas. Offer the bundled design skill's canvas as a user-run alternative where the medium permits publishing'; the Boundary section states the split and the offer-only rule
   - catalog spoke plugins/visualization/skills/visualize/context/decision-matrix.md carries the canvas surface facts with their own verified-on line
-  - binary extraction v2.1.251 (vendored node_modules/@anthropic-ai/claude-code/bin/claude.exe, 2026-08-31): design skill registered with a /design command dispatch table
-- **Observation:** extraction — extracted from binary v2.1.251 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (design-family registrations read from the bundle strings) (2026-08-31)
-- **Recheck trigger:** a Claude Code release names the design canvas skill in its changelog or commands reference, changes bundled-skill invocability, or removes the research-preview gating (verified 2026-09-01)
-- **Baked:** description phrase no · Boundary section no
+  - string search of the installed binary v2.1.263 (2026-09-11): design registered as a Claude Design hub (menu line 'Work with Claude Design (claude.ai/design): create, import, export, sync, login'; argument hint sync|login|consent|revoke|import|export|status|<prompt>) with disableModelInvocation true, userInvocable true, enabled behind an allow_design_sync setting, a policy gate, and a feature flag; a local design consent|revoke command beside it
+  - commands page (2026-09-11) carries a /design row labeled Skill describing the canvas (artboards on one canvas published as an artifact running a research preview of Claude Design's editor; requires artifacts availability and v2.1.234+); the artifacts page's 'Draft a design canvas' shows the user running /design <brief>; the changelog names no design-family surface through v2.1.268
+  - superseded: binary extraction v2.1.251 (2026-08-31) registered the skill with a /design dispatch table and no model-invocation gate
+- **Observation:** extraction — targeted string search of the installed binary v2.1.263 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (design registration read from the bundle strings), replacing the v2.1.251 extraction whose registration it supersedes (2026-09-11)
+- **Recheck trigger:** a Claude Code release changes the design skill's disableModelInvocation flag, its gate, or its subcommand set, a release note first names the skill, or the commands-page row stops describing the canvas (verified 2026-09-11)
+- **Baked:** description phrase no · Boundary section yes
 
 ### `design-sync` → `visualization:visualize`
 
@@ -186,8 +190,8 @@ and when — see [`docs/conventions/native-references/`](conventions/native-refe
   - native description: Health-check your setup and fix issues: installation, unused extensions, duplicated or bloated memory files, slow hooks, updates, permissions
   - our description: read-only slowness-diagnostic capture run AT THE MOMENT the machine or a session feels slow, before restarting or deleting anything
 - **Observation:** extraction — extracted from binary v2.1.232 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (integrity: degraded — counts are floors) (2026-08-23)
-- **Recheck trigger:** a Claude Code release gives `/doctor` a timed or profiling mode, or changes its status as a bundled skill (verified 2026-08-23)
-- **Baked:** description phrase no · Boundary section no
+- **Recheck trigger:** a Claude Code release gives `/doctor` a timed or profiling mode, or changes its status as a bundled skill (verified 2026-09-11)
+- **Baked:** description phrase no · Boundary section yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure — it is the best available routing surface, not a guaranteed one
 
 ### `doctor` → `claude-ops:audit-skill-visibility`
@@ -203,8 +207,8 @@ and when — see [`docs/conventions/native-references/`](conventions/native-refe
   - recheck trigger fired 2026-09-04 and is discharged as of 2026-09-07: /skill-doctor now has its own row in this store, pinned to the upstream commit that added it, so this row is scoped back to /doctor alone and no longer stands in for two surfaces
   - this row's routing survives the split: the /doctor row of https://code.claude.com/docs/en/commands.md still credits the bundled doctor skill with finding 'unused skills, MCP servers, and plugins versus their context cost' inside its setup checkup, so the deferral recorded here is to a surface that still does the job (read 2026-09-07)
 - **Observation:** extraction — targeted string search of the installed binary v2.1.252 (doctor Check 1 strings confirmed; a spot observation over the sibling rows' full v2.1.232 extraction, not a re-extraction) (2026-08-31)
-- **Recheck trigger:** a Claude Code release changes doctor's unused-components check (Check 1's grouping, its disable offer, or its benefit estimate), gives it a multi-source reconciliation or observation-horizon discipline, or changes /doctor's status as a bundled skill or its gating switch (verified 2026-09-07)
-- **Baked:** description phrase yes · Boundary section no
+- **Recheck trigger:** a Claude Code release changes doctor's unused-components check (Check 1's grouping, its disable offer, or its benefit estimate), gives it a multi-source reconciliation or observation-horizon discipline, or changes /doctor's status as a bundled skill or its gating switch (verified 2026-09-11)
+- **Baked:** description phrase yes · Boundary section yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure — it is the best available routing surface, not a guaranteed one
 
 ### `run` → `testing:run-e2e`
@@ -218,8 +222,8 @@ and when — see [`docs/conventions/native-references/`](conventions/native-refe
   - our description: End-to-end live app verification — check prerequisites, start the app, drive UI/API flows, and capture evidence; includes a non-UI smoke-test playbook
   - the non-UI smoke lane has no native counterpart in this extraction
 - **Observation:** extraction — extracted from binary v2.1.232 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (integrity: degraded — counts are floors) (2026-08-23)
-- **Recheck trigger:** a Claude Code release changes the bundled `run` skill's roster entry or invocation mode, or gives it an evidence-capture or non-app target mode (verified 2026-08-23)
-- **Baked:** description phrase no · Boundary section no
+- **Recheck trigger:** a Claude Code release changes the bundled `run` skill's roster entry or invocation mode, or gives it an evidence-capture or non-app target mode (verified 2026-09-11)
+- **Baked:** description phrase no · Boundary section yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure — it is the best available routing surface, not a guaranteed one
 
 ### `simplify` → `code-tidying:batch-simplify`
@@ -233,8 +237,8 @@ and when — see [`docs/conventions/native-references/`](conventions/native-refe
   - our description already carries `Skip for single-file cleanup — use /simplify instead`
   - seeded rationale: same cleanup job at batch scale across many files
 - **Observation:** extraction — extracted from binary v2.1.232 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (integrity: degraded — counts are floors) (2026-08-23)
-- **Recheck trigger:** a Claude Code release gives the bundled `simplify` skill a multi-file or time-window argument form, which would collapse this pair's only distinction (verified 2026-08-23)
-- **Baked:** description phrase no · Boundary section no
+- **Recheck trigger:** a Claude Code release gives the bundled `simplify` skill a time-window argument form, a repository mode, or ecosystem grouping (the multi-file half of this trigger fired by 2026-09-11: the skill accepts a PR, branch, or path target, so the remaining distinction is the sweep discipline, recorded in the skill's context/bundled-simplify.md) (verified 2026-09-11)
+- **Baked:** description phrase no · Boundary section yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure — it is the best available routing surface, not a guaranteed one
 
 ### `simplify` → `code-tidying:tidy`
@@ -248,8 +252,8 @@ and when — see [`docs/conventions/native-references/`](conventions/native-refe
   - our description already carries `Skip when: /simplify refines the current diff`
   - seeded rationale: both clean up code without changing behavior
 - **Observation:** extraction — extracted from binary v2.1.232 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (integrity: degraded — counts are floors) (2026-08-23)
-- **Recheck trigger:** a Claude Code release adds, removes, or changes the invocation mode of the bundled `simplify` skill, or the skill gains a lane-scoped mode that overlaps tidy's proactive hunt (verified 2026-08-23)
-- **Baked:** description phrase no · Boundary section no
+- **Recheck trigger:** a Claude Code release adds, removes, or changes the invocation mode of the bundled `simplify` skill, or the skill gains a lane-scoped mode that overlaps tidy's proactive hunt (verified 2026-09-11)
+- **Baked:** description phrase no · Boundary section yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure — it is the best available routing surface, not a guaranteed one
 
 ## Plugin-backed built-ins
@@ -264,8 +268,8 @@ and when — see [`docs/conventions/native-references/`](conventions/native-refe
   - the extraction's `plugin_backed` map reports {"security-review": "security-review"}; the name appears in neither `builtin_commands` nor `bundled_skills`
   - our description: CI security-review lane for a GitHub pull request — logic, trust-boundary, and Actions security findings static analysis misses
 - **Observation:** extraction — extracted from binary v2.1.232 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (integrity: degraded — counts are floors) (2026-08-23)
-- **Recheck trigger:** an extraction stops reporting `security-review` under `plugin_backed` — it moves into the bundled-skill or built-in-command lane, or its backing plugin name changes (verified 2026-08-23)
-- **Baked:** description phrase no · Boundary section no
+- **Recheck trigger:** an extraction stops reporting `security-review` under `plugin_backed` — it moves into the bundled-skill or built-in-command lane, or its backing plugin name changes (half fired by 2026-09-11: the commands page labels the row a bundled Skill while the installed 2.1.263 binary still registers it plugin-backed; the class stays plugin-backed until an extraction agrees with the docs, and the skill's reference/bundled-security-review.md carries the disagreement) (verified 2026-09-11)
+- **Baked:** description phrase no · Boundary section yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure — it is the best available routing surface, not a guaranteed one
 
 ## Session-provided skills (observation-only)

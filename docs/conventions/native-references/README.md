@@ -200,6 +200,11 @@ Classified per `melodic-software/standards` `conventions/engineering/enforceabil
 | `/claude-config:audit-instructions` | `## Boundary` section for the bundled `claude-api` skill's `prompt-audit` subcommand (verdict `complementary`, composite posture), four-part detail in the skill's own reference file; no description phrase |
 | `/evals:methodology` | `## Boundary` section for the bundled `claude-api` skill's `hillclimb` and `build-eval` subcommands (verdict `complementary`); detail in the skill's eval-design reference |
 | `/playbooks:fable-5` | `## Boundary` section for the bundled `claude-api` skill as the live-facts and cost-audit surface its chapters defer to (verdict `complementary`); detail in the pack's prompt-caching reference chapter |
+| `/review:code-review`, `/review:security-review` | `## Boundary` sections for the bundled `code-review` skill and the native `security-review` command (verdict `complementary`, CI lane versus session pass); four-part detail in each skill's `reference/` file; no description phrase |
+| `/code-tidying:tidy`, `/code-tidying:batch-simplify` | `## Boundary` sections for the bundled `simplify` skill (verdict `complementary`, diff-anchored versus lane- and sweep-anchored); detail in each skill's reference or context file; no description phrase |
+| `/testing:run-e2e` | `## Boundary` section for the bundled `run` skill (verdict `complementary`, a look versus evidenced verification); detail in the skill's context file; no description phrase |
+| `/claude-ops:audit-performance`, `/claude-ops:audit-skill-visibility` | `## Boundary` sections for the bundled `doctor` skill (and `/skill-doctor` for the second), verdict `complementary`; the second also carries the description phrase; detail in each skill's `reference/` file |
+| `/visualization:visualize`, `/prototype:explore-directions` | `## Boundary` sections for the bundled `design` skill (verdict `complementary`, user-run canvas versus throwaway page or mockup); detail in the catalog spoke and the skill's `reference/` file; no description phrase |
 
 Applying **description phrases** fleet-wide is a reserved, separately gated sweep: one plugin per
 unit — apply, verify, PR, close — never a single fleet-wide edit, because each phrase moves routing
