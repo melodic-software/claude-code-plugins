@@ -4,6 +4,28 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.10.1]
+
+### Fixed
+
+- **`skill-authoring`**: `reference/authoring-guidance.md` corrections after an independent audit
+  of its claims against the official pages. The 1,024-character description cap is stated as the
+  Agent Skills specification's, enforced by its `skills-ref` validator and stated as a Skills API
+  upload requirement (the earlier "enforced on upload paths (claude.ai, the Skills API)" named a
+  surface no source documents); the dependency paragraph carries the platform overview's second
+  Claude Code bullet (installs stay local to the project, never global) and scopes its example
+  accordingly; the network sentence separates the Claude API sandbox (no network, no runtime
+  installs, pre-installed list only) from claude.ai (varies with admin settings) instead of one
+  "platform sandbox"; the `/skill-doctor` mention is presence-gated with its version floor stated
+  as "v2.1.252 or later" and its feature-flag and terminal conditions, per the native-references
+  convention; the 500-line rule's "advisory on every surface" now rests on a recorded
+  `--plugin-dir` load probe (Claude Code 2.1.263, 2026-09-11, a 608-line SKILL.md loaded and
+  invoked) as well as the docs; and every Record line cites its basis by anchored URL rather than a
+  quoted section name, with the spoke's intro tightened to match the upstream-drift record form.
+  `evals/evals.json` case 3 follows the cap wording.
+- **`skill-authoring`**: `reference/authoring-checklist.md` gains the presence-gated skill-creator
+  row in its Testing group (attestation), which the guidance spoke carried but the checklist did not.
+
 ## [0.10.0]
 
 ### Added

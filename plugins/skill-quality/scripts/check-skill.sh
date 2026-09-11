@@ -45,9 +45,10 @@
 # Checks:
 #   1. Frontmatter parses; description present; a declared name matches the dir
 #      (and, in a plugin skill, WARNs as redundant); the effective name (the
-#      declared field, else the directory) is at most 64 codepoints and carries
-#      neither "anthropic" nor "claude" (FAIL; Agent Skills spec portability,
-#      Claude Code itself enforces neither)
+#      declared field, else the directory) is at most 64 codepoints (FAIL;
+#      Agent Skills spec portability) and carries neither "anthropic" nor
+#      "claude" (WARN; Skills API upload portability). Claude Code itself
+#      enforces neither.
 #   2. description + when_to_use <= 1536 chars (per-skill listing-entry cap;
 #      counts the literal " - " joiner the harness inserts when when_to_use is
 #      populated)
@@ -270,16 +271,23 @@ DESC_FIELD_WARN_MARGIN=32
 DESC_FIELD_BASELINE="${CHECK_SKILL_DESC_FIELD_BASELINE:-}"
 # Agent Skills spec maximum for `name`: 64 characters, lowercase alphanumerics
 # and hyphens, matching the directory (https://agentskills.io/specification,
-# the "name" field). The platform best-practices page adds two reserved words,
-# "anthropic" and "claude"
-# (https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#skill-structure).
-# Claude Code validates neither rule: measured 2026-09-10, `claude plugin
-# validate` (Claude Code 2.1.263) passes an over-long name containing "claude"
-# clean. Check 1's limbs on these are therefore PORTABILITY findings (a skill
-# that loads here and fails the spec's `skills-ref` validator on another
-# surface), not harness conformance. Both verified 2026-09-10. Recheck trigger:
-# the spec's validator or the page changing either rule re-derives this
-# constant and the word list.
+# the "name" field), enforced by the spec's `skills-ref` validator. The two
+# reserved words, "anthropic" and "claude", are NOT in the spec: they are a
+# Skills API upload requirement
+# (https://platform.claude.com/docs/en/build-with-claude/skills-guide#creating-a-skill,
+# repeated at #limits-and-constraints, and the overview's `name` rules at
+# https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview#skill-structure),
+# which the platform best-practices page restates. Claude Code enforces neither
+# rule, measured on Claude Code 2.1.263: `claude plugin validate` passes an
+# 88-codepoint name containing "claude" (2026-09-10), and a `--plugin-dir`
+# load probe (`claude -p`, 2026-09-11) loaded and invoked that same skill and a
+# 608-line SKILL.md; Claude Code also ships bundled skills named `claude-api`
+# and `claude-in-chrome`. So the 64 limb is a PORTABILITY FAIL (loads here,
+# fails the spec's validator elsewhere) and the reserved-word limb is a WARN
+# (loads here and everywhere except a Skills API upload). Recheck trigger: the
+# spec's validator gaining a word list, the upload requirements changing, or a
+# Claude Code release rejecting either form re-derives this constant, the word
+# list, and the severities.
 NAME_MAX_LEN=64
 NAME_RESERVED_WORDS='anthropic claude'
 LINE_HARD_CAP=500
@@ -287,9 +295,11 @@ LINE_SOFT_CAP=200
 SYNCED_MAX_AGE_DAYS=180
 # Check 26: a spoke file this long gets a table of contents. Two upstream
 # statements of the threshold: the bundled skill-creator says a TOC for
-# reference files over 300 lines; the platform best-practices page says over 100
-# (https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices,
-# the progressive-disclosure guidance). This check WARNs at the looser 300; the
+# reference files over 300 lines
+# (https://github.com/anthropics/skills/blob/main/skills/skill-creator/SKILL.md);
+# the platform best-practices page says over 100
+# (https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#structure-longer-reference-files-with-table-of-contents).
+# This check WARNs at the looser 300; the
 # 100-to-300 band is judgment `docs-hygiene:audit-progressive-disclosure` owns
 # (its missing-toc finding). Both verified 2026-09-10. Recheck trigger: either
 # source moving its threshold re-derives this constant. The TOC heuristic below
@@ -440,7 +450,7 @@ else
   fi
   for reserved_word in $NAME_RESERVED_WORDS; do
     if [[ "$EFFECTIVE_NAME" == *"$reserved_word"* ]]; then
-      err "skill name '$EFFECTIVE_NAME' contains the reserved word '$reserved_word' (the platform Agent Skills guidance reserves 'anthropic' and 'claude'; Claude Code does not enforce it, so this is a portability finding); rename the $name_source"
+      warn "skill name '$EFFECTIVE_NAME' contains the word '$reserved_word', which a Skills API upload rejects ('anthropic' and 'claude' are reserved there; Claude Code loads it and ships bundled skills carrying the word); rename the $name_source if the skill will ever be uploaded"
     fi
   done
 fi
@@ -629,12 +639,15 @@ fi
 # Counted over the WHOLE file, frontmatter included (`grep -c ''`). The two
 # upstream statements of the 500 differ in scope: the platform best-practices
 # page applies it to the SKILL.md body
-# (https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices,
-# the progressive-disclosure guidance); the Claude Code skills page's Tip
-# applies it to the file (https://code.claude.com/docs/en/skills, "Keep SKILL.md
+# (https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#progressive-disclosure-patterns);
+# the Claude Code skills page's Tip applies it to the file
+# (https://code.claude.com/docs/en/skills#add-supporting-files, "Keep SKILL.md
 # under 500 lines"). Whole-file is the stricter reading, so a skill that passes
-# here satisfies both, and it stays. Both verified 2026-09-10. Recheck trigger:
-# either page moving the number or its scope re-derives LINE_HARD_CAP.
+# here satisfies both, and it stays. Both verified 2026-09-10. Neither surface
+# enforces the number: a `--plugin-dir` load probe on Claude Code 2.1.263
+# (2026-09-11) loaded and invoked a 608-line SKILL.md. Recheck trigger: either
+# page moving the number or its scope, or a Claude Code release rejecting a
+# long file, re-derives LINE_HARD_CAP.
 
 LINE_COUNT="$(grep -c '' "$SKILL_MD")"
 if ((LINE_COUNT >= LINE_HARD_CAP)); then
