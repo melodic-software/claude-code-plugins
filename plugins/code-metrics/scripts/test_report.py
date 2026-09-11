@@ -598,6 +598,79 @@ class RenderTests(unittest.TestCase):
         self.assertIn("never a bar", result.stdout)
         self.assertIn("Over reference: file_lines 1.", result.stdout)
 
+    def test_a_collect_failed_row_puts_an_exit_3_line_in_the_summary(self) -> None:
+        # The dispatcher writes `collect failed (exit 3)` on the run row of a
+        # collector that ran and produced nothing parseable, and the entry script
+        # exits 3 on it; the summary names that row so the exit has a visible
+        # cause. A coverage document carries the reason forward on its crap row
+        # with no collector column, so the label comes from the reason instead.
+        base = {
+            "schema": "code-metrics/v1",
+            "scope": {"mode": "paths", "base": None, "files": 2, "excluded": 0},
+            "thresholds": [],
+            "measures": [],
+            "summary": {"files": 0, "functions": 0, "over_reference": {}},
+            "excluded": [],
+        }
+        complexity = dict(
+            base,
+            skill="audit-complexity",
+            status="empty",
+            run=[
+                {
+                    "lane": "typescript",
+                    "measure": "cyclomatic",
+                    "collector": "eslint-complexity 10.1.0",
+                    "status": "unavailable",
+                    "reason": "collect failed (exit 3): eslint-complexity.py: no "
+                    "parseable eslint output",
+                }
+            ],
+            unavailable=["typescript/cyclomatic"],
+        )
+        result = run("render", stdin=json.dumps(complexity))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "Exit 3: a collector ran and produced nothing parseable: "
+            "typescript/cyclomatic (eslint-complexity 10.1.0).",
+            result.stdout,
+        )
+        coverage = dict(
+            base,
+            skill="audit-coverage",
+            status="partial",
+            run=[
+                {
+                    "lane": "typescript",
+                    "measure": "coverage",
+                    "collector": "lcov",
+                    "status": "partial",
+                    "reason": "partial, 1 of 2 scope files present in the artifacts",
+                },
+                {
+                    "lane": "typescript",
+                    "measure": "crap",
+                    "collector": None,
+                    "status": "unavailable",
+                    "reason": "cyclomatic collector eslint-complexity 10.1.0 "
+                    "unavailable: collect failed (exit 3): eslint-complexity.py: "
+                    "no parseable eslint output",
+                },
+            ],
+            unavailable=["typescript/crap"],
+        )
+        result = run("render", stdin=json.dumps(coverage))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "Exit 3: a collector ran and produced nothing parseable: "
+            "typescript/crap (cyclomatic collector eslint-complexity 10.1.0 "
+            "unavailable).",
+            result.stdout,
+        )
+        clean = dict(base, skill="audit-size", status="empty", run=[], unavailable=[])
+        result = run("render", stdin=json.dumps(clean))
+        self.assertNotIn("Exit 3", result.stdout)
+
 
 CLONE_ROW = {
     "file": None,

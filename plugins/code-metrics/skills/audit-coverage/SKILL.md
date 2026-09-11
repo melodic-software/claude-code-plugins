@@ -95,6 +95,12 @@ otherwise keep the JSON beside your notes and compare by hand.
 - A lane whose resolved complexity collector reports no function end lines gets a `<lane>/crap`
   row with `status: not-applicable` and that reason. Bash is that lane in this version: no
   maintained Bash collector reports an end line, so Bash CRAP is a stated gap, not a null.
+- A lane whose cyclomatic collector did not resolve, or ran and produced nothing parseable, gets a
+  `<lane>/crap` row with `status: unavailable` naming that collector and its reason, whatever the
+  lane's coverage row says. CRAP needs both numbers, and the missing one is the cause worth
+  reading; when the coverage row is not `ok` either, its reason follows the collector's on the
+  same row, so a partial count or a no-artifact search never hides a collector failure and the
+  collector never hides them. `Functions: 0` in the summary reads with that row.
 - A lane matched by fewer than all of its scope files carries `status: partial` and the reason
   `partial, N of M scope files present in the artifacts`, so a total miss never reads as "no
   executable lines" and the document cannot settle as `complete` while a row says `N of M`. A lane
@@ -107,7 +113,9 @@ otherwise keep the JSON beside your notes and compare by hand.
   without it, say that the coverage number is an execution count and stop there.
 - Exit 0 whenever a report was produced, including an empty one; exit 2 for a usage error, which
   includes a named artifact or scope path that does not exist; exit 3 when a complexity collector
-  ran and produced nothing parseable, with its stderr in the run table.
+  ran and produced nothing parseable. On exit 3 the collector's stderr is on the `<lane>/crap`
+  row, and the summary carries an `Exit 3:` line naming the lane and collector, so the markdown
+  alone says why the run has no function rows.
 
 ## Configuration
 

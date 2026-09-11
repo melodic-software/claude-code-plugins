@@ -3,6 +3,21 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.10]
+
+### Fixed
+
+- **`audit-coverage` names a failed cyclomatic collector on the crap row whatever the coverage
+  row says, and the summary names the exit-3 cause.** The branch that reported a collector which
+  did not resolve, or ran and produced nothing parseable, sat behind the coverage-status check,
+  so any lane whose coverage was `partial` (the normal case, since test files and excluded
+  sources rarely all appear in one artifact) reported the partial count on its `<lane>/crap` row
+  instead, and the run exited 3 with an empty stderr, `Functions: 0`, and no visible reason. The
+  crap row now reads `cyclomatic collector <name> <status>: <reason>` ahead of the coverage
+  status, and the shared renderer adds an `Exit 3:` summary line naming every run row whose
+  reason carries the dispatcher's `collect failed (exit 3)` prefix, in this skill and in
+  `audit-complexity`.
+
 ## [0.1.9]
 
 ### Fixed

@@ -40,6 +40,9 @@ MIN_PYTHON = (3, 9)
 SCHEMA = "code-metrics/v1"
 RUN_STATUSES = ("ok", "partial", "unavailable", "not-applicable", "deferred")
 MAX_RENDERED_ROWS = 200
+# The reason prefix the dispatcher writes on a run row when a collector ran and
+# produced nothing parseable; it is also what makes an entry script exit 3.
+COLLECT_FAILED = "collect failed (exit 3)"
 
 
 def _read_json(path: str) -> Any:
@@ -335,6 +338,24 @@ def render(doc: dict[str, Any]) -> str:
         )
     if doc.get("unavailable"):
         lines.append("Unavailable: " + ", ".join(doc["unavailable"]) + ".")
+    failed = [
+        row for row in doc.get("run", []) if COLLECT_FAILED in (row.get("reason") or "")
+    ]
+    if failed:
+        # The dispatcher's `collect failed (exit 3)` reason is what makes the
+        # entry script exit 3, in this skill and in a skill whose run rows carry
+        # it forward. Naming the row here keeps that exit from being the only
+        # trace of a collector that ran and produced nothing parseable.
+        named = []
+        for row in failed:
+            reason = row.get("reason") or ""
+            label = row.get("collector") or reason.split(":", 1)[0]
+            named.append(f"{row.get('lane', '*')}/{row.get('measure', '*')} ({label})")
+        lines.append(
+            "Exit 3: a collector ran and produced nothing parseable: "
+            + "; ".join(named)
+            + ". The run table carries its output."
+        )
     return "\n".join(lines) + "\n"
 
 

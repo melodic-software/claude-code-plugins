@@ -852,6 +852,19 @@ def join(
         lane_cyclomatic = [
             row for row in cyclomatic if (row.get("lane") or "*") == lane
         ]
+        comp_row = next(
+            (
+                row
+                for row in complexity.get("run") or []
+                if row.get("lane") == lane and row.get("measure") == "cyclomatic"
+            ),
+            None,
+        )
+        collector_failed = (
+            not lane_cyclomatic
+            and comp_row is not None
+            and comp_row.get("status") != "ok"
+        )
         if lane_cyclomatic and all(
             row.get("end_line") is None for row in lane_cyclomatic
         ):
@@ -859,32 +872,33 @@ def join(
             # CRAP for this lane, whatever the coverage side did, so that stays
             # the reported cause.
             crap_status, crap_reason = "not-applicable", NO_END_LINES
+        elif collector_failed:
+            # The lane's cyclomatic collector did not resolve, or ran and produced
+            # nothing parseable. That is the number CRAP is missing, so it is the
+            # cause this row names whatever the coverage row says: a partial
+            # coverage count is the normal case, and letting it take precedence
+            # would leave the collector failure with no visible reason.
+            crap_status = "unavailable"
+            crap_reason = (
+                f"cyclomatic collector {comp_row.get('collector') or 'unresolved'} "
+                f"{comp_row.get('status')}: "
+                f"{comp_row.get('reason') or 'no reason given'}"
+            )
+            if status != "ok":
+                # Both inputs are missing; the collector leads and the coverage
+                # row's own reason (a partial count, or the paths searched for an
+                # artifact) follows, so neither cause is hidden by the other.
+                crap_reason = f"{crap_reason}; coverage {status}: {reason}"
         elif status != "ok":
             # CRAP is coverage times complexity, so a lane with no coverage has
             # no CRAP whatever the cyclomatic side produced; the coverage row's
             # reason is the blocker worth reporting.
             crap_status, crap_reason = status, reason
         elif not lane_cyclomatic:
-            # No cyclomatic rows: either the lane's complexity collector did not
-            # run (its run row says why, and CRAP is then unavailable, not
-            # inapplicable) or the scope holds no functions for this lane.
-            comp_row = next(
-                (
-                    row
-                    for row in complexity.get("run") or []
-                    if row.get("lane") == lane and row.get("measure") == "cyclomatic"
-                ),
-                None,
-            )
-            if comp_row and comp_row.get("status") != "ok":
-                crap_status = "unavailable"
-                crap_reason = (
-                    f"cyclomatic collector {comp_row.get('status')}: "
-                    f"{comp_row.get('reason') or 'no reason given'}"
-                )
-            else:
-                crap_status = "not-applicable"
-                crap_reason = "no function-level cyclomatic rows in scope for this lane"
+            # The collector resolved and ran, and the scope holds no functions
+            # for this lane.
+            crap_status = "not-applicable"
+            crap_reason = "no function-level cyclomatic rows in scope for this lane"
         else:
             crap_status, crap_reason = "ok", reason
         run.append(
