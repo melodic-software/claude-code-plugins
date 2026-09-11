@@ -1,6 +1,6 @@
 ---
 description: "Audit whether each installed skill is actually VISIBLE to the model, and diagnose why most of a fleet never gets used. A skill is invisible when the skill-listing context budget drops its description (Claude Code drops by a decay-weighted usage score, so an unused skill loses its matchable keywords and stays unused), when frontmatter is malformed or a description is missing, when skillOverrides or a disabled plugin hides it, or when disable-model-invocation keeps it out of context by design. Reports reachability, observed usage, and whether it is losing the budget contest, computing overflow from documented settings and withholding any verdict the data cannot support. Read-only; never disables, deletes, or edits a skill. Use when: 'why do I never use most of my skills', 'why does Claude never suggest this skill', 'are my skill descriptions being dropped', 'is my skill listing over budget', 'which skills can the model actually see', 'which skills are starved', 'I have too many skills to know when to use them', 'audit skill visibility'. Not for: which skills are unused versus their context cost as a one-shot check (when the built-in /skill-doctor command resolves in your session, prefer it; likewise the bundled /doctor skill when that resolves in your session), repo-authoring listing-budget lint (use skill-quality's check-listing-budget), enumerating what is installed (use /claude-ops:inventory), or reading telemetry infrastructure (use /claude-ops:observability)."
-argument-hint: "[--installed [dir]] [--plugins-root <dir>] [--render markdown|json] [--now <RFC3339>] [--fixture <path>]. Collects live; --installed reads the plugin manifest, else fleet defaults to ./plugins"
+argument-hint: "[--installed [dir]] [--plugins-root <dir>] [--context-window <tokens>] [--bytes-per-token 3|4] [--budget-fraction <f>] [--max-desc-chars <n>] [--render markdown|json] [--now <RFC3339>] [--fixture <path>]. Collects live; --installed reads the plugin manifest, else fleet defaults to ./plugins; unpinned, the budget is a band over both windows and both byte estimates"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -20,22 +20,29 @@ my skill fleet never get used?* A skill the model cannot see cannot be chosen, s
 **Visibility is Claude Code's own term** for this: `skillOverrides` is documented under
 "Override skill visibility". This skill audits every way a skill loses it.
 
-Claude Code budgets the model-visible skill listing at a fraction of the context
-window (`skillListingBudgetFraction`, default 0.01) and, when it overflows,
-**sheds descriptions from the lowest-scoring skills first**. Names always
-survive, descriptions do not. A skill at zero usage scores zero, so it loses its
-description, loses the keywords a request would match against, and stays at
-zero. Unused is partly self-causing.
+Claude Code budgets the model-visible skill listing in characters, at
+`window x bytes-per-token x skillListingBudgetFraction` (default 0.01), and,
+when it overflows, **sheds descriptions from the lowest-scoring skills first**.
+Names always survive, descriptions do not. A skill at zero usage scores zero, so
+it loses its description, loses the keywords a request would match against, and
+stays at zero. Unused is partly self-causing.
+
+The window and the bytes-per-token are both per model, so the budget is not one
+number for a machine: the same 1% fraction is 8,000 characters at a 200k window
+and 40,000 at 1M. This skill never resolves the session's model from disk. It
+reads the fraction and the per-entry cap from the settings scopes the product
+merges and, unless you pin the model-side inputs, reports the budget as a band
+over both windows and both byte estimates, naming no row as this session's.
 
 The budget fraction and per-entry cap are owned by
 <https://code.claude.com/docs/en/settings> (`skillListingBudgetFraction`,
 `skillListingMaxDescChars`); that page is authoritative and matches. **The drop
 ORDER is not.** <https://code.claude.com/docs/en/skills> ("Skill descriptions are
 cut short") says "starting with the skills you invoke least", still as of
-2026-08-31; the binary ranks by a decay-weighted score and then walks the list
+2026-09-11; the binary ranks by a decay-weighted score and then walks the list
 first-fit, so neither the ordering nor the guarantee holds. Take the ordering
 from the binary: [reference/listing-scorer.md](reference/listing-scorer.md)
-carries the counterexamples, the greps, and the stamp.
+carries the counterexamples, the greps, the budget arithmetic, and the stamp.
 
 So the useful question is not *which skills are unused*. Claude Code already
 reports that: the built-in `/skill-doctor` command when it resolves in your
@@ -129,6 +136,43 @@ declared `source`, since `plugins/<name>` is the common layout but not a rule.
 
 `--render json` swaps the Markdown report for the machine-readable model, and
 `--now <RFC3339>` pins the clock the horizon is measured against.
+
+### The listing budget's inputs
+
+The budget has five inputs, and the report states where each one came from:
+
+- `skillListingBudgetFraction` and `skillListingMaxDescChars` are read from the
+  settings scopes with the precedence the product uses, per key:
+  user (`~/.claude/settings.json`, relocated by `CLAUDE_CONFIG_DIR`) <
+  project (`<project>/.claude/settings.json`) <
+  local (`<project>/.claude/settings.local.json`) < the `--settings` flag <
+  managed policy. The project is `CLAUDE_PROJECT_DIR`, falling back to the
+  working directory. The flag scope lives inside the session and cannot be read
+  from outside it, so it is reported as **unread**, never as absent. Managed
+  locations (the base file plus the `managed-settings.d` drop-ins, per OS) come
+  from this plugin's vendored `lib/managed-scope.sh`, never from a path written
+  in the script; when that enumeration cannot run, the policy scope is reported
+  as unreadable rather than empty. `--budget-fraction` and `--max-desc-chars`
+  pin either value over every scope.
+- `SLASH_COMMAND_TOOL_CHAR_BUDGET` overrides the whole computation
+  unconditionally, exactly as the product does, and the row then carries
+  `budget_basis: env-override`.
+- The context window is per model. `CLAUDE_CODE_DISABLE_1M_CONTEXT` collapses
+  it to 200k, and `CLAUDE_CODE_MAX_CONTEXT_TOKENS` names it when
+  `DISABLE_COMPACT` is also set; both are read from the process environment and
+  recorded. Otherwise `--context-window <tokens>` pins it, and unpinned the
+  report carries both 200k and 1M.
+- Bytes per token is 4 or 3 per model. `--bytes-per-token` pins it; unpinned the
+  report carries both.
+
+With nothing pinned the `listing` section is a **band** of four labelled rows
+(200k/4, 200k/3, 1M/4, 1M/3), each with its own budget, overflow, verdict, and
+starved count, and the top-level numbers are null under `budget_basis: band`.
+Pinning both model-side inputs yields the single-row shape with the pinned
+numbers at the top level. A row's `budget_basis` names the settings file that
+supplied the fraction (`settings:<path>`), `fraction` for the documented
+default, or the pin. `inputs` in the JSON, and the "Inputs consulted" list in
+the Markdown, carry every scope and variable consulted with its status.
 
 `--fixture <bundle.json>` reads a recorded collection instead of the live one, the reproduction path, used by the tests and for handing someone else's state to
 the same engine. It is not needed to get a report.

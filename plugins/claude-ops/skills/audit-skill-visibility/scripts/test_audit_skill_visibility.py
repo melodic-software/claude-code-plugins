@@ -6,8 +6,11 @@ the failure it prevents, because a fixture whose purpose is forgotten gets
 "fixed" by the next person who sees it fail.
 """
 
+import contextlib
+import io
 import json
 import os
+import shutil
 import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
@@ -385,6 +388,418 @@ class BudgetArithmeticTest(unittest.TestCase):
         self.assertEqual(listing["overflow_chars"], 2_000)
         self.assertEqual(listing["verdict"], "overflowing")
 
+    # --- Settings scopes -----------------------------------------------------
+    #
+    # The two listing keys are read from the same scopes the product merges,
+    # per key, user < project < local < flag < policy. Every test here builds
+    # its scopes in a temporary tree and never touches the real ~/.claude.
+
+    @staticmethod
+    def _write_json(path, blob):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump(blob, handle)
+
+    @staticmethod
+    def _managed_unreadable():
+        return {"status": "unreadable", "lib": "n/a", "reason": "stubbed out"}
+
+    def _scopes(self, tmp, user=None, project=None, local=None):
+        config_root = os.path.join(tmp, "config")
+        project_root = os.path.join(tmp, "repo")
+        os.makedirs(config_root)
+        os.makedirs(project_root)
+        if user is not None:
+            self._write_json(os.path.join(config_root, "settings.json"), user)
+        if project is not None:
+            self._write_json(
+                os.path.join(project_root, ".claude", "settings.json"), project
+            )
+        if local is not None:
+            self._write_json(
+                os.path.join(project_root, ".claude", "settings.local.json"), local
+            )
+        return project_root, config_root
+
+    def test_project_setting_overrides_user_setting(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project_root, config_root = self._scopes(
+                tmp,
+                user={"skillListingBudgetFraction": 0.02},
+                project={"skillListingBudgetFraction": 0.05},
+            )
+            layers = engine.settings_layers(
+                project_root, config_root, self._managed_unreadable()
+            )
+            merged = engine.merge_listing_settings(layers)
+        row = merged["skillListingBudgetFraction"]
+        self.assertEqual(row["value"], 0.05)
+        self.assertEqual(
+            row["provenance"],
+            "settings:" + os.path.join(project_root, ".claude", "settings.json"),
+        )
+
+    def test_local_setting_overrides_project_setting(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project_root, config_root = self._scopes(
+                tmp,
+                user={"skillListingMaxDescChars": 100},
+                project={"skillListingMaxDescChars": 200},
+                local={"skillListingMaxDescChars": 300},
+            )
+            layers = engine.settings_layers(
+                project_root, config_root, self._managed_unreadable()
+            )
+            merged = engine.merge_listing_settings(layers)
+        row = merged["skillListingMaxDescChars"]
+        self.assertEqual(row["value"], 300)
+        self.assertTrue(row["provenance"].endswith("settings.local.json"))
+        # The other key is untouched by scopes that do not define it.
+        self.assertEqual(merged["skillListingBudgetFraction"]["provenance"], "default")
+
+    def test_a_key_absent_everywhere_reports_default_provenance(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project_root, config_root = self._scopes(tmp, project={"other": 1})
+            layers = engine.settings_layers(
+                project_root, config_root, self._managed_unreadable()
+            )
+            merged = engine.merge_listing_settings(layers)
+        for key in engine.LISTING_SETTINGS_KEYS:
+            self.assertIsNone(merged[key]["value"])
+            self.assertEqual(merged[key]["provenance"], "default")
+
+    def test_flag_scope_is_reported_unread_never_absent(self):
+        """`--settings` lives inside the session; an outside reader cannot
+        see it, and saying "absent" would claim knowledge it lacks."""
+        with tempfile.TemporaryDirectory() as tmp:
+            project_root, config_root = self._scopes(tmp)
+            layers = engine.settings_layers(
+                project_root, config_root, self._managed_unreadable()
+            )
+        flag = [layer for layer in layers if layer["scope"] == "flag"]
+        self.assertEqual(len(flag), 1)
+        self.assertEqual(flag[0]["status"], "unread")
+        self.assertEqual(flag[0]["path"], "--settings")
+        self.assertIn("not observable", flag[0]["note"])
+        # It sits between local and policy, the documented precedence.
+        order = [layer["scope"] for layer in layers]
+        self.assertLess(order.index("local"), order.index("flag"))
+        self.assertLess(order.index("flag"), order.index("policy"))
+
+    def test_unreadable_managed_scope_is_reported_not_treated_as_absent(self):
+        """A bash that cannot run is "managed scope unreadable", never a crash
+        and never an empty policy scope."""
+        managed = engine.enumerate_managed_scope(
+            engine.managed_scope_lib_path(), bash="/nonexistent/bash-binary"
+        )
+        self.assertEqual(managed["status"], "unreadable")
+        self.assertIn("could not be run", managed["reason"])
+        with tempfile.TemporaryDirectory() as tmp:
+            project_root, config_root = self._scopes(tmp)
+            layers = engine.settings_layers(project_root, config_root, managed)
+        policy = [layer for layer in layers if layer["scope"] == "policy"]
+        self.assertEqual([layer["status"] for layer in policy], ["unreadable"])
+        self.assertIn("could not be run", policy[0]["note"])
+
+    def test_a_missing_vendored_lib_is_unreadable_not_a_crash(self):
+        managed = engine.enumerate_managed_scope("/nonexistent/managed-scope.sh")
+        self.assertEqual(managed["status"], "unreadable")
+
+    @unittest.skipIf(shutil.which("bash") is None, "bash not on PATH")
+    def test_managed_policy_outranks_local_through_the_vendored_lib(self):
+        """The policy scope is enumerated by the vendored managed-scope.sh,
+        through its own base-file override seam, and its drop-ins merge on
+        top of the base file in name order."""
+        lib = engine.managed_scope_lib_path()
+        self.assertTrue(os.path.isfile(lib), lib)
+        with tempfile.TemporaryDirectory() as tmp:
+            project_root, config_root = self._scopes(
+                tmp, local={"skillListingBudgetFraction": 0.03}
+            )
+            base = os.path.join(tmp, "managed", "managed-settings.json")
+            self._write_json(base, {"skillListingBudgetFraction": 0.04})
+            dropin = os.path.join(tmp, "managed", "managed-settings.d")
+            self._write_json(
+                os.path.join(dropin, "10-first.json"),
+                {"skillListingBudgetFraction": 0.06},
+            )
+            self._write_json(
+                os.path.join(dropin, "20-second.json"),
+                {"skillListingBudgetFraction": 0.07},
+            )
+            # Hidden files are ignored per the documented merge.
+            self._write_json(
+                os.path.join(dropin, ".hidden.json"),
+                {"skillListingBudgetFraction": 0.99},
+            )
+            managed = engine.enumerate_managed_scope(lib, override=base)
+            self.assertEqual(managed["status"], "read", managed)
+            self.assertEqual(managed["base_file"], base)
+            self.assertEqual(managed["dropin_dir"], dropin)
+            layers = engine.settings_layers(project_root, config_root, managed)
+            merged = engine.merge_listing_settings(layers)
+        row = merged["skillListingBudgetFraction"]
+        self.assertEqual(row["value"], 0.07)
+        self.assertEqual(
+            row["provenance"], "settings:" + os.path.join(dropin, "20-second.json")
+        )
+
+    def test_a_non_numeric_setting_is_left_out_and_named(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project_root, config_root = self._scopes(
+                tmp,
+                user={"skillListingBudgetFraction": 0.02},
+                project={"skillListingBudgetFraction": "lots"},
+            )
+            layers = engine.settings_layers(
+                project_root, config_root, self._managed_unreadable()
+            )
+            merged = engine.merge_listing_settings(layers)
+        self.assertEqual(merged["skillListingBudgetFraction"]["value"], 0.02)
+        self.assertEqual(len(merged["ignored"]), 1)
+        self.assertIn("skillListingBudgetFraction", merged["ignored"][0])
+
+    # --- Window, bytes per token, and the band --------------------------------
+
+    @staticmethod
+    def _no_pins(**pins):
+        base = {
+            "context_window": None,
+            "bytes_per_token": None,
+            "budget_fraction": None,
+            "max_desc_chars": None,
+        }
+        base.update(pins)
+        return base
+
+    @staticmethod
+    def _fleet(count=10, chars=1000):
+        return [
+            {
+                "qualified_name": f"a:{i}",
+                "frontmatter": {"description": "x" * chars},
+                "plugin_enabled": True,
+            }
+            for i in range(count)
+        ]
+
+    def _project_fraction_layers(self, tmp, fraction):
+        project_root, config_root = self._scopes(
+            tmp, project={"skillListingBudgetFraction": fraction}
+        )
+        return engine.settings_layers(
+            project_root, config_root, self._managed_unreadable()
+        )
+
+    def test_unpinned_run_carries_four_labelled_rows_and_names_no_session(self):
+        cfg, axes = engine.build_listing_inputs(self._no_pins(), {}, [])
+        listing = engine.compute_listing_band(self._fleet(), cfg, axes)
+        self.assertEqual(
+            [row["label"] for row in listing["band"]],
+            ["200k/4", "200k/3", "1M/4", "1M/3"],
+        )
+        for row in listing["band"]:
+            for key in ("budget_chars", "overflow_chars", "verdict", "starved_count"):
+                self.assertIn(key, row)
+        # The top level names no row as this session: numbers are nulled.
+        self.assertEqual(listing["budget_basis"], "band")
+        self.assertIsNone(listing["budget_chars"])
+        self.assertIsNone(listing["overflow_chars"])
+        self.assertIsNone(listing["starved_count"])
+        self.assertIsNone(listing["label"])
+        # 10 x 1000 = 10,000 demand: overflows at 200k (8,000 and 6,000) and
+        # fits at 1M (40,000 and 30,000), so the verdict is band-dependent.
+        self.assertEqual(listing["verdict"], "band-dependent")
+        self.assertEqual(
+            [row["verdict"] for row in listing["band"]],
+            ["overflowing", "overflowing", "listing-fits", "listing-fits"],
+        )
+        competing = [s for s in listing["skills"] if s["eligibility"] == "competing"]
+        self.assertEqual(
+            set(competing[0]["by_band"]), {"200k/4", "200k/3", "1M/4", "1M/3"}
+        )
+
+    def test_project_fraction_of_five_percent_budgets_200k_chars_at_1m_4(self):
+        """The acceptance row: 1,000,000 x 4 x 0.05 = 200,000, and the row's
+        basis names the settings file that supplied the fraction."""
+        with tempfile.TemporaryDirectory() as tmp:
+            layers = self._project_fraction_layers(tmp, 0.05)
+            cfg, axes = engine.build_listing_inputs(self._no_pins(), {}, layers)
+            listing = engine.compute_listing_band(self._fleet(), cfg, axes)
+            expected_path = os.path.join(tmp, "repo", ".claude", "settings.json")
+        row = next(r for r in listing["band"] if r["label"] == "1M/4")
+        self.assertEqual(row["budget_chars"], 200_000)
+        self.assertEqual(row["budget_basis"], f"settings:{expected_path}")
+        self.assertEqual(
+            axes.inputs["budget_fraction"],
+            {"value": 0.05, "provenance": f"settings:{expected_path}"},
+        )
+
+    def test_env_override_ignores_the_fraction_and_collapses_the_band(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            layers = self._project_fraction_layers(tmp, 0.05)
+            cfg, axes = engine.build_listing_inputs(
+                self._no_pins(), {"SLASH_COMMAND_TOOL_CHAR_BUDGET": "1234"}, layers
+            )
+        listing = engine.compute_listing_band(self._fleet(), cfg, axes)
+        self.assertEqual(listing["budget_chars"], 1234)
+        self.assertEqual(listing["budget_basis"], "env-override")
+        self.assertNotIn("band", listing)
+        self.assertIn("fraction ignored", axes.inputs["env_char_budget"]["provenance"])
+
+    def test_disable_1m_collapses_the_window_axis_only(self):
+        cfg, axes = engine.build_listing_inputs(
+            self._no_pins(), {"CLAUDE_CODE_DISABLE_1M_CONTEXT": "1"}, []
+        )
+        self.assertEqual(axes.windows, (200_000,))
+        self.assertEqual(axes.bytes_per_tokens, (4, 3))
+        self.assertEqual(
+            axes.inputs["windows"]["provenance"], "env:CLAUDE_CODE_DISABLE_1M_CONTEXT"
+        )
+        listing = engine.compute_listing_band(self._fleet(), cfg, axes)
+        self.assertEqual([r["label"] for r in listing["band"]], ["200k/4", "200k/3"])
+
+    def test_a_non_truthy_disable_1m_has_no_effect(self):
+        _, axes = engine.build_listing_inputs(
+            self._no_pins(), {"CLAUDE_CODE_DISABLE_1M_CONTEXT": "0"}, []
+        )
+        self.assertEqual(axes.windows, (200_000, 1_000_000))
+        row = next(r for r in axes.inputs["env"] if r["name"].endswith("1M_CONTEXT"))
+        self.assertEqual(row["effect"], "not truthy: no effect")
+
+    def test_max_context_tokens_is_honoured_only_with_disable_compact(self):
+        _, without = engine.build_listing_inputs(
+            self._no_pins(), {"CLAUDE_CODE_MAX_CONTEXT_TOKENS": "500000"}, []
+        )
+        self.assertEqual(without.windows, (200_000, 1_000_000))
+        row = next(
+            r for r in without.inputs["env"] if r["name"].endswith("MAX_CONTEXT_TOKENS")
+        )
+        self.assertIn("DISABLE_COMPACT", row["effect"])
+
+        cfg, with_compact = engine.build_listing_inputs(
+            self._no_pins(),
+            {"CLAUDE_CODE_MAX_CONTEXT_TOKENS": "500000", "DISABLE_COMPACT": "1"},
+            [],
+        )
+        self.assertEqual(with_compact.windows, (500_000,))
+        self.assertEqual(
+            with_compact.inputs["windows"]["provenance"],
+            "env:CLAUDE_CODE_MAX_CONTEXT_TOKENS",
+        )
+        listing = engine.compute_listing_band(self._fleet(), cfg, with_compact)
+        self.assertEqual(
+            [r["label"] for r in listing["band"]], ["500,000/4", "500,000/3"]
+        )
+
+    def test_pins_on_both_axes_return_the_single_row_shape(self):
+        cfg, axes = engine.build_listing_inputs(
+            self._no_pins(context_window=200_000, bytes_per_token=4), {}, []
+        )
+        listing = engine.compute_listing_band(self._fleet(), cfg, axes)
+        self.assertNotIn("band", listing)
+        self.assertEqual(listing["label"], "200k/4")
+        self.assertEqual(listing["budget_chars"], 8_000)
+        self.assertEqual(listing["budget_basis"], "fraction")
+        self.assertEqual(axes.inputs["windows"]["provenance"], "pin:--context-window")
+        self.assertEqual(
+            axes.inputs["bytes_per_tokens"]["provenance"], "pin:--bytes-per-token"
+        )
+
+    def test_a_bytes_per_token_pin_collapses_that_axis_only(self):
+        cfg, axes = engine.build_listing_inputs(
+            self._no_pins(bytes_per_token=3), {}, []
+        )
+        listing = engine.compute_listing_band(self._fleet(), cfg, axes)
+        self.assertEqual([r["label"] for r in listing["band"]], ["200k/3", "1M/3"])
+        self.assertEqual(listing["band"][0]["budget_chars"], 6_000)
+
+    def test_fraction_and_cap_pins_outrank_settings(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            layers = self._project_fraction_layers(tmp, 0.05)
+            cfg, axes = engine.build_listing_inputs(
+                self._no_pins(budget_fraction=0.02, max_desc_chars=100), {}, layers
+            )
+        self.assertEqual(cfg.budget_fraction, 0.02)
+        self.assertEqual(cfg.max_desc_chars, 100)
+        self.assertEqual(cfg.fraction_basis, "pin:--budget-fraction")
+        self.assertEqual(
+            axes.inputs["max_desc_chars"]["provenance"], "pin:--max-desc-chars"
+        )
+
+    def test_bare_cli_run_reports_the_band_from_a_hermetic_settings_tree(self):
+        """End to end through `main`: a project that sets the fraction to 0.05
+        and no pins yields the four-row band with the 1M/4 row at 200,000 and
+        a basis naming that project's .claude/settings.json."""
+        saved = {
+            k: os.environ.get(k)
+            for k in (
+                "CLAUDE_PROJECT_DIR",
+                "CLAUDE_CONFIG_DIR",
+                "CLAUDE_PLUGIN_ROOT",
+                "SLASH_COMMAND_TOOL_CHAR_BUDGET",
+                "CLAUDE_CODE_DISABLE_1M_CONTEXT",
+                "CLAUDE_CODE_MAX_CONTEXT_TOKENS",
+                "DISABLE_COMPACT",
+            )
+        }
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                project_root, config_root = self._scopes(
+                    tmp, project={"skillListingBudgetFraction": 0.05}
+                )
+                plugins_root = os.path.join(tmp, "plugins")
+                skill_dir = os.path.join(plugins_root, "alpha", "skills", "one")
+                os.makedirs(skill_dir)
+                with open(
+                    os.path.join(skill_dir, "SKILL.md"), "w", encoding="utf-8"
+                ) as handle:
+                    handle.write('---\nname: one\ndescription: "does a thing"\n---\n')
+                for key in saved:
+                    os.environ.pop(key, None)
+                os.environ["CLAUDE_PROJECT_DIR"] = project_root
+                os.environ["CLAUDE_CONFIG_DIR"] = config_root
+                out = io.StringIO()
+                with contextlib.redirect_stdout(out):
+                    rc = engine.main(
+                        [
+                            "--plugins-root",
+                            plugins_root,
+                            "--claude-json",
+                            os.path.join(tmp, "absent.json"),
+                            "--render",
+                            "json",
+                        ]
+                    )
+                self.assertEqual(rc, 0)
+                listing = json.loads(out.getvalue())["listing"]
+                expected_path = os.path.join(project_root, ".claude", "settings.json")
+        finally:
+            for key, value in saved.items():
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
+        self.assertEqual(listing["budget_basis"], "band")
+        self.assertEqual(
+            [r["label"] for r in listing["band"]], ["200k/4", "200k/3", "1M/4", "1M/3"]
+        )
+        row = next(r for r in listing["band"] if r["label"] == "1M/4")
+        self.assertEqual(row["budget_chars"], 200_000)
+        self.assertEqual(row["budget_basis"], f"settings:{expected_path}")
+        scopes = {
+            s["scope"]: s
+            for s in listing["inputs"]["settings_scopes"]
+            if s["scope"] != "policy"
+        }
+        self.assertEqual(scopes["user"]["status"], "absent")
+        self.assertEqual(scopes["project"]["status"], "read")
+        self.assertEqual(scopes["flag"]["status"], "unread")
+        policy = [
+            s for s in listing["inputs"]["settings_scopes"] if s["scope"] == "policy"
+        ]
+        self.assertTrue(policy, "the policy scope is always reported")
+
 
 class ExemptionTest(unittest.TestCase):
     """Three exempt classes spend zero budget and never enter the ranking.
@@ -500,7 +915,7 @@ class ListingScoreTest(unittest.TestCase):
         self.assertEqual(engine.listing_score(5, None, now), 0.0)
 
     def test_all_zero_scores_report_an_unscored_basis(self):
-        """An alphabetical order must not be labelled a usage ranking."""
+        """A catalog-order tiebreak must not be labelled a usage ranking."""
         entries = [
             {
                 "qualified_name": f"a:{i}",
@@ -811,7 +1226,6 @@ class ChurnGitReaderTest(unittest.TestCase):
     """
 
     def setUp(self):
-        import shutil
         import subprocess
 
         if not shutil.which("git"):
@@ -826,7 +1240,6 @@ class ChurnGitReaderTest(unittest.TestCase):
         self.run("git", "config", "commit.gpgsign", "false")
 
     def tearDown(self):
-        import shutil
 
         shutil.rmtree(self.tmp, ignore_errors=True)
 
