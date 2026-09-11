@@ -890,7 +890,11 @@ def extract_bundled_skills(
 
 
 def _same_registration(a: dict[str, Any], b: dict[str, Any]) -> bool:
-    keys = ("description", "aliases", "gated", "hidden") + tuple(
+    # `flag_driven` is part of the identity: a constant-true invocation field
+    # and a function-valued one read as the same boolean, and the difference
+    # (decided at runtime versus fixed) is exactly the evidence a collision
+    # exists to preserve.
+    keys = ("description", "aliases", "gated", "hidden", "flag_driven") + tuple(
         k for k, _ in _INVOCATION_FIELDS
     )
     return all(a.get(k) == b.get(k) for k in keys)
@@ -935,6 +939,7 @@ def check_integrity(
     skills: dict[str, Any],
     skill_notes: dict[str, Any],
     plugin_backed: dict[str, str] | None = None,
+    runs_below_floor: int = 0,
 ) -> dict[str, Any]:
     """Decide whether this extraction can be trusted, per lane, and say why.
 
@@ -1022,6 +1027,17 @@ def check_integrity(
     if not skills:
         bundled["problems"].append(
             "no bundled skills resolved - the registrar lookup failed"
+        )
+
+    if runs_below_floor > 0:
+        # A registration literal in a run under the floor was never read by
+        # any lane. It is attributed to the bundled-skill lane, where the
+        # small runs sit, so the roster is labelled a floor rather than a
+        # total; the literal is generic, so the command lane may be short too.
+        bundled["advisories"].append(
+            f"{runs_below_floor} registration literal(s) sit in printable runs shorter "
+            f"than the {MIN_RUN_BYTES}-byte floor and were not read; the bundled-skill "
+            "list (and possibly the command list) is a floor, not a total"
         )
 
     backed = lanes["plugin_backed"]
@@ -1311,7 +1327,12 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
                 report["bundled_skill_notes"] = skill_notes
                 report["plugin_backed"] = plugin_backed
                 report["integrity"] = check_integrity(
-                    src, commands, skills, skill_notes, plugin_backed
+                    src,
+                    commands,
+                    skills,
+                    skill_notes,
+                    plugin_backed,
+                    int(meta.get("runs_below_floor", 0) or 0),
                 )
 
     if not args.binary_only:

@@ -1023,6 +1023,19 @@ def cmd_detect(args: argparse.Namespace) -> int:
         "counts_are": "floors" if status != "ok" else "totals",
     }
     if lanes is not None:
+        # A run-wide advisory (an unvalidated CLI version) applies to every
+        # lane's numbers, so an ok lane under it still reports floors. A lane
+        # -attributed advisory (prefixed with the lane name by the extractor)
+        # degrades only its own lane: a healthy lane beside a broken one keeps
+        # its totals, which is the point of reporting per lane.
+        lane_prefixes = tuple(f"{lane}:" for lane in LANE_ORDER) + tuple(
+            f"{lane} lane broken:" for lane in LANE_ORDER
+        )
+        run_wide = [
+            advisory
+            for advisory in (integrity.get("advisories") or [])
+            if isinstance(advisory, str) and not advisory.startswith(lane_prefixes)
+        ]
         report_integrity["lanes"] = {
             lane: {
                 "status": (lane_state(lane) or {}).get("status", "unknown"),
@@ -1030,7 +1043,7 @@ def cmd_detect(args: argparse.Namespace) -> int:
                     "not reportable"
                     if (lane_state(lane) or {}).get("status") == "broken"
                     else "floors"
-                    if (lane_state(lane) or {}).get("status") != "ok"
+                    if (lane_state(lane) or {}).get("status") != "ok" or run_wide
                     else "totals"
                 ),
             }

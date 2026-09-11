@@ -162,7 +162,7 @@ counts.
 | Lane | Breaks on | Degrades on |
 |---|---|---|
 | `builtin_commands` | a canary command absent; command yield under `MIN_COMMAND_YIELD` | nothing lane-specific |
-| `bundled_skills` | no bundled skill resolved | an unknown registrar-shaped export (either export shape); computed names unresolved; a dynamic roster |
+| `bundled_skills` | no bundled skill resolved | an unknown registrar-shaped export (either export shape); computed names unresolved; a dynamic roster; registration literals in runs below the floor |
 | `plugin_backed` | a `PLUGIN_BACKED_CANARY` name absent | nothing lane-specific |
 
 The CLI-version advisory is top-level, not a lane's.

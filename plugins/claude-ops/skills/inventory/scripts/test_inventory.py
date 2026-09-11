@@ -251,6 +251,24 @@ class TestIntegrity(unittest.TestCase):
         self.assertTrue(any("dynamic roster" in a for a in got["advisories"]))
         self.assertFalse(any("computed name" in a for a in got["advisories"]))
 
+    def test_registrations_below_the_floor_degrade_the_bundled_lane(self) -> None:
+        # A literal in a run under the floor was never read, so the roster is
+        # a floor even when every read registration resolved.
+        src = self._src()
+        got = inv.check_integrity(
+            src,
+            self._commands(src),
+            {"a": {}},
+            {"registrations_seen": 1, "resolved": 1},
+            {"security-review": "security-review"},
+            runs_below_floor=2,
+        )
+        self.assertEqual(got["lanes"]["bundled_skills"]["status"], "degraded")
+        self.assertEqual(got["status"], "degraded")
+        self.assertTrue(
+            any("shorter than" in a and "floor" in a for a in got["advisories"])
+        )
+
     def test_esm_export_list_feeds_the_registrar_advisory(self) -> None:
         src = self._src("export{zz as registerSomethingNewSkill};")
         got = inv.check_integrity(
@@ -584,6 +602,15 @@ class TestInvocationFieldsAndCollisions(unittest.TestCase):
         self.assertEqual(notes["collisions"], ["design"])
         self.assertEqual(notes["resolved"], 2)
         self.assertEqual(len(inv.registrations_of(design)), 2)
+
+    def test_a_flag_driven_twin_of_a_constant_field_is_a_collision(self) -> None:
+        # Same boolean reading, different basis: one fixed, one decided at
+        # runtime. That difference is evidence, so both registrations stay.
+        fixed = 'eo({name:"verify",description:As,userInvocable:!0,disableModelInvocation:!0});'
+        skills, notes = self._skills(self.HEAD + fixed + self.VERIFY)
+        self.assertIsInstance(skills["verify"], list)
+        self.assertEqual(len(skills["verify"]), 2)
+        self.assertEqual(notes["collisions"], ["verify"])
 
     def test_the_same_registration_seen_twice_is_not_a_collision(self) -> None:
         skills, notes = self._skills(self.HEAD + self.SIMPLIFY + self.SIMPLIFY)

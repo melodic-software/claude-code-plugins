@@ -10,8 +10,9 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 - **`inventory.py` reads a bytecode-fragmented bundle.** Region rule: from the first bundle marker
   to end of file, every printable run of at least 256 bytes, joined with newlines, in one regex
   pass; `sources.binary` records `runs`, `joined_bytes`, `region_rule`, `runs_below_floor`
-  (registration tokens sitting under the floor, counted rather than lost), and `elapsed_seconds`.
-  A build with no marker keeps the largest-run fallback.
+  (registration tokens sitting under the floor, counted rather than lost, and degrading the
+  bundled-skill lane when positive), and `elapsed_seconds`. A build with no marker keeps the
+  largest-run fallback.
 - **Three registrar discovery routes.** The CJS getter, then the ESM export list
   (`<ident> as registerBundledSkill`), then the canary registration; `bundled_skill_notes` records
   `registrar_route`. The registrar-shaped-export advisory sees both export shapes, and the known
@@ -33,7 +34,9 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   broken lane is a named `degraded` rather than a run with no counts. `plugin_backed` gains a canary
   (`security-review`). Exit mappings are unchanged in both `inventory.py --self-check` (which now
   prints each lane) and `overlap.py detect`.
-- **`overlap.py detect` reads the lanes.** The candidate report carries per-lane floors, and every
+- **`overlap.py detect` reads the lanes.** The candidate report carries per-lane floors (a lane's
+  counts are totals only when the lane is ok and no run-wide advisory such as an unvalidated CLI
+  version stands; a lane-attributed advisory degrades only its own lane), and every
   candidate carries `re_derivable`: false when the lane its seeded or observed class maps to is
   broken (both directions on a class collision), null for session-provided and marketplace classes,
   which have no lane. A name collision lists every registration with its invocation mode. An

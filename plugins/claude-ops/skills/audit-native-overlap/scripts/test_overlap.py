@@ -1135,6 +1135,56 @@ class DetectTests(unittest.TestCase):
             self.assertEqual(candidate["native"]["seeded_class"], "bundled-skill")
             self.assertFalse(candidate["re_derivable"], broken)
 
+    def test_top_level_drift_makes_every_ok_lane_report_floors(self):
+        # An unvalidated CLI version degrades the run, not a lane; the lane
+        # labels must agree with the top-level `counts_are`.
+        self.write_inventory(
+            integrity={
+                "status": "degraded",
+                "cli_version": FIXTURE_CLI_VERSION,
+                "validated_against": "2.1.228",
+                "advisories": [
+                    f"cli {FIXTURE_CLI_VERSION} differs from the last validated build "
+                    "2.1.228; counts are believed, not verified"
+                ],
+                "lanes": self.lanes(),
+            }
+        )
+        out = self.repo.root / "candidates.json"
+        self.assertEqual(self.detect(out), 3)
+        report = json.loads(out.read_text(encoding="utf-8"))
+        self.assertEqual(report["integrity"]["counts_are"], "floors")
+        for lane in overlap.LANE_ORDER:
+            self.assertEqual(report["integrity"]["lanes"][lane]["status"], "ok")
+            self.assertEqual(report["integrity"]["lanes"][lane]["counts_are"], "floors")
+
+    def test_a_lane_attributed_advisory_degrades_only_its_lane(self):
+        lanes = self.lanes()
+        lanes["bundled_skills"]["status"] = "degraded"
+        lanes["bundled_skills"]["advisories"] = [
+            "1 registration(s) register a dynamic roster"
+        ]
+        self.write_inventory(
+            integrity={
+                "status": "degraded",
+                "cli_version": FIXTURE_CLI_VERSION,
+                "validated_against": FIXTURE_CLI_VERSION,
+                "advisories": [
+                    "bundled_skills: 1 registration(s) register a dynamic roster"
+                ],
+                "lanes": lanes,
+            }
+        )
+        out = self.repo.root / "candidates.json"
+        self.assertEqual(self.detect(out), 3)
+        report = json.loads(out.read_text(encoding="utf-8"))
+        self.assertEqual(
+            report["integrity"]["lanes"]["bundled_skills"]["counts_are"], "floors"
+        )
+        self.assertEqual(
+            report["integrity"]["lanes"]["builtin_commands"]["counts_are"], "totals"
+        )
+
     def test_an_inventory_without_lanes_keeps_the_old_behaviour(self):
         self.write_inventory()
         out = self.repo.root / "candidates.json"
