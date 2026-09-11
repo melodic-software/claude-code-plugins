@@ -464,12 +464,16 @@ json_str() {
 }
 
 run_row() {
-  # run_row <lane> <measure> <collector-or-empty> <status> <reason-or-empty>
-  local collector reason
+  # run_row <lane> <measure> <collector-or-empty> <status> <reason-or-empty> [<hint-or-empty>]
+  # `hint` is the first install hint a failed probe produced for the row, kept
+  # apart from the prose reason so a renderer can print it once without
+  # parsing it back out.
+  local collector reason hint
   if [[ -n "$3" ]]; then collector="$(json_str "$3")"; else collector=null; fi
   if [[ -n "$5" ]]; then reason="$(json_str "$5")"; else reason=null; fi
-  printf '{"lane": %s, "measure": %s, "collector": %s, "status": %s, "reason": %s}\n' \
-    "$(json_str "$1")" "$(json_str "$2")" "$collector" "$(json_str "$4")" "$reason" >>"$RUN"
+  if [[ -n "${6:-}" ]]; then hint="$(json_str "$6")"; else hint=null; fi
+  printf '{"lane": %s, "measure": %s, "collector": %s, "status": %s, "reason": %s, "hint": %s}\n' \
+    "$(json_str "$1")" "$(json_str "$2")" "$collector" "$(json_str "$4")" "$reason" "$hint" >>"$RUN"
 }
 
 IFS=',' read -r -a MEASURE_LIST <<<"$MEASURES"
@@ -484,6 +488,7 @@ for lane in "${LANES[@]}"; do
   for measure in "${MEASURE_LIST[@]}"; do
     resolved=0
     reasons=""
+    first_hint=""
     while IFS=$'\t' read -r tool note; do
       [[ -n "$tool" ]] || continue
       case "$tool" in
@@ -517,15 +522,25 @@ for lane in "${LANES[@]}"; do
         why="$(tr '\n' ' ' <"$probe_err" | cut -c1-200)"
         why="${why% }"
         reasons+="${reasons:+; }$tool: ${why:-not found}${hint:+ ($hint)}"
+        [[ -n "$first_hint" || -z "$hint" ]] || first_hint="$hint"
         continue
       fi
       errf="$WORK/err.$lane.$measure.$tool"
       outf="$WORK/out.$lane.$measure.$tool"
-      "${PY[@]}" "$adapter" collect "$lane" "$measure" "${lane_files[@]}" >"$outf" 2>"$errf"
+      # A collector that leaves some of its inputs out (a cap it applies
+      # itself) writes one line here; a successful collect with a non-empty
+      # file is a `partial` row carrying that line, never a silent `ok`.
+      partialf="$WORK/partial.$lane.$measure.$tool"
+      CODE_METRICS_PARTIAL_REASON_FILE="$partialf" \
+        "${PY[@]}" "$adapter" collect "$lane" "$measure" "${lane_files[@]}" >"$outf" 2>"$errf"
       rc=$?
       if [[ $rc -eq 0 ]]; then
         cat "$outf" >>"$ROWS"
-        run_row "$lane" "$measure" "$tool $version" ok ''
+        if [[ -s "$partialf" ]]; then
+          run_row "$lane" "$measure" "$tool $version" partial "$(head -n 1 "$partialf")"
+        else
+          run_row "$lane" "$measure" "$tool $version" ok ''
+        fi
       else
         COLLECT_FAILED=1
         run_row "$lane" "$measure" "$tool $version" unavailable "collect failed (exit $rc): $(tr '\n' ' ' <"$errf" | cut -c1-500)"
@@ -534,7 +549,7 @@ for lane in "${LANES[@]}"; do
       break
     done < <(ladder_tools "$lane" "$measure")
     if [[ $resolved -eq 0 ]]; then
-      run_row "$lane" "$measure" '' unavailable "${reasons:-no ladder entry for $lane/$measure}"
+      run_row "$lane" "$measure" '' unavailable "${reasons:-no ladder entry for $lane/$measure}" "$first_hint"
     fi
   done
 done

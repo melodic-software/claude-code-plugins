@@ -132,8 +132,9 @@ def floor_summary(document: dict[str, Any]) -> dict[str, Any]:
     that measured nothing keeps its "Measured nothing" headline instead of an
     unearned zero.
     """
+    # A `partial` row measured what it did not skip, so its zero is earned too.
     measured = any(
-        row.get("measure") == "duplication" and row.get("status") == "ok"
+        row.get("measure") == "duplication" and row.get("status") in ("ok", "partial")
         for row in document.get("run") or []
     )
     if measured:

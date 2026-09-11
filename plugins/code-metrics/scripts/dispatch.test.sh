@@ -101,6 +101,8 @@ assert_doc "status empty and every row unavailable with a reason" "$out" \
   'd["status"]=="empty" and d["run"] and all(r["status"]!="ok" and r["reason"] for r in d["run"]) and len(d["unavailable"])==5 and d["measures"]==[]'
 assert_doc "the reason names both rungs and the install hint" "$out" \
   '"scc: scc not on PATH" in d["run"][0]["reason"] and "line-counter: disabled by CODE_METRICS_DISABLE_BUNDLED" in d["run"][0]["reason"] and "boyter/scc" in d["run"][0]["reason"]'
+assert_doc "an unavailable row also carries the first install hint as its own field" "$out" \
+  'd["run"][0]["hint"] and "boyter/scc" in d["run"][0]["hint"]'
 
 # 4. A ladder row whose adapter does not exist is reported, not skipped.
 ladder="$(mktemp)"
@@ -131,7 +133,7 @@ assert_eq "missing skill name exits 2" 2 "$?"
 empty_dir="$(mktemp -d)"
 out="$(PATH="$EMPTY_PATH" bash "$SCRIPT" audit-size --measures file_lines --all "$empty_dir")"
 assert_doc "empty scope yields one not-applicable row" "$out" \
-  'd["status"]=="empty" and d["scope"]["files"]==0 and d["run"]==[{"lane":"*","measure":"*","collector":None,"status":"not-applicable","reason":"no measurable files in scope"}]'
+  'd["status"]=="empty" and d["scope"]["files"]==0 and d["run"]==[{"lane":"*","measure":"*","collector":None,"status":"not-applicable","reason":"no measurable files in scope","hint":None}]'
 rmdir "$empty_dir"
 
 # 8. A collector that probes but fails in collect: exit 3, row unavailable.
@@ -412,6 +414,28 @@ case "$err" in
 *) fail "the refusal names the offending key" "mentions scope.exclude" "$err" ;;
 esac
 rm -rf "$repo" "$home"
+
+# 18. A collector that leaves inputs out reports the lane as partial with its
+#     reason, through the partial-reason file the dispatcher hands every
+#     collect. The jscpd adapter skips both cluster copies under a 100-byte
+#     cap, so the fake `jscpd` (probe only; never reached for collect) has
+#     nothing to replay.
+skipper="$(mktemp -d)"
+cat >"$skipper/jscpd" <<'EOF'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "--version" ]]; then printf 'jscpd 5.2.0\n'; exit 0; fi
+printf 'jscpd should not have been invoked\n' >&2
+exit 1
+EOF
+chmod +x "$skipper/jscpd"
+out="$(PATH="$skipper:$EMPTY_PATH" CODE_METRICS_DUP_MAX_SIZE=100 bash "$SCRIPT" audit-duplication --measures duplication --all "$SOURCES/cluster")"
+rc=$?
+assert_eq "a run whose inputs were all skipped exits 0" 0 "$rc"
+assert_doc "a skipped input makes the lane row partial with the reason" "$out" \
+  'any(r["lane"]=="bash" and r["measure"]=="duplication" and r["status"]=="partial" and r["reason"].startswith("2 of 2 files skipped by duplication.max_size 100") for r in d["run"])'
+assert_doc "a skipped input leaves the row's hint null" "$out" \
+  'all(r.get("hint") is None for r in d["run"])'
+rm -rf "$skipper"
 
 printf '%d cases, %d failed\n' "$CASE_NUM" "$FAILED"
 exit $((FAILED > 0 ? 1 : 0))

@@ -28,6 +28,9 @@ duplication:
   min_lines: 5
   ignore: []
   registries: []           # sanctioned-replication registries, one relative path per line
+  max_lines: null          # files with more lines are skipped and reported; null (or 0) means no line cap
+  max_size: 1mb            # files larger than this are skipped and reported; jscpd 5's own guard, SonarJS uses 1000kb
+  rollup_depth: 2          # per-directory rollup rows listed to this depth in the markdown report
 
 coverage:
   artifacts: []            # explicit artifact paths; empty means auto-discover

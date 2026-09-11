@@ -224,7 +224,7 @@ into two scratch prefixes outside the repository and prepends the wanted `node_m
 `PATH` per probe. A probe whose major is absent prints `SKIP` and is not a failure, the way
 `audit-duplication.test.sh`'s real-cluster case already does.
 
-### Phase 1: Explicit caps, adapter pre-filter, partial run row [TODO]
+### Phase 1: Explicit caps, adapter pre-filter, partial run row [DONE]
 
 Review: code-design
 

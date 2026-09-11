@@ -69,6 +69,9 @@ The third column is written by hand and is not derived from anything. A row whos
 | `duplication.min_lines` | `5` | Passed to the clone collector |
 | `duplication.ignore` | `[]` | Collector ignore globs |
 | `duplication.registries` | `[]` | Sanctioned-replication registries (one path-within-plugin per line); a clone whose every instance sits at a listed path is excluded, not suppressed |
+| `duplication.max_lines` | `null` | A file with more lines is left out of the clone scan and named in the lane's `partial` run row; `null` or `0` means no line cap, which is what jscpd 5, PMD CPD, and SonarQube ship. A number is a plugin-local guard, not an upstream convention |
+| `duplication.max_size` | `1mb` | A file larger than this is left out and named the same way; `0` means no cap. jscpd 5.0.7 sets 1mb as its parser guard and SonarJS 1000kb for generated code. `kb` and `mb` are binary (1mb is 1,048,576 bytes); a CRLF checkout counts one more byte per line |
+| `duplication.rollup_depth` | `2` | Directory depth to which the markdown report lists per-directory rollup rows; the JSON carries every directory |
 | `coverage.artifacts` | `[]` | Explicit coverage artifact paths; empty means auto-discover. An explicitly named path that does not exist is a usage error |
 | `coverage.path_prefix_strip` | `[]` | Prefixes removed from artifact paths before the join with source paths (compiled-output layouts) |
 | `coverage.reference` | `null` | No default bar; ISO/IEC 25023 files coverage under Reliability and sets no value |

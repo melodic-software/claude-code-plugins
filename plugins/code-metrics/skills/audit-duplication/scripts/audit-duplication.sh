@@ -10,7 +10,8 @@
 # (scripts/dispatch.sh in the plugin root); this script owns `--registry` and
 # the duplication tunables it exports for the collector adapters
 # (CODE_METRICS_DUP_MIN_TOKENS, CODE_METRICS_DUP_MIN_LINES,
-# CODE_METRICS_DUP_IGNORE, from `duplication.*` in the resolved config).
+# CODE_METRICS_DUP_IGNORE, CODE_METRICS_DUP_MAX_LINES, CODE_METRICS_DUP_MAX_SIZE,
+# from `duplication.*` in the resolved config; a null or 0 cap exports empty).
 # Registries come from every `--registry` plus `duplication.registries`, each
 # resolved against the repository root; a named registry that does not exist is
 # a usage error. Exit codes are the dispatcher's: 0 report produced, 2 usage
@@ -81,7 +82,8 @@ if [[ -z "$CONFIG" ]]; then
     --home "${CODE_METRICS_HOME:-${HOME:-/}}" >"$CONFIG" || exit 2
 fi
 
-# Three tunables and then one line per configured registry, in that order.
+# Five tunables and then one line per configured registry, in that order. A
+# cap of null or 0 is exported empty, which the adapter reads as "no cap".
 mapfile -t DUP < <("${PY[@]}" -c '
 import json, sys
 
@@ -93,20 +95,34 @@ def number(key, fallback):
     return value if isinstance(value, int) and not isinstance(value, bool) else fallback
 
 
+def cap(key):
+    value = section.get(key)
+    if value is None or isinstance(value, bool):
+        return ""
+    if isinstance(value, (int, float)):
+        return str(int(value)) if value > 0 else ""
+    text = str(value).strip()
+    return "" if text in ("", "0") else text
+
+
 print(number("min_tokens", 50))
 print(number("min_lines", 5))
 ignore = section.get("ignore")
 print(",".join(str(item) for item in ignore) if isinstance(ignore, list) else "")
+print(cap("max_lines"))
+print(cap("max_size"))
 for registry in section.get("registries") or []:
     print(str(registry))
 ' "$CONFIG")
-if [[ ${#DUP[@]} -lt 3 ]]; then
+if [[ ${#DUP[@]} -lt 5 ]]; then
   echo "audit-duplication.sh: the resolved configuration could not be read" >&2
   exit 2
 fi
 export CODE_METRICS_DUP_MIN_TOKENS="${DUP[0]}"
 export CODE_METRICS_DUP_MIN_LINES="${DUP[1]}"
 export CODE_METRICS_DUP_IGNORE="${DUP[2]}"
+export CODE_METRICS_DUP_MAX_LINES="${DUP[3]}"
+export CODE_METRICS_DUP_MAX_SIZE="${DUP[4]}"
 
 FILTER_ARGS=(--root "$ROOT")
 resolve_registry() {
@@ -119,7 +135,7 @@ resolve_registry() {
     return 1
   fi
 }
-for registry in "${REGISTRY_ARGS[@]:-}" "${DUP[@]:3}"; do
+for registry in "${REGISTRY_ARGS[@]:-}" "${DUP[@]:5}"; do
   [[ -n "$registry" ]] || continue
   if ! resolved="$(resolve_registry "$registry")"; then
     echo "audit-duplication.sh: registry not found: $registry" >&2

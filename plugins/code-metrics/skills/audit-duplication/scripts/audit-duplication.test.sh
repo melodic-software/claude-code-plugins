@@ -62,7 +62,7 @@ trap 'rm -rf "$STUBS" "$EMPTY_PATH" "$WORK"' EXIT
 cat >"$STUBS/jscpd" <<'STUB'
 #!/usr/bin/env bash
 if [[ "${1:-}" == "--version" ]]; then
-  printf 'jscpd 5.1.2\n'
+  printf 'jscpd 5.2.0\n'
   exit 0
 fi
 [[ -z "${CM_TEST_ARGV_LOG:-}" ]] || printf '%s\n' "$*" >>"$CM_TEST_ARGV_LOG"
@@ -147,13 +147,15 @@ assert_eq "a missing --registry exits 2" 2 "$?"
 
 # 6. The configured tunables reach the collector's command line.
 "$PY" "$PLUGIN_ROOT/scripts/resolve-config.py" --ladder "$PLUGIN_ROOT/scripts/collector-ladder.tsv" --home "$WORK" >"$WORK/base.json" 2>/dev/null
-"$PY" -c 'import json,sys; d=json.load(open(sys.argv[1])); d["duplication"]["min_tokens"] = 77; d["duplication"]["min_lines"] = 9; d["duplication"]["ignore"] = ["**/vendor/**"]; print(json.dumps(d))' "$WORK/base.json" >"$WORK/tuned.json"
+"$PY" -c 'import json,sys; d=json.load(open(sys.argv[1])); d["duplication"]["min_tokens"] = 77; d["duplication"]["min_lines"] = 9; d["duplication"]["ignore"] = ["**/vendor/**"]; d["duplication"]["max_size"] = "8kb"; d["duplication"]["max_lines"] = 0; print(json.dumps(d))' "$WORK/base.json" >"$WORK/tuned.json"
 CM_TEST_ARGV_LOG="$WORK/argv.log" PATH="$STUBS:$EMPTY_PATH" bash "$SCRIPT" --json --all "$CLUSTER" --config "$WORK/tuned.json" >/dev/null 2>&1
 assert_eq "the tuned run exits 0" 0 "$?"
 argv="$(cat "$WORK/argv.log" 2>/dev/null)"
 assert_contains "min_tokens reaches the collector" "$argv" "--min-tokens 77"
 assert_contains "min_lines reaches the collector" "$argv" "--min-lines 9"
 assert_contains "the ignore globs reach the collector" "$argv" "--ignore **/vendor/**"
+assert_contains "max_size reaches the collector one byte above the bound" "$argv" "--max-size 8193"
+assert_contains "a max_lines of 0 means no cap and reaches the collector as the explicit large value" "$argv" "--max-lines 1000000"
 
 # 7. --help prints the usage without running anything.
 bash "$SCRIPT" --help 2>&1 | grep -q 'audit-duplication.sh \[--json\]'

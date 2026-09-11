@@ -29,14 +29,18 @@ count as one even though only the first reports where it begins.
 ## `run[]` rows
 
 `lane`, `measure`, `collector` (the tool and version that produced the rows, or `null`), `status`
-(`ok`, `partial`, `unavailable`, `not-applicable`, `deferred`), `reason` (`null` only when `ok`). A
-run whose scope holds no measurable file carries one row `*/*` with status `not-applicable` and the
-reason `no measurable files in scope`.
+(`ok`, `partial`, `unavailable`, `not-applicable`, `deferred`), `reason` (`null` only when `ok`),
+`hint` (the first install hint a failed probe produced for the row, or `null`; it is kept apart
+from the prose reason so a renderer can print it once without parsing it back out). A run whose
+scope holds no measurable file carries one row `*/*` with status `not-applicable` and the reason
+`no measurable files in scope`.
 
 `partial` means the row produced measurements for some of what it implied and not the rest, which
 `audit-coverage` emits when an artifact covers only some of a lane's scope files, and again when it
-left a function unjoined, naming those functions in the reason. It counts as having produced rows,
-so such a run is `partial` rather than `empty`, and it withholds `complete`, so a document can never
+left a function unjoined, naming those functions in the reason, and which `audit-duplication` emits
+when a `duplication.max_size` or `duplication.max_lines` cap left files out of the clone scan,
+naming the count and the largest skipped file in the reason. It counts as having produced rows, so
+such a run is `partial` rather than `empty`, and it withholds `complete`, so a document can never
 read as complete while one of its own rows says `N of M`.
 
 ## `measures[]` rows

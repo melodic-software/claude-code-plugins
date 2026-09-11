@@ -18,7 +18,10 @@
     "min_tokens": 50,
     "min_lines": 5,
     "ignore": [],
-    "registries": []
+    "registries": [],
+    "max_lines": null,
+    "max_size": "1mb",
+    "rollup_depth": 2
   },
   "coverage": {
     "artifacts": [],
