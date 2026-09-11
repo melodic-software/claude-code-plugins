@@ -1,6 +1,6 @@
 ---
 description: "Read-only slowness-diagnostic capture for a Claude Code installation. Run it AT THE MOMENT the machine or a session feels slow, before restarting or deleting anything. One timed engine pass captures the four suspects: CLI version (regression), retention-sweep health including the silent unparsable-settings pause (accumulated state), a timed stat-walk of the install tree plus session and plugin-fleet counts (component bloat), and the fan-out layer (per spawn): a load-labelled no-op spawn baseline, every hook that will fire bucketed per-tool-call versus per-turn, the statusline, subagent concurrency ceilings, sessions that predate the settings file, and orphan attribution by parent liveness not age. On Windows, a kernel-object census (Token objects against uptime, paged pool) names the host-level leak beneath all four suspects. Plus a process census, Defender guidance, and a bundled known-performance-issues reference. Reports and routes; never mutates, never deletes, never 'fixes', never executes a discovered hook. Use when: 'Claude Code is slow', 'typing lags', 'my machine freezes when Claude runs', 'audit performance', 'why is this session sluggish', 'diagnose Claude slowness before I nuke anything', 'my hooks are slowing everything down', 'too many subagents'. Not for: install-tree inventory (/claude-ops:audit-install-state), deleting anything (/disk-hygiene:clean), plugin enablement verdicts (/claude-ops:plugins audit), or upstream bug lookup alone (/claude-ops:known-issues, which this composes with)."
-argument-hint: "[--root <path>] (defaults to $CLAUDE_CONFIG_DIR, else ~/.claude); pass the current session id via --session-id when known"
+argument-hint: "[--root <path>] (defaults to $CLAUDE_CONFIG_DIR, else ~/.claude); pass the current session id via --session-id when known, and each operator fact via a repeated --note"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -39,7 +39,9 @@ the contents of `history.jsonl` and transcript files. The engine's content-read 
 non-secret config files: `settings.json`, `.last-cleanup`, a plugin's `hooks/hooks.json`, and
 `plugins/installed_plugins.json`. Everything else is stat-only. Name, size, mtime. The allowlist
 is enforced in `read_json`, which raises rather than reading a file it does not name, so the
-prose and the code cannot drift apart.
+prose and the code cannot drift apart. On Linux the engine also reads `/proc/<pid>/status` and
+`/proc/<pid>/stat`, kernel-generated text with no user content, to tell kernel threads from user
+processes, enforced the same way in `read_proc_text`.
 
 The last two entries are what makes hook enumeration possible: a hook manifest holds an event, a
 matcher, and a command string, and the installed-plugins manifest holds install paths. Neither
@@ -62,6 +64,7 @@ pays before doing any work of its own.
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/audit-performance/scripts/audit_performance.py" \
   --session-id "<current-session-id-if-known>" \
+  --note "<one operator fact; repeat the flag per fact>" \
   --project-dir "${CLAUDE_PROJECT_DIR:-.}" > ./claude-performance-report.json
 ```
 
@@ -80,10 +83,11 @@ finding rather than dropped); `--spawn-samples <n>` and `--population-gap 0` sho
 probes that deliberately take wall-clock time; `--skip-fan-out` and `--skip-processes` drop whole
 phases. Say which flags you passed, because each one narrows what the report can conclude.
 
-Alongside the engine run, record what only the operator knows, in one or two sentences each: what
-was slow (typing? tool calls? the whole machine?), how many terminals were open, what the session
-was doing, and, on Windows, whether Task Manager showed "Antimalware Service Executable" or
-disk saturation. The engine cannot see intent; the report is incomplete without this paragraph.
+Pass what is already known through `--note`, one note per fact: what was slow (typing? tool calls?
+the whole machine?), how many terminals were open, what the session was doing, and, on Windows,
+whether Task Manager showed "Antimalware Service Executable" or disk saturation. Declare who
+supplied them with `--note-source`, and let `operator_context` record `absent` for what nobody
+passed, because the engine cannot see intent and a silent gap reads like a clean bill of health.
 
 ## Reading the report. Separate the four suspects
 

@@ -19,6 +19,20 @@ before any reinstall.
 | v2.1.203 (2026-07-07) | Per-turn CPU/memory regression (context indicator re-analyzed the whole transcript every turn) | — |
 | v2.1.221 (2026-08-10) | Fewer event-loop stalls; Windows startup improvement | — |
 
+- **The probed binary may not be your daily `claude`.** `cli.version` is whatever
+  `shutil.which("claude")` found on the ENGINE PROCESS PATH, which is not the operator's login
+  shell PATH, so a version captured here can belong to a binary the operator never runs: a
+  project-local `node_modules/.bin/claude`, a second install earlier on PATH, or a leftover under
+  `~/.claude/local/`. The report names `probe_path`, `resolved_path`, the containment base it
+  tested against, and every `claude` it found on PATH, and raises `cli-probe-project-local` and
+  `cli-multiple-on-path` so the ambiguity is visible rather than averaged into a version claim.
+  Multiple installs cause version mismatches and unexpected behavior and the install docs say to
+  keep exactly one; `which -a claude` (or `where.exe claude`) lists them, and `claude doctor` is
+  the first-party authority on which to keep, so both findings route there rather than convicting
+  a layout this engine cannot classify.
+  ([troubleshoot-install](https://code.claude.com/docs/en/troubleshoot-install), fetched
+  2026-09-11; recheck when the install docs publish a binary path for a second install method.)
+
 ## Accumulated-state mechanisms confirmed at source level, v2.1.228 (suspect 1)
 
 - **Retention sweep cost is a daily stat-walk of the whole tree.** Fires ~5 s after the first
@@ -136,6 +150,46 @@ Population trend matters as much as population size, and needs two samples: `con
 44 to 49 (mild accumulation) while `bash` went 153 to 137 to 93 to 134 to 112, which is CHURN,
 not accumulation. A single sample cannot tell the two apart, and the first reading of that bash
 series was written up as accumulation and had to be retracted.
+
+### Kernel threads are not workload, and only PF_KTHREAD identifies them
+
+`ps -e` lists the kernel's own threads alongside user processes, and a kworker renames its `comm`
+as it moves between queues, so a population keyed on name sees the same worker arrive under a new
+name every few seconds and reads it as accumulation. On Linux the engine classifies the
+shortlist's processes and drops a row whose every classified process is a kernel thread.
+
+The classifier is the kernel's own predicate, `PF_KTHREAD`, read two ways: the `Kthread:` line of
+`/proc/<pid>/status` where the kernel publishes one, else bit `0x00200000` of the task flags word,
+field 9 of `/proc/<pid>/stat`. Field 2 of `stat` is the command in parentheses and may itself
+contain spaces and `)`, so the split runs from the LAST `)`.
+
+Three classifiers that look equivalent and are not:
+
+- **Parent pid 2.** The kernel reparents user-space helpers (modprobe, coredump helpers, udev
+  helpers) onto kthreadd with `CLONE_PARENT`, and those helpers carry no `PF_KTHREAD`, so the test
+  convicts user processes. kthreadd itself has parent pid 0, so the test also misses the one
+  process it most obviously should catch.
+- **An empty `cmdline`.** A zombie reads zero bytes, and a process can rewrite or relocate its own
+  argument region, so absence proves nothing about who created the task.
+- **Bracketed names in `ps` output.** Brackets mean only that arguments were unavailable, which is
+  the same empty-`cmdline` signal one layer up.
+
+The accepted failure mode is under-exclusion, never over-exclusion. A reparented helper counts as
+a user process, which is correct by definition, and a renumbered flag bit would classify every
+kernel thread as user-space and raise the accumulation verdict spuriously. Both surface as an
+investigable false alarm rather than hiding a real user-space leak, which is why an unparsable or
+vanished process classifies as user-space too.
+
+**Drift record.** *Claim:* `PF_KTHREAD` is `0x00200000` and is exposed unmasked as field 9 of
+`/proc/<pid>/stat`; `/proc/<pid>/status` carries a derived `Kthread:` line on kernels that publish
+one. *Basis:* [proc_pid_stat(5)](https://man7.org/linux/man-pages/man5/proc_pid_stat.5.html) for
+the flags field and the parenthesised `comm` hazard,
+[Documentation/filesystems/proc.rst](https://www.kernel.org/doc/html/latest/filesystems/proc.html)
+for the `Kthread:` line, `include/linux/sched.h` for the bit value, and `kernel/umh.c`
+(`call_usermodehelper_exec_work`) for the `CLONE_PARENT` reparenting that refutes the ppid test.
+*As of:* 2026-09-11. *Recheck trigger:* a kernel release that renumbers `PF_KTHREAD`, or man-pages
+documenting `Kthread:` in `proc_pid_status(5)`, which would make the status line the citable
+primary and retire the stat fallback's role as the documented path.
 
 ## The host-level floor: a kernel Token-object leak (suspect 5, Windows)
 

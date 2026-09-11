@@ -86,6 +86,23 @@ ALLOWLISTED_READS = (
     "installed_plugins.json",  # plugins/installed_plugins.json: where each plugin is installed
 )
 
+#: Kernel-generated `/proc/<pid>/` files whose CONTENT this engine may read on Linux, and only
+#: to tell a kernel thread from a user process. Both are produced by the kernel from task state
+#: and carry no user content: `status` holds the `Kthread:` line, `stat` holds the task flags
+#: word. Enforced in `read_proc_text`, which raises on any other name. `cmdline` is deliberately
+#: absent: it is process-supplied text, and an empty read is not evidence of a kernel thread.
+PROC_TEXT_READS = frozenset({"status", "stat"})
+#: Root of the proc filesystem. A parameter rather than a literal so the classifier is testable.
+PROC_ROOT = Path("/proc")
+#: `PF_KTHREAD` in the kernel's task flags word, stable from v2.6.32 through v6.18. proc(5)
+#: disclaims stability for the flags field, so a renumbering would classify every kernel thread
+#: as user-space: the failure mode is under-exclusion (an investigable false alarm), never
+#: over-exclusion (a hidden user-space leak).
+PF_KTHREAD = 0x00200000
+#: Ceiling on how many processes one population read may classify. The shortlist is ten names
+#: wide, and a machine selected for being contended must not pay an unbounded per-pid read.
+KTHREAD_CLASSIFY_CAP = 50
+
 #: Seconds between the two process-population samples that separate churn from accumulation.
 POPULATION_GAP_S = 3.0
 #: A process younger than this is not an orphan candidate however dead its parent looks.
@@ -96,17 +113,46 @@ ORPHAN_MIN_AGE_HOURS = 24.0
 #: sweeping every process would report a dead parent as a defect hundreds of times over.
 ORPHAN_CANDIDATE_NAMES = frozenset(
     {
-        "bash", "bash.exe", "sh", "sh.exe", "zsh", "dash",
-        "pwsh", "pwsh.exe", "powershell", "powershell.exe",
-        "cmd", "cmd.exe", "conhost.exe", "node", "node.exe", "bun", "bun.exe",
+        "bash",
+        "bash.exe",
+        "sh",
+        "sh.exe",
+        "zsh",
+        "dash",
+        "pwsh",
+        "pwsh.exe",
+        "powershell",
+        "powershell.exe",
+        "cmd",
+        "cmd.exe",
+        "conhost.exe",
+        "node",
+        "node.exe",
+        "bun",
+        "bun.exe",
         "cygwin-console-helper.exe",
     }
+)
+
+#: Executable names a `claude` on PATH can carry. Windows resolves `.exe` and `.cmd` through
+#: PATHEXT, so a PATH scan that looks only for the bare name under-reports there.
+CLAUDE_ON_PATH_NAMES = ("claude", "claude.exe", "claude.cmd")
+#: Every CLI-probe finding routes to the first-party install-diagnostics command; this engine
+#: observes which binary it measured and never adjudicates an install.
+DOCTOR_ROUTE = "run `claude doctor`"
+#: Only the native installer has a documented binary path, so an unrecognised path is an
+#: unclassified layout rather than evidence of an irregular install.
+UNCLASSIFIED_LAYOUT_NOTE = (
+    "official docs publish a binary path only for the native installer; Homebrew, WinGet, "
+    "apt/dnf/apk, npm-global and direct-download installs land wherever they land"
 )
 
 #: Hook events that fire on every matching tool call. These scale with tool-call volume.
 PER_TOOL_CALL_EVENTS = frozenset({"PreToolUse", "PostToolUse"})
 #: Hook events that fire once per conversational turn. These are what make a long session degrade.
-PER_TURN_EVENTS = frozenset({"Stop", "SubagentStop", "UserPromptSubmit", "Notification"})
+PER_TURN_EVENTS = frozenset(
+    {"Stop", "SubagentStop", "UserPromptSubmit", "Notification"}
+)
 #: Shell executables whose repeated appearance in one command line means nested shells.
 SHELL_TOKENS = ("bash", "sh", "zsh", "pwsh", "powershell", "cmd")
 
@@ -128,7 +174,14 @@ TRUTHINESS_GATED_ENV = frozenset({"CLAUDE_CODE_EXPERIMENTAL_OBSERVER_AGENTS"})
 #: this probe carried 3.81M Token objects and about 10 GB of paged pool at two days' uptime,
 #: every process creation on it cost 1.4 to 4 s at 7% CPU, and a reboot restored a 14 ms floor.
 KERNEL_OBJECT_TYPES = (
-    "Token", "Process", "Thread", "Key", "File", "Section", "Event", "EtwRegistration",
+    "Token",
+    "Process",
+    "Thread",
+    "Key",
+    "File",
+    "Section",
+    "Event",
+    "EtwRegistration",
 )
 #: Live Token objects at or above which the census reports a leak: ten times what the audited
 #: host carried two hours after a clean boot, a fifteenth of what it carried when spawns cost
@@ -172,26 +225,124 @@ def timed(fn, *args, **kwargs):
     return result, round(time.perf_counter() - t0, 3)
 
 
-def cli_version() -> dict:
+def within(child: Path, base: Path) -> bool:
+    """True when `child` resolves inside `base`.
+
+    Both sides are resolved before the containment test, because a string prefix match calls
+    `/srv/projects-old` a child of `/srv/projects`.
+    """
+    try:
+        return child.resolve().is_relative_to(base.resolve())
+    except (OSError, ValueError):
+        return False
+
+
+def claude_on_path(path_value: str | None = None) -> list[str]:
+    """Every file named `claude` on the engine process PATH, in PATH order.
+
+    More than one is the hazard the install docs name: the binary this engine probed is the
+    first hit, which need not be the one the operator's shell runs.
+    """
+    raw = os.environ.get("PATH", os.defpath) if path_value is None else path_value
+    hits: list[str] = []
+    for entry in raw.split(os.pathsep):
+        if not entry:
+            continue
+        for name in CLAUDE_ON_PATH_NAMES:
+            candidate = os.path.join(entry, name)
+            if os.path.isfile(candidate) and candidate not in hits:
+                hits.append(candidate)
+    return hits
+
+
+def cli_layout(probe_path: str, resolved_path: str, home: Path | None = None) -> str:
+    """Classify the probed binary against the only install paths the docs publish."""
+    base = home or Path.home()
+    native_bin = base / ".local" / "bin"
+    if within(Path(resolved_path), base / ".local" / "share" / "claude" / "versions"):
+        return "documented-native"
+    if Path(probe_path) in {native_bin / "claude", native_bin / "claude.exe"}:
+        return "documented-native"
+    legacy = base / ".claude" / "local"
+    if within(Path(resolved_path), legacy) or within(Path(probe_path), legacy):
+        return "legacy-local-npm"
+    return "unclassified"
+
+
+def cli_probe_provenance(
+    probe_path: str,
+    project_dir: Path | None = None,
+    home: Path | None = None,
+    cwd: Path | None = None,
+    path_value: str | None = None,
+) -> dict:
+    """Say WHICH `claude` was measured and how it was found, never which installer put it there.
+
+    `shutil.which` searches the engine process PATH, which is not the operator's login shell
+    PATH, so a report naming only a version cannot be checked against the binary the operator
+    actually runs. Everything here is a path observation; the verdict on a duplicated or
+    misplaced install belongs to the first-party install diagnostics.
+    """
+    resolved_path = os.path.realpath(probe_path)
+    base = Path(project_dir) if project_dir is not None else Path(cwd or os.getcwd())
+    layout = cli_layout(probe_path, resolved_path, home)
+    resolved = Path(resolved_path)
+    findings: list[dict] = []
+    if within(resolved, base) or any(part == "node_modules" for part in resolved.parts):
+        findings.append({"finding": "cli-probe-project-local", "route": DOCTOR_ROUTE})
+    on_path = claude_on_path(path_value)
+    if len(on_path) > 1:
+        findings.append({"finding": "cli-multiple-on-path", "route": DOCTOR_ROUTE})
+    block = {
+        "probe_path": probe_path,
+        "exe": probe_path,
+        "resolved_path": resolved_path,
+        "path_searched": "engine process PATH (not the operator's login shell)",
+        "layout": layout,
+        "containment_base": str(base),
+        "containment_base_source": "project-dir" if project_dir is not None else "cwd",
+        "on_path": on_path,
+        "findings": findings,
+    }
+    if layout == "unclassified":
+        block["layout_note"] = UNCLASSIFIED_LAYOUT_NOTE
+    return block
+
+
+def cli_version(project_dir: Path | None = None) -> dict:
     exe = shutil.which("claude")
     if not exe:
         return {"version": None, "error": "claude not on PATH"}
+    provenance = cli_probe_provenance(exe, project_dir)
     try:
         t0 = time.perf_counter()
         out = subprocess.run(
-            [exe, "--version"], capture_output=True, text=True, timeout=SUBPROCESS_TIMEOUT_S
+            [exe, "--version"],
+            capture_output=True,
+            text=True,
+            timeout=SUBPROCESS_TIMEOUT_S,
         )
         elapsed = round(time.perf_counter() - t0, 3)
+        version = out.stdout.strip() or None
         return {
-            "version": out.stdout.strip() or None,
-            "exe": exe,
+            "version": version,
+            **provenance,
             "seconds": elapsed,
             "slow_version_probe": elapsed > 5.0,
+            "valid_for_version": version,
+            "valid_for_version_note": (
+                "outside the native layout the binary path changes on update, so the resolved "
+                "path is valid for this version only; re-probe rather than trusting it later"
+            ),
         }
     except subprocess.TimeoutExpired:
-        return {"version": None, "exe": exe, "error": f"--version timed out after {SUBPROCESS_TIMEOUT_S}s (itself a finding)"}
+        return {
+            "version": None,
+            **provenance,
+            "error": f"--version timed out after {SUBPROCESS_TIMEOUT_S}s (itself a finding)",
+        }
     except OSError as exc:
-        return {"version": None, "exe": exe, "error": str(exc)}
+        return {"version": None, **provenance, "error": str(exc)}
 
 
 def sweep_health(root: Path) -> dict:
@@ -260,12 +411,16 @@ def tree_census(root: Path) -> dict:
         total_files += files
         total_bytes += size
     walk_seconds = round(time.perf_counter() - t0, 3)
-    top_by_files = sorted(entries.items(), key=lambda kv: kv[1]["files"], reverse=True)[:5]
+    top_by_files = sorted(entries.items(), key=lambda kv: kv[1]["files"], reverse=True)[
+        :5
+    ]
     return {
         "walk_seconds": walk_seconds,
         "total_files": total_files,
         "total_mb": round(total_bytes / 1048576, 2),
-        "files_per_second": round(total_files / walk_seconds, 0) if walk_seconds > 0 else None,
+        "files_per_second": round(total_files / walk_seconds, 0)
+        if walk_seconds > 0
+        else None,
         "top_entries_by_file_count": dict(top_by_files),
         "note": "walk_seconds approximates one retention-sweep stat pass over this tree on this volume right now",
     }
@@ -281,7 +436,9 @@ def home_root_state() -> dict:
             st = p.stat()
             out[name] = {
                 "kb": round(st.st_size / 1024, 1),
-                "mtime": datetime.fromtimestamp(st.st_mtime, timezone.utc).isoformat(timespec="seconds"),
+                "mtime": datetime.fromtimestamp(st.st_mtime, timezone.utc).isoformat(
+                    timespec="seconds"
+                ),
             }
     remnants = [p.name for p in home.glob(".claude.json.tmp.*")]
     out["tmp_remnants"] = {"count": len(remnants), "sample": remnants[:5]}
@@ -296,7 +453,9 @@ def history_state(root: Path) -> dict:
     return {
         "present": True,
         "mb": round(st.st_size / 1048576, 2),
-        "mtime": datetime.fromtimestamp(st.st_mtime, timezone.utc).isoformat(timespec="seconds"),
+        "mtime": datetime.fromtimestamp(st.st_mtime, timezone.utc).isoformat(
+            timespec="seconds"
+        ),
         "note": "stat-only (contains every prompt ever typed); not covered by any retention sweep",
     }
 
@@ -324,8 +483,14 @@ def session_census(root: Path) -> dict:
             total_bytes += st.st_size
             mb = st.st_size / 1048576
             if mb > largest["mb"]:
-                largest = {"path": p.relative_to(projects).as_posix(), "mb": round(mb, 2)}
-            if now - st.st_mtime < ACTIVE_SESSION_WINDOW_S and "subagents" not in p.parts:
+                largest = {
+                    "path": p.relative_to(projects).as_posix(),
+                    "mb": round(mb, 2),
+                }
+            if (
+                now - st.st_mtime < ACTIVE_SESSION_WINDOW_S
+                and "subagents" not in p.parts
+            ):
                 active.append(p.relative_to(projects).as_posix())
     return {
         "projects_present": True,
@@ -346,7 +511,9 @@ def plugin_fleet(root: Path) -> dict:
         d = plugins / sub
         if d.is_dir():
             out[sub + "_entries"] = sum(1 for _ in d.iterdir())
-    out["note"] = "counts only; enablement and scope verdicts belong to /claude-ops:plugins audit"
+    out["note"] = (
+        "counts only; enablement and scope verdicts belong to /claude-ops:plugins audit"
+    )
     return out
 
 
@@ -394,15 +561,24 @@ def _windows_object_type_table() -> dict[str, dict]:
     ntdll = ctypes.WinDLL("ntdll")
     ntdll.NtQueryObject.restype = ctypes.c_long
     ntdll.NtQueryObject.argtypes = [
-        ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p, ctypes.c_uint32,
+        ctypes.c_void_p,
+        ctypes.c_int,
+        ctypes.c_void_p,
+        ctypes.c_uint32,
         ctypes.POINTER(ctypes.c_uint32),
     ]
-    size = 1 << 20  # ~75 types at ~130 bytes each; a megabyte leaves two orders of magnitude spare
+    size = (
+        1 << 20
+    )  # ~75 types at ~130 bytes each; a megabyte leaves two orders of magnitude spare
     block = ctypes.create_string_buffer(size)
     needed = ctypes.c_uint32(0)
-    status = ntdll.NtQueryObject(None, _OBJECT_TYPES_INFORMATION, block, size, ctypes.byref(needed))
+    status = ntdll.NtQueryObject(
+        None, _OBJECT_TYPES_INFORMATION, block, size, ctypes.byref(needed)
+    )
     if status != 0:
-        raise OSError(f"NtQueryObject(ObjectTypesInformation) failed: NTSTATUS 0x{status & 0xFFFFFFFF:08X}")
+        raise OSError(
+            f"NtQueryObject(ObjectTypesInformation) failed: NTSTATUS 0x{status & 0xFFFFFFFF:08X}"
+        )
     return parse_object_types(ctypes.addressof(block))
 
 
@@ -541,7 +717,9 @@ def kernel_objects() -> dict:
             "supported": False,
             "reason": "the census reads the x64 OBJECT_TYPE_INFORMATION layout; this interpreter is 32-bit",
         }
-    return summarize_kernel_objects(_windows_object_type_table(), _windows_performance_info())
+    return summarize_kernel_objects(
+        _windows_object_type_table(), _windows_performance_info()
+    )
 
 
 def _windows_process_table() -> list[dict]:
@@ -585,7 +763,12 @@ def _windows_process_table() -> list[dict]:
         if not handle:
             return None
         try:
-            created, exited, kernel, user = FILETIME(), FILETIME(), FILETIME(), FILETIME()
+            created, exited, kernel, user = (
+                FILETIME(),
+                FILETIME(),
+                FILETIME(),
+                FILETIME(),
+            )
             ok = kernel32.GetProcessTimes(
                 handle,
                 ctypes.byref(created),
@@ -675,7 +858,11 @@ def parse_etime(etime: str) -> float:
 def process_table() -> tuple[list[dict], str | None]:
     """Return (records, error). Each record carries pid, ppid, name, started_epoch."""
     try:
-        rows = _windows_process_table() if sys.platform == "win32" else _posix_process_table()
+        rows = (
+            _windows_process_table()
+            if sys.platform == "win32"
+            else _posix_process_table()
+        )
     except (OSError, ValueError, subprocess.SubprocessError) as exc:
         return [], f"process table unavailable: {exc}"
     return rows, None
@@ -732,7 +919,9 @@ def attribute_orphans(
         parent_started = parent.get("started_epoch")
         if parent_started is None:
             summary["parent_alive"] = None
-            summary["reason"] = "parent start time unreadable; PID reuse cannot be excluded"
+            summary["reason"] = (
+                "parent start time unreadable; PID reuse cannot be excluded"
+            )
             unknown.append(summary)
         elif parent_started > started:
             # The PID was recycled: this "parent" started after its supposed child.
@@ -746,6 +935,10 @@ def attribute_orphans(
     return {
         "min_age_hours": min_age_hours,
         "candidate_names": sorted(candidate_names),
+        "candidate_names_note": (
+            "platform-agnostic set; executable-suffixed names are inert on POSIX process "
+            "tables and retained for WSL interop processes"
+        ),
         "orphans": orphans[:20],
         "orphan_count": len(orphans),
         "live_parent_count": len(live_parent),
@@ -762,13 +955,67 @@ def attribute_orphans(
     }
 
 
-def population_trend(sample_a: list[dict], sample_b: list[dict], gap_seconds: float) -> dict:
+def read_proc_text(pid: int, name: str, proc_root: Path | None = None) -> str:
+    """Read one allowlisted `/proc/<pid>/` text file. Raises on any other name.
+
+    The allowlist is enforced here the way `read_json` enforces its own, so the engine's
+    stated read surface and its code cannot drift apart.
+    """
+    if name not in PROC_TEXT_READS:
+        raise AssertionError(f"proc read outside the allowlist: {name}")
+    root = proc_root or PROC_ROOT
+    return (root / str(pid) / name).read_text(encoding="utf-8", errors="replace")
+
+
+def is_kernel_thread(pid: int, proc_root: Path | None = None) -> bool | None:
+    """True for a kernel thread, False for a user process, None when unreadable.
+
+    PF_KTHREAD is the kernel's own predicate, so it is the only classifier used here.
+    `/proc/<pid>/status` carries it as a `Kthread:` line on kernels that publish one;
+    otherwise it is bit 0x00200000 of the task flags word, field 9 of `/proc/<pid>/stat`.
+    Field 2 of `stat` is the command in parentheses and may itself contain spaces and `)`,
+    so the split runs from the LAST `)`.
+
+    Neither a parent pid of 2 nor an empty `cmdline` is consulted. The kernel reparents
+    user-space helpers onto kthreadd, so a ppid test convicts user processes, and a process
+    can rewrite or relocate its own `cmdline`, so an empty read proves nothing. An
+    unclassifiable process is user-space: under-exclusion surfaces as an investigable false
+    alarm, over-exclusion hides a real user-space leak.
+    """
+    try:
+        for line in read_proc_text(pid, "status", proc_root).splitlines():
+            if line.startswith("Kthread:"):
+                return line.split(":", 1)[1].strip() == "1"
+    except OSError:
+        return None
+    try:
+        stat = read_proc_text(pid, "stat", proc_root)
+        remainder = stat[stat.rindex(")") + 1 :].split()
+        return bool(int(remainder[6]) & PF_KTHREAD)
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+def population_trend(
+    sample_a: list[dict],
+    sample_b: list[dict],
+    gap_seconds: float,
+    platform: str | None = None,
+    classify=is_kernel_thread,
+    classify_cap: int = KTHREAD_CLASSIFY_CAP,
+) -> dict:
     """Separate accumulation from churn using two snapshots taken seconds apart.
 
     A rising count with nothing exiting is accumulation. A flat or falling count
     with many pids replaced is churn, which looks identical in a single sample
-    and means something entirely different.
+    and means something entirely different. A name absent from the first sample
+    merely appeared, which is neither.
+
+    On Linux the shortlist is filtered against PF_KTHREAD, because `ps -e` lists the
+    kernel's own threads and a kworker renames its comm across queues, so the same worker
+    reads as a new name arriving every few seconds.
     """
+
     def index(sample: list[dict]) -> dict[str, set[int]]:
         grouped: dict[str, set[int]] = {}
         for record in sample:
@@ -783,7 +1030,9 @@ def population_trend(sample_a: list[dict], sample_b: list[dict], gap_seconds: fl
         delta = len(pids_b) - len(pids_a)
         if exited == 0 and started == 0:
             verdict = "steady"
-        elif exited == 0 and delta > 0:
+        elif len(pids_a) == 0 and started > 0:
+            verdict = "appeared"
+        elif exited == 0 and delta > 0 and len(pids_a) > 0:
             verdict = "accumulating"
         elif exited > 0 and started > 0:
             verdict = "churn"
@@ -800,13 +1049,80 @@ def population_trend(sample_a: list[dict], sample_b: list[dict], gap_seconds: fl
                 "verdict": verdict,
             }
         )
-    rows.sort(key=lambda r: (r["exited"] + r["started"], r["count_second"]), reverse=True)
+    rows.sort(
+        key=lambda r: (r["exited"] + r["started"], r["count_second"]), reverse=True
+    )
+    shortlist = rows[:10]
+    # The second sample is the live one, so classify its pids; a name that has since drained
+    # entirely falls back to the first sample's pids rather than going unclassified.
+    live = {
+        row["name"]: second.get(row["name"]) or first.get(row["name"], set())
+        for row in shortlist
+    }
+    kernel = exclude_kernel_threads(shortlist, live, platform, classify, classify_cap)
     return {
         "gap_seconds": gap_seconds,
-        "most_active": rows[:10],
+        "most_active": kernel["rows"],
+        "kernel_threads_excluded": kernel["excluded"],
+        "kernel_thread_reads": kernel["reads"],
+        "kernel_thread_read_cap": classify_cap,
+        "kernel_thread_note": kernel["note"],
         "note": (
             "A count that rises with nothing exiting is accumulation; a count that holds while "
-            "pids turn over is churn. One sample cannot tell them apart."
+            "pids turn over is churn. One sample cannot tell them apart. A name with no "
+            "processes in the first sample reads `appeared`, not `accumulating`: one arrival "
+            "of a name nothing was running seconds earlier is not evidence of a leak."
+        ),
+    }
+
+
+def exclude_kernel_threads(
+    rows: list[dict],
+    pids_by_name: dict[str, set[int]],
+    platform: str | None = None,
+    classify=is_kernel_thread,
+    classify_cap: int = KTHREAD_CLASSIFY_CAP,
+) -> dict:
+    """Drop shortlist rows whose every classified process is a kernel thread.
+
+    Only the shortlist's processes are read, and only up to `classify_cap` of them, because
+    a per-pid read on a machine chosen for being contended must carry a stated bound. A row
+    the cap leaves unclassified is kept, so the ceiling never silently hides a user process.
+    """
+    if (platform or sys.platform) != "linux":
+        return {
+            "rows": rows,
+            "excluded": None,
+            "reads": 0,
+            "note": (
+                "PF_KTHREAD classification is Linux-only. Other platforms have no analogue in "
+                "the process table: kernel threads there belong to a single kernel process "
+                "that a top-level census never enumerates separately."
+            ),
+        }
+    kept: list[dict] = []
+    reads = 0
+    excluded = 0
+    for row in rows:
+        verdicts = []
+        for pid in sorted(pids_by_name.get(row["name"], set())):
+            if reads >= classify_cap:
+                break
+            verdicts.append(classify(pid))
+            reads += 1
+        if verdicts and all(verdict is True for verdict in verdicts):
+            excluded += 1
+            continue
+        kept.append(row)
+    return {
+        "rows": kept,
+        "excluded": excluded,
+        "reads": reads,
+        "note": (
+            "Rows whose every classified process carries PF_KTHREAD are excluded: they are the "
+            "kernel's own threads, not workload. Classification reads `/proc/<pid>/status` and "
+            "`/proc/<pid>/stat` for the shortlist only, and an unclassifiable process counts as "
+            "user-space."
         ),
     }
 
@@ -866,7 +1182,9 @@ def flatten_hook_block(hooks_block: dict, source: str) -> list[dict]:
                         "event": event,
                         "matcher": matcher,
                         "command": command,
-                        "args": [str(a) for a in args] if isinstance(args, list) else [],
+                        "args": [str(a) for a in args]
+                        if isinstance(args, list)
+                        else [],
                         "timeout": hook.get("timeout"),
                         "source": source,
                     }
@@ -936,7 +1254,9 @@ def classify_hooks(entries: list[dict]) -> dict:
         rows = buckets[name]
         return {
             "count": len(rows),
-            "matchers": sorted({str(r.get("matcher")) for r in rows if r.get("matcher")}),
+            "matchers": sorted(
+                {str(r.get("matcher")) for r in rows if r.get("matcher")}
+            ),
             "sources": sorted({str(r.get("source")) for r in rows}),
         }
 
@@ -968,9 +1288,11 @@ def winning_install_path(installs: object) -> str | None:
         return None
     ranked = sorted(
         (i for i in installs if isinstance(i, dict) and i.get("installPath")),
-        key=lambda i: SCOPE_PRECEDENCE.index(i.get("scope"))
-        if i.get("scope") in SCOPE_PRECEDENCE
-        else len(SCOPE_PRECEDENCE),
+        key=lambda i: (
+            SCOPE_PRECEDENCE.index(i.get("scope"))
+            if i.get("scope") in SCOPE_PRECEDENCE
+            else len(SCOPE_PRECEDENCE)
+        ),
     )
     return str(ranked[0]["installPath"]) if ranked else None
 
@@ -1094,9 +1416,10 @@ def concurrency_ceilings(root: Path, process_env: dict | None = None) -> dict:
         if value == "0" and name in TRUTHINESS_GATED_ENV:
             record["zero_is_not_a_disable"] = True
             ceilings["findings"].append(
-                f"{name}: set to \"0\", which is TRUTHY in JavaScript and does not disable it"
+                f'{name}: set to "0", which is TRUTHY in JavaScript and does not disable it'
             )
         ceilings["variables"][name] = record
+
     def effective(name: str) -> int | str | None:
         record = ceilings["variables"][name]
         value = record["value"]
@@ -1108,7 +1431,9 @@ def concurrency_ceilings(root: Path, process_env: dict | None = None) -> dict:
             return value
 
     ceilings["effective"] = {
-        "max_concurrent_subagents_per_session": effective("CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS"),
+        "max_concurrent_subagents_per_session": effective(
+            "CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS"
+        ),
         "max_subagent_spawn_depth": effective("CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH"),
         "note": (
             "Depth multiplies against the per-session concurrency limit, and every subagent "
@@ -1117,7 +1442,7 @@ def concurrency_ceilings(root: Path, process_env: dict | None = None) -> dict:
     }
     ceilings["trap"] = (
         "These flags are read through a JavaScript truthiness test on the raw string, and the "
-        "string \"0\" is truthy. Setting one to 0 reads like a disable in a settings file and is "
+        'string "0" is truthy. Setting one to 0 reads like a disable in a settings file and is '
         "a silent no-op; only removing the variable disables it. Never advise setting one to 0."
     )
     return ceilings
@@ -1137,12 +1462,16 @@ def config_liveness(root: Path, records: list[dict]) -> dict:
         return {"settings_present": False}
     mtime = settings.stat().st_mtime
     sessions = [
-        r for r in records if is_claude_process(r["name"]) and r.get("started_epoch") is not None
+        r
+        for r in records
+        if is_claude_process(r["name"]) and r.get("started_epoch") is not None
     ]
     stale = [r for r in sessions if r["started_epoch"] < mtime]
     result = {
         "settings_present": True,
-        "settings_mtime": datetime.fromtimestamp(mtime, timezone.utc).isoformat(timespec="seconds"),
+        "settings_mtime": datetime.fromtimestamp(mtime, timezone.utc).isoformat(
+            timespec="seconds"
+        ),
         "candidate_sessions": len(sessions),
         "sessions_predating_settings": len(stale),
         "session_identification": "process-name heuristic (claude, node, bun); not a session id",
@@ -1172,8 +1501,13 @@ def config_liveness(root: Path, records: list[dict]) -> dict:
     return result
 
 
-def fan_out_layer(root: Path, records: list[dict], project_dir: Path | None,
-                  spawn_samples: int, timeout_s: float) -> dict:
+def fan_out_layer(
+    root: Path,
+    records: list[dict],
+    project_dir: Path | None,
+    spawn_samples: int,
+    timeout_s: float,
+) -> dict:
     """The fourth suspect: what the machine pays per spawn, per hook, and per subagent."""
     return {
         "spawn_cost": spawn_probe(
@@ -1185,6 +1519,24 @@ def fan_out_layer(root: Path, records: list[dict], project_dir: Path | None,
         "statusline": statusline_config(root),
         "config_liveness": config_liveness(root, records),
         "concurrency_ceilings": concurrency_ceilings(root),
+    }
+
+
+def operator_context(notes: list[str] | None, source: str = "unspecified") -> dict:
+    """Record what only a human at the machine can know, and record its absence as a fact.
+
+    The engine sees the machine, never the intent: which thing felt slow, how many terminals
+    were open, what the session was doing. A run with none of that is incomplete, and saying
+    so in the report is what keeps the gap visible instead of letting a silent absence read
+    as a clean bill of health. The declared source is taken at face value because nothing in
+    a process can verify who typed a flag.
+    """
+    supplied = list(notes or [])
+    return {
+        "status": "present" if supplied else "absent",
+        "notes": supplied,
+        "source": source,
+        "note": "supplied via --note by the invoker; the engine cannot verify origin",
     }
 
 
@@ -1202,17 +1554,46 @@ def advisories(root: Path) -> list[str]:
     return notes
 
 
-def main() -> int:
+def build_parser() -> argparse.ArgumentParser:
+    """The CLI surface, built apart from `main` so the flag contract is directly testable."""
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--root", type=Path, default=None, help="install root (else $CLAUDE_CONFIG_DIR, else ~/.claude)")
-    ap.add_argument("--session-id", default=None, help="current session id, for the report's capture context")
-    ap.add_argument("--skip-processes", action="store_true", help="skip the process table and census")
-    ap.add_argument("--skip-fan-out", action="store_true", help="skip the fan-out layer probes")
+    ap.add_argument(
+        "--root",
+        type=Path,
+        default=None,
+        help="install root (else $CLAUDE_CONFIG_DIR, else ~/.claude)",
+    )
+    ap.add_argument(
+        "--session-id",
+        default=None,
+        help="current session id, for the report's capture context",
+    )
+    ap.add_argument(
+        "--skip-processes",
+        action="store_true",
+        help="skip the process table and census",
+    )
+    ap.add_argument(
+        "--skip-fan-out", action="store_true", help="skip the fan-out layer probes"
+    )
     ap.add_argument(
         "--project-dir",
         type=Path,
         default=None,
         help="project root, so project-scope hooks in .claude/settings.json are counted too",
+    )
+    ap.add_argument(
+        "--note",
+        action="append",
+        default=None,
+        metavar="TEXT",
+        help="Attach operator context; repeat for multiple notes.",
+    )
+    ap.add_argument(
+        "--note-source",
+        choices=("operator", "assistant"),
+        default="unspecified",
+        help="who supplied the notes; the engine cannot verify this and records it as declared",
     )
     ap.add_argument(
         "--spawn-samples",
@@ -1239,7 +1620,11 @@ def main() -> int:
             "a finding, never dropped."
         ),
     )
-    args = ap.parse_args()
+    return ap
+
+
+def main() -> int:
+    args = build_parser().parse_args()
 
     root = (args.root or default_root()).expanduser().resolve()
     report: dict = {
@@ -1248,6 +1633,7 @@ def main() -> int:
         "platform": sys.platform,
         "session_id": args.session_id,
         "quiesced": False,
+        "operator_context": operator_context(args.note, args.note_source),
         "timings_seconds": {},
         "errors": [],
     }
@@ -1257,7 +1643,7 @@ def main() -> int:
         return 2
 
     for key, fn, fnargs in (
-        ("cli", cli_version, ()),
+        ("cli", cli_version, (args.project_dir,)),
         ("sweep_health", sweep_health, (root,)),
         ("tree_census", tree_census, (root,)),
         ("home_root_state", home_root_state, ()),
@@ -1273,17 +1659,23 @@ def main() -> int:
 
     records: list[dict] = []
     if not args.skip_processes:
-        (records, table_error), report["timings_seconds"]["process_table"] = timed(process_table)
+        (records, table_error), report["timings_seconds"]["process_table"] = timed(
+            process_table
+        )
         report["processes"], report["timings_seconds"]["processes"] = timed(
             process_census, records, table_error
         )
         if records and args.population_gap > 0:
+
             def trend() -> dict:
                 time.sleep(args.population_gap)
                 second, _ = process_table()
                 return population_trend(records, second, args.population_gap)
 
-            report["processes"]["population"], report["timings_seconds"]["population"] = timed(trend)
+            (
+                report["processes"]["population"],
+                report["timings_seconds"]["population"],
+            ) = timed(trend)
 
     if not args.skip_fan_out:
         report["fan_out"], report["timings_seconds"]["fan_out"] = timed(
