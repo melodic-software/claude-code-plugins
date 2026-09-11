@@ -14,7 +14,7 @@ value to count against, not a bar.
 |---|---|
 | `/code-metrics:audit-complexity` | Per-function cyclomatic and cognitive complexity and Halstead difficulty from whichever collector resolves (`lizard`, `radon`, ESLint rules, `gocyclo`, `gocognit`, `shellmetrics`, `multimetric`), beside the ISO/IEC 5055 §8.2.117 reference of 20 with 10 and 15 selectable; cognitive and Halstead carry no standard threshold. |
 | `/code-metrics:audit-size` | Lines per file (total, blank, comment, code through `scc`; total and non-blank from a bundled counter otherwise) beside a cited reference; `size.mode: iso-8.2.115` adds the ISO function-percentage form. |
-| `/code-metrics:audit-duplication` | Clone groups (duplicated lines and tokens, every instance's range) from `jscpd`, `dupl`, or PMD CPD, minus the replication the repository declares in a sanctioned-replication registry, which is an exclusion, not a suppression. |
+| `/code-metrics:audit-duplication` | Clone classes (the detector's pairs merged; duplicated lines and tokens, every instance's range) from `jscpd`, `dupl`, or PMD CPD, rolled up per lane and per directory, minus the replication the repository declares in a sanctioned-replication registry (a path-within-plugin, or a `canonical -> copies` cluster line), which is an exclusion, not a suppression. A file over the size cap is reported as skipped, never silently dropped. |
 | `/code-metrics:audit-coverage` | Line coverage per file and per function read from the artifacts a build already produced (lcov 1.x and 2.2, Cobertura, coverage.py JSON, Go cover profile), plus CRAP per function from the complexity rows; it never runs a test, a missing artifact is a visible warning, and a function with no executable lines reports `null`, never zero. |
 | `/code-metrics:audit-type-debt` | The typed-code percentage per lane: `type-coverage` for TypeScript, mypy's `--any-exprs-report` for Python; no standard or CWE anchors the measure, so the reference is `null` by design. C# is reported as not applicable. |
 | `/code-metrics:principles` | Metric literacy: what each measure can and cannot tell you, where every reference value came from, CRAP's corrected provenance, the cross-metric caveats (carried once, here), and gated pointers to the plugins that own mutation score, tautological tests, dead code, coupling, and lint. |
@@ -118,7 +118,8 @@ figure for a live session.
   `scripts/config-defaults.json`. The setup template and the `reference/config.md` key table both
   are, by a test and by `scripts/check-code-metrics-config-reference.py`; what remains unbound is
   the number written into a sentence or a small illustrative table, currently `coverage.reference`
-  in `audit-coverage`, `duplication.min_tokens` and `duplication.min_lines` in `audit-duplication`,
+  in `audit-coverage`, `duplication.min_tokens`, `duplication.min_lines`, `duplication.max_size`,
+  `duplication.max_lines`, and `duplication.rollup_depth` in `audit-duplication`,
   `type_debt.reference` in `audit-type-debt`, and the cyclomatic reference in `setup`. Those drift
   silently until someone reads them.
 

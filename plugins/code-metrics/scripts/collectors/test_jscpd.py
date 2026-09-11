@@ -6,11 +6,10 @@ generates a fake `jscpd` in a temporary directory prepended to PATH that
 copies the committed capture fixtures/tool-output/jscpd.json into the
 `--output` directory the adapter passes, the way jscpd 5 writes its own
 report (design T13; no executable is committed). The capture came from a live
-jscpd 5.1.2 run over the two-copy cluster under
-fixtures/sources/cluster/{alpha,beta}/shared/shared-utils.sh; 5.2.0 writes the
-same document plus a per-duplicate `kind` the adapter does not read, and 4.3.0
-writes the same keys the adapter does read, so one capture stands in for both
-majors and the stub only varies the version line.
+jscpd 5.2.0 run over the two-copy cluster under
+fixtures/sources/cluster/{alpha,beta}/shared/shared-utils.sh, rewritten to
+repo-relative names; 4.3.0 writes the same keys the adapter reads, so one
+capture stands in for both majors and the stub only varies the version line.
 """
 
 from __future__ import annotations

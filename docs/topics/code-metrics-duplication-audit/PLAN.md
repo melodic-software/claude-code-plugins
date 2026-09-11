@@ -478,7 +478,7 @@ Review: code-design
   the install hint appears in that headline and again in each lane row's reason, which the
   dispatcher builds with the hint embedded and this phase leaves unchanged.
 
-### Phase 5: SKILL.md, README, CHANGELOG, version, dogfood [TODO]
+### Phase 5: SKILL.md, README, CHANGELOG, version, dogfood [DONE]
 
 1. `skills/audit-duplication/SKILL.md`: configuration section names the three new keys, the
    `0`-means-null rule, and both registry line shapes; "Run it" gains the no-detector instruction
@@ -516,6 +516,20 @@ Review: code-design
 - `grep -n '^## Next' plugins/code-metrics/skills/audit-duplication/SKILL.md` precedes `^## Gotchas`;
   `grep -c '5\.1\.2' plugins/code-metrics/reference/collectors.md plugins/code-metrics/scripts/collectors/test_jscpd.py plugins/code-metrics/skills/audit-duplication/scripts/audit-duplication.test.sh` prints `0` for each.
 - `markdownlint-cli2` over the changed markdown exits 0.
+
+**Dogfood (whole tree, `--all --registry scripts/cross-plugin-source-registry.txt`, 2026-09-11):**
+
+| Detector | Status | Surviving classes | Duplicated lines | Files with clones | Excluded | Partial lanes |
+|---|---|---|---|---|---|---|
+| jscpd 5.2.0 | partial | 742 | 11831 | 487 | 14 (the five cluster lines: 18, 7, 4, 2, 2 instances) | typescript (1 of 295 files over 1mb: `plugins/miro/dist/index.min.js`) |
+| jscpd 4.3.0 | partial | 625 | 10926 | 429 | 14 | typescript (same file) |
+
+Before this change the same 5.2.0 run reported 919 pair rows and 75267 duplicated lines with no
+skipped file named. The two majors tokenize differently, so their counts are not comparable with
+each other. The largest surviving classes are per-suite test-harness boilerplate (`pass`/`fail`
+helpers shared by `lib/*.test.sh` and plugin test files), which no sync script declares and the
+shell-test-helpers convention keeps per file: a finding for the operator, not sanctioned
+replication.
 
 ### Alternatives Considered
 
