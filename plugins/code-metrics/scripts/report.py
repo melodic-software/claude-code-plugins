@@ -230,6 +230,34 @@ def _fmt(value: Any) -> str:
     return str(value)
 
 
+def _render_order(row: dict[str, Any]) -> tuple:
+    """Sort key for the markdown table, which is capped at MAX_RENDERED_ROWS.
+
+    Rows over a reference come first. Then function rows carrying a CRAP number,
+    highest first, so the cap never drops the most complex untested function in
+    favour of an alphabetically earlier file; function rows with a null CRAP follow
+    them; file rows come after, least covered first with a null percentage last.
+    Rows that carry none of those keys keep the file-and-line order, so a skill
+    whose values are lines or clone instances renders as before.
+    """
+    values = row.get("values") or {}
+    crap = values.get("crap")
+    coverage = values.get("coverage_pct")
+    if row.get("function"):
+        group = 0 if isinstance(crap, (int, float)) else 1
+    else:
+        group = 2
+    return (
+        -len(row.get("over_reference", [])),
+        group,
+        -(crap if isinstance(crap, (int, float)) else 0),
+        not isinstance(coverage, (int, float)),
+        coverage if isinstance(coverage, (int, float)) else 0,
+        row.get("file") or "",
+        row.get("start_line") or 0,
+    )
+
+
 def render(doc: dict[str, Any]) -> str:
     lines: list[str] = []
     status = doc.get("status", "empty")
@@ -288,14 +316,7 @@ def render(doc: dict[str, Any]) -> str:
         lines.append(header)
         lines.append("|" + "---|" * (4 + len(keys)))
         shown = 0
-        for row in sorted(
-            measures,
-            key=lambda r: (
-                -len(r.get("over_reference", [])),
-                r.get("file", ""),
-                r.get("start_line") or 0,
-            ),
-        ):
+        for row in sorted(measures, key=_render_order):
             if shown >= MAX_RENDERED_ROWS:
                 lines.append(
                     f"| ... | | | {' | '.join('' for _ in keys)} | {len(measures) - shown} more rows in the JSON |"

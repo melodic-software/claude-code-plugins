@@ -64,6 +64,12 @@ otherwise keep the JSON beside your notes and compare by hand.
   are null.
 - A function row exists for every function whose complexity collector reported a real end line.
   It carries `coverage_pct`, `cyclomatic`, `crap`, and, in the JSON, `cov_source` and `hit`.
+- The markdown table is ordered so the rows worth reading survive its 200-row cap: rows over a
+  reference first, then function rows by CRAP descending with a null CRAP last, then file rows by
+  coverage ascending with a null percentage last, and file and line only as the tie-break. The
+  first function row is the highest-CRAP function in scope, however its file name sorts; the rows
+  the cap drops are counted on the last line and are all in the `--json` document, which is not
+  capped.
 - `cov_source` says where the coverage came from: `artifact-region` when the artifact carried the
   function's own region (coverage.py `functions`, a Cobertura `<method>`, an lcov 2.2 `FNL` end
   line), `line-range` when the range came from the complexity collector, in which case nested

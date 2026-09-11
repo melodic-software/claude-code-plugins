@@ -17,6 +17,14 @@ All notable changes to the `code-metrics` plugin are documented here. Format fol
   status, and the shared renderer adds an `Exit 3:` summary line naming every run row whose
   reason carries the dispatcher's `collect failed (exit 3)` prefix, in this skill and in
   `audit-complexity`.
+- **The markdown table keeps the highest-CRAP functions under its 200-row cap.** The shared
+  renderer sorted every row by file and line after the over-reference count, and the coverage
+  skill's default reference is null, so a tree with more than 200 rows rendered its
+  alphabetically-first files and dropped the rest, including the most complex untested
+  functions, which is the one thing the CRAP column is for. Rows over a reference still come
+  first; after them function rows sort by CRAP descending with a null CRAP last, file rows by
+  coverage ascending with a null percentage last, and file and line only break ties. Rows without
+  those values, every other skill's table, keep the file-and-line order they had.
 
 ## [0.1.9]
 

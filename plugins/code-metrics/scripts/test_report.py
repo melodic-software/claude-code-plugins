@@ -598,6 +598,108 @@ class RenderTests(unittest.TestCase):
         self.assertIn("never a bar", result.stdout)
         self.assertIn("Over reference: file_lines 1.", result.stdout)
 
+    def test_capped_coverage_table_leads_with_the_highest_crap_function(self) -> None:
+        """Under the 200-row cap the first function row is the highest CRAP in scope,
+        function rows with a null CRAP follow, and file rows come after them, least
+        covered first with a null percentage last, whatever the file names sort to."""
+
+        def function_row(file: str, name: str, crap, cov, line: int = 1) -> dict:
+            return {
+                "file": file,
+                "function": name,
+                "lane": "python",
+                "start_line": line,
+                "values": {"coverage_pct": cov, "cyclomatic": 3, "crap": crap},
+                "over_reference": [],
+            }
+
+        def file_row(file: str, cov) -> dict:
+            return {
+                "file": file,
+                "function": None,
+                "lane": "python",
+                "start_line": None,
+                "values": {"coverage_pct": cov, "lines_executable": 10, "lines_hit": 5},
+                "over_reference": [],
+            }
+
+        # 250 alphabetically-early filler functions would fill the cap on their own.
+        filler = [
+            function_row(f"a/{i:03d}.py", f"f{i}", crap=3.0 + (i % 7), cov=50.0)
+            for i in range(250)
+        ]
+        top = function_row("zzz/join.py", "join", crap=3192.0, cov=0.0)
+        null_crap = function_row("zzz/join.py", "empty", crap=None, cov=None, line=90)
+        files = [
+            file_row("zzz/a.py", 100.0),
+            file_row("zzz/b.py", None),
+            file_row("zzz/c.py", 12.5),
+        ]
+        measures = filler + files + [null_crap, top]
+        doc = {
+            "schema": "code-metrics/v1",
+            "skill": "audit-coverage",
+            "status": "complete",
+            "scope": {"mode": "paths", "base": None, "files": 253, "excluded": 0},
+            "run": [
+                {
+                    "lane": "python",
+                    "measure": "coverage",
+                    "collector": "coverage-json",
+                    "status": "ok",
+                    "reason": None,
+                }
+            ],
+            "thresholds": [],
+            "measures": measures,
+            "summary": {"files": 253, "functions": 252, "over_reference": {}},
+            "excluded": [],
+            "unavailable": [],
+        }
+        result = run("render", stdin=json.dumps(doc))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        table = [
+            line
+            for line in result.stdout.splitlines()
+            if line.startswith("| ") and not line.startswith("| File |")
+        ]
+        measure_rows = [
+            line
+            for line in table
+            if line.startswith("| zzz/") or line.startswith("| a/")
+        ]
+        self.assertEqual(len(measure_rows), 200)
+        self.assertTrue(
+            measure_rows[0].startswith(
+                "| zzz/join.py | join | python | 0 | 3 | 3192 |"
+            ),
+            measure_rows[0],
+        )
+        self.assertIn("| 55 more rows in the JSON |", result.stdout)
+        # The filler outranks nothing above it: its rows follow the top function by
+        # CRAP descending, so the second row is the highest filler CRAP (3 + 6).
+        self.assertIn("| 9 |", measure_rows[1])
+        self.assertNotIn("| zzz/join.py | empty |", result.stdout)
+        self.assertNotIn("| zzz/c.py |", result.stdout)
+
+        # With the cap lifted, the null-CRAP function precedes every file row and the
+        # file rows read least covered first with the null percentage last.
+        doc["measures"] = files + [null_crap, top]
+        result = run("render", stdin=json.dumps(doc))
+        rows = [
+            line for line in result.stdout.splitlines() if line.startswith("| zzz/")
+        ]
+        self.assertEqual(
+            [row.split(" | ")[0] + " | " + row.split(" | ")[1] for row in rows],
+            [
+                "| zzz/join.py | join",
+                "| zzz/join.py | empty",
+                "| zzz/c.py | ",
+                "| zzz/a.py | ",
+                "| zzz/b.py | ",
+            ],
+        )
+
     def test_a_collect_failed_row_puts_an_exit_3_line_in_the_summary(self) -> None:
         # The dispatcher writes `collect failed (exit 3)` on the run row of a
         # collector that ran and produced nothing parseable, and the entry script
