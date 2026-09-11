@@ -52,7 +52,7 @@ MIN_PYTHON = (3, 11)
 # 1.1.0: `listing` gains `inputs` (settings and environment provenance) and,
 # when no window or bytes-per-token pin is given, a `band` array with the
 # top-level numbers nulled. Every 1.0.0 field is still present.
-SCHEMA_VERSION = "1.1.0"
+SCHEMA_VERSION = "1.2.0"
 
 
 @dataclass(frozen=True)
@@ -1493,11 +1493,21 @@ def _demand_chars(entry: dict, cfg: ListingConfig) -> int:
     `JOINER_CHARS=3`; the two implementations are deliberate duplicates (the
     cross-plugin boundary bars importing) and must stay reconciled.
     """
+    return min(_description_chars(entry, cfg), cfg.max_desc_chars)
+
+
+def _description_chars(entry: dict, cfg: ListingConfig) -> int:
+    """The uncapped length the listing would charge, joiner included.
+
+    Kept beside the capped charge because the two answer different questions:
+    the charge is what the budget counts, and the source length is what an
+    author has to trim, which only lowers the charge once it crosses the cap.
+    """
     frontmatter = entry.get("frontmatter") or {}
     description = frontmatter.get("description") or ""
     when_to_use = frontmatter.get("when_to_use") or ""
     joiner = cfg.joiner_chars if (description and when_to_use) else 0
-    return min(len(description) + joiner + len(when_to_use), cfg.max_desc_chars)
+    return len(description) + joiner + len(when_to_use)
 
 
 def compute_listing(
@@ -1553,6 +1563,7 @@ def compute_listing(
                 "qualified_name": entry["qualified_name"],
                 "eligibility": eligibility,
                 "demand_chars": chars,
+                "description_chars": _description_chars(entry, cfg),
                 "usage_score": scores.get(
                     entry["qualified_name"], entry.get("usage_score", 0)
                 ),
@@ -1765,6 +1776,11 @@ def starvation_withheld(listing: dict) -> bool:
     """
     if listing.get("score_basis") != "unscored":
         return False
+    return listing_overflows(listing)
+
+
+def listing_overflows(listing: dict) -> bool:
+    """Whether any budget row overflows: one row is enough for a band."""
     band = listing.get("band")
     if band:
         return any(row["overflow_chars"] > 0 for row in band)
@@ -2224,6 +2240,10 @@ def _render_markdown(model: dict) -> str:
             f"(bundled, user-only, and disabled-plugin skills spend no budget)",
             "",
         ]
+        if any_overflow:
+            inputs = listing.get("inputs") or {}
+            cap = (inputs.get("max_desc_chars") or {}).get("value")
+            lines += _render_longest(model["skills"], cap)
         if listing.get("inputs"):
             lines += _render_inputs(listing["inputs"])
     authored = [s for s in model["skills"] if s.get("churn")]
@@ -2253,6 +2273,8 @@ def _render_markdown(model: dict) -> str:
                 f"observation: {row['observation']['value']}"
             )
         lines.append("")
+
+    lines += _render_next_actions(model)
 
     if model["withheld"]:
         lines += [
@@ -2308,7 +2330,172 @@ def _render_reachability(skills: list[dict]) -> list[str]:
         lines.append("")
         if len(hidden) > 10:
             lines += [f"…and {len(hidden) - 10} more", ""]
+    lines += _render_misconfigured(skills)
     return lines
+
+
+def _render_misconfigured(skills: list[dict]) -> list[str]:
+    """The misconfigured table, with each cause's remedy stated once.
+
+    Every row here is a fix, never a removal candidate: the causes are silent,
+    so a misconfigured skill reads exactly like an unwanted one until it is
+    named. The remedy is keyed by cause rather than repeated per row, because
+    two rows with the same cause need the same fix.
+    """
+    rows = sorted(
+        (r for r in skills if r["reachability"]["value"] == "misconfigured"),
+        key=lambda r: r["qualified_name"],
+    )
+    if not rows:
+        return []
+    lines = [
+        "Misconfigured: the frontmatter gives the listing nothing reliable to "
+        "match. Malformed frontmatter loads with no metadata at all; a missing "
+        "description falls back to the first body paragraph, which may carry "
+        "none of the keywords a request would use. Each row is a fix, not a "
+        "removal candidate.",
+        "",
+        "| Skill | Cause |",
+        "|---|---|",
+    ]
+    for row in rows[:10]:
+        causes = ", ".join(row["reachability"]["causes"])
+        lines.append(f"| `{row['qualified_name']}` | {causes} |")
+    lines.append("")
+    if len(rows) > 10:
+        lines += [f"…and {len(rows) - 10} more", ""]
+    causes_seen = sorted({c for r in rows for c in r["reachability"]["causes"]})
+    lines += [f"- `{cause}`: {MISCONFIGURED_REMEDIES[cause]}" for cause in causes_seen]
+    lines.append("")
+    return lines
+
+
+def _render_longest(skills: list[dict], cap: int | None) -> list[str]:
+    """The longest competing descriptions by source length, with their charge.
+
+    Rendered only when something overflows, because on a listing that fits
+    there is nothing to trim. Ranked by the uncapped source length rather than
+    the charge, since the charge saturates at `skillListingMaxDescChars` and
+    would order every over-cap description by name; the charge is shown beside
+    it because trimming lowers the overflow only once the source length is
+    under the cap. It is arithmetic over length and is labelled that way:
+    which skills LOSE their descriptions is a separate, usage-ordered claim
+    that an unscored run withholds, and this table must not be read as that
+    ranking.
+    """
+    competing = [r for r in skills if r["starvation"].get("eligibility") == "competing"]
+    if not competing:
+        return []
+
+    def _source(row: dict) -> int:
+        starvation = row["starvation"]
+        return starvation.get("description_chars", starvation["demand_chars"])
+
+    ranked = sorted(competing, key=lambda r: (-_source(r), r["qualified_name"]))
+    cap_text = f"{cap:,}" if cap else "`skillListingMaxDescChars`"
+    lines = [
+        "Longest competing descriptions, ranked by source length. The listing "
+        f"charges each description at most {cap_text} characters "
+        "(`skillListingMaxDescChars`), shown as Charged, so trimming lowers the "
+        "overflow only once a description is under that cap. This ranks "
+        "length, not starvation, so it says nothing about which skills lose "
+        "theirs.",
+        "",
+        "| Skill | Description chars | Charged |",
+        "|---|---|---|",
+    ]
+    for row in ranked[:10]:
+        lines.append(
+            f"| `{row['qualified_name']}` | {_source(row):,} | "
+            f"{row['starvation']['demand_chars']:,} |"
+        )
+    lines.append("")
+    if len(ranked) > 10:
+        lines += [f"…and {len(ranked) - 10} more competing", ""]
+    return lines
+
+
+def _budget_control(listing: dict) -> str:
+    """The one budget input a reader can actually move, read from provenance.
+
+    The fraction is the documented control, but it is not always the effective
+    one: `SLASH_COMMAND_TOOL_CHAR_BUDGET` overrides it outright, a
+    `--budget-fraction` pin changes this report and not the session, and a
+    managed-policy value outranks every scope a user edits. Recommending the
+    fraction in those cases would send the reader to a setting that cannot
+    move the overflow they were shown.
+    """
+    inputs = listing.get("inputs") or {}
+    if (inputs.get("env_char_budget") or {}).get("value") is not None:
+        return (
+            "raise `SLASH_COMMAND_TOOL_CHAR_BUDGET`, which overrides "
+            "`skillListingBudgetFraction` in this environment"
+        )
+    fraction = inputs.get("budget_fraction") or {}
+    provenance = str(fraction.get("provenance", ""))
+    if provenance.startswith("pin:"):
+        return (
+            "raise `skillListingBudgetFraction` in settings; this run's "
+            "`--budget-fraction` pin changes the report, not the session"
+        )
+    if provenance.startswith("settings:"):
+        path = provenance.partition(":")[2]
+        scope = next(
+            (
+                layer.get("scope")
+                for layer in inputs.get("settings_scopes", [])
+                if layer.get("path") == path
+            ),
+            None,
+        )
+        if scope == "policy":
+            return (
+                f"raise `skillListingBudgetFraction` in the managed policy at "
+                f"`{path}`, which outranks every scope a user edits"
+            )
+        return (
+            f"raise `skillListingBudgetFraction` above {fraction.get('value')} "
+            f"in `{path}`"
+        )
+    return "raise `skillListingBudgetFraction` in settings"
+
+
+def _render_next_actions(model: dict) -> list[str]:
+    """One line naming the actions this run's findings support, and no other.
+
+    Built only from conditions present in the model, so a clean run says there
+    is nothing to fix rather than listing generic advice. Usage and token cost
+    per skill belong to the bundled `/skill-doctor` and are not pointed at.
+    """
+    counts: dict[str, int] = defaultdict(int)
+    for row in model["skills"]:
+        counts[row["reachability"]["value"]] += 1
+    listing = model.get("listing") or {}
+    steps: list[str] = []
+    if counts.get("misconfigured"):
+        steps.append(
+            f"fix the frontmatter of the {counts['misconfigured']} misconfigured "
+            f"{_plural(counts['misconfigured'], 'skill')} listed under Reachability"
+        )
+    if counts.get("hidden"):
+        steps.append(
+            "enable the hidden plugins in the scope that disables them, or "
+            "leave them off on purpose"
+        )
+    if listing and listing_overflows(listing):
+        steps.append(
+            "trim the longest competing descriptions, or " + _budget_control(listing)
+        )
+        if listing.get("score_basis") == "unscored":
+            steps.append(
+                "collect usage through the skill-usage hooks before trusting "
+                "any per-skill starvation ranking"
+            )
+    lines = ["## Next actions", ""]
+    if not steps:
+        return lines + ["Nothing to fix from this run.", ""]
+    joined = "; ".join(steps)
+    return lines + [joined[0].upper() + joined[1:] + ".", ""]
 
 
 def _render_single_budget(listing: dict) -> list[str]:
