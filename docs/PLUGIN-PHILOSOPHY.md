@@ -115,15 +115,20 @@ implementation detail.
 ## Naming
 
 A skill name is an imperative verb phrase; the plugin namespace supplies the object
-(`/machine-health:audit`, `/source-control:commit`). Names compose into instruction sentences —
-"/discovery:explore the module, then /planning:interview me" — and one grammar keeps every name in
+(`/machine-health:audit`, `/source-control:commit`). Names compose into instruction sentences,
+"/discovery:explore the module, then /planning:interview me", and one grammar keeps every name in
 the marketplace predictable. This is a deliberate, documented deviation from the official authoring
-guidance's gerund preference — and the guidance sanctions it: gerunds are what it says to "consider
+guidance's gerund preference, and the guidance sanctions it: gerunds are what it says to "consider
 using", action-oriented names (`process-pdfs`, `analyze-spreadsheets`) are listed under "Acceptable
 alternatives", and what it puts under Avoid is "inconsistent patterns within your skill collection",
 which is exactly the consistency this section supplies
-([skill authoring best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices),
-verified 2026-08-10).
+([skill authoring best practices, "Naming conventions"](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#naming-conventions),
+verified 2026-09-10). Neither source treats one form as required: the agentskills.io
+specification's own example names are noun phrases (`pdf-processing`, `data-analysis`,
+`code-review`; [specification](https://agentskills.io/specification), verified 2026-09-10), and
+Claude Code validates no naming form (`claude plugin validate` 2.1.263 passed a non-conforming
+name, verified 2026-09-10). Recheck this paragraph when the page's Avoid list changes, when the
+specification's example names change, or when `claude plugin validate` starts rejecting a form.
 
 Verb meanings are fixed:
 
