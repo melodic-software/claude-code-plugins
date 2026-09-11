@@ -202,7 +202,7 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
 
 - **`dissolve-comments`:** the class-C earn-its-keep test stated a decision the workflow never
   implemented. A comment that was inexpressible, within budget, and **not** load-bearing had a
-  verdict and no treatment, and "doubt keeps the comment" resolved the gap to keep — so on a
+  verdict and no treatment, and "doubt keeps the comment" resolved the gap to keep, so on a
   rationale-dense repository the skill returned zero edits by construction. The triage table now
   names the treatment on both sides of the test, and step 6 carries the delete branch.
 - **`dissolve-comments`:** criterion 2 had no evidence procedure, so "recoverable from version
@@ -226,14 +226,14 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   `${CLAUDE_SKILL_DIR}` grant, and `allowed-tools-pairing.test.sh` gained a body-side check for the
   class plus coverage of `dissolve-comments`, which it had never checked.
 - **`allowed-tools-pairing.test.sh`:** its header taught that `${CLAUDE_PLUGIN_ROOT}` is never
-  substituted in `allowed-tools` and a grant naming it is inert. That is stale — the token does
+  substituted in `allowed-tools` and a grant naming it is inert. That is stale. The token does
   substitute in a plugin skill's `allowed-tools` Bash rules
   (<https://code.claude.com/docs/en/skills>, fetched 2026-09-07). The gate's requirement stands on
   its real reason instead: the docs establish substitution, not runtime matching on every host, and
   this repo does not ship a grant on docs alone.
 - **`dissolve-comments`:** the new class-C deletion branch contradicted `safe` mode and posture
   `conservative`, which promise that only class-A deletions are applied. It is now proposed, never
-  applied, in both — a verdict reached inside a narrowed mode does not widen it.
+  applied, in both. A verdict reached inside a narrowed mode does not widen it.
 - **`dissolve-comments`:** `description` sat at 1024/1024 against the Agent Skills spec field
   maximum with zero headroom; trimmed to 978, all trigger phrases preserved.
 
@@ -244,8 +244,8 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   mode" in `safety.md` and a class-C criterion-1 pass everywhere else, and the plugin's own eval 13
   requires rewriting rejected-alternative narrative to the budget. They are now class C with a
   raised evidence bar, held to the same test and budget as any class-C comment.
-- **`dissolve-comments`:** the one-directional posture ladder is documented — `strict` is both
-  default and ceiling — and class B's apply capacity (2 of 15 moves without a test net, 0 of 15
+- **`dissolve-comments`:** the one-directional posture ladder is documented, with `strict` as both
+  default and ceiling, and class B's apply capacity (2 of 15 moves without a test net, 0 of 15
   with tree-sitter absent, no move dissolves a why) is stated where class B is introduced rather
   than left to be inferred from a zero result.
 - **`dissolve-comments`:** scope reporting lists every dropped path with its reason instead of a
@@ -592,7 +592,7 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   `set -o pipefail` the `&&` list takes the pipeline's exit status, and pipefail makes that non-zero
   in two ordinary situations: the filter matching nothing, and `git` taking SIGPIPE when `head`
   closes the pipe at the cap. Both fire the failure token on a healthy probe, which is worse than
-  the defect 0.14.12 removed — the shape it replaced only ever said `none`, while this one
+  the defect 0.14.12 removed. The shape it replaced only ever said `none`, while this one
   positively asserts that `git status` was unavailable when it ran fine. Reproduced on a repository
   with 3,000 dirty files. The filter pipeline now sits in a brace group closed by `:`, a command
   that cannot fail, so the `||` is reachable only by the guard short-circuiting.
@@ -708,10 +708,10 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
 
 ### Added
 
-- **`/code-tidying:audit-dead-code`** — a read-only, whole-repo dead-code hunter for the
+- **`/code-tidying:audit-dead-code`** is a read-only, whole-repo dead-code hunter for the
   category lane-rotated tidying and diff-scoped simplification structurally cannot see:
   code nothing has reached in a long time. Four lanes ship with **honestly unequal**,
-  individually labelled confidence — `knip` (TS/JS: unused files, exports, types, enum
+  individually labelled confidence: `knip` (TS/JS: unused files, exports, types, enum
   members; not class members, which knip 6 rejects), `vulture` (Python, symbol-level,
   high-recall/low-precision with the FP-class suppressions that measurably work
   pre-applied), `gopls check -severity=hint` (Go, **unexported symbols only**, a stated
@@ -719,7 +719,7 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   symbol languages, high-precision/acknowledged-low-recall). No lane builds or executes
   project code, no package runner is ever allowed to fetch, detector presence is proven by
   invocation rather than `command -v`, and run health is read from stderr instead of exit
-  status — so a run reports one of ran / skipped / degraded / scanned-zero-files instead of
+  status. A run therefore reports one of ran / skipped / degraded / scanned-zero-files instead of
   passing a broken run off as clean. Every candidate is adjudicated against the
   dynamic-usage evidence static analyzers are blind to under a `--max` cap ordered by git
   recency (oldest-untouched first), landing as `dead`, `uncertain`, or `alive` with every
@@ -771,13 +771,13 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   documents as performing no quoting or backslash-escaping, so there is nothing left to decode:
   `café.py`, a name holding a tab or a backslash, and a name literally containing `" -> "` all
   reach the audit. Under `-z` a rename emits the new path first and the original as a following
-  record — the reverse of v1's display order — and that second record is consumed and dropped, so
+  record, reversing v1's display order. That second record is consumed and dropped, so
   the intent-to-add rename `0.13.3` gated on the worktree status letter resolves structurally
   rather than by string-matching an arrow.
 
   The skill's `Uncommitted code files` pre-computed context moves to `-z` with it. `0.13.3` brought
   that line to parity with the v1 slice and added a test that extracts and runs it, so leaving it
-  behind would have reopened the divergence that test exists to prevent — the audit would find
+  behind would have reopened the divergence that test exists to prevent. The audit would find
   `café.py` while the preview shown to the model still listed nothing. That test now reads the
   porcelain invocation out of `SKILL.md` as well as the awk program, rather than hardcoding a
   form: feeding `-z` input to a v1 program makes the v1 program look correct, because `-z` output
@@ -799,9 +799,9 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
 ### Added
 
 - **`dissolve-comments` empty-argument scope fallback (#3117).** A clean tree no longer ends the
-  run at the friendly no-op exit: the empty argument now resolves down a ladder — uncommitted
+  run at the friendly no-op exit. The empty argument now resolves down a ladder: uncommitted
   diff → the current branch's diff vs. the base/default branch (the PR diff when there is one) →
-  the whole repository. The ladder advances on a rung's absence, never on emptiness — a rung that
+  the whole repository. The ladder advances on a rung's absence, never on emptiness. A rung that
   exists but yields no code files ends the run with the exclusion tally instead of widening, so a
   docs-only branch never escalates to repo-wide scope. Widening to repo-wide scope is confirmed
   in an interactive session (state what resolved and why, get a yes); a non-interactive/autonomous
@@ -810,13 +810,13 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
 - **Zero-in-scope runs report the exclusion tally (#3117).** A resolved scope whose every
   enumerated file is dropped by exclusions/exemptions reports total enumerated, 0 in scope, and
   counts per drop reason (non-code, GLOBAL HARD path, exempt surface, SSOT copy) instead of
-  exiting silently — a clean repo is now distinguishable from a misconfigured run.
+  exiting silently. A clean repo is now distinguishable from a misconfigured run.
 
 ### Changed
 
 - **`.claude/` exclusion wording reconciled (#3117).** `tidy`'s exclusions reference phrased the
   Claude Code surface as an enumerated glob list (`.claude/hooks/**` et al.) while
-  `dissolve-comments`' safety reference said "`.claude/` agent config and hooks" — a literal
+  `dissolve-comments`' safety reference said "`.claude/` agent config and hooks". A literal
   reader of each reached different answers for a settings-wired bootstrap script outside
   `.claude/hooks/`. The GLOBAL HARD entry now covers `.claude/**` in full plus any script wired
   as a hook command in either project settings scope (`.claude/settings.json` or
@@ -836,17 +836,17 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   (#3126).** The default-target router parsed `git status --porcelain` with
   `awk '{print $NF}'`, which split a spaced path on its space and kept git's
   closing quote, so the file resolved to nothing and dropped out of the run.
-  The audit then reported `files=0` plus `no code targets` — a false negative
+  The audit then reported `files=0` plus `no code targets`, a false negative
   that reads as a clean tree, ending the investigation rather than prompting a
   retry. `detect.sh` now slices the path out of the porcelain record, takes the
   right-hand side of a rename (gated on the `R`/`C` status letter in **either**
   the index or the worktree column, so an ordinary path containing `" -> "` is
-  left intact while an intent-to-add rename — `mv old new && git add -N new`,
-  which records `R` in the worktree column — still resolves), and unwraps git's
-  quoting.
+  left intact while an intent-to-add rename still resolves, since
+  `mv old new && git add -N new` records `R` in the worktree column), and
+  unwraps git's quoting.
   The skill's own `Uncommitted code files` pre-computed context carried the
-  identical `$NF` parse and is fixed to full parity — same column handling and
-  the same `\"`/`\\` unescaping — rather than only to the quote-stripping half.
+  identical `$NF` parse and is fixed to full parity rather than only to the
+  quote-stripping half: same column handling and the same `\"`/`\\` unescaping.
   The test suite now **extracts** that parser out of `SKILL.md` and executes it
   against the same fixtures, so the two cannot silently diverge again. Git's
   octal escapes for control and non-ASCII bytes are still not decoded by either,
@@ -872,7 +872,7 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   steps, its PR step (`/source-control:pull-request create`), its scope-budget overflow filing
   (`/work-items:track add`, step 5), and `reference/scope-budget.md`'s
   deferral filing; `dissolve-comments`' `reference/safety.md` commit hand-off
-  (`/source-control:commit`). Wording only — presence gates, fallbacks, and step order unchanged.
+  (`/source-control:commit`). Wording only: presence gates, fallbacks, and step order unchanged.
 
 ## [0.13.0]
 
@@ -882,28 +882,29 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   `[<scope>] [<path>...] [docs]`: a scope selects the file universe (a time window, the branch diff,
   or the whole repository) and a path selects a region of it. Narrowing is orthogonal to scope
   rather than a repo-only sub-mode, because binding it to `repo` would assert that only the
-  whole-repository universe may be narrowed — leaving "what I changed this week, but only under
+  whole-repository universe may be narrowed, leaving "what I changed this week, but only under
   `plugins/knowledge`" unreachable and forcing a second grammar change later. The path is applied as
   a native git pathspec on each mode's own discovery command, so merge-base semantics for branch
   mode and `--since` for a time window still hold over the narrowed set, and repo mode's
   confirmation gate and tracked-modification refusal still fire on the narrowed inventory. Purely
   additive: a path argument previously fell through to the ask-the-user rule in every mode, so no
-  existing invocation changes meaning. A token counts as a path only if it **resolves** — without
+  existing invocation changes meaning. A token counts as a path only if it **resolves**. Without
   that condition the addition would have weakened the token-exact typo guard, turning `rebranch`
   from an explicit question into a silent sweep of nothing.
 - **`repo <lane>` is explicitly rejected**, with the rationale recorded in the reference spoke. A
   lane in the sibling `/code-tidying:tidy` is a seven-part object (scope globs, merge semantics,
   watch-for patterns, extra exclusions, verification commands, commit type, research sources) of
   which this skill would use only the globs; reusing the word would leave `lane` meaning two
-  different things in sibling skills of one plugin. Paths also compose where lanes do not — lanes
+  different things in sibling skills of one plugin. Paths also compose where lanes do not: lanes
   exist only in repos that have configured `.claude/tidy-lanes/`.
 
 ### Changed
 
 - **The hotspot-ranking question is recorded as settled** in `context/repo-mode.md`. The spoke
-  previously argued only against the weak forms (churn alone, churn weighted by file size), leaving
-  the strong form — churn weighted by a complexity or code-health measure, which is what "hotspot
-  analysis" usually means — unaddressed and so open in practice. It is now rejected on a reason that
+  previously argued only against the weak forms (churn alone, churn weighted by file size). The
+  strong form, churn weighted by a complexity or code-health measure, which is what "hotspot
+  analysis" usually means, stayed unaddressed and so open in practice. It is now rejected on a
+  reason that
   reaches the strong form: ranking answers "where should I look first", a triage question repo mode
   has already answered by sweeping every group and filing High-only with no cap, so reordering work
   that is all going to happen anyway has no consumer. The one condition under which reopening would
@@ -923,11 +924,11 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
 
 ### Added
 
-- **`batch-simplify` gains a third scope mode, `repo`** — a behavior-preserving simplification
+- **`batch-simplify` gains a third scope mode, `repo`:** a behavior-preserving simplification
   sweep over every code file in the repository, not just a diff. Entry is explicit only: an
   explicit `repo` argument, or the user accepting the offer the empty-scan exit now makes. It
-  never auto-escalates, and it presents an inventory summary — file count, group count, wave
-  plan, scale estimate, exclusions by class — for confirmation before any group is dispatched.
+  never auto-escalates, and it presents an inventory summary for confirmation before any group is
+  dispatched: file count, group count, wave plan, scale estimate, exclusions by class.
   The file universe is `git ls-files --cached --others --exclude-standard` anchored to the repo
   root, so untracked non-ignored files are swept too and a run started in a subdirectory still
   covers the whole tree. The run refuses to start on tracked modifications inside the sweep
@@ -950,12 +951,13 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
 
 - **`batch-simplify` Phase 7's verification exemption is scoped to the diff-scoped modes.** It
   previously asserted that an objective cross-ecosystem pass is "verification enough" because
-  simplification is behavior-preserving — a scale-invariant claim that repo mode contradicts,
+  simplification is behavior-preserving, a scale-invariant claim that repo mode contradicts,
   since at repo scale no human reads the diff before it merges. Phase 7 also now reports files
   with no mapped test suite as unmapped rather than as passing.
 - **`tidy` and `dissolve-comments` no longer describe `batch-simplify` as diff-only.** `tidy`'s
-  differentiation prose named "a time-window or branch diff in waves" — the exact mechanism repo
-  mode removes — and `dissolve-comments` called it "windowed batch sweeps" in two places. A
+  differentiation prose named "a time-window or branch diff in waves", which is the exact
+  mechanism repo mode removes, and `dissolve-comments` called it "windowed batch sweeps" in two
+  places. A
   reciprocal documentation boundary is now stated in both `batch-simplify` and `tidy`:
   `batch-simplify` owns factual staleness across the whole doc set in one pass; `tidy`'s
   `docs-prose` lane owns incremental structural prose work under a scope budget.
@@ -970,7 +972,7 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   *containing* "branch", so a path or filename carrying those six letters silently swept the
   wrong file set; it now matches the whole argument against the branch trigger phrases. The
   `docs` flag was stripped by substring before mode parsing, which mutated any argument
-  containing those four letters — including a `docs/` path — and left a corrupted remainder
+  containing those four letters, a `docs/` path included, and left a corrupted remainder
   for the mode parser; it is now dropped token-wise, only when a token equals `docs`.
   Unknown arguments still route to the ask-the-user rule rather than a guess.
 
@@ -978,7 +980,7 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
 
 ### Added
 
-- **New skill `/code-tidying:dissolve-comments`** — the edit-applying enforcement
+- **New skill `/code-tidying:dissolve-comments`** is the edit-applying enforcement
   counterpart to `audit-comment-residue`: a three-way comment triage over a diff or
   explicit target that deletes zero-information comments, dissolves code-expressible
   comments into names and structure via named Fowler-catalog refactorings and then
@@ -990,14 +992,14 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   as a proposed commit-message block before deletion is final. Doctrine grounded in a
   verified research pass (Fowler, Martin ⇄ Ousterhout debate, McConnell, Google
   eng-practices, Anthropic prompting guidance) and locked through an interviewed,
-  two-validator-audited task-branch Brief (contract tier — pruned before merge per the
+  two-validator-audited task-branch Brief (contract tier, pruned before merge per the
   topic-docs convention); the surviving doctrine lives in the skill's `reference/`
   docs, and the decision trail in the branch history of
   `.work/plugin-marketplace-code-clarity/interview-checklist.md`.
 
 ### Fixed
 
-- **README skill list drift** — `audit-comment-residue` was missing from the README's
+- **README skill list drift:** `audit-comment-residue` was missing from the README's
   skill list; both it and the new `dissolve-comments` are now listed.
 
 ## [0.10.3]
@@ -1029,7 +1031,7 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   and personal variation is limited to lane names the team does not track (an
   uncommitted team-path lane file never added to the index). Documented in the
   `tidy` and `setup` skills, plugin README, and the config-cascade Implementers
-  row — closes the open conformance gap without adding overlay resolution.
+  row, closing the open conformance gap without adding overlay resolution.
 
 ## [0.10.0]
 
@@ -1037,8 +1039,8 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
 
 - **`/code-tidying:tidy`'s open-PR-count grant was inert.** It granted
   `Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/tidy/scripts/open-pr-count.sh:*)`, but
-  `${CLAUDE_PLUGIN_ROOT}` is not substituted in `allowed-tools` — only `${CLAUDE_SKILL_DIR}` and
-  `${CLAUDE_PROJECT_DIR}` are — so the rule stayed a literal string and never matched. The throttle
+  `${CLAUDE_PLUGIN_ROOT}` is not substituted in `allowed-tools`, where only `${CLAUDE_SKILL_DIR}`
+  and `${CLAUDE_PROJECT_DIR}` are, so the rule stayed a literal string and never matched. The throttle
   pre-compute has been prompting or falling to the classifier since it shipped.
 
 - **`/code-tidying:audit-comment-residue`'s grant worked, but only by accident.**
@@ -1053,7 +1055,7 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   `noglob`), so a rule without it stops matching a body that still says `bash <path>`. For
   `audit-comment-residue` that would have been a regression from a working grant to a broken one. The
   change is **paired**: the bodies invoke their scripts directly and unquoted, and the rules name the
-  same strings — `Bash(${CLAUDE_SKILL_DIR}/scripts/open-pr-count.sh:*)` and
+  same strings: `Bash(${CLAUDE_SKILL_DIR}/scripts/open-pr-count.sh:*)` and
   `Bash(${CLAUDE_SKILL_DIR}/scripts/detect.sh:*)`.
 
 ### Changed
@@ -1076,7 +1078,7 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
 
 - **The bare `/<skill>` alias for this plugin's skills.** Their `SKILL.md` files no longer
   declare a frontmatter `name`. The field is optional and defaults to the directory name, so
-  declaring it only restated the path while registering a second, unnamespaced command — which
+  declaring it only restated the path while registering a second, unnamespaced command, which
   the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
   namespaced command; the command itself is unchanged.
 
@@ -1096,19 +1098,19 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   authorities or checks;
   and `Lane-specific extra exclusions` is additive rather than an override, because the
   hook-directory HARD exclusions are what this lane exists around (they are on the plugin's global
-  HARD list besides, which no lane layer resolves). No engine change — the resolution engine landed in 0.7.0 already merges whenever the
-  project lane declares the section.
+  HARD list besides, which no lane layer resolves). No engine change. The resolution engine landed
+  in 0.7.0 already merges whenever the project lane declares the section.
 - **`docs-prose`'s declaration reworded to match.** Its `## Merge semantics` block described itself in
   absolute terms ("a project lane does **not** replace this file wholesale") when the engine merges
   only where the project lane declares the section. Same adopt-this-shape framing as `shell-tooling`
   now; no change to what any lane resolves to.
 - **`setup` scaffolds bundled-lane overrides as merging lanes.** `apply` now writes only the sections
   a repo actually diverges on plus a `## Merge semantics` block, instead of starting from a full copy
-  of the bundled lane — a copied section is frozen at its copy-time value, so the old instruction
+  of the bundled lane. A copied section is frozen at its copy-time value, so the old instruction
   produced exactly the freeze-out the decomposition removes. `check` correspondingly stops FAILing a
   lane for a section it legitimately inherits (declared `## Merge semantics` + a bundled lane of the
   same name); it reports the inherited sections instead. The exemption is the declaration's, not the
-  heading's — `check` FAILs a `## Merge semantics` section that is empty, unrelated, or silent on an
+  heading's. `check` FAILs a `## Merge semantics` section that is empty, unrelated, or silent on an
   omitted section, and an override of a `###`-keyed section that leaves its own content unkeyed.
 
 ## [0.7.2]
@@ -1124,7 +1126,7 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
 ### Changed
 
 - Skills with `!` dynamic-context injections now declare `shell: bash` explicitly, per
-  the pinned precompute convention — bash-only pipelines must not fall through to a
+  the pinned precompute convention. Bash-only pipelines must not fall through to a
   PowerShell host.
 
 ## [0.7.0]
@@ -1139,8 +1141,8 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   reaching consuming repos instead of being frozen out. The `tidy` lane-resolution engine now reads
   **both** the project and bundled layers and merges per the project lane's declared semantics; a lane
   with no `## Merge semantics` declaration still resolves project-only (legacy path), so lanes not yet
-  migrated (`shell-tooling`, tracked in #724) are unchanged. Follow-up: the single-layer gap — no
-  user-global or `*.local.*` overlay — is tracked in #723, not folded in here.
+  migrated (`shell-tooling`, tracked in #724) are unchanged. Follow-up: the single-layer gap, with
+  no user-global or `*.local.*` overlay, is tracked in #723, not folded in here.
 
 ## [0.6.1]
 
@@ -1155,7 +1157,7 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
 
 ### Changed
 
-- **BREAKING — the `comment-residue` skill renamed to `audit-comment-residue`** (fleet conformance
+- **BREAKING: the `comment-residue` skill renamed to `audit-comment-residue`** (fleet conformance
   wave, naming grammar): `/code-tidying:comment-residue` → `/code-tidying:audit-comment-residue`. The
   old invocation stops resolving; update any saved references. The in-code `comment-residue-ignore`
   opt-out marker is unchanged.
@@ -1168,17 +1170,17 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   ecosystem-command owner** (fleet conformance wave, registry single-home).
   The baked per-ecosystem command table is gone: `/toolchain:build` when
   installed, else the project's own canonical commands, else manifest-derived
-  entry points — never a memorized list.
+  entry points, never a memorized list.
 
 ## [0.5.0]
 
 ### Changed
 
 - **`setup` split onto the uniform check/apply contract.** `check` inspects the tracked
-  `.claude/tidy-lanes/<lane>.md` project lanes read-only (presence — absent is INFO, since `tidy`
-  falls back to the bundled lanes — required sections, unreplaced `<placeholder>` tokens, and
-  tracked-not-ignored via `git check-ignore`) and reports a PASS/FAIL/INFO table; `apply` runs the
-  interview-and-scaffold flow, then re-runs `check` to verify each written lane. The lane/template
+  `.claude/tidy-lanes/<lane>.md` project lanes read-only for presence, required sections,
+  unreplaced `<placeholder>` tokens, and tracked-not-ignored via `git check-ignore`, and reports a
+  PASS/FAIL/INFO table. An absent lane is INFO, since `tidy` falls back to the bundled lanes.
+  `apply` runs the interview-and-scaffold flow, then re-runs `check` to verify each written lane. The lane/template
   scaffolding logic is unchanged; the read-only inspection path and the `check | apply` argument-hint
   are new, and `apply <lane>` targets a single lane.
 
@@ -1187,8 +1189,8 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
 ### Changed
 
 - README declares the Bash 4+ requirement of the bundled scripts (`mapfile`,
-  case-conversion expansions) with its Windows path (Git Bash) — cross-platform
-  declaration wave. Script behavior unchanged (CRLF and drive-letter handling
+  case-conversion expansions) with its Windows path (Git Bash), as part of the
+  cross-platform declaration wave. Script behavior unchanged (CRLF and drive-letter handling
   already present).
 
 ## [0.4.2]

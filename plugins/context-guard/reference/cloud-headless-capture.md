@@ -1,11 +1,11 @@
-# Context guard — capture channels in cloud and headless sessions
+# Context guard: capture channels in cloud and headless sessions
 
 Why the statusline tee is this plugin's only capture source, which other channels were checked and
 rejected, and how a consumer tells a *structurally absent* instrument from a *broken* one.
 
 `reference/reader-contract.md` remains the authoritative reader-side contract: snapshot path
 pattern, staleness rule, zone bands, combination rule. This file is the **writer-side channel
-inventory** — where a snapshot can come from, and what to expect where none can.
+inventory**: where a snapshot can come from, and what to expect where none can.
 
 ## Verdict
 
@@ -17,10 +17,10 @@ window size and reaches only an out-of-process receiver, and the session transcr
 same numbers behind an explicitly unsupported entry format. Both are recorded in full below rather
 than waved off.
 
-Hook stdin — the named candidate — carries no context, token, usage, or window field on any event,
+Hook stdin, the named candidate, carries no context, token, usage, or window field on any event,
 **except `PostToolUse` on the `Agent` tool, whose `tool_response` carries `totalTokens` and a
-`usage` breakdown for the *subagent's* final API request — nothing about the main session's
-window.**
+`usage` breakdown for the *subagent's* final API request rather than anything about the main
+session's window.**
 
 In a session where no `statusLine` is configured, or where one is configured and the environment
 never runs it, no snapshot is written, so `context-zone.sh` answers `unknown` and every zone
@@ -30,7 +30,7 @@ install.**
 The evidence for each channel is below, with the live URL and the date it was read.
 
 **Recheck trigger for every dated verdict in this file:** re-run the probes when Claude Code
-documents or ships a channel that could carry per-session occupancy to a local writer — a hook
+documents or ships a channel that could carry per-session occupancy to a local writer: a hook
 event whose payload includes context or token counts, a settings key or environment variable
 exposing occupancy, a CLI flag or MCP surface reporting it, or a change to whether a configured
 `statusLine` runs in cloud and headless sessions. A release note touching the status line, hooks,
@@ -50,19 +50,19 @@ Measured **2026-08-21** inside a live Claude Code on the web container
 | Does the contract directory exist? | `ls -la ~/.claude/context-guard/` | exists, containing only `context/` |
 | Does a snapshot exist? | `ls -la ~/.claude/context-guard/context/` | only `<session_id>.compacted` (the `PostCompact` marker); **no `<session_id>.json`** |
 | What does the resolver return? | `bash scripts/context-zone.sh <session_id>` | `unknown` |
-| Does a **configured** `statusLine` run in a cloud session? | wrote a `statusLine` into the live session's `~/.claude/settings.json` with `refreshInterval: 2`, pointing at a probe that appends its stdin to a log *before* handing it to the tee, then exercised the session for ~7 minutes and restored the file | **the probe was never invoked once** — no log entry, no `<session_id>.json`. The probe itself was verified working by feeding it a payload by hand (it logged, teed a snapshot, and printed a statusline row) |
-| Does a **configured** `statusLine` run in a headless session? | the identical `statusLine` in a scratch `HOME`, exercised with `claude -p '…' --output-format json` | **same** — the probe was never invoked, and `~/.claude/context-guard/` was never created under that `HOME` |
+| Does a **configured** `statusLine` run in a cloud session? | wrote a `statusLine` into the live session's `~/.claude/settings.json` with `refreshInterval: 2`, pointing at a probe that appends its stdin to a log *before* handing it to the tee, then exercised the session for ~7 minutes and restored the file | **the probe was never invoked once**: no log entry, no `<session_id>.json`. The probe itself was verified working by feeding it a payload by hand (it logged, teed a snapshot, and printed a statusline row) |
+| Does a **configured** `statusLine` run in a headless session? | the identical `statusLine` in a scratch `HOME`, exercised with `claude -p '…' --output-format json` | **same**: the probe was never invoked, and `~/.claude/context-guard/` was never created under that `HOME` |
 | Does the resolver accept an occupancy-only snapshot with no window size? | synthetic snapshots under a scratch `HOME` | **no.** With `cli_version`, `current_usage` and both token totals present but `context_window_size` absent and `used_percentage` null → `unknown`; adding a `context_window_size` to the otherwise identical file → `acceptable`. A snapshot with no `current_usage` is rejected by the trust gate outright, whatever else it carries |
 
 `~/.claude/context-guard/` *does* exist in a cloud container, but only because a hook created it.
 The **snapshot** the reader needs is absent, and the resolver prints `unknown`.
 
-**The reader side is healthy; only the writer channel is missing.** In the same container, feeding
-the resolver one synthetic statusline payload under a scratch `HOME` — 120000 input + 3000 output
-tokens in a 200000 window, `used_percentage` 60 — produced a snapshot and resolved `acceptable`,
-while the real session id resolved `unknown` moments earlier. Nothing about `context-zone.sh`,
-`statusline-tee.sh`, `jq`, or the contract path is broken here. There is simply nothing calling the
-tee, because nothing calls a statusline.
+**The reader side is healthy; only the writer channel is missing.** In the same container, the
+resolver was fed one synthetic statusline payload under a scratch `HOME`: 120000 input + 3000
+output tokens in a 200000 window, `used_percentage` 60. It produced a snapshot and resolved
+`acceptable`, while the real session id resolved `unknown` moments earlier. Nothing about
+`context-zone.sh`, `statusline-tee.sh`, `jq`, or the contract path is broken here. There is simply
+nothing calling the tee, because nothing calls a statusline.
 
 **The cloud row is a measurement, not an inference.** A `statusLine` *was* configured, in the user
 scope of a live cloud session, and it never ran. The write was live rather than pending a restart.
@@ -86,27 +86,27 @@ from those pages, not recalled.
 
 | Channel | Source read | Carries | Does **not** carry |
 |---|---|---|---|
-| Hook stdin (all events) | <https://code.claude.com/docs/en/hooks> | Common input fields: `session_id`, `prompt_id`, `transcript_path`, `cwd`, `permission_mode`, `effort`, `hook_event_name`, plus `agent_id` / `agent_type` under an agent. Event-specific fields such as `tool_name`, `tool_input`, `tool_use_id`. **One event carries token figures:** `PostToolUse` on the `Agent` tool receives `totalTokens` ("Token count from the subagent's final API request: input, output, and cache tokens combined. This isn't a total across the whole run") and a `usage` object (`input_tokens`, `output_tokens`, `cache_creation_input_tokens`, `cache_read_input_tokens`) in `tool_response` | Any context-window, token-count, usage, or percentage-of-window field for the **main session**, on any event. The `Agent` exception is subagent-scoped and single-request-scoped — the page says outright it "isn't a total across the whole run" — and it is absent entirely for background subagents. `effort` is a reasoning-effort level, not consumption |
-| Status line stdin | <https://code.claude.com/docs/en/statusline> | The whole `context_window` object — `total_input_tokens`, `total_output_tokens`, `context_window_size`, `used_percentage`, `remaining_percentage`, `current_usage` — plus top-level `version` | Nothing this plugin needs. This is the one sufficient channel, and it exists only where a `statusLine` is configured *and* the environment runs it |
+| Hook stdin (all events) | <https://code.claude.com/docs/en/hooks> | Common input fields: `session_id`, `prompt_id`, `transcript_path`, `cwd`, `permission_mode`, `effort`, `hook_event_name`, plus `agent_id` / `agent_type` under an agent. Event-specific fields such as `tool_name`, `tool_input`, `tool_use_id`. **One event carries token figures:** `PostToolUse` on the `Agent` tool receives `totalTokens` ("Token count from the subagent's final API request: input, output, and cache tokens combined. This isn't a total across the whole run") and a `usage` object (`input_tokens`, `output_tokens`, `cache_creation_input_tokens`, `cache_read_input_tokens`) in `tool_response` | Any context-window, token-count, usage, or percentage-of-window field for the **main session**, on any event. The `Agent` exception is subagent-scoped and single-request-scoped, and the page says outright it "isn't a total across the whole run". It is absent entirely for background subagents. `effort` is a reasoning-effort level, not consumption |
+| Status line stdin | <https://code.claude.com/docs/en/statusline> | Top-level `version`, plus the whole `context_window` object: `total_input_tokens`, `total_output_tokens`, `context_window_size`, `used_percentage`, `remaining_percentage`, `current_usage` | Nothing this plugin needs. This is the one sufficient channel, and it exists only where a `statusLine` is configured *and* the environment runs it |
 | `subagentStatusLine` stdin | <https://code.claude.com/docs/en/statusline> | A `tasks` array whose entries carry `tokenCount` and `contextWindowSize` per subagent row | Any figure for the **main session**. It describes subagent rows in the agent panel, and it is a status-line-family surface, so it is absent wherever the status line is |
-| Non-interactive / Agent SDK output | <https://code.claude.com/docs/en/headless> | `--output-format json` returns result, session ID, usage and `total_cost_usd` for **that invocation**; `stream-json` emits per-event metadata | Live occupancy of an already-running interactive session. It reports on a run the caller starts, after the fact — it cannot answer "how full is this session's window right now" |
+| Non-interactive / Agent SDK output | <https://code.claude.com/docs/en/headless> | `--output-format json` returns result, session ID, usage and `total_cost_usd` for **that invocation**; `stream-json` emits per-event metadata | Live occupancy of an already-running interactive session. It reports on a run the caller starts, after the fact. It cannot answer "how full is this session's window right now" |
 | OpenTelemetry **metrics** | <https://code.claude.com/docs/en/monitoring-usage> | `claude_code.token.usage`, a **counter** with `type` attributes `input` / `output` / `cacheRead` / `cacheCreation` | Any gauge of current occupancy or percentage of window. Every documented metric is a counter of cumulative activity, and a cumulative total is not observable as current occupancy |
-| OpenTelemetry **events** (`claude_code.api_request`) | <https://code.claude.com/docs/en/monitoring-usage> | **Real live occupancy, per session.** The event carries `input_tokens`, `output_tokens`, `cache_read_tokens` and `cache_creation_tokens` for each request, `query_source` naming the subsystem that issued it (`"repl_main_thread"`, `"compact"`, or a subagent name), `event.sequence` for ordering within a session, and `session.id` as a standard attribute (`OTEL_METRICS_INCLUDE_SESSION_ID`, default **true**). The three input addends on the latest `repl_main_thread` event are the same sum the statusline page gives for `used_percentage` | `context_window_size`, or any percentage — see below. And any local delivery: events go only to an OTLP receiver or the `console` exporter (`prometheus` accepts metrics only, and `console` writes to Claude Code's own stdout), and Claude Code "doesn't pass `OTEL_*` environment variables to the subprocesses it spawns, including the Bash tool, hooks, MCP servers, and language servers" |
-| Session transcript file | <https://code.claude.com/docs/en/sessions> | The JSONL at `~/.claude/projects/<project>/<session-id>.jsonl`, reachable from every hook through the documented `transcript_path` field | A **supported** shape to parse. See below — this is the second near-miss and it is disqualified deliberately |
+| OpenTelemetry **events** (`claude_code.api_request`) | <https://code.claude.com/docs/en/monitoring-usage> | **Real live occupancy, per session.** The event carries `input_tokens`, `output_tokens`, `cache_read_tokens` and `cache_creation_tokens` for each request, `query_source` naming the subsystem that issued it (`"repl_main_thread"`, `"compact"`, or a subagent name), `event.sequence` for ordering within a session, and `session.id` as a standard attribute (`OTEL_METRICS_INCLUDE_SESSION_ID`, default **true**). The three input addends on the latest `repl_main_thread` event are the same sum the statusline page gives for `used_percentage` | `context_window_size`, or any percentage. See below. And any local delivery: events go only to an OTLP receiver or the `console` exporter (`prometheus` accepts metrics only, and `console` writes to Claude Code's own stdout), and Claude Code "doesn't pass `OTEL_*` environment variables to the subprocesses it spawns, including the Bash tool, hooks, MCP servers, and language servers" |
+| Session transcript file | <https://code.claude.com/docs/en/sessions> | The JSONL at `~/.claude/projects/<project>/<session-id>.jsonl`, reachable from every hook through the documented `transcript_path` field | A **supported** shape to parse. See below: this is the second near-miss and it is disqualified deliberately |
 | Cloud session environment | <https://code.claude.com/docs/en/claude-code-on-the-web> | Confirmation that cloud sessions run hooks and read committed settings files, and that `/context` and `/compact` work there | Any statement that a status line runs in a cloud session, and any cloud-specific telemetry surface. The page's context-management section lists `/compact`, `/context`, `/clear` and never mentions `statusLine` |
 
 ## The OTel `api_request` event carries occupancy, and still cannot be a capture path
 
 This is the channel that most nearly falsifies the verdict, so its rejection is recorded in full
 rather than folded into a table cell. It is **not** rejected on the grounds that OpenTelemetry only
-exposes cumulative counters — that is true of the *metrics* and false of the *events*.
+exposes cumulative counters. That is true of the *metrics* and false of the *events*.
 
 `claude_code.api_request` is a documented log event
 (<https://code.claude.com/docs/en/monitoring-usage>, read 2026-08-21) carrying `input_tokens`,
 `output_tokens`, `cache_read_tokens` and `cache_creation_tokens` per request, plus `query_source`
 identifying the issuing subsystem and `event.sequence` for ordering. `session.id` is a standard
 attribute on every event and is on by default. Filtering to the newest `repl_main_thread` event for
-a session therefore yields the current main-thread occupancy — the same three input addends the
+a session therefore yields the current main-thread occupancy, the same three input addends the
 statusline page names as the `used_percentage` formula
 (<https://code.claude.com/docs/en/statusline>, read 2026-08-21): "`input_tokens +
 cache_creation_input_tokens + cache_read_input_tokens`". This channel really does supply live,
@@ -121,7 +121,7 @@ snapshot carrying `cli_version`, a mapped `current_usage`, both token totals, a 
 `used_percentage` and **no** `context_window_size` resolves `unknown`; adding a
 `context_window_size` to the otherwise identical file resolves `acceptable`. A writer built on this
 event would have to invent that number from a hard-coded per-model window map, which is exactly the
-fabricated denominator this contract forbids — and it would go wrong silently the first time a
+fabricated denominator this contract forbids, and it would go wrong silently the first time a
 model shipped with a different window.
 
 **It has no local delivery.** Events reach an OTLP receiver or the `console` exporter; `prometheus`
@@ -156,22 +156,23 @@ The sessions page disqualifies the parse (<https://code.claude.com/docs/en/sessi
 > can break on any release.
 
 **That warning alone is not sufficient grounds, and this file will not pretend it is.** A reader
-that validates shape before emitting — all three keys present, integral, non-negative, their sum
-inside a known window, the entry's timestamp recent, and nothing emitted on any assertion failure —
-degrades on a breaking format change to writing *no snapshot*, which resolves to `unknown`. That is
+that validates shape before emitting degrades on a breaking format change to writing *no snapshot*,
+which resolves to `unknown`. Validating the shape means checking that all three keys are present,
+integral and non-negative, that their sum is inside a known window, that the entry's timestamp is
+recent, and emitting nothing on any assertion failure. That is
 the same fail-open posture this contract mandates everywhere else, and this file already calls
 `unknown` an acceptable outcome. "It would produce a confident wrong zone" is not what a
 shape-validating reader does.
 
 The decision stands on the failure a shape check cannot catch: **silent semantic drift.** The
 disclaimer covers meaning as well as structure. `input_tokens` can keep its name, its type and its
-plausible magnitude while ceasing to denote full-context occupancy — a per-turn delta after a
+plausible magnitude while ceasing to denote full-context occupancy: a per-turn delta after a
 restructuring, a post-summarization figure, a count excluding some newly separate block. Every
 shape assertion still passes, the reader still emits, and the zone is wrong with no signal
 anywhere. Against a format whose maintainers have explicitly declined to promise stability, the
 only defense is re-verifying the *semantics* of three fields against a live session on every Claude
-Code release — an unbounded maintenance obligation this plugin would be taking on unilaterally, for
-a channel whose owners have told it not to.
+Code release. That is an unbounded maintenance obligation this plugin would be taking on
+unilaterally, for a channel whose owners have told it not to.
 
 The plugin therefore does **not** ship a transcript-derived capture path.
 
@@ -182,12 +183,12 @@ The plugin therefore does **not** ship a transcript-derived capture path.
   reason to ask the operator to fix something.
 - **The conservative path is still correct.** Nothing here changes the fail-open rule: `unknown`
   means take the conservative route.
-- **Do not synthesize a zone from any other source.** The three reachable near-substitutes — the
-  cumulative OTel counter, the OTel `api_request` event with no window size, and the transcript's
-  internal entry format — each require inventing or trusting something the channel does not supply.
+- **Do not synthesize a zone from any other source.** The three reachable near-substitutes each
+  require inventing or trusting something the channel does not supply: the cumulative OTel counter,
+  the OTel `api_request` event with no window size, and the transcript's internal entry format.
 - **Cost of the gap.** The instrument is absent exactly where sessions are most disposable, so an
   instrument-driven handoff or fork trigger cannot fire there. A consumer that wants a handoff
-  trigger in a cloud or headless session must drive it from something other than a zone reading —
+  trigger in a cloud or headless session must drive it from something other than a zone reading:
   an explicit operator request, or an observation the consumer makes itself. It must not treat
   `unknown` as evidence of a full window; `unknown` carries no direction.
 
@@ -198,7 +199,7 @@ the status line runs only where a `statusLine` command is configured and the env
 that runs it (<https://code.claude.com/docs/en/statusline>,
 <https://code.claude.com/docs/en/settings>, both read 2026-08-21).
 
-1. Read `statusLine` from every settings scope that can carry it — user `~/.claude/settings.json`,
+1. Read `statusLine` from every settings scope that can carry it: user `~/.claude/settings.json`,
    project `.claude/settings.json`, local `.claude/settings.local.json`, and managed settings
    (`/etc/claude-code/managed-settings.json` and the platform equivalents, where `statusLine` is
    also a valid key).
@@ -229,8 +230,8 @@ that runs it (<https://code.claude.com/docs/en/statusline>,
    the full diagnosis.
 
 A cloud or headless session lands on branch 2 by default: no `statusLine` is configured. When
-one *is* configured it lands on branch 4 — measured above, a `statusLine` written into a live
-cloud session's user settings was never invoked. The status line is a terminal-interface
+one *is* configured it lands on branch 4. That was measured above: a `statusLine` written into a
+live cloud session's user settings was never invoked. The status line is a terminal-interface
 surface: the page describes it rendering above the footer badges and reading `COLUMNS` / `LINES`
 for terminal dimensions. Configuring one there is not a remediation to offer. It does **not**
 land on branch 5: that branch is a real defect only where a status line would actually run.
@@ -244,8 +245,8 @@ a change to Claude Code, not to this plugin:
   object (or its `used_percentage` alone) to the documented common input fields. Every hook already
   receives `session_id`, so a `PostToolBatch` or `UserPromptSubmit` hook could write the existing
   snapshot shape with no new contract on the reader side.
-- **A documented, stable transcript entry schema** — at minimum a versioned, supported shape for
-  the per-message `usage` object, with its *semantics* pinned and not only its field names — which
+- **A documented, stable transcript entry schema**, at minimum a versioned, supported shape for
+  the per-message `usage` object with its *semantics* pinned and not only its field names. That
   would convert that near-miss into a real channel.
 - **A documented status-line equivalent that runs without a terminal**, or a statement that cloud
   sessions run a configured `statusLine`. The statusline page documents neither: it describes the
