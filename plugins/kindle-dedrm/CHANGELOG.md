@@ -3,6 +3,13 @@
 All notable changes to the `kindle-dedrm` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.16]
+
+### Changed
+
+- **The plugin's prose drops its em dashes.** Seven surfaces were rewritten: this changelog, both `skills/*/SKILL.md` bodies, and the four `skills/manage/reference/` documents. Wording only, with no change to any version pin, firewall step, ICACLS command, or reversal path. The released sections corrected in place are 0.7.1, 0.7.0, 0.6.3, 0.6.1, 0.6.0, 0.5.0, and 0.4.0: their wording changed, their facts did not.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md`, every `skills/*/SKILL.md`, and the `skills/manage/reference/` tree.
+
 ## [0.7.15]
 
 ### Changed

@@ -10,6 +10,9 @@ All notable changes to the `actionlint` plugin are documented here. Format follo
 - **Options reference drops its em dashes.** The generated How-to-set-these block is rewritten by `scripts/sync-plugin-options-docs.py`, which is the fix site: its output is regenerated, never hand-edited. The block no longer needs the ignore marker that exempted it from the repository's em-dash gate, so that marker is gone as well.
 
 - **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
+- **The plugin's prose drops its em dashes.** This changelog and `skills/setup/SKILL.md` were rewritten. Wording only, with no change to any hook, matcher, or workflow filter. No heading was touched, so every release still parses, and the setup body keeps every trigger phrase byte-identical. The released sections corrected in place are 0.8.34, 0.8.18, 0.8.16, 0.8.5, 0.8.3, 0.8.2, 0.8.1, 0.8.0, 0.7.8, 0.7.7, 0.7.6, 0.7.5, 0.7.4, 0.7.3, 0.7.1, 0.7.0, 0.6.0, 0.5.2, 0.5.1, 0.5.0, 0.4.0, and 0.2.0: their wording changed, their facts did not.
+- **Two entries say what they mean instead of reaching for jargon.** The 0.7.7 temp-tree exemption is "deliberate and required", and the 0.2.0 entry reads "Consumer-side telemetry through `HOOK_TELEMETRY_SINK` is unaffected", the wording its sibling plugins share.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md` and every `skills/*/SKILL.md`.
 
 ## [0.8.44]
 

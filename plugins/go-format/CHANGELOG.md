@@ -10,6 +10,9 @@ All notable changes to the `go-format` plugin are documented here. Format follow
 - **Options reference drops its em dashes.** The generated How-to-set-these block is rewritten by `scripts/sync-plugin-options-docs.py`, which is the fix site: its output is regenerated, never hand-edited. The block no longer needs the ignore marker that exempted it from the repository's em-dash gate, so that marker is gone as well.
 
 - **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
+- **The plugin's prose drops its em dashes.** This changelog and `skills/setup/SKILL.md` were rewritten. Wording only, with no change to any hook, extension filter, or local-prefix probe. No heading was touched. Where a sibling plugin's changelog carries the same vendored `hook-utils.sh` entry, this copy takes the wording those siblings already settled on, so the fleet converges rather than splitting. The released sections corrected in place are 0.3.37, 0.3.25, 0.3.20, 0.3.18, 0.3.5, 0.3.3, 0.3.2, 0.3.1, 0.3.0, 0.2.9, 0.2.8, 0.2.7, 0.2.6, 0.2.5, 0.2.4, 0.2.2, 0.2.1, 0.2.0, 0.1.1, and 0.1.0: their wording changed, their facts did not.
+- **The temp-tree exemption is "deliberate and required" rather than load-bearing**, the wording its sibling plugins share.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md` and every `skills/*/SKILL.md`.
 
 ## [0.3.47]
 

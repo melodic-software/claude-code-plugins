@@ -12,6 +12,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Options reference drops its em dashes.** The generated How-to-set-these block is rewritten by `scripts/sync-plugin-options-docs.py`, which is the fix site: its output is regenerated, never hand-edited. The block no longer needs the ignore marker that exempted it from the repository's em-dash gate, so that marker is gone as well.
 
 - **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
+- **The plugin's prose drops its em dashes.** Five surfaces were rewritten: this changelog, two `skills/audit/reference/` documents, `skills/setup/SKILL.md`, and the `context-sample.md` parser fixture. Wording only, with no change to any lever, measurement, or record schema. The fixture's rewritten line is preamble the parser skips, and `measure.test.sh` still passes 90 of 90. The released sections corrected in place are 0.6.6, 0.6.4, 0.6.1, 0.6.0, 0.5.1, 0.4.0, 0.3.0, 0.2.0, and 0.1.0: their wording changed, their facts did not.
+- **The degradation-ladder caveat says what the rung depends on, in the document and in the code that emits it.** `reference/engine.md` and the `caveats` string in `skills/audit/scripts/measure.mjs` now both read "headless /context is undocumented as a -p-capable command, so this rung depends on unsanctioned behavior", instead of calling the mode load-bearing. A reader of the record and a reader of the reference see the same sentence.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md`, every `skills/*/SKILL.md`, and the `skills/audit/reference/` tree.
 
 ## [0.6.25]
 

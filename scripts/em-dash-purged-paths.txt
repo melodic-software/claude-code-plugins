@@ -102,6 +102,8 @@ docs/specs/*/*.md
 # SKILL.md (frontmatter description:, or a body dash the detector's per-line
 # inline-code strip misses across a wrapped code span).
 plugins/actionlint/README.md
+plugins/actionlint/CHANGELOG.md
+plugins/actionlint/skills/*/SKILL.md
 plugins/adhd/README.md
 plugins/adhd/skills/*/SKILL.md
 plugins/ai-briefing/README.md
@@ -127,6 +129,8 @@ plugins/autonomy/skills/*/SKILL.md
 plugins/autonomy/skills/setup/context/*.md
 plugins/autonomy/skills/setup/templates/*.md
 plugins/bash-format/README.md
+plugins/bash-format/CHANGELOG.md
+plugins/bash-format/skills/*/SKILL.md
 plugins/biome-format/README.md
 plugins/bugs/README.md
 plugins/bugs/CHANGELOG.md
@@ -173,6 +177,9 @@ plugins/codebase-health/skills/audit/templates/*.md
 plugins/codebase-health/skills/setup/templates/*.md
 plugins/computer-use/README.md
 plugins/context-budget/README.md
+plugins/context-budget/CHANGELOG.md
+plugins/context-budget/skills/*/SKILL.md
+plugins/context-budget/skills/audit/reference/*.md
 # The context-guard plugin was purged whole. Its legacy-statusline reference is the canonical copy
 # of a synced cluster; the rate-limit-guard carrier is kept in step by
 # scripts/sync-legacy-statusline-detect.sh, so both are declared.
@@ -193,6 +200,8 @@ plugins/coupling/skills/reduce/reference/*.md
 plugins/debugging/README.md
 plugins/debugging/skills/*/SKILL.md
 plugins/desktop-notification/README.md
+plugins/desktop-notification/CHANGELOG.md
+plugins/desktop-notification/skills/*/SKILL.md
 plugins/discipline/README.md
 # The discovery plugin was purged whole.
 # The disk-hygiene plugin was purged whole. Its README's generated options block keeps its own
@@ -237,6 +246,11 @@ plugins/event-storming/skills/*/SKILL.md
 plugins/event-storming/skills/*/reference/*.md
 plugins/event-storming/skills/simulation/evals/fixtures/*.md
 plugins/firecrawl/README.md
+plugins/firecrawl/CHANGELOG.md
+plugins/firecrawl/skills/*/SKILL.md
+plugins/firecrawl/skills/update/UPSTREAM.md
+plugins/firecrawl/skills/firecrawl/context/*.md
+plugins/firecrawl/skills/update/context/*.md
 # The fleet plugin was authored purged rather than purged later, so its changelog
 # and reference spoke are declared alongside the README and the skill body. The
 # reference glob stops short of evals/, which is JSON and not prose.
@@ -247,6 +261,8 @@ plugins/fleet/skills/*/reference/*.md
 plugins/github/README.md
 plugins/github/skills/*/SKILL.md
 plugins/go-format/README.md
+plugins/go-format/CHANGELOG.md
+plugins/go-format/skills/*/SKILL.md
 # The guardrails plugin was purged whole. Two marked spans keep their em dashes, both because live
 # code emits or cites the exact text: the changelog's verbatim reproduction of
 # _BYPASS_SCOPE_NOTE_BASH, which block-hook-bypass.sh still emits and its own suite pins, and a
@@ -264,6 +280,9 @@ plugins/improvement/skills/find/context/*.md
 plugins/instruction-placement/README.md
 plugins/instruction-placement/skills/*/SKILL.md
 plugins/kindle-dedrm/README.md
+plugins/kindle-dedrm/CHANGELOG.md
+plugins/kindle-dedrm/skills/*/SKILL.md
+plugins/kindle-dedrm/skills/manage/reference/*.md
 # The knowledge plugin was purged whole. The globs stop short of
 # plugins/knowledge/vendor/**: that tree is vendored third-party material, and a
 # re-vendor from upstream would reintroduce the character and break this gate
@@ -344,6 +363,8 @@ plugins/powershell-format/README.md
 plugins/powershell-format/CHANGELOG.md
 plugins/powershell-format/skills/*/SKILL.md
 plugins/prototype/README.md
+plugins/prototype/CHANGELOG.md
+plugins/prototype/context/*.md
 plugins/prototype/skills/*/SKILL.md
 plugins/provenance/README.md
 plugins/rate-limit-guard/README.md
@@ -372,6 +393,8 @@ plugins/review/skills/*/SKILL.md
 plugins/review/skills/*/context/*.md
 plugins/review/skills/audit-enforceability/evals/fixtures/*.md
 plugins/ruff-format/README.md
+plugins/ruff-format/CHANGELOG.md
+plugins/ruff-format/skills/*/SKILL.md
 # The session-flow plugin was purged whole. The globs stop short of
 # plugins/session-flow/scripts/tests/fixtures/**, whose handoff files are parsed
 # test input rather than prose, and of the keep-going vendor tree.
@@ -433,6 +456,8 @@ plugins/verification/reference/topic-docs.md
 plugins/verification/skills/*/SKILL.md
 plugins/verification/skills/*/context/*.md
 plugins/visualization/README.md
+plugins/visualization/CHANGELOG.md
+plugins/visualization/skills/visualize/context/*.md
 plugins/visualization/skills/*/SKILL.md
 plugins/wizard/README.md
 plugins/wizard/skills/*/SKILL.md

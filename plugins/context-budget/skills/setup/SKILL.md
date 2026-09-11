@@ -85,14 +85,14 @@ writing. Re-running it after everything passes changes nothing and reports "alre
   `/plugin configure context-budget@<marketplace>` any time, or headless
   `claude plugin install context-budget@<marketplace> -s <scope> --config settings_write_ask_enabled=true`
   (repeatable per key). Against an already-installed plugin it prints `already installed`
-  **and still writes the value**. Do **not** uninstall to reconfigure: that drops this plugin's entire
-  stored `pluginConfigs` entry, resetting every option in the README's Options reference to its
-  manifest default. `-s` defaults to `user`; pass the scope `claude plugin list` reports for this
-  plugin, and run from that project's directory for a `project`/`local` scope, or the write lands at
-  a scope that does not load. This skill never writes user settings or `pluginConfigs`. Afterwards
-  rerun `check` in a **fresh session** — the rendered token is injected at skill load, so a
-  same-session `check` still reports the OLD value; report the observed effective value, never an
-  unobserved change.
+  **and still writes the value**. Do **not** uninstall to reconfigure: that drops this plugin's
+  entire stored `pluginConfigs` entry, resetting every option in the README's Options reference
+  to its manifest default. `-s` defaults to `user`; pass the scope `claude plugin list` reports
+  for this plugin, and run from that project's directory for a `project`/`local` scope, or the
+  write lands at a scope that does not load. This skill never writes user settings or
+  `pluginConfigs`. Afterwards rerun `check` in a **fresh session**. The rendered token is
+  injected at skill load, so a same-session `check` still reports the OLD value; report the
+  observed effective value, never an unobserved change.
 
 ## What this skill does NOT do
 

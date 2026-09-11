@@ -10,6 +10,9 @@ All notable changes to the `desktop-notification` plugin are documented here. Fo
 - **Options reference drops its em dashes.** The generated How-to-set-these block is rewritten by `scripts/sync-plugin-options-docs.py`, which is the fix site: its output is regenerated, never hand-edited. The block no longer needs the ignore marker that exempted it from the repository's em-dash gate, so that marker is gone as well.
 
 - **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
+- **The plugin's prose drops its em dashes.** This changelog and `skills/setup/SKILL.md` were rewritten. Wording only, with no change to any channel, gate, or notification text. Every emitted string quoted in prose is byte-identical, and no heading was touched. The released sections corrected in place are 0.6.30, 0.6.17, 0.6.15, 0.6.5, 0.6.3, 0.6.2, 0.6.1, 0.6.0, 0.5.10, 0.5.9, 0.5.8, 0.5.6, 0.5.5, 0.5.3, 0.5.2, 0.5.1, 0.5.0, 0.4.3, 0.4.0, and 0.2.0: their wording changed, their facts did not.
+- **Two entries say what they mean instead of reaching for jargon.** The temp-tree exemption is "deliberate and required", and the 0.2.0 entry reads "Consumer-side telemetry through `HOOK_TELEMETRY_SINK` is unaffected", the wording its sibling plugins share.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md` and every `skills/*/SKILL.md`.
 
 ## [0.6.37]
 
@@ -571,9 +574,10 @@ All notable changes to the `desktop-notification` plugin are documented here. Fo
   inflates every baseline sample and then subsides before the slow run subtract real
   leak signal out of the delta, and the detector reports no leak. At `SINK_SLEEP`=8s
   and a 3000ms margin the threshold sits at 5000ms, leaving 2850ms of noise-side
-  margin and 3000ms of leak-side margin. Verified on Windows Git Bash: 10 consecutive clean runs,
-  40 runs under heavy concurrent load (worst observed no-leak delta ~1590ms), and a
-  deliberately reintroduced fd1 leak still fails the case (observed delta ~8065ms).
+  margin and 3000ms of leak-side margin. Verified on Windows Git Bash: 10
+  consecutive clean runs, 40 runs under heavy concurrent load (worst observed
+  no-leak delta ~1590ms), and a deliberately reintroduced fd1 leak still fails
+  the case (observed delta ~8065ms).
 
 ## [0.5.2]
 
@@ -584,7 +588,7 @@ All notable changes to the `desktop-notification` plugin are documented here. Fo
   both halves to `-s user`. When this plugin is installed at `project` or `local` scope, that
   silently uninstalled a separate user-scope record while the effective project/local install kept
   loading, and the reinstall landed at a scope that does not load. Both commands now carry
-  `-s <scope>`, sourced from what `claude plugin list` reports for this plugin. It is the same fix
+  `-s <scope>`, sourced from what `claude plugin list` reports for this plugin, the same fix
   already applied to `session-flow` and `rate-limit-guard` in #1393.
   The recipe also now requires the reinstall to re-supply **every** key whose value should
   stay non-default, not only the key being changed: uninstalling drops the stored
