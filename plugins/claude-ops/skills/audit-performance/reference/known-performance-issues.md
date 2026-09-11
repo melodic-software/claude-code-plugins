@@ -115,8 +115,8 @@ rows carried an `if` gate, so a write of one file kind spawned a handful of proc
 than 33. Three independent levels stand between a row and a spawn, and only the first is visible
 in a bucket count.
 
-**Level 1, the event key.** The `if` field is
-"[o]nly evaluated on tool events: `PreToolUse`, `PostToolUse`, `PostToolUseFailure`,
+**Level 1, the event key.** The `if` field is documented as
+"Only evaluated on tool events: `PreToolUse`, `PostToolUse`, `PostToolUseFailure`,
 `PermissionRequest`, and `PermissionDenied`. On other events, a hook with `if` set never runs"
 ([hooks](https://code.claude.com/docs/en/hooks), common fields, `if`). Those five events are
 therefore what per-tool-call means, and a handler carrying an `if` on any other event is dead
