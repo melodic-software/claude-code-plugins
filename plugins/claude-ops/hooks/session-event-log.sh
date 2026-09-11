@@ -46,8 +46,21 @@ start=${EPOCHREALTIME:-}
 source "${BASH_SOURCE[0]%/*}/session-log-lib.sh"
 
 # --- bounded stdin read -------------------------------------------------------
+# The same rejection rules hook::resolve_read_timeout_to applies to this
+# variable, restated because this producer does not source the library. An
+# unusable value is a silent disable, not a tuning mistake: `read -t 0`
+# returns at once having consumed nothing, a fractional value is a usage error
+# on a Bash before 4.0 (integer-only -t), and a positive value under 10 µs
+# returns before the payload's bytes arrive. Each falls back to the default.
 idle="${CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT:-2}"
-[[ "$idle" =~ ^[0-9]+(\.[0-9]+)?$ ]] || idle=2
+if ! [[ "$idle" =~ ^[0-9]+(\.[0-9]+)?$ ]] || [[ "$idle" =~ ^0+(\.0+)?$ ]] ||
+  { [[ "$idle" == *.* ]] && ((BASH_VERSINFO[0] < 4)); }; then
+  idle=2
+elif [[ "$idle" =~ ^([0-9]+)(\.([0-9]+))?$ ]]; then
+  whole="${BASH_REMATCH[1]}"
+  frac="${BASH_REMATCH[3]:-}000000"
+  ((10#$whole * 1000000 + 10#${frac:0:6} < 10)) && idle=2
+fi
 # Four slices per idle bound when this shell takes a fractional -t (Bash 4+),
 # so a stall is declared within a quarter-bound of the configured interval; one
 # whole-bound slice otherwise.

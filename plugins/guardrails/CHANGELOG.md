@@ -3,7 +3,7 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.33.1]
+## [0.33.2]
 
 ### Changed
 
@@ -28,6 +28,19 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 - **The always-on verifiers no longer fork `jq` to emit accumulated context.**
   The accumulator's flush composes through the fork-free emitter that builds
   the same document.
+
+## [0.33.1]
+
+### Fixed
+
+- **`verify-cli-flag.sh` publishes the `--help` cache by rename instead of rewriting it in
+  place.** Bash's `printf` to a file is many `write(2)` calls, and the readers' gates are `-s`
+  plus mtime, both of which a half-rewritten entry satisfies, so a second hook that started a
+  fraction of a millisecond after the refresher read a prefix of the help text and reported a
+  documented flag as `UNKNOWN_FLAG`. The verifier now writes a sibling temp file and `mv`s it
+  over the entry, the same shape the disk-hygiene interpreter cache uses, so a reader sees the
+  previous whole text or the new one. Cost: one `mv` spawn per cold or expired key, at most once
+  per key per 24 h, on the cold path the README already prices; the warm path is unchanged.
 
 ## [0.33.0]
 

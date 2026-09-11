@@ -65,9 +65,11 @@ adopter derives from, that skill included:
 - **`repo-identity`** — the **first configured remote** URL (not necessarily one named `origin`)
   normalized to `host/owner/repo`, lowercased, scheme/credentials/`.git` stripped. No remote →
   `local/<sha256 of the canonicalized repo root, 12>`. Not a repository at all →
-  `nonrepo/<sha256 of the working directory, 12>`.
+  `nonrepo/<sha256 of the physical working directory, 12>` (symlinks resolved, so one directory
+  reached two ways keys once).
 - **`worktree-discriminator`** — `sha256` of the canonicalized worktree root, truncated to 8. Two
   worktrees of one repository legitimately hold different content and must not share an artifact.
+  Outside a repository, the physical working directory — the same value `repo-identity` hashes.
 
 **Do not mint a second scheme.** A shared implementation ships as `lib/state-key.sh`, byte-identical
 across the plugins that carry it and registered in `scripts/cross-plugin-source-registry.txt`.

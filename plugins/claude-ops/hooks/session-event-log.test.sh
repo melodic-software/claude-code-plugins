@@ -257,6 +257,21 @@ PLOG="$P/.observability/claude/sessions/s12.jsonl"
 assert_eq "33 parallel fires → 33 lines" 33 "$(wc -l <"$PLOG" | tr -d ' ')"
 assert_eq "33 parallel fires → every line parses" 33 "$(jq -c . "$PLOG" 2>/dev/null | wc -l | tr -d ' ')"
 
+# --- an unusable stdin_read_timeout falls back to the default ----------------------
+# The env-block channel can deliver any string, so the schema's `min: 1` is not
+# a guard here. `0` makes `read -t` return at once with nothing read, and a
+# positive value under 10 µs returns before the payload's bytes arrive; both
+# must fall back to the default and still write the line, as the library's
+# hook::resolve_read_timeout_to does for the same variable.
+for bad_timeout in 0 0.0 00 0.000001; do
+  P=$(project "timeout-$bad_timeout")
+  OUT=$(run "$P" "$(payload s13 PostToolUse)" "$ON" "CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=$bad_timeout")
+  assert_exit "stdin_read_timeout=$bad_timeout → exit 0" 0 "$?"
+  assert_silent "stdin_read_timeout=$bad_timeout → silent" "$OUT"
+  assert_eq "stdin_read_timeout=$bad_timeout → falls back and writes the line" 1 \
+    "$(wc -l <"$P/.observability/claude/sessions/s13.jsonl" 2>/dev/null | tr -d ' ')"
+done
+
 # --- the producer sources nothing from hook-utils --------------------------------
 assert_eq "no hook-utils.sh source" 0 "$(grep -cE '^[[:space:]]*(source|\.)[[:space:]].*hook-utils' "$HOOK" "$HOOK_DIR/session-log-lib.sh" | awk -F: '{ s += $2 } END { print s + 0 }')"
 assert_eq "kill switch is the first statement after set" 1 \
