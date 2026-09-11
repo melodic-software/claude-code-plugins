@@ -4,6 +4,26 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.11.0]
+
+### Added
+
+- **`reference/prompt-caching.md`**: a new API-side prompt-caching and cost chapter (prefix
+  stability, deferred tools, mid-conversation system messages, effort-and-cache with beta
+  boundaries, breakpoints and pre-warming, TTL, cache diagnostics, batching, Admin API spend
+  profiling, output bounding as a request-level lever), with every row verified against the
+  named live doc page and routed from the fable-5 chapter table. Adopted from the vetted
+  ClaudeDevs cost-performance article (`docs/upstream/claudedevs-cost-performance.md`).
+- **`reference/model-adaptation/fable-5-1.md`**: a "Cross-model effort economics" section
+  (test the newer model at lower effort before working the older one harder; flat-curve
+  reading), pricing-free per the chapter's standing rule, with sources.
+- **`fable-5`**: a `## Boundary, the bundled claude-api skill` section stating the composite
+  posture with the bundled skill (prefer it for every current fact a chapter points at and for
+  the cost audit itself; this playbook for the judgment around those facts and the mechanisms
+  that outlive any one price), with a mutation gate and an availability rule that never
+  assumes the bundled skill resolves. The automation pointer in `reference/prompt-caching.md`
+  is now gated on the bundled skill resolving in the session.
+
 ## [0.10.1]
 
 ### Fixed

@@ -3,6 +3,17 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.0]
+
+### Added
+
+- **`run-e2e`**: a `## Boundary, the bundled run skill` section: the bundled `run` skill (beside
+  `/verify` and `/run-skill-generator`) launches and drives the app for a look, this skill starts
+  it through the project's orchestrator and captures evidence to the contract, with a non-UI lane
+  that has no native counterpart. Routing, a mutation gate (one orchestrator per verification),
+  and an availability rule that never assumes the bundled skill resolves. Four-part records in
+  `context/bundled-run.md`.
+
 ## [0.7.18]
 
 ### Added
