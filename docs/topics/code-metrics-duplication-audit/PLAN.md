@@ -81,8 +81,10 @@ this repository the audit reads clean apart from genuine duplication.
   `lib/hook-utils.sh -> plugins/*/hooks/hook-utils.sh` that group appears once under `excluded[]`
   with `duplicated_lines` counted once.
 - Two groups whose instances overlap without identical line ranges (the `hook-telemetry-sink.sh`
-  shape, and three copies of one fragment embedded at different offsets) stay separate groups after
-  the merge.
+  shape, and a third copy that carries only part of a fragment two full copies share, so the
+  detector names the first copy with two different ranges) stay separate groups after the merge.
+  Three full copies at different line offsets are one class: jscpd pairs each later copy with the
+  first and names that first copy with the same range in every pair (verified against 5.2.0).
 - A cluster line excludes a group only when every instance's root-relative path matches the
   canonical path or one of the members (literal or glob) and the instances' directories are all
   distinct; two copies inside one directory still count as duplication; a single-token line behaves
@@ -298,7 +300,7 @@ Review: code-design
   shows `bash` `ok` and `typescript` `partial`, and the typescript reason names
   `plugins/miro/dist/index.min.js`; the same under 4.3.0.
 
-### Phase 2: Merge pairs into clone classes [TODO]
+### Phase 2: Merge pairs into clone classes [DONE]
 
 Review: code-design
 
@@ -312,8 +314,10 @@ Review: code-design
 2. `audit-duplication.sh`: pipe `report.json` through `cluster-clones.py` before `registry-filter.py`.
 3. Fixtures, outside `fixtures/sources` so no suite that scopes that tree changes its counts:
    `scripts/fixtures/clone-classes/aligned/{a,b,c}/shared/shared-utils.sh` (three byte-identical
-   copies) and `scripts/fixtures/clone-classes/offset/{c1,c2,c3}.sh` (one 41-line fragment at
-   offsets 1, 2, 3 with different flanking lines); committed captures
+   copies) and `scripts/fixtures/clone-classes/offset/{c1,c2,c3}.sh` (`c1` and `c2` carry one 34-line
+   fragment at different line offsets with different flanking lines; `c3` carries only the first
+   24 lines of it, so its pair names `c1` with a shorter range and the two pairs do not merge);
+   committed captures
    `scripts/fixtures/tool-output/jscpd-aligned3.json` and `jscpd-offset3.json` produced by a real
    jscpd 5.2.0 run, then rewritten to repo-relative names (the adapter passes `--absolute`, so the
    raw capture carries machine paths, and the stub replays the file regardless of input).

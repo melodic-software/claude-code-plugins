@@ -9,7 +9,11 @@
 # adapter passes and exits 1, the reporting exit code the contract says is not
 # a failure (design T13; no executable is committed). The fixture cluster is
 # scripts/fixtures/sources/cluster/{alpha,beta}/shared/shared-utils.sh and the
-# registry that sanctions it is scripts/fixtures/registry/cluster.txt.
+# registry that sanctions it is scripts/fixtures/registry/cluster.txt. The
+# three-copy cases swap in the captures jscpd-aligned3.json and
+# jscpd-offset3.json, real jscpd 5.2.0 runs over
+# scripts/fixtures/clone-classes/{aligned,offset} rewritten to repo-relative
+# names.
 #
 # The last case is the Brief's own: this repository's real
 # plugins/*/hooks/hook-utils.sh cluster against
@@ -157,11 +161,35 @@ assert_contains "the ignore globs reach the collector" "$argv" "--ignore **/vend
 assert_contains "max_size reaches the collector one byte above the bound" "$argv" "--max-size 8193"
 assert_contains "a max_lines of 0 means no cap and reaches the collector as the explicit large value" "$argv" "--max-lines 1000000"
 
-# 7. --help prints the usage without running anything.
+# 7. Three byte-identical copies are one clone class, its lines counted once.
+# jscpd pairs each later copy with the first, so the capture holds two pairs
+# that name the same instance of copy `a`.
+ALIGNED="$FIXTURES/clone-classes/aligned"
+out="$(CM_TEST_CAPTURE="$REPO_ROOT/$FIXTURES/tool-output/jscpd-aligned3.json" PATH="$STUBS:$EMPTY_PATH" bash "$SCRIPT" --json --all "$ALIGNED")"
+assert_eq "the aligned three-copy run exits 0" 0 "$?"
+if printf '%s' "$out" | "$PY" -c 'import json,sys; d=json.load(sys.stdin); assert d["summary"]["clone_groups"] == 1 and d["summary"]["duplicated_lines"] == 41, d["summary"]; row = d["measures"][0]; assert len(row["instances"]) == 3 and "clustered" in row["labels"], row' 2>/dev/null; then
+  pass "three aligned copies are one clone class with the lines counted once"
+else
+  fail "three aligned copies are one clone class with the lines counted once" "clone_groups 1, duplicated_lines 41, three instances" "$(printf '%s' "$out" | head -c 600)"
+fi
+
+# 8. A third copy that shares only part of the fragment stays its own group:
+# the two pairs name copy `c1` with different ranges, and overlap is not
+# identity.
+OFFSET="$FIXTURES/clone-classes/offset"
+out="$(CM_TEST_CAPTURE="$REPO_ROOT/$FIXTURES/tool-output/jscpd-offset3.json" PATH="$STUBS:$EMPTY_PATH" bash "$SCRIPT" --json --all "$OFFSET")"
+assert_eq "the offset three-copy run exits 0" 0 "$?"
+if printf '%s' "$out" | "$PY" -c 'import json,sys; d=json.load(sys.stdin); assert d["summary"]["clone_groups"] == 2 and d["summary"]["duplicated_lines"] == 58, d["summary"]; assert all(len(r["instances"]) == 2 and "clustered" not in r["labels"] for r in d["measures"]), d["measures"]' 2>/dev/null; then
+  pass "a partial third copy stays a second clone group"
+else
+  fail "a partial third copy stays a second clone group" "clone_groups 2, duplicated_lines 58, two instances each" "$(printf '%s' "$out" | head -c 600)"
+fi
+
+# 9. --help prints the usage without running anything.
 bash "$SCRIPT" --help 2>&1 | grep -q 'audit-duplication.sh \[--json\]'
 assert_eq "--help prints usage" 0 "$?"
 
-# 8. The Brief's case: this repository's own vendored hook-utils cluster.
+# 10. The Brief's case: this repository's own vendored hook-utils cluster.
 # The jscpd on PATH has to be a working detector, not another suite's stub or
 # a replaying fake: the probe copies one fixture into two directories under a
 # name nothing else uses and requires the report to name it back.

@@ -7,8 +7,9 @@
 #
 # Prints the markdown report; `--json` prints the `code-metrics/v1` document
 # instead. Scope, lanes, and the collector ladder are the dispatcher's
-# (scripts/dispatch.sh in the plugin root); this script owns `--registry` and
-# the duplication tunables it exports for the collector adapters
+# (scripts/dispatch.sh in the plugin root); this script owns the merge of the
+# detector's clone pairs into clone classes (cluster-clones.py), `--registry`,
+# and the duplication tunables it exports for the collector adapters
 # (CODE_METRICS_DUP_MIN_TOKENS, CODE_METRICS_DUP_MIN_LINES,
 # CODE_METRICS_DUP_IGNORE, CODE_METRICS_DUP_MAX_LINES, CODE_METRICS_DUP_MAX_SIZE,
 # from `duplication.*` in the resolved config; a null or 0 cap exports empty).
@@ -22,6 +23,7 @@ SCRIPT_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
 DISPATCH="$PLUGIN_ROOT/scripts/dispatch.sh"
 REPORT="$PLUGIN_ROOT/scripts/report.py"
+CLUSTER="$SCRIPT_DIR/cluster-clones.py"
 FILTER="$SCRIPT_DIR/registry-filter.py"
 
 JSON=0
@@ -51,7 +53,7 @@ while [[ $# -gt 0 ]]; do
     shift 2
     ;;
   --help | -h)
-    sed -n '2,17p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2
+    sed -n '2,19p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2
     exit 0
     ;;
   *)
@@ -148,9 +150,11 @@ bash "$DISPATCH" audit-duplication --measures duplication --config "$CONFIG" ${P
 rc=$?
 [[ $rc -eq 0 || $rc -eq 3 ]] || exit "$rc"
 
-# Exclude the declared replication, recompute the totals from what survived,
-# then state the zero the recomputation drops when every group was excluded.
-"${PY[@]}" "$FILTER" "${FILTER_ARGS[@]}" <"$WORK/report.json" >"$WORK/filtered.json" || exit 2
+# Merge the pairs the detector reports into clone classes, exclude the declared
+# replication, recompute the totals from what survived, then state the zero the
+# recomputation drops when every group was excluded.
+"${PY[@]}" "$CLUSTER" <"$WORK/report.json" >"$WORK/clustered.json" || exit 2
+"${PY[@]}" "$FILTER" "${FILTER_ARGS[@]}" <"$WORK/clustered.json" >"$WORK/filtered.json" || exit 2
 "${PY[@]}" "$REPORT" resummarize <"$WORK/filtered.json" >"$WORK/summed.json" || exit 2
 "${PY[@]}" "$FILTER" --zero-floor --root "$ROOT" <"$WORK/summed.json" >"$WORK/final.json" || exit 2
 
