@@ -7,7 +7,7 @@
 #
 # The rule: a basename matches `^[a-z0-9]+([.-][a-z0-9]+)*\.[a-z0-9.]+$`, so
 # `plugin-philosophy.md`, `v1.2.schema.json`, and `0001-first.md` pass while
-# `PLUGIN-PHILOSOPHY.md`, `snake_case.md`, and `Mixed.md` do not. Exempt:
+# `UPPER-KEBAB.md`, `snake_case.md`, and `Mixed.md` do not. Exempt:
 #
 #   - `README.md`, `CHANGELOG.md`, `INDEX.md` anywhere under docs/, the
 #     conventional uppercase names tooling and forges look for by exact spelling
