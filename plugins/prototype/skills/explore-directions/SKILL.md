@@ -144,26 +144,28 @@ Constraints:
   steering ("make it clean") only swaps one fixed palette for another; a concrete per-variant
   declaration is what produces variety.
 
-### Design-canvas alternative (the bundled `design` skill, user-run)
+### Design-canvas alternative (bundled `design` skill, when available)
 
-When the intent selector lands on the HTML mockup substrate AND the Artifact tool resolves in
-your session (the canvas inherits artifacts' gates), offer the user a choice before building,
-never switch silently; the HTML mockup stays the default:
+When the intent selector lands on the HTML mockup substrate AND the bundled `design` skill
+appears in this session's skill list with a description that is the design canvas (a local
+skill named `design` at any level silently overrides the bundled one, and a same-named Claude
+Design hub variant exists behind a setting; if the listed description is something else, treat
+the canvas as absent), offer the user a choice before building, never switch silently; the HTML
+mockup stays the default:
 
 - **HTML mockup (default)**, the throwaway `file://` page above; nothing persists.
-- **Design canvas**. The user runs `/design <brief>` to draft the variants as artboards on one
-  pan/zoom canvas, published as an Artifact. Name the lifecycle difference in the offer: the
-  canvas is a published, versioned, persistent Artifact. Default-private, shareable with
+- **Design canvas**. Invoke the bundled `design` skill to draft the variants as artboards on
+  one pan/zoom canvas, published as an Artifact. Name the lifecycle difference in the offer:
+  the canvas is a published, versioned, persistent Artifact. Default-private, shareable with
   teammates at the user's choice. Unlike the throwaway local mockup, losing variants persist on
   it unless the user deletes or re-seeds the canvas. Hand-editing (click-to-select, properties
   panel, inline text) applies where saving is enabled for the user's account; otherwise the
   canvas is view-plus-PNG/PDF-export.
 
-The model never invokes `design`: its registration disables model invocation, so it is hidden
-from the skill list and its presence cannot be read there. Name the option once and build the
-mockup unless the user picks the canvas. A user who reports no such command has a session without
-it; drop the offer for the rest of the session. When the Artifact tool does not resolve, do not
-offer or mention it; the HTML mockup covers the same ground.
+When `design` is absent from the skill list, do not offer or mention it; the HTML mockup covers
+the same ground, and a user whose session lacks the skill has no `/design` command either. If the
+invocation is refused, suggest the user run `/design <scope>` themselves, since user invocation
+survives gates that stop model invocation.
 
 The capture discipline is unchanged either way: record the winning-variant key and notes in
 your durable answer; the canvas may live on under the user's account, but nothing tracked in
@@ -257,26 +259,27 @@ Don't leave variant components or the switcher lying around. They rot fast.
 One native Claude Code surface drafts layouts as this skill does, and the two get conflated when
 the intent selector lands on the HTML mockup substrate:
 
-- **`design` (bundled skill).** Ships with Claude Code rather than as a marketplace plugin. Run by
-  the user as `/design <brief>`, it drafts artboards on one canvas and publishes the canvas as an
-  artifact running a research preview of Claude Design's editor: persistent, versioned, shareable,
-  hand-editable where saving is enabled for the account. Its registration disables model
-  invocation, so the model cannot run it and cannot see it in the skill list.
+- **`design` (bundled skill).** Ships with Claude Code rather than as a marketplace plugin. It
+  drafts artboards on one canvas and publishes the canvas as an artifact running a research
+  preview of Claude Design's editor: persistent, versioned, shareable, hand-editable where saving
+  is enabled for the account. It is model-invocable and user-invocable where it resolves.
 - **This skill (marketplace plugin).** Throwaway variants on the real stack or as a local HTML
   mockup, switchable from a control bar; only the winning-variant key survives.
 
-**Routing.** The HTML mockup stays the default. When the Artifact tool resolves in your session
-(the canvas inherits the same gates), name `/design <brief>` once as a user-run alternative with
-the lifecycle difference stated, and build the mockup unless the user picks the canvas. A user who
-reports no such command has a session without it; drop the offer for the rest of the session.
+**Routing.** The HTML mockup stays the default. When the bundled `design` skill resolves in your
+session with the canvas description, offer the canvas as an explicit alternative with the
+lifecycle difference stated, and invoke it only when the user picks it; the design-canvas
+subsection above carries the offer shape and the refused-invocation fallback.
 
-**Mutation gate.** The canvas persists under the user's account. This skill never invokes
-`design`, never publishes on its behalf, and never references the canvas from anything tracked in
-the repository; the capture discipline records the winning key and notes only.
+**Mutation gate.** The canvas persists under the user's account. This skill never switches to it
+silently, never publishes on its own initiative, and never references the canvas from anything
+tracked in the repository; the capture discipline records the winning key and notes only.
 
-**Availability is never assumed.** The skill is gated by an `allow_design_sync` setting, a policy
-gate, a feature flag, and artifacts availability; this section states what to do when the Artifact
-tool resolves, never that `design` is present. The four-part records live in
+**Availability is never assumed.** The skill is gated on a first-party session, a rollout flag,
+and an Artifact tool that supports capabilities, and a same-named Claude Design hub variant with
+model invocation disabled registers behind an `allow_design_sync` setting, so the listed
+description is the presence check; this section states what to do when the canvas resolves, never
+that it is present. The four-part records live in
 [reference/bundled-design.md](reference/bundled-design.md).
 
 ## Next

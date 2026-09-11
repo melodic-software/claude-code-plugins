@@ -166,43 +166,48 @@ skill's own gates:
 - removable by settings (`disableBundledSkills`, or `skillOverrides` naming
   `design`) and absent on non-first-party platforms (Bedrock / GCP / Foundry /
   AWS) and in headless SDK/CI/MCP contexts;
-- **user-invocable only**: the registration disables model invocation, so the
-  model cannot run the skill and, as with every user-invocable-only skill, cannot
-  see it in the skill list. A local skill named `design` at any level silently
-  overrides the bundled one.
+- **model-invocable where enabled** (no model-invocation gate in its
+  registration), so the skill can be invoked by name, bare `design`; no
+  namespace exists for bundled skills. A local skill named `design` at any level
+  silently overrides the bundled one, and a same-named Claude Design hub variant
+  (model invocation disabled) registers behind an `allow_design_sync` setting.
 
-There is no honest presence check from the model's side. The offer is gated on
-what the model can observe: the Artifact tool resolving in the session (the
-canvas inherits artifacts' gates) and a medium that permits publishing. When both
-hold, name `/design <brief>` once as a user-run alternative and render the rich
-page unless the user picks the canvas; never assert the skill is present. A user
-who reports no such command has a session without it. When the Artifact tool does
-not resolve, the rich-page paths above cover the ground and `/design` is not
-mentioned.
+The honest presence check is whether `design` appears in the current session's
+skill list **and its listed description is the design canvas**: because of the
+override and the hub variant above, a bare name match may be an unrelated local
+skill or the hub; when the listed description does not describe a canvas or
+artboard capability, treat the capability as absent rather than invoking a
+shadowing skill. Absent: the rich-page paths above cover the ground (and
+`/design` must not be suggested; that user has no such command).
+Listed-but-refused: user invocation of `/design` survives invocability gates.
 
 > Verified 2026-09-11 against the installed v2.1.263 binary (string search of the
-> registration) and three pages fetched that day. The `/design` row on
+> registrations) and three pages fetched that day. The `/design` row on
 > <https://code.claude.com/docs/en/commands> is labeled a bundled skill and
 > describes the canvas: artboards on one canvas, published as an artifact running
 > a research preview of Claude Design's editor, hand-editable where saving is
 > enabled, otherwise view-plus-PNG/PDF-export; "requires a session where artifacts
 > are available and Claude Code v2.1.234 or later". "Draft a design canvas" on
-> <https://code.claude.com/docs/en/artifacts> shows the user running `/design
-> <brief>`, and its Availability table lists artifacts' gates (Pro, Max, Team, or
-> Enterprise; a claude.ai login; the Anthropic API provider; no CMEK, HIPAA, or
-> Zero Data Retention; CLI 2.1.183 or later; off by default in SDK, GitHub Action,
-> and MCP contexts). The binary registers `design` as a Claude Design hub, menu
-> line "Work with Claude Design (claude.ai/design): create, import, export, sync,
-> login", argument hint `[sync|login|consent|revoke|import|export|status|<prompt>]`,
-> `disableModelInvocation` on, `userInvocable` on, enabled only behind an
-> `allow_design_sync` setting, a policy gate, and a feature flag; a local `design
-> consent | revoke` command sits beside it. The changelog names no design-family
-> surface through v2.1.268. The earlier registrations (v2.1.234, no
-> model-invocation gate; v2.1.251, subcommand dispatch) are superseded by this one.
-> The design-sync family's registry disposition (defer, observed-only) lives in
-> `docs/native-surfaces/records.json`. Recheck when a release changes
-> `disableModelInvocation`, the gate, or the subcommand set, or when a release note
-> first names the skill.
+> <https://code.claude.com/docs/en/artifacts> shows `/design <brief>`, and its
+> Availability table lists artifacts' gates (Pro, Max, Team, or Enterprise; a
+> claude.ai login; the Anthropic API provider; no CMEK, HIPAA, or Zero Data
+> Retention; CLI 2.1.183 or later; off by default in SDK, GitHub Action, and MCP
+> contexts). The binary carries two bundled registrations named `design`. The
+> canvas skill: menu line "Draft a design on a canvas Artifact, editable where
+> saving is enabled (Claude Design preview)", argument hint `[what to design]`,
+> `userInvocable` on and no model-invocation gate, subcommand dispatch with bare
+> words only, enabled by a first-party-context check, a rollout flag that now
+> defaults **on** (it defaulted off at v2.1.234), and an Artifact tool whose schema
+> carries `capabilities`. The Claude Design hub: menu line "Work with Claude
+> Design (claude.ai/design): create, import, export, sync, login", argument hint
+> `[sync|login|consent|revoke|import|export|status|<prompt>]`,
+> `disableModelInvocation` on, enabled only behind an `allow_design_sync` setting,
+> a policy gate, and a feature flag; a local `design consent | revoke` command sits
+> beside it. The changelog names no design-family surface through v2.1.268. The
+> design-sync family's registry disposition (defer, observed-only) lives in
+> `docs/native-surfaces/records.json`. Recheck when a release changes either
+> registration's invocation gate or enablement, the commands-page row stops
+> describing the canvas, or a release note first names a design-family surface.
 
 ## Third-party visualization plugins
 

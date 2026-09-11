@@ -12,7 +12,11 @@ worth checking again.
 | It is the single-pass, on-demand layer of a stack: the security guidance plugin reviews code as Claude writes it; the Claude Security plugin runs a multi-agent deep scan with reviewed patches; Code Review reviews pull requests on Team and Enterprise plans; the managed Claude Security product monitors repositories on Enterprise | The "How the plugin fits with other security tools" table on <https://code.claude.com/docs/en/claude-security> | 2026-09-11 | The table adds, removes, or re-tiers a layer |
 | It is unusable in CI because it diffs against `origin/HEAD`, which the Actions checkout does not create | The body's opening paragraph carries that record with its own basis and recheck trigger; not repeated here | 2026-09-06 | See the body |
 
-The docs label and the binary disagree on the command's class. The registry row keeps
+The docs label and the binary disagree on the command's class, and the row's argument form (an
+effort level, `--fix`, and a PR, branch, or path target) is absent from the 2.1.263 registration,
+whose description names only the pending changes on the current branch; the same description is
+what a 2.1.263 session lists for the command. The page may describe a build newer than the one
+verified, though the changelog names no such change through 2.1.268. The registry row keeps
 `plugin-backed-builtin`, the class the binary reports, and this record carries the docs label
 beside it; the disagreement itself is the recheck event the row names, half fired.
 

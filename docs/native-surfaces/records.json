@@ -330,21 +330,22 @@
       "native": { "name": "design", "class": "bundled-skill", "markers": ["gated"] },
       "component": { "plugin": "visualization", "skill": "visualize", "kind": "skill" },
       "verdict": "complementary",
-      "reason": "visualize's form matrix routes hand-tweakable visual layouts (UI mockups, posters, one-pagers) to the bundled design canvas as a user-run offer: the skill's registration disables model invocation, so the model cannot run it or detect it in the skill list, and the offer is gated on the Artifact tool resolving and a medium that permits publishing. The canvas is a persistent, versioned, shareable Artifact; this skill's page paths are throwaway or plain-static. The Boundary section states the split and the offer-only rule; the catalog spoke carries the surface facts.",
+      "reason": "visualize's form matrix routes hand-tweakable visual layouts (UI mockups, posters, one-pagers) to the bundled design canvas when it is listed with the canvas description, offered as an explicit alternative and invoked only on the user's choice, with the shadowing check and never-mention-when-absent rule its catalog spoke documents. The canvas is a persistent, versioned, shareable Artifact; this skill's page paths are throwaway or plain-static. The Boundary section states the split, the mutation gate, and the presence check; the catalog spoke carries the surface facts.",
       "evidence": [
-        "our SKILL.md step 2: 'a design canvas. Offer the bundled design skill's canvas as a user-run alternative where the medium permits publishing'; the Boundary section states the split and the offer-only rule",
+        "our SKILL.md step 2: 'a design canvas. Route to a design-canvas capability (the bundled design skill), when available'; the Boundary section states the split and the presence check",
         "catalog spoke plugins/visualization/skills/visualize/context/decision-matrix.md carries the canvas surface facts with their own verified-on line",
-        "string search of the installed binary v2.1.263 (2026-09-11): design registered as a Claude Design hub (menu line 'Work with Claude Design (claude.ai/design): create, import, export, sync, login'; argument hint sync|login|consent|revoke|import|export|status|<prompt>) with disableModelInvocation true, userInvocable true, enabled behind an allow_design_sync setting, a policy gate, and a feature flag; a local design consent|revoke command beside it",
-        "commands page (2026-09-11) carries a /design row labeled Skill describing the canvas (artboards on one canvas published as an artifact running a research preview of Claude Design's editor; requires artifacts availability and v2.1.234+); the artifacts page's 'Draft a design canvas' shows the user running /design <brief>; the changelog names no design-family surface through v2.1.268",
-        "superseded: binary extraction v2.1.251 (2026-08-31) registered the skill with a /design dispatch table and no model-invocation gate"
+        "string search of the installed binary v2.1.263 (2026-09-11): the canvas skill registers model-invocable and user-invocable (menu line 'Draft a design on a canvas Artifact, editable where saving is enabled (Claude Design preview)'; description 'Create a design canvas...'; argument hint '[what to design]'; no disableModelInvocation; enabled by a first-party-context check, a rollout flag that defaults on, and an Artifact tool whose schema carries capabilities); it is listed to the model with the canvas description in a first-party session on that build",
+        "string search of the same binary: a second bundled registration named design is a Claude Design hub (menu line 'Work with Claude Design (claude.ai/design): create, import, export, sync, login') with disableModelInvocation true, enabled only behind an allow_design_sync setting, a policy gate, and a feature flag; a local design consent|revoke command beside it; so the listed description is the presence check",
+        "commands page (2026-09-11) carries a /design row labeled Skill describing the canvas (artboards on one canvas published as an artifact running a research preview of Claude Design's editor; requires artifacts availability and v2.1.234+); the artifacts page's 'Draft a design canvas' shows /design <brief>; the changelog names no design-family surface through v2.1.268",
+        "prior: binary extraction v2.1.251 (2026-08-31) registered the canvas skill with a /design dispatch table and no model-invocation gate, and the rollout flag defaulted off at v2.1.234; the 2.1.263 registration matches except that the flag now defaults on"
       ],
       "observation": {
         "class": "extraction",
-        "detail": "targeted string search of the installed binary v2.1.263 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (design registration read from the bundle strings), replacing the v2.1.251 extraction whose registration it supersedes",
+        "detail": "targeted string search of the installed binary v2.1.263 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (both design registrations read from the bundle strings), refreshing the v2.1.251 extraction",
         "date": "2026-09-11"
       },
       "recheck": {
-        "trigger": "a Claude Code release changes the design skill's disableModelInvocation flag, its gate, or its subcommand set, a release note first names the skill, or the commands-page row stops describing the canvas",
+        "trigger": "a Claude Code release adds a model-invocation gate to the canvas skill, changes either design registration's enablement or subcommand set, merges the two registrations, a release note first names a design-family surface, or the commands-page row stops describing the canvas",
         "verified": "2026-09-11"
       },
       "baked": { "description_phrase": false, "boundary_section": true },
@@ -354,20 +355,20 @@
       "native": { "name": "design", "class": "bundled-skill", "markers": ["gated"] },
       "component": { "plugin": "prototype", "skill": "explore-directions", "kind": "skill" },
       "verdict": "complementary",
-      "reason": "explore-directions names the design canvas as a user-run alternative to its HTML mockup substrate when the Artifact tool resolves, never invoking the bundled skill (its registration disables model invocation) and keeping the mockup as the default. The canvas persists under the user's account; the mockup is thrown away once the winning-variant key is captured. Same surface as the visualize row, sibling component; the Boundary section states the split, and the description's presence phrasing predates the registry and carries no gate token.",
+      "reason": "explore-directions offers the editable design-canvas Artifact as an explicit alternative to its HTML mockup substrate when the bundled skill is listed with the canvas description, invoking it only on the user's choice and keeping the mockup as the default. The canvas persists under the user's account; the mockup is thrown away once the winning-variant key is captured. Same surface as the visualize row, sibling component; the Boundary section states the split and the presence check, and the description's presence phrasing predates the registry and carries no gate token.",
       "evidence": [
-        "our description: 'or, where the bundled design skill is available, an editable design-canvas Artifact'; the body's design-canvas subsection and Boundary section make the canvas a user-run offer gated on the Artifact tool resolving, never a model invocation",
-        "string search of the installed binary v2.1.263 (2026-09-11): design registered as a Claude Design hub with disableModelInvocation true and userInvocable true, enabled behind an allow_design_sync setting, a policy gate, and a feature flag (detail in the sibling visualize row and plugins/prototype/skills/explore-directions/reference/bundled-design.md)",
+        "our description: 'or, where the bundled design skill is available, an editable design-canvas Artifact'; the body's design-canvas subsection offers the canvas before building and the Boundary section states the split, the mutation gate, and the presence check",
+        "string search of the installed binary v2.1.263 (2026-09-11): the canvas skill registers model-invocable and user-invocable with no disableModelInvocation, enabled by a first-party-context check, a rollout flag that defaults on, and an Artifact tool whose schema carries capabilities; a second same-named Claude Design hub registration carries disableModelInvocation true behind an allow_design_sync setting (detail in the sibling visualize row and plugins/prototype/skills/explore-directions/reference/bundled-design.md)",
         "commands page (2026-09-11) carries a /design row labeled Skill describing the canvas and its gates (artifacts availability, v2.1.234+); the changelog names no design-family surface through v2.1.268",
-        "superseded: binary extraction v2.1.251 (2026-08-31) registered the skill research-preview gated with no model-invocation gate"
+        "prior: binary extraction v2.1.251 (2026-08-31) registered the canvas skill research-preview gated with no model-invocation gate; the 2.1.263 registration matches except that the rollout flag now defaults on"
       ],
       "observation": {
         "class": "extraction",
-        "detail": "targeted string search of the installed binary v2.1.263 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (design registration read from the bundle strings), replacing the v2.1.251 extraction whose registration it supersedes",
+        "detail": "targeted string search of the installed binary v2.1.263 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (both design registrations read from the bundle strings), refreshing the v2.1.251 extraction",
         "date": "2026-09-11"
       },
       "recheck": {
-        "trigger": "a Claude Code release changes the design skill's disableModelInvocation flag, its gate, or its subcommand set, a release note first names the skill, or the commands-page row stops describing the canvas",
+        "trigger": "a Claude Code release adds a model-invocation gate to the canvas skill, changes either design registration's enablement or subcommand set, merges the two registrations, a release note first names a design-family surface, or the commands-page row stops describing the canvas",
         "verified": "2026-09-11"
       },
       "baked": { "description_phrase": false, "boundary_section": true },

@@ -5,15 +5,17 @@ All notable changes to the `prototype` plugin are documented here. Format follow
 
 ## [0.11.0]
 
-### Changed
+### Added
 
-- **`explore-directions`**: the design-canvas alternative is offered, never invoked. The
-  installed client registers the bundled `design` skill with model invocation disabled, so the
-  earlier "invoke the bundled design skill" path cannot run and the skill cannot be detected in
-  the model's list; the subsection now gates the offer on the Artifact tool resolving, has the
-  user run `/design <brief>`, and keeps the HTML mockup as the default. A new `## Boundary, the
-  bundled design skill` section states the split, the mutation gate, and the availability rule,
-  with four-part records in `reference/bundled-design.md`.
+- **`explore-directions`**: a `## Boundary, the bundled design skill` section stating the split
+  against the bundled `design` skill (throwaway mockup by default; the persistent, hand-editable
+  canvas offered as an explicit alternative and invoked only on the user's choice), a mutation
+  gate, and an availability rule that names the presence check: a same-named Claude Design hub
+  variant with model invocation disabled registers behind an `allow_design_sync` setting, so the
+  listed description is what distinguishes the canvas from the hub or a shadowing local skill.
+  The design-canvas subsection names that second reason for its description check. Four-part
+  records, re-verified against the installed client and the live docs, in
+  `reference/bundled-design.md`.
 
 ## [0.10.6]
 

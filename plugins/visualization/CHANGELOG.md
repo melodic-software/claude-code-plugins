@@ -5,16 +5,17 @@ All notable changes to the `visualization` plugin are documented here. Format fo
 
 ## [0.6.0]
 
-### Changed
+### Added
 
-- **`visualize`**: the design canvas is offered, never invoked. The installed client registers
-  the bundled `design` skill with model invocation disabled, so the skill is hidden from the
-  model's list and its presence cannot be read there; Step 3 and the form table now gate the
-  offer on the Artifact tool resolving and on a medium that permits publishing, name
-  `/design <brief>` once as a user-run alternative, and render the rich page unless the user
-  picks the canvas. The `## Boundary` section gains the design-canvas split, and the catalog
-  spoke's design canvas section carries the re-verified surface facts (commands page row,
-  artifacts availability, binary registration) with the recheck trigger.
+- **`visualize`**: the `## Boundary` section gains the design-canvas split against the bundled
+  `design` skill: routing (offer the canvas as an explicit alternative when the skill is listed
+  with the canvas description and the medium permits publishing, invoke it only on the user's
+  choice), a mutation gate (the canvas persists under the user's account, so it is never a
+  silent default), and an availability rule that names the presence check. The catalog spoke's
+  design canvas section carries the re-verified surface facts: the canvas registration is
+  model-invocable with a rollout flag that now defaults on, and a same-named Claude Design hub
+  variant with model invocation disabled registers behind an `allow_design_sync` setting, so the
+  listed description is what distinguishes them.
 
 ## [0.5.2]
 
