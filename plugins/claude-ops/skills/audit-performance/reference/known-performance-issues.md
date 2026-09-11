@@ -107,6 +107,81 @@ attention from per-tool-call hooks: 5 of 15 configured hooks were per-turn on th
 machine, and per-turn cost is what makes a long conversation degrade rather than a single tool
 call stall.
 
+### A registered hook row is a ceiling, and three levels decide whether it fires
+
+Counting registered rows answers "how many handlers could fire", which is the number a fleet
+audit reaches for and the number that misleads. On the audited fleet, 29 of 33 `PostToolUse`
+rows carried an `if` gate, so a write of one file kind spawned a handful of processes rather
+than 33. Three independent levels stand between a row and a spawn, and only the first is visible
+in a bucket count.
+
+**Level 1, the event key.** The `if` field is documented as
+"Only evaluated on tool events: `PreToolUse`, `PostToolUse`, `PostToolUseFailure`,
+`PermissionRequest`, and `PermissionDenied`. On other events, a hook with `if` set never runs"
+([hooks](https://code.claude.com/docs/en/hooks), common fields, `if`). Those five events are
+therefore what per-tool-call means, and a handler carrying an `if` on any other event is dead
+configuration rather than a cost. The engine reports those as `if_on_non_tool_event` and counts
+them as never firing.
+
+**Level 2, the group matcher**, which is a character class before it is a regex:
+
+| matcher | evaluated as |
+|---|---|
+| `"*"`, `""`, or omitted | "Match all" |
+| only letters, digits, `_`, `-`, spaces, `,`, and `\|` | "Exact string, or list of exact strings separated by `\|` or `,` with optional surrounding whitespace" |
+| contains any other character | "JavaScript regular expression, unanchored" |
+
+Source: [hooks](https://code.claude.com/docs/en/hooks), matcher table. Two consequences carry
+real fan-out weight. An unanchored regex catches more than it looks like it does, so `Edit.*`
+also selects `NotebookEdit`. And an exact string is compared whole, so a bare `mcp__memory`
+selects nothing at all: the tool names are `mcp__memory__<tool>`, and server-wide matching needs
+`mcp__memory__.*`. The engine's `matcher_matches` uses Python's `re.search` in place of
+JavaScript's `RegExp.prototype.test`; both are unanchored, and the substitution is stated in the
+report because a JavaScript-only regex construct would evaluate differently here. A matcher
+Python cannot compile at all is counted as selecting every tool and listed in
+`unclassified_rows` with the compile error, so an unknown selection over-counts where an operator
+can see it rather than vanishing.
+
+**Level 3, the handler `if`**, the only level that sees the call's arguments. It "holds exactly
+one permission rule. There is no `&&`, `||`, or list syntax for combining rules; to apply
+multiple conditions, define a separate hook handler for each" (same page), which is why a
+formatter that covers six extensions carries six rows rather than one. A non-match costs nothing
+at all: "the hook process only spawns when the tool call matches"
+([hooks-guide](https://code.claude.com/docs/en/hooks-guide)).
+
+The engine classifies exactly one `if` shape, `Edit(*.<ext>)`, and reports every other shape in
+`unclassified_rows` with the reason, counting it as firing. That direction is deliberate: an
+unmodelled rule inflates the projection, which an operator can investigate, where the opposite
+would hide a spawn nobody goes looking for. The file kinds projected are a fixed baseline plus
+every extension a classified gate names, so a gate on a kind outside the baseline gets its own
+row and `other` means a file no gate names.
+
+**Drift record.** *Claim:* an `Edit(*.<ext>)` `if` rule is evaluated by file extension for all
+three file-writing tools, `Write`, `Edit`, and `NotebookEdit`, so a `Write` of `notes.md` fires a
+handler gated `Edit(*.md)`. *Basis:* the hooks reference documents `"Edit(*.ts)"` as an example
+`if` value and points at permission-rule syntax, but never names the input field the pattern is
+tested against nor the tool set it covers; the permissions reference resolves the tool set from
+the other side, "Claude Code checks file permissions against `Edit(path)` and `Read(path)` rules
+only. If you write a path rule for `Write`, `NotebookEdit`, `Glob`, or the legacy `MultiEdit`
+tool instead, Claude Code accepts the rule but never consults it ... Use `Edit(docs/**)` in place
+of `Write(docs/**)`" ([permissions](https://code.claude.com/docs/en/permissions), file-path
+rules); the [CHANGELOG](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md) at
+2.1.176 records "Fixed hook `if` conditions for Read/Edit/Write tool paths: documented patterns
+like `Edit(src/**)`, `Read(~/.ssh/**)`, and `Read(.env)` now match correctly", which is the
+closest upstream statement that a file-tool path is what the rule sees; and this repository's own
+hook-budget convention already rests on the premise, since the formatter plugins carry one
+`if: Edit(*.ext)` row per extension so that a `Write` to any other file spawns nothing.
+*As of:* 2026-09-11. *Recheck trigger:* a hooks-reference revision that names the input field or
+the tool set for file-tool `if` rules, which would make the premise citable directly instead of
+assembled from three pages.
+
+Two things the projection cannot model, both over-counts rather than hidden spawns. An `if` rule
+matches only under its anchor, so an edit to a file outside the project directory never matches
+one and every gated row there is counted as firing when none of them is. And dedup is modelled
+nowhere: "If you define the same handler in more than one settings file, it runs once. A plugin's
+or skill's copy of the same handler stays separate" (hooks), so rows that collapse upstream are
+counted twice here.
+
 ### Configuration on disk is not configuration in force
 
 Plugin enablement is read AT STARTUP. On the audited machine a plugin was disabled in
