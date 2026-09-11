@@ -342,6 +342,187 @@ EOF
 )"
 expect_exit "open row wins over a passing brief check -> 1" 1 --ledger "$open_plus" --brief "$brief_ok"
 
+# stderr_of <args...> — the script's stderr alone, for message assertions.
+stderr_of() {
+  # shellcheck disable=SC2069 # deliberate: stderr to the capture, stdout dropped
+  bash "$SUT" "$@" 2>&1 >/dev/null
+}
+
+# heading_lines <file> <pattern> — comma-separated 1-based line numbers of the
+# headings matching <pattern>, computed from the fixture so an assertion never
+# hard-codes a line that a preamble edit would move.
+heading_lines() {
+  grep -n -i -E "^#+[[:space:]].*$2" "$1" | cut -d: -f1 | paste -sd, - | sed 's/,/, /g'
+}
+
+# 26. Two headings match the register pattern. A ledger copied from the template
+#     keeps the template's instructional section, whose example rows are unfenced
+#     and parse as data, and appends a live register further down. Grading the
+#     first match reports a phantom verdict off the examples; grading the last
+#     guesses. The gate refuses: exit 2, both lines named, never a verdict.
+dup="$(
+  mkledger <<'EOF'
+- Q1 | answered | round 1 | Who can write comments? | enrolled + instructor + admin
+- Q2 | open | round 1 | What content format? |
+- Q3 | deferred | round 2 | Moderation model? | post-V1
+EOF
+)"
+printf '\n## Open-question register\n\n- Q1 | answered | round 1 | Live question? | yes\n' >>"$dup"
+expect_exit "duplicate register headings -> 2" 2 --ledger "$dup"
+expect_stdout "duplicate register headings report ungradeable" "status=ungradeable" --ledger "$dup"
+dup_out="$(bash "$SUT" --ledger "$dup" 2>/dev/null)"
+if [[ "$dup_out" != *"status=open"* && "$dup_out" != *"status=clean"* ]]; then
+  pass "duplicate register headings never grade a verdict"
+else
+  fail "duplicate register headings never grade a verdict (stdout: '$dup_out')"
+fi
+dup_err="$(stderr_of --ledger "$dup")"
+dup_want="lines $(heading_lines "$dup" 'open-question register')"
+if [[ "$dup_err" == *"$dup_want"* ]]; then
+  pass "duplicate register headings name both lines"
+else
+  fail "duplicate register headings name both lines (want '$dup_want', stderr: '$dup_err')"
+fi
+
+# 27. A second match at another level and case is still a duplicate: the match
+#     is on heading text, not on `## ` exactly.
+dup_level="$(
+  mkledger <<'EOF'
+- Q1 | answered | round 1 | a | x
+EOF
+)"
+printf '\n### Open-Question Register\n\n- Q1 | answered | round 1 | b | y\n' >>"$dup_level"
+expect_exit "duplicate heading at another level -> 2" 2 --ledger "$dup_level"
+
+# 28. The zero-rows message names the heading the gate bound to and its line, so
+#     a bind to the wrong section is visible from stderr alone.
+empty_named="$(mkledger </dev/null)"
+empty_named_line="$(heading_lines "$empty_named" 'open-question register')"
+empty_named_err="$(stderr_of --ledger "$empty_named")"
+if [[ "$empty_named_err" == *"at line $empty_named_line"* && "$empty_named_err" == *"## Open-question register"* ]]; then
+  pass "zero-rows error names the heading and its line"
+else
+  fail "zero-rows error names the heading and its line (want line $empty_named_line, stderr: '$empty_named_err')"
+fi
+
+# 29. The malformed-row message carries the same naming.
+malformed_named="$(
+  mkledger <<'EOF'
+- Q1 open | round 1 | lost its first pipe |
+EOF
+)"
+malformed_named_line="$(heading_lines "$malformed_named" 'open-question register')"
+malformed_named_err="$(stderr_of --ledger "$malformed_named")"
+if [[ "$malformed_named_err" == *"at line $malformed_named_line"* ]]; then
+  pass "malformed-row error names the register line"
+else
+  fail "malformed-row error names the register line (want line $malformed_named_line, stderr: '$malformed_named_err')"
+fi
+
+# 30. The Brief gets the same duplicate refusal under --brief.
+brief_dup="$TMP/plan-dup.md"
+cat >"$brief_dup" <<'EOF'
+## Brief
+
+### Deferred questions
+
+- Q9 — an example row from a template
+
+### Deferred questions
+
+- Q2 — Moderation model? — **arbiter: /planning:plan**
+- Q4 — Retention window? — **arbiter: USER-RESERVED**
+
+## Plan
+EOF
+expect_exit "duplicate deferred-questions headings -> 2" 2 --ledger "$mixed" --brief "$brief_dup"
+brief_dup_err="$(stderr_of --ledger "$mixed" --brief "$brief_dup")"
+brief_dup_want="lines $(heading_lines "$brief_dup" 'deferred questions')"
+if [[ "$brief_dup_err" == *"$brief_dup_want"* ]]; then
+  pass "duplicate deferred-questions headings name both lines"
+else
+  fail "duplicate deferred-questions headings name both lines (want '$brief_dup_want', stderr: '$brief_dup_err')"
+fi
+
+# 31. The missing-id message names the deferred-questions heading's line.
+brief_missing_line="$(heading_lines "$brief_missing" 'deferred questions')"
+brief_missing_err="$(stderr_of --ledger "$mixed" --brief "$brief_missing")"
+if [[ "$brief_missing_err" == *"at line $brief_missing_line"* ]]; then
+  pass "missing-id error names the deferred-questions line"
+else
+  fail "missing-id error names the deferred-questions line (want line $brief_missing_line, stderr: '$brief_missing_err')"
+fi
+
+# 32. A heading-shaped comment inside a fenced block does not end the section.
+#     The template's own register carries a fenced bash block whose `# Step 3`
+#     comment lines look like headings; a live row written after that fence must
+#     still be graded, so this ledger is `open` (exit 1), not empty (exit 2).
+fenced_comment="$(
+  mkledger <<'EOF'
+```bash
+# Step 3, before locking the contract
+bash check-open-questions.sh --ledger x
+```
+
+- Q1 | open | round 1 | Visible after the fence? |
+EOF
+)"
+expect_exit "row after a fenced heading-shaped comment is graded -> 1" 1 --ledger "$fenced_comment"
+
+# 33. A heading-shaped line inside a fence before the real register is not a
+#     heading either: the gate binds to the real one and grades clean.
+fenced_head="$TMP/fenced-head.md"
+# shellcheck disable=SC2016 # the backticks are literal fence markers, not expansion
+printf '# Checklist\n\n```bash\n# open-question register helper\n```\n\n## Open-question register\n\n- Q1 | answered | round 1 | a | x\n' >"$fenced_head"
+expect_exit "fenced heading-shaped line is not a register heading -> 0" 0 --ledger "$fenced_head"
+
+# 34. A fence opened in the register and never closed would make every later
+#     row documentation: one answered row, then an unterminated fence hiding an
+#     open one, graded clean. That is the silent drop the gate refuses, so it is
+#     ungradeable and the message names the cause.
+unterminated="$(
+  mkledger <<'EOF'
+- Q1 | answered | round 1 | fine | ok
+
+```text
+accidentally unterminated example fence
+- Q2 | open | round 1 | hidden by the fence? |
+EOF
+)"
+expect_exit "unterminated fence in the register -> 2" 2 --ledger "$unterminated"
+unterminated_err="$(stderr_of --ledger "$unterminated")"
+if [[ "$unterminated_err" == *"unterminated fenced block"* ]]; then
+  pass "unterminated fence error names the cause"
+else
+  fail "unterminated fence error names the cause (stderr: '$unterminated_err')"
+fi
+
+# 35. A fence opened before the register heading and never closed hides the
+#     heading itself: ungradeable with the same cause, not "no register section".
+unterminated_before="$TMP/unterminated-before.md"
+# shellcheck disable=SC2016 # literal fence markers
+printf '# Checklist\n\n```bash\nnever closed\n\n## Open-question register\n\n- Q1 | answered | round 1 | a | x\n' >"$unterminated_before"
+expect_exit "unterminated fence before the register -> 2" 2 --ledger "$unterminated_before"
+unterminated_before_err="$(stderr_of --ledger "$unterminated_before")"
+if [[ "$unterminated_before_err" == *"unterminated fenced block"* ]]; then
+  pass "unterminated fence before the register names the cause"
+else
+  fail "unterminated fence before the register names the cause (stderr: '$unterminated_before_err')"
+fi
+
+# 36. The Brief's deferred-questions section gets the same refusal.
+brief_unterminated="$TMP/plan-unterminated.md"
+cat >"$brief_unterminated" <<'EOF'
+## Brief
+
+### Deferred questions
+
+```text
+- Q2 — Moderation model? — **arbiter: /planning:plan**
+- Q4 — Retention window? — **arbiter: USER-RESERVED**
+EOF
+expect_exit "unterminated fence in the Brief's deferred questions -> 2" 2 --ledger "$mixed" --brief "$brief_unterminated"
+
 if [[ "$fails" -ne 0 ]]; then
   printf '\n%d test(s) failed.\n' "$fails" >&2
   exit 1
