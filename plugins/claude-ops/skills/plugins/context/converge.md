@@ -1,7 +1,7 @@
-# Converge — explicit scope consolidation
+# Converge: explicit scope consolidation
 
 `converge` is the **only** action that can rewrite a committed `.claude/settings.json`, and only
-after an explicit per-plugin confirm — [sync-install-enable.md](sync-install-enable.md) Step 5 keeps it that way by reporting a
+after an explicit per-plugin confirm. [sync-install-enable.md](sync-install-enable.md) Step 5 keeps it that way by reporting a
 `project`-scope enable gap instead of filling it. It never runs implicitly from `sync`: that report
 only names the `converge` command, and the user runs it explicitly.
 
@@ -9,34 +9,34 @@ only names the `converge` command, and the user runs it explicitly.
 
 `converge` is destructive-tier (it can uninstall a scoped plugin install and rewrite committed
 settings). Per this repo's existing convention (`repo-hygiene`'s `clean` skill, preflight §1.5):
-**abort immediately** when the session is autonomous — `CLAUDE_CODE_REMOTE` set, or the invocation
-arrived via `/loop` or `/schedule` — since no human is present to receive an `AskUserQuestion`
+**abort immediately** when the session is autonomous, meaning `CLAUDE_CODE_REMOTE` set, or the invocation
+arrived via `/loop` or `/schedule`, since no human is present to receive an `AskUserQuestion`
 confirm. Fail closed when the context is genuinely ambiguous (uncertain whether a human is present):
 treat it as autonomous and abort. Report why, and that `converge` can be re-run interactively.
 
 ## V1 scope: version divergence only
 
-`converge` resolves entries in `fleet-state.sh`'s `divergences[]` with `versionsMatch: false` — the
+`converge` resolves entries in `fleet-state.sh`'s `divergences[]` with `versionsMatch: false`. The
 filter rule is defined once in
 [scope-semantics.md](scope-semantics.md#divergence-is-not-automatically-actionable); this action is
 one of its consumers, not a second statement of it. It does **not** currently resolve, and cannot even detect, an
-enable-state mismatch (a plugin `true` in one scope's `enabledPlugins` and `false` in another) —
-that needs comparing each scope's *raw* `enabledPlugins` map, which `fleet-state.sh` doesn't expose
+enable-state mismatch (a plugin `true` in one scope's `enabledPlugins` and `false` in another).
+That needs comparing each scope's *raw* `enabledPlugins` map, which `fleet-state.sh` doesn't expose
 today (only the merged effective value, in `enabled`). This is a genuine blind spot, not a deferred
 fix: never claim the report surfaces an enable-state mismatch, and never hand-parse the settings
-files directly to work around the gap — the fix is extending `fleet-state.sh` to expose the raw
+files directly to work around the gap. The fix is extending `fleet-state.sh` to expose the raw
 per-scope maps, not something this skill's prompt layer can paper over.
 
-## Step 1 — Detect
+## Step 1: Detect
 
 Call `fleet-state.sh` (default marketplace, named one, or the current invocation's target) and take
 `divergences[]` filtered to `versionsMatch: false`.
 
-## Step 2 — Preview per-plugin intent
+## Step 2: Preview per-plugin intent
 
 For each actionable divergence, first find which of its `scopes[]` holds the **highest version**
-(compare `scopes[].version` — semver dotted-numeric compare, not string/lexicographic). Never choose
-a strategy from scope identity alone ("does a user entry exist") without this comparison first —
+(compare `scopes[].version` with a semver dotted-numeric compare, not string/lexicographic). Never choose
+a strategy from scope identity alone ("does a user entry exist") without this comparison first.
 `fleet-state.sh` only proves the scopes *disagree*, never that `user` scope is the newer one. A repo
 pinning `project: 0.9.0` against a stale `user: 0.8.0` has the project pin as the newest version
 present; uninstalling it to "fall through to user scope" would regress the effective loaded version,
@@ -47,11 +47,11 @@ Then decide the consolidation strategy:
 - **`user` scope holds the highest version** → the default strategy is to make the *project/local*
   scope fall through to it: `claude plugin uninstall <id> -s project --keep-data` (or
   `-s local --keep-data`) removes the redundant lower-precedence pin, and scope precedence
-  (local > project > user) means the project now loads whatever `user` scope has — always current
+  (local > project > user) means the project now loads whatever `user` scope has, always current
   from here on without a standing project pin. `--keep-data` is required: this step removes a
   scope pin, never the plugin's `${CLAUDE_PLUGIN_DATA}` directory.
 - **A `project`/`local` scope holds the highest version** (including when there's no `user`-scope
-  entry at all — only multiple `project`/`local`-scope pins across different repos) → the default
+  entry at all, only multiple `project`/`local`-scope pins across different repos) → the default
   strategy is to bring every lagging scope, `user` scope included, up to that version:
   `claude plugin update <id> -s <that scope>` for each scope below the highest.
 
@@ -73,61 +73,61 @@ rollback across scopes is never a convergence.
 ```
 
 **Every `project`/`local`-scope command targets its row's own `scopes[].projectPath`, never the
-current working directory.** `-s project`/`-s local` have no path/target flag — the CLI always
+current working directory.** `-s project`/`-s local` have no path/target flag. The CLI always
 operates on the *current directory's* `.claude/settings*.json`. A divergence row can legitimately
 belong to a different repo than the one this session is standing in (the "elsewhere on this machine"
-rows a bulk report collapses) — never construct the proposed command as a bare
+rows a bulk report collapses). Never construct the proposed command as a bare
 `claude plugin uninstall|update <id> -s project`, only as
 `(cd "<scopes[].projectPath>" && claude plugin uninstall <id> -s project --keep-data)` or
 `(cd "<scopes[].projectPath>" && claude plugin update <id> -s project)`. Presenting or
 running the bare form for a row whose `projectPath` isn't the current directory would silently
-mutate — or fail against — the wrong repo's settings. `--keep-data` applies to `uninstall` only:
+mutate, or fail against, the wrong repo's settings. `--keep-data` applies to `uninstall` only:
 `update` has no such flag, and the uninstall half is a pin removal, never a data deletion.
 
-Two `git worktree` checkouts of one repository pin independently — verified on Claude Code 2.1.228
+Two `git worktree` checkouts of one repository pin independently, verified on Claude Code 2.1.228
 by uninstalling one id in a repo's main checkout and observing the worktree's record for the same id
 survive untouched. They share one `.git` and one tracked `.claude/settings.json` yet hold separate
 `projectPath` records, so never collapse them into one row and never assume converging one clears
 the other: each needs its own `cd`. Per [scope-semantics.md](scope-semantics.md), the CLI keys
-`projectPath` on the literal cwd while `fleet-state.sh` matches on the checkout root — that gap is a
+`projectPath` on the literal cwd while `fleet-state.sh` matches on the checkout root. That gap is a
 blind spot in its own right, recorded in [gotchas.md](gotchas.md).
 
-### Precondition — never emit a `cd` command into a path that is not present
+### Precondition: never emit a `cd` command into a path that is not present
 
 Before emitting any `(cd "<projectPath>" && …)` command, check that row's `projectPathPresent` (see
 [scope-semantics.md](scope-semantics.md)). When it is `false`, the `cd` fails and every command this
-step could construct for that row is unrunnable — so emit the row as **blocked**, with the reason,
+step could construct for that row is unrunnable, so emit the row as **blocked**, with the reason,
 instead of as a runnable command:
 
 ```text
-- <id>@<marketplace> — BLOCKED: projectPath "<projectPath>" is not present on this machine.
+- <id>@<marketplace>, BLOCKED: projectPath "<projectPath>" is not present on this machine.
   converge cannot act on it: `-s project`/`-s local` have no path flag, so the command must cd into
   that directory. Nothing here is safe to run.
 ```
 
-Ephemeral checkouts make this a bulk condition rather than a curiosity — one removed worktree can
+Ephemeral checkouts make this a bulk condition rather than a curiosity. One removed worktree can
 block every row that pointed into it.
 
 **A blocked row is not a resolved row, and `false` is not "dead".** Do not offer to "clean up" the
 record: no `claude plugin` verb removes an install record by path (re-verified on Claude Code 2.1.261),
 and hand-editing `installed_plugins.json` is outside this skill's boundary. Do not silently drop the
-row either — the path may simply be an unmounted volume or an offline share, and a dropped row is
+row either. The path may simply be an unmounted volume or an offline share, and a dropped row is
 drift the user never learns about. Report it and move on.
 
 Present every plugin's proposed strategy and exact CLI command(s) before running anything, and do
 not batch-apply. Confirm **every** pin individually, even when many plugins share the same strategy;
 consent to one pin is not consent to the next.
 
-## Step 3 — Confirm
+## Step 3: Confirm
 
 Use `AskUserQuestion` per plugin (or a clearly-enumerated batch the user can approve/override/skip
-per row — never a single blanket "yes to all"). Options per plugin: apply the proposed strategy,
+per row, never a single blanket "yes to all"). Options per plugin: apply the proposed strategy,
 choose the other strategy, or skip this one.
 
-## Step 4 — Execute
+## Step 4: Execute
 
 Run only the confirmed commands, one plugin at a time. Re-read `fleet-state.sh` state immediately
-before each mutation — do not act on a snapshot taken during Step 1 if meaningful time has passed or
+before each mutation. Do not act on a snapshot taken during Step 1 if meaningful time has passed or
 another mutation already landed.
 
 `converge` genuinely is per-**mutation** here, where [sync.md](sync.md) draws its re-read boundary at
@@ -136,28 +136,28 @@ low-volume (a handful of plugins, each with a human decision between them), so a
 costs nothing and the elapsed time between confirms is real. `sync`'s Step 3 loop issues dozens of
 calls back to back with no pause, where the same discipline would buy only redundant work.
 
-## Step 5 — Surface the resulting diff
+## Step 5: Surface the resulting diff
 
 After all confirmed mutations run, `git diff` (or the equivalent status check) any project's
-committed `.claude/settings.json` that `-s project` mutations touched — every one of them, not only
+committed `.claude/settings.json` that `-s project` mutations touched, every one of them, not only
 the ones expected to change. Per [scope-semantics.md](scope-semantics.md), `claude plugin uninstall
 -s project` (this action's actual mechanism) **always** writes that file: it removes the id's
 `enabledPlugins` entry, leaves `"enabledPlugins": {}` when that empties the map, writes the key even
 into a file that never had one, and rewrites the whole file in Claude Code's key order. A clean tree
-after an uninstall is the surprising outcome, not a dirty one — never predict "no diff" from the
+after an uninstall is the surprising outcome, not a dirty one. Never predict "no diff" from the
 absence of an `enabledPlugins` key and skip the check on that basis.
 
 Classify each diff before showing it, because the two cases warrant opposite advice:
 
-- **Inert** — only an empty `"enabledPlugins": {}` added and/or sibling keys reordered. No behavior
+- **Inert**: only an empty `"enabledPlugins": {}` added and/or sibling keys reordered. No behavior
   changes. Say so and recommend discarding it, so a tracked, team-shared file does not carry churn.
-- **Substantive** — an actual `enabledPlugins` entry removed. That is a real change to what the
+- **Substantive**: an actual `enabledPlugins` entry removed. That is a real change to what the
   project enables for everyone who checks it out. Show it and leave the decision to the user.
 
 Never commit either. The user reviews and commits (or discards) through their own git workflow.
 
 ## Non-interactive execution
 
-`-y` only skips `uninstall`'s `--prune` confirmation — it has no effect otherwise, and this action's
+`-y` only skips `uninstall`'s `--prune` confirmation. It has no effect otherwise, and this action's
 `uninstall` calls never pass `--prune`. Do not add `-y` here: Step 3's per-plugin confirm is the
 required gate, and `-y` would only ever bypass a different (unused) prompt, never that one.

@@ -2,7 +2,7 @@
 
 **Usage:** `/claude-ops:known-issues check-all`
 
-Check every registry issue against current GitHub status. Primary purpose: find issues RESOLVED since last check — unblocked work needing follow-up.
+Check every registry issue against current GitHub status. Primary purpose: find issues RESOLVED since last check, which is unblocked work needing follow-up.
 
 ## Batch backend and its scratch directory
 
@@ -26,8 +26,8 @@ Files sitting directly under `check-all-output/` are unkeyed leftovers from the 
      to `--category fixed` (`fixed` is a category; `status` only accepts `open`/`closed`)
    - Identify what was blocked (from `blocked_work` field)
    - Identify what docs need updating (from `affected_files` field)
-   - Propose a follow-up work item for each action (file with the consumer's tracker — e.g. `gh issue create` — after user confirmation):
-     - "Update `<affected_file>` — issue #NNNNN (`<title>`) is now resolved. Remove workaround, update documentation, and implement/enable the previously blocked feature."
+   - Propose a follow-up work item for each action (file with the consumer's tracker, e.g. `gh issue create`, after user confirmation):
+     - "Update `<affected_file>`: issue #NNNNN (`<title>`) is now resolved. Remove workaround, update documentation, and implement/enable the previously blocked feature."
    - Present summary of what changed
 
 ## Output format

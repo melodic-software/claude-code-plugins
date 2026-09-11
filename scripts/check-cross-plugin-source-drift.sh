@@ -25,7 +25,10 @@
 # a decision waiting to be made, not yet a violation of anything.
 set -euo pipefail
 
-cd "$(dirname "${BASH_SOURCE[0]}")/.."
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR/.."
+# shellcheck source=lib/read-list.sh
+. "$SCRIPT_DIR/lib/read-list.sh" || exit 2
 
 registry="scripts/cross-plugin-source-registry.txt"
 
@@ -148,22 +151,29 @@ for rel in "${!cluster_entries[@]}"; do
 done
 
 declare -A registered
+registry_entries=()
 if [[ -f "$registry" ]]; then
-  while IFS= read -r line; do
-    line="${line%%#*}"
-    line="${line#"${line%%[![:space:]]*}"}"
-    line="${line%"${line##*[![:space:]]}"}"
-    [[ -z "$line" ]] && continue
-    # A line containing ` -> ` is a cluster line (`<canonical> -> <member>...`,
-    # a root-relative canonical copy and the plugin paths or globs that carry
-    # it). It belongs to the duplication audit's reader
-    # (plugins/code-metrics/skills/audit-duplication/scripts/registry-filter.py),
-    # which excludes the whole class from its clone count; this check keys
-    # clusters by path-within-plugin, so the line is neither registered here
-    # nor reported stale.
+  # `inline`: entries are path-within-plugin strings, never regexes, so a `#`
+  # anywhere on the line opens the rationale comment (scripts/lib/read-list.sh
+  # owns the two comment families and why they must stay distinct).
+  # shellcheck disable=SC2310  # the non-zero return IS the handled case; the library reports it
+  read_list::into registry_entries "$registry" --comments inline || exit 2
+  # A line containing ` -> ` is a cluster line (`<canonical> -> <member>...`,
+  # a root-relative canonical copy and the plugin paths or globs that carry
+  # it). It belongs to the duplication audit's reader
+  # (plugins/code-metrics/skills/audit-duplication/scripts/registry-filter.py),
+  # which excludes the whole class from its clone count; this check keys
+  # clusters by path-within-plugin, so the line is dropped from the entry list
+  # here and is neither registered nor reported stale.
+  path_entries=()
+  for line in ${registry_entries[@]+"${registry_entries[@]}"}; do
     [[ "$line" == *" -> "* ]] && continue
+    path_entries+=("$line")
+  done
+  registry_entries=(${path_entries[@]+"${path_entries[@]}"})
+  for line in ${registry_entries[@]+"${registry_entries[@]}"}; do
     registered["$line"]=1
-  done <"$registry"
+  done
 fi
 
 mode="${1:-discover}"
@@ -208,15 +218,25 @@ for rel in "${!cluster_status[@]}"; do
   fi
 done
 
-for rel in "${!registered[@]}"; do
+for rel in ${registry_entries[@]+"${registry_entries[@]}"}; do
   status="${cluster_status[$rel]:-}"
-  if [[ -z "$status" ]]; then
-    echo "REGISTRY STALE: $rel is registered but no longer appears in 2+ plugins." >&2
-    errors=$((errors + 1))
-  elif [[ "$status" != "IDENTICAL" ]]; then
+  [[ -n "$status" ]] || continue
+  # The entry still names a live cluster, so it is not stale. Drift is a
+  # different failure and does not retire the registration.
+  read_list::mark_used "$rel"
+  if [[ "$status" != "IDENTICAL" ]]; then
     echo "DRIFTED: $rel is registered as a shared-copy cluster but its copies no longer match." >&2
     errors=$((errors + 1))
   fi
+done
+
+# scripts/lib/read-list.sh owns the consumed-set and the one STALE BASELINE
+# diagnostic every list gate here prints.
+stale_registry=()
+read_list::stale_to stale_registry registry_entries
+for rel in ${stale_registry[@]+"${stale_registry[@]}"}; do
+  read_list::stale_line "$registry" "$rel" 'no longer appears in 2+ plugins.'
+  errors=$((errors + 1))
 done
 
 if ((errors > 0)); then

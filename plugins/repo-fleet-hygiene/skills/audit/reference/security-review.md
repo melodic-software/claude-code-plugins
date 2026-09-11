@@ -7,7 +7,7 @@ the machine.
 
 ## Decision
 
-**ACCEPT** — the audit skill is read-only and has no automatic execution surface; its only network
+**ACCEPT.** The audit skill is read-only and has no automatic execution surface; its only network
 access is explicit authenticated GitHub metadata lookup initiated by the user-invoked audit. Fleet
 mutation lives in a separate `/repo-fleet-hygiene:apply` skill with its own script and
 `allowed-tools` grant (`apply-plan.sh`), so widening `audit-fleet.sh` argv cannot silently expand

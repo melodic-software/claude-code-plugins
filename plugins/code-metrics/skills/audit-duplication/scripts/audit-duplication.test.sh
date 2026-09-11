@@ -63,6 +63,7 @@ STUBS="$(mktemp -d)"
 EMPTY_PATH="$(mktemp -d)"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$STUBS" "$EMPTY_PATH" "$WORK"' EXIT
+export CODE_METRICS_REPORT_DIR="$STUBS/reports"
 cat >"$STUBS/jscpd" <<'STUB'
 #!/usr/bin/env bash
 if [[ "${1:-}" == "--version" ]]; then
@@ -85,21 +86,20 @@ exit 1
 STUB
 chmod +x "$STUBS/jscpd"
 export CM_TEST_CAPTURE="$CAPTURE"
-# EMPTY_PATH is the caller's PATH with every duplication collector removed: a
-# directory of symlinks to each executable on PATH except those tools, so the
-# coreutils, git, and the interpreter stay reachable while the collectors do
-# not.
-COLLECTOR_NAMES=" jscpd pmd dupl "
-IFS=':' read -r -a path_dirs <<<"$PATH"
-for dir in "${path_dirs[@]}"; do
-  [[ -d "$dir" ]] || continue
-  for exe in "$dir"/*; do
-    [[ -f "$exe" && -x "$exe" ]] || continue
-    name="${exe##*/}"
-    [[ "$COLLECTOR_NAMES" == *" $name "* ]] && continue
-    [[ -e "$EMPTY_PATH/$name" ]] || ln -s "$exe" "$EMPTY_PATH/$name"
-  done
-done
+# EMPTY_PATH is the caller's PATH with every collector removed: a directory of
+# symlinks to each executable on PATH except the tools the ladder names (and
+# the binaries those adapters look up), so the coreutils, git, and the
+# interpreter stay reachable while the collectors do not.
+# shellcheck source=../../../scripts/tool-free-path.sh
+source "$PLUGIN_ROOT/scripts/tool-free-path.sh"
+cm_fill_tool_free_path "$EMPTY_PATH"
+leftover="$(cm_resolvable_ladder_collectors "$EMPTY_PATH" | sort -u | tr '\n' ' ')"
+leftover="${leftover% }"
+if [[ -z "$leftover" ]]; then
+  pass "no ladder collector is resolvable on the tool-free PATH"
+else
+  fail "no ladder collector is resolvable on the tool-free PATH" "none" "$leftover"
+fi
 
 # 1. The declared cluster is excluded, not counted as debt.
 out="$(PATH="$STUBS:$EMPTY_PATH" bash "$SCRIPT" --json --all "$CLUSTER" --registry "$CLUSTER_REGISTRY")"

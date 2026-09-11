@@ -2,9 +2,9 @@
 
 A scan-and-go "doing X → run this skill" map of every listed skill in this marketplace,
 generated from each skill's SKILL.md frontmatter by `scripts/generate-cheatsheet.mjs`.
-Do not hand-edit the generated block below — edit the source frontmatter and regenerate.
+Do not hand-edit the generated block below. Edit the source frontmatter and regenerate.
 
-Grouping axis: this page groups skills by **sequence of use** — the session-flow workflow
+Grouping axis: this page groups skills by **sequence of use**, the session-flow workflow
 stages you move through while working. The separate what-kind-of-plugin taxonomy axis is
 owned by [docs/CATALOG-TAXONOMY.md](CATALOG-TAXONOMY.md).
 
@@ -40,7 +40,7 @@ owned by [docs/CATALOG-TAXONOMY.md](CATALOG-TAXONOMY.md).
 
 | Skill | Plugin | What it does |
 | --- | --- | --- |
-| [`/architecture:map-landscape`](../plugins/architecture/skills/map-landscape/SKILL.md) | `architecture` | Chart discovered repositories as a C4 system landscape plus an application-portfolio table |
+| [`/architecture:map-landscape`](../plugins/architecture/skills/map-landscape/SKILL.md) | `architecture` | Chart a repository and the systems it references as a C4 system landscape and portfolio table |
 | [`/discovery:blindspot`](../plugins/discovery/skills/blindspot/SKILL.md) | `discovery` | Surface your unknown-unknowns and sharpen the prompt before unfamiliar work |
 | [`/discovery:explore`](../plugins/discovery/skills/explore/SKILL.md) | `discovery` | Explore code, history, tests, and config before changing anything |
 | [`/discovery:trace-intent`](../plugins/discovery/skills/trace-intent/SKILL.md) | `discovery` | Reconstruct why a thing was built this way, from evidence outside the code |
@@ -61,7 +61,7 @@ owned by [docs/CATALOG-TAXONOMY.md](CATALOG-TAXONOMY.md).
 | Skill | Plugin | What it does |
 | --- | --- | --- |
 | [`/architecture:improve`](../plugins/architecture/skills/improve/SKILL.md) | `architecture` | Scan the codebase for shallow modules and friction, then design the chosen fix several ways |
-| [`/domain-driven-design:curate-language`](../plugins/domain-driven-design/skills/curate-language/SKILL.md) | `domain-driven-design` | Maintain the domain glossary — resolve terms, record rejected synonyms |
+| [`/domain-driven-design:curate-language`](../plugins/domain-driven-design/skills/curate-language/SKILL.md) | `domain-driven-design` | Maintain the domain glossary. Resolve terms, record rejected synonyms |
 | [`/event-storming:methodology`](../plugins/event-storming/skills/methodology/SKILL.md) | `event-storming` | EventStorming facilitation reference across all three formats |
 | [`/event-storming:simulation`](../plugins/event-storming/skills/simulation/SKILL.md) | `event-storming` | Multi-persona agentic EventStorming workshop on Miro |
 | [`/naming:name-it-better`](../plugins/naming/skills/name-it-better/SKILL.md) | `naming` | Generate and evaluate name candidates from blind fresh-context lenses |

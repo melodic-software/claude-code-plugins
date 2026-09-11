@@ -1,41 +1,43 @@
-# Dispatch contract — the parent's side
+# Dispatch contract: the parent's side
 
 `SKILL.md` carries the routing mandate. This file carries what the **parent** owes around a
 dispatched run **that is specific to research**, and why each obligation exists. The agent's own side
 is [`${CLAUDE_PLUGIN_ROOT}/agents/researcher.md`](${CLAUDE_PLUGIN_ROOT}/agents/researcher.md).
 
-Everything the parent owes that is **identical for exploration and research** — the envelope's six
-fields as a literal template, the pre-dispatch baseline in both shell forms, what is and is not
-documented about argument substitution on the preload path, why the gate ships no permission grant
-and what to do when it cannot run, and the resume-before-discard ordering — is stated once in
-[`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md).
-This file does not restate it.
+Everything the parent owes that is **identical for exploration and research** is stated once in
+[`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md):
+the envelope's six shared fields as a literal template, the pre-dispatch baseline in both shell forms,
+what is and is not documented about argument substitution on the preload path, why the gate ships no
+permission grant and what to do when it cannot run, and the resume-before-discard ordering.
+Research also writes `Source breadth:` on that same template. This file does not restate the shared
+six.
 
 ## The orchestration boundary
 
 Dispatch moves the reading off the orchestrator's context window. It does not move the *judgement*
-that surrounds the reading, and the failures worth guarding against are all at that seam.
+that surrounds the reading, and the failures worth guarding against are all at that boundary.
 
-**The parent owns the pre-dispatch envelope** — everything that must be resolved in main context
+**The parent owns the pre-dispatch envelope**: everything that must be resolved in main context
 before the agent starts, because the agent cannot resolve it once started:
 
-The literal envelope template is in the parent contract. All six fields are owed; this table says
-why each is the parent's to supply.
+The literal envelope template is in the parent contract. All six shared fields are owed; research
+also owes `Source breadth:`. This table says why each is the parent's to supply.
 
 | Field | Why the agent cannot supply it |
 |---|---|
-| Resolved topic | A non-fork subagent sees no conversation to infer from, and the topic does not reach a preloaded body by argument substitution — so the agent must not rely on seeing an unfilled slot after `Research the following topic:`. Silence there is a missing topic, not an empty one |
-| Reason the topic is being researched — the decision it feeds and who the output is for | Same blindness as the topic, with a worse failure mode: a missing topic is silence the agent can report, while a missing reason is invisible. The agent researches the topic as written, returns something well-formed, and neither side learns it answered the wrong question. Intent is what decides which of several defensible readings of a topic is the one wanted |
+| Resolved topic | A non-fork subagent sees no conversation to infer from, and the topic does not reach a preloaded body by argument substitution, so the agent must not rely on seeing an unfilled slot after `Research the following topic:`. Silence there is a missing topic, not an empty one |
+| Reason the topic is being researched, meaning the decision it feeds and who the output is for | Same blindness as the topic, with a worse failure mode: a missing topic is silence the agent can report, while a missing reason is invisible. The agent researches the topic as written, returns something well-formed, and neither side learns it answered the wrong question. Intent is what decides which of several defensible readings of a topic is the one wanted |
 | Memory-slice path | Resolved against the consuming repo's topic-docs binding, which is a parent-side lookup |
-| Memory root | **Not derivable from the slice path.** On a fan-out the slice is a sub-slice, and no one can tell from the path alone which ancestor is the configured root — but the root is where the self-ignoring `.gitignore` guard belongs. It is owed as its own labelled line. It is also the one field whose absence is **degradable**: the agent derives, flags in `open_questions`, and continues, rather than stopping |
+| Memory root | **Not derivable from the slice path.** On a fan-out the slice is a sub-slice, and no one can tell from the path alone which ancestor is the configured root, but the root is where the self-ignoring `.gitignore` guard belongs. It is owed as its own labelled line. It is also the one field whose absence is **degradable**: the agent derives, flags in `open_questions`, and continues, rather than stopping |
 | Budget | How much depth was authorized is the caller's decision, never the worker's |
-| Capability flags | Whether nested spawning is available is a session property the parent probed. It is the only flag — the agent's own **write** capability is not probeable before dispatch, and the parent's `mkdir`/baseline proves only that the parent can write there. That question is answered afterwards by `persistence:` in the payload |
+| Source breadth | The caller effort that scales the phase table. The researcher lane is pinned `high` for reasoning, so the worker's own `${CLAUDE_EFFORT}` is the pin (or a literal placeholder on disk fallback). The parent writes this line from its own load |
+| Capability flags | Whether nested spawning is available is a session property the parent probed. It is the only flag, because the agent's own **write** capability is not probeable before dispatch, and the parent's `mkdir`/baseline proves only that the parent can write there. That question is answered afterwards by `persistence:` in the payload |
 
-The agent **refuses to guess** any of these rather than inventing one — memory root excepted above —
+The agent **refuses to guess** any of these rather than inventing one, memory root excepted above,
 so an unresolved envelope surfaces as a failed dispatch instead of a confident answer to a question
 nobody asked. That refusal is the reason the envelope is safe to make mandatory.
 
-**The parent owns the post-dispatch boundary** — the acceptance gate below, and then four obligations,
+**The parent owns the post-dispatch boundary**: the acceptance gate below, and then four obligations,
 none delegable (the gate runs first: every one of them acts on an artifact, so all four are worthless
 against a run that produced none):
 
@@ -43,16 +45,16 @@ against a run that produced none):
    the agent returns questions as text. The dated record for that harness behavior is
    [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
    "Harness facts the dispatch design rests on". If the parent does not surface them, the anti-pattern the
-   skill guards against — silent downstream resolution — happens anyway, one level up.
+   skill guards against, silent downstream resolution, happens anyway, one level up.
 2. **Dispatch the sibling verifier** for the outcome-gate rows the producer may not self-grade.
    Sibling, not child: independence is a property of *context provenance*, not of spawn parentage. A
    verifier that reads the artifact off disk has never seen the producing context, whoever spawned
-   it — which is why nested spawning stays an optimization here rather than a correctness
+   it, which is why nested spawning stays an optimization here rather than a correctness
    prerequisite.
 3. **Apply project fit.** The consuming project's conventions and stated direction live with the
    parent; a fresh worker has no access to them.
 4. **Write both results back into the artifact.** This is the obligation easiest to drop, and
-   dropping it silently negates the artifact's central promise — that a fresh session can resume
+   dropping it silently negates the artifact's central promise, that a fresh session can resume
    reading the artifact alone. The producer returns `verification: pending` *because it may not
    self-grade*, not because the question is permanently open; a parent that verifies and then leaves
    the index saying `pending` has produced an artifact that permanently understates what is known,
@@ -62,21 +64,21 @@ against a run that produced none):
    index's outcome-gate result: `verification: pending` becomes the verifier's verdict, the verifier
    rows carry pass or the criterion that failed, and project fit is recorded as its own finding
    against the consuming project's conventions. A FAIL on a verifier row sends the run back to the
-   phase that row names — the gate's own routing — rather than shipping an artifact annotated with
+   phase that row names, the gate's own routing, rather than shipping an artifact annotated with
    its own failure.
 
    The verifier writes nothing itself. It never saw the run, it holds no envelope, and giving a
    second worker write access to the same slice reintroduces exactly the one-writer-per-slice problem
    the sub-slice rule exists to prevent. It returns a verdict; the parent persists it.
 
-## Discipline liveness — why a token at all
+## Discipline liveness: why a token at all
 
 A `skills:` entry that is missing or disabled is **skipped silently**: the harness logs a warning to
 the debug log and starts the agent regardless. The dated record for that harness behavior is
 [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
 "Harness facts the dispatch design rests on". The resulting run has no disciplines, no phase
-structure, and no gate — and it still writes an artifact, still returns a payload, and still reports
-`coverage: complete`. At every seam this design builds, that failure is indistinguishable from
+structure, and no gate, and it still writes an artifact, still returns a payload, and still reports
+`coverage: complete`. At every check this design builds, that failure is indistinguishable from
 success.
 
 So the skill file carries a token, the agent echoes it verbatim, and **the parent discards any
@@ -94,7 +96,7 @@ field. The parent grades that field and MUST NOT infer `fired` from a matching t
 the accepted recovery, not a discard. A missing or unrecognized `preload:` field is an out-of-date
 agent definition, the same class as a missing `topic_as_received`.
 
-## The acceptance gate — why it grades the slice path, not the payload
+## The acceptance gate: why it grades the slice path, not the payload
 
 `SKILL.md` carries the gate's three steps. This is why each is shaped the way it is.
 
@@ -107,18 +109,18 @@ A check that resolves its input from `artifact:` cannot see that failure, becaus
 read the path from is the thing that is broken. The parent already holds the answer: it resolved the
 memory-slice path itself, before dispatch, and put it in the dispatch prompt. Grading against **its
 own** path is what makes the check independent of every return-path defect. That is only true if the
-parent still *has* the path when the gate runs — and at exactly that moment a payload with an
+parent still *has* the path when the gate runs, and at exactly that moment a payload with an
 `artifact:` field is the nearer input. So the slice path is carried across the dispatch deliberately,
 as the gate's input.
 
 The same reasoning demotes `--expect-sidecars` and `--expect-index` to cross-checks: they compare one
-of the payload's self-reported values against what the artifact says, which is worth having — a
-disagreement means one of them is wrong — but it is a claim grading a claim. The exit status without
-them is the load-bearing verdict.
+of the payload's self-reported values against what the artifact says, which is worth having, since a
+disagreement means one of them is wrong, but it is a claim grading a claim. The exit status without
+them is the authoritative verdict.
 
 **One gate serves both skills because the on-disk shape is one shape.** `artifact-shape.md` is explicit
 that the index shape, the section-keyed sidecar filenames, the sub-slice rule, and both placement rules
-are identical for exploration; what differs is the sidecar YAML **header** — tiers and publishing pools
+are identical for exploration; what differs is the sidecar YAML **header**: tiers and publishing pools
 here, `verified: read | grep | inferred` there. The gate never opens a header. `--index-name` is
 therefore the whole difference between the two invocations, and it is required rather than defaulted:
 a silent `EXPLORE.md` default would grade a research slice against the wrong family and, in a slice
@@ -126,10 +128,10 @@ that also holds an exploration, could report a research dispatch that wrote noth
 
 **Where the two dispatches genuinely diverge is the fan-out.** `SKILL.md` sanctions a parent that
 assigns N sub-slices up front and then *synthesizes* the slice-root `RESEARCH.md` from their indexes.
-The gate grades exactly the path it is given and never scans, so that end state — a root index plus
-sub-slice indexes — confuses nothing: each invocation names which artifact it is asking about. The
+The gate grades exactly the path it is given and never scans, so that end state, a root index plus
+sub-slice indexes, confuses nothing: each invocation names which artifact it is asking about. The
 obligation is the parent's, not the script's. Grade each run against the sub-slice it was assigned,
-and grade before synthesis — a slice-root invocation grades only the synthesized index, never any
+and grade before synthesis. A slice-root invocation grades only the synthesized index, never any
 dispatched run.
 
 ## The coverage ledger is graded separately, and its freshness is not bound
@@ -142,7 +144,7 @@ one command and is the only step in this gate that grades the discipline's centr
 than the artifact's existence.
 
 It stays a **separate script**, composed by the skill, rather than a flag on the artifact gate. The
-artifact gate is shape-agnostic — it grades an index and its sidecars for either family — and the
+artifact gate is shape-agnostic, grading an index and its sidecars for either family, and the
 ledger belongs to exactly one caller. Folding a `--ledger` flag in would put research's file into the
 half of the pair that is deliberately family-neutral.
 
@@ -154,8 +156,8 @@ Two limits are worth stating rather than discovering:
 - **The ledger gate reads marks, not provenance.** It grades the table in front of it and has no
   notion of which run wrote it.
 
-Together those mean a re-dispatch into a dirty slice can be graded against a *dead* run's marks —
-narrowly, but really: Phase 0 rewrites the ledger before any query, so the window is a re-dispatch
+Together those mean a re-dispatch into a dirty slice can be graded against a *dead* run's marks,
+narrowly but really: Phase 0 rewrites the ledger before any query, so the window is a re-dispatch
 whose new run recorded the corpus as unbounded (and therefore wrote no ledger) while the previous
 run's marked one is still sitting there. Hence the ladder's first move on a discard.
 
@@ -163,35 +165,35 @@ run's marked one is still sitting there. Hence the ladder's first move on a disc
 
 Take these in order. A non-zero exit is never a reason to proceed and note it later.
 
-**Exit 2 — ungradeable.** A parent-envelope problem, not a worker problem: the slice path was wrong
+**Exit 2: ungradeable.** A parent-envelope problem, not a worker problem: the slice path was wrong
 or never created, or the baseline it named is missing. Fix the envelope and re-run the gate.
 Re-dispatching first pays for a whole research run again to answer a question the parent could have
 answered itself.
 
-**Exit 1 with `persistence: by-value` — the parent writes the slice. Take this rung before the resume
+**Exit 1 with `persistence: by-value`: the parent writes the slice. Take this rung before the resume
 rung, because the payload has already told you why the disk is empty.** The agent finished and its
 environment refused every write. Neither of the rungs below helps: a resume asks a worker to redo the
 one thing it just proved it cannot do, and a re-dispatch pays for every phase again to reproduce the
-same refusal — the most expensive way to learn nothing.
+same refusal, the most expensive way to learn nothing.
 
 So the parent does the writing, which it can: this is the checkout-not-process boundary
 [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)
 draws:
 
 1. **Check every filename before writing anything.** The payload carries `RESEARCH.md`, every
-   sidecar with its machine-readable header, and — when the run wrote one — `research-checklist.md`,
+   sidecar with its machine-readable header, and, when the run wrote one, `research-checklist.md`,
    each introduced by a filename. This is the only place in the contract where a name the *worker*
    produced becomes a write the *parent* performs, at the parent's wider permission, and the worker
    that produced it spent its whole run ingesting untrusted third-party pages. Accept exactly
    `RESEARCH.md`, `research-checklist.md`, and `RESEARCH-<section>.md`
    (`^RESEARCH-[A-Za-z0-9_-]+\.md$`), each a bare filename. Reject anything carrying a directory
-   separator, a `..` segment, a leading `/`, or any other shape — as a **failed dispatch**, the same
+   separator, a `..` segment, a leading `/`, or any other shape, as a **failed dispatch**, the same
    as a payload returning findings instead of bodies. Confirm the resolved path of every write still
    sits directly inside the destination directory.
-2. **Write into the memory-slice path the parent resolved before dispatch** — the same path it fed
+2. **Write into the memory-slice path the parent resolved before dispatch**, the same path it fed
    the gate, which on a fan-out is the sub-slice that topic was assigned rather than the slice root.
    The payload's `artifact:` value is the destination the agent *names*, never the anchor.
-3. **Re-run the identical checks — the artifact gate always, and the coverage-ledger gate whenever a
+3. **Re-run the identical checks: the artifact gate always, and the coverage-ledger gate whenever a
    ledger was owed.** Do not hand-inspect the directory instead; the whole reason this rung is safe
    is that the artifact ends up graded by the same checks as every other run. Freshness needs no
    special handling: the parent writes after its own `touch`, so the index is strictly newer than
@@ -199,27 +201,27 @@ draws:
    to close does not open here.
 
    **A run that recorded the corpus as unbounded wrote no ledger, and none is owed on this path
-   either.** The standing rule is unchanged — no ledger on disk is correct *only* when the artifact
-   records the corpus as unbounded — so check the recovered index for that record, exactly as you
+   either.** The standing rule is unchanged, that no ledger on disk is correct *only* when the artifact
+   records the corpus as unbounded, so check the recovered index for that record, exactly as you
    would for a run that wrote its own slice. Running the ledger gate anyway against a file nobody
    was supposed to write exits 2, which is a FAIL, and would halt a complete run on a check that
    never applied to it. A bounded corpus with no ledger body in the payload is still a Phase 0 that
    never ran, whatever the payload says.
 4. Proceed only when every check that applied comes back 0. A non-zero re-run drops through to the
-   rungs below — the exception is to the halt, never to the gate, and `persistence: by-value` grades
+   rungs below. The exception is to the halt, never to the gate, and `persistence: by-value` grades
    nothing on its own.
 
 **A by-value payload that returns findings instead of artifact bodies is a failed dispatch, not a
 fallback.** The value of the third outcome is *routing*: it tells the parent which recovery to take.
 It is not an acceptance value. Letting the gate grade a claim the agent makes about its own research,
-in place of the artifact and the ledger, is the Tier-3 laundering the discipline forbids — arriving
+in place of the artifact and the ledger, is the Tier-3 laundering the discipline forbids, arriving
 through the recovery path instead of the front door. Why the mode exists and where its boundary
 sits: [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md).
 
-**Exit 1 with the agent still live — resume it; do not re-dispatch it.** A resume costs one message; a
+**Exit 1 with the agent still live: resume it; do not re-dispatch it.** A resume costs one message; a
 re-dispatch pays all the phases over again. Address the agent by its **agent ID**, not by name, and ask
 for the return payload block alone rather than restating the task. If the artifact set is on disk and
-only the payload was malformed, the artifact is the source of truth — read the index for the pointer,
+only the payload was malformed, the artifact is the source of truth. Read the index for the pointer,
 and still dispatch the sibling verifier. If the payload comes back naming a refused write, you are on
 the by-value rung above, not this one. What the harness actually guarantees about a resume, verified
 against the official sub-agents page and quoted there, is written down once in
@@ -228,20 +230,20 @@ against the official sub-agents page and quoted there, is written down once in
 which is a custom subagent like `discovery:explorer`. It is pointed at rather than restated so the two
 copies cannot drift apart on a harness change.
 
-**A refused resume, or exit 1 again after one — discard and re-dispatch with the same envelope, and
+**A refused resume, or exit 1 again after one: discard and re-dispatch with the same envelope, and
 CLEAR THE SLICE FIRST** (or assign the re-dispatch a fresh sub-slice). This rung is research-specific
 and it is the one worth remembering: a discarded run's `research-checklist.md` survives the discard,
 the artifact gate's freshness check does not cover it, and a replacement run that finds the corpus
-unbounded writes no ledger of its own — so the dead run's marks would be graded as the new run's
+unbounded writes no ledger of its own, so the dead run's marks would be graded as the new run's
 coverage. Deleting the slice contents, or moving the re-dispatch to a fresh sub-slice, closes that
 without any new machinery.
 
-**Bound the wait either way.** `status: truncated` is not a special case — it takes the same ladder,
+**Bound the wait either way.** `status: truncated` is not a special case. It takes the same ladder,
 and the discard-rather-than-resume rule for a partial *slice* is below, which is a different question
 from resuming the *agent* for its payload.
 
 **Why exit 1 alone is not enough to pick a rung.** The gate emits the same exit 1 and the same message
-whether the agent never launched or finished every phase and could not write — correctly, since it
+whether the agent never launched or finished every phase and could not write, correctly so, since it
 grades disk state and nothing else, and reading the payload is not its job. The branch lives here
 instead, one level up, where gate step 1 has already put the payload in the parent's hands.
 
@@ -250,7 +252,7 @@ instead, one level up, where gate step 1 has already put the payload in the pare
 `maxTurns` has no documented partial-return semantics; the docs define it only as the point at which
 the subagent stops. Because the ledger and sidecars are written incrementally, a turn-limit stop
 would otherwise leave a half-marked ledger, orphan sidecars, and an index naming files that were
-never written — with no payload at all, so the parent never learns the run died.
+never written, with no payload at all, so the parent never learns the run died.
 
 Hence: the agent emits its payload block early and keeps it current, marked `status: truncated`
 until the run finishes, and a dispatch that returns no payload is treated as
@@ -258,10 +260,10 @@ truncated-without-warning.
 
 **In both cases the parent takes the ladder above in order: resume first where the agent is still
 live, then decide about the slice from what the resume returns.** The resume is what tells you
-whether the slice is worth keeping — a half-run ledger cannot be distinguished from a complete one
+whether the slice is worth keeping. A half-run ledger cannot be distinguished from a complete one
 by the coverage script alone, but a resumed agent can say which rows it actually marked, and has
 recovered a complete artifact set from retained context. **Discarding the partial slice is what
-happens when the resume is refused, unavailable, or comes back without a usable payload** — and
+happens when the resume is refused, unavailable, or comes back without a usable payload**, and
 there it is mandatory, with the clear-the-slice rule above, because that is exactly the state the
 coverage script cannot grade. The ordering, and the harness guarantees it rests on, are stated once
 in
@@ -270,14 +272,14 @@ in
 
 ## What dispatch does and does not buy
 
-- **Independence** — yes. The verdict comes from a context that did not produce the work.
-- **Decorrelation** — no, and it never claimed to. One fresh context is still one prior; N of them
-  agreeing is not N independent checks. Decorrelation comes from a reviewer with different priors —
-  a cross-vendor model — and is orthogonal to dispatch.
-- **Bounded summarization loss** — for *content*, yes: the full evidence table, fetch log, and gap
+- **Independence**: yes. The verdict comes from a context that did not produce the work.
+- **Decorrelation**: no, and it never claimed to. One fresh context is still one prior; N of them
+  agreeing is not N independent checks. Decorrelation comes from a reviewer with different priors,
+  such as a cross-vendor model, and is orthogonal to dispatch.
+- **Bounded summarization loss**: for *content*, yes: the full evidence table, fetch log, and gap
   lists are on disk. For *process*, only as far as those artifacts capture it, which is why the fetch
   log and the gap lists are written outputs rather than working notes.
-- **Debuggability** — worse, and worth stating plainly. Background is the default execution mode, so
+- **Debuggability**: worse, and worth stating plainly. Background is the default execution mode, so
   a failed run's transcript is not in the conversation at all. The dated record for that harness
   behavior is
   [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),

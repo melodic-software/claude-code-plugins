@@ -1,4 +1,4 @@
-# Step 1 survey result — exports service (eval fixture)
+# Step 1 survey result: exports service (eval fixture)
 
 Stand in for what a Step 1 survey of the consumer repo returns. Findings only: what was searched,
 what was found, what was not. It draws no conclusion about which findings settle the task.

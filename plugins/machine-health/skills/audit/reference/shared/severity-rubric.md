@@ -1,6 +1,6 @@
 # Severity rubric
 
-Every check result and finding in the report carries one of five severity levels. Severity is **trend-aware** — a single reading in isolation is rarely load-bearing. Before finalizing severity, orchestrator consults `state/history.jsonl` and may adjust up or down based on delta.
+Every check result and finding in the report carries one of five severity levels. Severity is **trend-aware**. A single reading in isolation rarely settles it. Before finalizing severity, orchestrator consults `state/history.jsonl` and may adjust up or down based on delta.
 
 ## The five levels
 
@@ -23,7 +23,7 @@ Worth knowing but no action required. Surfaces trend or context that shapes futu
 
 ### `WARN`
 
-Action recommended this week but system still operable. A WARN today can become CRIT if ignored for a few runs — this is where trend data earns its keep.
+Action recommended this week but system still operable. A WARN today can become CRIT if ignored for a few runs. This is where trend data earns its keep.
 
 - Disk 85–95% full, or temperature 55–65°C, or wear 70–85%.
 - Defender signature age 3–7 days.
@@ -35,25 +35,25 @@ Action recommended this week but system still operable. A WARN today can become 
 
 ### `CRIT`
 
-Action needed immediately. A pattern of ignored CRIT findings is a trust problem — rubric must stay calibrated so CRIT means CRIT.
+Action needed immediately. A pattern of ignored CRIT findings is a trust problem. The rubric must stay calibrated so CRIT means CRIT.
 
 - Disk ≥95% full, or temperature >65°C, or wear ≥85%.
 - `Get-PhysicalDisk` HealthStatus is anything other than `Healthy`.
 - Any BugCheck event or Kernel-Power 41 (unexpected shutdown) in the last 7 days.
 - Any `disk`-source Error or Critical event in the last 7 days.
-- Defender signature age >7 days, **or** real-time protection disabled, **or** tamper protection disabled, **or** any active threat in the last 30 days. The signature-age and real-time-protection arms do not apply when Defender runs in passive mode behind a third-party AV — see `reference/windows/check-catalog.md` § 5.
+- Defender signature age >7 days, **or** real-time protection disabled, **or** tamper protection disabled, **or** any active threat in the last 30 days. The signature-age and real-time-protection arms do not apply when Defender runs in passive mode behind a third-party AV. See `reference/windows/check-catalog.md` § 5.
 - Any winget-visible app matching the CISA KEV list.
 - Pending security update older than 14 days.
 - Battery full-charge capacity <50% of design.
-- Authorized remediation was attempted and failed — underlying finding upgrades to CRIT with the failure message attached.
+- Authorized remediation was attempted and failed. The underlying finding upgrades to CRIT with the failure message attached.
 
 ### `UNKNOWN`
 
-Skill cannot answer the question. Never hide a gap — surface it.
+Skill cannot answer the question. Never hide a gap. Surface it.
 
-- Check script exceeded a time budget — the orchestrator's 90s per-check kill, or a narrower budget a check enforces on itself (e.g. `claude-temp-root` stops walking at 60s and reports partial figures).
+- Check script exceeded a time budget: the orchestrator's 90s per-check kill, or a narrower budget a check enforces on itself (e.g. `claude-temp-root` stops walking at 60s and reports partial figures).
 - Required cmdlet or module is missing (e.g., `Get-MpComputerStatus` blocked by policy).
-- Check needs admin and run is non-elevated (do not attempt to elevate — report and move on).
+- Check needs admin and run is non-elevated (do not attempt to elevate, just report and move on).
 - Parsing failure on vendor CLI output.
 - OS is macOS or Linux and implementation is still `NOT_IMPLEMENTED`.
 

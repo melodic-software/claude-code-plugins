@@ -31,7 +31,7 @@
 #                disposition like "Valid (defer)" still counts, not only the
 #                mandated all-caps token (#619). An annotation after the token
 #                must be introduced by punctuation, which is what admits the
-#                documented "VALID — fixing" / "VALID — fix now" forms while
+#                documented "VALID: fixing" / "VALID (fix now)" forms while
 #                refusing table prose ("| CI check | result is valid |",
 #                "| Valid cache entries are rejected |"). "INVALID", "valid2"
 #                and "VALID_TOKEN" do not count as "VALID". Capped at findings
@@ -370,7 +370,7 @@ SEVERITY_PLAIN_RE='\[P[0-3]\]'
 # bracket — never by a bare space. That is the discriminator between the
 # dispositions reference/review-discipline.md documents and prose that happens
 # to start with a disposition word:
-#   documented   `VALID — fixing`  `VALID (defer)`  `VALID — fix now`
+#   documented   `VALID: fixing`  `VALID (defer)`  `VALID (fix now)`
 #   prose        `Valid cache entries are rejected`
 # Matching anywhere in the row instead would also credit `| CI check | result is
 # valid |`, and either miss lets an unclassified finding past the

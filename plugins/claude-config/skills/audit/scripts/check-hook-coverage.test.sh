@@ -61,12 +61,53 @@ reg() {
     "$f" >"$f.tmp" && mv "$f.tmp" "$f"
 }
 
+mkt_catalog() {
+  # mkt_catalog <dir> <marketplace-name> <plugin-name> <entry-source>: write a
+  # directory marketplace's .claude-plugin/marketplace.json with one plugin entry
+  # whose source is a path relative to <dir>
+  mkdir -p "$1/.claude-plugin"
+  jq -n --arg m "$2" --arg n "$3" --arg s "$4" \
+    '{name:$m,owner:{name:"fixture"},plugins:[{name:$n,source:$s}]}' \
+    >"$1/.claude-plugin/marketplace.json"
+}
+
+settings_mkt() {
+  # settings_mkt <root> <marketplace-name> <path>: declare a directory-source
+  # marketplace in the project settings, keeping whatever the file already holds
+  local f="$1/project/.claude/settings.json"
+  [[ -f "$f" ]] || printf '{}\n' >"$f"
+  jq --arg m "$2" --arg p "$3" '.extraKnownMarketplaces[$m] = {source:{source:"directory",path:$p}}' \
+    "$f" >"$f.tmp" && mv "$f.tmp" "$f"
+}
+
+known_mkt() {
+  # known_mkt <root> <marketplace-name> <dir>: record a directory-source
+  # marketplace in the user dir's plugins/known_marketplaces.json
+  local f="$1/user/plugins/known_marketplaces.json"
+  mkdir -p "$1/user/plugins"
+  [[ -f "$f" ]] || printf '{}\n' >"$f"
+  jq --arg m "$2" --arg p "$3" '.[$m] = {source:{source:"directory",path:$p},installLocation:$p}' \
+    "$f" >"$f.tmp" && mv "$f.tmp" "$f"
+}
+
+hook_file() {
+  # hook_file <path> <event> <matcher> <command>: write a one-hook hooks.json
+  mkdir -p "$(dirname "$1")"
+  jq -n --arg e "$2" --arg m "$3" --arg c "$4" \
+    '{hooks:{($e):[{matcher:$m,hooks:[{type:"command",command:$c}]}]}}' >"$1"
+}
+
 run() {
   # run <root> [args...] — invoke the script against a fixture machine
   HOOK_COVERAGE_FIXTURE_DIR="$1/project" \
     HOOK_COVERAGE_USER_DIR="$1/user" \
     HOOK_COVERAGE_INSTALLED_JSON="$1/registry.json" \
     bash "$SCRIPT" "${@:2}"
+}
+
+json_field() {
+  # json_field <json> <jq-filter>: echo the filter's raw result, or nothing
+  printf '%s' "$1" | jq -r "$2" 2>/dev/null
 }
 
 # --- Case 1: a plugin's hooks/hooks.json is enumerated ------------------------
@@ -188,10 +229,13 @@ assert_contains "case 8: lever reported" "$out" "disableAllHooks"
 assert_contains "case 8: lever value reported" "$out" "true"
 
 # --- Case 9: --json emits parseable JSON with the inventory verdict ----------
+# A downstream engine reads this document, so every hook entry field the hook
+# schema allows (timeout, type, if, shell, args) rides along, each plugin row
+# names the directory its hooks came from, and the project root is stated.
 m="$(make_machine jsonout)"
 printf '{"enabledPlugins":{"guard@mkt":true}}\n' >"$m/project/.claude/settings.json"
 mkdir -p "$m/plugins/guard/hooks"
-printf '%s\n' '{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"j.sh"}]}]}}' \
+printf '%s\n' '{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"j.sh","timeout":30,"if":"Bash(git *)","shell":"bash","args":["-x","--y"]}]}]}}' \
   >"$m/plugins/guard/hooks/hooks.json"
 reg "$m" "guard@mkt" "$m/plugins/guard"
 rc=0
@@ -204,6 +248,14 @@ else
 fi
 assert_contains "case 9: inventory verdict present" "$out" '"inventory": "complete"'
 assert_contains "case 9: hook command present" "$out" "j.sh"
+assert_contains "case 9: project_root carried" "$(json_field "$out" '.project_root')" "$m/project"
+assert_contains "case 9: hook timeout carried as a number" "$(json_field "$out" '.hooks[0].timeout')" "30"
+assert_contains "case 9: hook type carried" "$(json_field "$out" '.hooks[0].type')" "command"
+assert_contains "case 9: hook if carried" "$(json_field "$out" '.hooks[0].if')" "Bash(git *)"
+assert_contains "case 9: hook shell carried" "$(json_field "$out" '.hooks[0].shell')" "bash"
+assert_contains "case 9: hook args carried as an array" "$(json_field "$out" '.hooks[0].args | tojson')" '["-x","--y"]'
+assert_contains "case 9: plugin path carried" "$(json_field "$out" '.plugins[0].path')" "$m/plugins/guard"
+assert_contains "case 9: divergence array present" "$(json_field "$out" '.divergence | type')" "array"
 
 # --- Case 10: no settings scope at all is fatal, not an empty inventory -------
 m="$(make_machine nosettings)"
@@ -249,6 +301,132 @@ out=$(run "$m" 2>&1) || rc=$?
 assert_exit "case 13: exit 0" 0 "$rc"
 assert_contains "case 13: project install record used" "$out" "project-hook.sh"
 assert_not_contains "case 13: user install record not used" "$out" "user-hook.sh"
+
+# --- Case 14: a directory-source marketplace is read from its checkout -------
+# The session loads a directory marketplace's plugin from the marketplace
+# directory itself, not from the registry's versioned cache snapshot. A cache
+# taken at an earlier commit can lack a hook the checkout ships, so the loaded
+# directory is what gets enumerated and the pair is reported as divergence.
+m="$(make_machine mkt-directory)"
+printf '{"enabledPlugins":{"guard@mkt":true}}\n' >"$m/project/.claude/settings.json"
+settings_mkt "$m" "mkt" "$m/mkt"
+mkt_catalog "$m/mkt" "mkt" "guard" "./plugins/guard"
+hook_file "$m/mkt/plugins/guard/hooks/hooks.json" PreToolUse '^mcp__github__(push_files|create_or_update_file)$' "loaded-hook.sh"
+hook_file "$m/cache/mkt/guard/0.9.0/hooks/hooks.json" PreToolUse Bash "cache-only-hook.sh"
+reg "$m" "guard@mkt" "$m/cache/mkt/guard/0.9.0"
+rc=0
+out=$(run "$m" 2>&1) || rc=$?
+assert_exit "case 14: exit 0" 0 "$rc"
+assert_contains "case 14: hook from the marketplace directory enumerated" "$out" "loaded-hook.sh"
+assert_not_contains "case 14: cache-only hook not enumerated" "$out" "cache-only-hook.sh"
+assert_contains "case 14: plugin row says where it loaded from" "$out" "(loaded from marketplace directory)"
+assert_contains "case 14: divergence block present" "$out" "Cache-versus-loaded divergence (1):"
+assert_contains "case 14: divergence names the loaded path" "$out" "guard@mkt: loads $m/mkt/plugins/guard;"
+assert_contains "case 14: divergence names the cache path" "$out" "registry cache at $m/cache/mkt/guard/0.9.0"
+assert_contains "case 14: divergence is info" "$out" "Info: the session loads the marketplace directory"
+assert_contains "case 14: inventory complete" "$out" "INVENTORY: complete"
+
+# --- Case 15: directory marketplace with no registry file is still complete --
+# Before the marketplace route, an absent installed_plugins.json made every
+# enabled plugin UNREADABLE. A plugin the session loads from a marketplace
+# directory never needed the registry, so its absence is not a gap here. The
+# relative marketplace path exercises project-root resolution.
+m="$(make_machine mkt-no-registry)"
+printf '{"enabledPlugins":{"guard@mkt":true}}\n' >"$m/project/.claude/settings.json"
+settings_mkt "$m" "mkt" "./mkt"
+mkt_catalog "$m/project/mkt" "mkt" "guard" "./plugins/guard"
+hook_file "$m/project/mkt/plugins/guard/hooks/hooks.json" PreToolUse Bash "no-registry-hook.sh"
+rc=0
+out=$(run "$m" 2>&1) || rc=$?
+assert_exit "case 15: exit 0 without a registry" 0 "$rc"
+assert_contains "case 15: hook enumerated" "$out" "no-registry-hook.sh"
+assert_contains "case 15: inventory complete" "$out" "INVENTORY: complete"
+assert_not_contains "case 15: missing registry not reported" "$out" "installed_plugins.json not found"
+assert_not_contains "case 15: no divergence without a cache path" "$out" "Cache-versus-loaded divergence"
+
+# --- Case 16: a marketplace known only through known_marketplaces.json -------
+# `claude plugin marketplace add <dir>` records the marketplace in the user
+# dir's known_marketplaces.json with an installLocation and no settings entry.
+m="$(make_machine mkt-known)"
+printf '{"enabledPlugins":{"guard@mkt":true}}\n' >"$m/project/.claude/settings.json"
+known_mkt "$m" "mkt" "$m/mkt/"
+mkt_catalog "$m/mkt" "mkt" "guard" "plugins/guard"
+hook_file "$m/mkt/plugins/guard/hooks/hooks.json" PreToolUse Bash "known-mkt-hook.sh"
+rc=0
+out=$(run "$m" 2>&1) || rc=$?
+assert_exit "case 16: exit 0" 0 "$rc"
+assert_contains "case 16: hook enumerated via installLocation" "$out" "known-mkt-hook.sh"
+assert_contains "case 16: plugin row says where it loaded from" "$out" "(loaded from marketplace directory)"
+assert_contains "case 16: inventory complete" "$out" "INVENTORY: complete"
+
+# --- Case 17: a plugin absent from the catalog falls back to the registry ----
+m="$(make_machine mkt-fallback)"
+printf '{"enabledPlugins":{"guard@mkt":true}}\n' >"$m/project/.claude/settings.json"
+settings_mkt "$m" "mkt" "$m/mkt"
+mkt_catalog "$m/mkt" "mkt" "other" "./plugins/other"
+mkdir -p "$m/mkt/plugins/other"
+hook_file "$m/plugins/guard/hooks/hooks.json" PreToolUse Bash "registry-hook.sh"
+reg "$m" "guard@mkt" "$m/plugins/guard"
+rc=0
+out=$(run "$m" 2>&1) || rc=$?
+assert_exit "case 17: exit 0" 0 "$rc"
+assert_contains "case 17: registry path enumerated" "$out" "registry-hook.sh"
+assert_not_contains "case 17: not marked as marketplace-loaded" "$out" "(loaded from marketplace directory)"
+assert_not_contains "case 17: no divergence" "$out" "Cache-versus-loaded divergence"
+
+# --- Case 18: --json carries the divergence array ----------------------------
+m="$(make_machine mkt-json)"
+printf '{"enabledPlugins":{"guard@mkt":true}}\n' >"$m/project/.claude/settings.json"
+settings_mkt "$m" "mkt" "$m/mkt"
+mkt_catalog "$m/mkt" "mkt" "guard" "./plugins/guard"
+hook_file "$m/mkt/plugins/guard/hooks/hooks.json" PreToolUse Bash "loaded-json-hook.sh"
+hook_file "$m/cache/guard/hooks/hooks.json" PreToolUse Bash "cached-json-hook.sh"
+reg "$m" "guard@mkt" "$m/cache/guard"
+rc=0
+out=$(run "$m" --json 2>&1) || rc=$?
+assert_exit "case 18: exit 0" 0 "$rc"
+if printf '%s' "$out" | jq empty 2>/dev/null; then
+  pass "case 18: --json output is valid JSON"
+else
+  fail "case 18: --json output is valid JSON" "jq could not parse it"
+fi
+assert_contains "case 18: divergence plugin" "$(json_field "$out" '.divergence[0].plugin')" "guard@mkt"
+assert_contains "case 18: divergence loaded path" "$(json_field "$out" '.divergence[0].loaded')" "$m/mkt/plugins/guard"
+assert_contains "case 18: divergence cached path" "$(json_field "$out" '.divergence[0].cached')" "$m/cache/guard"
+assert_contains "case 18: plugin path is the loaded directory" "$(json_field "$out" '.plugins[0].path')" "$m/mkt/plugins/guard"
+assert_contains "case 18: inventory complete despite divergence" "$(json_field "$out" '.inventory')" "complete"
+assert_contains "case 18: args is an array, encoded once" "$(json_field "$out" '.hooks[0].args | type')" "array"
+assert_contains "case 18: lever state is complete when every scope parsed" "$(json_field "$out" '.lever_state')" "complete"
+
+# --- Case 20: a scope that does not parse leaves the lever state unknown -----
+m="$(make_machine lever-unknown)"
+printf '{"enabledPlugins":{"guard@mkt":true}}\n' >"$m/project/.claude/settings.json"
+printf '{not json\n' >"$m/project/.claude/settings.local.json"
+settings_mkt "$m" "mkt" "$m/mkt"
+mkt_catalog "$m/mkt" "mkt" "guard" "./plugins/guard"
+hook_file "$m/mkt/plugins/guard/hooks/hooks.json" PreToolUse Bash "loaded-hook.sh"
+rc=0
+out=$(run "$m" --json 2>&1) || rc=$?
+assert_exit "case 20: an unparsed scope leaves the inventory partial" 1 "$rc"
+assert_contains "case 20: lever state is unknown" "$(json_field "$out" '.lever_state')" "unknown"
+rc=0
+out=$(run "$m" 2>&1) || rc=$?
+assert_contains "case 20: the text report says the lever state is unknown" "$out" "lever state: UNKNOWN"
+
+# --- Case 19: an unparsable directory catalog is reported, not treated as absent
+m="$(make_machine mkt-badcatalog)"
+printf '{"enabledPlugins":{"guard@mkt":true}}\n' >"$m/project/.claude/settings.json"
+settings_mkt "$m" "mkt" "$m/mkt"
+mkdir -p "$m/mkt/.claude-plugin"
+printf '{"name":"mkt","plugins":[\n' >"$m/mkt/.claude-plugin/marketplace.json"
+hook_file "$m/plugins/guard/hooks/hooks.json" PreToolUse Bash "registry-hook.sh"
+reg "$m" "guard@mkt" "$m/plugins/guard"
+rc=0
+out=$(run "$m" 2>&1) || rc=$?
+assert_exit "case 19: an unparsable catalog leaves the inventory partial" 1 "$rc"
+assert_contains "case 19: the catalog is named as unreadable" "$out" "marketplace:mkt"
+assert_contains "case 19: the reason is the parse failure" "$out" "not valid JSON"
+assert_contains "case 19: the registry route still enumerates the plugin" "$out" "registry-hook.sh"
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"

@@ -1,4 +1,4 @@
-# Finding suppression — the deliberately-kept-finding record
+# Finding suppression: the deliberately-kept-finding record
 
 Owner doc for the consumer-tracked record that says "this audit finding is known, accepted, and must
 not resurface". It declares the **keys**, the per-entry shape, and the merge form; how the record's
@@ -11,18 +11,18 @@ versions independently, per its own boundary rule.
 
 ## What this is for, and what it is not
 
-A finding an operator has judged and decided to keep must not be re-reported forever — an audit
+A finding an operator has judged and decided to keep must not be re-reported forever. An audit
 whose report is permanently noisy is an audit nobody reads. But a suppression can also hide a real
 defect, so the shape below is deliberately stricter than a bare id list.
 
 Not for: a finding that is simply wrong (fix the check), a file the audit should never have read
 (that is an exclusion, derived from the target's own state, not a suppression), or a temporary
-silence (there is no expiry key — see the trade recorded at the bottom).
+silence (there is no expiry key, per the trade recorded at the bottom).
 
 ## Where the record lives
 
 `.claude/<surface-name>.md` in the consuming repository, layered across the three cascade layers. The
-consuming plugin names its own surface — the first adopter, `claude-config`'s `audit-pass` skill,
+consuming plugin names its own surface. The first adopter, `claude-config`'s `audit-pass` skill,
 uses `audit-pass.md`, giving:
 
 | Order | Layer | Path |
@@ -38,7 +38,7 @@ the tree, perturbs the next run, and makes any idempotence claim about that run 
 
 ## File format
 
-Markdown with a fenced YAML block — human-readable in review, greppable from a shell.
+Markdown with a fenced YAML block: human-readable in review, greppable from a shell.
 
 ````markdown
 # audit-pass suppressions
@@ -70,20 +70,20 @@ suppressions:
 
 | Key | Type | Required | Meaning |
 |---|---|---|---|
-| `suppressions` | mapping | yes | Entries keyed by the audit's `finding_id`. **A mapping, never a list** — see below. |
+| `suppressions` | mapping | yes | Entries keyed by the audit's `finding_id`. **A mapping, never a list**, per the section below. |
 | `suppressions.<finding_id>.check` | string | **yes** | The check that raised it, as the consumer qualifies checks. |
 | `suppressions.<finding_id>.claim` | string | **yes** | The canonical claim id plus bound parameters, never free prose. |
-| `suppressions.<finding_id>.sites` | list of `{surface, anchor/v<N>}` | **yes** | **Every** site the finding is about — two for a cross-surface finding, not one plus a footnote. Order in the file is immaterial; the consumer sorts canonically before hashing. |
+| `suppressions.<finding_id>.sites` | list of `{surface, anchor/v<N>}` | **yes** | **Every** site the finding is about, two for a cross-surface finding, not one plus a footnote. Order in the file is immaterial; the consumer sorts canonically before hashing. |
 | `suppressions.<finding_id>.reason` | string, non-empty | **yes** | Why this finding is accepted. A suppression with no stated reason cannot be reviewed and cannot be retired. |
 | `suppressions.<finding_id>.date` | ISO-8601 date | **yes** | When it was accepted. Staleness is judged against it. |
 
 Unknown keys are inert, per the cascade's soft-degradation rule. An entry missing any required key
-is **reported as malformed and does not suppress** — a silent partial parse would turn a formatting
+is **reported as malformed and does not suppress**. A silent partial parse would turn a formatting
 slip into a lost check.
 
 **The keys and anchors in the example above are derived, not illustrative.** They were hand-written
 once and did not derive, which meant copying or scaffolding from this document produced entries the
-consumer rejects as malformed — the authoritative example could not suppress anything. The anchor
+consumer rejects as malformed, so the authoritative example could not suppress anything. The anchor
 suffix is the excerpt's duplicate discriminator, `sha256(heading_path)` truncated to 8 hex, and is
 **never a positional ordinal**; the three shown correspond to enclosing heading paths
 `## generated code`, `## repository rules`, and `## instruction precedence`. Anyone editing the
@@ -105,19 +105,19 @@ def finding_id(check, claim, sites):          # sites: [(surface, anchor), …]
 
 This is the same rule the consumer enforces on every entry, so an example that does not satisfy it is
 a defect in the document rather than a special case. Both halves are shown because editing an anchor
-changes the key that hashes it — fixing one and not the other is how the example went stale the first
+changes the key that hashes it. Fixing one and not the other is how the example went stale the first
 time.
 
 ### Constituents, not a bare id
 
 The id alone is a one-way hash. It answers "is this exact finding still present" and nothing else, so
-a record built on it can only ever classify an entry as matched or gone — a partial match is not
+a record built on it can only ever classify an entry as matched or gone. A partial match is not
 computable from it, and no carry-forward rule can be written on top of one. Storing the constituents
 is also what lets a human review the record: an operator auditing a year-old entry reads what was
 accepted rather than a hex string.
 
 **The constituents are authoritative and the key is derived from them.** An entry whose stored
-constituents do not hash to its own key is reported as malformed and does not suppress — the same
+constituents do not hash to its own key is reported as malformed and does not suppress, the same
 disposition a missing `reason` gets, and for the same reason. A hand-edited constituent left beside a
 stale key would otherwise silently stop suppressing, which is a lost decision rather than a lost
 check.
@@ -129,7 +129,7 @@ moved past it. Comparison uses the greatest version both sides carry.
 ### Keyed per entry, never a closed list
 
 A list of ids is *taken whole*. Under any layering scheme, a personal layer supplying a list would
-discard every entry the team layer holds — so one personal suppression would silently un-suppress
+discard every entry the team layer holds, so one personal suppression would silently un-suppress
 the entire team's accepted set, and the operator would see a report full of findings they had already
 judged.
 
@@ -145,11 +145,11 @@ conflict for the same `finding_id`, **the team layer wins**, the reverse of the 
 
 It qualifies on all three of the class's conditions:
 
-1. The team layer is a genuine policy floor — a personal layer hiding a finding the team never
+1. The team layer is a genuine policy floor. A personal layer hiding a finding the team never
    accepted is exactly the "personal layer weakens a team standard" failure the class exists to
    prevent structurally.
 2. Personal layers stay add/tighten-only, and on **this** surface adding a suppression is a
-   *loosening*, not an addition — fewer findings reach the operator. So the rule that makes the
+   *loosening*, not an addition: fewer findings reach the operator. So the rule that makes the
    condition hold is stated directly: **a personal-layer entry for a `finding_id` the team layer does
    not carry does not suppress.** It is reported as `personal-only, not applied`, naming promotion to
    the team layer as what makes it take effect. Absence from the team layer *is* the team's
@@ -163,7 +163,7 @@ which layer supplied each entry has not met the class.
 
 **What the inversion itself decides is narrower than it looks, and saying so is the point.** The
 constituents-hash-to-the-key rule means two entries sharing a `finding_id` have identical `check`,
-`claim`, and `sites` by construction — the only fields that can differ are `reason` and `date`. So
+`claim`, and `sites` by construction. The only fields that can differ are `reason` and `date`. So
 the inversion protects the team's recorded *justification* for an accepted finding. Which findings
 are visible is condition 2's rule, not the inversion's; attributing it to the inversion is what let
 the gap sit unnoticed.
@@ -175,39 +175,40 @@ and attributed, and takes effect only once promoted to the team layer.
 
 A skill reading this surface:
 
-1. Resolves layers per the cascade's algorithm — anchor at the repo root, read every layer that
+1. Resolves layers per the cascade's algorithm: anchor at the repo root, read every layer that
    exists, merge per-key, report the contributing layer, degrade soft on a malformed layer.
 2. Emits a `suppressed` report section listing every suppressed finding with its reason, date, and
-   contributing layer, **and every entry that did not suppress** — including each
+   contributing layer, **and every entry that did not suppress**, including each
    `personal-only, not applied` entry and each malformed one. Suppression is visible, never silent,
    and so is a suppression the operator wrote that the contract declined to enact.
 3. Resolves every entry to exactly one of four dispositions, and reports every one but the first:
-   - **SAME, UNCHANGED** — **every** site's anchor matches and `(check, claim)` match. Applies
+   - **SAME, UNCHANGED**: **every** site's anchor matches and `(check, claim)` match. Applies
      silently. Phrased over the whole `sites` set, which holds one entry for an ordinary finding and
-     two for a pairwise one: a two-anchor phrasing leaves an unchanged single-site entry — the
-     commonest case there is — matching no disposition at all.
-   - **SAME, CHANGED** — a **pairwise** finding only: exactly one anchor changed, and the other
+     two for a pairwise one: a two-anchor phrasing leaves an unchanged single-site entry, the
+     commonest case there is, matching no disposition at all.
+   - **SAME, CHANGED**: a **pairwise** finding only: exactly one anchor changed, and the other
      anchor plus `(check, claim, both surfaces)` all match, **and exactly one current finding
      satisfies that**. **Carries forward, marked `needs-reconfirmation`**, surfaced with the changed
      side named. Never silent: the edit may have *been* the fix attempt, and silently re-suppressing
      it hides exactly the case the operator most needs to see. With two or more candidates the entry
-     goes stale and every candidate is reported unsuppressed — carrying it to both would suppress a
+     goes stale and every candidate is reported unsuppressed. Carrying it to both would suppress a
      conflict the operator never accepted, and choosing one would depend on iteration order.
-   - **OLD CLOSED, NEW OPENED** — every anchor changed, or `claim` changed, or a surface changed; and
+   - **OLD CLOSED, NEW OPENED**: every anchor changed, or `claim` changed, or a surface changed; and
      any changed anchor on a single-site finding, which has no "other anchor" for the row above. The
      old entry goes **stale**, never silently dropped; the new finding is unsuppressed.
-   - **CLOSED** — the finding is absent from the new run entirely. Accounted for as exactly one of:
+   - **CLOSED**: the finding is absent from the new run entirely. Accounted for as exactly one of:
      matched to an applied fix; matched to a successor by partial match; **retired with its check**,
      when the check that raised it is absent or renamed in the new run's detection configuration; or
      reported as an **UNEXPLAINED DISAPPEARANCE**, which fails the consuming skill's own self-check.
-     An unaccounted disappearance is how a corpus quietly loses a check — which is why retirement is
+     An unaccounted disappearance is how a corpus quietly loses a check, which is why retirement is
      a *reported* disposition naming the retiring check and the version transition, rather than an
      exemption that would let findings vanish silently on any catalog edit. A suppression entry keyed
      to a retired check goes **stale** rather than being deleted, so a check returning under its old
      name cannot silently re-apply a decision the operator has not seen since.
-4. **Refuses** a suppression that would be written into a path the audit excludes — a byte-identical
-   cluster copy, a vendored tree, a worktree — and names the canonical source instead. Writing a
-   marker into a synced copy makes it differ from its siblings and breaks the sync path.
+4. **Refuses** a suppression that would be written into a path the audit excludes, whether a
+   byte-identical cluster copy, a vendored tree, or a worktree, and names the canonical source
+   instead. Writing a marker into a synced copy makes it differ from its siblings and breaks the
+   sync path.
 5. Never edits a user-scope file to record a suppression. User-scope findings are routed as
    recommendations; a marker written into `~/.claude/**` is an in-place edit by another name, and
    that tree is commonly owned by a dotfiles manager that will fight it.
@@ -215,7 +216,7 @@ A skill reading this surface:
 ## Trades recorded, so they are not silently re-litigated
 
 - **Reason and date are required, and this has no precedent on any suppress path in this
-  marketplace** — the closest analogue stores bare ids. That precedent is not transferable: it
+  marketplace.** The closest analogue stores bare ids. That precedent is not transferable: it
   justifies its bare form by arguing its opt-out can only cause junk to be *missed*, never *removed*.
   A findings suppression can hide a real defect and cannot make that argument.
 - **One in-repo precedent went the other way and is deliberately not followed:** the `review` plugin
@@ -226,10 +227,10 @@ A skill reading this surface:
   a `.claude/` record. This is not the gap the row above describes, because the staleness problem
   that motivates keying does not arise: an `ai-slop` finding *is* a line, so the marker travels with
   the line it exempts. Editing the line carries the marker along, and deleting it deletes the
-  marker — obligation 3's disposition machinery is structural there rather than computed. The two
+  marker, so obligation 3's disposition machinery is structural there rather than computed. The two
   substantive protections this contract exists to supply are still met by other means: every marker
   form takes a `: reason`, and exempted candidates are reported as per-rule declined counts, so a
-  suppression is visible and never silent. What the marker form gives up is real and accepted — no
+  suppression is visible and never silent. What the marker form gives up is real and accepted: no
   layer merge, no team-versus-personal distinction, and no id by which a corpus-wide sweep could
   audit the suppression set. That trade holds only while findings stay per-line and per-repo; a
   future `ai-slop` finding spanning files, or one an operator would accept fleet-wide, would need
@@ -239,13 +240,13 @@ A skill reading this surface:
   suppression that should lapse while its finding persists.
 - **Constituents are required from the first published contract, not added once a consumer needs
   them.** This record is operator-authored and commonly committed, so adding required keys later is a
-  migration on somebody else's tracked data — and the migration is not mechanical, because the
+  migration on somebody else's tracked data, and the migration is not mechanical, because the
   constituents cannot be recovered from the id they were hashed into.
 - **A one-sided change carries the suppression forward rather than dropping it, but never
   silently.** The alternative extremes were both rejected: re-reporting from scratch churns a
   judgement the operator still holds, and re-suppressing silently hides the case where the edit *was*
   the fix attempt. `needs-reconfirmation` is what makes carrying-forward safe. Tiered matching over a
-  fingerprint that is *stable enough* rather than exact is the prior art here — SARIF devotes
+  fingerprint that is *stable enough* rather than exact is the prior art here. SARIF devotes
   Appendix B (Normative) to it, and GitHub's documented mismatch behavior is close-and-reopen.
 - **Claude-specific location, for now.** Every surface the first adopter audits is a Claude Code
   artifact, so a finding about one belongs under `.claude/`. A cross-vendor instruction surface
@@ -255,14 +256,14 @@ A skill reading this surface:
 ## Implementers
 
 Conformance is tracked once, in the cascade contract's own
-[Implementers table](../config-cascade/README.md#implementers) — that table already carries every
+[Implementers table](../config-cascade/README.md#implementers). That table already carries every
 layered consumer surface in the fleet, and a second table here would be the same rows in two places,
 drifting apart the first time one is updated alone.
 
 The first adopter is `claude-config`'s `audit-pass` skill. It carries its own operative copy of what
-it needs at run time — the record's location, the layer merge, the precedence inversion, and its
-entry-disposition table — in that skill's run-contract reference, deliberately and not by oversight:
-a plugin is installed into a cache where no path back to this repository resolves, so a skill that
-reached here to answer a runtime question would answer nothing. This doc remains the cross-consumer
+it needs at run time, in that skill's run-contract reference: the record's location, the layer
+merge, the precedence inversion, and its entry-disposition table. That copy is deliberate and not an
+oversight. A plugin is installed into a cache where no path back to this repository resolves, so a
+skill that reached here to answer a runtime question would answer nothing. This doc remains the cross-consumer
 key contract; it is not a runtime dependency of any plugin, and no plugin should acquire a relative
 path to it.

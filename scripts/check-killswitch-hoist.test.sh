@@ -15,26 +15,20 @@ HOOK_UTILS="$SELF_DIR/../lib/hook-utils.sh"
 
 # shellcheck source=lib/test-harness.sh
 . "$SELF_DIR/lib/test-harness.sh"
+# shellcheck source=lib/fixture-tree.sh
+. "$SELF_DIR/lib/fixture-tree.sh"
 
-FIXTURES=()
-cleanup() {
-  local d
-  for d in ${FIXTURES[@]+"${FIXTURES[@]}"}; do rm -rf "$d"; done
-}
-trap cleanup EXIT
+# The builder assigns through a nameref, which shellcheck cannot follow;
+# declaring the out-var here is what tells it (SC2154) the name is written.
+f=""
 
 # The gate pins its inlined predicate against the real hook::is_enabled, so every
 # fixture carries the real library rather than a stub: a stub would let the pin
 # pass on text this repo does not actually ship.
-new_fixture() {
-  local dir
-  dir="$(mktemp -d)"
-  mkdir -p "$dir/scripts" "$dir/plugins" "$dir/lib"
-  cp "$SCRIPT" "$dir/scripts/check-killswitch-hoist.sh"
-  cp "$HOOK_UTILS" "$dir/lib/hook-utils.sh"
-  chmod +x "$dir/scripts/check-killswitch-hoist.sh"
-  FIXTURES+=("$dir")
-  printf '%s' "$dir"
+new_fixture() { # <out-var>
+  fixture_tree::build "$1" --sut "$SCRIPT" --plugins || return 1
+  mkdir -p "${!1}/lib"
+  cp "$HOOK_UTILS" "${!1}/lib/hook-utils.sh"
 }
 
 # guard <fixture> <plugin> <name> <body>
@@ -98,7 +92,7 @@ exit 0'
 
 # --- the rule, from both sides ----------------------------------------------
 
-f="$(new_fixture)"
+new_fixture f
 guard "$f" demo "demo-guard.sh" "$HOISTED"
 hooks_json "$f" demo '"${CLAUDE_PLUGIN_ROOT}"/hooks/demo-guard.sh'
 out="$(run_check "$f")"
@@ -109,7 +103,7 @@ else
   fail "a hoisted guard passes (rc=$rc): $out"
 fi
 
-f="$(new_fixture)"
+new_fixture f
 guard "$f" demo "demo-guard.sh" "$REVERSED"
 hooks_json "$f" demo '"${CLAUDE_PLUGIN_ROOT}"/hooks/demo-guard.sh'
 out="$(run_check "$f")"
@@ -120,7 +114,7 @@ else
   fail "a guard that reverses the order FAILS (rc=$rc): $out"
 fi
 
-f="$(new_fixture)"
+new_fixture f
 guard "$f" demo "demo-guard.sh" "$LEGACY_CALL"
 hooks_json "$f" demo '"${CLAUDE_PLUGIN_ROOT}"/hooks/demo-guard.sh'
 out="$(run_check "$f")"
@@ -131,7 +125,7 @@ else
   fail "a guard still calling hook::check_enabled FAILS (rc=$rc): $out"
 fi
 
-f="$(new_fixture)"
+new_fixture f
 guard "$f" demo "demo-guard.sh" "$NO_SWITCH"
 hooks_json "$f" demo '"${CLAUDE_PLUGIN_ROOT}"/hooks/demo-guard.sh'
 out="$(run_check "$f")"
@@ -144,7 +138,7 @@ fi
 
 # --- accepted shapes ---------------------------------------------------------
 
-f="$(new_fixture)"
+new_fixture f
 guard "$f" demo "demo-guard.sh" "${HOISTED/:-true\}\" == \"true\"/:-false\}\" == \"true\"}"
 hooks_json "$f" demo '"${CLAUDE_PLUGIN_ROOT}"/hooks/demo-guard.sh'
 out="$(run_check "$f")"
@@ -166,7 +160,7 @@ set -uo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
 
 exit 0'
-f="$(new_fixture)"
+new_fixture f
 guard "$f" demo "demo-guard.sh" "$STRICT_LOUD"
 hooks_json "$f" demo '"${CLAUDE_PLUGIN_ROOT}"/hooks/demo-guard.sh'
 out="$(run_check "$f")"
@@ -185,7 +179,7 @@ set -uo pipefail
 [[ "${CLAUDE_PLUGIN_OPTION_DEMO_GUARD_ENABLED:-true}" == "true" ]] || exit 0
 
 exit 0'
-f="$(new_fixture)"
+new_fixture f
 guard "$f" demo "demo-guard.sh" "$NO_SOURCE"
 hooks_json "$f" demo '"${CLAUDE_PLUGIN_ROOT}"/hooks/demo-guard.sh'
 out="$(run_check "$f")"
@@ -199,7 +193,7 @@ fi
 # --- discovery ---------------------------------------------------------------
 
 # Launcher arguments are guards; the launcher itself is not.
-f="$(new_fixture)"
+new_fixture f
 guard "$f" demo "run-guards.sh" '#!/usr/bin/env bash
 exit 0'
 guard "$f" demo "alpha.sh" "$HOISTED"
@@ -214,7 +208,7 @@ else
 fi
 
 # A `--lib` value is a bundled classifier, not a guard.
-f="$(new_fixture)"
+new_fixture f
 guard "$f" demo "run-guards.sh" '#!/usr/bin/env bash
 exit 0'
 guard "$f" demo "alpha.sh" "$HOISTED"
@@ -228,7 +222,7 @@ else
 fi
 
 # A non-shell PreToolUse handler is REPORTED, not silently passed.
-f="$(new_fixture)"
+new_fixture f
 guard "$f" demo "alpha.sh" "$HOISTED"
 hooks_json "$f" demo '"${CLAUDE_PLUGIN_ROOT}"/hooks/alpha.sh'
 mkdir -p "$f/plugins/pynode/hooks"
@@ -246,7 +240,7 @@ fi
 # PostToolUse script fails even when the plugin's PreToolUse guard is hoisted
 # (this case previously asserted the opposite, when the gate scanned PreToolUse
 # only), and a hoisted PostToolUse script passes on its own.
-f="$(new_fixture)"
+new_fixture f
 guard "$f" demo "alpha.sh" "$HOISTED"
 guard "$f" demo "post.sh" "$REVERSED"
 mkdir -p "$f/plugins/demo/hooks"
@@ -262,7 +256,7 @@ else
   fail "a reversed PostToolUse hook FAILS (rc=$rc): $out"
 fi
 
-f="$(new_fixture)"
+new_fixture f
 guard "$f" demo "post.sh" "$HOISTED"
 hooks_json "$f" demo '"${CLAUDE_PLUGIN_ROOT}"/hooks/post.sh' PostToolUse
 out="$(run_check "$f")"
@@ -276,7 +270,7 @@ fi
 # The launcher rule holds on PostToolUse too: guardrails registers its three
 # verifiers behind run-guards.sh, and each named script is scanned, not the
 # launcher.
-f="$(new_fixture)"
+new_fixture f
 guard "$f" demo "run-guards.sh" "$NO_SWITCH"
 guard "$f" demo "verify-a.sh" "$HOISTED"
 guard "$f" demo "verify-b.sh" "$REVERSED"
@@ -293,7 +287,7 @@ fi
 
 # No PreToolUse shell guard anywhere is an environment problem, not a clean run:
 # a discovery bug must not read as "nothing to check".
-f="$(new_fixture)"
+new_fixture f
 mkdir -p "$f/plugins/empty/hooks"
 jq -n '{hooks:{}}' >"$f/plugins/empty/hooks/hooks.json"
 out="$(run_check "$f")"
@@ -306,7 +300,7 @@ fi
 
 # A guard registered on PreToolUse but absent from the tree is a violation, not
 # a skip.
-f="$(new_fixture)"
+new_fixture f
 guard "$f" demo "alpha.sh" "$HOISTED"
 hooks_json "$f" demo '"${CLAUDE_PLUGIN_ROOT}"/hooks/ghost.sh'
 out="$(run_check "$f")"
@@ -319,7 +313,7 @@ fi
 
 # The semantic pin: if hook::is_enabled stops reading the env var the inlined
 # copies reproduce, the gate stops rather than clearing fifteen stale copies.
-f="$(new_fixture)"
+new_fixture f
 guard "$f" demo "demo-guard.sh" "$HOISTED"
 hooks_json "$f" demo '"${CLAUDE_PLUGIN_ROOT}"/hooks/demo-guard.sh'
 # Rewritten through a sibling file rather than `sed -i`: the in-place flag is the

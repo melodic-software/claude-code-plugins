@@ -5236,7 +5236,7 @@ class GuardTests(unittest.TestCase):
         recorded = entry["reason"]
         self.assertTrue(recorded.endswith("..."), recorded)
         self.assertTrue(host_reason.startswith(recorded[:-3]), recorded)
-        self.assertIn("fails closed", recorded)
+        self.assertIn("this specific engine invocation", recorded)
         self.assertTrue(entry["timestamp"].endswith("Z"), entry["timestamp"])
 
     def test_allow_and_ask_verdicts_are_recorded_with_distinct_rules(self) -> None:
@@ -5664,20 +5664,67 @@ class GuardTests(unittest.TestCase):
         # reaches the classifier — so a consumer learning the allow-list from
         # the denial never learned the probe is permitted, and the probe is the
         # step that lets the model state the kill-switch value honestly instead
-        # of assuming the default.
-        guidance = guard._bash_denial_guidance("/data/root")
-        for subcommand in guard._ALLOWED_ENGINE_SUBCOMMANDS:
-            self.assertIn(subcommand, guidance, subcommand)
-        self.assertIn("kill_switch_probe.py", guidance)
-        # The engine's own path: without it, a body whose ${CLAUDE_PLUGIN_ROOT}
-        # arrived unexpanded leaves no disclosed route to the engine, and the
-        # exact-path identity check denies every guess.
-        self.assertIn(guard._display_path(guard._engine_script_path()), guidance)
-        for head in guard._READONLY_SUPPORTING_BASH_HEADS:
-            self.assertIn(head, guidance, head)
-        self.assertIn("[", guidance)
-        self.assertIn("absolute path", guidance)
-        self.assertIn("bare names are denied", guidance)
+        # of assuming the default. Both surfaces share that list; only the
+        # scope framing differs (#3348).
+        for mode in (guard._MODE_BELT, guard._MODE_ENGINE_GATE):
+            with self.subTest(mode=mode):
+                guidance = guard._bash_denial_guidance("/data/root", mode=mode)
+                for subcommand in guard._ALLOWED_ENGINE_SUBCOMMANDS:
+                    self.assertIn(subcommand, guidance, subcommand)
+                self.assertIn("kill_switch_probe.py", guidance)
+                # The engine's own path: without it, a body whose
+                # ${CLAUDE_PLUGIN_ROOT} arrived unexpanded leaves no disclosed
+                # route to the engine, and the exact-path identity check denies
+                # every guess.
+                self.assertIn(
+                    guard._display_path(guard._engine_script_path()), guidance
+                )
+                for head in guard._READONLY_SUPPORTING_BASH_HEADS:
+                    self.assertIn(head, guidance, head)
+                self.assertIn("[", guidance)
+                self.assertIn("absolute path", guidance)
+                self.assertIn("bare names are denied", guidance)
+
+    def test_bash_denial_modes_frame_opposite_scopes(self) -> None:
+        """Each guard explains itself; the always-on gate does not claim the belt's lockout."""
+        belt = guard._bash_denial_guidance("/data/root", mode=guard._MODE_BELT)
+        gated = guard._bash_denial_guidance("/data/root", mode=guard._MODE_ENGINE_GATE)
+        self.assertNotEqual(belt, gated)
+        self.assertEqual(
+            belt, guard._bash_denial_guidance("/data/root"), "default is belt"
+        )
+
+        self.assertIn("this specific engine invocation", gated)
+        self.assertIn("rest of the Bash lane is unaffected", gated)
+        self.assertIn("/disk-hygiene:clean need not have been invoked", gated)
+        self.assertNotIn("Bash is restricted", gated)
+        self.assertNotIn("was invoked in this session", gated)
+
+        self.assertIn("/disk-hygiene:clean was invoked in this session", belt)
+        self.assertIn("persists until the session ends", belt)
+        self.assertIn("Bash is restricted", belt)
+        self.assertIn("start a new session", belt)
+        self.assertNotIn("subagent does not inherit", belt)
+        self.assertNotIn("this specific engine invocation", belt)
+        self.assertNotIn("need not have been invoked", belt)
+
+        script = (SCRIPT_DIR / "hygiene.py").resolve().as_posix()
+        command = f'python "{script}" scan --target t --output s'
+        belt_result = self.run_guard(command)
+        gated_result = self.run_guard_engine_gate(command)
+        assert gated_result is not None
+        self.assertEqual(
+            "deny", belt_result["hookSpecificOutput"]["permissionDecision"]
+        )
+        self.assertEqual(
+            "deny", gated_result["hookSpecificOutput"]["permissionDecision"]
+        )
+        belt_reason = belt_result["hookSpecificOutput"]["permissionDecisionReason"]
+        gated_reason = gated_result["hookSpecificOutput"]["permissionDecisionReason"]
+        self.assertNotEqual(belt_reason, gated_reason)
+        self.assertIn("/disk-hygiene:clean was invoked in this session", belt_reason)
+        self.assertIn("this specific engine invocation", gated_reason)
+        self.assertNotIn("Bash is restricted", gated_reason)
 
     def test_guard_allows_literal_readonly_supporting_bash_commands(self) -> None:
         """Belt inspection allowlist (#2591): read-only shapes pass; mutations stay denied.
@@ -7282,7 +7329,9 @@ class GuardTests(unittest.TestCase):
         for entry in config["hooks"]["PreToolUse"]:
             matcher = entry.get("matcher")
             for hook in entry.get("hooks", []):
-                if any("destructive_guard.py" in token for token in self._hook_argv(hook)):
+                if any(
+                    "destructive_guard.py" in token for token in self._hook_argv(hook)
+                ):
                     by_matcher.setdefault(matcher, []).append(hook)
         self.assertEqual({"Bash", "PowerShell"}, set(by_matcher))
         self.assertEqual(
@@ -9367,6 +9416,272 @@ class DirectReadKillSwitchTests(unittest.TestCase):
         self.write_managed_dropin("20-second.json", False)
         self.write_toggle(True)
         self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
+
+
+class EngineGrammarTests(unittest.TestCase):
+    """The engine's parser and the always-on guard read one grammar.
+
+    Every case here is driven from `lib/engine_grammar.py` alone, so a flag
+    added to that declaration is parsed by the engine and admitted by the
+    guard without a test edit, and a flag added to either consumer directly
+    has no declaration to be discovered from.
+    """
+
+    # Any absolute path serves: the guard admits a --data-root only when it
+    # keys equal to the root the runtime authorized, and these cases supply
+    # both sides.
+    AUTHORITY = "/data/root"
+
+    @property
+    def grammar(self):
+        return hygiene.engine_grammar
+
+    def value(self, flag) -> str:
+        """The literal this suite spends for one value-taking flag."""
+        if flag.external_check == self.grammar.AUTHORIZED_DATA_ROOT:
+            return self.AUTHORITY
+        self.assertIsNotNone(flag.example, flag.name)
+        return cast(str, flag.example)
+
+    def chunk(self, flag) -> list[str]:
+        return [flag.name, self.value(flag)] if flag.takes_value else [flag.name]
+
+    def required_chunks(self, spec) -> list[list[str]]:
+        return [self.chunk(flag) for flag in spec.required]
+
+    def words(self, spec, *, optionals: bool) -> list[str]:
+        words = [word for chunk in self.required_chunks(spec) for word in chunk]
+        if not optionals:
+            return words
+        for flag in spec.optional:
+            words.extend(self.chunk(flag))
+            if flag.repeatable:
+                words.extend(self.chunk(flag))
+        return words
+
+    def command(self, name: str, words: list[str]) -> str:
+        python = guard._display_python()
+        engine = guard._display_path(guard._engine_script_path())
+        tail = " ".join(shlex.quote(word) for word in [name, *words])
+        return f'"{python}" "{engine}" {tail}'
+
+    def classify(self, name: str, words: list[str]) -> str | None:
+        return guard.classify_exact_engine_command(
+            self.command(name, words), self.AUTHORITY
+        )
+
+    def parse(self, name: str, words: list[str]):
+        return hygiene.build_parser().parse_args([name, *words])
+
+    def refuse_parse(self, name: str, words: list[str]) -> None:
+        with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            hygiene.build_parser().parse_args([name, *words])
+
+    def subparsers(self) -> dict[str, object]:
+        parser = hygiene.build_parser()
+        (subaction,) = [
+            action for action in parser._actions if isinstance(action.choices, dict)
+        ]
+        return dict(subaction.choices)
+
+    def test_both_consumers_read_the_same_declaration(self) -> None:
+        self.assertIs(guard.engine_grammar, hygiene.engine_grammar)
+        self.assertEqual(
+            self.grammar.SUBCOMMAND_NAMES, guard._ALLOWED_ENGINE_SUBCOMMANDS
+        )
+
+    def test_tier_vocabulary_has_one_origin(self) -> None:
+        self.assertIs(hygiene.TIERS, self.grammar.TIERS)
+        apply_spec = self.grammar.subcommand("apply")
+        assert apply_spec is not None
+        tier = apply_spec.flag("--confirm-tier")
+        assert tier is not None
+        self.assertIs(self.grammar.TIERS, tier.choices)
+
+    def test_every_value_flag_carries_a_literal_it_admits(self) -> None:
+        for spec in self.grammar.SUBCOMMANDS:
+            for flag in spec.flags:
+                with self.subTest(subcommand=spec.name, flag=flag.name):
+                    if not flag.takes_value or flag.external_check is not None:
+                        # A valueless flag has no literal, and the only literal
+                        # an external check admits is context the guard holds.
+                        self.assertIsNone(flag.example)
+                        continue
+                    self.assertIsNotNone(flag.example)
+                    self.assertTrue(
+                        self.grammar.literal_value_ok(flag, cast(str, flag.example))
+                    )
+
+    def test_parser_declares_exactly_the_grammar_flags(self) -> None:
+        subparsers = self.subparsers()
+        self.assertEqual(list(self.grammar.SUBCOMMAND_NAMES), list(subparsers))
+        for spec in self.grammar.SUBCOMMANDS:
+            command = subparsers[spec.name]
+            actions = {
+                option: action
+                for action in command._actions  # type: ignore[attr-defined]
+                for option in action.option_strings
+                if option not in {"-h", "--help"}
+            }
+            self.assertEqual(
+                {flag.name for flag in spec.flags}, set(actions), spec.name
+            )
+            for flag in spec.flags:
+                action = actions[flag.name]
+                with self.subTest(subcommand=spec.name, flag=flag.name):
+                    if not flag.takes_value:
+                        # Valueless flags are store_true even when the grammar
+                        # marks them required: that requirement is the guard's,
+                        # and the engine keeps its own diagnostic for the
+                        # absence instead of an argparse usage error.
+                        self.assertEqual(0, action.nargs)
+                        continue
+                    self.assertEqual(flag.required, bool(action.required))
+                    if flag.choices is not None:
+                        self.assertEqual(sorted(flag.choices), action.choices)
+
+    def test_engine_parses_and_guard_admits_every_declared_shape(self) -> None:
+        for spec in self.grammar.SUBCOMMANDS:
+            for optionals in (False, True):
+                words = self.words(spec, optionals=optionals)
+                with self.subTest(subcommand=spec.name, optionals=optionals):
+                    namespace = self.parse(spec.name, words)
+                    self.assertEqual(spec.name, namespace.command)
+                    for flag in spec.flags:
+                        if not flag.takes_value and (flag.required or optionals):
+                            self.assertTrue(getattr(namespace, flag.dest), flag.name)
+                        if flag.repeatable and optionals:
+                            self.assertEqual(
+                                [self.value(flag), self.value(flag)],
+                                getattr(namespace, flag.dest),
+                            )
+                    self.assertEqual(spec.name, self.classify(spec.name, words))
+
+    def test_neither_consumer_takes_a_flag_the_grammar_omits(self) -> None:
+        for spec in self.grammar.SUBCOMMANDS:
+            words = [*self.words(spec, optionals=False), "--undeclared", "x"]
+            with self.subTest(subcommand=spec.name):
+                self.assertIsNone(self.classify(spec.name, words))
+                self.refuse_parse(spec.name, words)
+
+    def test_neither_consumer_takes_an_invocation_short_a_required_flag(self) -> None:
+        for spec in self.grammar.SUBCOMMANDS:
+            chunks = self.required_chunks(spec)
+            for index, flag in enumerate(spec.required):
+                words = [
+                    word
+                    for position, chunk in enumerate(chunks)
+                    if position != index
+                    for word in chunk
+                ]
+                with self.subTest(subcommand=spec.name, flag=flag.name):
+                    self.assertIsNone(self.classify(spec.name, words))
+                    if flag.takes_value:
+                        self.refuse_parse(spec.name, words)
+
+    def test_guard_admits_only_the_declared_head_order(self) -> None:
+        """The parser takes the required flags in any order; the guard takes one."""
+        for spec in self.grammar.SUBCOMMANDS:
+            chunks = self.required_chunks(spec)
+            if len(chunks) < 2:
+                continue
+            swapped = [
+                word for chunk in [chunks[1], chunks[0], *chunks[2:]] for word in chunk
+            ]
+            with self.subTest(subcommand=spec.name):
+                self.assertEqual(spec.name, self.parse(spec.name, swapped).command)
+                self.assertIsNone(self.classify(spec.name, swapped))
+
+    def test_guard_refuses_a_second_use_of_a_single_use_optional(self) -> None:
+        for spec in self.grammar.SUBCOMMANDS:
+            for flag in spec.optional:
+                if flag.repeatable or flag.requires is not None:
+                    continue
+                once = [*self.words(spec, optionals=False), *self.chunk(flag)]
+                with self.subTest(subcommand=spec.name, flag=flag.name):
+                    self.assertEqual(spec.name, self.classify(spec.name, once))
+                    self.assertIsNone(
+                        self.classify(spec.name, [*once, *self.chunk(flag)])
+                    )
+
+    def test_guard_refuses_an_optional_whose_prerequisite_is_absent(self) -> None:
+        for spec in self.grammar.SUBCOMMANDS:
+            for flag in spec.optional:
+                if flag.requires is None:
+                    continue
+                prerequisite = spec.flag(flag.requires)
+                assert prerequisite is not None
+                alone = [*self.words(spec, optionals=False), *self.chunk(flag)]
+                with self.subTest(subcommand=spec.name, flag=flag.name):
+                    self.assertIsNone(self.classify(spec.name, alone))
+                    self.assertEqual(
+                        spec.name,
+                        self.classify(spec.name, [*alone, *self.chunk(prerequisite)]),
+                    )
+
+    def test_guard_refuses_a_value_the_declared_pattern_rejects(self) -> None:
+        for spec in self.grammar.SUBCOMMANDS:
+            for flag in spec.flags:
+                if flag.pattern is None:
+                    continue
+                rejected = next(
+                    (
+                        candidate
+                        for candidate in ("..", "0", "zz")
+                        if not self.grammar.literal_value_ok(flag, candidate)
+                    ),
+                    None,
+                )
+                with self.subTest(subcommand=spec.name, flag=flag.name):
+                    self.assertIsNotNone(rejected, flag.name)
+                    admitted = [*self.words(spec, optionals=False)]
+                    if not flag.required:
+                        if flag.requires is not None:
+                            prerequisite = spec.flag(flag.requires)
+                            assert prerequisite is not None
+                            admitted.extend(self.chunk(prerequisite))
+                        admitted.extend(self.chunk(flag))
+                    # The pattern is the only difference between the two, so
+                    # the denial can have no other cause.
+                    self.assertEqual(spec.name, self.classify(spec.name, admitted))
+                    refused = [
+                        cast(str, rejected) if word == self.value(flag) else word
+                        for word in admitted
+                    ]
+                    self.assertIsNone(self.classify(spec.name, refused))
+
+    def test_guard_refuses_an_unauthorized_value_for_an_external_check(self) -> None:
+        for spec in self.grammar.SUBCOMMANDS:
+            for flag in spec.flags:
+                if flag.external_check is None:
+                    continue
+                words = [
+                    *self.words(spec, optionals=False),
+                    flag.name,
+                    "/somewhere/else",
+                ]
+                with self.subTest(subcommand=spec.name, flag=flag.name):
+                    self.assertIsNone(self.classify(spec.name, words))
+
+    def test_guard_fails_closed_when_an_external_check_has_no_callable(self) -> None:
+        for spec in self.grammar.SUBCOMMANDS:
+            for flag in spec.flags:
+                if flag.external_check is None:
+                    continue
+                words = [*self.words(spec, optionals=False), *self.chunk(flag)]
+                with self.subTest(subcommand=spec.name, flag=flag.name):
+                    self.assertTrue(
+                        self.grammar.match_invocation(
+                            spec.name,
+                            words,
+                            {flag.external_check: lambda value: True},
+                        )
+                    )
+                    self.assertFalse(self.grammar.match_invocation(spec.name, words))
+
+    def test_grammar_refuses_a_subcommand_it_does_not_declare(self) -> None:
+        self.assertIsNone(self.grammar.subcommand("summarize"))
+        self.assertFalse(self.grammar.match_invocation("summarize", []))
 
 
 if __name__ == "__main__":

@@ -83,6 +83,22 @@ field() {
   '
 }
 
+# Read one JSON array field out of a single-object JSON Lines record. The
+# leading quote in the search pattern is what keeps `"dependencies":[` from
+# matching inside `"dev_dependencies":[`.
+array_field() {
+  printf '%s' "$1" | awk -v key="$2" '
+    {
+      pat = "\"" key "\":["
+      i = index($0, pat)
+      if (i == 0) { print ""; exit }
+      rest = substr($0, i + length(pat))
+      j = index(rest, "]")
+      print substr(rest, 1, j - 1)
+    }
+  '
+}
+
 if ! command -v git >/dev/null 2>&1; then
   echo "SKIP: git not installed" >&2
   exit 0
@@ -130,7 +146,11 @@ assert_equals "node: runtime" "$(field "$out" runtime)" "node"
 assert_equals "node: target_framework from engines.node" "$(field "$out" target_framework)" ">=22"
 assert_contains "node: dependencies key collected" "$out" '"react"'
 assert_contains "node: peerDependencies key collected" "$out" '"typescript"'
-assert_not_contains "node: devDependencies are NOT collected" "$out" '"vitest"'
+assert_not_contains "node: devDependencies stay out of dependencies" \
+  "$(array_field "$out" dependencies)" '"vitest"'
+assert_contains "node: devDependencies are reported at development scope" \
+  "$(array_field "$out" dev_dependencies)" '"vitest"'
+assert_equals "node: a manifest with runtime deps claims no tooling family" "$(field "$out" tooling)" "unknown"
 assert_not_contains "node: version ranges are not mistaken for keys" "$out" '"^19.0.0"'
 
 # --- Case group 3: a Python repository --------------------------------------
@@ -307,6 +327,104 @@ printf '{"name":"mixed"}\n' >"$mixed_repo/package.json"
 commit_repo "$mixed_repo"
 out="$(bash "$SCRIPT" "$mixed_repo")"
 assert_equals "shell: suppressed when another runtime matched" "$(field "$out" runtime)" "node"
+
+# --- Case group 9a: runtime scope versus development scope ------------------
+# A repository runs on its runtime; it is BUILT with its tooling. Every
+# ecosystem that distinguishes the two draws the line on scope (CycloneDX
+# `scope`, SPDX DEV_DEPENDENCY_OF, npm devDependencies, PEP 735 dependency
+# groups, the GitHub dependency graph's runtime/development), so a manifest
+# whose only content is development scope names a tool, never a runtime.
+
+# A CI config directory is kept and pinned to development scope: its manifest
+# is real evidence about the tooling and none at all about the runtime. A cache
+# directory is pruned outright, because its vendored manifests describe someone
+# else's package.
+dotdir_repo="$(make_repo ci-pinned)"
+mkdir -p "$dotdir_repo/.github" "$dotdir_repo/.mypy_cache/vendored"
+cat >"$dotdir_repo/.github/requirements-ci.txt" <<'REQ'
+ruff==0.16.5
+pytest==9.1.1
+REQ
+cat >"$dotdir_repo/.mypy_cache/vendored/setup.py" <<'PY'
+from setuptools import setup
+PY
+printf '#!/usr/bin/env bash\necho hi\n' >"$dotdir_repo/run.sh"
+commit_repo "$dotdir_repo"
+out="$(bash "$SCRIPT" "$dotdir_repo")"
+assert_equals "dot-dir: a .github manifest does not make the repo python" "$(field "$out" runtime)" "shell"
+assert_equals "dot-dir: it reports python as tooling instead" "$(field "$out" tooling)" "python"
+assert_contains "dot-dir: the pinned CI tool is a dev dependency" \
+  "$(array_field "$out" dev_dependencies)" '"ruff"'
+assert_not_contains "dot-dir: the CI pin is not a runtime dependency" \
+  "$(array_field "$out" dependencies)" '"ruff"'
+assert_contains "dot-dir: evidence cites the CI manifest" "$out" '.github/requirements-ci.txt'
+assert_not_contains "dot-dir: a cache directory is pruned outright" "$out" '.mypy_cache'
+
+# A devDependencies-only package.json is the shape every plugin repository in
+# this marketplace has: linters and formatters, no runtime dependency.
+devonly_repo="$(make_repo lint-only)"
+cat >"$devonly_repo/package.json" <<'PKG'
+{
+  "name": "lint-only",
+  "engines": { "node": ">=24" },
+  "devDependencies": { "markdownlint-cli2": "^0.23.2", "@biomejs/biome": "^2.0.0" }
+}
+PKG
+printf '#!/usr/bin/env bash\necho hi\n' >"$devonly_repo/run.sh"
+commit_repo "$devonly_repo"
+out="$(bash "$SCRIPT" "$devonly_repo")"
+assert_equals "dev-only: node is tooling, not the runtime" "$(field "$out" tooling)" "node"
+assert_equals "dev-only: the shell fallback still names the runtime" "$(field "$out" runtime)" "shell"
+assert_contains "dev-only: the dev dependency is reported" \
+  "$(array_field "$out" dev_dependencies)" '"markdownlint-cli2"'
+assert_contains "dev-only: runtime dependencies stay empty" "$out" '"dependencies":[]'
+assert_contains "dev-only: evidence names the development scope" "$out" 'development scope'
+
+# A dev-scoped requirements file names a tool by its filename alone.
+devreq_repo="$(make_repo py-tooling)"
+cat >"$devreq_repo/requirements-dev.txt" <<'REQ'
+pytest==9.1.1
+REQ
+printf '#!/usr/bin/env bash\necho hi\n' >"$devreq_repo/run.sh"
+commit_repo "$devreq_repo"
+out="$(bash "$SCRIPT" "$devreq_repo")"
+assert_equals "dev-req: python is tooling, not the runtime" "$(field "$out" tooling)" "python"
+assert_contains "dev-req: the tool is a dev dependency" "$(array_field "$out" dev_dependencies)" '"pytest"'
+
+# Runtime and tooling coexist: the runtime is claimed by the runtime-scope
+# manifest, and the dev-only manifest still reports its family as tooling.
+both_repo="$(make_repo svc-with-tooling)"
+cat >"$both_repo/go.mod" <<'GOMOD'
+module example.invalid/svc-with-tooling
+
+go 1.23
+
+require github.com/spf13/cobra v1.8.1
+GOMOD
+cat >"$both_repo/package.json" <<'PKG'
+{ "name": "svc-with-tooling", "devDependencies": { "prettier": "^3.0.0" } }
+PKG
+commit_repo "$both_repo"
+out="$(bash "$SCRIPT" "$both_repo")"
+assert_equals "both: the runtime-scope manifest owns the runtime" "$(field "$out" runtime)" "go"
+assert_equals "both: the dev-only manifest owns the tooling" "$(field "$out" tooling)" "node"
+assert_equals "both: target_framework follows the runtime" "$(field "$out" target_framework)" "1.23"
+assert_contains "both: the runtime dependency is collected" "$(array_field "$out" dependencies)" '"github.com/spf13/cobra"'
+assert_contains "both: the tool is collected separately" "$(array_field "$out" dev_dependencies)" '"prettier"'
+
+# A root manifest beats a deeper one, whatever the sort order would say.
+rooted_repo="$(make_repo rooted)"
+mkdir -p "$rooted_repo/apps/inner"
+cat >"$rooted_repo/apps/inner/package.json" <<'PKG'
+{ "name": "inner", "engines": { "node": ">=18" }, "dependencies": { "inner-dep": "^1.0.0" } }
+PKG
+cat >"$rooted_repo/package.json" <<'PKG'
+{ "name": "rooted", "engines": { "node": ">=22" }, "dependencies": { "root-dep": "^1.0.0" } }
+PKG
+commit_repo "$rooted_repo"
+out="$(bash "$SCRIPT" "$rooted_repo")"
+assert_equals "root-first: the root manifest supplies the framework" "$(field "$out" target_framework)" ">=22"
+assert_contains "root-first: the root dependency is collected" "$(array_field "$out" dependencies)" '"root-dep"'
 
 # --- Case group 10: multiple repositories, and a bad path -------------------
 out="$(bash "$SCRIPT" "$dotnet_repo" "$node_repo")"

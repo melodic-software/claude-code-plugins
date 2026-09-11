@@ -4,32 +4,32 @@ When and how to capture visual content from course videos.
 
 ## When to capture
 
-Screenshots add value only when visual content provides information beyond the transcript. Transcript already captures everything the instructor says — screenshots should capture what they show.
+Screenshots add value only when visual content provides information beyond the transcript. Transcript already captures everything the instructor says, so screenshots should capture what they show.
 
 ### Always capture
 
-- **Code on screen** — IDE, editor, terminal showing code that the transcript describes but doesn't fully dictate
-- **Architecture diagrams** — visual representations of system design, data flow, dependency graphs
-- **Slide content with visual elements** — charts, tables, comparison matrices, flowcharts
-- **Test output** — terminal showing test results (pass/fail counts, error messages)
-- **File/project structure** — solution explorer, directory trees shown on screen
+- **Code on screen**: IDE, editor, terminal showing code that the transcript describes but doesn't fully dictate
+- **Architecture diagrams**: visual representations of system design, data flow, dependency graphs
+- **Slide content with visual elements**: charts, tables, comparison matrices, flowcharts
+- **Test output**: terminal showing test results (pass/fail counts, error messages)
+- **File/project structure**: solution explorer, directory trees shown on screen
 
 ### Never capture
 
-- **Talking head (full screen)** — the instructor speaking to camera with no visual aids
-- **Title slides** — "Section 3: Testing" type slides (the title is in the transcript and course structure)
-- **Sponsor/promo segments** — course platform branding, ads
+- **Talking head (full screen)**: the instructor speaking to camera with no visual aids
+- **Title slides**: "Section 3: Testing" type slides (the title is in the transcript and course structure)
+- **Sponsor/promo segments**: course platform branding, ads
 
 ### Judgment calls
 
-- **Slides with text only** — capture if text is structured (bullet points, tables) and not fully read aloud
-- **Browser/UI demos** — capture if visual layout matters; skip if transcript describes the interaction
-- **Configuration files** — capture if file content is complex; skip if instructor reads it line by line
-- **Near-duplicate frames** — same code with minor cursor movement. Keep only the most complete version
+- **Slides with text only**: capture if text is structured (bullet points, tables) and not fully read aloud
+- **Browser/UI demos**: capture if visual layout matters; skip if transcript describes the interaction
+- **Configuration files**: capture if file content is complex; skip if instructor reads it line by line
+- **Near-duplicate frames**: same code with minor cursor movement. Keep only the most complete version
 
 ## Proven extraction pipeline (primary method)
 
-Uses ffmpeg to extract frames directly from the HLS video stream — no browser rendering, no CORS, no shadow DOM. The commands below are worked with Dometrain's values (a `mux-player` element and a `dometrain.com` referer); the player selector comes from the adapter's `platformConfig.videoPlayerSelector`, and the referer requirement is per-platform, with Hotmart needing none. Substitute both from the adapter you are working on.
+Uses ffmpeg to extract frames directly from the HLS video stream, with no browser rendering, no CORS, and no shadow DOM. The commands below are worked with Dometrain's values (a `mux-player` element and a `dometrain.com` referer); the player selector comes from the adapter's `platformConfig.videoPlayerSelector`, and the referer requirement is per-platform, with Hotmart needing none. Substitute both from the adapter you are working on.
 
 ### The three-step approach
 
@@ -75,10 +75,10 @@ ffmpeg -y \
 
 ### Key ffmpeg parameters
 
-- **`-user_agent`**: Required — Mux rejects requests without a browser user-agent
-- **`-headers "Referer: https://dometrain.com/"`**: Required — Mux playback restrictions enforce referer checks
+- **`-user_agent`**: Required, because Mux rejects requests without a browser user-agent
+- **`-headers "Referer: https://dometrain.com/"`**: Required, because Mux playback restrictions enforce referer checks
 - **`select='gt(scene\,0.1)'`**: Scene change threshold. 0.1 is the proven default
-- **`-vsync vfr`**: Variable frame rate — only output selected frames (required with `select`)
+- **`-vsync vfr`**: Variable frame rate, which outputs only selected frames (required with `select`)
 - **`scale=1280:-1`**: Downscale to 1280px wide (code is still fully legible at this size)
 - Output is PNG (lossless, good for code/text readability)
 
@@ -89,8 +89,8 @@ Measured on a 30-minute code-heavy IDE screencast:
 | Threshold | Frames | Result |
 |---|---|---|
 | 0.1 | 63 | Captures TDD phase transitions, code changes, dialog opens. ~2 frames/min. 100% useful content in sample |
-| 0.2 | 2 | Misses almost everything — only catches very large visual changes |
-| 0.3 | 0 | Catches nothing — screencast transitions are too subtle |
+| 0.2 | 2 | Misses almost everything, catching only very large visual changes |
+| 0.3 | 0 | Catches nothing, because screencast transitions are too subtle |
 
 **Recommendation: use 0.1 as the default.** Cliff between 0.1 and 0.2 is dramatic for screencast content because visual changes are incremental (typing, scrolling) rather than hard cuts.
 
@@ -122,17 +122,17 @@ After frame extraction, classify each frame using Claude vision:
 | `slide` | Yes | Presentation slide with visual content |
 | `diagram` | Yes | Architecture diagram, flowchart, UML |
 | `test-explorer` | Yes | Test runner showing pass/fail results |
-| `dialog` | Maybe | IDE dialog (refactoring, search, settings) — keep if shows important action |
+| `dialog` | Maybe | IDE dialog (refactoring, search, settings). Keep if it shows an important action |
 | `talking-head` | No | Full-screen face, no code visible |
 | `duplicate` | No | Near-identical to a previous frame (same code, minor cursor change) |
 
-**For courses with picture-in-picture webcam:** Instructor's face appears as a small overlay in the corner of every frame. Classification is "what is the PRIMARY content" — IDE is primary, face overlay is irrelevant.
+**For courses with picture-in-picture webcam:** Instructor's face appears as a small overlay in the corner of every frame. Classification is "what is the PRIMARY content". The IDE is primary; the face overlay is irrelevant.
 
-**At 1280px width, code is fully legible** — method names, test assertions, class structure, even parameter types are readable. No need to keep 1920x1080 for vision analysis.
+**At 1280px width, code is fully legible.** Method names, test assertions, class structure, even parameter types are readable. No need to keep 1920x1080 for vision analysis.
 
 ## Manifest generation (Step 3)
 
-Generate a JSON manifest per lesson pairing frames with transcript context. This is the **proof of correctness** — anyone can audit it against the actual video.
+Generate a JSON manifest per lesson pairing frames with transcript context. This is the **proof of correctness**: anyone can audit it against the actual video.
 
 ```json
 [
@@ -155,7 +155,7 @@ Generate a JSON manifest per lesson pairing frames with transcript context. This
 - `timestampEstimated`: `true` if linearly interpolated (scene frames), `false` if derived from extraction interval
 - `type`: Classification category (`code`, `slide`, `talking-head`)
 - `description`: One-line description (null until visual analysis fills it)
-- `keep`: Boolean — true for unique valuable content, false for duplicates/talking-head
+- `keep`: Boolean, true for unique valuable content, false for duplicates/talking-head
 - `transcriptContext`: Nearest transcript segment text (paired by timestamp proximity)
 
 ## Empirical findings
@@ -180,4 +180,4 @@ Measured across a full code-heavy course extraction. Re-check any row that stops
 - After vision filtering (discard talking-head/duplicates): expect 70-90% retention for code lessons
 - For a 67-lesson course: estimate 200-400 MB total with screenshots
 
-Keep screenshots in `.gitignore` — they're generated artifacts, not source material. Manifest JSON and transcripts are the permanent records.
+Keep screenshots in `.gitignore`. They're generated artifacts, not source material. Manifest JSON and transcripts are the permanent records.

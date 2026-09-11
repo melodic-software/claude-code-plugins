@@ -56,16 +56,22 @@
 # appear in a hook config; this one constrains WHAT SHAPE `command` takes once a
 # hook is in exec form. Neither subsumes the other.
 #
-# Exit 0 = clean; 1 = one or more violations; 1 also for an environment problem
-# (fail closed — never a silent skip).
+# Exit 0 clean, 1 findings, 2 environment or usage; findings on stderr. That is
+# the whole family's contract, stated once in README.md, "The check-script
+# contract", and held by scripts/check-script-contract.test.sh. A hook
+# declaration in the TREE that this gate cannot parse is a finding (1), not an
+# environment problem: the input is what is wrong, and clearing it would be the
+# silent no-op the gate exists to catch. Exit 2 is reserved for the reader side
+# — no jq, no PyYAML, a frontmatter reader that did not complete — where nothing
+# was inspected at all.
 # shellcheck disable=SC2016  # the jq program below is literal source, never shell-expanded
 set -euo pipefail
 
-cd "$(dirname "${BASH_SOURCE[0]}")/.."
+cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 2
 
 if ! command -v jq >/dev/null 2>&1; then
   echo "check-hook-exec-form: jq is required but not installed" >&2
-  exit 1
+  exit 2
 fi
 
 # How to run the frontmatter reader, resolved exactly the way scripts/run-ruff.sh
@@ -75,7 +81,7 @@ fi
 #   2. `uv run --with pyyaml==<pin>` when uv is available (cross-platform local
 #      path; no global install, no virtualenv ceremony, and the same version CI
 #      uses because the pin is read from that same file)
-#   3. exit 1 — fail closed, never a silent skip
+#   3. exit 2 — fail closed, never a silent skip
 FRONTMATTER_READER="scripts/check-hook-exec-form-frontmatter.py"
 REQUIREMENTS=".github/requirements-ci.txt"
 
@@ -105,7 +111,7 @@ if ((${#reader_cmd[@]} == 0)); then
     echo "  * install the pin: pip install 'pyyaml==${pyyaml_pin:-<see $REQUIREMENTS>}'"
     echo "  * or install uv, which this script will use without touching your python"
   } >&2
-  exit 1
+  exit 2
 fi
 
 # Bare exec-form `command` names admitted despite carrying no path separator.
@@ -325,13 +331,14 @@ _queue_manifest_path() {
 # scan_frontmatter — one pass of the YAML reader over every markdown file under
 # plugins/. It reports; the rule above decides. A reader that did not complete
 # (exit 2: no PyYAML, bad usage) is an environment failure, not a clean tree, so
-# it fails the gate rather than clearing 997 files by accident.
+# it stops the gate at exit 2 rather than clearing 997 files by accident. Per-
+# file parse failures are a different thing and come back as X records below:
+# those are findings about the tree and exit 1 with the rest.
 scan_frontmatter() {
   local out kind file line detail
   if ! out="$("${reader_cmd[@]}" "$FRONTMATTER_READER" plugins)"; then
-    echo "UNREADABLE FRONTMATTER: the frontmatter reader did not complete — this gate cannot clear plugins/" >&2
-    errors=$((errors + 1))
-    return 0
+    echo "check-hook-exec-form: the frontmatter reader did not complete — this gate cannot clear plugins/" >&2
+    exit 2
   fi
   while IFS=$'\t' read -r kind file line detail; do
     case "$kind" in

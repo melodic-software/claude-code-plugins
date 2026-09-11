@@ -1,6 +1,6 @@
 # Assessment and Learning Records
 
-Assessment updates the learner model — what's understood, what's frontier, what misconceptions exist. Learning records are the persistent form.
+Assessment updates the learner model: what's understood, what's frontier, what misconceptions exist. Learning records are the persistent form.
 
 ## When to Assess
 
@@ -32,26 +32,26 @@ Most records are this short. Value is recording THAT this is known and WHY it ch
 
 Only when they add genuine value:
 
-- **Status** frontmatter (`active | superseded by LR-NNNN`) — when earlier understanding turns out wrong
-- **Evidence** — how the user demonstrated understanding (question answered, exercise completed, prior experience cited)
-- **Implications** — what this unlocks or rules out for future sessions
+- **Status** frontmatter (`active | superseded by LR-NNNN`): for when earlier understanding turns out wrong
+- **Evidence**: how the user demonstrated understanding (question answered, exercise completed, prior experience cited)
+- **Implications**: what this unlocks or rules out for future sessions
 
 ## What Does NOT Qualify as a Learning Record
 
-- Material merely covered (coverage is not learning — wait for evidence)
+- Material merely covered (coverage is not learning, so wait for evidence)
 - Anything already captured in `GLOSSARY.md` as a term definition
 - Session-by-session activity logs (records are decision-grade insights, not journals)
 
 ## Supersession
 
-When a later record contradicts an earlier one (understanding deepened or corrected), mark the old record `Status: superseded by LR-NNNN`. Don't delete — the history of how understanding evolved is itself useful signal.
+When a later record contradicts an earlier one (understanding deepened or corrected), mark the old record `Status: superseded by LR-NNNN`. Don't delete. The history of how understanding evolved is itself useful signal.
 
 ## Zone of Proximal Development Calculation
 
 Use learning records to determine what to teach next:
 
-1. **Established floor** — concepts with active learning records (user knows these)
-2. **Current frontier** — concepts one step beyond the floor (user is ready for these)
-3. **Out of reach** — concepts requiring multiple prerequisites the user lacks (defer)
+1. **Established floor**: concepts with active learning records (user knows these)
+2. **Current frontier**: concepts one step beyond the floor (user is ready for these)
+3. **Out of reach**: concepts requiring multiple prerequisites the user lacks (defer)
 
-Pick teaching targets from the frontier. Floor revisits are **scheduled by age × domain velocity**, not occasional whim: a concept whose latest record is old relative to how fast its domain moves is due for spaced retrieval practice, surfaced at `resume`/`status` (SKILL.md "Resume, Status" + "Staleness"). Effortful recall of a due floor concept builds storage strength — a quick retrieval question, not a re-lecture.
+Pick teaching targets from the frontier. Floor revisits are **scheduled by age × domain velocity**, not occasional whim: a concept whose latest record is old relative to how fast its domain moves is due for spaced retrieval practice, surfaced at `resume`/`status` (SKILL.md "Resume, Status" + "Staleness"). Effortful recall of a due floor concept builds storage strength. Ask a quick retrieval question, not a re-lecture.

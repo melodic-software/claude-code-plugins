@@ -25,13 +25,12 @@ source "$HOOK_DIR/guardrails-test-helpers.sh"
 # was authored against. A caller that means to exercise the default passes its
 # own CLAUDE_PROJECT_DIR after this one, which wins — env applies assignments in
 # order.
+GUARD_UNDER_TEST="$HOOK"
+
 run() {
   local label="$1" command="$2" expected="$3"
   shift 3
-  local rc
-  env CLAUDE_PROJECT_DIR= "$@" bash "$HOOK" <<<"$(command_json "$command")" >/dev/null 2>&1
-  rc=$?
-  assert_exit "$label" "$expected" "$rc"
+  expect "$label" "$expected" --command "$command" -- CLAUDE_PROJECT_DIR= "$@"
 }
 
 # --- Core bypass forms ------------------------------------------------------
@@ -556,6 +555,13 @@ assert_contains "crash path names guard did not run" "$crash_out" "guard did not
 # idle bound is a stall, and a stall stays fail-closed. The command inside
 # the prefix is a real bypass form, so this also pins that a cut-short
 # payload is never matched.
+#
+# Direct-mode only, and unreachable under the dispatcher by design: run-guards.sh
+# reads stdin once for the whole event and answers rc 3 with its own notice and
+# exit 0 before any guard is sourced, so no dispatched payload can reach this
+# arm. run-guards.test.sh pins the dispatcher's answer ("cut-short stdin (early
+# EOF): loud allow, taken once"); this pins what the guard does when it runs
+# alone.
 CUT_BYPASS='{"tool_name":"Bash","tool_input":{"command":"cat > foo.txt'
 cut_rc=0
 cut_out=$(printf '%s' "$CUT_BYPASS" | env CLAUDE_PROJECT_DIR= bash "$HOOK" 2>"$TEST_TMPDIR/cut.err") || cut_rc=$?
@@ -627,8 +633,8 @@ subject_for() {
   local cmd="$1" tel sink
   tel="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
   sink="$(make_sink "cat >\"$tel\"")"
-  env HOOK_TELEMETRY_SINK="$sink" CLAUDE_PROJECT_DIR="$TEST_TMPDIR" \
-    bash "$HOOK" <<<"$(command_json "$cmd")" >/dev/null 2>&1 || true
+  guard_invoke --command "$cmd" \
+    -- "HOOK_TELEMETRY_SINK=$sink" "CLAUDE_PROJECT_DIR=$TEST_TMPDIR"
   if wait_for_sink "$tel"; then
     jq -r '.data.subject' "$tel"
   else
@@ -653,10 +659,8 @@ assert_contains "telemetry: sudo prefix still resolves to the command" "$SUBJ" "
 # bypass the Write/Edit gate are blocked; content-producer scoping is preserved
 # (a tool's own output redirect is allowed, matching the Bash producer scope).
 run_pwsh() {
-  local label="$1" command="$2" expected="$3" rc
-  bash "$HOOK" <<<"$(pwsh_command_json "$command")" >/dev/null 2>&1
-  rc=$?
-  assert_exit "$label" "$expected" "$rc"
+  local label="$1" command="$2" expected="$3"
+  expect "$label" "$expected" --tool PowerShell --command "$command"
 }
 run_pwsh "PS: Set-Content (blocked)" "Set-Content -Path f.txt -Value 'x'" 2
 run_pwsh "PS: Add-Content (blocked)" "Add-Content f.txt 'x'" 2
@@ -1548,24 +1552,18 @@ run "scratch: > inside single-quoted content keeps it (allowed)" \
 # and was removed in review; the cases below pin that it still blocks, and say
 # why.
 #
-# `cwd_command_json` is local to this suite on purpose. Every payload built by
-# the shared `command_json` omits `.cwd`, which is what keeps the relative-target
-# assertions above (`scratch: relative target (blocked)`) measuring the
-# fail-closed path they were written for: with no cwd in the payload a relative
-# target still resolves to nothing and still blocks.
-cwd_command_json() {
-  jq -n --arg cmd "$1" --arg cwd "$2" '{tool_name:"Bash",tool_input:{command:$cmd},cwd:$cwd}'
-}
-
 # run_cwd <label> <command> <cwd> <expected-exit> [extra-env NAME=VAL ...]
 # Same CLAUDE_PROJECT_DIR pin as `run`; every case below names its own.
+#
+# The `.cwd` is stated only HERE. `run` leaves the field out of the payload,
+# which is what keeps the relative-target assertions above (`scratch: relative
+# target (blocked)`) measuring the fail-closed path they were written for: with
+# no cwd in the payload a relative target still resolves to nothing and still
+# blocks.
 run_cwd() {
   local label="$1" command="$2" cwd="$3" expected="$4"
   shift 4
-  local rc
-  env CLAUDE_PROJECT_DIR= "$@" bash "$HOOK" <<<"$(cwd_command_json "$command" "$cwd")" >/dev/null 2>&1
-  rc=$?
-  assert_exit "$label" "$expected" "$rc"
+  expect "$label" "$expected" --command "$command" --cwd "$cwd" -- CLAUDE_PROJECT_DIR= "$@"
 }
 
 # A project checkout OUTSIDE the temp tree is the shape both defaults are scoped
@@ -1660,6 +1658,89 @@ run_cwd "default: memory tier blocks with no project root" \
 # No cwd in the payload is the same unprovable relative target as before.
 run "default: relative memory-tier write blocks with no payload cwd" \
   "echo hello > .work/f" 2 "$PROJ_ENV=$PROJ"
+
+# --- The second shipped default: the plugin data directory ------------------
+# `<config dir>/plugins/data` is where a plugin persists its reports. It lies
+# outside every project root that is not `~` or an ancestor, and
+# hook::read_file_path declines a file outside the project root, so no
+# Write|Edit content gate processes a report written there: a Bash redirect into
+# it bypasses nothing. The directory is resolved from the environment, so these
+# cases pin HOME and CLAUDE_CONFIG_DIR rather than trusting the host's.
+#
+# The lexical cases name paths that do not exist and do not sit under a temp
+# tree (a mktemp'd HOME would be exempt by the TEMP default first and prove
+# nothing about this one). Physical confirmation resolves a missing path to
+# itself, so nothing here needs to exist.
+PD_HOME=/srv/pdhome
+run_cwd "plugin data: report write under HOME/.claude/plugins/data (allowed)" \
+  "cat > $PD_HOME/.claude/plugins/data/claude-memory/audit/last-audit.md" "$PROJ" 0 "$PROJ_ENV=$PROJ" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR="
+run_cwd "plugin data: echo redirect into a keyed report dir (allowed)" \
+  "echo hello > $PD_HOME/.claude/plugins/data/x/y/report.md" "$PROJ" 0 "$PROJ_ENV=$PROJ" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR="
+# Component-boundary containment: a sibling sharing the name prefix, the
+# directory itself as the target, and a dot-dot escape all still block.
+run_cwd "plugin data: plugins/data-backup sibling blocks" \
+  "echo hello > $PD_HOME/.claude/plugins/data-backup/f" "$PROJ" 2 "$PROJ_ENV=$PROJ" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR="
+run_cwd "plugin data: the directory itself as the target blocks" \
+  "echo hello > $PD_HOME/.claude/plugins/data" "$PROJ" 2 "$PROJ_ENV=$PROJ" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR="
+run_cwd "plugin data: dot-dot escape out of the directory blocks" \
+  "echo hello > $PD_HOME/.claude/plugins/data/../../settings.json" "$PROJ" 2 "$PROJ_ENV=$PROJ" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR="
+# CLAUDE_CONFIG_DIR relocates the directory: the relocated one is exempt and the
+# HOME-derived one no longer is.
+PD_CFG=/opt/cc
+run_cwd "plugin data: CLAUDE_CONFIG_DIR relocates the exempt directory (allowed)" \
+  "echo hello > $PD_CFG/plugins/data/r/report.md" "$PROJ" 0 "$PROJ_ENV=$PROJ" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR=$PD_CFG"
+run_cwd "plugin data: with CLAUDE_CONFIG_DIR set the HOME-derived directory blocks" \
+  "echo hello > $PD_HOME/.claude/plugins/data/r/report.md" "$PROJ" 2 "$PROJ_ENV=$PROJ" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR=$PD_CFG"
+# Gated on the project root NOT containing the directory: a project rooted at
+# HOME, or at the config dir, makes the directory project content that the
+# Write|Edit gates do process, so the default stands down.
+run_cwd "plugin data: blocks when the project root is HOME" \
+  "echo hello > $PD_HOME/.claude/plugins/data/r/report.md" "$PD_HOME" 2 "$PROJ_ENV=$PD_HOME" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR="
+run_cwd "plugin data: blocks when the project root is the config dir" \
+  "echo hello > $PD_HOME/.claude/plugins/data/r/report.md" "$PD_HOME/.claude" 2 "$PROJ_ENV=$PD_HOME/.claude" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR="
+run_cwd "plugin data: blocks with no project root" \
+  "echo hello > $PD_HOME/.claude/plugins/data/r/report.md" "$PROJ" 2 "$PROJ_ENV=" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR="
+# Repo content is untouched by the second default.
+run_cwd "plugin data: repo file still blocks" \
+  "echo hello > src/main.py" "$PROJ" 2 "$PROJ_ENV=$PROJ" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR="
+# Physical confirmation needs a real symlink, and a real directory that is not
+# under a temp tree is not something a suite may create on a host it does not
+# own. So the project is placed under temp too, which stands the TEMP default
+# down (a temp-rooted project makes temp files project content), and the
+# plugin-data default is the only one left that can fire: a direct write into
+# the relocated directory is allowed, and a symlink under it that lands in the
+# repository is resolved and refused. Both paths are spelled ALL LOWERCASE by
+# hand rather than taken from `mktemp`, whose names are mixed-case: the segment
+# scan folds case, and a fixture carrying capitals would never resolve and would
+# exercise the documented case-folding residual instead of the symlink one.
+PD_PROJ="/tmp/bhb-plugin-data-proj-$$"
+PD_REAL_CFG="/tmp/bhb-plugin-data-cfg-$$"
+rm -rf "$PD_PROJ" "$PD_REAL_CFG"
+mkdir -p "$PD_REAL_CFG/plugins/data" "$PD_PROJ/src"
+ln -s "$PD_PROJ" "$PD_REAL_CFG/plugins/data/to-repo"
+run_cwd "plugin data: fires on its own when the temp default stands down (allowed)" \
+  "echo hello > $PD_REAL_CFG/plugins/data/r/report.md" "$PD_PROJ" 0 "$PROJ_ENV=$PD_PROJ" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR=$PD_REAL_CFG"
+run_cwd "plugin data: symlink escape into the repository blocks" \
+  "echo hello > $PD_REAL_CFG/plugins/data/to-repo/src/main.py" "$PD_PROJ" 2 "$PROJ_ENV=$PD_PROJ" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR=$PD_REAL_CFG"
+# The reverse escape: a CLAUDE_PROJECT_DIR that is a symlink whose physical
+# target sits UNDER the plugin data directory. The lexical gate sees a project
+# root that does not contain the directory and enables the default, but
+# hook::read_file_path resolves both sides and treats a file there as project
+# content the Write|Edit gates process, so the confirm step must resolve the
+# project root too and refuse a target under it.
+PD_INNER="$PD_REAL_CFG/plugins/data/projreal"
+PD_LINK="/tmp/bhb-plugin-data-projlink-$$"
+mkdir -p "$PD_INNER/src"
+rm -f "$PD_LINK"
+ln -s "$PD_INNER" "$PD_LINK"
+run_cwd "plugin data: project root symlinked INTO the directory keeps the block" \
+  "echo hello > $PD_INNER/src/main.py" "$PD_LINK" 2 "$PROJ_ENV=$PD_LINK" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR=$PD_REAL_CFG"
+# A sibling report directory under the same plugin data root is still exempt:
+# the refusal is scoped to the project's own physical subtree, not the root.
+run_cwd "plugin data: a report beside the symlinked project is still allowed" \
+  "echo hello > $PD_REAL_CFG/plugins/data/other/report.md" "$PD_LINK" 0 "$PROJ_ENV=$PD_LINK" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR=$PD_REAL_CFG"
+rm -f "$PD_LINK"
+rm -rf "$PD_PROJ" "$PD_REAL_CFG"
 
 # --- symlink escape out of a SHIPPED default (P1 on #3727) -------------------
 # The lexical compare alone exempted a redirect on its spelling, so a symlink
@@ -2238,5 +2319,42 @@ if command -v strace >/dev/null 2>&1 && strace -o /dev/null -e trace=execve true
 else
   echo "ok: process-creation pin skipped (no working strace on this host)"
 fi
+
+# --- The same verdicts under the dispatcher ----------------------------------
+# The census above drives run-guards.sh but discards stdout and asserts a
+# process count, never a verdict. hooks.json ships this guard under the
+# dispatcher, where stdin is read once and re-served, `.tool_input.command`
+# arrives from the primed jq cache instead of the guard's own jq call, and the
+# guard is `source`d into a subshell rather than exec'd.
+expect_both "dispatched parity: cat > file blocks" 2 \
+  --command "cat > foo.txt" -- CLAUDE_PROJECT_DIR=
+expect_both "dispatched parity: cat file allowed" 0 \
+  --command "cat README.md" -- CLAUDE_PROJECT_DIR=
+expect_both "dispatched parity: python3 -c open write blocks" 2 \
+  --command "python3 -c \"open('x','w').write('a')\"" -- CLAUDE_PROJECT_DIR=
+expect_both "dispatched parity: python3 -c json parse allowed" 0 \
+  --command "python3 -c \"import json; print(json.loads('{}'))\"" -- CLAUDE_PROJECT_DIR=
+expect_both "dispatched parity: no-space redirect blocks" 2 \
+  --command "echo hi>foo.txt" -- CLAUDE_PROJECT_DIR=
+expect_both "dispatched parity: PowerShell Set-Content blocks" 2 \
+  --tool PowerShell --lib lib/powershell/ps-command.sh \
+  --command "Set-Content -Path f.txt -Value 'x'" -- CLAUDE_PROJECT_DIR=
+
+# --- Two guards block one command: still ONE document on stdout ---------------
+# Claude Code reads exactly one JSON document per hook process. This guard emits
+# a systemMessage document when it blocks; block-no-verify blocks the same
+# command on stderr alone. Run both under the dispatcher and the aggregate has to
+# be one document, exit 2, and BOTH reasons on stderr — as it was when the two
+# were separate hooks, each delivering its own document.
+BOTH_BLOCK="cat > foo.txt && git commit --no-verify -m x"
+guard_invoke --via dispatched --command "$BOTH_BLOCK" \
+  --also "$HOOK_DIR/block-no-verify.sh" -- CLAUDE_PROJECT_DIR=
+assert_exit "two blocking guards dispatched: aggregate exit" 2 "$GUARD_RC"
+assert_eq "two blocking guards dispatched: exactly one JSON document on stdout" \
+  1 "$(printf '%s' "$GUARD_OUT" | jq -s 'length')"
+assert_contains "two blocking guards dispatched: this guard's reason survives" \
+  "$GUARD_ERR" "bypasses Write/Edit hooks"
+assert_contains "two blocking guards dispatched: the sibling guard's reason survives" \
+  "$GUARD_ERR" "--no-verify / -n flags are not allowed"
 
 report

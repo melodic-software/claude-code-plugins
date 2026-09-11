@@ -102,10 +102,11 @@ overlay; per-key override; keys in `${CLAUDE_PLUGIN_ROOT}/reference/config.md`):
 `duplication.ignore` (globs handed to the detector's own ignore option), `duplication.max_size`
 (default `1mb`, binary units; a larger file is left out of the scan and reported), `duplication.max_lines`
 (default `null`, no line cap), `duplication.rollup_depth` (default 2, how deep the markdown
-per-directory rollup lists), and `duplication.registries` (sanctioned-replication registries, each
-path relative to the repository root, and each also nameable on the command line with
-`--registry`). A cap of `null` or `0` means no cap. `/code-metrics:setup` writes the team file
-and probes the collectors.
+per-directory rollup lists), and `scope.registries` (sanctioned-replication registries, each path
+relative to the repository root, each also nameable on the command line with `--registry`, and
+read by every audit in this plugin; `duplication.registries` is the older name and still resolves
+when the scope-level list is empty). A cap of `null` or `0` means no cap. `/code-metrics:setup`
+writes the team file and probes the collectors.
 
 A registry line has one of two shapes. A plain line is one path-within-plugin, taken whole with
 any spaces: a class is excluded when every instance ends with that path and the copies sit in
@@ -152,7 +153,7 @@ overrides are validated against the ladder file and an unknown name is dropped w
 
 - Change scope needs a merge-base with the default branch; outside a git repository, or on a
   branch with no default-branch ancestor, pass paths or `--all` (the usage error says which).
-- A registry named on the command line or in `duplication.registries` that does not exist is a
+- A registry named on the command line or in `scope.registries` that does not exist is a
   usage error, not a silent no-op: a stale registry path would otherwise turn every exclusion off
   without saying so.
 - Clone detection compares the files in scope with each other. A default-scope run sees only the

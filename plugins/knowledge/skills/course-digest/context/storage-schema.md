@@ -1,10 +1,10 @@
 # Storage Schema
 
-All course data lives under the invoking project's `library_dir` seam (or `${CLAUDE_PLUGIN_DATA}` when no library dir is configured), as `courses/<platform>/<slug>/`.
+All course data lives under the invoking project's `library_dir` setting (or `${CLAUDE_PLUGIN_DATA}` when no library dir is configured), as `courses/<platform>/<slug>/`.
 
 ## Platform naming
 
-Use platform's lowercase brand name: `dometrain`, `pluralsight`, `udemy`, `manning`, `oreilly`. Single public YouTube videos use `/knowledge:video-digest` and its own slice layout — not this course data tree.
+Use platform's lowercase brand name: `dometrain`, `pluralsight`, `udemy`, `manning`, `oreilly`. Single public YouTube videos use `/knowledge:video-digest` and its own slice layout, not this course data tree.
 
 ## Slug naming
 
@@ -151,7 +151,7 @@ Preserve timestamps as `[M:SS]` markers at natural paragraph breaks. Clean up au
 
 ## Key concepts
 
-- **Concept name** — Brief explanation. (Lesson: "Lesson Title")
+- **Concept name**: Brief explanation. (Lesson: "Lesson Title")
 - ...
 
 ## Code patterns demonstrated
@@ -173,7 +173,7 @@ Preserve timestamps as `[M:SS]` markers at natural paragraph breaks. Clean up au
 
 ### resources.json (Teachable adapter)
 
-Per-lesson resource metadata — download URLs, article links, PDF links extracted by adapter's `extractResources()` method. Not all platforms produce this file (Dometrain uses button-based detection instead).
+Per-lesson resource metadata: download URLs, article links, PDF links extracted by adapter's `extractResources()` method. Not all platforms produce this file (Dometrain uses button-based detection instead).
 
 ```json
 {
@@ -193,13 +193,13 @@ Per-lesson resource metadata — download URLs, article links, PDF links extract
 
 ### Code analysis strategy (two levels)
 
-**`code/repo/`** — final/latest snapshot of companion source code. Use for:
+**`code/repo/`** is the final/latest snapshot of companion source code. Use for:
 
 - Architecture overview (module organization, project references, shared infrastructure)
 - Cross-module patterns (how modules communicate, shared domain events)
 - Complete solution understanding (what the finished app looks like)
 
-**`code/downloads/`** — per-lesson Initial/Final ZIP pairs. Use for:
+**`code/downloads/`** holds per-lesson Initial/Final ZIP pairs. Use for:
 
 - Per-lesson deltas (diff between Initial and Final = what the lesson teaches)
 - Understanding progression (how codebase evolves lesson by lesson)
@@ -219,11 +219,11 @@ For courses with GitHub repos instead of ZIPs, `code/repo/` is a shallow clone a
   - Architecture diagrams
   - Slides with visual content
   - UI demonstrations
-- Do NOT screenshot talking-head segments — transcript covers those
+- Do NOT screenshot talking-head segments; the transcript covers those
 
 ## Size management
 
-- **No video/audio files** — ever
+- **No video/audio files**, ever
 - **Screenshots**: resize to 1280px wide, compress with reasonable quality
 - **Transcripts**: typically 1-3 KB per minute of video (~30 KB for a 30-min lesson)
 - **course.json**: grows with lessons but stays under 50 KB for large courses

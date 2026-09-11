@@ -18,7 +18,7 @@ a number IS a PID before treating a lookup miss as "dead."**
 
 The engine implements this as a gate, not as advice: `verdict_for()` classifies the name first and
 calls the probe *only* when `number_meaning == "pid"`. Every other name returns
-`liveness: not_applicable` **by construction** — including names the table has never seen. A test
+`liveness: not_applicable` **by construction**, including names the table has never seen. A test
 injects a spy probe and asserts it is never invoked for a non-PID name, so the gate is a checked
 property rather than a convention someone has to remember.
 
@@ -27,19 +27,42 @@ property rather than a convention someone has to remember.
 | Pattern | What the number actually is | Liveness valid? |
 |---|---|---|
 | `sessions/<n>.json` | Genuine OS process id | **yes** |
-| `ide/<n>.lock` | Listening **TCP port**; real PID is in the body | no — and the body is not opened |
-| `rate-limit-guard/*.tmp.<n>` | Git Bash / MSYS2 `$$` — a shell PID in its own namespace | no — judge by age and zero length |
-| `shell-snapshots/snapshot-<shell>-<n>-<rand>` | Epoch milliseconds | no — no PID in the name at all |
+| `plugins/cache/<marketplace>/<plugin>/<version>/.in_use/<n>` | PID of the Claude Code process that loaded that plugin version | **yes** |
+| `.in_use/<n>.tmp.<hash>` | A staging temp beside the marker, reported by one community source and never observed on an audited tree | no: stays `unknown` until observed |
+| `ide/<n>.lock` | Listening **TCP port**; real PID is in the body | no, and the body is not opened |
+| `rate-limit-guard/*.tmp.<n>` | Git Bash / MSYS2 `$$`, a shell PID in its own namespace | no, judge by age and zero length |
+| `shell-snapshots/snapshot-<shell>-<n>-<rand>` | Epoch milliseconds | no, no PID in the name at all |
 | `backups/.claude.json.backup.<n>` | Epoch milliseconds | no |
 | `paste-cache/<hex>` | Content hash | no |
 | `session-env/<uuid>/`, `file-history/<uuid>/`, `tasks/<uuid>` | Session UUID | no |
 | `projects/<project>/<uuid>.jsonl` | Session UUID | no |
-| `~/.claude.json.tmp.<n>.<hash>` | *Probably* a PID — **unverified** | no, precisely because it is unverified |
+| `~/.claude.json.tmp.<n>.<hash>` | *Probably* a PID, **unverified** | no, precisely because it is unverified |
 | anything else carrying digits | **unknown** | no |
 
 The last row is the safety property. A third-party plugin's own numeric scheme fails closed: it is
 reported as `unknown`, and no lookup is attempted. Adding a pattern to the table is an optimisation;
 the default is what keeps the engine correct on an install it has never seen.
+
+### The `.in_use` row's record
+
+- **Claim.** The number is the PID of the Claude Code process that loaded that plugin version, one
+  marker per enabled plugin version, all carrying the same PID for one session.
+- **Basis.** The Claude Code CHANGELOG (entry 2.1.169) calls these files `.in_use` PID lock files
+  and describes a daily sweep of stale markers from crashed sessions; on every audited tree the
+  number matched the live session's PID. No docs page (claude-directory.md, plugins-reference.md,
+  plugin-marketplaces.md) carries a row.
+- **As of.** 2026-09-11, Claude Code 2.1.268.
+- **Recheck trigger.** claude-directory.md or plugins-reference.md gains an `.in_use` row, or the
+  CHANGELOG names the file again.
+
+Because a plugin cache holds one marker per enabled version, the engine groups `pid_typed` rows by
+PID with a count and a bounded path list. A group whose PID is the auditing process or one of its
+ancestors is marked `self_held`: the session running the audit loaded those plugins, so the rows are
+evidence about the auditor, not about the tree. The ancestry walk reads `/proc` on Linux, one `ps`
+listing on macOS and other POSIX hosts, and one Win32_Process listing on Windows; `self_pids_walk`
+in the report names which, and `parent-only` means no listing was obtained, so the launching
+session (two or more generations up when Python runs through a shell) was not seen and an `alive`
+group may still be it.
 
 ## Three further traps in the same family
 

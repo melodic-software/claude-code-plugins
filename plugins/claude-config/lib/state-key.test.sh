@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Self-contained tests for lib/state-key.sh (no external test lib — ships with the plugin).
 #
-# The copy in claude-memory is byte-identical and registered in
-# scripts/cross-plugin-source-registry.txt, so this suite covers both.
+# The four copies in claude-memory, claude-ops, context-budget and improvement are
+# byte-identical, registered in scripts/cross-plugin-source-registry.txt and pinned
+# by scripts/sync-state-key.sh --check, so this suite covers all five.
 set -uo pipefail
 
 # Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
@@ -100,6 +101,22 @@ mkdir -p "$d"
 k="$(key "$d")"
 assert_contains "case 5: non-repo keys nonrepo" "$k" "nonrepo/"
 
+# --- Case 5b: two spellings of one non-repo directory produce one key ----------
+# `cd` keeps the logical spelling a symlink was reached through, and the
+# read-back consumers derive the key from wherever the operator launched. One
+# directory, two spellings, one key: the property case 2 pins for remotes.
+real="$TEST_TMPDIR/real/notes"
+mkdir -p "$real" "$TEST_TMPDIR/via"
+if ln -s "$TEST_TMPDIR/real" "$TEST_TMPDIR/via/projects-link" 2>/dev/null; then
+  k_real="$(key "$real")"
+  k_link="$(key "$TEST_TMPDIR/via/projects-link/notes")"
+  assert_eq "case 5b: symlinked and real --root spellings agree" "$k_real" "$k_link"
+  k_cwd="$(cd "$TEST_TMPDIR/via/projects-link/notes" && bash "$SCRIPT" 2>/dev/null)"
+  assert_eq "case 5b: the no-arg form from the symlink spelling agrees" "$k_real" "$k_cwd"
+else
+  pass "case 5b: skipped, this host cannot create a symlink"
+fi
+
 # --- Case 6: a traversal remote cannot escape the namespace -------------------
 # The security property. A remote URL becomes directory components in the
 # caller's path, so `../../../etc` must not survive into the key. It is hashed
@@ -194,6 +211,18 @@ else
 fi
 assert_contains "case 13: documented error" "$err" \
   "ERROR: no sha256sum or shasum on PATH"
+
+# --- Case 14: an exported CDPATH never reaches cd ----------------------------
+# cd echoes the resolved path to stdout on a CDPATH hit and lands elsewhere, so a
+# caller with CDPATH exported would get two stdout lines and a key for a
+# directory it never named.
+cdp="$TEST_TMPDIR/cdpath"
+mkdir -p "$cdp/here/target" "$cdp/elsewhere/target"
+out="$(cd "$cdp/here" && CDPATH="$cdp/elsewhere" bash "$SCRIPT" --root target 2>/dev/null)"
+assert_eq "case 14: stdout is one line under an exported CDPATH" \
+  "$(printf '%s\n' "$out" | wc -l | tr -d ' ')" "1"
+assert_eq "case 14: key is for the named directory, not the CDPATH one" \
+  "$out" "$(key "$cdp/here/target")"
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"

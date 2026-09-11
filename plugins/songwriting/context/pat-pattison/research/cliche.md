@@ -58,7 +58,7 @@ playing in the background. The puppy drops at these lines:
 song finishes, then gets up chasing her tail until she hears "Take my hand /
 Let me know you understand." Plop.
 
-(Pat quotes both couplets inline, slash-separated, inside the running prose —
+(Pat quotes both couplets inline, slash-separated, inside the running prose,
 not as displayed stanzas.)
 
 > I may not be *The New England Journal of Medicine*, but I know why the puppy
@@ -70,13 +70,13 @@ line puts the listener to sleep, name which of the four did it.
 
 <!-- Pat's verbatim colloquial examples; elisions are deliberate --><!-- spellchecker:off -->
 Pat's examples of phrases worn smooth: *strong as a bull*, *eats like a horse*,
-*their ship came in* — no longer evoking bulls, horses, or ships at all. And a
+*their ship came in*, no longer evoking bulls, horses, or ships at all. And a
 set that has become fully interchangeable, which is the tell: *break my heart*,
 *cut me deep*, *hurt me bad* (as interchangeable as *How ya doin'?* / *What's
 up?* / *How's it goin'?*).
 <!-- spellchecker:on -->
 
-### Generic vs sense-bound — the chapter's demonstration pair
+### Generic vs sense-bound: the chapter's demonstration pair
 
 Pat sets the same sentiment twice. First, generic:
 
@@ -109,7 +109,7 @@ fine; the next step is finding your own way of saying it.
 ## Four cliche families
 
 The four family names and the four headed lists below them are Pat's. The
-Symptom and Cure columns of this table are **this plugin's, not Pat's** — a
+Symptom and Cure columns of this table are **this plugin's, not Pat's**, a
 routing aid, not something he prints:
 
 | Family | Symptom | Cure |
@@ -128,7 +128,7 @@ Cliche phrases usually tell instead of show. They name a familiar emotion,
 gesture, or relational situation without giving the listener a body, object,
 room, weather, texture, or action to enter.
 
-Diagnosis questions — these and the rewrite pattern below are **this plugin's,
+These diagnosis questions and the rewrite pattern below are **this plugin's,
 not Pat's**; Chapter 5 prints the phrase list and the two draft verses, and
 prescribes no procedure:
 
@@ -219,14 +219,16 @@ knees / please
 
 Pat's diagnosis of why the list looks like that, and the cure it implies:
 
+<!-- ai-slop-ignore-start: verbatim quotation from Writing Better Lyrics (2009), Chapter 5 -->
 > Most cliché rhymes are perfect rhymes, a good reason to stretch into other
 > rhyme types — family rhyme, additive and subtractive rhyme, and even assonance
 > rhyme. These imperfect rhyme types are guaranteed fresh, and most listeners
 > won't notice the difference.
+<!-- ai-slop-ignore-end -->
 
 Use [worksheets](worksheets.md) to build options, then use
 [rhyme types](rhyme-types.md) to widen the field. The assignments below are
-**this plugin's, not Pat's** — Chapter 5 names the imperfect types but assigns
+**this plugin's, not Pat's**. Chapter 5 names the imperfect types but assigns
 none of them a job, and consonance is not in his list here at all:
 
 - family rhyme for close-but-fresh resolution,
@@ -266,7 +268,7 @@ own memory:
 > What did your lover say? Where were you? What kind of car? What was the
 > texture of the upholstery in the backseat?
 
-Ask — extending Pat's four questions; the list below is **this plugin's, not
+Ask, extending Pat's four questions; the list below is **this plugin's, not
 Pat's**:
 
 - Whose lips, eyes, hands, door, room, or car?
@@ -302,19 +304,19 @@ Drown in love
 Note the structure of the list: each entry is a *vehicle for a tenor* (storm for
 anger), not just a banned word. The whole family of associated words comes
 pre-worn with it. Pat's pointer for repair is back to Chapter 3, "Making
-Metaphors" — "There's no reason to keep sleepwalking in these yellow fogs."
+Metaphors": "There's no reason to keep sleepwalking in these yellow fogs."
 
 A cliche metaphor is still a metaphor. Pat makes the point explicitly in
 *Songwriting Without Boundaries* (2011), Challenge 2 Day 2, while ruling
 on the adjective `dark`: "Remember, dark eyes could be literally true,
 and thus isn't a metaphor. They join together rather than colliding. Dark
 thoughts, though a cliché, is a metaphor. It's literally false." So
-"cliche" and "not a metaphor" are separate verdicts — diagnose staleness
+"cliche" and "not a metaphor" are separate verdicts: diagnose staleness
 and literal falsehood separately.
 
 Do not ban these automatically. Ask whether the draft adds a fresh collision or
-specific sensory angle. If it does not, rebuild the metaphor from the following
-— **this plugin's** routing into Chapter 3, not a list Pat prints here:
+specific sensory angle. If it does not, rebuild the metaphor from the following,
+**this plugin's** routing into Chapter 3, not a list Pat prints here:
 
 - object-writing details,
 - a less expected key of related words,
@@ -377,7 +379,7 @@ And it's all downhill from here
 The literal roller coaster earns the figurative phrase. Pat's warning attached to
 both cases: "Without a terrific setup, duck whenever you see a cliché."
 
-Pat states the test outright, opening the section — one instruction with two
+Pat states the test outright, opening the section, one instruction with two
 alternatives:
 
 > In some cases, you can use a cliché to your advantage. Put it in a context that
@@ -395,7 +397,7 @@ line is trying to do. They become a problem when mistaken for finished writing.
 > Though clichés are great in a first or second draft as place markers for
 > something better, don't ever mistake them for the real thing.
 
-Chapter 5 demonstrates the upgrade on one verse. The cliche draft — Pat notes it
+Chapter 5 demonstrates the upgrade on one verse. The cliche draft, which Pat notes
 does say something, "just nothing startling":
 
 ```text
@@ -409,7 +411,7 @@ A prisoner of time
 > No faded lace curtains. You get to nap securely at a distance, untouched,
 > uninvolved.
 
-And the real thing — the opening of Beth Nielsen Chapman's "Child Again," the
+And the real thing, the opening of Beth Nielsen Chapman's "Child Again," the
 lyric *Writing Better Lyrics* (2009), Chapter 7 then analyzes in full:
 
 ```text
@@ -421,7 +423,7 @@ Like a hundred times before
 
 Same situation, same section length. The difference is that the second one is
 sense-bound: a wheelchair, a moving sun, squares of daylight on a floor. Note
-what it does *not* do — it never names loneliness, helplessness, or time. The
+what it does *not* do: it never names loneliness, helplessness, or time. The
 first draft names all three and shows none.
 
 When coaching, do not shame the placeholder. Translate it:
@@ -448,7 +450,7 @@ The reason he sets it, stated immediately after:
 > puppy narcolepsy, you have a special responsibility to keep your writing
 > sense-bound and original. No one likes a person who puts puppies to sleep.
 
-Coaching extension — **this plugin's, not Pat's**: after the parody draft, return
+Coaching extension, **this plugin's, not Pat's**: after the parody draft, return
 to a real draft, mark any similar placeholders, and rewrite each through sensory
 detail, fresh rhyme, or new metaphor.
 

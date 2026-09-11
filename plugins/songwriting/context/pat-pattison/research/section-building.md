@@ -3,30 +3,30 @@
 ## Contents
 
 - [Core idea](#core-idea)
-- [The starting section — BUILDING SECTIONS](#the-starting-section--building-sections)
+- [The starting section: BUILDING SECTIONS](#the-starting-section-building-sections)
 - [1. Number of phrases](#1-number-of-phrases)
 - [2. Length of phrases](#2-length-of-phrases)
 - [3. Rhythm of phrases](#3-rhythm-of-phrases)
 - [4. Rhyme scheme](#4-rhyme-scheme)
 - [Transitional bridge construction](#transitional-bridge-construction)
-- [Section-use decisions — Pat's own verdicts](#section-use-decisions--pats-own-verdicts)
+- [Section-use decisions: Pat's own verdicts](#section-use-decisions-pats-own-verdicts)
 - [Exercises](#exercises)
 - [How the chapter closes](#how-the-chapter-closes)
 
-Pat Pattison — *Essential Guide to Lyric Form and Structure* (1991), Chapter 5,
+Pat Pattison, *Essential Guide to Lyric Form and Structure* (1991), Chapter 5,
 the "BUILDING SECTIONS" half of the chapter. Everything below is Pat's printed
 text and his figures, transcribed.
 
 ## Core idea
 
-Section function comes from structure, not topic — which is why Pat runs one
+Section function comes from structure, not topic, which is why Pat runs one
 verse, "Love me like a candy bar," through five structural variants instead of
 five different lyrics. His two governing sentences are quoted in place below.
 
 Use this file with [form](form.md), [phrasing](phrasing.md),
 [meter](meter.md), and [rhyme strategy](rhyme-strategy.md).
 
-## The starting section — BUILDING SECTIONS
+## The starting section: BUILDING SECTIONS
 
 > By the time you finish this chapter, you will have a better sense of how to
 > build the most typical lyric sections. You will also be very tired of candy
@@ -153,7 +153,7 @@ deserts the Milky Way". Both figures have been rendered and read at zoom 4.
 That is Pat's own inconsistency between his two scans, and both are correct as
 printed. DO NOT normalize either one to match the other. -->
 
-Pat then asks whether #1A could be a Bridge and answers no — the quote and
+Pat then asks whether #1A could be a Bridge and answers no. The quote and
 EXERCISE 29 are preserved once, in [bridge](bridge.md). Figure `image_rsrc32R`
 is the Song System he means, with #1A moved to the bridge slot:
 
@@ -413,7 +413,7 @@ Milky Way and Mars
 EXERCISE 33 follows from this two-phrase model; it is preserved in
 [exercises](exercises.md).
 
-## Section-use decisions — Pat's own verdicts
+## Section-use decisions: Pat's own verdicts
 
 The chapter never prints a "use it as X when …" rule set. It prints Pat's
 judgment on each variant, and those judgments are the guidance:

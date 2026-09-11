@@ -159,21 +159,25 @@ Reference other skills by name. Claude invokes them if installed. Native depende
 
 Deterministic, read-only context a skill needs on every invocation can be inlined at load time
 with `` !`command` `` / ` ```! ` [dynamic-context injection](https://code.claude.com/docs/en/skills#inject-dynamic-context)
-instead of costing a per-invocation tool call. For when that pays off, and the defensive-fallback
-and `shell:` conventions we pin, see [`reference/precompute-context.md`](reference/precompute-context.md).
-
----
+instead of a per-invocation tool call. For when that pays off, and the fallback and `shell:`
+conventions we pin, see [`reference/precompute-context.md`](reference/precompute-context.md).
 
 ## Verification loops in skills (Melodic Software addition)
 
-When the skill's job is *checking* work rather than producing it, three questions the playbook above
-leaves open: which of the three routes creates the skill (and why the namespaced invocation is the
-one that resolves unconditionally), how to attach a check to a bundled or plugin-managed skill you
-cannot edit (shadow versus chain), and how to diagnose an embedded check that silently does not run:
-documented prominence causes first, the blog's description diagnosis second. See
-[`reference/verification-loops-in-skills.md`](reference/verification-loops-in-skills.md).
+When the skill's job is *checking* work, read [`reference/verification-loops-in-skills.md`](reference/verification-loops-in-skills.md):
+the three routes that create the skill, shadow versus chain for a skill you cannot edit, the
+validator preference order and plan-validate-execute, and diagnosing an embedded check that does not run.
 
----
+## Authoring guidance and pre-share checklist (Melodic Software addition)
+
+Read [`reference/authoring-guidance.md`](reference/authoring-guidance.md) when writing a
+description, choosing a freedom level, splitting a body into spokes, pointing at scripts or MCP
+tools, or planning evals: it cross-reads Anthropic's cross-product best-practices page against what
+Claude Code enforces. Its description contract (one description, `when_to_use` optional, key use
+case first, the two caps with their sources) is the fuller form of tip 5.
+
+Read [`reference/authoring-checklist.md`](reference/authoring-checklist.md) before publishing: every
+row is tagged mechanical (with its `skill-quality:check` number), judgment, or attestation.
 
 ## Next
 
@@ -182,18 +186,14 @@ documented prominence causes first, the blog's description diagnosis second. See
 ## Skill-tool composition (Melodic Software addition)
 
 The Skill tool takes one skill per call; a step needing two skills is two calls. A skill with
-`disable-model-invocation: true` is user-invoked only, no other skill can reach it via the Skill
-tool; tell the user to run `/plugin:skill` instead of attempting the call.
+`disable-model-invocation: true` is user-invoked only and unreachable via the Skill tool; tell the
+user to run `/plugin:skill` instead of attempting the call.
 
-**Choosing the mode at authoring time**: write `disable-model-invocation` explicitly on every skill,
-and decide its value against the
-[invocation-mode rubric](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/invocation-mode/README.md)
-. It owns the model-invoked default, the only three exception classes a `true` may claim, and the
-when-to-split-by-invocation question. `skill-quality:check` enforces the explicit key.
-
-**Phrasing a chain to another skill**: the same rubric (§ Cross-skill invocation phrasing) owns the
-wording an operative handoff uses, name the Skill tool, never bare `/name` prose. It is
-author-enforced, not lint-enforced; the rubric records why.
+Write `disable-model-invocation` explicitly on every skill and decide its value against the
+[invocation-mode rubric](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/invocation-mode/README.md),
+which owns the model-invoked default, the three exception classes a `true` may claim, and the
+when-to-split question; `skill-quality:check` enforces the explicit key. The same rubric (§ Cross-skill
+invocation phrasing) owns how an operative handoff is worded: name the Skill tool, never bare `/name` prose; author-enforced, not lint-enforced.
 
 ---
 

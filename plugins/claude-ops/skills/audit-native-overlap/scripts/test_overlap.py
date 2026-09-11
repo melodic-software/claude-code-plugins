@@ -39,9 +39,14 @@ BASE_ROW = {
         "trigger": "a Claude Code release adds, removes, or renames a bundled skill in this lane",
         "verified": "2026-08-23",
     },
-    "baked": {"description_phrase": False, "boundary_section": False},
+    "baked": {"description_phrase": False, "boundary_section": True},
     "budget_caveat": False,
 }
+
+# A verdict lands with its Boundary section, so the default component carries
+# one; the description phrase is the separately gated half and stays absent. The
+# surface is named as a code span, which is what ties the section to the row.
+BOUNDARY_EXTRA = "\n## Boundary, the bundled `doctor` skill\n\nDetail.\n"
 
 
 def deep_copy(value):
@@ -69,6 +74,10 @@ SKILL_RAW_TEMPLATE = """---
 ## Purpose
 
 Demo body.
+
+## Boundary, the bundled `doctor` skill
+
+Detail.
 """
 
 
@@ -82,6 +91,9 @@ class TempRepo:
         self.view_path = self.root / "docs" / "NATIVE-SURFACES.md"
         self.store_path.parent.mkdir(parents=True, exist_ok=True)
         self.write_store(make_store(rows if rows is not None else [BASE_ROW]))
+        # BASE_ROW claims a Boundary section, so the component it names exists
+        # from the start; tests that want a different component rewrite it.
+        self.write_skill("demo", "demo-audit", extra=BOUNDARY_EXTRA)
 
     def write_store(self, store):
         self.store_path.write_text(json.dumps(store, indent=2), encoding="utf-8")
@@ -297,7 +309,7 @@ class GenerateTests(unittest.TestCase):
         self.assertIn(overlap.START_MARKER, text)
         self.assertIn(overlap.END_MARKER, text)
         self.assertIn("`doctor`", text)
-        self.assertIn("never hand-edit", text)
+        self.assertIn("Never hand-edit", text)
 
     def test_generate_is_idempotent(self):
         self.repo.generate()
@@ -400,7 +412,7 @@ class SelfCheckTests(unittest.TestCase):
                 f"{overlap.GATE_TOKEN}, prefer it for the quick pass; this skill for the "
                 "deep one."
             ),
-            extra="\n## Boundary — the bundled doctor skill\n\nDetail.\n",
+            extra=BOUNDARY_EXTRA,
         )
         self.assertEqual(self.repo.self_check(), 0)
 
@@ -461,10 +473,116 @@ class SelfCheckTests(unittest.TestCase):
         )
         self.assertEqual(self.repo.self_check(), 1)
 
-    def test_row_without_a_baked_line_is_legal_pending_sweep_state(self):
+    def test_row_without_a_description_phrase_is_legal_pending_sweep_state(self):
+        # The phrase is the budget-priced, routing-affecting half and earns its
+        # own gate; a row carrying only its Boundary section is complete.
+        self.repo.generate()
+        self.repo.write_skill("demo", "demo-audit", extra=BOUNDARY_EXTRA)
+        self.assertEqual(self.repo.self_check(), 0)
+
+    def test_row_without_a_boundary_section_breaks(self):
+        # The verdict is recorded but the model never reads it. Broken, not
+        # degraded: a consumer gate passes degraded runs because they report a
+        # condition this repository cannot fix by editing its own files, and a
+        # missing section is fixable in the change that adds the row.
+        row = deep_copy(BASE_ROW)
+        row["baked"]["boundary_section"] = False
+        self.repo.write_store(make_store([row]))
         self.repo.generate()
         self.repo.write_skill("demo", "demo-audit")
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            exit_code = self.repo.self_check()
+        self.assertEqual(exit_code, 1)
+        self.assertIn("carry no Boundary section", err.getvalue())
+        self.assertIn("demo:demo-audit", err.getvalue())
+
+    def test_boundary_section_for_another_surface_does_not_satisfy_a_row(self):
+        # `boundary_section` true plus any `## Boundary` heading would pass a
+        # presence-only check while the row's own surface goes unmentioned.
+        self.repo.generate()
+        self.repo.write_skill(
+            "demo",
+            "demo-audit",
+            extra="\n## Boundary, the bundled `simplify` skill\n\nDetail.\n",
+        )
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            exit_code = self.repo.self_check()
+        self.assertEqual(exit_code, 1)
+        self.assertIn("names `doctor`", err.getvalue())
+
+    def test_a_generic_boundary_heading_naming_the_surface_satisfies_a_row(self):
+        # The preferred heading names the surface, but a component covering
+        # several surfaces under one generic heading is legal as long as the
+        # section text names each row's surface.
+        self.repo.generate()
+        self.repo.write_skill(
+            "demo",
+            "demo-audit",
+            extra=(
+                "\n## Boundary\n\nThe bundled `doctor` skill offers to fix; this "
+                "skill only reports.\n"
+            ),
+        )
         self.assertEqual(self.repo.self_check(), 0)
+
+    def test_one_boundary_section_can_carry_several_rows(self):
+        # The visualize shape: two rows, two native surfaces, one section.
+        second = deep_copy(BASE_ROW)
+        second["native"] = {
+            "name": "simplify",
+            "class": "bundled-skill",
+            "markers": [],
+        }
+        self.repo.write_store(make_store([BASE_ROW, second]))
+        self.repo.generate()
+        self.repo.write_skill(
+            "demo",
+            "demo-audit",
+            extra=(
+                "\n## Boundary\n\nThe bundled `doctor` skill fixes; the bundled "
+                "`simplify` skill refines a diff; this skill only reports.\n"
+            ),
+        )
+        self.assertEqual(self.repo.self_check(), 0)
+
+    def test_a_surface_named_only_in_prose_does_not_satisfy_a_row(self):
+        # A native name that is also an ordinary English word must not be
+        # satisfied by prose that happens to use it.
+        row = deep_copy(BASE_ROW)
+        row["native"] = {"name": "run", "class": "bundled-skill", "markers": []}
+        self.repo.write_store(make_store([row]))
+        self.repo.generate()
+        self.repo.write_skill(
+            "demo",
+            "demo-audit",
+            extra="\n## Boundary\n\nThis skill does not run the application.\n",
+        )
+        self.assertEqual(self.repo.self_check(), 1)
+
+    def test_defer_rows_owe_no_boundary_section(self):
+        row = deep_copy(BASE_ROW)
+        row["verdict"] = "defer"
+        row["baked"]["boundary_section"] = False
+        self.repo.write_store(make_store([row]))
+        self.repo.generate()
+        self.assertEqual(self.repo.self_check(), 0)
+
+    def test_agent_rows_owe_no_boundary_section(self):
+        # Agents are registry-rows-only: a role prompt loads after dispatch, too
+        # late to route, so no agent row is ever baked and the advisory that
+        # names skills without a Boundary section must not count them.
+        row = deep_copy(BASE_ROW)
+        row["component"] = {"plugin": "demo", "skill": "some-agent", "kind": "agent"}
+        row["baked"]["boundary_section"] = False
+        self.repo.write_store(make_store([row]))
+        self.repo.generate()
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            exit_code = self.repo.self_check()
+        self.assertEqual(exit_code, 0)
+        self.assertNotIn("carry no Boundary section", out.getvalue())
 
     def test_boundary_heading_alone_is_not_a_reverse_parity_break(self):
         # `## Boundary` predates this registry across the fleet; only the
@@ -932,7 +1050,8 @@ class ScanTests(unittest.TestCase):
         agents.mkdir(parents=True, exist_ok=True)
         (agents / "helper.md").write_text("---\nname: helper\n---\n", encoding="utf-8")
         found = overlap.scan_components(repo.root)
-        self.assertEqual(found["skills"], ["alpha:one", "beta:two"])
+        # TempRepo seeds demo:demo-audit for BASE_ROW; the scan reports it too.
+        self.assertEqual(found["skills"], ["alpha:one", "beta:two", "demo:demo-audit"])
         self.assertEqual(found["agents"], ["alpha:helper"])
 
     def test_scan_of_a_tree_without_plugins_is_empty(self):

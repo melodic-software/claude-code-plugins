@@ -3,6 +3,45 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.6]
+
+### Fixed
+
+- **`implement-dispatch` states the current subagent model resolution order.** The body ranked
+  `CLAUDE_CODE_SUBAGENT_MODEL` first and told orchestrated runs to keep it unset so it could not
+  undercut the frontmatter binding. Upstream reversed that order in v2.1.251: the per-invocation
+  `model` parameter ranks first, frontmatter second, the environment variable third, and the main
+  conversation's model last. The variable is a fallback for subagents that bind neither, so it
+  cannot undercut a frontmatter binding and the keep-it-unset instruction protected nothing. Both
+  the Step 2 parenthetical and the capability-tier gotcha now state the current order, dated, with a
+  recheck trigger.
+
+## [0.16.5]
+
+### Changed
+
+- **Every markdown surface in the plugin passes `/ai-slop:audit`.** Em dashes in the plugin's own
+  prose (this changelog, both agent definitions, the topic-docs reference, and the implement
+  skill's feature, bugfix, refactor and gotchas contexts) are rewritten as a comma, a period, a
+  colon where a definition or list follows, or a restructured sentence. No phase gate, acceptance
+  criterion, or dispatch rule changed.
+- **`reference/artifact-protocol.md` is untouched.** Six plugins carry byte-identical copies of it,
+  held in step by `scripts/validate-plugin-contracts.mjs`, and it carries no em dash, so the
+  campaign leaves it exactly as it is.
+- **`seam` keeps its name where the repository defines it.** `## Model binding (the dispatch seam)`
+  is shared byte-identical across both agent files, `dispatch seam` is live vocabulary in the
+  autonomy plugin's scripts and schema, and `docs/conventions/seam-phrasing/` defines the term.
+  Renaming it in three files would fork the vocabulary and move two anchors. Reflexive uses became
+  the concrete word.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`,** so the gate defends
+  it from here on.
+- **Changelog, in-place wording corrections to released entries:** the same rewrite was applied
+  inside
+  `[0.15.3]`, `[0.15.2]`, `[0.15.1]`, `[0.15.0]`, `[0.14.0]`, `[0.13.2]`, `[0.13.0]`, `[0.12.1]`,
+  `[0.12.0]`, `[0.11.0]`, `[0.10.0]`, `[0.9.2]`, `[0.8.0]`, `[0.7.8]`, `[0.7.7]`, `[0.7.6]`,
+  `[0.7.4]`, `[0.7.3]`, `[0.7.2]`, `[0.7.0]`, `[0.6.0]`, `[0.5.0]`, `[0.4.0]`, `[0.3.0]`,
+  `[0.2.0]`, and `[0.1.0]`. Wording only; every entry's facts are unchanged.
+
 ## [0.16.4]
 
 ### Changed
@@ -138,7 +177,7 @@ All notable changes to the `implementation` plugin are documented here. Format f
 ### Changed
 
 - Normalized fleet-wide framing this plugin restates (cross-vendor advisor
-  fallback, untrusted-content posture, attribution/idiom prose — as touched) to the canonical
+  fallback, untrusted-content posture, attribution/idiom prose, as touched) to the canonical
   SSOT wording, operable text kept inline with provenance-only citations (#2698).
 
 ## [0.15.2]
@@ -146,7 +185,7 @@ All notable changes to the `implementation` plugin are documented here. Format f
 ### Fixed
 
 - **`implement-dispatch`'s unverified-versus-omitted rule names the lanes it borrows from.** It
-  read "the same grounding rule the loop lanes apply to their cycle reports" — an unresolvable
+  read "the same grounding rule the loop lanes apply to their cycle reports", an unresolvable
   pointer for a consumer who installs `implementation` alone and has never met that phrase. It now
   names `work-items:work-loop` and `source-control:babysit-loop`, which is what 0.15.0's own
   release note already told a changelog reader the rule cited. The wording deliberately echoes
@@ -157,21 +196,21 @@ All notable changes to the `implementation` plugin are documented here. Format f
 
 ### Changed
 
-- **Cross-skill chains name the Skill tool (#3002).** `implement`'s Karpathy pre-execution
+- **Cross-skill chains name the Skill tool (#3002).** In `implement`: the Karpathy pre-execution
   checklist, its scope-creep and major-divergence replan routes, its research escalation, the
   pre-PR sequence read (`/session-flow:workflow pre-pr`), the config/docs verification note, and
-  all four rows of its handoff table — the mid-implementation research row and the pre-PR-sequence
-  row were left bare beside two rewritten siblings; `implement-dispatch`'s main-side build/test in
-  both the cadence step and the integration table, the worker's worktree provisioning
+  all four rows of its handoff table. The mid-implementation research row and the pre-PR-sequence
+  row were left bare beside two rewritten siblings. In `implement-dispatch`: the main-side
+  build/test in both the cadence step and the integration table, the worker's worktree provisioning
   (`/source-control:worktree`), and the inline-routed hand-back.
-  Wording only — routing thresholds, gates, and step order unchanged.
+  Wording only. Routing thresholds, gates, and step order unchanged.
 
 - **`implement-dispatch`: citations to `/implementation:implement`'s NAMED STEPS stay citations
   (#3002).** The first pass rewrote "run the `/implementation:implement` 'Step 1: Prerequisite
   Check' preflight" into "invoke `/implementation:implement` via the Skill tool and run its
   'Step 1…'", and did the same to the Step 3 divergence ladder, the Step 4 phase-boundary ritual,
   and two integration-table rows. Those are different actions: the text says to APPLY another
-  skill's enumerated checklist here, not to hand control to it — and handing control to it is a
+  skill's enumerated checklist here, not to hand control to it. Handing control to it is a
   re-entry hazard, since `/implementation:implement`'s Step 0 detects worker routing and chains
   straight back into this skill. All five sites are back to the citation form, and the
   Prerequisites paragraph now says outright that the criteria are enumerated in place and names
@@ -196,7 +235,7 @@ All notable changes to the `implementation` plugin are documented here. Format f
 
   The unverified-versus-omitted rule deliberately cites the grounding discipline
   `work-items:work-loop` and `source-control:babysit-loop` already apply to their cycle reports
-  rather than restating it a third time — same reason, same unwatched-run failure mode.
+  rather than restating it a third time: same reason, same unwatched-run failure mode.
 
   Selected as the landing site after checking every audit-trail surface in the fleet: this is the
   only one that is a decision trail written by the acting agent at decision time. The others are a
@@ -212,7 +251,7 @@ All notable changes to the `implementation` plugin are documented here. Format f
 - **`implement`'s completion handoff stops prescribing its own pre-PR order (closes #3047).**
   Step 5 is titled *"Hand off to the pre-PR sequence"* and then prescribed an order that sequence
   forbids: `/verification:confirm` first, review after. `session-flow`'s `pre-pr.md` puts review at
-  step 2 and outcome verification at step 7, with the simplify pass (4–6) between them — so under
+  step 2 and outcome verification at step 7, with the simplify pass (4–6) between them. Under
   this skill's order, `confirm` rendered its verdict on pre-simplify code and the simplify edits
   shipped unverified.
 
@@ -236,9 +275,9 @@ All notable changes to the `implementation` plugin are documented here. Format f
 
 - **Upstream doc stamps re-verified against the live pages (2026-08-10).** Each dated claim below was re-checked against the complete raw markdown source of the page it cites (`https://code.claude.com/docs/en/<page>.md`), not a summarized fetch, and each was confirmed by a verbatim quote before its stamp was refreshed. No claim changed; only the verification dates moved.
 
-  - `agents/implementer.md` — a subagent at the spawn-depth limit doing its delegated work itself
+  - `agents/implementer.md`: a subagent at the spawn-depth limit doing its delegated work itself
     and returning one summary (subagents reference), quoted verbatim.
-  - `skills/implement-dispatch/SKILL.md` — the subagent model resolution order
+  - `skills/implement-dispatch/SKILL.md`: the subagent model resolution order
     (`CLAUDE_CODE_SUBAGENT_MODEL`, then the per-invocation `model` parameter, then frontmatter,
     then the main conversation's model).
 
@@ -262,7 +301,7 @@ All notable changes to the `implementation` plugin are documented here. Format f
 
 - **The bare `/<skill>` alias for this plugin's skills.** Their `SKILL.md` files no longer
   declare a frontmatter `name`. The field is optional and defaults to the directory name, so
-  declaring it only restated the path while registering a second, unnamespaced command — which
+  declaring it only restated the path while registering a second, unnamespaced command, which
   the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
   namespaced command; the command itself is unchanged.
 
@@ -276,7 +315,7 @@ All notable changes to the `implementation` plugin are documented here. Format f
   assertion. Step 2 now states that the minimum means the smallest *correct* implementation, and
   requires a deliberate, stated correction when the test itself is wrong.
 - **`feature.md` gained a gold-plating pitfall.** Its sibling `bugfix.md` has carried "Fix minimally"
-  all along, and `SKILL.md`'s scope-creep guard only routes a *bigger task* back to planning — it
+  all along, and `SKILL.md`'s scope-creep guard only routes a *bigger task* back to planning. It
   never addressed building beyond an agreed slice. The new pitfall sets the bar at a second caller
   existing rather than being anticipated.
 
@@ -286,12 +325,12 @@ All notable changes to the `implementation` plugin are documented here. Format f
 
 - **`implement`: the mid-phase handoff no longer triggers on a self-estimated context budget.** The
   guidance read "Mid-phase handoff is still appropriate when context is heavy or a pause is
-  imminent", which asks the model to judge its own window and hand off on that judgement — the shape
-  the `claude-config` instruction-audit catalog's check I23 detects, and the same clause removed from
-  `session-flow`'s `handoff` in this pass. The licensed triggers are now an imminent pause, the
+  imminent", which asks the model to judge its own window and hand off on that judgement. That is the
+  shape the `claude-config` instruction-audit catalog's check I23 detects, and the same clause was
+  removed from `session-flow`'s `handoff` in this pass. The licensed triggers are now an imminent pause, the
   user's report, an instrument that measures the window, or visible drift in the responses; a budget
   reading is a measurement, not a decay signal. Writing the ad-hoc note stays exactly as valuable as
-  before — only the trigger that invented the occasion is gone.
+  before. Only the trigger that invented the occasion is gone.
 
 ## [0.11.0]
 
@@ -299,12 +338,12 @@ All notable changes to the `implementation` plugin are documented here. Format f
 
 - **The phase-worker brief now states why the phase exists**, alongside the scope fence, the
   divergence-escalation clause, the project invariants, the acceptance criteria, and any model
-  routing. This is the highest-stakes dispatch surface in the marketplace — its workers edit source
-  — and it was specifying every boundary and no intent.
+  routing. This is the highest-stakes dispatch surface in the marketplace, since its workers edit
+  source, and it was specifying every boundary and no intent.
   - A fence and a reason do different jobs, and the brief said so only halfway: a fence states what
     a worker may not touch, and a worker that knows only its boundaries resolves every *in-bounds*
     ambiguity toward the literal brief instead of the outcome. That is how a phase comes back
-    conforming and useless — passing its scope fence, passing its acceptance criteria as written,
+    conforming and useless: passing its scope fence, passing its acceptance criteria as written,
     and not being the change that was wanted.
   - Sourced from Anthropic's Fable 5 prompting guide, "Give the reason, not only the request", which
     names long-running agents drawing on multiple workstreams as the case where intent matters most.
@@ -321,18 +360,18 @@ All notable changes to the `implementation` plugin are documented here. Format f
   and the phase-boundary verifier as `implementation:phase-verifier`, reserving the per-invocation
   `model` parameter for upward (frontier-tier) routing only, with a gotcha documenting that a set
   `CLAUDE_CODE_SUBAGENT_MODEL` (any value but `inherit`) outranks the binding. Tier definitions
-  stay order-defined and family-agnostic per the marketplace's loop-lane convention §3 — the alias
+  stay order-defined and family-agnostic per the marketplace's loop-lane convention §3. The alias
   binding lives only at this seam, and the verifier binds never weaker than the implementer it
   checks. Frontmatter binds a floor, not a session-relative value, so both the cadence and the
   agent bodies record the upward-only override duty when the session's model resolves above the
   binding (per the plugin philosophy's session-relative ladder). Each agent also declares an
-  explicit tool cage — a change from the previously ungoverned generic-subagent tool surface: the
+  explicit tool cage, a change from the previously ungoverned generic-subagent tool surface: the
   implementer grants file edit, search, shell, web research, skill invocation, and nested dispatch
-  (that last one conditional — the harness withholds `Agent` from a subagent at the spawn-depth
+  (that last one conditional, since the harness withholds `Agent` from a subagent at the spawn-depth
   limit whatever the `tools` list says); the phase-verifier bars Edit/Write and agent spawning, with
   Bash retained for inspection (stated as the cage it is, not as "read-only", per the plugin
   philosophy's named-agent bar). Both also bind `effort` rather than inheriting the session's level,
-  matching this marketplace's other named agents — a model binding alone would still let an
+  matching this marketplace's other named agents. A model binding alone would still let an
   orchestrator that lowered effort for its own bookkeeping lower it for the phase work. Neither
   agent sets `maxTurns`, unlike every `discovery` and `review` agent in this marketplace (all of
   which cap, between 25 and 40). The documented semantics are that the
@@ -342,8 +381,8 @@ All notable changes to the `implementation` plugin are documented here. Format f
   phase-verifier is therefore contracted to return INCONCLUSIVE rather than a partial PASS, and
   `implement-dispatch`'s phase-boundary clause makes that return re-dispatch a fresh verifier
   against the named gap instead of marking the phase `[DONE]`. The implementer is uncapped for the
-  narrower reason that a phase's length is set by its brief — a real exposure, since its cage grants
-  edit and shell, and one the brief's scope fence rather than a turn budget is the control for.
+  narrower reason that a phase's length is set by its brief. That is a real exposure, since its cage
+  grants edit and shell, and the brief's scope fence rather than a turn budget is the control for it.
   (Frontmatter `model` and `effort` values, the env → parameter → frontmatter → inherit resolution
   order, the `maxTurns` definition quoted above, and the depth-limit `Agent` withholding verified
   against <https://code.claude.com/docs/en/sub-agents>, 2026-07-27.)
@@ -356,9 +395,9 @@ All notable changes to the `implementation` plugin are documented here. Format f
   section list.** It carried a reordered, partial copy of that taxonomy which had already drifted
   from the owner doc. When `session-flow` is installed the step now defers to
   `/session-flow:handoff`, which owns the format. Without it, this skill owns the fallback shape, so
-  the step states it directly: the note must stand on its own — what shipped, the decisions made and
+  the step states it directly. The note must stand on its own: what shipped, the decisions made and
   why, the approaches tried and ruled out, the files modified, anything already applied that must
-  not be repeated, and the ordered remainder — plus the two items specific to a phase boundary, the
+  not be repeated, and the ordered remainder. A phase boundary adds two more items, the
   sanity-check evidence and the next-phase pointer. The fallback is unchanged in substance; what
   changed is that it is now stated as this skill's own contract rather than as a copy of another
   plugin's section names.
@@ -390,20 +429,20 @@ All notable changes to the `implementation` plugin are documented here. Format f
 ### Added
 
 - **`implement-dispatch`'s brief-composition step now covers worker-side worktree provisioning for the
-  autonomous lane (`#572`).** When provisioning is worker-side — the autonomous work-lane, where the
-  orchestrator cannot invoke `/source-control:worktree create` without transitioning its own session —
+  autonomous lane (`#572`).** When provisioning is worker-side, in the autonomous work-lane where the
+  orchestrator cannot invoke `/source-control:worktree create` without transitioning its own session,
   the brief makes materializing the isolated worktree the worker's first step (the non-entering
-  creation seam, or a plain `git worktree add`, worked via `git -C` without entering), and instructs
+  creation command, or a plain `git worktree add`, worked via `git -C` without entering), and instructs
   the worker to bring the branch current with the default branch, commit, push, and return the
   worktree path + branch so the orchestrator can open the PR against the pushed branch. The
-  interactive default — the brief supplies a pre-existing worktree path — is unchanged.
+  interactive default, where the brief supplies a pre-existing worktree path, is unchanged.
 
 ## [0.7.8]
 
 ### Changed
 
 - `implement-dispatch`'s fresh-context verifier before marking a phase `[DONE]` (`skills/implement-dispatch/SKILL.md`)
-  now prefers a cross-vendor advisor when one is installed (e.g. the OpenAI Codex plugin, invoked per its own docs), with the fresh-context same-vendor verifier sub-agent as the stated fallback —
+  now prefers a cross-vendor advisor when one is installed (e.g. the OpenAI Codex plugin, invoked per its own docs), with the fresh-context same-vendor verifier sub-agent as the stated fallback,
   presence-gated per the seam-phrasing convention.
 
 ## [0.7.7]
@@ -413,16 +452,16 @@ All notable changes to the `implementation` plugin are documented here. Format f
 - `implement-dispatch`'s "Compose the brief" step (`skills/implement-dispatch/SKILL.md`) now front-loads
   CI-hygiene and early-push clauses alongside the existing worktree-cwd clause: no issue-number back-references
   in code comments (the `comment-hygiene` check flags them; `TODO(#issue)` is the sanctioned exception);
-  any new regular file with a shebang (never a `120000` symlink — `git update-index --chmod=+x` fails on
-  one) must be marked executable on both the worktree and the index, in order — `chmod +x <path>`, then
+  any new regular file with a shebang (never a `120000` symlink, since `git update-index --chmod=+x` fails on
+  one) must be marked executable on both the worktree and the index, in order: `chmod +x <path>`, then
   `git add <path>` to stage it (a not-yet-tracked path fails `git update-index --chmod=+x` outright), then
   `git update-index --chmod=+x <path>` to force the index mode explicitly, since a plain `git add` alone
   can't be trusted to carry an executable bit across every platform/filesystem (the `exec-bit` check flags
-  a tracked shebang file recorded non-executable); and commit and push as early as practical — before the
-  CI-poll tail — so a mid-flight worker session-limit death never orphans unpushed work. That early commit
+  a tracked shebang file recorded non-executable); and commit and push as early as practical, before the
+  CI-poll tail, so a mid-flight worker session-limit death never orphans unpushed work. That early commit
   is a source-only checkpoint; the phase-boundary plan-mark commit (`/implementation:implement` Step 4 item
-  4) still runs separately, orchestrator-side, once the phase's acceptance criteria are verified — a scoped
-  exception to inline mode's combined source+marks commit, noted in "Phase boundaries." PR creation stays
+  4) still runs separately, orchestrator-side, once the phase's acceptance criteria are verified. That is
+  a scoped exception to inline mode's combined source+marks commit, noted in "Phase boundaries." PR creation stays
   out of every worker brief; it belongs to the orchestrator's post-verification flow (Step 5), invoked only
   after every worker return is verified and the build/test gate passes. Reinforced as Gotchas-section
   reminders, matching the worktree-cwd clause's existing pattern. Closes #819, where fresh dispatched
@@ -433,7 +472,7 @@ All notable changes to the `implementation` plugin are documented here. Format f
 ### Changed
 
 - Skills with `!` dynamic-context injections now declare `shell: bash` explicitly, per
-  the pinned precompute convention — bash-only pipelines must not fall through to a
+  the pinned precompute convention. Bash-only pipelines must not fall through to a
   PowerShell host.
 
 ## [0.7.5]
@@ -452,7 +491,7 @@ All notable changes to the `implementation` plugin are documented here. Format f
 - `implement-dispatch`'s "Compose the brief" step (`skills/implement-dispatch/SKILL.md`) now requires
   a worktree-cwd clause whenever a worker edits in a dedicated worktree: the brief must give the
   worktree's absolute path and instruct the worker to never rely on the shell's working directory
-  persisting across separate tool calls — anchoring every command that touches the worktree (file
+  persisting across separate tool calls, anchoring every command that touches the worktree (file
   edits and git operations alike: `status`, `add`, `commit`, `diff`, `log`) with
   `git -C <worktree-path>` (or a re-`cd` per call) rather than a one-time `cd`, since cwd can drift
   between a read and the next write and silently risks committing into the wrong checkout. Reinforced
@@ -467,7 +506,7 @@ All notable changes to the `implementation` plugin are documented here. Format f
   (`skills/implement/context/feature.md`, `bugfix.md`, `refactor.md`) retain their `dotnet-*`
   marketplace-skill names and `## Marketplace plugin skills (invoke only when installed)` presence
   gate, and each now opens with a lead-in that frames those skills as .NET-ecosystem forward
-  references — invoked only when your stack is .NET and the plugin is installed — with an explicit
+  references, invoked only when your stack is .NET and the plugin is installed, with an explicit
   fallback to the project's own tooling otherwise, so a non-.NET consumer keeps the generic path
   first-class rather than being handed a dead list. Matches the conforming `testing` (#491) and
   `verification` (#526) pattern per the ratified #412 disposition governing #405. No reference
@@ -481,8 +520,8 @@ All notable changes to the `implementation` plugin are documented here. Format f
   (`skills/implement/SKILL.md` "Dependency direction" and
   `skills/implement/context/feature.md` step 3) no longer bakes the .NET/Clean-Architecture
   layer names (Core/Domain/Application/Infrastructure) as a universal execution order. The
-  principle is restated as dependency direction — implement depended-upon components before
-  their dependents, respecting the project's own dependency direction — and the layer names
+  principle is restated as dependency direction: implement depended-upon components before
+  their dependents, respecting the project's own dependency direction. The layer names
   are demoted to a clearly-marked ".NET, for example" illustration, per the
   `docs/PLUGIN-PHILOSOPHY.md` design boundary.
 
@@ -501,8 +540,8 @@ All notable changes to the `implementation` plugin are documented here. Format f
 ### Changed
 
 - Adopt topic-docs contract 2.0.0 (visibility semantics): `reference/topic-docs.md` ties the
-  phase-commit rule to the contract's visibility guarantee — isolated contexts see the contract
-  slice as committed state only — and states the by-value return rule for dispatched workers.
+  phase-commit rule to the contract's visibility guarantee, where isolated contexts see the contract
+  slice as committed state only, and states the by-value return rule for dispatched workers.
 
 ## [0.6.2]
 
@@ -518,12 +557,12 @@ All notable changes to the `implementation` plugin are documented here. Format f
 
 ## [0.6.0]
 
-### Changed — nine skills extracted into three new plugins (migration required to retain them)
+### Changed: nine skills extracted into three new plugins (migration required to retain them)
 
-**The `implementation` plugin is now two skills — `/implementation:implement` and
+**The `implementation` plugin is now two skills: `/implementation:implement` and
 `/implementation:implement-dispatch`.** The other nine skills moved out into three new plugins.
 Consumers who relied on any moved skill MUST install the new plugin that now owns it to keep the
-capability — there is no renames-map path for extracted skills:
+capability. There is no renames-map path for extracted skills:
 
 - **`build`, `lint`, `setup` → the new `toolchain` plugin** (skill names unchanged):
   `/toolchain:build`, `/toolchain:lint`, `/toolchain:setup`. The `reference/resolution-ladder.md` and
@@ -535,18 +574,18 @@ capability — there is no renames-map path for extracted skills:
 
 This split is **presence-gated graceful degradation, NOT a hard dependency.**
 `/implementation:implement` and `/implementation:implement-dispatch` still run their cadence when a
-companion plugin is absent — they fall back to the project's own build/test command and to self-verifying
-the outcome against the plan/intent — and prefer the companion skill (`/toolchain:build`,
+companion plugin is absent, falling back to the project's own build/test command and to self-verifying
+the outcome against the plan/intent, and prefer the companion skill (`/toolchain:build`,
 `/verification:confirm`, `/testing:*`) when it is installed. To restore the full former surface, install
 `toolchain`, `testing`, and/or `verification`.
 
 ### Changed
 
-- **Seam references rewritten to the new namespaces and presence-gated.** Every in-skill reference to a
+- **Cross-plugin references rewritten to the new namespaces and presence-gated.** Every in-skill reference to a
   moved skill now names its new plugin (`/toolchain:*`, `/testing:*`, `/verification:*`); active
   invocations are gated with a graceful fallback, and relationship prose that called the moved skills
   "siblings" is reframed to "companion skills in separate plugins."
-- **`reference/topic-docs.md` trimmed** to the artifacts these two skills write — `PLAN.md` progress
+- **`reference/topic-docs.md` trimmed** to the artifacts these two skills write: `PLAN.md` progress
   marks, the `DEVIATIONS.md` log, the status summary, and handoff notes. Verification manifests and
   baselines are now the `verification` plugin's, bound in its own `reference/topic-docs.md`.
 
@@ -557,9 +596,9 @@ the outcome against the plan/intent — and prefer the companion skill (`/toolch
 - **Optional `tool-pin` version-drift warning in `/lint`.** The ecosystem-commands contract gains an
   optional `tool-pin` key (pinned tool versions keyed by tool name; contract 1.1.0): when the resolved
   config pins a tool version, `/lint` warns if the installed version drifts from the pin (a pin
-  typically mirrors the consumer's own CI pin). Inert when absent — no pin, no check.
+  typically mirrors the consumer's own CI pin). Inert when absent. No pin, no check.
 - **`/implement` over-correction trap logs to the session retro.** When the Step 3.5 over-correction
-  guard fires, document it in the session's retro — surfaced to `/session-flow:retro` when the
+  guard fires, document it in the session's retro, surfaced to `/session-flow:retro` when the
   `session-flow` plugin is installed; otherwise noted in the completion summary.
 
 ## [0.4.0]
@@ -569,8 +608,8 @@ the outcome against the plan/intent — and prefer the companion skill (`/toolch
 - **Consume the topic-docs convention** (`docs/conventions/topic-docs/README.md`). Artifact placement
   follows document nature across two tiers, bound for this plugin in the shared
   `reference/topic-docs.md`: `PLAN.md` progress marks and the `DEVIATIONS.md` log are contract-tier
-  (`docs/topics/<slug>/`, committed on the task branch, pruned before merge — or the memory tier under
-  `contract_tier: local`); baselines, raw captures, and the status summary are memory-tier
+  (`docs/topics/<slug>/`, committed on the task branch and pruned before merge, or else the memory tier
+  under `contract_tier: local`); baselines, raw captures, and the status summary are memory-tier
   (self-ignoring `.work/<slug>/`); fallback handoff notes land in the memory tier's `.work/handoffs/`
   home owned by `session-flow`. Placement resolves through the contract's resolution order (concern
   file `.claude/topic-docs.yaml` first) with its runtime guards: `git check-ignore` on the session's
@@ -578,38 +617,38 @@ the outcome against the plan/intent — and prefer the companion skill (`/toolch
   root; no edits to the consumer's root `.gitignore`.
 - **`/implement` Step 4 phase commits carry plan + source together.** With the plan tracked on the
   task branch, "commit the plan changes alongside the phase's source-code changes in a single commit"
-  is now literal git behavior — one commit, one story; memory-tier files never enter the commit.
+  is now literal git behavior: one commit, one story. Memory-tier files never enter the commit.
 - **`/verify-changes` evidence directory renamed `verify/` → `verification/`.** The distilled,
   `verified_at_sha`-keyed manifest is contract-tier at `docs/topics/<slug>/verification/` and meets
   the contract's redaction bar (no raw captures, machine-local paths, usernames, or credentials);
   raw captures stay in `.work/<slug>/scratch/`. The skill's evals assert the migrated locations.
-- **`/verify-improvement` baselines are memory-tier** at `.work/<slug>/baselines/` — machine-bound
-  measurements, never committed, no longer beside the plan artifact (contract-tier at
+- **`/verify-improvement` baselines are memory-tier** at `.work/<slug>/baselines/`. They are
+  machine-bound measurements, never committed, no longer beside the plan artifact (contract-tier at
   `docs/topics/<slug>/PLAN.md`); the comparison summary surfaces in the plan and the PR body.
 
 ### Added
 
-- **`reference/topic-docs.md`** — the plugin's **deltas-only** binding to the topic-docs contract:
-  its per-artifact tier table and the `DEVIATIONS.md` pin and phase-commit rule — the contract owns
+- **`reference/topic-docs.md`**, the plugin's **deltas-only** binding to the topic-docs contract:
+  its per-artifact tier table and the `DEVIATIONS.md` pin and phase-commit rule. The contract owns
   the resolution order, slug spec, and runtime guards. All consuming skills reference this one
   document.
-- **`/implementation:setup` offers the `.claude/topic-docs.yaml` concern file** — one question
+- **`/implementation:setup` offers the `.claude/topic-docs.yaml` concern file**, one question
   (`contract_tier: branch` recommended), offering and preserving every schema key (`contract_dir`,
   `memory_dir`, `contract_tier`, `vault_backend`), conflict-checked with `git check-ignore -v` on
-  the chosen contract root before writing — only when the chosen tier is `branch` (local mode has
+  the chosen contract root before writing, and only when the chosen tier is `branch` (local mode has
   no committed tier to guard); never edits the consumer's root `.gitignore`.
 
 ### Removed
 
-- **`notes_dir` userConfig option and the `.claude/notes/<slug>/` layout.** Retired outright — no
-  compatibility layer, no dual-read window, no migration tooling; move residual content manually.
+- **`notes_dir` userConfig option and the `.claude/notes/<slug>/` layout.** Retired outright: no
+  compatibility layer, no dual-read window, no migration tooling. Move residual content manually.
 
 ## [0.3.0]
 
 ### Added
 
 - **Rich-form evals for five skills.** `evals/evals.json` ships for `implement`, `implement-dispatch`,
-  `build`, `lint`, and `setup` — the skills' judgment-bearing contracts (mode/orchestration routing,
+  `build`, `lint`, and `setup`. The skills' judgment-bearing contracts (mode/orchestration routing,
   divergence and scope-fence guardrails, skip-not-FAIL and consumer-config-precedence behavior, and the
   config-writer's interview/write-scope discipline) are now covered by objectively-verifiable cases,
   modeled on the `bug-report` rich-form exemplar and validated against
@@ -638,13 +677,13 @@ the outcome against the plan/intent — and prefer the companion skill (`/toolch
 
 ### Added
 
-- **`/implementation:setup`** — re-runnable skill that interviews, infers, and writes the consuming
+- **`/implementation:setup`**, a re-runnable skill that interviews, infers, and writes the consuming
   repo's tracked `.claude/ecosystems/*.yaml`, the ladder's writer for the infer/ask rungs.
 
 ### Design decisions (from the wave-2 design gate; recorded, not reopened)
 
 - **Data unified, scope preserved.** Unifying the tables into one 8-ecosystem set would have pulled the
-  lint-only `yaml` and `cross-cutting` surfaces into `/build` — and `cross-cutting`'s `**` glob matches
+  lint-only `yaml` and `cross-cutting` surfaces into `/build`, and `cross-cutting`'s `**` glob matches
   every change. Per the contract's canonical-verb-vs-context-binding split, the *data* is unified while
   each skill keeps its *scope* (binding is per-surface): `/build` covers
   dotnet/python/typescript/bash/powershell/markdown; `yaml` and `cross-cutting` remain `/lint`-only.
@@ -652,10 +691,10 @@ the outcome against the plan/intent — and prefer the companion skill (`/toolch
   authority: dropped the lint-table's `$REPO_ROOT/`-prefixed dotnet command in favor of the contract's
   `<solution-or-project-file>` form (the running skill resolves absolute paths).
 - **Config home is concern-named** `.claude/ecosystems/` (a recorded precedent-extension of the
-  extensibility-contract seam, since more than one plugin consumes it). No new `userConfig` knob — the
-  path is conventional, not declared. Task-runner deferred — command values stay opaque strings.
+  extensibility contract's interface, since more than one plugin consumes it). No new `userConfig` knob.
+  The path is conventional, not declared. Task-runner deferred. Command values stay opaque strings.
 
 ## [0.1.0]
 
-- Initial release: ten skills — `implement`, `implement-dispatch`, `build`, `lint`, `test-write`,
+- Initial release of ten skills: `implement`, `implement-dispatch`, `build`, `lint`, `test-write`,
   `test-plan`, `test-diagnose`, `test-e2e`, `verify-changes`, `verify-improvement`.

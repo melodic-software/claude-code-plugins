@@ -9,8 +9,8 @@
 
 Durable tracking for the 174 route-to-sibling annotations from the repo-wide
 `/docs-hygiene:audit-derivability` sweep (issue #2735 / session ledger
-`derivability-ledger.json`, ephemeral). This file is the in-tree status board —
-no new GitHub issues are opened from it.
+`derivability-ledger.json`, ephemeral). This file is the in-tree status board,
+and no new GitHub issues are opened from it.
 
 ## Batch record
 
@@ -18,7 +18,7 @@ no new GitHub issues are opened from it.
 |---|---|---|---|
 | audit-noise re-scan | 2026-08-16 | all 38 noise-routed paths | 32 files scanner-clean under detect 0.14.5+ exemptions; 6 `CHANGELOG.md` basename-exempt; 1 Tier-2 ghost-ref remediated (commit-convention README → Sources) |
 | extract-ssot triage | 2026-08-16 | all 136 ssot-routed paths | dispositions below; exact byte-identical `reference/artifact-protocol.md` cluster already registered in `scripts/cross-plugin-source-registry.txt` (keep-as-synced-copies, not pointer-extract) |
-| false-keep sampling | deferred | 1089 `keep-owns-facts` from the original sweep | original session ledger ephemeral; future sweeps sample keeps per the post-#2695 contract — do not invent a one-off sample without the ledger |
+| false-keep sampling | deferred | 1089 `keep-owns-facts` from the original sweep | original session ledger ephemeral; future sweeps sample keeps per the post-#2695 contract. Do not invent a one-off sample without the ledger |
 
 ## Route: audit-noise (38)
 
@@ -29,7 +29,7 @@ scanner; remaining real cite relocated.
 | Path | Status |
 |---|---|
 | `CLAUDE.md` | clean |
-| `docs/conventions/commit-convention/README.md` | remediated — design-topic ghost-ref moved to `## Sources` |
+| `docs/conventions/commit-convention/README.md` | remediated: design-topic ghost-ref moved to `## Sources` |
 | `docs/conventions/config-cascade/README.md` | clean |
 | `docs/conventions/ecosystem-commands/README.md` | clean |
 | `docs/conventions/hook-observability/README.md` | clean |
@@ -38,7 +38,7 @@ scanner; remaining real cite relocated.
 | `plugins/ai-briefing/skills/generate/references/build-pipeline.md` | clean |
 | `plugins/ai-briefing/skills/generate/references/slide-generation.md` | clean |
 | `plugins/architecture/CHANGELOG.md` | basename-exempt |
-| `plugins/claude-ops/skills/known-issues/context/registry-schema.md` | clean (pointer-converted in #2695 — re-verified present) |
+| `plugins/claude-ops/skills/known-issues/context/registry-schema.md` | clean (pointer-converted in #2695, re-verified present) |
 | `plugins/disk-hygiene/CHANGELOG.md` | basename-exempt |
 | `plugins/domain-driven-design/README.md` | clean |
 | `plugins/dometrain/README.md` | clean |
@@ -71,7 +71,7 @@ scanner; remaining real cite relocated.
 
 Pragmatic triage (not a full Rule-of-Three extract pass). Categories:
 
-### A — Keep as synced byte-identical cluster (registered)
+### A: Keep as synced byte-identical cluster (registered)
 
 Already enforced by `scripts/cross-plugin-source-registry.txt` +
 `validate-plugin-contracts.mjs`. Pointer-extraction would break per-plugin
@@ -79,7 +79,7 @@ install copies.
 
 - `plugins/{discovery,implementation,planning,verification}/reference/artifact-protocol.md`
 
-### B — Functional artifacts / scaffolds (out of scope for dedup-into-prose-SSOT)
+### B: Functional artifacts / scaffolds (out of scope for dedup-into-prose-SSOT)
 
 Per post-#2695 rubric: runtime checklists and similar scaffolds may duplicate
 *shape* without being extract-ssot candidates into a shared prose SSOT.
@@ -93,7 +93,7 @@ Re-open only if two checklists are byte-identical and meant to stay that way
   (near-dup scaffolding; OS-specific on purpose)
 - `plugins/claude-config/skills/audit/templates/checklist.md` and siblings
 
-### C — CHANGELOG routes (changelog-parity before any dedup)
+### C: CHANGELOG routes (changelog-parity before any dedup)
 
 Do not collapse changelogs across concerns. Judge each against the
 changelog-parity convention if a future pass revisits them.
@@ -102,19 +102,19 @@ changelog-parity convention if a future pass revisits them.
   liveness-assertion, plugin-data-report-keying, standards)
 - `plugins/mutation-testing/CHANGELOG.md`
 
-### D — Pending extract-ssot candidates (not processed this batch)
+### D: Pending extract-ssot candidates (not processed this batch)
 
 Everything else on the original 136 list remains a **candidate** for a future
 `/docs-hygiene:extract-ssot` identify pass (path/glob-scoped, not bare
 whole-repo). Highest-leverage next slices when resumed:
 
-1. Plugin README boilerplate clusters (format plugins, hygiene plugins) —
+1. Plugin README boilerplate clusters (format plugins, hygiene plugins):
    similarity ~0.5–0.7, needs Rule-of-Three evidence before extract.
-2. `plugins/docs-hygiene/skills/rename-references/context/{apply,audit,triage}.md`
-   — same skill, likely progressive-disclosure not duplication.
-3. Songwriting research/template prompt cluster — large; defer to a dedicated
+2. `plugins/docs-hygiene/skills/rename-references/context/{apply,audit,triage}.md`,
+   the same skill, likely progressive-disclosure not duplication.
+3. Songwriting research/template prompt cluster: large; defer to a dedicated
    extract-ssot wave.
-4. Autonomy setup templates — likely intentional variants.
+4. Autonomy setup templates: likely intentional variants.
 
 Full original path list: GitHub issue #2735 (durable copy of the ephemeral
 ledger). This file owns **status**, not a second full roster, so the two stay

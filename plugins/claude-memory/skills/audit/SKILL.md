@@ -11,14 +11,11 @@ metadata:
 
 ## Pre-computed context
 
-Memory files: !`bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/memory-dir-stats.sh" --md-count 2>/dev/null || echo "0"`
-MEMORY.md loaded lines (200 cap): !`bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/memory-dir-stats.sh" --memory-lines 2>/dev/null || echo "0"`
-MEMORY.md loaded bytes (25KB cap): !`bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/memory-dir-stats.sh" --memory-bytes 2>/dev/null || echo "0"`
-Rules files: !`find .claude/rules -name "*.md" 2>/dev/null | wc -l | tr -d '\r' || echo "0"`
-CLAUDE.md lines: !`test -f CLAUDE.md && wc -l < CLAUDE.md | tr -d '\r' || echo "0"`
-CLAUDE.local.md exists: !`test -f CLAUDE.local.md && echo "yes" || echo "no"`
-Orphan always-loaded rules (RD1): !`bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/orphan-rule-check.sh" --count 2>/dev/null || echo "?"`
-MEMORY.md index issues (M2): !`bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/memory-index-refs-check.sh" --count 2>/dev/null || echo "?"`
+The deterministic spine, one invocation, header then findings. The root-file line count has
+`@` imports expanded, since imported files load at launch; the token figure is bytes / 4 over the
+whole always-loaded set and is an estimate, not a measurement.
+
+!`bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/audit-spine.sh" 2>/dev/null || echo "Deterministic spine: unavailable (audit-spine.sh failed to run; run the per-check scripts by hand)"`
 
 # Memory Health
 
@@ -36,6 +33,7 @@ the `audit` and `automation-gaps` skills in the `claude-config` plugin).
 | **User instructions** | `${CLAUDE_CONFIG_DIR:-~/.claude}/CLAUDE.md` | Every session, full, in **every** project | Yes |
 | **User rules** | `${CLAUDE_CONFIG_DIR:-~/.claude}/rules/**/*.md` | Same as project rules, in every project | Yes |
 | Auto-memory | `~/.claude/projects/<project>/memory/` | First 200 lines / 25KB of MEMORY.md | Yes |
+| Nested `AGENTS.md` | `**/AGENTS.md` below the root | Only through a sibling `CLAUDE.md` that imports or symlinks it | Reachability only (N1); content is not audited |
 | Settings, hooks, MCP, agents, skills | Various | Various | No. Use `claude-config`'s `audit` / `automation-gaps` |
 
 Auto memory's effective enabled/disabled state must be resolved before auditing it, not assumed
@@ -76,8 +74,10 @@ operator can weigh it against current official prompting guidance.
 ## Determinism contract
 
 The checklist at [reference/criteria.md](reference/criteria.md) is codified, not a subjective rubric.
-Its **deterministic spine** (C1 line budget, M1 index size, the script-backed M2 index integrity and
-RD1 orphan-rule checks) yields byte-identical findings on the same repo state; its **judgment tier**
+Its **deterministic spine** (C1 line budget with `@` imports expanded, M1 index size, the
+script-backed M2 index integrity, RD1 orphan-rule, and N1 nested-`AGENTS.md` reachability checks,
+plus the provenance classification each finding carries) yields byte-identical findings on the same
+repo state; its **judgment tier**
 (C2-C9, R1-R4, M3-M4) applies fixed criteria with model reading, so findings vary in wording though
 not in criteria. Label those "judgment candidate" in the report. Criteria derive from official Claude
 Code documentation (sourced quotes in [reference/official-guidance.md](reference/official-guidance.md));

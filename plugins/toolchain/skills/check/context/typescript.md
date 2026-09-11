@@ -29,9 +29,9 @@ cd "$PROJECT_DIR" && npx biome check --write <files>
 
 ## Gotchas
 
-- **Run from project directory** — each `package.json` defines an independent project root
-- **Biome walks up** to find `biome.json` from the CWD — run from project dir, not repo root
-- **`tsc --noEmit`** belongs in CI and `/toolchain:check`, not in edit-time hooks — tsc is project-scoped and takes seconds
+- **Run from project directory**: each `package.json` defines an independent project root
+- **Biome walks up** to find `biome.json` from the CWD, so run from project dir, not repo root
+- **`tsc --noEmit`** belongs in CI and `/toolchain:check`, not in edit-time hooks: tsc is project-scoped and takes seconds
 
 ## Project discovery
 

@@ -7,36 +7,36 @@ cells.
 ## Risk-property bundles
 
 Each class is a bundle of four risk properties: blast radius, reversibility, input
-provenance, and verifiability. The bundle — not the task's surface description — is what
-assigns a class.
+provenance, and verifiability. The bundle assigns a class, not the task's surface
+description.
 
-### `C1` — read-only
+### `C1`: read-only
 
 Audits, research, reports. "Read-only" scopes REPOSITORY surfaces: a `C1` run performs no
-repository mutation. Writes to the governed queue and tracker — work-item filing, queue
-comments, audit-trail artifacts — are PERMITTED: they are the class's output channel and land
+repository mutation. Writes to the governed queue and tracker are PERMITTED: work-item
+filing, queue comments, and audit-trail artifacts are the class's output channel and land
 on the queue's audit trail, not in the repository. Blast radius is informational only, and
 there is nothing to revert; but the exfiltration surface remains, which is why the
 min-isolation floor is `L2`, not `L0`. Verifiability is output-shape checking.
 
-### `C2` — mechanical maintenance
+### `C2`: mechanical maintenance
 
 Dependency bumps, lint/format, sync. Deterministic and trivially reversible; input
-provenance is the org's own automation; verifiability is complete — deterministic blocking
+provenance is the org's own automation; verifiability is complete. Deterministic blocking
 gates decide the outcome without judgment.
 
-### `C3` — scoped change
+### `C3`: scoped change
 
 A briefed fix or small feature. Blast radius is bounded by the brief; tests exist, so
 reversal is a bounded revert; verifiability combines deterministic gates with AI review.
 
-### `C4` — structural
+### `C4`: structural
 
 Refactors, migrations, contract changes. Blast radius is cross-cutting and reversal is hard,
 so human review and human merge are mandatory, always, and the class escalates for upfront
 plan approval before execution.
 
-### `C5` — untrusted-provenance
+### `C5`: untrusted-provenance
 
 Fork PRs, external contributions, unvetted repositories. The input provenance itself is
 untrusted, and it dominates every other property. The class's min-isolation cell, `L3`, is
@@ -45,30 +45,30 @@ any execution surface below `L3`, and the class's merge policy never promotes.
 
 #### Executable provenance tests
 
-`C5` is assigned by field tests on the provider's own metadata — never by classifier judgment
+`C5` is assigned by field tests on the provider's own metadata, never by classifier judgment
 alone, and never by anything recorded in the item's own body (the untrusted surface being
 classified). Two surfaces carry the tests; they answer different provenance questions and do
 not substitute for one another.
 
-**Pull request — the code's provenance.** Two tests on the PR's cycle-start snapshot, either
+**Pull request: the code's provenance.** Two tests on the PR's cycle-start snapshot, either
 one marking the PR `C5`, each failing closed to `C5` when its field is missing or unreadable:
 
 - **Fork test:** the head repository is not the base (`isCrossRepository: true`, or
   `headRepositoryOwner` differing from the base owner).
-- **Trust test:** `C5` unless one arm positively passes — `authorAssociation` `OWNER` or
+- **Trust test:** `C5` unless one arm positively passes: `authorAssociation` `OWNER` or
   `MEMBER`, or the author is a structural bot (`[bot]` login suffix or provider `Bot` type)
   listed in the TARGET repository's team-tracked, default-branch
   `babysit_loop_trusted_internal_bot_logins` (grammar, binding, and fail-closed empty set: the
   `source-control` plugin's `reference/config-resolution.md`, "the C5 trust test's one reviewed
   widening"). A listing never bypasses the fork test.
 
-A fork PR closing an internally classified `C2`/`C3` issue is still `C5` — the class travels
+A fork PR closing an internally classified `C2`/`C3` issue is still `C5`. The class travels
 with the code's provenance, not the issue it closes.
 
-**Issue — the intake's provenance.** One trust test on the issue's cycle-start snapshot,
+**Issue: the intake's provenance.** One trust test on the issue's cycle-start snapshot,
 failing closed to `C5` when any field it needs is missing or unreadable:
 
-- **Trust test:** `C5` unless one arm positively passes — the issue author's
+- **Trust test:** `C5` unless one arm positively passes: the issue author's
   `authorAssociation` is `OWNER` or `MEMBER`, or the author is a structural bot whose login
   matches an entry in the same TARGET repository's team-tracked, default-branch
   `babysit_loop_trusted_internal_bot_logins` list the PR trust test uses (same grammar,
@@ -89,16 +89,16 @@ tests resolve; the tests are the executable trigger, not a second opinion on a s
 
 ## Promotion and demotion
 
-This promotion apparatus — numeric predicate, human-ratified flip, automatic fail-closed
-demotion — is this contract's quantification of the Boris playbook's qualitative bar that no
+This promotion apparatus is a numeric predicate, a human-ratified flip, and automatic
+fail-closed demotion. It quantifies the Boris playbook's qualitative bar that no
 autonomy scales before the loop has "earned widespread trust": the trust requirement is the
 playbook's, the evidence predicate over telemetry that measures it is this contract's.
 
 Every promotable matrix cell carries a per-cell promotion trigger with one contract-fixed
-shape: an **evidence predicate over queryable telemetry** — verification outcomes recorded
+shape: an **evidence predicate over queryable telemetry**. Verification outcomes recorded
 per the [telemetry contract](../telemetry.md) are the evidence base.
 
-- **Promotion is a human-ratified knob flip — never automatic.** A satisfied predicate makes
+- **Promotion is a human-ratified knob flip, never automatic.** A satisfied predicate makes
   the cell ELIGIBLE; a human ratifies the flip, and the flip is recorded as a reviewable
   change on the governance surface.
 - **Demotion is automatic and fail-closed.** Contrary evidence lowers the cell's effective
@@ -106,8 +106,8 @@ per the [telemetry contract](../telemetry.md) are the evidence base.
   there through the same evidence predicate.
 - **Promotion never overrides unanimity.** A promoted `C2`/`C3` auto-merge cell still does not
   auto-proceed on checker dissent: the promoted state is a ceiling, and dissent withholds the
-  automatic transition the same way contrary evidence lowers the cell — the same mechanism, not
-  a second one beside it. Requiring unanimous checker agreement is a
+  automatic transition the same way contrary evidence lowers the cell. That is the same
+  mechanism, not a second one beside it. Requiring unanimous checker agreement is a
   [verification-topology](verification-topology.md) invariant, never a promotable knob; that
   leaf states what is checked at binding-validity time and what awaits the runner.
 
@@ -123,7 +123,7 @@ other records a candidate term as deliberately deferred.
 | `C2` auto-merge | ≥ 20 autonomous C2 completions over ≥ 14 days with 100% deterministic-gate pass and 0 human-reverted merges |
 | `C3` auto-merge | ≥ 20 autonomous C2 merges over ≥ 14 days with 0 demotion events, plus ≥ 10 autonomous C3 completions with 100% deterministic-gate pass, 0 human-reverted merges, and 0 human-confirmed missed-blocking AI-review findings |
 | `C3` AI review advisory → blocking | ≥ 30 advisory reviews with 0 human-confirmed missed-blocking findings |
-| `C4` / `C5` merge | never promotes — human merge always; no evidence predicate exists for these cells |
+| `C4` / `C5` merge | never promotes. Human merge always, and no evidence predicate exists for these cells |
 
 **Demotion evidence set** (one event suffices): any post-merge gate failure, any
 human-reverted merge, any verification divergence. Demotion cascades along
@@ -150,8 +150,8 @@ first is evidence about the work, the second about the pipeline.
 **A merge COUNT over a fixed window is a volume floor, not an acceptance rate.** The `C3` term
 `≥ 20 autonomous C2 merges over ≥ 14 days` says only that enough autonomous work has landed for a
 track record to exist at all. The two behave oppositely under exactly the move that makes an
-acceptance metric untrustworthy: a ratio rises when its denominator shrinks, so attempting less —
-or attempting only what is certain to land — raises it with no change in the work itself. A count
+acceptance metric untrustworthy: a ratio rises when its denominator shrinks, so attempting less,
+or attempting only what is certain to land, raises it with no change in the work itself. A count
 has no denominator to shrink. Selectivity leaves it flat, and clearing it takes absolute output.
 Conjoined with the same row's `100% deterministic-gate pass`, `0 human-reverted merges`, and
 `0 demotion events`, the count bounds how much evidence exists while those terms carry the
@@ -159,17 +159,17 @@ correctness claim.
 
 Every distinct term type in the predicate table above is one of seven: completion counts, merge
 counts over a fixed window, advisory-review counts, deterministic-gate pass rates, revert counts,
-missed-blocking-finding counts, and demotion events — the demotion evidence set enumerates what
+missed-blocking-finding counts, and demotion events. The demotion evidence set enumerates what
 counts as the last of these. Each is correctness-side or volume-side by construction; none is a
 ratio of accepted to attempted.
 
-### Reviewer-burden term — DEFERRED, with a trigger
+### Reviewer-burden term: DEFERRED, with a trigger
 
 A reviewer-burden term (how much human review effort a cell's output actually costs) is a
 **candidate predicate input, deliberately not a live term.**
 
 **Why deferred:** the term needs a denominator, and a denominator needs three things this contract
-does not have — a population to divide by, a non-merge outcome signal, and a lookback window with a
+does not have: a population to divide by, a non-merge outcome signal, and a lookback window with a
 demotion rule. All three are org-scale: none of them exists at the volume a single deployment
 produces. Absent them, "reviewer burden" is a count with nothing to normalize against: it moves with
 volume rather than with trustworthiness, and a term that moves with volume rewards a cell for

@@ -1,4 +1,4 @@
-# Triage — 3-Bucket Classifier
+# Triage: 3-Bucket Classifier
 
 ## Contents
 
@@ -18,11 +18,11 @@ Match patterns where the rename intent is unambiguous regardless of surrounding 
 
 **Bucket criteria:**
 
-- Form 1: slash-prefixed token (`\B/<old>([^\w-]|$)`) — slash-tokens are skill names by convention; token in `<old>` position is virtually never an English word with a leading slash. The trailing class excludes a hyphen, so `/context` does not match the unrelated `/context-guard`; a bare `\b` would, and this bucket auto-applies
+- Form 1: slash-prefixed token (`\B/<old>([^\w-]|$)`): slash-tokens are skill names by convention; token in `<old>` position is virtually never an English word with a leading slash. The trailing class excludes a hyphen, so `/context` does not match the unrelated `/context-guard`; a bare `\b` would, and this bucket auto-applies
 - Form 3: path references (`context/<old>.md`, `skills/<old>/`, and a container-root segment
-  ending in the token, `plugins/<old>`) — paths are inherently specific
-- Form 8: frontmatter glob set (`{a,b,<old>,c}`) — brace enumeration is a glob construct, not English prose. **Identifier mode only:** under container-rename mode Form 8 falls outside the Certain-eligibility allowlist and demotes to Ambiguous, as does Form 12 — a glob set and a dotted key both prove the token is an IDENTIFIER, which is not what a container rename is asking (`patterns.md` "Phase 0b")
-- Forms 13–15 (container-position) — but ONLY the alternatives their own form rates Certain.
+  ending in the token, `plugins/<old>`): paths are inherently specific
+- Form 8: frontmatter glob set (`{a,b,<old>,c}`): brace enumeration is a glob construct, not English prose. **Identifier mode only:** under container-rename mode Form 8 falls outside the Certain-eligibility allowlist and demotes to Ambiguous, as does Form 12. A glob set and a dotted key both prove the token is an IDENTIFIER, which is not what a container rename is asking (`patterns.md` "Phase 0b")
+- Forms 13–15 (container-position), but ONLY the alternatives their own form rates Certain.
   Form 13's management-verb alternative, a Form 14 title in a container-owned file with an
   uncommon token, a Form 14 manifest/catalog `name` declaration (exempt from the scope rule), and
   Form 15 where the token is not a common noun. The demoted alternatives land in Bucket 2 or
@@ -38,24 +38,24 @@ Match patterns where rename intent is highly likely given surrounding context, b
 
 **Bucket criteria:**
 
-- Form 4: chain prose forward (`(?:→|->|,| and ) <old>`) — plausibly a rename target if neighbors are also identifiers
-- Form 5: chain prose backward (`<old> (?:→|->|,| and )`) — same
-- Form 6: numbered table row (`| <N>. <old> |`) — workflow step tables
-- Form 7: frontmatter chain string — when token appears alongside other workflow tokens
-- Form 9: PascalCase comma-list — comma-separated capitalized identifiers
-- Form 10: cross-skill mode reference (`/<other-skill> <old>`) — references to a mode of another skill
-- Form 13's **bare qualified-id** alternative (`<old>@<slug>`, no management verb in front) — the
+- Form 4: chain prose forward (`(?:→|->|,| and ) <old>`): plausibly a rename target if neighbors are also identifiers
+- Form 5: chain prose backward (`<old> (?:→|->|,| and )`): same
+- Form 6: numbered table row (`| <N>. <old> |`): workflow step tables
+- Form 7: frontmatter chain string, when token appears alongside other workflow tokens
+- Form 9: PascalCase comma-list, meaning comma-separated capitalized identifiers
+- Form 10: cross-skill mode reference (`/<other-skill> <old>`): references to a mode of another skill
+- Form 13's **bare qualified-id** alternative (`<old>@<slug>`, no management verb in front): the
   shape cannot separate a marketplace-qualified id from a dotless email address, and Certain
   auto-applies, so this is where it belongs. `patterns.md` "Form 13" owns the rationale and the
   promotion test
 
-**Refinement — neighbor-aware classification:**
+**Refinement: neighbor-aware classification.**
 
-For chain forms (4, 5, 6, 9), check whether at least one neighboring token (within 5 chars before or after the separator) matches a known skill or command name in the consuming repository (e.g., `name:` frontmatter across `.claude/skills/*/SKILL.md`, installed plugin skill listings). If yes, promote confidence — these are workflow chain references, near-certain rename targets. If no, demote to ambiguous.
+For chain forms (4, 5, 6, 9), check whether at least one neighboring token (within 5 chars before or after the separator) matches a known skill or command name in the consuming repository (e.g., `name:` frontmatter across `.claude/skills/*/SKILL.md`, installed plugin skill listings). If yes, promote confidence: these are workflow chain references, near-certain rename targets. If no, demote to ambiguous.
 
 **Form 13's qualified-id alternative uses its OWN promotion test, not the one above.** It has no
 separator and no chain neighbors, so the 5-char skill-name check does not apply to it. Promote it
-to Certain only on the single per-occurrence signal `patterns.md` "Form 13" names — the occurrence
+to Certain only on the single per-occurrence signal `patterns.md` "Form 13" names: the occurrence
 IS a key in an `enabledPlugins` / `pluginConfigs` map. A management verb elsewhere on the LINE does
 not promote it: the verb may govern a different plugin entirely, and one that governs this
 occurrence is already Certain under the management-verb alternative. **A failed promotion leaves it at
@@ -73,14 +73,14 @@ Match patterns where the token is a common English word AND surrounding context 
 
 **Bucket criteria:**
 
-- Forms **14 and 15** (container-position) when the matching form's own scope rules demote it — a
+- Forms **14 and 15** (container-position) when the matching form's own scope rules demote it: a
   Form 14 title match outside a container-owned file or with a common-word token, a Form 15
   possessive where `<old>` is a common noun. Span-precedence attributes the occurrence to that
   form; it does NOT override the form's demotion (`patterns.md` "Phase 0"). A Form 14
-  manifest/catalog `name` declaration is NOT demoted here — the scope rule and the common-word
+  manifest/catalog `name` declaration is NOT demoted here, because the scope rule and the common-word
   rule both exempt it, because the key is the registration rather than evidence of one.
   **Form 13 is deliberately absent:** its demoted alternative lands in Bucket 2, not here
-- Form 2: bare token (`\b<old>\b`) when `<old>` is in the English-verb blocklist — and, under
+- Form 2: bare token (`\b<old>\b`) when `<old>` is in the English-verb blocklist, and, under
   container-rename mode, the bare-token residue is excluded from Certain entirely rather than
   bucketed here per match (`patterns.md` "Phase 0b")
 - Form 4/5/6/9 (chain forms) when no neighbor is a known skill name (failed promotion check above)
@@ -101,7 +101,7 @@ load, save, copy, move, write, read, parse, render, print, format,
 
 **Verb-sense collision the blocklist cannot serve.** The blocklist is a static list of tokens
 that are English verbs *in general*. It cannot cover a token that is a verb **in the consuming
-codebase** — a coined or hyphenated term the project uses verbally hundreds of times. Both
+codebase**, meaning a coined or hyphenated term the project uses verbally hundreds of times. Both
 branches fail for such a token:
 
 - **Absent from the blocklist** → every bare-token hit is rated Certain, so the sweep proposes
@@ -120,15 +120,15 @@ reaching for the blocklist.
 
 **Position-anchoring alone does not finish the job.** Forms 13–15 resolve only the lines they
 match; the remaining bare-token lines still reach Form 2 and take its Certain default. What
-removes them is `patterns.md` "Phase 0b — container-rename mode": when the renamed thing is a
+removes them is `patterns.md` "Phase 0b: container-rename mode": when the renamed thing is a
 container, bare-token position carries no signal at all, so the residue is excluded from Certain
 and reported as an aggregate rather than as prompts. That mode rule is an ALLOWLIST over forms,
 not a Form 2 filter: Forms 1, 3 and 13–15 are the whole Certain-eligible set, so Forms 8 and 12
 lose their Certain default there too and land in the Ambiguous bucket. Mode is decided by WHAT is being renamed,
-which is why it works where the blocklist cannot — it does not depend on anyone having listed
+which is why it works where the blocklist cannot. It does not depend on anyone having listed
 the token in advance.
 
-**User flow:** present each match individually via `AskUserQuestion` with 3 lines of surrounding context. Three options per match: "rename this", "skip this", "skip remaining ambiguous". Always one-by-one — batched confirmation defeats the safety purpose.
+**User flow:** present each match individually via `AskUserQuestion` with 3 lines of surrounding context. Three options per match: "rename this", "skip this", "skip remaining ambiguous". Always one-by-one, because batched confirmation defeats the safety purpose.
 
 **Why per-match:** "the user just renamed the `confirm` skill" does NOT mean every English use of "confirm" should be replaced. In a codebase that renames a token which is also a common verb, most bare-token hits are ordinary prose: research vocabulary, user-confirmation prompts, domain logic. All of them must be preserved. Per-match confirmation lets the user catch each.
 
@@ -140,7 +140,7 @@ Identify these documents from conversation context and the consuming repository'
 
 ## Special case: Frozen historical records
 
-Auto-exclude archived/completed work notes and frozen records of past work (finished plan documents, past changelog entries, retired design notes) — they are a frozen-in-time record of finished work. If the consuming repository marks work-notes status in frontmatter or by directory convention, use that signal; otherwise treat clearly-archived paths as frozen.
+Auto-exclude archived/completed work notes and frozen records of past work (finished plan documents, past changelog entries, retired design notes). They are a frozen-in-time record of finished work. If the consuming repository marks work-notes status in frontmatter or by directory convention, use that signal; otherwise treat clearly-archived paths as frozen.
 
 ## Special case: Memory entries
 

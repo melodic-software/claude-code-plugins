@@ -525,7 +525,12 @@ Review: code-design
 | jscpd 4.3.0 | partial | 625 | 10926 | 429 | 14 | typescript (same file) |
 
 Before this change the same 5.2.0 run reported 919 pair rows and 75267 duplicated lines with no
-skipped file named. The two majors tokenize differently, so their counts are not comparable with
+skipped file named. After the merge with the 0.2.1 line of the plugin (default `scope.exclude`
+globs, the `other` lane, `scope.registries` in this repository's team file) the 5.2.0 run reads
+`complete` with 723 classes, 11378 duplicated lines, 492 files with clones, and 16 exclusions: the
+miro bundle now falls under the default `**/dist/**` exclusion before the cap is reached, so no
+lane is `partial`; pass `--all` on a tree without that exclusion, or set `scope.exclude: []`, to
+see the cap and the `partial` row. The two majors tokenize differently, so their counts are not comparable with
 each other. The largest surviving classes are per-suite test-harness boilerplate (`pass`/`fail`
 helpers shared by `lib/*.test.sh` and plugin test files), which no sync script declares and the
 shell-test-helpers convention keeps per file: a finding for the operator, not sanctioned

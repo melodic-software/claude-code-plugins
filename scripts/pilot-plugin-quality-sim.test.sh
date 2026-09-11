@@ -21,50 +21,49 @@
 # shellcheck disable=SC2016 # single-quoted backticks are the pointer grammar under test
 set -uo pipefail
 
-# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
-# redirect `git init` into the caller's repository.
-unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
-
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RESOLVER="$ROOT/plugins/plugin-quality/lib/resolve-convention-home.sh"
 CHECKER="$ROOT/plugins/plugin-quality/lib/check-retirements.sh"
 MANIFEST="$ROOT/plugins/plugin-quality/retirements.yaml"
-TEST_TMPDIR="$(mktemp -d)"
-trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
-FAILED=0
-CASE_NUM=0
+# shellcheck source=lib/test-harness.sh
+. "$ROOT/scripts/lib/test-harness.sh"
+# The builder clears the inherited git environment for the whole suite: an
+# inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would redirect `git init` into the
+# caller's repository.
+# shellcheck source=lib/fixture-tree.sh
+. "$ROOT/scripts/lib/fixture-tree.sh"
 
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: %s\n' "$1"
-}
-fail() {
-  CASE_NUM=$((CASE_NUM + 1))
-  FAILED=$((FAILED + 1))
-  printf 'FAIL: %s\n  detail: %s\n' "$1" "$2" >&2
-}
+# The builder assigns through a nameref, which shellcheck cannot follow;
+# declaring the out-var here is what tells it (SC2154) the name is written.
+TEST_TMPDIR=""
+fixture_tree::build TEST_TMPDIR --label plugin-quality-sim
+
+pass() { ok "$1"; }
+# Two-argument shape: a label plus the detail that explains the failure. The
+# harness owns the counter and the exit contract.
+bad() { fail "$1${2:+ — detail: $2}"; }
 assert_eq() {
-  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected [$2], got [$3]"; fi
+  if [[ "$2" == "$3" ]]; then pass "$1"; else bad "$1" "expected [$2], got [$3]"; fi
 }
 assert_contains() {
   case "$2" in
   *"$3"*) pass "$1" ;;
-  *) fail "$1" "expected to contain: $3 -- got: $2" ;;
+  *) bad "$1" "expected to contain: $3 -- got: $2" ;;
   esac
 }
 assert_exit() {
-  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected exit $2, got $3"; fi
+  if [[ "$2" == "$3" ]]; then pass "$1"; else bad "$1" "expected exit $2, got $3"; fi
 }
 assert_file_present() {
-  if [[ -f "$2" ]]; then pass "$1"; else fail "$1" "missing file: $2"; fi
+  if [[ -f "$2" ]]; then pass "$1"; else bad "$1" "missing file: $2"; fi
 }
 assert_file_absent() {
-  if [[ ! -e "$2" ]]; then pass "$1"; else fail "$1" "unexpected file: $2"; fi
+  if [[ ! -e "$2" ]]; then pass "$1"; else bad "$1" "unexpected file: $2"; fi
 }
 assert_files_eq() {
   # assert_files_eq <label> <expected-file> <actual-file> — byte-for-byte
-  if cmp -s "$2" "$3"; then pass "$1"; else fail "$1" "files differ: $2 vs $3"; fi
+  if cmp -s "$2" "$3"; then pass "$1"; else bad "$1" "files differ: $2 vs $3"; fi
 }
 
 TAB=$(printf '\t')
@@ -210,9 +209,4 @@ assert_exit "case 6: CRLF AGENTS.md resolves" 0 "$RC"
 assert_eq "case 6: prints the home despite CRLF endings" "docs/conventions" "$OUT"
 
 # ------------------------------------------------------------------------------
-echo
-if [[ $FAILED -gt 0 ]]; then
-  echo "FAILED: $FAILED of $CASE_NUM checks." >&2
-  exit 1
-fi
-echo "All $CASE_NUM checks passed."
+test_harness::report

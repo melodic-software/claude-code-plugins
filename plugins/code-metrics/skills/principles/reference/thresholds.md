@@ -11,7 +11,7 @@ the plugin found no defensible value to ship, so it reports the measure and coun
 | Cyclomatic complexity | `20` | ISO/IEC 5055:2021 §8.2.117, the normative detection pattern `ASCQM Limit Algorithmic Complexity via Cyclomatic Complexity Value`, whose `<MaxCyclomaticComplexityValue>` default is 20 | Normative in the standard |
 | Cognitive complexity | `null` | Campbell, SonarSource. The white paper prescribes no threshold | No standard sets one |
 | Halstead difficulty | `null` | Halstead 1977 defines the measure and sets no limit | No standard sets one |
-| Lines per file | `1000` | This plugin's own number. It coincides with the informative figure in ISO/IEC 5055:2021 §6.3 Table 1, which is not normative | Plugin default, labelled as such |
+| Lines per file | `1000` | As the report prints it: the plugin's own number, not ISO-backed: it coincides with the informative figure in ISO/IEC 5055:2021 §6.3 Table 1, which is not normative, while the normative form (§8.2.115) is a function-level percentage; 500 is the operator-list figure, selectable; size.mode iso-8.2.115 selects the normative function-percentage alternative | Plugin default, labelled as such |
 | Function lines percentage | `5` | ISO/IEC 5055:2021 §8.2.115 (normative): a function whose non-empty lines exceed this percentage of the file's | Normative in the standard |
 | CRAP | `null` | Savoia and Evans 2007. Their own suggested value was 30, offered as a starting point they reserved the right to change | Authors' suggestion, no standard |
 | Coverage | `null` | No standard states a percentage. ISO/IEC 25023:2016 files test coverage under Reliability and Maturity and sets no value | No standard sets one |

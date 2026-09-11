@@ -1,4 +1,4 @@
-# Fragment Development — Growing Partial Material
+# Fragment Development: Growing Partial Material
 
 The writer has a partial line, hook fragment, half a verse, or scrap of
 language but doesn't know how to develop it. This file routes fragment →
@@ -6,7 +6,7 @@ draft.
 
 <!-- unaudited: this file is a routing workflow, not a book chapter. Its numbered
 steps, its Step-1/Step-2 inventories, its "structural role" and "Common failure
-modes" tables, and its trigger-phrase list are editorial scaffolding — Pat
+modes" tables, and its trigger-phrase list are editorial scaffolding. Pat
 prints no fragment-development procedure in any of the four books. Only the two
 passages carrying an explicit citation (the Chapter 5 build order in Step 5, and
 the refrain reference in the Step 4 table) are traceable to a page. Everything
@@ -14,9 +14,9 @@ else here is house method; do not quote it as Pat's. -->
 
 Distinct from:
 
-- `brainstorm.md` — no material yet
-- `idea-to-title.md` — has a seed but no language yet
-- `demo-review.md` — has a more complete draft to diagnose
+- `brainstorm.md`: no material yet
+- `idea-to-title.md`: has a seed but no language yet
+- `demo-review.md`: has a more complete draft to diagnose
 
 ## When to load
 
@@ -25,7 +25,7 @@ verse", "this phrase keeps coming back to me", "this won't grow", "where do
 I take this", "I have a chorus but no verses", "I have a verse but no
 chorus", "this fragment is stuck".
 
-## Step 1 — Inventory the fragment
+## Step 1: Inventory the fragment
 
 Read the fragment aloud. Identify:
 
@@ -45,23 +45,23 @@ Read the fragment aloud. Identify:
 
 Don't try to "fix" the fragment yet. Inventory first.
 
-## Step 2 — What does the fragment imply?
+## Step 2: What does the fragment imply?
 
 Strong fragments imply more than they say. Mine the implications:
 
-- **Speaker** — who says this? what's their stake?
-- **Audience** — to whom? a lover, an enemy, the self, no one?
-- **Time** — when? present, past, ongoing, future, conditional?
-- **Place** — where? does the language smell of a setting?
-- **Era** — what year / decade / season does the diction belong to?
-- **Tone** — controlled, raw, ironic, sincere, accusatory, resigned?
-- **Genre proximity** — country? folk? indie rock? hip-hop? cabaret?
-- **What's just happened off-page** — the precipitating moment
+- **Speaker**: who says this? what's their stake?
+- **Audience**: to whom? a lover, an enemy, the self, no one?
+- **Time**: when? present, past, ongoing, future, conditional?
+- **Place**: where? does the language smell of a setting?
+- **Era**: what year / decade / season does the diction belong to?
+- **Tone**: controlled, raw, ironic, sincere, accusatory, resigned?
+- **Genre proximity**: country? folk? indie rock? hip-hop? cabaret?
+- **What's just happened off-page**: the precipitating moment
 
 Surface the implications. The writer may not have realized what the
 fragment is already telling.
 
-## Step 3 — Object-write the implied world
+## Step 3: Object-write the implied world
 
 Once implications are surfaced, run a 10-minute object-write on the world
 the fragment implies. Per `object-writing.md`.
@@ -73,7 +73,7 @@ the fragment implies. Per `object-writing.md`.
 The object-write generates vocabulary, images, verbs, and details that can
 support the fragment outward.
 
-## Step 4 — Identify the fragment's structural role
+## Step 4: Identify the fragment's structural role
 
 Based on Step 1's position-tendency + Step 2's implications, the fragment
 fits one of these structural roles:
@@ -89,18 +89,20 @@ fits one of these structural roles:
 | Stand-alone scrap | strong language without a position yet | shelf it; let it find its position during draft |
 
 If position is unclear, the fragment may not be ready to develop. Shelf
-and revisit later — strong fragments usually declare their position when
+and revisit later. Strong fragments usually declare their position when
 the surrounding context develops.
 
-## Step 5 — Build outward (working backwards from strong material)
+## Step 5: Build outward (working backwards from strong material)
 
 Pat states the build order himself, *Essential Guide to Lyric Form and
 Structure* (1991), Chapter 5:
 
+<!-- ai-slop-ignore-start: verbatim Pattison quotation, Essential Guide to Lyric Form and Structure (1991) Chapter 5 -->
 > You, of course, have to decide what you want your lyric to say — what your
 > CENTRAL IDEA will be. Once you have decided, construct a CENTRAL SECTION for
 > it. Then construct your DEVELOPMENTAL SECTIONS to serve THE CENTRAL SECTION.
 > Each section in your lyric will have its own job to do.
+<!-- ai-slop-ignore-end -->
 
 So: if the fragment IS the central section's seed, draft outward from it. If the
 fragment is a verse piece, locate the central section first, then draft the
@@ -108,10 +110,10 @@ fragment's verse.
 
 Per `verse-development.md`:
 
-- **Power positions** — line 1 of section, last line of section, the line
+- **Power positions**: line 1 of section, last line of section, the line
   before the chorus (trigger line). Strong material belongs in power
   positions.
-- **Trigger line** — the line before the chorus, hands meaning into the
+- **Trigger line**: the line before the chorus, hands meaning into the
   chorus. If the fragment can be a trigger line, lock it there.
 
 Draft outward in order:
@@ -124,7 +126,7 @@ Draft outward in order:
 5. Apply prosody pass (per `prosody.md`).
 6. Apply rhyme pass (per `rhyme-strategy.md`).
 
-## Step 6 — Pre-lock the fragment
+## Step 6: Pre-lock the fragment
 
 Run `audit-checklist.md` per-line checklist on the fragment in its new
 context:
@@ -140,10 +142,12 @@ Most fragments survive their original form; some get sharpened during the
 build. A fragment that wants to change as the song develops is a healthy
 fragment.
 
+<!-- ai-slop-ignore-start: correction note quoting the retired fabricated sentence verbatim -->
 <!-- FABRICATION REMOVED: this paragraph previously ended "— Pat: every revision
 is an option, not a betrayal." No such sentence appears anywhere in the four
 books; "betray"/"betrayal" occurs in the corpus only inside two object-writing
 samples in *Songwriting Without Boundaries* (2011). Invented quote, deleted. -->
+<!-- ai-slop-ignore-end -->
 
 ## When the fragment resists development
 
@@ -166,7 +170,7 @@ If the fragment won't grow:
 | Fragment is brilliant in isolation, generic in context | the world isn't developed enough; deeper object-writing |
 | Fragment forces unnatural rhymes | run `rhyme-generation.md` on the stressed vowel; if zero clean rhymes, the fragment may be in the wrong form (lives-once vs repeats) |
 | Multiple fragments compete | the song probably wants to develop around ONE; the others go to `ideation/fragments.md` for later |
-| Fragment requires a title that doesn't fit | title and fragment are connected — try alternate titles per `idea-to-title.md` |
+| Fragment requires a title that doesn't fit | title and fragment are connected, so try alternate titles per `idea-to-title.md` |
 
 ## Artifact pattern
 
@@ -179,13 +183,13 @@ working variations to `variations/<section>.md`.
 
 ## Cross-references
 
-- `brainstorm.md` — pre-fragment phase
-- `idea-to-title.md` — fragment without language, just seed
-- `object-writing.md` — Step 3 method
-- `verse-development.md` — power positions, trigger lines
-- `hook.md` — hook positions, title placement
-- `form.md` — central section, section identification
-- `audit-checklist.md` — Step 6 audit
-- `rhyme-generation.md` — internal rhyme search for fragment's stressed vowel
-- `prosody.md` — final pass
-- `demo-review.md` — when the fragment becomes a longer draft, route there
+- `brainstorm.md`: pre-fragment phase
+- `idea-to-title.md`: fragment without language, just seed
+- `object-writing.md`: Step 3 method
+- `verse-development.md`: power positions, trigger lines
+- `hook.md`: hook positions, title placement
+- `form.md`: central section, section identification
+- `audit-checklist.md`: Step 6 audit
+- `rhyme-generation.md`: internal rhyme search for fragment's stressed vowel
+- `prosody.md`: final pass
+- `demo-review.md`: when the fragment becomes a longer draft, route there

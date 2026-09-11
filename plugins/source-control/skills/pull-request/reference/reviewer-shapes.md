@@ -14,7 +14,7 @@ a discovered actor's output looks like.
 ## How to read a record
 
 **A reviewer with no record here has no shape, and the gate treats it as one.** Gate 5 waits the
-flat cooldown and nothing else — no reviewer-specific signal, no extra timeout.
+flat cooldown and nothing else: no reviewer-specific signal, no extra timeout.
 
 **A shape recorded as *not observed* is a bounded negative, not a proven absence.** It says the
 sampled reads named in its basis found no instance, which is weak evidence when the sample is
@@ -25,7 +25,7 @@ record here is the sample its basis names, so read that before the claim.
 Every record carries the four parts the
 [upstream-drift convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md)
 requires: the claim, the basis it was derived against, the as-of date, and the observable recheck
-trigger. The date is the ceiling on how current a claim can be, never a guarantee — re-read the
+trigger. The date is the ceiling on how current a claim can be, never a guarantee. Re-read the
 basis before acting on a record, and when a trigger has fired, re-derive the record from the
 endpoints named in its basis rather than patching it.
 
@@ -52,7 +52,7 @@ Basis reads below are `gh api` reads against `melodic-software/claude-code-plugi
   comment was written against and matches the `Reviewed commit` the round's review body states.
   `commit_id` on that surface does not answer the question: it advances to the newest head while
   the comment's hunk still applies and freezes only once the comment goes outdated, so selecting
-  `commit_id == <head sha>` returns prior-round comments whose hunk survived the last push — the
+  `commit_id == <head sha>` returns prior-round comments whose hunk survived the last push, the
   stale short-circuit a current-push filter exists to prevent. The other two surfaces carry
   different fields: a review object has `commit_id` and no `original_commit_id`, and its
   `commit_id` stays at the reviewed commit; an issue-level comment carries no commit field at all
@@ -84,8 +84,8 @@ Basis reads below are `gh api` reads against `melodic-software/claude-code-plugi
 - **Claim.** The reviewer's own note states reviews fire when a PR is opened for review, when a
   draft is marked ready, and on a comment of `@codex review`, and that `@codex address that
   feedback` asks it to act on findings.
-- **Basis.** The "About Codex in GitHub" details block inside the review body on `pulls/3793/reviews`
-  — the vendor's text, carried in its own output.
+- **Basis.** The "About Codex in GitHub" details block inside the review body on `pulls/3793/reviews`.
+  That block is the vendor's text, carried in its own output.
 - **As-of.** 2026-09-06.
 - **Recheck trigger.** The details block's trigger list changes, or a re-review does not arrive
   after the phrase is posted.

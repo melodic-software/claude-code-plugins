@@ -1,10 +1,10 @@
-# Elevation matrix — Windows
+# Elevation matrix for Windows
 
-SSOT for which Windows capabilities the skill can and cannot exercise when the process is not Administrator. Structured form lives in `scripts/windows/lib/Get-ElevationMatrix.ps1` — when adding an admin-gated signal, update both files.
+SSOT for which Windows capabilities the skill can and cannot exercise when the process is not Administrator. Structured form lives in `scripts/windows/lib/Get-ElevationMatrix.ps1`. When adding an admin-gated signal, update both files.
 
 ## Policy
 
-- **Admin is never assumed.** Orchestrator detects elevation via `Test-IsElevated.ps1` (Win32 SID lookup) and runs unconditionally — no UAC prompt.
+- **Admin is never assumed.** Orchestrator detects elevation via `Test-IsElevated.ps1` (Win32 SID lookup) and runs unconditionally, with no UAC prompt.
 - **Non-elevated runs emit UNKNOWN** for gated signals with `needs_admin: true` in the check result, plus `detail.admin_fields` listing fields that would have been populated.
 - **Loud upfront communication, no interactive prompts.** Pre-run banner enumerates admin-only capabilities and tells the user how to re-run elevated. SKILL.md bans y/n prompts; user either acts on the banner or lets skill continue with reduced coverage.
 - **Suppress via `-SkipBanner`** for scripted/scheduled invocations.
@@ -27,7 +27,7 @@ pwsh -NoProfile -File '<skill-root>\scripts\windows\Invoke-MachineHealthCheck.ps
      -OutputBase '<OutputBase>'
 ```
 
-Or schedule the weekly task to run as `SYSTEM` / an admin account — out of scope for this skill (see SKILL.md "Not in scope for this skill"), but conventional long-term answer for recurring coverage.
+Or schedule the weekly task to run as `SYSTEM` / an admin account. That is out of scope for this skill (see SKILL.md "Not in scope for this skill"), but it is the conventional long-term answer for recurring coverage.
 
 ## Adding a new admin-gated capability
 
@@ -40,9 +40,9 @@ Banner and report pull from `Get-ElevationMatrix.ps1`; table above is prose coun
 
 ## Cross-OS portability
 
-The **concept** is shared (elevation exists on Windows, macOS, Linux — spelled differently: admin SID, euid 0, sudo). The **matrix data** is OS-specific. When macOS/Linux implementations land:
+The **concept** is shared: elevation exists on Windows, macOS, and Linux, spelled differently as admin SID, euid 0, and sudo. The **matrix data** is OS-specific. When macOS/Linux implementations land:
 
-- `reference/macos/elevation-matrix.md` — enumerates capabilities gated on `EUID == 0` or Keychain/Authorization Services
-- `reference/linux/elevation-matrix.md` — enumerates capabilities gated on `EUID == 0`, capabilities(7), or polkit
+- `reference/macos/elevation-matrix.md`: enumerates capabilities gated on `EUID == 0` or Keychain/Authorization Services
+- `reference/linux/elevation-matrix.md`: enumerates capabilities gated on `EUID == 0`, capabilities(7), or polkit
 
 Banner renderer (`Write-ElevationBanner.ps1`) and coverage-markdown renderer (`Get-ElevationCoverageMarkdown`) are already OS-neutral; they consume whichever matrix the orchestrator loads.
