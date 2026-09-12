@@ -185,7 +185,16 @@ which model a row targets, so the lane refines every candidate against the catal
 run's resolved target model.
 
 Bound concurrency to 3–5 lanes at a time; the skills surface fans out one lane per skill. Before the
-total dispatch count (lanes plus Phase C verifiers) would exceed ~20, confirm with the user.
+total dispatch count (lanes plus Phase C verifiers) would exceed ~20, confirm with the user. When the
+caller has declared the run unattended (a routine, a dispatched worker, any session with nobody to
+answer), a question stalls the run, so proceed and let the Phase D cost line disclose the planned and
+actual dispatch counts in place of the confirmation. The declaration comes from the caller; a run
+never infers it from its own session.
+
+A lane that persists its report to disk writes it with the Write tool or to a literal absolute path
+under the host temp tree, never through a shell redirect whose target is carried in a variable or
+through inline Python. The `guardrails` plugin's `block-hook-bypass` guard blocks those forms because
+it cannot resolve the target, and it exempts only the Write tool and a literal path it can resolve.
 
 ## Phase B2: Cross-surface conflict pass
 
