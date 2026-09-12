@@ -3,6 +3,7 @@
 ## Brief
 
 ### TLDR
+
 - Execution model: lanes sized by a token budget stated as a fraction of the lane model's window, plugin-atomic with a split-by-skill overflow, an explicit `--unattended` flag, and `--resume` over per-lane run files guarded by the sibling `run-state.sh` lease and an input digest (one PR).
 - Scanner calibration: the I6 pre-scan adopts the `audit-noise` imperative-opening gate set; I33 keeps one finding per spoke under an excerpt anchor, the lane brief restates the row's fences, the report rolls up per plugin in presentation only, and one class-batched verifier judges the class.
 - Report contract: findings adopt the `(check, claim, sites)` identity with a claim template per check; four crosswalk rows admit I30, I31, I32, I33 to `--persist-findings` as `Auto-applicable: No` through a lane-fed emit path.
@@ -10,9 +11,11 @@
 - Findings filing: one I32 routing issue and one I28 batch issue now; the remaining retained findings wait for the identity contract and a re-run.
 
 ### Goal
+
 A full run of `/claude-config:audit-instructions` over a marketplace-sized repository finishes inside one session's budget or resumes cleanly after an interruption, asks nothing when the caller declares the run unattended, seeds its lanes with a pre-scan whose candidate count is within an order of magnitude of what survives, reports the largest info class without burying the operator, and emits findings whose identity is stable across runs so they can be filed, suppressed, and re-checked.
 
 ### Constraints
+
 - The skill stays report-only: no `--fix`, no edit to any audited surface during a run, and the Read-only contract in `SKILL.md` is unchanged.
 - Every proposal is verified in Phase C. No sampling, no exemption for a finding class that carries a diff.
 - Reuse over reinvention: the run-state lease comes from `plugins/claude-config/skills/audit-pass/scripts/run-state.sh` (promoted to `lib/` or invoked with its `--plugin-data` pin), finding identity from `audit-pass/reference/finding-identity.md`, report keying from `docs/conventions/plugin-data-report-keying`, and crosswalk admission from `docs/conventions/detector-findings`. Never a silent second way.
@@ -22,6 +25,7 @@ A full run of `/claude-config:audit-instructions` over a marketplace-sized repos
 - The I33 row keeps its tier (`info`), authority (`HOUSE`), Detect, and Remediate text.
 
 ### Acceptance criteria
+
 - IF a plugin's in-scope surface text exceeds the lane budget, THEN that plugin's skills are partitioned across lanes by skill and the cost line names the split.
 - WHILE a live lease exists under the run's state key, `--resume` refuses to attach and names the lease's `heartbeat_at` and `stale_after_s`.
 - IF `--unattended` is absent and the planned dispatch count would exceed about 20, THEN the run asks before dispatching; IF `--unattended` is present, THEN the run proceeds and the cost line discloses the count.
@@ -37,6 +41,7 @@ A full run of `/claude-config:audit-instructions` over a marketplace-sized repos
 - `reference/conflict-criteria.md` "Known limit" states the marketplace scope rule: `.claude-plugin/marketplace.json` present means `plugins/**` is the editable set, the installed cache is read for residency, and the report names cache-commit versus HEAD drift.
 
 ### Captured assumptions
+
 - The headless flag is spelled `--unattended` (the interview skill's "declared by the caller, never sniffed" wording) rather than `review:fanout`'s `--yes`; revisit if the fleet standardizes one spelling.
 - The lane budget fraction and the bytes-per-token estimate are chosen at implementation time and stated in the skill body as measured; revisit if any lane overflows its window on a supported model.
 - The acceptance-criteria coverage prompt was not put to the user; the unwanted-behaviour and state-driven cases above were authored from the validators' findings; revisit at `/planning:plan` approval.
@@ -44,6 +49,7 @@ A full run of `/claude-config:audit-instructions` over a marketplace-sized repos
 - The I32 routing issue asks, rather than decides, whether `skill-reference-verify` should widen its extraction or scan resting text; revisit when the guardrails owner answers.
 
 ### Out-of-scope
+
 - A parser change to `block-hook-bypass` that resolves variable-carried redirect targets.
 - Filing the roughly 324 retained findings outside I32 and I28 before the identity contract lands.
 - Sampling or skipping verification for any finding class.
@@ -52,6 +58,7 @@ A full run of `/claude-config:audit-instructions` over a marketplace-sized repos
 - Changing the I33 row's tier, authority, Detect, or Remediate.
 
 ### Deferred questions
+
 - None: every register row (Q1 through Q21) is answered; no row is deferred or blocked.
 
 ## Plan
