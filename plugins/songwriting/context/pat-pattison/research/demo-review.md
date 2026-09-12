@@ -1,26 +1,26 @@
-# Demo Review — Diagnose at Any Stage
+# Demo Review: Diagnose at Any Stage
 
-The writer has a lyric in progress at any completion stage — one verse, a
-chorus + bridge, a near-finished draft, even just a chorus stanza — and
+The writer has a lyric in progress at any completion stage, whether one verse, a
+chorus + bridge, a near-finished draft, or even just a chorus stanza, and
 wants direction: "what's missing?", "where do I take this?", "what's the
 next move?"
 
 Distinct from:
 
-- `brainstorm.md` — nothing yet
-- `idea-to-title.md` — seed only
-- `fragment-development.md` — single fragment
-- `/songwriting:diagnose diagnose` — assumes a complete-ish draft; this assumes ANY stage
-- `/songwriting:diagnose rewrite` — execute a rewrite (this file precedes that)
+- `brainstorm.md`: nothing yet
+- `idea-to-title.md`: seed only
+- `fragment-development.md`: single fragment
+- `/songwriting:diagnose diagnose`: assumes a complete-ish draft; this assumes ANY stage
+- `/songwriting:diagnose rewrite`: execute a rewrite (this file precedes that)
 
 ## When to load
 
 Trigger phrases: "review this demo", "where do I take this", "what's
-missing here", "this lyric is partway done", "I have this much — what now",
+missing here", "this lyric is partway done", "I have this much, what now",
 "what's the next pass", "is this any good as a starting point", "demo
 review", "stage review".
 
-## Step 1 — Stage detection
+## Step 1: Stage detection
 
 What do you actually have?
 
@@ -35,7 +35,7 @@ What do you actually have?
 | **Scratch lyric for melody** | Lyric written to fit existing music | Greedy-spot scan; lyric-melodic alignment (per `lyric-melodic-roadmaps.md`) |
 | **Lyric reverse-engineered from style brief** | AI-generated or co-writer-supplied; needs craft inspection | Full diagnose + likely cliche / abstract scan |
 
-## Step 2 — Read aloud once, no analysis
+## Step 2: Read aloud once, no analysis
 
 Per Pat's discipline. First pass is for sensation, not analysis. Mark
 where:
@@ -47,7 +47,7 @@ where:
 
 Don't diagnose yet. Just mark.
 
-## Step 3 — Stage-appropriate diagnosis
+## Step 3: Stage-appropriate diagnosis
 
 Different stages need different passes. Don't run all 12 audits on a
 chorus-only stub.
@@ -69,7 +69,7 @@ chorus-only stub.
 - Are power positions doing work (line 1 strong, last line strong)?
 - Sensory specificity: are there Rusty's-collar images? Or is the verse
   abstract telling?
-- Whose verse is this — what POV? Is it consistent?
+- Whose verse is this, and what POV? Is it consistent?
 
 ### If V+Ch
 
@@ -92,10 +92,10 @@ Run the diagnose pass (per `workflows.md` Scenario 2):
 7. POV consistency
 8. Hot-spot audit (line 1 + last line of each section)
 9. Hook check (title position, hook rhythm setup)
-10. Sing aloud — last pass
+10. Sing aloud as the last pass
 
-Identify the **dominant problem**. Stop there. Do not list 10 problems —
-the writer cannot fix 10 problems in one revision pass.
+Identify the **dominant problem**. Stop there. Do not list 10 problems.
+The writer cannot fix 10 problems in one revision pass.
 
 ### If near-final / polish
 
@@ -106,7 +106,7 @@ Pre-lock audit (per `audit-checklist.md`):
 - Pre-lock-title checklist if title is still moving
 - Pre-lock-form checklist if structure is still moving
 
-The polish pass surfaces the LAST move before lock — usually one of:
+The polish pass surfaces the LAST move before lock, usually one of:
 
 - A single line that drags
 - A rhyme stability mismatch
@@ -123,7 +123,7 @@ Lyric-melodic alignment pass (per `lyric-melodic-roadmaps.md`):
 - Stable/unstable per section
 - Three alignment fixes (change melody, change lyric, repeat-a-word bridge)
 
-## Step 4 — Surface ONE focused next move
+## Step 4: Surface ONE focused next move
 
 Pat's coach posture: name the dominant problem, propose one focused fix,
 return ONE finding. Not a punch list.
@@ -150,7 +150,7 @@ Surface secondary problems briefly (one line each) but do NOT propose
 fixes for them yet. The writer can revisit them after the dominant fix
 lands.
 
-## Step 5 — Hand off to action
+## Step 5: Hand off to action
 
 Depending on the dominant move, route to:
 
@@ -182,17 +182,17 @@ becomes the input for the next session's revision.
 
 ## Cross-references
 
-- `workflows.md` — Scenario 2 (existing song revision), Scenario 6 (diagnose without rewrite)
-- `five-compositional-elements.md` — the five levers per section (number of
+- `workflows.md`: Scenario 2 (existing song revision), Scenario 6 (diagnose without rewrite)
+- `five-compositional-elements.md`: the five levers per section (number of
   lines, length of lines, rhythm, rhyme scheme, rhyme type)
-- `meter.md` — the Structural Pentad, which is a different five-item list:
-  balance, pace, flow, closure, type of closure. The Elements name the levers;
+- `meter.md`: the Structural Pentad, which is a different five-item list of
+  balance, pace, flow, closure, and type of closure. The Elements name the levers;
   the Pentad names the effects they produce
-- `stable-unstable-meta.md` — section-level prosody scan
-- `cliche.md` — cliche taxonomy
-- `verse-development.md` — travelogue test, power positions
-- `repetition.md` — repaintable chorus
-- `point-of-view.md` — POV consistency
-- `hook.md` — title position, hook rhythm
-- `lyric-melodic-roadmaps.md` — scratch-to-melody case
-- `audit-checklist.md` — pre-lock polish
+- `stable-unstable-meta.md`: section-level prosody scan
+- `cliche.md`: cliche taxonomy
+- `verse-development.md`: travelogue test, power positions
+- `repetition.md`: repaintable chorus
+- `point-of-view.md`: POV consistency
+- `hook.md`: title position, hook rhythm
+- `lyric-melodic-roadmaps.md`: scratch-to-melody case
+- `audit-checklist.md`: pre-lock polish

@@ -10,25 +10,32 @@ Three subcommands, all standard library:
 
   report.py assemble --skill <name> --scope <scope.json> --run <run.jsonl>
                      --measures <measures.jsonl> --thresholds <thresholds.json>
-                     [--excluded <excluded.jsonl>]
+                     [--excluded <excluded.jsonl>] [--root <dir>]
       Print the report document: `run[]` is the coverage-of-this-run table,
       `measures[]` gains `over_reference`, `summary` counts, `unavailable[]`
       lists every non-ok lane/measure, and `status` is complete, partial, or
-      empty. A value that was not measured is `null`, never zero.
+      empty. A value that was not measured is `null`, never zero. A `partial`
+      run row counts as measured, so a lane that skipped every file is
+      `partial`, not `empty`.
 
-  report.py render [--document <path>] [< report.json]
+  report.py render [--document <path>] [--rollup-depth <n>] [< report.json]
       Print the markdown rendering of a report document read from stdin. The
       table joins the rows every collector produced for one function into one
       line (the JSON keeps one row per collector), lists rows over a reference
       first by how far past it they sit, and caps itself at MAX_RENDERED_ROWS;
       `--document` names the file the caller persisted the whole document to,
-      so the cap line and the summary can point at it.
+      so the cap line and the summary can point at it. A duplication document
+      (clone-group rows, or `skill` audit-duplication) lists groups largest
+      first, adds a `## Rollup` section with per-lane and per-directory tables
+      (directories to `--rollup-depth`, default 2), and summarizes as
+      `Files with clones`; every other document renders as it always has.
 
-  report.py resummarize [< report.json]
+  report.py resummarize [--root <dir>] [< report.json]
       Recompute `summary` from `measures[]` and print the document; for a
       skill that drops rows after assembly (a duplication registry moving
       clone groups into `excluded[]`). Clone-group rows (`instances[]`) add
-      `summary.duplicated_lines` and `summary.clone_groups`.
+      `summary.duplicated_lines`, `summary.clone_groups`, `summary.by_lane`,
+      and `summary.by_directory` (paths made relative to `--root`).
 
 Exit 0 on success, 2 on a usage error or unreadable input.
 """
@@ -40,6 +47,8 @@ import datetime as _dt
 import json
 import sys
 from typing import Any
+
+from pathglob import root_relative
 
 MIN_PYTHON = (3, 9)
 SCHEMA = "code-metrics/v1"
@@ -112,14 +121,35 @@ def _over(threshold: dict[str, Any], value: Any) -> bool:
     return value >= reference
 
 
-def summarize(measures: list[dict[str, Any]]) -> dict[str, Any]:
+def _ancestors(path: str) -> list[str]:
+    """`.` and every directory above the file, root first."""
+    parts = path.split("/")[:-1]
+    return ["."] + ["/".join(parts[: index + 1]) for index in range(len(parts))]
+
+
+def _tally(buckets: dict[str, dict[str, int]], key: str, lines: int) -> None:
+    bucket = buckets.setdefault(key, {"groups": 0, "duplicated_lines": 0})
+    bucket["groups"] += 1
+    bucket["duplicated_lines"] += lines
+
+
+def summarize(measures: list[dict[str, Any]], root: str = "") -> dict[str, Any]:
     """The `summary` block, derived from `measures[]` alone so a skill that
     drops rows after assembly (a duplication registry exclusion) can recompute
     it through the `resummarize` verb. Counts use each row's `over_reference`
     list as assembled; clone-group rows (those carrying `instances[]`) add
     `duplicated_lines` (sum of `values.lines`, each group counted once) and
-    `clone_groups`, and their instance files count toward `files`."""
+    `clone_groups`, and their instance files count toward `files`.
+
+    Clone-group rows also add `by_lane` (lane to `{groups, duplicated_lines}`)
+    and `by_directory` (the same shape for `.` and every ancestor directory of
+    each group's first instance, made relative to `root`). A group counts once
+    per ancestor, so a parent includes its children and the rows cannot be
+    summed, while `by_directory["."]` and the per-lane sum both restate the
+    totals."""
     files: set[str] = set()
+    by_lane: dict[str, dict[str, int]] = {}
+    by_directory: dict[str, dict[str, int]] = {}
     # (file, name) -> the distinct start lines reported for it. A name is not an
     # identity: one file can hold two `render` methods. A start line is not one
     # either, because a collector that reports Halstead for a function need not
@@ -156,11 +186,17 @@ def summarize(measures: list[dict[str, Any]]) -> dict[str, Any]:
         if instances:
             clone_groups += 1
             lines = (row.get("values") or {}).get("lines")
+            counted = 0
             if isinstance(lines, (int, float)) and not isinstance(lines, bool):
-                duplicated_lines += int(lines)
+                counted = int(lines)
+            duplicated_lines += counted
             for instance in instances:
                 if instance.get("file"):
                     files.add(instance["file"])
+            _tally(by_lane, str(row.get("lane") or "*"), counted)
+            first = root_relative(str(instances[0].get("file") or ""), root)
+            for directory in _ancestors(first):
+                _tally(by_directory, directory, counted)
     summary: dict[str, Any] = {
         "files": len(files),
         "functions": sum(max(1, len(starts)) for starts in functions.values()),
@@ -169,6 +205,8 @@ def summarize(measures: list[dict[str, Any]]) -> dict[str, Any]:
     if clone_groups:
         summary["duplicated_lines"] = duplicated_lines
         summary["clone_groups"] = clone_groups
+        summary["by_lane"] = by_lane
+        summary["by_directory"] = by_directory
     return summary
 
 
@@ -179,6 +217,7 @@ def assemble(
     measures: list[dict[str, Any]],
     threshold_entries: list[dict[str, Any]],
     excluded: list[dict[str, Any]],
+    root: str = "",
 ) -> dict[str, Any]:
     for row in run:
         if row.get("status") not in RUN_STATUSES:
@@ -196,10 +235,13 @@ def assemble(
     # exist for that lane), so it never withholds `complete`; `unavailable`,
     # `deferred` and `partial` rows do, because something implied was not
     # measured. `partial` still counts as having produced rows, so a run that
-    # measured part of a lane reads as `partial` rather than as `empty`.
+    # measured part of a lane reads as `partial` rather than as `empty`, even
+    # when it skipped every file and has no row to show: the skip is stated in
+    # the run row, and "Measured nothing" would contradict it.
     ok_rows = [row for row in run if row.get("status") in ("ok", "partial")]
+    partial_rows = [row for row in run if row.get("status") == "partial"]
     settled = [row for row in run if row.get("status") in ("ok", "not-applicable")]
-    if not ok_rows or not measures:
+    if not ok_rows or (not measures and not partial_rows):
         status = "empty"
     elif len(settled) == len(run):
         status = "complete"
@@ -219,7 +261,7 @@ def assemble(
         # documents needs to know which value the reference was applied to.
         "thresholds": list(threshold_entries),
         "measures": measures,
-        "summary": summarize(measures),
+        "summary": summarize(measures, root),
         "excluded": excluded,
         "unavailable": [
             f"{row.get('lane', '*')}/{row.get('measure', '*')}"
@@ -259,6 +301,30 @@ def _fmt(value: Any) -> str:
     if isinstance(value, float):
         return f"{value:.2f}".rstrip("0").rstrip(".")
     return str(value)
+
+
+def _is_duplication(doc: dict[str, Any]) -> bool:
+    return doc.get("skill") == "audit-duplication" or any(
+        row.get("instances") for row in doc.get("measures", [])
+    )
+
+
+def _depth(directory: str) -> int:
+    return 0 if directory == "." else directory.count("/") + 1
+
+
+def _clone_sort_key(row: dict[str, Any]) -> tuple[int, int, str]:
+    values = row.get("values") or {}
+    instances = row.get("instances") or [{}]
+
+    def number(value: Any) -> int:
+        return int(value) if isinstance(value, (int, float)) else 0
+
+    return (
+        -number(values.get("lines")),
+        -number(values.get("tokens")),
+        str(instances[0].get("file") or ""),
+    )
 
 
 def _is_number(value: Any) -> bool:
@@ -337,7 +403,9 @@ def join_rows(measures: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if function and (not isinstance(start, int) or isinstance(start, bool)):
             known = starts.get((file, function), set())
             start = next(iter(known)) if len(known) == 1 else None
-        key = (file, function, start)
+        # The lane is part of the identity: two lane rows (`file` null) from
+        # two lanes must never join into one line.
+        key = (file, function, start, row.get("lane"))
         candidates = by_key.setdefault(key, [])
         for candidate in candidates:
             if _merge_into(candidate, row):
@@ -373,13 +441,37 @@ def _over_distance(row: dict[str, Any], references: dict[str, Any]) -> float:
     return worst
 
 
-def render(doc: dict[str, Any], document_path: str | None = None) -> str:
+def render(
+    doc: dict[str, Any], document_path: str | None = None, rollup_depth: int = 2
+) -> str:
     lines: list[str] = []
     status = doc.get("status", "empty")
     headline = "Measured nothing" if status == "empty" else f"Status: {status}"
     scope = doc.get("scope", {})
+    duplication = _is_duplication(doc)
     lines.append(f"# code-metrics: {doc.get('skill', '?')}")
     lines.append("")
+    # A `not-applicable` row (the `other` lane, which no detector covers) is
+    # not a probe that failed, so it neither earns the headline nor blocks it.
+    detector_rows = [
+        row
+        for row in doc.get("run", [])
+        if row.get("measure") == "duplication" and row.get("status") != "not-applicable"
+    ]
+    if (
+        duplication
+        and detector_rows
+        and all(row.get("status") == "unavailable" for row in detector_rows)
+    ):
+        # One headline for the whole run: the lane rows below still carry
+        # each probe's own reason, so this names the fix once, not per lane.
+        hint = next((row.get("hint") for row in detector_rows if row.get("hint")), "")
+        lines.append(
+            "No clone detector ran in any lane"
+            + (f": {hint}" if hint else "")
+            + ". Run `/code-metrics:setup` to install one."
+        )
+        lines.append("")
     lines.append(
         f"{headline}. Scope: {scope.get('mode', '?')}"
         + (f" against `{scope['base']}`" if scope.get("base") else "")
@@ -445,20 +537,32 @@ def render(doc: dict[str, Any], document_path: str | None = None) -> str:
         lines.append("|" + "---|" * (5 + len(keys)))
         shown = 0
         primary = _primary_threshold(thresholds_, keys)
-        # Rows over a reference come first, the furthest past it at the top,
-        # so the table's opening lines are the ones a reader came for; the
-        # rest follow by the primary measure's value, largest first, so a
-        # size report reads longest to shortest rather than alphabetically.
-        for row in sorted(
-            measures,
-            key=lambda r: (
-                -len(r.get("over_reference", [])),
-                -_over_distance(r, references),
-                _primary_rank(primary, r),
-                r.get("file", ""),
-                r.get("start_line") or 0,
-            ),
-        ):
+        if duplication:
+            # Largest group first: the reader's question is "what is the
+            # biggest copy", not which file sorts first.
+            ordered = sorted(measures, key=_clone_sort_key)
+        else:
+            # Rows over a reference come first, the furthest past it at the
+            # top, so the table's opening lines are the ones a reader came
+            # for; the rest follow by the primary measure's value, largest
+            # first, so a size report reads longest to shortest rather than
+            # alphabetically.
+            ordered = sorted(
+                measures,
+                key=lambda r: (
+                    # A lane row (`lane-total`) is the lane's figure: it leads
+                    # its table and never falls under the row cap.
+                    0 if "lane-total" in (r.get("labels") or []) else 1,
+                    -len(r.get("over_reference", [])),
+                    -_over_distance(r, references),
+                    _primary_rank(primary, r),
+                    # A lane row (type debt) has `file: null`; `or ""` keeps
+                    # it comparable with the file rows it now sorts among.
+                    r.get("file") or "",
+                    r.get("start_line") or 0,
+                ),
+            )
+        for row in ordered:
             if shown >= MAX_RENDERED_ROWS:
                 remaining = len(measures) - shown
                 where_full = (
@@ -502,21 +606,59 @@ def render(doc: dict[str, Any], document_path: str | None = None) -> str:
                 "found no operators or operands in that function."
             )
     summary = doc.get("summary", {})
+    by_lane = summary.get("by_lane") or {}
+    by_directory = summary.get("by_directory") or {}
+    if duplication and (by_lane or by_directory):
+        lines.append("")
+        lines.append("## Rollup")
+        lines.append("")
+        lines.append("| Lane | Clone groups | Duplicated lines |")
+        lines.append("|---|---|---|")
+        for lane, bucket in sorted(by_lane.items()):
+            lines.append(
+                f"| {lane} | {bucket.get('groups', 0)} | {bucket.get('duplicated_lines', 0)} |"
+            )
+        lines.append("")
+        lines.append(
+            f"| Directory (to depth {rollup_depth}) | Clone groups | Duplicated lines |"
+        )
+        lines.append("|---|---|---|")
+        for directory, bucket in sorted(by_directory.items()):
+            if _depth(directory) <= rollup_depth:
+                lines.append(
+                    f"| {directory} | {bucket.get('groups', 0)} | "
+                    f"{bucket.get('duplicated_lines', 0)} |"
+                )
+        lines.append("")
+        lines.append(
+            "A group is attributed to every directory above its first instance, so a parent "
+            "includes its children and the directory rows cannot be summed; `.` restates the "
+            "totals. The JSON carries every directory."
+        )
     lines.append("")
     lines.append("## Summary")
     lines.append("")
-    lines.append(
-        f"Files: {summary.get('files', 0)}. "
-        # A file-level report has no functions to count; the figure is printed
-        # only where function rows exist.
-        + (f"Functions: {summary['functions']}. " if summary.get("functions") else "")
-        + "Over reference: "
-        + (
-            ", ".join(f"{k} {v}" for k, v in summary.get("over_reference", {}).items())
-            or "none"
+    if duplication:
+        lines.append(f"Files with clones: {summary.get('files', 0)}.")
+    else:
+        lines.append(
+            f"Files: {summary.get('files', 0)}. "
+            # A file-level report has no functions to count; the figure is
+            # printed only where function rows exist.
+            + (
+                f"Functions: {summary['functions']}. "
+                if summary.get("functions")
+                else ""
+            )
+            + "Over reference: "
+            + (
+                ", ".join(
+                    f"{k} {v}" for k, v in summary.get("over_reference", {}).items()
+                )
+                or "none"
+            )
+            + "."
         )
-        + "."
-    )
     if "duplicated_lines" in summary:
         lines.append(
             f"Duplicated lines: {summary['duplicated_lines']} in "
@@ -525,6 +667,11 @@ def render(doc: dict[str, Any], document_path: str | None = None) -> str:
     if doc.get("excluded"):
         lines.append(
             f"Excluded by a sanctioned-replication registry: {len(doc['excluded'])}."
+        )
+    elif duplication:
+        lines.append(
+            "Excluded by a sanctioned-replication registry: 0 (no registry configured, or "
+            "none matched)."
         )
     replicated_rows = [r for r in measures if (r.get("replicas") or {}).get("count")]
     if replicated_rows:
@@ -544,6 +691,13 @@ def render(doc: dict[str, Any], document_path: str | None = None) -> str:
         )
     if doc.get("unavailable"):
         lines.append("Unavailable: " + ", ".join(doc["unavailable"]) + ".")
+    partial = [
+        f"{row.get('lane', '*')}/{row.get('measure', '*')}"
+        for row in doc.get("run", [])
+        if row.get("status") == "partial"
+    ]
+    if duplication and partial:
+        lines.append("Partial: " + ", ".join(partial) + ".")
     if document_path:
         lines.append(f"Full document: {document_path}")
     return "\n".join(lines) + "\n"
@@ -562,9 +716,12 @@ def main(argv: list[str]) -> int:
     p_asm.add_argument("--measures", required=True)
     p_asm.add_argument("--thresholds", required=True)
     p_asm.add_argument("--excluded")
+    p_asm.add_argument("--root", default="")
     p_render = sub.add_parser("render")
     p_render.add_argument("--document")
-    sub.add_parser("resummarize")
+    p_render.add_argument("--rollup-depth", type=int, default=2)
+    p_res = sub.add_parser("resummarize")
+    p_res.add_argument("--root", default="")
     args = parser.parse_args(argv)
     if args.command == "thresholds":
         config = _read_json(args.config)
@@ -578,15 +735,16 @@ def main(argv: list[str]) -> int:
             _read_jsonl(args.measures),
             _read_json(args.thresholds),
             _read_jsonl(args.excluded),
+            args.root,
         )
         print(json.dumps(doc, indent=2))
         return 0
     doc = json.load(sys.stdin)
     if args.command == "resummarize":
-        doc["summary"] = summarize(doc.get("measures", []))
+        doc["summary"] = summarize(doc.get("measures", []), args.root)
         print(json.dumps(doc, indent=2))
         return 0
-    sys.stdout.write(render(doc, getattr(args, "document", None)))
+    sys.stdout.write(render(doc, getattr(args, "document", None), args.rollup_depth))
     return 0
 
 

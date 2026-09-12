@@ -153,7 +153,7 @@ try {
     $root = Resolve-ClaudeTempRoot
 
     if (-not $root.Exists) {
-        # Not applicable exits quietly and successfully (docs/PLUGIN-PHILOSOPHY.md
+        # Not applicable exits quietly and successfully (docs/plugin-philosophy.md
         # "Prerequisites and failure behavior"). Same shape as the battery check on a
         # desktop: OK with a negative detail flag, never UNKNOWN.
         $result = New-HealthResult -Id $id -Category $category -Os 'windows' `

@@ -1,6 +1,6 @@
 ---
 description: "Read-only slowness-diagnostic capture for a Claude Code installation. Run it AT THE MOMENT the machine or a session feels slow, before restarting or deleting anything. One timed engine pass captures the four suspects: CLI version (regression), retention-sweep health including the silent unparsable-settings pause (accumulated state), a timed stat-walk of the install tree plus session and plugin-fleet counts (component bloat), and the fan-out layer (per spawn): a load-labelled no-op spawn baseline, every hook that will fire bucketed per-tool-call versus per-turn, the statusline, subagent concurrency ceilings, sessions that predate the settings file, and orphan attribution by parent liveness not age. On Windows, a kernel-object census (Token objects against uptime, paged pool) names the host-level leak beneath all four suspects. Plus a process census, Defender guidance, and a bundled known-performance-issues reference. Reports and routes; never mutates, never deletes, never 'fixes', never executes a discovered hook. Use when: 'Claude Code is slow', 'typing lags', 'my machine freezes when Claude runs', 'audit performance', 'why is this session sluggish', 'diagnose Claude slowness before I nuke anything', 'my hooks are slowing everything down', 'too many subagents'. Not for: install-tree inventory (/claude-ops:audit-install-state), deleting anything (/disk-hygiene:clean), plugin enablement verdicts (/claude-ops:plugins audit), or upstream bug lookup alone (/claude-ops:known-issues, which this composes with)."
-argument-hint: "[--root <path>] (defaults to $CLAUDE_CONFIG_DIR, else ~/.claude); pass the current session id via --session-id when known"
+argument-hint: "[--root <path>] (defaults to $CLAUDE_CONFIG_DIR, else ~/.claude); pass the current session id via --session-id when known, and each operator fact via a repeated --note"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -32,6 +32,34 @@ walk that takes minutes IS the cost the product's retention sweep pays on that t
 | Delete a genuinely unmanaged leftover | `/disk-hygiene:clean` |
 | Shed one project's `~/.claude.json` state | `claude project purge <path>` |
 
+## Boundary, the bundled `doctor` skill
+
+One native Claude Code surface inspects two of this skill's four suspects, and the two get
+conflated whenever a session feels slow:
+
+- **`doctor` (bundled skill, alias `/checkup`).** Ships with Claude Code rather than as a
+  marketplace plugin. It health-checks the installation and offers to fix what it finds, and its
+  checks include slow hooks and a newer version on the release channel. It reports first and asks
+  before changing anything; `claude doctor` in the terminal prints read-only diagnostics without a
+  session.
+- **This skill (marketplace plugin).** A timed, read-only capture taken while it is slow: engine
+  phase timings, spawn baselines, per-hook buckets, and the census, with remediation routed out.
+
+**Routing.** When `doctor` resolves in your session, prefer it for the quick health pass and for
+anything the user wants fixed in place, and prefer `claude doctor` when a session will not start.
+Prefer this skill when the question is why it is slow right now: the timings, the fan-out layer,
+and the retention-sweep state have no native counterpart. Its sibling `audit-install-state` owns
+the deep inventory of the tree against the same surface.
+
+**Mutation gate.** `doctor` mutates: fixing is its point. This skill's contract is report-only and
+it refuses deletion, so never chain into a `doctor` fix on this skill's behalf. Surface the
+finding and let the user invoke the fix.
+
+**Availability is never assumed.** `doctor` survives the bundled-skill kill switch but an
+environment variable or a `skillOverrides` entry still hides it; this section states what to do
+when it resolves, never that it is present. The four-part records live in
+[reference/bundled-doctor.md](reference/bundled-doctor.md).
+
 ## Never read
 
 `.credentials.json`, `daemon/*.key`, `ide/*.lock` bodies, the values inside `~/.claude.json`, and
@@ -39,7 +67,9 @@ the contents of `history.jsonl` and transcript files. The engine's content-read 
 non-secret config files: `settings.json`, `.last-cleanup`, a plugin's `hooks/hooks.json`, and
 `plugins/installed_plugins.json`. Everything else is stat-only. Name, size, mtime. The allowlist
 is enforced in `read_json`, which raises rather than reading a file it does not name, so the
-prose and the code cannot drift apart.
+prose and the code cannot drift apart. On Linux the engine also reads `/proc/<pid>/status` and
+`/proc/<pid>/stat`, kernel-generated text with no user content, to tell kernel threads from user
+processes, enforced the same way in `read_proc_text`.
 
 The last two entries are what makes hook enumeration possible: a hook manifest holds an event, a
 matcher, and a command string, and the installed-plugins manifest holds install paths. Neither
@@ -62,6 +92,7 @@ pays before doing any work of its own.
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/audit-performance/scripts/audit_performance.py" \
   --session-id "<current-session-id-if-known>" \
+  --note "<one operator fact; repeat the flag per fact>" \
   --project-dir "${CLAUDE_PROJECT_DIR:-.}" > ./claude-performance-report.json
 ```
 
@@ -80,10 +111,11 @@ finding rather than dropped); `--spawn-samples <n>` and `--population-gap 0` sho
 probes that deliberately take wall-clock time; `--skip-fan-out` and `--skip-processes` drop whole
 phases. Say which flags you passed, because each one narrows what the report can conclude.
 
-Alongside the engine run, record what only the operator knows, in one or two sentences each: what
-was slow (typing? tool calls? the whole machine?), how many terminals were open, what the session
-was doing, and, on Windows, whether Task Manager showed "Antimalware Service Executable" or
-disk saturation. The engine cannot see intent; the report is incomplete without this paragraph.
+Pass what is already known through `--note`, one note per fact: what was slow (typing? tool calls?
+the whole machine?), how many terminals were open, what the session was doing, and, on Windows,
+whether Task Manager showed "Antimalware Service Executable" or disk saturation. Declare who
+supplied them with `--note-source`, and let `operator_context` record `absent` for what nobody
+passed, because the engine cannot see intent and a silent gap reads like a clean bill of health.
 
 ## Reading the report. Separate the four suspects
 
@@ -145,7 +177,10 @@ spawns. Read `fan_out` in this order:
 2. **`fan_out.hooks`**. `per_tool_call.count` scales with tool-call volume; `per_turn.count` is
    what makes a long conversation degrade and is the bucket most audits never look at.
    `invocation_shape_findings` names hooks paying extra process creations before their own work
-   starts. **Never present hook cost as a sum**: hooks on one event run in parallel, so the
+   starts. `per_tool_call.count` is the registered-row ceiling, so read `by_matcher` and
+   `projection` beside it for what one tool call of a given shape actually spawns, and
+   `unclassified_rows` for the `if` gates the engine could not decide and therefore counted as
+   firing. **Never present hook cost as a sum**: hooks on one event run in parallel, so the
    wall-clock cost is roughly the slowest hook plus contention, and adding them up can overstate
    the total several times over.
 3. **`fan_out.config_liveness`** before attributing any cost to configuration. Claude Code reads

@@ -613,7 +613,7 @@ Every skill body, its context and reference files, and every agent definition ha
 - Local `skillUsage` counts from one machine are the usage signal; they rank session-flow, planning, and source-control first.
 - Behavioral A/B across all 241 skills is not affordable; the record says so and routes behavior measurement to `claude-config:unhobble`.
 
-> **Adoption note, 2026-09-12.** `claude plugin eval` shipped in Claude Code 2.1.269 on 2026-09-11 and this marketplace adopted it; the adoption record is the "Adoption record" paragraph under [MIGRATION-PLAYBOOK.md § "Evals — warrant policy and consumer-verify recipe"](../MIGRATION-PLAYBOOK.md#evals--warrant-policy-and-consumer-verify-recipe). The routing above narrows rather than moves: the command measures a plugin or a wrapped skill with and without itself, so `claude-config:unhobble` keeps `CLAUDE.md` and `.claude/rules`, which a run strips by design. The affordability finding stands, since every run and every judge grader is a metered model call. The assumption above is left as recorded.
+> **Adoption note, 2026-09-12.** `claude plugin eval` shipped in Claude Code 2.1.269 on 2026-09-11 and this marketplace adopted it; the adoption record is the "Adoption record" paragraph under [migration-playbook.md § "Evals: warrant policy and consumer-verify recipe"](../migration-playbook.md#evals-warrant-policy-and-consumer-verify-recipe). The routing above narrows rather than moves: the command measures a plugin or a wrapped skill with and without itself, so `claude-config:unhobble` keeps `CLAUDE.md` and `.claude/rules`, which a run strips by design. The affordability finding stands, since every run and every judge grader is a metered model call. The assumption above is left as recorded.
 
 ### Out-of-scope
 

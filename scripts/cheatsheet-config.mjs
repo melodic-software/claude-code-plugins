@@ -1,5 +1,5 @@
 // Hand-curated grouping layer for the generated skill cheat sheet
-// (docs/SKILL-CHEAT-SHEET.md). Owns exactly three things: the stage/group
+// (docs/skill-cheat-sheet.md). Owns exactly three things: the stage/group
 // vocabulary and order, the exclusion entries, and the shared summary guard.
 // Per-skill detail (stage, summary, cadence) lives in each SKILL.md's
 // `metadata:` frontmatter — never here.

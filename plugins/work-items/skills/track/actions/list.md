@@ -10,7 +10,7 @@ List work items with optional filtering.
 
 ## Flags
 
-- `--category <name>` -- Filter by category label (adds `category:<name>`; the consuming repo's `category:` values — see [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md))
+- `--category <name>` -- Filter by category label (adds `category:<name>`; for the consuming repo's `category:` values, see [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md))
 - `--label <name>` -- Filter by any label (repeatable, AND logic)
 - `--state <s>` -- `open` (default), `closed`, `all`
 - `--assignee <login>` -- Filter by assignee (`@me` for self)
@@ -19,7 +19,7 @@ List work items with optional filtering.
 
 ## Workflow
 
-1. List items filtered by the parsed flags (adapter: "List items" — bare read; category/label/state/assignee/limit map to the adapter's filter args; `--search` uses the adapter's "Search items" path). The adapter returns normalized item objects.
+1. List items filtered by the parsed flags (adapter: "List items", bare read; category/label/state/assignee/limit map to the adapter's filter args; `--search` uses the adapter's "Search items" path). The adapter returns normalized item objects.
 
 1. Parse the result and present as a condensed table:
 
@@ -34,4 +34,4 @@ The `#` column is a sequential index for this listing. When the user references 
 
 ## Search syntax
 
-Provider search qualifiers (label/exclude/assignee/sort/date) and the pass-through behavior of `--search` are documented in the bound adapter's operations reference — GitHub: `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md` "Search items".
+Provider search qualifiers (label/exclude/assignee/sort/date) and the pass-through behavior of `--search` are documented in the bound adapter's operations reference. GitHub: `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md` "Search items".

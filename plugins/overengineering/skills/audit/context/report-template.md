@@ -1,4 +1,4 @@
-# Report shape — three layers, one source of truth
+# Report shape: three layers, one source of truth
 
 The run produces output in three layers. Only the first is mandatory-and-authoritative, only the
 second is always shown, and the third is an optional extra that is skipped without ceremony when its
@@ -7,10 +7,10 @@ prerequisite is absent.
 | Layer | When | Authority |
 |---|---|---|
 | **Findings artifact** | always, except where the running lane declines the write | **The single source of truth.** Everything that drives the reasoning lives here |
-| **Inline terminal summary** | always | A *view* of the artifact — never a second record, never a place a fact appears first |
+| **Inline terminal summary** | always | A *view* of the artifact, never a second record, never a place a fact appears first |
 | **Rendered HTML view** | presence-gated | A rendering of the same artifact; skipped when unavailable |
 
-## Layer 1 — the findings artifact
+## Layer 1: the findings artifact
 
 Shape, fields, ids, ordering, the stable-spine / free-prose split, the status vocabulary, and the
 re-run merge rules are owned by `${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md`. Its home is
@@ -35,24 +35,24 @@ The spine's line format, as a shape rather than as a definition of any token in 
 - **Status:** <one status value>
 ```
 
-The tokens that may fill those last two value slots — and what each one asserts — belong to
+The tokens that may fill those last two value slots, and what each one asserts, belong to
 `${CLAUDE_PLUGIN_ROOT}/context/scrutiny-method.md` §6 and to the findings-artifact contract's status
 table. They are named there once.
 
-## Layer 2 — the inline terminal summary
+## Layer 2: the inline terminal summary
 
-Always printed, in the response, once the walk is done — after the artifact is written, or in place of
+Always printed, in the response, once the walk is done: after the artifact is written, or in place of
 it on the run that writes none. It is a navigation aid: it tells the operator what the run found, what
 it could not find out, and where to read the rest. Keep it short enough to read without scrolling past
 it.
 
 1. **The read-only line, first.** *"Read-only pass; the only file written is the findings artifact at
-   `<resolved path>`."* Plus the layers walked this run, and — when the pass was layer-scoped — the
+   `<resolved path>`."* Plus the layers walked this run, and, when the pass was layer-scoped, the
    layers that were not, so nobody reads a partial pass as a complete one.
    **When no branch identity resolved**, the artifact was not written and there is no path to name,
    so the line states that instead: *"Read-only pass; no branch identity resolved, so no findings
-   artifact is written."* The layers-walked half is unchanged — the walk still happened, and this
-   summary is the only record of it. The condition and its reasoning belong to the skill's
+   artifact is written."* The layers-walked half is unchanged, because the walk still happened and
+   this summary is the only record of it. The condition and its reasoning belong to the skill's
    "A detached checkout has no branch identity"; this document owns only how the line reads.
    **When the run ends up writing no row**, the path resolved but nothing was persisted to it, and
    the first wording would assert a write that never happened. A lane that can reach that state
@@ -65,14 +65,14 @@ it.
 2. **Evidence availability, one line per tier**: present / partial / unavailable, with the probe. A
    shallow clone and a missing telemetry sink each get named here explicitly.
 3. **Counts**, per verdict class and per layer. A small table, not prose.
-4. **The top findings**, ranked — protected items flagged for a human first, then the strongest
+4. **The top findings**, ranked: protected items flagged for a human first, then the strongest
    evidenced retirement-direction verdicts, then the carry-cost-ranked head of the UNPROVEN residue.
    Cap the inline list **only when the artifact was written**; the artifact carries the rest.
    When no branch identity resolved and this summary is the only record, emit **every** finding
    inline. A cap here would discard the tail of a scheduled detached run.
 5. **The proposed ablation batch**, when one was produced: its items, an owner and a re-check date
    each, and the observation window's end date.
-6. **Open checkpoints** — the intent questions awaiting an answer (attended), or the count of
+6. **Open checkpoints**: the intent questions awaiting an answer (attended), or the count of
    findings whose `Intent` is `OPEN-INTENT` (unattended). Where members were also judged, their
    `OPEN-INTENT` count is reported as a separate number, labelled as members.
 7. **Configuration provenance**, one line: which config layers contributed, or that none were present
@@ -89,10 +89,10 @@ it.
 A run that found nothing to retire says so plainly. A clean surface is a valid outcome, and
 manufacturing a finding to justify the pass is the failure this whole method is pointed at.
 
-## Layer 3 — the rendered HTML view
+## Layer 3: the rendered HTML view
 
 **Presence-gated on the visualization plugin.** When `visualization:visualize` is installed, offer it
-the artifact for a rendered view — the artifact stays the source of truth and the rendering is a
+the artifact for a rendered view. The artifact stays the source of truth and the rendering is a
 second presentation of it, never a place a finding appears first.
 
 **Documented fallback when that plugin is not installed: skip it.** Say nothing beyond a single line

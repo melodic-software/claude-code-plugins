@@ -55,8 +55,8 @@ an earlier one:
 | 2 | team | `<repo>/.claude/provenance.json` | the repository, tracked |
 | 3 | local overlay | `<repo>/.claude/provenance.local.json` | one operator in one repo, gitignored |
 
-All three absent is a valid state: the bundled defaults apply. Merge is **per-key override** —
-a later layer replaces a value key by key, and a key absent from a later layer keeps the earlier
+All three absent is a valid state: the bundled defaults apply. Merge is **per-key override**.
+A later layer replaces a value key by key, and a key absent from a later layer keeps the earlier
 value. Never write a layer that restates the whole config to change one key; that turns every
 key the overlay does not mention into an accidental decision.
 
@@ -96,21 +96,21 @@ To report the effective values and their supplying layer, run the detectors' own
 }
 ```
 
-- **`excluded_paths`** — categorical exclusions, glob-matched against repo-relative paths. This
+- **`excluded_paths`**: categorical exclusions, glob-matched against repo-relative paths. This
   is where a repository declines a whole class of surface, never an individual passage someone
   wanted kept.
-- **`budgets`** — per-candidate caps and the corpus ceiling. These bound runaway loops rather
+- **`budgets`**: per-candidate caps and the corpus ceiling. These bound runaway loops rather
   than save money: fetches are cheap and judge sampling is the cost center.
-- **`separation`** — the deterministic rule's two constants. The rule fires on containment at or
+- **`separation`**: the deterministic rule's two constants. The rule fires on containment at or
   above `min_containment` **or** a matched span at or above `min_span_words`, after
   quote-stripping. Raising both narrows what can become fix-eligible.
-- **`stamp_expiry_days`** — the verification-stamp window.
-- **`trigger_less_stamp_check`** — off by default; see below.
-- **`judge_samples`** — panel size, floor 3 for anything that could become fix-eligible.
-- **`gates`** — bind fix-mode eligibility and release readiness only. **They never filter what
+- **`stamp_expiry_days`**: the verification-stamp window.
+- **`trigger_less_stamp_check`**: off by default. See below.
+- **`judge_samples`**: panel size, floor 3 for anything that could become fix-eligible.
+- **`gates`**: bind fix-mode eligibility and release readiness only. **They never filter what
   the report shows.** Lowering a gate does not hide findings and raising one does not surface
   more; that separation is deliberate.
-- **`accuracy`** — the verification-depth dials. `judge_samples` is deliberately a TOP-LEVEL key
+- **`accuracy`**: the verification-depth dials. `judge_samples` is deliberately a TOP-LEVEL key
   and not one of these; reject an `accuracy.judge_samples` loudly rather than writing it, since
   a misplaced key there would be a silent no-op that quietly halves the panel.
 

@@ -59,12 +59,13 @@ Official contract: <https://code.claude.com/docs/en/plugins-reference#user-confi
    (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
    which owns the verified-version record): interactive `/plugin configure education@<marketplace>` any time;
    headless, rerun `claude plugin install education@<marketplace> -s <scope> --config quiz_policy=<value>`
-   (repeatable per key) — against an already-installed plugin it prints `already installed` and still writes the
+   (repeatable per key). Against an already-installed plugin it prints `already installed` and still writes the
    value. Never uninstall to reconfigure: that drops the whole stored `pluginConfigs` entry, resetting every
    option to its manifest default. `-s` defaults to `user`; pass the scope `claude plugin list` reports, and run
    `project`/`local` writes from that project's directory, or they land at a scope that does not load.
-7. Tell the user to rerun `check` after reconfiguration in a **fresh session** — rendered values are injected at
-   skill load, so a same-session rerun still reports the OLD values — then report the observed effective settings.
+7. Tell the user to rerun `check` after reconfiguration in a **fresh session**, because rendered values are
+   injected at skill load and a same-session rerun still reports the OLD values. Then report the observed
+   effective settings.
 
 ## Output
 
@@ -77,6 +78,6 @@ Claude Code. Do not claim a configuration change until a rerun observes the new 
 - Do not start a teach, explain, or quiz session; use `/education:teach`, `/education:explain`,
   or `/education:quiz-me`.
 - Do not write the plugin cache, Claude Code user settings, or `pluginConfigs`, per the uniform
-  setup contract (`docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit and repeatable" in the
+  setup contract (`docs/plugin-philosophy.md` "Setup is explicit and repeatable" in the
   marketplace repository).
 - Do not invent an organization, repository, marketplace, or environment-variable prefix.

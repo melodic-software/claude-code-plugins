@@ -3,6 +3,26 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.30]
+
+### Changed
+
+- **Bump `js-yaml` 4.3.1→4.3.2 in the generate output build package** (#4085): a transitive dependency, so the bump lands in `output/build/package-lock.json` and no manifest range moves. The native `node --test` suite, including the `test/url-policy.test.js` SSRF-gate assertions, passes on the new resolution.
+
+## [0.7.29]
+
+### Changed
+
+- Cite the marketplace `docs/` doctrine files by their lower-kebab names (`docs/plugin-philosophy.md`, `docs/migration-playbook.md`, and siblings); the files were renamed and the old uppercase paths no longer resolve.
+
+## [0.7.28]
+
+### Changed
+
+- **Options reference drops its em dashes.** The generated How-to-set-these block is rewritten by `scripts/sync-plugin-options-docs.py`, which is the fix site: its output is regenerated, never hand-edited. The block no longer needs the ignore marker that exempted it from the repository's em-dash gate, so that marker is gone as well.
+- **The plugin's prose drops its em dashes.** Eight surfaces were rewritten: this changelog, `skills/setup/SKILL.md`, three `skills/generate/reference/` documents, and the three `skills/generate/evals/fixtures/` samples. Wording only, with no change to any slide order, bucket, filter, or brand default. The fixture separators were checked against `lib/parse-briefing.js` first: it accepts `**Title**: body` as an equal form and strips either separator, so the samples still parse. Three headings changed anchor; nothing linked to them. The released sections corrected in place are 0.7.6, 0.7.5, 0.7.4, 0.7.0, 0.6.3, 0.6.2, 0.5.1, and 0.4.0: their wording changed, their facts did not.
+- **The changelog names the module instead of calling it a seam.** The 0.6.3 entry now reads "`lib/url-policy.js` module", which is the concrete thing.
+
 ## [0.7.27]
 
 ### Changed
@@ -267,7 +287,7 @@ All notable changes to the `ai-briefing` plugin are documented here. Format foll
   Gate 4 hands `shouldSkipLinkCheck` to linkinator's `linksToSkip`, which awaits
   it. A predicate resolving to something merely truthy, or answering the same way
   for every input, would make linkinator skip every URL and the validator report
-  success having checked nothing — and no existing test distinguished "checked
+  success having checked nothing, and no existing test distinguished "checked
   and passed" from "skipped everything and passed". The suite now asserts strict
   boolean resolution and that the verdicts differ by input.
 
@@ -276,7 +296,7 @@ All notable changes to the `ai-briefing` plugin are documented here. Format foll
 - **`generate`: the IPv4 registry claim is dated (#3110).** `url-policy.js`
   described its non-global IPv4 block list as "complete against the registry";
   IANA can add a row, so the comment now names the date the registry was
-  fetched. Comment only — no behavior change.
+  fetched. Comment only, no behavior change.
 
 ## [0.7.5]
 
@@ -288,11 +308,11 @@ All notable changes to the `ai-briefing` plugin are documented here. Format foll
   whole stored `pluginConfigs` entry, resetting every declared option to its manifest default.
   On Claude Code 2.1.240 a plain `claude plugin install … --config` against an already-installed
   plugin prints `already installed` and still writes the value, so that is now the documented
-  route — stamped with the CLI version it was verified against
+  route, stamped with the CLI version it was verified against
   ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). `apply` also
   now separates the write from its effect: the stored value changes immediately, but the running
   session's hooks keep the `CLAUDE_PLUGIN_OPTION_*` they were handed at session start, so
-  verification means rerunning `check` in a FRESH session — a same-session rerun reports the old
+  verification means rerunning `check` in a FRESH session. A same-session rerun reports the old
   value, which is not a failed write. It never asserts an unobserved change.
 - **Docs:** the generated options block's headless route no longer implies `--config` applies
   only at install time, and now carries the CLI version its claim was verified against
@@ -309,7 +329,7 @@ All notable changes to the `ai-briefing` plugin are documented here. Format foll
 
 - **`generate`: the two external-renderer fallbacks name the Skill tool (#3002).** In
   `references/slide-generation.md`, the `/document-skills:pptx` and
-  `/frontend-design:frontend-design` invocations now say "via the Skill tool". Wording only — the
+  `/frontend-design:frontend-design` invocations now say "via the Skill tool". Wording only. The
   in-tree-builder-first order and the presence gates are unchanged. Follows the invocation-mode
   rubric's cross-skill phrasing rule, now unconditional after the fleet sweep.
 
@@ -346,7 +366,7 @@ All notable changes to the `ai-briefing` plugin are documented here. Format foll
 
 - **The bare `/<skill>` alias for this plugin's skills.** Their `SKILL.md` files no longer
   declare a frontmatter `name`. The field is optional and defaults to the directory name, so
-  declaring it only restated the path while registering a second, unnamespaced command — which
+  declaring it only restated the path while registering a second, unnamespaced command, which
   the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
   namespaced command; the command itself is unchanged.
 
@@ -355,13 +375,13 @@ All notable changes to the `ai-briefing` plugin are documented here. Format foll
 ### Security
 
 - **Source-URL schemes are allowlisted at every deck sink.** A shared
-  `lib/url-policy.js` seam now exposes `isAllowedUrlScheme`, reused at schema
+  `lib/url-policy.js` module now exposes `isAllowedUrlScheme`, reused at schema
   validation and at each href/hyperlink sink. `http:`, `https:`, `mailto:`, and
-  `tel:` — the schemes a legitimate briefing may contain, inert at every sink —
-  are preserved and continue to render as working links. **Every other scheme is
-  now rejected**: the `javascript:`, `data:`, and `file:` attack vectors that
+  `tel:` are preserved and continue to render as working links. Those are the
+  schemes a legitimate briefing may contain, and they are inert at every sink.
+  **Every other scheme is now rejected**: the `javascript:`, `data:`, and `file:` attack vectors that
   could inject script into the HTML deck or embed a local-file hyperlink in the
-  PPTX, and — as deliberate fail-closed hardening — rarer schemes such as `ftp:`
+  PPTX, and, as deliberate fail-closed hardening, rarer schemes such as `ftp:`
   that the previous permissive `z.string().url()` accepted. Two layers: the Zod
   schema hard-fails a deck containing a disallowed scheme (loud fail-closed on an
   attack indicator), and the HTML and PPTX builders drop the individual unsafe
@@ -374,7 +394,7 @@ All notable changes to the `ai-briefing` plugin are documented here. Format foll
   (127/8, 10/8, 100.64/10, 172.16/12, 192.168/16, 169.254/16, 0/8, 192.0.0/24,
   192.0.2/24, 198.18/15, 198.51.100/24, 203.0.113/24, 192.88.99/24 deprecated
   6to4 relay anycast, 224/4, 240/4,
-  `localhost`/`*.localhost`) — the IPv4 list is complete against the registry;
+  `localhost`/`*.localhost`). The IPv4 list is complete against the registry;
   the only rows omitted are those it marks globally reachable (the AS112, AMT,
   PCP and TURN anycast assignments). A deny list is the correct shape for IPv4,
   unlike IPv6 below: global unicast is not one prefix but 1.0.0.0 through
@@ -384,13 +404,13 @@ All notable changes to the `ai-briefing` plugin are documented here. Format foll
   decimal/hex/octal/integer IPv4. IPv6 is judged by ALLOWLIST rather than by an
   enumerated deny list: only globally reachable unicast space (`2000::/3`)
   survives, and the IANA IPv6 Special-Purpose Address Registry's non-global
-  blocks inside it are carved back out (`2001::/23` IETF protocol assignments —
-  Teredo, benchmarking `2001:2::/48`, ORCHIDv2, AMT and the anycast singletons —
+  blocks inside it are carved back out (`2001::/23` IETF protocol assignments:
+  Teredo, benchmarking `2001:2::/48`, ORCHIDv2, AMT and the anycast singletons,
   plus `2001:db8::/32` and `3fff::/20` documentation and `2002::/16` 6to4, which
   wraps an arbitrary IPv4 tunnel endpoint). So `::`/`::1`, `fc00::/7`,
   `fe80::/10`, `ff00::/8`, `100::/64`, `100:0:0:1::/64`, `5f00::/16` and every
   unassigned or newly registered block are refused by default rather than read
-  as public — closing the class of bypass a deny list reopens each time a
+  as public, closing the class of bypass a deny list reopens each time a
   prefix nobody enumerated turns out to be routable. RFC 8215's local-use
   translation prefix `64:ff9b:1::/48` is refused outright, while IPv4-mapped and
   NAT64 `64:ff9b::/96` forms are judged by their embedded IPv4 address. Literal
@@ -414,8 +434,8 @@ All notable changes to the `ai-briefing` plugin are documented here. Format foll
   both halves to `-s user`. When this plugin is installed at `project` or `local` scope, that
   silently uninstalled a separate user-scope record while the effective project/local install kept
   loading, and the reinstall landed at a scope that does not load. Both commands now carry
-  `-s <scope>`, sourced from what `claude plugin list` reports for this plugin — the same fix
-  applied to the other affected plugins in this release wave.
+  `-s <scope>`, sourced from what `claude plugin list` reports for this plugin. This is the same
+  fix applied to the other affected plugins in this release wave.
 
 ## [0.6.1]
 
@@ -459,7 +479,7 @@ All notable changes to the `ai-briefing` plugin are documented here. Format foll
 
 - README states the POSIX-shell requirement of the `setup --with-build-deps`
   install step with its Windows path (Git Bash; the script's platform gate
-  already accepts MINGW/MSYS/CYGWIN) — cross-platform declaration wave. The
+  already accepts MINGW/MSYS/CYGWIN), part of the cross-platform declaration wave. The
   Node build pipeline is unchanged and remains shell-free.
 
 ## [0.5.0]
@@ -484,5 +504,5 @@ All notable changes to the `ai-briefing` plugin are documented here. Format foll
   visibly-surfaced degradation when an optional collection source is unreachable, without
   aborting the run.
 - Three supporting fixtures under `skills/ai-briefing/evals/fixtures/`: `archive-sample.md`,
-  `open-window-sample.md`, and `candidate-items-sample.md` — neutral, synthetic AI-industry
+  `open-window-sample.md`, and `candidate-items-sample.md`: neutral, synthetic AI-industry
   content with no real company, person, or consumer-specific references.

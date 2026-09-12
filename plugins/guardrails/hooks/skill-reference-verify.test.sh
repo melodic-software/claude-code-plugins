@@ -74,6 +74,8 @@ mk_skill beta-dir check
 TARGET="$REPO/notes.md"
 : >"$TARGET"
 
+GUARD_UNDER_TEST="$HOOK"
+
 # run <content> — hook stdout+stderr lands in the global OUT; the hook's exit
 # code is RETURNED, so `run …` then `assert_exit … "$?"` is the call shape.
 #
@@ -82,20 +84,18 @@ TARGET="$REPO/notes.md"
 # `assert_exit` after the call silently compares a stale outer value — the
 # suite would stay green through a hook that regressed to a nonzero exit.
 # HOOK_OVERRIDE lets a case point the helpers at a stub hook; unset elsewhere.
-run() {
-  local rc
-  OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "${HOOK_OVERRIDE:-$HOOK}" \
-    <<<"$(write_json "$TARGET" "$1")" 2>&1)
-  rc=$?
-  return "$rc"
+#
+# run_payload <json> is the shared driver call every shape below reduces to:
+# one payload, one hook process, stdout and stderr together in OUT, the hook's
+# own exit code returned.
+run_payload() {
+  guard_invoke --hook "${HOOK_OVERRIDE:-$HOOK}" --merge-stderr --payload "$1" \
+    -- "CLAUDE_PROJECT_DIR=$REPO"
+  OUT="$GUARD_OUT"
+  return "$GUARD_RC"
 }
-run_edit() {
-  local rc
-  OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "${HOOK_OVERRIDE:-$HOOK}" \
-    <<<"$(edit_json "$TARGET" "$1")" 2>&1)
-  rc=$?
-  return "$rc"
-}
+run() { run_payload "$(write_json "$TARGET" "$1")"; }
+run_edit() { run_payload "$(edit_json "$TARGET" "$1")"; }
 
 # --- The run helpers must carry the hook's exit code out (#3373) -------------
 # Guards the assertion machinery itself: point the helpers at a stub that exits
@@ -840,6 +840,11 @@ assert_silent "kill switch → silent" "$OUT"
 
 # ============================ EMPTY STDIN ===================================
 
+# Direct-mode only, and unreachable under the dispatcher by design: run-guards.sh
+# reads stdin once for the whole event and exits 0 on rc 1 before any guard is
+# sourced, so no dispatched payload can reach this arm. run-guards.test.sh pins
+# the dispatcher's own answer ("empty stdin: every guard's empty-stdin skip,
+# taken once"); this pins what the guard does when it runs alone.
 OUT=$(bash "$HOOK" </dev/null 2>&1)
 RC=$?
 assert_exit "empty stdin → exit 0" 0 "$RC"
@@ -1065,5 +1070,35 @@ if wait_for_sink "$TEL"; then
 else
   bad "telemetry: no envelope written"
 fi
+
+# ==================== THE SAME VERDICTS UNDER THE DISPATCHER =================
+# Every case above invokes this guard alone. hooks.json ships it under
+# run-guards.sh, where stdin is read once and re-served, the Write/Edit content
+# fields come from the dispatcher's primed jq cache instead of the guard's own
+# jq call, and the guard is `source`d into a subshell rather than exec'd.
+#
+# An advisory guard exits 0 whether or not it found anything, so the exit code
+# alone is not its verdict: the additionalContext document is. Each case below
+# asserts both, on both paths.
+#
+# parity <label> <content> <expected-exit> <needle, or "" for silence>
+parity() {
+  local label="$1" content="$2" expected="$3" needle="$4" payload via
+  payload="$(write_json "$TARGET" "$content")"
+  for via in direct dispatched; do
+    guard_invoke --via "$via" --merge-stderr --payload "$payload" \
+      -- "CLAUDE_PROJECT_DIR=$REPO"
+    assert_exit "$label ($via)" "$expected" "$GUARD_RC"
+    if [[ -n "$needle" ]]; then
+      assert_contains "$label ($via): finding survives" "$GUARD_OUT" "$needle"
+    else
+      assert_silent "$label ($via): stays quiet" "$GUARD_OUT"
+    fi
+  done
+}
+parity "dispatched parity: unresolved reference" 'Run `/alpha:nonexistent`.' 0 \
+  "UNRESOLVED_SKILL: /alpha:nonexistent"
+parity "dispatched parity: resolving reference" 'Run `/alpha:setup`.' 0 ""
+parity "dispatched parity: manifest name, not directory" 'Run `/beta:check`.' 0 ""
 
 report

@@ -11,6 +11,12 @@ SCRIPT="$SELF_DIR/sync-unwrap-before-compose.sh"
 
 # shellcheck source=lib/test-harness.sh
 . "$SELF_DIR/lib/test-harness.sh"
+# shellcheck source=lib/fixture-tree.sh
+. "$SELF_DIR/lib/fixture-tree.sh"
+
+# The builder assigns through a nameref, which shellcheck cannot follow;
+# declaring the out-var here is what tells it (SC2154) the name is written.
+f=""
 
 CANONICAL="plugins/context-guard/skills/setup/reference/unwrap-before-compose.md"
 COPY="plugins/rate-limit-guard/skills/setup/reference/unwrap-before-compose.md"
@@ -22,32 +28,26 @@ canonical_v2() {
   printf '# Unwrap before you compose\n\nshared spoke v2\n'
 }
 
-new_fixture() {
-  local dir
-  dir="$(mktemp -d)"
-  mkdir -p "$dir/scripts/lib" \
-    "$dir/plugins/context-guard/skills/setup/reference" \
-    "$dir/plugins/context-guard/.claude-plugin" \
-    "$dir/plugins/rate-limit-guard/skills/setup/reference" \
-    "$dir/plugins/rate-limit-guard/.claude-plugin"
-  cp "$SCRIPT" "$dir/scripts/sync-unwrap-before-compose.sh"
-  cp "$SELF_DIR/lib/sync-cluster.sh" "$dir/scripts/lib/sync-cluster.sh"
-  chmod +x "$dir/scripts/sync-unwrap-before-compose.sh"
-  printf '%s' "$dir"
+new_fixture() { # <out-var>
+  fixture_tree::build "$1" --sut "$SCRIPT" || return 1
+  mkdir -p "${!1}/plugins/context-guard/skills/setup/reference" \
+    "${!1}/plugins/context-guard/.claude-plugin" \
+    "${!1}/plugins/rate-limit-guard/skills/setup/reference" \
+    "${!1}/plugins/rate-limit-guard/.claude-plugin"
 }
 
 manifest() {
   printf '{"name":"%s","version":"%s"}\n' "$2" "$3" >"$1/plugins/$2/.claude-plugin/plugin.json"
 }
 
-base_fixture() {
+base_fixture() { # <out-var>
   local dir
-  dir="$(new_fixture)"
+  new_fixture "$1" || return 1
+  dir="${!1}"
   canonical_v1 >"$dir/$CANONICAL"
   canonical_v1 >"$dir/$COPY"
   manifest "$dir" context-guard 0.1.0
   manifest "$dir" rate-limit-guard 0.1.0
-  printf '%s' "$dir"
 }
 
 git_fixture() {
@@ -64,7 +64,7 @@ run_mode() (
   cd "$fixture" && bash scripts/sync-unwrap-before-compose.sh "$@"
 )
 
-f="$(new_fixture)"
+new_fixture f
 canonical_v1 >"$f/$CANONICAL"
 printf '# drifted\n' >"$f/$COPY"
 manifest "$f" context-guard 0.1.0
@@ -76,7 +76,7 @@ else
 fi
 rm -rf "$f"
 
-f="$(base_fixture)"
+base_fixture f
 if run_mode "$f" --check >/dev/null 2>&1; then
   clean_verdict=pass
 else
@@ -100,7 +100,7 @@ else
 fi
 rm -rf "$f"
 
-f="$(base_fixture)"
+base_fixture f
 printf '# drifted\n' >"$f/$COPY"
 out="$(run_mode "$f" --check 2>&1)" || true
 if [[ "$out" == *"$COPY"* && "$out" == *"$CANONICAL"* ]]; then
@@ -110,7 +110,7 @@ else
 fi
 rm -rf "$f"
 
-f="$(base_fixture)"
+base_fixture f
 out="$(run_mode "$f" --print-manifest 2>&1)"
 if [[ "$out" == *"src"*"$CANONICAL"* && "$out" == *"copy"*"$COPY"* ]]; then
   ok "--print-manifest publishes src and copy, so affected-tests can derive the fan-out"
@@ -119,7 +119,7 @@ else
 fi
 rm -rf "$f"
 
-f="$(base_fixture)"
+base_fixture f
 if base="$(git_fixture "$f")"; then
   canonical_v2 >"$f/$CANONICAL"
   canonical_v2 >"$f/$COPY"

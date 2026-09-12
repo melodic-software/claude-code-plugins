@@ -7,14 +7,14 @@ disable-model-invocation: true
 
 ## Purpose
 
-Check-only setup under the Check-only carve-out (`docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit
+Check-only setup under the Check-only carve-out (`docs/plugin-philosophy.md` "Setup is explicit
 and repeatable" in the marketplace repository): this plugin's configuration surface contains no
 writable artifact, so `check` inspects, reports, and offers each remediation, and no `apply` is
 offered because there is nothing it could conformingly write. Only the **detached observer** (see
 [`${CLAUDE_PLUGIN_ROOT}/reference/observer.md`](${CLAUDE_PLUGIN_ROOT}/reference/observer.md)) has
 runtime prerequisites and configuration; the other skills are zero-config. The observer's tunables
 are all native `userConfig` (the carve-out's native-`userConfig` class), and its remaining
-prerequisites are system tools (Python 3.10+, `jq` — the external-prerequisites class), so setup
+prerequisites are system tools (Python 3.10+, `jq`, the external-prerequisites class), so setup
 installs nothing and edits nothing (writing `pluginConfigs` is what the setup contract forbids).
 
 Action routing: no argument or `check` runs the check. Non-interactive, never prompts.
@@ -66,12 +66,12 @@ marketplace's plugin-reconfiguration convention
 (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
 which owns the verified-version record): interactive `/plugin configure session-flow@<marketplace>`
 any time, or headless `claude plugin install session-flow@<marketplace> -s <scope> --config <key>=<value>`
-(repeatable per key) — against an already-installed plugin it prints `already installed` and still
+(repeatable per key). Against an already-installed plugin it prints `already installed` and still
 writes the value. Do **not** uninstall to reconfigure: that drops the stored `pluginConfigs` entry
 outright, resetting every option in the README's Options reference to its manifest default, with
 nothing left to read the old values from. `-s` defaults to `user`; pass the scope
 `claude plugin list` reports, and run from that project's directory for a `project`/`local` scope,
-or the write lands at a scope that does not load. Afterwards rerun `check` in a **fresh session** —
+or the write lands at a scope that does not load. Afterwards rerun `check` in a **fresh session**:
 the rendered `${user_config.*}` is injected at skill load and each hook's `CLAUDE_PLUGIN_OPTION_*`
 is fixed at session start, so a same-session `check` still reports the OLD value; report the
 observed effective value, never an unobserved change.

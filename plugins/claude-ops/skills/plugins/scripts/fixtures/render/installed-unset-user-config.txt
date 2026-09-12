@@ -1,0 +1,10 @@
+Marketplace: market1: current (autoUpdate: on)
+In-repo: 0: <case> has no project/local installs
+Installed: 1 new catalog plugin(s): beta@market1 (policy install_new: all, meaning these reinstall on every sync unless you also disable them)
+Divergences: 0 actionable
+Timing: <elided>
+Action needed:
+  - beta@market1: 2 userConfig option(s) not yet set (1 required); run /plugin configure beta@market1 in Claude Code, or pass --config KEY=VALUE
+
+Run journal: <run_dir>
+Timing: <elided>

@@ -63,7 +63,7 @@ PARTIAL / REJECTED / OPEN.
 | F | /goal vs tickets posture | — | planning:draft-goal-condition | ADOPTED (sixth route-away row: multi-window work routes to spec + decomposed items; advisory, no folklore token figures) | #2938 |
 | W | Wayfinder deltas | C18–C20 | planning:wayfind | PARTIAL (C18+C19 adopted; C20 already-present) | #2939 |
 | X | Invocation doctrine (skills-repo delta PRs #878/#880; C23 from #848) | C21–C23 | playbooks:skill-authoring, skill-quality:check | PARTIAL (C21+C22 adopted; C23 already-present — corrected 2026-08-21 from a flat ADOPTED, which disagreed with C23's own disposition and with how every other lane holding an already-present candidate is graded) | #2940 |
-| Y | Macro/micro lifecycle orchestrator (interview Q18) | — | work-items:ship | ADOPTED (thin router; PR topology per-container via the `Execution shape:` line, not repo config; item/checkpoint/phase-boundary canonized in `work-items/reference/execution-shape.md`; the glossary deferral has since ENDED — `docs/GLOSSARY.md` landed 2026-08-20 (#3062) and `phase boundary` is promoted there, while `item` and `checkpoint` stay reference-local as seam-specific terms) | #2948 |
+| Y | Macro/micro lifecycle orchestrator (interview Q18) | — | work-items:ship | ADOPTED (thin router; PR topology per-container via the `Execution shape:` line, not repo config; item/checkpoint/phase-boundary canonized in `work-items/reference/execution-shape.md`; the glossary deferral has since ENDED — `docs/glossary.md` landed 2026-08-20 (#3062) and `phase boundary` is promoted there, while `item` and `checkpoint` stay reference-local as seam-specific terms) | #2948 |
 
 Seam-scrutiny follow-ons (not course-derived, surfaced by the same audit): binding config
 (#2941), contract hygiene (#2942), lease hardening (#2943), local-markdown docs (#2944),
@@ -201,7 +201,7 @@ given, and one disposal venue does not exist.
   phase boundary* (a loop) while confirm → quality-gate → pull-request fires *once at completion*,
   and that verifier is dispatched by `implementation:implement-dispatch`, not `implement` —
   writing it down canonically would have laundered the error into an SSOT. Also: READMEs are
-  human-facing and graded on a different bar by docs hygiene; `PLUGIN-PHILOSOPHY.md:474-476`
+  human-facing and graded on a different bar by docs hygiene; `plugin-philosophy.md:474-476`
   routes a cross-plugin concern to a `docs/conventions/` owner doc rather than a plugin README;
   converting the inline mentions to citations would **strip the presence gates from the invocation
   sites** (a seam-phrasing violation — the gate belongs where the invocation is instructed); and
@@ -218,7 +218,7 @@ given, and one disposal venue does not exist.
   "review gate passes" → suggest `confirm`, then PR after CONFIRMED. The skill that renders the
   verdict, the skill that lists the sequence, and the plugin that opens the PR all agreed;
   `implement`'s handoff step was the lone dissenter. Landed: a new owner doc
-  `docs/conventions/pre-pr-ordering/` with a registry row in `PLUGIN-PHILOSOPHY.md` (the registry's
+  `docs/conventions/pre-pr-ordering/` with a registry row in `plugin-philosophy.md` (the registry's
   own trigger — "a new cross-plugin convention lands in an owner doc before a second plugin adopts
   it" — had already fired); `pre-pr.md` cites the owner for the order and keeps ownership of what
   each step does; its override-boundary paragraph corrected from "fixed plugin identity" to fleet
@@ -261,7 +261,7 @@ given, and one disposal venue does not exist.
   > filing in that command's case format now has a runner. The routing decision recorded here
   > stands on its other grounds (the telemetry hook measures invocation directly). The adoption
   > record is the "Adoption record" paragraph under
-  > [MIGRATION-PLAYBOOK.md § "Evals — warrant policy and consumer-verify recipe"](../MIGRATION-PLAYBOOK.md#evals--warrant-policy-and-consumer-verify-recipe).
+  > [migration-playbook.md § "Evals: warrant policy and consumer-verify recipe"](../migration-playbook.md#evals-warrant-policy-and-consumer-verify-recipe).
 
 ## Lane D (#2937)
 
@@ -300,7 +300,7 @@ withheld; three of five initial answers revised on evidence).
   number would read a same-numbered issue in the *current* repo; (3) the contract-slice rung keys
   on the **topic slug**, not the branch slug — the branch axis is deliberately lossy. **Design
   correction found in PR review:** the item is read through a documented public seam or the provider
-  mechanic, never by invoking the sibling plugin's seam CLI — `PLUGIN-PHILOSOPHY.md` forbids
+  mechanic, never by invoking the sibling plugin's seam CLI — `plugin-philosophy.md` forbids
   discovering another plugin's installation directory, and no namespaced item-fetch action exists
   today. So this is *not* the marketplace's first cross-plugin seam call; the provider-mechanic read
   is the operative path, the rung works with no tracker plugin installed, and parent linkage (whose

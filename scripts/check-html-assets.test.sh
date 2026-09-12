@@ -4,27 +4,24 @@
 # listed), and a missing linter is an environment error, never a silent pass.
 set -uo pipefail
 
-# The fixture below is its own git repo; an inherited absolute GIT_DIR would
-# redirect its writes into the caller's clone (fixture-git-isolation gate).
-unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)" || exit 2
 CHECK="$SCRIPT_DIR/check-html-assets.sh"
 REAL_HTMLHINT="$REPO_ROOT/node_modules/.bin/htmlhint"
 
-PASS=0
-FAIL=0
+# shellcheck source=lib/test-harness.sh
+. "$SCRIPT_DIR/lib/test-harness.sh"
+# The builder clears the inherited git environment for the whole suite: the
+# fixture below is its own git repo, and an inherited absolute GIT_DIR would
+# redirect its writes into the caller's clone.
+# shellcheck source=lib/fixture-tree.sh
+. "$SCRIPT_DIR/lib/fixture-tree.sh"
 
-ok() {
-  echo "ok: $1"
-  PASS=$((PASS + 1))
-}
+# The builder assigns through a nameref, which shellcheck cannot follow;
+# declaring the out-var here is what tells it (SC2154) the name is written.
+fixture=""
 
-bad() {
-  echo "FAIL: $1" >&2
-  FAIL=$((FAIL + 1))
-}
+bad() { fail "$@"; }
 
 expect_exit() {
   local want="$1" label="$2" got
@@ -43,15 +40,13 @@ expect_exit() {
 set -e
 
 # Fixture repo: a temp git worktree with one tracked asset.
-fixture="$(mktemp -d)"
-trap 'rm -rf "$fixture"' EXIT
+fixture_tree::build fixture --git --plugins
 mkdir -p "$fixture/plugins/demo/reference" "$fixture/node_modules/.bin"
 cat >"$fixture/plugins/demo/reference/html-chrome.html" <<'HTML'
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>t</title></head>
 <body><p>ok</p></body></html>
 HTML
-git -C "$fixture" init -q
 git -C "$fixture" add -A
 
 manifest="$fixture/manifest.txt"
@@ -96,8 +91,4 @@ expect_exit 2 "missing htmlhint binary exits 2" \
 # 6. The real repo state passes end to end.
 expect_exit 0 "real repository manifest passes" "$CHECK"
 
-echo "PASS=$PASS FAIL=$FAIL"
-if ((FAIL > 0)); then
-  exit 1
-fi
-echo "PASS: scripts/check-html-assets.test.sh"
+test_harness::report

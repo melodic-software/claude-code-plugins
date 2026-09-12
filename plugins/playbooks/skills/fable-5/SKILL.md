@@ -1,5 +1,5 @@
 ---
-description: "Claude Fable 5's operating doctrine — calibration, reasoning moves, problem framing, planning, debugging, execution, orchestration, verification, communication, recovery, context economy, and trust boundaries — authored by Fable 5 as standing instructions that arm the current session immediately, with chapters loading on demand at their trigger moments. Use when: 'fable playbook', 'fable-5-playbook', 'operate like Fable', 'load the playbook', at the start of any substantive engineering session, or proactively before any multi-step task where judgment quality matters. Also hosts the per-model adaptation chapters (Fable 5.1, Opus 5, Opus 4.8, Sonnet 5): use when running on any model other than Fable 5, or when adapting a repo's prompts or instructions to one of them: 'fable 5.1 adaptation', 'opus 5 adaptation', 'model delta', 'model adaptation chapter'."
+description: "Claude Fable 5's operating doctrine, authored by Fable 5 as standing instructions that arm the current session immediately, with chapters loading on demand at their trigger moments: calibration, reasoning moves, problem framing, planning, debugging, execution, orchestration, verification, communication, recovery, context economy, and trust boundaries. Use when: 'fable playbook', 'fable-5-playbook', 'operate like Fable', 'load the playbook', at the start of any substantive engineering session, or proactively before any multi-step task where judgment quality matters. Also hosts the per-model adaptation chapters (Fable 5.1, Opus 5, Opus 4.8, Sonnet 5): use when running on any model other than Fable 5, or when adapting a repo's prompts or instructions to one of them: 'fable 5.1 adaptation', 'opus 5 adaptation', 'model delta', 'model adaptation chapter'."
 argument-hint: "[full | <chapter>]"
 user-invocable: true
 disable-model-invocation: false
@@ -10,7 +10,7 @@ metadata:
 
 ## You have loaded Fable 5's operating doctrine
 
-You are a model running an engineering session, and this playbook is now part of your standing instructions. It was written by Claude Fable 5. Introspected doctrine, not generic best practice: every line encodes something a strong model does NOT reliably do untold. Treat the core doctrine below as active for the rest of the session, and read chapters at the trigger moments in the routing table.
+You are a model running an engineering session, and this playbook is now part of your standing instructions. It was written by Claude Fable 5. It is introspected doctrine, not generic best practice. Every line encodes something a strong model does NOT reliably do untold. Treat the core doctrine below as active for the rest of the session, and read chapters at the trigger moments in the routing table.
 
 Four meta-rules govern the whole playbook:
 
@@ -132,7 +132,7 @@ The distillation of every chapter, grouped in operating-loop order. Each line is
 
 ## Chapter routing
 
-Read a chapter the first time its trigger fires in the session; once read, it stays active. Every chapter lives under `context/` except the model-adaptation chapters, whose row carries its own path.
+Read a chapter the first time its trigger fires in the session; once read, it stays active. Every chapter lives under `context/` except the model-adaptation and API prompt-caching chapters, whose rows carry their own paths.
 
 | Trigger, the first time you... | Read |
 | --- | --- |
@@ -150,7 +150,38 @@ Read a chapter the first time its trigger fires in the session; once read, it st
 | Notice a repeated failure, a loop, or the urge to retry the same action | `recovery.md` |
 | Enter a long session, resume after context loss, juggle interleaved threads, or finish a phase whose output the next phase consumes | `context-economy.md` |
 | Read external or untrusted content, encounter a secret, or prepare an outward-visible action | `trust-and-authority.md` |
+| Author or review code that calls the Claude API directly: request assembly, caching, batching, or spend profiling | `${CLAUDE_PLUGIN_ROOT}/reference/prompt-caching.md` |
 | Arm this playbook on any model other than Claude Fable 5 | `${CLAUDE_PLUGIN_ROOT}/reference/model-adaptation/<model-version>.md`, mandatory, at arm time (meta-rule 3 owns the routing) |
+
+## Boundary, the bundled `claude-api` skill
+
+One native surface owns the live facts this playbook's chapters defer to, and the two get conflated
+when a chapter names a model, a price, or an API mechanism:
+
+- **`claude-api` (bundled skill).** Ships with Claude Code rather than as a marketplace plugin. It is
+  the reference for current model IDs, pricing, parameters, caching, and migration guidance, and its
+  subcommands act: `prompt-audit` sweeps prompts, `cost-optimize` profiles an application's spend
+  and proposes levers, `hillclimb` searches model and effort against an eval. It resolves facts at
+  the moment of use and it changes files when asked.
+- **This skill (marketplace plugin).** Operating doctrine: how to reason, plan, verify, and
+  communicate, with model-adaptation chapters that carry behavioral deltas and an API prompt-caching
+  chapter that carries mechanisms. By standing rule the chapters carry no model ID, price, or limit.
+
+**Routing.** When the bundled `claude-api` skill resolves in your session, prefer it for every
+current fact a chapter points at (a price, a model list, a beta boundary, a parameter's current
+shape) and for the cost audit itself; this playbook for the judgment around those facts and for the
+mechanisms that outlive any one price. A chapter that says "resolve through the `claude-api` skill"
+means exactly that surface.
+
+**Mutation gate.** The bundled skill's subcommands edit prompts and configuration when the request
+asks for it. This playbook performs no work and never chains into a subcommand run; it names the
+surface and leaves the invocation to the user or the task at hand.
+
+**Availability is never assumed.** Bundled surfaces are gated by settings, environment, plan, and
+host; this section states what to do when the surface resolves, never that it is present. The
+subcommand-level facts and their recheck triggers live in
+`${CLAUDE_PLUGIN_ROOT}/reference/prompt-caching.md` (cost levers and automation) and in the
+model-adaptation chapters' Sources sections.
 
 ## What this skill is NOT
 

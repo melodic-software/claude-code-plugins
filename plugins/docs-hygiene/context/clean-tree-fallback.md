@@ -1,4 +1,4 @@
-# Clean-tree / no-scope fallback — shared contract
+# Clean-tree / no-scope fallback: shared contract
 
 SSOT for how docs-hygiene audit skills behave when invoked with **no target and
 no inherited working set**. Each skill cites this file and keeps only its
@@ -6,17 +6,18 @@ skill-specific prescribed defaults in its own `SKILL.md`.
 
 ## Shared shape (all audit skills)
 
-When the invocation is bare — empty arg, clean tree (or no inherited scope),
-and nothing in the conversation already naming a corpus — the skill:
+A bare invocation is an empty arg, a clean tree (or no inherited scope), and
+nothing in the conversation already naming a corpus. When all three hold, the
+skill:
 
 1. **Reports** that no default local target exists (uncommitted `.md` empty, or
    no inherited detect scope).
 2. **Offers** a confirmation-gated escalation to a repo-wide (or skill-default)
-   corpus run — never starts it unprompted.
+   corpus run. It never starts one unprompted.
 3. Presents **prescribed defaults** (overridable) so a bare "yes" suffices.
 4. On **decline or silence**, ends as the friendly no-op (skill-specific exit
    message). Unattended / non-interactive sessions surface the offer as blocked
-   and stop — never launch the repo-wide run on silence.
+   and stop. Never launch the repo-wide run on silence.
 5. An **explicit opt-in** keyword (`sweep`, `audit` with an explicit corpus
    flag, or a user-stated "whole repo") skips the confirmation and runs.
 
@@ -35,7 +36,7 @@ here rather than drifting.
 | `audit-encapsulation` | bare detect with no inherited scope | `sweep` | Domain is already repo-wide; confirm is about intent, not discovery |
 | `compress` (default + `audit`) | empty arg + clean tree, interactive | user-stated whole-repo / confirmed offer | Mutating default stays interview-gated after a free audit pass; bare `compress audit` on a clean tree offers the same free audit corpus (report-only) instead of no-opping |
 | `extract-ssot` | bare invocation with no scope | path/glob-scoped survey after confirm | Already documented as "Bare invocation: confirm scope first"; cites this shape |
-| `rename-references` | *(out of scope)* | — | Always needs an old/new token pair; no clean-tree corpus offer |
+| `rename-references` | *(out of scope)* | n/a | Always needs an old/new token pair; no clean-tree corpus offer |
 
 ## Deliberate divergences (do not "fix" these away)
 
@@ -48,7 +49,7 @@ here rather than drifting.
   spot-test caps, report-vs-fix). Those knobs stay in each skill's
   `SKILL.md`; this file owns only the offer/confirm/no-op skeleton.
 - **Non-interactive contexts** (subagent, headless/CI): no-op / blocked
-  offer — never auto-escalate. Compress states this explicitly; the others
+  offer. Never auto-escalate. Compress states this explicitly; the others
   inherit it from step 4 above.
 
 ## Citation

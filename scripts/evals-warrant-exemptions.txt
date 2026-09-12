@@ -1,7 +1,7 @@
 # Recorded evals-warrant skip verdicts for scripts/check-changed-skills.sh
 # and plugins/skill-quality/scripts/check-skill.sh --require-evals.
 #
-# Policy: docs/MIGRATION-PLAYBOOK.md § "Evals — warrant policy and consumer-verify
+# Policy: docs/migration-playbook.md § "Evals: warrant policy and consumer-verify
 # recipe". A skip is a reviewed, diffable line, not an implicit absence. The
 # gate honors these rows; anything unlisted still FAILs when its SKILL.md is
 # new or modified.

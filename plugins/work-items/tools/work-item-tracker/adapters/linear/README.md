@@ -32,7 +32,7 @@ subtree:
 | Key | Required | Meaning |
 |---|---|---|
 | `host` | yes | Bare hostname of the instance. Receives the credential, so it is validated before any request. |
-| `scopes` | yes | Non-empty array. The declared read scope **and** the authorization boundary — a verb refuses an item outside it even when the credential can see it. |
+| `scopes` | yes | Non-empty array. The declared read scope **and** the authorization boundary. A verb refuses an item outside it even when the credential can see it. |
 | `auth_env` | yes | **Name of** the environment variable holding the credential. The credential itself is never written to this tracked file. |
 | `host_suffix` | no | Your own pin on `host`. Default: ``.linear.app`(the provider's own domain)`. |
 | `allow_custom_domain` | no | `true` opts out of the suffix pin. Explicit and diffable. |
@@ -46,8 +46,8 @@ adapter's guards:
   `auth_env` and passed to curl through a stdin config (`-K -`). Process arguments are
   world-readable on a shared machine; a token there is disclosed to every local
   process. `common.test.sh` asserts this directly.
-- **Deny-by-default credential egress.** `host` must be a bare hostname — no scheme,
-  path, userinfo, or port — so a PR-modifiable binding cannot smuggle URL structure
+- **Deny-by-default credential egress.** `host` must be a bare hostname, with no scheme,
+  path, userinfo, or port, so a PR-modifiable binding cannot smuggle URL structure
   that redirects the token. Where a suffix pin applies it denies by default, and
   `allow_custom_domain` is the explicit opt-out.
 - **HTTPS only, no redirects.** curl runs with `--proto '=https'` and does not follow
@@ -62,18 +62,18 @@ adapter's guards:
 
 | Verb | Declared | Status |
 |---|---|---|
-| `create-item` | `true` | scaffold — provider mapping to write |
-| `get-item` | `true` | scaffold — provider mapping to write |
-| `claim` | `true` | scaffold — provider mapping to write |
-| `renew-lease` | `true` | scaffold — provider mapping to write |
-| `reclaim` | `true` | scaffold — provider mapping to write |
-| `link-blocks` | `true` | scaffold — provider mapping to write |
-| `add-sub-item` | `true` | scaffold — provider mapping to write |
-| `list-items` | `true` | scaffold — provider mapping to write |
-| `list-sub-items` | `true` | scaffold — provider mapping to write |
+| `create-item` | `true` | scaffold, provider mapping to write |
+| `get-item` | `true` | scaffold, provider mapping to write |
+| `claim` | `true` | scaffold, provider mapping to write |
+| `renew-lease` | `true` | scaffold, provider mapping to write |
+| `reclaim` | `true` | scaffold, provider mapping to write |
+| `link-blocks` | `true` | scaffold, provider mapping to write |
+| `add-sub-item` | `true` | scaffold, provider mapping to write |
+| `list-items` | `true` | scaffold, provider mapping to write |
+| `list-sub-items` | `true` | scaffold, provider mapping to write |
 | `capabilities` | `true` | generated, complete |
 
-A verb declared `false` exits `6` at the core capability gate with a clear message —
+A verb declared `false` exits `6` at the core capability gate with a clear message:
 explicit degradation, never a silent no-op or a faked result. Do not declare a verb
 `true` before its provider mapping is written: a scaffold that still calls
 `wit_linear_unimplemented` exits `1`, which is what stops unfinished work
@@ -98,7 +98,7 @@ bash tools/work-item-tracker/conformance/run-conformance.sh --binding linear
 
 - **Passing, offline, in CI:** the generated guards (`common.test.sh`), the manifest and
   manifest-vs-filesystem checks (`capabilities.test.sh`), and a mocked-transport suite
-  per verb — including the lease race, its same-millisecond tiebreak decided from *both*
+  per verb, including the lease race, its same-millisecond tiebreak decided from *both*
   sides, and reclaim's revalidation window. Every one drives the real code through a mock
   injected at `WIT_LINEAR_CURL`; none touches a network.
 - **NOT run:** the abstract conformance suite against a live Linear workspace, and any
@@ -118,7 +118,7 @@ from GitHub's model:
   through and let the verb emit a malformed record. `wit_linear_gql` inspects `errors`
   and maps them to contract exit codes before any caller sees `data`.
 - **`assignee` is a SINGLE field, not a list.** This is the difference that reshaped the
-  claim protocol — see below.
+  claim protocol, described below.
 - **State classification is on `WorkflowState.type`, never `.name`.** The type is the
   stable axis (`triage`, `backlog`, `unstarted`, `started`, `completed`, `canceled`,
   `duplicate`); the name is renameable per team, so classifying on it would break the
@@ -145,14 +145,14 @@ and backing off when another login is present. That works on GitHub because assi
 a **list**: both racers' assignments coexist, so both see the collision.
 
 Linear's `assignee` is a single field. The second writer **overwrites** the first and then
-re-reads only itself — the collision is invisible from the assignee alone, and a step-2
+re-reads only itself. The collision is invisible from the assignee alone, and a step-2
 check would report "no race" to *both* racers.
 
 So arbitration rests on the lease **comment ordering** instead, which the contract already
 specifies for the same-login case: post the lease, re-read every lease comment, earliest
 live one wins. Comments are durable and both racers observe the same set, so this is real
-arbitration rather than an emulation of one. The assignee is still written — it is what
-makes the claim visible in Linear's own UI and what the frontier reads — but it is not the
+arbitration rather than an emulation of one. The assignee is still written, because it is what
+makes the claim visible in Linear's own UI and what the frontier reads, but it is not the
 race detector here.
 
 Two consequences worth knowing:
@@ -161,7 +161,7 @@ Two consequences worth knowing:
   `lease_comment_id`; Linear's comment ids are unordered UUIDs, so this adapter mints its
   own handle into the marker JSON from the comment's `createdAt`, following the
   local-markdown precedent. Ties within a millisecond break on the comment UUID, so the
-  ordering stays **total** — without that, two same-millisecond racers would each read
+  ordering stays **total**. Without that, two same-millisecond racers would each read
   themselves as earliest and both would claim.
 - **The pre-check is an optimization, not the guard.** A live foreign lease is refused
   before anything is written, which saves the common case from assigning and unwinding.
@@ -171,7 +171,7 @@ Two consequences worth knowing:
 
 Facts this adapter was built without, each carrying a config override so the adapter does not depend on guessing them. Settle them against a live instance and record the answers here.
 
-- **Live conformance has not been run.** No Linear workspace is reachable from the environment this adapter was built in. Every verb is covered offline by a mocked-transport suite, and `conformance/bindings/linear.sh` is written and refuses to run without an explicitly named throwaway workspace — but the abstract suite has never executed against Linear itself.
+- **Live conformance has not been run.** No Linear workspace is reachable from the environment this adapter was built in. Every verb is covered offline by a mocked-transport suite, and `conformance/bindings/linear.sh` is written and refuses to run without an explicitly named throwaway workspace, but the abstract suite has never executed against Linear itself.
 - **Lease race arbitration is implemented but unraced.** Linear's `Issue.assignee` is a SINGLE field, not GitHub's assignee list, so the github protocol's step 2 (re-read assignees, back off if another login is present) cannot detect a race: the second writer overwrites the first and then sees only itself. This adapter therefore rests arbitration on the lease COMMENT ordering, which is durable and observable by both racers. That is a real mechanism rather than an emulated one, but it has not been exercised by two concurrent live sessions.
-- **The lease handle is a millisecond timestamp, not a provider id.** Linear comment ids are UUIDs — unordered — and the contract requires an ordered numeric `lease_comment_id`. The adapter follows the local-markdown precedent and embeds its own handle in the marker JSON, derived from the comment's `createdAt` epoch milliseconds. Ordering is therefore exact to the millisecond; two lease comments created in the same millisecond on one issue would tie, and the adapter breaks that tie on the comment UUID so arbitration stays deterministic. A live pass should confirm Linear's `createdAt` resolution.
-- **Workflow-state classification is defaulted, not observed.** `WorkflowState.type` is one of `triage`, `backlog`, `unstarted`, `started`, `completed`, `canceled`, `duplicate`. The adapter treats `completed`, `canceled`, and `duplicate` as closed, and that set is overridable via `config.linear.done_state_types` — the same override seam the jira adapter uses for the equivalent Jira fact, so the adapter is independent of it rather than betting on it.
+- **The lease handle is a millisecond timestamp, not a provider id.** Linear comment ids are UUIDs, which are unordered, and the contract requires an ordered numeric `lease_comment_id`. The adapter follows the local-markdown precedent and embeds its own handle in the marker JSON, derived from the comment's `createdAt` epoch milliseconds. Ordering is therefore exact to the millisecond; two lease comments created in the same millisecond on one issue would tie, and the adapter breaks that tie on the comment UUID so arbitration stays deterministic. A live pass should confirm Linear's `createdAt` resolution.
+- **Workflow-state classification is defaulted, not observed.** `WorkflowState.type` is one of `triage`, `backlog`, `unstarted`, `started`, `completed`, `canceled`, `duplicate`. The adapter treats `completed`, `canceled`, and `duplicate` as closed, and that set is overridable via `config.linear.done_state_types`, the same override key the jira adapter uses for the equivalent Jira fact, so the adapter is independent of it rather than betting on it.

@@ -1,4 +1,4 @@
-# Capability matrix — copied-external-content plugin
+# Capability matrix: copied-external-content plugin
 
 Design-stage decomposition per /planning:design, written 2026-08-27 against the Brief in
 `../PLAN.md`. Working plugin name: `provenance` (recommended by the naming pass; final pick is
@@ -205,7 +205,7 @@ carries the named categorical exclusion from every scan corpus.
 > **Adoption note, 2026-09-12.** The condition this section makes the wrap conditional on is met:
 > `claude plugin eval` shipped in Claude Code 2.1.269 on 2026-09-11 and this marketplace adopted it.
 > The adoption record is the "Adoption record" paragraph under
-> [MIGRATION-PLAYBOOK.md § "Evals — warrant policy and consumer-verify recipe"](../MIGRATION-PLAYBOOK.md#evals--warrant-policy-and-consumer-verify-recipe),
+> [migration-playbook.md § "Evals: warrant policy and consumer-verify recipe"](../migration-playbook.md#evals-warrant-policy-and-consumer-verify-recipe),
 > which also states that the two formats coexist rather than one replacing the other, so the
 > per-skill `evals/evals.json` warrant above is untouched. The section is left as recorded.
 

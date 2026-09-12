@@ -5,14 +5,14 @@ Process Modeling is a different beast from Big Picture. Big Picture is about dis
 ## Context and Assumptions
 
 - Designing a new **business process** (or redesigning a broken one)
-- The problem is **relevant** — typically the bottleneck highlighted during Big Picture arrow voting
-- **Limited scope** — focusing on a single end-to-end process
+- The problem is **relevant**, typically the bottleneck highlighted during Big Picture arrow voting
+- **Limited scope**: focusing on a single end-to-end process
 - **Smaller number of people** with different backgrounds collaborating toward a solution
-- **Not designing software yet** — that's Design-Level EventStorming
+- **Not designing software yet**: that's Design-Level EventStorming
 
 ## The Cooperative Game
 
-### Game Goals — Four Win Conditions
+### Game Goals: Four Win Conditions
 
 The game ends when:
 
@@ -23,8 +23,8 @@ The game ends when:
 
 ### Completion States
 
-- **System Happy** — no further action is necessary (all events have reached stable state)
-- **User Happy** — involved users are aware of the process completion (they see the outcome somewhere)
+- **System Happy**: no further action is necessary (all events have reached stable state)
+- **User Happy**: involved users are aware of the process completion (they see the outcome somewhere)
 
 Processes start from a trigger (Command or external Event) and finish with a combination of Events and Read Models.
 
@@ -44,9 +44,9 @@ Successful collaboration requires giving up specialized jargon. Technical jargon
 
 **Two strict rules (the color grammar):**
 
-1. **"There must be a Pink System between a Blue Command and an Orange Event."** Commands don't produce events directly — they're processed by a system (or aggregate at Design-Level). Making the system explicit forces the team to identify who/what is responsible.
+1. **"There must be a Pink System between a Blue Command and an Orange Event."** Commands don't produce events directly. They're processed by a system (or aggregate at Design-Level). Making the system explicit forces the team to identify who/what is responsible.
 
-2. **"There must be a Lilac Policy between an Orange Event and a Blue Command."** There is always a business decision between an event and the reaction. The mandatory lilac forces the team to think — "there is no such thing as an implicit cascading reaction."
+2. **"There must be a Lilac Policy between an Orange Event and a Blue Command."** There is always a business decision between an event and the reaction. The mandatory lilac forces the team to think: "there is no such thing as an implicit cascading reaction."
 
 These rules are non-negotiable. Every gap in the grammar is a conversation the team hasn't had yet.
 
@@ -58,14 +58,14 @@ These rules are non-negotiable. Every gap in the grammar is a conversation the t
 
 In process modeling, events must be **state transitions** and phrasing is **strictly mandatory** (past tense).
 
-Be ready to rewrite events many times — different rounds increase semantic precision and require more events.
+Be ready to rewrite events many times. Different rounds increase semantic precision and require more events.
 
 **Four sources of events:**
 
-1. **User Interaction** — user + system = event(s). One interaction can produce multiple events (alternative outcomes: happy path on top, alternatives below)
-2. **External System** — sensors, integrations, external organizations
-3. **Time** — clock icon for hours/minutes, calendar for days/months. Recurring events get a recurring symbol
-4. **Cascading Reaction** — "whenever X then Y" — always mediated by a Policy (there is no such thing as an implicit cascading reaction)
+1. **User Interaction**: user + system = event(s). One interaction can produce multiple events (alternative outcomes: happy path on top, alternatives below)
+2. **External System**: sensors, integrations, external organizations
+3. **Time**: clock icon for hours/minutes, calendar for days/months. Recurring events get a recurring symbol
+4. **Cascading Reaction**: "whenever X then Y", always mediated by a Policy (there is no such thing as an implicit cascading reaction)
 
 **Events that are NOT happening:**
 
@@ -73,13 +73,13 @@ Be ready to rewrite events many times — different rounds increase semantic pre
 - "End of day happened before Greeting Received" models a forgotten birthday
 - Making the time-frame explicit leads to interesting insights
 
-**Different wordings for the same event are not a bad thing** — resist premature agreement. Different wordings mirror different concerns and are often an indicator of multiple Bounded Contexts.
+**Different wordings for the same event are not a bad thing.** Resist premature agreement. Different wordings mirror different concerns and are often an indicator of multiple Bounded Contexts.
 
 ### Commands / Actions / Intentions (Blue)
 
-Blue stickies represent actions. Can be called Commands, Actions, Decisions, or Intentions — the semantic differences are real but less important than the visible traits: **blue, present tense**.
+Blue stickies represent actions. Can be called Commands, Actions, Decisions, or Intentions. The semantic differences are real but less important than the visible traits: **blue, present tense**.
 
-- Commands don't imply completion — Events contain the outcome(s)
+- Commands don't imply completion. Events contain the outcome(s)
 - Commands can fail or be rejected
 
 ### People (Small Yellow)
@@ -92,11 +92,11 @@ Different types of people may:
 - Need alternative or extra steps in the flow
 - Need different information to complete the task
 
-**Internal users deserve as much attention as customers** — stopping at role categorization misses reality.
+**Internal users deserve as much attention as customers.** Stopping at role categorization misses reality.
 
 ### Systems (Pink)
 
-During process modeling, systems need to be more specific than "whatever we can blame." Make every specific system explicit — different systems have different strengths and pain points. Generic systems hide complexity.
+During process modeling, systems need to be more specific than "whatever we can blame." Make every specific system explicit. Different systems have different strengths and pain points. Generic systems hide complexity.
 
 **Conversational Systems** (phone, email, chat) are harder to model event-driven:
 
@@ -117,10 +117,10 @@ A policy sits **between an orange event and a blue command**. Captures reactive 
 
 Policies have dual nature:
 
-- **Name** — don't waste time finding a good name initially; leave blank or write tentative
-- **Implementation** — infer from surrounding events and commands, say it loud
+- **Name**: don't waste time finding a good name initially; leave blank or write tentative
+- **Implementation**: infer from surrounding events and commands, say it loud
 
-Once implementation is agreed, the name becomes obvious. Asking experts "How do you call this policy?" won't help — some people do things without naming them.
+Once implementation is agreed, the name becomes obvious. Asking experts "How do you call this policy?" won't help. Some people do things without naming them.
 
 #### Software or People
 
@@ -137,9 +137,9 @@ Policies represent different stages of maturity:
 
 #### Policies as Lie Detectors
 
-**"Policies is where people lie."** Discovering the real implementation of an existing policy is an investigation game. There are codified rules, interpretation, and reality — they rarely match.
+**"Policies is where people lie."** Discovering the real implementation of an existing policy is an investigation game. There are codified rules, interpretation, and reality, and they rarely match.
 
-**Speak Out Loud technique:** Read the policy aloud — "Whenever we receive an email from a customer asking to hold a room, we just do it." Your brain (and your colleagues) will immediately object, revealing the real complexity.
+**Speak Out Loud technique:** Read the policy aloud: "Whenever we receive an email from a customer asking to hold a room, we just do it." Your brain (and your colleagues) will immediately object, revealing the real complexity.
 
 Iterate: add read models (information needed), add conditions, add alternative paths, read aloud again. Each round gets closer to reality.
 
@@ -166,8 +166,8 @@ Green for value created, red for value destroyed. Multiple currencies beyond mon
 
 Fuzzy Definitions are intentional:
 
-1. **Inclusive conversation** — precise notations create barriers for non-specialists
-2. **Speed** — make everything visible quickly; precision can come later
+1. **Inclusive conversation**: precise notations create barriers for non-specialists
+2. **Speed**: make everything visible quickly; precision can come later
 
 "Precision is not a bad thing: precision will be necessary; we'll be introducing it gradually."
 
@@ -177,13 +177,13 @@ Fuzzy Definitions are intentional:
 
 ### Opening Strategies (pick one or combine)
 
-**1. Start from the beginning** — matches natural storytelling, easy for first-timers. Downside: maximizes branching. Use Rush to the Goal to stay on track.
+**1. Start from the beginning**: matches natural storytelling, easy for first-timers. Downside: maximizes branching. Use Rush to the Goal to stay on track.
 
-**2. Start from the end** — collect desired outcomes, sort by priority, work backward (Reverse Narrative). Very lean — shortest path to satisfaction. Downside: mentally demanding, assumes known outcomes.
+**2. Start from the end**: collect desired outcomes, sort by priority, work backward (Reverse Narrative). Very lean, the shortest path to satisfaction. Downside: mentally demanding, assumes known outcomes.
 
-**3. Make a little mess** — small brainstorming of orange Events, spaced enough to connect with other colors. Quick skeleton, but "going to discover quickly that your skeleton is wrong." Can get out of control.
+**3. Make a little mess**: small brainstorming of orange Events, spaced enough to connect with other colors. Quick skeleton, but "going to discover quickly that your skeleton is wrong." Can get out of control.
 
-No clear winner — strategies can be combined. "Be ready to react to the signals from your team." Keep the modeling surface around 6 meters. Leave empty space before the trigger for unexpected preconditions.
+No clear winner. Strategies can be combined. "Be ready to react to the signals from your team." Keep the modeling surface around 6 meters. Leave empty space before the trigger for unexpected preconditions.
 
 ### The Three-Pass Technique
 
@@ -204,21 +204,21 @@ Capture feedback with hotspots, add Read Models (information needed for decision
 
 **Example (B&B room hold):**
 
-- Round 1: "Whenever we receive an email from a customer asking to hold a room, we just do it." — Sounds stupid, triggers objections.
+- Round 1: "Whenever we receive an email from a customer asking to hold a room, we just do it." Sounds stupid, triggers objections.
 - Round 2: Add customer info and availability checks. "Whenever we receive a room hold request, if the customer provided their full name and phone number, and there's room availability, we just do it."
 - Round 3: Apply Magic Keywords → discover only trusted regulars can hold; default is polite no. Policy splits into two.
 
 **Pass 3: Magic Keywords ("Always" / "Immediately")**
 
-Repeat each policy sentence prepending **"Always"** and/or **"Immediately"**: "We always, immediately do X whenever Y." Then enjoy the show — your brain or your team will immediately surface exceptions and corner cases that were hidden. This breaks approximately 50%+ of policies that seemed solid after Pass 2.
+Repeat each policy sentence prepending **"Always"** and/or **"Immediately"**: "We always, immediately do X whenever Y." Then enjoy the show. Your brain or your team will immediately surface exceptions and corner cases that were hidden. This breaks approximately 50%+ of policies that seemed solid after Pass 2.
 
 ### Mid-Game Strategies
 
 - Explore alternative paths (what if the command fails?)
-- Apply the color grammar strictly — every gap is a conversation to have
-- **Recognize the rabbit hole** — symptoms: people detach from the surface, topic not visible on model, sentences start with "Yes, but if..." solving multiple scenarios simultaneously. Use hotspots to defer branches; limit work-in-progress to one issue
-- **Keep everything visible** — "We don't talk about invisible things." Main facilitator responsibility
-- **Split & Merge** — when personalities clash, split teams to attack from different angles. If both followed the color grammar, easy to spot similar/divergent parts. "It's never fair to choose between 'the visible model we built together' and 'the invisible one this person is talking about'"
+- Apply the color grammar strictly. Every gap is a conversation to have
+- **Recognize the rabbit hole**. Symptoms: people detach from the surface, topic not visible on model, sentences start with "Yes, but if..." solving multiple scenarios simultaneously. Use hotspots to defer branches; limit work-in-progress to one issue
+- **Keep everything visible**: "We don't talk about invisible things." Main facilitator responsibility
+- **Split & Merge**: when personalities clash, split teams to attack from different angles. If both followed the color grammar, easy to spot similar/divergent parts. "It's never fair to choose between 'the visible model we built together' and 'the invisible one this person is talking about'"
 - Rewrite events for precision as understanding deepens
 
 ### Are We Done?

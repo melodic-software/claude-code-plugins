@@ -27,7 +27,7 @@ Write a test that fails for the exact same reason as the bug. The test name shou
 
 If you can't reproduce it in a test, you can't prove you fixed it. For intermittent failures, instrument the code path to capture the race condition or timing dependency.
 
-**Commit the failing test** — this proves the bug exists in git history. Optional but valuable for traceability.
+**Commit the failing test.** This proves the bug exists in git history. Optional but valuable for traceability.
 
 ### Step 2: Isolate
 
@@ -41,7 +41,7 @@ Don't fix the symptom. Find the root cause:
 
 Change the smallest amount of code that fixes the root cause. NOT a refactoring opportunity:
 
-- Fix the production code, not the test's assertion — a test edited to pass is not a fix. If the test itself is wrong, correct it deliberately and say so
+- Fix the production code, not the test's assertion. A test edited to pass is not a fix. If the test itself is wrong, correct it deliberately and say so
 - Fix the bug, nothing more
 - Leave unrelated cleanup in the files you touch for a separate commit
 - If the fix reveals a design problem, note it for a separate refactor commit
@@ -50,8 +50,8 @@ Change the smallest amount of code that fixes the root cause. NOT a refactoring 
 
 The failing test from step 1 must now pass. If it still fails:
 
-- The fix is incomplete — back to step 2
-- The fix introduced a different failure — you may be fixing the symptom, not the cause
+- The fix is incomplete: back to step 2
+- The fix introduced a different failure: you may be fixing the symptom, not the cause
 
 ### Step 5: Regression
 
@@ -81,9 +81,9 @@ After fixing one instance, ask: is this a pattern? Could the same bug exist in s
 
 ## Commit discipline
 
-- **Failing test committed separately** (optional) — proves the bug existed
-- **Fix + green test committed together** — the fix and its proof are atomic
-- **Each loop iteration is a potential commit** — if you fixed one bug but found another, commit the first fix before starting the second loop
+- **Failing test committed separately** (optional). Proves the bug existed
+- **Fix + green test committed together**. The fix and its proof are atomic
+- **Each loop iteration is a potential commit**. If you fixed one bug but found another, commit the first fix before starting the second loop
 
 ## When to escalate
 
@@ -91,7 +91,7 @@ If after 3 iterations the fix keeps breaking other things:
 
 - The code may need redesign, not a patch
 - Route back to the planning skill (invoke `/planning:plan review` via the Skill tool when installed) for a broader replanning
-- Don't push through — that's how technical debt compounds
+- Don't push through. That's how technical debt compounds
 
 ## Integration with /implementation:implement
 

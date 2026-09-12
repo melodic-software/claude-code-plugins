@@ -1,4 +1,4 @@
-# Idea to Title — Developing a Seed Toward a Title
+# Idea to Title: Developing a Seed Toward a Title
 
 ## Contents
 
@@ -8,11 +8,11 @@
 - [Artifact pattern](#artifact-pattern)
 - [Cross-references](#cross-references)
 
-Pat Pattison — *Writing Better Lyrics* (2009), Chapter 4 ("Learning to
+Pat Pattison, *Writing Better Lyrics* (2009), Chapter 4 ("Learning to
 Say No: Building Worksheets"), Chapter 19 ("Understanding Motion"),
 Chapter 24 ("Process").
 
-The writer has a seed: an image, a feeling, a phrase, a scene, a vibe —
+The writer has a seed: an image, a feeling, a phrase, a scene, a vibe,
 but no title yet. This file routes seed → title.
 
 Pat's stance on why volume matters here, verbatim, Chapter 4's opening
@@ -30,9 +30,9 @@ the song."
 
 Distinct from:
 
-- `brainstorm.md` — no seed yet at all
-- `fragment-development.md` — a partial line or section, not just a seed
-- `hook.md` "Title generation" — title generation techniques (the seven types, Nashville method)
+- `brainstorm.md`: no seed yet at all
+- `fragment-development.md`: a partial line or section, not just a seed
+- `hook.md` "Title generation": title generation techniques (the seven types, Nashville method)
 
 This file is the BRIDGE between seed and title generation. It walks the
 writer from intuition to concrete title candidates.
@@ -46,14 +46,14 @@ this".
 
 ## Workflow
 
-### Step 1 — Distill the seed
+### Step 1: Distill the seed
 
 Ask the writer to say the seed in one sentence. Out loud, if possible.
 Then write it down. Then ask:
 
 - **What** is the song about? (subject)
-- **Who** says it? (speaker — first / second / third person)
-- **To whom** is it said? (audience — listener / second-person you / no one specifically)
+- **Who** says it? (speaker: first / second / third person)
+- **To whom** is it said? (audience: listener / second-person you / no one specifically)
 - **Why now**? (the precipitating moment that made this song want to exist)
 - **What's the emotion underneath**? (not the emotion on the surface)
 
@@ -83,7 +83,7 @@ worked dialogue for "Risky Business" over the subject of homelessness:
 His instruction: "In each case, it's up to you to find the angle,
 brainstorm the idea, and create the world the idea will live in."
 
-### Step 2 — Object-write the seed's world
+### Step 2: Object-write the seed's world
 
 Set a 10-minute timer. Object-write the world the seed implies:
 
@@ -103,7 +103,7 @@ helps me find out what I have to offer that originates from my own unique
 sense experiences. The closer I stay to my senses, the more real and
 effective my writing will be."
 
-His mining pass is the model — he keeps some images, discards others, and
+His mining pass is the model. He keeps some images, discards others, and
 says why: the front loaders come "out of my childhood and may not be
 helpful in the scene," he likes "the shells digging to China," the
 spirals etched in the shells "may be useful, since the song seems
@@ -113,7 +113,7 @@ and he likes "the tides as a metaphor for the parents' voices."
 Chapter 4's Exercise 9 gives the same move for a subject rather than a
 title: "dive into homelessness for ten minutes. Stay sense-bound and very
 specific." Its target is what T.S. Eliot called an **objective
-correlative** — in Pat's words, "objects anyone can touch, smell, and see
+correlative**, in Pat's words, "objects anyone can touch, smell, and see
 that correlate with the emotion you want to express." His examples: a
 broken wheel on a homeless woman's shopping cart; the speaker's parents
 fighting. And his instruction not to stop at the first one: "Even if you
@@ -127,7 +127,7 @@ After the timer, mine for:
 - the most specific noun
 - a possible title fragment
 
-### Step 3 — Generate title candidates
+### Step 3: Generate title candidates
 
 From the mined material AND the distilled seed sentence, generate 10-15
 title candidates.
@@ -140,26 +140,26 @@ whoever owns `hook.md` should confirm its source.
 The seven title types (per `hook.md` "Title generation", where the
 count is this plugin's, not Pat's):
 
-1. **One-word** — a single noun, verb, or adjective
-2. **Place-name** — a location, real or invented
-3. **Person-name** — a character, real or invented
-4. **Color or sensory** — a visible or felt detail
-5. **Comparative** — "more X than Y", "less X than Y"
-6. **Word-play** — pun, idiom flip, double meaning
-7. **Sonic-bonding** — alliteration, assonance, internal rhyme
+1. **One-word**: a single noun, verb, or adjective
+2. **Place-name**: a location, real or invented
+3. **Person-name**: a character, real or invented
+4. **Color or sensory**: a visible or felt detail
+5. **Comparative**: "more X than Y", "less X than Y"
+6. **Word-play**: pun, idiom flip, double meaning
+7. **Sonic-bonding**: alliteration, assonance, internal rhyme
 
 Generate rapid-fire across all seven types. Don't edit. First-pass output.
 
-### Step 4 — Stressed-vowel analysis on each candidate
+### Step 4: Stressed-vowel analysis on each candidate
 
 For each candidate title, identify:
 
-- **Stressed vowel(s)** — the title's load-bearing vowel sound(s)
-- **Front-heavy vs back-heavy** — does the title's stress land early
+- **Stressed vowel(s)**: the vowel sound(s) the title's stress lands on
+- **Front-heavy vs back-heavy**: does the title's stress land early
   (lands on downbeat, feels anchored) or late (lands after downbeat, feels
   in motion)? Per `phrasing.md`
-- **Stress count** — 2-stress, 3-stress, 4-stress, 5-stress
-- **Syllable count** — exact (verify via `datamuse syllables` for long
+- **Stress count**: 2-stress, 3-stress, 4-stress, 5-stress
+- **Syllable count**: exact (verify via `datamuse syllables` for long
   titles)
 
 This analysis determines rhyme worksheet input, form fit, hook position,
@@ -176,11 +176,11 @@ Pat's rule for what to do with those vowels, *Writing Better Lyrics*
 The move is to light up a vowel **inside** the title, not to rhyme with
 its last word. His illustration: with an oncoming chorus titled "For One
 Smile in a Million," an unrhymed `while` at the end of the preceding
-three-line section emphasizes `smile` when the chorus lands — "Nifty
+three-line section emphasizes `smile` when the chorus lands. "Nifty
 tool, eh?" Exercise 41 restates it for a five-line scheme: "Target an
 inner vowel of the title line rather than the end rhyme."
 
-### Step 5 — Run rhyme stability test on each candidate
+### Step 5: Run rhyme stability test on each candidate
 
 For each surviving candidate, run a quick worksheet pass (per
 `rhyme-worksheets.md` three-step algorithm):
@@ -216,7 +216,7 @@ defense
 home (hope, broken, coat)
 ```
 
-Note the parenthesized duplicates — they are kept but flagged as sharing
+Note the parenthesized duplicates: they are kept but flagged as sharing
 a vowel with the headword. And his caveat: "This is not a final list.
 Don't be afraid to switch, add, or take out words as the process
 continues."
@@ -234,6 +234,7 @@ tide    glide, slide, inscribed, flight, harbor light, sacrifice,
         still life, revived, rise, arise
 ```
 
+<!-- ai-slop-ignore-start: verbatim Pat Pattison quotations from Writing Better Lyrics, Chapter 24; the "too dramatic" rejection carries the book's em dash -->
 His rejections are as instructive as his keeps: `free` is "overused,"
 `plea` is court-only ("Why use it in a lyric just to get a rhyme?"),
 `referee` "takes me somewhere I don't want to be in this song," `hell` is
@@ -241,12 +242,13 @@ His rejections are as instructive as his keeps: `free` is "overused,"
 than it conveys. Like soul. Avoid those clunkers." Under `sand` he finds
 "nothing interesting under perfect rhyme except the tired old
 hand/understand/command nonsense."
+<!-- ai-slop-ignore-end -->
 
 A title that can ONLY perfect-rhyme with cliche partners is a weaker title
 than one with family-rhyme + world-vocabulary options. More options =
 better choices.
 
-### Step 6 — Test the title against form
+### Step 6: Test the title against form
 
 Does this title repeat well, or live once?
 
@@ -254,18 +256,18 @@ Does this title repeat well, or live once?
 - **Lives once** → AABA / verse-refrain
 - **Conversational** → bridge target / through-written
 
-Per `song-forms.md`. The title's emotional shape decides — not a default
+Per `song-forms.md`. The title's emotional shape decides, not a default
 form preference.
 
 The other half of the test is whether the verses can deliver the title.
 Pat, Chapter 24: "My first job is to make sure the verses set up the
 title. Additional lines can come along later when I'm sure the title
 works with the verses." He deliberately keeps the first-pass chorus thin
-for that reason — "I don't want to make too early a commitment to a lot
+for that reason: "I don't want to make too early a commitment to a lot
 of ideas in the chorus. It's best to keep it streamlined and simple at
 first."
 
-### Step 7 — Choose the title (or shelve)
+### Step 7: Choose the title (or shelve)
 
 Surface 2-3 surviving candidates with:
 
@@ -276,7 +278,7 @@ Surface 2-3 surviving candidates with:
 - proposed form fit
 
 Let the writer choose. If none feels right, shelve and re-run Step 2 with
-a different angle on the seed — or shelve the seed entirely for now.
+a different angle on the seed, or shelve the seed entirely for now.
 
 A seed that doesn't yield a strong title isn't necessarily a bad seed.
 Sometimes seeds need to season.
@@ -286,7 +288,7 @@ Sometimes seeds need to season.
 | Failure | Recovery |
 |---|---|
 | Writer jumps to drafting before titling | back up; the title is the structural seed (per `hook.md`) |
-| Title is too abstract ("Hope", "Time") | route back through Step 2 — the abstraction needs a sense-bound collar |
+| Title is too abstract ("Hope", "Time") | route back through Step 2, since the abstraction needs a sense-bound collar |
 | Title rhymes only with cliche partners | shift stressed vowel via near-rhyme reframe, OR shelve and re-seed |
 | Multiple strong titles compete | pick the one whose stressed vowel + stress count best matches the emotional shape from Step 1 |
 | Title feels strong but writer can't commit | object-write the song's world for another 10 min; the commitment usually follows material |
@@ -295,8 +297,8 @@ Sometimes seeds need to season.
 
 If a slug exists, mined seed material + title candidates land in:
 
-- `songwriting/songs/<slug>/ideation/seeds.md` — seed sentence + Step 1 answers
-- `songwriting/songs/<slug>/ideation/title-candidates.md` — 10-15 candidates with stressed-vowel + form-fit analysis
+- `songwriting/songs/<slug>/ideation/seeds.md`: seed sentence + Step 1 answers
+- `songwriting/songs/<slug>/ideation/title-candidates.md`: 10-15 candidates with stressed-vowel + form-fit analysis
 
 After title lock:
 
@@ -305,13 +307,13 @@ After title lock:
 
 ## Cross-references
 
-- `brainstorm.md` — pre-seed phase (no idea yet)
-- `object-writing.md` — Step 2 craft method
-- `hook.md` "Title generation" — seven title types, Nashville method, targeting
-- `phrasing.md` — front-heavy / back-heavy analysis
-- `rhyme-generation.md` — internal rhyme search discipline
-- `rhyme-worksheets.md` — three-stage worksheet
-- `song-forms.md` — title repeats-well vs lives-once
-- `fragment-development.md` — if seed is already a partial line, not just a seed
-- `metaphor.md` — Chapter 24's grounded-metaphor rule; the same chapter
+- `brainstorm.md`: pre-seed phase (no idea yet)
+- `object-writing.md`: Step 2 craft method
+- `hook.md` "Title generation": seven title types, Nashville method, targeting
+- `phrasing.md`: front-heavy / back-heavy analysis
+- `rhyme-generation.md`: internal rhyme search discipline
+- `rhyme-worksheets.md`: three-stage worksheet
+- `song-forms.md`: title repeats-well vs lives-once
+- `fragment-development.md`: if seed is already a partial line, not just a seed
+- `metaphor.md`: Chapter 24's grounded-metaphor rule; the same chapter
   that works this title also decides where the song is set

@@ -38,12 +38,8 @@ LIB="plugins/skill-quality/scripts/skill-frontmatter.sh"
 CONFIG="scripts/cheatsheet-config.mjs"
 REQUIREMENTS=".github/requirements-ci.txt"
 
-fails=0
-pass() { printf 'ok   - %s\n' "$1"; }
-fail() {
-  printf 'FAIL - %s\n' "$1" >&2
-  fails=$((fails + 1))
-}
+# shellcheck source=lib/test-harness.sh
+. "$REPO_ROOT/scripts/lib/test-harness.sh"
 
 for f in "$CASES" "$LIB" "$CONFIG"; do
   [[ -f "$f" ]] || {
@@ -183,7 +179,7 @@ while IFS=$'\t' read -r id expect expect_yaml value_b64; do
   elif [[ "$js_verdict" != "$expect" ]]; then
     fail "$id: JavaScript guard said $js_verdict, contract says $expect"
   else
-    pass "$id: both readers agree ($expect)"
+    ok "$id: both readers agree ($expect)"
   fi
 
   # The oracle. A value both readers ACCEPT must round-trip through a real
@@ -202,7 +198,7 @@ done < <(jq -r '.cases[] | [.id, (if .valid then "valid" else "invalid" end), (.
 if ((case_count == 0)); then
   fail "the shared case table produced no cases"
 else
-  pass "shared case table: $case_count cases exercised against both readers and the YAML oracle"
+  ok "shared case table: $case_count cases exercised against both readers and the YAML oracle"
 fi
 
 # --- Sweep 2: every SKILL.md in the tree -------------------------------------
@@ -294,11 +290,7 @@ done <<<"$tree_report"
 if ((tree_count == 0)); then
   fail "no SKILL.md carrying metadata.summary was found — the tree sweep proved nothing"
 else
-  pass "tree sweep: $tree_count summaries agree across the bash reader, the generator's reader, and a real YAML parser"
+  ok "tree sweep: $tree_count summaries agree across the bash reader, the generator's reader, and a real YAML parser"
 fi
 
-if ((fails > 0)); then
-  printf '\n%d parity failure(s)\n' "$fails" >&2
-  exit 1
-fi
-printf '\nsummary reader parity holds\n'
+test_harness::report

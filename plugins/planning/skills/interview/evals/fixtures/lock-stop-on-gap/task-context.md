@@ -1,15 +1,15 @@
-# Task context — workspace deletion endpoint (eval fixture)
+# Task context: workspace deletion endpoint (eval fixture)
 
 Everything the user has said before invoking `lock`. Raw material only: this file states what the
 user asked for and what the surrounding business context is. It does not label any item as a fact
-or a decision, and it does not say what the interview should do — that is what the eval case grades.
+or a decision, and it does not say what the interview should do. That is what the eval case grades.
 
 ## What the user said
 
 > We need a `DELETE /workspaces/{id}` endpoint on the exports service. Only a workspace owner may
-> call it. It has to be soft-delete — we've been burned by hard deletes before, and support needs a
+> call it. It has to be soft-delete. We've been burned by hard deletes before, and support needs a
 > window to undo an accidental one. Membership rows go with the workspace. Return 202 and do the
-> teardown asynchronously; the UI already polls the workspace record. I've told you enough — lock
+> teardown asynchronously; the UI already polls the workspace record. I've told you enough. Lock
 > the brief.
 
 ## Surrounding context the user has mentioned in this session
@@ -32,7 +32,7 @@ is marked as settled or unsettled.
 - The `memberships` rows.
   - Stamp `deleted_at` in the same transaction as the workspace.
   - Leave them and filter on the workspace's state.
-- The `export_runs` rows — one per completed export, each holding the object-storage key of the file
+- The `export_runs` rows, one per completed export, each holding the object-storage key of the file
   it produced.
   - Stamp `deleted_at` alongside the workspace.
   - Delete them as part of the teardown.

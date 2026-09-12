@@ -3,6 +3,38 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.52]
+
+### Changed
+
+- Cite the marketplace `docs/` doctrine files by their lower-kebab names (`docs/plugin-philosophy.md`, `docs/migration-playbook.md`, and siblings); the files were renamed and the old uppercase paths no longer resolve.
+
+## [0.6.51]
+
+### Changed
+
+- **Options reference drops its em dashes.** The generated How-to-set-these block is rewritten by `scripts/sync-plugin-options-docs.py`, which is the fix site: its output is regenerated, never hand-edited. The block no longer needs the ignore marker that exempted it from the repository's em-dash gate, so that marker is gone as well.
+- **The plugin's prose drops its em dashes.** This changelog and `skills/setup/SKILL.md` were rewritten. Wording only, with no change to any hook, flag, or default. No heading was touched, so every release still parses. The setup body's two reconfiguration lines converged byte-for-byte on the wording its sibling plugins already carry. The released sections corrected in place are 0.6.41, 0.6.26, 0.6.25, 0.6.23, 0.6.21, 0.6.16, 0.6.13, 0.6.6, 0.6.4, 0.6.3, 0.6.2, 0.6.1, 0.6.0, 0.5.3, 0.5.2, 0.5.1, 0.5.0, 0.4.4, 0.4.3, 0.4.2, 0.4.1, 0.4.0, 0.3.4, 0.3.2, 0.3.1, 0.3.0, 0.2.0, and 0.1.0: their wording changed, their facts did not.
+- **Two entries say what a case carries instead of calling it load-bearing.** They now read "the one case where it matters" and "deliberate and required".
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md` and every `skills/*/SKILL.md`.
+
+- **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
+
+## [0.6.50]
+
+### Changed
+
+- **The hook's exit arms go through the shared `hook::finish`**, which takes
+  the rewrite guard's disclosure, emits telemetry with the arm's verdict,
+  emits exactly one channels document and exits, instead of each arm spelling
+  that sequence itself.
+- **Emitting accumulated context no longer forks `jq`.** The accumulator's
+  flush now composes through the fork-free emitter that builds the same
+  document, which removes two processes from a run that emits context twice.
+
+This hook stays outside the shared formatter engine on purpose: it derives its
+disclosure from the tool's own report rather than from an exit-code map.
+
 ## [0.6.49]
 
 ### Changed
@@ -139,8 +171,8 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
 
 - **Vendored `hook-utils.sh` drops two `buffer_stdin` startup subshells and a
   `tr` exec on every `repo_root`.** Timeout and slice resolution write into
-  caller variables (`printf -v`) instead of `$( )` / process substitution —
-  GNU Bash forks a subshell for both even when the body is builtins only.
+  caller variables (`printf -v`) instead of `$( )` / process substitution,
+  because GNU Bash forks a subshell for both even when the body is builtins only.
   `hook::repo_root` strips CR with parameter expansion, the same substitution
   `buffer_stdin` already uses for the payload. New `hook::json_str_object_to`
   builds compact string-field objects without jq, for telemetry data builders
@@ -359,7 +391,7 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
   PATH, which the plugin-gate job does not install, so that case kept
   skipping on every PR. The stub suite now records argv and asserts the hook
   injects `-c <plugin>/config/default-typos.toml` whenever `CLAUDE_PLUGIN_ROOT`
-  is set — and does not inject it when the variable is unset. The stub helper
+  is set, and does not inject it when the variable is unset. The stub helper
   unsets `CLAUDE_PLUGIN_ROOT` so an ambient host value cannot flip the
   negative case
   ([#3133](https://github.com/melodic-software/claude-code-plugins/issues/3133)).
@@ -374,15 +406,15 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
   ([#3133](https://github.com/melodic-software/claude-code-plugins/issues/3133)). Registering
   the tool alone would not have been enough: `NotebookEdit` carries its target as
   `tool_input.notebook_path`, not `file_path`, so the hook would have fired and found no path
-  to check. The hook now accepts either key — an explicit `file_path` still wins — and normalizes
+  to check. The hook now accepts either key, with an explicit `file_path` still winning, and normalizes
   before the shared reader, which keeps that reader's project-membership and temp-tree scoping
   the single gate a path passes through. `.ipynb` is not on the write allowlist, so a notebook
   is scanned and disclosed, never rewritten in place.
 - **hook:** the agent-channel disclosure ceiling is 8,000 characters, down from 12,000. The
-  hooks reference caps hook output strings — `additionalContext` included — at 10,000, and
+  hooks reference caps hook output strings, `additionalContext` included, at 10,000, and
   saves anything past that to a file, replacing it with a preview and a path. The old ceiling
-  sat 2,000 characters above that cap, so the hook's own truncation — which keeps the finding
-  counts and says that it truncated — could never fire first: a disclosure in that band was
+  sat 2,000 characters above that cap, so the hook's own truncation, which keeps the finding
+  counts and says that it truncated, could never fire first: a disclosure in that band was
   demoted to a file pointer *after* write mode had already rewritten the file, which is the
   outcome the ceiling exists to prevent
   ([#3133](https://github.com/melodic-software/claude-code-plugins/issues/3133)).
@@ -408,11 +440,11 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
   whole stored `pluginConfigs` entry, resetting every declared option to its manifest default.
   On Claude Code 2.1.240 a plain `claude plugin install … --config` against an already-installed
   plugin prints `already installed` and still writes the value, so that is now the documented
-  route — stamped with the CLI version it was verified against
+  route, stamped with the CLI version it was verified against
   ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). `apply` also
   now separates the write from its effect: the stored value changes immediately, but the running
   session's hooks keep the `CLAUDE_PLUGIN_OPTION_*` they were handed at session start, so
-  verification means rerunning `check` in a FRESH session — a same-session rerun reports the old
+  verification means rerunning `check` in a FRESH session. A same-session rerun reports the old
   value, which is not a failed write. It never asserts an unobserved change.
 - **Docs:** the generated options block's headless route no longer implies `--config` applies
   only at install time, and now carries the CLI version its claim was verified against
@@ -442,7 +474,7 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
 
 ### Changed
 
-- Sync `hook-utils.sh` from `lib/` — two header-echo comments removed in
+- Sync `hook-utils.sh` from `lib/`: two header-echo comments removed in
   `hook::emit_telemetry` (comment-only; no behavior change).
 
 ## [0.6.20]
@@ -494,7 +526,7 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
 
 - **Write mode honors an explicit extension allowlist before `--write-changes` (#2650).** The
   read-only scan stays language-agnostic (any edited file). Opt-in write mode no longer rewrites
-  unknown extensions, extensionless paths, or fixture/lock/binary-adjacent types — those stay
+  unknown extensions, extensionless paths, or fixture/lock/binary-adjacent types. Those stay
   report-only even when `typos_format_write_changes` is true. `--write-changes` emits nothing for
   a correction it applies, so an unbounded write path was unbounded blast radius; the allowlist is
   defense in depth on top of `--force-exclude`. Denied paths still surface findings, with a note
@@ -521,7 +553,7 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
 
 - **Bundled `default-typos.toml` parses again (#1257 follow-up):** `extend-ignore-re` was
   written as a TOML table (`[default.extend-ignore-re]` with the regex as a key), which
-  typos-cli rejects — `invalid type: map, expected valid sequence` — so every hook run
+  typos-cli rejects with `invalid type: map, expected valid sequence`, so every hook run
   failed as a tool break instead of spell-checking. Now the documented array form under
   `[default]`, restoring both the spell-check and the SHA-corruption guard the file
   exists to carry.
@@ -567,13 +599,13 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
 ### Changed
 
 - **Shared `hook-utils.sh`: the jq gate now has a fail-CLOSED sibling, and the posture reasoning
-  lives at the helper (#2146).** `hook::require_jq` is unchanged and still fails OPEN — one visible
-  skip notice per session, then exit 0 — which is the correct posture for every hook in this plugin,
-  so **nothing in this plugin's behaviour changes**. What is new is `hook::require_jq_blocking`, a
+  lives at the helper (#2146).** `hook::require_jq` is unchanged and still fails OPEN, with one
+  visible skip notice per session, then exit 0. That is the correct posture for every hook in this
+  plugin, so **nothing in this plugin's behaviour changes**. What is new is `hook::require_jq_blocking`, a
   second named function that denies the tool call instead, for the narrow class of guards whose job
   is blocking an irreversible operation (today only two, both in `guardrails`). A sibling function
   rather than a parameter, because a flag's omitted value would default to fail-open and a guard
-  whose flag someone forgot would then fail open *silently* — the exact defect #2146 reports,
+  whose flag someone forgot would then fail open *silently*, the exact defect #2146 reports,
   reintroduced at the API. The two postures are now argued together in one block above both
   functions, which is what #2146 asked for: previously each call site asserted a posture in a
   comment and nothing where the decision is made explained it. Synced from `lib/hook-utils.sh`.
@@ -594,7 +626,7 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
 
 - **Upstream doc stamps re-verified against the live pages (2026-08-10).** Each dated claim below was re-checked against the complete raw markdown source of the page it cites (`https://code.claude.com/docs/en/<page>.md`), not a summarized fetch, and each was confirmed by a verbatim quote before its stamp was refreshed. No claim changed; only the verification dates moved.
 
-  - `hooks/typos-format.sh` — the same `${user_config.*}` shell-form rejection and
+  - `hooks/typos-format.sh`: the same `${user_config.*}` shell-form rejection and
     `CLAUDE_PLUGIN_OPTION_<KEY>` export guarantee (plugins reference, "User configuration").
 
 ## [0.6.3]
@@ -604,12 +636,12 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
 - **Shared `hook-utils.sh`: `hook::jq_fields` now REPORTS a NUL byte in a payload value
   (#2122).** 0.6.1 stopped a NUL from failing the helper's cardinality check, by stripping every
   NUL out of each value. That keeps the helper working, but stripping also silently rewrites the
-  value — `--no-verify<NUL>x` arrives as `--no-verifyx` — so a caller that owns a block/allow
-  verdict cannot tell a clean payload from one that carried a NUL, and matches against a token the
-  payload never held contiguously. The fact is now reported in a new `HOOK_JQ_FIELDS_NUL` global,
+  value: `--no-verify<NUL>x` arrives as `--no-verifyx`. A caller that owns a block/allow
+  verdict then cannot tell a clean payload from one that carried a NUL, and matches against a token
+  the payload never held contiguously. The fact is now reported in a new `HOOK_JQ_FIELDS_NUL` global,
   set on EVERY call including every failure path, so such a caller can fail closed on its own terms.
   It is computed from the values as the payload carried them, BEFORE the strip; strip first and the
-  flag would read "0" on every payload. Values themselves are unchanged — still stripped, so a
+  flag would read "0" on every payload. Values themselves are unchanged, still stripped, so a
   scanning caller still sees everything after the NUL. This plugin's own hooks do not consult the
   new global, so their behaviour is unchanged. Synced from `lib/hook-utils.sh`.
 
@@ -621,7 +653,7 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
   git guards (#2124).** `-S` exists so a shebang line can pass OPTIONS to env
   (`#!/usr/bin/env -S -i prog`), so the words it splits out are env's own arguments. The resolver
   spliced them back into the scan but resumed at the COMMAND dispatcher, which read a leading
-  option in the split string as the command NAME and gave up — `env -S '-C <dir> git push --force'`
+  option in the split string as the command NAME and gave up. `env -S '-C <dir> git push --force'`
   resolved to no git at all, so every guard built on `hook::git_resolve_index` skipped the command
   unexamined. Parsing now resumes inside env's own option loop. That also keeps env's single chdir
   slot last-wins across the splice, so `env -C a -S '-C b git …'` reports `b`, matching GNU env.
@@ -633,13 +665,13 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
 
 - **Shared `hook-utils.sh`: a NUL byte inside a payload value no longer makes `hook::jq_fields`
   come back empty (#2120).** The helper delimits its batched fields with NUL, and a JSON string may
-  legitimately encode one — a `Write`/`Edit`/`NotebookEdit` content field can. jq emitted the raw
+  legitimately encode one, as a `Write`/`Edit`/`NotebookEdit` content field can. jq emitted the raw
   byte, the read split that value in two, the cardinality check saw one value too many, and the
-  helper returned non-zero — which every caller treats as "skip", so the hook exited without doing
+  helper returned non-zero, which every caller treats as "skip", so the hook exited without doing
   its work. Each value is now NUL-stripped INSIDE the jq filter, so the delimiter provably cannot
   occur in a value. Stripping is not a lesser alternative to an encoding scheme, it is the only
   representable behavior: a bash variable cannot hold a NUL byte, and the per-field command
-  substitution this helper replaced dropped the byte and kept the rest of the value — so content
+  substitution this helper replaced dropped the byte and kept the rest of the value, so content
   AFTER a NUL is returned and scanned exactly as it was before the batching. Synced from
   `lib/hook-utils.sh`.
 
@@ -649,7 +681,7 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
 
 - **The bare `/<skill>` alias for this plugin's skills.** Their `SKILL.md` files no longer
   declare a frontmatter `name`. The field is optional and defaults to the directory name, so
-  declaring it only restated the path while registering a second, unnamespaced command — which
+  declaring it only restated the path while registering a second, unnamespaced command, which
   the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
   namespaced command; the command itself is unchanged.
 
@@ -663,12 +695,12 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
   parallel, and `typos-format` and `markdown-format` both declare the matcher `"Write|Edit"`, so a
   sibling formatter can reflow the file between the scan and the write and carry an untouched
   finding to a different line. The moved residual then failed to match its own scan entry and was
-  reported as an applied correction — a false mutation disclosure on the one channel this hook
+  reported as an applied correction, a false mutation disclosure on the one channel this hook
   exists to make trustworthy. Residuals are now matched by token PAIRED WITH their correction
   decision and cancelled by COUNT, so a finding that merely moved still cancels its scan entry, and
   residual line numbers are taken from the write pass's own output rather than the scan's stale
   ones. The correction list is part of the key because one spelling can carry two decisions in one
-  file — an occurrence reached by `extend-identifiers` beside one reached by `extend-words`, or a
+  file: an occurrence reached by `extend-identifiers` beside one reached by `extend-words`, or a
   fixable occurrence beside a disallowed one. Keyed on the token alone those merge, and the count
   can then retire the fixable entry and disclose the disallowed one instead: a rewrite claimed at
   the wrong line with a blank correction, while the rewrite that really happened goes unmentioned.
@@ -680,7 +712,7 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
   the applied line numbers are best-effort for a repeated finding that genuinely moved. That
   preference is a linear partition over an object lookup rather than a sort over `index`, for the
   same reason the membership check beside it is an object: `index` is a linear scan, and one per
-  entry over a cluster of repeats is quadratic — 10,000 repeats of one token measured 31s against
+  entry over a cluster of repeats is quadratic. 10,000 repeats of one token measured 31s against
   the 15s handler budget, and 0.07s at the 500 the existing scale fixtures use, so a fixture that
   size cannot see it. Classification runs after the file is already rewritten, so blowing that
   budget is a silent mutation with no disclosure.
@@ -700,9 +732,9 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
   intentional, add it to extend-words…"), formerly repeated on every residual line, is replaced by
   one trailing pointer for the whole list; the applied-path disclosure keeps its facts (dictionary
   source, no-memory re-correction, allow-list route) at less than half the length; and the
-  report-only header drops its option-explainer parenthetical. The finding lists themselves —
-  residual findings with the tool's suggested corrections, and applied rewrites disclosed on both
-  channels — are policy-class ground truth and are unchanged.
+  report-only header drops its option-explainer parenthetical. The finding lists themselves are
+  policy-class ground truth and are unchanged: residual findings with the tool's suggested
+  corrections, and applied rewrites disclosed on both channels.
 
 ## [0.5.1]
 
@@ -715,7 +747,7 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
   with jq. On Windows Git Bash, where process creation is `fork()` emulation, each spawn costs
   ~140 ms. Behavior is unchanged: the slice keeps the three-decimal form `read -t` is given, the
   buffer is CR-stripped as before, and the completeness verdict is reused only when jq itself
-  produced it — so a host without jq still fails open exactly as it did. Also adds
+  produced it, so a host without jq still fails open exactly as it did. Also adds
   `hook::jq_fields`, which extracts several fields from one payload in a single jq process for
   hooks that read two or three of them. Synced from `lib/hook-utils.sh`.
 
@@ -728,13 +760,13 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
   the script fallback, so the out-of-the-box hook reports findings and never modifies a file. A
   dictionary autocorrect is a content mutation the user never asked for (#1257's silent SHA
   corruption is one instance), and an unconditional writer here raced the sibling
-  `markdown-format` writer on every Markdown edit with no defined precedence — Claude Code runs
+  `markdown-format` writer on every Markdown edit with no defined precedence. Claude Code runs
   matching `PostToolUse` hooks in parallel with no ordering primitive. Part of #1809's
   single-writer decision: by default at most one in-place rewriter matches any file class.
   Consumers who want corrections applied set the option to `true`, accepting last-writer-wins
   ordering with any sibling formatter hook that rewrites the same file (disclosed in the README;
   residual scoped-writer overlap is tracked fleet-wide in #875). The write gate now requires the
-  literal `true` — the mutating direction is the one that needs the exact opt-in spelling, so a
+  literal `true`. The mutating direction is the one that needs the exact opt-in spelling, so a
   typo'd option value stays report-only. Zero-config reporting, disclosure of applied rewrites in
   write mode, and remediation guidance are unchanged.
 
@@ -744,15 +776,16 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
 
 - **Shared `hook-utils.sh`: the OS temp tree is no longer treated as project content (#1769).**
   `hook::read_file_path` scoped a file to the project by prefix-matching `CLAUDE_PROJECT_DIR`, so a
-  session whose project directory is the user's home admitted everything under the OS temp root —
+  session whose project directory is the user's home admitted everything under the OS temp root,
   including Claude Code's own per-session scratchpad, which lives there. Hooks that lint, rewrite, or
   autocorrect then ran on throwaway files that are not project content and carry no project config to
   opt out with; the reported case was `typos-format` autocorrecting a shell variable in a scratch
   script and silently breaking it. The guard now rejects a file inside the OS temp tree when the
-  project root is outside it. The exemption is deliberate and load-bearing: when the project root
-  itself lives under temp — a `mktemp -d` fixture checkout, which is how this repository's own hook
-  suites run — its files are still accepted. Temp roots come from `TMPDIR` / `TMP` / `TEMP` plus the
-  POSIX defaults, canonicalized through the same pipeline the membership comparison already uses.
+  project root is outside it. The exemption is deliberate and required: when the project root
+  itself lives under temp, its files are still accepted. This repository's own hook suites run
+  that way, from a `mktemp -d` fixture checkout. Temp roots come from `TMPDIR` / `TMP` / `TEMP`
+  plus the POSIX defaults, canonicalized through the same pipeline the membership comparison
+  already uses.
   Synced from `lib/hook-utils.sh`.
 
 ## [0.4.3]
@@ -762,7 +795,7 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
 - **Shared `hook-utils.sh`: a wrapper's working-directory change is no longer lost when a caller
   parses only git's own global options (#1503).** `hook::git_resolve_index` walks wrapper programs
   (`env`, `sudo`, …) to reach the real `git` token, and a caller that scopes its git-global parsing
-  to the slice starting at that token cannot see a relocation the wrapper already performed — GNU env
+  to the slice starting at that token cannot see a relocation the wrapper already performed. GNU env
   documents `-C, --chdir=DIR` as "change working directory to DIR". The resolver now reports those
   directories in a new `HOOK_GIT_RESOLVED_WRAPPER_DIRS` result global, in execution order, so a
   caller composes them ahead of git's own globals instead of dropping them. Five spellings are read
@@ -779,14 +812,14 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
 - **Shared `hook-utils.sh`: an in-project file spelled as a Windows 8.3 short name is no longer
   silently skipped (#1636).** `hook::physical_path` canonicalized with GNU realpath, which under
   Git Bash resolves symlinks but leaves 8.3 short names (`KYLESE~1`) unexpanded, so a short-form
-  `file_path` — the shape Claude Code's own scratchpad paths take — failed the
+  `file_path`, the shape Claude Code's own scratchpad paths take, failed the
   `CLAUDE_PROJECT_DIR` prefix comparison in `hook::read_file_path` and the hook skipped the file
   silently: no lint, no notice, no telemetry. The lib now expands short names on Windows/MSYS
   hosts (new `hook::expand_8dot3`, via `cygpath -l`) before the comparison, and only when the
-  expanded form actually differs — a legitimate long name containing `~` passes through
+  expanded form actually differs. A legitimate long name containing `~` passes through
   untouched, and a genuinely out-of-project file is still skipped: that defense-in-depth scoping
   is deliberate and preserved. 8.3 generation is a per-volume property (`fsutil 8dot3name
-  query`), so the defect was live only for checkouts on a volume that generates short names —
+  query`), so the defect was live only for checkouts on a volume that generates short names,
   and invisible to contributors whose checkouts sit on one that does not. Synced from
   `lib/hook-utils.sh`.
 
@@ -799,11 +832,11 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
   pipe one byte at a time (~32 KB/s on Git Bash), so the `stdin_read_timeout` bound was really a
   ~64 KB throughput ceiling rather than the stall detector it was written to be. Past that ceiling
   the read returned a truncated payload and rc 1, and this plugin's hooks took their `|| exit 0`
-  branch — the hook did not run at all, with no diagnostic, on exactly the large writes it was
+  branch. The hook did not run at all, with no diagnostic, on exactly the large writes it was
   most wanted for. The read is now chunked (`read -N`), which bash satisfies with block reads, and
   the bound became a true idle bound: `read -t` is a deadline for the whole requested read rather
   than an inactivity timer, so a timed-out read that nevertheless returned bytes is now treated as
-  progress — its partial chunk is kept and a fresh window is armed. Only a window that delivers
+  progress. Its partial chunk is kept and a fresh window is armed. Only a window that delivers
   nothing at all is a stall. `read -N` is Bash 4.1+, and these hooks support Bash 3.2+ (macOS
   system bash), so the pre-4.1 path falls back to the delimiter read inside the same re-arming
   loop. Measured: 50 KB drops from ~2100 ms to ~20 ms, 200 KB from ~6800 ms to ~85 ms. Synced
@@ -814,20 +847,20 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
 ### Fixed
 
 - **Every correction the hook applies is now disclosed on both channels.** On the
-  all-fixed path the hook emitted nothing at all — no `additionalContext`, no
-  `systemMessage`, telemetry only — so a rewrite drawn from typos' built-in
-  dictionary reached the file with the only trace being the harness's generic
+  all-fixed path the hook emitted nothing at all: no `additionalContext`, no
+  `systemMessage`, telemetry only. A rewrite drawn from typos' built-in
+  dictionary then reached the file with the only trace being the harness's generic
   "a PostToolUse hook modified this file" notice: no hook name, no word, no
   diff. An acronym or identifier the dictionary maps to an unrelated English
   word was therefore corrupted invisibly, indistinguishably from a benign
-  reformat. The hook now reports each applied rewrite — token, replacement, and
-  line — to Claude via `additionalContext` and to the user via `systemMessage`,
+  reformat. The hook now reports each applied rewrite, with its token,
+  replacement, and line, to Claude via `additionalContext` and to the user via `systemMessage`,
   capped at ten per run with a count of the remainder so the disclosure cannot
   itself become a context flood.
 - **The allow-list remediation moved onto the applied-correction path.** The
   "if intentional, add it to `extend-words` / `extend-identifiers`" guidance sat
   only on the residual branch, so it never fired for the corrections that
-  actually change file content — the one case where it is load-bearing. A
+  actually change file content, the one case where it matters. A
   dictionary autocorrect has no memory: a word repaired by hand is rewritten
   again on the next edit until the repo allow-lists it, and until now nothing
   said so.
@@ -839,19 +872,19 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
   modified. Read from the `CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_WRITE_CHANGES`
   environment mirror, because shell-form hook commands reject
   `${user_config.*}` substitution outright.
-- **`data.applied` on the telemetry envelope** — the corrections this run wrote,
+- **`data.applied` on the telemetry envelope**: the corrections this run wrote,
   as `{typo, correction, line}`. Additive; `data.findings` keeps its existing
   residual-only meaning and shape.
 - **`/typos-format:setup check` reports the effective write mode.** The setup
   skill described a single tunable and probed only `typos_format_enabled`, so
   with `typos_format_write_changes=false` it could report the hook fully
   operational to a user who invoked it precisely because spell-fixing was not
-  happening. Write mode is now a reported INFO row with its own remediation —
+  happening. Write mode is now a reported INFO row with its own remediation,
   including the alternative that usually fits better, allow-listing the specific
   words rather than turning every correction off.
 - **Stub-driven contract tests for the disclosure surface.** The suite
   previously skipped in full when no `typos` binary was installed, which is the
-  CI runner's state — so nothing about this hook was gated there. The
+  CI runner's state, so nothing about this hook was gated there. The
   disclosure, report-only, cap, and telemetry cases now run against a stub
   binary and execute everywhere; the config-discovery and exclusion cases still
   require a real `typos`.
@@ -865,7 +898,7 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
   captures the pre-write finding set; the applied set is derived as scan minus
   what survived the write, rather than by guessing which findings typos
   considers safe to auto-fix. Cost is one extra typos invocation only on files
-  that actually have findings — measured at roughly 80 ms on a 68 KB file,
+  that actually have findings, measured at roughly 80 ms on a 68 KB file,
   against the handler's 15-second timeout. The read-only pass runs first, so a
   run killed at the timeout between the two passes has modified nothing.
   Both passes are guarded identically: an exit 2 with no output is a typos break,
@@ -874,14 +907,14 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
 - **Classification is one `jq` pass, not a shell loop.** Process-spawn cost, not
   typos, dominates this hook, and a per-finding loop turns a heavily-corrected
   file into the very defect being fixed: the file is rewritten, the handler's
-  15-second timeout fires, and stdout is empty — silent mutation again, on
+  15-second timeout fires, and stdout is empty. That is silent mutation again, on
   exactly the files where the disclosure matters most. The scan set, the
   residual set, the split between them, and the capped display text are all
   produced by a single invocation, so the subprocess count is constant in the
   number of findings. Both finding sets reach `jq` on **stdin**, never as
   `--arg` values: Windows caps a process command line at 32767 characters and
   typos' jsonlines run about 110 bytes per finding, so an argument-passed set
-  broke silently somewhere past ~300 corrections — jq never ran and the hook
+  broke silently somewhere past ~300 corrections. jq never ran and the hook
   degraded to "could not be summarized" on precisely the typo-heavy files the
   disclosure matters most for. A 500-correction file (past that limit, and the
   scale at which the old per-finding loop timed out) is asserted to disclose all
@@ -889,7 +922,7 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
   residual key is built and compared as a JSON string inside `jq`, so a token
   carrying a shell or glob metacharacter is data throughout.
 - **Residual membership is a hash lookup, not a linear scan.** Classifying with
-  `index` over an array is quadratic exactly when the residual set is large — a
+  `index` over an array is quadratic exactly when the residual set is large, as in a
   minified or generated file where most findings are ambiguous. Measured: 10,000
   all-residual findings took about 15.7 s inside `jq` alone, past the handler's
   15-second timeout, and the file is rewritten *before* classification runs, so
@@ -904,12 +937,12 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
   contract; one that arrives claiming a heavily-rewritten file was untouched is
   not. The shared `hook::emit_telemetry` still hands the finished payload over
   as an argument (#1595), so an oversized envelope is currently dropped rather
-  than delivered — the correct failure direction, and what the scale assertion
-  pins.
+  than delivered. That is the correct failure direction, and what the scale
+  assertion pins.
 - **The disclosure is bounded by characters, not only by entry count.** Capping
   the list at ten entries does not cap the message: a token or a correction is
   arbitrary text from the file, so ten long ones overrun the 10,000-character
-  `systemMessage` cap and the channel truncates or rejects the disclosure —
+  `systemMessage` cap and the channel truncates or rejects the disclosure,
   after the file has already been rewritten, which is the one outcome this path
   exists to prevent. Rendered tokens are elided at 60 characters and each
   channel carries a hard ceiling, with the truncation stated in the message.
@@ -923,7 +956,7 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
 
 ### Changed
 
-- **Test scaffolding: migrated `mktemp -p` temp file/dir creation to the portable `mktemp "$DIR/template"` form.** BSD/macOS `mktemp` has no `-p` flag; the directory now rides in the positional TEMPLATE argument instead, which both GNU and BSD `mktemp` accept identically. Test-only — no hook behavior change. Part of #1527 (`typos-format.test.sh`).
+- **Test scaffolding: migrated `mktemp -p` temp file/dir creation to the portable `mktemp "$DIR/template"` form.** BSD/macOS `mktemp` has no `-p` flag; the directory now rides in the positional TEMPLATE argument instead, which both GNU and BSD `mktemp` accept identically. Test-only, with no hook behavior change. Part of #1527 (`typos-format.test.sh`).
 
 ## [0.3.3]
 
@@ -950,8 +983,8 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
   both halves to `-s user`. When this plugin is installed at `project` or `local` scope, that
   silently uninstalled a separate user-scope record while the effective project/local install kept
   loading, and the reinstall landed at a scope that does not load. Both commands now carry
-  `-s <scope>`, sourced from what `claude plugin list` reports for this plugin — the same fix
-  already applied to `session-flow` and `rate-limit-guard` in #1393.
+  `-s <scope>`, sourced from what `claude plugin list` reports for this plugin. This is the same
+  fix already applied to `session-flow` and `rate-limit-guard` in #1393.
 
 ## [0.3.1]
 
@@ -960,7 +993,7 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
 - Sync of the shared `hook-utils.sh`: the git-option parser distinguishes `--config-env`
   (an env-var name) from `-c`/`--config` (an inline value), and a `--config-env` alias for
   a guarded subcommand is refused by shape rather than by resolving the environment
-  variable's value (`#740`). No behavior change for this plugin — it does not inspect git
+  variable's value (`#740`). No behavior change for this plugin, which does not inspect git
   config values; shipped so consumers receive the shared library update.
 
 ## [0.3.0]
@@ -969,8 +1002,8 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
 
 - **`statusMessage` declared on the hook's `hooks.json` handler** (hook-observability
   convention, `docs/conventions/hook-observability/`): a spinner label ("Fixing
-  typos...") now shows while the hook runs. Config-only — no runtime behavior
-  change.
+  typos...") now shows while the hook runs. Config-only, with no runtime
+  behavior change.
 
 ## [0.2.0]
 
@@ -978,13 +1011,13 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
 
 - **Removed the opt-in config-gate.** The hook now runs `typos --write-changes`
   unconditionally on every `Write`/`Edit`, matching `markdown-format`'s existing
-  unconditional pattern — typos ships a built-in spelling dictionary and needs
+  unconditional pattern, because typos ships a built-in spelling dictionary and needs
   no configuration to be useful. Previously the hook silently no-op'd on any
   repo without a hand-authored `typos.toml`/`_typos.toml`/`.typos.toml`/
   `Cargo.toml`/`pyproject.toml`, defeating the plugin's zero-config auto-fix
   purpose on exactly the repos it was meant to help. A consumer typos config,
   when present, is still discovered and honored automatically by typos itself
-  (allowlist/exclude) — this hook never re-implemented that discovery and
+  (allowlist/exclude). This hook never re-implemented that discovery and
   still doesn't; only the activation gate is removed.
 
 ## [0.1.0]
@@ -997,7 +1030,7 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
   found by an ancestor walk-up, mirroring the `ruff-format`/`markdown-format`
   plugin pattern. Residual (unfixable) findings surface via `additionalContext`
   with remediation guidance pointing at `extend-words` / `extend-identifiers` /
-  `extend-ignore-re` allowlist entries. Advisory only — never blocks the edit.
+  `extend-ignore-re` allowlist entries. Advisory only, never blocking the edit.
 - `hook-telemetry` conformance: emits a schema-valid envelope
   (`docs/conventions/hook-telemetry/data/typos-format.schema.json`) via the
   shared `hook::emit_telemetry` helper.

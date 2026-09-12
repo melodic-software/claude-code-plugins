@@ -21,27 +21,27 @@ Default layout (relative to `${CLAUDE_PROJECT_DIR}`):
 
 Per-song folder anatomy: `PLAN.md` / `BRIEF.md` / `LYRIC.md` / `ideation/` / `variations/` /
 `worksheets/` / `research/` / `decisions/` / `journal/`. Slug = song title kebab-cased, lowercase,
-no version qualifiers (`v1`, `final`, dates) — one canonical song per slug; rewrites overwrite
+no version qualifiers (`v1`, `final`, dates). One canonical song per slug; rewrites overwrite
 within the slug.
 
 **Consumer override:** if the consuming project's `CLAUDE.md` or rules define their own songwriting
-artifact layout, that layout wins — the table above is the default, not a mandate.
+artifact layout, that layout wins. The table above is the default, not a mandate.
 
 ## Template override
 
 When loading any `templates/<name>.md`, check
-`${CLAUDE_PROJECT_DIR}/songwriting/templates/pat-pattison/<name>.md` first — a project-level
+`${CLAUDE_PROJECT_DIR}/songwriting/templates/pat-pattison/<name>.md` first. A project-level
 override wins over the bundled skill default (first match), so writers layer custom versions without
 forking the plugin.
 
 ## Output-to-file conventions
 
 When the user asks for variations / multiple options, write each option to a `variations/<line>.md`
-file as a labeled menu — don't dump options inline. **"Inline dump" means the whole generated set
-pasted into chat, unlabeled and untrimmed — not candidates in chat at all.** A trimmed menu of 3-4
+file as a labeled menu. Don't dump options inline. **"Inline dump" means the whole generated set
+pasted into chat, unlabeled and untrimmed, not candidates in chat at all.** A trimmed menu of 3-4
 candidates rendered as full-context section blocks is REQUIRED in chat, per
-[variations](variations.md) "Presenting the candidates — chat vs file"; the untrimmed set is what
+[variations](variations.md) "Presenting the candidates: chat vs file"; the untrimmed set is what
 goes to the file. When introducing a rhyme pair, run the
 identity-vs-rhyme check (pre-vowel consonants MUST differ) via the song's
-`worksheets/audit-checklist.md` Step 3 before declaring "this rhymes" — identity is NOT rhyme (per
+`worksheets/audit-checklist.md` Step 3 before declaring "this rhymes". Identity is NOT rhyme (per
 [rhyme-fundamentals](rhyme-fundamentals.md)).

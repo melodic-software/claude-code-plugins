@@ -192,6 +192,28 @@ if ((${#paths[@]} == 2)) && [[ "${paths[0]}" == "keep.sh" && "${paths[1]}" == "m
 else
   fail "into --no-renames returned: ${paths[*]-<none>}"
 fi
+
+# --find-renames pins detection ON regardless of the repository's diff.renames.
+# A gate whose verdict depends on a move collapsing to its destination alone
+# (check-contract-slice-prune.sh: a `git mv` OUT of the policed root is the
+# prescribed graduation) cannot let a config setting decide, so the flag is
+# asserted against a repo that has turned detection OFF.
+git_test_config "$repo" config diff.renames false >/dev/null
+paths=()
+run_into "$repo" paths "$base" --include-deleted --
+if ((${#paths[@]} == 2)); then
+  ok "diff.renames=false does split a move by default (the fixture is discriminating)"
+else
+  fail "diff.renames=false fixture did not split the move: ${paths[*]-<none>}"
+fi
+
+paths=()
+run_into "$repo" paths "$base" --include-deleted --find-renames --
+if ((${#paths[@]} == 1)) && [[ "${paths[0]}" == "moved.sh" ]]; then
+  ok "into --find-renames collapses a move even under diff.renames=false"
+else
+  fail "into --find-renames returned: ${paths[*]-<none>}"
+fi
 rm -rf "$repo"
 
 # --- into: NUL safety (the divergence this extraction closed) -------------

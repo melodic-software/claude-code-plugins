@@ -86,7 +86,7 @@ jobs:
       # reporting a clean run it did not earn. fetch-base is off because
       # this job never diffs against origin/$BASE_REF.
       - name: Deepen history
-        uses: ./.github/actions/checkout-with-base
+        uses: ./.github/actions/checkout-with-base # zizmor: ignore[self-repository]
         with:
           fetch-base: "false"
 

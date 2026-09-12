@@ -36,7 +36,7 @@ HLS/HTTP URLs keep them (`isRemoteVideoInput` in `frames/scene-detect.js`).
 
 Keyword signals: `DENSIFICATION_SIGNALS` (code/slide/demo/terminal patterns).
 
-**Tune signal:** driver video is mixed talking-head + on-screen prompts — expect moderate densification, not screencast-density.
+**Tune signal:** driver video is mixed talking-head + on-screen prompts, so expect moderate densification, not screencast-density.
 
 ## Dynamic coverage (`video-extraction/watching/compute-coverage-plan.js`)
 
@@ -48,7 +48,7 @@ Keyword signals: `DENSIFICATION_SIGNALS` (code/slide/demo/terminal patterns).
 | Long stratified interval (sec) | `60` | `LONG_STRATIFIED_INTERVAL_SEC` |
 | Scene sparse ratio | `120` | `SCENE_SPARSE_RATIO` |
 
-No hard frame cap — `summarizeFrameSelection` sets `highVolume` when count > `targetMinFrames * 3`.
+No hard frame cap. `summarizeFrameSelection` sets `highVolume` when count > `targetMinFrames * 3`.
 
 ## Post-watch retune checklist (host)
 

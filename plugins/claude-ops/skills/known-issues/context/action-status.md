@@ -6,7 +6,7 @@ Quick health snapshot for proactive auto-invocation. Combines registry stats wit
 
 ## Process
 
-**Step 1: Registry summary** — read `registry.json` and compute:
+**Step 1: Registry summary.** Read `registry.json` and compute:
 
 - Total tracked issues
 - Counts by category (blocking / degraded / cosmetic / fixed / feature-request / informational)
@@ -20,15 +20,15 @@ python "${CLAUDE_PLUGIN_ROOT}/skills/known-issues/scripts/registry_manager.py" s
 python "${CLAUDE_PLUGIN_ROOT}/skills/known-issues/scripts/registry_manager.py" list --stale 14
 ```
 
-**Step 2: Lightweight quality check** — fetch service health (fast):
+**Step 2: Lightweight quality check.** Fetch service health (fast):
 
 ```bash
 curl -s https://status.claude.com/ | head -100
 ```
 
-Report overall status only (Operational / Degraded / Outage). Skip Marginlab for the quick check — that's the `quality` action's job.
+Report overall status only (Operational / Degraded / Outage). Skip Marginlab for the quick check. That's the `quality` action's job.
 
-**Step 3: Stale issue flag** — if any issues haven't been checked in >14 days, recommend running `check-all`.
+**Step 3: Stale issue flag.** If any issues haven't been checked in >14 days, recommend running `check-all`.
 
 ## Output format
 

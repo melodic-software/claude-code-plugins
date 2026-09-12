@@ -4,7 +4,7 @@ Use when writer has a seed (image, feeling, phrase, vibe) but no title yet.
 Routes seed → object-write the world → mine → title candidates → stress-vowel
 analysis → form fit → choice.
 
-## Step 1 — Distill the seed (writer-facing)
+## Step 1: Distill the seed (writer-facing)
 
 ```
 Tell me the seed in one sentence. Then answer:
@@ -18,7 +18,7 @@ Tell me the seed in one sentence. Then answer:
 First-pass answers are fine. We'll refine after object-writing the world.
 ```
 
-## Step 2 — Object-write the world (writer-facing)
+## Step 2: Object-write the world (writer-facing)
 
 ```
 Set a 10-minute timer. Object-write the world this seed implies:
@@ -34,7 +34,7 @@ kinesthetic). No rhyme, no lyric polish, no editing. Stop at the buzzer.
 When you're done, paste the page.
 ```
 
-## Step 3 — Mine (model-side)
+## Step 3: Mine (model-side)
 
 Read the writer's object-write. Extract:
 
@@ -44,7 +44,7 @@ Read the writer's object-write. Extract:
 - Possible title fragments (phrases that resonate)
 - Implied POV / time / place / character details that came up
 
-## Step 4 — Generate 10-15 title candidates
+## Step 4: Generate 10-15 title candidates
 
 Across the 7 title types (this plugin's taxonomy, unaudited against the
 books, per `hook.md` "Title generation"):
@@ -59,32 +59,32 @@ books, per `hook.md` "Title generation"):
 
 Rapid-fire. No editing. First-pass output.
 
-## Step 5 — Stressed-vowel analysis per candidate
+## Step 5: Stressed-vowel analysis per candidate
 
 For each candidate, note:
 
-- Stressed vowel(s) — load-bearing vowel sound(s)
+- Stressed vowel(s): the vowel sound(s) the title hangs on
 - Front-heavy vs back-heavy (per `phrasing.md`)
 - Stress count
 - Syllable count (verify long titles via `datamuse syllables`)
 
-## Step 6 — Rhyme stability quick test per candidate
+## Step 6: Rhyme stability quick test per candidate
 
 For each candidate, run internal rhyme generation (per `rhyme-generation.md`):
 
-- Perfect rhymes — are they cliche?
-- Family rhymes — what does Pat's phonetic family taxonomy offer?
-- Song's world vocabulary — what can the implied setting contribute?
+- Perfect rhymes: are they cliche?
+- Family rhymes: what does Pat's phonetic family taxonomy offer?
+- Song's world vocabulary: what can the implied setting contribute?
 
 Flag candidates whose stressed vowel rhymes only with cliche partners.
 
-## Step 7 — Form fit per surviving candidate
+## Step 7: Form fit per surviving candidate
 
 - Repeats well → chorus or refrain form
 - Lives once → AABA / verse-refrain
 - Conversational → bridge target / through-written
 
-## Step 8 — Surface 2-3 finalists to writer
+## Step 8: Surface 2-3 finalists to writer
 
 ```
 Three strongest candidates:
@@ -102,7 +102,7 @@ Three strongest candidates:
 3. **"<Title 3>"**
    ...
 
-Pick one — or tell me what's pulling, and I'll narrow further.
+Pick one, or tell me what's pulling, and I'll narrow further.
 ```
 
 ## Coach posture
@@ -114,9 +114,9 @@ Pick one — or tell me what's pulling, and I'll narrow further.
 
 ## Cross-references
 
-- `idea-to-title.md` — full context
-- `object-writing.md` — Step 2 method
-- `hook.md` — title types
-- `phrasing.md` — front-/back-heavy
-- `rhyme-generation.md` — Step 6 method
-- `song-forms.md` — Step 7 fit
+- `idea-to-title.md`: full context
+- `object-writing.md`: Step 2 method
+- `hook.md`: title types
+- `phrasing.md`: front-/back-heavy
+- `rhyme-generation.md`: Step 6 method
+- `song-forms.md`: Step 7 fit

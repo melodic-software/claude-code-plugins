@@ -3,7 +3,7 @@
 Shared by every skill in this plugin. Each corrector re-anchors ONE
 standing discipline, applies it to the current conversation, and corrects
 what has drifted. This file owns the common method; each skill's `SKILL.md`
-adds only its own delta — which discipline, where that discipline's source
+adds only its own delta: which discipline, where that discipline's source
 of truth lives, and any skill-specific action.
 
 ## What a corrector is (and is not)
@@ -16,16 +16,16 @@ audit-and-correct pass instead of a passive reminder.
 
 Firing a corrector is **not an accusation of violation**. It means
 "re-anchor this discipline, apply it here, and check." Reaching for one as
-a gentle reminder — before the work, or just to set posture — is a
+a gentle reminder, before the work or just to set posture, is a
 first-class use, not a lesser one. The audit may return clean; a truthful
 "nothing to correct" is a correct outcome, not a failure to find fault.
 The skill's tone must never presume drift occurred.
 
 Valid at any point in a conversation:
 
-- **Start** — set the posture; there is nothing yet to audit.
-- **Middle** — correct observed drift.
-- **End** — verify before the user acts.
+- **Start**: set the posture; there is nothing yet to audit.
+- **Middle**: correct observed drift.
+- **End**: verify before the user acts.
 
 ## The loop
 
@@ -34,31 +34,32 @@ Run these in order. Skip a step only when its input is genuinely absent
 
 1. **Re-anchor.** Re-read the discipline's source of truth (the skill names
    it) with fresh attention and treat it as active for the rest of the
-   task. Loading the skill IS the re-anchor — the point is not to reprint
+   task. Loading the skill IS the re-anchor. The point is not to reprint
    the rules but to make them govern the next actions. State in one line
    that the discipline now governs the work.
 2. **Self-audit the work in flight.** Walk back over the conversation and
-   name CONCRETE, located findings — not a generic mea culpa. Each finding
+   name CONCRETE, located findings, not a generic mea culpa. Each finding
    points at a specific turn, claim, or artifact and at the specific part
    of the discipline it breaks. If there are none, say so plainly. Do not
    invent findings to look diligent.
 3. **Correct forward now.** For each finding, do the missing work THIS
-   turn rather than merely noting it — edit the file, fix the config,
+   turn rather than merely noting it: edit the file, fix the config,
    re-derive the choice, in the working tree, now. Where your own
    judgement is the suspected source of the drift, re-derive it in a
    fresh-context subagent (blind to the reasoning that produced the drift)
-   instead of self-checking in the context that produced it — a self-check
+   instead of self-checking in the context that produced it. A self-check
    in the same context is weak by construction. Prefer a cross-vendor
-   advisor for that re-derivation **when one is installed and set up** —
-   e.g. the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs —
-   with the fresh-context same-vendor subagent as the stated fallback,
+   advisor for that re-derivation **when one is installed and set up**.
+   One example is the OpenAI Codex plugin, when its documented surface can take this artifact,
+   invoked per its own docs. Keep the fresh-context same-vendor subagent as the stated fallback,
    never a route to a command that may not resolve
-   (per `docs/PLUGIN-PHILOSOPHY.md` "Fresh-eyes checkpoints" in the marketplace repository).
+   (per `docs/plugin-philosophy.md` "Fresh-eyes checkpoints" in the marketplace repository).
    Surface anything that cannot be corrected here rather than
    papering over it. **Outward
    artifacts are the one carve-out:** correcting forward never *files* an
-   outward artifact — a pull request, an issue, a published review comment,
-   anything published outside this working session — on its own. Draft it
+   outward artifact on its own. An outward artifact is a pull request, an
+   issue, a published review comment, anything published outside this
+   working session. Draft it
    and route it to the user; opening or publishing it waits on the user's
    explicit opt-in (see the Non-negotiable below). In-tree correction is
    not an outward artifact and stays on the do-it-now side of this line.
@@ -68,7 +69,7 @@ Run these in order. Skip a step only when its input is genuinely absent
 ## Declared step deltas
 
 A corrector may modify, insert, or reorder a step of this loop when the
-discipline it re-anchors demands it — but only as a **declared delta**:
+discipline it re-anchors demands it, but only as a **declared delta**:
 stated in that skill's own `SKILL.md` alongside the reason and, for an
 inserted step, where it sits relative to the numbered steps, so the
 divergence is part of the skill's contract rather than silent drift from
@@ -80,7 +81,7 @@ overridable.
 ## Conversation-start case
 
 Fired before any work exists, do only step 1: acknowledge the discipline
-as active for the session and stop. There is nothing to audit — do not
+as active for the session and stop. There is nothing to audit. Do not
 manufacture findings.
 
 ## Resolving the discipline's source of truth (portability)
@@ -90,14 +91,15 @@ resolves that discipline's source of truth from the consumer's own
 context, never from a baked-in path. Apply the resolution ladder:
 
 1. **Declared → use it.** When the consuming project states the discipline
-   in its own instruction layer — its `CLAUDE.md`, its `.claude/rules/`, a
-   team conventions doc it points to — re-anchor THAT text. It is already
+   in its own instruction layer, whether its `CLAUDE.md`, its
+   `.claude/rules/`, or a team conventions doc it points to, re-anchor THAT
+   text. It is already
    in the model's context; the skill raises its salience and audits
    against it.
 2. **Absent → fall back to the portable baseline.** When the consumer
    declares no such rules, re-anchor the concise baseline the skill states
    in its own body. The baseline is the plugin's own contract, phrased
-   generically — enough to run the audit without a consumer rules file.
+   generically, enough to run the audit without a consumer rules file.
 3. **Cite what actually resolved.** A finding is only a violation of the
    source that was actually read this session. If only the baseline
    applied, the citation is to the baseline, not to an assumed consumer
@@ -113,11 +115,11 @@ with rich standing rules and still useful in one with none.
   creates a second copy that drifts from the first.
 - **Never fabricate a citation or a finding.** Cite the source you read;
   report "clean" when the work conforms.
-- **Prefer a fresh context over self-trust for anything load-bearing.**
+- **Prefer a fresh context over self-trust for anything the work rests on.**
   The context that produced the drift is the weakest place to catch it.
 - **No corrector files an outward artifact without explicit opt-in.** A
   consume-only consumer can rely on this across every skill: a corrector
   may draft an outward change and route it to the user, but opening or
-  publishing one — a PR, an issue, a published review comment — is the
-  user's call, gated on an explicit opt-in, never a side effect of
+  publishing one, whether a PR, an issue, or a published review comment, is
+  the user's call, gated on an explicit opt-in, never a side effect of
   correcting forward.

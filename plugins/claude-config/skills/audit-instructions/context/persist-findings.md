@@ -14,7 +14,7 @@ the consumer never scans that path.
 ## This does not loosen the read-only contract
 
 The skill body's "Read-only contract" still holds: this skill proposes, the human applies. A
-findings file is a **proposal artifact**, not an applied edit — it reaches `review:fanout`'s `fix`
+findings file is a **proposal artifact**, not an applied edit. It reaches `review:fanout`'s `fix`
 action, which is itself human-gated. Persisting is therefore opt-in behind `--persist-findings`;
 a bare invocation reports and stops. Never describe the findings file to an
 operator as a change that has been made.
@@ -28,7 +28,7 @@ space before writing (the contract and its topic-docs binding own the proof; a d
 cannot be proven is reported and not written to).
 
 File name: `${TS}-audit-instructions.md`, `TS="$(date -u +%Y%m%dT%H%M%SZ)"` (colon-free,
-Windows-safe). Never overwrite: when the path exists, take `-2`, `-3`, the smallest free integer —
+Windows-safe). Never overwrite: when the path exists, take `-2`, `-3`, the smallest free integer.
 `emit-findings.sh` does this itself.
 
 ## The body-scope fence is not optional and not the caller's alone
@@ -46,19 +46,19 @@ run:
   `description`. A fence that lives only in the caller is one caller away from being bypassed.
 
 A coercive phrase inside a `description` is a real observation and still belongs in the **human
-report** — it is routed there, never to the relay.
+report**. It is routed there, never to the relay.
 
 ## Compose by script, not by hand
 
 Once the destination is resolved and the contract fetch succeeded, run
 `${CLAUDE_SKILL_DIR}/scripts/emit-findings.sh --from <scan output file> --out <resolved path>`.
 The script owns the mechanical half: the fence recomputation, cell assembly and escaping, tier
-lookup (a mirror of the crosswalk — the crosswalk row is authoritative), rank ordering, the
+lookup (a mirror of the crosswalk, and the crosswalk row is authoritative), rank ordering, the
 non-overwrite suffix, and the `## Surfaces` counts. What stays with the model is everything before
 the script (rung-order resolution, the fetch-and-refuse gate, the self-ignore guard) and everything
 after it (reading the written file's head to confirm shape, and severity-vocabulary mapping when
-the consuming project defines its own — edit the written file's `Tier` cells per the contract's
-consumer-precedence rule).
+the consuming project defines its own). For that mapping, edit the written file's `Tier` cells per
+the contract's consumer-precedence rule.
 
 ## Which findings enter the file
 
@@ -66,7 +66,7 @@ consumer-precedence rule).
 `restatement-scan.py` marks two more; the other eight families (I6, I8-a/b/c, I10, I23, I25, I27)
 have no severity-crosswalk row, and the contract admits no row whose tier cannot be looked up
 from one. They stay in the human report and are counted in `## Surfaces` as
-`reason=no-severity-crosswalk-row` — declined, never silently dropped.
+`reason=no-severity-crosswalk-row`. They are declined, never silently dropped.
 
 | Scanner family | Rule id | Tier |
 |---|---|---|
@@ -81,13 +81,13 @@ pattern are not findings (reference/criteria.md, I28). The scanner over-produces
 those candidates from the scan output handed to `--from` rather than emitting and retracting.
 
 **Count what you drop.** Removing those rows before the writer sees them would make the exclusion
-invisible in `## Surfaces`, which is precisely the silent decline this contract forbids — the
+invisible in `## Surfaces`, which is precisely the silent decline this contract forbids. The
 section would report fewer candidates examined than were actually looked at. Pass the number
 through: `--declined-carveout <n>`, which records it as its own counted line. Zero dropped → omit
 the flag.
 
-The same rule binds the writer's own intake. A `--from` line that is not a scan row — a
-well-formed `path:line:I<n>` whose suffix sits outside `[a-c]`, a prose line, a blank — still
+The same rule binds the writer's own intake. A `--from` line that is not a scan row, whether a
+well-formed `path:line:I<n>` whose suffix sits outside `[a-c]`, a prose line, or a blank, still
 increments `Scan rows read` and is counted as `reason=unparsable-row`. It is never omitted from
 both the row count and every decline line. Intake strips a trailing CR before the pattern match
 (the same strip `descr()` and `source_line()` already do), so a mixed CRLF file is parsed rather
@@ -95,7 +95,7 @@ than silently dropping the CR-terminated rows.
 
 **Surfaces outside the repository never reach the relay.** Phase A inventories user-level surfaces
 under `${CLAUDE_CONFIG_DIR:-~/.claude}` as well as repo-owned ones, but `Location` is contractually
-repo-relative and the fix action fences each remediation to it — an absolute path would have the
+repo-relative and the fix action fences each remediation to it. An absolute path would have the
 fix pass either edit a file outside the working tree or consume the finding without applying it.
 `emit-findings.sh` declines any row whose path is not under the repo root and counts it as
 `reason=outside-repo-root`. Those findings still belong in the **human report**; route them there,
@@ -120,7 +120,7 @@ pipe-escaped the same way Finding and Action are.
 - **`Action`** states the **downgrade**: normal conditional phrasing for `rule-coercive-emphasis`,
   the targeted condition for `rule-blanket-tool-default`. **The remediation is never a deletion.**
   A finding that removes the instruction rather than its shouting is wrong, so no `Action` cell
-  may instruct removal — the directive survives verbatim and only its volume changes. The single
+  may instruct removal. The directive survives verbatim and only its volume changes. The single
   legitimate exception is **sentence-initial capitalization forced by dropping a leading wrapper**
   (`…MUST resolve` → `Resolve`), which the official source's own worked example also makes
   (`use` → `Use`). Any other wording change means the remediation overreached.

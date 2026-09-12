@@ -508,7 +508,7 @@ fi
 # a POSIX host; the duplication is what this pins, so a third divergent copy
 # cannot reappear behind a guard that hides its behavior.
 HOOK_SRC=$(cat "$HOOK")
-assert_contains "path helper: uses hook::repo_relative_path" "$HOOK_SRC" 'hook::repo_relative_path'
+assert_contains "path helper: uses hook::repo_relative_path_to" "$HOOK_SRC" 'hook::repo_relative_path_to'
 assert_absent "path helper: no hand-rolled prefix strip" "$HOOK_SRC" '_fwd#'
 
 # REGRESSION PIN, NOT A FAIL-THEN-PASS CASE. This one passes against the

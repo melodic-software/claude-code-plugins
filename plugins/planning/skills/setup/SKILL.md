@@ -7,7 +7,7 @@ disable-model-invocation: true
 
 ## Purpose
 
-Verify and settle the topic-docs seam for the CONSUMING repo: where the planning pipeline's contract
+Verify and settle the topic-docs convention for the CONSUMING repo: where the planning pipeline's contract
 documents (`PRD.md`, `PLAN.md`, `design/`) and working memory (checklists, baselines, scratch) land,
 persisting it to the tracked concern file **`.claude/topic-docs.yaml`**, the consumer-side single
 source of truth every consuming plugin resolves first. The file's shape is the convention's
@@ -66,7 +66,7 @@ writes. Every bootstrap write is user-accepted.
 2. **Infer before asking.** With no concern file and no declared convention, look for an existing
    conforming layout (a `docs/topics/`-shaped contract root, a self-ignoring `.work/`) and
    confirm it rather than guessing.
-3. **Interview. One decision.** The load-bearing choice is `contract_tier`: **`branch`
+3. **Interview. One decision.** The one choice that matters is `contract_tier`: **`branch`
    (RECOMMENDED)**. Contract documents commit on the task branch, travel to worktrees and cloud
    clones, and are pruned before merge, versus `local`: solo/offline mode; contract kinds join the
    memory tier and the PR-description paste is the only publication surface. Keep `contract_dir`,
@@ -134,13 +134,13 @@ marketplace's plugin-reconfiguration convention
 (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
 which owns the verified-version record): interactive `/plugin configure planning@<marketplace>` any
 time, or headless `claude plugin install planning@<marketplace> -s <scope> --config use_ask_user_question=true`
-(repeatable per key) — against an already-installed plugin it prints `already installed` and still
+(repeatable per key). Against an already-installed plugin it prints `already installed` and still
 writes the value. Do **not** uninstall to reconfigure: that drops the plugin's entire stored
 `pluginConfigs` entry, resetting every option in the README's Options reference to its manifest
 default. `-s` defaults to `user`; pass the scope `claude plugin list` reports, and run from that
 project's directory for a `project`/`local` scope, or the write lands at a scope that does not load.
 This skill never writes Claude Code user settings or `pluginConfigs`. Afterwards rerun `check` in a
-**fresh session** — the rendered `${user_config.*}` and each hook's `CLAUDE_PLUGIN_OPTION_*` are
+**fresh session**. The rendered `${user_config.*}` and each hook's `CLAUDE_PLUGIN_OPTION_*` are
 fixed at session start, so a same-session `check` still reports the OLD value; report the observed
 effective value, never an unobserved change.
 

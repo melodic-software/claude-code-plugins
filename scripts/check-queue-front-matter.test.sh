@@ -7,9 +7,15 @@ SCRIPT="$SELF_DIR/check-queue-front-matter.sh"
 
 # shellcheck source=lib/test-harness.sh
 . "$SELF_DIR/lib/test-harness.sh"
+# shellcheck source=lib/fixture-tree.sh
+. "$SELF_DIR/lib/fixture-tree.sh"
 
-new_queue() {
-  mktemp -d
+# The builder assigns through a nameref, which shellcheck cannot follow;
+# declaring the out-var here is what tells it (SC2154) the name is written.
+q=""
+
+new_queue() { # <out-var>
+  fixture_tree::build "$1" --label queue
 }
 
 run_check() (
@@ -17,7 +23,7 @@ run_check() (
 )
 
 # --- valid item passes -------------------------------------------------------
-q="$(new_queue)"
+new_queue q
 cat >"$q/20260812-sample.md" <<'EOF'
 ---
 id: 20260812-sample
@@ -35,7 +41,7 @@ else
 fi
 
 # --- missing front matter fails ----------------------------------------------
-q="$(new_queue)"
+new_queue q
 printf 'No front matter here\n' >"$q/20260812-bad.md"
 if run_check "$q" >/dev/null 2>&1; then
   fail "missing front matter should fail"
@@ -44,7 +50,7 @@ else
 fi
 
 # --- invalid status fails ----------------------------------------------------
-q="$(new_queue)"
+new_queue q
 cat >"$q/20260812-open.md" <<'EOF'
 ---
 id: 20260812-open
@@ -61,7 +67,7 @@ else
 fi
 
 # --- id stem mismatch fails --------------------------------------------------
-q="$(new_queue)"
+new_queue q
 cat >"$q/20260812-wrong.md" <<'EOF'
 ---
 id: other-id
@@ -78,7 +84,7 @@ else
 fi
 
 # --- README.md is ignored ----------------------------------------------------
-q="$(new_queue)"
+new_queue q
 printf '# readme\n' >"$q/README.md"
 cat >"$q/20260812-only.md" <<'EOF'
 ---

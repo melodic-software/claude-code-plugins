@@ -29,7 +29,7 @@ megapixel count:
 | 3456x2234 (upstream's MacBook example) | 1372x887 | 1.22 | 2.52x |
 
 Same budget, different ratios, aspect ratio preserved. The practical consequence: **a smaller
-monitor does not buy a sharper screenshot** — it buys the same ~1.2MP with less on it. That is
+monitor does not buy a sharper screenshot**. It buys the same ~1.2MP with less on it. That is
 occasionally worth doing for a dense UI, but it is a trade of coverage for density, never a
 quality win.
 
@@ -45,7 +45,7 @@ Local behavior matches: while capture is failing, `zoom` returns
 downscaled image would succeed and look bad; a re-capture fails outright. Two consequences
 follow from that single fact:
 
-- **Zoom recovers real detail** — status-bar text, tab titles, line numbers, small labels.
+- **Zoom recovers real detail**: status-bar text, tab titles, line numbers, small labels.
 - **Zoom is useless while capture is broken.** If `zoom` errors, stop zooming and go diagnose
   the capture ([failure-diagnostics.md](failure-diagnostics.md)).
 
@@ -55,7 +55,7 @@ one. Zoom is read-only inspection.
 ## Order of remedies for "Claude can't read this"
 
 1. **`zoom` the region.** Free, immediate, no environment change.
-2. **Increase the size in the app** — editor font size, browser zoom, app scaling. This is
+2. **Increase the size in the app**: editor font size, browser zoom, app scaling. This is
    upstream's own recommendation and it survives across screenshots.
 3. **Keyboard instead of mouse** for genuinely tiny targets (tray icons, small checkboxes).
    Upstream recommends this over trying to click them.
@@ -66,7 +66,7 @@ one. Zoom is read-only inspection.
 
 The API-side computer use tool exposes display dimensions the caller chooses, and there the
 guidance is concrete. The platform docs' implementation-best-practices section gives the
-resolutions — 1024x768 or 1280x720 for general desktop work, avoid above 1920x1080 — and names
+resolutions: 1024x768 or 1280x720 for general desktop work, and nothing above 1920x1080. It names
 "resolution too low" as the cause of consistently poor accuracy
 ([computer use tool](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool),
 verified 2026-08-10). The benchmarked blog post adds that pre-downscaling before sending is "the
@@ -75,7 +75,7 @@ poor accuracy
 ([best practices](https://claude.com/blog/best-practices-for-computer-and-browser-use-with-claude),
 verified 2026-08-10).
 
-**That knob does not exist on the Claude Code surface** — the harness owns the downscale and
+**That knob does not exist on the Claude Code surface.** The harness owns the downscale and
 already does the recommended thing. The guidance is still worth knowing because it explains
 *why* the harness behaves this way, and because it tells you that native unscaled resolution is
 the documented primary cause of poor click accuracy. Do not translate the API advice into a

@@ -679,8 +679,9 @@ else
   fail "a 64-codepoint name should pass the length cap (rc=$rc): $out"
 fi
 
-# 17c. A reserved word anywhere in the effective name FAILs. Directory-leaf form:
-#      no declared name, the leaf carries "claude".
+# 17c. A reserved word anywhere in the effective name WARNs (a Skills API upload
+#      rejects it; Claude Code loads it). Directory-leaf form: no declared name,
+#      the leaf carries "claude".
 make_skill claude-helper '---
 description: "Reserved word in the leaf. Use when: '"'"'checking reserved names'"'"'."
 ---
@@ -695,10 +696,10 @@ None known.
 '
 out="$(run claude-helper 2>&1)"
 rc=$?
-if [[ $rc -eq 1 ]] && grep -q "contains the reserved word 'claude'" <<<"$out"; then
-  pass "a directory leaf containing 'claude' fails the reserved-word rule"
+if [[ $rc -eq 0 ]] && grep -q "WARN: skill name 'claude-helper' contains the word 'claude'" <<<"$out"; then
+  pass "a directory leaf containing 'claude' warns on the reserved-word rule and passes"
 else
-  fail "a leaf containing 'claude' should fail (rc=$rc): $out"
+  fail "a leaf containing 'claude' should warn and pass (rc=$rc): $out"
 fi
 
 # 17d. Declared-name form of 17c: the same rule reads the declared field when
@@ -718,12 +719,12 @@ None known.
 '
 out="$(run anthropic-notes 2>&1)"
 rc=$?
-if [[ $rc -eq 1 ]] &&
-  grep -q "contains the reserved word 'anthropic'" <<<"$out" &&
+if [[ $rc -eq 0 ]] &&
+  grep -q "WARN: skill name 'anthropic-notes' contains the word 'anthropic'" <<<"$out" &&
   grep -q 'rename the declared name' <<<"$out"; then
-  pass "a declared name containing 'anthropic' fails and names the declared field"
+  pass "a declared name containing 'anthropic' warns, passes, and names the declared field"
 else
-  fail "a declared name containing 'anthropic' should fail (rc=$rc): $out"
+  fail "a declared name containing 'anthropic' should warn and pass (rc=$rc): $out"
 fi
 
 # 18a. A fenced shell block of read-only context-gathering commands, with no `!`
@@ -3997,6 +3998,173 @@ else
   else
     fail "the evals-warrant walk never terminated (timed out at a dirname fixed point)"
   fi
+fi
+
+# Check 27: the `## Next` successor section. Absence is INFO and never a
+# warning; a conforming section is silent; a misplaced or malformed one warns
+# and still passes (advisory).
+out="$(run good-skill 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q "INFO: no '## Next' section" <<<"$out" && ! grep -q "WARN: '## Next'" <<<"$out"; then
+  pass "a skill with no '## Next' gets an INFO note and no warning"
+else
+  fail "absent '## Next' should be INFO only (rc=$rc): $out"
+fi
+
+make_skill next-ok '---
+name: next-ok
+description: "Next fixture. Use when: '"'"'next ok'"'"'."
+---
+
+## Purpose
+
+Conforming successor section in the bullet shape.
+
+## Next
+
+- The numbers feed a comparison: `/verification:measure metrics`.
+- A number is about to be quoted at someone, so the caveats come first:
+  `/code-metrics:principles`.
+
+## Gotchas
+
+None known.
+'
+out="$(run next-ok 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q "INFO: '## Next' section present" <<<"$out" && ! grep -q "WARN: '## Next'" <<<"$out"; then
+  pass "a conforming bullet-shape '## Next' before '## Gotchas' passes silently"
+else
+  fail "conforming '## Next' should not warn (rc=$rc): $out"
+fi
+
+make_skill next-single '---
+name: next-single
+description: "Next fixture. Use when: '"'"'next single'"'"'."
+---
+
+## Purpose
+
+Conforming successor section in the single-invocation shape.
+
+## Next
+
+`/code-metrics:audit-complexity`. The sibling skills cover the other measures.
+
+## Gotchas
+
+None known.
+'
+out="$(run next-single 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q "WARN: '## Next'" <<<"$out"; then
+  pass "a conforming single-invocation '## Next' passes silently"
+else
+  fail "single-invocation '## Next' should not warn (rc=$rc): $out"
+fi
+
+make_skill next-late '---
+name: next-late
+description: "Next fixture. Use when: '"'"'next late'"'"'."
+---
+
+## Purpose
+
+Successor section placed after Gotchas.
+
+## Gotchas
+
+None known.
+
+## Next
+
+`/code-metrics:audit-complexity`.
+'
+out="$(run next-late 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q "WARN: '## Next' section placed after '## Gotchas'" <<<"$out"; then
+  pass "a '## Next' after '## Gotchas' warns and passes"
+else
+  fail "misplaced '## Next' should warn and pass (rc=$rc): $out"
+fi
+
+make_skill next-malformed '---
+name: next-malformed
+description: "Next fixture. Use when: '"'"'next malformed'"'"'."
+---
+
+## Purpose
+
+Successor section with one bullet that names no skill.
+
+## Next
+
+- Go do the next thing.
+
+## Gotchas
+
+None known.
+'
+out="$(run next-malformed 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q "WARN: '## Next' section 1 bullet(s); the outcome-bullet shape carries two to four; 1 bullet(s) name no /plugin:skill successor" <<<"$out"; then
+  pass "a malformed '## Next' warns on both the bullet count and the missing successor"
+else
+  fail "malformed '## Next' should warn on count and token (rc=$rc): $out"
+fi
+
+make_skill next-operative '---
+name: next-operative
+description: "Next fixture. Use when: '"'"'next operative'"'"'."
+---
+
+## Purpose
+
+Single-shape successor section written as an operative chain: prose first, a
+Skill-tool instruction, an installed-ness gate, and a fallback clause.
+
+## Next
+
+Ask the Skill tool to invoke /code-metrics:audit-complexity when it is installed.
+Otherwise measure by hand.
+
+## Gotchas
+
+None known.
+'
+out="$(run next-operative 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q "WARN: '## Next' section first line does not open with a /plugin:skill invocation; carries operative-chain phrasing ('Skill tool')" <<<"$out"; then
+  pass "a prose-first operative '## Next' warns on the opening and the chain phrasing"
+else
+  fail "operative '## Next' should warn on opening and phrasing (rc=$rc): $out"
+fi
+
+make_skill next-bullets-fallback '---
+name: next-bullets-fallback
+description: "Next fixture. Use when: '"'"'next bullets fallback'"'"'."
+---
+
+## Purpose
+
+Bullet-shape successor section whose second bullet carries a fallback clause.
+
+## Next
+
+- The numbers feed a comparison: `/verification:measure metrics`.
+- A number is about to be quoted: `/code-metrics:principles`, or fall back to
+  the README when that plugin is absent.
+
+## Gotchas
+
+None known.
+'
+out="$(run next-bullets-fallback 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q "WARN: '## Next' section carries operative-chain phrasing ('fall back')" <<<"$out"; then
+  pass "a bullet-shape '## Next' with a fallback clause warns on the chain phrasing"
+else
+  fail "bullet '## Next' with a fallback should warn on phrasing (rc=$rc): $out"
 fi
 
 if [[ $fails -ne 0 ]]; then

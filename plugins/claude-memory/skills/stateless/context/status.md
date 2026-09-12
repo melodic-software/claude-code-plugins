@@ -25,13 +25,13 @@ listed `PRESENT`, Read the file and extract:
 - `env.CLAUDE_CODE_DISABLE_AUTO_MEMORY` (if set in the `env` block)
 
 Absent keys inherit the default: `autoMemoryEnabled` defaults to `true` (auto memory is on).
-On Windows, managed policy may be in the registry rather than a file — note it as unread if
+On Windows, managed policy may be in the registry rather than a file, so note it as unread if
 you cannot inspect it, don't assume it is empty.
 
 ## Step 3: Resolve the effective state
 
 - **Enabled state.** `CLAUDE_CODE_DISABLE_AUTO_MEMORY` overrides `autoMemoryEnabled` (docs):
-  if the env var is set anywhere (OS env or any `env` block), it is authoritative — `=1` →
+  if the env var is set anywhere (OS env or any `env` block), it is authoritative: `=1` →
   **off**, `=0` → **on** even against `autoMemoryEnabled: false`. If the env var is unset,
   apply settings precedence (managed > local > project > user) to `autoMemoryEnabled`
   (default `true`). When the env var and the setting disagree, report the effective state as
@@ -54,7 +54,7 @@ One line per `<config root>/projects/*/memory` dir with MEMORY.md line count and
 count. Present it as a table (project slug, path, lines, topics). Two caveats to state:
 
 - The enabled/disabled state resolved in Step 3 is machine-wide only for user-scope settings
-  and the OS env var — a per-repo `.claude/settings(.local).json` can override it for that
+  and the OS env var. A per-repo `.claude/settings(.local).json` can override it for that
   repo, and this enumeration does not visit repos, so report the machine-wide state as
   "user-scope default; per-repo overrides not scanned" unless the user asks to grep specific
   repos.

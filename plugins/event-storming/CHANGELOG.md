@@ -3,6 +3,31 @@
 All notable changes to the `event-storming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.11]
+
+### Changed
+
+- Cite the marketplace `docs/` doctrine files by their lower-kebab names (`docs/plugin-philosophy.md`, `docs/migration-playbook.md`, and siblings); the files were renamed and the old uppercase paths no longer resolve.
+
+## [0.6.10]
+
+### Changed
+
+- **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
+- **Every markdown surface in the plugin passes `/ai-slop:audit`.** Em dashes in the plugin's own
+  prose (the README, this changelog, the methodology skill body and its five references, and the
+  simulation references) are rewritten as a comma, a period, a colon where a definition or list
+  follows, or a restructured sentence. Headings that carried one take the colon or comma form, and
+  each file's own Contents list follows. No workshop phase, sticky colour, notation rule, Miro
+  coordinate, or evaluation criterion changed.
+- **Two Brandolini quotations keep their em dashes** inside ignore markers naming the source, since
+  the dashes are his. The `remote-eventstorming.md` pull-quote instead moves its attribution to the
+  front of the line rather than leaving a dangling dash.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`,** so the gate defends
+  it from here on.
+- **Changelog, in-place wording corrections to released entries:** the same rewrite was applied
+  inside `[0.6.3]`, `[0.6.0]`, and `[0.5.3]`. Wording only; every entry's facts are unchanged.
+
 ## [0.6.9]
 
 ### Added
@@ -81,7 +106,7 @@ All notable changes to the `event-storming` plugin are documented here. Format f
 - **The two sibling routes name the Skill tool (#3002).** `methodology`'s "to *run* a workshop"
   route to `/event-storming:simulation` and `simulation`'s "for facilitation knowledge" route to
   `/event-storming:methodology`. The recommendation blockquote `methodology` prints for the user
-  is left as-is — it is sample output, not an instruction to the model. The glossary-graduation
+  is left as-is. It is sample output, not an instruction to the model. The glossary-graduation
   delegations to `/domain-driven-design:curate-language` carry the phrasing too, in both places
   that state it: `methodology`'s `reference/glossary-and-tools.md` and `simulation`'s
   `reference/agentic-simulation.md`. Wording only.
@@ -109,7 +134,7 @@ All notable changes to the `event-storming` plugin are documented here. Format f
 
 - **The bare `/<skill>` alias for this plugin's skills.** Their `SKILL.md` files no longer
   declare a frontmatter `name`. The field is optional and defaults to the directory name, so
-  declaring it only restated the path while registering a second, unnamespaced command — which
+  declaring it only restated the path while registering a second, unnamespaced command that
   the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
   namespaced command; the command itself is unchanged.
 
@@ -151,7 +176,7 @@ All notable changes to the `event-storming` plugin are documented here. Format f
 
 - Simulation session teardown is phrased shell-agnostically at both sites
   (`rm -rf` on POSIX/Git Bash, `Remove-Item -Recurse -Force` on PowerShell)
-  instead of an unconditional `rm -rf` with no Windows path — cross-platform
+  instead of an unconditional `rm -rf` with no Windows path. Cross-platform
   declaration wave.
 
 ## [0.5.2]

@@ -8,7 +8,7 @@ disable-model-invocation: true
 ## Purpose
 
 Inspect and customize `/machine-health:audit` on this host per the uniform setup contract
-(`docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit and repeatable" in the marketplace repository):
+(`docs/plugin-philosophy.md` "Setup is explicit and repeatable" in the marketplace repository):
 `check` reads the effective configuration and reports, `apply` writes it. The machine-local
 surface is the catalog overlay at `<StateBase>/catalog/checks.local.jsonc` and the remediation
 approvals at `<StateBase>/state/approvals.json`. Configuration here is machine-local by design.
@@ -131,13 +131,13 @@ give, rather than writing a dangling entry.
    (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
    which owns the verified-version record): interactive `/plugin configure machine-health@<marketplace>`
    any time, or headless `claude plugin install machine-health@<marketplace> -s <scope> --config report_dir=<path>`
-   (repeatable per key) — against an already-installed plugin it prints `already installed` and
+   (repeatable per key). Against an already-installed plugin it prints `already installed` and
    still writes the value. Do **not** uninstall to reconfigure: that drops the plugin's entire
    stored `pluginConfigs` entry, resetting every option in the README's Options reference to its
    manifest default. `-s` defaults to `user`; pass the scope `claude plugin list` reports, and run
    from that project's directory for a `project`/`local` scope, or the write lands at a scope that
    does not load. This skill never writes user settings or `pluginConfigs`. Afterwards rerun
-   `check` in a **fresh session** — the rendered `${user_config.*}` and each hook's
+   `check` in a **fresh session**. The rendered `${user_config.*}` and each hook's
    `CLAUDE_PLUGIN_OPTION_*` are fixed at session start, so a same-session `check` still reports
    the OLD value; report the observed effective value, never an unobserved change.
 

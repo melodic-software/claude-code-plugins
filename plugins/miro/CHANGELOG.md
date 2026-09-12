@@ -3,6 +3,60 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.4]
+
+### Changed
+
+- **Bump `vitest` and `@vitest/coverage-v8` 4.1.11→5.0.0** (#4104, absorbing #4103). Development dependencies only; the tracked bundle is unaffected and `verify-bundle` confirms `dist/index.min.js` still matches source.
+
+  The two packages had to move in one commit. `@vitest/coverage-v8` declares an exact `peerDependencies` pin on its matching `vitest`, so each half alone fails `npm ci` with `ERESOLVE`: Dependabot split the group across #4104 and #4103, and both were red on that error rather than on anything in this repository. #4104 now carries both range moves and one regenerated lockfile, and #4103 is closed as absorbed.
+
+  Nothing in `server/` needed adapting for the major. vitest 5's breaking changes that could have reached this suite are the default `clearMocks`, the removal of the `sequential` test option, the stricter unawaited-assertion failure, and the `loupe.inspect`-to-pretty-format swap in assertion output; none appear in the four test files. Verified on Node 24.20.0 and npm 11.19.0, matching `.node-version` and the CI lane: clean `npm ci`, `tsc --noEmit` clean, biome clean, 4 test files and 32 tests passing with no type errors, and coverage unchanged at 16.12% of statements.
+
+## [0.4.3]
+
+### Changed
+
+- **Bump the npm-minor-patch group** (#4102): `zod` 4.4.3→4.5.4, `@biomejs/biome` 2.5.10→2.5.12, `@types/node` 26.3.0→26.4.1. `zod` is a runtime dependency the server bundles, so `dist/index.min.js` is regenerated from source; the other two are development dependencies. Typecheck, lint, and all 32 tests pass, and `verify-bundle` confirms the committed artifact matches source.
+
+## [0.4.2]
+
+### Changed
+
+- **Bump `hono` 4.13.0→4.13.7** (#4101): a transitive runtime dependency that `@modelcontextprotocol/sdk` pulls in, so the bump lands in `server/package-lock.json` and no manifest range moves. `verify-bundle` reports `dist/index.min.js` still matches source, so the shipped artifact is byte-identical.
+
+## [0.4.1]
+
+### Changed
+
+- Cite the marketplace `docs/` doctrine files by their lower-kebab names (`docs/plugin-philosophy.md`, `docs/migration-playbook.md`, and siblings); the files were renamed and the old uppercase paths no longer resolve.
+
+## [0.4.0]
+
+### Changed
+
+- **The Node project moves from the plugin root to `server/`, so a consumer's plugin cache
+  no longer installs the dev toolchain.** Claude Code runs `npm ci --ignore-scripts` inside the
+  cached copy whenever the plugin root carries both a `package.json` and a supported lockfile,
+  and that install cannot be turned off; with the lockfile at the root every fresh install,
+  including every cloud-session container, wrote roughly 188 MB of devDependencies (biome,
+  typescript, esbuild, vitest) that the committed bundle never loads. `package.json`,
+  `package-lock.json`, `src/`, `dist/`, `build.mjs`, and the tool configs now sit under
+  `server/`; `.mcp.json` runs `server/dist/index.min.js`. CI, the Dependabot manifest, and the
+  bundle-rebuild workflow point at the new directory, so the lockfile still pins and rebuilds
+  exactly as before. The bundle's bytes are unchanged, and the `build.mjs` header now describes
+  the cache install accurately.
+
+## [0.3.16]
+
+### Changed
+
+- **Options reference drops its em dashes.** The generated How-to-set-these block is rewritten by `scripts/sync-plugin-options-docs.py`, which is the fix site: its output is regenerated, never hand-edited. The block no longer needs the ignore marker that exempted it from the repository's em-dash gate, so that marker is gone as well.
+
+- **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
+- **The plugin's prose drops its em dashes.** This changelog and `skills/setup/SKILL.md` were rewritten. Wording only, with no change to any rotation path, credential rule, or bundled artifact. Every trigger phrase in the setup description is byte-identical, and the Miro API identifiers and upstream links are untouched. The released sections corrected in place are 0.3.5, 0.3.0, 0.2.2, and 0.2.0: their wording changed, their facts did not.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md` and every `skills/*/SKILL.md`.
+
 ## [0.3.15]
 
 ### Changed
@@ -109,18 +163,18 @@ All notable changes to the `miro` plugin are documented here. Format follows
 - **`setup` skill:** the destructive `claude plugin uninstall` + reinstall recipe for a headless
   token rotation is removed. It rested on an unversioned claim that `claude plugin install
   --config` is ignored once a plugin is installed, and following it dropped this plugin's whole
-  stored `pluginConfigs` entry. That claim now appears only as the thing it is — unstamped and
+  stored `pluginConfigs` entry. That claim now appears only as the thing it is: unstamped and
   contradicted for a non-sensitive option at `user` scope on Claude Code 2.1.240, where a plain
   `claude plugin install … --config` against an already-installed plugin printed `already
   installed` and still wrote the value
   ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)).
   `miro_api_token` is `sensitive: true`, which that observation does **not** cover, so `/plugin
-  configure miro@<marketplace>` remains the prescribed rotation path — it also masks input,
+  configure miro@<marketplace>` remains the prescribed rotation path. It also masks input,
   where a token on the command line lands in shell history and the process table.
 - **Docs:** the generated options block no longer presents a post-install `--config` as a
   supported way to rotate this plugin's credential. The 2.1.240 observation behind that claim
   covered a NON-sensitive option, and every option here is `sensitive`, so the block now routes
-  rotation to `/plugin configure` — which also masks input — and says plainly that the
+  rotation to `/plugin configure`, which also masks input, and says plainly that the
   post-install behavior is unverified for a sensitive value
   ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). Two upstream
   links that pointed at empty backward-compatibility anchors on the settings page were
@@ -162,7 +216,7 @@ All notable changes to the `miro` plugin are documented here. Format follows
 
 - **The bare `/<skill>` alias for this plugin's skills.** Their `SKILL.md` files no longer
   declare a frontmatter `name`. The field is optional and defaults to the directory name, so
-  declaring it only restated the path while registering a second, unnamespaced command — which
+  declaring it only restated the path while registering a second, unnamespaced command, which
   the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
   namespaced command; the command itself is unchanged.
 
@@ -189,7 +243,7 @@ All notable changes to the `miro` plugin are documented here. Format follows
 - Setup skill documents the headless bootstrap: `marketplace add`, then
   `claude plugin install --config miro_api_token=<token>`, then `claude plugin enable`. The enable
   step is spelled out because the plugin ships `defaultEnabled: false` and therefore installs
-  disabled — a bootstrap that stops after `install` looks successful and delivers no tools. Also
+  disabled. A bootstrap that stops after `install` looks successful and delivers no tools. Also
   covered: the `--config` fresh-install-only caveat, the headless rotation path (uninstall then
   reinstall carrying the SAME `-s <scope>`, read from `claude plugin list`, run from the project
   directory for project/local scope), and the shell-history/process-table exposure caveat
@@ -223,7 +277,7 @@ All notable changes to the `miro` plugin are documented here. Format follows
   conformance wave, dim 8). The plugin's entire configuration is the native
   sensitive `miro_api_token` userConfig, so `check` is the sole action; the
   optional read-only credential probe is now the explicit `check verify-api`
-  argument instead of an in-flow question — setup stays non-interactive and
+  argument instead of an in-flow question. Setup stays non-interactive and
   never touches the token or `pluginConfigs`.
 - MCP server version kept aligned with the plugin: `package.json`, the
   server's MCP `Implementation` version, the lockfile, and the committed

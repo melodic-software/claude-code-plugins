@@ -2,7 +2,7 @@
 
 Normative contract for per-work-class guardrail enforcement: five semantic risk classes
 (`C1`–`C5`) crossed with six guardrail columns, in one matrix. This document is the hub and
-glance layer of a progressive-disclosure contract — the matrix plus the one-line class and
+glance layer of a progressive-disclosure contract. The matrix plus the one-line class and
 column definitions below alone answer "what governs class X"; every deeper question routes to
 a named leaf under `guardrails/`, loaded on demand. Vocabulary is contract-owned; every
 concrete instance (isolation substrates, review tooling, model names, escalation routes) is an
@@ -10,11 +10,11 @@ org-binding outcome on the binding seam.
 
 ## The matrix
 
-The matrix instantiates the Boris playbook's step-4 sentence verbatim — "enforcing the right
-guardrails for each type of work" — as a table: one row per work class, one column per
+The matrix instantiates the Boris playbook's step-4 sentence verbatim, "enforcing the right
+guardrails for each type of work", as a table: one row per work class, one column per
 guardrail axis. That sentence is the playbook's; the five-class taxonomy, the per-layer
 blocking knobs, and the promotion predicates that fill the cells are this contract's own
-instantiation of it — the playbook names the obligation, this contract supplies the mechanism.
+instantiation of it. The playbook names the obligation, and this contract supplies the mechanism.
 
 | Class | Min isolation (unattended) | Verification | Verification topology | Merge policy | Cost tier | Escalation |
 |---|---|---|---|---|---|---|
@@ -26,33 +26,33 @@ instantiation of it — the playbook names the obligation, this contract supplie
 
 ### Classes
 
-- `C1` read-only — audits, research, reports; no repository mutation (governed-queue and
-  tracker writes are permitted output — scoping in the leaf).
-- `C2` mechanical maintenance — dependency bumps, lint/format, sync; deterministic and
+- `C1` read-only: audits, research, reports; no repository mutation (governed-queue and
+  tracker writes are permitted output, with the scoping in the leaf).
+- `C2` mechanical maintenance: dependency bumps, lint/format, sync; deterministic and
   trivially reversible.
-- `C3` scoped change — a briefed fix or small feature; bounded, tests exist.
-- `C4` structural — refactors, migrations, contract changes; cross-cutting, hard reversal.
-- `C5` untrusted-provenance — fork PRs, external contributions, unvetted repositories.
+- `C3` scoped change: a briefed fix or small feature; bounded, tests exist.
+- `C4` structural: refactors, migrations, contract changes; cross-cutting, hard reversal.
+- `C5` untrusted-provenance: fork PRs, external contributions, unvetted repositories.
 
 ### Columns
 
-- **Min isolation (unattended)** — the isolation-ladder level (`L0`–`L3`) that is the floor
+- **Min isolation (unattended)**: the isolation-ladder level (`L0`–`L3`) that is the floor
   for running the class unattended.
-- **Verification** — the gate layers a change must pass, with per-layer blocking knobs bound
+- **Verification**: the gate layers a change must pass, with per-layer blocking knobs bound
   on the governance surface.
-- **Verification topology** — the floor for how many DISTINCT checker slots verify the class
+- **Verification topology**: the floor for how many DISTINCT checker slots verify the class
   and whether they must be vendor-disjoint; roles, relational constraints, and predicates are
   contract vocabulary, instances org-bound. The leaf owns these floor values; the cells above
   are their glance restatement.
-- **Merge policy** — who lands the change; promotion-gated where the cell says so.
-- **Cost tier** — contract vocabulary (`economy` | `standard` | `premium`); the org binds
-  tiers to model instances. Policy vocabulary only — cost enforcement is out of scope.
-- **Escalation** — when a run must summon a human; event classes and routing below.
+- **Merge policy**: who lands the change; promotion-gated where the cell says so.
+- **Cost tier**: contract vocabulary (`economy` | `standard` | `premium`); the org binds
+  tiers to model instances. Policy vocabulary only. Cost enforcement is out of scope.
+- **Escalation**: when a run must summon a human; event classes and routing below.
 
 ## Glance-layer rule
 
 The matrix and the one-line definitions above are the whole glance layer: they alone answer
-"what governs class X". Every deeper question routes to a named leaf — depth is never
+"what governs class X". Every deeper question routes to a named leaf, and depth is never
 answered from this document:
 
 | Deeper question | Leaf |
@@ -73,7 +73,7 @@ line that types both the literal `autopilot` tier keyword and `--merge c3-this-r
 *that single invocation's* merge dimension up to and including C3, still bounded by the
 unconditional C4/C5 human-merge floor.
 
-This exception is not a matrix promotion and is never persisted — the next invocation without
+This exception is not a matrix promotion and is never persisted. The next invocation without
 the pair reverts to the tracked `babysit_loop_merge` resolution. No config layer supplies either
 token; both must appear on the invocation line. The full contract (baseline adoption requirement,
 mutual exclusivity with safer `--merge` values, and the C4/C5 ceiling) lives in the `source-control`
@@ -88,8 +88,8 @@ leaf carries this note in context.
 
 ## Automatic transitions
 
-Unanimity is not a matrix column: every transition a run takes without a human — merge and
-every stage before it — requires unanimous agreement among the checkers the class declares,
+Unanimity is not a matrix column: every transition a run takes without a human, merge and
+every stage before it, requires unanimous agreement among the checkers the class declares,
 and one dissent hands the item to the human gate and raises `verification-divergence` below.
 It is a fixed invariant, not a knob, so no cell above can express it. The
 [verification-topology](guardrails/verification-topology.md) leaf carries it in context,
@@ -108,8 +108,8 @@ Six escalation event classes:
 | `structural-plan-approval` | a `C4` item requires upfront plan approval before execution |
 | `untrusted-provenance` | always, for every `C5` item |
 
-**Routing obligation.** Every event class has an org-bound route in the security binding —
-escalation routes are a security-sensitive axis, so they bind on the governance surface, and
+**Routing obligation.** Every event class has an org-bound route in the security binding.
+Escalation routes are a security-sensitive axis, so they bind on the governance surface, and
 an absent or invalid binding fail-closes per the binding contract.
 
 **Payload.** The work-item reference plus the trace link: every escalation carries the item
@@ -121,7 +121,7 @@ the one queue, with an optional channel notification delivered through the trigg
 closed-loop acknowledgment symmetry ([trigger-dispatch](trigger-dispatch.md)).
 
 **The one-channel invariant.** No second escalation channel exists. It is this contract's
-own — distinct from, and narrower than, the claim and dispatch paths, which the
+own, distinct from and narrower than the claim and dispatch paths, which the
 [one-entrypoint invariant](trigger-dispatch.md#dispatch) states canonically and which binds
 here unchanged.
 

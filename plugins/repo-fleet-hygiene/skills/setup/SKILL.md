@@ -1,5 +1,5 @@
 ---
-description: "Verify and configure repo-fleet-hygiene for a consumer project. check inspects the optional .claude/repo-fleet-hygiene.conf read-only (presence, parse validity, path resolution); apply creates or updates it — adding bounded fleet roots, exact repositories, and remote-keyed canonical checkout overrides — preserving unrelated entries. Use when: 'set up repo fleet audit', 'is repo-fleet-hygiene configured', 'configure fleet roots', 'canonical repo override', 'dotfiles-manager checkout'. Re-runnable and safe."
+description: "Verify and configure repo-fleet-hygiene for a consumer project. check inspects the optional .claude/repo-fleet-hygiene.conf read-only (presence, parse validity, path resolution); apply creates or updates it by adding bounded fleet roots, exact repositories, and remote-keyed canonical checkout overrides, preserving unrelated entries. Use when: 'set up repo fleet audit', 'is repo-fleet-hygiene configured', 'configure fleet roots', 'canonical repo override', 'dotfiles-manager checkout'. Re-runnable and safe."
 user-invocable: true
 disable-model-invocation: true
 argument-hint: "check | apply [--config <path>] [--root <dir>]... [--repo <dir>]... [--canonical <github.com/owner/repo=path>]... [--ack-unavailable <github.com/owner/repo>]... [--skip <name>]... [--max-depth <1..12>]"
@@ -15,7 +15,7 @@ requires scope from somewhere: CLI bare path / `--root` / `--repo`, or `fleet.ro
 entries in a consumed config. Absence of every config on the ladder is therefore INFO for `check`
 (nothing to validate yet) and a hard failure for a subsequent no-argument audit, not a silent
 default to the current project. Check-centric per the uniform setup contract
-(`docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit and repeatable" in the marketplace repository):
+(`docs/plugin-philosophy.md` "Setup is explicit and repeatable" in the marketplace repository):
 `check` inspects read-only; `apply` creates or updates the file, then re-runs `check`. No argument
 or `check` runs the check; `apply` runs the check first, then the write. All non-interactive: when
 the arguments fully specify the change, `apply` proceeds without prompting.
@@ -71,13 +71,13 @@ with one remediation line per FAIL, and modify nothing. Do NOT run the collector
 8. **Tracked-file pair** (only when the config lives inside a git worktree, e.g. a project's
    tracked `.claude/repo-fleet-hygiene.conf`): resolve the worktree that owns the file
    (`git -C "$(dirname -- "<path>")" rev-parse --show-toplevel`) and run both probes there
-   with a path relative to that toplevel — `git -C "<toplevel>" check-ignore -v -- "<rel>"`
-   reports no match (a match is FAIL with the pattern — teammates would never receive the
+   with a path relative to that toplevel: `git -C "<toplevel>" check-ignore -v -- "<rel>"`
+   reports no match (a match is FAIL with the pattern, since teammates would never receive the
    config) AND `git -C "<toplevel>" ls-files --error-unmatch -- "<rel>"` exits 0 (non-zero is
    un-ignored but untracked; FAIL with "commit it to share with the team"). An explicit
    `--config` in another checkout is still that other worktree's file; do not run the pair
    against the current project's index. Skip both, saying so, when no owning worktree exists
-   (user-global `~/.claude/…` or any path outside a repository) — a git verdict there is
+   (user-global `~/.claude/…` or any path outside a repository). A git verdict there is
    meaningless.
 
 ## `apply` (idempotent)
@@ -138,13 +138,13 @@ Run `check`, then create or update the config from the supplied arguments.
    - **Tracked-file pair** (when the config lives inside a git worktree, e.g. the tracked
      `.claude/repo-fleet-hygiene.conf`): resolve the owning worktree
      (`git -C "$(dirname -- "<config-path>")" rev-parse --show-toplevel`) and run both probes
-     there with a toplevel-relative path — `git -C "<toplevel>" check-ignore -v -- "<rel>"`
-     reports no match (a match is FAIL with the pattern — teammates would never receive the
+     there with a toplevel-relative path: `git -C "<toplevel>" check-ignore -v -- "<rel>"`
+     reports no match (a match is FAIL with the pattern, since teammates would never receive the
      config) AND `git -C "<toplevel>" ls-files --error-unmatch -- "<rel>"` exits 0 (non-zero
      means un-ignored but still untracked, the guaranteed state right after a fresh write;
      report "written but untracked: commit it to share with the team", never success). An
      explicit `--config` in another checkout is still that other worktree's file. Skip both,
-     saying so, when no owning worktree exists — a git verdict there is meaningless.
+     saying so, when no owning worktree exists. A git verdict there is meaningless.
 
    Do **not** invoke the collector to verify a write. It is the full fleet walk this skill says it
    never runs: per-repository network queries across every configured root, minutes on a real fleet,

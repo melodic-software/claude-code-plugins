@@ -12,6 +12,12 @@ SCRIPT="$SELF_DIR/check-vendor-version-bump.sh"
 
 # shellcheck source=lib/test-harness.sh
 . "$SELF_DIR/lib/test-harness.sh"
+# shellcheck source=lib/fixture-tree.sh
+. "$SELF_DIR/lib/fixture-tree.sh"
+
+# The builder assigns through a nameref, which shellcheck cannot follow;
+# declaring the out-var here is what tells it (SC2154) the name is written.
+f=""
 
 # plugin <fixture> <name> <version> — a plugin with one vendored source file.
 plugin() {
@@ -28,21 +34,16 @@ set_version() {
     >"$fixture/plugins/$name/.claude-plugin/plugin.json"
 }
 
-# base_fixture → two vendored plugins committed as the base ref. Prints the
-# fixture dir; the base ref is HEAD.
+# base_fixture <out-var> → two vendored plugins committed as the base ref; the
+# base ref is HEAD.
 base_fixture() {
   local dir
-  dir="$(mktemp -d)"
-  mkdir -p "$dir/scripts/lib"
-  cp "$SCRIPT" "$dir/scripts/check-vendor-version-bump.sh"
-  cp "$SELF_DIR/lib/changed-files.sh" "$dir/scripts/lib/changed-files.sh"
-  chmod +x "$dir/scripts/check-vendor-version-bump.sh"
+  fixture_tree::build "$1" --sut "$SCRIPT" --git || return 1
+  dir="${!1}"
   plugin "$dir" alpha 1.0.0
   plugin "$dir" beta 2.0.0
-  git_init_test_repo "$dir" || return 1
   git -C "$dir" add -A
   git_test_config "$dir" commit -qm base
-  printf '%s' "$dir"
 }
 
 run_gate() (
@@ -52,7 +53,7 @@ run_gate() (
 )
 
 # --- no vendor change passes ------------------------------------------------
-f="$(base_fixture)"
+base_fixture f
 echo tweak >"$f/plugins/alpha/README.md"
 if out="$(run_gate "$f" --check-bump HEAD 2>&1)"; then
   ok "passes when no vendor/ tree changed"
@@ -62,7 +63,7 @@ fi
 rm -rf "$f"
 
 # --- vendor edit with a bump passes ----------------------------------------
-f="$(base_fixture)"
+base_fixture f
 echo 'module.exports = 2;' >"$f/plugins/alpha/vendor/pkg/index.js"
 set_version "$f" alpha 1.0.1
 if out="$(run_gate "$f" --check-bump HEAD 2>&1)"; then
@@ -73,7 +74,7 @@ fi
 rm -rf "$f"
 
 # --- vendor edit without a bump fails ---------------------------------------
-f="$(base_fixture)"
+base_fixture f
 echo 'module.exports = 2;' >"$f/plugins/alpha/vendor/pkg/index.js"
 if out="$(run_gate "$f" --check-bump HEAD 2>&1)"; then
   fail "vendor edit without a bump should fail, got success: $out"
@@ -85,7 +86,7 @@ fi
 rm -rf "$f"
 
 # --- an ADDED vendor file needs a bump too ----------------------------------
-f="$(base_fixture)"
+base_fixture f
 echo 'module.exports = 3;' >"$f/plugins/alpha/vendor/pkg/extra.js"
 git -C "$f" add plugins/alpha/vendor/pkg/extra.js
 if out="$(run_gate "$f" --check-bump HEAD 2>&1)"; then
@@ -96,7 +97,7 @@ fi
 rm -rf "$f"
 
 # --- a DELETED vendor file needs a bump too ---------------------------------
-f="$(base_fixture)"
+base_fixture f
 git -C "$f" rm -q plugins/beta/vendor/pkg/index.js
 if out="$(run_gate "$f" --check-bump HEAD 2>&1)"; then
   fail "deleted vendor file without a bump should fail, got success: $out"
@@ -112,7 +113,7 @@ rm -rf "$f"
 # record whose --name-only line is the destination only; without --no-renames
 # in the gate, alpha's vendor deletion vanishes from the diff and bumping beta
 # alone passes.
-f="$(base_fixture)"
+base_fixture f
 git -C "$f" mv plugins/alpha/vendor/pkg/index.js plugins/beta/vendor/pkg/moved.js
 set_version "$f" beta 2.0.1
 if out="$(run_gate "$f" --check-bump HEAD 2>&1)"; then
@@ -125,7 +126,7 @@ fi
 rm -rf "$f"
 
 # --- the same move with both plugins bumped passes --------------------------
-f="$(base_fixture)"
+base_fixture f
 git -C "$f" mv plugins/alpha/vendor/pkg/index.js plugins/beta/vendor/pkg/moved.js
 set_version "$f" alpha 1.0.1
 set_version "$f" beta 2.0.1
@@ -137,7 +138,7 @@ fi
 rm -rf "$f"
 
 # --- only the unbumped plugin is named --------------------------------------
-f="$(base_fixture)"
+base_fixture f
 echo 'module.exports = 2;' >"$f/plugins/alpha/vendor/pkg/index.js"
 set_version "$f" alpha 1.0.1
 echo 'module.exports = 2;' >"$f/plugins/beta/vendor/pkg/index.js"
@@ -151,7 +152,7 @@ fi
 rm -rf "$f"
 
 # --- a plugin new in this change set is exempt ------------------------------
-f="$(base_fixture)"
+base_fixture f
 plugin "$f" gamma 0.1.0
 git -C "$f" add plugins/gamma
 if out="$(run_gate "$f" --check-bump HEAD 2>&1)"; then
@@ -162,7 +163,7 @@ fi
 rm -rf "$f"
 
 # --- deleting the manifest is not an off switch -----------------------------
-f="$(base_fixture)"
+base_fixture f
 echo 'module.exports = 2;' >"$f/plugins/alpha/vendor/pkg/index.js"
 git -C "$f" rm -q plugins/alpha/.claude-plugin/plugin.json
 if out="$(run_gate "$f" --check-bump HEAD 2>&1)"; then
@@ -173,7 +174,7 @@ fi
 rm -rf "$f"
 
 # --- a vendor/ nested below the plugin root is out of scope -----------------
-f="$(base_fixture)"
+base_fixture f
 mkdir -p "$f/plugins/alpha/skills/digest/vendor"
 echo nested >"$f/plugins/alpha/skills/digest/vendor/lib.js"
 git -C "$f" add plugins/alpha/skills/digest
@@ -189,7 +190,7 @@ rm -rf "$f"
 # the gate's own rev-parse still resolves the base ref. Without the gate
 # checking the diff's status, the failure drains to an empty plugin list and
 # the gate reports "nothing changed" over a tree carrying a real violation.
-f="$(base_fixture)"
+base_fixture f
 echo 'module.exports = 2;' >"$f/plugins/alpha/vendor/pkg/index.js"
 mkdir -p "$f/shim"
 real_git="$(command -v git)"
@@ -209,7 +210,7 @@ rm -rf "$f"
 # With jq unusable every manifest read comes back empty, which the loop would
 # misread as the new-plugin carve-out for every plugin — a full-open gate over
 # a tree carrying a real violation.
-f="$(base_fixture)"
+base_fixture f
 echo 'module.exports = 2;' >"$f/plugins/alpha/vendor/pkg/index.js"
 mkdir -p "$f/shim"
 printf '#!/usr/bin/env bash\nexit 127\n' >"$f/shim/jq"
@@ -228,7 +229,7 @@ rm -rf "$f"
 # parse error into the same empty base_version the new-plugin carve-out keys
 # on, so a manifest that was malformed at the base ref silently exempted its
 # plugin from the bump check.
-f="$(base_fixture)"
+base_fixture f
 printf '{"name":"alpha","version":\n' >"$f/plugins/alpha/.claude-plugin/plugin.json"
 git -C "$f" add -A
 git_test_config "$f" commit -qm 'malformed manifest'
@@ -253,7 +254,7 @@ rm -rf "$f"
 # fail-open shape rather than a merely wrong diagnostic: pre-fix the gate
 # compares a repaired "1.0.0" against a real "1.0.1", finds a difference, and
 # reports "Every plugin ... bumped" -- exit 0 over a base ref it never read.
-f="$(base_fixture)"
+base_fixture f
 printf '{"name":"alpha","version":\0"1.0.0"}\n' >"$f/plugins/alpha/.claude-plugin/plugin.json"
 git -C "$f" add -A
 git_test_config "$f" commit -qm 'NUL-corrupted manifest'
@@ -271,7 +272,7 @@ rm -rf "$f"
 # --- a version-less BASE manifest is a loud exit, not an exemption ----------
 # Same collapse, without even a jq diagnostic: `.version // empty` on a valid
 # manifest that lacks the key yields the empty string the carve-out keys on.
-f="$(base_fixture)"
+base_fixture f
 printf '{"name":"alpha"}\n' >"$f/plugins/alpha/.claude-plugin/plugin.json"
 git -C "$f" add -A
 git_test_config "$f" commit -qm 'version-less manifest'
@@ -290,7 +291,7 @@ rm -rf "$f"
 # at the base ref (ls-tree still sees it), so a `git show` that fails anyway
 # is a read the gate could not make, not a new plugin. The shim fails only the
 # show subcommand; rev-parse, diff, and ls-tree pass through.
-f="$(base_fixture)"
+base_fixture f
 echo 'module.exports = 2;' >"$f/plugins/alpha/vendor/pkg/index.js"
 mkdir -p "$f/shim"
 real_git="$(command -v git)"
@@ -312,7 +313,7 @@ rm -rf "$f"
 # an empty list and the gate reported "No plugin vendor/ tree changed" over a
 # tree carrying a real violation. The shared resolver stages and checks the
 # sort itself; the gate must surface that failure as exit 2.
-f="$(base_fixture)"
+base_fixture f
 echo 'module.exports = 2;' >"$f/plugins/alpha/vendor/pkg/index.js"
 mkdir -p "$f/shim"
 printf '#!/usr/bin/env bash\necho "sort: simulated failure" >&2\nexit 2\n' >"$f/shim/sort"
@@ -332,7 +333,7 @@ rm -rf "$f"
 # included), which matches no plugins/*/vendor/* pattern, so the change was
 # invisible and the gate passed. The NUL-delimited resolver hands the name
 # over verbatim.
-f="$(base_fixture)"
+base_fixture f
 quoted_name='café.js'
 printf 'module.exports = 9;\n' >"$f/plugins/alpha/vendor/pkg/$quoted_name"
 git -C "$f" add "plugins/alpha/vendor/pkg/$quoted_name"
@@ -346,7 +347,7 @@ fi
 rm -rf "$f"
 
 # --- usage and unresolvable base ref exit 2 ---------------------------------
-f="$(base_fixture)"
+base_fixture f
 expect_exit_2() {
   local label="$1"
   shift

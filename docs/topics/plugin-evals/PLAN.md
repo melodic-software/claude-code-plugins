@@ -135,7 +135,7 @@ plugin as it was.
 | File | Action | What changes |
 |---|---|---|
 | `docs/native-surfaces/records.json` | Modify | add the `plugin eval` row (class `builtin-command`, marker `gated`, verdict `complementary`, component `evals`/`plugin-eval`) |
-| `docs/NATIVE-SURFACES.md` | Regenerate | `overlap.py generate` after the row lands |
+| `docs/native-surfaces.md` | Regenerate | `overlap.py generate` after the row lands |
 | `.gitignore` | Modify | `plugins/*/evals/results/` |
 | `plugins/evals/evals/<3 cases>/prompt.md`, `graders/*.md` | Create | pilot suite |
 | `docs/topics/plugin-evals/verification/pilot.md`, `verification/preflight.md` | Create | distilled pilot evidence (Δ per case, cost, version); the preflight transcripts for criteria 1, 4, 5 |
@@ -144,9 +144,9 @@ plugin as it was.
 | `plugins/evals/.claude-plugin/plugin.json` | Modify | description, `userConfig` (two keys), version 0.3.0 |
 | `plugins/evals/CHANGELOG.md`, `README.md` | Modify | 0.3.0 entry; "does not execute" section becomes the runner section |
 | `plugins/evals/skills/design/SKILL.md`, `skills/methodology/SKILL.md`, `skills/design/evals/evals.json` | Modify | drop the "does not execute" clauses; `## Next` names `evals:plugin-eval`; the wrap route for plugin targets |
-| `docs/MIGRATION-PLAYBOOK.md` L350-458 | Modify | deferral becomes an adoption record; `medley#1418` linked |
+| `docs/migration-playbook.md` L350-458 | Modify | deferral becomes an adoption record; `medley#1418` linked |
 | `docs/specs/prompt-audit-skills-2026-09.md` (~L614), `docs/specs/provenance-capability-matrix.md` (~L201), `docs/specs/write-for-agents-brief.md` (~L57), `docs/specs/provenance-design-threads.md` (~L107) | Modify | one dated note each pointing at the adoption record |
-| `docs/CATALOG.md` | Regenerate | `node scripts/generate-catalog.mjs` after the manifest change |
+| `docs/catalog.md` | Regenerate | `node scripts/generate-catalog.mjs` after the manifest change |
 | `plugins/playbooks/skills/skill-authoring/reference/authoring-guidance.md` L221-234, `plugins/playbooks/CHANGELOG.md`, `plugins/playbooks/.claude-plugin/plugin.json` | Modify | the fired recheck trigger ("the docs page documents the command") is honored: fact restated, as-of refreshed, patch bump |
 | `docs/upstream/aihero-course.md` L314, `package.json` | Keep | upstream digest; the pin only serves cloud-bootstrap marketplace registration, never evals |
 
@@ -178,7 +178,7 @@ The `detect` pairing check against the bundled `run` row waits for Phase 4, when
   scores; `evals:plugin-eval` preflights, validates, prices, and reads Δ; and why no listing phrase is
   baked (a shell subcommand is not a listing surface). Check `overlap.py detect` does not pair the new
   skill with the bundled `run` row; the leaf `plugin-eval` avoids it.
-- Regenerate `docs/NATIVE-SURFACES.md`.
+- Regenerate `docs/native-surfaces.md`.
 - Add `plugins/*/evals/results/` to `.gitignore` (Edit tool; the worktree guard refuses Bash mentioning
   `.gitignore`).
 - Commit `docs/topics/plugin-evals/design/design-resolution.md` and this plan with the phase.
@@ -239,7 +239,7 @@ The `--trust-plugin` open question is answered: trust persists for the repositor
 - If the probe finds no separating term, or no positive Δ survives two reruns: stop, keep the suite,
   record the negative result, and propose rewording acceptance criterion 3 to the indicator form (the
   `tool_used: Skill` grader fires in the with-arm and not in the without-arm). A cloud session is not a
-  fallback for this: the same base model knows the same material there. `[FALLBACK — confirm or override]`
+  fallback for this: the same base model knows the same material there. `[FALLBACK: confirm or override]`
 - **Sanity Check:** the final JSON has `partial == false`, `cases | length == 3`, every
   `cases[].aggregates.delta` present, at least one `> 0`, every `cases[].arms.*[].error` and `.aborted`
   null, no run with `skippedPaidGraders == true` (a mid-suite rate limit zeroes runs without marking
@@ -341,7 +341,7 @@ Review: code-design
   plugin targets hand to `claude plugin eval init` (the wrap route for skills); `## Next` → `/evals:plugin-eval`.
   `skills/methodology/SKILL.md`: "not a runner" stays true, the "no marketplace command executes" sentence
   goes; scope boundary points at `evals:plugin-eval`. `skills/design/evals/evals.json:53` expectation text updated.
-- `docs/MIGRATION-PLAYBOOK.md` L350-458: the deferral paragraph becomes an adoption record (what shipped,
+- `docs/migration-playbook.md` L350-458: the deferral paragraph becomes an adoption record (what shipped,
   the two coexisting formats, the consumer-verify recipe reduced to the validator plus the command), with
   `melodic-software/medley#1418` linked as the tracker that carried the deferral, not closed.
 - One dated note each in the four `docs/specs/` files: the routing narrows to `CLAUDE.md` and rules
@@ -350,7 +350,7 @@ Review: code-design
   has fired (provenance-design-threads ~L107). Each note names "adoption record" and the playbook
   section. Specs are records; the note points, it does not rewrite and does not repeat the phrase it
   retires.
-- `node scripts/generate-catalog.mjs` regenerates `docs/CATALOG.md`.
+- `node scripts/generate-catalog.mjs` regenerates `docs/catalog.md`.
 - `plugins/playbooks/skills/skill-authoring/reference/authoring-guidance.md` L221-234 says the command
   "exists in the binary but is undocumented" with a recheck trigger "the Claude Code page documents
   `claude plugin eval`", which has fired: re-fetch the raw docs page, restate the fact, refresh the
@@ -367,8 +367,8 @@ Review: code-design
   retired it; `docs/specs/` are dated records covered by the presence check instead), and `grep -c -i
   'adoption record' <each of the four specs>` ≥ 1; this is the Brief's criterion 6 read as "no file still
   asserts the command is early access", which a quoted error string does not; `scripts/check-changelog-parity.sh --check-bump main` exit 0; `node
-  scripts/generate-catalog.mjs --check` (or a re-run plus `git diff --quiet docs/CATALOG.md`) clean;
-  `grep -c 'medley#1418' docs/MIGRATION-PLAYBOOK.md` ≥ 1.
+  scripts/generate-catalog.mjs --check` (or a re-run plus `git diff --quiet docs/catalog.md`) clean;
+  `grep -c 'medley#1418' docs/migration-playbook.md` ≥ 1.
 
 ### Phase 6: Confirm, run every gate, open the draft PR [TODO]
 
@@ -485,11 +485,11 @@ Sequential 1 → 2 (main session: judgment, spend, PowerShell tool), then Wave A
 
 | Phase | Files | Overlaps with |
 |---|---|---|
-| 1 | records.json, NATIVE-SURFACES.md, .gitignore, design-resolution.md, PLAN.md | none |
+| 1 | records.json, native-surfaces.md, .gitignore, design-resolution.md, PLAN.md | none |
 | 2 | plugins/evals/evals/**, verification/pilot.md | none |
 | 3 | plugins/evals/skills/validate/** | none |
 | 4 | plugins/evals/skills/plugin-eval/** | none |
-| 5 | evals plugin.json, CHANGELOG, README, design/, methodology/, MIGRATION-PLAYBOOK, four specs, CATALOG, three playbooks files | none |
+| 5 | evals plugin.json, CHANGELOG, README, design/, methodology/, migration-playbook, four specs, catalog, three playbooks files | none |
 | 6 | verification/pilot.md, PR | 2 (pilot.md, sequential anyway) |
 
 Dependencies: 1 → every skill body (the store row precedes any reference); 2 → 3 (the pilot suite is
@@ -517,7 +517,7 @@ session if any worker reports a scope-fence violation or cannot complete.
 | A3 | 5 | the Phase 5 inventory rows only | ~150 |
 
 A3's ALLOWED list is the Phase 5 inventory: the `evals` manifest, CHANGELOG, README, `design/` and
-`methodology/` skill files, the playbook section, the four specs, `docs/CATALOG.md`, and the three
+`methodology/` skill files, the playbook section, the four specs, `docs/catalog.md`, and the three
 `playbooks` files. A3 is told that the advisory skill-reference hook will flag `/evals:plugin-eval` and
 `/evals:validate` as absent while A1 and A2 are still writing them; that is expected, not a divergence.
 
@@ -525,9 +525,9 @@ Each agent FORBIDDEN: any file outside its list, `PLAN.md`, the other agents' di
 committing. Each reports: work items done, per-criterion sanity verdict, LOC delta.
 
 ```text
-DIVERGENCE ESCALATION (mandatory): if reality diverges from this brief —
+DIVERGENCE ESCALATION (mandatory): if reality diverges from this brief,
 a precondition fails, a file/symbol named here is absent or different than
-described, scope is blocked, or a design question arises mid-task — STOP.
+described, scope is blocked, or a design question arises mid-task, STOP.
 Do not improvise, fix forward, or expand scope. Report to the orchestrator:
 what you found, what the brief expected, and the exact state of your work
 (files touched, edits applied / not applied). Await a revised brief.
@@ -552,7 +552,7 @@ what you found, what the brief expected, and the exact state of your work
 - Pilot spend: passes of at most 2 USD each, three in Phase 2 and one in Phase 6, 8 USD in total; plan
   approval is the spend approval unless the user names another number.
 - Phase 2 fallback: if no positive Δ survives two reruns, stop and route to the cloud follow-up
-  `[FALLBACK — confirm or override]`.
+  `[FALLBACK: confirm or override]`.
 - Phase 5 spec notes: each `docs/specs/` file gets one dated pointer note rather than a rewrite.
 - Phase 6: the Q12 issue and the standards persistence are asked, never assumed.
 

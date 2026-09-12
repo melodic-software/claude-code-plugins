@@ -19,6 +19,7 @@ have checked a judgment row is misreporting.
 |---|---|
 | Description is specific: concrete nouns a user would type, key use case first | judgment |
 | Description says what the skill does and when to use it, with "Use when" phrasing in single quotes | mechanical (check 12) |
+| Description prose carries no first or second person; quoted trigger phrases may | judgment |
 | `description` alone is at most 1,024 codepoints | mechanical (check 2b) |
 | `description` plus `when_to_use` is at most 1,536 characters | mechanical (check 2) |
 | SKILL.md is under 500 lines, whole file | mechanical (check 4) |
@@ -60,6 +61,7 @@ have checked a judgment row is misreporting.
 | `evals/evals.json` is present | mechanical (check 14) |
 | `evals/evals.json` validates against the schema and passes the eval-quality lint | mechanical (`/skill-quality:check validate-evals <skill>`) |
 | Three or more eval cases | mechanical (advisory) |
+| Where the bundled skill-creator plugin is installed, its eval modes ran the cases with a subagent per case; otherwise the fresh-session loop below stands in | attestation |
 | Fresh-session baseline captured with the skill disabled, then enabled | attestation |
 | Tested on real tasks, not contrived scenarios | attestation |
 | Models exercised: which of `haiku`, `sonnet`, `opus`, `fable` | attestation |

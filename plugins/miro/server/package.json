@@ -1,0 +1,31 @@
+{
+  "name": "@melodic-software/miro-mcp",
+  "version": "0.2.2",
+  "description": "General-purpose Miro MCP server. Creates and manages sticky notes, shapes, frames, connectors, and tags on Miro boards via the Model Context Protocol.",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --coverage --typecheck",
+    "lint": "biome check . --error-on-warnings",
+    "lint:fix": "biome check --write . --error-on-warnings",
+    "bundle": "node build.mjs",
+    "verify-bundle": "node build.mjs --check"
+  },
+  "dependencies": {
+    "@mirohq/miro-api": "^2.2.4",
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.12",
+    "@types/node": "^26.4.1",
+    "@vitest/coverage-v8": "^5.0.0",
+    "esbuild": "0.28.2",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.0"
+  }
+}

@@ -19,14 +19,14 @@ unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SCRIPT="$ROOT/scripts/check-fixture-git-isolation.sh"
 BASELINE_NAME="fixture-git-isolation-baseline.txt"
-failures=0
 
-ok() { printf 'ok - %s\n' "$1"; }
-fail() {
-  printf 'not ok - %s\n' "$1" >&2
-  failures=$((failures + 1))
-}
+# shellcheck source=lib/test-harness.sh
+. "$ROOT/scripts/lib/test-harness.sh"
 
+# The fixture repos below are built by hand rather than through
+# scripts/lib/fixture-tree.sh on purpose: they are this gate's COUNTER-fixtures,
+# and a self-test that built them with the shared builder would be asserting the
+# builder's isolation rather than the gate's ability to detect its absence.
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
@@ -39,8 +39,9 @@ REPO=""
 new_repo() {
   seq_n=$((seq_n + 1))
   REPO="$TMP/r$seq_n"
-  mkdir -p "$REPO/scripts"
+  mkdir -p "$REPO/scripts/lib"
   cp "$SCRIPT" "$REPO/scripts/check-fixture-git-isolation.sh"
+  cp "$ROOT/scripts/lib/read-list.sh" "$REPO/scripts/lib/"
   git -C "$REPO" init -q
   git -C "$REPO" config user.email t@t.test
   git -C "$REPO" config user.name test
@@ -1130,8 +1131,4 @@ else
   fail "live corpus: rc=$rc out='$out'"
 fi
 
-if ((failures > 0)); then
-  printf '\n%d case(s) failed\n' "$failures" >&2
-  exit 1
-fi
-printf '\nALL PASS\n'
+test_harness::report

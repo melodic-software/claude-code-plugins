@@ -14,12 +14,12 @@ defaults.
 | 1 | Deterministic scanners | Machine-adjudicated: same input, same verdict |
 | 2 | AI security review | Model-adjudicated: judgment findings over the change |
 
-**Layer 1 — deterministic scanners.** Scanner CLASSES, instances org-bound: secret
+**Layer 1: deterministic scanners.** Scanner CLASSES, instances org-bound: secret
 detection, dependency vulnerability audit, static analysis. Deterministic verdicts make
 this layer safe to run blocking wherever the matrix requires it.
 
-**Layer 2 — AI security review.** A model-driven security review of the change: logic
-flaws, injection paths, privilege and trust-boundary errors — findings deterministic
+**Layer 2: AI security review.** A model-driven security review of the change: logic
+flaws, injection paths, and privilege and trust-boundary errors, the findings deterministic
 scanners cannot express. Verdicts are judgment, so the layer ships advisory wherever the
 matrix has not yet earned blocking (promotion discipline below).
 
@@ -27,9 +27,9 @@ matrix has not yet earned blocking (promotion discipline below).
 
 Every layer × class cell carries one knob: `advisory` | `blocking`.
 
-- `blocking` — a failing verdict is a gate failure: the change does not merge, and the
+- `blocking`. A failing verdict is a gate failure: the change does not merge, and the
   failure raises the matrix's gate-failure escalation event class.
-- `advisory` — findings are recorded on the item's verification record and surfaced to
+- `advisory`. Findings are recorded on the item's verification record and surfaced to
   the human merge gate; they never block on their own.
 
 That a failing verdict can gate the merge at all is this contract's own instantiation: the
@@ -37,19 +37,19 @@ Boris playbook keeps automated review a default feeding a human merge, never a g
 `blocking` knob layers a gate onto that advisory posture rather than inheriting it.
 
 Knobs are security-sensitive and bind ONLY on the org's security governance surface (the
-settings-as-code home, outside the blast radius of the agents they govern — an
+settings-as-code home, outside the blast radius of the agents they govern, since an
 agent-writable blocking knob is a bypass channel). Shipped defaults:
 
 | Class | Layer 1 (deterministic scanners) | Layer 2 (AI security review) |
 |---|---|---|
-| `C1` | n/a — no repo mutation to scan; output-shape checks govern | n/a |
+| `C1` | n/a. No repo mutation to scan; output-shape checks govern | n/a |
 | `C2` | `blocking` | not required; `advisory` where org-enabled |
 | `C3` | `blocking` | `advisory`, promotable to `blocking` |
 | `C4` | `blocking` | `blocking`; human review additionally mandatory per the matrix |
-| `C5` | `blocking` | `blocking`; full-gate cell — the zero-secret-exposure execution constraint is owned by the [isolation floor](isolation-ladder.md), not this leaf |
+| `C5` | `blocking` | `blocking`; full-gate cell. The zero-secret-exposure execution constraint is owned by the [isolation floor](isolation-ladder.md), not this leaf |
 
 Shipped defaults are FLOORS: a binding may tighten any cell (`advisory` → `blocking`) but
-never weaken one below its shipped default — a binding that tries is invalid. An absent
+never weaken one below its shipped default. A binding that tries is invalid. An absent
 or invalid binding fail-closes: every knob resolves to its shipped default and every
 promoted posture is unavailable. No silent degrade on any path.
 
@@ -64,7 +64,7 @@ in the [per-class detail leaf](work-classes.md).
 
 - The DEFAULT path is free: Layer 1's blocking obligations are satisfied by free-path
   scanner classes with zero paid dependencies.
-- Entitlement-gated tools — paid code-scanning SKUs — are `advisory` + explicit opt-in,
+- Entitlement-gated tools, the paid code-scanning SKUs, are `advisory` + explicit opt-in,
   with the cost surfaced at opt-in time. They never hold a blocking cell's obligation,
   and an entitlement gap routes the tool to the advisory path rather than silently
   passing the layer.
@@ -73,6 +73,6 @@ in the [per-class detail leaf](work-classes.md).
 
 The guardrail slice of guided setup configures this policy; no separate security-review
 setup capability exists (near-duplicate ban). Setup always detect-diff-reconciles against
-the org's EXISTING review surfaces — scanner configuration, review workflows, branch
-protections — never greenfield-assumes and never silently overwrites; the same
+the org's EXISTING review surfaces, meaning scanner configuration, review workflows, and
+branch protections. It never greenfield-assumes and never silently overwrites; the same
 detect-diff-reconcile obligation generalizes matrix-wide.

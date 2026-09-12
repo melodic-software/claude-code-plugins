@@ -242,6 +242,41 @@ def subject_of(entry):
 
 present = [s for s in SECTIONS if s in config]
 
+# `sections=4` alone answers a question nobody asked. The operator wants to know
+# which of those sections they have actually customized and which are still the
+# shipped list, because only the first kind can carry their own mistakes. A
+# section counts as customized when it holds an entry the built-in list does not;
+# the CLI expands "$defaults" in its own output, so an untouched section arrives
+# looking identical to the built-in one.
+# Customization is ADDITIONS OR REMOVALS, not additions alone. A section holding
+# a strict subset of the built-in list has no entry the defaults lack, so an
+# additions-only test called it unmodified -- directly above C4 reporting that
+# built-in entries were discarded. Dropping "$defaults" to prune the shipped list
+# is customization, and the loudest kind.
+customized = []
+for _s in present:
+    _cur = entries(config, _s)
+    _base = entries(defaults, _s)
+    _added = any(e not in _base for e in _cur)
+    _removed = any(e not in _cur for e in _base)
+    if _added or _removed:
+        customized.append(_s)
+if present:
+    if customized:
+        print(
+            "AUTOMODE-NOTE: customized section(s): %s. Still the built-in list: %s. "
+            "Only a customized section can carry your own rules, and only it can "
+            "discard built-in entries by omitting \"$defaults\"."
+            % (",".join(customized), ",".join(s for s in present if s not in customized) or "none")
+        )
+    else:
+        print(
+            "AUTOMODE-NOTE: all %d section(s) present are the built-in lists, unmodified. "
+            "No custom rule of yours is in force here, so a finding count of zero says "
+            "the shipped defaults are intact, not that your rules are clean."
+            % len(present)
+        )
+
 # --- C4: a customized section that discards the built-in list ----------------
 #
 # "$defaults" is the token that keeps the shipped rule list in a section the

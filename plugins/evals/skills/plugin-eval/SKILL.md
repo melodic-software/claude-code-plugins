@@ -231,9 +231,12 @@ and read the JSON in addition to the exit code. The CLI's own exit 1 still fails
 below-threshold case, but it is overloaded across six causes and exit 2 means partial, so the JSON
 is what tells a reader which one happened and whether the arms were comparable at all.
 
-## Boundary
+## Boundary, the built-in `plugin eval` command
 
-- The **CLI** owns execution, grading, the ablation arms, the JSON, and the HTML report. This skill
+- The **CLI** (`plugin eval`, a built-in command) owns execution, grading, the ablation arms, the
+  JSON, and the HTML report. It is gated: below the version floor recorded in the preflight
+  section it refuses to run, so this skill reads the version and never assumes the command is
+  available. This skill
   owns what surrounds a spend: the preflight, the no-spend validation, the estimate and ceiling,
   target routing, and the reading discipline. It never re-implements grading and never simulates a
   run or a score.

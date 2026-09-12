@@ -17,7 +17,7 @@
 - [Do not pick weak friends](#do-not-pick-weak-friends)
 - [Revision workflow](#revision-workflow)
 
-Pat Pattison — *Essential Guide to Rhyming* (2014), Chapter 2, "Exchanging
+Pat Pattison, *Essential Guide to Rhyming* (2014), Chapter 2, "Exchanging
 Business Cards" (printed pp. 9–17).
 
 Use this with [rhyme fundamentals](rhyme-fundamentals.md),
@@ -26,7 +26,7 @@ Use this with [rhyme fundamentals](rhyme-fundamentals.md),
 rhyme from a sound match into a lyric-thinking tool.
 
 **Reading this file.** Pat's own words appear *only* inside quotation marks,
-blockquotes, and fenced blocks — that is the whole of the verbatim layer, and
+blockquotes, and fenced blocks. That is the whole of the verbatim layer, and
 it is printed as printed. Every other sentence here, headed or not, is this
 plugin's operational framing: it is not in the chapter and must never be quoted
 back as Pat's.
@@ -164,8 +164,10 @@ before rewriting the full lines.
 Predictable rhyme pairs are not wrong because they are familiar. They are weak
 when the listener can complete the line before the writer does.
 
+<!-- ai-slop-ignore-start: verbatim Pat Pattison exercise instruction, Essential Guide to Rhyming, Exercise 2.2 -->
 **Exercise 2.2. Cliché Rhymes.** Fill in the blanks. Don't use your rhyming
 dictionary — just grab the first rhyme you can think of:
+<!-- ai-slop-ignore-end -->
 
 ```text
 hand ____     heart ____
@@ -201,7 +203,7 @@ But when you pair them with their predictable mates, they bland off to nowhere
 
 And his cure: "Your goal is to find a cure for the infection. Start by looking
 up the words from exercise 2.2 in your rhyming dictionary and see if you can do
-better." Preserve the principle — the
+better." Preserve the principle: the
 first rhyme that arrives is the cultural reflex, not the best craft choice.
 
 Skill behavior for cliche targets:
@@ -270,8 +272,10 @@ scorn    trance   break    leave
 affair   alarm    school   past
 ```
 
+<!-- ai-slop-ignore-start: verbatim quotation from Essential Guide to Rhyming (2014), Chapter 2 -->
 "When you use your rhyming dictionary in such a focused way — looking for words
 that connect ideas — it is a real help."
+<!-- ai-slop-ignore-end -->
 
 Pat then shows the pairs generating plot on their own: "Some of your rhyming
 pairs above might suggest other ideas. 'Scold/hold' could
@@ -357,21 +361,21 @@ I want to play it safe
 
 <!-- phonetic vowel markings trip the spell-checker --><!-- spellchecker:off -->
 
-**Step 1 — try the obvious section.** "To get a third line, you might try to
+**Step 1: try the obvious section.** "To get a third line, you might try to
 rhyme 'business.' Look in your rhyming dictionary in the feminine section under
 `IZ ness`. Oops. No words rhyme with it. Now you have two choices."
 
 > 1. "Since it is feminine, find a *mosaic rhyme*, or…"
 > 2. "Don't rhyme it."
 
-**Step 2 — build the mosaic from the masculine section.** Look under short
+**Step 2: build the mosaic from the masculine section.** Look under short
 `ĭ` + `z`. Best of a short list: `fizz`, `friz`, `his`, `is`, `quiz`, `'tis`,
 `whiz`. Assemble them: Fizzness? Frizness? Hisness? Isness? Quizness?
 Tisness? Whizness? "There are some faint sparks, but all seem to smack of
 forced comedy that promise only self-consciously 'look-at-me-I-can't-find-a-
 rhyme' humor."
 
-**Step 3 — remember the tail need not be an identity.** "Remember, feminine
+**Step 3: remember the tail need not be an identity.** "Remember, feminine
 rhymes do not necessarily have identities in their unstressed syllables. Look
 in the masculine section under short `ĕ` + `s`. Of course, only one-syllable
 words will do."
@@ -384,9 +388,9 @@ press   stress
 
 <!-- spellchecker:on -->
 
-**Step 4 — filter by stress, not by sound.** See *Feminine mosaic problem* below.
+**Step 4: filter by stress, not by sound.** See *Feminine mosaic problem* below.
 
-**Step 5 — check the *fourth* line before committing the third.** "The key to
+**Step 5: check the *fourth* line before committing the third.** "The key to
 what will happen in the third phrase is often what happens in the fourth."
 Rhymes for `safe`: `chafe`, `strafe`, `waif`. "Ick. Even if you wanted
 'strafe,' it is a transitive verb needing a direct object to complete it.
@@ -418,7 +422,7 @@ lyricists often spend valuable energy and creativity trying to create silk
 purses with words like these. The problem, as usual, is in picking 'business'
 and 'safe' without much forethought."
 
-Pat's own fix is a planning instruction, not a rescue — see *Do not pick weak
+Pat's own fix is a planning instruction, not a rescue. See *Do not pick weak
 friends* at the foot of this file, which is where the chapter ends.
 
 Derived options when you are already stuck there anyway (not Pat's list):
@@ -440,7 +444,7 @@ of a feminine rhyme.
 
 Pat's filter on the `business` list: "Most of these are too strong to work as
 the unstressed syllable in a feminine mosaic. You need something with the same
-stress pattern as `busi-ness`." He then prints the scansion twice — "With most
+stress pattern as `busi-ness`." He then prints the scansion twice: "With most
 of the choices, for example, `his guess`. You will end up with":
 
 ```text
@@ -499,7 +503,7 @@ The chapter's last words, and its practical warning:
 
 Once a word occupies a rhyme position, it becomes a friend that later lines
 must answer. If the word has poor rhyme potential or weak idea potential, the
-next line may be trapped — which is exactly what `business` and `safe` did in
+next line may be trapped, which is exactly what `business` and `safe` did in
 the walkthrough above.
 
 Planning move:

@@ -9,7 +9,7 @@
 - [Worked examples](#worked-examples)
 - [Cross-references](#cross-references)
 
-Exact contract for how callers cite an SSOT after extraction. Applies to markdown citations between rule files / skills / docs. (Code and config callers use the language's idiomatic form — `import`, `using`, YAML anchor, JSON `$ref` — not this contract.)
+Exact contract for how callers cite an SSOT after extraction. Applies to markdown citations between rule files / skills / docs. Code and config callers use the language's idiomatic form instead, such as `import`, `using`, a YAML anchor, or JSON `$ref`, not this contract.
 
 SKILL.md cites the headline form; this file covers the full template, line-wrap edge case, and rename discipline.
 
@@ -31,31 +31,31 @@ Concrete shapes the template produces:
 
 Three rules baked in:
 
-1. **Backticked filename** — `` `<file>.md` `` not `<file>.md`. Disambiguates filename from prose; lets grep find the citation deterministically
-2. **Quoted heading text** — `"<heading>"` not `<heading>` or `'<heading>'`. Quote characters are stable; heading capitalization matches the SSOT exactly
-3. **One level deep** — never chain `A.md` → `B.md` → `C.md`. If the SSOT references another SSOT for the same domain, fix that first (anti-pattern #2 over-indirection)
+1. **Backticked filename**: `` `<file>.md` `` not `<file>.md`. Disambiguates filename from prose; lets grep find the citation deterministically
+2. **Quoted heading text**: `"<heading>"` not `<heading>` or `'<heading>'`. Quote characters are stable; heading capitalization matches the SSOT exactly
+3. **One level deep**: never chain `A.md` → `B.md` → `C.md`. If the SSOT references another SSOT for the same domain, fix that first (anti-pattern #2 over-indirection)
 
 ## 1-line inline summary template
 
 For non-trivial citations, append a 1-line summary AFTER the citation so the reader can skim the caller and understand the shape without clicking through:
 
 ```text
-<scope phrase> per `<file>.md` "<heading>" — <≤80 char shape description>.
+<scope phrase> per `<file>.md` "<heading>": <≤80 char shape description>.
 ```
 
 Examples of the shape pattern (substitute the actual rule file and heading at the call site):
 
-- A workflow step citation might look like: `<step name> per <workflow>.md "<step heading>" — short cadence/cycle description.`
-- A naming citation might look like: `<naming concern> per <style-guide>.md "<rule heading>" — short rule shape (kebab-case, 40-char cap, etc).`
+- A workflow step citation might look like: `<step name> per <workflow>.md "<step heading>": short cadence/cycle description.`
+- A naming citation might look like: `<naming concern> per <style-guide>.md "<rule heading>": short rule shape (kebab-case, 40-char cap, etc).`
 
-Summary format: `— <≤80 char description>`. Em-dash separator preferred over colon (visual scan). Aim for the SHAPE of the cited rule, not its full content.
+Summary format: `: <≤80 char description>`. The colon is the separator, not an em dash: this repository's house style admits a colon where a definition or description follows and admits no em dash at all. Aim for the SHAPE of the cited rule, not its full content.
 
 When to inline a summary:
 
 | Caller context | Summary needed? |
 |----------------|-----------------|
-| Citation appears once in a body paragraph | YES — reader hits cold context |
-| Citation appears in a Cross-references section list | NO — section context already orients the reader |
+| Citation appears once in a body paragraph | YES, the reader hits cold context |
+| Citation appears in a Cross-references section list | NO, section context already orients the reader |
 | Citation is repeated within ~50 lines of the same caller | First citation YES, subsequent NO (reader has the context) |
 | Citation is in a table cell | YES if the cell is the caller's only reference; NO if the cell is one of many short references |
 
@@ -74,25 +74,25 @@ part 2)">.
 
 ```text
 <scope phrase> per `<file>.md`
-"<full heading text on one line>" — <summary>.
+"<full heading text on one line>": <summary>.
 ```
 
 If the heading itself contains characters that confuse grep (parens, em-dashes, quote marks), the SSOT author should rename the heading to something simpler. Heading text should be greppable as-is.
 
 ## Rename discipline
 
-Headings in an SSOT file are stable contracts. After ANY heading edit in an SSOT, invoke `/docs-hygiene:rename-references` via the Skill tool immediately — it sweeps all 10 syntactic forms including:
+Headings in an SSOT file are stable contracts. After ANY heading edit in an SSOT, invoke `/docs-hygiene:rename-references` via the Skill tool immediately. It sweeps all 10 syntactic forms including:
 
 | Form | Example | Pure-token grep catches? |
 |------|---------|--------------------------|
 | Direct citation | `per X.md "Y"` | YES |
-| Chain prose | `the Y rule (X.md "Y")` | NO — wrap form |
-| Comma-list | `X.md headings "Y", "Z", "W"` | NO — needs context match |
-| Numbered table row | `\| 3 \| Y \| ...` | NO — table-row form |
-| Frontmatter chain | `extends: ../X.md#Y` | NO — frontmatter form |
+| Chain prose | `the Y rule (X.md "Y")` | NO, wrap form |
+| Comma-list | `X.md headings "Y", "Z", "W"` | NO, needs context match |
+| Numbered table row | `\| 3 \| Y \| ...` | NO, table-row form |
+| Frontmatter chain | `extends: ../X.md#Y` | NO, frontmatter form |
 | Frontmatter glob | `paths: [".claude/rules/X.md"]` | NO if heading-scoped |
-| Cross-skill mode | `/<skill> mode Y` | NO — verb form |
-| Mention-only | `the Y heading` | NO — context-dependent |
+| Cross-skill mode | `/<skill> mode Y` | NO, verb form |
+| Mention-only | `the Y heading` | NO, context-dependent |
 | Heading definition | `## Y` (the SSOT itself) | YES |
 | Anchor URL | `X.md#y` | YES if exact-case |
 
@@ -111,14 +111,14 @@ When several call sites cite different verbs from the same vocabulary rule, ever
 <verb 4> per `<vocabulary-rule>.md` "<verb 4 heading>".
 ```
 
-Same shape across all — easy to grep, easy to rename, easy to skim.
+Same shape across all: easy to grep, easy to rename, easy to skim.
 
 ### With 1-line summary (good)
 
 When a skill orchestrates a multi-skill flow and cites another skill's mode:
 
 ```text
-<scope phrase> per `<other-skill>/SKILL.md` "<mode name>" — <one-line description of what that mode does at a high level>.
+<scope phrase> per `<other-skill>/SKILL.md` "<mode name>": <one-line description of what that mode does at a high level>.
 ```
 
 Reader skims, sees the scope phrase, understands what the cited mode will do without clicking.
@@ -140,8 +140,8 @@ The chain prose form hides the citation in narrative; pure-token grep can find t
 
 ## Cross-references
 
-- `decision-framework.md` — 6-test extraction gate + 5-test keep-inline gate + output-type criteria
-- `anti-patterns.md` #1 (citation rot), #4 (loss of locality), #5 (reference resolution failure) — failure modes this contract guards against
-- `/docs-hygiene:audit-encapsulation` — citation form for skill internals (cite the `/skill-name` invocation, not an internal file path)
-- `/docs-hygiene:rename-references` — owns the full 10-pattern sweep specification
-- Numbered references — write the full `docs/<family>/<number>-<slug>.md` path, not a bare number shorthand like "ADR-NNNN" (number-only shorthand collides)
+- `decision-framework.md`: 6-test extraction gate + 5-test keep-inline gate + output-type criteria
+- `anti-patterns.md` #1 (citation rot), #4 (loss of locality), #5 (reference resolution failure): failure modes this contract guards against
+- `/docs-hygiene:audit-encapsulation`: citation form for skill internals (cite the `/skill-name` invocation, not an internal file path)
+- `/docs-hygiene:rename-references`: owns the full 10-pattern sweep specification
+- Numbered references: write the full `docs/<family>/<number>-<slug>.md` path, not a bare number shorthand like "ADR-NNNN" (number-only shorthand collides)

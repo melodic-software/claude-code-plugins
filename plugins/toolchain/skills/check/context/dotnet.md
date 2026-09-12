@@ -35,8 +35,8 @@ dotnet test --project "$REPO_ROOT/path/to/Project.Tests.csproj"
 
 Opt-in gated: only runs when a governing `.editorconfig` is present (see the
 `opt-in` key and its header-comment rationale in
-`reference/ecosystems/dotnet.yaml`) — otherwise skipped visibly rather than
-imposing Roslyn's built-in formatting defaults on a repo that never
+`reference/ecosystems/dotnet.yaml`). Otherwise it is skipped visibly rather
+than imposing Roslyn's built-in formatting defaults on a repo that never
 configured any.
 
 ```bash
@@ -49,11 +49,11 @@ dotnet format "$REPO_ROOT/<solution>"
 
 ## Gotchas
 
-- **`--project` is required** for test project paths **under the opt-in Microsoft.Testing.Platform (MTP) runner** (enabled via `global.json` / `dotnet.config`), where bare positional paths are rejected: `dotnet test path/to/Project.csproj` fails with "Specifying a project for 'dotnet test' should be via '--project'". Under VSTest — still the .NET 10 default — a bare positional project path is accepted. `--project` works in both, so prefer it either way (re-checked against Microsoft's dotnet-test-mtp/vstest docs, 2026-08-26)
+- **`--project` is required** for test project paths **under the opt-in Microsoft.Testing.Platform (MTP) runner** (enabled via `global.json` / `dotnet.config`), where bare positional paths are rejected: `dotnet test path/to/Project.csproj` fails with "Specifying a project for 'dotnet test' should be via '--project'". Under VSTest, still the .NET 10 default, a bare positional project path is accepted. `--project` works in both, so prefer it either way (re-checked against Microsoft's dotnet-test-mtp/vstest docs, 2026-08-26)
 - **`--nologo` breaks xUnit v3** MTP runner. The flag passes through to the xUnit executable which rejects it as "Unknown option". Result: zero tests ran, exit code 5. Same issue with `-v q`. Use plain `dotnet test` or `-v n`
-- **`TreatWarningsAsErrors` repos** — when the repo turns warnings into errors globally, every warning is build-breaking; don't dismiss a warning as cosmetic
-- **VS locks analyzer DLLs** — if `dotnet build` fails with MSB3021 while Visual Studio is open, close VS or skip analyzers for quick iteration
-- **Binary log** — `dotnet build -bl` produces `msbuild.binlog` for diagnosing slow builds or property issues
+- **`TreatWarningsAsErrors` repos**: when the repo turns warnings into errors globally, every warning is build-breaking; don't dismiss a warning as cosmetic
+- **VS locks analyzer DLLs**: if `dotnet build` fails with MSB3021 while Visual Studio is open, close VS or skip analyzers for quick iteration
+- **Binary log**: `dotnet build -bl` produces `msbuild.binlog` for diagnosing slow builds or property issues
 
 ## Project discovery and targeting
 
@@ -70,7 +70,7 @@ To find the `.csproj` for a changed file, walk up from the file's directory unti
 
 ## Common project-declared CI-parity gates
 
-Checks repos often gate in CI that plain build/test/format don't catch locally — run them when the consuming project documents them:
+Checks repos often gate in CI that plain build/test/format don't catch locally. Run them when the consuming project documents them:
 
-- **Locked-mode NuGet restore** (`dotnet restore --locked-mode`) — local `dotnet restore` is permissive; only locked-mode catches `packages.lock.json` drift. Remediation: `dotnet restore --force-evaluate`, commit the regenerated lockfiles. Cross-platform caveat: lockfiles generated on one OS can miss another OS's runtime transitives; regenerate on the CI OS (container/WSL) rather than forcing `-r <rid>`, which pollutes lockfiles with RID blocks
-- **Generated-artifact freshness** (e.g. a build-time OpenAPI spec) — build the producing project, then `git diff --exit-code` on the generated file; stage the regenerated artifact alongside the source change
+- **Locked-mode NuGet restore** (`dotnet restore --locked-mode`): local `dotnet restore` is permissive; only locked-mode catches `packages.lock.json` drift. Remediation: `dotnet restore --force-evaluate`, commit the regenerated lockfiles. Cross-platform caveat: lockfiles generated on one OS can miss another OS's runtime transitives; regenerate on the CI OS (container/WSL) rather than forcing `-r <rid>`, which pollutes lockfiles with RID blocks
+- **Generated-artifact freshness** (e.g. a build-time OpenAPI spec): build the producing project, then `git diff --exit-code` on the generated file; stage the regenerated artifact alongside the source change
