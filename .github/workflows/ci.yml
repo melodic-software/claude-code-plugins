@@ -1988,6 +1988,14 @@ jobs:
         run: bash scripts/emit-windows-path.test.sh
       - name: Test the drive-root litter detector on Windows
         run: bash scripts/check-drive-root-litter.test.sh
+      # NTFS is case-insensitive, which is the whole point of running this one
+      # here: the rename executor's case-only `git mv` path and its
+      # index-not-filesystem existence test cannot be exercised on a
+      # case-sensitive runner, so a regression in either would ship green from
+      # Linux alone. Named explicitly, like the fixed suites above, rather than
+      # discovered.
+      - name: Test the file-name rename executor on Windows
+        run: bash plugins/docs-hygiene/skills/realign-file-names/scripts/apply-rename.test.sh
 
   # The shared hook-utils library, kept out of test-linux so its delivery check
   # and its own suite are legible as one lane rather than buried among fifty

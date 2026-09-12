@@ -1,10 +1,98 @@
 # Changelog: docs-hygiene plugin
 
-## [0.21.48]
+## [0.22.1]
 
 ### Changed
 
 - The `allowed-tools` pairing gate's header and fail message no longer give "never substituted there, inert grant" as their reason. `${CLAUDE_PLUGIN_ROOT}` does substitute in a plugin skill's `allowed-tools`, with a v2.1.0 floor. The gate is unchanged and still requires the skill-local path, because the docs establish substitution rather than runtime matching on every host.
+
+## [0.22.0]
+
+### Added
+
+- **`setup`: a check-centric setup skill for the plugin's first consumer
+  configuration surface.** `.claude/docs-hygiene.json` carries the values the
+  file-name skills act on: the scope roots, the casing rule and its regex, three
+  exemption sets, the reference tiers and the forms each one allows, the sweep
+  exclusions, and the generated files with the command that rebuilds each.
+  `check` resolves all three layers, names the layer behind every key, and
+  verifies that the regex compiles, each tier names a known form, each
+  regenerator resolves past its interpreter, the team layer is tracked, and the
+  personal overlay is ignored. `apply` writes the team layer per key,
+  idempotently, and edits no other file.
+- **A policy floor on the keys that decide what a rename does to a tree.**
+  `tiers`, `generated`, `sweep_exclude`, `sweep_exclude_sites`, and the three
+  `exempt_*` keys accept additions from a personal layer and never removals, and
+  `generated` is team-layer only, because a regenerate command is a shell command
+  a later skill executes. `rule`, `regex`, and `redirect_map` are nearest-wins.
+  Keys, defaults, and provenance are documented in `reference/config.md`, and the
+  surface has a row in the marketplace's config-cascade Implementers table.
+- **`scripts/resolve-config.sh`**, the one resolver every file-name skill reads
+  the merged document through. It takes `--root`, so a second worktree or a
+  fixture is addressed explicitly rather than inherited from the environment, and
+  it strips the carriage returns a native Windows `jq` emits.
+- **`audit-file-names`: a read-only inventory of a tree's file names, and the
+  rename plan the realign stage consumes.** It proposes a legal name per
+  offender, finds every reference to each one, classifies each site by shape
+  (markdown link, backtick path, absolute URL, table cell, prose, bare stem) and
+  by the tier its file belongs to, and derives what the tier's form table allows.
+  A case-only collision refuses the whole plan rather than one finding, because
+  two such paths cannot coexist on a case-insensitive checkout. Existence is
+  asked of the git index, never the filesystem, which answers for the wrong
+  spelling on exactly those platforms.
+- **A bare stem that is one plain word is reviewed, never edited.** The anchored
+  stem pattern consumes the surrounding character, so a rename of `catalog`
+  cannot reach inside `catalog-taxonomy`, and a stem that is also an ordinary
+  English word is escalated with its line instead of rewritten on a text match.
+- **Finding ids come from the old path**, not from rank, so an id names the same
+  rename across re-audits and a re-audit merges by id and carries every accepted
+  or declined decision forward. The artifact's shape, status arcs, and decline
+  durability are documented in `context/file-name-findings.md`, and its home
+  resolves through `reference/topic-docs.md`.
+- **`realign-file-names`: the executor, gated one file at a time.** Each explicit
+  `FN-xxxxxxxx` is one acceptance and nothing else is: a range, a glob, a count,
+  `all`, or a blanket yes is refused out loud and the current finding
+  re-presented. Per finding it moves the file with `git mv`, rewrites only the
+  reference shapes each citing file's tier allows, leaves frozen and ambiguous
+  sites listed and untouched, and rebuilds any generated record by the command
+  the configuration declares. It never commits and never bumps a version.
+- **The drift guard is per site, not per file.** In a real doc tree the renamed
+  files cite each other, so applying the first finding edits a file the second
+  names and a whole-file hash would block every rename after the first. The old
+  path must still be in the index and each site's recorded line must still carry
+  the old name; anything else is reported and skipped. `applying` is written
+  before the move and cleared after the last edit, so an interrupted run resumes
+  rather than blocking, and edits go back through the same inode so a sweep
+  across executable scripts does not strip their mode bits.
+- **`generate-file-name-gate`: the check that actually enforces the rule.** A
+  path-scoped rule file loads when a covered file is READ, never when one is
+  created, so it cannot catch the new name that breaks the convention. This
+  skill emits a standalone bash checker and its own suite, with the rule, the
+  roots, and every exemption inlined from the resolved configuration, carrying
+  no run-time dependency on this plugin. `--rule` additionally writes the
+  path-scoped rule, opt-in because a repository may deliberately carry no
+  pointer rule where a deterministic oracle already exists. Rendering goes
+  through `awk -v` and a literal splice rather than a `sed` substitution, so a
+  consumer's regex cannot corrupt the emitted script.
+
+### Changed
+
+- **Eight descriptions trimmed for the shared listing budget.** `compress`,
+  `audit-progressive-disclosure`, `audit-noise`, `audit-derivability`,
+  `write-for-agents`, `write-for-humans`, `extract-ssot`, and `audit-file-names`
+  lose prose only; every quoted trigger phrase is unchanged. The plugin's eleven
+  listing-eligible skills now fit the 8,000-char budget with the two new ones
+  included, and no docs-hygiene row remains on the marketplace's
+  description-cap baseline.
+- **`rename-references` points at the tree-wide siblings.** Its `## Next` and a
+  description clause name `audit-file-names` for a whole tree audited against a
+  casing rule, which is the case its own per-rename sweep does not cover.
+- **`audit-noise` recognizes `docs-hygiene` as a reserved concern root.** The
+  rename plan lives at `<memory_dir>/docs-hygiene/<branch-slug>/file-names.md`,
+  so a document naming that home in bare form was being reported as a ghost ref
+  to an ephemeral path. The bare root is exempt now; a concrete child under it
+  still flags, exactly like every other reserved name. The topic-docs convention
+  carries the matching reservation at 3.3.0.
 
 ## [0.21.47]
 

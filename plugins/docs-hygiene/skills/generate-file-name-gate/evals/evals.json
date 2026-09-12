@@ -1,0 +1,44 @@
+{
+  "skill_name": "generate-file-name-gate",
+  "evals": [
+    {
+      "id": 1,
+      "name": "emits-a-working-gate-and-names-what-it-did-not-wire",
+      "prompt": "We have the docs-hygiene file-name config in place. Generate the gate so CI can enforce it.",
+      "narration": true,
+      "expected_output": "Runs emit-gate.sh, reports the EMITTED rows for the checker and its suite, then runs both: the suite exits 0 and the checker's verdict on the current tree is reported. States the three NOT-WIRED items explicitly (a CI step invoking the emitted path, a registry row, an architecture decision record) rather than wiring any of them.",
+      "expectations": [
+        "The bundled script is run rather than a checker being written by hand",
+        "The emitted suite is actually executed, not just reported as created",
+        "All three NOT-WIRED items are said out loud",
+        "No CI workflow file is edited"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "refuses-to-overwrite-without-force",
+      "prompt": "Regenerate the file-name gate, the config changed.",
+      "narration": true,
+      "expected_output": "emit-gate.sh exits 1 because the targets already exist. The response names the existing file, says nothing at all was written (the refusal covers every target, so no partial emission happened), and asks whether to re-run with --force. It does not delete the existing files to get around the refusal.",
+      "expectations": [
+        "The refusal is reported with the file it names",
+        "--force is offered as the remedy rather than applied unilaterally",
+        "The existing files are not deleted or moved",
+        "The response states that nothing was written"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "the-rule-file-is-offered-not-assumed",
+      "prompt": "Generate the gate and add the rule file too. Our AGENTS.md has the generated rules index block.",
+      "narration": true,
+      "expected_output": "Emits with --rule, reports the rule path, and reports the REINDEX row: the generated index in AGENTS.md does not list the new rule yet. Names /instruction-placement:check as what re-renders it and does not edit the generated block itself. Mentions that a rule file is a pointer surface some repositories deliberately do not carry, since the gate is the enforcing oracle.",
+      "expectations": [
+        "The REINDEX row is surfaced rather than swallowed",
+        "The generated index block is not edited by hand",
+        "/instruction-placement:check is named as the re-render step",
+        "The caveat about pointer rules is stated without refusing the operator's request"
+      ]
+    }
+  ]
+}
