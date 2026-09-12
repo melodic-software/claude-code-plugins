@@ -4,6 +4,45 @@ Notable changes to the detector-findings contract (SemVer). Changing a producer-
 the coexistence obligations, or an enforceability verdict is a major bump; additive guidance or a new
 adopter row is a minor bump; docs-only clarification is a patch.
 
+## [3.1.0] - 2026-09-13
+
+**Minor under this contract's own rule.** An existing producer's rule set gains two rows; no
+producer-owned field's rule moves, no coexistence obligation changes, and no enforceability verdict
+changes.
+
+- **`testing/audit` gains its two Playwright runner-config rows**, the first rules in the crosswalk
+  that read a runner's configuration rather than a source file under test. Both **IMPORTANT**, so
+  the map stays flat across this producer's emitting set:
+  - `rule-flaky-passes-suite`: retries configured (a literal above zero or an expression) with
+    `failOnFlakyTests` absent or literal `false`, argued from the degradation limb on a present
+    configuration state: the retries are set now, and the trigger is one event, the first regression
+    that fails and then passes on a retry and ships under a green run.
+  - `rule-only-not-forbidden`: `forbidOnly` absent or literal `false`, argued from the same limb,
+    the scaffold ships the guard, so its absence is a present removal, and the trigger is the first
+    commit carrying a `test.only` that reaches a run.
+  `Confidence` is omitted on both, per the high-or-omitted rule, because defect-hood is contested
+  rather than uncertain in the pattern: a team may accept flaky tolerance or trust review to catch a
+  committed `.only`. `Auto-applicable: No` on both, since each Action proposes a config line the
+  team chooses.
+- **Both rows enumerate every withholding boundary with the evidence that must be PRESENT** for it
+  to select: a depth-1 spread, a second `defineConfig` argument, the key read below depth 1, the
+  guard read as `true` or an expression, a complete read of an anchored object carrying no counted
+  `retries` or none but literal `0`s, and the `cant-fail-ok:` annotation. Nothing is withheld on
+  absence alone. A config whose object literal cannot be anchored is not a decline at all but a
+  coverage boundary, counted in `## Surfaces` as enumerated and not examined, the same statement
+  the test-file denominator makes about a file of another ecosystem.
+- **The `testing:audit` Adopters row is rewritten** where it said the rule set has no withholding
+  verdict and that only `rule-mock-only-oracle` omits `Confidence`; its test-body rules still carry
+  no withholding verdict, and the config rules' boundaries are enumerated there with the same
+  present-evidence statement.
+- **That row's remedy-assertion count moves from 0 of 3 to 0 of 5, and the two added rows are owed
+  in full rather than grandfathered.** 3.0.0's clause reaches only remedies shipped before it, so
+  these two are held to the bar on the day they land and do not meet it: the suite's one `Action`
+  assertion on a config rule matches the `1.52` version floor inside the flaky remedy, which is the
+  token-level match 3.0.0 names as passing on the defect the bar exists for, and no negative
+  assertion holds either remedy out of a scope it would not work in. The shortfall is recorded in
+  the row rather than dissolved, and it is one assertion per rule per scope, not a redesign.
+
 ## [3.0.0] - 2026-09-13
 
 **Major under this contract's own rule, on 2.0.0's shape.** A producer-owned obligation is added,
