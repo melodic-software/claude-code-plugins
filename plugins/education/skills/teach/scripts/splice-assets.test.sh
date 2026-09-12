@@ -4,11 +4,18 @@
 # Black-box: every case invokes the script as a subprocess and asserts on the exit
 # code, the message stream, and the bytes of the lesson file. Fixtures are built
 # with printf under one mktemp root that an EXIT trap removes.
+#
+# Case 4d is the one exception: it drives `splice-assets.awk` directly. The script
+# validates that every present marker's asset is a readable non-empty regular file
+# before awk opens that same path, so no black-box run can deterministically reach
+# the awk program's read-error branch. Driving the build half on its own is what
+# pins that branch.
 
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/splice-assets.sh"
+AWK_PROGRAM="$SCRIPT_DIR/splice-assets.awk"
 
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
@@ -163,7 +170,8 @@ assert_same_file "marker twice on one line: lesson byte-identical" "$L3D" "$C3D/
 
 # --- Case 3e: both markers on ONE line --------------------------------------
 # Each marker line is replaced whole, so a line carrying both could only ever
-# deliver one of the two assets. Refused rather than half-applied.
+# deliver one of the two assets. Caught by the marker-alone rule, which reports
+# the offending line and so names both markers in passing.
 
 C3E="$(mk_case c3e)"
 L3E="$C3E/concept/lesson.html"
@@ -174,9 +182,42 @@ printf 'window.quiz = 1;\n' >"$C3E/assets/quiz.js"
 
 run_script "$L3E" "$C3E/assets"
 assert_exit "both markers on one line: exit 1" 1 "$RC"
+assert_contains "both markers on one line: stderr reports the shared line" "$ERR" "shares its line"
 assert_contains "both markers on one line: stderr names the style marker" "$ERR" "/* SPLICE:STYLE */"
 assert_contains "both markers on one line: stderr names the quiz marker" "$ERR" "/* SPLICE:QUIZ */"
 assert_same_file "both markers on one line: lesson byte-identical" "$L3E" "$C3E/before.html"
+
+# --- Case 3f: one marker sharing its line with its own tags -----------------
+# The count is 1 and no line carries both markers, so only the marker-alone rule
+# refuses this. Replacing the line whole would drop the tags with exit 0.
+
+C3F="$(mk_case c3f)"
+L3F="$C3F/concept/lesson.html"
+printf '<style>/* SPLICE:STYLE */</style>\n' >"$L3F"
+cp "$L3F" "$C3F/before.html"
+printf 'body { margin: 0; }\n' >"$C3F/assets/lesson.css"
+
+C3F_LS_BEFORE="$(dir_listing "$C3F/concept")"
+run_script "$L3F" "$C3F/assets"
+C3F_LS_AFTER="$(dir_listing "$C3F/concept")"
+assert_exit "marker sharing its line with its tags: exit 1" 1 "$RC"
+assert_contains "marker sharing its line with its tags: stderr names the marker" "$ERR" "/* SPLICE:STYLE */"
+assert_same_file "marker sharing its line with its tags: lesson byte-identical" "$L3F" "$C3F/before.html"
+assert_eq "marker sharing its line with its tags: lesson directory listing unchanged" "$C3F_LS_BEFORE" "$C3F_LS_AFTER"
+
+# --- Case 3g: an indented marker line still splices -------------------------
+# The marker-alone rule compares with all whitespace stripped, which is what
+# keeps indentation legal. The positive half of case 3f.
+
+C3G="$(mk_case c3g)"
+L3G="$C3G/concept/lesson.html"
+printf '<style>\n    /* SPLICE:STYLE */\t\n</style>\n' >"$L3G"
+printf 'body { margin: 0; }\n' >"$C3G/assets/lesson.css"
+printf '<style>\nbody { margin: 0; }\n</style>\n' >"$C3G/expected.html"
+
+run_script "$L3G" "$C3G/assets"
+assert_exit "indented marker line: exit 0" 0 "$RC"
+assert_same_file "indented marker line: asset spliced in its place" "$L3G" "$C3G/expected.html"
 
 # --- Case 4: usage errors ---------------------------------------------------
 
@@ -261,6 +302,37 @@ assert_exit "failed build: exit 1" 1 "$RC"
 assert_contains "failed build: stderr names the build step" "$ERR" "awk"
 assert_same_file "failed build: lesson byte-identical" "$L4C" "$C4C/before.html"
 assert_eq "failed build: no temp file survives" "$C4C_LS_BEFORE" "$C4C_LS_AFTER"
+
+# --- Case 4d: a failed asset read during the build exits nonzero ------------
+# The one case that drives splice-assets.awk rather than the script (header).
+# A directory in place of lesson.css is a read failure the script's validation
+# would refuse first, so the build half is driven on its own here. gawk returns
+# -1 from getline and this program then names the file; mawk, the awk on Ubuntu
+# CI, raises its own fatal read error instead, whose text is not guaranteed to
+# carry the path. Both are nonzero, so only the exit code is asserted
+# unconditionally.
+
+C4D="$(mk_case c4d)"
+L4D="$C4D/concept/lesson.html"
+printf '<style>\n/* SPLICE:STYLE */\n</style>\n' >"$L4D"
+mkdir -p "$C4D/assets/lesson.css"
+
+RC=0
+OUT=$(A="$C4D/assets" awk -v BINMODE=3 -f "$AWK_PROGRAM" "$L4D" 2>"$ERRFILE") || RC=$?
+ERR=$(<"$ERRFILE")
+if [[ "$RC" -ne 0 ]]; then
+  pass "asset read error: the build half exits nonzero"
+else
+  fail "asset read error: the build half exits nonzero" "expected a nonzero exit, got $RC"
+fi
+if awk --version 2>/dev/null | head -1 | grep -q 'GNU Awk'; then
+  assert_contains "asset read error: stderr names lesson.css" "$ERR" "lesson.css"
+elif [[ -n "$ERR" ]]; then
+  # discriminating-skip-ok: host-gated, only gawk reaches this program's own read-error branch
+  pass "asset read error: the failing read is reported on stderr (awk's own message)"
+else
+  fail "asset read error: the failing read is reported on stderr (awk's own message)" "stderr was empty"
+fi
 
 # --- Case 6: a CRLF lesson keeps its carriage returns on unspliced lines ----
 

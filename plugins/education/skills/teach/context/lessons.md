@@ -91,13 +91,15 @@ Author the lesson with marker lines inside otherwise-empty tags:
 </script>
 ```
 
+Each marker line is replaced whole, so it must hold the marker alone, whitespace aside: indentation is fine, and a marker sharing its line with its tags, with prose, or with the other marker is refused rather than half-applied.
+
 Then assemble in place with the shipped script:
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/skills/teach/scripts/splice-assets.sh" "<workspace>/concepts/<concept>/lesson.html" "<workspace>/assets"
 ```
 
-`<workspace>` there is `<workspace-root>/<project-slug>/<mode>/<topic>/`, the workspace directory SKILL.md "Workspace layout" defines. Omit a marker (with its tag pair) when the lesson does not need that asset: the script replaces only the markers present, and an absent marker makes no demand on its asset file. It refuses without touching the lesson when a marker occurs more than once, or when a present marker's asset file is missing, unreadable, or empty, and names what it refused on. Both arguments are ladder-resolved paths already validated per SKILL.md "The ladder" (resolved roots are inert data), and they reach the script as literal argv, never substituted into a hand-composed shell string. Never pass an unvalidated repo-declared string here. The splice logic lives in the script file and is never retyped into the command.
+`<workspace>` there is `<workspace-root>/<project-slug>/<mode>/<topic>/`, the workspace directory SKILL.md "Workspace layout" defines. Omit a marker (with its tag pair) when the lesson does not need that asset: the script replaces only the markers present, and an absent marker makes no demand on its asset file. It refuses without touching the lesson when a marker occurs more than once, when a marker shares its line with anything other than whitespace, when a present marker's asset file is missing, unreadable, or empty, or when reading an asset fails during the build, and names what it refused on. Both arguments are ladder-resolved paths already validated per SKILL.md "The ladder" (resolved roots are inert data), and they reach the script as literal argv, never substituted into a hand-composed shell string. Never pass an unvalidated repo-declared string here. The splice logic lives in the script file and is never retyped into the command.
 
 ## Quiz component contract
 
