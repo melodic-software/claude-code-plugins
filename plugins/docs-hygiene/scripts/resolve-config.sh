@@ -17,8 +17,9 @@
 #   nearest-wins  rule, regex, redirect_map. The latest layer that declares the
 #                 key supplies it whole.
 #   additive      roots, exempt_basenames, exempt_paths, exempt_extensions,
-#                 tiers, sweep_exclude, sweep_exclude_sites. Later layers APPEND
-#                 entries the earlier layers did not carry; nothing is removed.
+#                 tiers, sweep_exclude, sweep_exclude_sites. The TEAM layer
+#                 replaces the bundled default whole; a PERSONAL layer only
+#                 appends entries the resolved value does not carry.
 #   team-only     generated. A personal layer that declares it is reported inert
 #                 and ignored.
 #
@@ -28,7 +29,12 @@
 # A personal overlay that could REPLACE one could quietly widen a frozen tier or
 # swap the command that regenerates a record, which is a team decision weakened
 # from one machine. Appending is still allowed, because a contributor adding an
-# exemption or a scope root of their own weakens nothing.
+# exemption or a scope root of their own weakens nothing. The team layer is the
+# authority rather than a peer, so it replaces: a repository whose defaults do
+# not fit has to be able to say so, not only add to them.
+#
+# LAYERS ARE APPLIED team, user-global, overlay, so a personal addition is made
+# to what the team decided rather than to a bundled default the team replaced.
 #
 # CRLF. On native Windows, jq writes \r\n (its own release notes add --binary to
 # opt out, and this repository already records the class as a standing Windows
@@ -198,7 +204,7 @@ for key in $KEY_ORDER; do
   [[ "$value" = "null" ]] && [[ "$key" != "redirect_map" ]] && value='null'
   contributors='bundled'
 
-  for layer in user-global team overlay; do
+  for layer in team user-global overlay; do
     case "$layer" in
     user-global) layer_json="$USER_JSON" ;;
     team) layer_json="$TEAM_JSON" ;;
@@ -228,7 +234,9 @@ for key in $KEY_ORDER; do
       contributors="$contributors,$layer"
       ;;
     *)
-      if [[ "$value" = "null" ]]; then
+      # Additive: the team layer is the authority and replaces; a personal layer
+      # only adds to what the team, or the bundled default, already decided.
+      if [[ "$layer" = team || "$value" = "null" ]]; then
         value="$incoming"
       else
         value="$(append_new "$value" "$incoming")" || die "cannot merge key '$key' from the $layer layer"

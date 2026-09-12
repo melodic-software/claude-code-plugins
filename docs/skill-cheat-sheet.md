@@ -196,6 +196,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/disk-hygiene:clean`](../plugins/disk-hygiene/skills/clean/SKILL.md) | `disk-hygiene` | Audit a directory tree for stale leftovers and remove validated paths |
 | [`/docs-hygiene:audit-derivability`](../plugins/docs-hygiene/skills/audit-derivability/SKILL.md) | `docs-hygiene` | Judge whether a doc earns its existence or should become a pointer |
 | [`/docs-hygiene:audit-encapsulation`](../plugins/docs-hygiene/skills/audit-encapsulation/SKILL.md) | `docs-hygiene` | Find external citations reaching into a skill's private surfaces |
+| [`/docs-hygiene:audit-file-names`](../plugins/docs-hygiene/skills/audit-file-names/SKILL.md) | `docs-hygiene` | Inventory a doc tree's file names and plan the renames with their references |
 | [`/docs-hygiene:audit-noise`](../plugins/docs-hygiene/skills/audit-noise/SKILL.md) | `docs-hygiene` | Classify markdown for citations, ghost refs, meta-commentary, plan/conversational/tracker residue |
 | [`/docs-hygiene:audit-progressive-disclosure`](../plugins/docs-hygiene/skills/audit-progressive-disclosure/SKILL.md) | `docs-hygiene` | Grade instruction files for split opportunities and hub/spoke disclosure defects |
 | [`/docs-hygiene:compress`](../plugins/docs-hygiene/skills/compress/SKILL.md) | `docs-hygiene` | Tighten markdown by dropping flavor while preserving every directive |

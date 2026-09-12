@@ -1,5 +1,57 @@
 # Changelog: docs-hygiene plugin
 
+## [0.22.0]
+
+### Added
+
+- **`setup`: a check-centric setup skill for the plugin's first consumer
+  configuration surface.** `.claude/docs-hygiene.json` carries the values the
+  file-name skills act on: the scope roots, the casing rule and its regex, three
+  exemption sets, the reference tiers and the forms each one allows, the sweep
+  exclusions, and the generated files with the command that rebuilds each.
+  `check` resolves all three layers, names the layer behind every key, and
+  verifies that the regex compiles, each tier names a known form, each
+  regenerator resolves past its interpreter, the team layer is tracked, and the
+  personal overlay is ignored. `apply` writes the team layer per key,
+  idempotently, and edits no other file.
+- **A policy floor on the keys that decide what a rename does to a tree.**
+  `tiers`, `generated`, `sweep_exclude`, `sweep_exclude_sites`, and the three
+  `exempt_*` keys accept additions from a personal layer and never removals, and
+  `generated` is team-layer only, because a regenerate command is a shell command
+  a later skill executes. `rule`, `regex`, and `redirect_map` are nearest-wins.
+  Keys, defaults, and provenance are documented in `reference/config.md`, and the
+  surface has a row in the marketplace's config-cascade Implementers table.
+- **`scripts/resolve-config.sh`**, the one resolver every file-name skill reads
+  the merged document through. It takes `--root`, so a second worktree or a
+  fixture is addressed explicitly rather than inherited from the environment, and
+  it strips the carriage returns a native Windows `jq` emits.
+- **`audit-file-names`: a read-only inventory of a tree's file names, and the
+  rename plan the realign stage consumes.** It proposes a legal name per
+  offender, finds every reference to each one, classifies each site by shape
+  (markdown link, backtick path, absolute URL, table cell, prose, bare stem) and
+  by the tier its file belongs to, and derives what the tier's form table allows.
+  A case-only collision refuses the whole plan rather than one finding, because
+  two such paths cannot coexist on a case-insensitive checkout. Existence is
+  asked of the git index, never the filesystem, which answers for the wrong
+  spelling on exactly those platforms.
+- **A bare stem that is one plain word is reviewed, never edited.** The anchored
+  stem pattern consumes the surrounding character, so a rename of `catalog`
+  cannot reach inside `catalog-taxonomy`, and a stem that is also an ordinary
+  English word is escalated with its line instead of rewritten on a text match.
+- **Finding ids come from the old path**, not from rank, so an id names the same
+  rename across re-audits and a re-audit merges by id and carries every accepted
+  or declined decision forward. The artifact's shape, status arcs, and decline
+  durability are documented in `context/file-name-findings.md`, and its home
+  resolves through `reference/topic-docs.md`.
+
+### Changed
+
+- **Four descriptions trimmed for the shared listing budget.** `compress`,
+  `audit-progressive-disclosure`, `write-for-humans`, and the wording around
+  them lose prose only; every quoted trigger phrase is unchanged. `compress` and
+  `write-for-humans` now fit the per-field cap and leave the marketplace's
+  description-cap baseline.
+
 ## [0.21.47]
 
 ### Changed

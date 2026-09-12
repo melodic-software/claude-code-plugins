@@ -5,9 +5,6 @@ user-invocable: true
 disable-model-invocation: true
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/setup-check.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/setup-apply.sh:*)", "Bash(git check-ignore:*)", "Bash(git ls-files:*)", "Read"]
 shell: bash
-metadata:
-  workflow-stage: anytime
-  summary: Verify or write the docs-hygiene file-name configuration layer
 ---
 
 ## Purpose

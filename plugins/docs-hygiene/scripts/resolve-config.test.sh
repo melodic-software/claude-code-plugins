@@ -38,6 +38,13 @@ assert_contains() {
   esac
 }
 
+assert_lacks() {
+  case "$2" in
+  *"$3"*) fail "$1" "does not contain: $3" "$2" ;;
+  *) pass "$1" ;;
+  esac
+}
+
 # A fresh consumer root with an empty HOME beside it, so no layer is present
 # until a case writes one.
 new_root() {
@@ -84,14 +91,22 @@ assert_contains "team layer: provenance names it" "$(layers "$root")" "regex	bun
 write_layer "$root/.claude/docs-hygiene.local.json" '{"regex": "^overlay$"}'
 assert_eq "overlay: nearest wins on regex" "^overlay$" "$(resolve "$root" | jq -r '.file_names.regex')"
 
-# 4. Additive keys append, and the team entries survive.
+# 4. On an additive key the team layer REPLACES the bundled default, and a
+#    personal layer only adds to what the team decided.
 root="$(new_root)"
 write_layer "$root/.claude/docs-hygiene.json" '{"exempt_paths": ["docs/frozen/**"]}'
 write_layer "$root/.claude/docs-hygiene.local.json" '{"exempt_paths": ["docs/mine/**"]}'
 out="$(resolve "$root" | jq -c '.file_names.exempt_paths')"
 assert_contains "additive: the team entry survives the overlay" "$out" '"docs/frozen/**"'
 assert_contains "additive: the overlay entry is added" "$out" '"docs/mine/**"'
-assert_contains "additive: the bundled entry survives too" "$out" '"docs/topics/**"'
+assert_lacks "additive: the team layer replaced the bundled default" "$out" '"docs/topics/**"'
+
+# 4b. With no team layer, a personal layer adds to the bundled default.
+root="$(new_root)"
+write_layer "$root/.claude/docs-hygiene.local.json" '{"exempt_paths": ["docs/mine/**"]}'
+out="$(resolve "$root" | jq -c '.file_names.exempt_paths')"
+assert_contains "additive: the bundled default survives a personal addition" "$out" '"docs/topics/**"'
+assert_contains "additive: the personal entry is added to it" "$out" '"docs/mine/**"'
 
 # 5. A personal layer cannot shrink a policy-floor list: an overlay `tiers` that
 #    omits the frozen released tier still resolves with it present.
