@@ -206,22 +206,25 @@ if [[ "$LOCAL_ROOT" != "$START_DIR" ]]; then
   esac
 fi
 # Ownership: the repository root or its .git or .claude entry not being owned by
-# the current user. Unowned by ANY of the three is enough; a stat that cannot run
-# leaves the root anchor alone rather than guessing, and says so.
+# the current user. Unowned by ANY of the three is enough.
+#
+# The test is bash's own `-O`, which is true when the file is owned by the
+# EFFECTIVE uid — exactly the documented condition, decided in the shell. `stat`
+# is deliberately not used: `stat -c` is GNU-only and `stat -f` is BSD-only, so
+# reading a uid portably means a fallback chain and an extra process per path,
+# to answer a question the builtin already answers everywhere.
 if [[ "$LOCAL_ROOT" != "$START_DIR" && -n "${PERMISSION_STATE_OWNER_OVERRIDE:-}" ]]; then
   if [[ "$PERMISSION_STATE_OWNER_OVERRIDE" == "foreign" ]]; then
     LOCAL_ROOT="$START_DIR"
     local_basis="start directory (repository root or its .git/.claude is not owned by this user)"
   fi
-elif [[ "$LOCAL_ROOT" != "$START_DIR" ]] && command -v stat >/dev/null 2>&1; then
+elif [[ "$LOCAL_ROOT" != "$START_DIR" ]]; then
   owner_checked=0
   owner_foreign=0
   for owned_path in "$LOCAL_ROOT" "$LOCAL_ROOT/.git" "$LOCAL_ROOT/.claude"; do
     [[ -e "$owned_path" ]] || continue
-    path_uid="$(stat -c '%u' "$owned_path" 2>/dev/null || stat -f '%u' "$owned_path" 2>/dev/null || true)"
-    [[ -n "$path_uid" ]] || continue
     owner_checked=1
-    [[ "$path_uid" == "${EUID:-$(id -u)}" ]] || owner_foreign=1
+    [[ -O "$owned_path" ]] || owner_foreign=1
   done
   if [[ "$owner_checked" -eq 1 && "$owner_foreign" -eq 1 ]]; then
     LOCAL_ROOT="$START_DIR"
