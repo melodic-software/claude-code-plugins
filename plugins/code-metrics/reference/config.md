@@ -58,23 +58,27 @@ The third column is written by hand and is not derived from anything. A row whos
 |---|---|---|
 | `scope.default` | `change` | `change` (the merge-base diff plus uncommitted and untracked files) or `all` |
 | `scope.base` | `auto` | The merge-base is taken against the default branch, or against this ref |
-| `scope.exclude` | `[]` | Gitignore-style globs dropped from every measure; the count is reported as `scope.excluded` |
+| `scope.exclude` | `["**/node_modules/**", "**/vendor/**", "**/dist/**", "**/build/**"]` | Gitignore-style globs dropped from every measure. The default names dependency and build-output directories, because measuring a compiled bundle or a vendored tree counts functions nobody in the repository wrote; fixtures and evals stay in scope. A closed list, so a team file that sets it replaces the default whole (`[]` measures everything). The count is reported as `scope.excluded` and each pattern's count as `scope.exclusions[]` |
+| `scope.registries` | `[]` | Sanctioned-replication registries, each relative to the repository root, applied by every audit. A plain line is one path-within-plugin, taken whole, spaces included: rows for a file it names collapse to one row carrying a replica count, and a clone is excluded, not suppressed, when every instance ends with that path and the copies sit in distinct carrying directories. A line `<canonical> -> <member>...` is a cluster line read by the duplication audit only: the root-relative canonical copy, then the paths or gitignore-style globs that carry it; a clone is excluded when every instance is the canonical or matches a member and the instances' directories are pairwise distinct. Instance paths are compared root-relative, and the first matching line in file order wins |
 | `complexity.cyclomatic.reference` | `20` | ISO/IEC 5055:2021 §8.2.117 (normative). Cited alternatives: 10 (McCabe 1976, "reasonable, but not magical") and 15 (NIST SP 500-235, with its six practices) |
 | `complexity.cognitive.reference` | `null` | Campbell, SonarSource; no standard sets a threshold |
 | `complexity.halstead.difficulty` | `null` | Halstead 1977; no standard sets a threshold |
-| `size.mode` | `file-lines` | `file-lines` compares each file's non-blank lines to `size.file_lines`; `iso-8.2.115` adds each function's non-empty lines as a percentage of the file's, from a collector that reports function ranges |
-| `size.file_lines` | `1000` | The plugin's own number. It coincides with an informative figure in ISO/IEC 5055:2021 §6.3 Table 1, which is not normative; 500, the operator-list figure, is selectable |
-| `size.function_lines_pct` | `5` | ISO/IEC 5055:2021 §8.2.115 (normative), used in `iso-8.2.115` mode |
+| `size.mode` | `file-lines` | `file-lines` compares each file's non-blank lines to `size.file_lines`; `iso-8.2.115` adds each function's non-empty lines as a percentage of the file's (the plugin's reading of the clause, which states 5% with no base), from a collector that reports function ranges |
+| `size.file_lines` | `1000` | The plugin's own number. It coincides with an informative figure in ISO/IEC 5055:2021 §6.3 Table 1, which is not normative; 500 is selectable |
+| `size.function_lines_pct` | `5` | ISO/IEC 5055:2021 §8.2.115 (normative) states the 5%; the percentage-of-file base is the plugin's reading; used in `iso-8.2.115` mode |
 | `duplication.min_tokens` | `50` | Passed to the clone collector |
 | `duplication.min_lines` | `5` | Passed to the clone collector |
 | `duplication.ignore` | `[]` | Collector ignore globs |
-| `duplication.registries` | `[]` | Sanctioned-replication registries (one path-within-plugin per line); a clone whose every instance sits at a listed path is excluded, not suppressed |
+| `duplication.max_lines` | `null` | A file with more lines is left out of the clone scan and named in the lane's `partial` run row; `null` or `0` means no line cap, which is what jscpd 5, PMD CPD, and SonarQube ship. A number is a plugin-local guard, not an upstream convention |
+| `duplication.max_size` | `1mb` | A file larger than this is left out and named the same way; `0` means no cap. jscpd 5.0.7 sets 1mb as its parser guard and SonarJS 1000kb for generated code. `kb` and `mb` are binary (1mb is 1,048,576 bytes); a CRLF checkout counts one more byte per line |
+| `duplication.rollup_depth` | `2` | Directory depth to which the markdown report lists per-directory rollup rows; the JSON carries every directory |
+| `duplication.registries` | `[]` | The older name for `scope.registries`, read only when the scope-level list is empty; a team file written against it keeps working unchanged |
 | `coverage.artifacts` | `[]` | Explicit coverage artifact paths; empty means auto-discover. An explicitly named path that does not exist is a usage error |
 | `coverage.path_prefix_strip` | `[]` | Prefixes removed from artifact paths before the join with source paths (compiled-output layouts) |
 | `coverage.reference` | `null` | No default bar; ISO/IEC 25023 files coverage under Reliability and sets no value |
 | `coverage.crap.reference` | `null` | Savoia and Evans 2007; not a validated change-risk predictor |
 | `type_debt.reference` | `null` | No standard or CWE anchors the measure |
-| `lanes.<lane>.enabled` | `true` | Opts a lane out even under `--all`; lanes are `typescript`, `python`, `bash`, `go`, `dotnet` |
+| `lanes.<lane>.enabled` | `true` | Opts a lane out even under `--all`; lanes are `typescript`, `python`, `bash`, `go`, `dotnet`, and `other`, the catch-all for every text file no language lane claims, which the ladder serves with `file_lines` alone |
 | `lanes.<lane>.collectors.<measure>` | absent | Replaces the bundled ordered collector list for that lane and measure; names are validated against `scripts/collector-ladder.tsv` and an unknown name is dropped with a warning. An empty list is a closed value like any other: no collector runs for that lane and measure, and the run row says so |
 
 A `reference` of `null` means "report the value, count nothing"; a number counts values at or

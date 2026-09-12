@@ -85,10 +85,12 @@ updates:
           - "minor"
           - "patch"
   # The miro plugin bundles a Node MCP server; its runtime + build dependencies
-  # are pinned by plugins/miro/package-lock.json and rebuilt into the committed
-  # bundle by CI, so bumps are reviewed here like any other locked manifest.
+  # are pinned by plugins/miro/server/package-lock.json and rebuilt into the committed
+  # bundle by CI, so bumps are reviewed here like any other locked manifest. The
+  # project sits under server/ so the plugin root carries no lockfile and a consumer's
+  # plugin cache never runs `npm ci` for it.
   - package-ecosystem: npm
-    directory: /plugins/miro
+    directory: /plugins/miro/server
     labels:
       - dependencies
     schedule:

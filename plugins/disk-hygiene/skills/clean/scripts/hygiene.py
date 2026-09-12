@@ -23,10 +23,18 @@ from collections.abc import Iterable
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+_LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+import engine_grammar  # noqa: E402  (path set above; plugin-bundled module)
+
 MIN_PYTHON = (3, 11)
 SCHEMA_VERSION = 1
 MAX_SNAPSHOT_ENTRIES = 250_000
-TIERS = {"high", "medium", "low"}
+# The tier vocabulary is declared with the command grammar so `--confirm-tier`
+# and the guard's admission of it can never disagree with the plan checks here.
+TIERS = engine_grammar.TIERS
 VCS_NAMES = {".git", ".hg", ".svn"}
 GIT_METADATA_NAME = ".git"
 VCS_EVIDENCE_GATE_NAMES = (
@@ -3075,7 +3083,11 @@ def handoff_verify(
                 path.lstat()
             except FileNotFoundError:
                 verdicts.append(
-                    {"path": relative, "verdict": "gone", "reasons": ["no-longer-present"]}
+                    {
+                        "path": relative,
+                        "verdict": "gone",
+                        "reasons": ["no-longer-present"],
+                    }
                 )
                 continue
             except PermissionError:
@@ -3096,7 +3108,9 @@ def handoff_verify(
                     }
                 )
                 continue
-            candidate_protections = hard_protection(path, target, exact_names, known_mounts)
+            candidate_protections = hard_protection(
+                path, target, exact_names, known_mounts
+            )
             truncated = overlaps_truncated(relative, truncated_paths)
             overlapping_truncations = {
                 name
@@ -3148,7 +3162,8 @@ def handoff_verify(
                     evidence_result = {
                         "status": "failed",
                         "gates": {
-                            name: {"status": "failed"} for name in VCS_EVIDENCE_GATE_NAMES
+                            name: {"status": "failed"}
+                            for name in VCS_EVIDENCE_GATE_NAMES
                         },
                         "blockers": ["vcs-evidence-state-unverified"],
                         "error": str(exc),
@@ -3576,63 +3591,46 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
     }
 
 
+_PARSER_VALUE_TYPES = {"int": int}
+
+
+def _add_flag(command: argparse.ArgumentParser, flag: engine_grammar.Flag) -> None:
+    """Declare one grammar flag on a subparser.
+
+    A valueless flag is always ``store_true`` here even when the grammar marks
+    it required: that requirement is the guard's (it admits only the executing
+    ``apply`` form), while the engine keeps its own diagnostic for the flag's
+    absence rather than an argparse usage error.
+    """
+    options: dict[str, Any] = {}
+    if flag.help is not None:
+        options["help"] = flag.help
+    if not flag.takes_value:
+        command.add_argument(flag.name, action="store_true", **options)
+        return
+    if flag.metavar is not None:
+        options["metavar"] = flag.metavar
+    if flag.repeatable:
+        command.add_argument(flag.name, action="append", default=[], **options)
+        return
+    if flag.choices is not None:
+        options["choices"] = sorted(flag.choices)
+    if flag.value_type is not None:
+        options["type"] = _PARSER_VALUE_TYPES[flag.value_type]
+    command.add_argument(flag.name, required=flag.required, **options)
+
+
 def build_parser() -> argparse.ArgumentParser:
+    """The engine's CLI, derived from the one grammar the guard also enforces."""
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
-    scan = subparsers.add_parser("scan", help="inventory a target without mutating it")
-    scan.add_argument("--target", required=True)
-    scan.add_argument("--output", required=True)
-    scan.add_argument("--policy")
-    scan.add_argument("--project-dir")
-    scan.add_argument("--data-root")
-    scan.add_argument("--max-depth", type=int)
-    scan.add_argument("--confirmed-large-scan", action="store_true")
-    scan.add_argument(
-        "--quiet",
-        action="store_true",
-        help=(
-            "omit children_rollup from stdout and shorten the note; the "
-            "snapshot file still carries every row, so read per-child detail "
-            "there. Stdout shaping only: the scan itself is unchanged"
-        ),
-    )
-    scan.add_argument(
-        "--root-children",
-        action="store_true",
-        help=(
-            "admit an OS-managed volume root only as a listing of immediate "
-            "non-OS child directories; requires explicit --root-child selection "
-            "before any subtree is audited"
-        ),
-    )
-    scan.add_argument(
-        "--root-child",
-        action="append",
-        default=[],
-        metavar="NAME",
-        help=(
-            "immediate child directory basename to audit under --root-children; "
-            "repeatable; never inferred"
-        ),
-    )
-    for name in ("preview", "apply"):
-        command = subparsers.add_parser(name)
-        command.add_argument("--snapshot", required=True)
-        command.add_argument("--plan", required=True)
-        command.add_argument("--data-root")
-        if name == "apply":
-            command.add_argument("--execute", action="store_true")
-            command.add_argument("--confirm-tier", required=True, choices=sorted(TIERS))
-            command.add_argument("--approval-token", required=True)
-            command.add_argument("--report", required=True)
-    verify = subparsers.add_parser(
-        "handoff-verify",
-        help="re-verify approved paths for the manual handoff lane (read-only)",
-    )
-    verify.add_argument("--snapshot", required=True)
-    verify.add_argument("--paths", required=True)
-    verify.add_argument("--vcs-evidence")
-    verify.add_argument("--data-root")
+    for spec in engine_grammar.SUBCOMMANDS:
+        options: dict[str, Any] = {}
+        if spec.help is not None:
+            options["help"] = spec.help
+        command = subparsers.add_parser(spec.name, **options)
+        for flag in spec.flags:
+            _add_flag(command, flag)
     return parser
 
 

@@ -12,18 +12,17 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SUT_SRC="$SCRIPT_DIR/check-hook-wiring-liveness.sh"
 
-fails=0
-pass() { printf 'ok   - %s\n' "$1"; }
-fail() {
-  printf 'FAIL - %s\n' "$1" >&2
-  fails=$((fails + 1))
-}
+# shellcheck source=lib/test-harness.sh
+. "$SCRIPT_DIR/lib/test-harness.sh"
+# shellcheck source=lib/fixture-tree.sh
+. "$SCRIPT_DIR/lib/fixture-tree.sh"
 
-TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT
+# The builder assigns through a nameref, which shellcheck cannot follow;
+# declaring the out-var here is what tells it (SC2154) the name is written.
+TMP=""
 
-mkdir -p "$TMP/scripts" "$TMP/.claude/hooks"
-cp "$SUT_SRC" "$TMP/scripts/check-hook-wiring-liveness.sh"
+fixture_tree::build TMP --sut "$SUT_SRC"
+mkdir -p "$TMP/.claude/hooks"
 SUT="$TMP/scripts/check-hook-wiring-liveness.sh"
 
 # Minimal settings: env-wired telemetry sink. Command-form and args-form
@@ -53,7 +52,7 @@ write_hook hook-telemetry-sink.sh
 out="$(run)"
 rc=$?
 if [[ $rc -eq 0 ]] && grep -q 'is referenced by' <<<"$out"; then
-  pass "happy path (env-wired sink only) passes"
+  ok "happy path (env-wired sink only) passes"
 else
   fail "happy path should pass (rc=$rc): $out"
 fi
@@ -65,7 +64,7 @@ write_hook pr-linkage-mcp-gate.sh
 out="$(run)"
 rc=$?
 if [[ $rc -eq 1 ]] && grep -q 'UNWIRED HOOK' <<<"$out" && grep -q 'pr-linkage-mcp-gate.sh' <<<"$out"; then
-  pass "pre-delete replica (unwired pr-linkage-mcp-gate.sh) fails the gate"
+  ok "pre-delete replica (unwired pr-linkage-mcp-gate.sh) fails the gate"
 else
   fail "pre-delete replica should fail naming the dead script (rc=$rc): $out"
 fi
@@ -77,7 +76,7 @@ write_hook pr-linkage-mcp-gate.test.sh
 out="$(run)"
 rc=$?
 if [[ $rc -eq 0 ]]; then
-  pass "*.test.sh siblings are ignored"
+  ok "*.test.sh siblings are ignored"
 else
   fail "*.test.sh should not fail the gate (rc=$rc): $out"
 fi
@@ -92,7 +91,7 @@ mv "$TMP/.claude/settings.json.next" "$TMP/.claude/settings.json"
 out="$(run)"
 rc=$?
 if [[ $rc -eq 0 ]]; then
-  pass "a hook command string referencing extra-gate.sh passes"
+  ok "a hook command string referencing extra-gate.sh passes"
 else
   fail "command-wired extra-gate.sh should pass (rc=$rc): $out"
 fi
@@ -125,7 +124,7 @@ EOF
 out="$(run)"
 rc=$?
 if [[ $rc -eq 0 ]]; then
-  pass "exec-form args referencing extra-gate.sh pass"
+  ok "exec-form args referencing extra-gate.sh pass"
 else
   fail "args-wired extra-gate.sh should pass (rc=$rc): $out"
 fi
@@ -142,7 +141,7 @@ mv "$TMP/.claude/settings.json.next" "$TMP/.claude/settings.json"
 out="$(run)"
 rc=$?
 if [[ $rc -eq 1 ]] && grep -q 'UNWIRED HOOK' <<<"$out" && grep -q 'gate.sh' <<<"$out" && ! grep -q 'not-gate.sh' <<<"$out"; then
-  pass "not-gate.sh wiring does not satisfy an unwired gate.sh"
+  ok "not-gate.sh wiring does not satisfy an unwired gate.sh"
 else
   fail "bounded match should fail naming only gate.sh (rc=$rc): $out"
 fi
@@ -154,7 +153,7 @@ rm -f "$TMP/.claude/settings.json"
 out="$(run)"
 rc=$?
 if [[ $rc -eq 2 ]] && grep -q 'not found' <<<"$out"; then
-  pass "missing settings.json exits 2"
+  ok "missing settings.json exits 2"
 else
   fail "missing settings.json should exit 2 (rc=$rc): $out"
 fi
@@ -165,7 +164,7 @@ printf '{not json\n' >"$TMP/.claude/settings.json"
 out="$(run)"
 rc=$?
 if [[ $rc -eq 2 ]] && grep -q 'not valid JSON' <<<"$out"; then
-  pass "invalid settings.json exits 2"
+  ok "invalid settings.json exits 2"
 else
   fail "invalid settings.json should exit 2 (rc=$rc): $out"
 fi
@@ -175,7 +174,7 @@ write_settings
 out="$(run)"
 rc=$?
 if [[ $rc -eq 0 ]]; then
-  pass "gate returns to green once the dead script is deleted"
+  ok "gate returns to green once the dead script is deleted"
 else
   fail "restored env-only tree should pass (rc=$rc): $out"
 fi
@@ -184,16 +183,12 @@ fi
 # After #2959's deletion that is the post-delete tree. Running the SUT in
 # place (not the fixture copy) is the honesty proof the fixture cases cannot
 # fake — if a new unwired hook lands beside this test, this assertion fails.
-live_out="$( (cd "$SCRIPT_DIR/.." && bash "$SUT_SRC" 2>&1) )"
+live_out="$( (cd "$SCRIPT_DIR/.." && bash "$SUT_SRC" 2>&1))"
 live_rc=$?
 if [[ $live_rc -eq 0 ]]; then
-  pass "live checkout is green (every repo-local hook script is wired)"
+  ok "live checkout is green (every repo-local hook script is wired)"
 else
   fail "live checkout should pass after deleting the dead gate (rc=$live_rc): $live_out"
 fi
 
-if [[ $fails -ne 0 ]]; then
-  printf '%d assertion(s) failed\n' "$fails" >&2
-  exit 1
-fi
-printf 'all assertions passed\n'
+test_harness::report

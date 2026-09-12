@@ -3,6 +3,95 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.76]
+
+### Changed
+
+- **`babysit-prs`: description prose no longer addresses the reader.** Anthropic's skill-authoring guidance keeps first and second person out of a description because it is injected into the system prompt; the rewritten clauses name the user, the session, or the repository instead. Quoted trigger phrases are unchanged.
+
+## [0.55.75]
+
+### Added
+
+- **The PR monitor judges a review lane by what it produced, not by its check row.** New step B2
+  in the per-iteration checklist: an AI-review lane that concluded success having produced no
+  review body and no finding **for the current round** reviewed nothing, and is classified ABSENT
+  rather than PASS. These lanes report on their session rather than on their output, so a session
+  that ends without error goes green whether or not it reviewed anything, and cost is no signal
+  either since the session is billed either way. Productivity is scoped to the head under review
+  through the per-surface commit fields Gate 5 already names, so an artifact left by an earlier
+  head or an earlier rerun cannot stand in for a round that emitted nothing. An absent lane is
+  substituted with a local review over the same diff (`/review:fanout`, or the bundled
+  `/code-review` against an explicit target for a correctness lane) and named in the report.
+- **The substitution is enforced on the readiness gate, not only in the monitor loop.** The same
+  invariant is now a Gate 5 item in `reference/readiness.md`, the single source of truth both
+  `monitor.md` (Phase 3.4) and `merge.md` (Phase 4.1) rerun, so a direct `merge` invocation and
+  the final re-verification in `full` enforce it too. It states what reaching Gate 5's bound hands
+  off to: the bound ends the wait for a silent reviewer, it does not supply the review. The
+  `babysit-prs` worker and autopilot tiers merge through their own gate and do not read this file,
+  so they are unchanged by this entry.
+- **Both readiness templates gained a `Review lanes:` line**, so an absent lane and its local
+  substitute are reported rather than dropped from a verdict that otherwise reads all-clear.
+
+## [0.55.74]
+
+### Changed
+
+- **Options reference drops its em dashes.** The generated How-to-set-these block is rewritten by `scripts/sync-plugin-options-docs.py`, which is the fix site: its output is regenerated, never hand-edited. The block no longer needs the ignore marker that exempted it from the repository's em-dash gate, so that marker is gone as well.
+
+- **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and
+  defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's
+  em-dash gate reads.
+- **Every markdown surface in the plugin passes `/ai-slop:audit`.** Em dashes in the plugin's
+  own prose (the README, this changelog, the plugin-scope references, every skill body, the
+  babysit-prs and babysit-loop references, the commit, pull-request, setup, worktree, and
+  resolve-conflicts references, templates, fixtures, and the generated guard contract) are
+  rewritten as a comma, a period, a colon, or a restructured sentence; headings that carried one
+  take the colon form, and every link or quoted reference to a renamed heading follows.
+  Reflexive `load-bearing` and `seam` become the concrete thing each stood for (a config key,
+  a gate, a hook contract, a helper); the babysit trusted seam and the loop-lane convention
+  names keep their defined wording. One quoted autonomy admission-policy sentence keeps its
+  em dash inside an ignore marker; backticked literals that tests assert are untouched. The
+  babysit-prs contract test asserts the renamed conflict-worker heading. No rule, step, gate,
+  or exit code changed. The purge gate now defends the whole plugin tree.
+- **Changelog, in-place wording corrections to released entries:** the same em-dash and jargon
+  rewrite was applied inside `[0.55.62]`, `[0.55.53]`, `[0.55.50]`, `[0.55.34]`, `[0.55.23]`,
+  `[0.55.17]`, `[0.55.12]`, `[0.55.11]`, `[0.55.7]`, `[0.55.2]`, `[0.55.1]`, `[0.55.0]`,
+  `[0.54.13]`, `[0.54.9]`, `[0.54.6]`, `[0.54.5]`, `[0.54.4]`, `[0.54.2]`, `[0.54.1]`,
+  `[0.53.24]`, `[0.53.23]`, `[0.53.20]`, `[0.53.14]`, `[0.53.2]`, `[0.53.1]`, `[0.53.0]`,
+  `[0.52.0]`, `[0.51.17]`, `[0.51.16]`, `[0.51.15]`, `[0.51.13]`, `[0.51.12]`, `[0.51.11]`,
+  `[0.51.10]`, `[0.51.9]`, `[0.51.8]`, `[0.51.7]`, `[0.51.6]`, `[0.51.5]`, `[0.51.4]`,
+  `[0.51.3]`, `[0.51.2]`, `[0.51.1]`, `[0.51.0]`, `[0.50.0]`, `[0.49.3]`, `[0.49.2]`,
+  `[0.49.0]`, `[0.48.2]`, `[0.48.1]`, `[0.48.0]`, `[0.47.2]`, `[0.47.1]`, `[0.47.0]`,
+  `[0.46.2]`, `[0.46.0]`, `[0.45.1]`, `[0.45.0]`, `[0.44.1]`, `[0.44.0]`, `[0.43.0]`,
+  `[0.42.3]`, `[0.42.2]`, `[0.42.1]`, `[0.42.0]`, `[0.41.0]`, `[0.40.2]`, `[0.40.1]`,
+  `[0.40.0]`, `[0.39.0]`, `[0.38.0]`, `[0.37.0]`, `[0.36.0]`, `[0.35.1]`, `[0.35.0]`,
+  `[0.34.1]`, `[0.34.0]`, `[0.33.3]`, `[0.33.2]`, `[0.33.1]`, `[0.33.0]`, `[0.32.1]`, `[0.32.0]`,
+  `[0.31.8]`, `[0.31.7]`, `[0.31.6]`, `[0.31.5]`, `[0.31.4]`, `[0.31.3]`, `[0.31.2]`,
+  `[0.31.1]`, `[0.31.0]`, `[0.30.0]`, `[0.29.1]`, `[0.29.0]`, `[0.28.0]`, `[0.26.12]`,
+  `[0.26.11]`, `[0.26.10]`, `[0.26.9]`, `[0.26.8]`, `[0.26.7]`, `[0.26.6]`, `[0.26.4]`,
+  `[0.26.3]`, `[0.26.2]`, `[0.26.0]`, `[0.25.1]`, `[0.25.0]`, `[0.24.0]`, `[0.23.0]`,
+  `[0.22.0]`, `[0.21.0]`, `[0.20.0]`, `[0.19.0]`, `[0.18.0]`, `[0.17.1]`, `[0.17.0]`,
+  `[0.16.2]`, `[0.16.1]`, `[0.16.0]`, `[0.15.9]`, `[0.15.8]`, `[0.15.7]`, `[0.15.6]`,
+  `[0.15.5]`, `[0.15.4]`, `[0.15.3]`, `[0.15.2]`, `[0.15.1]`, `[0.15.0]`, `[0.14.0]`,
+  `[0.13.4]`, `[0.13.3]`, `[0.13.2]`, `[0.13.1]`, `[0.13.0]`, `[0.12.0]`, `[0.11.0]`,
+  `[0.10.0]`, `[0.9.3]`, `[0.9.2]`, `[0.9.1]`, `[0.9.0]`, `[0.8.1]`, `[0.8.0]`, `[0.6.0]`,
+  `[0.5.2]`, `[0.4.0]`, and `[0.3.0]`. Wording only; every entry's facts are unchanged.
+
+## [0.55.73]
+
+### Changed
+
+- **The linkage gates read a parsed git invocation instead of parsing it in
+  five steps.** Deciding whether a command is a git invocation, which
+  subcommand it runs, whether an alias reparse applies and what its effective
+  directory is were separate walks over the same words at each call site. The
+  shared library now returns that as one parsed result.
+- **Vendored `hook-utils.sh` refresh.** The library gained one exit arm and
+  one ceiling-bounded parent walk, and retired seven value-printing helpers
+  whose whole body called their caller-writes-to-a-variable twin, so each call
+  site stops paying a subshell fork for a value the shell already has.
+
 ## [0.55.72]
 
 ### Changed
@@ -264,8 +353,8 @@ All notable changes to the `source-control` plugin are documented here. Format f
   reads source positions and not kernel spawns:
 
   - **Per-field `jq` batched into one process.** Both gates read their payload fields through
-    `printf '%s' "$INPUT" | jq -r … 2>/dev/null | tr -d '\r'`, once per field — 4 clones and 2
-    execs each, five times over on the MCP surface, all asking about one buffered string.
+    `printf '%s' "$INPUT" | jq -r … 2>/dev/null | tr -d '\r'`, once per field. That is 4 clones
+    and 2 execs each, five times over on the MCP surface, all asking about one buffered string.
     `hook::jq_fields` answers every field in one process, and CR-strips exactly as the `tr` did.
   - **Redirection hoisted out of a command substitution.** Bash execs in the substitution's own
     subshell only when the command carries no redirection of its own, so
@@ -289,7 +378,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   Measured per invocation, telemetry sink off, clone-family calls / `execve`:
   `gh pr create` with a body 28/6 to 11/3; a non-PR `gh` call 8/3 to 7/2; an MCP create 37/9 to
   11/4. What survives is the floor `lib/hook-utils.sh` owns (one `jq -e .` payload validation,
-  one `git rev-parse`) plus one batched `jq`, and — on the MCP surface only — the
+  one `git rev-parse`) plus one batched `jq`, and, on the MCP surface only, the
   `git remote get-url` its scope guard needs. That library is a synced shared file and is not
   touched here.
 
@@ -314,13 +403,13 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Added
 
-- **`pr-linkage-spawn-budget.test.sh` — a strace-based spawn budget for both gates.** Ceilings
+- **`pr-linkage-spawn-budget.test.sh`, a strace-based spawn budget for both gates.** Ceilings
   are the measured steady-state counts with no headroom, per `hook-budget.md` rule 2. The suite
   refuses to report a pass it has not earned: a self-check first proves the harness can tell
-  `$(cmd 2>/dev/null)` from `{ … ; } 2>/dev/null` and skips if it cannot, and three mutants —
-  a redirect moved back inside a substitution, one field split back out of the batch, and a
-  validator helper re-forking — must each raise the count above the ceiling or the suite fails
-  itself. It also asserts both gates still exit 2 on a failing body, so a budget of zero spawns
+  `$(cmd 2>/dev/null)` from `{ … ; } 2>/dev/null` and skips if it cannot, and three mutants
+  must each raise the count above the ceiling or the suite fails itself: a redirect moved back
+  inside a substitution, one field split back out of the batch, and a validator helper
+  re-forking. It also asserts both gates still exit 2 on a failing body, so a budget of zero spawns
   cannot pass as a no-op.
 
 ## [0.55.61]
@@ -426,7 +515,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Changed
 
-- babysit-loop: removed issue numbers and "today" phrasing from the loop-knob, budget, and promotion-gate rules; restated the promotion-evidence seam state as a present-tense fail-closed rule with a recheck trigger; dropped the merge-authority protocol and the trigger-phrase list from the description
+- babysit-loop: removed issue numbers and "today" phrasing from the loop-knob, budget, and promotion-gate rules; restated the promotion-evidence gate state as a present-tense fail-closed rule with a recheck trigger; dropped the merge-authority protocol and the trigger-phrase list from the description
 - babysit-prs: removed incident narration and issue numbers from the pre-compute note, the autopilot merge tier, the gotchas, and the safety, freshness, cadence, independent-resolution, orchestration, runbook-cycle, and stuck-checks references; stated the classifier-denial and reachability rules in the present tense; replaced the description's trigger-phrase list with intent categories; regenerated guard-contract.md from the edited claim strings
 - commit: removed revision history and pinned model names from the pre-compute, trailer, and key-spelling sections; the exec-bit reference states the rename-arm rule without the decision record
 - pull-request: lowered the register of the monitor checklists; removed observed-incident narration from the gotchas and the monitor, readiness, create, and merge references; made the stale-base guard portable to consuming repos
@@ -472,7 +561,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **Vendored `hook-utils.sh` drops two `buffer_stdin` startup subshells and a
   `tr` exec on every `repo_root`.** Timeout and slice resolution write into
-  caller variables (`printf -v`) instead of `$( )` / process substitution —
+  caller variables (`printf -v`) instead of `$( )` / process substitution.
   GNU Bash forks a subshell for both even when the body is builtins only.
   `hook::repo_root` strips CR with parameter expansion, the same substitution
   `buffer_stdin` already uses for the payload. New `hook::json_str_object_to`
@@ -914,14 +1003,14 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **The worktree `create` snippet no longer emits a bare MSYS temp path on Windows.** The
   `mktemp -d` step in `skills/worktree/context/create.md` printed the POSIX literal
-  `/tmp/tmp.XXXXXXXXXX`, which the native `Write` tool resolves against the current drive —
+  `/tmp/tmp.XXXXXXXXXX`, which the native `Write` tool resolves against the current drive,
   creating a phantom `<drive>:\tmp\...` while the real directory sits in `%TEMP%` (the silent
   drive-root emit class the marketplace's windows-path-emit convention owns). The snippet now
   converts at the boundary with `cygpath -m -l` (mixed form works for both the `Write` tool and
   the later Bash consumers; `-l` expands an 8.3 short name), fails loud rather than falling back
   to the unconverted literal, and passes through unchanged on non-Windows hosts. The
-  load-bearing-details list documents the conversion — including why `mktemp -d -p "$TEMP"` is
-  rejected — so it is not reverted as noise.
+  create.md essential-details list documents the conversion, including why `mktemp -d -p "$TEMP"` is
+  rejected, so it is not reverted as noise.
 
 ## [0.55.33]
 
@@ -1064,7 +1153,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   field in the row `printf` carried a `:--` fallback except the head column, whose `:0:12` slice
   yields empty (not `-`) when `T_HEAD` is empty. notgit and bare-hub rows carry no HEAD by design, so
   those rows emitted an empty field, and a consumer reading the documented 15-column contract through
-  `while IFS=$'\t' read` — the form this file's own callers are told to use — had every later column
+  `while IFS=$'\t' read`, the form this file's own callers are told to use, had every later column
   shift left: `risk` read the reason string and `reason` read empty. The slice now lands in a
   `head_col` variable and the fallback applies after it. Covered by cases that consume a notgit row
   and a bare-hub row through `while IFS=$'\t' read` with all 15 field names. (#3371)
@@ -1072,8 +1161,8 @@ All notable changes to the `source-control` plugin are documented here. Format f
   root.** The case forced the failure with `chmod a-w` on the worktree admin directory, which uid 0
   writes straight through, so the batch claim succeeded and the case failed in root containers with
   no code change behind it. The permission fixture is now probed before it is trusted and skipped
-  with its reason named when it did not take, and a new root-proof arm — a stub `git` on PATH that
-  fails only `worktree lock` — covers the lock-failure exit-code propagation on every platform and
+  with its reason named when it did not take, and a new root-proof arm, a stub `git` on PATH that
+  fails only `worktree lock`, covers the lock-failure exit-code propagation on every platform and
   every uid, so the skip vacates no discriminating coverage. (#3378)
 
 ## [0.55.22]
@@ -1184,7 +1273,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `promotion-evidence-resolution.md` citation, and the `--merge human-only` launch-line rule to be
   present in `skills/babysit-loop/SKILL.md`. Same reason the `babysit-prs` split was reverted at
   0.55.12: the condition decides whether anything merges at all, and a loop that never opens the
-  spoke could resolve a cell as promoted on evidence the seam would refuse. The rest of the cycle
+  spoke could resolve a cell as promoted on evidence the gate would refuse. The rest of the cycle
   shape stays in the spoke; only the gate moved back. Docs-hygiene sweep,
   L2-progressive-disclosure.
 
@@ -1267,16 +1356,16 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Fixed
 
-- **Three seams from the cross-plugin audit (#3128).**
+- **Three gaps from the cross-plugin audit (#3128).**
 
-  **S1 — vendored `hook-utils.sh` skip latch.** The shared notice latch now keys
+  **S1: vendored `hook-utils.sh` skip latch.** The shared notice latch now keys
   on session and agent (a subagent gets its own first notice), stores a skip
   count in the marker (independent of `HOOK_TELEMETRY_SINK`), and emits a
   one-line re-notice every 8 skips instead of going silent after the first.
   The first `PATH probed:` dump omits other plugins' bin dirs. SessionEnd is
   not wired: the count lives in the marker and the renew notice prints it.
 
-  **S2 — overlay-ignore guard.** `/source-control:setup check` probes the
+  **S2: overlay-ignore guard.** `/source-control:setup check` probes the
   `.claude/*.local.*` ignore rule whether or not the personal overlay exists.
   Missing rule is FAIL, not INFO. A match counts only when `-v` names a
   repository `.gitignore` (not `$GIT_DIR/info/exclude` or `core.excludesFile`).
@@ -1289,15 +1378,15 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **PR-body linkage gates mask Markdown code the way CI does.** The shared
   validator treated a `## Fix` (or any other required heading) inside a fenced
   sample, a four-space indented block, or an inline span as the real section,
-  so a body CI rejects — real Summary/Verification/Related plus only a templated
-  Fix — still passed both local pre-checks. `mask_markdown_code` now blanks
+  so a body CI rejects, real Summary/Verification/Related plus only a templated
+  Fix, still passed both local pre-checks. `mask_markdown_code` now blanks
   those constructs before the heading and keyword scan, using the same
   CommonMark fence-close rules the pinned `pr-issue-linkage` reusable applies
   ([#3206](https://github.com/melodic-software/claude-code-plugins/issues/3206)).
 - **PR-body linkage gates now check all four contract sections.** The shared
   validator (`pr-linkage-validator.sh`) only required a closing keyword and a
-  non-empty `## Related` section, so both local pre-checks — the MCP gate and
-  the Bash `gh pr create`/`edit` sibling — allowed bodies the pinned
+  non-empty `## Related` section, so both local pre-checks, the MCP gate and
+  the Bash `gh pr create`/`edit` sibling, allowed bodies the pinned
   `pr-issue-linkage` reusable rejects. Observed on #3205: a body with
   `No linked issue` plus Summary, Verification, and Related (no Fix) passed
   both local gates and failed CI with `Missing a "## Fix" section`. The
@@ -1378,7 +1467,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `gh api "repos/{owner}/{repo}" --jq '.default_branch'` in place of `gh repo view --json`.
 - **§2.7 anchors the substitute, and names the triangular trap.** `gh api`'s `{owner}`/`{repo}`
   placeholders expand from the current directory, which under the out-of-tree orchestrated entry
-  is not the target repository — so the REST calls are shown in the same `( cd "$WT" && … )` form
+  is not the target repository, so the REST calls are shown in the same `( cd "$WT" && … )` form
   the section already uses for `resolve-remote.sh`, including a `$BASE` resolution of its own,
   since §2.7 skips the §2.2 step that would otherwise have set one. Anchoring to the worktree is
   not sufficient where the worker pushed to a fork: the placeholders then resolve to the fork, so
@@ -1386,9 +1475,9 @@ All notable changes to the `source-control` plugin are documented here. Format f
   would otherwise have opened the pull request against the fork's own default branch silently.
 - **The REST path's missing hook backstop is recorded.** `pr-body-linkage-gate.sh` matches
   `gh pr create` / `gh pr edit` and names `gh api …/pulls` among the invocations it deliberately
-  does not see. Within the skill this costs nothing — §2.4.2's gates run against the body first
-  — but §2.4.3 now says so plainly, because a REST PR opened outside the skill has no second
-  check before CI.
+  does not see. Within the skill this costs nothing, since §2.4.2's gates run against the body
+  first. §2.4.3 now says so plainly anyway, because a REST PR opened outside the skill has no
+  second check before CI.
 
 ## [0.55.6]
 
@@ -1476,19 +1565,19 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **`worktree` skill:** the orphaned-directory normalization in `cleanup` Step 4b now shows the
   rule as executable code instead of half of it as a comment. The snippet was
   `path="${path%/}"` plus a comment saying to run it "again for a Windows-style trailing
-  backslash" — but Step 4b is prose an agent executes literally, so the backslash half never ran,
+  backslash", but Step 4b is prose an agent executes literally, so the backslash half never ran,
   and one `%/` pass also strips only a single separator. A trailing `\` (the common
   Explorer/`dir`-pasted form on the platform the original measurement came from) or a doubled
   separator therefore still defeated the `test -L` symlink disqualifier this normalization
   exists to protect. The snippet is now a platform-gated loop: on Windows shells
   (MINGW/MSYS/CYGWIN, where `\` is a separator) it strips both separator styles until none
   remain; off Windows it strips forward slashes only, because there a trailing `\` is a legal
-  filename byte — the same gated rule `worktree-create.sh` applies to its root normalization —
+  filename byte, the same gated rule `worktree-create.sh` applies to its root normalization,
   and stripping it would re-point the qualifying tests, the reap, and the `rm -rf` at a
   different sibling path. `audit`'s "check it the way `cleanup` does" pointer carries the same
   snippet instead of prose only, and `reap-project-plugin-records.test.sh` pins the expression
-  per platform — doubled slashes always strip, a trailing backslash strips on Windows shells
-  and survives on POSIX — as a pure string case that runs even where the symlink fixture must
+  per platform, doubled slashes always strip while a trailing backslash strips on Windows shells
+  and survives on POSIX, as a pure string case that runs even where the symlink fixture must
   skip ([#3163](https://github.com/melodic-software/claude-code-plugins/issues/3163); the
   unshipped remainder of the final security-review finding on
   [#3116](https://github.com/melodic-software/claude-code-plugins/pull/3116), with the POSIX
@@ -1505,11 +1594,11 @@ All notable changes to the `source-control` plugin are documented here. Format f
   whole stored `pluginConfigs` entry, resetting every declared option to its manifest default.
   On Claude Code 2.1.240 a plain `claude plugin install … --config` against an already-installed
   plugin prints `already installed` and still writes the value, so that is now the documented
-  route — stamped with the CLI version it was verified against
+  route, stamped with the CLI version it was verified against
   ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). `apply` also
   now separates the write from its effect: the stored value changes immediately, but the running
   session's hooks keep the `CLAUDE_PLUGIN_OPTION_*` they were handed at session start, so
-  verification means rerunning `check` in a FRESH session — a same-session rerun reports the old
+  verification means rerunning `check` in a FRESH session. A same-session rerun reports the old
   value, which is not a failed write. It never asserts an unobserved change.
 - **Docs:** the generated options block's headless route no longer implies `--config` applies
   only at install time, and now carries the CLI version its claim was verified against
@@ -1528,7 +1617,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `reap-project-plugin-records.sh` verifies its own pass by re-enumerating after
   the uninstall calls. That second `claude plugin list --json` failure was being
   absorbed into an empty survivor list, so the script printed
-  `ok: every … is gone` and exited 0 having confirmed nothing — while the
+  `ok: every … is gone` and exited 0 having confirmed nothing, while the
   identical *pre*-reap failure already degraded with `warn:` and exit 3. The
   asymmetry was the defect: both mean "unknown outcome". A post-reap enumeration
   failure now reports `surviving UNKNOWN`, says the pass is UNVERIFIED, names how
@@ -1551,7 +1640,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   worktree leaves behind (#3113).** Claude Code keys a project-scope install to a
   literal `projectPath` in `~/.claude/plugins/installed_plugins.json` and nothing
   reaps it when that path goes away, so every worktree this plugin created and
-  destroyed left one record per installed plugin behind permanently — measured on
+  destroyed left one record per installed plugin behind permanently. Measured on
   the author's machine: 108 records across 8 marketplaces, all naming a single
   worktree directory that no longer exists, and every project-scope record on that
   machine an orphan. `cleanup` Step 4b now runs
@@ -1573,15 +1662,15 @@ All notable changes to the `source-control` plugin are documented here. Format f
   worktrees removed before the reap existed are unreachable by it, so audit makes
   them visible, in four buckets: *live here*, *live elsewhere*, *candidate orphan*,
   and *other project records* (information only, no remedy). The *live elsewhere*
-  bucket is load-bearing: the worktree root is shared across repositories
+  bucket matters: the worktree root is shared across repositories
   (`<root>/<owner>-<repo>-<slug>`), so "not in this repository's `git worktree
-  list`" is true of every other repository's live worktree under it — a liveness
+  list`" is true of every other repository's live worktree under it, so a liveness
   test (`git -C <path> rev-parse --is-inside-work-tree`) is required alongside the
   registration test before anything is called an orphan. `cleanup`'s
-  orphaned-directory candidate — the only candidate class with no stranded-work
-  row to read, since the engine enumerates from `git worktree list` — is held to
+  orphaned-directory candidate, the only candidate class with no stranded-work
+  row to read, since the engine enumerates from `git worktree list`, is held to
   a stricter bar still: *not a symlink*, *not a work tree*, *no `.git` entry*,
-  and *empty* — all four. The `.git` test is the load-bearing one and the
+  and *empty*, all four. The `.git` test is the one that matters most and the
   work-tree test does not imply it,
   because a live worktree whose main clone was moved, deleted, or unmounted keeps
   its `.git` file while `rev-parse` fails. Both surfaces also stop scanning a
@@ -1632,7 +1721,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **`babysit-prs` `stuck-checks.md` now covers checks that never SCHEDULE, not
   only checks that never settle.** A conflicted PR has no computable merge ref,
-  so `pull_request` workflows are never created — absent rather than pending or
+  so `pull_request` workflows are never created, absent rather than pending or
   failing, and therefore invisible to `checks.stuck`. Because
   `pull_request_target` lanes run against the base and still pass, the PR
   presents a short all-green list with no failures while most gates are simply
@@ -1691,14 +1780,14 @@ All notable changes to the `source-control` plugin are documented here. Format f
   forbidden setting (#2691).** The babysit/pull-request stale-base rule cited the
   2026-08-15 incidents (quoted as "#2635 then #2639 ... inside ten minutes") as its
   motivating case. All three of those merges (#2633, #2639, #2641) were stale in
-  **content** while up to date in **history** — `git merge-base --is-ancestor f603880d
-  refs/pull/2641/head` is true — so `check-stale-base-overlap.sh` exits 0 on them; they
+  **content** while up to date in **history**: `git merge-base --is-ancestor f603880d
+  refs/pull/2641/head` is true, so `check-stale-base-overlap.sh` exits 0 on them; they
   belong to the post-merge `scripts/check-silent-revert.sh` class.
   `freshness.md` and `merge.md` now state the gate's real scope (stale **base** only) and
   point at the sibling detector for the disjoint class. Both files also dropped the
   "durable fix is `requiredStatusChecks.strict`" recommendation: it is barred by an
   accepted ADR in the org's IaC repo, and the same evidence shows strict would have passed
-  all three incidents anyway. No behavior change — wording only.
+  all three incidents anyway. No behavior change, wording only.
 
 ## [0.54.8]
 
@@ -1732,8 +1821,8 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `fixtures/nesting-invariant-probe.sh` was executed on Claude Code **2.1.232** with every
   discriminator pinned (creation=`git worktree add`, launch=`cd`+`claude -p --settings`,
   glob=`src/**`, parent rule committed, four placements). All four arms hit the script's
-  fixture-failure trap — zero `InstructionsLoaded` events because the CLI was
-  unauthenticated — which is **not** a null finding about the leak. README and SKILL.md
+  fixture-failure trap, zero `InstructionsLoaded` events because the CLI was
+  unauthenticated, which is **not** a null finding about the leak. README and SKILL.md
   stamp refreshed; arm statuses remain disputed/untested. Probe now prints pinned
   discriminators and surfaces `claude` stderr on a zero-event arm.
 
@@ -1743,10 +1832,10 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **Nesting-invariant SSOT test enforces the unconditional expiry date arm (#2767).**
   `nesting-invariant-ssot.test.sh` previously only asserted the literal strings
-  `as-of **2026-08-07**` and `Unconditional expiry` — so the stamp could pass its
+  `as-of **2026-08-07**` and `Unconditional expiry`, so the stamp could pass its
   expiry and the suite stayed green forever. It now parses the as-of date and both
   expiry arms, fails when today is on or after the date arm, asserts the version
-  arm is present and `N.N.N`-shaped (not evaluated — CI has no live Claude Code
+  arm is present and `N.N.N`-shaped (not evaluated, since CI has no live Claude Code
   version), and proves the red path with an injected post-expiry "today".
 
 ## [0.54.4]
@@ -1756,8 +1845,8 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **Docs:** `/worktree audit` no longer enumerates a subset of non-`safe` Work values
   (#2766). SKILL.md Step 1 flags any Work value other than `safe` (owned by
   `context/status.md`), so the list cannot drift when the axis gains a value.
-  `context/audit.md` health presentation adds `in-progress` and `dirty` — the two
-  classes `cleanup` refuses — alongside stranded/unproven. Docs-only.
+  `context/audit.md` health presentation adds `in-progress` and `dirty`, the two
+  classes `cleanup` refuses, alongside stranded/unproven. Docs-only.
 
 ## [0.54.3]
 
@@ -1779,7 +1868,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   POSIX and UNC stay inert). An explicit or configured root on a different drive
   (rungs 1–3: `--root` / `melodic.worktreeroot` / `--fallback-root`) is refused
   with exit 3 and a remedy-first message. The unconfigured plugin-data-dir
-  default (rung 4) warns loudly and still creates — refusing would fail every
+  default (rung 4) warns loudly and still creates, because refusing would fail every
   harness-driven `WorktreeCreate` on a cross-drive machine. Closes the gap where
   the invariant was stated in `plugin.json` and the containment message but never
   enforced; `git worktree move` cannot cross volumes (`rename()` / EXDEV).
@@ -1789,7 +1878,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 ### Changed
 
 - **setup:** Two articles dropped from the local-overlay fixture's prose comment
-  (`.claude/source-control.local.md`) by the repo-wide `/docs-hygiene:compress` pass —
+  (`.claude/source-control.local.md`) by the repo-wide `/docs-hygiene:compress` pass,
   semantic-diff verified (0 semantic loss). No behavior change.
 
 ## [0.54.0]
@@ -1834,10 +1923,10 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **`babysit-loop`: promotion-evidence gate on the rung partition (#1695).** Before C2/C3 PRs enter
   the merge-eligible set, the partition resolves each promotable cell's effective state through a
-  trusted promotion-evidence seam — never from repo-local or agent-writable surfaces, never from
+  trusted promotion-evidence gate, never from repo-local or agent-writable surfaces, never from
   bound `promotion_state` alone. Unavailable, untrusted, partial, or forgeable evidence fail-closes
   to effective-unpromoted; a contrary demotion event in qualified telemetry excludes the affected
-  class on the next cycle without config change. Until the seam qualifies, C2/C3 classes stay off
+  class on the next cycle without config change. Until that gate qualifies, C2/C3 classes stay off
   the eligible set regardless of tracked rung; operators keep `--merge human-only` on launch lines.
   New reference `skills/babysit-loop/reference/promotion-evidence-resolution.md`; `config-resolution.md`
   notes the gate. Evals 2, 6–8 updated; eval 10. Contract test in `test_skill_contract.py`.
@@ -1848,7 +1937,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **`babysit-loop` drain mode applies the issue-author provenance field test (#1718).** In
   `--drain`, every non-excluded open issue in the cycle-start snapshot is tested with the
-  `C5` issue-author trust test from `work-classes.md` — same `authorAssociation` and
+  `C5` issue-author trust test from `work-classes.md`, with the same `authorAssociation` and
   `babysit_loop_trusted_internal_bot_logins` binding as the PR trust test, fail-closed when a
   field is absent. An issue that fails counts as human-gated for the drain-terminal exit even
   without a human-gated role label; the lane never works such intake. `config-resolution.md`
@@ -1874,7 +1963,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Documentation
 
-- **babysit-prs:** document dispatched-worker capability tiers — `strong` for routine
+- **babysit-prs:** document dispatched-worker capability tiers: `strong` for routine
   per-PR fix workers, `frontier` for conflict-resolution and independent-resolution
   dispatches (#1664).
 
@@ -1919,7 +2008,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **Stale-branch recovery defaults to merge-forward, not rebase + force-push (#1436).** `monitor.md`'s
   conflict and stale-branch paths prescribed "force-push with lease", which auto-mode permission
-  classifiers commonly deny — the observed cost was a fresh branch + fresh PR per rebase, with every
+  classifiers commonly deny. The observed cost was a fresh branch + fresh PR per rebase, with every
   review thread re-opened. Merging the default branch *into* the PR branch pushes fast-forward with
   no force-push, and under a squash-only default branch the merge commits collapse on merge, so
   linear-history requirements stay satisfied. Rebase remains the exception for projects that require
@@ -2005,14 +2094,14 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **Canonical `gh pr create` now passes `--head` explicitly (#1900).** The §2.4.3 worktree path already
   did; the on-branch canonical path did not. Once dotfiles#375's amended auto-mode grant lands, `gh pr
-  create` is covered only when the head branch is named — so the canonical lane must match the
+  create` is covered only when the head branch is named, so the canonical lane must match the
   sibling spelling. Detached HEAD is refused rather than emitting `--head ""`.
 - **`babysit_resolve_thread` severity guard reads structured P0/P1 markers only (#1939).** The
   `--autonomous` and `--independent-resolver` paths refused any thread whose body contained a
   word-bounded `P1` token, so a P2 thread discussing P1 properties in prose became
   `skipped-severity-marked`. The scan now keys on shields badges, bracketed `[P0]`/`[P1]`, and
-  explicit `P1:`/`P0:` declaration prefixes — not incidental prose mentions. Vetted
-  `--resolve --thread-id` still applies no severity screen — documented as intentional.
+  explicit `P1:`/`P0:` declaration prefixes, not incidental prose mentions. Vetted
+  `--resolve --thread-id` still applies no severity screen, which is documented as intentional.
 
 ## [0.53.1]
 
@@ -2021,13 +2110,13 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **The paused-merge case pins both halves of the in-progress reason, and the landed+in-progress
   fixture's comment corrects the cherry-pick rationale (#2257).** 0.51.16 rewrote the in-progress
   reason to "…(staged result recomputable from base, sequencer position) dies with the directory",
-  but the suite asserted only "recomputable" — the clause carried over from the old wording — so
+  but the suite asserted only "recomputable", the clause carried over from the old wording, so
   the #2257 half (the transient state is LOST with the directory, close to the opposite claim)
   could regress silently; a second assertion now pins it. The fixture comment also claimed a
   cherry-pick "would reuse the same object", which is wrong on two counts: cherry-pick mints a new
   commit, and with this fixture's ordering (`unrelated on main` lands before the twin) a
   cherry-pick would not have parent == HEAD at the branch tip and would carry `unrelated.txt` in the
-  tree — different parent, tree, and SHA even within the same second. The twin-with-different-subject
+  tree: different parent, tree, and SHA even within the same second. The twin-with-different-subject
   sequence below is deliberate; do not replace it with a cherry-pick.
 
 ## [0.53.0]
@@ -2038,7 +2127,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   (`skills/worktree/SKILL.md`, `skills/worktree/context/create.md`, `scripts/worktree-create.sh`,
   `hooks/worktree-create-gate.sh`, `.claude-plugin/plugin.json`, `README.md`; #2213). The mechanism
   claim justifying a machine-wide placement rule enforced by a fail-closed hook was restated as an
-  **undated absolute at 13 sites** against exactly two dated statements — and the one site asserting
+  **undated absolute at 13 sites** against exactly two dated statements, and the one site asserting
   freshness ("It is the live constraint, not a historical one") was itself undated, so a pointer
   landed the reader precisely there. `SKILL.md` now carries the claim under an explicit
   `### The nesting invariant, verified` heading and everything else points at it. Not thirteen
@@ -2057,13 +2146,16 @@ All notable changes to the `source-control` plugin are documented here. Format f
   were structurally unable to fire** (`skills/worktree/SKILL.md`; #2213). The triggers were "a
   release note naming worktree rule-file loading" and "upstream #16600 changing state". #16600 has
   not changed state since well before the 2026-08-07 as-of date, and an opaque release stanza
-  ("Bug fixes and reliability improvements", 2.1.226) cannot fire an event-keyed trigger at all — so
+  ("Bug fixes and reliability improvements", 2.1.226) cannot fire an event-keyed trigger at all, so
   the most consequential claim in this plugin was guarded by two triggers that could not go off. The
   stamp now adds **2.1.244 or 2026-11-07, whichever comes first**, composed with
   `docs/conventions/upstream-drift/` rather than inventing a parallel mechanism.
 - **The `SKILL.md` ownership claim is no longer a false absolute, and it gained a back-channel**
-  (`skills/worktree/SKILL.md`; #2213). "This skill is the canonical owner … — no external prose doc"
-  was untrue: a consumer doc outside this repository defers mechanism to this skill *and* is more
+  (`skills/worktree/SKILL.md`; #2213). The retired claim read:
+  <!-- ai-slop-ignore-start: quoted retired SKILL.md ownership-claim wording -->
+  "This skill is the canonical owner … — no external prose doc".
+  <!-- ai-slop-ignore-end -->
+  It was untrue: a consumer doc outside this repository defers mechanism to this skill *and* is more
   current than it. Ownership is now scoped to this plugin fleet, and states how a consumer who
   measures something contradicting the owner gets that correction back into the owner. Canonical
   ownership with no inbound channel makes the owner the last to know.
@@ -2072,21 +2164,21 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **The nesting-invariant measurement is downgraded to the modality it actually has, and its fixture
   is now recorded** (`skills/worktree/SKILL.md`, `skills/worktree/fixtures/`; #2212). The 2.1.224
-  leak measurement was **disputed, not refuted** — a 2.1.227 counter-reproduction did not observe
-  it — and *neither run recorded its fixture*, so the two results could not be compared and the
+  leak measurement was **disputed, not refuted**: a 2.1.227 counter-reproduction did not observe
+  it, and *neither run recorded its fixture*, so the two results could not be compared and the
   claim was not adjudicable. It read as settled anyway. The section now names the dispute, carries
   an arm-by-arm status table so a fix to one arm cannot silently weaken another (the
-  **nested-in-an-unrelated-repo** arm is untested by anyone and **not** refuted — the dispute does
-  not reach it), and ships `fixtures/nesting-invariant-probe.sh`, which pins every discriminator
+  **nested-in-an-unrelated-repo** arm is untested by anyone and **not** refuted, because the dispute
+  does not reach it), and ships `fixtures/nesting-invariant-probe.sh`, which pins every discriminator
   neither original run disclosed: creation mechanism, launch mode, the exact `paths:` glob and its
   anchoring root, whether the parent's rule file was committed, and the three placements as separate
-  arms. **The probe is written and has NOT been run** — that is stated at the top of the script and
+  arms. **The probe is written and has NOT been run.** That is stated at the top of the script and
   in `fixtures/README.md`, and nothing is claimed on its authority. It converts a recheck *trigger*
   into a recheck *procedure*.
 - **The reproduction guidance no longer contradicts the hooks docs** (`skills/worktree/SKILL.md`;
   #2212). It claimed the single-string command shape "silently never fires". That is not what
   <https://code.claude.com/docs/en/hooks> says (raw markdown, fetched 2026-08-11): both command
-  forms are documented with no event-specific carve-out, and the documented rule is narrower — "Set
+  forms are documented with no event-specific carve-out, and the documented rule is narrower: "Set
   `args` whenever the hook references a path placeholder, since each element is passed as one
   argument with no quoting." This plugin's own `hooks/hooks.json` registers all three of its hooks
   in the single-string form and they fire. The guidance now states the documented rule, and the
@@ -2099,7 +2191,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   changelog scan behind it is packet-sourced and has not been re-run. Supersedes the in-place
   correction shipped in 0.52.1 (#2332), which fixed the same two rows (`D-F1`, `D-F6`) inside the
   old single-paragraph shape; both of its corrections are preserved here, restated inside the
-  restructured owner section, and `D-F2` — the missing fixture that #2332 left open — is what
+  restructured owner section, and `D-F2`, the missing fixture that #2332 left open, is what
   this release adds.
 
 ## [0.52.1]
@@ -2119,20 +2211,20 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **`worktree_create_gate_enabled=false` now refuses out loud instead of exiting 0 silently**
   (`hooks/worktree-create-gate.sh`, `.claude-plugin/plugin.json`, `README.md`; #2211). The option's
-  documented meaning — "let Claude Code use its own default", implemented as exit 0 with an empty
-  stdout — was **false**, and the suite asserted it. Measured on Claude Code **2.1.228**: a
+  documented meaning, "let Claude Code use its own default", implemented as exit 0 with an empty
+  stdout, was **false**, and the suite asserted it. Measured on Claude Code **2.1.228**: a
   `WorktreeCreate` hook that exits 0 without printing a path fails the creation with
   `hook succeeded but returned no worktree path`, and nothing is created. So the old exit-0 path
   produced the *same* outcome as a refusal while suppressing every explanation, because an exit-0
-  hook's stderr is dropped — the probe's stderr marker was absent from the harness output on exit 0
+  hook's stderr is dropped. The probe's stderr marker was absent from the harness output on exit 0
   and present, in full, on exit 3. The option only became reachable at 0.51.7 (#2193 declared it in
   `userConfig`), so this is the first release in which anyone could hit it. Disabled now exits
   non-zero with a message naming the real stand-downs: `worktree.bgIsolation: "none"`, or disabling
   the plugin. The docs agree at the current revision and are quoted in the fixture: "Hook failure or
   missing path fails creation."
 - **The `WorktreeCreate` contract is now a recorded, runnable fixture** (`skills/worktree/fixtures/`;
-  #2211). `worktree-create-hook-probe.sh` runs the four arms — control, exit-0-no-path,
-  exit-3-with-stderr, path-without-directory — and `README.md` carries the outcome, the verbatim
+  #2211). `worktree-create-hook-probe.sh` runs the four arms: control, exit-0-no-path,
+  exit-3-with-stderr, path-without-directory. `README.md` carries the outcome, the verbatim
   harness strings, corroborating doc quotes, an as-of stamp (2026-08-11, 2.1.228) and a recheck
   trigger, per the upstream-drift convention. A recheck is one command instead of a re-derivation
   from memory.
@@ -2142,7 +2234,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **The worktree-create gate's failure output reported a constant exit status, discarded the
   helper's exit taxonomy, and named no remedy** (`hooks/worktree-create-gate.sh`,
   `scripts/worktree-create.sh`; #2209). `status=$?` sat inside the body of `if ! path="$(…)"`, where
-  `$?` is the status of the *negated compound* — 0 exactly when the command failed — so every
+  `$?` is the status of the *negated compound*, 0 exactly when the command failed, so every
   failure reported `exited 0`. That constant is what produced, and cost a verification pass to
   unwind, the theory that a hook had exited 0 while failing. The assignment now stands alone, and
   the helper's documented `0/2/3/4` taxonomy is translated into distinct messages, so "not a
@@ -2150,18 +2242,18 @@ All notable changes to the `source-control` plugin are documented here. Format f
   indistinguishable line. Every refusal leads with a **remedy** and follows with the diagnosis.
   **Corrected mechanism:** the issue was filed on the premise that the transcript surfaces only the
   *first* stderr line; measured on 2.1.228, a failing hook's stderr is surfaced **in full** inside
-  the harness's own error text. Remedy-first still holds — it is the line a reader acts on — but it
+  the harness's own error text. Remedy-first still holds, since it is the line a reader acts on, but it
   is a readability argument, not a truncation one. The helper's non-repository refusal gained the
   same treatment.
 - **An empty or unbufferable stdin payload was reported as the wrong cause**
   (`hooks/worktree-create-gate.sh`; #2209). `hook::buffer_stdin`'s status was ignored, so a payload
-  that never arrived surfaced as "the WorktreeCreate payload carried no `.name`" — sending readers
+  that never arrived surfaced as "the WorktreeCreate payload carried no `.name`", sending readers
   after a field in a document the hook had never received. The two are now separate messages. The
   jq-absent fail-open path through the `sed` fallback is untouched.
 - **Both worktree suites were unrunnable on any machine with `commit.gpgsign=true`**
   (`hooks/worktree-create-gate.test.sh`, `scripts/worktree-create.test.sh`). Their repo fixtures set
   a throwaway identity but not `commit.gpgsign false`, so every fixture commit failed for want of a
-  secret key for that identity — and the suites then reported their *creation* cases as failures
+  secret key for that identity, and the suites then reported their *creation* cases as failures
   while their refusal cases still passed, a shape that reads as a real regression rather than an
   unrunnable fixture. Repo-local on a just-`mktemp`'d repo, the same line the sibling suites
   (`scripts/landed-work.test.sh`, `skills/commit/scripts/exec-bit-check.test.sh`) already carry.
@@ -2174,13 +2266,13 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **`babysit_merge` enforces `requireSignatures` instead of only reporting it (#2265).**
   `branch_rules` computed the flag and nothing consumed it: on a base whose ruleset requires signed
   commits, a head held only by an unsigned or misattributed commit reported the generic
-  `mergeStateStatus` line naming four other causes — none of them the real one — and the operator
+  `mergeStateStatus` line naming four other causes, none of them the real one, and the operator
   went re-reading checks, approvals, and threads that were already fine. New
   `fetch_pull_request_commits` (`babysit_gh.py`) reads `.commit.verification` per PR commit,
   paginated `per_page=100`; a missing verification block reports reason `unreadable` rather than
   being skipped. `evaluate()` walks the commits only when the rule is present (an ungoverned base
-  pays no extra request), in the read-only pass — a signature hold discovered only under `--merge`
-  would defeat the wrapper's report-readiness purpose — and emits one blocker per verification
+  pays no extra request), in the read-only pass, since a signature hold discovered only under
+  `--merge` would defeat the wrapper's report-readiness purpose, and emits one blocker per verification
   reason naming every offending commit. `unsigned`, `no_user`, and `unknown_key` carry distinct
   remedies: `no_user` states that the signature IS valid and the author/committer email is
   unlinked (#2162's recurring product, needing `--reset-author` or a linked email, not a key). A
@@ -2196,14 +2288,14 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **A lane's worktree is locked at creation, and an in-flight operation outranks `landed` in
   `landed-work.sh` (#2257).** `git worktree remove` deletes a worktree whose `status --porcelain`
-  is empty even while an interactive rebase paused at a `break` is mid-flight — cleanliness cannot
+  is empty even while an interactive rebase paused at a `break` is mid-flight. Cleanliness cannot
   carry liveness. `worktree-create.sh` now arms `git worktree lock` the moment the worktree exists,
   with a reason naming the helper, host, and start time; the cleanup skill already honored a
   `locked` flag, but nothing in this repo ever set one, so that input was structurally always
   absent. `landed-work.sh` adds `BISECT_LOG` to the in-progress probe (a bisect leaves porcelain
   completely clean) and ranks `in-progress` above `landed`: consumers read `landed` as
   safe-to-remove, and removal mid-operation destroys sequencer state and conflict resolutions even
-  when every commit is durable — the stranded family still outranks it, data loss being the
+  when every commit is durable. The stranded family still outranks it, data loss being the
   stronger stop. `cleanup.md` gains the locked and in-progress candidate rows (a locked worktree is
   disarmed with `git worktree unlock` after explicit owner confirmation, never bypassed with
   `--force --force`) and `create.md` documents the lock and its interaction with
@@ -2218,10 +2310,10 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **D6's reachability gate resolves the push remote instead of hardcoding `origin`**
   (`reference/review-discipline.md`, `skills/pull-request/SKILL.md`; #2310). 0.51.12 replaced the
   tip read with `git fetch origin <branch> && git merge-base --is-ancestor <fix-sha>
-  origin/<branch>` — a hardcoded remote that release itself introduced, while the same skill pushes
+  origin/<branch>`, a hardcoded remote that release itself introduced, while the same skill pushes
   through `push-branch.sh` / `resolve-remote.sh --push` (pushRemote, pushDefault, non-`origin`
   tracking, triangular forks). On such a checkout a successful push is followed by a fetch of the
-  wrong remote — a false D6 failure that blocks D7 and thread resolution — and an `origin` base
+  wrong remote, a false D6 failure that blocks D7 and thread resolution, and an `origin` base
   repo carrying a same-named branch can verify the wrong ref entirely (Codex P1 on #2262). Both
   gates now resolve the remote through the existing `resolve-remote.sh --push` and compare against
   `FETCH_HEAD`, exactly what the resolved remote just served. Verified live in both directions: a
@@ -2247,7 +2339,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Fixed
 
-- **Rule 3 no longer lists bare `map(f)` as element-wise-safe (#2245).** `map(f)` is `[.[] | f]` — it
+- **Rule 3 no longer lists bare `map(f)` as element-wise-safe (#2245).** `map(f)` is `[.[] | f]`. It
   builds an array per page, so `--paginate` emits one array document per page unless a trailing
   `| .[]` re-flattens. The carve-out now names `.[] | select(f)` and `.[] | f` as safe and calls out
   `map(f) | .[]` as the safe `map` form.
@@ -2258,16 +2350,16 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **D6's verify-commit-pushed gate checks branch reachability, not repo-wide presence or the branch
   tip** (`reference/review-discipline.md`, `skills/pull-request/SKILL.md`; #2244). The published
-  form — `commits?sha=<branch>&per_page=1` with `--jq '.[0].sha'` — asked "is my fix commit on the
+  form, `commits?sha=<branch>&per_page=1` with `--jq '.[0].sha'`, asked "is my fix commit on the
   remote?" but read only the branch tip, so any later push made it report the fix missing while it
   was present: a false negative on a control gate, and a positional index on a list. A
   repository-scoped `commits/<fix-sha>` lookup fixed the tip-read false negative but still answered
-  "does this object exist anywhere in the repo?" — satisfied by a force-pushed-off commit or an
-  identical commit on another branch. The gate now fetches the PR branch and runs
+  "does this object exist anywhere in the repo?", which a force-pushed-off commit or an
+  identical commit on another branch satisfies. The gate now fetches the PR branch and runs
   `git merge-base --is-ancestor <fix-sha> origin/<branch>` (exit 0 when the fix commit is on the
   remote PR branch; 0.51.15 replaces the hardcoded `origin` with the resolved push remote),
-  matching the reachability *guarantee* of `babysit-prs`'s `verify_fix_commit` — the same
-  is-ancestor-of-the-live-head property — not its mechanism, which is the clone-free, fork-aware
+  matching the reachability *guarantee* of `babysit-prs`'s `verify_fix_commit`, the same
+  is-ancestor-of-the-live-head property, not its mechanism, which is the clone-free, fork-aware
   compare API (`repos/{owner}/{repo}/compare/{sha}...{head_oid}`) against the PR's own head
   repository.
 - **Every remaining `--paginate` list read carries `per_page=100`**, conforming to rule 1 as
@@ -2275,13 +2367,13 @@ All notable changes to the `source-control` plugin are documented here. Format f
   comment-source re-checks), `skills/pull-request/SKILL.md` (C1–C3),
   `skills/pull-request/reference/monitor.md` (poll-loop comment fetch),
   `scripts/fetch-all-pr-comments.sh` (the shared surface pager), and
-  `skills/babysit-loop/reference/telemetry-upsert.md` (sentinel LOOKUP). Not truncation defects —
-  `--paginate` alone fetches every page — but the default 30-per-page form costs 3.3x the
+  `skills/babysit-loop/reference/telemetry-upsert.md` (sentinel LOOKUP). Not truncation defects,
+  since `--paginate` alone fetches every page, but the default 30-per-page form costs 3.3x the
   requests and diverges from the rule the same skill states as absolute.
   `skills/babysit-prs/scripts/babysit_gh.py` and `scripts/request_review.py` were reported in the
-  #2246 sweep but were already conformant: each passes `per_page=100` inside the endpoint URL —
-  adjacent to the `--paginate` flag in `request_review.py`, and at `fetch_paginated_api`'s four
-  call sites in `babysit_gh.py` — so the line-based sweep matched the flag without seeing the
+  #2246 sweep but were already conformant: each passes `per_page=100` inside the endpoint URL,
+  adjacent to the `--paginate` flag in `request_review.py` and at `fetch_paginated_api`'s four
+  call sites in `babysit_gh.py`, so the line-based sweep matched the flag without seeing the
   parameter.
 
 ## [0.51.11]
@@ -2289,13 +2381,13 @@ All notable changes to the `source-control` plugin are documented here. Format f
 ### Changed
 
 - **Shared `hook-utils.sh`: the jq gate now has a fail-CLOSED sibling, and the posture reasoning
-  lives at the helper (#2146).** `hook::require_jq` is unchanged and still fails OPEN — one visible
-  skip notice per session, then exit 0 — which is the correct posture for every hook in this plugin,
+  lives at the helper (#2146).** `hook::require_jq` is unchanged and still fails OPEN: one visible
+  skip notice per session, then exit 0. That is the correct posture for every hook in this plugin,
   so **nothing in this plugin's behaviour changes**. What is new is `hook::require_jq_blocking`, a
   second named function that denies the tool call instead, for the narrow class of guards whose job
   is blocking an irreversible operation (today only two, both in `guardrails`). A sibling function
   rather than a parameter, because a flag's omitted value would default to fail-open and a guard
-  whose flag someone forgot would then fail open *silently* — the exact defect #2146 reports,
+  whose flag someone forgot would then fail open *silently*, the exact defect #2146 reports,
   reintroduced at the API. The two postures are now argued together in one block above both
   functions, which is what #2146 asked for: previously each call site asserted a posture in a
   comment and nothing where the decision is made explained it. Synced from `lib/hook-utils.sh`.
@@ -2308,14 +2400,14 @@ All notable changes to the `source-control` plugin are documented here. Format f
   trade is now recorded where the gate is (#2141).** `git mv` of a `100644` shebang file reads as
   `D`+`A` under `diff.renames=false` and IS reported through the `A` branch; the same index and the
   same HEAD read as `R100` under the default `diff.renames=true` and are NOT. Only the config
-  differs. **No behaviour change** — the `R*` arm keeps its `100755`-source gate. #2141 weighed
+  differs. **No behaviour change.** The `R*` arm keeps its `100755`-source gate. #2141 weighed
   dropping the gate for renames and making the `A` branch skip a rename-as-add, and kept the gate:
-  the false positive it prevents is real and pinned by `repo19` in `exec-bit-check.test.sh` — a
+  the false positive it prevents is real and pinned by `repo19` in `exec-bit-check.test.sh`: a
   deliberately non-executable sourced library or template must not be flipped to `100755` because
   someone moved it. Dropping the gate would buy config-agreement by shipping that false positive to
   every consumer; making the `A` branch match would buy it by reporting *less*, risking silence on
   genuinely new files. What changes is the prose: content-determinism is stated as a property of the
-  `A` and `C` classes only — never of the whole tool — at the script header, at the candidate-set
+  `A` and `C` classes only, never of the whole tool, at the script header, at the candidate-set
   gate, in `--help`, in `reference/exec-bit.md`, and next to `repo19`. New case group **19b** pins
   both halves of the disagreement on one fixture repo, with HEAD and the index asserted identical
   across the two runs, so the decision is executable rather than only written down.
@@ -2336,20 +2428,20 @@ All notable changes to the `source-control` plugin are documented here. Format f
   returned in). An entry carrying no `context` is dropped rather than surfacing as a literal `None`
   required context. Not a merge-safety hole: the gate refuses independently on `mergeStateStatus`,
   which GitHub computes from all required checks. Its one safety-adjacent effect ran in the
-  over-holding direction — `baseUnprotected` is true when the context list is empty, which under
-  the bug meant "the LAST status-checks rule is empty" and now means "ALL of them are", a subset —
+  over-holding direction: `baseUnprotected` is true when the context list is empty, which under
+  the bug meant "the LAST status-checks rule is empty" and now means "ALL of them are", a subset,
   so the bug produced a false hold on a superset of cases and never retired one. Latent on this
   repository, where neither ruleset carries an empty context list.
 - **`pull_request` rules are folded across rulesets too.** Same assign-in-loop shape, same
-  function. `requiredApprovingReviews` now takes the max and `requireThreadResolution` the OR — the
+  function. `requiredApprovingReviews` now takes the max and `requireThreadResolution` the OR, the
   fail-closed direction whatever GitHub's own composition rule is, since max/OR can only
   over-report and hold a PR for a human, where last-wins can under-report and release one. This
   one could lose a blocker outright: a trailing rule with `required_approving_review_count: 0`
   erased an earlier ruleset's requirement and dropped the "needs N approving review(s)" hold. Not
-  observed — one such rule governs the branch today. The count fold is a behaviour change; the
+  observed, as one such rule governs the branch today. The count fold is a behaviour change; the
   boolean is report-only, never consumed as a blocker. The count also distinguishes an ABSENT
-  `required_approving_review_count` (the rule requires no reviews — zero) from one present but
-  unreadable (`null`, `""`, `0.0`, `[]`, `{}` — a requirement is stated and its size is unknown, so
+  `required_approving_review_count` (the rule requires no reviews, zero) from one present but
+  unreadable (`null`, `""`, `0.0`, `[]`, `{}`, where a requirement is stated and its size is unknown, so
   it counts as one). Collapsing a falsy non-int to zero would be the single fail-open step in a
   fold whose guarantee is that it may only ever over-report.
 
@@ -2362,32 +2454,32 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `repos/{owner}/{repo}/commits/<sha>/check-runs` with no pagination. The endpoint returns 30 per
   page by default and reports nothing when it truncates, so on any PR carrying more than 30 check
   runs the command answers "is check X present?" with a silent *no* for every check that landed on
-  a page the caller never fetched — indistinguishable from a check that never attached. Observed on
+  a page the caller never fetched, indistinguishable from a check that never attached. Observed on
   this repo: three separate heads returned `total_count=33, returned=30`, dropping
-  `do-not-merge / do-not-merge` — a required status context — every time, and a reader concluded
+  `do-not-merge / do-not-merge`, a required status context, every time, and a reader concluded
   the context never attaches. It attached and was green on all three. The command now uses
   `--paginate` with `per_page=100`, matching the form
   `skills/pull-request/scripts/fetch-annotations.sh` already used. Pagination alone only moves the
-  cliff to 100, so the gate also documents a completeness assertion — `total_count` against the
-  flattened count across every page — and names the trap that makes the naive assertion wrong:
+  cliff to 100, so the gate also documents a completeness assertion, `total_count` against the
+  flattened count across every page, and names the trap that makes the naive assertion wrong:
   `--jq` runs per page, so `.check_runs | length` reports one page at a time and must be slurped
   before comparing. The rule is hoisted out of Gate 1 into a `Reading GitHub list APIs` section,
   because it governs every gate in the file rather than one command.
 - **The per-page `--jq` trap is stated as its own rule, and Gate 5 no longer breaks it.** With
   `--paginate`, `gh` applies `--jq` to each page *separately*, so any expression that folds a whole
-  list — `length`, `sort_by`, `add`, `max`, `group_by` — silently answers per page. Element-wise
+  list, such as `length`, `sort_by`, `add`, `max`, or `group_by`, silently answers per page. Element-wise
   filters are safe because their results concatenate; folds are not. Gate 5's codex-comment count
   was itself an instance: `--jq '[…] | length'` over four pages printed `10 10 10 3` instead of
   `33`. It now slurps the page stream with `jq -s` and flattens with `.[][]`, and the rule sits
   beside the other two rather than being buried in the completeness-assertion prose.
 - **Every documented PR comment and review read is paginated, and the positional-index reads are
   gone.** The same 30-per-page default governs `issues/<pr>/comments`, `pulls/<pr>/comments`, and
-  `pulls/<pr>/reviews`, all of which return **oldest-first** — so an unpaginated read drops the
+  `pulls/<pr>/reviews`, all of which return **oldest-first**, so an unpaginated read drops the
   newest items, which on a PR being monitored are the only ones that matter. Corrected in
   `readiness.md` (comment-only actor discovery, bot-actor discovery, the codex-comment count at
   HEAD, and Gate 4's three reads) and `skills/pull-request/reference/monitor.md` (all three
   review-surface polls; the reviews poll filters `submitted_at` client-side, which made pagination
-  load-bearing there rather than merely tidy).
+  required there rather than merely tidy).
 - **`reference/review-discipline.md` and `skills/pull-request/SKILL.md` no longer verify a reply
   with `.[-1]`.** This shape is worse than truncation: it does not omit, it answers. On an
   unpaginated oldest-first list `.[-1]` is the **30th-oldest** comment, so D7's "did my follow-up
@@ -2397,12 +2489,12 @@ All notable changes to the `source-control` plugin are documented here. Format f
   what it is asserting and cannot be satisfied by the wrong record. The inline-reply verifications
   filtered by `in_reply_to_id` are paginated for the same reason.
 - **D7's follow-up verification is constrained on the posting identity, not just the SHA.** Selecting
-  on SHA-in-body alone proves the SHA was *mentioned*, not that you posted it — a reviewer quoting
+  on SHA-in-body alone proves the SHA was *mentioned*, not that you posted it. A reviewer quoting
   the fix commit, or a bot restating it, satisfies the selector while your own failed write goes
   unnoticed. That is the same failure shape as the `.[-1]` bug it replaced: a plausible positive
   instead of a real presence signal, on a control gate an autonomous agent acts on. Both copies of
   the checklist step now pin `.user.login` as well. Rule 2 gains the general form: where a query is
-  a control gate, ask what else could satisfy the selector and constrain that too — one property is
+  a control gate, ask what else could satisfy the selector and constrain that too. One property is
   usually not enough.
 
 ## [0.51.7]
@@ -2414,7 +2506,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   message, but the option was never declared in `.claude-plugin/plugin.json`. Claude Code exports
   `CLAUDE_PLUGIN_OPTION_<KEY>` only for **declared** options, so the variable was never set, the
   hook's `:-true` fallback always won, and the gate ran unconditionally. Setting the option
-  produced no effect and no error — the failure was silent in both directions. The declaration is
+  produced no effect and no error. The failure was silent in both directions. The declaration is
   now present with `default: true`, so behaviour is unchanged for anyone who does not set it, and
   the documented routes for setting it now work.
 
@@ -2424,17 +2516,17 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **`skills/worktree`: the pre-compute constraint is grounded in the documented isolation checks
   instead of one observed refusal (#2176).** The SKILL had recorded, from #1619, that "a
-  worktree-isolated agent refuses a git-bearing compound command" — true, but stated as an incident,
+  worktree-isolated agent refuses a git-bearing compound command". That was true, but stated as an incident,
   which invites a future author to test whether it still holds and fold the calls back. Claude Code
   v2.1.224 documented the enforcement, so the constraint now cites it: an isolated session is screened
-  by three checks — main-checkout file edits, a command whose working directory resolves there, and a
+  by three checks: main-checkout file edits, a command whose working directory resolves there, and a
   git redirect into it "whether through `git -C`, `--git-dir`, a `GIT_DIR` or `GIT_WORK_TREE`
-  variable, or a `cd` into the main checkout before running git" — and both command-level checks fail
+  variable, or a `cd` into the main checkout before running git". Both command-level checks fail
   closed, since "Claude Code also blocks a command it can't verify stays inside the worktree"
   (`code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation`, fetched 2026-08-10). That
   reframes the refusal: an unverifiable compound command is blocked on the same footing as one that
   would really have reached the main checkout, so no amount of narrowing the commands makes the
-  pre-compute block safe again. Two adjacent facts are recorded with it — the enforcement "covers
+  pre-compute block safe again. Two adjacent facts are recorded with it: the enforcement "covers
   every subagent Claude spawns from the isolated session", interactive or background, so delegation
   does not escape it; and "For PowerShell commands, Claude Code applies only the working-directory
   check", noted as narrower coverage rather than as a sanctioned route around the git-redirect check.
@@ -2446,12 +2538,12 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **Shared `hook-utils.sh`: `hook::jq_fields` now REPORTS a NUL byte in a payload value
   (#2122).** 0.51.2 stopped a NUL from failing the helper's cardinality check, by stripping every
   NUL out of each value. That keeps the helper working, but stripping also silently rewrites the
-  value — `--no-verify<NUL>x` arrives as `--no-verifyx` — so a caller that owns a block/allow
+  value: `--no-verify<NUL>x` arrives as `--no-verifyx`, so a caller that owns a block/allow
   verdict cannot tell a clean payload from one that carried a NUL, and matches against a token the
   payload never held contiguously. The fact is now reported in a new `HOOK_JQ_FIELDS_NUL` global,
   set on EVERY call including every failure path, so such a caller can fail closed on its own terms.
   It is computed from the values as the payload carried them, BEFORE the strip; strip first and the
-  flag would read "0" on every payload. Values themselves are unchanged — still stripped, so a
+  flag would read "0" on every payload. Values themselves are unchanged, still stripped, so a
   scanning caller still sees everything after the NUL. This plugin's own hooks do not consult the
   new global, so their behaviour is unchanged. Synced from `lib/hook-utils.sh`.
 
@@ -2461,7 +2553,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **`exec-bit-check.sh` no longer skips a copy destination whose source was never executable
   (#2118).** `R*` and `C*` shared one `src_mode == "100755"` gate, so a copy off a `100644` shebang
-  source went unreported — while the *identical staged content* under `diff.renames=false` reports
+  source went unreported, while the *identical staged content* under `diff.renames=false` reports
   as `A` and IS reported. That config-dependence is the exact failure the candidate set was widened
   in #1590/#2098 to remove. The two statuses are not symmetric and no longer share a predicate: a
   rename destination is the same tracked file at a new path, so a `100644` source means nothing
@@ -2469,7 +2561,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   previously exist, so it is newly added, squarely inside this check's scope, and the copy arm now
   gates on nothing and defers to the `100644`-plus-shebang filter exactly as `A` does. Consequence
   worth naming: copying a deliberately non-executable shebang library is now reported under
-  `diff.renames=copies`. That is not a new trade — creating one, or copying one under any other
+  `diff.renames=copies`. That is not a new trade, since creating one, or copying one under any other
   `diff.renames` setting, is already reported through the `A` branch; the change makes the opt-in
   copy-detection configuration agree with the default rather than adding a class of finding.
 
@@ -2481,7 +2573,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   git guards (#2124).** `-S` exists so a shebang line can pass OPTIONS to env
   (`#!/usr/bin/env -S -i prog`), so the words it splits out are env's own arguments. The resolver
   spliced them back into the scan but resumed at the COMMAND dispatcher, which read a leading
-  option in the split string as the command NAME and gave up — `env -S '-C <dir> git push --force'`
+  option in the split string as the command NAME and gave up: `env -S '-C <dir> git push --force'`
   resolved to no git at all, so every guard built on `hook::git_resolve_index` skipped the command
   unexamined. Parsing now resumes inside env's own option loop. That also keeps env's single chdir
   slot last-wins across the splice, so `env -C a -S '-C b git …'` reports `b`, matching GNU env.
@@ -2493,13 +2585,13 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **Shared `hook-utils.sh`: a NUL byte inside a payload value no longer makes `hook::jq_fields`
   come back empty (#2120).** The helper delimits its batched fields with NUL, and a JSON string may
-  legitimately encode one — a `Write`/`Edit`/`NotebookEdit` content field can. jq emitted the raw
+  legitimately encode one. A `Write`/`Edit`/`NotebookEdit` content field can. jq emitted the raw
   byte, the read split that value in two, the cardinality check saw one value too many, and the
-  helper returned non-zero — which every caller treats as "skip", so the hook exited without doing
+  helper returned non-zero, which every caller treats as "skip", so the hook exited without doing
   its work. Each value is now NUL-stripped INSIDE the jq filter, so the delimiter provably cannot
   occur in a value. Stripping is not a lesser alternative to an encoding scheme, it is the only
   representable behavior: a bash variable cannot hold a NUL byte, and the per-field command
-  substitution this helper replaced dropped the byte and kept the rest of the value — so content
+  substitution this helper replaced dropped the byte and kept the rest of the value, so content
   AFTER a NUL is returned and scanned exactly as it was before the batching. Synced from
   `lib/hook-utils.sh`.
 
@@ -2511,7 +2603,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   body with `while … done <<<"$body"`. Bash delivers a here-string by filling a pipe ITSELF, before
   the reader is exec'd, and appends a newline, so a body of 65536-65663 bytes puts the write 1-128
   bytes past the 65536-byte pipe capacity and blocks forever. GitHub caps a PR body at exactly
-  65536 characters, which lands INSIDE that window — so the worst case is not exotic, it is the
+  65536 characters, which lands INSIDE that window, so the worst case is not exotic, it is the
   documented maximum. `pr-body-linkage-gate` is a blocking PreToolUse gate, so a hang means the
   harness cancels it at its timeout and the linkage contract goes unenforced. Both now read through
   `< <(printf '%s\n' "$body")`, which is byte-identical to the here-string it replaces and so
@@ -2524,7 +2616,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **The bare `/<skill>` alias for this plugin's skills.** Their `SKILL.md` files no longer
   declare a frontmatter `name`. The field is optional and defaults to the directory name, so
-  declaring it only restated the path while registering a second, unnamespaced command — which
+  declaring it only restated the path while registering a second, unnamespaced command, which
   the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
   namespaced command; the command itself is unchanged.
 
@@ -2533,8 +2625,8 @@ All notable changes to the `source-control` plugin are documented here. Format f
 ### Changed
 
 - **The self-login exemption from the merge gate's unprotected-base hold is scoped to the
-  repository's default branch.** `babysit_merge.py` held a PR on an unprotected base — zero required
-  reviews AND zero required status contexts — only when its author was not a configured self login.
+  repository's default branch.** `babysit_merge.py` held a PR on an unprotected base, zero required
+  reviews AND zero required status contexts, only when its author was not a configured self login.
   That exemption exists for the solo-owner repository whose default branch carries no rules, where
   holding every PR would make the gate useless; it silently extended to *any* unprotected base, so a
   self-authored pull request onto another branch merged under `worker`/`autopilot` with no required
@@ -2544,10 +2636,10 @@ All notable changes to the `source-control` plugin are documented here. Format f
   The hold now also fires for a self author whose base is not the repository's default branch, with
   `--allow-unprotected` as the same deliberate override. A stacked pull request's upper layer is
   exactly this shape (self-authored, base = the layer below), but so is any feature-onto-feature
-  merge — the gap did not depend on stacks and is not fixed by detecting them.
+  merge. The gap did not depend on stacks and is not fixed by detecting them.
 
   The default branch is read only once an unprotected base has cleared every other blocker, so
-  neither a protected-base run nor an already-held PR issues a request it did not issue before — a
+  neither a protected-base run nor an already-held PR issues a request it did not issue before. A
   fleet loop never pays that call per cycle for a PR it already knows is ineligible. A
   repository-metadata read failure leaves the prior exemption standing rather than inventing a hold
   from missing evidence.
@@ -2562,7 +2654,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `C<score> <src> <dst>` with it on. Rename detection is on by default (`diff.renames`), so the
   script discarded those destinations and a newly added shebang file staged `100644` could be
   committed non-executable purely as a function of the consumer's diff configuration. A pair
-  destination is now a candidate whenever its **source was `100755`** — the mode pairing that means
+  destination is now a candidate whenever its **source was `100755`**, the mode pairing that means
   the bit was *dropped*, as `core.filemode=false` platforms produce on `mv`/`cp` plus `git add`. A
   deliberately non-executable shebang file (a sourced library, a template) keeps `100644` on both
   sides of a move and is left alone. The scan reads `git diff --cached --raw` rather than
@@ -2574,13 +2666,13 @@ All notable changes to the `source-control` plugin are documented here. Format f
   unlink and the rmdir skips the removal without raising at all. Either way the directory outlived
   the only record of its owning repository, turning a retryable failure into a permanent
   `unresolved`. Restoration is now keyed on whether the removal actually happened, and its own
-  `Path.exists()` probe runs inside the guard — that call re-raises an `OSError` outside the
+  `Path.exists()` probe runs inside the guard, since that call re-raises an `OSError` outside the
   ignored not-found family, so a permission denial on the directory being rescued would otherwise
   escape the `finally` and leave the pointer deleted.
 
 - **The conflict orchestrator revalidates the base *before* the final head check (#1355).**
-  `safety.md` requires the head check immediately before every push, but the base re-fetch — a
-  network round trip — sat between that check and the push, re-opening exactly the window the
+  `safety.md` requires the head check immediately before every push, but the base re-fetch, a
+  network round trip, sat between that check and the push, re-opening exactly the window the
   check closes: a writer resetting the PR branch to an ancestor inside it would make the push a
   valid fast-forward that silently restores the removed commits. The contract now runs base → head
   → push in that order, with nothing between the head check and the push.
@@ -2593,11 +2685,11 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **The `VALID (defer)` grounding rule states its no-tracker branch (#1633).** Grounding a deferral
   mandates filing a work-item tracker item before the D5 reply, and the rule named no branch for the
-  consumer that has no tracker to file into — even though the same skill documents a tracker as an
+  consumer that has no tracker to file into, even though the same skill documents a tracker as an
   optional adjacent capability whose absence must never block a phase. Reaching that branch never
   actually stalled `full` mode (the degrade clause and a `VALID (fix now)` reclassification both
   already escaped it); what was missing was the instruction saying so. It is now stated: with no
-  reachable tracker `VALID (defer)` is simply not an available disposition — fix the finding now, or
+  reachable tracker `VALID (defer)` is simply not an available disposition: fix the finding now, or
   reply saying why the fix does not belong in this change, leave the thread unresolved, and report
   it for the user to place. Carried on all three surfaces that state the filing mandate: the
   canonical `review-discipline.md` §3 clause and its `pull-request` `SKILL.md` and `monitor.md`
@@ -2614,8 +2706,8 @@ All notable changes to the `source-control` plugin are documented here. Format f
   defers (telemetry outcome `deferred`, exit 0) when the consumer's settings wire a PreToolUse
   command naming `pr-linkage-mcp-gate`. The plugin side yields because the settings file states
   the wiring authoritatively, while the repo-local script has no sound "plugin active" signal
-  (plugin source present never implies plugin enabled — #2021 line 4 investigation). Named,
-  accepted cost: a no-op script of the same name suppresses the gate — this is a policy gate,
+  (plugin source present never implies plugin enabled, per the #2021 line 4 investigation). Named,
+  accepted cost: a no-op script of the same name suppresses the gate. This is a policy gate,
   not a security guard, and the required CI check remains the authority.
 
 ## [0.49.1]
@@ -2634,8 +2726,8 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **babysit-prs: an orchestrator-side independent resolution dispatch, so a disproved current bot
   thread has a route to a terminal state (#1641).** `--independent-resolver` (0.42.0) supplied the
-  mechanism; nothing supplied the route. A worker that correctly disproves a bot finding —
-  classifies it `INCORRECT`, posts counter-evidence — ships no fix by definition, so the thread
+  mechanism; nothing supplied the route. A worker that correctly disproves a bot finding,
+  classifying it `INCORRECT` and posting counter-evidence, ships no fix by definition, so the thread
   stays current and satisfies neither `classify`'s `isOutdated` requirement under `--autonomous` nor
   the Worker Contract's tighter pre-push-outdated rule. A grounded `VALID (defer)` and a prose fix
   that rewrote elsewhere in the file land in the same place. The only dispatch that could retire
@@ -2645,8 +2737,8 @@ All notable changes to the `source-control` plugin are documented here. Format f
   fully and correctly addressed.
 
   The worker now **reports** such a thread as addressed-but-unresolvable (thread id, disposition,
-  where the evidence lives) instead of leaving it silently, and — **in a thread-resolving tier
-  (`worker`, `autopilot`) only** — the orchestrator routes it, under the PR's worker lease, before
+  where the evidence lives) instead of leaving it silently, and, **in a thread-resolving tier
+  (`worker`, `autopilot`) only**, the orchestrator routes it, under the PR's worker lease, before
   Cleanup releases it, to a fresh subagent that authored neither the fix nor the counter-evidence.
   The safe tier dispatches nothing: it never resolves threads, and a resolver it dispatched would
   resolve one at one remove. **`classify`'s `isOutdated` requirement under `--autonomous` is
@@ -2674,9 +2766,9 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **The "reachable only on the explicit `autopilot` + `--merge c3-this-run` widening" claim was
   true when written and is no longer (#1641).** `review-discipline.md`'s D7.5 authorization rule
   and `babysit-prs/reference/loop.md`'s Never-Do entry both asserted it; both now name the two
-  invocations that reach a dispatch and keep the identical fail-closed fallback — leave the thread
-  unresolved, do not merge, report the PR with the addressed-but-unresolvable thread named — for
-  every bound the dispatch cannot cross: a security/P1 thread (`skipped-severity-marked`), a
+  invocations that reach a dispatch and keep the identical fail-closed fallback, which is to leave
+  the thread unresolved, not merge, and report the PR with the addressed-but-unresolvable thread
+  named, for every bound the dispatch cannot cross: a security/P1 thread (`skipped-severity-marked`), a
   multi-finding thread, a human thread, evidence the world rejects, or no subagent tools to
   dispatch to. `safety.md`'s Security/P1 "only one dispatch path" bullet is unchanged in substance
   and now says so explicitly: the orchestrator-side dispatch is not a second route to that
@@ -2686,25 +2778,25 @@ All notable changes to the `source-control` plugin are documented here. Format f
   authorization rule (#1659, #1641).** `scripts/contract-clause-registry.json` listed
   `independent resolution dispatch` among `D7.5-merge-authorization`'s `restates` signals, written
   when the phrase was only descriptive prose in the canonical span. This change gives that
-  mechanism its own file, so the phrase became a proper noun — and the untagged sweep then reported
+  mechanism its own file, so the phrase became a proper noun, and the untagged sweep then reported
   the file's own title and two pointer sentences that link to it, i.e. a false positive on exactly
   the pointer-not-copy outcome the gate steers toward. The alternate is dropped; the three that
   state the rule (`never clears the gate`, `adjudicating context`, `authorizes a resolution`) stay.
   Verified non-lossy against the default branch: with every `D7.5-merge-authorization` marker
   stripped from the four tagged surfaces, the narrowed pattern still reports all of them
   (`loop.md`, `pull-request/SKILL.md`, `pull-request/reference/monitor.md`, and the canonical
-  span's own requirement) — the dropped alternate detected nothing the others did not. `detect` is
+  span's own requirement). The dropped alternate detected nothing the others did not. `detect` is
   untouched, because being in scope only means the file is read.
 
 ## [0.48.2]
 
 ### Changed
 
-- **`babysit-loop`: listing description tightened (1,468 → 1,197 chars)** — trimmed the explanatory
+- **`babysit-loop`: listing description tightened (1,468 → 1,197 chars).** Trimmed the explanatory
   prose from the frontmatter `description` toward the shared skill-listing budget
   (claude-code-plugins#2022, option 2). Every single-quoted trigger phrase is preserved verbatim
   (skill-quality check 3); the merge-authority invariants (fail-closed human-only default,
-  tracked-seam-only raises, the c3-this-run anti-spoofing clause, the independent frontier-tier
+  tracked-config-only raises, the c3-this-run anti-spoofing clause, the independent frontier-tier
   resolver) stay stated in the entry and fully stated in the skill body.
 
 ## [0.48.1]
@@ -2714,7 +2806,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **`pull-request`: the CI-log grep rule leads with the instruction instead of a `CRITICAL:` prefix.**
   `reference/monitor.md` opened with "CRITICAL: Do NOT use `grep -i ...`", which states the
   prohibition before the thing to do. It now says to grep for `##[error]` annotations first and gives
-  the reason — a broad keyword grep matches cleanup steps, variable names, and incidental output. The
+  the reason: a broad keyword grep matches cleanup steps, variable names, and incidental output. The
   worked "Bad credentials" example and the fall-back-if-empty rule are unchanged.
 
 - **`pull-request`: section 1.3's heading is "Verify every finding".** The shout-caps `EVERY` and the
@@ -2732,8 +2824,8 @@ All notable changes to the `source-control` plugin are documented here. Format f
   - This is the one surface where a fabricated line survives: nobody watched the cycle, no receiver
     re-derives the report the way a dispatching orchestrator re-derives a worker's return, and the
     comment is the operator's only record of what happened. Anthropic's Fable 5 prompting guide names
-    exactly this case — "Before reporting progress, audit each claim against a tool result from this
-    session" — and reports that the instruction nearly eliminated fabricated status reports in its
+    exactly this case, "Before reporting progress, audit each claim against a tool result from this
+    session", and reports that the instruction nearly eliminated fabricated status reports in its
     testing, including on tasks built to provoke them.
   - The wording matches the sibling drain lane's word for word because their step 6 is the same step;
     that is a coincidence of scope, not a shared source, and neither is registered as one.
@@ -2744,7 +2836,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **`babysit-prs` `engine.test.sh` resolves ruff from the declared pin instead of PATH (#1856).**
   A workstation `ruff` at a different version from the one CI installs made the harness report
-  findings on an unmodified tree that CI does not, or miss findings CI raises — the two disagree in
+  findings on an unmodified tree that CI does not, or miss findings CI raises. The two disagree in
   both directions once a release changes the default rule set, as 0.16.0 did. The lint pass now
   goes through `scripts/run-ruff.sh`, which uses a PATH `ruff` only when it already matches the pin
   in `.github/requirements-ci.txt` and otherwise runs `uvx ruff==<pin>`. The pin is read at run
@@ -2770,7 +2862,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   with jq. On Windows Git Bash, where process creation is `fork()` emulation, each spawn costs
   ~140 ms. Behavior is unchanged: the slice keeps the three-decimal form `read -t` is given, the
   buffer is CR-stripped as before, and the completeness verdict is reused only when jq itself
-  produced it — so a host without jq still fails open exactly as it did. Also adds
+  produced it, so a host without jq still fails open exactly as it did. Also adds
   `hook::jq_fields`, which extracts several fields from one payload in a single jq process for
   hooks that read two or three of them. Synced from `lib/hook-utils.sh`.
 
@@ -2780,32 +2872,32 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **`worktree` gains a stranded-work axis, and a detection engine to compute it.** The skill could
   report that a worktree was old, quiet, and clean; it could not report whether removing it would
-  destroy a commit — different questions with the same surface symptoms. `scripts/landed-work.sh`
+  destroy a commit. Those are different questions with the same surface symptoms. `scripts/landed-work.sh`
   is the new read-only classifier: one TSV row per registered worktree carrying `unpushed`,
   `landed`, the method and base SHA the verdict was reached with, the in-progress sequencer
   operation, four independent working-tree counts, peer worktrees, a risk class, and a reason.
 
   Only affirmative proof yields `landed=yes`. Every failed command, empty result set, unresolvable
-  base, and ambiguity yields `?`, which every consumer treats exactly as `no` — a false `no` costs
+  base, and ambiguity yields `?`, which every consumer treats exactly as `no`. A false `no` costs
   a confirmation prompt, a false `yes` destroys work.
 
   The unpushed set is `HEAD --not --remotes`: `--branches` reports every other branch in the
   repository and says nothing about a detached worktree's own commits, and `@{upstream}..HEAD`
   returns nothing at all for a locally created branch. Landedness is decided by RANGE patch-id
-  first, because a squash-merge collapses N commits into one patch that no per-commit primitive —
-  `git cherry` included — can ever match, while the branch's range id equals the squash commit's
+  first, because a squash-merge collapses N commits into one patch that no per-commit primitive,
+  `git cherry` included, can ever match, while the branch's range id equals the squash commit's
   and stays matched as the base advances.
 
   Patch ids are computed `--verbatim`. The default and `--stable` hash the patch AFTER stripping
-  whitespace, so `a b` and `ab` produce one id — measured on git 2.54, both `7ad14294…` — and a
+  whitespace, so `a b` and `ab` produce one id, measured on git 2.54 as both `7ad14294…`, and a
   branch whose unique change differed from the base's only in whitespace classified as landed.
   `--verbatim` separates them, still matches a multi-commit squash, and still matches after the
   base advances; what it gives up is the tolerance that let an EOL-renormalized branch match, which
   now reports `no`. That is a confirmation prompt in exchange for a silent deletion, and the trade
   is deliberate.
 
-  No affirmative verdict is drawn from an incomplete patch-id set: a commit that produces no patch
-  — an empty commit among them — is invisible to patch-id, so the id count must equal the non-merge
+  No affirmative verdict is drawn from an incomplete patch-id set: a commit that produces no patch,
+  such as an empty commit among them, is invisible to patch-id, so the id count must equal the non-merge
   commit count before "every commit's content is on the base" is a statement about the branch
   rather than about the commits that happened to hash.
 
@@ -2819,9 +2911,9 @@ All notable changes to the `source-control` plugin are documented here. Format f
   A registered path is confirmed to be a work-tree ROOT with `rev-parse --show-prefix`, since
   `--is-inside-work-tree` returns true for a leftover directory inside a repository and reports
   that repository's clean state as the directory's own. Enumeration reads
-  `git worktree list --porcelain -z` into a file and checks its exit status before parsing — a
-  process substitution's failure is invisible to the loop, and the row-count assertion can only
-  catch a truncated pass, never a truncated enumeration — and `-z` because a worktree path may
+  `git worktree list --porcelain -z` into a file and checks its exit status before parsing, because a
+  process substitution's failure is invisible to the loop and the row-count assertion can only
+  catch a truncated pass, never a truncated enumeration, and uses `-z` because a worktree path may
   contain a newline. An ambiguous base ref and a criss-cross history with several merge bases both
   yield `?` rather than a silently chosen one. `comm`'s exit status, the numstat reducer's result,
   and `git status`'s exit status are each checked, because a failure in any of them produces the
@@ -2830,39 +2922,39 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **The two-dot fallback hands its paths back to git instead of matching two diffs' text.** Two diff
   invocations only agree on how a path is spelled when they agree on every escaping rule, and they
   did not: `--name-only` quoted non-ASCII bytes while `--numstat` was pinned to
-  `core.quotepath=false`, so an i18n'd filename joined against nothing — and an empty join is the
+  `core.quotepath=false`, so an i18n'd filename joined against nothing, and an empty join is the
   same shape as "identical to the base", an unproven `landed=yes` on a commit that existed nowhere
   else. Pinning quotepath on both sides closed that byte class and left another, since git escapes
   `"`, `\`, and control characters regardless of the setting and only `-z` suppresses it. Rather
   than chase escaping rules one class at a time, the touched paths are now passed back to git as
   `:(literal)` pathspecs and git does its own matching, which removes the entire mismatch class.
-  `:(literal)` because a path is not a pattern — a file named `star[1].txt`, or one beginning with
+  `:(literal)` because a path is not a pattern: a file named `star[1].txt`, or one beginning with
   `:`, would otherwise be read as pathspec magic. The pathspecs are chunked so a branch touching
   thousands of files cannot exceed the platform's command-line limit.
 
 - **The base-side patch-id set gets the same completeness check as the branch side.** An
   under-complete base set can only make a match less likely, so this was never the difference
-  between `yes` and `no` — it is here so the two sides cannot silently diverge under a later
+  between `yes` and `no`. It is here so the two sides cannot silently diverge under a later
   refactor, and so a base range that failed to render is named rather than quietly narrowing the id
   set every branch is compared against.
 
 - **`worktree-create-gate`: a `WorktreeCreate` hook that places every worktree at the configured
   root.** `/worktree create` already routed through `worktree-create.sh`, but three creation paths
-  bypass the skill entirely — `claude --worktree`, a subagent with `isolation: "worktree"`, and a
+  bypass the skill entirely: `claude --worktree`, a subagent with `isolation: "worktree"`, and a
   background session. Those landed in the in-repo `.claude/worktrees/` default, which is the
   placement the whole nesting invariant exists to prevent. The hook is a thin stdin adapter over
   the same helper, so there is one placement implementation rather than two.
 
   Its contract was measured rather than inferred, which settled the two questions that had blocked
-  it. A **user-scope** hook does fire — verified with a settings.json under a `CLAUDE_CONFIG_DIR`,
-  headless, before login was even resolved — and `${CLAUDE_PROJECT_DIR}` resolves to the project
+  it. A **user-scope** hook does fire, verified with a settings.json under a `CLAUDE_CONFIG_DIR`,
+  headless, before login was even resolved, and `${CLAUDE_PROJECT_DIR}` resolves to the project
   root the session started in, never the worktree being created. And stdout's **last non-empty
   line** is taken as the path: a hook printing a banner line before the path still succeeds and the
   session lands in the printed directory, refuting the claim that any output but the path fails the
   session. The hook still prints the path alone; the tolerance is margin, not interface.
 
   Fail-closed: a hook failure fails the creation, because falling through would place the worktree
-  at exactly the nested path this prevents. The unconfigured case is not a failure — it resolves to
+  at exactly the nested path this prevents. The unconfigured case is not a failure. It resolves to
   the plugin data directory, also outside every repository. The root is read from
   `CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT` rather than substituted as `${user_config.worktree_root}`,
   which Claude Code rejects in shell-running fields. Opt out with `worktree_create_gate_enabled`.
@@ -2873,12 +2965,12 @@ All notable changes to the `source-control` plugin are documented here. Format f
   unpushed commit landed on the base"; `stale` narrows to require Work to be safe, so a worktree
   holding unpushed unlanded commits is `stranded` rather than merely old. `stranded`,
   `superseded`, `notgit`, and `unknown` join the table, and the summary names the at-risk commit
-  total. A stranded row whose commits survive in a peer worktree is presented as such — a
+  total. A stranded row whose commits survive in a peer worktree is presented as such, a
   materially different decision from losing them.
 
 - **`worktree cleanup` guards both places work actually dies.** Removal is recoverable: it leaves
   the branch ref intact. The `git branch -D` the procedure emits one step later is not, and a
-  detached-HEAD worktree has no branch ref to begin with — so the precondition is stated at the
+  detached-HEAD worktree has no branch ref to begin with, so the precondition is stated at the
   pre-removal site AND carried through to the emitted branch deletion, which now emits nothing
   destructive for stranded, unproven, or superseded work. `superseded` is a narrowed *reading* of a
   `landed=no` row and never a safe one: the merged-PR evidence matches on the branch NAME, so a name
@@ -2901,10 +2993,10 @@ All notable changes to the `source-control` plugin are documented here. Format f
   suppressed for ancestors of the worktree's own repository but not a different one, while
   `path_glob_match` discovery is suppressed in neither.
 
-  The recheck trigger cited two issues that are both CLOSED — #29599 (`duplicate`, COMPLETED) and
+  The recheck trigger cited two issues that are both CLOSED: #29599 (`duplicate`, COMPLETED) and
   #23565 (NOT_PLANNED), verified live against the GitHub API. It now cites #16600, which is OPEN,
   and states the gap that citation leaves: #16600 concerns memory files, which 2.1.224 already
-  handles correctly, so the surface still leaking — path-scoped rules — has no open upstream issue
+  handles correctly, so the surface still leaking, path-scoped rules, has no open upstream issue
   at all. `context/create.md` carried the same two dead citations and now points at the skill's
   paragraph rather than restating them, so the state lives in one place.
 
@@ -2915,10 +3007,10 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **`babysit-prs` `reference/safety.md`: the permission-mode enumeration behind the wrapper-path
   invocation now matches the official page (#1941).** The list named "Manual and accept-edits" as
   the prompting modes and then covered plan mode and auto mode, so it mixed the CLI display label
-  with config values and accounted for four of the six modes. `dontAsk` was the load-bearing
-  omission: it auto-denies every call that would otherwise prompt, so an uncovered wrapper
-  invocation is refused with no classifier and no prompt — the exact silent-failure hazard the
-  section exists to warn about — and `bypassPermissions` was missing too. The enumeration now names
+  with config values and accounted for four of the six modes. `dontAsk` was the
+  omission that mattered: it auto-denies every call that would otherwise prompt, so an uncovered wrapper
+  invocation is refused with no classifier and no prompt, the exact silent-failure hazard the
+  section exists to warn about, and `bypassPermissions` was missing too. The enumeration now names
   all six config values (`default`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions`),
   states once that `default` is the value behind the **Manual** display label with `manual` as a
   v2.1.200 CLI alias, adds plan mode's third branch (bypass-permissions sessions do not enforce its
@@ -2929,22 +3021,22 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Added
 
-- **`babysit_loop_trusted_internal_bot_logins` — a reviewed internal-bot trust signal for the
+- **`babysit_loop_trusted_internal_bot_logins`, a reviewed internal-bot trust signal for the
   babysit-loop C5 trust test (#1525, fixing #1520).** The rung partition's trust test classified
   every non-`OWNER`/`MEMBER` author as C5 untrusted-provenance, but GitHub App bot identities are
-  never org member accounts, so repository-owned automation — which the autonomy guardrails' work
-  classes explicitly place in C2 — was categorically ineligible at every merge rung. The new
+  never org member accounts, so repository-owned automation, which the autonomy guardrails' work
+  classes explicitly place in C2, was categorically ineligible at every merge rung. The new
   loop-lane key names the exact bot logins a repository attests as its own internal automation: a
   flat bullet list on the tracked `.claude/source-control.md` surface, honored from the TARGET
-  repository's team-tracked layer only — always read from its default branch, never any working
-  tree, so a checkout sitting on a bot-authored branch cannot self-grant — making every trust
+  repository's team-tracked layer only, always read from its default branch and never any working
+  tree, so a checkout sitting on a bot-authored branch cannot self-grant. That makes every trust
   grant a recorded, reviewable config change; unset, unreadable, or malformed fails closed to
   the empty set, leaving the trust test exactly `OWNER`/`MEMBER`. The match arm requires a
   structural bot (the `[bot]` login suffix or provider `Bot` type), the fork test stays
   independent (a listed bot authoring from a cross-repository head is still C5), the
   dependency-manager hold-merge invariant wins on intersection with
   `babysit_extra_dependency_manager_logins` and the built-in set, and a trust match never
-  establishes a work class — it only removes the categorical C5 bar. `babysit_watched_owners`
+  establishes a work class. It only removes the categorical C5 bar. `babysit_watched_owners`
   remains never a trusted-author list. Documented in `config-resolution.md` ("the C5 trust test's
   one reviewed widening"); loop-lane convention bumped to 8.0.0 in lockstep; eval added for the
   bot-author cases. Design decision, rejected alternatives, and cross-vendor review recorded on
@@ -2957,33 +3049,33 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **`babysit-loop`: the pre-escalation resolution dispatch now honors the resolved thread-resolution
   dimension (#1786).** The dispatch fired on the widening pair alone, while the *"Dimension
   overrides bind by tier flooring"* rule was scoped only to *"Before invoking"* the babysit-prs
-  tier — and `reference/pre-escalation-dispatch.md` contained no occurrence of `dimension` at all.
+  tier, and `reference/pre-escalation-dispatch.md` contained no occurrence of `dimension` at all.
   So `autopilot --merge c3-this-run --thread-resolution safe` still dispatched a fresh subagent to
   mutate bot threads the operator's own argument had just denied, against
   `reference/config-resolution.md`'s *"invocation arguments win"* rule for every dimension but
   merge. Resolving review threads **is** an exercise of dimension 3, so the flooring rule now
   explicitly binds every capability the cycle exercises for a PR rather than only the tier keyword
   it passes on: a floored thread-resolution dimension withholds the dispatch outright and the PR
-  escalates, reported as override-constrained — never a dispatch made and then narratively told not
+  escalates, reported as override-constrained, never a dispatch made and then narratively told not
   to resolve. New eval 6.
 - **`babysit-loop`: the pre-escalation dispatch names its resolver mode, and it is the one that can
   actually clear the blocker (#1786).** Neither `SKILL.md` nor `reference/pre-escalation-dispatch.md`
   stated which `babysit_resolve_thread.py` mode the dispatch runs; as written, *"the full per-PR
   worker lifecycle"* implied `--autonomous`, which hard-refuses any thread not already `isOutdated`
-  before its own push — precisely the current, non-outdated bot thread D7.5 routes to this dispatch,
+  before its own push, precisely the current, non-outdated bot thread D7.5 routes to this dispatch,
   so it could never clear the blocker class it exists for. The mode is now stated as
   `--independent-resolver` (landed in 0.42.0, #1782), with the D7.5 ledger mapped onto its validated
   evidence flags (`fixed`/`--fix-commit`, `deferred`/`--tracker-item`,
   `incorrect`/`--counter-evidence`, `UNCERTAIN` → escalate), and the worker-lifecycle sentence scoped
   to how a **code change** is made rather than to mode selection. Two shapes the mode refuses are
   named where the dispatch will meet them, because the ledger's per-finding phrasing does not imply
-  either: a thread carrying more than one source finding (`skipped-multi-finding-thread` — one
+  either: a thread carrying more than one source finding (`skipped-multi-finding-thread`, since one
   disposition cannot clear a thread whose other findings would drop out of the readiness
   denominator) and a severity-flagged thread. Both escalate rather than resolve. New eval 7.
 - **`babysit-prs`: the security/P1 bright line is no longer documented as having an exception
   (#1786).** `reference/safety.md` titled a section *"Security/P1 escalation: the one named
   exception"* and presented the pre-escalation resolver as that exception, citing the loop-lane
-  convention's §1 — but that convention exception widens the **merge rung** for a single run and
+  convention's §1, but that convention exception widens the **merge rung** for a single run and
   never touches the severity line, and the same file's `--independent-resolver` rules (with the
   wrapper itself) refuse a severity-flagged thread in every unattended mode. The documented
   exception was therefore unreachable, and it now contradicted `babysit-loop`'s newly explicit
@@ -3005,30 +3097,30 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **An unset `worktree_root` now defaults to `<plugin-data-dir>/worktrees` instead of refusing every
   `/worktree create`.** The key ships unset, so the refusal fired on a fresh install and the command
-  was unusable until the user configured a root by hand — a hard failure standing in for a missing
-  default. The containment guard is untouched — a root that resolves inside a repository is still
+  was unusable until the user configured a root by hand, a hard failure standing in for a missing
+  default. The containment guard is untouched: a root that resolves inside a repository is still
   rejected, and that check, not the unset check, is what enforces the nesting invariant.
 
   **The data directory is supplied, not read from the environment.** In a general Bash-tool
-  subprocess — which is what every caller of the helper runs in — `CLAUDE_PLUGIN_DATA` is not scoped
+  subprocess, which is what every caller of the helper runs in, `CLAUDE_PLUGIN_DATA` is not scoped
   to the invoking plugin; this repository's own probe recorded it naming an unrelated installed
   plugin's data directory. The skill instead substitutes `${CLAUDE_PLUGIN_DATA}` into its own
   SKILL.md body, where it does render per-plugin, and hands the resolved path to the new
   `--data-root-file` flag through the same byte-verbatim file channel `--root-file` already uses.
   A configured root always wins; the data dir is only the fallback. If substitution ever regresses,
-  the file carries the literal token, which the helper detects and refuses — never a wrong
+  the file carries the literal token, which the helper detects and refuses, never a wrong
   directory.
 
   A repository-derived default (`<parent>/worktrees`) was considered and rejected: under a
   discovery layout such as ghq's `<root>/github.com/<owner>/<repo>` it lands INSIDE the tree the
-  discovery tool walks, and `ghq list` then reports each worktree as a repository of its own — a
+  discovery tool walks, and `ghq list` then reports each worktree as a repository of its own. A
   leading dot does not hide it.
 
 ### Fixed
 
-- **The refusal rationale cited a defect that no longer reproduces.** Four surfaces — the helper,
-  its `--help` text, the `worktree_root` config description, and both skill surfaces — attributed
-  the nesting ban to Claude Code's CLAUDE.md/rules double-load bug, fixed upstream in v2.1.69. The
+- **The refusal rationale cited a defect that no longer reproduces.** Four surfaces attributed
+  the nesting ban to Claude Code's CLAUDE.md/rules double-load bug, fixed upstream in v2.1.69: the
+  helper, its `--help` text, the `worktree_root` config description, and both skill surfaces. The
   ban is still correct, for a narrower reason measured on 2.1.220: from a worktree nested inside a
   checkout, a read matching a path-scoped rule's glob also loads the PARENT checkout's copy of that
   rule. Every surface now states the live constraint, so the next reader auditing the guard against
@@ -3048,12 +3140,12 @@ All notable changes to the `source-control` plugin are documented here. Format f
   invoke a sibling plugin's script, so this lane inlines its own upsert and inherited neither
   protection. The block now carries three checks, which catch different failures. A **pre-write gate**
   rejects a `$BODY_FILE` that is empty, opens with a literal `@`, is not sentinel-prefixed, or holds
-  under 16 bytes of payload — no POST, no PATCH. The **write's own exit status** is then checked, because a
+  under 16 bytes of payload, so no POST and no PATCH. The **write's own exit status** is then checked, because a
   failed PATCH leaves the previous cycle's body in place and a read-back running regardless would
   accept it. A **post-write read-back** then re-reads what the write stored and reports the cycle
   UNREPORTED unless that body still opens with the sentinel and clears the same floor; this is the
   check that would have caught the actual #943 shape, where the composed file is perfectly fine and
-  the defect is the invocation (`-f body=@FILE` instead of `-F body=@FILE`) — a file-only check is
+  the defect is the invocation (`-f body=@FILE` instead of `-F body=@FILE`). A file-only check is
   structurally blind to it. The create path is covered by the same cycle's
   PATCH, and a degraded POST leaves no sentinel-prefixed comment to re-read, so that branch now
   reports UNREPORTED too instead of falling through silently. The 16-byte floor is measured on everything below the
@@ -3064,7 +3156,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   prose rather than left implicit in a comment. Two wrapper limits are inherited rather than fixed: a
   PATCH that succeeds while storing the previous body still verifies, and the read-back proves *some*
   well-formed telemetry is present, not *this* cycle's. Not replicated at all: the 64 KiB cap, the
-  body-file containment checks, retries, and the wrapper's distinct non-zero exits — every inline
+  body-file containment checks, retries, and the wrapper's distinct non-zero exits. Every inline
   branch exits 0 and reports through stderr.
 
 ## [0.44.0]
@@ -3073,7 +3165,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **`babysit-loop`'s telemetry marker named the lane type, not the writer (#1295).** Every
   concurrent instance of the lane built the same fixed sentinel, so two merge lanes on one
-  repository resolved one comment and overwrote each other's durable state last-writer-wins — the
+  repository resolved one comment and overwrote each other's durable state last-writer-wins, the
   same defect `work-items`' lanes carried, and identical in shape, so fixing it in one lane would
   have left it latent in this one. The marker now carries the loop-lane convention's lane-instance
   suffix (`source-control:babysit-loop@<instance>`) and each instance owns exactly one comment no
@@ -3090,11 +3182,11 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `lane_instance`, a per-session `writer_nonce`, a per-cycle `heartbeat_at`, and `paused_until`: a
   differing nonce over a stale block is the ordinary restart adoption; over a *fresh* block it means
   another live lane holds this id, and the lane writes nothing, escalates, and stops cleanly.
-  `paused_until` is not the rate-limit latch — the latch says do not claim work, `paused_until` says
+  `paused_until` is not the rate-limit latch. The latch says do not claim work, `paused_until` says
   do not read this lane's silence as death. Two shapes the freshness test alone misreads are carved
   out: a fresh block carrying a non-null `restart_request` is a stopped predecessor's clean handoff
-  (recording the ask is its last write), so the replacement adopts immediately — clearing the
-  request — instead of waiting out the staleness window; and an unclaimed marker is claimed with a
+  (recording the ask is its last write), so the replacement adopts immediately, clearing the
+  request, instead of waiting out the staleness window; and an unclaimed marker is claimed with a
   cycle-0 block plus a re-read through the creation-race reconcile *before any work*, so two
   same-id sessions starting together stop before either overwrites the other's first durable
   state.
@@ -3105,17 +3197,17 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **babysit-prs: the (c) non-convergence tripwire is now decided from durable state instead of
   session memory (#1660).** `safety.md` shipped a rule that a **second consecutive advisory round
-  whose findings are all (c)** — self-inflicted, against text this lane's own prior fix introduced
-  — means incremental patching is injecting defects as fast as it removes them, and the lane must
+  whose findings are all (c)**, self-inflicted, against text this lane's own prior fix introduced,
+  means incremental patching is injecting defects as fast as it removes them, and the lane must
   change METHOD. That test needs to know what the PREVIOUS round contained, and nothing durable
   recorded it: `manage_feedback_ledger.py record-advisory-round` stored `{"recorded_at": ...}` per
   head and no more. The rule was therefore satisfiable only inside one uninterrupted session,
-  while the babysit loop crosses a context boundary on every cycle — a rule that reads as binding
-  and, for the case it was written for, silently never fires.
+  while the babysit loop crosses a context boundary on every cycle. The result was a rule that
+  reads as binding and, for the case it was written for, silently never fires.
 
   `record-advisory-round` now takes **`--finding-class` once per finding in the round** (`a`
   genuine duplicate, `b` new and distinct, `c` self-inflicted) and persists the per-finding
-  provenance counts alongside the timestamp. The flag is **required**, refused at exit 2 — an
+  provenance counts alongside the timestamp. The flag is **required**, refused at exit 2. An
   optional flag would have reproduced the same defect one layer down, because an unclassified
   CURRENT round leaves the tripwire just as unevaluable as an unclassified predecessor, and a
   silently unrecorded classification is exactly what #1660 is about. The refusal is a
@@ -3124,12 +3216,12 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
   The verdict is computed once, in `babysit_delta`, and read in two places that answer different
   questions. `record-advisory-round` returns the recorded round's `composition` and the resulting
-  `non_convergence_tripwire` immediately — that is the read that arms the round being dispatched,
+  `non_convergence_tripwire` immediately. That is the read that arms the round being dispatched,
   and why the classification is recorded before the fix rather than after it. The snapshot carries
   `advisory_fix_rounds.non_convergence_tripwire` (`armed` plus the `basis` it was decided on) over
   the rounds recorded so far, adding a material finding when armed, so a worker picking the PR up
   cold sees where it already stood. **Neither read reconstructs the previous round's composition
-  from GitHub threads** — the expensive, resolution-fragile duty `safety.md` used to impose.
+  from GitHub threads**, the expensive, resolution-fragile duty `safety.md` used to impose.
 
   **Rounds recorded before this release read as UNKNOWN, and the tripwire fails closed on them**:
   a current all-(c) round following an UNKNOWN round arms and says so, rather than silently
@@ -3155,7 +3247,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **`pull-request/reference/monitor.md` restated D4.6 grounding without the id-citation
   requirement.** It instructed filing the deferral in the work-item tracker with evidence and the
-  PR link, but not citing that item's id in the D5 reply — so a deferral could be filed and still
+  PR link, but not citing that item's id in the D5 reply, so a deferral could be filed and still
   leave the thread with no route back to it, which is the dropped finding D4.6 exists to prevent.
   Found by the new gate, not by review.
 
@@ -3165,14 +3257,14 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **Shared `hook-utils.sh`: the OS temp tree is no longer treated as project content (#1769).**
   `hook::read_file_path` scoped a file to the project by prefix-matching `CLAUDE_PROJECT_DIR`, so a
-  session whose project directory is the user's home admitted everything under the OS temp root —
+  session whose project directory is the user's home admitted everything under the OS temp root,
   including Claude Code's own per-session scratchpad, which lives there. Hooks that lint, rewrite, or
   autocorrect then ran on throwaway files that are not project content and carry no project config to
   opt out with; the reported case was `typos-format` autocorrecting a shell variable in a scratch
   script and silently breaking it. The guard now rejects a file inside the OS temp tree when the
-  project root is outside it. The exemption is deliberate and load-bearing: when the project root
-  itself lives under temp — a `mktemp -d` fixture checkout, which is how this repository's own hook
-  suites run — its files are still accepted. Temp roots come from `TMPDIR` / `TMP` / `TEMP` plus the
+  project root is outside it. The exemption is deliberate and required: when the project root
+  itself lives under temp, its files are still accepted. That case is a `mktemp -d` fixture
+  checkout, which is how this repository's own hook suites run. Temp roots come from `TMPDIR` / `TMP` / `TEMP` plus the
   POSIX defaults, canonicalized through the same pipeline the membership comparison already uses.
   Synced from `lib/hook-utils.sh`.
 
@@ -3183,7 +3275,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **Shared `hook-utils.sh`: a wrapper's working-directory change is no longer lost when a caller
   parses only git's own global options (#1503).** `hook::git_resolve_index` walks wrapper programs
   (`env`, `sudo`, …) to reach the real `git` token, and a caller that scopes its git-global parsing
-  to the slice starting at that token cannot see a relocation the wrapper already performed — GNU env
+  to the slice starting at that token cannot see a relocation the wrapper already performed. GNU env
   documents `-C, --chdir=DIR` as "change working directory to DIR". The resolver now reports those
   directories in a new `HOOK_GIT_RESOLVED_WRAPPER_DIRS` result global, in execution order, so a
   caller composes them ahead of git's own globals instead of dropping them. Five spellings are read
@@ -3201,20 +3293,20 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `babysit_resolve_thread.py` (#1632).** `--autonomous` admits only threads GitHub marks
   `isOutdated`, which is the right guard for the merging worker but means "the referenced code
   moved". On a prose or documentation PR a finding is normally addressed by rewriting elsewhere in
-  the file, so the anchor never moves, the finding is genuinely addressed, and the guard refuses —
-  measured across two real babysit runs, 7 of 20 resolved threads were still not `isOutdated`, and
+  the file, so the anchor never moves, the finding is genuinely addressed, and the guard refuses.
+  Measured across two real babysit runs, 7 of 20 resolved threads were still not `isOutdated`, and
   that undercounts, because a worker's own push flips the flag without touching a comment. The
   consequence was that an autonomous prose lane had no sanctioned route to zero unresolved
   threads. The new mode is **parallel to `--autonomous`, never a relaxation of it**: it replaces
   `isOutdated` with caller INDEPENDENCE (a fresh context that is neither the merging worker nor the
-  author of the fix — the actor resolving is not the actor whose permission slip it is) plus
+  author of the fix, so the actor resolving is not the actor whose permission slip it is) plus
   machine-validated DISPOSITION EVIDENCE. Independence is a property of the dispatch that no script
   can verify, which is exactly why the evidence half is checked here.
 
   `--disposition` names one of three claims and carries exactly its own evidence flag, validated
   against the world rather than trusted: `fixed` + `--fix-commit <sha>`, which must be reachable
   from the PR's current head commit (resolved through the head repository, so a fork PR compares
-  correctly — existence elsewhere is not evidence this PR carries the fix); `deferred` +
+  correctly, as existence elsewhere is not evidence this PR carries the fix); `deferred` +
   `--tracker-item <id>`, which must exist and still be open (a closed follow-up is not a deferral,
   it is the finding disappearing); and `incorrect` + `--counter-evidence <text>`, which must
   already appear in a REPLY on the thread, posted by someone other than the thread's OPENER so the
@@ -3222,12 +3314,12 @@ All notable changes to the `source-control` plugin are documented here. Format f
   was not enough: the mandated classification reply restates the finding's own text, so a finding
   bot that also replies on its own thread would satisfy a `--counter-evidence` claim quoting it. A
   different bot's reply, and the caller's own reply under a `--self-logins` identity, both stay
-  admissible — those are the independent parties the disposition is about.
+  admissible. Those are the independent parties the disposition is about.
 
   **A multi-finding thread is refused outright** (`skipped-multi-finding-thread`). One
   `--disposition` is a claim about ONE finding while `resolveReviewThread` clears the whole thread,
   dropping every comment it carries out of the readiness denominator
-  (`babysit_classify.thread_is_open`) — so evidence for finding A would suppress an unaddressed
+  (`babysit_classify.thread_is_open`), so evidence for finding A would suppress an unaddressed
   finding B and let the merge gate pass over it. That is the D7.5 whole-thread eligibility rule
   (`reference/review-discipline.md`) enforced mechanically instead of left to the caller. The count
   comes from the shared severity vocabulary (`babysit_classify.severity_occurrences`, made public
@@ -3251,24 +3343,24 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `babysit_gh.fetch_blocked_base_compare`'s rule for the identical call shape. In
   `verify_fix_commit`: `head_owner` and `head_name` against `GITHUB_OWNER_RE` /
   `GITHUB_REPOSITORY_RE` (and `..` rejected), `head_oid` and `sha` against the commit-SHA pattern.
-  Two of those arrive in an API response body, so "the API said so" was their only provenance — a
+  Two of those arrive in an API response body, so "the API said so" was their only provenance. A
   crafted or compromised response carrying path syntax could otherwise redirect the request to an
   unintended endpoint. In `verify_tracker_item`, the same rule applies to the resolved `owner/repo`:
   `TRACKER_ITEM_RE` admits an owner/repo *shape*, not a valid one (its character class allows a
   leading dot and a bare `..`), so `validowner/..#1` built a path that was never a GitHub endpoint
-  and the resulting 404 reported `refused-tracker-item-not-found` — naming a missing item for a
+  and the resulting 404 reported `refused-tracker-item-not-found`, naming a missing item for a
   lookup that never addressed one. Fail-closed either way in both functions (an unexpected response
   always refused), so this narrows the reachable surface and sharpens the refusal reason rather than
   fixing an exploitable resolve.
 
   Fail-closed throughout. Missing, unparsable, mismatched, or surplus evidence is a usage error at
   exit `2` before any lookup; evidence the world rejects refuses the resolve with its own
-  `action` — `refused-fix-commit-not-on-head`, `refused-tracker-item-not-found`,
+  `action`: `refused-fix-commit-not-on-head`, `refused-tracker-item-not-found`,
   `refused-tracker-item-not-open`, `refused-counter-evidence-not-found`, and
   `refused-evidence-unverifiable` kept distinct so an API outage is never reported as a false
   claim. Evidence is validated in list mode too, so a dry run proves the evidence instead of
   predicting the resolve. A stale `--thread-id` pin is likewise reported in list mode now, not only
-  under `--resolve`, so a dry run predicts what the resolve would do — this also corrects
+  under `--resolve`, so a dry run predicts what the resolve would do. This also corrects
   `--autonomous`'s pre-existing list-mode output, which previously reported `would-resolve` for a
   thread the very next `--resolve` refused. Every other guard is retained deliberately: bot-only authorship, both
   TOCTOU pins, and the security/P1 bright line, because an independent resolver is still an
@@ -3291,22 +3383,22 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Added
 
-- **`pr-linkage-mcp-gate` hook — the MCP-surface sibling of `pr-body-linkage-gate`.** Cloud/remote
+- **`pr-linkage-mcp-gate` hook, the MCP-surface sibling of `pr-body-linkage-gate`.** Cloud/remote
   sessions have no `gh` CLI and open PRs through the GitHub MCP server
   (`mcp__github__create_pull_request` / `mcp__github__update_pull_request`), a surface the Bash
-  hook never sees — so a body failing the consuming repo's required `pr-issue-linkage` check was
+  hook never sees, so a body failing the consuming repo's required `pr-issue-linkage` check was
   only discovered a full CI round trip after the PR was open. The new PreToolUse hook mirrors the
   same validator semantics on the MCP payload (comment stripping, closing keyword or
   `No linked issue`, present-and-non-empty `## Related` with deeper headings as content) and the
   same scope guards (enforced only in a repo carrying
   `.github/workflows/pr-issue-linkage.yml`/`.yaml`; a call targeting a different repo than origin
-  is out of scope, and a target that cannot be established — no origin remote, or a payload
-  missing owner/repo — allows rather than imposing this checkout's policy on an unproven
+  is out of scope, and a target that cannot be established, with no origin remote or a payload
+  missing owner/repo, allows rather than imposing this checkout's policy on an unproven
   repository; an `update` with no `body` field allows). The MCP surface hands the hook the
   body as a plain JSON field, so the Bash sibling's extraction caveats don't apply; the one
   fail-closed addition is a `create` with no `body` field at all, which GitHub would open with an
   empty body the CI gate rejects. Kill switch: `pr_linkage_mcp_gate_enabled` (default true).
-- **`pr-linkage-validator.sh` — the validator core extracted to one sourced lib.** The comment
+- **`pr-linkage-validator.sh`, the validator core extracted to one sourced lib.** The comment
   stripping, keyword/`## Related` judging, and the verdict wording now exist once, sourced by both
   hooks (and by the marketplace repo's checked-in MCP gate), so a drift fix against the upstream
   ci-workflows validator lands on every surface atomically instead of being hand-mirrored across
@@ -3318,11 +3410,11 @@ All notable changes to the `source-control` plugin are documented here. Format f
 ### Fixed
 
 - **`babysit-loop`'s `usage_sample` prose contradicted the loop-lane invariant it cites.** The
-  convention permits reading the previous sample back to derive `five_hour_delta_pct` — the
-  subtraction *and* the rollover comparison — but 0.39.0 described the field as "deliberately inert:
+  convention permits reading the previous sample back to derive `five_hour_delta_pct`, the
+  subtraction *and* the rollover comparison, but 0.39.0 described the field as "deliberately inert:
   no lane behavior reads it back", which no lane computing a rollover-suppressed delta could satisfy.
   The convention's wording is corrected upstream (loop-lane 6.0.1); the entry recording 0.39.0 is
-  left as shipped and superseded by this one. **The measure-only guarantee is unchanged** — the value
+  left as shipped and superseded by this one. **The measure-only guarantee is unchanged.** The value
   still reaches no decision, at any threshold.
 - **`at` was ambiguous between two timestamps.** It is when the lane read the tee, not the snapshot's
   own `captured_at`, which the staleness rule permits to lag it.
@@ -3336,8 +3428,8 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **`pr-body-linkage-gate` false-blocked any `gh pr create` preceded by a `cd` on the same command
   line.** The gate file and a relative `--body-file` both resolve against the payload's `cwd`, but
-  the segment tokenizer discards the `cd` segment, so `cd <worktree> && gh pr create …` — a routine
-  shape in a multi-worktree setup — was judged against the wrong directory entirely. Two live
+  the segment tokenizer discards the `cd` segment, so `cd <worktree> && gh pr create …`, a routine
+  shape in a multi-worktree setup, was judged against the wrong directory entirely. Two live
   defects, not one: a compliant body was rejected because a same-named file in the session's
   directory was read instead, and enforcement leaked into repositories carrying no
   `pr-issue-linkage.yml` at all, contradicting the scope guard's own promise. A `cd`, `pushd`, or
@@ -3345,12 +3437,12 @@ All notable changes to the `source-control` plugin are documented here. Format f
   directory change *after* the `gh` call still gates normally.
 - **The hook exceeded its own 15-second timeout on a body of roughly 800 lines or more, silently
   ceasing to gate the largest PRs.** Trimming each body line ran through a command substitution, so
-  every line cost a fork: a 1000-line body took 18.3 s measured. Both per-line trims — and the one
-  in the heredoc reader — are now parameter expansion. The same body takes 1.3 s, and 5000 lines
+  every line cost a fork: a 1000-line body took 18.3 s measured. Both per-line trims, and the one
+  in the heredoc reader, are now parameter expansion. The same body takes 1.3 s, and 5000 lines
   stays at 1.3 s. A regression test fails if a 1000-line body approaches the timeout.
 - **The verdict depended on the ambient locale.** `[[:space:]]` stood in for JavaScript's `\s`, but
   its membership is locale-defined while `\s` is a fixed set, so under `LC_ALL=C` a body carrying a
-  non-breaking space between `Closes:` and `#5` — routine in text pasted from an issue title — was
+  non-breaking space between `Closes:` and `#5`, routine in text pasted from an issue title, was
   rejected where the CI check accepts it. Both halves are pinned now: every non-ASCII character in
   the `\s` set is rewritten to a plain space by UTF-8 byte sequence, and matching runs under
   `LC_ALL=C`, where `[[:space:]]` is exactly the six ASCII whitespace characters. The two together
@@ -3390,8 +3482,8 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Changed
 
-- The gate's test suite no longer claims to prove the hook mirrors the ci-workflows validator —
-  nothing in it executes that validator, so all 92 cases are hand-transcribed expectations, and the
+- The gate's test suite no longer claims to prove the hook mirrors the ci-workflows validator.
+  Nothing in it executes that validator, so all 92 cases are hand-transcribed expectations, and the
   header now says so. A real oracle would mean vendoring upstream JavaScript into this repo, which
   is a separate decision; the divergences fixed above were found by running one out-of-tree.
 
@@ -3399,7 +3491,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Added
 
-- **A `VALID (defer)` must now be durable to count as a disposition — D4.6 (#1614).** The review
+- **A `VALID (defer)` must now be durable to count as a disposition, D4.6 (#1614).** The review
   discipline already shipped the `VALID (defer)` classification, and `safety.md` already refused
   to resolve a thread "over a live, unaddressed finding", but nothing connected the two: a lane
   could defer a finding with a plausible sentence in a review thread and resolve against it,
@@ -3410,18 +3502,18 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `--autonomous` `isOutdated` guard in `babysit_resolve_thread.py` is untouched.
 - **Never defer a finding this change introduced, judged by base-branch behavior.** The
   discriminator is whether the defect reproduced before the change, never which file it surfaced
-  in — so a contract this change altered that breaks an *unchanged* caller is still introduced
+  in, so a contract this change altered that breaks an *unchanged* caller is still introduced
   here, and the untouched caller file is evidence about provenance rather than a licence to defer.
   `VALID (defer)` is available only for a defect that already reproduced on the base. Provenance
   decides, never severity: a self-introduced regression wearing a low-severity badge is still a
-  regression the change is shipping, so it is `VALID (fix now)` — fix it or revert the cause.
-- **A third class in the non-convergence taxonomy — (c) self-inflicted findings (#1614).** The
+  regression the change is shipping, so it is `VALID (fix now)`. Fix it or revert the cause.
+- **A third class in the non-convergence taxonomy: (c) self-inflicted findings (#1614).** The
   existing (a)-duplicate / (b)-new-distinct split had no slot for a finding that is new and
   distinct *and* against text the lane's own prior fix introduced. Provenance decides the class.
   A (c) finding is fixed like any in-scope defect and is never deferrable, but it is counted: a
   second consecutive round of nothing but (c) means incremental patching is injecting defects
-  about as fast as it removes them. The response is a change of METHOD — rewrite the contested
-  section whole in one commit, or report for a human decision — never a licence to ship a known
+  about as fast as it removes them. The response is a change of METHOD: rewrite the contested
+  section whole in one commit, or report for a human decision. It is never a licence to ship a known
   defect. This is a signal, not a counter; the `babysit_advisory_fix_round_cap` backstop is
   unchanged and a low round cap was rejected.
 
@@ -3432,21 +3524,21 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `safety.md`'s "Resolve any thread over a live, unaddressed finding". Because resolution is a
   thread-level act while dispositions are per-finding, eligibility is a property of the **whole
   thread**: every finding extracted from it must carry one of three recorded dispositions, and one
-  dispositioned finding never retires a multi-finding thread. That granularity is load-bearing
-  rather than pedantic — a resolved thread drops every comment it carries out of the readiness
+  dispositioned finding never retires a multi-finding thread. That granularity is required
+  rather than pedantic. A resolved thread drops every comment it carries out of the readiness
   denominator (`babysit_classify.py::thread_is_open`), so resolving early would make a still-open
   finding vanish from the classification gate and let the PR merge over it. A single `UNCERTAIN`
   holds its whole thread open. The eligible dispositions are: `VALID (fix now)` with the
   fix pushed and cited, `VALID (defer)` grounded per D4.6 with the item id cited, or `INCORRECT`
   with counter-evidence posted. `UNCERTAIN` escalates and is never resolved. Every existing
-  author condition still applies on top. All four surfaces that restate the step — `pull-request`'s
-  SKILL.md checklist and gotcha, `pull-request/reference/monitor.md`, and
-  `babysit-prs/reference/loop.md` — are updated with it. They previously gated resolution on a
+  author condition still applies on top. All four surfaces that restate the step are updated with
+  it: `pull-request`'s SKILL.md checklist and gotcha, `pull-request/reference/monitor.md`, and
+  `babysit-prs/reference/loop.md`. They previously gated resolution on a
   pushed fix, so a correctly grounded deferral or an `INCORRECT` with counter-evidence satisfied
   canonical D7.5 and still left the thread open, holding readiness.
 - **Non-outdated threads in an autonomous tier route to the independent resolver, not the worker.**
   `--autonomous` resolves only an `isOutdated` thread, because that is the one deterministic
-  "addressed" signal available — otherwise the actor is "signing its own permission slip" on the
+  "addressed" signal available. Otherwise the actor is "signing its own permission slip" on the
   merge gate's zero-unresolved-threads predicate. Prose fixes routinely satisfy a finding by
   rewriting elsewhere, leaving the thread current, so an addressed finding is often non-outdated
   (6 of 15 threads on #1594, 1 of 5 on #1615). Rather than widen the guard, such a thread goes to
@@ -3456,12 +3548,12 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **Eligibility here never overrides a tier's own guards.** A disposition that makes a thread
   eligible under D7.5 does not by itself authorize a resolve the invoking tier refuses. The worker
   tier is the live case: its contract permits resolving only a thread already `isOutdated` in its
-  dispatch snapshot, so a disposition leaving the thread current — a grounded deferral, or an
-  `INCORRECT` carrying no fix — is reported to the orchestrator as addressed-but-unresolvable
+  dispatch snapshot, so a disposition leaving the thread current, a grounded deferral or an
+  `INCORRECT` carrying no fix, is reported to the orchestrator as addressed-but-unresolvable
   rather than resolved. That is a description of today's behavior, not a fix; the underlying
   capability gap is #1641, and closing it must not weaken the `--autonomous` `isOutdated` guard.
 - **The independent-authorization requirement states a property, not one mechanism.** Naming only
-  the pre-escalation dispatch would have made the requirement unreachable — that path exists only
+  the pre-escalation dispatch would have made the requirement unreachable. That path exists only
   on the explicit `autopilot` + `--merge c3-this-run` widening, so every other merge-capable path
   would have been required to obtain an authorization it cannot obtain, deadlocking a grounded
   deferral instead of terminating it. The rule is now "the adjudicating context must not be the
@@ -3481,26 +3573,26 @@ All notable changes to the `source-control` plugin are documented here. Format f
   escalation of that shape regardless of which skill's escalation path carries it, so a lane
   escalating through a loop's own escalation contract no longer reads as outside it. `babysit-loop`'s
   Escalation section carries the matching pointer, because a lane raising a cap-policy question
-  through that contract had no reason to open `safety.md` first — which is how #1614 itself came
+  through that contract had no reason to open `safety.md` first, which is how #1614 itself came
   to be filed against the rule that forbids it.
 - **The (a)/(b)/(c) round taxonomy is a per-round duty, not an escalation-time one.** It was
   written under a heading scoped to escalation and stamped markers "whenever the classification
   runs", while the ordinary advisory-round path (`orchestration.md`) recorded the round and started
-  fixing without running it — so ordinary rounds produced no markers and the
+  fixing without running it, so ordinary rounds produced no markers and the
   second-consecutive-all-(c) tripwire had nothing to read exactly when it mattered. Classification
   and stamping now run on every advisory round, before its fix is dispatched, and the
   advisory-round step names that duty at the point the round begins.
 - **The pre-escalation resolution dispatch must produce a D7.5 verification ledger before it
   resolves anything.** `review-discipline.md` routes a current bot thread to that dispatch *because*
   it verifies the disposition, but the dispatch contract only required briefing the blocker and the
-  independence/frontier-tier constraints — and the guarded wrapper checks authorship and comment
+  independence/frontier-tier constraints, and the guarded wrapper checks authorship and comment
   state, never whether a finding was addressed. The dispatched agent could therefore resolve a
   current thread on an unaddressed finding and clear the merge gate's zero-unresolved-threads
   predicate, which is the worker-side self-satisfaction the outdated-only guard prevents, moved one
-  hop. The contract now requires a per-finding ledger — pushed SHA verified on the live head, a
-  D4.6-grounded deferral with a re-queried tracker id, or counter-evidence read at the live head —
-  covering **every** finding in the thread, since one addressed finding never makes a thread
-  eligible while a sibling is open. Anything unverifiable means no resolution, no merge, and an
+  hop. The contract now requires a per-finding ledger covering **every** finding in the thread,
+  since one addressed finding never makes a thread eligible while a sibling is open. Each entry is
+  a pushed SHA verified on the live head, a D4.6-grounded deferral with a re-queried tracker id, or
+  counter-evidence read at the live head. Anything unverifiable means no resolution, no merge, and an
   escalation naming it.
 
 ## [0.39.0]
@@ -3511,11 +3603,11 @@ All notable changes to the `source-control` plugin are documented here. Format f
   (melodic-software/claude-code-plugins#1651).** A lane's spend was a blind spot: the cycle budget
   counts cycles, the rate-limit guard's pause is a ceiling, and nothing recorded how much of the
   shared subscription windows a cycle actually consumed. The durable-state block now carries a
-  `usage_sample` — the two window percentages the guard step **already reads** every cycle, plus the
-  rise since the previous sample — so measuring adds a write, not an observation. The field is
+  `usage_sample`, the two window percentages the guard step **already reads** every cycle, plus the
+  rise since the previous sample, so measuring adds a write, not an observation. The field is
   deliberately inert: no lane behavior reads it back, and no pacing, backoff, merge rung, or pause
-  derives from it. Its caveats are recorded beside it because they bound what the data can support —
-  the reading is a snapshot no fresher than the guard's staleness rule allows, from a machine-local,
+  derives from it. Its caveats are recorded beside it because they bound what the data can support.
+  The reading is a snapshot no fresher than the guard's staleness rule allows, from a machine-local,
   last-writer-wins tee that refreshes only while an interactive session renders a status line (so an
   unattended background lane samples null every cycle, and an empty sample means unobserved, not
   zero); the figures are account-scope (concurrent lanes move the same windows, so a rise is this
@@ -3524,9 +3616,9 @@ All notable changes to the `source-control` plugin are documented here. Format f
   boundary: the status-line context-window token counts are current-context occupancy rather than
   session totals as of Claude Code v2.1.132. A machine-readable cumulative cost field
   (`cost.total_cost_usd`) does exist and is session-scoped, so it is the deferred candidate for
-  per-lane attribution — but the guard's tee does not forward it, and widening the tee is a
+  per-lane attribution, but the guard's tee does not forward it, and widening the tee is a
   rate-limit-guard change this entry deliberately does not make
-  (<https://code.claude.com/docs/en/statusline>, re-verified 2026-07-28 — `used_percentage` 0–100,
+  (<https://code.claude.com/docs/en/statusline>, re-verified 2026-07-28: `used_percentage` 0–100,
   `resets_at` epoch seconds, `rate_limits` subscriber-only and each window independently absent; no
   drift).
 
@@ -3536,15 +3628,15 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **The merge gate can hold a PR while a review of the live head is still in flight (#1629).** A
   review bot that re-reviews on every push posts minutes after the head moves, and GitHub reports
-  the PR mergeable for that whole window — the review does not exist yet, so there is no unresolved
+  the PR mergeable for that whole window. The review does not exist yet, so there is no unresolved
   thread to block on. The gate read only that mergeability, so it could merge past findings landing
   seconds later: #1594 merged 4m40s after its final commit and the reviewer's round arrived 26
   seconds afterward with two valid findings, one a regression that PR had introduced (#1613).
   Configuring `babysit_review_bot_logins` together with the new `babysit_review_settle_minutes`
   adds a merge-gate policy blocker while a configured reviewer still owes the live head a review
-  and that head is younger than the window. A review of the live head — a submitted review or an
-  inline review comment carrying the head's commit id, reusing `review-trigger.md`'s existing
-  current-head test — clears the hold without aging the head, so the already-reviewed case issues
+  and that head is younger than the window. A review of the live head, meaning a submitted review
+  or an inline review comment carrying the head's commit id, reusing `review-trigger.md`'s existing
+  current-head test, clears the hold without aging the head, so the already-reviewed case issues
   no request of its own. The window bounds the wait so a reviewer that never engages cannot wedge a PR, and a
   head whose age cannot be established holds rather than merging on an unverifiable clock. Both
   keys or neither: either alone is a usage error, never a silently inert flag, a window converting
@@ -3552,24 +3644,24 @@ All notable changes to the `source-control` plugin are documented here. Format f
   duration of its own because how long a reviewer takes is a property of that reviewer.
 
   Head age is measured on the **most recent CI start for the live head**, taken from the raw
-  status-check rollup the gate already fetches — raw rather than classified, because the classifier
+  status-check rollup the gate already fetches, raw rather than classified, because the classifier
   keeps only the newest run per check identity. Newest rather than oldest is the safety property:
   check runs live on the SHA, so a head returning to a previously-checked SHA still carries that
   SHA's original runs, and reading the oldest would call a brand-new head settled. The cost is
-  bounded latency — a re-run can extend the wait by one window. The committer date is the fallback
+  bounded latency: a re-run can extend the wait by one window. The committer date is the fallback
   only, since a commit pushed long after it was written reads as already-settled. Both that weak
   spot, the residual around a head reverting to an already-tested SHA, and the requirement that a
-  configured reviewer be `Bot`-typed — this gate does not pass `--extra-bot-logins`, so the
-  operator declaration #1642 added to the shared current-head test does not reach it — are
-  documented at the hold's `safety.md` section rather than left implicit.
+  configured reviewer be `Bot`-typed are documented at the hold's `safety.md` section rather than
+  left implicit. The `Bot` requirement holds because this gate does not pass `--extra-bot-logins`,
+  so the operator declaration #1642 added to the shared current-head test does not reach it.
 
   That same timestamp is also the **review-recency floor**, which is what keeps the clock from
   being bypassed rather than merely pointed the wrong way. GitHub keeps a review against the SHA,
   not against the head position, so after a force-push A -> B -> A the first occurrence's review of
   A still matches by commit id; matching on the SHA alone let it satisfy the current-head
   short-circuit and merge before any clock was read, restoring the exact race the hold exists to
-  prevent. `has_current_head_review` gains an optional `not_before` bound — passed only by this
-  gate, so the review-trigger completion rule keeps its own semantics — and the settle hold
+  prevent. `has_current_head_review` gains an optional `not_before` bound, passed only by this
+  gate so the review-trigger completion rule keeps its own semantics, and the settle hold
   supplies the newest CI start on the live head. A review that predates that bound, or that carries
   no parseable timestamp at all, no longer clears the hold. Evidence records now carry the
   submission time (`submittedAt` for reviews, `created_at` for inline review comments) so the
@@ -3577,17 +3669,17 @@ All notable changes to the `source-control` plugin are documented here. Format f
   standing head, so a re-run minted after the review now re-arms the hold for up to one window
   instead of short-circuiting past it: the fail-closed direction, paying bounded latency to refuse
   the safety failure. A head with no check starts has no floor, so the earlier review still clears
-  the hold — precisely the residual `safety.md` already scoped, and now pinned by a test so it is a
+  the hold, precisely the residual `safety.md` already scoped, and now pinned by a test so it is a
   decision on record rather than an accident.
 
   Unconfigured, the gate is byte-for-byte its prior self and issues no request it did not issue
-  before — asserted against recorded call counts, not just the verdict. The reviewer corpus is now
+  before, asserted against recorded call counts, not just the verdict. The reviewer corpus is now
   fetched once per run and shared with the autopilot merge tier rather than fetched twice.
 
   `safety.md`'s rendering rule now refuses a settle-window-without-reviewer-logins configuration at
   the orchestrator rather than rendering it away. The CLI's both-or-neither usage error cannot
   catch that case, because the instruction told the orchestrator to omit *both* flags when either
-  key was missing — so the lone flag never reached the CLI and the merge proceeded with the hold
+  key was missing, so the lone flag never reached the CLI and the merge proceeded with the hold
   silently dormant under a setting that looked active. `babysit_review_bot_logins` alone stays
   legal: it is the review-trigger module's own configuration and leaves this hold correctly
   dormant.
@@ -3595,7 +3687,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 ### Changed
 
 - **`babysit-prs/SKILL.md` has headroom under the skill line cap again.** It sat at 499 of a hard
-  500 — the same wall #1620 described for `babysit-loop`, which #1627 relieved for that skill only —
+  500, the same wall #1620 described for `babysit-loop`, which #1627 relieved for that skill only,
   so any net-positive edit failed `skill-quality-gate`. The autopilot tier's per-PR steps,
   exclusions, draft handling, and widened scopes move verbatim to
   `skills/babysit-prs/reference/autopilot.md`, leaving a pointer; the body goes 499 -> 471. Nothing is
@@ -3608,7 +3700,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **A `PreToolUse` hook blocks a `gh pr create` / `gh pr edit` whose PR body would fail the
   consuming repository's required `pr-issue-linkage` check.** The check is a merge gate, but nothing
   enforced its contract at authoring time, so a body missing a closing keyword or a `## Related`
-  section was only ever caught post-hoc — one CI round trip after the PR was already open, on
+  section was only ever caught post-hoc, one CI round trip after the PR was already open, on
   almost every PR an agent filed directly. `/pull-request create` has always run the equivalent
   pre-create gate (`skills/pull-request/reference/create.md` §2.4.2); this hook covers the calls
   that never go through the skill. On a violation it exits blocking and names the missing half plus
@@ -3618,7 +3710,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
     gate runs only when the repository root carries `.github/workflows/pr-issue-linkage.yml` (or
     `.yaml`). A repository that does not run the check is never gated, so the hook cannot drift away
     from what its consumer actually enforces. This is deliberately not the `pr_body_required_sections`
-    seam — that key is the repo's configurable section scaffold, whose portable default excludes
+    key. That key is the repo's configurable section scaffold, whose portable default excludes
     `Related` on purpose; the authority here is the workflow file that defines the check.
   - **The validator is mirrored, not approximated.** HTML comments are stripped exactly as the
     reusable `melodic-software/ci-workflows` workflow strips them (terminated spans, then an
@@ -3630,7 +3722,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
     readable `--body-file` path, and the sole heredoc feeding `--body-file -` or a
     `--body "$(cat <<'EOF' … EOF)"` substitution are judged. An unexpanded variable, several
     heredocs, an unreadable file, an absent body flag (`--fill`, `--template`, `--editor`, the
-    interactive prompt), and any `--repo`-targeted invocation all allow — guessing at a body the
+    interactive prompt), and any `--repo`-targeted invocation all allow, since guessing at a body the
     hook cannot see would block compliant calls.
   - Toggleable via the new `pr_body_linkage_gate_enabled` userConfig option. The PowerShell tool and
     direct `gh api …/pulls` calls are documented as out of scope at the hook's own site.
@@ -3643,16 +3735,16 @@ All notable changes to the `source-control` plugin are documented here. Format f
   invisibly (#1648).** Every stall mechanism was per-PR (`needs_worker` delta, `quiet_recheck_due`,
   `checks.stuck`), so a merge lane cycling repeatedly while its queue sat unmoved was invisible to
   itself. The lane now persists a `no_progress_streak` counter beside `cycle` and `backoff_level`
-  in its `#502` durable state block: a cycle with open PRs in the cycle-start snapshot that ends
-  with no qualifying progress — no PR merged or closed, materially changed (head, reviews,
-  comments, checks, draft elevation — foreign activity included; the lane's own repeat attempt at
-  the same still-unresolved blocker never re-qualifies), and no new escalation written —
-  increments it, an idle cycle (no open PRs) — or one held by the rate-limit guard, meaning
-  `rate_limit_latch` set, which starts no new mutating work and outlives the pause end — leaves it
-  unchanged, and any qualifying progress resets it. At the threshold (new `babysit_loop_no_progress_threshold` seam key, default 3) the
-  lane raises a stall escalation through the existing escalation contract — a
+  in its `#502` durable state block. A cycle with open PRs in the cycle-start snapshot that ends
+  with no qualifying progress increments it. Qualifying progress means a PR merged or closed, a PR
+  materially changed (head, reviews, comments, checks, draft elevation, foreign activity included;
+  the lane's own repeat attempt at the same still-unresolved blocker never re-qualifies), or a new
+  escalation written. An idle cycle (no open PRs), or one held by the rate-limit guard, meaning
+  `rate_limit_latch` set, which starts no new mutating work and outlives the pause end, leaves it
+  unchanged, and any qualifying progress resets it. At the threshold (new `babysit_loop_no_progress_threshold` config key, default 3) the
+  lane raises a stall escalation through the existing escalation contract, a
   `Lane stall: babysit-loop` issue with the human-gated role label and the machine-marked
-  escalation comment, at most one open at a time (author-matched) — and **keeps looping**: a
+  escalation comment, at most one open at a time (author-matched), and **keeps looping**: a
   stalled lane is a signal about the queue, not a reason to terminate. Shared counter semantics
   are owned by the loop-lane convention (§4, "No-progress detector", convention 5.0.0); the lane
   body holds them by citation and defines only the merge-lane progress events.
@@ -3661,8 +3753,8 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **`babysit-loop`'s detector binding moved to a progressive-disclosure spoke (#1648).** With this
   lane's share of #1650's escalation-record contract also landing in `SKILL.md`, the file crossed
-  the 500-line hard cap. The merge-lane binding — qualifying progress, the `rate_limit_latch`
-  held-cycle bar, the threshold key, and the stall-escalation shape — now lives in
+  the 500-line hard cap. The merge-lane binding, meaning qualifying progress, the `rate_limit_latch`
+  held-cycle bar, the threshold key, and the stall-escalation shape, now lives in
   `skills/babysit-loop/reference/no-progress-detector.md`, cited from the cycle-shape step that
   updates the counter, matching the `pre-escalation-dispatch.md` spoke already beside it. The same
   pass dropped the closed inventory of every contract the convention owns (it coupled this file to
@@ -3676,16 +3768,16 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **`worktree-create.sh --base-ref fresh` degraded to local `HEAD` in a clone with no `origin`
   remote (melodic-software/claude-code-plugins#904).** The helper probed `refs/remotes/origin/HEAD`
-  and nothing else, so a repository cloned with `git clone -o upstream` — which has no `origin` at
-  all — took the remoteless fallback path even though `upstream/HEAD` was correctly cached. A
+  and nothing else, so a repository cloned with `git clone -o upstream`, which has no `origin` at
+  all, took the remoteless fallback path even though `upstream/HEAD` was correctly cached. A
   worktree created from a feature branch then carried unpushed local commits into a base that
   `fresh` promises is the remote default branch. The fallback did emit its warning, so the failure
-  was visible rather than silent — but the warning named `origin`, the one remote the repository did
+  was visible rather than silent, but the warning named `origin`, the one remote the repository did
   not have, so it read as a misconfiguration rather than as the helper looking in the wrong place.
   - `fresh` now resolves the effective default **remote** before probing any symref, through a
     three-rung chain: the current branch's configured remote (`branch.<name>.remote`), then `origin`
     when it exists, then the sole remote when the repository has exactly one. The resolved remote's
-    `HEAD` symref supplies the base. Nothing hardcodes a default branch name — resolution stays
+    `HEAD` symref supplies the base. Nothing hardcodes a default branch name. Resolution stays
     symbolic, as the portability lint requires.
   - Rung 1 also changes the base in a repository that *does* have `origin`: when the current branch's
     `branch.<name>.remote` names a different existing remote, `fresh` now bases on that remote's
@@ -3693,11 +3785,11 @@ All notable changes to the `source-control` plugin are documented here. Format f
     change beyond the non-`origin`-clone case in the headline.
   - Rung 1 accepts a configured remote only when it names a remote that still exists, so stale
     config cannot shadow a healthy `origin`, and it rejects git's `.` sentinel (which means "tracks a
-    local branch", not a remote — `refs/remotes/./HEAD` is nonsense). A detached `HEAD` has no
+    local branch", not a remote, so `refs/remotes/./HEAD` is nonsense). A detached `HEAD` has no
     branch, so the rung is skipped rather than erroring.
   - That existence probe passes the configured name after an option terminator
-    (`git remote get-url -- "$cfg"`). A remote name may legally begin with `-` — `git clone -o -foo
-    <url>` creates one and writes it straight into `branch.<name>.remote` — and without the
+    (`git remote get-url -- "$cfg"`). A remote name may legally begin with `-`, as `git clone -o -foo
+    <url>` creates one and writes it straight into `branch.<name>.remote`, and without the
     terminator `git remote get-url` parses it as switches (`unknown switch 'f'`). Rung 1 then
     rejected a perfectly healthy remote and resolution fell through to `origin`, producing exactly
     the silently wrong base this release exists to prevent.
@@ -3706,7 +3798,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
     a worse failure than the fallback, because the caller cannot see it happen.
   - The local-`HEAD` fallback and its loud warning remain for the genuinely unresolvable cases, and
     the warning now names the cause: the resolved remote whose `HEAD` is uncached (with the
-    `git remote set-head <remote> --auto` fix), or the absence of any default remote — no remotes at
+    `git remote set-head <remote> --auto` fix), or the absence of any default remote: no remotes at
     all, or several with neither a branch-configured remote nor an `origin`.
   - Every git read in the resolver is `tr -d '\r'`-trimmed: under `git.exe` on an MSYS or Cygwin
     shell the output carries CRLF, and an untrimmed `upstream\r` would make each downstream lookup
@@ -3727,23 +3819,23 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Added
 
-- **`babysit-loop` escalation record write — deterministic surface for out-of-band notification
+- **`babysit-loop` escalation record write, a deterministic surface for out-of-band notification
   (#1650).** Escalating now also creates
   `.claude/lane-escalations/<UTC-stamp>-<item>-babysit-loop.json` with the Write tool in the same
-  step that files the tracker escalation, immediately before posting the marker comment — one new
+  step that files the tracker escalation, immediately before posting the marker comment: one new
   file per NEWLY filed escalation (suppressed by the marker read the step already performs),
   `loop-lane/escalation-record@1`
   shape, summary restating only the already-public marker-comment text. The Write tool call (never
-  a shell redirect, whose `Bash` event the seam's `Write` matcher never sees) is what a consuming
+  a shell redirect, whose `Bash` event the hook's `Write` matcher never sees) is what a consuming
   repo's `PostToolUse`
-  `type:"http"` hook keys on to reach an off-machine human deterministically; the documented seam
-  and settings shape are owned by the loop-lane convention (§2, v4.0.0). Record-before-marker is
-  load-bearing: a stop between the two non-atomic writes then costs one duplicate notification the
+  `type:"http"` hook keys on to reach an off-machine human deterministically; the documented hook
+  contract and settings shape are owned by the loop-lane convention (§2, v4.0.0). Record-before-marker
+  is the required order: a stop between the two non-atomic writes then costs one duplicate notification the
   next cycle re-files, where the reverse order strands a standing marker that suppresses the record
   on every later cycle and loses the notification permanently. Without a configured hook the file
   is inert exhaust; the tracker item stays the escalation of record. Because the record path is
   relative to the lane session's own checkout, a lane scoped to a repository other than its
-  checkout notifies the launching project's endpoint and never the target's — so launching from
+  checkout notifies the launching project's endpoint and never the target's, so launching from
   the target's checkout is stated at the site as a requirement whenever that repository's endpoint
   is the one that must hear, not a preference.
 
@@ -3751,7 +3843,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **`babysit-loop` gains a lane-start preflight that ignores the escalation record directory itself
   (#1650).** The record write is unconditional, so an unignored `.claude/lane-escalations/` would
-  strand an untracked file per escalation in the tree this lane runs its gates against — and
+  strand an untracked file per escalation in the tree this lane runs its gates against, and
   nothing delivers a tracked ignore rule into a consuming repo, so an existing consumer that
   upgrades would hit exactly that. New cycle-shape step 0 runs once per lane: if
   `git check-ignore -q` reports the path unignored, append it to the clone's untracked
@@ -3802,8 +3894,8 @@ All notable changes to the `source-control` plugin are documented here. Format f
     comment's classification-table rows (not its whole body) before scanning, mirroring
     `babysit_classify.count_findings`'s identical rule for the finding-count gate; the underlying
     `_strip_classification_rows` helper is promoted to public (`strip_classification_rows`) and
-    shared between the two modules rather than reimplemented. Non-table self content -- a
-    maintainer using a self-login to raise a genuine new finding -- still flags.
+    shared between the two modules rather than reimplemented. Non-table self content, such as a
+    maintainer using a self-login to raise a genuine new finding, still flags.
   - `SKILL.md`'s thread-resolution bullet and flag-delivery table, `reference/safety.md`'s
     documented resolve-thread command forms (both the read-only listing form and both
     pinned-command-degradation forms), and `reference/orchestration.md`'s Worker Contract and
@@ -3819,20 +3911,23 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **`babysit-loop`'s rung partition reads the work class from the `work-class:` label only, never
   from a `Work-class: C<n>` body trailer (#1657).** The partition accepted "the triage stamp in the
   item body **or** labels", so a class recorded in an item body decided merge eligibility. The class
-  widens merge authority, and an item body is editable by its own author — who need hold no
-  permission on the base repository — which made the item self-certifying and contradicted the
-  autonomy plugin's admission policy: "No repo-local (agent-writable) surface may supply any
-  admission input — rules, caps, or the work class used for admission." Applying a label takes
+  widens merge authority, and an item body is editable by its own author, who need hold no
+  permission on the base repository, which made the item self-certifying and contradicted the
+  autonomy plugin's admission policy:
+  <!-- ai-slop-ignore-start: quoted autonomy plugin admission-policy wording -->
+  "No repo-local (agent-writable) surface may supply any admission input: rules, caps, or the work class used for admission."
+  <!-- ai-slop-ignore-end -->
+  Applying a label takes
   triage or write permission, the same permission surface the C5 trust test already keys on.
   - A trailer stays legitimate as the operator's own record of a class and as a proposal, and is
     reported as such, but it never partitions. An item classified only in its body is
-    **unclassified** for the partition — not eligible at any rung, exactly as an item with no
+    **unclassified** for the partition: not eligible at any rung, exactly as an item with no
     record at all.
   - **Consumer impact.** A repository that recorded classes only as body trailers had a
     merge-eligible population under the old reading and has an empty one under this reading:
     everything there is human-merge, the shipped baseline, until the `work-class:` labels follow
     the trailers. Nothing merges that would not have merged before.
-  - The C4/C5 floor is unchanged — it always tested the pull request rather than the linked item's
+  - The C4/C5 floor is unchanged. It always tested the pull request rather than the linked item's
     stamp, so a fork PR was never eligible through a self-stamped issue.
 
 ## [0.33.3]
@@ -3842,8 +3937,8 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **A configured review reviewer that GitHub types as `User` counted as no reviewer at all
   (melodic-software/claude-code-plugins#1642).** `is_review_bot_item` in
   `babysit_review_trigger.py` admitted an item only when GitHub's authoritative actor type said
-  `Bot`, so an automation account posting as an ordinary user — no `[bot]` login suffix,
-  `__typename` of `User` — had its real, current-head review read as no review. That is the exact
+  `Bot`, so an automation account posting as an ordinary user, with no `[bot]` login suffix and a
+  `__typename` of `User`, had its real, current-head review read as no review. That is the exact
   account class `babysit_extra_bot_logins` exists for and that `actor_kind` and
   `babysit_resolve_thread.py` (#637) already honor, so the same operator-declared account was
   classified two different ways by two consumers of one plugin.
@@ -3854,12 +3949,12 @@ All notable changes to the `source-control` plugin are documented here. Format f
     default-configuration blocker state moves.
   - Bot-ness is delegated whole to `is_bot` rather than restated, so this module can no longer
     drift from the classification every other consumer uses. The REST `type` key is normalized
-    into the `__typename` slot first — `is_bot` reads `__typename` alone, and the reaction and
-    review-comment paths carry only `type`, so that normalization is load-bearing and pinned.
+    into the `__typename` slot first. `is_bot` reads `__typename` alone, and the reaction and
+    review-comment paths carry only `type`, so that normalization is required and pinned.
   - The widening is applied at the shared predicate rather than per consumer, so all three reach
     the same verdict: review evidence (`fetch_review_evidence`), current-head completion
     (`has_current_head_review`), and reaction engagement (`fetch_review_reactions`). It is not
-    uniformly permissive — recognizing a declared reviewer's eyes reaction *adds* the
+    uniformly permissive. Recognizing a declared reviewer's eyes reaction *adds* the
     `engaged_reaction_reviewing` blocker that strictness was suppressing.
   - `--extra-bot-logins` now threads into the review-trigger config from `pr_queue_snapshot.py`
     (which already parsed it for `FeedbackConfig`) and from `request_review.py`, which gains the
@@ -3873,16 +3968,16 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **Every git-bearing skill in this plugin was uninvocable from a worktree-isolated agent
   (melodic-software/claude-code-plugins#1619).** The harness composes an entire
   `## Pre-computed context` block into ONE shell invocation, and the worktree-isolation Bash guard
-  refuses a git-bearing compound command it cannot statically verify — so `commit`, `pull-request`,
+  refuses a git-bearing compound command it cannot statically verify, so `commit`, `pull-request`,
   `worktree`, `resolve-conflicts`, and `babysit-prs` all failed at load with `this command is too
   complex to verify that it stays inside the worktree`. `worktree` is the sharpest case: the skill
   for managing worktrees could not be invoked from inside one.
   - The git lines are removed from each skill's pre-compute block and re-acquired in the skill body
-    as **individual** Bash calls, one command per call. Non-git pre-compute lines are untouched —
+    as **individual** Bash calls, one command per call. Non-git pre-compute lines are untouched:
     `commit` keeps its exec-bit and user-global config probes, `babysit-prs` keeps both `gh` lines.
   - `commit`'s two repo-scoped config-layer probes were themselves compound one-liners that
     re-derived the repository root inline. They are rebuilt on git's repo-root-relative magic
-    pathspec `:/` rather than on a substituted root — `git ls-files --error-unmatch --` and
+    pathspec `:/` rather than on a substituted root: `git ls-files --error-unmatch --` and
     `git ls-files --cached --others --`, each given `":/.claude/source-control.md"` (or the
     `.local.md` overlay). Nothing is substituted, so a repository root containing a space, `$(…)`,
     a backtick, or a double quote can neither break the command nor inject into it; double-quoting
@@ -3890,19 +3985,19 @@ All notable changes to the `source-control` plugin are documented here. Format f
     wrong fix. Verified from a subdirectory: `:/` resolves against the working-tree root regardless
     of the session's cwd, and the same existence probe replaces the personal overlay's old
     `test -f "<root>/…"`.
-  - `commit`'s team layer keeps all three of its states — `present (tracked)`,
-    `present but UNTRACKED`, `absent` — which a single `--error-unmatch` call cannot express, since
+  - `commit`'s team layer keeps all three of its states, `present (tracked)`,
+    `present but UNTRACKED`, and `absent`, which a single `--error-unmatch` call cannot express, since
     it exits nonzero for both of the last two. The `git ls-files --cached --others` existence probe
     separates them (`--exclude-standard` deliberately omitted so a gitignored file is still seen),
     and the generic unknown-value rule is narrowed so it no longer swallows the distinction: a
     nonzero `--error-unmatch` exit is a *result*, and only a probe that could not run at all (git
     unavailable, not a repository) is an unknown value.
-  - `babysit-prs` is held at exactly 499 lines — the change is net-zero on line count, so it does
+  - `babysit-prs` is held at exactly 499 lines. The change is net-zero on line count, so it does
     not consume the one line it has left under the 500-line hard cap (see #1626).
   - The pre-compute lines carried `2>/dev/null || echo "unknown"` fallbacks **and** output caps
     (`git status --short | head -20`, `git diff --cached --stat | tail -1`,
     `git worktree list | head -30`, `git status | head -4`). The fallbacks are restated as a reading
-    rule — a failed command means "unknown, carry on". The caps are **kept as pipes** on the body
+    rule: a failed command means "unknown, carry on". The caps are **kept as pipes** on the body
     commands in `commit`, `worktree`, and `resolve-conflicts`. An earlier revision of this change
     restated them as read-time prose ("read at most the first 20 entries"); that bounded nothing,
     because the Bash tool returns a command's complete output into context before there is anything
@@ -3913,7 +4008,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
     (`git status --short | head -20`, `git diff --cached --stat | tail -1`) were observed to pass as
     ordinary body Bash calls in a **non-isolated** session; whether a pipe also clears the isolation
     guard as a body call is not verified here. The **edited** skills have not been invoked from an
-    isolated agent — skills load from the version-keyed plugin cache, so `0.33.2` does not exist
+    isolated agent. Skills load from the version-keyed plugin cache, so `0.33.2` does not exist
     there until this ships. Confirm then; CI cannot prove it.
   - `shell: bash` is deliberately left in place on every affected skill, including the three that
     now have no `!` lines at all. The key is inert without pre-compute lines, and removing it is a
@@ -3924,8 +4019,8 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **Two reference spokes described the moved commands as pre-computed and are corrected.**
   `commit/reference/exec-bit.md` no longer calls the config-layer probes pre-computed, and
   `pull-request/reference/create.md`'s `--pushed` section is regrounded: it still says to ignore the
-  session-cwd context for an out-of-tree orchestrator, but its stated reason — that a
-  `!`-substituted line cannot be `git -C`-redirected — stopped being true once those became ordinary
+  session-cwd context for an out-of-tree orchestrator, but its stated reason, that a
+  `!`-substituted line cannot be `git -C`-redirected, stopped being true once those became ordinary
   Bash calls. The instruction to re-resolve explicitly from the target worktree is unchanged.
 
 ## [0.33.1]
@@ -3933,8 +4028,8 @@ All notable changes to the `source-control` plugin are documented here. Format f
 ### Fixed
 
 - **`babysit-loop` no longer downgrades the whole rate-limit guard because one window is absurd
-  (#1612).** The lane body inlined the reader contract's mode table — "tee file absent, stale, missing
-  `rate_limits`, or absurd values → mode unknown → reactive-only" — which collapses the guard wholesale
+  (#1612).** The lane body inlined the reader contract's mode table, "tee file absent, stale, missing
+  `rate_limits`, or absurd values → mode unknown → reactive-only", which collapses the guard wholesale
   as soon as any single value is absurd. Against the floor's "pause when **either** window reports
   `used_percentage >= 90`", a lane holding one garbage window and one valid window at 95% kept claiming
   PRs until a reactive rate-limit failure landed, rather than pausing on the window it could still
@@ -3952,8 +4047,8 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **`/commit` ships a deterministic exec-bit backstop (#1579).** The skill's ordered exec-bit
   procedure was advisory prose with no tier under it, and prose is what a long session stops
   executing: four new shebang scripts once shipped `100644` with only the consuming repo's CI
-  catching it. Two tiers now sit under it. A pre-computed probe line at the TOP of the skill —
-  inside the documented 5,000-token compaction re-attach window — reports staged newly-added shebang
+  catching it. Two tiers now sit under it. A pre-computed probe line at the TOP of the skill,
+  inside the documented 5,000-token compaction re-attach window, reports staged newly-added shebang
   files still at `100644`; and `skills/commit/scripts/exec-bit-check.sh` (`--list` / `--probe` /
   `--fix`, with a 47-case `.test.sh`) makes the per-commit step a command with an exit code. Both,
   because the probe is only a snapshot at invocation and cannot see files staged later in the flow.
@@ -3963,21 +4058,21 @@ All notable changes to the `source-control` plugin are documented here. Format f
   - **Every mode anchors at the repository root.** `git diff --cached --name-status` emits
     repo-root-relative paths while a `git ls-files` pathspec resolves against the cwd; run from a
     subdirectory those disagreed, every lookup missed, and the check reported no offenders even when
-    they existed — a fail-open backstop. Caller pathspecs are re-anchored via `--show-prefix` before
+    they existed, a fail-open backstop. Caller pathspecs are re-anchored via `--show-prefix` before
     the directory change so a scoped `--fix` from a subdirectory still matches. The skill's
     config-layer probes anchor the same way, matching the root-resolution rule
     `reference/config-resolution.md` already states; unanchored, a session started in a
     subdirectory silently dropped the team convention and `trailer_policy`.
   - **A worktree symlink over a staged regular file is refused, not chmod-ed.** `-e` follows a
-    symlink, so an unguarded `chmod +x` would have made the link's target executable — a file that
+    symlink, so an unguarded `chmod +x` would have made the link's target executable, a file that
     can sit entirely outside the repository. The `-L` test now runs before `-e`.
   - **The exec bit does not survive a pathspec (`--only`) commit under `core.filemode=false`, and
     that is now documented as a hard constraint** rather than silently losing the fix. `--only`
     records the working-tree mode, and with filemode off git cannot see the `chmod +x`, so a
     correctly-set `100755` index entry is rebuilt as `100644`. Verified both directions on a fixture:
     plain index commit preserves `100755`, pathspec commit loses it. Two candidate workarounds were
-    tested and **both failed** on that platform — `-c core.fileMode=true` on the commit, and a
-    post-commit `update-index` plus `--amend --only` — so neither is offered. The guidance is
+    tested and **both failed** on that platform, `-c core.fileMode=true` on the commit and a
+    post-commit `update-index` plus `--amend --only`, so neither is offered. The guidance is
     instead to commit an exec-bit-corrected path with the plain index form (splitting the commit if
     the rest needs a pathspec) and to confirm with `git ls-tree HEAD`, never the index. Both
     behaviors are pinned as characterization tests so a future git change fails loudly.
@@ -3985,14 +4080,14 @@ All notable changes to the `source-control` plugin are documented here. Format f
     break `--list`'s one-record-per-line contract; `--list` and `--probe` shell-quote such a path so
     the ambiguity is visible rather than silent.
 
-  `--fix` **requires an explicit scope** — `-- <path>...` or a deliberate `--all` — and exits 2
+  `--fix` **requires an explicit scope**, `-- <path>...` or a deliberate `--all`, and exits 2
   otherwise, changing nothing. It mutates index entries, and the staged set can hold a concurrent
   session's work (the whole premise of the pathspec-limited commit form), so an unscoped default
   would have inverted this skill's own surgical-staging discipline. `--list` and `--probe` stay
   unscoped because they only read; the asymmetry is deliberate.
 
   A new cross-platform hazard was found and pinned while implementing this: under
-  `core.filemode=false` — **the default on Windows/NTFS** — git ignores worktree permission bits
+  `core.filemode=false`, **the default on Windows/NTFS**, git ignores worktree permission bits
   entirely and stages every file `100644`, so `chmod +x` alone NEVER reaches the index and
   `git update-index --chmod=+x` is the only thing that can produce a `100755` entry. The script
   always performs both writes, and the test suite pins the case with `core.filemode` set explicitly
@@ -4000,26 +4095,26 @@ All notable changes to the `source-control` plugin are documented here. Format f
   staged at `100644` despite `chmod +x`, and the new check caught them pre-commit.
 
 - **A per-commit checklist at the top of the hub (#1583)**, as the cheap re-anchor for a session
-  that has drifted — seven numbered steps, stated as commands rather than facts to recall.
+  that has drifted: seven numbered steps, stated as commands rather than facts to recall.
 
 - **Pre-computed probes of all three config layers (#1583).** A skipped resolution was previously
   invisible. The tracked-team probe tests **tracked-ness** via `git ls-files --error-unmatch`, not
-  file existence, and reports an untracked file at that path as `present but UNTRACKED — not a
-  config layer` — preserving the rule 0.25.1 established, rather than reintroducing it as a
-  drafting-surface bug.
+  file existence, and reports an untracked file at that path as
+  `present but UNTRACKED — not a config layer`, preserving the rule 0.25.1 established, rather than
+  reintroducing it as a drafting-surface bug.
 
 ### Changed
 
 - **The `Co-Authored-By` context clause is now OPTIONAL, and the harness is named in the ladder
   (#1581).** The default template mandated `(<context>)`; a census of this repo found compliance not
-  merely low but collapsing — 41.6% of trailers carry the clause over the last 150 commits, 12.1%
+  merely low but collapsing: 41.6% of trailers carry the clause over the last 150 commits, 12.1%
   over the last 40. A mandate nobody follows is worse than no mandate, so the default is now the
   context-free form with the clause as an optional addition.
 
   The ladder also gains the rung it never had. Harness-injected commit guidance is neither a config
   layer nor a project convention, so a session receiving both it and this skill had no stated
   tiebreak. It is now rung 3, with an explicit rule: adopt its **shape**, never its **literal text**.
-  Observed first-hand — that injected guidance can carry a **hardcoded model name that does not match
+  Observed first-hand: that injected guidance can carry a **hardcoded model name that does not match
   the running session** (a `Fable 5` trailer injected into an Opus 5 session), and copying it verbatim
   writes a false provenance claim into durable git history, which is precisely the harm the template
   exists to prevent.
@@ -4027,13 +4122,13 @@ All notable changes to the `source-control` plugin are documented here. Format f
   The originating audit's "62 of 74 trailers" figure does **not** reproduce on any window of this
   branch (at the window where the total is 74, the non-compliant count is 49); the figures were
   wrong, the direction right, the trend worse than claimed. Its suggestion to "have setup write an
-  explicit `trailer_policy`" is **refuted as already-done** — `trailer_policy` is a documented key
+  explicit `trailer_policy`" is **refuted as already-done**. `trailer_policy` is a documented key
   and `/source-control:setup` already interviews for and writes it.
 
 - **Composition is now two named forms, and "remembered convention" is neither (#1583).** "Compose by
   natural-language reference" was ambiguous between re-invoking `/commit` and following an absorbed
   convention from memory. A composing skill must now name which it is doing: re-invoke, or run the
-  per-commit checklist itself as commands. The policy also names *what* decays — not the message
+  per-commit checklist itself as commands. The policy also names *what* decays: not the message
   shape, which is reinforced visibly every commit, but the ordered per-commit checks, which produce
   no signal when skipped.
 
@@ -4041,9 +4136,9 @@ All notable changes to the `source-control` plugin are documented here. Format f
   re-attaches only the first 5,000 tokens of each invoked skill
   (<https://code.claude.com/docs/en/skills>, "Skill content lifecycle", fetched 2026-07-26), and the
   hub was spending that window on ~130 lines of pathspec/hide-restore and format-check edge
-  machinery while the per-commit checks sat in the tail that gets dropped first. Four spokes now
-  carry the depth — `reference/format-check.md`, `reference/exec-bit.md`,
-  `reference/pathspec-commits.md`, `reference/staging-preconditions.md` — and the hub leads with the
+  machinery while the per-commit checks sat in the tail that gets dropped first. The depth now
+  lives in four spokes: `reference/format-check.md`, `reference/exec-bit.md`,
+  `reference/pathspec-commits.md`, and `reference/staging-preconditions.md`. The hub leads with the
   checklist, staging rules, and commit mechanic. No rule was dropped; the staging preconditions keep
   their detection command and action inline as a table, with only the per-condition rationale moved.
 
@@ -4061,14 +4156,14 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **`source-control-babysit-merge`'s `--allow-unpinned-head` guard now strips an `=value` tail
   before the prefix comparison (#1522).** The guard refuses the flag and every long-option prefix
   of it via `"--allow-unpinned-head" == "$arg"*`, but `--allow-unpinned-head=true` is not itself a
-  prefix of `--allow-unpinned-head` — the `=true` suffix broke the match, so the wrapper let the
+  prefix of `--allow-unpinned-head`. The `=true` suffix broke the match, so the wrapper let the
   argument through and argparse rejected it instead (the flag is `store_true`, which never accepts
   an explicit argument). The refusal was still real today, but incidentally so: it depended on the
-  interpreter behind the wrapper exactly as this guard exists to not do — the moment the guarded
+  interpreter behind the wrapper exactly as this guard exists to not do. The moment the guarded
   flag (or an equivalent guarded flag) accepted a value, the same test would have stopped refusing
   anything, silently. Fixed by stemming each argument on its first `=` before the prefix test.
   `engine.test.sh` gains a `check_wrapper_refusal` helper that asserts the wrapper's own refusal
-  text on stderr (not just exit code — exit 2 is shared between the wrapper's refusal and
+  text on stderr (not just exit code, since exit 2 is shared between the wrapper's refusal and
   argparse's own usage/rejection errors, so an exit-code-only assertion would have passed before
   and after this fix for different reasons) and new rows for `--allow-unpinned-head=true`,
   `--allow-unpinned=1`, and `--allow-unpinned-hea=1`, plus no-over-refusal rows for
@@ -4079,17 +4174,17 @@ All notable changes to the `source-control` plugin are documented here. Format f
 ### Added
 
 - **`babysit-loop` gains the loop-lane convention's one named, explicit paired-argument merge-rung
-  exception (#1309).** Standing merge-rung raises still bind from the team-tracked seam layer only.
+  exception (#1309).** Standing merge-rung raises still bind from the team-tracked config layer only.
   The exception: an invocation whose own argument line types both the literal `autopilot` tier
-  keyword and the dedicated raise argument `--merge c3-this-run` — each never inherited from
-  `babysit_loop_tier`, never defaulted, never supplied by a config layer, never model-composed on
-  the caller's behalf; the raise token exists for this exception alone, so a saved invocation or
-  template carrying the merge-inert `autopilot` tier keyword alone acquires no merge authority —
-  widens *that single invocation's* merge dimension up to and including C3, in a repository
-  that has already adopted the baseline rung. It persists nothing, ratifies nothing, and is not a
-  substitute for the recorded `c3-autonomous` seam flip. A merge-eligible PR blocked on a
+  keyword and the dedicated raise argument `--merge c3-this-run` widens *that single invocation's*
+  merge dimension up to and including C3, in a repository that has already adopted the baseline
+  rung. Each token is never inherited from `babysit_loop_tier`, never defaulted, never supplied by a
+  config layer, never model-composed on the caller's behalf; the raise token exists for this
+  exception alone, so a saved invocation or template carrying the merge-inert `autopilot` tier
+  keyword alone acquires no merge authority. The exception persists nothing, ratifies nothing, and
+  is not a substitute for the recorded `c3-autonomous` config flip. A merge-eligible PR blocked on a
   `needs-human` label, an open finding, or a contradictory thread gets one fresh frontier-tier
-  subagent — sharing no conversation context with whatever produced or previously reviewed the PR —
+  subagent, sharing no conversation context with whatever produced or previously reviewed the PR,
   dispatched to resolve that blocker through `babysit-prs`'s guarded-mutation path before the
   deterministic gate runs; the gate itself is never bypassed or weakened, and an unresolved or
   uncertain blocker still escalates. `babysit-prs`'s "escalate security/P1 even in autopilot" rule
@@ -4102,57 +4197,57 @@ All notable changes to the `source-control` plugin are documented here. Format f
   a class from the risk-property bundle, "not the task's surface description". C5 is two executable
   snapshot tests, either marking C5 and each failing closed when its field is unavailable: a
   cross-repository head (`isCrossRepository` / `headRepositoryOwner`), or an `authorAssociation`
-  other than `OWNER`/`MEMBER` — catching the outside collaborator whose base-repository branch
+  other than `OWNER`/`MEMBER`, catching the outside collaborator whose base-repository branch
   passes the fork test while still being an external contribution. A fork PR closing an internally
   classified C2/C3 issue is still C5; the partition never tests the author
   login against `babysit_watched_owners`, which is a repository-owner allowlist rather than a
   trusted-author list and would call every internally authored PR on an org-owned repo C5. C4
   follows the diff's blast radius: a refactor, migration, or contract change is C4 however its item
   is stamped, and a PR whose shape no longer matches its recorded class fails closed to escalation.
-- **Human blocking feedback, operator-parked items, and merge conflicts stay outside the dispatch —
+- **Human blocking feedback, operator-parked items, and merge conflicts stay outside the dispatch,
   and outside the merge-capable set.** A human `CHANGES_REQUESTED` review, explicit human blocking
   language, or an unresolved inline
-  human thread remains a stop-and-ask condition per `reference/feedback.md`'s "Human Feedback" — the
+  human thread remains a stop-and-ask condition per `reference/feedback.md`'s "Human Feedback". The
   exception does not amend it, no dispatch is made, and the rung partition withholds the PR from
   the merge-capable set entirely (routed to `safe`), because a merge-capable tier's own runbook
   widens thread scope to human threads and the base merge gate does not inspect ordinary human
   blocking comments. An item wearing the `needs-human` role label
   without the machine escalation marker is operator-*parked*, belongs to the attended queue, never
-  draws a dispatch on the label alone, and its PR is likewise withheld from the merge-capable set —
-  the merge gate does not inspect the linked item's labels. Conflicts route to the dedicated
+  draws a dispatch on the label alone, and its PR is likewise withheld from the merge-capable set,
+  since the merge gate does not inspect the linked item's labels. Conflicts route to the dedicated
   merge-only conflict
   worker; the dispatch never rebases a PR branch, which would need the force-push forbidden
   cross-tier.
 - **Edit-capable resolution runs the per-PR worker lifecycle, and the partition reruns after it.**
   A blocker needing a code change gets the isolated PR worktree, the HEAD assertion at the live PR
-  head, and the commit/refspec push `reference/safety.md` requires — the guarded wrappers implement
+  head, and the commit/refspec push `reference/safety.md` requires. The guarded wrappers implement
   merge and thread resolution and create no worktree, which a lane launched from a neutral directory
   has no substitute for. After any resolver mutation the PR is re-snapshotted and step 3's
   provenance, C4-diff, and rung partition rerun before the merge-capable invocation, so a resolution
   that expanded a C2/C3 change into a refactor or contract change leaves the eligible set rather
   than merging under a stale classification.
-- **Partition eligibility is pinned to the head SHA it examined — for every push, not only the
+- **Partition eligibility is pinned to the head SHA it examined, for every push, not only the
   resolver's.** The merge-capable invocation carries the partitioned head as its merge gate's
   `--expected-head`; a normal worker fix-push (babysit-prs Autopilot steps 1–2) moves the head off
   the pin, the pinned gate's head-match refusal blocks the merge deterministically, and the
   invocation reports the new head instead of re-pinning (babysit-prs gains the matching named
   "Lane-pinned merge authorization" exception in `reference/safety.md`). The lane reruns the
   partition on the post-push head and only a still-eligible PR gets a fresh merge-capable
-  invocation pinned to it — no head merges that the partition did not class-check.
+  invocation pinned to it, so no head merges that the partition did not class-check.
 - **The widening lasts the invocation that typed it, not one cycle.** Every `/loop` wakeup
   re-invokes the same prompt in the same session and carries the same explicit authorization, so the
   rung does not silently drop after the first cycle and no operator input is awaited that a loop
   cannot supply. It ends when a newly launched invocation omits either token of the pair.
 - **The dispatch is leased and its tier is resolved, not named.** It acquires, heartbeats, and
-  releases the PR's own worker lease around itself — the guarded-mutation wrappers pin comment
-  state, they do not confer concurrency ownership — and a lease another worker holds means no
+  releases the PR's own worker lease around itself. The guarded-mutation wrappers pin comment
+  state, they do not confer concurrency ownership. A lease another worker holds means no
   dispatch. Its capability tier is requested as the convention's §3 frontier row and resolved to a
   live-updating model alias by that section's runtime-resolution rule, rather than a `fable`/`opus`
   family alias written into the lane as the tier's definition; a run that cannot establish which
   alias currently satisfies `frontier` escalates instead of dispatching, because inheriting the
   session's model would forfeit the capability the dispatch stands on.
-- **C4/C5 floor stated as unconditional across the merge surface.** No rung, no seam config, and no
-  invocation argument — including this exception and including `full-autonomy` — ever grants merge
+- **C4/C5 floor stated as unconditional across the merge surface.** No rung, no config key, and no
+  invocation argument, including this exception and including `full-autonomy`, ever grants merge
   authority over a `work-class: structural` (C4) or `work-class: untrusted-provenance` (C5) item.
   This was already the autonomy matrix's promotion contract ("never promotes"); `babysit-loop`,
   `reference/config-resolution.md`, and the convention now say so explicitly rather than leaving it
@@ -4164,7 +4259,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **`prune_babysit_worktrees.py` hardened against orphaned worktree state (#816).** Two related gaps
   observed at queue-start prune: (1) a worktree directory left behind by a lock-blocked
-  `git worktree remove` (its administrative record dropped, the directory itself surviving — most
+  `git worktree remove` (its administrative record dropped, the directory itself surviving, most
   commonly on Windows) made every subsequent prune run error `fatal: not a git repository` on that
   entry instead of self-healing; (2) the lock-blocked removal itself silently left the residual
   directory with no signal. `git_status` failures now distinguish "this path is no longer a valid git
@@ -4174,7 +4269,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   (`drop_orphaned_worktree` / `remove_empty_orphan_directory`, root-contained, never touching an
   orphan's contents since git never confirmed it safe to discard), reported via a new
   `drop_orphan` row action rather than flipping the run's exit code. Self-healing is gated on
-  `--apply` like every other mutation the script performs — the flagless run stays the documented
+  `--apply` like every other mutation the script performs. The flagless run stays the documented
   always-safe report, naming the orphan with `dropped: false` and leaving it on disk.
   `remove_worktree` now
   verifies the directory actually left disk after a *successful* `git worktree remove`
@@ -4183,44 +4278,44 @@ All notable changes to the `source-control` plugin are documented here. Format f
   a silent orphan for a future run to stumble over. The stale-lease drop is scoped to leases that are
   actually stale: when `--lease-token` matched the caller's own unexpired hold, the record survives
   the orphan cleanup (`preserve_lease`), because the documented scoped form prunes while that lease
-  is still held and releases it in the next step (`reference/orchestration.md` "Cleanup") — unlinking
+  is still held and releases it in the next step (`reference/orchestration.md` "Cleanup"). Unlinking
   it here turned a successful cleanup into a `lease does not exist` release failure and dropped
   ownership early. Orphan detection no longer rests on `fatal: not a git repository` alone: `git -C
   <path>` runs *as if git had started in that directory*
   ([git-scm.com](https://git-scm.com/docs/git#Documentation/git.txt--Cltpathgt)), so when the
   worktree root itself sits inside another checkout, ordinary upward discovery answers `git status`
-  from that ancestor and the orphan reads as healthy — an open PR's entry then sticks as `keep_open`
+  from that ancestor and the orphan reads as healthy. An open PR's entry then sticks as `keep_open`
   and a closed one errors in `git worktree remove`, leaving the directory forever.
   `is_orphaned_entry` compares `rev-parse --show-toplevel` against the candidate path, so an
-  ancestor's answer is an orphan too. A non-empty orphan — never force-deleted, since git never
-  confirmed its contents safe to discard — is now reported `dropped: false` with
+  ancestor's answer is an orphan too. A non-empty orphan, never force-deleted since git never
+  confirmed its contents safe to discard, is now reported `dropped: false` with
   `residual_directory: true` and a stderr warning rather than claiming a cleanup that did not
   happen at a deterministic path where a replacement worktree still cannot be created.
   - **A removed orphan directory no longer implies a reusable path.** When an entry orphans because
     its `.git` pointer was corrupted, the owning repository still holds the
     `$GIT_DIR/worktrees/<name>` record, so a later `git worktree add` at the same deterministic path
-    fails with "missing but already registered" — a directory removal alone was never the self-heal
+    fails with "missing but already registered". A directory removal alone was never the self-heal
     it reported. Each dropped orphan now carries `registration_pruned`: `pruned` when the entry's own
     `gitdir:` pointer named its repository and the record was cleared there,
     `skipped` while the directory survives, and `unresolved` when the pointer is gone. Recovering
-    ownership is the only thing that clears the uncertainty — an ancestor checkout answering for the
+    ownership is the only thing that clears the uncertainty. An ancestor checkout answering for the
     path proves nothing, because a real linked worktree nested under another checkout resolves to
-    that ancestor once its pointer is lost while its owning repository still holds a prunable record
-    — so "never registered" and "registered, pointer gone" both stay `unresolved` rather than being
+    that ancestor once its pointer is lost while its owning repository still holds a prunable record,
+    so "never registered" and "registered, pointer gone" both stay `unresolved` rather than being
     assumed apart. Anything but `pruned` also sets `stale_registration` and warns on stderr naming
     `git worktree prune`. `dropped` keeps its existing directory-scoped meaning.
   - **A lone dangling `.git` gitfile no longer counts as directory contents.** The emptiness check
     that guards orphan removal treated the pointer file as user work, so the one orphan whose owner
-    *is* knowable — pointer readable, contents gone — always reported `directory_removed: false` and
+    *is* knowable, pointer readable and contents gone, always reported `directory_removed: false` and
     never reached the prune, making the recoverable self-heal unreachable exactly where it works. A
     sole `.git` **file** is now unlinked as the bookkeeping it is; a `.git` **directory** is still
     never touched, since that is a standalone repository rather than a linked worktree's pointer.
-    The pointer is **restored** when the subsequent `rmdir` fails — it is the only record of the
+    The pointer is **restored** when the subsequent `rmdir` fails. It is the only record of the
     owning repository, so discarding it on a lock would turn a retryable failure into a permanent
     `unresolved` for every later run.
   - **A bare-clone hub's registration is recoverable too.** The owning repository is derived from the
     record's own `worktrees/<name>` structure rather than from a `.git`-named ancestor, so a hub
-    whose common directory is `hub.git` — a layout `repo_path` already supports — no longer resolves
+    whose common directory is `hub.git`, a layout `repo_path` already supports, no longer resolves
     to nothing and goes unpruned.
   - **`pruned` is now verified, not inferred from the exit status.** `git worktree prune`
     deliberately keeps a **locked** record and still exits 0, so a locked orphan reported a completed
@@ -4231,21 +4326,21 @@ All notable changes to the `source-control` plugin are documented here. Format f
   - **The registration cleanup is targeted, so a scoped run cannot drop an unrelated record.**
     `git worktree prune` takes no path and drops *every* prunable record in the repository, so a
     `--pr <one PR> --apply` cleanup also discarded the administrative record of any other worktree
-    whose directory happened to be missing at that moment — an unmounted share, a removable drive, a
-    checkout mid-restore — despite it being outside the requested scope. Reproduced on git
+    whose directory happened to be missing at that moment, despite it being outside the requested
+    scope: an unmounted share, a removable drive, a checkout mid-restore. Reproduced on git
     2.55.0.windows.3: register two worktrees, delete both directories, prune on behalf of one, and
     both records vanish. The record is now cleared with `git worktree remove <path>`, which names its
     one target and behaves identically from a standard clone and a bare hub. Deliberate consequence:
-    unrelated stale records are no longer swept up as a side effect — clearing those stays
+    unrelated stale records are no longer swept up as a side effect. Clearing those stays
     `git worktree prune`'s job, run by the operator or by `git gc`, not a decision a single-PR
     cleanup makes. The verification-by-`worktree list` rule above is what keeps the swap honest in
     both directions, since `remove` exits nonzero both for a locked record (correctly `failed`) and
     for a record that is already gone (correctly `pruned`). `--force` is never passed, and a
-    still-present directory returns `skipped` rather than being handed to a command that — unlike
-    `prune` — would delete its contents.
+    still-present directory returns `skipped` rather than being handed to a command that, unlike
+    `prune`, would delete its contents.
   - **A corrupted pointer is an orphan, not a hard error.** git answers a malformed `.git` with
     `fatal: invalid gitfile format`, not the missing-repository wording, so the detector re-raised
-    and every run reported `action: error` for that entry instead of healing it — despite a
+    and every run reported `action: error` for that entry instead of healing it, despite a
     corrupted pointer being one of the states this change exists to clear. The marker set now covers
     it (verified against git's actual C-locale output for a deleted, dangling, and malformed
     pointer) while still re-raising every unrelated git failure.
@@ -4254,7 +4349,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
     diagnostics, so on a localized machine every orphan surfaced as an unrelated error and never
     reached the self-healing path. That probe now pins `LC_ALL=C` (and clears `LANGUAGE`, which
     outranks it for GNU gettext) through a new `env_overrides` parameter on the shared
-    `run_command` seam, so the marker is only ever matched against output whose wording is
+    `run_command` helper, so the marker is only ever matched against output whose wording is
     guaranteed.
 
 ## [0.31.7]
@@ -4263,12 +4358,12 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **`babysit-prs`'s one-verdict-per-run claim now scopes out the help form (#1434).**
   `reference/safety.md`'s Lane-Script Reachability section said `babysit-readiness-gate.sh` emits
-  exactly one `READINESS_*` line on stdout on every run, failure paths included — but
+  exactly one `READINESS_*` line on stdout on every run, failure paths included, but
   `skills/setup/SKILL.md`'s reachability canary runs the gate with `--help`, which prints usage and
   exits 0 with no verdict. That form was always the intended non-mutating canary target, and `#787`
   already carried this exemption in the script's own header; `safety.md`'s wording was never updated
   to say so, leaving a reader to treat the canary as a contract violation. Narrowed the claim to
-  every run that attempts a check and named the help form as the stated exemption — both `--help`
+  every run that attempts a check and named the help form as the stated exemption: both `--help`
   and its `-h` alias, which the script's argument parser handles in one branch, so naming only the
   long form would have left the identical short-form invocation reading as a contract violation.
   Documentation only; no script behavior change.
@@ -4287,17 +4382,17 @@ All notable changes to the `source-control` plugin are documented here. Format f
     delivery path is the session snapshot's final `export PATH=` line; when it does not land, every
     enabled plugin's `bin/` goes with it
     ([anthropics/claude-code#68066](https://github.com/anthropics/claude-code/issues/68066), which
-    reports the same signature on macOS/zsh and supplies the mechanism — the Windows/Git-Bash
+    reports the same signature on macOS/zsh and supplies the mechanism, while the Windows/Git-Bash
     evidence is the local survey, not that issue). The earlier "never delivered here" reading came
     from sampling only sessions in which it was missing.
   - **A path invocation cannot match a bare-name allow rule.** Claude Code strips only a fixed
     wrapper set before matching Bash rules (`timeout`, `time`, `nice`, `nohup`, `stdbuf`, `command`,
-    `builtin`, `noglob`, bare `xargs` — [permissions](https://code.claude.com/docs/en/permissions));
+    `builtin`, `noglob`, bare `xargs`, per [permissions](https://code.claude.com/docs/en/permissions));
     `bash` is not among them. So `Bash(source-control-babysit-merge:*)` does not cover the
     `bash "…/bin/…"` form this skill uses, and what follows is the permission mode's call rather
     than a misconfiguration: a mode that prompts issues a per-call prompt, while
     [auto mode](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode)
-    issues none — it routes the uncovered call to its classifier, which may approve or deny it
+    issues none. It routes the uncovered call to its classifier, which may approve or deny it
     silently, so an operator must read `/permissions` → **Recently denied** rather than wait for a
     prompt. `safety.md` also records that
     [`autoMode.classifyAllShell`](https://code.claude.com/docs/en/auto-mode-config#route-all-shell-commands-through-the-classifier)
@@ -4305,7 +4400,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
   Guidance is unchanged and was already correct: the `${CLAUDE_PLUGIN_ROOT}/bin/` path form is
   canonical because it is the only form that runs in both `PATH` states. Only the justification
-  changed, and it mattered — a reader who checked on a session where the bare name *did* resolve
+  changed, and it mattered: a reader who checked on a session where the bare name *did* resolve
   found the doc contradicting their own shell, and the documented reason to keep the path form
   disappeared exactly when it looked safe to drop.
 
@@ -4321,11 +4416,11 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `READINESS_BLOCKED reason=under-decomposed` even though the finding genuinely was classified.
   Matching is now case-insensitive, and the token must open a table cell, optionally followed by an
   annotation introduced by punctuation. That punctuation requirement is what separates the
-  disposition values `reference/review-discipline.md` documents — `VALID — fixing`, `VALID (defer)`,
-  `VALID — fix now` — from prose that merely starts with a disposition word. Scanning the whole line
-  instead credited `| CI check | result is valid |`, and accepting a bare space before the
-  annotation credited `| 2 | c2 | Valid cache entries are rejected | | |`; either miss lets an
-  unclassified finding past the under-decomposition gate. The decoration allowed before the token
+  disposition values `reference/review-discipline.md` documents from prose that merely starts with a
+  disposition word. Those values are `VALID — fixing`, `VALID (defer)`, and `VALID — fix now`.
+  Scanning the whole line instead credited `| CI check | result is valid |`, and accepting a bare
+  space before the annotation credited `| 2 | c2 | Valid cache entries are rejected | | |`; either
+  miss lets an unclassified finding past the under-decomposition gate. The decoration allowed before the token
   and the character required after it exclude word characters rather than only letters, so `valid2`,
   `2valid` and `VALID_TOKEN` no longer satisfy the token, and "invalid"/"INVALID" still does not
   false-match "valid"/"VALID". One predicate drives both the classified count and the self-row
@@ -4343,7 +4438,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   both halves to `-s user`. When this plugin is installed at `project` or `local` scope, that
   silently uninstalled a separate user-scope record while the effective project/local install kept
   loading, and the reinstall landed at a scope that does not load. Both commands now carry
-  `-s <scope>`, sourced from what `claude plugin list` reports for this plugin — the same fix
+  `-s <scope>`, sourced from what `claude plugin list` reports for this plugin, the same fix
   already applied to `session-flow` and `rate-limit-guard` in #1393.
   The recipe also now requires the reinstall to re-supply **every** key whose value should
   stay non-default, not only the key being changed: uninstalling drops the stored
@@ -4360,8 +4455,8 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `human_blocking` and `human` are empty; since `collect_feedback` places every record in exactly one
   bucket and `classify_pr` surfaces four, all four empty rules out every bucket the snapshot projects.
   Elimination alone still could not tell "routed to `ignored`" from "dropped before reaching any
-  bucket", so the test now also calls `collect_feedback` directly on the same fixture — under the
-  same `FeedbackConfig` `classify_pr` passes down — and asserts the record is in `ignored` carrying
+  bucket", so the test now also calls `collect_feedback` directly on the same fixture, under the
+  same `FeedbackConfig` `classify_pr` passes down, and asserts the record is in `ignored` carrying
   the `approval_verdict` downgrade marker, which pins the arrival branch rather than only the
   destination. #578 asked for a direct assertion on `feedback["ignored"]`: that holds at the
   `collect_feedback` layer, but not on the snapshot's `feedback` mapping, which deliberately does not
@@ -4374,15 +4469,15 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **`babysit-prs` worktree pruning no longer gives a false all-clear for a non-conforming directory
   name (#555).** `prune_babysit_worktrees.py` derives each worktree's PR identity from its directory
   name, and a directory that did not match `<owner>__<repo>__pr-<number>` was dropped before the
-  report was built — not kept, not removed, not an error, simply absent. A caller reading the JSON to
+  report was built: not kept, not removed, not an error, simply absent. A caller reading the JSON to
   answer "is anything left to clean up?" saw an empty list while merged PRs' worktrees sat on disk,
   and had to find and `git worktree remove` them by hand. Every directory under `<worktree-root>` now
   appears in the report; an unmappable one is an explicit `action: unrecognized` row carrying its path
-  and the reason, in every mode including `--pr` — an unrecognized entry has no key to match a target
+  and the reason, in every mode including `--pr`, since an unrecognized entry has no key to match a target
   against, so leaving it to that filter would hide it from every scoped run (a recognized non-target
   worktree is out of the caller's declared scope and still appears in an unscoped run). Unrecognized
-  entries are never removed — identity is a precondition for the PR-state and worker-lease checks
-  that authorize removal — and do not fail the run. `reference/worktrees.md` now states the naming
+  entries are never removed, since identity is a precondition for the PR-state and worker-lease
+  checks that authorize removal, and do not fail the run. `reference/worktrees.md` now states the naming
   convention that was previously only implied by the helper's regex, plus what happens to a
   directory that breaks it.
 
@@ -4396,19 +4491,19 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `extra_bot_logins` config, unlike every other classifier call site (e.g. `actor_kind` in
   `babysit_classify.py`). An operator who registered a non-structural bot account via
   `babysit_extra_bot_logins` (no `[bot]` login suffix, API `__typename` reports `User`) had that
-  account's threads miscategorized at both sites — pre-existing relative to #534/#634, which
+  account's threads miscategorized at both sites, pre-existing relative to #534/#634, which
   migrated these call sites to the shared classifier without introducing the omission. The script
   now accepts `--extra-bot-logins` (same comma-separated shape as the snapshot wrapper) and passes
   it to both sites; `babysit_extra_bot_logins`'s flag-delivery mapping in SKILL.md now lists
   `resolve-thread` alongside `snapshot`. Because configuration reaches these scripts only through
   CLI flags, the mapping alone would have left the flag unused: every exact resolver command form
-  the agent copies — the two pinned degradation commands in `reference/safety.md`, the Worker
-  Contract clause and the Worker Prompt Template in `reference/orchestration.md`, and the
-  thread-resolution bullet in SKILL.md — now carries `--extra-bot-logins <extra-bot-logins>`, and
-  `safety.md` states the rule so a future command form does not drop it again. The module docstring
+  the agent copies now carries `--extra-bot-logins <extra-bot-logins>`. Those forms are the two
+  pinned degradation commands in `reference/safety.md`, the Worker Contract clause and the Worker
+  Prompt Template in `reference/orchestration.md`, and the thread-resolution bullet in SKILL.md.
+  `safety.md` also states the rule so a future command form does not drop it again. The module docstring
   argparse renders as `--help` no longer claims bot identity comes from API signals alone: it now
   names `--extra-bot-logins` as the one operator-supplied exception, so someone auditing this
-  privileged helper reads the capability it actually has. Low severity — dormant unless an operator
+  privileged helper reads the capability it actually has. Low severity: dormant unless an operator
   has configured the userConfig key for a non-structurally-detected bot account.
 
 ## [0.31.0]
@@ -4417,24 +4512,24 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **No babysit parser resolves a flag abbreviation any more, and the property is now the
   directory's rather than two files' (`#1371`).** A permission grant states its condition as the
-  literal presence or absence of a flag in the command text — above all "no `--merge` means
+  literal presence or absence of a flag in the command text, above all "no `--merge` means
   check-only". Argparse's default prefix abbreviation lets `--mer` resolve to `--merge` while the
   command text contains no such flag, so the written command and the resolved behavior diverge,
   which is exactly what such a condition must be able to rule out. `#1354` closed this on
-  `babysit_merge.py` and `babysit_resolve_thread.py`; the remaining seven entry points —
-  `babysit_findings.py`, `manage_babysit_lease.py`, `manage_feedback_ledger.py`,
-  `pr_queue_snapshot.py`, `prune_babysit_worktrees.py`, `refresh_pr_branch.py`, and
-  `request_review.py` — still inherited the default. All nine now set `allow_abbrev=False`.
+  `babysit_merge.py` and `babysit_resolve_thread.py`; the remaining seven entry points still
+  inherited the default: `babysit_findings.py`, `manage_babysit_lease.py`,
+  `manage_feedback_ledger.py`, `pr_queue_snapshot.py`, `prune_babysit_worktrees.py`,
+  `refresh_pr_branch.py`, and `request_review.py`. All nine now set `allow_abbrev=False`.
 
   Hardening them one at a time is what let the gap persist, so the guard contract gains a gate over
   the whole catalogue: every Python entry point is invoked with an unambiguous three-character
   prefix of `--help` and must not exit 0. `--help` is registered on every parser, and it
-  short-circuits parsing — so an abbreviation that resolves exits 0 before required-argument
+  short-circuits parsing, so an abbreviation that resolves exits 0 before required-argument
   validation runs, while one that does not is a usage error. That makes the exit code a sufficient
   discriminator without a per-CLI argument shape, and a companion test asserts the discrimination
   against argparse itself rather than assuming it. Three characters because
   `manage_babysit_lease.py` also registers `--heartbeat-interval-seconds`, so a shorter prefix is
-  ambiguous there and exits 2 regardless — the probe would have passed on that entry point while
+  ambiguous there and exits 2 regardless, so the probe would have passed on that entry point while
   proving nothing. A tenth entry point arriving with the default now fails CI instead of shipping.
 
   Abbreviated invocations that previously worked are now usage errors, which is the point.
@@ -4446,13 +4541,13 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **`babysit-readiness-gate.sh` emits a `READINESS_UNPROVEN` verdict instead of going silent
   (`#787`).** Its header promised a machine-readable verdict on every check run, but the
   invalid-argument (exit 3) and prerequisite-missing / fetch-failed (exit 4) paths wrote to stderr
-  only. A caller grepping stdout for a verdict therefore saw *nothing* on those paths — identical to
+  only. A caller grepping stdout for a verdict therefore saw *nothing* on those paths, identical to
   what it sees when the gate was never invoked at all, which is how a blocked gate could be reported
   as readiness. Every *check* run now prints exactly one `READINESS_*` line;
   `READINESS_UNPROVEN reason=<bad-args|identity-unresolved|prereq-missing|comments-unreadable|checklist-unreadable|fetch-failed> pr=<n>`
   joins `READINESS_OK` and `READINESS_BLOCKED`. Exit codes are unchanged, so existing callers keyed
   on them are unaffected.
-  `--help` is explicitly outside the contract — it prints usage and exits 0 with no verdict — and
+  `--help` is explicitly outside the contract, since it prints usage and exits 0 with no verdict, and
   the header no longer un-indents a `READINESS_*` token into its own help output, where a caller's
   `^READINESS_` grep read documentation as a malformed verdict. The header is now printed by
   derivation from the comment block rather than a hardcoded line range that silently truncated as
@@ -4471,45 +4566,45 @@ All notable changes to the `source-control` plugin are documented here. Format f
   denied-*mutation* case; this covers the denied-*check* case, which has no ready-to-execute handoff
   because nothing was proven ready.
 - **`babysit-prs` declares auto-mode reachability of its own scripts as a prerequisite (`#787`).**
-  A host permission classifier can deny the lane's bundled scripts — including the *read-only*
-  merge-readiness check, which mutates nothing — leaving the lane unable to gate-prove readiness.
+  A host permission classifier can deny the lane's bundled scripts, including the *read-only*
+  merge-readiness check, which mutates nothing, leaving the lane unable to gate-prove readiness.
   That reachability is now a declared prerequisite alongside Python, stated with the difference that
   matters: the paths that *prove readiness* have **no degrade tier**, because the Python-free path
   also proves readiness with a bundled script and a verdict never produced cannot be handed to
-  anyone. A denied *mutation* is deliberately outside that narrowing — there the gate has already
+  anyone. A denied *mutation* is deliberately outside that narrowing. There the gate has already
   proven the PR ready, so Pinned-Command Degradation still degrades it to an operator handoff. The
   contract lives in `skills/babysit-prs/reference/safety.md` "Lane-Script
   Reachability", which points at the host's auto-mode configuration reference for the permission
   semantics rather than restating them, and names the operator's verification step
   (`claude auto-mode config`). The section states its evidence plainly: `#787`'s own denial was of a
   raw wildcarded-interpreter form that auto mode drops by design and that the `bin/`-path wrapper
-  has since superseded, so the prerequisite generalizes from `melodic-software/dotfiles#315` — where
-  `autoMode.classifyAllShell` suspended twelve purpose-built lane-script grants — rather than
+  has since superseded, so the prerequisite generalizes from `melodic-software/dotfiles#315`, where
+  `autoMode.classifyAllShell` suspended twelve purpose-built lane-script grants, rather than
   reproducing that ticket.
 - **The disputed retry semantics of a classifier denial are flagged, not settled (`#455`).** The
   Harness Permission Layer's "never retry a harness permission denial" rule is contested by `#455`,
   which records a classifier denial whose retry succeeded. The new reachability section sits
   directly beneath that rule and restates it, so a note now marks the question open and points at
-  `#455` — the restatement is inherited, not fresh confirmation.
+  `#455`. The restatement is inherited, not fresh confirmation.
 
 ### Changed
 
 - **`setup`'s babysit `check` gained an executable lane-script reachability canary (`#787`).** So
   the prerequisite surfaces before a cycle rather than mid-cycle. The probe runs the lane's mandated
-  invocation forms against non-mutating targets — **both** path prefixes
+  invocation forms against non-mutating targets, **both** path prefixes
   (`bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-merge" --help` and
   `bash "${CLAUDE_PLUGIN_ROOT}/scripts/babysit-readiness-gate.sh" --help`, each exiting 0 without
-  network or GitHub access) — and treats a tool-call denial on either as a **FAILED** prerequisite.
+  network or GitHub access), and treats a tool-call denial on either as a **FAILED** prerequisite.
   Probing only the `bin/` wrapper would have certified a path the lane's own readiness verdict never
   travels: an allow rule or classifier decision covering one prefix says nothing about the other.
   A *pass*, though, is only reachability: the classifier decides per call, so a permitted `--help`
   cannot certify the production argument shapes, and the probes stay `--help`-only on purpose
   because the merge wrapper's read-only production shape is a live GitHub call a `check` run must
   not make. The skill states that limit rather than over-claiming, and names what covers the
-  residual gap — a mid-cycle denial is already fail-honest through `READINESS_UNPROVEN` and the
+  residual gap: a mid-cycle denial is already fail-honest through `READINESS_UNPROVEN` and the
   §5.5 verbatim verdict quote above.
   The earlier draft only reported settings surfaces as INFO, and instructed enumerating the scopes
-  the classifier reads — for which no executable path exists, since the managed scopes are not
+  the classifier reads, for which no executable path exists, since the managed scopes are not
   ordinary readable settings files. That clause is dropped in favour of `claude auto-mode config`,
   which prints the effective merged configuration across the scopes it can see; it stays INFO,
   because settings cannot prove what a per-call classifier decides. Because `--settings` is a
@@ -4523,19 +4618,19 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **A malformed comment payload no longer reads as readiness.** `babysit-readiness-gate.sh` fed its
   counters straight from `--comments-json` (or the live fetch) with jq's stderr suppressed and its
   exit status unchecked, so a snapshot that was truncated, hand-edited, or simply not a JSON array
-  produced zero findings and a `READINESS_OK findings=0` verdict — a ready claim derived from data
+  produced zero findings and a `READINESS_OK findings=0` verdict, a ready claim derived from data
   the gate never read, and the exact fail-open shape this release exists to close. The resolved
   payload is now shape-checked once, the body extractions surface their own failures instead of
   swallowing them, and every such path routes through `READINESS_UNPROVEN reason=comments-unreadable`
   at exit 4. The check covers the ELEMENTS, not just the container: `type == "array"` alone still
   admitted `[null]` and `[{}]`, whose missing fields the counters' own `.body // ""` coalesced to an
-  empty string — the same false-ready verdict reached through a well-formed container holding
+  empty string, the same false-ready verdict reached through a well-formed container holding
   elements the gate cannot read. Every element must now be an object carrying `author` and `body` as
   strings, which is exactly how the counters consume them (`author` matched against the self list,
   `body` grepped for severity markers); a non-string in either position is unreadable, not empty. An
   empty array and an empty `body` string stay legitimate and still reach a verdict.
 - **A `<pr>` argument can no longer forge a verdict line.** Every `READINESS_*` line interpolates
-  the PR reference as `pr=%s`, and the value was stored unvalidated — so a positional argument
+  the PR reference as `pr=%s`, and the value was stored unvalidated, so a positional argument
   carrying a newline emitted *additional* lines into the machine-readable output. A caller reading
   the first `READINESS_*` line could be handed a forged `READINESS_OK findings=0` ahead of the real
   verdict, which turns the exactly-one-verdict contract into a forgery channel. `<pr>` is now
@@ -4550,37 +4645,37 @@ All notable changes to the `source-control` plugin are documented here. Format f
   through `READINESS_UNPROVEN reason=comments-unreadable` before the payload is examined at all.
 - **A comment from a deleted GitHub account no longer makes the gate permanently unprovable.** The
   element check required `.author` to be a string, but GitHub returns `author: null` for a comment
-  whose account was deleted and `fetch-all-pr-comments.sh` passes that through — so one such
+  whose account was deleted and `fetch-all-pr-comments.sh` passes that through, so one such
   comment anywhere on a PR rejected the whole live snapshot as unreadable. Fail-closed against the
   wrong thing: the payload was fine. `.author` is now string-or-null while `.body` stays strictly a
-  string, and a *missing* `author` key is still malformed (`has("author")` is what separates them —
-  jq reports both an explicit null and an absent key as type `null`). A null author reads as
+  string, and a *missing* `author` key is still malformed (`has("author")` is what separates them,
+  since jq reports both an explicit null and an absent key as type `null`). A null author reads as
   non-self on both counters, so the comment counts as a finding source exactly as an unrecognized
   login would, and can never be credited as a self classification row.
 - **The §5.5 report template no longer offers an abbreviated verdict to paste.** It listed
   `READINESS_UNPROVEN <reason>` as a shape to choose while the surrounding contract requires
-  quoting the gate's stdout verbatim — but the gate prints `reason=<reason> pr=<n>`, and the
+  quoting the gate's stdout verbatim, but the gate prints `reason=<reason> pr=<n>`, and the
   OK/BLOCKED forms carry count fields the menu dropped. A worker following the template produced a
   reconstruction, which carries none of the provenance the verdict contract rests on. The field now
   requires the captured line exactly as printed.
 - **The guard contract's documented-command check now covers the reachability canary, and stops
   rejecting `--help`.** `skills/setup/SKILL.md` and this changelog both spell out the canary
-  invocation, so the completeness gate correctly demanded `DOC_COMMAND_SOURCES` rows for them —
+  invocation, so the completeness gate correctly demanded `DOC_COMMAND_SOURCES` rows for them,
   and then rejected the command, because accepted flags are read from the parser's usage block and
   argparse renders the `--help` pair as `-h` there. `--help` is now added back on the evidence of
   the check's own call: that invocation *is* `--help` and it exits 0, which is stronger proof of
   acceptance than the usage text gives any other flag.
 - **An unreadable `--checklist` no longer reads as a clean one.** The R6 count ran
   `grep -c … || true`, which collapses grep's two distinct nonzero statuses into one: 1 means "no
-  unticked box" — a clean checklist — while 2 means the file could not be read. Both produced an
+  unticked box", a clean checklist, while 2 means the file could not be read. Both produced an
   empty count that normalized to zero, so a checklist lost to a permission or I/O error emitted
   `READINESS_OK … checklist=clean`. Zero matches and zero readable lines are the same number and
   only one of them is evidence. The read status is now captured: 1 stays clean, anything above it
   is `READINESS_UNPROVEN reason=checklist-unreadable` at exit 4, alongside the payload fail-open
   above.
 - **An identity-lookup failure is no longer reported as a bad argument.** With neither `--self` nor
-  `--extra-self` supplied and the supported `gh api user` default failing — expired auth, an
-  unreachable API, an offline snapshot replay — the arguments were valid but stdout said
+  `--extra-self` supplied and the supported `gh api user` default failing, whether from expired
+  auth, an unreachable API, or an offline snapshot replay, the arguments were valid but stdout said
   `reason=bad-args`. Since §5.5 quotes that verdict verbatim, it pointed operators and automation at
   flags that were already correct. The path now emits `reason=identity-unresolved`, keeping exit 3
   so callers keyed on the code are unaffected.
@@ -4593,15 +4688,15 @@ All notable changes to the `source-control` plugin are documented here. Format f
   records the flags a `bin/` wrapper refuses before Python runs, and a check already proved every
   *listed* flag is one a `bash-wrapper` refusal row invokes the wrapper to demonstrate. Nothing
   proved the converse: a new refusal row could demonstrate a second refused flag while the table
-  stayed silent about it, leaving that flag spellable in a documented command — the table would be a
+  stayed silent about it, leaving that flag spellable in a documented command. The table would be a
   subset of the wrapper's behavior while reading as a statement of it. Every bash-wrapper refusal
   row's named flag must now be covered by the table. A companion assertion pins the premise the
   separate wrapper check rests on: the merge parser *does* register `--allow-unpinned-head`, which is
-  exactly why a CLI-only check cannot see the wrapper's refusal — if that stops holding, the two
-  checks have collapsed into one and the narrowing is no longer load-bearing. The reverse check also
+  exactly why a CLI-only check cannot see the wrapper's refusal. If that stops holding, the two
+  checks have collapsed into one and the narrowing is no longer necessary. The reverse check also
   requires each bash-wrapper row to name a `--flag` in `error_contains`: that field is a tuple of
-  asserted output substrings with no invariant that any of them is a flag, so an empty tuple — or an
-  option recorded without its leading dashes — would have passed vacuously, leaving exactly the
+  asserted output substrings with no invariant that any of them is a flag, so an empty tuple, or an
+  option recorded without its leading dashes, would have passed vacuously, leaving exactly the
   omission the check exists to catch.
 
 ## [0.29.0]
@@ -4612,22 +4707,22 @@ All notable changes to the `source-control` plugin are documented here. Format f
   resolution to a dedicated subagent that also pushed the result. A dispatched subagent starts with
   a fresh, isolated context window and never sees the parent conversation
   (<https://code.claude.com/docs/en/sub-agents>), so a host runtime that grants mutation authority
-  only from the operator's own turn cannot observe that grant from inside one — such a push could
+  only from the operator's own turn cannot observe that grant from inside one. Such a push could
   only ever be refused by that gate or route around it. The conflict worker now does the base fetch,
   the head assertion, the `git merge` (never rebase), the marker resolution, the local merge commit,
   and the affected-file verification, and returns one of `resolved` / `escalate` /
-  `verification-impossible` / `no-conflict` without touching GitHub. The orchestrator — which does
-  hold the operator's turn — pushes, fail-closed: only on `resolved`, only after matching the
+  `verification-impossible` / `no-conflict` without touching GitHub. The orchestrator, which does
+  hold the operator's turn, pushes, fail-closed: only on `resolved`, only after matching the
   worktree `HEAD` to the reported merge commit, requiring it to have two parents, re-asserting the
   live PR head against its first parent, and re-running the affected-file verification in the
-  worktree itself; by refspec, never force. A conflict worker remains a worker for every other rule
-  — leases, concurrency cap, check-in — with resolving and not-pushing its only two differences.
+  worktree itself; by refspec, never force. A conflict worker remains a worker for every other rule:
+  leases, concurrency cap, and check-in. Resolving and not-pushing are its only two differences.
   Every prior invariant is preserved, now with an explicit owner. `reference/orchestration.md`
   gains the Conflict-Worker and Orchestrator contracts plus a Conflict-Worker Prompt Delta (the
   regular worker template forbids only *force*-pushing, so a conflict worker needs an affirmative
   never-push instruction); an escalating conflict worker now preserves its partial resolution on a
-  SHA-qualified `conflict-wip/<pr-number>-<short-sha>` branch — created with hook-free plumbing,
-  never a hook bypass — and exits the merge only after that preservation, so it never strands an
+  SHA-qualified `conflict-wip/<pr-number>-<short-sha>` branch, created with hook-free plumbing,
+  never a hook bypass, and exits the merge only after that preservation, so it never strands an
   unmergeable worktree and repeated escalations never collide; `reference/freshness.md` drops its drifting restatement for a pointer; `SKILL.md`,
   `reference/safety.md`, and `babysit-loop`'s Subagents section state the new boundary. Pinned by
   `test_skill_contract.py`.
@@ -4637,22 +4732,22 @@ All notable changes to the `source-control` plugin are documented here. Format f
 ### Added
 
 - **`babysit-prs` guard semantics are now an executable contract (`#1265`).** The facts a host
-  permission classifier has to know about this lane — which entry points mutate, which flags gate
-  which guard, where a refusal is enforced, and how a mutation is actually performed — were
-  restated in prose by every consumer and had nothing detecting drift. They are now a table in
+  permission classifier has to know about this lane are which entry points mutate, which flags
+  gate which guard, where a refusal is enforced, and how a mutation is actually performed. Every
+  consumer restated them in prose and nothing detected drift. They are now a table in
   `skills/babysit-prs/scripts/tests/guard_contract.py`, executed row by row against the real entry
   points by `test_guards.py`, and rendered to a citable
   `skills/babysit-prs/reference/guard-contract.md`. Every row carries the prose claim it backs, so
   a changed guard fails CI with a message naming the downstream claim that just became false. Five
   binding kinds: refusals (invoked, exit code and message asserted), predicates (the classifier
   called directly, because `--autonomous`'s `isOutdated` requirement is a condition over fetched
-  API data that no argument shape expresses), effects (run offline against a throwaway state dir —
-  this is what proves `manage_babysit_lease.py acquire` writes with no `--apply`, contrary to what
+  API data that no argument shape expresses), effects (run offline against a throwaway state dir,
+  which is what proves `manage_babysit_lease.py acquire` writes with no `--apply`, contrary to what
   its flag names suggest), mechanisms (`refresh_pr_branch.py` uses GitHub's server-side
   `update-branch` and never pushes), and documented command lines (every `bin/`-path wrapper
   command spelled in `reference/safety.md` and `reference/orchestration.md` is checked against the
   backing CLI's own parser). Catalogue gates fail when a new entry point, wrapper, or
-  command-spelling document arrives without a row — including the plugin-level
+  command-spelling document arrives without a row, including the plugin-level
   `scripts/babysit-readiness-gate.sh`, the one lane entry point outside the skill's scripts
   directory. Each binding asserts the specific claim rather than a proxy for it: a row claiming
   the refusal precedes every network call is replayed against a recording `gh` shim and fails if
@@ -4677,17 +4772,17 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `~/worktrees/O'Connor`), `$`, or a backtick. `worktree-create.sh` gains an additive
   `--root-file <path>` flag that reads the root from a file instead of a process argument; both
   render sites (`context/create.md`, `SKILL.md`) now write the substituted value to a temp file with
-  the `Write` tool — a JSON string parameter no shell ever parses — and pass `--root-file` instead of
+  the `Write` tool, a JSON string parameter no shell ever parses, and pass `--root-file` instead of
   inlining the value in a `--root` shell literal. A quoted heredoc is deliberately NOT used: quoting
   the delimiter suppresses expansion inside the body but cannot prevent delimiter collision, so a
   value carrying a line equal to the delimiter would end the heredoc early and the shell would parse
   the remainder as commands. The existing unset guard is reused unchanged: an unset key still leaves
   the literal `${user_config.worktree_root}` token, which lands in the file verbatim, and the helper
-  still refuses with exit 3 and its guidance — no behavior change on that path. The rendered
+  still refuses with exit 3 and its guidance. No behavior change on that path. The rendered
   invocation captures the helper's status before removing the temp directory and re-exits with it, so
   the cleanup cannot mask a refusal behind a zero status. `--root-file` treats the file's bytes as the
   root verbatim: a newline anywhere in it, trailing included, is a usage error (exit 2) rather than a
-  trimmed terminator or a silently-taken first line — trimming would be indistinguishable from a root
+  trimmed terminator or a silently-taken first line, since trimming would be indistinguishable from a root
   whose own last byte is a newline. A NUL byte is rejected the same way, checked on the file before
   the value reaches a shell variable, because command substitution drops NULs and would otherwise
   collapse `<root>-<NUL>suffix` into a path nobody supplied. The `--root`/`--root-file` mutual
@@ -4706,10 +4801,10 @@ All notable changes to the `source-control` plugin are documented here. Format f
   as a threaded reply, so any caller reading the script's own output saw the key absent (surfacing as
   `None`/`null` in downstream tooling) even for comments GraphQL confirmed were properly threaded
   replies. Reproduced against live PR #563 data: the raw `pulls/<pr>/comments` response correctly
-  carries `in_reply_to_id` on reply comments — the script's `jq` projection for the inline surface
+  carries `in_reply_to_id` on reply comments. The script's `jq` projection for the inline surface
   simply dropped it. Added `in_reply_to_id: .in_reply_to_id` to the inline mapping (sourced from the
   same raw field GraphQL cross-checks against) and `in_reply_to_id: null` to the general/review
-  mappings, which have no reply-parent concept on their surfaces. Additive schema change — existing
+  mappings, which have no reply-parent concept on their surfaces. Additive schema change: existing
   consumers that don't read the new key are unaffected. Regression-tested with a threaded-reply
   fixture.
 
@@ -4722,11 +4817,11 @@ All notable changes to the `source-control` plugin are documented here. Format f
   path and forbid relying on the shell's working directory persisting across separate tool calls:
   every git operation is anchored with `git -C <absolute-worktree-path>` (`status`, `add`, `commit`,
   `diff`, `log`, `push`), every file read/edit/write/glob/search takes an absolute path rather than
-  a relative one — worktree-prefixed for target-repository files, its own absolute path for a file
-  outside the worktree the worker is told to read, such as a `${CLAUDE_PLUGIN_ROOT}` reference — and
+  a relative one, worktree-prefixed for target-repository files and its own absolute path for a file
+  outside the worktree the worker is told to read, such as a `${CLAUDE_PLUGIN_ROOT}` reference, and
   any command that derives its target from the working
-  directory without a `-C` equivalent — bare `gh`, `fetch-all-pr-comments.sh`, the target
-  repository's own build/test/lint commands — takes a per-call re-`cd` or its own explicit target
+  directory without a `-C` equivalent, such as bare `gh`, `fetch-all-pr-comments.sh`, or the target
+  repository's own build/test/lint commands, takes a per-call re-`cd` or its own explicit target
   (`GH_REPO`, `FETCH_COMMENTS_OWNER`/`FETCH_COMMENTS_REPO`). A one-time `cd` at dispatch is not
   enough:
   cwd can drift between a read and the next write, silently committing a branch-owned fix into the
@@ -4734,7 +4829,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `implementation` 0.7.4 closed in the sibling `implement-dispatch` lane. `GH_REPO` is scoped to the
   `gh` calls it can actually anchor: it selects the remote repository only (`gh help environment`),
   so a locally-mutating call such as `gh pr checkout` ("Check out a pull request in git", `gh pr
-  checkout --help`) still takes a same-call `cd` — with `GH_REPO` alone it would fetch and switch
+  checkout --help`) still takes a same-call `cd`, since with `GH_REPO` alone it would fetch and switch
   branches in whatever directory cwd had drifted to.
 
 ## [0.26.9]
@@ -4748,7 +4843,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   "awaiting requested review"), and `request_signal_pending` is derived solely from a `PENDING`
   StatusContext with no target URL. The doc's own Engagement Gate Semantics section defines only
   `PENDING` (no qualifying reviewer activity after the polling window) and `SUCCESS` (may reflect an
-  earlier head) — it gives `FAILING` no engagement meaning — so "or failing" was the erroneous
+  earlier head), and gives `FAILING` no engagement meaning, so "or failing" was the erroneous
   restatement, not the code. Narrowed the sentence to `pending` and recorded the failing semantic
   once: a failing gate is not an engagement signal and is never a trigger candidate; it is bucketed
   by `classify_checks` like any other check, so it already reaches the operator through the ordinary
@@ -4760,16 +4855,16 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **`fetch-all-pr-comments.sh` output can choke a downstream Python consumer on Windows
   (emoji/cp1252 mismatch) (#597).** The script's UTF-8 JSON output commonly carries non-ASCII
-  bytes — bot badge images, reaction emoji — from bot review comments. Reproduced directly: a
+  bytes, bot badge images and reaction emoji, from bot review comments. Reproduced directly: a
   Python consumer that opens the output (or reads this script's stdout) without an explicit UTF-8
   encoding inherits the interpreter's default ANSI code page on Windows (cp1252) and raises
   `UnicodeDecodeError` on those bytes; this repo's own consumers (`babysit_findings.py`) already
   pin `encoding="utf-8"` explicitly and are unaffected, so the gap is external/downstream
   consumers. `fetch-all-pr-comments.sh --help` now documents the `PYTHONUTF8=1` (PEP 540)
   requirement for Windows consumers that don't pin the encoding themselves.
-  `babysit-readiness-gate.sh` — the one `babysit_python` caller that parses this script's
+  `babysit-readiness-gate.sh`, the one `babysit_python` caller that parses this script's
   comment-JSON schema and lacked the `export PYTHONUTF8=1` convention the two `bin/` babysit
-  wrappers already apply — now sets it too, closing the inconsistency.
+  wrappers already apply, now sets it too, closing the inconsistency.
 
 ## [0.26.7]
 
@@ -4777,15 +4872,15 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **`babysit-prs` no longer misclassifies a bot's PR-level review comment as "new human feedback"
   (#683).** `gh pr view --json reviews,latestReviews` (`view_pr`'s `VIEW_FIELDS`) returns each
-  review's `author` as `{login}` only — no `__typename`, no `is_bot`, and a GitHub App bot's login
+  review's `author` as `{login}` only: no `__typename`, no `is_bot`, and a GitHub App bot's login
   without its `[bot]` suffix; verified live that this is a `gh` CLI JSON-field limitation, not a
-  GraphQL one — a raw `author{login __typename}` query against the same PR correctly reports
+  GraphQL one, as a raw `author{login __typename}` query against the same PR correctly reports
   `__typename: "Bot"`. Both classification call sites (`pr_queue_snapshot.py`,
   `babysit_feedback.fetch_current_human_stop`) already replace `pr["reviews"]` with the fully-typed
   REST list (`fetch_pull_request_reviews`), but left `pr["latestReviews"]` untouched. Because
   `collect_feedback`'s `latest_reviews_by_author` merges both collections keyed by raw login, the
-  same bot actor produced two entries under different keys — one correctly typed (from `reviews`),
-  one not (from `latestReviews`, e.g. `chatgpt-codex-connector` without `[bot]`) — and the untyped
+  same bot actor produced two entries under different keys, one correctly typed (from `reviews`)
+  and one not (from `latestReviews`, e.g. `chatgpt-codex-connector` without `[bot]`), and the untyped
   duplicate fell through to `actor_kind`'s login-suffix heuristic and landed in `feedback["human"]`.
   New `babysit_gh.rest_hydrate_reviews` replaces `reviews` with the REST list and drops the stale
   `latestReviews` in one place, used by both call sites, so `latest_reviews_by_author` derives every
@@ -4799,7 +4894,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   instead of environment exit 4 (`#1016`).** The up-front character class (letters, digits, dots,
   underscores, dashes per `/`-separated segment) is not a subset of git's ref grammar, so names like
   `feat/foo..bar`, `foo.lock`, `.foo`, `HEAD`, and `-lead` passed validation, reached
-  `git worktree add`, and failed there as exit 4 — the code the helper reserves for environment
+  `git worktree add`, and failed there as exit 4, the code the helper reserves for environment
   faults. A caller's correction flow keys on exit 2, so an invalid name was indistinguishable from a
   broken environment. The schema check is now followed by `git check-ref-format --branch`, whose
   output is discarded on both streams: on success `--branch` echoes the name to stdout, which would
@@ -4811,8 +4906,8 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
   The grammar check runs **after** the repository is resolved and is scoped with `-C "$toplevel"`:
   `--branch` takes a branchname-shorthand and so performs repository discovery, which dies outright
-  when the process's CWD is a stale checkout (a `.git` file naming a gitdir that no longer exists —
-  what this plugin's own worktree cleanup handles). Run unscoped, that turned a valid name into a
+  when the process's CWD is a stale checkout (a `.git` file naming a gitdir that no longer exists,
+  which is what this plugin's own worktree cleanup handles). Run unscoped, that turned a valid name into a
   false exit 2 from such a directory, and the documented invocation omits `--repo-dir`, so the CWD is
   the default. Consequence: exits 3 (root unconfigured) and 4 (not a repository) can now precede the
   grammar refusal, matching how the pre-existing `--base-ref` and empty-slug exit-2 checks already
@@ -4838,11 +4933,11 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **`babysit-prs` now separates the finding-classification gate from the merge gate (`#601`).** Two
   differently-named scripts both produced a verdict the docs called "readiness":
-  `babysit-readiness-gate.sh` (classification-row counting — blind to branch rules, thread
+  `babysit-readiness-gate.sh` (classification-row counting, blind to branch rules, thread
   resolution, and required checks) and `babysit_merge.py` via `source-control-babysit-merge` (the
   actual merge-policy check). Nothing said which one owns a `MERGE-READY` claim, and the
   `loop.md` §5.5 checklist paired a single "Readiness: ready for merge" field directly under the
-  classification gate — which produced a false human-facing `MERGE-READY` report on a PR that a
+  classification gate, which produced a false human-facing `MERGE-READY` report on a PR that a
   `required_review_thread_resolution` ruleset was mechanically blocking. `safety.md` gains "Two
   Gates, One Merge-Ready Authority" as the single home for the distinction; the checklist now
   reports the two gates as separate fields, and every "readiness" site that meant *classification*
@@ -4855,7 +4950,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   classification-gate run, what keeps the path from a false `MERGE-READY` is the engine's
   `untriaged_material_feedback` exclusion from `pr_clean_ready_for_direct_gate`, and
   merge-readiness there still comes only from the merge gate's `ready` field. That `ready` field is
-  the plugin's **full merge-policy** verdict, not a readout of GitHub's mergeability alone —
+  the plugin's **full merge-policy** verdict, not a readout of GitHub's mergeability alone.
   `babysit_merge.py` adds its own policy blockers (dependency-manager author without
   `--allow-dependency`, non-self author on an unprotected base without `--allow-unprotected`, and
   an enabled autopilot merge tier's criteria), so `ready: false` may name a plugin hold on a PR
@@ -4868,7 +4963,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **The plugin is now the canonical, sole source for the worktree conventions (#401).** The
   `babysit-prs` skill's `reference/worktrees.md` states it owns the ephemeral babysit-worktree
-  exemption (lease-scoped cleanup, never a global open-PR prune — machine-enforced by
+  exemption (lease-scoped cleanup, never a global open-PR prune, machine-enforced by
   `prune_babysit_worktrees.py`) and that rooting those worktrees outside a repository's discoverable
   tree keeps them out of enumeration such as `ghq list`; the `worktree` skill states it owns the
   parallel-session external-root convention going forward. Both close the SSOT gap left by the
@@ -4885,11 +4980,11 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `reference/cadence.md` has disclaimed the wake mechanics since #322, owning only the cadence states
   and thresholds. SKILL.md still described the older split: runbook step 9 and the Reporting closing
   line sent the reader to `cadence.md` for the wake interval, and the References entry credited
-  `loop.md` with only a "static cadence ladder". The Reporting line was a live wrong-number risk —
+  `loop.md` with only a "static cadence ladder". The Reporting line was a live wrong-number risk:
   `cadence.md` states `idle` = daily, while §5.3 documents `ScheduleWakeup` clamping `delaySeconds`
   to `[60, 3600]`, so inside `/loop` `idle` and `quiet` both wake hourly. All three now cite the §5.3
-  cadence contract, and the step-5 progressive-disclosure trigger for `cadence.md` — which correctly
-  still points there, for the cadence states — now fires on interpreting a state rather than on
+  cadence contract, and the step-5 progressive-disclosure trigger for `cadence.md`, which correctly
+  still points there for the cadence states, now fires on interpreting a state rather than on
   recommending one. Docs-only; no behavior change.
 
 ## [0.26.1]
@@ -4916,8 +5011,8 @@ All notable changes to the `source-control` plugin are documented here. Format f
 ### Changed
 
 - **`worktree`'s `create` action now documents that orchestrated (autonomous) provisioning does not
-  use it (`#572`).** An orchestrator that must stay resident to keep dispatching — e.g.
-  `/work-items:work` — cannot invoke `create`, whose `EnterWorktree` terminal transitions the calling
+  use it (`#572`).** An orchestrator that must stay resident to keep dispatching, e.g.
+  `/work-items:work`, cannot invoke `create`, whose `EnterWorktree` terminal transitions the calling
   session; such runs provision non-interactively via the shared `worktree-create.sh` helper (omitting
   the `EnterWorktree` step) or a plain `git worktree add`, then work the worktree via `git -C` without
   entering it.
@@ -4928,9 +5023,9 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **Well-known rung's git-tracked requirement now stated on both resolution surfaces.** #1185's review
   hardening (an untracked/gitignored file at the well-known path must not drive resolution) landed only
-  in the enforcement resolver. `config-resolution.md` (drafting) and the commit-convention seam README
-  still described rung 2 as firing "when that file exists" while claiming the surfaces were "identical"
-  — false after the fix, and a real divergence risk (drafting would use an untracked file the gate
+  in the enforcement resolver. `config-resolution.md` (drafting) and the commit-convention README
+  still described rung 2 as firing "when that file exists" while claiming the surfaces were "identical",
+  which was false after the fix, and a real divergence risk (drafting would use an untracked file the gate
   skips). Both specs now require rung 2 to be **git-tracked** and tell the drafting reader how to check
   it (`git ls-files --error-unmatch`), so drafting and enforcement resolve the same file. Docs-only;
   the resolver already enforced this.
@@ -4945,7 +5040,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `## convention_source` pointer. The common case reads ONE tool-agnostic file with no markdown
   pointer-parse and nothing in agent-rewritable prose to sever. Fixed 3-rung precedence, identical on
   the drafting and enforcement surfaces: explicit `convention_source` pointer (relocation override) >
-  well-known default path > markdown-H2 (legacy). Full back-compat — absent both a pointer and the
+  well-known default path > markdown-H2 (legacy). Full back-compat: absent both a pointer and the
   well-known file, resolution is unchanged.
 
 ### Changed
@@ -4956,7 +5051,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   path, pointerless) rather than steering to markdown-primary; it falls back to markdown-only only
   when this plugin is demonstrably the sole consumer.
 - **`setup check` surfaces neutral-SSOT drift (F3).** Two probes: a broken pointer / neutral file
-  (FAIL — was silent fail-closed), and a resolved neutral file shadowing a stale markdown-H2
+  (FAIL, previously silent fail-closed), and a resolved neutral file shadowing a stale markdown-H2
   duplicate (WARN).
 - **Neutral-YAML preamble trimmed to a 1–2 line header (F4).** The self-describing multi-line
   preamble template is reduced to what the file is and who reads it; the human document proper lives
@@ -4966,47 +5061,47 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Added
 
-- **`/babysit-loop` — the loop-lane merge lane, plus repo-scoped lane keys on the layered config
-  seam.** New skill wrapping `/source-control:babysit-prs` in a self-paced standing or drain loop
+- **`/babysit-loop`, the loop-lane merge lane, plus repo-scoped lane keys on the layered config
+  surface.** New skill wrapping `/source-control:babysit-prs` in a self-paced standing or drain loop
   over one repository (required `<owner/repo>` argument): each cycle invokes babysit-prs at the
   resolved tier and scope, layered with a concurrency-safety activity grace window (default 30
-  minutes — a PR whose head moved or that received comments inside it, or a draft carrying WIP
+  minutes: a PR whose head moved or that received comments inside it, or a draft carrying WIP
   signals, is report-only that cycle), do-not-merge respect (strip only behind the explicit
   `--strip-do-not-merge` flag), the loop-lane escalation contract, and `#502` lane telemetry with a
   durable machine-readable state block. Autonomy is decomposed into seven dimensions with tiers as
   named presets; the merge dimension resolves human-only until the target repository's team-tracked
-  config carries loop-lane keys — that tracked file, landed by a reviewable PR, is the recorded
-  lane-enabling act — after which it defaults to the loop-lane convention's baseline rung (human
-  merge for everything except gate-proven C2-mechanical PRs — a work-class test irrespective of
-  author), and its raises bind from the team-tracked config layer only. Shared cross-lane concerns —
-  topology, stop shapes including the drain-terminal state, cycle-budget and expiry semantics,
-  capability tiers, the subagent discipline preamble — are held by citation to the marketplace
-  repository's `docs/conventions/loop-lane/` convention, and the rate-limit guard's operable floor
+  config carries loop-lane keys, after which it defaults to the loop-lane convention's baseline rung
+  (human merge for everything except gate-proven C2-mechanical PRs, a work-class test irrespective
+  of author), and its raises bind from the team-tracked config layer only. That tracked file, landed
+  by a reviewable PR, is the recorded lane-enabling act. Shared cross-lane concerns are held by
+  citation to the marketplace repository's `docs/conventions/loop-lane/` convention: topology, stop
+  shapes including the drain-terminal state, cycle-budget and expiry semantics, capability tiers,
+  and the subagent discipline preamble. The rate-limit guard's operable floor
   is inlined verbatim per that convention's inline-floor rule. `reference/config-resolution.md`
   widens accordingly: the layered `.claude/source-control.md` surface now documents the
   `babysit_loop_*` key family (stop mode, tier preset, per-dimension overrides, grace-window width,
   cycle budget) alongside the commit-subject/PR-title convention keys, with the merge-rung key
   declared in the consumer-config layering convention's policy-floor class. The existing
-  user-settings-scoped `babysit_*` `userConfig` keys are untouched — the reference documents the
+  user-settings-scoped `babysit_*` `userConfig` keys are untouched. The reference documents the
   personal-scalar vs repo-policy split.
 
 ## [0.23.0]
 
 ### Added
 
-- **Neutral tool-agnostic convention SSOT — `convention_source` (#1141, author-directed reopen of
+- **Neutral tool-agnostic convention SSOT, `convention_source` (#1141, author-directed reopen of
   #913).** The team-tracked `.claude/source-control.md` may now declare `## convention_source`: a
   repo-relative flat-scalar YAML file (`subject_pattern`, `pr_title_pattern`, optional
   `pr_body_required_sections` list or `none`, optional `dialect:` defaulting `posix-ere`) that
-  enforcement (commit-msg hooks, CI) and drafting (any agent) consume as ONE source — decoupling
+  enforcement (commit-msg hooks, CI) and drafting (any agent) consume as ONE source, decoupling
   the convention values from the markdown-H2 grammar that previously left consuming machines
   hand-syncing byte-identical regex copies. Absent pointer → today's behavior, zero action for
   existing consumers; the path is always repo-declared (no hardcoded doc root, no well-known
-  search list in V1 — recorded decision); the `Conventional Commits` keyword and the pr-title
+  search list in V1, a recorded decision); the `Conventional Commits` keyword and the pr-title
   deferral marker work identically on both surfaces; the neutral file is authoritative per key with
   markdown-H2 fallback, plugin-only keys stay `.claude/`-side, and user/local overlay layers are
   unchanged. Enforcement contract unchanged (POSIX ERE only, unresolved = no enforcement,
-  team-only policy floor — the pointer too is honored from the team file only); a
+  team-only policy floor, with the pointer too honored from the team file only); a
   declared-but-broken pointer or non-`posix-ere` dialect fails closed with a diagnostic.
   `lib/resolve-convention-pattern.sh` extended (guardrails vendored copy synced byte-identical,
   guardrails 0.13.0); 14 new resolver test cases (44 total). The incumbent markdown-H2 steelman and
@@ -5023,12 +5118,12 @@ All notable changes to the `source-control` plugin are documented here. Format f
   audit flagged MD041/MD013 lint findings, a missing Gotchas surface, and a 453-line hub. Verified
   against the REPO's actual markdownlint config first (per the item's instruction): this repo
   disables MD013 and MD041 in `.markdownlint-cli2.jsonc`, so those findings do not apply under the
-  repo's own gate — no lint edits made for them; markdownlint reports clean. A `## Gotchas` section
+  repo's own gate. No lint edits were made for them; markdownlint reports clean. A `## Gotchas` section
   now records real first-contact failure patterns from the live audits (omission-never-resets
   per-key fallthrough, `none` vs absence, resolved-value inference gating, nested-directory
   cwd-relative reads, linked-worktree hooks dir, `--since` committer-date vs `%ad` author-date
-  recency skew, same-session stale `userConfig` reads). **Hub-split decision: DONE** (not deferred)
-  — the `apply` convention write path (layer selection, non-interactive update semantics, the
+  recency skew, same-session stale `userConfig` reads). **Hub-split decision: DONE** (not deferred):
+  the `apply` convention write path (layer selection, non-interactive update semantics, the
   7-step interview, the written-file template, per-layer verification scripts) moved verbatim to a
   progressive-disclosure spoke, `skills/setup/reference/apply-convention.md`, with a normative
   pointer and summary in the hub; the growth from #1139's consensus-window inference had pushed the
@@ -5041,14 +5136,14 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **`/setup` convention inference reads a configurable year-scale consensus window, not
   `git log -50` (#1139).** A fixed 50-commit tail misses convention shifts and informal variant
-  families entirely — live-run evidence: a 2,122-subject year-scale analysis found a rising
+  families entirely. Live-run evidence: a 2,122-subject year-scale analysis found a rising
   ticket-prefix pattern at 78.8% recent vs 71.9% older with Conventional Commits at 0%, invisible
   at n=50. The history signal is now one
-  `git log --since="<window>" --no-merges --date=short --format='%cd|%s'` pass (committer dates —
+  `git log --since="<window>" --no-merges --date=short --format='%cd|%s'` pass (committer dates,
   the same clock `--since` filters by, so a rebased commit can't land in the wrong recency bucket;
   review-caught during #1139), auto-subjects
   (`Revert`/`fixup!`/`squash!`; merges via `--no-merges`) excluded, bucket-classified in-context
-  and reported as volume-weighted percentages with a recent-vs-older recency split — the user picks
+  and reported as volume-weighted percentages with a recent-vs-older recency split. The user picks
   from the evidence table; no bucket is silently promoted into config. Every knob is plugin
   `userConfig`, never a constant: `setup_inference_window` (git-approxidate, default `1 year`),
   `setup_inference_recency_days` (default `90`), `setup_inference_min_commits` (default `50`),
@@ -5062,18 +5157,18 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Added
 
-- **`pr_body_required_sections` accepts the literal keyword `none` — no required sections (#1138).**
+- **`pr_body_required_sections` accepts the literal keyword `none` for no required sections (#1138).**
   The key could previously express only a list or absence (absence yields the portable default), so
-  a repo whose team convention is no PR-body sections — real consumer evidence: a repo whose merged
-  PRs are overwhelmingly empty-bodied by design — had no way to state that in config. `none` now
+  a repo whose team convention is no PR-body sections had no way to state that in config. Real
+  consumer evidence: a repo whose merged PRs are overwhelmingly empty-bodied by design. `none` now
   resolves to zero required sections, parallel to the sibling keys `trailer_policy` and
   `pr_body_attribution`: `/pull-request create` drafts no section scaffold and the §2.4.2.2
   pre-create gate has nothing to require (the §2.4.2.1 closing-keyword check is independent and
   unchanged; ad hoc `## Related` content from real refs is still never dropped). `none` participates
-  in per-key layering as a **resolved value, not an absence** — a layer declaring `none` overrides a
+  in per-key layering as a **resolved value, not an absence**: a layer declaring `none` overrides a
   lower layer's list wholesale, while a key unset in every layer still falls through to the portable
   default (`Summary`, `Test plan`). Documented in `reference/config-resolution.md` and the
-  pr-body-convention seam README (which now owns the value's rationale); `/setup check` renders a
+  pr-body-convention README (which now owns the value's rationale); `/setup check` renders a
   resolved `none` as `none (no required sections)` with the winning layer, distinct from the unset
   row, and the `apply` interview offers `none` for repos whose convention requires no sections. New
   pull-request evals 19 (team-layer `none` resolves to an empty scaffold) and 20 (`none` wins the
@@ -5085,25 +5180,25 @@ All notable changes to the `source-control` plugin are documented here. Format f
 ### Added
 
 - **`/source-control:setup` now covers `pr_body_required_sections` (#1032, completing #975's
-  adoption path).** `check` reports the key's effective value across all three layers — a
+  adoption path).** `check` reports the key's effective value across all three layers: a
   `pr_body_required_sections` row on the effective-configuration table, resolving to the plugin's
   portable default (`Summary`, `Test plan`) with `won by: plugin default` when no layer sets it,
   rather than a blank row. `apply`'s interview offers setting it and the written-config template
   gains the matching `## pr_body_required_sections` section, at parity with every other per-key
   surface (`subject_pattern`, `pr_title_pattern`, `trailer_policy`, `pr_body_attribution`). The
   interview deliberately recommends only the plugin's own portable default and never proposes a
-  `Related`/linked-issue section or any other organization-specific list — asking what the repo's
+  `Related`/linked-issue section or any other organization-specific list, asking what the repo's
   actual convention requires, never inventing one, per the plugin's Two-lane convention posture. The
   interview also states, per-key-fallthrough-aware, when resetting to the portable default over a
   lower layer that already sets the key requires writing the explicit default list rather than
-  omitting the section — an omission only inherits, it never overrides (review-caught during #1032).
+  omitting the section: an omission only inherits, it never overrides (review-caught during #1032).
 
 ### Fixed
 
 - **`## Related` pre-create gate no longer drops visible text sharing a line with an inline HTML
   comment (#975/#1029 follow-up, review-caught during #1032).** The comment-aware heading scan
   previously treated an entire line as comment text once it saw `<!--`, dropping content like
-  `Ran smoke tests <!-- details omitted -->` before the section's non-empty check — a false-fail,
+  `Ran smoke tests <!-- details omitted -->` before the section's non-empty check, a false-fail,
   since GitHub still renders the visible text outside the comment. The scan now strips only the
   comment SPAN (single- or multi-line), preserving visible text before, between, and after spans on
   the same line; a genuinely comment-only line, or a fully-hidden middle line of a multi-line span,
@@ -5119,7 +5214,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **Configurable PR-body required-sections scaffold (`pr_body_required_sections`, #975).** A new key
   on `.claude/source-control.md`, resolved across the same three layers as every other key on that
-  surface (per-key, whole-list override) — see
+  surface (per-key, whole-list override). See
   [`reference/config-resolution.md`](reference/config-resolution.md). `/pull-request create` builds
   one `## <heading>` block per resolved section and a new §2.4.2.2 pre-create gate blocks
   `gh pr create` when any required section is missing or empty, naming the exact section and the
@@ -5129,37 +5224,37 @@ All notable changes to the `source-control` plugin are documented here. Format f
   fence- and HTML-comment-aware, so a `## <heading>`-shaped line inside a fenced code sample (e.g. a
   Summary documenting a PR-body template) or an HTML comment (a commented-out draft section) never
   counts as a real section boundary. Fence detection matches GFM's actual rules (up to 3 leading
-  spaces before the opener, and a fence closes only on a matching delimiter character — a `~~~` line
+  spaces before the opener, and a fence closes only on a matching delimiter character, so a `~~~` line
   never closes an open ` ``` ` fence or vice versa), not a bare column-zero triple-delimiter check.
   Comment text is never counted as section content at all (unlike a fence, which renders visibly and
-  legitimately counts) — a required section whose entire body is an unfilled `<!-- ... -->`
+  legitimately counts), so a required section whose entire body is an unfilled `<!-- ... -->`
   placeholder reads as empty, matching both GitHub's own render and a comment-stripping PR-body
   validator (all five review-caught during #975). Absent everywhere → the bundled portable default:
   `Summary` and `Test plan` only (research-grounded across GitHub's
   own guidance, Google's CL-description doc, GitLab's dogfooded default template, and a cross-section
-  of OSS PR templates — see
+  of OSS PR templates, see
   [`docs/conventions/pr-body-convention/README.md`](../../docs/conventions/pr-body-convention/README.md)).
   A marketplace-level owner doc lands now, ahead of a future CI/enforcement consumer, following the
-  commit-convention seam's two-reads prior art.
+  commit-convention README's two-reads prior art.
 
 ### Changed
 
 - **The assembled PR body no longer includes `## Related` by default.** Previously hardcoded and
   always emitted (defaulting to the literal `N/A`); a `Related` section presumes an issue-tracking
   convention the plugin cannot assume for every consumer, so it moves to configuration
-  (`pr_body_required_sections` including `Related`) — the two-lane convention posture the fleet
+  (`pr_body_required_sections` including `Related`), the two-lane convention posture the fleet
   already applies elsewhere. A repo that wants the prior behavior declares `Related` in its own
   `pr_body_required_sections`. The closing-keyword line and its own pre-create gate (§2.4.2.1,
-  formerly the whole of §2.4.2) are unaffected — this is a scaffold-content change only, never a
+  formerly the whole of §2.4.2) are unaffected. This is a scaffold-content change only, never a
   linkage-signal change. When the multi-issue or orphan-PR flow collects genuine `Refs #Y`
   references, a `## Related` section is still emitted ad hoc to carry them, even when the repo has
   not configured it as required.
 - **This repository (`claude-code-plugins`) now dogfoods `pr_body_required_sections`.** Its own
   `.github/workflows/pr-issue-linkage.yml` requires a non-empty `## Related`, which the new portable
-  default no longer guarantees — self-regression atomicity: a change that would break this repo's
+  default no longer guarantees. Self-regression atomicity: a change that would break this repo's
   own CI ships with its own remedy in the same PR, not a follow-up. `.claude/source-control.md`
   (team layer, root) now sets `pr_body_required_sections` to `Summary, Test plan, Related`, matching
-  this repo's actual gate. This is the **first fleet-adoption instance** of the key — every other
+  this repo's actual gate. This is the **first fleet-adoption instance** of the key. Every other
   consuming repo adopts it the ordinary way, via `/source-control:setup apply`, not by hand-editing a
   file.
 
@@ -5170,11 +5265,11 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **The team convention file `/source-control:setup apply` writes is now self-describing
   (#1046, audit f6).** The template's header states, for the reader who does NOT run these
   plugins, that the file is read by the source-control plugin (and the guardrails
-  commit-convention gate where installed), is inert without them, and is a drafting aid —
+  commit-convention gate where installed), is inert without them, and is a drafting aid,
   not team-wide enforcement, which is a commit-msg hook or CI check. The header is part of
   the template (a reconfiguration run rewrites it in place, never appends a second copy),
   and prose above the first `##` heading is inert to every consumer by construction: the
-  enforcement resolver reads only the first non-empty body line under a `## <key>` H2 — a
+  enforcement resolver reads only the first non-empty body line under a `## <key>` H2. A
   regression test in `lib/resolve-convention-pattern.test.sh` now proves a preambled file
   resolves identically to a bare one. The `apply` report for a team write states the same
   draft-aid vs enforcement distinction instead of implying the file enforces anything by
@@ -5187,10 +5282,10 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **Shared worktree-creation helper `scripts/worktree-create.sh` (#399, Phase A).** One helper now
   owns worktree placement: it computes the external path `<root>/<owner>-<repo>-<slug>`, sanitizes the
   branch slug, resolves the base ref (`worktree.baseRef` fresh/head, default branch resolved
-  symbolically — never a hardcoded `origin/main`), runs `git worktree add`, and reimplements Claude
+  symbolically, never a hardcoded `origin/main`), runs `git worktree add`, and reimplements Claude
   Code's `.worktreeinclude` copy (the intersection of `.worktreeinclude`-matched and gitignored files),
   which is bypassed when a worktree is created with `git worktree add` directly. The flag CLI is the
-  stable seam the future `WorktreeCreate` hook (Phase B) will share.
+  stable interface the future `WorktreeCreate` hook (Phase B) will share.
 - **New `worktree_root` userConfig directory key.** The external root `/worktree create` places
   worktrees under, mirroring the `babysit_worktree_root` shape. When unset, `/worktree create` refuses
   with guidance rather than falling back to the in-repo `.claude/worktrees/` default.
@@ -5200,7 +5295,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **`/worktree create` routes through the shared helper instead of `EnterWorktree(name:)` (#399, #400).**
   It runs `worktree-create.sh`, then enters the created worktree with `EnterWorktree(path:)`. On a
   non-zero helper exit (notably exit 3, `worktree_root` unconfigured) it stops with the helper's
-  guidance and never falls back to the in-repo path — closing the CLAUDE.md/rules double-load bug
+  guidance and never falls back to the in-repo path, closing the CLAUDE.md/rules double-load bug
   (#400, upstream anthropics/claude-code #29599 / #23565) for the interactive path. Entering the
   external path prompts for approval (not suppressible outside `bypassPermissions`); create.md documents
   the expected prompt and the declined-approval recovery. The native `WorktreeCreate` hook (Phase B)
@@ -5233,18 +5328,18 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **Babysit worker-worktree head-safety + merge-only freshness (`#548`).** A babysit worker can be
   assigned a worktree in detached HEAD (its PR branch locked in a sibling/foreign worktree) or on a
   stale local branch tip behind `origin`; the checkout/freshness mechanics then merged and pushed
-  from that tip, so a stale-tip integration could silently revert the newest branch commit — a
+  from that tip, so a stale-tip integration could silently revert the newest branch commit, a
   near-miss where safety depended on the assigned `HEAD` happening to match, not a guard.
   - `reference/safety.md` Checkout And Push Invariants now require asserting the assigned worktree's
     `HEAD` equals the true PR head (`gh pr view --json headRefOid`) before any merge/edit/push (stop
     on a stale/detached mismatch) and pushing via an explicit refspec (`git push "$PUSH_REMOTE"
-    HEAD:<headRefName>`) to a **fail-closed** destination — `origin` for a same-repo head; for a
-    write-allowed cross-repo head, the fork destination validated by **host + owner/repo** identity,
-    not by remote name: canonicalize the URL `git push` will actually use (`git remote get-url
-    --push`, which honors a `pushurl` that can differ from the fetch URL) and require it to equal the
-    head repo's own URL (`gh api repos/<nameWithOwner> --jq .html_url`), else read-only — fast-forward
-    by construction, never `--force` — so a branch locked by a sibling worktree is not a `git
-    checkout` dead-end.
+    HEAD:<headRefName>`) to a **fail-closed** destination. That destination is `origin` for a
+    same-repo head; for a write-allowed cross-repo head, it is the fork destination validated by
+    **host + owner/repo** identity, not by remote name: canonicalize the URL `git push` will actually
+    use (`git remote get-url --push`, which honors a `pushurl` that can differ from the fetch URL) and
+    require it to equal the head repo's own URL (`gh api repos/<nameWithOwner> --jq .html_url`), else
+    read-only. That whole refspec push is fast-forward by construction, never `--force`, so a branch
+    locked by a sibling worktree is not a `git checkout` dead-end.
   - The worker mechanics are reconciled to that contract: `reference/loop.md` §5.1.2 acquires the head
     via `gh pr checkout` and asserts `HEAD == the live headRefOid` in every checkout path (already-at-
     head, sibling-locked `--detach` reuse, and heal-via-checkout), degrading to read-only on mismatch;
@@ -5271,18 +5366,18 @@ All notable changes to the `source-control` plugin are documented here. Format f
   (exit 127), forcing workers to hand-roll raw `gh api graphql resolveReviewThread` calls and lose
   the wrapper's `--allowed-owners` guardrail and JSON `action` receipt. `SKILL.md`,
   `reference/orchestration.md` (including the worker prompt template), and `reference/safety.md`
-  now invoke each wrapper as `bash "${CLAUDE_PLUGIN_ROOT}/bin/<wrapper>" …` — the same form the
+  now invoke each wrapper as `bash "${CLAUDE_PLUGIN_ROOT}/bin/<wrapper>" …`, the same form the
   read-only sibling scripts under `${CLAUDE_PLUGIN_ROOT}/scripts/` already use. The Guarded
   Mutation Wrappers posture in `safety.md` is refined to match: launching a wrapper by path runs
   the wrapper with every guard intact (the merge wrapper still rejects `--allow-unpinned-head`;
   both still fail closed without `--allowed-owners`), so the only forbidden re-spelling is the raw
-  Python behind them — which bypasses those guards — and piping a wrapper into an interpreter. A
+  Python behind them, which bypasses those guards, and piping a wrapper into an interpreter. A
   one-line pointer in `reference/review-discipline.md` records that the babysit tiers resolve
   through the wrapper, while its D7.5 keeps the general raw-GraphQL policy for `/pull-request`.
 - **Known residuals, not fixed here.** The `bin/`-path form does not match a pre-approved
   bare-name `Bash(source-control-babysit-merge:*)` allow rule, so an operator's narrow allowlist
-  entries no longer auto-approve these calls; and the root gap — Claude Code documents a plugin's
-  `bin/` as on the Bash tool's `PATH` while enabled, yet it is empirically absent here — is an
+  entries no longer auto-approve these calls; and the root gap, that Claude Code documents a plugin's
+  `bin/` as on the Bash tool's `PATH` while enabled yet it is empirically absent here, is an
   upstream/harness matter. Only closing that gap restores bare-name invocation.
 
 ## [0.16.0]
@@ -5291,12 +5386,12 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **`pr_queue_snapshot.py` gains dedicated `--self` / `--extra-self` self-identity flags (`#511`).**
   The posting identities whose comments self-classification suppresses are now resolved from their
-  own flags — mirroring `babysit-readiness-gate.sh`'s `--self`/`--extra-self` flag semantics — instead
+  own flags, mirroring `babysit-readiness-gate.sh`'s `--self`/`--extra-self` flag semantics, instead
   of being overloaded onto the `--author` discovery filter. `--self` is a full override (exactly the given logins, `@me` not added);
   `--extra-self` adds identities on top of the authenticated `@me`. The skill's step-4 invocation and
   the `babysit_self_logins` userConfig mapping now route the configured extras through `--extra-self`.
   The `babysit_self_logins` userConfig `description` is corrected to match: it is a
-  suppression/classification/merge-exemption set, **not** a discovery filter — which authors' PRs the
+  suppression/classification/merge-exemption set, **not** a discovery filter. Which authors' PRs the
   queue discovers stays `--author`'s job, independent of this set. This resolves the discovery-contract
   fork (`#897`): the pre-`#511` `--author @me,<self-logins>` widening was an incidental side effect of
   the old author-derived self set, not a stated goal, so it is intentionally dropped, not restored.
@@ -5317,7 +5412,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 ### Changed
 
 - Skills with `!` dynamic-context injections now declare `shell: bash` explicitly, per
-  the pinned precompute convention — bash-only pipelines must not fall through to a
+  the pinned precompute convention. Bash-only pipelines must not fall through to a
   PowerShell host.
 
 ## [0.15.8]
@@ -5329,7 +5424,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `fetch-all-pr-comments.sh`, which auto-derives owner/repo from the current directory via
   `gh repo view`; from a cwd that is not a checkout of the target repo (e.g. a targeted-recheck
   pass) that derivation returns empty and the fetch exits non-zero, which the gate previously
-  surfaced only as `fetch-all-pr-comments.sh failed for PR <N>` + exit 4 — the same exit code as a
+  surfaced only as `fetch-all-pr-comments.sh failed for PR <N>` + exit 4, the same exit code as a
   missing `jq`. The gate's failure message now names the cwd it resolved from and the
   `FETCH_COMMENTS_OWNER` / `FETCH_COMMENTS_REPO` override, `fetch-all-pr-comments.sh`'s own
   "cannot resolve owner/repo" message names the cwd and the override, the gate's `--help` and
@@ -5343,7 +5438,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **`babysit-prs` now detects checks that degrade `mergeStateStatus` to `UNSTABLE` without ever
   completing (#374).** The snapshot engine classifies three stuck-check classes from data it already
-  normalizes — no new GitHub fetch — and emits them as a per-PR `checks.stuck[]` field (always
+  normalizes, with no new GitHub fetch, and emits them as a per-PR `checks.stuck[]` field (always
   present, empty when none): `orphaned_status` (a pending `StatusContext` with no backing run to
   cancel), `stuck_queued` (a `CheckRun` still `QUEUED` past an age threshold, e.g. an unmatched
   self-hosted runner label), and `never_settling` (any other non-required pending check past the
@@ -5351,7 +5446,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   checks are never flagged; the age threshold is configurable via
   `babysit_stuck_check_age_seconds` / `--stuck-check-age-seconds` (default 1800s), and orphaned
   status contexts are detected structurally without an age gate. The signal surfaces as a
-  `material_findings` entry, **never a `blockers` string** — a sticky blocker would re-pin the PR
+  `material_findings` entry, **never a `blockers` string**, since a sticky blocker would re-pin the PR
   `active` and re-dispatch a worker every cycle for a check no branch action can clear. New
   `reference/stuck-checks.md` routes remediation (branch CI / `ci-workflows` for config-fixable
   cases; `github-iac` / app config for runner-pool and orphaned-status cases) and points at
@@ -5365,12 +5460,12 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **`babysit-prs` autopilot merge tier (#476) gains a bot-review precision enabling precondition,
   still shipped DISABLED.** `reference/safety.md` now documents a second operator enabling
   precondition alongside the review-workflow requiredness one: the tier may be enabled only after
-  the fleet's bot-review lane has demonstrated recorded precision over a sustained window — the same
+  the fleet's bot-review lane has demonstrated recorded precision over a sustained window, the same
   earned-promotion trigger ADR 0002 sets for flipping an advisory review lane to a blocking gate
   (precision proven over a sustained window, ratified as a reviewed change citing the evidence,
   never a calendar flip and never operator discretion alone). Because the tier lets a fleet-produced
   approval satisfy a required-review ruleset, it promotes that lane from advisory to merge-deciding
-  and inherits the same evidence bar. Prose/contract change only — no behavioral shift to the merge
+  and inherits the same evidence bar. Prose/contract change only, with no behavioral shift to the merge
   gate, which remains fail-closed and DISABLED absent `babysit_autopilot_merge_tier`.
 
 ## [0.15.5]
@@ -5383,29 +5478,29 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `branch.<name>.remote` config being set. In the triangular shape where `remote.pushDefault` names a
   fork globally but `branch.<name>.remote` is unset (so fetch/rebase falls back to `origin`), the gate
   read "unset", took the `-u` bootstrap path, and `git push -u <fork>` rewrote `branch.<name>.remote`
-  to the fork — so the next fetch/rebase silently targeted the fork instead of `origin`. The gate now
+  to the fork, so the next fetch/rebase silently targeted the fork instead of `origin`. The gate now
   fires `-u` only when the branch has NO existing upstream (`branch.<name>.remote` AND
   `branch.<name>.merge` both literally unset) AND its fetch and push remotes resolve to the same name
   (`resolve-remote.sh` fetch-mode vs `--push`); otherwise it pushes plain and writes no branch config.
   This closes the reported `pushDefault`-only clobber (fetch resolves `origin`, push resolves the fork →
   they differ → plain push, upstream untouched) and a broader corruption family the fix surfaced:
-  `git push -u` rewrites the branch's WHOLE upstream — both `branch.<name>.remote` and
-  `branch.<name>.merge` — so a branch with any configured tracking kept its merge ref overwritten under
+  `git push -u` rewrites the branch's WHOLE upstream, both `branch.<name>.remote` and
+  `branch.<name>.merge`, so a branch with any configured tracking kept its merge ref overwritten under
   a resolved-name-only comparison. Three such shapes: an already-tracked branch; a deliberate local-only
   `.` upstream (`git branch --track . <ref>`); and merge-only tracking (`branch.<name>.merge` set with
-  `branch.<name>.remote` unset — valid, since Git defaults the remote to `origin`, so the branch tracks
+  `branch.<name>.remote` unset, valid since Git defaults the remote to `origin`, so the branch tracks
   `origin/<merge-ref>`). Requiring BOTH upstream keys to be absent before bootstrapping preserves any
   existing tracking via plain push. This also changes #763's behavior for the `.` case (it took the
   `-u` path); publishing a branch for a PR no longer mutates a deliberate local-only or merge-only
-  upstream — a strict improvement. An ambiguous fetch resolution (empty) is unequal to any push remote →
+  upstream, a strict improvement. An ambiguous fetch resolution (empty) is unequal to any push remote →
   plain push, never an abort. The conditional moved out of the `create.md` prose into a new co-located
   `scripts/push-branch.sh` (§2.4.1 now delegates to it), so the gate sequence is executable and testable
   rather than living only in markdown; the normalized `.`-as-unset / `\r`-strip handling stays solely in
-  `resolve-remote.sh` and is not duplicated (the upstream-absent probe reads both keys raw — any
+  `resolve-remote.sh` and is not duplicated (the upstream-absent probe reads both keys raw, so any
   non-empty value means "has an upstream"). New `push-branch.test.sh` drives the full resolve-fetch →
   resolve-push → conditional-push → re-resolve-fetch sequence against real bare remotes across the
   pushRemote-triangular, `pushDefault`-only triangular, non-triangular (asserting the merge ref is
-  preserved), fresh-branch bootstrap, local-only `.`, merge-only tracking, and fetch-ambiguous shapes —
+  preserved), fresh-branch bootstrap, local-only `.`, merge-only tracking, and fetch-ambiguous shapes,
   the integration coverage whose absence let this escape `resolve-remote.test.sh`'s resolver-only cases.
 
 ## [0.15.4]
@@ -5415,28 +5510,28 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **`/pull-request` create flow no longer hardcodes the remote name `origin` (#442).** The
   `create.md` reference had baked `git fetch origin` (§2.2 rebase) and `git push -u origin <branch>`
   (§2.4.1), so a consumer whose remote is not named `origin` (a repo cloned with `git clone -o
-  <name>`, or a fork-based multi-remote setup) would break — a baked repo assumption the
+  <name>`, or a fork-based multi-remote setup) would break, a baked repo assumption the
   convention-resolution ladder forbids. Both sites now delegate to a shared resolver
   (`scripts/resolve-remote.sh`) that applies the same candidate-priority ordering the `toolchain`
   linters already use: the current branch's configured remote (`branch.<name>.remote`, a local-only
   `.` upstream treated as unset), else `origin`, else the sole OTHER configured remote when exactly
   one exists. Two or more non-origin candidates with neither `branch.<name>.remote` nor `origin` set
   is ambiguous and fails loudly with a diagnostic rather than silently resolving to `git remote |
-  head -1` and risking a rebase/push against the wrong base. The §2.2 substitution is complete —
+  head -1` and risking a rebase/push against the wrong base. The §2.2 substitution is complete:
   every `origin/$DEFAULT_BRANCH` occurrence (fetch, `merge-base`, `rev-parse`, `rev-list`, `rebase`,
   the progress echo, and the
   merge-vs-rebase / skip-condition prose) now reads `$REMOTE/$DEFAULT_BRANCH`, and the
-  `ORIGIN_DEFAULT` variable is renamed `REMOTE_DEFAULT` to stay coherent. On the common path — a
-  single-remote repo, or a fresh feature branch with no `branch.<name>.remote` yet — both sites
+  `ORIGIN_DEFAULT` variable is renamed `REMOTE_DEFAULT` to stay coherent. On the common path, a
+  single-remote repo or a fresh feature branch with no `branch.<name>.remote` yet, both sites
   still resolve to `origin`, preserving current behavior exactly. The §2.4.1 push step calls the
   resolver in `--push` mode, which prepends Git's documented push precedence
   (`branch.<name>.pushRemote`, else `remote.pushDefault`, else the fetch order above) per
-  git-config(1) / git-push(1), so a triangular fork flow — fetch from `upstream`, push to the fork —
-  resolves each side correctly instead of publishing the branch to `upstream`; the resolver's push
+  git-config(1) / git-push(1), so a triangular fork flow, fetching from `upstream` and pushing to the
+  fork, resolves each side correctly instead of publishing the branch to `upstream`; the resolver's push
   cases are covered by `resolve-remote.test.sh`. Relatedly, the §2.4.1 `git push` now sets upstream
   (`-u`) only when the branch has no real `branch.<name>.remote` yet: `git push -u` rewrites that key
   to the push target, so on a triangular fork an unconditional `-u` would silently repoint the FETCH
-  remote §2.2 reads to the fork and break the next rebase — the push now preserves an existing fetch
+  remote §2.2 reads to the fork and break the next rebase. The push now preserves an existing fetch
   remote and bootstraps tracking only for a fresh (or local-only `.`) branch, where it still resolves
   to `origin` as before. The same `origin` hardcoding still lives in `merge.md` and the `babysit-prs`
   references, deferred to a follow-up.
@@ -5446,9 +5541,9 @@ All notable changes to the `source-control` plugin are documented here. Format f
 ### Added
 
 - **`pull-request` create flow gates the PR-body "Generated with Claude Code" attribution line behind
-  a config seam (#439).** The `🤖 Generated with [Claude Code](https://claude.com/claude-code)` line
+  a config key (#439).** The `🤖 Generated with [Claude Code](https://claude.com/claude-code)` line
   was hardcoded into the PR-body heredoc `/pull-request create` appends to every skill-created PR, with
-  no config key to change or suppress it — asymmetric with the commit trailer, which `/commit` already
+  no config key to change or suppress it, asymmetric with the commit trailer, which `/commit` already
   externalizes via `.claude/source-control.md`'s `trailer_policy`. A consumer wanting no Claude
   attribution in PR bodies (or a different line) had to fork or hand-edit the plugin, violating the
   repo's "configurable without editing the plugin" convention. The line now resolves from a new
@@ -5458,7 +5553,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   line. A **sibling key rather than a reuse of `trailer_policy`** was chosen deliberately: the two
   govern different surfaces (a commit `Co-Authored-By:` trailer vs a Markdown PR-body line), and
   overloading `trailer_policy` would have silently stripped the PR-body line from every consumer who
-  already set `trailer_policy: none` (the plugin's own commit eval fixture is one) — a behavior change
+  already set `trailer_policy: none` (the plugin's own commit eval fixture is one), a behavior change
   the opt-in-only requirement forbids. `create.md` §2.4.1 resolves the effective value at the model
   level and splices it in as literal text *outside* the quoted heredoc via the same
   parameter-expansion concat `${CLOSES_LINE}` uses, preserving the section's shell-injection safety
@@ -5472,13 +5567,13 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **`babysit-prs` worktree pruner no longer hard-depends on `ghq` (#438).** The engine-backed
   pruner (`prune_babysit_worktrees.py`) resolved a linked worktree's main checkout by shelling out
-  to `ghq` — the plugin author's personal repo-layout tool — and raised a hard `RuntimeError`
+  to `ghq`, the plugin author's personal repo-layout tool, and raised a hard `RuntimeError`
   ("install ghq or set ghq.root") for any consumer without it, an undeclared prerequisite absent
   from the README's "runs on `git`, `gh`, `jq`" contract. `repo_path` now resolves the main
   checkout natively from the worktree's own gitdir/commondir pointer via
   `git rev-parse --git-common-dir` (parent of the shared `.git` for a standard clone, the git
   directory itself for a bare-clone hub), so cleanup works with only `git` present regardless of
-  repo layout. `ghq` is removed from the executable allowlist entirely — native resolution is
+  repo layout. `ghq` is removed from the executable allowlist entirely. Native resolution is
   strictly more correct than ghq's guess from a configured root plus an assumed
   `<root>/github.com/owner/repo` layout, so no optional ghq path is retained. Adds a hermetic
   regression test that exercises resolution and removal against a real linked worktree with no
@@ -5488,19 +5583,19 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Changed
 
-- **`babysit-prs` autopilot merge tier (#476) — completed the gate-off flip precondition (#675),
+- **`babysit-prs` autopilot merge tier (#476): completed the gate-off flip precondition (#675),
   still shipped DISABLED.** Three coherence gaps that had to close before the tier can ever be
   flipped on are now resolved, all as prose/contract changes with no behavioral shift to the
   merge gate. (1) **Merge-surface wiring:** every autopilot merge surface is swept so an ENABLED
-  config can no longer merge via the flagless base path — autopilot's step 3 in `SKILL.md` and the
+  config can no longer merge via the flagless base path: autopilot's step 3 in `SKILL.md` and the
   zero-blocker direct-gate path both point at `reference/safety.md`, now the single home for both
   the base and the enabled-tier merge paths, and the Pinned-Command Degradation operator handoff
   reproduces the tier-flagged command when the tier is enabled. (2) **Second-account approve mechanic:** the concrete
-  out-of-band approval the gate's distinct-bot criterion requires is specified — `gh pr review
+  out-of-band approval the gate's distinct-bot criterion requires is specified: `gh pr review
   … --approve` submitted under a distinct `<approver-bot-logins>` identity (`GH_TOKEN` or `gh
   auth switch`, never the PR author or a lane identity), only after a genuine clean review pass,
   on the live head so the `--expected-head` pin holds. (3) **Review-workflow requiredness
-  precondition:** enabling the tier now carries a documented operator precondition — the base
+  precondition:** enabling the tier now carries a documented operator precondition: the base
   branch's ruleset must make the review workflow a **required** status context *and* that workflow
   must always run to a non-skipped conclusion on every PR to the base (requiredness is necessary
   but not sufficient: a required-but-skipped review still reads `mergeStateStatus == CLEAN` without
@@ -5518,15 +5613,15 @@ All notable changes to the `source-control` plugin are documented here. Format f
   tier lets the fleet satisfy the branch ruleset instead of bypassing it: a second bot account
   (author ≠ approver) runs a genuine review pass through the review plugin and submits an
   approving review only when clean, after which the pinned merge gate merges **only when every
-  criterion holds** — required checks green including the review workflow (`mergeStateStatus`
+  criterion holds**: required checks green including the review workflow (`mergeStateStatus`
   CLEAN, ruleset untouched), issue-linked, authored by a configured pipeline lane, no human
   `CHANGES_REQUESTED` / blocking comment / unresolved thread, no configured do-not-merge label,
   no unratified `Decision defaulted` marker on the linked issue (the triage lane's maintainer
   veto window, which a maintainer ratifies by comment before the default rides into a merge),
   and a distinct-bot approval on the live head (head SHA unchanged since review). Any criterion
   failing falls back to today's behavior: the PR is reported on the human merge-ready list. The
-  gate flag `--autopilot-merge-tier` is **fail-closed** — it refuses unless `--lane-logins`,
-  `--approver-bot-logins`, and `--block-labels` are all supplied — and every criterion predicate
+  gate flag `--autopilot-merge-tier` is **fail-closed**, refusing unless `--lane-logins`,
+  `--approver-bot-logins`, and `--block-labels` are all supplied, and every criterion predicate
   is reused from the shared `babysit_classify` module rather than re-implemented. The tier exists
   only while `babysit_autopilot_merge_tier` is enabled (new boolean userConfig, default off);
   enabling it and any later gate-off flip is a separate, announced operator step. New userConfig:
@@ -5541,11 +5636,11 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **The convention config is now three layers, not one.** `source-control.md` was resolved as a
   single project-level file, so a commit convention could not follow an operator across repos or
-  machines and a personal deviation from team policy had nowhere to live — per-machine
+  machines and a personal deviation from team policy had nowhere to live. Per-machine
   reconfiguration meant editing the team-tracked file. It now resolves
   `~/.claude/source-control.md` (user-global) → `.claude/source-control.md` (team, tracked) →
   `.claude/source-control.local.md` (gitignored personal overlay), the order the tracked-rich-config
-  seam mandates. `/commit`, `/pull-request`, and `/setup` all read the layering rules from one new
+  convention mandates. `/commit`, `/pull-request`, and `/setup` all read the layering rules from one new
   bundled reference instead of restating them.
 - **`/setup apply` takes a `layer=user|team|local` target**, defaulting to `team`, and infers the
   layer from a request that names one ("my personal convention", "for all my repos"). `/setup check`
@@ -5554,8 +5649,8 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Changed
 
-- **Merge semantics are per-key override, a recorded deviation from the seam's concatenating
-  default.** A later layer replaces an earlier layer's value key by key and never drops the base
+- **Merge semantics are per-key override, a recorded deviation from the tracked-rich-config
+  convention's concatenating default.** A later layer replaces an earlier layer's value key by key and never drops the base
   layer wholesale; a key absent from a later layer keeps the earlier value. Concatenation is right
   for the first-party `security-guidance` precedent, whose layers are prose blocks that genuinely
   accumulate. Every key here is a scalar or a closed list: two `subject_pattern` regexes cannot
@@ -5564,11 +5659,11 @@ All notable changes to the `source-control` plugin are documented here. Format f
 ### Fixed
 
 - **`/setup`'s gitignore guard no longer applies one verdict to layers that need opposite ones.** A
-  gitignored *team* file remains a hard STOP — teammates would never receive the shared convention.
+  gitignored *team* file remains a hard STOP, since teammates would never receive the shared convention.
   A gitignored *personal overlay* is the success condition, and the overlay is never staged; when it
   is not ignored, `/setup` surfaces the `.claude/*.local.*` line for the consumer to add rather than
   editing their `.gitignore`. The user-global file is outside the worktree, so no git command runs
-  against it at all — `git check-ignore` and `git status` on a path outside the repository would
+  against it at all, since `git check-ignore` and `git status` on a path outside the repository would
   produce a meaningless verdict, or a confidently wrong one when the home directory is itself a
   repository.
 
@@ -5580,15 +5675,15 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `ScheduleWakeup.delaySeconds` instead of falling back to the generic `/loop` heuristic.** The
   snapshot engine emits `recommended_cadence` (`reference/cadence.md`: active / normal / quiet /
   idle) and `reference/loop.md` §5.3 told the orchestrator to "derive the wake interval" from it,
-  but never gave the string-to-seconds translation — so orchestrators silently fell back to the
+  but never gave the string-to-seconds translation, so orchestrators silently fell back to the
   generic `/loop` skill's own "lean 1200–1800s" fallback-heartbeat range, overriding the domain
   skill's tighter adaptive-cadence contract and leaving PRs with pending CI or blocking feedback
   unchecked 4–5x longer than intended. §5.3 now carries a deterministic mapping table
   (`active`→300, `normal`→900, `quiet`→3600, `idle`→3600) and states plainly that this signal
-  ALWAYS wins over the generic heuristic whenever a snapshot supplies it — in babysit dynamic mode
+  ALWAYS wins over the generic heuristic whenever a snapshot supplies it. In babysit dynamic mode
   the `ScheduleWakeup` delay is the primary cadence signal, not a fallback heartbeat. The `idle`
   row is documented as a ceiling: `ScheduleWakeup` clamps `delaySeconds` to `[60, 3600]`, so
-  cadence.md's daily `idle` intent truncates to the 3600s hourly ceiling — a genuine daily cadence
+  cadence.md's daily `idle` intent truncates to the 3600s hourly ceiling, so a genuine daily cadence
   needs the durable `/schedule` cron mechanism, not a single-session `/loop` wakeup.
 
 ## [0.13.3]
@@ -5602,7 +5697,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   PR-level review-summary comments that are never thread-resolved. Because a review thread's
   findings drop when it resolves (the lifetime-vs-open discount) but a PR-level comment can never
   resolve, a stale classification posted outside a thread kept counting after its finding was
-  discounted — inflating the classified count past a fresh, still-unclassified open-thread finding
+  discounted, inflating the classified count past a fresh, still-unclassified open-thread finding
   and emitting a fail-open `READINESS_OK`. Classification credit is now bucketed by surface
   (review-thread, PR-level, and an isolated bucket for comments bearing no surface signal) and
   capped within each bucket, so a classification can only offset a finding on its own surface. The
@@ -5612,7 +5707,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Changed
 
-- **BEHAVIOR FLIP — a PR whose inline-thread findings are answered only by detached PR-level
+- **BEHAVIOR FLIP: a PR whose inline-thread findings are answered only by detached PR-level
   classification replies now reports `READINESS_BLOCKED` where it previously passed.** With
   per-surface credit, a PR-level classification row no longer offsets an inline-thread finding, so
   the gate blocks until each inline finding is answered on its own thread. This enforces
@@ -5629,7 +5724,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   §2.4.2 pre-create gate.** The local gate's `OPTOUT_REGEX` accepted `Refs #N`, but the real
   `pr-issue-linkage` reusable CI workflow (`melodic-software/ci-workflows` `pr-issue-linkage.yml`,
   the SHA this repo pins) accepts only a native closing keyword (`Closes`/`Fixes`/`Resolves #N`) or a
-  literal `No linked issue` / `No related issue:` phrase for its closing-keyword half — `Refs #N` is
+  literal `No linked issue` / `No related issue:` phrase for its closing-keyword half. `Refs #N` is
   not in that set. A `Refs #N`-only body therefore cleared the skill's own gate yet still failed the
   CI gate on push. The regex now drops `Refs #N` (`^No related issue:` only), so any body the local
   gate passes the validator also passes (a strict safe subset). `Refs #N` remains a valid
@@ -5647,7 +5742,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **`pull-request` create flow now scaffolds a non-empty `## Related` section in the assembled PR
   body.** The create flow builds the PR body from its own template and passes it via `gh pr create
-  --body`, which fully overrides `.github/pull_request_template.md` (cli/cli#10751) — so
+  --body`, which fully overrides `.github/pull_request_template.md` (cli/cli#10751), so
   skill-driven PRs never see a repo PR template. The assembled skeleton had `## Summary` /
   `## Test plan` but no `## Related` section, so PRs in a repo whose CI enforces a
   `pr-issue-linkage`-style contract (non-empty `## Related` + a native closing keyword) failed the
@@ -5668,7 +5763,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   self/bot/human authorship test, the finding severity + lifetime-vs-open counting, and the
   approval-verdict heuristics were hand-rolled independently across the snapshot classifier, the
   merge gate, the resolve-thread reporter, and the readiness gate, and the surfaces disagreed on
-  identical input — the six-issue misclassification class this refactor closes. They now consume
+  identical input, the six-issue misclassification class this refactor closes. They now consume
   one classifier: `babysit_delta`, `babysit_feedback`, and `babysit_merge` import the self-login
   membership test and authorship/finding/approval primitives directly instead of re-deriving them,
   `babysit_resolve_thread` shares the same `is_bot` test, and `babysit-readiness-gate.sh` shells
@@ -5680,13 +5775,13 @@ All notable changes to the `source-control` plugin are documented here. Format f
 ### Fixed
 
 - **`babysit-readiness-gate.sh` no longer over-counts lifetime findings as unaddressed.** The gate
-  counted every severity marker ever posted across a PR's lifetime — including markers in review
-  threads GitHub already reports resolved or outdated — so a fully-classified PR with re-review
+  counted every severity marker ever posted across a PR's lifetime, including markers in review
+  threads GitHub already reports resolved or outdated, so a fully-classified PR with re-review
   history reported `READINESS_BLOCKED reason=under-decomposed` permanently even when every open
   item was addressed. The shared finding counter discounts a marker carried in a resolved or
   outdated thread, counting currently-open findings only. (De-duplicating the same concern restated
-  across re-review rounds within still-open threads is deliberately out of scope — there is no
-  reliable mechanical "same concern" signal — so restatements still count.) The bash counting is
+  across re-review rounds within still-open threads is deliberately out of scope, since there is no
+  reliable mechanical "same concern" signal, so restatements still count.) The bash counting is
   retained only as the Python-free safe-tier degrade, which cannot see thread state; a convergence
   test pins the two counts together on thread-state-free input.
 - **`source-control-babysit-resolve-thread` no longer reports `humanThreadsActed` for a
@@ -5694,7 +5789,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   *all* bots (`botOnly` false), so a bot-opened thread carrying a later human reply was reported as
   a human-thread action that never happened, undermining the human-thread safety rail's own
   telemetry. It now counts only threads whose opening author is human, via the shared authorship
-  classifier — the same author check the `--include-human` eligibility decision already uses.
+  classifier, the same author check the `--include-human` eligibility decision already uses.
 
 ## [0.12.0]
 
@@ -5709,18 +5804,18 @@ All notable changes to the `source-control` plugin are documented here. Format f
   approval carrying no genuine severity marker is downgraded structurally (for any bot, not only a
   configured login) to a non-blocking result, consistent with `babysit-readiness-gate.sh`
   reporting `findings=0` for the same review. Detection of genuinely blocking feedback is
-  unweakened — in a comment or a non-`APPROVED`-state review, a `CRITICAL`/`IMPORTANT` finding or
+  unweakened: in a comment or a non-`APPROVED`-state review, a `CRITICAL`/`IMPORTANT` finding or
   a Request-changes verdict still classifies as blocking, and `CRITICAL`/`IMPORTANT` are now
   recognized as blocking-severity markers in their own right. (A review submitted in the formal
-  `APPROVED`/`DISMISSED` state is routed to `ignored` before the severity check — pre-existing
+  `APPROVED`/`DISMISSED` state is routed to `ignored` before the severity check, pre-existing
   behavior this change does not alter; whether such reviews should be severity-scanned first is
-  tracked as a follow-up in #621.) A negated severity conclusion — a clean approval stating `No CRITICAL or IMPORTANT
-  findings` — is redacted before the severity check, the structured-marker analogue of the
+  tracked as a follow-up in #621.) A negated severity conclusion, a clean approval stating `No CRITICAL or IMPORTANT
+  findings`, is redacted before the severity check, the structured-marker analogue of the
   existing `no P1/P2 issues` redaction, so introducing severity-marker detection does not itself
   re-create a false blocker for that common clean-verdict phrasing. A login named in
   `babysit_approval_downgrade_logins` opts that bot's approval into the more-conservative
   `material` bucket (surfaced but non-blocking) instead of `ignored` in the one case the
-  structural downgrade reaches — a review body carrying blocking-looking prose that still parses
+  structural downgrade reaches: a review body carrying blocking-looking prose that still parses
   as an approval verdict. It does not affect a review already in the APPROVED state or a plain
   clean approval whose body carries no blocking-looking prose: both are ignored regardless of the
   setting, since neither reaches the downgrade branch.
@@ -5733,14 +5828,14 @@ All notable changes to the `source-control` plugin are documented here. Format f
   finding.** The snapshot engine gains an `attribution_drift` reconciliation arm: for each write the
   mutation ledger recorded performing, it verifies the landed timeline author is the configured
   intended write-identity, not merely *some* accepted self-login. A recorded write that landed under
-  a different self-login — the canonical case being a bot write-identity that degraded to the
-  operator's personal login when a token mint failed — becomes a first-class material finding on that
+  a different self-login, the canonical case being a bot write-identity that degraded to the
+  operator's personal login when a token mint failed, becomes a first-class material finding on that
   PR's cycle-status line instead of drifting silently. It is the complement of `foreign_activity`
   (which reconciles same-login events the ledger *cannot* account for) and is mutually exclusive with
   it per comment; unlike `foreign_activity` it reports without suppressing dispatch, since the PR is
   still ours to babysit. The intended identity is configured via the new `babysit_intended_write_identity`
   userConfig key (threaded as `--intended-write-identity` to the snapshot); absent it, the arm is
-  dormant. This is pure plugin-side authorship verification — the token-generation root cause is a
+  dormant. This is pure plugin-side authorship verification. The token-generation root cause is a
   cross-repo concern (medley `gh-bot.sh`) and no change there is needed for the finding to fire.
   Coverage is bounded to the write class the ledger records with a recoverable author (review-trigger
   comments); drift on reactions, classification replies, and branch pushes awaits ledgering their
@@ -5751,7 +5846,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Changed
 
-- **`babysit-prs` requires per-thread pins for autonomous thread resolves — the bulk autonomous
+- **`babysit-prs` requires per-thread pins for autonomous thread resolves, and the bulk autonomous
   path is refused.** `babysit_resolve_thread.py` now rejects a `--autonomous --resolve` call that
   carries no `--thread-id`, forcing the unattended-worker path through a per-thread vetted loop
   (each thread pinned with `--expected-comment-count` and `--expected-last-updated`, reusing the
@@ -5759,8 +5854,8 @@ All notable changes to the `source-control` plugin are documented here. Format f
   mode, so there is no unpinned autonomous resolve. A worker's own push marks a review thread
   `isOutdated`, and the previous bulk path cleared such threads in one unpinned sweep with no
   proof the finding was addressed; the per-thread pins now close the bulk and comment-drift gaps.
-  They do not close the displacement bypass — a push that flips `isOutdated` while the comment
-  pins still match is still resolvable — which is tracked as the root fix in #571. This is a
+  They do not close the displacement bypass, where a push that flips `isOutdated` while the comment
+  pins still match is still resolvable. That is tracked as the root fix in #571. This is a
   behavior change to the
   autonomous-worker contract: `SKILL.md` Autopilot step 2 changes from one bulk call to a
   per-thread loop, aligning it with the pinned form already documented in
@@ -5796,8 +5891,8 @@ All notable changes to the `source-control` plugin are documented here. Format f
   stops instead of arming a CI watch; added to `SKILL.md` and `reference/safety.md`, pointing at
   the existing no-background-monitor clause rather than restating it.
 - **`babysit-prs` clarifies the bare-wrapper invocation rule.** `reference/safety.md` now states
-  that the guarded-wrapper JSON must be parsed in a separate step — never piped into an
-  interpreter — because an interpreter-in-pipeline trips the auto-mode safety classifier and
+  that the guarded-wrapper JSON must be parsed in a separate step, never piped into an
+  interpreter, because an interpreter-in-pipeline trips the auto-mode safety classifier and
   blocks the call.
 
 ## [0.9.2]
@@ -5810,7 +5905,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   and `Fixed in <sha>` follow-ups as new human-authored feedback, manufacturing a self-inflicted,
   unsuppressible `new_human_blocking_feedback` dispatch that re-fired every cycle with zero real
   work. The `new_human_blocking_feedback` and `new_human_feedback` deltas now exclude items
-  authored by the configured self-login(s) — the same self-reply exclusion `review-discipline.md`
+  authored by the configured self-login(s), the same self-reply exclusion `review-discipline.md`
   §1 already mandates for the worker, and parity with the bot delta arms (self-filtered
   structurally because the engine never comments as a bot). Scoped to the dispatch deltas only: a
   self-authored item still classifies as human feedback, so a genuine "do not merge" comment the
@@ -5824,17 +5919,17 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **babysit-prs review-trigger head-staleness hardening** (dormant-by-default module; no effect
   until `babysit_review_trigger_phrase` + `babysit_review_bot_logins` + `babysit_review_gate_context`
   are configured).
-  - **F7** — `request_review.py`'s pre-POST freshness guard rejected only the literal `BEHIND`
+  - **F7**: `request_review.py`'s pre-POST freshness guard rejected only the literal `BEHIND`
     merge state. A head that is behind its base but reports `BLOCKED` (GitHub masks `BEHIND` behind
     `BLOCKED`) slipped through and spent the one-shot review request on a stale SHA. The guard now
     reuses the compare-confirmed freshness signal (`compute_branch_freshness`, off the
     `_blocked_base_compare` enrichment `view_pr` already computes), so a compare-behind head is
     rejected and the branch-refresh flow runs first.
-  - **F8** — the candidate predicate in `babysit_review_trigger.py` blocked candidacy whenever *any*
+  - **F8**: the candidate predicate in `babysit_review_trigger.py` blocked candidacy whenever *any*
     reviewer reaction existed. Reactions carry no commit SHA, so a reaction left on an earlier head
     persisted onto later heads and permanently suppressed the new head's observation window. The
     check is now scoped to reactions associated with, or newly observed for, the current head.
-  - **F8 follow-on** — the F8 scoping stopped at the candidate predicate: `request_review.py`'s
+  - **F8 follow-on**: the F8 scoping stopped at the candidate predicate: `request_review.py`'s
     posting guard (`validate_current_candidate`, both its pre-POST check and its post-POST
     concurrency check) still gated on the raw, unscoped reaction list. A PR made eligible by the F8
     fix because its only reaction was stale (an earlier head) would still have every request attempt
@@ -5850,7 +5945,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   now splits into a read-only `check` action (default) and an `apply` action across both
   configuration surfaces. `check` reports the effective commit-subject / PR-title convention (from
   the tracked `.claude/source-control.md`) and the babysit-prs `userConfig` surface (effective
-  config, branch-protection posture, Windows long paths) — treating an unconfigured surface as INFO
+  config, branch-protection posture, Windows long paths), treating an unconfigured surface as INFO
   (the Conventional Commits / inference default; the safe babysit tier) and FAILing only a
   configured-but-broken convention (a non-machine-checkable `subject_pattern`, or a
   `.claude/source-control.md` excluded by `.gitignore`). The previous interactive convention
@@ -5871,7 +5966,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - README now declares the full runtime (prerequisite-visibility wave): `jq`
   and Bash (Git Bash on native Windows) alongside `git`/`gh`, plus the
   `unzip` requirement of the CI-log fetch path with its documented
-  stop-with-remediation behavior. Script behavior is unchanged — the gates
+  stop-with-remediation behavior. Script behavior is unchanged. The gates
   already existed at point of use.
 
 ## [0.8.0]
@@ -5881,7 +5976,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **`/source-control:babysit-prs` capability convergence.** The skill gains opt-in `worker` and
   `autopilot` tiers on top of the safe default: `worker` auto-resolves outdated bot threads and
   merges PRs the deterministic gate proves ready; `autopilot` widens author and thread scope
-  under the watched owners. Both merge only behind `babysit_merge.py`'s gate — `mergeStateStatus
+  under the watched owners. Both merge only behind `babysit_merge.py`'s gate: `mergeStateStatus
   == CLEAN` cross-checked, head-SHA pinned, never `--admin`, never force-push.
 - **Decomposed Python engine** under `skills/babysit-prs/scripts/` (stdlib-only): `babysit_util`,
   `babysit_gh` (one parameterized discovery function, one reviewThreads paginator), `babysit_state`
@@ -5894,7 +5989,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   suite runs in the plugin-tests lane (`engine.test.sh`, self-SKIP when Python is absent). Python
   3.11+ is a declared prerequisite for the `worker`/`autopilot` tiers only; the safe default runs
   Python-free.
-- **First-in-fleet plugin `bin/` wrappers** — `source-control-babysit-merge` and
+- **First-in-fleet plugin `bin/` wrappers**: `source-control-babysit-merge` and
   `source-control-babysit-resolve-thread` expose the guarded mutations as bare commands whose
   allow rules survive auto mode; the merge wrapper refuses `--allow-unpinned-head`.
 - **15 `babysit_`-prefixed `userConfig` keys** (watched owners, self logins, default tier, merge
@@ -5911,7 +6006,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   merge in every tier). `worker`/`autopilot` widen scope explicitly.
 - State root moves from `CODEX_HOME` to `${CLAUDE_PLUGIN_DATA}`; all engine configuration is now
   delivered via CLI flags substituted from the SKILL.md effective-config block.
-- Self-identity is additive across every consumer — `--extra-self` (readiness gate), `--author
+- Self-identity is additive across every consumer: `--extra-self` (readiness gate), `--author
   @me,<extras>` (discovery), and `--self-logins @me,<extras>` (merge gate) each fold the configured
   `babysit_self_logins` extras onto your gh login.
 
@@ -5928,8 +6023,8 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Removed
 
-- The `BABYSIT_*` environment-variable seams on the Python engine (owners, timeouts, quiet-recheck
-  window) — replaced by CLI flags fed from `userConfig`. The shared readiness gate's `--self`
+- The `BABYSIT_*` environment-variable overrides on the Python engine (owners, timeouts, quiet-recheck
+  window), replaced by CLI flags fed from `userConfig`. The shared readiness gate's `--self`
   (full override) / `--extra-self` (additive) contract is unchanged.
 
 ## [0.7.0]
@@ -5950,30 +6045,30 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Added
 
-- **New `/source-control:babysit-prs` skill** — the all-PR self-pacing babysit loop, extracted
+- **New `/source-control:babysit-prs` skill**, the all-PR self-pacing babysit loop, extracted
   from `/source-control:pull-request` into its own skill (distinct discovery intent: fleet loop
   vs single-PR lifecycle). Same behavior as the former `babysit` action: discovers every open
   non-draft PR oldest-first, checks each out, keeps branches fresh, classifies every review
   finding with GitHub-verified evidence, fixes valid findings, reports readiness. Never merges.
   Invoke via `/source-control:babysit-prs` (loop pairing: `/loop /source-control:babysit-prs`).
-- **Plugin-scope shared review discipline** at `reference/review-discipline.md` — the canonical
+- **Plugin-scope shared review discipline** at `reference/review-discipline.md`, the canonical
   home of finding extraction (with the mandatory ≥3-finding subagent dispatch), per-finding
   D1–D7 verification gates, and self-reply filtering, cited by both `pull-request` and
   `babysit-prs` instead of duplicating the rules per skill.
 
 ### Changed
 
-- **Breaking:** the `babysit` action is removed from `/source-control:pull-request` — use
+- **Breaking:** the `babysit` action is removed from `/source-control:pull-request`. Use
   `/source-control:babysit-prs`. The pull-request description, action table, phase table, and
   checklists no longer carry babysit content; `reference/monitor.md`'s cross-references into the
   former babysit reference now cite the plugin-scope review discipline.
 - Shared scripts hoisted from `skills/pull-request/scripts/` to plugin-root `scripts/`
   (`fetch-all-pr-comments.sh`, `babysit-readiness-gate.sh`, `test-helpers.sh`, with their
-  tests) — cited by both skills via `${CLAUDE_PLUGIN_ROOT}/scripts/`.
+  tests), cited by both skills via `${CLAUDE_PLUGIN_ROOT}/scripts/`.
 
 ### Removed
 
-- `discover-prs.sh` (+ test) — retired; the inline `gh pr list` filter in the babysit-prs
+- `discover-prs.sh` (+ test) is retired; the inline `gh pr list` filter in the babysit-prs
   reference is the discovery contract.
 
 ## [0.5.2]
@@ -5981,7 +6076,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 ### Fixed
 
 - `/pull-request create`'s worktreeinclude sync check no longer reports phantom `CHANGED:` lines
-  for `.worktreeinclude` patterns that match no files — an unmatched glob stays a literal string
+  for `.worktreeinclude` patterns that match no files. An unmatched glob stays a literal string
   in Bash and previously fell through to the changed-file branch; it is now skipped.
 
 ## [0.5.1]
@@ -6022,7 +6117,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 ### Added
 
 - `/source-control:setup` skill: interviews the repo and writes the tracked
-  `.claude/source-control.md` commit-subject / PR-title convention config —
+  `.claude/source-control.md` commit-subject / PR-title convention config,
   inferring first from the repo's own `CLAUDE.md`/rules, commit-msg hook, or
   git log history before asking. Offers Conventional Commits (11-type
   vocabulary) as the recommended default, or a custom pattern for orgs that
@@ -6040,7 +6135,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 ### Added
 
 - `/resolve-conflicts` skill: intent-first resolution of in-progress merge/rebase/cherry-pick
-  conflicts — both sides' history read before any hunk is edited, compose-by-default with
+  conflicts: both sides' history read before any hunk is edited, compose-by-default with
   evidence-gated side-dropping, a post-resolution semantic-conflict sweep (build/tests before
   done), and a hard never-`--abort` discipline. Ships three evals.
 

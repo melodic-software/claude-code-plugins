@@ -11,7 +11,7 @@ B.1 / B.2 / B.3:
 This is the cross-repo security floor. Projects with a stricter posture (extra secret-file paths,
 destructive API-endpoint families, hook-bypass blockers, additional ask-gates) declare those in their
 own rules files; Category B checks them alongside this baseline. Both arg-bearing and bare forms are
-listed separately where relevant — CC permission globs are greedy across slashes but require an
+listed separately where relevant, because CC permission globs are greedy across slashes but require an
 explicit pattern for each invocation shape.
 
 ## sensitive-file-deny (Read deny)
@@ -31,7 +31,7 @@ tree.
 | `Read(**/*.pem)` | Block reading PEM certificate/key files anywhere in tree |
 | `Read(**/id_rsa)` | Block reading SSH private keys |
 
-### Scope of a Read deny — what it covers, and what it does not
+### Scope of a Read deny: what it covers, and what it does not
 
 These entries are a guardrail against routine access, not a containment boundary. Category B checks
 that the rules are present; presence is not evidence the file is unreachable. Say so whenever the
@@ -42,14 +42,14 @@ category is reported, in either direction. Verified 2026-07-26 against
 
 **Covered.** A `Read(...)` deny applies to the built-in file tools (Read, Grep, Glob, LSP), to
 `@file` mentions in a prompt, to the selection and open-file context a connected IDE shares, to the
-Edit tool on the same path (CC v2.1.208+), and — per the permissions page — to *file commands Claude
+Edit tool on the same path (CC v2.1.208+), and, per the permissions page, to *file commands Claude
 Code recognizes inside a Bash command, such as `cat`, `head`, `tail`, and `sed`*. The obvious
 "`cat` it instead" fallback is therefore blocked.
 
 **Not covered.** The same page: the rules "don't apply to arbitrary subprocesses that read or write
 files indirectly, like a Python or Node script that opens files itself." A `python -c`, a `node -e`,
 or any script that opens the path reads a `Read`-denied file with no deny firing. That is the real
-gap, and it is reached *routinely* — an agent blocked on `Read` reaches for an interpreter one-liner
+gap, and it is reached *routinely*: an agent blocked on `Read` reaches for an interpreter one-liner
 as an ordinary next step, not as an attack. This plugin's own `scripts/check-structure.sh` is an
 instance: it opens `settings.local.json` from inside a subprocess, and its safety comes from emitting
 only counts, never from the deny rule.
@@ -65,7 +65,7 @@ its child processes: `sandbox.filesystem.denyRead`, or `sandbox.credentials.file
 boundary. The sandbox's default read policy still allows credential files such as `~/.aws/credentials`
 and `~/.ssh/` unless they are listed.
 
-**`sandbox.enabled: true` alone is not a boundary — check the escape surfaces before calling it one.**
+**`sandbox.enabled: true` alone is not a boundary. Check the escape surfaces before calling it one.**
 Upstream documents four, all open at their defaults, and each puts a subprocess back outside the OS
 boundary where it can read the denied path:
 
@@ -79,14 +79,14 @@ boundary where it can read the denied path:
 Report an enabled-but-default sandbox as partial, not as protection. Recommending it without these is
 the same defect as recommending the deny globs without their scope.
 
-**Platform limit — check before recommending it.** The sandbox runs on macOS, Linux, and WSL2; native
+**Platform limit. Check before recommending it.** The sandbox runs on macOS, Linux, and WSL2; native
 Windows is not supported, and the PowerShell tool lists "On Windows, sandboxing is not supported"
 among its preview limitations. On a native-Windows workstation the OS-level remedy is unavailable, so
 do not offer it there as the fix.
 
-**A `PreToolUse` hook on `Bash|PowerShell` is a speed bump, not a boundary — *against this threat
+**A `PreToolUse` hook on `Bash|PowerShell` is a speed bump, not a boundary, *against this threat
 model*.** It can inspect the command string and deny the call, and a hook exiting 2 blocks a call an
-*allow* rule would otherwise have permitted. A decision it returns cannot loosen a deny — see
+*allow* rule would otherwise have permitted. A decision it returns cannot loosen a deny. See
 "Interaction with hook-based gates" below for the precise ordering. But it inspects that same command
 string, so it inherits the evasion surface of a Bash deny glob. Rank it below the sandbox and never
 describe it as protection.
@@ -96,12 +96,12 @@ here because an OS-level boundary for *reading a file* exists, so something stri
 hook is on the table. Nothing equivalent exists for a destructive git argument: the sandbox's
 vocabulary is `filesystem.*` paths and `network.*` hosts, with no expression for a command's
 *arguments*, so it cannot separate `git push` from `git push --force` to the same remote. Do not
-carry "rank it below the sandbox" into a destructive-git finding — see that section's own note.
+carry "rank it below the sandbox" into a destructive-git finding. See that section's own note.
 
 **Residual risk, stated plainly.** Where no OS-level boundary is available, a deny glob cannot keep a
 secret from a session that has shell execution. **Directory location is not a boundary**: a
 subprocess opens absolute paths, so moving the file outside the working directory and
-`additionalDirectories` changes nothing about who can read it — never present relocation as
+`additionalDirectories` changes nothing about who can read it. Never present relocation as
 protection. The boundary that holds is the OS principal. A file readable by the account the session
 runs as is reachable, wherever it sits. So the durable control is that the secret is not sitting in a
 file that account can read at all: keep it in an OS credential store or a secrets manager and inject
@@ -109,7 +109,7 @@ it at use time, scope it to a short-lived credential whose theft expires, or run
 different principal or inside a container that never receives it. Keep the deny rules above; do not
 report them as proof the file is protected.
 
-**Unverified — flag it rather than asserting either way.** No fetched page states whether reads
+**Unverified. Flag it rather than asserting either way.** No fetched page states whether reads
 through the **PowerShell tool** (`Get-Content`, `type`) are covered: the permissions page scopes the
 recognized-command coverage to commands "in Bash", and the tools reference lists `Read(...)` as
 applying to "Read, Grep, Glob, LSP". Treat PowerShell reads as uncovered until upstream says
@@ -118,7 +118,7 @@ otherwise. The recognized-command list is also introduced with "such as" and is 
 
 ## destructive-bash-deny (Bash deny)
 
-Bash deny patterns for destructive git operations — the universal baseline.
+Bash deny patterns for destructive git operations, the universal baseline.
 
 | Pattern | Blocks |
 | --- | --- |
@@ -153,13 +153,13 @@ the available controls are the deny globs above and a `PreToolUse` hook, and the
 that a hook can parse the command rather than prefix-match it, while inheriting the same
 command-string evasion surface. Upstream supports the fragility claim generally; its *"use PreToolUse
 hooks"* recommendation on that page is scoped to URL filtering, so do not cite upstream as ranking
-the hook above the glob for destructive commands — that reach is ours to argue, not theirs to have
+the hook above the glob for destructive commands. That reach is ours to argue, not theirs to have
 said.
 
 ## ask-rules (Bash ask)
 
-Bash patterns that should require confirmation before execution. `git push` is the canonical ask-gate
-— pushes carry intent the agent should not infer.
+Bash patterns that should require confirmation before execution. `git push` is the canonical ask-gate,
+because pushes carry intent the agent should not infer.
 
 | Pattern | Purpose |
 | --- | --- |
@@ -171,19 +171,19 @@ Bash patterns that should require confirmation before execution. `git push` is t
 The baseline is a floor for the common case, not an unconditional mandate. Three narrowings apply, and
 Category B checks all three before flagging an absent pattern.
 
-**1 — A documented exemption in the consuming repo.** A repo where a pattern is
-genuinely inapplicable — e.g. a read-only analysis or documentation repo with no push access, where
-the `git push` ask-gates protect nothing — documents the exemption in its own rules files; Category B
+**1. A documented exemption in the consuming repo.** A repo where a pattern is
+genuinely inapplicable, e.g. a read-only analysis or documentation repo with no push access, where
+the `git push` ask-gates protect nothing, documents the exemption in its own rules files; Category B
 checks for such a documented exemption before flagging an absent pattern. Undocumented absence is
 still a finding.
 
-**2 — A documented project hook convention.** See "Interaction with hook-based gates" below: where the
+**2. A documented project hook convention.** See "Interaction with hook-based gates" below: where the
 project's own documented conventions say a safety hook escalates the operation, audit the pattern
 against those conventions rather than flagging its absence.
 
-**3 — A live `PreToolUse` hook that already blocks the family.** An absent baseline pattern whose
+**3. A live `PreToolUse` hook that already blocks the family.** An absent baseline pattern whose
 command family is blocked by a `PreToolUse` hook that is *installed, enabled, and able to run* on the
-tool surface the pattern defends is reported `info`, not `error` — the deny rule is redundant with an
+tool surface the pattern defends is reported `info`, not `error`, because the deny rule is redundant with an
 enforcement path that already holds. This narrowing is available whether the hook comes from the repo
 or from an installed plugin; a plugin-provided hook is no weaker a block than a repo-provided one.
 
@@ -208,7 +208,7 @@ or from an installed plugin; a plugin-provided hook is no weaker a block than a 
 - **The hook is on the tool surface the pattern defends.** `destructive-bash-deny` and `ask-rules` are
   Bash-command families, so a `PreToolUse` hook on `Bash`/`PowerShell` can cover them.
   `sensitive-file-deny` is a `Read`-pattern family, and a Read deny covers the built-in file tools as
-  well as the recognized Bash file commands — a hook matching only `Bash` therefore leaves the
+  well as the recognized Bash file commands, so a hook matching only `Bash` leaves the
   `Read`/`Grep`/`Glob` path open and **does not** retire a `sensitive-file-deny` finding. Match the
   matcher to the family, and where the hook covers only part of the family, narrow only that part.
 - **The hook blocks that specific family**, not a neighbouring one. Coverage of `git push --force`
@@ -226,20 +226,20 @@ the hook exposes, and that it is suppressible later by `disableAllHooks`, `allow
 plugin's hook config, resolved through the installed-plugin registry. Read its **exit code**, because
 that is what tells you which posture you are in:
 
-- **`0` — complete.** Every enabled plugin resolved. Narrowing 3 is decidable: an absent pattern whose
+- **`0`, complete.** Every enabled plugin resolved. Narrowing 3 is decidable: an absent pattern whose
   family no enumerated hook blocks is a genuine finding at full severity, and one a live hook does
   block drops to `info` with the residual named. State that the inventory was taken.
-- **`1` — partial.** The script's "Not enumerated" block names what it could not read. For families
-  those sources could plausibly cover, do **not** assume absence: state the finding as conditional —
-  "if a `PreToolUse` hook on `Bash` already blocks this family, this finding is void" — and name the
+- **`1`, partial.** The script's "Not enumerated" block names what it could not read. For families
+  those sources could plausibly cover, do **not** assume absence: state the finding as conditional,
+  as in "if a `PreToolUse` hook on `Bash` already blocks this family, this finding is void", and name the
   specific unresolved plugin or unparsed file that would settle it. Everything the run *did* enumerate
   is still decidable; partial is not a blanket licence to hedge.
-- **`2` or not run — no inventory.** Treat as partial for every family, and say so. "Could not look" is
+- **`2` or not run, no inventory.** Treat as partial for every family, and say so. "Could not look" is
   never reportable as "looked and found nothing".
 
 ## Interaction with hook-based gates
 
-The ordering runs both ways, so state it precisely, and keep the two cases apart — a hook that
+The ordering runs both ways, so state it precisely, and keep the two cases apart: a hook that
 *returns a decision* is not a hook that *exits 2*.
 
 - **A returned decision cannot loosen a rule.** Deny and ask rules are evaluated regardless of which
@@ -247,10 +247,10 @@ The ordering runs both ways, so state it precisely, and keep the two cases apart
   `allow`, and a matching ask still prompts.
 - **Exit 2 short-circuits instead of feeding in a decision.** A hook that exits 2 stops the tool call
   before permission rules are evaluated at all, so it blocks where an allow rule would have let the
-  call through — and nothing downstream runs, including an otherwise-matching ask rule, which never
+  call through. Nothing downstream runs, including an otherwise-matching ask rule, which never
   gets to prompt. The bullet above describes returned decisions only; it does not apply here.
 
 The consequence for this baseline is the first direction. When a project escalates an operation to a
 permission prompt via its own safety hook (e.g. a git-safety hook that turns `git branch -D` into an
-ask), adding a deny entry for the same pattern suppresses that prompt — audit such patterns against
+ask), adding a deny entry for the same pattern suppresses that prompt. Audit such patterns against
 the project's own documented hook conventions rather than flagging their absence here.

@@ -1,6 +1,6 @@
 # E2E against a locally-orchestrated app stack
 
-Original content — not from upstream. The orchestration story for running Playwright CLI against apps started by a local orchestrator: .NET Aspire, docker-compose, tilt, or a plain dev server.
+Original content, not from upstream. The orchestration story for running Playwright CLI against apps started by a local orchestrator: .NET Aspire, docker-compose, tilt, or a plain dev server.
 
 ## Prerequisite: stack up and healthy
 
@@ -12,13 +12,13 @@ docker compose up -d                             # docker-compose
 tilt up                                          # tilt
 ```
 
-Wait for every service to report healthy — the orchestrator's dashboard usually shows this, or verify programmatically:
+Wait for every service to report healthy. The orchestrator's dashboard usually shows this, or verify programmatically:
 
 ```bash
 curl -s http://localhost:<port>/health | jq .
 ```
 
-Endpoint URLs are often dynamic (Aspire in particular assigns ports at startup) — grab them from the orchestrator dashboard or its CLI/MCP surface rather than assuming.
+Endpoint URLs are often dynamic (Aspire in particular assigns ports at startup). Grab them from the orchestrator dashboard or its CLI/MCP surface rather than assuming.
 
 ## Recommended flow
 
@@ -50,7 +50,7 @@ playwright-cli -s=smoke close
 
 | Need | Tool |
 |---|---|
-| Pure API endpoint verification | `curl` + `jq` — fastest, no browser overhead |
+| Pure API endpoint verification | `curl` + `jq`. Fastest, no browser overhead |
 | Health / readiness checks | The orchestrator's dashboard or MCP surface + `curl /health` |
 | Structured log inspection | The orchestrator's log/trace surface |
 | **UI flow through Swagger/Scalar or the app itself** | Playwright CLI |
@@ -58,7 +58,7 @@ playwright-cli -s=smoke close
 | **Visual regression** | Playwright CLI screenshot + image diff |
 | Performance (Core Web Vitals, Lighthouse) | Chrome DevTools tooling |
 
-Playwright CLI complements the orchestrator's own observability and `curl` — it does NOT replace them. Reach for it when the test needs actual DOM/UI interaction, not HTTP.
+Playwright CLI complements the orchestrator's own observability and `curl`. It does NOT replace them. Reach for it when the test needs actual DOM/UI interaction, not HTTP.
 
 ## Framework gotcha: Blazor Interactive Auto
 
@@ -66,7 +66,7 @@ Blazor Interactive Auto (Server + WASM) renders elements progressively. Two comm
 
 ### Wait for interactive after navigation
 
-Before clicking a Blazor component, wait for it to be interactive — `@onclick` handlers attach after the WASM runtime loads:
+Before clicking a Blazor component, wait for it to be interactive. `@onclick` handlers attach after the WASM runtime loads:
 
 ```bash
 playwright-cli -s=blazor open http://localhost:<port>/counter
@@ -84,11 +84,11 @@ Blazor's enhanced-nav intercepts link clicks. If a test expects page navigation 
 
 ## Cleanup discipline
 
-Never commit `.playwright-cli/` content — add it to the project's `.gitignore`. Run `rm -rf .playwright-cli/` after large traces/videos to reclaim disk. `playwright-cli close-all && playwright-cli kill-all` between test batches prevents zombie daemons holding file locks.
+Never commit `.playwright-cli/` content. Add it to the project's `.gitignore`. Run `rm -rf .playwright-cli/` after large traces/videos to reclaim disk. `playwright-cli close-all && playwright-cli kill-all` between test batches prevents zombie daemons holding file locks.
 
 ## Cross-worktree notes
 
-Each git worktree has its own `.playwright-cli/` (gitignored, relative to CWD). Session state (`-s=<name>`) is keyed by daemon process, per-user, NOT per-worktree — two worktrees running `-s=smoke` concurrently share the same browser. For concurrent isolation, use distinct session names per worktree:
+Each git worktree has its own `.playwright-cli/` (gitignored, relative to CWD). Session state (`-s=<name>`) is keyed by daemon process, per-user, NOT per-worktree. Two worktrees running `-s=smoke` concurrently share the same browser. For concurrent isolation, use distinct session names per worktree:
 
 ```bash
 # In worktree A

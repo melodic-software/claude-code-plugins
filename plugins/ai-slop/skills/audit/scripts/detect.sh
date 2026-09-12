@@ -8,7 +8,10 @@
 #   density  fires per file when matches per 1000 words reach the threshold
 #
 # Output: Finding rows (rule/file/line/fired/excerpt), then Summary rows with
-# per-rule finding and declined counts. All key=value, line-oriented.
+# per-rule finding and declined counts, the declined count split by cause
+# (marker, quote, config), and the rule's disabled flag. All key=value,
+# line-oriented. A chunked run (--offset/--limit) emits one Summary block per
+# chunk; emit-findings.sh sums them.
 # Exit: always 0 on audit paths (a read-only audit must never fail the caller);
 # 2 on unknown arguments or unreadable --paths-file.
 #
@@ -37,9 +40,13 @@ CURLY_ERE=$'(\xe2\x80[\x98\x99\x9c\x9d\x8b]|\xc2\xa0)'
 # Distinctive AI-vocabulary defaults (catalog rule-ai-vocabulary; config-tunable).
 # The trailing four are measured admissions: three Cursor plain-word additions
 # (catalog calibration record, second pass) and pre-existing (fourth pass, from
-# the model-era section) — common enough alone that only the density gate makes
-# them safe to ship.
-DEFAULT_VOCAB="delve tapestry testament pivotal crucial underscore underscores boasts intricate intricacies meticulous meticulously garner bolstered fostering showcasing vibrant nestled groundbreaking renowned interplay enduring utilize leverage facilitate pre-existing"
+# the model-era section), common enough alone that only the density gate makes
+# them safe to ship. The bare singular "underscore" is not on the list: the
+# source's entry targets the verb ("underscores the importance"), and in a
+# programming-docs repository the singular is almost always the noun, the `_`
+# character in a naming convention. "underscores" stays, as the verb's common
+# form; rule-significance-inflation catches its stock objects separately.
+DEFAULT_VOCAB="delve tapestry testament pivotal crucial underscores boasts intricate intricacies meticulous meticulously garner bolstered fostering showcasing vibrant nestled groundbreaking renowned interplay enduring utilize leverage facilitate pre-existing"
 
 # Model-era phrase roster (catalog rule-model-era-phrases; config-tunable via
 # phrase_add/phrase_remove). One ERE alternation fragment per element, apostrophes
@@ -664,16 +671,41 @@ ALL_RULES=()
 for entry in "${PATTERN_RULES[@]}"; do ALL_RULES+=("${entry%%|*}"); done
 for entry in "${DENSITY_RULES[@]}"; do ALL_RULES+=("${entry%%|*}"); done
 
-declare -A FINDINGS DECLINED
+# Declined counts are kept per rule AND per cause, because one total tells a
+# reader nothing about what was exempted: `marker` is in-file ignore markers
+# (line, block, and whole-file), `quote` is the quotation exemption (blockquote
+# lines and double-quoted spans a wording rule would have matched), and
+# `config` is an excluded_paths glob or a rule_allowed_paths entry. Fenced code
+# is not a decline at all: it is never prose, so nothing is counted for it.
+declare -A FINDINGS DECLINED DECL_MARKER DECL_QUOTE DECL_CONFIG
 for slug in "${ALL_RULES[@]}"; do
   FINDINGS[$slug]=0
   DECLINED[$slug]=0
+  DECL_MARKER[$slug]=0
+  DECL_QUOTE[$slug]=0
+  DECL_CONFIG[$slug]=0
 done
 
+# decline_rule <slug> <n> <cause>: cause is marker | quote | config.
+decline_rule() {
+  local slug="$1" n="$2" cause="$3"
+  DECLINED[$slug]=$((DECLINED[$slug] + n))
+  case "$cause" in
+  marker) DECL_MARKER[$slug]=$((DECL_MARKER[$slug] + n)) ;;
+  quote) DECL_QUOTE[$slug]=$((DECL_QUOTE[$slug] + n)) ;;
+  config) DECL_CONFIG[$slug]=$((DECL_CONFIG[$slug] + n)) ;;
+  *)
+    echo "detect.sh: internal error: unknown decline cause '$cause'" >&2
+    exit 2
+    ;;
+  esac
+}
+
+# decline_all_rules <n> <cause>
 decline_all_rules() {
-  local n="$1" slug
+  local n="$1" cause="$2" slug
   for slug in "${ALL_RULES[@]}"; do
-    DECLINED[$slug]=$((DECLINED[$slug] + n))
+    decline_rule "$slug" "$n" "$cause"
   done
 }
 
@@ -693,7 +725,7 @@ for file in ${TARGETS[@]+"${TARGETS[@]}"}; do
 
   if [[ "${#EXCLUDED_GLOBS[@]}" -gt 0 ]] && matches_glob "$file" "${EXCLUDED_GLOBS[@]}"; then
     DECLINED_FILES=$((DECLINED_FILES + 1))
-    decline_all_rules 1
+    decline_all_rules 1 config
     echo "Declined: file=$rel cause=excluded-glob"
     continue
   fi
@@ -706,26 +738,63 @@ for file in ${TARGETS[@]+"${TARGETS[@]}"}; do
   # prefix (a mid-file marker would otherwise truncate the scan silently).
   if printf '%s\n' "$prose" | LC_ALL=C grep -q $'^DECLINE\tfile'; then
     DECLINED_FILES=$((DECLINED_FILES + 1))
-    decline_all_rules 1
+    decline_all_rules 1 marker
     echo "Declined: file=$rel cause=file-marker"
     continue
   fi
 
   declines="$(printf '%s\n' "$prose" | LC_ALL=C grep -c '^DECLINE' || true)"
   prose="$(printf '%s\n' "$prose" | LC_ALL=C grep -v '^DECLINE' || true)"
-  [[ "$declines" -gt 0 ]] && decline_all_rules "$declines"
+  [[ "$declines" -gt 0 ]] && decline_all_rules "$declines" marker
 
   # Quotation exemption: wording rules never scan quoted material. Blockquote
   # lines are dropped and double-quoted spans stripped; every quote-exempt
   # candidate a wording rule WOULD have matched is counted as declined for that
   # rule below, never silently dropped. Typography rules keep the full stream.
-  prose_wording="$(printf '%s\n' "$prose" | awk '{
+  #
+  # A quoted span may WRAP: markdown prose soft-wraps at a column, so the
+  # closing quote of a span often sits on the next line. The stripper carries
+  # an open-span state across lines: a line with an unmatched opening quote is
+  # cut from that quote to its end and the next line is cut from its start
+  # through the closing quote. Without the carry, the quote pairing on the
+  # continuation line is off by one and the exemption inverts, keeping the
+  # quoted text and stripping the prose between quotes. The state resets at a
+  # paragraph boundary (a blank line) and at the start of a new block element
+  # (heading, list item, table row), so a stray unmatched quote can blank out
+  # at most the rest of its own paragraph.
+  prose_wording="$(printf '%s\n' "$prose" | awk '
+    BEGIN { open = 0 }
+    {
       tab = index($0, "\t")
       if (tab == 0) next
       lineno = substr($0, 1, tab - 1)
       text = substr($0, tab + 1)
       if (text ~ /^[ ]?[ ]?[ ]?>/) next
+      if (text ~ /^[[:space:]]*$/ || text ~ /^[[:space:]]*(#|[-*+] |[0-9]+\. |\|)/) open = 0
+      if (open) {
+        q = index(text, "\"")
+        if (q == 0) { printf "%s\t\n", lineno; next }
+        text = substr(text, q + 1)
+        open = 0
+      }
       gsub(/"[^"]*"/, "", text)
+      q = index(text, "\"")
+      if (q > 0) {
+        # A lone quote opens a span only when it sits where an opening quote
+        # sits: after the line start, whitespace, or an opening bracket, and
+        # directly before a non-space character. An inch or second mark
+        # (6", 30") or a stray closing quote fails that test, so it is
+        # dropped and the prose on both sides stays scanned instead of
+        # blanking the rest of the paragraph.
+        before = (q > 1) ? substr(text, q - 1, 1) : " "
+        after = substr(text, q + 1, 1)
+        if (before ~ /[[:space:](\[{]/ && after ~ /[^[:space:]]/) {
+          text = substr(text, 1, q - 1)
+          open = 1
+        } else {
+          text = substr(text, 1, q - 1) substr(text, q + 1)
+        }
+      }
       printf "%s\t%s\n", lineno, text
     }')"
 
@@ -741,7 +810,7 @@ for file in ${TARGETS[@]+"${TARGETS[@]}"}; do
     fi
     rule_disabled "$slug" && continue
     if rule_allowed "$slug" "$file"; then
-      DECLINED[$slug]=$((DECLINED[$slug] + 1))
+      decline_rule "$slug" 1 config
       continue
     fi
     flags=(-E)
@@ -752,7 +821,7 @@ for file in ${TARGETS[@]+"${TARGETS[@]}"}; do
       stream="$prose_wording"
       full_hits="$(printf '%s\n' "$prose" | LC_ALL=C grep -c "${flags[@]}" -- "$ere" || true)"
       kept_hits="$(printf '%s\n' "$stream" | LC_ALL=C grep -c "${flags[@]}" -- "$ere" || true)"
-      [[ "$full_hits" -gt "$kept_hits" ]] && DECLINED[$slug]=$((DECLINED[$slug] + full_hits - kept_hits))
+      [[ "$full_hits" -gt "$kept_hits" ]] && decline_rule "$slug" $((full_hits - kept_hits)) quote
     fi
     while IFS=$'\t' read -r lineno text; do
       [[ -z "$lineno" ]] && continue
@@ -770,14 +839,14 @@ for file in ${TARGETS[@]+"${TARGETS[@]}"}; do
       IFS='|' read -r slug key default ere <<<"$entry"
       rule_disabled "$slug" && continue
       if rule_allowed "$slug" "$file"; then
-        DECLINED[$slug]=$((DECLINED[$slug] + 1))
+        decline_rule "$slug" 1 config
         continue
       fi
       [[ "$ere" == "__VOCAB__" ]] && ere="$VOCAB_ERE"
       threshold="$(threshold_for "$key" "$default")"
       hits="$(printf '%s\n' "$prose_wording" | cut -f2- | LC_ALL=C grep -E -o -i -w -- "$ere" | wc -l | tr -d ' ')"
       full_hits="$(printf '%s\n' "$prose" | cut -f2- | LC_ALL=C grep -E -o -i -w -- "$ere" | wc -l | tr -d ' ')"
-      [[ "$full_hits" -gt "$hits" ]] && DECLINED[$slug]=$((DECLINED[$slug] + full_hits - hits))
+      [[ "$full_hits" -gt "$hits" ]] && decline_rule "$slug" $((full_hits - hits)) quote
       [[ "$hits" -lt "$DENSITY_MIN_HITS" ]] && continue
       density="$(awk -v h="$hits" -v w="$words" 'BEGIN { printf "%.1f", (h * 1000) / w }')"
       over="$(awk -v d="$density" -v t="$threshold" 'BEGIN { print (d >= t) ? 1 : 0 }')"
@@ -795,7 +864,7 @@ TOTAL_FINDINGS=0
 for slug in "${ALL_RULES[@]}"; do
   disabled=0
   rule_disabled "$slug" && disabled=1
-  echo "Summary rule=ai-slop/audit/$slug findings=${FINDINGS[$slug]} declined=${DECLINED[$slug]} disabled=$disabled"
+  echo "Summary rule=ai-slop/audit/$slug findings=${FINDINGS[$slug]} declined=${DECLINED[$slug]} declined_marker=${DECL_MARKER[$slug]} declined_quote=${DECL_QUOTE[$slug]} declined_config=${DECL_CONFIG[$slug]} disabled=$disabled"
   TOTAL_FINDINGS=$((TOTAL_FINDINGS + FINDINGS[$slug]))
 done
 echo "Summary total: $TOTAL_FINDINGS findings across $TOTAL_FILES files scanned ($DECLINED_FILES files declined)"

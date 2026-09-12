@@ -52,20 +52,20 @@ Based on research results:
 
 ### 4. Re-assess
 
-Dispatch `/planning:devils-advocate` — invoked via the Skill tool — to a fresh-context sub-agent on the updated plan — never re-run it inline in the producing context, the same fresh-eyes discipline as the first pass (Step 4). Only the changed sections need deep review — unchanged sections carry forward their previous assessment.
+Dispatch `/planning:devils-advocate`, invoked via the Skill tool, to a fresh-context sub-agent on the updated plan. Never re-run it inline in the producing context, the same fresh-eyes discipline as the first pass (Step 4). Only the changed sections need deep review. Unchanged sections carry forward their previous assessment.
 
 ## Guardrails
 
-- **Maximum 3 iterations** before escalating to the user. If 3 rounds of Plan-Stress-Research can't resolve the issues, the approach may need to change entirely — that's a decision for the user, not the loop
+- **Maximum 3 iterations** before escalating to the user. If 3 rounds of Plan-Stress-Research can't resolve the issues, the approach may need to change entirely. That's a decision for the user, not the loop
 - **Each iteration must make progress.** If an iteration produces the same findings as the previous one, stop and escalate. The loop is for refinement, not repetition
 - **Track what changed.** Present a brief "Iteration N summary" showing what was found, what was changed, and what remains open. The user should be able to see the plan improving across iterations
-- **Don't gold-plate.** MEDIUM and LOW findings from `/planning:devils-advocate` are informational — they don't require research-iterate loops. Only CRITICAL and HIGH findings trigger the loop
+- **Don't gold-plate.** MEDIUM and LOW findings from `/planning:devils-advocate` are informational. They don't require research-iterate loops. Only CRITICAL and HIGH findings trigger the loop
 
 ## When the loop exits
 
 The loop exits when:
 
-1. **No CRITICAL or HIGH findings remain** — plan is approved for presentation
-2. **3 iterations reached** — present remaining risks to user for decision
-3. **User intervenes** — user redirects the approach based on intermediate findings
-4. **Fundamental constraint discovered** — the plan cannot achieve its goal given current constraints. Present the constraint and alternatives to the user
+1. **No CRITICAL or HIGH findings remain**: plan is approved for presentation
+2. **3 iterations reached**: present remaining risks to user for decision
+3. **User intervenes**: user redirects the approach based on intermediate findings
+4. **Fundamental constraint discovered**: the plan cannot achieve its goal given current constraints. Present the constraint and alternatives to the user

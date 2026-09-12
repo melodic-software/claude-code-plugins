@@ -13,7 +13,7 @@ therefore requires the explicit `--add` override.
 1. Search via `grep -rn 'github\.com/anthropics/[^/]*/issues/[0-9]*' . --include='*.md' --include='*.sh' --include='*.json'` (also search `microsoft/mcp`)
 2. Search bare references in likely surfaces (adapt to the consumer repo): `grep -rn '#[0-9]\{4,5\}' .claude/ docs/ CLAUDE.md --include='*.md'`
 3. Parse unique issue numbers and repos
-4. Cross-reference with `registry.json` — identify issues NOT yet tracked
+4. Cross-reference with `registry.json` to identify issues NOT yet tracked
 5. **Bare `scan` stops here**: report untracked references (with `gh issue view` metadata
    where cheap) and print the exact `scan --add` invocation that would register them.
 6. **With `--add` only**: for each new issue, fetch metadata via `gh issue view` and add to

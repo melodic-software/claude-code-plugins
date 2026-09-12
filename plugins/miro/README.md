@@ -5,7 +5,7 @@ create and manage boards, sticky notes, shapes, frames, connectors, and tags for
 EventStorming, brainstorming, and diagramming workflows.
 
 This is the marketplace's first plugin to ship its own MCP server. The server is a
-single self-contained Node artifact (`dist/index.min.js`) invoked over local `stdio`, so
+single self-contained Node artifact (`server/dist/index.min.js`) invoked over local `stdio`, so
 enabling the plugin adds the Miro tools with no separate install, no registry token,
 and no `npx` dependency (a bundled `node <server>` sidesteps the Windows bare-`npx`
 spawn bug, [anthropics/claude-code#58510](https://github.com/anthropics/claude-code/issues/58510)).
@@ -66,18 +66,29 @@ tags, connectors, bulk create, and overlap detection. Read-only tools annotate
 Stdio MCP server ([`@modelcontextprotocol/sdk`](https://github.com/modelcontextprotocol/typescript-sdk))
 on Node ≥ 24. Cross-platform, no per-OS path divergence at the stdio boundary. Tool
 definitions are thin wrappers over the [`@mirohq/miro-api`](https://www.npmjs.com/package/@mirohq/miro-api)
-client; the request/response and error-shaping logic lives in `src/`.
+client; the request/response and error-shaping logic lives in `server/src/`.
 
-The TypeScript in `src/` is the single source of truth. `dist/index.min.js` is generated
-build output: an [esbuild](https://esbuild.github.io/) single-file bundle of the
+The TypeScript in `server/src/` is the single source of truth. `server/dist/index.min.js` is
+generated build output: an [esbuild](https://esbuild.github.io/) single-file bundle of the
 source and all runtime dependencies. Plugin install runs no build step, so the bundle
 is committed; CI rebuilds it from source with the pinned toolchain and fails on any
 drift, so the committed artifact is always exactly what the source produces.
 
+The whole Node project (`package.json`, the lockfile, `src/`, `dist/`, and the tool
+configs) lives under `server/` rather than at the plugin root. Claude Code runs
+`npm ci --ignore-scripts` inside a consumer's plugin cache whenever the plugin root
+holds both a `package.json` and a supported lockfile, and that install cannot be turned
+off; it would materialise this project's devDependencies (the TypeScript, biome, esbuild
+and vitest toolchain) on every install even though the bundle needs none of them at
+runtime. Keeping the project one level down leaves the plugin root without a lockfile,
+so nothing is installed, while CI and Dependabot still pin and rebuild from the same
+lockfile. Basis: [plugins-reference.md](https://code.claude.com/docs/en/plugins-reference.md),
+"Node.js package dependencies", verified 2026-09-11; recheck when that section changes.
+
 ## Development
 
 ```shell
-cd plugins/miro
+cd plugins/miro/server
 npm install
 npm run typecheck     # tsc --noEmit
 npm test              # vitest (with coverage + typecheck)
@@ -86,13 +97,12 @@ npm run bundle        # regenerate dist/index.min.js from src/
 npm run verify-bundle # fail if dist/index.min.js drifts from src/
 ```
 
-After editing `src/`, run `npm run bundle` and commit the regenerated `dist/index.min.js`
-alongside the source change.
+After editing `server/src/`, run `npm run bundle` and commit the regenerated
+`server/dist/index.min.js` alongside the source change.
 
 ## Configuration
 
-<!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
-<!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
+<!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
 
@@ -102,15 +112,15 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `miro_api_token` | string<br>*required* | *(none)* | `CLAUDE_PLUGIN_OPTION_MIRO_API_TOKEN` | **Sensitive** — stored in the OS keychain or protected credentials file. Miro REST API token from https://miro.com/app/settings/user-profile/apps. Required — the bundled MCP server exits at startup without it. Stored by Claude Code in secure credential storage, never settings.json. |
+| `miro_api_token` | string<br>*required* | *(none)* | `CLAUDE_PLUGIN_OPTION_MIRO_API_TOKEN` | **Sensitive**: stored in the OS keychain or protected credentials file. Miro REST API token from https://miro.com/app/settings/user-profile/apps. Required, because the bundled MCP server exits at startup without it. Stored by Claude Code in secure credential storage, never settings.json. |
 
 ### How to set these
 
 Three supported routes, in the order most people want them:
 
-1. **Interactively** — Claude Code prompts for declared options when you enable the
+1. **Interactively.** Claude Code prompts for declared options when you enable the
    plugin. To change them later: `/plugin configure miro@<marketplace>`.
-2. **Headless** — repeat `--config` for each option. Replace
+2. **Headless.** Repeat `--config` for each option. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
 
    ```shell
@@ -126,7 +136,7 @@ Three supported routes, in the order most people want them:
    plugin's whole stored `pluginConfigs` entry, resetting every option in the table
    above to its default.
 
-3. **By hand, in settings** — add the value under `pluginConfigs` in your **user**
+3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
    settings (`~/.claude/settings.json`):
 
    ```json
@@ -142,7 +152,7 @@ Three supported routes, in the order most people want them:
    ```
 
    Plugin option values are read from **user**, `--settings`, and managed settings
-   only — **not** from a project's `.claude/settings.json`. To vary behavior per
+   only, **not** from a project's `.claude/settings.json`. To vary behavior per
    repository, enable or disable the plugin in that project's `enabledPlugins`
    instead of setting an option there.
 
@@ -151,11 +161,10 @@ hands a configured value to a hook process; the value comes from the routes abov
 
 ### Upstream documentation
 
-- [User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration) — the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
-- [Plugin install options](https://code.claude.com/docs/en/plugins-reference#plugin-install) — the `--config` flag's reference entry
-- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills) — `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
-- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect) — user vs project vs local precedence
-- [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins) — enabling, disabling, `/plugin list`
+- [User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration): the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
+- [Plugin install options](https://code.claude.com/docs/en/plugins-reference#plugin-install): the `--config` flag's reference entry
+- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
+- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
+- [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins): enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
-<!-- ai-slop-ignore-end -->

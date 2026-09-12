@@ -118,6 +118,89 @@ class SccAdapterTests(unittest.TestCase):
             self.assertEqual(result.returncode, 3)
             self.assertIn("unparsable", result.stderr)
 
+    def test_a_file_scc_omits_gets_a_comment_agnostic_row(self) -> None:
+        # scc lists only the languages it knows; a file it says nothing about
+        # (a lockfile the capture never mentions) is counted by the adapter
+        # itself and labelled, rather than dropped from a lane that then
+        # reads as measured.
+        with tempfile.TemporaryDirectory() as tmp:
+            make_stub(Path(tmp))
+            lockfile = Path(tmp) / "deps.lock"
+            lockfile.write_text("a 1\n\nb 2\n", encoding="utf-8")
+            result = run(
+                "collect",
+                "other",
+                "file_lines",
+                f"{SOURCES}/cm_sample.py",
+                str(lockfile),
+                path_prefix=Path(tmp),
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            rows = {
+                json.loads(line)["file"]: json.loads(line)
+                for line in result.stdout.splitlines()
+            }
+            self.assertEqual(
+                sorted(rows), sorted([str(lockfile), f"{SOURCES}/cm_sample.py"])
+            )
+            notes = rows[str(lockfile)]
+            self.assertEqual(notes["labels"], ["comment-agnostic"])
+            self.assertIsNone(notes["values"]["lines_comment"])
+            self.assertIsNone(notes["values"]["lines_code"])
+            self.assertGreater(notes["values"]["lines_non_blank"], 0)
+            self.assertEqual(
+                notes["values"]["lines_total"] - notes["values"]["lines_blank"],
+                notes["values"]["lines_non_blank"],
+            )
+            self.assertEqual(rows[f"{SOURCES}/cm_sample.py"]["labels"], [])
+
+    def test_a_long_list_reaches_scc_in_chunks_and_through_the_listing(self) -> None:
+        # A lane of thousands of paths cannot ride one argument vector on
+        # every platform: the dispatcher hands the list over as a file, and
+        # the adapter feeds scc in chunks under an argument budget. With the
+        # budget forced to one character, every path is its own chunk.
+        with tempfile.TemporaryDirectory() as tmp:
+            calls = Path(tmp) / "calls"
+            stub = Path(tmp) / "scc"
+            stub.write_text(
+                "#!/usr/bin/env bash\n"
+                'if [[ "${1:-}" == "--version" ]]; then printf \'scc version 3.7.0\\n\'; exit 0; fi\n'
+                f'printf \'%s\\n\' "$#" >>"{calls}"\n'
+                f'cat "{CAPTURE}"\n',
+                encoding="utf-8",
+            )
+            stub.chmod(stub.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+            listing = Path(tmp) / "files"
+            listing.write_text(
+                f"{SOURCES}/cm_sample.py\n{SOURCES}/cm-sample.sh\n", encoding="utf-8"
+            )
+            env = dict(os.environ)
+            env["PATH"] = f"{tmp}{os.pathsep}{env.get('PATH', '')}"
+            env["CODE_METRICS_ARGV_BUDGET"] = "1"
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT),
+                    "collect",
+                    "python",
+                    "file_lines",
+                    "--paths-from",
+                    str(listing),
+                ],
+                capture_output=True,
+                text=True,
+                env=env,
+                cwd=REPO_ROOT,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            # Two invocations, each carrying the four fixed arguments plus one path.
+            self.assertEqual(calls.read_text(encoding="utf-8").split(), ["4", "4"])
+            rows = [json.loads(line)["file"] for line in result.stdout.splitlines()]
+            self.assertEqual(
+                rows, [f"{SOURCES}/cm_sample.py", f"{SOURCES}/cm-sample.sh"]
+            )
+
     def test_other_verbs(self) -> None:
         self.assertEqual(run("measures").stdout.strip(), "*/file_lines")
         self.assertIn("boyter/scc", run("install_hint").stdout)

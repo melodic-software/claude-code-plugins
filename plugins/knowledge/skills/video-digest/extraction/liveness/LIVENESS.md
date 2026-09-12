@@ -8,7 +8,7 @@ the merge path by design; see "Split from conformance" below.
 
 | Lane | When | Network | Gates merges? |
 |---|---|---|---|
-| Offline conformance (vitest + X goldens) | Every PR via `video-extraction` | No — fixtures only | Yes |
+| Offline conformance (vitest + X goldens) | Every PR via `video-extraction` | No, fixtures only | Yes |
 | This liveness lane | Weekly schedule + `workflow_dispatch` | Yes (yt-dlp live probes) | **Never** |
 
 A red liveness run annotates the Actions job, writes a step summary, and uploads

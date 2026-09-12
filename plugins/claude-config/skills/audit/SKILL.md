@@ -192,7 +192,7 @@ External verification against current documentation.
 `settings-reference` and `env-vars` running to hundreds of KB, and a summarizing fetch truncates,
 then reports the rows past the cutoff as *absent*. So for each page,
 `curl https://code.claude.com/docs/en/<page>.md` to one directory and grep the files, per the
-[fetch route](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#reading-the-basis--the-fetch-route).
+[fetch route](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#reading-the-basis-the-fetch-route).
 **A truncated read supports NO finding.** Say so and move on, in either direction: neither "the key is
 gone" nor "the key is unchanged" is reportable from a read that may have been cut.
 

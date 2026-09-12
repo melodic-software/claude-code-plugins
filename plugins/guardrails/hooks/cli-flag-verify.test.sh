@@ -494,6 +494,49 @@ assert_exit "verifier: exact flag present (warm) -> 0" 0 $?
 assert_eq "verifier: the 24 h reference file sits beside the cache" 1 \
   "$(find "$opt_dir/cache/guardrails/cli-flag-cache" -maxdepth 1 -name '.fresh-24h' | wc -l | tr -d ' ')"
 
+# The cache is published by rename, never rewritten in place: a concurrent
+# reader that passes the -s and mtime gates must see a whole --help text, so
+# the write lands in a sibling temp file that `mv` replaces the entry with,
+# and no temp file survives a run.
+assert_eq "verifier: the cache entry is whole after a cold run" 1 \
+  "$(grep -c -- '--save-dev' "$opt_dir/cache/guardrails/cli-flag-cache/fakesave.help")"
+assert_eq "verifier: no temp file left beside the cache" 0 \
+  "$(find "$opt_dir/cache/guardrails/cli-flag-cache" -maxdepth 1 -name '*.tmp' | wc -l | tr -d ' ')"
+assert_eq "verifier: no in-place redirect into the cache file" 0 \
+  "$(grep -c '>"\$CACHE_FILE"' "$REAL_VERIFIER")"
+
+# The source check above is a spelling tripwire; this one exercises the property.
+# A help text large enough to span many write(2) calls, written by several
+# verifiers at once while a reader samples the entry: an in-place redirect
+# truncates and refills, so a reader catches a prefix. A rename cannot be caught
+# mid-write, so every non-empty sample carries the final line.
+cat >"$FAKE_BIN_DIR/fakebig" <<'FAKE'
+#!/usr/bin/env bash
+echo "Usage: fakebig [options]"
+for i in $(seq 1 20000); do echo "  --opt-$i  padding padding padding padding"; done
+echo "  --tail-sentinel"
+FAKE
+chmod +x "$FAKE_BIN_DIR/fakebig"
+big_cache="$opt_dir/cache/guardrails/cli-flag-cache/fakebig.help"
+torn=0
+for _round in 1 2 3 4 5 6; do
+  rm -f "$big_cache"
+  for _w in 1 2 3; do
+    PATH="$FAKE_BIN_DIR:$PATH" LOCALAPPDATA="$opt_dir/cache" \
+      XDG_CACHE_HOME="$opt_dir/cache" \
+      CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS=fakebig \
+      bash "$VERIFIER" --quiet fakebig --tail-sentinel >/dev/null 2>&1 &
+  done
+  while jobs -r %% >/dev/null 2>&1; do
+    if [[ -s "$big_cache" ]] && ! tail -c 40 "$big_cache" 2>/dev/null | grep -q -- '--tail-sentinel'; then
+      torn=$((torn + 1))
+      break
+    fi
+  done
+  wait
+done
+assert_eq "verifier: a concurrent reader never catches a torn cache entry" 0 "$torn"
+
 # ============ DEFAULT BIN SET — npm excluded (global-flag FP) ===============
 # `npm ci --prefix ./vendor` was reported UNKNOWN: `--prefix` is one of npm's
 # config keys, every one of which is a valid flag on every subcommand, and none

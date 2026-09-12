@@ -9,7 +9,7 @@
 
 ## Knowledge
 
-- [{Type}: _{Title}_ — {Author}]({URL})
+- [{Type}: _{Title}_, {Author}]({URL})
   {One line: what it covers and when to reach for it.}
 
 ## Wisdom (Communities)
@@ -33,9 +33,9 @@
 
 ## Verification
 
-Resources MUST be verified against the source this turn — fetch and confirm URLs before adding. Training-recall recommendations are unverified synthesis; verify before listing.
+Resources MUST be verified against the source this turn: fetch and confirm URLs before adding. Training-recall recommendations are unverified synthesis; verify before listing.
 
-**Scope by mode:** the fetch-and-confirm rule applies to EXTERNAL entries. In codebase mode, Repo Sources are the verification — files Read this turn need no fetch, and a Repo-Sources-only `RESOURCES.md` is compliant; add external Knowledge/Wisdom entries only when the mission needs sources beyond the repo.
+**Scope by mode:** the fetch-and-confirm rule applies to EXTERNAL entries. In codebase mode, Repo Sources are the verification. Files Read this turn need no fetch, and a Repo-Sources-only `RESOURCES.md` is compliant; add external Knowledge/Wisdom entries only when the mission needs sources beyond the repo.
 
 RESOURCES entries double as the **rot re-verify anchor**: lessons and references cite them inline, and the Staleness check (SKILL.md "Staleness") re-fetches the cited source to refresh a stale durable artifact.
 
@@ -46,10 +46,10 @@ For `/education:teach codebase`, resources include repo-internal sources discove
 ```markdown
 ## Repo Sources
 
-- {path to a convention / architecture doc} — {what it establishes}
-- {path to a source module / library} — {the pattern it embodies}
-- {path to a reference implementation or example} — {why it is exemplary}
-- {path to representative tests} — {expected behavior they demonstrate}
+- {path to a convention / architecture doc}: {what it establishes}
+- {path to a source module / library}: {the pattern it embodies}
+- {path to a reference implementation or example}: {why it is exemplary}
+- {path to representative tests}: {expected behavior they demonstrate}
 ```
 
-These are primary sources (files Read this turn) — higher trust than any external doc.
+These are primary sources (files Read this turn), higher trust than any external doc.

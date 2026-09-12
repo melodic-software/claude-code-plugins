@@ -4,7 +4,7 @@ Pat Pattison - *Writing Better Lyrics* (2009), Appendix; extended via
 patpattison.com "Co-Writing" article for explicit four-rule No-Free-Zone
 session opener and seminar copy on technical-talk discipline.
 
-**The No-Free-Zone method originates with Stan Webb**, not with Pat — see
+**The No-Free-Zone method originates with Stan Webb**, not with Pat. See
 § Core idea. Credit it accordingly.
 
 ## Image inventory
@@ -24,10 +24,10 @@ something, they say yes. If they do not like it, they stay silent and let more
 ideas arrive.
 
 **The method is not Pat's, and the Appendix is emphatic about that.** It is
-Stan Webb's — Pat's first professional co-writer, who taught it to him at the
-start of a Nashville session, and whom the Appendix thanks by name. Pat's
+Stan Webb's. Webb was Pat's first professional co-writer, taught it to him at
+the start of a Nashville session, and is thanked by name in the Appendix. Pat's
 contribution is carrying it into Berklee's classrooms and adding rules 3 and 4
-below — stay inside the song, and no technical talk. In the Appendix those two
+below: stay inside the song, and no technical talk. In the Appendix those two
 arrive as a single piece of advice about not talking craft in the room; the
 four-rule opener splits it in two. Attribute the method to Stan Webb when
 coaching from this material; a writer told "Pat's rule" is being told something
@@ -35,7 +35,7 @@ the source takes visible care to credit elsewhere.
 
 Two details of the original telling that carry the rule's logic:
 
-- **The dumbest idea is load-bearing, not merely tolerated.** The chain runs
+- **The dumbest idea is required, not merely tolerated.** The chain runs
   dumb idea → less dumb idea → decent idea → great idea, and the Appendix
   reports that its own session's best part came out of its dumbest idea. The
   claim is causal: censor the first link and the last one never arrives.
@@ -43,7 +43,7 @@ Two details of the original telling that carry the rule's logic:
   session by physically shutting the door and saying that nobody outside needs
   to know how dumb either writer sounds. What it buys is named precisely:
   nobody has to defend anything, so the only ideas that survive are the ones
-  both writers actively love — no arguments and no compromise.
+  both writers actively love, with no arguments and no compromise.
 
 ## Closed-door safety
 
@@ -135,13 +135,13 @@ to lecture about it.
 - If the room freezes, restate that silence means "keep throwing ideas."
 - If someone starts defending a line, return to generation and ask for more
   options.
-- If the session becomes a craft lecture, ask what the character says next —
+- If the session becomes a craft lecture, ask what the character says next,
   and read it as someone protecting a line they do not trust, not as a
   discipline problem.
 - If compromise appears, keep generating until both writers can say yes.
 - If writing alone, park critique until the draft has enough material to revise.
 
-## No-Free-Zone — the four rules
+## No-Free-Zone: the four rules
 
 Pat's website condenses the room's contract into four enforceable rules
 read aloud at session open. Posting them keeps the room honest when
@@ -149,10 +149,10 @@ someone slips.
 
 1. **Say everything that comes to your head, no matter how dumb.**
    The good ideas hide inside the bad ones. Censoring the bad ones
-   kills the chain.
+   kills the chain. Pat's phrasing (patpattison.com):
 
    > "Say everything that comes to your head ... no matter how dumb
-   > it is." — Pat (patpattison.com)
+   > it is."
 
 2. **Silence means keep going. A spoken `yes` advances the line.**
    Nobody says no. If you do not like an idea, stay silent. If you
@@ -172,14 +172,17 @@ someone slips.
 Rules 3 and 4 are Pat's addition to Stan Webb's original two (say everything;
 silence means more, `yes` advances). The Appendix gives the reason they are
 needed, and it is diagnostic rather than stylistic: technical talk is usually
-**fear wearing academic robes** — a writer dressing up an idea they suspect is
+**fear wearing academic robes**, a writer dressing up an idea they suspect is
 weak. Naming the effect does not improve the line. The Appendix's own phrasing
 is that a dumb idea is still dumb with professorial robes on. When a room
 starts explaining craft, treat it as a signal that someone is protecting a line
 they do not trust, not as a discipline lapse to be scolded.
 
-> "Don't be afraid to write crap — it makes the best fertilizer." — Pat
-> (*Writing Better Lyrics* (2009), Appendix)
+Pat, in the *Writing Better Lyrics* (2009) Appendix:
+
+<!-- ai-slop-ignore-start: verbatim quotation from Writing Better Lyrics (2009), Appendix -->
+> "Don't be afraid to write crap — it makes the best fertilizer."
+<!-- ai-slop-ignore-end -->
 
 The rules are not soft suggestions. The room actually says them out
 loud at the start of the session. See
@@ -208,9 +211,9 @@ done.
 
 Two of the four rules apply to solo drafting:
 
-- Rule 1 (say everything) — write the dumb idea down; do not delete
+- Rule 1 (say everything): write the dumb idea down; do not delete
   during the draft pass.
-- Rule 4 (no technical talk) — during drafting, do not name what
+- Rule 4 (no technical talk): during drafting, do not name what
   rhyme type you are using or what meter you are in. Naming during
   drafting invites defensiveness over revision.
 
@@ -240,8 +243,8 @@ opening exercise: the Title Game. Co-writers chain titles off each
 other's stressed vowels for 5-10 minutes, surfacing a shared title for
 the session.
 
-The cascade defuses "my title is precious" — after 10 chained titles, no
-single title feels load-bearing, and writers can let any of them go. The
+The cascade defuses "my title is precious". After 10 chained titles, no
+single title feels indispensable, and writers can let any of them go. The
 exercise also reveals each writer's sonic preferences, emotional
 altitudes, and instincts before drafting begins.
 
@@ -256,24 +259,24 @@ discipline applies. The writer's inner critic becomes the second voice
 in the room, and the same four rules govern the conversation between
 generative-self and critic-self:
 
-- **Rule 1** (say everything dumb) — generative-self gets to propose
+- **Rule 1** (say everything dumb): generative-self gets to propose
   bad ideas without being shut down by critic-self
-- **Rule 2** (silence = more) — when critic-self is silent on an idea,
+- **Rule 2** (silence = more): when critic-self is silent on an idea,
   generative-self keeps going
-- **Rule 3** (stay inside the song and the characters) — critic-self
+- **Rule 3** (stay inside the song and the characters): critic-self
   stays with the character and the scene rather than rising to
   commentary about the draft
-- **Rule 4** (no technical talk) — critic-self does not derail into
+- **Rule 4** (no technical talk): critic-self does not derail into
   craft analysis during drafting; that's a separate revision pass
 
 Most writer's block is the inner critic refusing to honor Rule 1 or
-Rule 4. The discipline is the same in co-write or solo — separate
+Rule 4. The discipline is the same in co-write or solo: separate
 generation from revision; do not let critique kill the generative phase.
 
 **This section and § Solo applications above disagree, and § Solo applications
 is the stricter reading.** That section calls rules 2 and 3 co-write-only and
 maps just rules 1 and 4 onto solo work; this one maps all four. The Appendix
-supports the looser reading — it says outright that the discipline helps every
+supports the looser reading. It says outright that the discipline helps every
 time Pat writes, not only when co-writing, and names the inner critic as his
 most frequent co-writer. Treat all four as applicable solo, with the caveat
 that rule 2's spoken `yes` has no literal solo equivalent beyond keeping the
@@ -282,12 +285,12 @@ built on it.
 
 ## Cross-references
 
-- [templates/co-write-session-opener](../templates/co-write-session-opener.md)
-  — the printable opener for in-room use.
-- [title-game](title-game.md) — co-write title-cascade exercise.
-- [process](process.md) — Pat's solo writing process; the two-step
+- [templates/co-write-session-opener](../templates/co-write-session-opener.md):
+  the printable opener for in-room use.
+- [title-game](title-game.md): co-write title-cascade exercise.
+- [process](process.md): Pat's solo writing process; the two-step
   separation (generation vs revision) applies in both modes.
-- [workflows](workflows.md) "Scenario 5 — Co-write session start" —
-  the full scenario chain.
-- [stable / unstable](stable-unstable-meta.md) — the stability check
+- [workflows](workflows.md) "Scenario 5: Co-write session start": the
+  full scenario chain.
+- [stable / unstable](stable-unstable-meta.md): the stability check
   the room runs before wrap.

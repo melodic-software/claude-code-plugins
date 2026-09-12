@@ -32,11 +32,6 @@
 
 set -uo pipefail
 
-# Read inherited fd0 directly (bare cat) — NEVER `</dev/stdin`: on Windows Git
-# Bash, CC spawns hooks with stdin = a Win32 pipe that `/dev/stdin` cannot
-# resolve (ENOENT -> silent no-op). stdin is read ONCE here and fed to both
-# hook::read_file_path (file_path) and the tool_name parse below; reading fd0
-# twice would drain the pipe on the second call.
 # Kill switch FIRST, before any library is sourced: a disabled hook must not
 # pay to parse hook-utils.sh to learn it is off. Same predicate as
 # hook::is_enabled; scripts/check-killswitch-hoist.sh pins the two together.
@@ -54,97 +49,20 @@ HOOK_DIR="${BASH_SOURCE[0]%/*}"
 source "$HOOK_DIR/hook-utils.sh"
 # shellcheck source=rewrite-guard.sh
 source "$HOOK_DIR/rewrite-guard.sh"
-# Capture $EPOCHREALTIME immediately after kill-switch so duration_ms covers the
-# work below (pre-work exits do not emit telemetry). EPOCHREALTIME is Bash 5.0+;
-# on older bash it is unset, so default to empty — referencing it bare under
-# `set -u` would abort before the advisory exit 0, failing every edit.
-start=${EPOCHREALTIME:-}
 
-# Emit this run's telemetry envelope: $1 status, $2 findings JSON array.
-# Two guards: the high-res start stamp (EPOCHREALTIME is Bash 5.0+; on older
-# bash it is empty and telemetry is skipped, so the hook still formats rather
-# than aborting) and the sink opt-in. The data payload costs a jq subprocess,
-# so it is built here after both guards — never on the unwired path.
-emit_tel() {
-  [[ -n "$start" ]] || return 0
-  hook::telemetry_enabled || return 0
-  hook::emit_telemetry "go-format" "PostToolUse" "$1" "$start" "$(build_data_json "$2")" "$REPO_ROOT"
-}
+# The whole prologue: the start stamp, the buffered payload, the jq-free
+# applicability filter, the jq gate, the parsed path with its basename and
+# directory, the file-anchored repo root, and the telemetry-only TOOL and
+# FILE_REL behind the sink opt-in. Exits 0 itself on every path this hook has
+# nothing to do on — including a Write or Edit of anything but a Go file, which
+# it decides before the jq gate so a non-Go edit never triggers the jq notice.
+hook::begin go-format PostToolUse '*.go'
 
-hook::buffer_stdin_to INPUT || exit 0
-
-# jq-free applicability pre-filter: never emit the jq notice for an edit this
-# hook would not process anyway (the Write|Edit matcher is broader than the
-# Go-file filter).
-RAW_FILE=$(hook::raw_file_path "$INPUT") || exit 0
-case "$RAW_FILE" in
-*.go) ;;
-*) exit 0 ;;
-esac
-
-# jq is load-bearing for input parsing; absent → visible once-per-session skip
-# notice instead of a silent no-op (dim-9 doctrine).
-hook::require_jq PostToolUse go-format "$INPUT"
-
-FILE=$(printf '%s' "$INPUT" | hook::read_file_path) || exit 0
-case "$FILE" in
-*.go) ;;
-*) exit 0 ;;
-esac
-# Basename via parameter expansion, not `basename(1)`: this hook fires on
-# every Write/Edit of a Go file, and GNU Bash forks a subshell for
-# `$(basename "$FILE")` even though the body is a single exec (Command
-# Substitution, Bash Reference Manual;
-# https://mywiki.wooledge.org/CommandSubstitution). Trim on either separator
-# so a mixed-form Windows path still yields the final component.
-FILE_BASE="${FILE##*/}"
-FILE_BASE="${FILE_BASE##*\\}"
-
-# Resolve repo root early — used to compute the schema-required repo-relative
-# path in data.file.
-FILE_DIR="${FILE%/*}"
-[[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR=.
-[[ -n "$FILE_DIR" ]] || FILE_DIR=/
-REPO_ROOT=""
-hook::repo_root_to REPO_ROOT "$FILE_DIR"
-
-# TOOL and FILE_REL feed the telemetry data object and nothing else (goimports
-# is invoked with the absolute $FILE), so both are resolved only when a sink is
-# wired: the unwired default path spawns zero telemetry-only subprocesses (the
-# tool_name jq parse, and 2× cygpath on Windows).
-#
-# FILE_REL is the repo-relative path the schema requires ("relative to the
-# consuming repo root"), degrading to the basename when the prefix strip does
-# not match, so an absolute path never reaches telemetry.
-TOOL=""
-FILE_REL="$FILE"
-if hook::telemetry_enabled; then
-  TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
-  FILE_REL=""
-  hook::repo_relative_path_to FILE_REL "$FILE" "$REPO_ROOT"
-fi
-
-# Build the telemetry data object for the current TOOL/FILE_REL. $1 is the
-# findings JSON array. jq is authoritative. The fallback is a fixed empty-shape
-# object — NOT an interpolation of TOOL/FILE_REL, which could inject quotes or
-# backslashes from a path and corrupt the envelope. The fallback is essentially
-# unreachable in practice (it fires only if `jq -n` fails, and when jq is absent
-# hook::emit_telemetry drops the envelope anyway), so losing the values here is
-# harmless and strictly safer than emitting malformed JSON.
-build_data_json() {
-  jq -n \
-    --arg tool "$TOOL" \
-    --arg file "$FILE_REL" \
-    --argjson findings "$1" \
-    --arg changed "${HOOK_REWRITE_CHANGED:-}" \
-    '{tool:$tool,file:$file,findings:$findings}
-     + (if $changed == "" then {} else {changed: ($changed == "true")} end)' 2>/dev/null ||
-    printf '{"tool":"","file":"","findings":[]}'
-}
-
+# Every arm exits through hook::finish, which takes the rewrite disclosure
+# (settling data.changed and releasing the guard's snapshot), emits telemetry
+# with that verdict, and emits the one JSON document — in that order.
 emit_skipped() {
-  emit_tel "skipped" '[]'
-  exit 0
+  hook::finish skipped findings array '[]'
 }
 
 # Generated-file guard: skip files carrying Go's canonical generated-code
@@ -218,8 +136,11 @@ command -v goimports >/dev/null 2>&1 && GOIMPORTS_BIN=goimports
 
 if [[ -z "$GOIMPORTS_BIN" ]]; then
   if hook::notice_once "go-format-goimports" "$INPUT"; then
-    hook::emit_skip_notice PostToolUse "go-format: no 'goimports' binary found on this hook's PATH — format/import-fix skipped for this edit (probe re-runs on every matching edit; only this notice latches once per session — there is no skip latch). Hook processes inherit Claude Code's own environment, not the interactive shell's profile, so a version-manager install the Bash tool can see may be invisible here. Install: go install golang.org/x/tools/cmd/goimports@latest
-PATH probed: ${PATH:-<unset>}"
+    GO_NOTICE=""
+    hook::tool_missing_notice_to GO_NOTICE \
+      "go-format: no 'goimports' binary found on this hook's PATH — format/import-fix skipped for this edit" \
+      matching ". Install: go install golang.org/x/tools/cmd/goimports@latest"
+    hook::emit_skip_notice PostToolUse "$GO_NOTICE"
   fi
   emit_skipped
 fi
@@ -269,54 +190,35 @@ RC=$?
 
 if [[ $RC -eq 0 ]]; then
   # Clean, or fixed silently (formatting/import changes carry no advisory
-  # noise — same posture as a successful ruff/typos autofix pass). The take
-  # precedes the telemetry emit so data.changed carries its verdict; the
-  # disclosure is still one systemMessage-only document, or nothing.
-  hook::rewrite_take_disclosure "$FILE" "$GO_REWRITE_MESSAGE"
-  emit_tel "ok" '[]'
-  [[ -z "$HOOK_REWRITE_MESSAGE" ]] || hook::emit_channels PostToolUse "" "$HOOK_REWRITE_MESSAGE"
-  exit 0
+  # noise — same posture as a successful ruff/typos autofix pass): the
+  # disclosure is the whole document, or there is none.
+  hook::finish --disclose "$GO_REWRITE_MESSAGE" ok findings array '[]'
 fi
 
 if [[ $RC -eq 2 && -n "$STDERR" ]]; then
   # goimports ran and produced a judgment: the file has a syntax error it
   # cannot parse. This is a finding, not a tool break — mirrors how
   # ruff-format surfaces a mid-edit syntax error as a finding.
-  GO_CTX="go-format: $FILE_BASE has a syntax error goimports could not parse (advisory):"
-  findings_raw=""
-  while IFS= read -r line; do
-    [[ -n "$line" ]] || continue
-    GO_CTX+=$'\n'"  $line"
-    findings_raw+="$line"$'\n'
-  done <<<"$STDERR"
-
+  GO_CTX=""
   FINDINGS_JSON='[]'
-  if [[ -n "$findings_raw" ]]; then
-    FINDINGS_JSON=$(printf '%s' "$findings_raw" | jq -R . | jq -s . 2>/dev/null) || FINDINGS_JSON='[]'
-  fi
-  # Findings AND a rewrite disclosure compose into one document (#3406 class);
-  # the take also releases the snapshot this arm would otherwise leak (#3405),
-  # and precedes the telemetry emit so data.changed carries its verdict.
-  hook::rewrite_take_disclosure "$FILE" "$GO_REWRITE_MESSAGE"
-  emit_tel "ok" "$FINDINGS_JSON"
-  hook::emit_channels PostToolUse "$GO_CTX" "$HOOK_REWRITE_MESSAGE"
-  exit 0
+  hook::findings_to GO_CTX \
+    "go-format: $FILE_BASE has a syntax error goimports could not parse (advisory):" \
+    "$STDERR" FINDINGS_JSON
+  # Findings AND a rewrite disclosure compose into one document (#3406 class).
+  hook::finish --context "$GO_CTX" --disclose "$GO_REWRITE_MESSAGE" \
+    ok findings array "$FINDINGS_JSON"
 fi
 
 # goimports broke for non-syntax reasons (internal error, unexpected exit
 # code) — no judgment was made. Surface the diagnostic via additionalContext
 # (NOT stderr — an advisory hook's exit-0 stderr can trip a false "Hook
 # Error" label). Record as "skipped" (the tool never ran to judgment).
-GO_CTX="go-format: goimports failed for $FILE_BASE (no diagnostics; tool break, not a finding):"
-while IFS= read -r line; do
-  [[ -n "$line" ]] || continue
-  GO_CTX+=$'\n'"  $line"
-done <<<"$STDERR"
-# goimports may have written the file before breaking; take the disclosure
-# (which also releases the snapshot this arm would otherwise leak, #3405) and
-# compose it with the tool-break context as one document. Taken before the
-# telemetry emit so data.changed records the rewrite the break left behind.
-hook::rewrite_take_disclosure "$FILE" "$GO_REWRITE_MESSAGE"
-emit_tel "skipped" '[]'
-hook::emit_channels PostToolUse "$GO_CTX" "$HOOK_REWRITE_MESSAGE"
-exit 0
+GO_CTX=""
+hook::findings_to GO_CTX \
+  "go-format: goimports failed for $FILE_BASE (no diagnostics; tool break, not a finding):" \
+  "$STDERR"
+# goimports may have written the file before breaking, so the disclosure is
+# still owed and composes with the tool-break context as one document; the take
+# inside hook::finish is also what records that rewrite in data.changed.
+hook::finish --context "$GO_CTX" --disclose "$GO_REWRITE_MESSAGE" \
+  skipped findings array '[]'

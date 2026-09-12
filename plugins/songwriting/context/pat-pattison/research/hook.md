@@ -13,23 +13,23 @@
 - [Strategy 5: use hook rhythm strategically](#strategy-5-use-hook-rhythm-strategically)
 - [Withholding the hook rhythm](#withholding-the-hook-rhythm)
 - [Irregular hook rhythms](#irregular-hook-rhythms)
-- [Deceptive cadence — spotlight the title by withholding the rhyme](#deceptive-cadence--spotlight-the-title-by-withholding-the-rhyme)
+- [Deceptive cadence: spotlight the title by withholding the rhyme](#deceptive-cadence-spotlight-the-title-by-withholding-the-rhyme)
 - [Strategic positions can shift](#strategic-positions-can-shift)
 - [Worked diagnostics](#worked-diagnostics)
 - [Exercises to preserve](#exercises-to-preserve)
 - [Pat's chapter close](#pats-chapter-close)
 - [Revision workflow](#revision-workflow)
 - [Common fixes](#common-fixes)
-- [TARGETING — the named strategy](#targeting--the-named-strategy)
+- [TARGETING: the named strategy](#targeting-the-named-strategy)
 - [Strategic position](#strategic-position)
 - [Motivic development analogy](#motivic-development-analogy)
 - [Know the hook rhythm before writing the lyric](#know-the-hook-rhythm-before-writing-the-lyric)
-- [Title generation — UNAUDITED, no book source](#title-generation--unaudited-no-book-source)
+- [Title generation: UNAUDITED, no book source](#title-generation-unaudited-no-book-source)
 - [Phrase-level hot spots (*Essential Guide to Lyric Form and Structure* (1991), Chapter 7 Strategy 1)](#phrase-level-hot-spots-essential-guide-to-lyric-form-and-structure-1991-chapter-7-strategy-1)
-- [Conscious craft stance — "you can" (*Essential Guide to Lyric Form and Structure* (1991), Chapter 7 Strategy 5 close)](#conscious-craft-stance--you-can-essential-guide-to-lyric-form-and-structure-1991-chapter-7-strategy-5-close)
+- [Conscious craft stance: "you can" (*Essential Guide to Lyric Form and Structure* (1991), Chapter 7 Strategy 5 close)](#conscious-craft-stance-you-can-essential-guide-to-lyric-form-and-structure-1991-chapter-7-strategy-5-close)
 - [Cross-references](#cross-references)
 
-Pat Pattison — *Essential Guide to Lyric Form and Structure* (1991), Chapter 7:
+Pat Pattison, *Essential Guide to Lyric Form and Structure* (1991), Chapter 7:
 "HOOK PLACEMENT AND FOCUS: TURNING THE LIGHTS ON."
 
 Notation: `/` = stressed syllable, `u` = unstressed syllable.
@@ -38,12 +38,14 @@ Notation: `/` = stressed syllable, `u` = unstressed syllable.
 
 Pat's opening paragraph, verbatim:
 
+<!-- ai-slop-ignore-start: verbatim blockquote from Essential Guide to Lyric Form and Structure (1991) Chapter 7 -->
 > "Your HOOK is the hero of your lyric. It belongs in the spotlight, the most
 > important place in your lyric. But putting it there is up to you. You have to
 > put it in focus. You can't just toss your HOOK anywhere and hope the light
 > shines on it — you have to choose where and when to turn the spotlight on.
 > You must refuse to let the light shine anyplace else. Here are five useful
 > strategies for putting your HOOK in lights."
+<!-- ai-slop-ignore-end -->
 
 The five, as printed:
 
@@ -76,7 +78,7 @@ Pat then extends it. His three levels, verbatim (italics as printed):
 For a chorus, the hook can appear first, last, or both. Chapter 7's three
 examples:
 
-**Hook first** — Paul and Gene Nelson, "EIGHTEEN WHEELS AND A DOZEN ROSES."
+**Hook first**: Paul and Gene Nelson, "EIGHTEEN WHEELS AND A DOZEN ROSES."
 Note that the last phrase is also an important idea, so both hot spots are
 working:
 
@@ -88,7 +90,7 @@ And he'll spend the rest of his life
 with the one that he loves
 ```
 
-**Hook last** — Donald Fagen and Walter Becker, "HAITIAN DIVORCE":
+**Hook last**: Donald Fagen and Walter Becker, "HAITIAN DIVORCE":
 
 ```text
 O, No Hesitation
@@ -98,7 +100,7 @@ O, Congratulations!
 This is your HAITIAN DIVORCE
 ```
 
-**Hook first and last** — Jim Rushing, "A SLOW HEALING HEART":
+**Hook first and last**: Jim Rushing, "A SLOW HEALING HEART":
 
 ```text
 A SLOW HEALING HEART
@@ -113,7 +115,7 @@ Than A SLOW HEALING HEART
 
 The same strategies are available when the verse contains the hook, but in a
 verse/refrain you will usually use it either at the beginning or the end, not
-both — using it both places means using it twice in *every* verse, which in
+both. Using it both places means using it twice in *every* verse, which in
 most cases would be too much.
 
 ## Hot spots make meaning
@@ -159,7 +161,7 @@ His example is the "THE GREAT PRETENDER" bridge. Of it:
 > Instead, 'conceal' works with 'real/feeling/ real/feel,' to keep you off
 > balance."
 
-Then Jim Rushing's verse (fig `image_rsrc345`), leaning into the chorus — see
+Then Jim Rushing's verse (fig `image_rsrc345`), leaning into the chorus. See
 "Worked diagnostics" below for Pat's sentence about it.
 
 **C. Most common, simply keep your sections moving into one another.**
@@ -179,11 +181,13 @@ He closes the case list with Steely Dan:
 
 Pat closes Strategy 2 with a caution, verbatim:
 
+<!-- ai-slop-ignore-start: verbatim blockquote from Essential Guide to Lyric Form and Structure (1991) Chapter 7 -->
 > "A final caution. It is not necessary that sections not containing a HOOK be
 > unbalanced. There is another obvious way to move one section to the next —
 > musically. If all of your lyric sections were perfectly balanced, the music
 > could still move them forward. But music often appreciates and profits from a
 > helping hand from the lyric."
+<!-- ai-slop-ignore-end -->
 
 ## Strategy 3: repeat the hook
 
@@ -194,7 +198,7 @@ Pat closes Strategy 2 with a caution, verbatim:
 
 Chapter 7's repetition moves, in the order Pat prints them:
 
-- **Direct repetition** — simple but effective:
+- **Direct repetition**: simple but effective:
 
 ```text
 TEDDY DOESN'T LIVE HERE ANYMORE
@@ -207,7 +211,7 @@ YOU NEVER LET ME DOWN
 YOU NEVER LET ME DOWN
 ```
 
-- **Direct repetition with a turn in meaning** — the second pair means
+- **Direct repetition with a turn in meaning**: the second pair means
   something the first pair did not:
 
 ```text
@@ -219,7 +223,7 @@ RIGHT FROM THE START
 RIGHT FROM THE START
 ```
 
-- **Beginning-and-ending repetition for frame** — Randy Newman, "TICKLE ME":
+- **Beginning-and-ending repetition for frame**, Randy Newman's "TICKLE ME":
 
 ```text
 Why don't you TICKLE ME
@@ -231,8 +235,8 @@ Can't stop to think
 Why don't you TICKLE ME
 ```
 
-- **Verse refrain plus chorus hook** when the form can support both — John
-  Jarvis and Gary Nicholson, "FATHERS AND SONS," where the verse ends on the
+- **Verse refrain plus chorus hook** when the form can support both, as in John
+  Jarvis and Gary Nicholson's "FATHERS AND SONS," where the verse ends on the
   title and the chorus ends on it again:
 
 ```text
@@ -244,7 +248,7 @@ Scared when they run
 That's how it always has been between FATHERS AND SONS
 ```
 
-- **Repetition that completes or balances the structure** — see below.
+- **Repetition that completes or balances the structure**: see below.
 
 Pat's own caution, delivered by demonstration: "Of course, if you repeat
 yourself too much if you repeat yourself too much if you repeat yourself too
@@ -289,7 +293,7 @@ opening list and his closing recap read "4. Use sound to spotlight your HOOK."
 Headings 2, 3 and 4 all differ slightly from their list entries; all are as
 printed and none is normalised here.
 
-See "TARGETING — the named strategy" below for his naming sentence, his two
+See "TARGETING: the named strategy" below for his naming sentence, his two
 examples, and his analysis of the Kevin Cronin bridge.
 
 ## Strategy 5: use hook rhythm strategically
@@ -304,7 +308,7 @@ from is under "Motivic development analogy."
 ## Withholding the hook rhythm
 
 Pat's two printed ways of unbalancing Common Meter, arrows on the strategic
-second phrase — fig `image_rsrc34B`:
+second phrase, fig `image_rsrc34B`:
 
 <!-- spellchecker:off -->
 ```text
@@ -369,7 +373,7 @@ The revised section (fig `image_rsrc34E`):
 
 > "Watch."
 
-The scan in fig `image_rsrc34F` is a five-line lyric block — Verse 2 of Kevin
+The scan in fig `image_rsrc34F` is a five-line lyric block, Verse 2 of Kevin
 Cronin's "CAN'T FIGHT THIS FEELING", scanned. Every row was read from the
 rendered figure one row at a time at 12-13x magnification, by eye, no OCR:
 
@@ -409,7 +413,7 @@ reconciled:
   forever`. The figure omits the `that`; its 11 marks match the 11 syllables
   without it.
 - **Line five.** Figs `34F` and `32V` both print `everything`. The Chapter 1
-  **text layer** prints `averything` — a single-letter variant that appears
+  **text layer** prints `averything`, a single-letter variant that appears
   exactly once in all four books. Two photographic scans of the printed page
   agree against one reflowed text run, so `everything` is what the book prints
   and the text layer carries the defect. This is the one place in this corpus
@@ -465,9 +469,9 @@ Fig `image_rsrc34Y`: `LAST NIGHT'S LOVE` again, scanned `/ / /`.
 
 > "it will be like a surprise party. All the lights come on at once."
 
-## Deceptive cadence — spotlight the title by withholding the rhyme
+## Deceptive cadence: spotlight the title by withholding the rhyme
 
-Not from Chapter 7 — but **verified**, and it is Pat's own coinage, not a
+Not from Chapter 7, but **verified**, and it is Pat's own coinage, not a
 borrowed term. *Writing Better Lyrics* (2009), Chapter 13 ("Dialogue and Point
 of View"), analysing the chorus of "Give Me Wings" by Don Schlitz and Rhonda
 Kye Fleming. Pat first writes his own fully-rhyming `abab` alternative fourth
@@ -481,12 +485,14 @@ line, then rejects it:
 
 Then, of the real `abaa` chorus:
 
+<!-- ai-slop-ignore-start: verbatim blockquote from Writing Better Lyrics (2009) Chapter 13 -->
 > The last line fools you (I call it a deceptive cadence), and in doing so, it
 > accomplishes three things: (1) it repeats the title — a good commercial move;
 > (2) the structural surprise spotlights the title; and (3) it resolves the
 > chorus, though not as solidly as a rhyme for *fly* would have. The surprise
 > rhyme is emotionally better suited to the intent of the chorus since it's a
 > little less secure.
+<!-- ai-slop-ignore-end -->
 
 > Neat structure. It lights up the title and supports the emotion of the lines
 > with perfect prosody. I'm glad we looked.
@@ -504,7 +510,7 @@ When to reach for it:
 
 - The title deserves a spotlight and the section is running toward a rhyme that
   would upstage it.
-- The section's emotional state is unresolved, wanting, or asking — full
+- The section's emotional state is unresolved, wanting, or asking. Full
   resolution would contradict the content.
 - The chorus already repeats the title and a plain repetition would feel inert.
 
@@ -545,7 +551,7 @@ Fig `image_rsrc34N`: `/ u / u /`
 > you change the fifth phrase (where you expect to hear it again) you will
 > unbalance the system and make the 3-stress phrase a strategic position:"
 
-Fig `image_rsrc34P`, arrows on the third and fourth phrases — note that
+Fig `image_rsrc34P`, arrows on the third and fourth phrases. Note that
 phrases 4 and 5 now both end unstressed:
 
 ```text
@@ -564,9 +570,11 @@ is the hook-at-both-ends example under Strategy 1. Its **verse** (fig
 `image_rsrc345`) is a Strategy 2 example, and Pat's point there is the opposite
 of balance:
 
+<!-- ai-slop-ignore-start: verbatim blockquote from Essential Guide to Lyric Form and Structure (1991) Chapter 7 -->
 > "Look at this one by Jim Rushing. It is really pretty because it ends on the
 > HOOK, but the HOOK is the shorter, unbalancing phrase, making it lean forward
 > to arrive at — the HOOK:"
+<!-- ai-slop-ignore-end -->
 
 "Seeing Someone Else" becomes balanced only when the hook phrase repeats; the
 repetition is part of the structure, not just emphasis.
@@ -608,26 +616,26 @@ You’re SEEING SOMEONE ELSE
 
 ## Exercises to preserve
 
-The supplied titles *are* the exercise — keep them.
+The supplied titles *are* the exercise. Keep them.
 
-- **Exercise 39** — Write a balanced chorus using the title
+- **Exercise 39**: Write a balanced chorus using the title
   "YOU DON'T HAVE THE BEST OF ME YET" at the beginning. Then rewrite it with
   the same title at the end.
-- **Exercise 40** — Write a verse to set up that chorus. Make sure you use the
+- **Exercise 40**: Write a verse to set up that chorus. Make sure you use the
   beginning and end positions for important ideas.
-- **Exercise 41** — Write a verse that ends with the refrain "YOU DON'T HAVE
+- **Exercise 41**: Write a verse that ends with the refrain "YOU DON'T HAVE
   THE BEST OF ME YET." Make a repetition necessary by using two strategies:
   (1) unbalance the system by making the rhythmic closure at the refrain
   awkward, like "SEEING SOMEONE ELSE"; (2) unbalance the section by making the
   refrain an odd-numbered phrase (5th or 7th would be ideal).
-- **Exercise 42** — Write a balanced chorus that begins and ends with the hook
+- **Exercise 42**: Write a balanced chorus that begins and ends with the hook
   "I SLIPPED AND FELL IN LOVE." Then, using "WHY CAN'T I HAVE YOU" as a model,
   (1) write a transitional bridge leading up to it that TARGETS the vowel sound
   in "slipped," and (2) write a transitional bridge that targets "fell."
-- **Exercise 43** — For each hook below, write a verse that uses the hook
+- **Exercise 43**: For each hook below, write a verse that uses the hook
   rhythm in a strategic position: "LAST NIGHT'S LOVE"; "MY FIRST LOVE WILL BE
   MY LAST"; "THE LAST OF THE LONELY HEARTS."
-- **Exercise 44** — Using all five strategies, write a song system for the hook
+- **Exercise 44**: Using all five strategies, write a song system for the hook
   "DON'T GIVE UP."
 
 ## Pat's chapter close
@@ -666,10 +674,10 @@ Chapter 7 is the last chapter; the book's AFTERWORD follows it directly.
 - If the hook sounds arbitrary, target one of its sounds before arrival.
 - If verse line lengths feel arbitrary, derive strategic line rhythms from the
   hook rhythm.
-- If a hot spot contains filler, replace it with the title, central idea, or a
-  load-bearing image.
+- If a hot spot contains filler, replace it with the title, central idea, or an
+  image the section needs.
 
-## TARGETING — the named strategy
+## TARGETING: the named strategy
 
 Pat names the fourth strategy in the book itself, in
 *Essential Guide to Lyric Form and Structure* (1991), Chapter 7:
@@ -687,7 +695,7 @@ Mechanism:
 4. The title arrives prepared; the listener hears familiarity even
    on first listen.
 
-Pat gives no reason for the odd count beyond the effect itself — "a vowel sound
+Pat gives no reason for the odd count beyond the effect itself: "a vowel sound
 that occurs in the HOOK an odd number of times to prepare your ear for the
 HOOK." Any explanation of *why* odd works is inference, not Chapter 7.
 
@@ -713,8 +721,10 @@ second Pat term; it is not. He describes the later phrase as the thing that
 
 He then scans Common Meter and says of it:
 
+<!-- ai-slop-ignore-start: verbatim blockquote from Essential Guide to Lyric Form and Structure (1991) Chapter 7 -->
 > "The second phrase is the strategic position — when you match it by repeating
 > it in the fourth phrase, the section balances."
+<!-- ai-slop-ignore-end -->
 
 The Common Meter scansion he prints (fig `image_rsrc34A`), with the arrows
 pointing at the second phrase:
@@ -759,7 +769,7 @@ He gives two reasons composers use it:
 
 ## Know the hook rhythm before writing the lyric
 
-Pat's load-bearing planning rule, printed in caps on its own line in
+Pat's governing planning rule, printed in caps on its own line in
 *Essential Guide to Lyric Form and Structure* (1991), Chapter 7:
 
 > KNOW THE RHYTHM OF YOUR HOOK BEFORE YOU START WRITING YOUR LYRIC
@@ -771,7 +781,7 @@ Mechanism:
 1. Settle on the title (or hook phrase).
 2. Scan its stressed-syllable pattern.
 3. Treat that pattern as the song's rhythmic motif.
-4. Derive verse line rhythms by relating to the hook rhythm —
+4. Derive verse line rhythms by relating to the hook rhythm:
    matching, varying, contrasting.
 5. Place the hook rhythm in strategic positions across the song.
 
@@ -780,12 +790,12 @@ a rhythm that the chorus cannot match, so the chorus's hook arrives
 out of context. Knowing the hook rhythm first ties the whole song
 to the hook.
 
-## Title generation — UNAUDITED, no book source
+## Title generation: UNAUDITED, no book source
 
-**UNAUDITED — not from Chapter 7, and no book source is cited.** Chapter 7 of
+**UNAUDITED: not from Chapter 7, and no book source is cited.** Chapter 7 of
 *Essential Guide to Lyric Form and Structure* (1991) contains no title
 typology, no "seven types," and no Nashville stressed-vowel method. The two
-quotes below are attributed to Berklee Online and patpattison.com — non-book
+quotes below are attributed to Berklee Online and patpattison.com, non-book
 sources that cannot be verified against the corpus, which is exactly where an
 invented quote is hardest to detect. Treat the table, the counts ("5+", "20+"),
 and both quotes as unverified until someone checks the cited web sources.
@@ -794,7 +804,7 @@ For situations where the writer has an idea but no title, this file
 catalogs title types and a Nashville generation method attributed to Pat
 by non-book sources.
 
-### Title types (unaudited — the count "seven" is ours, not Pat's)
+### Title types (unaudited: the count "seven" is ours, not Pat's)
 
 | Type | Shape | Effect |
 |---|---|---|
@@ -815,10 +825,11 @@ For each candidate, ask:
 
 ### Four-or-five-angles heuristic
 
-Pat's discipline for avoiding obvious titles:
+Pat's discipline for avoiding obvious titles, attributed to Pat by Berklee
+Online:
 
 > "Four or five angles down the road, to the one most people
-> wouldn't get to." — Pat (Berklee Online)
+> wouldn't get to."
 
 Mechanism:
 
@@ -837,8 +848,9 @@ Title brainstorming by sound:
 3. Recombine candidates into new title phrases.
 4. Pick the candidate that fits the song's emotion and is fresh.
 
-> "This is how Nashville writers write a song every day." — Pat
-> (patpattison.com "Seminars")
+Attributed to Pat by patpattison.com "Seminars":
+
+> "This is how Nashville writers write a song every day."
 
 Use the method when:
 
@@ -884,10 +896,10 @@ Pat's own summary of the level, one line later:
 
 Quoted in full under "Hot spots make meaning" above, where Chapter 7 places it.
 Two things to keep straight when using it: Pat sets the LED to **sections**
-only, not to phrases or lines, and he gives it exactly one job — to *warn* you
+only, not to phrases or lines, and he gives it exactly one job: to *warn* you
 to use the positions well.
 
-## Conscious craft stance — "you can" (*Essential Guide to Lyric Form and Structure* (1991), Chapter 7 Strategy 5 close)
+## Conscious craft stance: "you can" (*Essential Guide to Lyric Form and Structure* (1991), Chapter 7 Strategy 5 close)
 
 After analyzing a song's motivic development, Pat closes Chapter 7 Strategy 5
 with a recurring craft stance:
@@ -900,20 +912,20 @@ require proving the other writer used it consciously. The tool exists; you
 can use it deliberately on YOUR song. Conscious craft ownership.
 
 This stance applies to every Pat-named technique. The writer doesn't need
-to claim the technique was always there — the writer just needs to apply
+to claim the technique was always there. The writer just needs to apply
 it now.
 
 ## Cross-references
 
-- [phrasing](phrasing.md) — front-heavy / back-heavy as title placement
+- [phrasing](phrasing.md): front-heavy / back-heavy as title placement
   considerations.
-- [meter](meter.md) — Common Meter, strategic position, hook rhythm.
-- [rhyme strategy](rhyme-strategy.md) — hook's rhyme pair and section
+- [meter](meter.md): Common Meter, strategic position, hook rhythm.
+- [rhyme strategy](rhyme-strategy.md): hook's rhyme pair and section
   closure.
-- [stable / unstable](stable-unstable-meta.md) — title's stability
+- [stable / unstable](stable-unstable-meta.md): title's stability
   character vs hook position.
-- [templates/title-generation-prompt](../templates/title-generation-prompt.md)
-  — generate title candidates from a seed.
-- [title-game](title-game.md) — solo and co-write title-cascade exercise.
-- [workflows](workflows.md) "Scenario 3 — Writing from a title".
-- [idea-to-title](idea-to-title.md) — seed → title workflow.
+- [templates/title-generation-prompt](../templates/title-generation-prompt.md):
+  generate title candidates from a seed.
+- [title-game](title-game.md): solo and co-write title-cascade exercise.
+- [workflows](workflows.md) "Scenario 3: Writing from a title".
+- [idea-to-title](idea-to-title.md): seed → title workflow.

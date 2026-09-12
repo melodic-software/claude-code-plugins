@@ -12,8 +12,13 @@ RUNNER="$ROOT/scripts/run-plugin-tests.sh"
 # shellcheck source=lib/test-harness.sh
 . "$ROOT/scripts/lib/test-harness.sh"
 
-scratch="$(mktemp -d)"
-trap 'rm -rf "$scratch"' EXIT
+# shellcheck source=lib/fixture-tree.sh
+. "$ROOT/scripts/lib/fixture-tree.sh"
+
+# The builder assigns through a nameref, which shellcheck cannot follow;
+# declaring the out-var here is what tells it (SC2154) the name is written.
+scratch=""
+fixture_tree::build scratch --label run-plugin-tests
 
 # make_root <name> -> prints a fresh fixture root with the plugin/hook layout.
 make_root() {

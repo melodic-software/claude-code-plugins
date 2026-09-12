@@ -1,9 +1,9 @@
-# Pair co-occurrence — does skill B get invoked where skill A ran?
+# Pair co-occurrence: does skill B get invoked where skill A ran?
 
 Reference for `scripts/skill-pair-cooccurrence.sh`. A different question from visibility,
 answered from the same `skill-usage.jsonl` store: not *can* the model see a skill, but does
 one skill's run actually coincide with another's. The case it was written for is "skill X's
-instructions tell the model to invoke skill Y — does that happen?"
+instructions tell the model to invoke skill Y, does that happen?"
 
 ```bash
 scripts/skill-pair-cooccurrence.sh --pair implementation:implement,tdd:principles
@@ -12,20 +12,53 @@ scripts/skill-pair-cooccurrence.sh --pair a:b,c:d --json      # machine-readable
 
 | Flag | Meaning |
 |---|---|
-| `--store PATH` | store to read; defaults to `<git toplevel>/.claude/observability/skill-usage.jsonl` |
+| `--store PATH` | store to read; an explicit override that skips the scope resolution below |
+| `--scope SCOPE` | the plugin's `skill_usage_scope` option: `repo` (default), `user`, or `data-dir` |
+| `--dir REL` | the plugin's `skill_usage_dir` option, a contained relative directory under the scope root (default `.claude/observability`; `data-dir` ignores it) |
+| `--data-root PATH` | the plugin data root the hooks write under; required by the `data-dir` scope, ignored by the others |
+| `--print-store` | print the resolved store path and exit; hand it to `audit_skill_visibility.py --skill-usage` so both scripts read one store |
 | `--pair A,B` | ordered pair, caller first |
 | `--floor-days N` | minimum observed span before any rate is reportable (default 30) |
 | `--floor-groups N` | minimum caller-bearing groups before any rate is reportable (default 5) |
 | `--json` | one JSON object instead of prose |
 
-Exit `0` for a reading (verdict **or** withheld), `2` for a missing/unreadable store, `3` for
-bad arguments.
+Exit `0` for a reading (verdict **or** withheld) or a printed store path, `2` for a missing or
+unreadable store or a destination that cannot be resolved, `3` for bad arguments.
 
-## It is a proxy — do not strip the caveat
+## The default store is the writer's store
+
+Without `--store` the script sources the hooks' own resolver
+(`hooks/claude-ops-paths.sh`, `claude_ops::resolve_skill_usage_dir`) and gives it the same
+three inputs the writers use: the scope, the relative dir, and the project root
+(`CLAUDE_PROJECT_DIR`, else the working directory). So the file it opens is the file the hooks
+wrote, in every scope. A default restated here would be one branch of that policy, correct
+only until the policy moved.
+
+The hooks read their options from the `CLAUDE_PLUGIN_OPTION_*` mirrors in the hook
+environment; a skill subprocess inherits none of those. The skill body therefore passes the
+rendered `${user_config.skill_usage_scope}` and `${user_config.skill_usage_dir}` values through
+`--scope` and `--dir`. An empty or unrendered value reads as the option's default, the same rule
+the hooks apply. An unknown scope falls back to `repo` with a notice on stderr, again as the
+hooks do, so the reader lands on the store they wrote rather than refusing it.
+
+The `data-dir` root is the one input with no default. A skill subprocess can inherit an
+unrelated plugin's `CLAUDE_PLUGIN_DATA`
+([plugin-data keying convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-data-report-keying/README.md)
+rule 2), so this script never reads that variable and the sibling pruner
+`skills/observability/scripts/clean.sh` refuses to either. Pass the claude-ops plugin data
+directory through `--data-root`; without it the `data-dir` scope exits `2` rather than reading a
+path no writer chose.
+
+A missing store names the scope it was looked for in (`(scope user)`), because a store written
+under one scope and read under another is the other common reason for that message. An
+unresolvable destination (a traversal `--dir`, `data-dir` with no data root) exits `2` with the
+scope named and is never reported as "nothing observed".
+
+## It is a proxy: do not strip the caveat
 
 The `SkillUse` record carries **no caller attribution**. A PostToolUse hook on the Skill tool
 receives `tool_name`, `tool_input`, and `tool_response`; nothing in that payload names the skill
-whose instructions caused the call. So the script cannot observe "Y was invoked *by* X" — only
+whose instructions caused the call. So the script cannot observe "Y was invoked *by* X", only
 that both fired in the same `(project_id, branch)` group, ordered by timestamp. A Y the user
 typed by hand counts identically to one X produced.
 
@@ -38,7 +71,7 @@ the same defect as a human not seeing it.
 
 ## It inherits the refusal
 
-Below the 30-day exposure floor — the same constant `audit_skill_visibility.py` uses — or below
+Below the 30-day exposure floor, the same constant `audit_skill_visibility.py` uses, or below
 the minimum denominator, the script returns `WITHHELD` with a reason instead of a small number.
 
 **The empty denominator is the trap it exists to refuse.** If the caller never ran, "0% of its

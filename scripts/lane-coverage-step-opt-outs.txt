@@ -1,0 +1,24 @@
+# Steps that carry `continue-on-error: true` for a reason OTHER than feeding the
+# aggregator, each paired with that reason. Read by
+# scripts/check-lane-coverage.sh, which otherwise requires every such step to be
+# read back as `steps.<id>.outcome` by a feed row in its own job — because
+# `continue-on-error` absorbs the failure, so a gate step nothing reads turns
+# nothing red.
+#
+# Format: one `<job-id>/<step-id>  <reason>` per line, matched against
+# .github/workflows/ci.yml. The reason is the rest of the line, and an entry with
+# nothing after it FAILS, the same way a bare `# lane-coverage-ok:` annotation on
+# a job does. Whole-line `#` comments and blanks are ignored; the file is parsed
+# by scripts/lib/read-list.sh in `leading` mode, like every other list here.
+#
+# Checked in BOTH directions: an entry naming a step that does not carry
+# `continue-on-error: true`, or one the feed reads anyway, fails as stale. The
+# list cannot rot into a silent allowlist.
+#
+# ADDING A NEW GATE? Do not reach for this list. A gate step missing from the
+# aggregator feed should FAIL here; that failure is the tool working. This list
+# is only for a step whose `continue-on-error` exists to let a FAILURE FALL
+# THROUGH to a fail-open default, which is the opposite of a gate.
+
+changes/detect  the resolver's own step: a failed detector must leave its outputs unset so every consumer resolves toward RUNNING its lane, and feeding that outcome to an aggregator would red the run for the one case it exists to survive
+changes/match  the resolver's own filter-group step, on the same fall-through contract as changes/detect; the pair is gated instead by the non-continue-on-error detector self-test above them and by scripts/check-docs-only-gate.sh

@@ -1,4 +1,4 @@
-# Fixture — pagination helper (math is correct)
+# Fixture: pagination helper (math is correct)
 
 Source under discussion: `apps/reports/src/paginate.js`
 
@@ -13,7 +13,7 @@ export function paginate(items, page, pageSize) {
 
 There is exactly one `paginate` in the repo (this file). No recent changes: `git log` shows the last edit was 6 weeks ago, "feat: add report pagination".
 
-Reporter's claim: "page 2 skips the last row that should have been on page 1 — it's off by one."
+Reporter's claim: "page 2 skips the last row that should have been on page 1, it's off by one."
 
 Worked check (what a survey + run would show):
 

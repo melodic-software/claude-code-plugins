@@ -1,4 +1,4 @@
-# Gotchas — proposals that read as correct and are not
+# Gotchas: proposals that read as correct and are not
 
 Observed failure modes for the placement audit. Every one of these produces a finding that survives
 review by eye, which is why they are written down rather than left to judgment.
@@ -10,7 +10,7 @@ review by eye, which is why they are written down rather than left to judgment.
   is long produces a reorganization billed as a context win. Only `paths:` changes the cost.
 - **A rule whose body is just `@import` defeats its own scoping.** The import inlines at session
   start while the rule body defers, so the move reads as a saving and is not one. This is the
-  opposite of a nested `CLAUDE.md`'s import, which *does* defer — the two must not be generalized
+  opposite of a nested `CLAUDE.md`'s import, which *does* defer. The two must not be generalized
   from each other, because measurement says they behave differently.
 
 ## Globs
