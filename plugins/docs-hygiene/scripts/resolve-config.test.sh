@@ -161,6 +161,7 @@ mkdir -p "$root/bin"
 {
   printf '#!/usr/bin/env bash\n'
   printf 'REAL=%q\n' "$(command -v jq)"
+  # shellcheck disable=SC2016  # the body of the stub script, expanded when it runs, not here
   printf '"$REAL" "$@" | sed "s/$/\\r/"\n'
 } >"$root/bin/jq"
 chmod +x "$root/bin/jq"

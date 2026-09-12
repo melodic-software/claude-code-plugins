@@ -148,9 +148,17 @@ assert_contains "and the case-collision pass" "$out" "differing only by case"
 
 # --- shellcheck over what was emitted ----------------------------------------
 
+# Under THIS repository's rcfile, not shellcheck's defaults. The emitted pair
+# lands in a consumer that lints it with its own configuration, and the strict
+# options here (a `set -e` suppression, `[[ ]]` over `[ ]`, a default case) are
+# exactly the ones a bare run does not enable. A bare run passed this pair while
+# the repository's own lint lane would have rejected it.
 if command -v shellcheck >/dev/null 2>&1; then
-  sc="$(shellcheck -x "$root/scripts/check-file-names.sh" "$root/scripts/check-file-names.test.sh" 2>&1)"
-  assert_eq "shellcheck is clean on the emitted pair" "" "$sc"
+  RC_FILE="$SCRIPT_DIR/../../../../../.shellcheckrc"
+  sc_args=(-x)
+  [[ -f "$RC_FILE" ]] && sc_args+=("--rcfile=$RC_FILE")
+  sc="$(shellcheck "${sc_args[@]}" "$root/scripts/check-file-names.sh" "$root/scripts/check-file-names.test.sh" 2>&1)"
+  assert_eq "shellcheck is clean on the emitted pair under this repo's rcfile" "" "$sc"
 else
   printf 'SKIP: shellcheck not installed\n'
 fi

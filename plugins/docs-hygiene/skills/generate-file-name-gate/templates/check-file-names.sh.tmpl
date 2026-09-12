@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+@@SHEBANG@@
 # Check that every tracked file under @@ROOTS_HUMAN@@ carries a @@RULE@@ basename.
 #
 #   @@SCRIPT_PATH@@          discover: list every offender
@@ -64,22 +64,24 @@ EXEMPT_PATHS=(@@EXEMPT_PATHS_ARRAY@@)
 EXEMPT_EXTENSIONS=(@@EXEMPT_EXTENSIONS_ARRAY@@)
 offenders=()
 
-exempt_path() {
+# One pass for the basename rule. Exemptions are checked in the order the
+# header lists them; the regex only sees what nothing exempted. Each is an
+# inline loop rather than a function: under `set -e`, a function called in a
+# condition silently disables errexit for its whole body, and the three tests
+# read the same way in sequence anyway.
+while IFS= read -r -d '' path; do
+  skip=""
   for _pat in ${EXEMPT_PATHS+"${EXEMPT_PATHS[@]}"}; do
     # Unquoted on purpose: the entry is a glob, and quoting it would compare
     # the pattern as a literal string.
     # shellcheck disable=SC2053
-    [[ "$1" == $_pat ]] && return 0
+    if [[ "$path" == $_pat ]]; then
+      skip=1
+      break
+    fi
   done
-  return 1
-}
-
-# One pass for the basename rule. Exemptions are checked in the order the
-# header lists them; the regex only sees what nothing exempted.
-while IFS= read -r -d '' path; do
-  exempt_path "$path" && continue
+  [[ -n "$skip" ]] && continue
   base="${path##*/}"
-  skip=""
   for _name in ${EXEMPT_BASENAMES+"${EXEMPT_BASENAMES[@]}"}; do
     [[ "$base" == "$_name" ]] && skip=1 && break
   done

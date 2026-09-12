@@ -246,6 +246,12 @@ PROBE_BAD_ARRAY="$(
 # The rule file's `paths:` frontmatter, one glob per root.
 RULE_PATHS="$(printf '%s\n' "$ROOTS_LIST" | awk 'NF {printf "%s%s/**", (n++ ? ", " : ""), $0} END {print ""}')"
 
+# The templates carry `@@SHEBANG@@` rather than a literal `#!`. A tracked file
+# whose first bytes are a shebang is expected to be executable, and a template
+# is not a script: marking it so would be a lie, and leaving it 644 with a real
+# shebang fails the repository's exec-bit gate. The sibling `work-items`
+# adapter templates take the same placeholder for the same reason.
+SHEBANG='#!/usr/bin/env bash'
 SCRIPT_NAME="check-file-names.sh"
 TEST_NAME="check-file-names.test.sh"
 SCRIPT_STEM="${SCRIPT_NAME%.sh}"
@@ -290,12 +296,13 @@ render() {
     GFG_PRIMARY_ROOT="$PRIMARY_ROOT" \
     GFG_PROBE_OK="$PROBE_OK" \
     GFG_PROBE_BAD_ARRAY="$PROBE_BAD_ARRAY" \
+    GFG_SHEBANG="$SHEBANG" \
     awk '
     BEGIN {
       split("REGEX REGEX_SQ RULE RULE_SQ ROOTS_ARRAY ROOTS_HUMAN ROOTS_PLAIN " \
             "EB_ARRAY EB_HUMAN EP_ARRAY EP_HUMAN EE_ARRAY EE_HUMAN EPS_ARRAY " \
             "RULE_PATHS SCRIPT_NAME TEST_NAME SCRIPT_PATH SCRIPT_STEM ROOT_HOP " \
-            "PRIMARY_ROOT PROBE_OK PROBE_BAD_ARRAY", names, " ")
+            "PRIMARY_ROOT PROBE_OK PROBE_BAD_ARRAY SHEBANG", names, " ")
       # The placeholder for each name, and the value straight out of the
       # environment. The two arrays are indexed together.
       map["REGEX"] = "@@REGEX@@";                          map["REGEX_SQ"] = "@@REGEX_SQ@@"
@@ -310,6 +317,7 @@ render() {
       map["SCRIPT_PATH"] = "@@SCRIPT_PATH@@";              map["SCRIPT_STEM"] = "@@SCRIPT_STEM@@"
       map["ROOT_HOP"] = "@@ROOT_HOP@@";                    map["PRIMARY_ROOT"] = "@@PRIMARY_ROOT@@"
       map["PROBE_OK"] = "@@PROBE_OK@@";                    map["PROBE_BAD_ARRAY"] = "@@PROBE_BAD_ARRAY@@"
+      map["SHEBANG"] = "@@SHEBANG@@"
       n = 0
       for (i = 1; i in names; i++) {
         k[++n] = map[names[i]]
