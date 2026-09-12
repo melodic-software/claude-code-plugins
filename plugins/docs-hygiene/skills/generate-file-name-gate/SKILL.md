@@ -110,10 +110,19 @@ For the rule itself, once the gate is wired and green.
   Some trees strip pointer rules that already have an owner document and a
   deterministic oracle, on the argument that the gate is the oracle. `--rule` is
   opt-in for exactly that reason; offer it and let the operator decide.
-- **Rendering goes through `awk -v`, never a `sed` substitution.** A consumer's
-  regex is arbitrary text: an `&`, a `|`, or a backslash in one would either
-  break the expression or be re-read as a back-reference and corrupt the emitted
-  script silently.
+- **A configuration value is untrusted text, and the emitted gate runs in CI.**
+  Three hazards, each closed at a different layer: rendering is a literal splice
+  rather than a `sed` substitution, so an `&` or a `|` in a regex cannot be
+  re-read; values travel through the environment rather than `awk -v`, which
+  performs escape processing and would halve a doubled backslash; and every
+  value reaching the emitted shell is single-quoted, so a backtick or a
+  `$(...)` in a root or an exemption cannot execute on a CI run.
+- **A rendered file that bash cannot parse is a refusal, not an `EMITTED` row.**
+  Each rendered script goes through `bash -n` before it is claimed, and a
+  failure removes it and stops the run.
+- **The emitted suite's probe names come from the rule, not from the template.**
+  A rule that admits no probe name, or rejects none, is refused at emission
+  rather than handed over as a suite that fails on its own clean fixture.
 - **Re-emit rather than hand-edit.** The configuration is what the audit and
   realign skills read; an edit made only in the emitted checker drifts from them
   with nothing to catch it.

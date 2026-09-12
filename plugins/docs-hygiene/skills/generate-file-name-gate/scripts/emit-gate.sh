@@ -6,13 +6,23 @@
 # the exemptions are inlined at emission from the resolved configuration, so a
 # checkout with the plugin uninstalled still enforces what the team agreed.
 #
-# RENDERING GOES THROUGH awk WITH `-v`, NEVER A sed SUBSTITUTION. A consumer's
-# regex is arbitrary text: `^[a-z0-9]+([.-][a-z0-9]+)*\.[a-z0-9]+$` already
-# carries backslashes, and a `&`, a `|`, or a `/` in one would either break the
-# sed expression or be re-read as a back-reference and silently corrupt the
-# emitted script. `-v` hands the value across untouched, and the replacement
-# below is literal (index/substr), never a gsub whose pattern the value would
-# also have to survive.
+# A CONFIGURATION VALUE IS UNTRUSTED TEXT, AND THE EMITTED GATE RUNS IN CI.
+# Three separate hazards, each closed at a different layer:
+#
+# 1. RENDERING IS LITERAL, AND NEVER A sed SUBSTITUTION. A consumer's regex
+#    already carries backslashes, and a `&`, a `|`, or a `/` in one would break
+#    the sed expression or be re-read as a back-reference. The replacement below
+#    is index/substr, never a gsub whose pattern the value must also survive.
+# 2. VALUES TRAVEL IN THE ENVIRONMENT, NOT THROUGH awk's `-v`. `-v` runs escape
+#    processing: a doubled backslash arrives halved and a literal `\t` arrives
+#    as a TAB. `ENVIRON[]` hands the bytes across unchanged.
+# 3. EVERY VALUE REACHING THE EMITTED SHELL IS SINGLE-QUOTED. Otherwise a
+#    backtick or a `$(...)` in a root or an exemption would execute on every CI
+#    run of the gate, and a bare `"` would emit a file bash cannot parse.
+#
+# And the output is parsed before it is claimed: each rendered file goes through
+# `bash -n` and a failure refuses the run rather than reporting a successful
+# emission of a broken script.
 #
 # WHY THIS IS NOT PART OF `setup apply`. The setup contract scopes `apply` to
 # the plugin's own configuration artifact. Emission writes consumer-owned files
@@ -73,6 +83,15 @@ while [[ $# -gt 0 ]]; do
     shift
     [[ $# -gt 0 ]] || die "--out-dir needs a directory"
     OUT_DIR="${1%/}"
+    # The out-dir is a path INSIDE the root. An absolute path or a `..` segment
+    # would write outside the repository being configured, and the emitted
+    # checker's root hop, which counts segments, would not describe where it
+    # landed either.
+    [[ "$OUT_DIR" != /* ]] || die "--out-dir must be relative to the root, not '$OUT_DIR'"
+    case "/$OUT_DIR/" in
+    */../*) die "--out-dir must not leave the root: '$OUT_DIR'" ;;
+    *) ;;
+    esac
     ;;
   --rule) WITH_RULE=1 ;;
   --force) FORCE=1 ;;
@@ -113,14 +132,37 @@ RULE="$(cfg '.file_names.rule')"
 [[ -n "$REGEX" && "$REGEX" != "null" ]] || die "the configuration declares no file_names.regex"
 [[ -n "$RULE" && "$RULE" != "null" ]] || die "the configuration declares no file_names.rule"
 
+# The regex is validated here as well as by `setup check`: emission is the last
+# point at which a rule that cannot compile is still a refusal rather than a
+# gate that reports every tracked file as an offender.
+printf 'probe-name.md\n' | grep -Eq "$REGEX" >/dev/null 2>&1
+[[ "$?" -le 1 ]] || die "file_names.regex does not compile under grep -E: $REGEX"
+
 # `list <jq-path>` prints one entry per line; `quoted` turns those into a shell
 # array body; `human` turns them into a prose list for the headers.
 list() {
   cfg "$1" 2>/dev/null
 }
 
+# EVERY VALUE THAT LANDS IN THE EMITTED SHELL IS SINGLE-QUOTED, WITH ITS OWN
+# SINGLE QUOTES ESCAPED. A configuration value is text somebody typed, and the
+# emitted checker runs in CI: a double-quoted splice would let a backtick or a
+# `$(...)` in a root or an exemption execute on every run, and a bare `"` would
+# emit a file bash cannot parse. Single quotes suspend every expansion bash has,
+# and `'\''` is the one sequence that closes, escapes, and reopens them.
+sq() {
+  printf "%s" "$1" | sed "s/'/'\\\\''/g"
+}
+
 quoted() {
-  awk 'NF {printf "%s\"%s\"", (n++ ? " " : ""), $0} END {print ""}'
+  awk '
+    NF {
+      s = $0
+      gsub(/\x27/, "\x27\\\x27\x27", s)
+      printf "%s\x27%s\x27", (n++ ? " " : ""), s
+    }
+    END { print "" }
+  '
 }
 
 human() {
@@ -139,10 +181,11 @@ PRIMARY_ROOT="$(printf '%s\n' "$ROOTS_LIST" | head -1)"
 
 ROOTS_ARRAY="$(printf '%s\n' "$ROOTS_LIST" | quoted)"
 ROOTS_HUMAN="$(printf '%s\n' "$ROOTS_LIST" | human)"
-# Backtick-free, for the one place the value lands inside a single-quoted
-# printf format in the emitted script: a backtick there reads as a command
-# substitution to every reviewer and to shellcheck, whatever the quoting says.
-ROOTS_PLAIN="$(printf '%s\n' "$ROOTS_LIST" | awk 'NF {printf "%s%s", (n++ ? ", " : ""), $0} END {print ""}')"
+# The comma-joined form, for the two places a value lands inside a
+# single-quoted string in the emitted script rather than in an array.
+ROOTS_PLAIN="$(sq "$(printf '%s\n' "$ROOTS_LIST" | awk 'NF {printf "%s%s", (n++ ? ", " : ""), $0} END {print ""}')")"
+REGEX_SQ="$(sq "$REGEX")"
+RULE_SQ="$(sq "$RULE")"
 EXEMPT_BASENAMES_ARRAY="$(list '.file_names.exempt_basenames[]' | quoted)"
 EXEMPT_BASENAMES_HUMAN="$(list '.file_names.exempt_basenames[]' | human)"
 EXEMPT_PATHS_ARRAY="$(list '.file_names.exempt_paths[]' | quoted)"
@@ -153,8 +196,52 @@ EXEMPT_EXTENSIONS_HUMAN="$(list '.file_names.exempt_extensions[]' | human)"
 # One seed path per exempt_paths glob: the glob's literal prefix plus a
 # basename the rule would reject, so the emitted case proves the exemption
 # carried the file rather than the rule accepting it.
+#
+# Only entries that END in a glob get a seed. A plain-directory entry such as
+# `docs/legacy` matches that one path and nothing under it, so a seed beneath it
+# would be a case the emitted suite fails out of the box through no fault of the
+# consumer's configuration.
 EXEMPT_PATH_SEEDS_ARRAY="$(list '.file_names.exempt_paths[]' |
-  sed 's|/*\*\**$||' | awk 'NF {print $0 "/Exempt_By-PATH.md"}' | quoted)"
+  awk '/\*$/ {sub(/\/*\**$/, ""); if (length($0)) print $0 "/Exempt_By-PATH.md"}' | quoted)"
+
+# The suite's probe names come from the configuration, never from this file. A
+# hardcoded `conforming-name.md` is only conforming under a rule that allows a
+# hyphen, so a consumer with a different regex would receive a suite that fails
+# on its own clean fixture.
+probe_ok() {
+  for cand in conforming-name.md conformingname.md conforming.md c1.md name.txt n.md n.txt; do
+    printf '%s\n' "$cand" | grep -Eq "$REGEX" || continue
+    exempt_by_list "$cand" "$(list '.file_names.exempt_basenames[]')" && continue
+    exempt_by_list "${cand##*.}" "$(list '.file_names.exempt_extensions[]')" && continue
+    printf '%s' "$cand"
+    return 0
+  done
+  return 1
+}
+
+exempt_by_list() {
+  while IFS= read -r entry; do
+    [[ -n "$entry" ]] || continue
+    [[ "$entry" == "$1" ]] && return 0
+  done <<EOF
+$2
+EOF
+  return 1
+}
+
+PROBE_OK="$(probe_ok)" ||
+  die "no probe name this contract knows passes file_names.regex without being exempt, so the emitted suite would have no clean case; widen the rule or emit by hand"
+
+PROBE_BAD_ARRAY="$(
+  for cand in UPPER-KEBAB.md snake_case.md Mixed.md double..dot.md BadName.txt; do
+    printf '%s\n' "$cand" | grep -Eq "$REGEX" && continue
+    exempt_by_list "$cand" "$(list '.file_names.exempt_basenames[]')" && continue
+    exempt_by_list "${cand##*.}" "$(list '.file_names.exempt_extensions[]')" && continue
+    printf '%s\n' "$cand"
+  done | quoted
+)"
+[[ -n "${PROBE_BAD_ARRAY// /}" ]] ||
+  die "no probe name this contract knows is rejected by file_names.regex, so the emitted suite could not prove the rule fires"
 
 # The rule file's `paths:` frontmatter, one glob per root.
 RULE_PATHS="$(printf '%s\n' "$ROOTS_LIST" | awk 'NF {printf "%s%s/**", (n++ ? ", " : ""), $0} END {print ""}')"
@@ -174,39 +261,60 @@ fi
 
 # --- render -------------------------------------------------------------------
 
+# awk's `-v` is NOT a transparent channel: it runs escape processing over the
+# value, so a doubled backslash in a consumer's regex arrives halved and a
+# literal `\t` arrives as a TAB. The emitted file still parses, it just quietly
+# means something else. Values therefore travel in the ENVIRONMENT and are read
+# from `ENVIRON[]`, which awk hands across byte for byte.
 render() {
-  awk \
-    -v regex="$REGEX" -v rule="$RULE" \
-    -v roots_array="$ROOTS_ARRAY" -v roots_human="$ROOTS_HUMAN" \
-    -v roots_plain="$ROOTS_PLAIN" \
-    -v eb_array="$EXEMPT_BASENAMES_ARRAY" -v eb_human="$EXEMPT_BASENAMES_HUMAN" \
-    -v ep_array="$EXEMPT_PATHS_ARRAY" -v ep_human="$EXEMPT_PATHS_HUMAN" \
-    -v ee_array="$EXEMPT_EXTENSIONS_ARRAY" -v ee_human="$EXEMPT_EXTENSIONS_HUMAN" \
-    -v eps_array="$EXEMPT_PATH_SEEDS_ARRAY" -v rule_paths="$RULE_PATHS" \
-    -v script_name="$SCRIPT_NAME" -v test_name="$TEST_NAME" \
-    -v script_path="$SCRIPT_PATH" -v script_stem="$SCRIPT_STEM" \
-    -v root_hop="$ROOT_HOP" -v primary_root="$PRIMARY_ROOT" '
+  GFG_REGEX="$REGEX" \
+    GFG_REGEX_SQ="$REGEX_SQ" \
+    GFG_RULE="$RULE" \
+    GFG_RULE_SQ="$RULE_SQ" \
+    GFG_ROOTS_ARRAY="$ROOTS_ARRAY" \
+    GFG_ROOTS_HUMAN="$ROOTS_HUMAN" \
+    GFG_ROOTS_PLAIN="$ROOTS_PLAIN" \
+    GFG_EB_ARRAY="$EXEMPT_BASENAMES_ARRAY" \
+    GFG_EB_HUMAN="$EXEMPT_BASENAMES_HUMAN" \
+    GFG_EP_ARRAY="$EXEMPT_PATHS_ARRAY" \
+    GFG_EP_HUMAN="$EXEMPT_PATHS_HUMAN" \
+    GFG_EE_ARRAY="$EXEMPT_EXTENSIONS_ARRAY" \
+    GFG_EE_HUMAN="$EXEMPT_EXTENSIONS_HUMAN" \
+    GFG_EPS_ARRAY="$EXEMPT_PATH_SEEDS_ARRAY" \
+    GFG_RULE_PATHS="$RULE_PATHS" \
+    GFG_SCRIPT_NAME="$SCRIPT_NAME" \
+    GFG_TEST_NAME="$TEST_NAME" \
+    GFG_SCRIPT_PATH="$SCRIPT_PATH" \
+    GFG_SCRIPT_STEM="$SCRIPT_STEM" \
+    GFG_ROOT_HOP="$ROOT_HOP" \
+    GFG_PRIMARY_ROOT="$PRIMARY_ROOT" \
+    GFG_PROBE_OK="$PROBE_OK" \
+    GFG_PROBE_BAD_ARRAY="$PROBE_BAD_ARRAY" \
+    awk '
     BEGIN {
-      k[1] = "@@REGEX@@";                     v[1] = regex
-      k[2] = "@@RULE@@";                      v[2] = rule
-      k[3] = "@@ROOTS_ARRAY@@";               v[3] = roots_array
-      k[4] = "@@ROOTS_HUMAN@@";               v[4] = roots_human
-      k[5] = "@@EXEMPT_BASENAMES_ARRAY@@";    v[5] = eb_array
-      k[6] = "@@EXEMPT_BASENAMES_HUMAN@@";    v[6] = eb_human
-      k[7] = "@@EXEMPT_PATHS_ARRAY@@";        v[7] = ep_array
-      k[8] = "@@EXEMPT_PATHS_HUMAN@@";        v[8] = ep_human
-      k[9] = "@@EXEMPT_EXTENSIONS_ARRAY@@";   v[9] = ee_array
-      k[10] = "@@EXEMPT_EXTENSIONS_HUMAN@@";  v[10] = ee_human
-      k[11] = "@@EXEMPT_PATH_SEEDS_ARRAY@@";  v[11] = eps_array
-      k[12] = "@@RULE_PATHS@@";               v[12] = rule_paths
-      k[13] = "@@SCRIPT_NAME@@";              v[13] = script_name
-      k[14] = "@@TEST_NAME@@";                v[14] = test_name
-      k[15] = "@@SCRIPT_PATH@@";              v[15] = script_path
-      k[16] = "@@SCRIPT_STEM@@";              v[16] = script_stem
-      k[17] = "@@ROOT_HOP@@";                 v[17] = root_hop
-      k[18] = "@@PRIMARY_ROOT@@";             v[18] = primary_root
-      k[19] = "@@ROOTS_PLAIN@@";              v[19] = roots_plain
-      n = 19
+      split("REGEX REGEX_SQ RULE RULE_SQ ROOTS_ARRAY ROOTS_HUMAN ROOTS_PLAIN " \
+            "EB_ARRAY EB_HUMAN EP_ARRAY EP_HUMAN EE_ARRAY EE_HUMAN EPS_ARRAY " \
+            "RULE_PATHS SCRIPT_NAME TEST_NAME SCRIPT_PATH SCRIPT_STEM ROOT_HOP " \
+            "PRIMARY_ROOT PROBE_OK PROBE_BAD_ARRAY", names, " ")
+      # The placeholder for each name, and the value straight out of the
+      # environment. The two arrays are indexed together.
+      map["REGEX"] = "@@REGEX@@";                          map["REGEX_SQ"] = "@@REGEX_SQ@@"
+      map["RULE"] = "@@RULE@@";                            map["RULE_SQ"] = "@@RULE_SQ@@"
+      map["ROOTS_ARRAY"] = "@@ROOTS_ARRAY@@";              map["ROOTS_HUMAN"] = "@@ROOTS_HUMAN@@"
+      map["ROOTS_PLAIN"] = "@@ROOTS_PLAIN@@"
+      map["EB_ARRAY"] = "@@EXEMPT_BASENAMES_ARRAY@@";      map["EB_HUMAN"] = "@@EXEMPT_BASENAMES_HUMAN@@"
+      map["EP_ARRAY"] = "@@EXEMPT_PATHS_ARRAY@@";          map["EP_HUMAN"] = "@@EXEMPT_PATHS_HUMAN@@"
+      map["EE_ARRAY"] = "@@EXEMPT_EXTENSIONS_ARRAY@@";     map["EE_HUMAN"] = "@@EXEMPT_EXTENSIONS_HUMAN@@"
+      map["EPS_ARRAY"] = "@@EXEMPT_PATH_SEEDS_ARRAY@@";    map["RULE_PATHS"] = "@@RULE_PATHS@@"
+      map["SCRIPT_NAME"] = "@@SCRIPT_NAME@@";              map["TEST_NAME"] = "@@TEST_NAME@@"
+      map["SCRIPT_PATH"] = "@@SCRIPT_PATH@@";              map["SCRIPT_STEM"] = "@@SCRIPT_STEM@@"
+      map["ROOT_HOP"] = "@@ROOT_HOP@@";                    map["PRIMARY_ROOT"] = "@@PRIMARY_ROOT@@"
+      map["PROBE_OK"] = "@@PROBE_OK@@";                    map["PROBE_BAD_ARRAY"] = "@@PROBE_BAD_ARRAY@@"
+      n = 0
+      for (i = 1; i in names; i++) {
+        k[++n] = map[names[i]]
+        v[n] = ENVIRON["GFG_" names[i]]
+      }
     }
     {
       line = $0
@@ -244,10 +352,23 @@ for t in "${targets[@]}"; do
   mkdir -p "$(dirname "$t")" || die "cannot create $(dirname "$t")"
 done
 
-render "$TEMPLATES/check-file-names.sh.tmpl" >"${targets[0]}" || die "cannot write ${targets[0]}"
-chmod +x "${targets[0]}"
-render "$TEMPLATES/check-file-names.test.sh.tmpl" >"${targets[1]}" || die "cannot write ${targets[1]}"
-chmod +x "${targets[1]}"
+# A rendered file is PARSED before it is claimed. Nothing else here can prove a
+# configuration value did not break the shell it landed in, and an `EMITTED` row
+# over a file bash refuses is worse than a refusal: the operator wires it into CI
+# and finds out there.
+emit_shell() {
+  render "$2" >"$1" || die "cannot write $1"
+  bash -n "$1" 2>"$1.parse.$$" || {
+    reason="$(tr '\n' ' ' <"$1.parse.$$")"
+    rm -f "$1.parse.$$" "$1"
+    die "the rendered ${1##*/} is not valid bash, so nothing was emitted: ${reason:-parse error}. A quote or a control character in the configuration is the usual cause."
+  }
+  rm -f "$1.parse.$$"
+  chmod +x "$1"
+}
+
+emit_shell "${targets[0]}" "$TEMPLATES/check-file-names.sh.tmpl"
+emit_shell "${targets[1]}" "$TEMPLATES/check-file-names.test.sh.tmpl"
 printf 'EMITTED\t%s\n' "${targets[0]#"$ROOT"/}"
 printf 'EMITTED\t%s\n' "${targets[1]#"$ROOT"/}"
 

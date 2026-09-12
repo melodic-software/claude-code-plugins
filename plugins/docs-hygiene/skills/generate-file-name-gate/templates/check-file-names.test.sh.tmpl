@@ -16,7 +16,12 @@ SUT="$SCRIPT_DIR/@@SCRIPT_NAME@@"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
-PRIMARY_ROOT="@@PRIMARY_ROOT@@"
+PRIMARY_ROOT='@@PRIMARY_ROOT@@'
+# The probe names are chosen at emission against this repository's own rule, not
+# hardcoded here: `conforming-name.md` only conforms under a rule that allows a
+# hyphen, and a suite that assumed one would fail on its own clean fixture.
+PROBE_OK='@@PROBE_OK@@'
+PROBE_BAD=(@@PROBE_BAD_ARRAY@@)
 FAILED=0
 CASES=0
 
@@ -46,7 +51,7 @@ assert_contains() {
 new_repo() {
   d="$TEST_TMPDIR/r-$CASES-$RANDOM"
   mkdir -p "$d/$PRIMARY_ROOT"
-  printf '# ok\n' >"$d/$PRIMARY_ROOT/conforming-name.md"
+  printf '# ok\n' >"$d/$PRIMARY_ROOT/$PROBE_OK"
   git init -q "$d"
   git -C "$d" config user.email fixture@example.invalid
   git -C "$d" config user.name "Fixture"
@@ -87,7 +92,7 @@ assert_eq "a clean run writes nothing to stderr" "" "${rest#*|}"
 
 # --- the rule ----------------------------------------------------------------
 
-for bad in "UPPER-KEBAB.md" "snake_case.md" "Mixed.md" "double..dot.md"; do
+for bad in "${PROBE_BAD[@]}"; do
   r="$(new_repo)"
   seed "$r" "$PRIMARY_ROOT/$bad"
   res="$(run_gate "$r")"
@@ -101,8 +106,8 @@ done
 # --- case collisions ---------------------------------------------------------
 
 r="$(new_repo)"
-seed "$r" "$PRIMARY_ROOT/twin-name.md"
-seed "$r" "$PRIMARY_ROOT/TWIN-NAME.md"
+seed "$r" "$PRIMARY_ROOT/$PROBE_OK"
+seed "$r" "$PRIMARY_ROOT/$(printf '%s' "$PROBE_OK" | tr '[:lower:]' '[:upper:]')"
 res="$(run_gate "$r")"
 assert_eq "two paths differing only by case are offenders" "1" "${res%%|*}"
 assert_contains "the collision is reported as such" "${res#*|}" "differs only by case"

@@ -10,6 +10,11 @@
 # check-file-names.sh.tmpl, check-file-names.test.sh.tmpl, and
 # file-names-rule.md.tmpl.
 #
+# Every single-quoted `$v` below is a jq program argument naming jq's own
+# variable, and every single-quoted backtick or `$(...)` is the literal payload
+# of an injection case. None is a shell expansion.
+# shellcheck disable=SC2016
+#
 # Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
 # redirect `git init` / `git config` into the caller's repository.
 set -uo pipefail
@@ -186,6 +191,113 @@ rc=$?
 assert_eq "--force overwrites" "0" "$rc"
 assert_absent "the overwritten file is the freshly rendered one" \
   "$(cat "$root/scripts/check-file-names.sh")" "sentinel"
+
+# --- a configuration value is untrusted text ---------------------------------
+#
+# These are the discriminating cases for the three hazards the emitter's header
+# names. A fixture whose regex carries no metacharacter cannot tell a literal
+# renderer from a `sed` one, so each case below uses a value that WOULD break
+# the wrong implementation. Every hostile value is built with `jq --arg` rather
+# than spliced into a shell string, so this suite's own quoting cannot be what
+# a case is really testing.
+
+# hostile <root> <jq-filter> <arg-value> : write a variant config, print its path
+hostile() {
+  out="$TEST_TMPDIR/hostile-$CASES-$RANDOM.json"
+  jq --arg v "$3" "$2" "$1/.claude/docs-hygiene.json" >"$out"
+  printf '%s' "$out"
+}
+
+# A backtick and a `$(...)` in an exemption. Under a double-quoted splice each
+# shellcheck disable=SC2016  # the payload is literal text a jq --arg carries; the jq filters below name $v, jq's variable, not the shell's
+root="$(new_fixture)"
+marker="$TEST_TMPDIR/PWNED-$RANDOM"
+payload='docs/`touch '"$marker"'-tick`/$(touch '"$marker"'-dollar)/**'
+cfgfile="$(hostile "$root" '.file_names.exempt_paths = [$v]' "$payload")"
+bash "$SUT" --root "$root" --config "$cfgfile" >/dev/null 2>&1
+assert_eq "a backtick and a command substitution in an exemption still emit" "0" "$?"
+bash "$root/scripts/check-file-names.sh" --check >/dev/null 2>&1
+assert_eq "and the emitted gate runs no command substitution" "no" \
+  "$([[ -e "$marker-tick" || -e "$marker-dollar" ]] && echo yes || echo no)"
+assert_contains "the value survives as a literal" \
+  "$(cat "$root/scripts/check-file-names.sh")" "$payload"
+
+# A double quote in a list entry. Under a double-quoted splice this closes the
+# string and the emitted file stops parsing.
+root="$(new_fixture)"
+cfgfile="$(hostile "$root" '.file_names.exempt_extensions = [$v]' 'md"; echo INJECTED; #')"
+bash "$SUT" --root "$root" --config "$cfgfile" >/dev/null 2>&1
+assert_eq "a double quote in a list entry still emits" "0" "$?"
+bash -n "$root/scripts/check-file-names.sh" 2>/dev/null
+assert_eq "and the emitted checker parses" "0" "$?"
+bash -n "$root/scripts/check-file-names.test.sh" 2>/dev/null
+assert_eq "as does the emitted suite" "0" "$?"
+
+# A single quote, the one character the single-quoting must handle itself
+# rather than merely rely on.
+root="$(new_fixture)"
+apostrophe="O'REILLY.md"
+cfgfile="$(hostile "$root" '.file_names.exempt_basenames = [$v]' "$apostrophe")"
+bash "$SUT" --root "$root" --config "$cfgfile" >/dev/null 2>&1
+assert_eq "a single quote in a list entry still emits" "0" "$?"
+bash -n "$root/scripts/check-file-names.sh" 2>/dev/null
+assert_eq "and the emitted checker parses" "0" "$?"
+assert_contains "the entry survives intact" \
+  "$(cat "$root/scripts/check-file-names.sh")" "$apostrophe"
+
+# A regex carrying a doubled backslash and a literal backslash-t. awk's `-v`
+# halves the first and turns the second into a TAB; the environment channel
+# does neither.
+# The fixture's own rule with a metacharacter-carrying branch bolted on, so the
+# probe names still resolve and the case is about the channel, not the rule.
+root="$(new_fixture)"
+hostile_re='^[a-z0-9]+([.-][a-z0-9]+)*\.[a-z0-9]+$|^[a-z&|/]+\\[a-z]+\t[a-z]+$'
+cfgfile="$(hostile "$root" '.file_names.regex = $v' "$hostile_re")"
+bash "$SUT" --root "$root" --config "$cfgfile" >/dev/null 2>&1
+emitted_re="$(grep '^NAME_RE=' "$root/scripts/check-file-names.sh")"
+assert_eq "the regex reaches the emitted file byte for byte" "NAME_RE='$hostile_re'" "$emitted_re"
+assert_eq "no tab was introduced" "0" \
+  "$(printf '%s' "$emitted_re" | grep -c "$(printf '\t')")"
+
+# A `%` in the rule name. Spliced into a printf FORMAT it would be read as a
+# conversion and eat the arguments after it.
+root="$(new_fixture)"
+cfgfile="$(hostile "$root" '.file_names.rule = $v' '100%s-percent-kebab')"
+bash "$SUT" --root "$root" --config "$cfgfile" >/dev/null 2>&1
+pct="$TEST_TMPDIR/pct-$RANDOM"
+mkdir -p "$pct/docs" "$pct/scripts"
+printf '# ok\n' >"$pct/docs/conforming-name.md"
+cp "$root/scripts/check-file-names.sh" "$pct/scripts/"
+git init -q "$pct"
+git -C "$pct" config user.email fixture@example.invalid
+git -C "$pct" config user.name Fixture
+git -C "$pct" add -A >/dev/null
+out="$(bash "$pct/scripts/check-file-names.sh" --check 2>&1)"
+assert_contains "a percent in the rule name reaches the message intact" "$out" "100%s-percent-kebab"
+
+# A rule the emitted suite could not probe. Refused at emission rather than
+# handed over as a suite that fails on its own clean fixture.
+root="$(new_fixture)"
+cfgfile="$(hostile "$root" '.file_names.regex = $v' '^$')"
+out="$(bash "$SUT" --root "$root" --config "$cfgfile" 2>&1)"
+rc=$?
+assert_eq "a rule no probe name satisfies is refused" "2" "$rc"
+assert_contains "the refusal says the suite would have no clean case" "$out" "no probe name"
+
+# --- an out-dir stays inside the root ----------------------------------------
+
+root="$(new_fixture)"
+out="$(emit "$root" --out-dir ../escaped)"
+rc=$?
+assert_eq "a traversing out-dir is refused" "2" "$rc"
+assert_contains "the refusal says why" "$out" "must not leave the root"
+assert_eq "and nothing was written outside it" "no" \
+  "$([[ -e "$(dirname "$root")/escaped" ]] && echo yes || echo no)"
+
+out="$(emit "$root" --out-dir /abs)"
+rc=$?
+assert_eq "an absolute out-dir is refused" "2" "$rc"
+assert_contains "the refusal says why" "$out" "must be relative to the root"
 
 # --- configuration refusals ---------------------------------------------------
 

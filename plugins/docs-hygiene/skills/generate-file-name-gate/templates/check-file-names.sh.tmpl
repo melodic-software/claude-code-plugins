@@ -52,7 +52,12 @@ if ! git rev-parse --show-toplevel >/dev/null 2>&1; then
   exit 2
 fi
 
-NAME_RE='@@REGEX@@'
+NAME_RE='@@REGEX_SQ@@'
+# The rule's name and the roots live in variables rather than inside the printf
+# FORMAT strings below: a `%` in either would otherwise be read as a conversion
+# and eat the arguments that follow it.
+RULE_NAME='@@RULE_SQ@@'
+ROOTS_PLAIN='@@ROOTS_PLAIN@@'
 ROOTS=(@@ROOTS_ARRAY@@)
 EXEMPT_BASENAMES=(@@EXEMPT_BASENAMES_ARRAY@@)
 EXEMPT_PATHS=(@@EXEMPT_PATHS_ARRAY@@)
@@ -85,7 +90,7 @@ while IFS= read -r -d '' path; do
   done
   [[ -n "$skip" ]] && continue
   if [[ ! "$base" =~ $NAME_RE ]]; then
-    offenders+=("$path: basename is not @@RULE@@ (rule: $NAME_RE)")
+    offenders+=("$path: basename is not $RULE_NAME (rule: $NAME_RE)")
   fi
 done < <(git ls-files -z -- "${ROOTS[@]}")
 
@@ -105,11 +110,11 @@ while IFS= read -r folded; do
 done < <(git ls-files -- "${ROOTS[@]}" | tr '[:upper:]' '[:lower:]' | sort | uniq -d)
 
 if ((${#offenders[@]} == 0)); then
-  printf '@@SCRIPT_STEM@@: every tracked file under @@ROOTS_PLAIN@@ is @@RULE@@.\n'
+  printf '@@SCRIPT_STEM@@: every tracked file under %s is %s.\n' "$ROOTS_PLAIN" "$RULE_NAME"
   exit 0
 fi
 
 printf '%s\n' "${offenders[@]}" | sort -u >&2
-printf '@@SCRIPT_STEM@@: %d offender(s); rename to @@RULE@@ (see the header of %s).\n' \
-  "${#offenders[@]}" "@@SCRIPT_PATH@@" >&2
+printf '@@SCRIPT_STEM@@: %d offender(s); rename to %s (see the header of %s).\n' \
+  "${#offenders[@]}" "$RULE_NAME" "@@SCRIPT_PATH@@" >&2
 exit 1
