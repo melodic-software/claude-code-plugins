@@ -3,6 +3,31 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.56.1]
+
+### Changed
+
+- **`plugins`: three conditional blocks leave the hub for spokes.** The hub `SKILL.md` is loaded
+  in full on every invocation, and three of its blocks mattered only on uncommon paths. The stale
+  project records and cache content sections now live in `context/stale-records-cache-content.md`
+  (read when `stale_project_records.total` or `cache_content.stale_content` is above 0); the
+  `fleet-state.sh`, `cache-content-check.sh`, and `normalize-enabled-plugins.sh` invocation
+  contracts live in `context/script-contracts.md` (read when a step misbehaves or a caller other
+  than `sync-run.sh` invokes one); and the dated `userConfig` unset-key probe record, with the
+  `pluginConfigs` payload shape and the probe recipe, lives in `context/scope-semantics.md`. Each
+  block is replaced in the hub by a pointer naming its read condition, and both new spokes are in
+  the reference index. The `Configured value` line and its reading rule stay in the hub, because a
+  `userConfig` value substitutes only into content Claude Code renders and never into a file a
+  spoke read returns; the hub now states that surface in the plugins reference's own words
+  (`default` is "Value used when the user provides nothing"; values substitute in MCP and LSP
+  server configs and hook commands, and non-sensitive values also in skill and agent content)
+  instead of attributing an "is used if specified" sentence to the page. The Scope section is
+  unchanged. `context/gotchas.md` and `context/scope-semantics.md` gain a Contents block, and no
+  `context/*.md` file carries the dollar-brace `user_config` placeholder any more, so the
+  spoke-substitution rule is grep-checkable. The hub goes from 450 lines and 31,215 bytes (about
+  7,800 tokens at four characters a token) to 309 lines and 22,121 bytes (about 5,530 tokens),
+  under the 500-line guidance either way and now under the 5,000-token companion figure too.
+
 ## [0.56.0]
 
 ### Added

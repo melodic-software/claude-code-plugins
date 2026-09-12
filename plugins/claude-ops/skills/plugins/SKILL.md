@@ -154,69 +154,14 @@ No hardcoded marketplace name anywhere in this skill. Every action resolves its 
 
 ## State inspection
 
-Every action starts by calling the bundled read-only script, never hand-parse the internal JSON
-files directly, and never write them:
-
-```bash
-"${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/fleet-state.sh [--marketplace <name> | --all]
-"${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/fleet-state.sh [--marketplace <name>] --ids <selector>
-"${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/fleet-state.sh --ids <selector> --from <report.json>
-```
-
-The second form emits the plain id list a mutating step loops, instead of the JSON report. One
-tab-separated record per line, first field always the fully-qualified `<name>@<marketplace>`. Use it
-whenever a step needs ids; never hand-write a `jq` extraction over the JSON, which reintroduces a
-trailing `\r` on Windows and silently corrupts every id but the last (see
-[context/gotchas.md](context/gotchas.md)).
-
-The third form projects that same id list from a report already on disk rather than recomputing the
-fleet, and is the form `sync`'s steps use: each step re-reads the full report anyway, and every
-selector is derivable from it. Same script, same projection, so the `\r` protection is unchanged.
-
-`sync-run.sh` above is what calls these scripts during `sync` and `audit`; the contracts below are
-what it and any other caller are bound to.
-
-A second read-only script answers the question `fleet-state.sh` structurally cannot: whether the
-files in a plugin's cache directory actually match the commit its install record claims. Step 5b of
-`sync` and of `audit` calls it ONCE per marketplace:
-
-```bash
-"${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/cache-content-check.sh --marketplace <name> [--scope user|project|all]
-"${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/cache-content-check.sh --marketplace <name> --ids
-```
-
-`--ids` emits the stale ids alone, one per line, CR-free, the same contract and for the same reason
-as `fleet-state.sh --ids`. Step 5b does not use it beside the JSON form: the ids are already in that
-JSON, and a second call would repeat the run's most expensive read. It is the fallback for a JSON
-that could not be produced. The script never writes anything and never runs `git fetch`; a commit
-that is not in the local marketplace clone is reported as `sha-not-local`, not fetched. See
-[context/sync.md](context/sync.md) Step 5b, and
-[context/scope-semantics.md](context/scope-semantics.md) for the mechanism that makes a cache
-directory and its recorded sha disagree in the first place.
-
-`sync` writes its run journal under this plugin's per-machine data directory. The path is
-substituted here because `${CLAUDE_PLUGIN_DATA}` resolves in skill content and **not** in a
-`context/*.md` spoke, which is read raw:
-
-```bash
-journal_root="${CLAUDE_PLUGIN_DATA}/plugins-sync/runs"
-```
-
-See [context/sync.md](context/sync.md)'s "Run journal" section for what goes in it.
-
-After Step 4 installs anything, reorder user-scope `enabledPlugins` with the bundled writer.
-Never hand-edit `~/.claude/settings.json`:
-
-```bash
-"${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/normalize-enabled-plugins.sh
-```
-
-That write is user-scope only. A project-scope map is inspected with `--report-project` and never
-rewritten. See [context/sync.md](context/sync.md).
-
-Read [context/scope-semantics.md](context/scope-semantics.md) before interpreting its output. In
-particular the `versionsMatch` filter rule, never count or present a raw `divergences[]` length, is defined once there, under "Divergence is not automatically actionable"; every other mention in
-this skill points at it rather than restating it.
+Every action reads the fleet through the bundled read-only `fleet-state.sh`, checks cache content
+through `cache-content-check.sh`, and reorders a user-scope `enabledPlugins` map only through
+`normalize-enabled-plugins.sh`. Never hand-parse `installed_plugins.json`,
+`known_marketplaces.json`, or a settings file, never write them, and never hand-write a `jq`
+extraction where a script's `--ids` form exists. `sync-run.sh` calls all three during `sync` and
+`audit`. Read [context/script-contracts.md](context/script-contracts.md) when a step misbehaves,
+when `converge` needs an id list, or before invoking one of the scripts from anywhere other than
+`sync-run.sh`; it carries each script's invocation forms and the `\r` rule behind `--ids`.
 
 ## Action: audit
 
@@ -300,98 +245,15 @@ self-update note reports. `plugins-reference`, re-fetched 2026-09-05 and unchang
 observed on Claude Code 2.1.240 and not re-run on 2.1.261, because it needs an interactive session.
 See [context/gotchas.md](context/gotchas.md).)
 
-## Stale project records. Reported, never converged, never reaped
+## Stale project records and cache content
 
-A project/local install record keeps its `projectPath` after that directory is gone. Ephemeral
-checkouts make this ordinary rather than exceptional: a throwaway worktree can leave a record per
-installed plugin behind, so one deleted directory can strand dozens of records at once.
-
-`fleet-state.sh` annotates every project/local record with `projectPathPresent` (see
-[context/scope-semantics.md](context/scope-semantics.md)). Report these in their **own section**, and
-observe three boundaries:
-
-- **Never counted in Divergences.** `converge`'s every project/local command is
-  `(cd "<projectPath>" && claude plugin …)`, because `-s project`/`-s local` have no path flag. A row
-  whose `projectPath` is absent cannot be `cd`'d into, so routing it to `converge` hands the user a
-  command guaranteed to fail. Folding these into the actionable count also inflates it with rows no
-  action can clear. They are a separate observation, not a divergence.
-- **Never suppressed, and never called dead.** `projectPathPresent: false` means *not present on this
-  machine right now*. Nothing more. An unmounted volume, an offline network share, an external drive
-  that is unplugged, and a deleted worktree are indistinguishable to a directory test. Filtering these
-  rows out would hide real drift from anyone whose repos live on removable or network storage. Say
-  "not present on this machine", never "dead" or "orphaned".
-- **Never reaped by this skill.** No `claude plugin` verb removes an install record by path;
-  `prune` acts on auto-installed *dependencies* and its own `-s project` has the same
-  no-path-flag limitation (re-verified on Claude Code 2.1.261). Editing `installed_plugins.json`
-  directly is outside this skill's boundary, the same rule the rest of this skill follows. So this
-  section names the condition and stops. If the records came from a tool that owns those directories'
-  lifecycle, that tool is where they should be dropped at teardown; this skill does not reach into
-  another plugin's configuration to find out.
-
-A record does not have to come from a deliberate install. A repo whose committed `.claude/settings.json`
-carries an `enabledPlugins` block mirroring what the user already has at user scope writes one
-project record per `true` entry at the first session start in that checkout, pinned to the version
-the user scope holds (verified on Claude Code 2.1.263). A `false` entry writes nothing. Report the
-count and the distinct paths, and name the block as the source when the path's repo carries one.
-[context/scope-semantics.md](context/scope-semantics.md) "Where project-scope records come from, and
-why the skill cannot reap them" holds the sourcing, the precedence rule, the reap boundary, and the
-probe recipe that established the write.
-
-The render gives the section a count plus the distinct paths, not one row per record, because a
-hundred records naming a dozen directories is a report about a dozen directories: `K` is
-`stale_project_records.total`, `P` is the length of `stale_project_records.by_path`, and each
-`by_path` entry is the `{path, count}` one row renders. The section is omitted when `K` is 0.
-
-A project-scope enable gap is a row `sync` deliberately does not fix. Step 5 enables automatically
-only where the write is not team-shared state. The render lists each one under `Action needed` as
-its runnable command, `(cd "<projectPath>" && claude plugin enable <id>@<marketplace> -s project)`,
-with the note that it writes that repo's committed `.claude/settings.json`, so acting on it is a
-copy, not a reconstruction. Only ids that Step 5 did not enable at `user`/`local` scope in this run
-appear there. For the rest the command would fail rather than run, and Step 5 explains why.
-
-When a project root resolved, the render leads the `Divergences:` line with *this* project's
-actionable count and folds the rest of the machine into one trailing clause, e.g. `2 behind here
-→ converge; 27 more elsewhere on this machine`. Per-row detail (naming exact `<old> → <new>`
-versions per repo) is reserved for genuine conflicts: an unknown/orphaned plugin id, or a CLI call
-that failed, never for the routine bulk case. (Enable-state mismatches, a plugin `true` in one
-scope's `enabledPlugins` and `false` in another, are a known blind spot, not a reportable category:
-`fleet-state.sh` only exposes the merged effective value, never each scope's raw map, so this skill
-cannot detect one to report it. See [context/converge.md](context/converge.md) "V1 scope".)
-
-## Cache content. Reported, never repaired
-
-A version-and-sha check is not proof that the files on disk are the build the record names. When a
-plugin's manifest version does not change across a commit, `claude plugin update` re-points the
-record's `gitCommitSha` and leaves the existing version directory in place, so the metadata claims
-the new commit while the directory still holds the old build. See
-[context/scope-semantics.md](context/scope-semantics.md) for the observation this rests on.
-
-Step 5b runs `cache-content-check.sh`, which byte-compares every file in each cache directory
-against the recorded commit in the marketplace clone. The render omits the `Cache content:` row
-when it finds nothing. When it finds something, the render names the ids and gives the remediation
-that was actually proved to work, rather than a suggestion: remove that version's directory under
-the plugin cache, then re-run `claude plugin update <id>@<marketplace>`, which recreates it from
-the clone.
-
-`N` is `cache_content.stale_content`, and one row comes from each `cache_content.stale[]` entry:
-`id`, `version`, and `files_differ`, which sums every direction of disagreement: bytes that
-changed, files the tree has and the cache lacks, and files the cache holds and the tree does not.
-`files_differ` reads `null` when the digest fell back to the checker's `--ids` form, which knows the
-ids and no per-file detail; the row then carries the id alone.
-
-**The check never repairs.** It does not delete a cache directory, does not re-run an update, and
-does not `git fetch` a commit the marketplace clone lacks. A commit that is not local is reported as
-`sha-not-local` and left alone: fetching is a network mutation this audit does not perform, and it
-would also silently erase the condition the verdict exists to report. Every verdict other than
-`match` and `stale-content` is counted as `unverifiable`, meaning the audit looked and could not decide,
-which is its own number and never folded into either side.
-
-**Expect a substantial `unverifiable` share, and never read it as a pass.** Claude Code clones a
-marketplace shallow, so any install whose recorded commit predates that clone's window reports
-`sha-not-local` through no fault of the fleet. On the machine this check was first run against, 11
-of 74 user-scope installs were unverifiable for exactly that reason. The render says so alongside
-the match count rather than leading with the match count alone: a row with the unverifiable share
-when nothing is stale, and a sub-line under the finding when something is.
+Both are findings the render reports and this skill never fixes: a project/local record whose
+`projectPath` is not present on this machine is named in its own section, never counted as a
+divergence, never suppressed, and never reaped; a cache directory whose files disagree with the
+recorded commit is named with the proved remediation, never repaired. Read
+[context/stale-records-cache-content.md](context/stale-records-cache-content.md) when
+`stale_project_records.total > 0` or `cache_content.stale_content > 0`, or when the user asks why
+either section reads as it does.
 
 ## userConfig: `install_new`
 
@@ -413,25 +275,20 @@ there does nothing at all. Declaring the option in `plugin.json` alone does not 
 readable here either. See [context/scope-semantics.md](context/scope-semantics.md) for the read path
 and why it differs from `enabledPlugins`, which this same skill reads from project and local scope.
 
-Crucially, the manifest's `"default": "ask"` is **not** substituted for
-an unset key (first verified 2026-07-23 against CC 2.1.218, **re-verified 2026-09-06 against CC
-2.1.263**: an unset key leaves the placeholder token unchanged, the same shape as
-`${user_config.…}`, while a sibling key set in `~/.claude/settings.json` and `${CLAUDE_PLUGIN_ROOT}`
-both substitute in the same render). The current `plugins-reference` page says the manifest
-`default` "is used if specified" for an unset key; the 2.1.263 render contradicts that for skill
-content, so this skill keeps trusting the probe over the page. **Recheck trigger:** re-verify on any
-Claude Code minor-version bump that touches plugin `userConfig` substitution, or when
-`plugins-reference` changes its unset-key wording.
-
-When re-running that probe, the `pluginConfigs` payload must nest the key under `options`
-(`{"pluginConfigs":{"<id>@<marketplace>":{"options":{"<key>":"<value>"}}}}`); a key placed directly
-under the plugin id is ignored without warning, and a control set that way renders literal, which
-looks exactly like a substitution failure. With the right shape, `--settings` substitutes the same
-as user settings (verified 2026-09-06 on 2.1.263, alongside a sibling key set in user settings), so
-either source is a valid positive control. `claude plugin install <id> --config <key>=<value>`
-writes the user-settings entry in that shape, which is the cheapest way to set one. So for the common
-default-config user, with no `pluginConfigs` set anywhere, the **Configured value** line above still
-shows that literal placeholder token, not `ask`.
+The manifest's `"default": "ask"` is **not** substituted for an unset key: the render leaves the
+placeholder token unchanged while a sibling key set in `~/.claude/settings.json` and
+`${CLAUDE_PLUGIN_ROOT}` both substitute in the same render. That is a probed claim, not a documented
+one, and it stays pointed at its dated record: the verification (as-of date, CLI version, basis,
+recheck trigger), the `pluginConfigs` payload shape, and the probe recipe are in
+[context/scope-semantics.md](context/scope-semantics.md) "`userConfig`: an unset key renders the
+literal placeholder". Read it when the rendered value looks wrong or before re-running the probe.
+The `plugins-reference` page describes `default` as "Value used when the user provides nothing" and
+states the substitution surface as "Each value is available for substitution as `${user_config.KEY}`
+in MCP and LSP server configs and hook commands. Non-sensitive values can also be substituted in
+skill and agent content." Substitution into content happens in what Claude Code renders, and never in
+a file a spoke read returns, which is why the **Configured value** line lives here and cannot move to
+a spoke. So for the common default-config user, with no `pluginConfigs` set anywhere, the
+**Configured value** line above still shows that literal placeholder token, not `ask`.
 
 Read that literal placeholder token as the **expected unset state → use the default `ask`**, and do NOT
 report it as an invalid value. Only a rendered value that is a real word other than
@@ -446,5 +303,7 @@ default when that render is still the placeholder token, not on the option's nam
 | [context/sync.md](context/sync.md) | Running `sync` or `audit`; it is the step sequence both actions execute. |
 | [context/sync-install-enable.md](context/sync-install-enable.md) | Sync Steps 4 and 5, and only when the fresh pre-Step-4 re-read (not Step 1's report) has a non-empty `missing_from_user_install` or `missing_from_enabled`, or its Step 1 refresh failed. Both arrays are empty on a current fleet. |
 | [context/converge.md](context/converge.md) | Running `converge`, the only action that may rewrite a committed settings file. |
-| [context/scope-semantics.md](context/scope-semantics.md) | A scope, version, or reload claim needs its verified source before you act on it. |
+| [context/stale-records-cache-content.md](context/stale-records-cache-content.md) | The digest's `stale_project_records.total` or `cache_content.stale_content` is above 0, or the user asks why either section reads as it does. |
+| [context/script-contracts.md](context/script-contracts.md) | A step misbehaves, `converge` needs an id list, or a caller other than `sync-run.sh` is about to invoke `fleet-state.sh`, `cache-content-check.sh`, or `normalize-enabled-plugins.sh`. |
+| [context/scope-semantics.md](context/scope-semantics.md) | A scope, version, or reload claim needs its verified source before you act on it; also the dated `userConfig` unset-key probe record. |
 | [context/gotchas.md](context/gotchas.md) | A run failed in a way the steps do not explain, or a safeguard looks removable. |

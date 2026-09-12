@@ -49,7 +49,7 @@ deliberate decline is never re-offered). This is deliberately user-scope, not th
 a plugin installed only at `project`/`local` scope is absent from `missing_from_install` yet still not
 usable from other directories, so installing at `user` scope below (the "usable from any directory"
 guarantee) must key off user-scope completeness. Apply the configured
-policy. SKILL.md's `${user_config.install_new}` line renders the actual value; that render, not this
+policy. SKILL.md's **Configured value** line renders the actual value; that render, not this
 step's prose, is what to branch on:
 
 - **`ask`** (default): present every entry in one batched `AskUserQuestion` multi-select, then

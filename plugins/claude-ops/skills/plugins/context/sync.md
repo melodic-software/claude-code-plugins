@@ -42,7 +42,7 @@ file puts them, and it removes the retyping error that a per-step transcript inv
 
 What the model still owns, because the script cannot:
 
-- **The `install_new` policy.** `${user_config.install_new}` substitutes only when Claude Code
+- **The `install_new` policy.** The `user_config.install_new` placeholder substitutes only when Claude Code
   renders SKILL.md; a `context/*.md` spoke is read raw. SKILL.md's "Configured value" line is the
   rendered value, and the model passes it as `--install-new`. On `ask` with a non-empty install gap
   the script reports the gap and STOPS before Step 4, because only the model can run the batched

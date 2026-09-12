@@ -323,6 +323,11 @@ catalog on, and the cloud bootstrap installs from the two together (see
   explicitly, for the benefit of the *next* process start, per the timing bullet above. It
   never calls `claude plugin marketplace remove`, which deletes the marketplace's
   entry from `.claude/settings.json` and would have the script mutate tracked config.
+- The bootstrap reconciles user-scope installs at SessionStart (and at cache build, through the
+  setup script); `/claude-ops:plugins` never detects or coordinates with it. Every `sync` and
+  `audit` re-derives the fleet from `installed_plugins.json` and the settings maps on the run, so
+  a bootstrap that ran a moment earlier shows up only as current state, never as a branch in the
+  skill.
 - On resume it also repairs [same-version commit drift](MIGRATION-PLAYBOOK.md): because a
   directory-source cache is keyed by the semver in `plugin.json` rather than the commit, a
   presence check alone would keep serving whichever commit installed first. The script compares the
