@@ -676,6 +676,126 @@ class RenderTests(unittest.TestCase):
         )
         self.assertIn("Files: 2. Functions: 2. Over reference: none.", result.stdout)
 
+    def test_a_lane_row_sorts_among_file_rows_that_tie_on_the_value(self) -> None:
+        # audit-type-debt emits file rows and a lane row (`file: null`) that
+        # can tie on every earlier key; the sort must not compare None with
+        # a path.
+        doc = self._size_doc([])
+        doc["skill"] = "audit-type-debt"
+        doc["thresholds"] = [
+            {
+                "measure": "type_coverage",
+                "value_key": "type_coverage_pct",
+                "direction": "below",
+                "reference": None,
+                "provenance": "p",
+                "layer": "bundled default",
+            }
+        ]
+        values = {
+            "any_expressions": 0,
+            "expressions_total": 13,
+            "type_coverage_pct": 100.0,
+        }
+        doc["measures"] = [
+            {
+                "file": None,
+                "function": None,
+                "lane": "python",
+                "values": values,
+                "labels": ["lane-total"],
+                "over_reference": [],
+            },
+            {
+                "file": "a.py",
+                "function": None,
+                "lane": "python",
+                "values": values,
+                "labels": [],
+                "over_reference": [],
+            },
+        ]
+        doc["summary"] = {"files": 1, "functions": 0, "over_reference": {}}
+        result = run("render", stdin=json.dumps(doc))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("| a.py |", result.stdout)
+        self.assertIn("lane-total", result.stdout)
+        self.assertIn("Files: 1. Over reference: none.", result.stdout)
+
+    def _type_debt_doc(self, measures: list[dict]) -> dict:
+        doc = self._size_doc([])
+        doc["skill"] = "audit-type-debt"
+        doc["thresholds"] = [
+            {
+                "measure": "type_coverage",
+                "value_key": "type_coverage_pct",
+                "direction": "below",
+                "reference": None,
+                "provenance": "p",
+                "layer": "bundled default",
+            }
+        ]
+        doc["measures"] = measures
+        doc["summary"] = {"files": 0, "functions": 0, "over_reference": {}}
+        return doc
+
+    def test_two_lane_rows_with_equal_values_stay_two_lines(self) -> None:
+        # Both lanes fully typed: the rows tie on file, function and start
+        # line and must still render one line per lane.
+        doc = self._type_debt_doc(
+            [
+                {
+                    "file": None,
+                    "function": None,
+                    "lane": lane,
+                    "collector": collector,
+                    "values": {"type_coverage_pct": 100.0},
+                    "labels": ["lane-total"],
+                    "over_reference": [],
+                }
+                for lane, collector in (
+                    ("python", "mypy-report"),
+                    ("typescript", "type-coverage"),
+                )
+            ]
+        )
+        result = run("render", stdin=json.dumps(doc))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.count("| lane-total |"), 2)
+        self.assertNotIn("mypy-report, type-coverage", result.stdout)
+
+    def test_the_lane_row_leads_and_survives_the_row_cap(self) -> None:
+        rows = [
+            {
+                "file": f"m{i:03d}.py",
+                "function": None,
+                "lane": "python",
+                "values": {"type_coverage_pct": float(i % 100)},
+                "labels": [],
+                "over_reference": [],
+            }
+            for i in range(201)
+        ]
+        rows.append(
+            {
+                "file": None,
+                "function": None,
+                "lane": "python",
+                "values": {"type_coverage_pct": 50.0},
+                "labels": ["lane-total"],
+                "over_reference": [],
+            }
+        )
+        doc = self._type_debt_doc(rows)
+        result = run("render", stdin=json.dumps(doc))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("| lane-total |", result.stdout)
+        self.assertIn("more rows", result.stdout)
+        table_lines = [
+            line for line in result.stdout.splitlines() if "| python |" in line
+        ]
+        self.assertIn("lane-total", table_lines[0])
+
     def test_the_row_cap_names_the_key_it_kept_the_top_rows_by(self) -> None:
         rows = [
             {

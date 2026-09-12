@@ -658,7 +658,11 @@ for slot in "${COLLECT_SLOTS[@]}"; do
   version="${S_VERSION[slot]}"
   if [[ "${rc:-1}" -eq 0 ]]; then
     cat "$WORK/out.$slot" >>"$ROWS"
-    run_row "$slot" "$lane" "$measure" "$tool $version" ok ''
+    # What an adapter said on stderr while succeeding (mypy's error count,
+    # a module the scope did not cover) is the ok row's reason; an adapter
+    # that said nothing leaves it null.
+    note="$(tr '\n' ' ' <"$WORK/err.$slot" | cut -c1-500)"
+    run_row "$slot" "$lane" "$measure" "$tool $version" ok "${note% }"
     progress "$lane/$measure: $tool finished in ${elapsed:-?}s, $(wc -l <"$WORK/out.$slot" | tr -d ' ') row(s)"
   elif [[ "${rc:-1}" -eq 4 ]]; then
     run_row "$slot" "$lane" "$measure" "$tool $version" unavailable "$(tr '\n' ' ' <"$WORK/err.$slot" | cut -c1-500)"
