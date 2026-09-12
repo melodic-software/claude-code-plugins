@@ -278,7 +278,18 @@ Review: code-design
   portability scanners skip `*/evals/*`, which swallows this whole plugin by name; they are not evidence
   here (recorded under Open questions).
 
-### Phase 4: The guided runner skill [TODO]
+### Phase 4: The guided runner skill [DONE]
+
+Landed 2026-09-12 by a scope-fenced worker; a fresh-context verifier passed all fifteen criteria
+(line count 277, no listing token, every version mention inside a drift record, the eight preflight
+fields, the pre-spend refusal, the rules refusal with the unhobble pointer, the cost policy, the
+validator-before-command order, the delta read order, the section order, the three references,
+the evals file shape, no em dash, check-skill 0 errors, markdownlint 0 issues). Deviation: the
+worker brief asked for a frontmatter `name:`; found that this plugin dropped the key on purpose
+(CHANGELOG 0.2.0, the bare alias registers a second command) and the sibling skills carry none;
+chose to remove it before the commit; revisit never. Policy choice recorded for Phase 6: an
+estimate over a set ceiling stops and offers raise, narrow, or accept-partial; unlimited never
+prompts. Zero CLI calls and zero spend in this phase.
 
 Review: code-design
 
