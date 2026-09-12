@@ -61,6 +61,22 @@ a single machine, so a personal layer may only add. A contributor adding a scope
 root or an exemption of their own weakens nothing, which is why adding stays
 open.
 
+**`tiers` needs one more rule than the rest of the additive class, because
+appending is not monotonic for it.** Every other additive key is a list of
+things to exempt or exclude, so a new entry can only narrow what a rename
+touches. A tier entry carries a *verdict*, and a personal tier naming a deeper
+path with a looser form would re-classify a file the team froze: an addition
+that removes a protection.
+
+The resolver therefore stamps each tier entry with a `_layer` field naming the
+layer that contributed it, and the consumer holds the floor per file: an
+authoritative tier (bundled or the tracked team layer) always beats a personal
+one, whatever the pathspecs say, and specificity decides only among tiers of
+equal authority. A personal tier still classifies any file no authoritative
+tier claims, which is the adding the floor exists to allow. A tier carrying no
+`_layer`, as a hand-written document would, is read as authoritative: the safe
+reading of an unknown origin is the one that cannot silently loosen anything.
+
 `/docs-hygiene:setup check` prints the contributing layer for every key and
 names any declaration it ignored.
 

@@ -267,6 +267,19 @@ assert_eq "the regex reaches the emitted file byte for byte" "NAME_RE='$hostile_
 assert_eq "no tab was introduced" "0" \
   "$(printf '%s' "$emitted_re" | grep -c "$(printf '\t')")"
 
+# A single quote in the PRIMARY ROOT, which lands in a single-quoted assignment
+# in the emitted SUITE rather than in the checker's arrays. `bash -n` accepts
+# the broken-out result, so the parse gate cannot catch this one: only escaping
+# can.
+root="$(new_fixture)"
+marker="$TEST_TMPDIR/ROOTPWN-$RANDOM"
+cfgfile="$(hostile "$root" '.file_names.roots = [$v, "docs"]' "do'\$(touch $marker)'cs")"
+bash "$SUT" --root "$root" --config "$cfgfile" >/dev/null 2>&1
+assert_eq "a quote in a root still emits" "0" "$?"
+timeout 120 bash "$root/scripts/check-file-names.test.sh" >/dev/null 2>&1
+assert_eq "and running the emitted suite executes no command substitution" "no" \
+  "$([[ -e "$marker" ]] && echo yes || echo no)"
+
 # A `%` in the rule name. Spliced into a printf FORMAT it would be read as a
 # conversion and eat the arguments after it.
 root="$(new_fixture)"
@@ -306,6 +319,13 @@ out="$(emit "$root" --out-dir /abs)"
 rc=$?
 assert_eq "an absolute out-dir is refused" "2" "$rc"
 assert_contains "the refusal says why" "$out" "must be relative to the root"
+
+# The out-dir lands in a double-quoted path inside the emitted checker, so shell
+# metacharacters in it would reach that file as shell.
+out="$(emit "$root" --out-dir 'scripts"; touch /tmp/od-pwn; #')"
+rc=$?
+assert_eq "an out-dir carrying shell metacharacters is refused" "2" "$rc"
+assert_contains "the refusal names the character class it allows" "$out" "letters, digits, dot"
 
 # --- configuration refusals ---------------------------------------------------
 

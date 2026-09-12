@@ -436,35 +436,73 @@ while IFS="$(printf '\t')" read -r file lineno form; do
   # (`v1.2.schema.json`), and `gsub` would read each one as "any character" and
   # rewrite a line the audit never pointed at.
   #
-  # A BARE STEM IS ANCHORED; A BASENAME IS NOT. The sweep only records a
-  # bare-stem site where the characters around the stem are not name
-  # characters, so applying one unanchored would undo that care: a line naming
-  # both `Alpha-One` and `Alpha-One-notes.md` would have the second rewritten
-  # into a reference to a file nobody renamed. A basename already carries its
-  # extension and needs no such guard.
+  # A BARE STEM IS ANCHORED. The sweep only records a bare-stem site where the
+  # characters around the stem are not name characters, so applying one
+  # unanchored would undo that care: a line naming both `Alpha-One` and
+  # `Alpha-One-notes.md` would have the second rewritten into a reference to a
+  # file nobody renamed.
   anchored=0
   [[ "$form" == "bare-stem" ]] && anchored=1
+
+  # AND A BASENAME IS REPLACED ONLY WHERE THE RECORDED FORM PUTS IT. One line
+  # can carry the same basename twice in two shapes, and the tier may allow one
+  # and freeze the other: a historical record reading
+  # "links [Alpha](../Alpha-One.md) and names Alpha-One.md in prose" has an
+  # editable `md-link` and a frozen `plain`, and replacing every occurrence
+  # rewrites the narrative that `links-and-paths` exists to preserve.
+  #
+  # The test is the left context the sweep itself used to classify the form,
+  # applied per occurrence rather than per line. This is not re-deriving the
+  # form: the record names it, and this is where that name is honoured.
+  # `plain` and `table-or-key` carry no context requirement, which is what
+  # makes them the forms a frozen tier reports rather than edits.
+  # All three reset every iteration. They are set per form in the branches
+  # below, and a form that sets none would otherwise inherit the last one that
+  # did, so a `plain` row following a `backtick-path` row would be anchored to a
+  # code span it is not in and match nothing.
+  prefix_re=''
+  suffix_re=''
+  exclude_prefix_re=''
+  case "$form" in
+  md-link) prefix_re='\]\([^)]*$' ;;
+  # A code span is closed as well as opened, so both sides are checked: the
+  # text before must open one and the text after must close it. The left test
+  # alone would also match from a CLOSING backtick, and rewrite a link target
+  # that follows a code span on the same line.
+  backtick-path)
+    prefix_re='`[^`]*$'
+    suffix_re='^[^`]*`'
+    ;;
+  raw-url) prefix_re='raw\.githubusercontent\.com[^ )"'"'"']*$' ;;
+  github-url) prefix_re='github\.com[^ )"'"'"']*$' ;;
+  # `plain` is the residue form, so it is anchored by exclusion: it edits the
+  # occurrences no shaped form covers. Without that, a `plain` row on a line
+  # that also carries a link would rewrite the link target too, which is the
+  # frozen half on a tier that allows prose and not paths.
+  plain) exclude_prefix_re='(\]\([^)]*|`[^`]*|https?://[^ )"'"'"']*)$' ;;
+  *) prefix_re='' ;;
+  esac
   awkerr="$ROOT/$file.err.$$"
   TEMPS+=("$tmp" "$awkerr")
-  if ! awk -v ln="$lineno" -v from="$from" -v to="$to" -v anchored="$anchored" '
+  if ! awk -v ln="$lineno" -v from="$from" -v to="$to" -v anchored="$anchored" \
+    -v prefix_re="$prefix_re" -v suffix_re="$suffix_re" \
+    -v exclude_prefix_re="$exclude_prefix_re" '
     function namechar(c) { return (c ~ /[A-Za-z0-9_-]/) }
     NR == ln {
       n = 0
       out = ""
       rest = $0
+      # `seen` is the ORIGINAL text left of the cursor. `out` cannot stand in
+      # for it: it already carries replacements, and a context test has to ask
+      # about the line as the sweep read it.
+      seen = ""
       while ((p = index(rest, from)) > 0) {
-        # The character before the match is the one just left of it in the
-        # remaining text, or, when the match opens that text, the last one
-        # already emitted. Both are the original line, read in order.
-        if (p > 1) {
-          before = substr(rest, p - 1, 1)
-        } else if (length(out) > 0) {
-          before = substr(out, length(out), 1)
-        } else {
-          before = ""
-        }
+        before = (p > 1 ? substr(rest, p - 1, 1) : (length(seen) > 0 ? substr(seen, length(seen), 1) : ""))
         after = substr(rest, p + length(from), 1)
         ok = 1
+        if (prefix_re != "" && (seen substr(rest, 1, p - 1)) !~ prefix_re) { ok = 0 }
+        if (suffix_re != "" && substr(rest, p + length(from)) !~ suffix_re) { ok = 0 }
+        if (exclude_prefix_re != "" && (seen substr(rest, 1, p - 1)) ~ exclude_prefix_re) { ok = 0 }
         if (anchored == 1) {
           if (before != "" && namechar(before)) { ok = 0 }
           if (after != "" && namechar(after)) { ok = 0 }
@@ -475,6 +513,7 @@ while IFS="$(printf '\t')" read -r file lineno form; do
         } else {
           out = out substr(rest, 1, p - 1) from
         }
+        seen = seen substr(rest, 1, p + length(from) - 1)
         rest = substr(rest, p + length(from))
       }
       $0 = out rest

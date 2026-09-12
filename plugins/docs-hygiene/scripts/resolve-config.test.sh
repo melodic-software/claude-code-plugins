@@ -91,6 +91,17 @@ assert_contains "team layer: provenance names it" "$(layers "$root")" "regex	bun
 write_layer "$root/.claude/docs-hygiene.local.json" '{"regex": "^overlay$"}'
 assert_eq "overlay: nearest wins on regex" "^overlay$" "$(resolve "$root" | jq -r '.file_names.regex')"
 
+# 3b. And the team layer beats the USER-GLOBAL one, because the team layer is
+#     nearer. The additive class needs the opposite layer order, so this is the
+#     case that keeps the two from being collapsed into one loop again: a
+#     machine-wide rule must never decide what a repository enforces.
+root="$(new_root)"
+write_layer "$root/.claude/docs-hygiene.json" '{"rule": "team-rule", "regex": "^team$"}'
+write_layer "$root/home/.claude/docs-hygiene.json" '{"rule": "user-rule", "regex": "^user$"}'
+assert_eq "team beats user-global on rule" "team-rule" "$(resolve "$root" | jq -r '.file_names.rule')"
+assert_eq "team beats user-global on regex" "^team$" "$(resolve "$root" | jq -r '.file_names.regex')"
+assert_contains "provenance lists both, team last" "$(layers "$root")" "rule	bundled,user-global,team"
+
 # 4. On an additive key the team layer REPLACES the bundled default, and a
 #    personal layer only adds to what the team decided.
 root="$(new_root)"
@@ -200,6 +211,19 @@ git -C "$root" config commit.gpgsign false
 write_layer "$root/.claude/docs-hygiene.json" '{"regex": "^from-cwd$"}'
 out="$(cd "$root" && HOME="$root/home" bash "$SUT" resolve | jq -r '.file_names.regex')"
 assert_eq "no --root: the git toplevel of the cwd supplies the team layer" "^from-cwd$" "$out"
+
+# Every tier entry carries the layer that contributed it, which is what lets a
+# consumer hold the policy floor per file rather than per key.
+root="$(new_root)"
+write_layer "$root/.claude/docs-hygiene.json" \
+  '{"tiers": [{"name": "t-team", "paths": ["docs/a/**"], "forms": "none"}]}'
+write_layer "$root/home/.claude/docs-hygiene.json" \
+  '{"tiers": [{"name": "t-personal", "paths": ["docs/a/deep/**"], "forms": "all"}]}'
+tiers="$(resolve "$root" | jq -c '.file_names.tiers')"
+assert_contains "a team tier is stamped team" "$tiers" '"name":"t-team"'
+assert_contains "and carries its layer" "$tiers" '"_layer":"team"'
+assert_contains "a personal tier is still appended" "$tiers" '"name":"t-personal"'
+assert_contains "and is stamped with the layer that added it" "$tiers" '"_layer":"user-global"'
 
 printf '\nPASS=%d FAIL=%d\n' "$((CASES - FAILED))" "$FAILED"
 [[ "$FAILED" -eq 0 ]] || exit 1

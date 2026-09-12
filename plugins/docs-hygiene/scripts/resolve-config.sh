@@ -195,6 +195,29 @@ append_new() {
   '
 }
 
+# THE POLICY FLOOR NEEDS PER-ENTRY PROVENANCE, AND ONLY `tiers` DOES.
+#
+# Every other additive key is a list of things to EXEMPT or EXCLUDE, so an
+# appended entry can only ever narrow what a rename touches. A tier is the one
+# additive key whose entries carry a verdict, and appending is not monotonic for
+# a verdict: a personal tier naming a deeper path with a looser form would
+# re-classify a file the team froze, which is a removal wearing an addition's
+# clothes.
+#
+# Stamping each entry with the layer that contributed it lets the consumer hold
+# the floor exactly where it belongs, per file: a personal tier may classify a
+# file no team tier claims, and may never re-classify one a team tier did.
+stamp_layer() {
+  # A value that is absent, empty, or not an array is handed back untouched.
+  # Stamping is a refinement of a list that already resolved; it must never be
+  # the step that turns a readable document into a failed one.
+  case "$1" in
+  '' | null) printf '%s' "$1" ;;
+  \[*) jqr -n -c --argjson a "$1" --arg l "$2" '$a | map(if type == "object" then . + {_layer: $l} else . end)' ;;
+  *) printf '%s' "$1" ;;
+  esac
+}
+
 merged='{}'
 prov_lines=''
 inert_lines=''
@@ -202,9 +225,27 @@ inert_lines=''
 for key in $KEY_ORDER; do
   value="$(layer_value "$key" "$BUNDLED_JSON")"
   [[ "$value" = "null" ]] && [[ "$key" != "redirect_map" ]] && value='null'
+  [[ "$key" = tiers && "$value" != "null" ]] && value="$(stamp_layer "$value" bundled)"
   contributors='bundled'
 
-  for layer in team user-global overlay; do
+  # THE TWO MERGE CLASSES NEED OPPOSITE LAYER ORDERS, so each gets its own.
+  #
+  # A nearest-wins key follows the documented cascade: user-global, then team,
+  # then the overlay, so the NEARER layer lands last and wins. Running team
+  # first here would let a machine-wide `rule` or `regex` overwrite the
+  # repository's, and an audit or an emitted gate would silently enforce
+  # somebody's personal convention.
+  #
+  # An additive key is the other way round: the team layer is the authority and
+  # REPLACES, and a personal layer only appends to what the team decided. That
+  # needs team first, or the team's replacement would discard the personal
+  # additions the floor exists to allow.
+  case "$NEAREST_WINS" in
+  *" $key "*) layer_order='user-global team overlay' ;;
+  *) layer_order='team user-global overlay' ;;
+  esac
+
+  for layer in $layer_order; do
     case "$layer" in
     user-global) layer_json="$USER_JSON" ;;
     team) layer_json="$TEAM_JSON" ;;
@@ -236,6 +277,7 @@ for key in $KEY_ORDER; do
     *)
       # Additive: the team layer is the authority and replaces; a personal layer
       # only adds to what the team, or the bundled default, already decided.
+      [[ "$key" = tiers ]] && incoming="$(stamp_layer "$incoming" "$layer")"
       if [[ "$layer" = team || "$value" = "null" ]]; then
         value="$incoming"
       else

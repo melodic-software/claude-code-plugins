@@ -92,6 +92,11 @@ while [[ $# -gt 0 ]]; do
     */../*) die "--out-dir must not leave the root: '$OUT_DIR'" ;;
     *) ;;
     esac
+    # It lands in a double-quoted path inside the emitted checker, so a quote,
+    # a backslash, a `$`, or a backtick in it would reach that file as shell.
+    # A directory name has no use for any of them.
+    [[ "$OUT_DIR" =~ ^[A-Za-z0-9._/-]*$ ]] ||
+      die "--out-dir may use letters, digits, dot, dash, underscore, and slash only: '$OUT_DIR'"
     ;;
   --rule) WITH_RULE=1 ;;
   --force) FORCE=1 ;;
@@ -177,7 +182,11 @@ human() {
 
 ROOTS_LIST="$(list '.file_names.roots[]')"
 [[ -n "$ROOTS_LIST" ]] || die "the configuration declares no file_names.roots"
-PRIMARY_ROOT="$(printf '%s\n' "$ROOTS_LIST" | head -1)"
+# Escaped like every other value that lands inside a single-quoted assignment in
+# an emitted file. A root carrying a `'` would otherwise close the quoting and
+# the rest of the value would be read as shell: `bash -n` accepts the result, so
+# the parse gate below would not catch it either.
+PRIMARY_ROOT="$(sq "$(printf '%s\n' "$ROOTS_LIST" | head -1)")"
 
 ROOTS_ARRAY="$(printf '%s\n' "$ROOTS_LIST" | quoted)"
 ROOTS_HUMAN="$(printf '%s\n' "$ROOTS_LIST" | human)"

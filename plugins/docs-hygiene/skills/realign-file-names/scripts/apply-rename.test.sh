@@ -154,6 +154,29 @@ assert_contains "a historical backtick path is repointed" "$adr2" '`docs/beta.md
 assert_contains "and the narrative bare stem beside it is not" "$adr2" \
   "the team argued about BETA for two weeks"
 
+# --- one line, one editable form and one frozen one --------------------------
+#
+# A historical line carrying BOTH an editable `md-link` and a bare `plain`
+# occurrence of the same basename. The sweep records the line once, by the
+# first form on its ladder, so a replacement that took every occurrence would
+# rewrite the narrative `links-and-paths` exists to preserve. The pair of
+# assertions is what discriminates: the link must move AND the prose must not.
+
+root3="$(new_fixture)"
+printf '# Historical\n\nStatus: accepted\n\nThe record links [Alpha](../Alpha-One.md) and names Alpha-One.md in prose.\n' \
+  >"$root3/docs/adr/0002-two-forms.md"
+git -C "$root3" add -A >/dev/null
+git -C "$root3" commit -qm "a historical line carrying two forms" >/dev/null
+plan3="$(stage "$root3")"
+id3="$(id_for "$plan3" docs/Alpha-One.md)"
+accept "$plan3" "$id3"
+run --artifact "$plan3" --id "$id3" --root "$root3" >/dev/null
+two="$(sed -n '5p' "$root3/docs/adr/0002-two-forms.md")"
+
+assert_contains "the recorded markdown link is repointed" "$two" "[Alpha](../alpha-one.md)"
+assert_contains "the unrecorded prose occurrence beside it is left as written" "$two" \
+  "names Alpha-One.md in prose"
+
 # --- an unaccepted sibling is never touched ----------------------------------
 
 assert_eq "a pending sibling stays pending" "pending" \

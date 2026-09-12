@@ -5,7 +5,9 @@
 # old file, classifies the SHAPE of each reference, resolves the TIER the citing
 # file belongs to, and derives the ACTION the tier's form table allows.
 #
-# THE FORM LADDER, first match wins:
+# THE FORMS, most specific first. A line is recorded ONCE PER FORM it carries,
+# not once per line: the same name can appear twice in two shapes whose tier
+# verdicts differ.
 #   raw-url         a raw.githubusercontent.com URL
 #   github-url      any other github.com URL
 #   md-link         a markdown link target, `](...name...)`
@@ -138,6 +140,15 @@ EXCLUDE_SITES="$(cfg '.file_names.sweep_exclude_sites[]')"
 # segments, ties going to the earlier entry. A file no tier claims belongs to the
 # implicit `current` tier, whose form is `all`, so a tree declaring no tier at
 # all still gets every reference repointed.
+#
+# THE POLICY FLOOR IS HELD HERE, PER FILE. An AUTHORITATIVE tier (bundled or the
+# tracked team layer) always beats a personal one, whatever their pathspecs say.
+# Specificity decides only among tiers of equal authority. Without that, a
+# personal layer could append `{paths: ["docs/adr/deep/**"], forms: "all"}`,
+# win on segment count, and make a subtree the team froze editable from one
+# machine: an addition that removes a protection. A personal tier still
+# classifies any file no authoritative tier claims, which is the adding the
+# floor exists to allow.
 
 TIER_MAP=""
 tier_count="$(cfg '.file_names.tiers | length')"
@@ -145,13 +156,21 @@ i=0
 while [[ "$i" -lt "$tier_count" ]]; do
   tname="$(cfg ".file_names.tiers[$i].name")"
   tforms="$(cfg ".file_names.tiers[$i].forms")"
+  # An unstamped tier is treated as authoritative: a hand-written or older
+  # document carries no `_layer`, and the safe reading of "unknown origin" is
+  # the one that cannot silently loosen anything.
+  tlayer="$(cfg ".file_names.tiers[$i]._layer")"
+  case "$tlayer" in
+  user-global | overlay) tauth=0 ;;
+  *) tauth=1 ;;
+  esac
   matched=0
   while IFS= read -r glob; do
     [[ -n "$glob" ]] || continue
     segments="$(printf '%s' "$glob" | tr -cd '/' | wc -c | tr -d ' ')"
     while IFS= read -r f; do
       [[ -n "$f" ]] || continue
-      TIER_MAP="$TIER_MAP$f	$tname	$tforms	$segments	$i
+      TIER_MAP="$TIER_MAP$f	$tname	$tforms	$segments	$i	$tauth
 "
       matched=$((matched + 1))
     done < <(git -C "$ROOT" ls-files -- ":(glob)$glob" 2>/dev/null)
@@ -161,10 +180,14 @@ while [[ "$i" -lt "$tier_count" ]]; do
 done
 
 # Reduce to one winning tier per file.
-TIER_WINNER="$(printf '%s' "$TIER_MAP" | awk -F'\t' 'NF==5 {
+# Authority first, then specificity, then declaration order. A personal tier
+# never displaces an authoritative one, whichever pathspec is deeper.
+TIER_WINNER="$(printf '%s' "$TIER_MAP" | awk -F'\t' 'NF==6 {
   f = $1
-  if (!(f in best) || $4 > seg[f] || ($4 == seg[f] && $5 < ord[f])) {
-    best[f] = $2 "\t" $3; seg[f] = $4; ord[f] = $5
+  if (!(f in best) ||
+      $6 > auth[f] ||
+      ($6 == auth[f] && ($4 > seg[f] || ($4 == seg[f] && $5 < ord[f])))) {
+    best[f] = $2 "\t" $3; seg[f] = $4; ord[f] = $5; auth[f] = $6
   }
 } END { for (f in best) print f "\t" best[f] }')"
 
@@ -191,26 +214,59 @@ set_form_patterns() {
   RE_RAW="raw\\.githubusercontent\\.com[^ )\"']*$esc"
   RE_GH="github\\.com[^ )\"']*$esc"
   RE_LINK="\\]\\([^)]*$esc"
-  RE_TICK="\`[^\`]*$esc"
+  # A code span is CLOSED as well as opened. Without the trailing backtick the
+  # pattern also matches from a closing one: in `` [`Alpha-One`](Alpha-One.md) ``
+  # the second backtick opens a run that reaches the link target, and the target
+  # would be recorded as a code span it is not part of.
+  RE_TICK="\`[^\`]*${esc}[^\`]*\`"
   RE_TABLE="(^\\|.*$esc|${esc}[[:space:]]*:)"
 }
 
-classify_form() {
-  # classify_form <line>; the patterns come from set_form_patterns.
+classify_forms() {
+  # classify_forms <line> <basename>; the patterns come from set_form_patterns.
+  # Prints every form the line carries, one per line, most specific first.
+  #
+  # ONE LINE, ONE ROW PER FORM. A ladder that stopped at the first match made
+  # the tier verdict wrong in both directions on a line carrying the same name
+  # twice in two shapes. `[CLOUD-SESSIONS.md](CLOUD-SESSIONS.md)` is a markdown
+  # link AND a bare basename in the label: recorded as a link alone, a current
+  # tier leaves the label stale, and a historical tier that rewrote every
+  # occurrence would edit narrative it promised to preserve.
+  #
+  # TWO KINDS OF FORM, AND ONLY ONE KIND REPEATS. A SPAN form wraps the name in
+  # a delimiter (a URL, a link target, a code span), and a line can carry
+  # several of them. The RESIDUE forms, `table-or-key` and `plain`, both mean
+  # "the name, unwrapped" and differ only in what the rest of the line looks
+  # like, so exactly one of them is emitted, for the occurrences no span
+  # covered. Emitting both would make one occurrence two sites, and the second
+  # would find nothing left to rewrite and be counted as drift.
+  #
   # bash's own =~ keeps this in-process: one subprocess per site would multiply
   # by the thousands of sites a real tree carries.
-  if [[ $1 =~ $RE_RAW ]]; then
-    printf 'raw-url'
-  elif [[ $1 =~ $RE_GH ]]; then
-    printf 'github-url'
-  elif [[ $1 =~ $RE_LINK ]]; then
-    printf 'md-link'
-  elif [[ $1 =~ $RE_TICK ]]; then
-    printf 'backtick-path'
-  elif [[ $1 =~ $RE_TABLE ]]; then
-    printf 'table-or-key'
-  else
-    printf 'plain'
+  if [[ $1 =~ $RE_RAW ]]; then printf 'raw-url\n'; fi
+  if [[ $1 =~ $RE_GH ]]; then printf 'github-url\n'; fi
+  if [[ $1 =~ $RE_LINK ]]; then printf 'md-link\n'; fi
+  if [[ $1 =~ $RE_TICK ]]; then printf 'backtick-path\n'; fi
+
+  # Strip the spans and ask what is left. The same three shapes the realign
+  # excludes when it applies a residue form, so the two stay in step.
+  residue="$1"
+  while [[ "$residue" =~ \][(][^\)]*[)] ]]; do
+    residue="${residue/"${BASH_REMATCH[0]}"/]}"
+  done
+  while [[ "$residue" =~ \`[^\`]*\` ]]; do
+    residue="${residue/"${BASH_REMATCH[0]}"/}"
+  done
+  while [[ "$residue" =~ https?://[^\ \)\"\']* ]]; do
+    residue="${residue/"${BASH_REMATCH[0]}"/}"
+  done
+
+  if [[ "$residue" == *"$2"* ]]; then
+    if [[ $residue =~ $RE_TABLE ]]; then
+      printf 'table-or-key\n'
+    else
+      printf 'plain\n'
+    fi
   fi
 }
 
@@ -280,18 +336,20 @@ while IFS="$(printf '\t')" read -r old _new; do
     text="${rest#*:}"
     seen="$seen$file:$lineno
 "
-    form="$(classify_form "$text")"
     tinfo="$(tier_of "$file")"
     tname="${tinfo%%	*}"
     tforms="${tinfo#*	}"
-    action="$(action_for "$tforms" "$form")"
-    case "$GENERATED" in
-    *" $file "*) action='regenerate' ;;
-    *) ;;
-    esac
-    is_excluded_site "$file" "$text" && action='skip'
-    printf 'REF\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$old" "$file" "$lineno" "$form" "$tname" "$action" "$(trim "$text")"
-    sites=$((sites + 1))
+    while IFS= read -r form; do
+      [[ -n "$form" ]] || continue
+      action="$(action_for "$tforms" "$form")"
+      case "$GENERATED" in
+      *" $file "*) action='regenerate' ;;
+      *) ;;
+      esac
+      is_excluded_site "$file" "$text" && action='skip'
+      printf 'REF\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$old" "$file" "$lineno" "$form" "$tname" "$action" "$(trim "$text")"
+      sites=$((sites + 1))
+    done < <(classify_forms "$text" "$base")
   done < <(git -C "$ROOT" grep -n -F -- "$base" "${search_pathspec[@]+"${search_pathspec[@]}"}" 2>/dev/null)
 
   # Bare stems. A line the basename pass already reported is still eligible: one

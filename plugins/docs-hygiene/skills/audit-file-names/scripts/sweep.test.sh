@@ -187,6 +187,46 @@ assert_eq "a line whose only stem occurrence is the basename is one site" "1" \
   "$(printf '%s\n' "$plain" | grep -c . || true)"
 assert_eq "and that site is not a bare stem" "0" "$(printf '%s\n' "$plain" | grep -c 'bare-stem' || true)"
 
+# --- the policy floor, held per file ------------------------------------------
+#
+# A personal tier may classify a file no authoritative tier claims, and may
+# never re-classify one that an authoritative tier did. Both halves are asserted
+# because either alone is satisfiable by the wrong implementation: ignoring
+# personal tiers entirely passes the first, and ranking on specificity alone
+# passes the second.
+
+root9="$(new_fixture)"
+mkdir -p "$root9/docs/adr/deep" "$root9/notes"
+printf '# Deep\n\nCites [Alpha One](../../Alpha-One.md) and the narrative stem Alpha-One.\n' \
+  >"$root9/docs/adr/deep/0003-deep.md"
+printf 'Notes cite Alpha-One.md here.\n' >"$root9/notes/n.md"
+git -C "$root9" add -A >/dev/null
+git -C "$root9" commit -qm "a deep historical file and an unclaimed one" >/dev/null
+home9="$TEST_TMPDIR/home9-$RANDOM"
+mkdir -p "$home9/.claude"
+
+# A personal tier out-specifying the team's `docs/adr/**` with a looser form.
+jq -n '{schema: 1, file_names: {tiers: [
+  {name: "personal-loose", paths: ["docs/adr/deep/**"], forms: "all"}]}}' \
+  >"$home9/.claude/docs-hygiene.json"
+floor="$(HOME="$home9" bash "$SUT" --root "$root9" --pairs "$TEST_TMPDIR/pairs.tsv" | view)"
+
+assert_contains "the team's historical tier still owns the deeper file" "$floor" \
+  "docs/adr/deep/0003-deep.md:md-link:historical:edit"
+assert_eq "and a personal tier cannot loosen its frozen forms" "0" \
+  "$(printf '%s\n' "$floor" | grep -c '^docs/adr/deep/0003-deep.md:.*:personal-loose:' || true)"
+assert_eq "the narrative stem there is still reported, never edited" "0" \
+  "$(printf '%s\n' "$floor" | grep -c '^docs/adr/deep/0003-deep.md:bare-stem:.*:edit' || true)"
+
+# The adding half: a subtree no authoritative tier claims.
+jq -n '{schema: 1, file_names: {tiers: [
+  {name: "personal-frozen", paths: ["notes/**"], forms: "none"}]}}' \
+  >"$home9/.claude/docs-hygiene.json"
+adds="$(HOME="$home9" bash "$SUT" --root "$root9" --pairs "$TEST_TMPDIR/pairs.tsv" | view)"
+
+assert_contains "a personal tier still claims a file no team tier covers" "$adds" \
+  "notes/n.md:plain:personal-frozen:report"
+
 # --- per-site exclusions -----------------------------------------------------
 
 root3="$(new_fixture)"
