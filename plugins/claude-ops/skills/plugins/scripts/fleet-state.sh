@@ -848,7 +848,7 @@ PASS1_PROGRAM='
         ($mk | keys[] as $k
           | ("NAME\u001f" + $k),
             (if $mk[$k] then ($mk[$k]
-              | "MP\u001f\($k)\u001f\(.installLocation // "")\u001f\((.autoUpdate // false) | tostring)\u001f\(.lastUpdated // "")\(
+              | "MP\u001f\($k)\u001f\(.installLocation // "")\u001f\((.autoUpdate // false) | tostring)\u001f\(.lastUpdated // "")\u001f\(
                   # The source flattened to one line for the report: a string
                   # source as-is, an object source as `<kind>:<locator>`.
                   .source

@@ -23,7 +23,7 @@ bypassed. Underlying facts are in [scope-semantics.md](scope-semantics.md). This
 Every claim here about Claude Code's or the `claude` CLI's own behaviour names the version it was
 observed on. Where a section carries no version of its own, it was last checked against **Claude
 Code 2.1.240**. **Recheck trigger:** any minor-version bump touching the plugin CLI, plugin
-loading/caching, or `userConfig` substitution. A date alone is not a trigger.
+loading/caching, or `userConfig` substitution. A date, on its own, is not a trigger.
 
 A re-verification pass ran 2026-09-05 against **Claude Code 2.1.261**. Read the per-section stamps
 rather than the pass date, because the pass was partial. Re-run and now carrying 2.1.261: the
