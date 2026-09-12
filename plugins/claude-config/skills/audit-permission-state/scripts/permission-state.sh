@@ -164,10 +164,16 @@ fi
 # .git for every linked worktree and at our own inside the main checkout, so its
 # parent is the main checkout root either way.
 #
-# Three documented exceptions keep the file in the start directory: outside a git
-# repository, when the repository root is the home directory, and in Agent SDK
-# sessions. The first two are detectable here; the third is not, so it is stated
-# rather than silently resolved to the wrong place.
+# FOUR documented conditions keep the file beside .claude/settings.json instead:
+# "outside a git repository, when the repository root is your home directory, on
+# Windows, or when the repository root or its .git or .claude entry isn't owned by
+# your user". All four are detectable here and all four are resolved below.
+#
+# A fifth start-directory case is NOT a session class and is not resolved: the
+# Agent SDK's resolveSettings() helper always reads the file from the starting
+# directory. That is a helper's behavior, not a property of the running session,
+# so nothing here can observe it. No documented environment variable identifies an
+# Agent SDK or headless run either, so it is stated rather than guessed at.
 LOCAL_ROOT="$PROJECT_ROOT"
 local_basis="repository root"
 if [[ -z "${PERMISSION_STATE_FIXTURE_DIR:-}" ]]; then
@@ -186,6 +192,44 @@ fi
 if [[ -n "${HOME:-}" && "$LOCAL_ROOT" == "$HOME" ]]; then
   LOCAL_ROOT="$START_DIR"
   local_basis="start directory (repository root is the home directory)"
+fi
+# Windows: the documented condition is the platform, not the shell, so it covers a
+# native Windows session however it reached this script. The OSTYPE test is the
+# idiom lib/managed-scope.sh already uses for the same question.
+if [[ "$LOCAL_ROOT" != "$START_DIR" ]]; then
+  case "${PERMISSION_STATE_OSTYPE-${OSTYPE:-}}" in
+  msys* | cygwin* | win32*)
+    LOCAL_ROOT="$START_DIR"
+    local_basis="start directory (on Windows)"
+    ;;
+  *) ;; # every other platform keeps the repository-root anchor
+  esac
+fi
+# Ownership: the repository root or its .git or .claude entry not being owned by
+# the current user. Unowned by ANY of the three is enough.
+#
+# The test is bash's own `-O`, which is true when the file is owned by the
+# EFFECTIVE uid — exactly the documented condition, decided in the shell. `stat`
+# is deliberately not used: `stat -c` is GNU-only and `stat -f` is BSD-only, so
+# reading a uid portably means a fallback chain and an extra process per path,
+# to answer a question the builtin already answers everywhere.
+if [[ "$LOCAL_ROOT" != "$START_DIR" && -n "${PERMISSION_STATE_OWNER_OVERRIDE:-}" ]]; then
+  if [[ "$PERMISSION_STATE_OWNER_OVERRIDE" == "foreign" ]]; then
+    LOCAL_ROOT="$START_DIR"
+    local_basis="start directory (repository root or its .git/.claude is not owned by this user)"
+  fi
+elif [[ "$LOCAL_ROOT" != "$START_DIR" ]]; then
+  owner_checked=0
+  owner_foreign=0
+  for owned_path in "$LOCAL_ROOT" "$LOCAL_ROOT/.git" "$LOCAL_ROOT/.claude"; do
+    [[ -e "$owned_path" ]] || continue
+    owner_checked=1
+    [[ -O "$owned_path" ]] || owner_foreign=1
+  done
+  if [[ "$owner_checked" -eq 1 && "$owner_foreign" -eq 1 ]]; then
+    LOCAL_ROOT="$START_DIR"
+    local_basis="start directory (repository root or its .git/.claude is not owned by this user)"
+  fi
 fi
 
 if [[ -n "${CLAUDE_CONFIG_DIR:-}" ]]; then
@@ -453,7 +497,17 @@ fi
 
 emit_json_scope project settings "$PROJECT_ROOT/.claude/settings.json"
 emit_json_scope local settings "$LOCAL_ROOT/.claude/settings.local.json"
-note "local scope anchored on the $local_basis. In an Agent SDK session the file stays in the start directory instead, which this reader cannot detect."
+note "local scope anchored on the $local_basis. The Agent SDK's resolveSettings() helper always reads the file from the starting directory; that is the helper's behavior, not a session property, and no documented environment variable identifies an Agent SDK or headless run, so this reader does not detect either."
+
+# Cloud sessions read a different scope set, and the user scope this reader just
+# reported is the CONTAINER's file rather than the operator's own. Reporting it as
+# "present" without that framing invites exactly the wrong conclusion.
+# CLAUDE_CODE_REMOTE is documented for this detection: "Set automatically to true
+# when Claude Code is running as a cloud session. Read this from a hook or setup
+# script to detect whether you are in a cloud session."
+if [[ "${CLAUDE_CODE_REMOTE:-}" == "true" ]]; then
+  note "CLAUDE_CODE_REMOTE=true: this is a cloud session, which reads a DIFFERENT scope set than a local one. Your own machine's user settings and .claude/settings.local.json are not read at all, and only server-managed settings reach the session — a managed-settings.json file or MDM profile on your device does not. Any user scope reported above is this container's file, not yours."
+fi
 
 # The pre-v2.1.211 copy is a DISTINCT scope member, not a fallback: when both
 # exist "the repository root's value wins, except that permission rules from both
