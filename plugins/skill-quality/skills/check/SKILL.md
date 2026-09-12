@@ -253,7 +253,7 @@ tool. This gate does not automate that reachability check; author and review aga
   model-invoked default and the only three exception classes a `true` may claim, is
   [`docs/conventions/invocation-mode/README.md`](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/invocation-mode/README.md).
   Class attribution is NOT machine-checkable: only a `setup` skill's `true` is deterministic (class
-  (ii), the PLUGIN-PHILOSOPHY setup contract), so every other `true` emits a note to hand-verify
+  (ii), the plugin-philosophy setup contract), so every other `true` emits a note to hand-verify
   rather than a warning no scan could clear.
 - Check 25 (description/verb-contract polarity) is an advisory heuristic, never a FAIL. It
   flags a listing-surface mismatch between the description lead (before `Use when:`) and the

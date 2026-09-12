@@ -137,7 +137,7 @@ fi
 # exists for: a session exercises the plugin code on the current branch, not
 # published main.
 #
-# Timing limit (docs/CLOUD-SESSIONS.md, "Plugins in sessions on this repo"):
+# Timing limit (docs/cloud-sessions.md, "Plugins in sessions on this repo"):
 # the plugin/command registry is read at process start, BEFORE a SessionStart
 # hook runs, and is not re-read, so a hook run's installs are invisible to the
 # session performing them. They serve the next process start — which on an
@@ -261,7 +261,7 @@ if [[ -x "$claude_bin" ]] && command -v jq >/dev/null 2>&1; then
   # A directory-source install cache is keyed by the semver in plugin.json, not
   # by commit, so a later commit under the same version never replaces the
   # snapshot and `plugin update` false-greens on the version compare — see
-  # "Same-version commit drift" in docs/MIGRATION-PLAYBOOK.md and #2061. On a
+  # "Same-version commit drift" in docs/migration-playbook.md and #2061. On a
   # resume after the checkout advanced, a presence check alone would therefore
   # keep serving the skills and hooks of whatever commit installed first, which
   # defeats the reason this repo uses a directory source at all. Compare the SHA

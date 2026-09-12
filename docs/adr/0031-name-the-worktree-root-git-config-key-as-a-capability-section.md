@@ -104,7 +104,7 @@ adopt.
 
 ## Consequences
 
-- `docs/PLUGIN-PHILOSOPHY.md` Design boundary states the collision-free
+- `docs/plugin-philosophy.md` Design boundary states the collision-free
   capability-section rule and names `worktreeroot.path`. Convention
   registry gains a row pointing at
   `plugins/source-control/reference/worktree-root-convention.md`.

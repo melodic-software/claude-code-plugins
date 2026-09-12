@@ -5,9 +5,9 @@ setup-script stub pasted once per claude.ai account, shared provisioning in the 
 `melodic-software/standards` repo's
 [`cloud-environment` component](https://github.com/melodic-software/standards/blob/main/components/cloud-environment/setup.sh),
 and a mechanical per-repo migration prompt. Mechanics and evidence live in
-[docs/CLOUD-SESSIONS.md](../docs/CLOUD-SESSIONS.md) §"Plugins in sessions on this repo"; the
+[docs/cloud-sessions.md](../docs/cloud-sessions.md) §"Plugins in sessions on this repo"; the
 fleet inventory and the canonical stub's home live in
-[docs/CLOUD-FLEET-SETUP.md](../docs/CLOUD-FLEET-SETUP.md).
+[docs/cloud-fleet-setup.md](../docs/cloud-fleet-setup.md).
 
 ## Why this layout (verified 2026-08-15)
 
@@ -35,7 +35,7 @@ restated in the Part 1 and Part 3 paste blocks below, if any of these happen: Cl
 re-reading the plugin/command/skill registry after a SessionStart hook runs (closing the
 same-session gap this rollout exists to route around, tracked as #2733); the `cloud-environments`
 docs' Setup scripts vs SessionStart hooks or Environment caching sections change; or
-`docs/CLOUD-SESSIONS.md`'s "Plugins in sessions on this repo" section, which this file cites as
+`docs/cloud-sessions.md`'s "Plugins in sessions on this repo" section, which this file cites as
 ground truth, changes its verified date or verdict.
 
 ## Part 1: standards repo, once (paste into a session on `melodic-software/standards`)
@@ -46,8 +46,8 @@ Update the existing Claude Code cloud-environment component in this repo
 bootstrap-rename rollout.
 
 Context (verified 2026-08-15 in melodic-software/claude-code-plugins, in its
-docs/CLOUD-SESSIONS.md §"Plugins in sessions on this repo" and
-docs/CLOUD-FLEET-SETUP.md): Claude Code builds its plugin/command/skill
+docs/cloud-sessions.md §"Plugins in sessions on this repo" and
+docs/cloud-fleet-setup.md): Claude Code builds its plugin/command/skill
 registry at process start and never re-reads it, so plugin installs must land
 before the session process launches, meaning in this component at environment
 cache build, to be loaded at turn one. Fleet repos are renaming their
@@ -94,7 +94,7 @@ edit **Default** (one environment per account; see the rationale at the end):
 2. **Environment variables**: none (values are readable by every session; there is no secrets
    store).
 3. **Setup script**: paste the canonical stub below (same as
-   [CLOUD-FLEET-SETUP.md](../docs/CLOUD-FLEET-SETUP.md) step 1), save. Saving rebuilds the
+   [cloud-fleet-setup.md](../docs/cloud-fleet-setup.md) step 1), save. Saving rebuilds the
    environment cache, which is also how a later standards component change is picked up early:
    any trivial edit-and-save forces a rebuild.
 
@@ -114,7 +114,7 @@ edit **Default** (one environment per account; see the rationale at the end):
    `~/.claude` did not reach the session, a platform limitation to report upstream (resume is
    the standing workaround). If SessionStart alone just installed plugins and the first slash
    returns `Unknown command`, that is the harness residual documented in
-   [CLOUD-SESSIONS.md](../docs/CLOUD-SESSIONS.md) (#2733): resume, or read the skill's
+   [cloud-sessions.md](../docs/cloud-sessions.md) (#2733): resume, or read the skill's
    `SKILL.md` from the working tree. Do not expect a plugin-side fix.
 
 ## Part 3: every repo (the copy-paste migration prompt)
@@ -124,7 +124,7 @@ Migrate this repository's Claude Code cloud bootstrap from the SessionStart-hook
 layout to the split cloud-bootstrap layout.
 
 Context (verified 2026-08-15 in melodic-software/claude-code-plugins, see its
-docs/CLOUD-SESSIONS.md §"Plugins in sessions on this repo"): Claude Code builds
+docs/cloud-sessions.md §"Plugins in sessions on this repo"): Claude Code builds
 its plugin/command/skill registry at process start and never re-reads it, so
 anything a SessionStart hook installs is invisible to the session that ran the
 hook. Our account environments fetch the standards cloud-environment component
@@ -181,4 +181,4 @@ environment; add a second environment later only when a class of work needs isol
 handling sensitive material that has to run narrower than All, or an SDK heavy enough that its
 cache churn should be contained).
 This supersedes the "add a *Melodic* environment so Default stays pristine" option in
-[docs/CLOUD-FLEET-SETUP.md](../docs/CLOUD-FLEET-SETUP.md) for the paste-once fleet play.
+[docs/cloud-fleet-setup.md](../docs/cloud-fleet-setup.md) for the paste-once fleet play.

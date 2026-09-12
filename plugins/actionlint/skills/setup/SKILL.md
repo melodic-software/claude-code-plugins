@@ -7,7 +7,7 @@ disable-model-invocation: true
 
 ## Purpose
 
-Thin check-centric setup per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
+Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy.md`
 "Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
 reports, `apply` resolves. This plugin owns no consumer-project configuration. actionlint
 auto-discovers its own optional config from the repository, and the tunables are the native

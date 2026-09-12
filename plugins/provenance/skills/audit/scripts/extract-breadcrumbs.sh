@@ -240,7 +240,7 @@ function is_stamp(line,   low, pos, rest, rest_orig, off, kw, wlen) {
     # (the 10-character ISO date; the "may" rule is unbounded and can outrun the
     # slack, as check-stamps.sh notes at the same rule), and require
     # each match to BEGIN at or before wlen. Slicing at exactly wlen dropped
-    # docs/CLOUD-SESSIONS.md:320 from this inventory while check-stamps.sh
+    # docs/cloud-sessions.md:320 from this inventory while check-stamps.sh
     # counted it a candidate: its date starts at offset 60 of 60, so the cut
     # left a bare "2" and no form matched. These two scripts promise the same
     # candidate definition, so the boundary has to be the same in both.
