@@ -3,6 +3,12 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.4]
+
+### Changed
+
+- **`audit-instructions`: Phase B states the lane report write rule and the unattended dispatch gate.** A lane that persists its report writes it with the Write tool or to a literal absolute path under the host temp tree, never through a variable-carried shell redirect or inline Python, because the guardrails `block-hook-bypass` guard blocks the forms it cannot resolve. When the caller has declared the run unattended, the ~20-dispatch confirmation becomes a Phase D cost-line disclosure of planned and actual dispatch counts; the declaration comes from the caller and is never inferred by the run.
+
 ## [0.42.3]
 
 ### Changed
