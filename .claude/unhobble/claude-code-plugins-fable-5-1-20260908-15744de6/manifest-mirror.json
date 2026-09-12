@@ -18,9 +18,12 @@
     "base_commit": "c41c6422",
     "base_commit_note": "Snapshot taken at 2dfaaa40 on 2026-09-08; branch fast-forwarded to origin/main c41c6422 on 2026-09-11 before the strip. Delta re-inventoried: settings.json gained permissions.deny (policy, kept); skill-bodies rule grew a stamped deviation paragraph inside the section already planned for trim; .claude/audit-pass.md, .claude/bugs.md, .claude/code-metrics.yaml are plugin config (kept).",
     "branch": "claude/unhobble-config-oe7yfx",
+    "strip_commit": "4f6180f2",
+    "pull_request": "https://github.com/melodic-software/claude-code-plugins/pull/4090",
     "branch_note": "Session-designated branch used as the experiment branch; the suggested experiment/unhobble-fable-5-1 name was not created because this session may push only to its designated branch.",
+    "merged_to_main": "2026-09-12: the operator asked for the experiment branch to be merged into main so the observe window runs on main rather than on a draft branch. The bare state (every strip in this manifest, the register-hold strip of rule-pr-body-contract included) is now the state of main. The observe phase continues from fresh sessions on main; the readd phase starts from a fresh branch off main, restores rule-pr-body-contract regardless of the ledger, and restores only what stumbles.md defends with repeated same-cause rows.",
     "ephemeral_container": true,
-    "ephemeral_note": "The snapshot ran in an ephemeral cloud container. The canonical manifest does not survive container reclaim; this mirror is the durable copy and must be restored to the plugin data path (or the experiment re-snapshotted) before readd runs from a durable checkout.",
+    "ephemeral_note": "The snapshot ran in an ephemeral cloud container that was reclaimed after the merge. The plugin-data copy of this manifest is gone; this mirror is the canonical record from 2026-09-12 on. Readd must restore it to the plugin data path (or re-snapshot from the pre-strip commit c41c6422) before it runs from a durable checkout.",
     "state_dir": "<CLAUDE_PLUGIN_DATA>/unhobble/claude-code-plugins-fable-5-1-20260908-15744de6",
     "base_merges": [
       "2026-09-11: origin/main merged into the experiment branch (7 commits past c41c6422); checked with git log over CLAUDE.md, AGENTS.md, .claude/rules, .claude/settings.json and every nested AGENTS.md: no instruction surface changed, so the bare state is unaffected. Brought in the re-enabled rule-em-dash in .claude/ai-slop.json (PR #3988)."
