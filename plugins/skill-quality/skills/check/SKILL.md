@@ -1,5 +1,5 @@
 ---
-description: "Skill-authoring QA for Claude Code skills. Use when: 'check this skill', 'skill quality', 'lint my skill', 'is this SKILL.md valid', 'validate skill frontmatter', 'check skill before publishing', 'validate evals.json', 'shared listing budget', 'is the skill listing overflowing', or before shipping a skill or plugin. Actions: `check [<skill-name>]` runs a twenty-five-check static contract gate (frontmatter, invocation mode, verb-contract polarity, per-skill listing-entry cap, advisory trigger-phrase check vs HEAD, line caps, broken internal refs, markdownlint, gotchas surface, evals presence, and more) and reports PASS/FAIL with warnings; `validate-evals [<skill-name>]` checks a skill's evals/evals.json against the bundled schema, then runs a deterministic eval-quality lint; `listing-budget [<root> ...]` reports the SHARED aggregate listing-budget estimate across every listing-eligible skill under the resolved root(s). Advisory only, never blocks. Not for: writing new skills, or running model-graded evals."
+description: "Skill-authoring QA for Claude Code skills. Use when: 'check this skill', 'skill quality', 'lint my skill', 'is this SKILL.md valid', 'validate skill frontmatter', 'check skill before publishing', 'validate evals.json', 'shared listing budget', 'is the skill listing overflowing', or before shipping a skill or plugin. Actions: `check [<skill-name>]` runs a twenty-six-check static contract gate and reports PASS/FAIL with warnings; `validate-evals [<skill-name>]` checks a skill's evals/evals.json against the bundled schema, then runs a deterministic eval-quality lint; `listing-budget [<root> ...]` reports the SHARED aggregate listing-budget estimate across every listing-eligible skill under the resolved root(s). Advisory only, never blocks. Not for: writing new skills, or running model-graded evals."
 argument-hint: "[check|validate-evals|listing-budget] [<skill-name-or-root> ...]. Omit the action for check; omit the name/root to run over every skill under the resolved root"
 user-invocable: true
 disable-model-invocation: false
@@ -12,7 +12,7 @@ metadata:
 ## Purpose
 
 Static, deterministic quality gate for skill authoring. The `check` action runs the bundled
-`check-skill.sh`. Twenty-five checks with no model invocation, so results are reproducible in CI or a
+`check-skill.sh`. Twenty-six checks with no model invocation, so results are reproducible in CI or a
 pre-commit hook. The `validate-evals` action checks a skill's `<skill>/evals/evals.json` against the bundled
 JSON schema, then runs the bundled `check-evals-quality.sh`, a deterministic eval-quality lint
 (duplicate case ids/names, missing fixtures, empty or vague grading criteria, set-coverage
@@ -89,7 +89,7 @@ Parse `$ARGUMENTS`:
    - **PASS / FAIL** from the script's exit code (0 = pass, 1 = one or more `FAIL:` lines).
    - The `FAIL:` lines verbatim (each is an actionable defect).
    - `WARN:` lines grouped after failures (advisory: a trigger phrase dropped or moved vs the
-     base ref, soft line target, missing gotchas surface, action-router without evals, orphan
+     base ref, missing gotchas surface, action-router without evals, orphan
      spokes, an injection with no `shell:` whose commands only *look* portable, an injected
      command carrying no `|| <fallback>`, same-context judgment language with no fresh-eyes
      declaration or a stale exemption directive, and a description/verb-contract polarity
@@ -253,7 +253,7 @@ tool. This gate does not automate that reachability check; author and review aga
   model-invoked default and the only three exception classes a `true` may claim, is
   [`docs/conventions/invocation-mode/README.md`](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/invocation-mode/README.md).
   Class attribution is NOT machine-checkable: only a `setup` skill's `true` is deterministic (class
-  (ii), the PLUGIN-PHILOSOPHY setup contract), so every other `true` emits a note to hand-verify
+  (ii), the plugin-philosophy setup contract), so every other `true` emits a note to hand-verify
   rather than a warning no scan could clear.
 - Check 25 (description/verb-contract polarity) is an advisory heuristic, never a FAIL. It
   flags a listing-surface mismatch between the description lead (before `Use when:`) and the

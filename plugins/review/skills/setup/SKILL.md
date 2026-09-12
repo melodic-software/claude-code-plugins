@@ -1,5 +1,5 @@
 ---
-description: "Configure the review plugin for this repository: bootstrap the consumer's standards index per the standards convention — the index review criteria resolve through — persisting docs/standards/ and, on relocation, .claude/standards.yaml. Use when: 'set up review', 'configure the review plugin', 'review setup', 'set up standards', 'bootstrap the standards index', or a review skill reports a missing or version-skewed standards index. Actions: check (read-only verification, default) | apply (bootstrap, reconfigure, or migrate). Re-runnable."
+description: "Configure the review plugin for this repository: bootstrap the consumer's standards index per the standards convention, since review criteria resolve through that index, persisting docs/standards/ and, on relocation, .claude/standards.yaml. Use when: 'set up review', 'configure the review plugin', 'review setup', 'set up standards', 'bootstrap the standards index', or a review skill reports a missing or version-skewed standards index. Actions: check (read-only verification, default) | apply (bootstrap, reconfigure, or migrate). Re-runnable."
 argument-hint: "check | apply"
 user-invocable: true
 disable-model-invocation: true
@@ -19,7 +19,7 @@ Idempotent: re-running reads the current state and offers an update rather than 
 a re-run against a conforming, current-version index proposes no changes.
 
 Action routing per the uniform setup contract
-([`docs/PLUGIN-PHILOSOPHY.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/PLUGIN-PHILOSOPHY.md)
+([`docs/plugin-philosophy.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/plugin-philosophy.md)
 "Setup is explicit and repeatable"): no argument or `check` runs
 the binding's state-reading procedure read-only and reports index presence and resolved
 standards root, per-row path validation, and the DIRECTIONAL version delta as a PASS/FAIL/INFO

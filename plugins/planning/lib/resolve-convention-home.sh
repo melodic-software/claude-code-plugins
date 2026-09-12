@@ -12,8 +12,8 @@
 # as its owner.
 #
 # GRAMMAR. The root instruction file carries a region delimited by two marker
-# lines (surrounding whitespace and a trailing carriage return are ignored;
-# nothing else may share the line):
+# lines (surrounding whitespace, a leading UTF-8 BOM, and a trailing carriage
+# return are ignored; nothing else may share the line):
 #
 #   <!-- BEGIN GENERATED: convention-home -->
 #   Team conventions live in `docs/conventions` — read the topic doc there
@@ -141,6 +141,11 @@ explain() { [[ $EXPLAIN -eq 1 ]] && echo "$*" >&2; return 0; }
 
 trim() {
   local s="$1"
+  # UTF-8 BOM is U+FEFF encoded EF BB BF at the start of the file, so on
+  # line 1 it is the first three bytes of this string. POSIX [:space:] /
+  # isspace(3) is space, FF, NL, CR, HT, VT, not BOM.
+  # https://www.unicode.org/faq/utf_bom.html
+  s="${s#$'\xEF\xBB\xBF'}"
   s="${s#"${s%%[![:space:]]*}"}"
   s="${s%"${s##*[![:space:]]}"}"
   printf '%s' "$s"

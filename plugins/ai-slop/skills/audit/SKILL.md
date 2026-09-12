@@ -24,7 +24,11 @@ contains git.
 
 ## Pre-computed context
 
-Effective config: !`"${CLAUDE_SKILL_DIR}/scripts/detect.sh" --show-config >/dev/null 2>&1 && { "${CLAUDE_SKILL_DIR}/scripts/detect.sh" --show-config 2>/dev/null | head -8; :; } || echo "detector unavailable"`
+Effective config: !`"${CLAUDE_SKILL_DIR}/scripts/detect.sh" --show-config >/dev/null 2>&1 && { "${CLAUDE_SKILL_DIR}/scripts/detect.sh" --show-config 2>/dev/null | head -40; :; } || echo "detector unavailable"`
+
+The bound above is generous on purpose: `--show-config` prints `disabled_rules` and every
+`rule_allowed_paths` entry after the fixed lines, and those are the values that decide which
+rules ran at all.
 
 ## Purpose
 
@@ -63,13 +67,19 @@ removed, stay marker-free by construction.
 2. **Run the detector.** Chunk large corpora: write the ordered list to a temp file and invoke
    `detect.sh --paths-file <list> --offset N --limit M` per chunk (one process per chunk, no
    per-file shell loop; roughly 200 files per chunk keeps each call under a minute).
-3. **Apply the rubric** to the highest-priority files (instruction surfaces always; further files
-   as budget allows, saying which were rubric-covered). The rubric pass is independent of the
-   detector: a file with zero script findings still gets its rubric read when it is in the
-   priority set — a fix pass that only revisits detector hits has not covered the rubric. The
-   rubric tells and their boundaries are the catalog entries marked `v1: rubric`; cite the
-   entry when reporting. Counter-signs (the catalog's "Signs of human writing") temper a
-   verdict, never generate findings.
+3. **Apply the rubric** to every file in scope, in the same priority order. The rubric pass is
+   independent of the detector: a file with zero script findings still gets its rubric read,
+   and a fix pass that only revisits detector hits has not covered the rubric. The rubric tells
+   and their boundaries are the catalog entries marked `v1: rubric`; cite the entry when
+   reporting. Counter-signs (the catalog's "Signs of human writing") temper a verdict, never
+   generate findings. Coverage is uniform: never trade the rubric away for budget on a
+   repo-wide run. Make it affordable by fanning out instead, per
+   [`context/rubric-fanout.md`](context/rubric-fanout.md): pack the ordered list into batches of
+   roughly 50,000 words, dispatch one fresh-context subagent per batch with the rubric text and
+   the batch list, and have each subagent write its result file into the findings home before
+   it reports. A batch whose result file is bound to the current batch list (its digest and
+   file count match) is skipped on a re-run, so a rate limit or a crash costs one batch, not
+   the pass, and a leftover result from an earlier scope is never accepted.
 4. **Report.** Group findings by file in priority order: for script findings quote the rule id,
    line, and fired condition; for rubric findings quote the offending text and name the catalog
    entry. State the declined counts (marker/config/code-fence exemptions) and any disabled rules
@@ -81,13 +91,13 @@ removed, stay marker-free by construction.
    run tripped over deliberate house style (heavy declined counts or a flooded rule).
    `review:fanout fix` routes the whole file: it hands every row but `rule-utm-params` to this
    skill's own `fix` action, which the crosswalk declares as their remediation owner. `rule-utm-params` is the one row the relay is *capable* of applying
-   meaning-preservingly — do not promise that it will. It takes its ordinary cleanup class and
+   meaning-preservingly. Do not promise that it will. It takes its ordinary cleanup class and
    reaches the relay's cleanup route, which prefers `/simplify`, a code-simplification skill that
    reads no findings file, and applies rows itself only when `/simplify` is absent. Neither the
    relay's own applier nor `/simplify` loads this skill's rewrite guide. Recommend the relay when
    the operator is already running a fix pass; recommend this skill's `fix` directly
    when they are not, since it is the shorter path to the same rewrites. Name the condition that
-   changes the answer — the relay can only hand the rows over when `/ai-slop:audit` is available
+   changes the answer: the relay can only hand the rows over when `/ai-slop:audit` is available
    in that session, and surfaces them otherwise.
 
 ## Fix flow (explicit invocation only)
@@ -98,19 +108,19 @@ Never runs on bare invocation. Requires the user's explicit `fix` (or a chained
 1. **Apply** the file's findings per [`reference/rewrite-guide.md`](reference/rewrite-guide.md)
    (read it first; it owns the replacement forms, the plain-speech target, the legitimate-hit
    taxonomy, the risky-class disambiguation rules, and the voice guidance): rewrite each
-   flagged line (em dashes to commas, periods, or restructured sentences — never parentheses
+   flagged line (em dashes to commas, periods, or restructured sentences, never parentheses
    or en dashes, which swap one tell for another; deflate stock phrases; collapse
    parallelisms; delete filler and chat residue; strip `utm_*` params; delete or source
    residue artifacts) and the rubric rewrites for tells the audit reported. Preserve meaning
    over style: when a rewrite would change what a sentence asserts, skip it and record why.
    **Triads collapse toward one**: for a rule-of-three rubric finding, prefer the single
-   strongest item and cut the rest — keep all three only when each is load-bearing (a complete
+   strongest item and cut the rest. Keep all three only when each item is needed (a complete
    set the reader needs, not rhetorical rhythm; enumerating three actual things is not a
    tell), and never collapse when the survivors would not entail the deleted items. Fewer
    parallel items is also less to maintain. Then run the guide's **voice pass** (its "Adding
-   voice" section) on the file's authored-register prose — README narrative, changelog
-   rationale, design tradeoffs; never operative instructions or reference tables — and close
-   each file with the guide's self-audit pass ("what still makes this read machine-written?")
+   voice" section) on the file's authored-register prose: README narrative, changelog
+   rationale, design tradeoffs; never operative instructions or reference tables. Close each
+   file with the guide's self-audit pass ("what still makes this read machine-written?")
    before handing it to verification.
 2. **Verify** with a fresh-context semantic-diff subagent: hand it the before/after pair,
    blind to the rewrite rationale; it flags SEMANTIC LOSS (a qualifier, threshold, or claim

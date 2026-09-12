@@ -195,6 +195,30 @@ class PositionalLayerTests(unittest.TestCase):
             self.assertEqual(through.returncode, 2, through.stdout)
             self.assertEqual(through.stdout, "")
 
+    def test_registries_come_from_scope_or_fall_back_to_the_duplication_alias(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            team = Path(tmp) / "team.yaml"
+            team.write_text(
+                "duplication:\n  registries: [old/registry.txt]\n", encoding="utf-8"
+            )
+            out = run(USER, str(team), "--format", "registries").stdout.splitlines()
+            self.assertEqual(out, ["old/registry.txt"])
+            team.write_text(
+                "scope:\n  registries: [scripts/reg.txt]\n"
+                "duplication:\n  registries: [old/registry.txt]\n",
+                encoding="utf-8",
+            )
+            out = run(USER, str(team), "--format", "registries").stdout.splitlines()
+            self.assertEqual(out, ["scripts/reg.txt"])
+            self.assertEqual(run(USER, "--format", "registries").stdout, "")
+            team.write_text('scope:\n  registries: "one.txt"\n', encoding="utf-8")
+            refused = run(USER, str(team), "--format", "registries")
+            self.assertEqual(refused.returncode, 2)
+            self.assertIn("scope.registries", refused.stderr)
+            self.assertIn("must be a list", refused.stderr)
+
     def test_a_layer_outside_the_subset_is_a_named_error(self) -> None:
         result = run(USER, FLOW)
         self.assertEqual(result.returncode, 2)

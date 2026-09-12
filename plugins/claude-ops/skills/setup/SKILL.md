@@ -7,7 +7,7 @@ disable-model-invocation: true
 
 ## Purpose
 
-Setup under the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit and
+Setup under the uniform setup contract (`docs/plugin-philosophy.md` "Setup is explicit and
 repeatable" in the marketplace repository). This plugin's configuration surface is native
 `userConfig` scalars that Claude Code owns (`registry_dir`, `skill_usage_dir`, `skill_usage_scope`,
 and the six `session_*` hook-logging options): Claude Code prompts for them when the plugin is

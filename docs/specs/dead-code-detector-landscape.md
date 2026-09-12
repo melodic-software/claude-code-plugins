@@ -16,12 +16,12 @@
 
 > **Status:** durable measurement record, graduated from the `dead-code-detection-skill` contract
 > slice when `/code-tidying:audit-dead-code` shipped. It is the evidence base behind that skill's
-> lane roster and its exclusions — anything here that a later change contradicts needs new
+> lane roster and its exclusions. Anything here that a later change contradicts needs new
 > measurement, not argument. Two rows were corrected after this survey by direct capture and the
 > corrections live in the skill's `context/lanes.md`: vulture's parse error goes to **stderr**
 > (exit 1, or 3 alongside findings), not stdout with exit 0; and `gopls check` emits **absolute,
 > cwd-independent paths** with no relative-path flag. `gopls check -severity=hint` was also
-> established later — see `dead-code-lsp-viability.md` — as a CLI dead-code detector that does not
+> established later, in `dead-code-lsp-viability.md`, as a CLI dead-code detector that does not
 > build, which is why Go is a shipped lane despite this document predating that finding.
 
 Research input for a Claude Code skill that orchestrates per-ecosystem dead-code detectors
@@ -43,9 +43,9 @@ and point users at knip:
 | Tool | Status (2026) |
 |---|---|
 | **knip** | Actively maintained, the standard recommendation |
-| ts-prune | **Archived / maintenance mode** — README recommends knip |
-| depcheck | **Archived (2025)** — recommends knip |
-| unimported | **Archived** — same author as knip; recommends knip |
+| ts-prune | **Archived / maintenance mode**, README recommends knip |
+| depcheck | **Archived (2025)**, recommends knip |
+| unimported | **Archived**, same author as knip; recommends knip |
 
 ### knip
 
@@ -53,17 +53,17 @@ and point users at knip:
   unused class members (opt-in), duplicate exports, unused `dependencies`/`devDependencies`,
   unlisted dependencies, unlisted binaries, unresolved imports. Workspace/monorepo aware.
 - **Entry-point handling:** ~182 framework plugins auto-detect entry points and config-file
-  references (Next.js, Vite, Vitest, Astro, Storybook, ESLint configs, etc.) — this is its
+  references (Next.js, Vite, Vitest, Astro, Storybook, ESLint configs, etc.). This is its
   main false-positive defense. Manual config via `knip.json`: `entry`, `project`,
   `ignore`, `ignoreDependencies`, `ignoreBinaries`, `ignoreExportsUsedInFile`, per-workspace
   overrides. Individual exports can be kept alive with a `/** @public */` JSDoc tag.
 - **Modes:** default (includes dev/test surface) vs `--production` (strict: only production
   entry points; finds test-only code too). `--fix` can auto-remove unused exports/deps.
-- **Machine-readable output:** yes — `--reporter json` (also `compact`, `markdown`,
+- **Machine-readable output:** yes, `--reporter json` (also `compact`, `markdown`,
   `codeowners`; custom reporters/preprocessors supported).
 - **Blind spots / FP sources:** dynamic `import()` with computed paths, string-keyed
   dispatch (`require(someVar)`), webpack magic comments, DI containers resolving by string
-  token, exports consumed only by an external repo (published library surface — use
+  token, exports consumed only by an external repo (published library surface, so use
   `ignoreExportsUsedInFile` / `@public` / entry config), framework conventions not covered
   by a plugin, code referenced only from HTML/templates/CMS config.
 
@@ -75,7 +75,7 @@ Text output (`path:line - name (used in module)`); no JSON. Keep only for legacy
 ### Scope-local complements
 
 `tsc --noUnusedLocals/--noUnusedParameters` and ESLint `no-unused-vars` catch
-function/module-local dead variables — orthogonal to knip's cross-module analysis.
+function/module-local dead variables, orthogonal to knip's cross-module analysis.
 
 Sources: knip.dev (Comparison & Migration, Unused exports, Getting started), github.com/nadeesha/ts-prune,
 github.com/depcheck/depcheck, effectivetypescript.com 2023-07-29 knip recommendation update.
@@ -93,10 +93,10 @@ github.com/depcheck/depcheck, effectivetypescript.com 2023-07-29 knip recommenda
   60% = name never referenced). `--min-confidence N` filters; 100 gives near-zero FPs but
   only unreachable-code findings; 60 gives full recall with FPs.
 - **Suppression:** `--ignore-names "visit_*,do_*"`, `--ignore-decorators "@app.route"`,
-  and **whitelist modules** — `--make-whitelist` emits a Python file that fake-references
+  and **whitelist modules**. `--make-whitelist` emits a Python file that fake-references
   the flagged names; commit it and pass it as an extra argument. Config lives in
   `pyproject.toml [tool.vulture]`.
-- **Machine-readable output:** **no native JSON** — stable one-line-per-finding text
+- **Machine-readable output:** **no native JSON**, but stable one-line-per-finding text
   (`file:line: unused function 'x' (60% confidence)`) that is trivially parseable;
   treat as line-oriented, not JSON.
 - **Blind spots:** `getattr`/`globals()` reflection, framework entry points (Django views
@@ -104,7 +104,7 @@ github.com/depcheck/depcheck, effectivetypescript.com 2023-07-29 knip recommenda
   signal handlers), names used only in templates, `__all__`-driven re-export surfaces,
   dataclass/pydantic fields consumed by serialization.
 
-### deadcode (PyPI) — newer alternative
+### deadcode (PyPI), a newer alternative
 
 Vulture-inspired, presented at EuroPython 2024; adds `--fix` (auto-removal), richer ignore
 flags (e.g. ignore-if-decorated-with), `pyproject.toml` config. Worth offering as an
@@ -118,7 +118,7 @@ alternative backend; vulture remains the default choice on maturity.
 - **Suppression:** `pyproject.toml [tool.deptry]` per-rule ignores
   (`ignore = ["DEP002"]`, `per_rule_ignores = { DEP002 = ["pkg"] }`), package-to-module
   mapping overrides.
-- **Machine-readable output:** yes — `--json-output <file>`.
+- **Machine-readable output:** yes, `--json-output <file>`.
 - **Blind spots:** deps invoked only as CLI tools, plugins loaded by entry-point metadata
   (pytest plugins, setuptools plugins), optional extras, deps imported inside `try/except`.
 
@@ -127,8 +127,8 @@ alternative backend; vulture remains the default choice on maturity.
 Relevant rules: **F401** unused imports (autofixable; `__init__.py` re-export and
 `__all__` aware), **F841** unused local variables, **ARG00x** unused function/method
 arguments, **ERA001** commented-out code, **F811** redefinition shadowing. Ruff is
-scope-local only — it cannot find cross-module unused symbols. Suppression via
-`# noqa: F401` or per-file-ignores. **JSON: yes** — `--output-format json` (also SARIF,
+scope-local only, so it cannot find cross-module unused symbols. Suppression via
+`# noqa: F401` or per-file-ignores. **JSON: yes**, `--output-format json` (also SARIF,
 GitLab, JUnit). Use ruff as a cheap first pass; vulture for cross-module analysis.
 
 Sources: github.com/jendrikseipp/vulture (README), pypi.org/project/vulture,
@@ -141,33 +141,33 @@ deptry.com docs via search, docs.astral.sh/ruff (linter, rules F401), EuroPython
 ### Roslyn built-in analyzers (ship with the .NET SDK)
 
 - **IDE0051** (remove unused private member) and **IDE0052** (remove unread private
-  member — written but never read). **Private accessibility only** by design; the compiler
+  member, written but never read). **Private accessibility only** by design; the compiler
   cannot assume anything about `internal`/`public` reachability. Related: IDE0060/CA1801
   unused parameters, CS0168/CS0219 unused locals, IDE0005 unnecessary usings.
 - **Configuration:** `.editorconfig` severity (`dotnet_diagnostic.IDE0051.severity = warning`);
   enable in build with `<EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>`.
 - **Suppression:** `#pragma warning disable IDE0051`, `[SuppressMessage]`, GlobalSuppressions.cs.
-- **Machine-readable output:** yes — build with `-warnaserror`-style capture plus
+- **Machine-readable output:** yes, build with `-warnaserror`-style capture plus
   `/p:ErrorLog=diag.sarif` (MSBuild emits **SARIF**), or `dotnet format analyzers --verify-no-changes --report`.
 - **Known FPs (documented in dotnet/roslyn issues):** members used only by source
   generators (`IIncrementalGenerator` output, issue #78934), reflection, serializers
   (JSON/XML), Unity serialized fields (Unity ships suppressors, e.g. USP0008), WPF/WinForms
   designer references, stale IDE state (#76857).
 
-### ReSharper command-line tools — InspectCode (`jb inspectcode`)
+### ReSharper command-line tools: InspectCode (`jb inspectcode`)
 
 - Free CLI (`dotnet tool install -g JetBrains.ReSharper.GlobalTools`), runs ReSharper's
   **solution-wide analysis**, which is what catches non-private dead code:
   `UnusedMember.Global`, `UnusedType.Global`, `UnusedMethodReturnValue.Global`,
   `UnusedParameter.Global`, etc.
-- **Machine-readable output:** yes — **SARIF is the default output format since 2024.1**
+- **Machine-readable output:** yes, and **SARIF is the default output format since 2024.1**
   (`-o=result.sarif`; `-f=Xml|Html|Text|Sarif`, multiple via `-f=Html;Xml`).
 - **Suppression / known-alive:** JetBrains.Annotations `[UsedImplicitly]`,
   `[PublicAPI]`, `ImplicitUseTargetFlags`, plus comment suppressions and severity config
   in `.DotSettings`.
 - **Blind spots:** reflection, DI container registration by scanning
-  (`services.Scan(...)`, MediatR handlers, ASP.NET conventions — controllers/minimal-API
-  handlers are usually recognized, but custom convention layers are not), config-string
+  (`services.Scan(...)`, MediatR handlers, ASP.NET conventions, where controllers/minimal-API
+  handlers are usually recognized but custom convention layers are not), config-string
   type references, serialization contracts.
 
 ### Others
@@ -183,14 +183,14 @@ JetBrains .NET Tools Blog (ReSharper 2024.1 SARIF default), dotnet/roslyn issues
 
 ## 4. Shell
 
-### shellcheck — the only real option
+### shellcheck, the only real option
 
-- **SC2034** "foo appears unused. Verify use (or export if used externally)." — unused
+- **SC2034** "foo appears unused. Verify use (or export if used externally)." covers unused
   variables, file-local scope only. **SC2317** "Command appears to be unreachable" and
   **SC2329** "This function is never invoked" (present in 0.11.0) fire ONLY inside a region
-  already proven unreachable — e.g. after `exit 0` — and are notoriously noisy with `trap`
+  already proven unreachable, e.g. after `exit 0`, and are notoriously noisy with `trap`
   handlers and callback-style functions.
-- **Measured limit — the load-bearing one.** A top-level function that is defined and never
+- **Measured limit, the decisive one.** A top-level function that is defined and never
   called in an otherwise-live script produces **zero findings**, verified against shellcheck
   0.11.0 with `-o all`, `-S style`, and `--include=SC2329`. Over this repository's 546
   tracked `.sh` files (177,793 lines), shellcheck reports **0** dead functions in ~60s
@@ -200,16 +200,16 @@ JetBrains .NET Tools Blog (ReSharper 2024.1 SARIF default), dotnet/roslyn issues
   files are followed only when the path is static or annotated
   (`# shellcheck source=lib.sh`), and shellcheck analyzes one script's scope at a time.
   **Consequence for a tool-first design: shell is a model/grep lane, not a tool-backed one.**
-- **Suppression:** `# shellcheck disable=SC2034` (line, function, or file scope — file
+- **Suppression:** `# shellcheck disable=SC2034` (line, function, or file scope, with file
   scope via directive on first line after shebang), `export` the variable, use `_` for
   throwaways, `.shellcheckrc` (`disable=SC2034`).
-- **Machine-readable output:** yes — `--format=json1` (also `json`, `gcc`, `checkstyle`,
+- **Machine-readable output:** yes, `--format=json1` (also `json`, `gcc`, `checkstyle`,
   `diff`).
-- **Documented FP classes (by design — shellcheck does not resolve even trivial
+- **Documented FP classes (by design, since shellcheck does not resolve even trivial
   indirection):** `export "$name"`, `eval` references, `declare -n` namerefs,
   `[[ -v "FOO[$KEY]" ]]`, variables consumed by a sourcing/sourced script, variables read
   by external tools via `env`, variables used only in `unset`.
-- **Skill implication:** shell is the weakest ecosystem — expect the model-verification
+- **Skill implication:** shell is the weakest ecosystem, so expect the model-verification
   pass to carry most of the weight (grep for the variable/function name across all scripts,
   including dynamically sourced ones, and in `envsubst`/template files).
 
@@ -222,37 +222,37 @@ koalaman/shellcheck issues #718, #2461, #3379, #3275.
 
 Two complementary tools; use both.
 
-### staticcheck (honnef.co/go/tools) — `unused` checks (U1000/U1001)
+### staticcheck (honnef.co/go/tools): `unused` checks (U1000/U1001)
 
 - **Detects:** unused **unexported** functions, types, fields, vars, consts within a
-  package/module. Exported identifiers are assumed alive (a deliberate design — it can't
+  package/module. Exported identifiers are assumed alive (a deliberate design, since it can't
   know external importers). Also usefully: SA4006 (value never read), SA9003 (empty branch).
 - **Suppression:** `//lint:ignore U1000 reason` comment, `-checks` flag, per-file config.
-- **Machine-readable output:** yes — `staticcheck -f json`.
+- **Machine-readable output:** yes, `staticcheck -f json`.
 - **Blind spots:** reflection (`reflect.Value.MethodByName`), `//go:linkname`, cgo
   references, build-tag-gated usage, struct fields used only via encoding/json tags
   (usually recognized via marshaling, but dynamic map-based access is not).
 
-### deadcode (golang.org/x/tools/cmd/deadcode) — whole-program
+### deadcode (golang.org/x/tools/cmd/deadcode), whole-program
 
 - **Approach:** loads whole program, builds a Rapid Type Analysis (RTA) call graph from
-  `main` entry points; reports **unreachable functions** — including exported ones —
+  `main` entry points; reports **unreachable functions**, including exported ones,
   grouped by package. `-test` includes test binaries as roots (essential to avoid flagging
   test-only helpers). `-whylive` explains reachability; `-filter` scopes packages.
-- **Machine-readable output:** yes — `-json` (array of Package objects); also `-f=` Go
+- **Machine-readable output:** yes, `-json` (array of Package objects); also `-f=` Go
   templates.
-- **Limits:** functions only — does **not** report unused types, vars, consts, or struct
+- **Limits:** functions only. It does **not** report unused types, vars, consts, or struct
   fields (open issue golang/go#64945); needs a `main` (or test) entry point, so pure
   libraries must be analyzed via `-test` or through a consumer; dynamic calls are handled
   soundly by RTA for interface dispatch, but reflection-driven calls are only heuristically
   covered (it keeps methods of types that flow into reflect).
-- No ignore-file mechanism — filtering is by package pattern or post-processing JSON.
+- No ignore-file mechanism. Filtering is by package pattern or post-processing JSON.
 
 ### golangci-lint
 
 Bundles `unused` (staticcheck's), plus `unparam` (unused params/results) and
 `ineffassign`. Its old `deadcode`/`varcheck`/`structcheck` linters were deprecated and
-removed — do not recommend them. JSON via `--out-format json`.
+removed, so do not recommend them. JSON via `--out-format json`.
 
 Sources: pkg.go.dev/golang.org/x/tools/cmd/deadcode, go.dev/blog/deadcode,
 golang/go#64945, golangci/golangci-lint discussion #6082.
@@ -265,26 +265,26 @@ golang/go#64945, golangci/golangci-lint discussion #6082.
 
 - Built into every compile; warns on unused functions, structs, enums, variants, fields,
   consts. **Crate-local reachability:** in a library, anything reachable from the public
-  API is considered live — it cannot see whether downstream crates actually use `pub` items.
+  API is considered live. It cannot see whether downstream crates actually use `pub` items.
 - **Suppression:** `#[allow(dead_code)]` / `#[expect(dead_code)]` (expect warns if the
-  suppression becomes stale — nice for audits), `_`-prefixed names.
+  suppression becomes stale, which is useful for audits), `_`-prefixed names.
 - **Machine-readable:** `cargo check --message-format=json` yields structured diagnostics.
 - **Blind spots:** items used only under other `#[cfg]` feature combinations (check with
   `--all-features` / feature matrix), FFI symbols consumed externally (`#[no_mangle]` is
   auto-exempt), macro-generated references usually resolve fine.
-- Related allow-by-default lint: `unused_crate_dependencies` (rustc) — noisy per-target;
+- Related allow-by-default lint: `unused_crate_dependencies` (rustc), noisy per-target;
   the ecosystem prefers the cargo tools below.
 
-### cargo-machete (unused dependencies — fast, stable toolchain)
+### cargo-machete (unused dependencies: fast, stable toolchain)
 
 - Regex/text-level scan of `src/` for each dependency's name; seconds even on large
   workspaces. `--with-metadata` improves accuracy.
 - **Suppression:** `[package.metadata.cargo-machete] ignored = ["crate"]` (also workspace
   level) and `renamed` mapping for renamed deps. `--fix` removes them from Cargo.toml.
-- **Machine-readable output:** yes — `--json` (per-package unused + ignored_used lists).
+- **Machine-readable output:** yes, `--json` (per-package unused + ignored_used lists).
 - **FPs:** deps used only through procedural macros, build scripts, or doc examples.
 
-### cargo-udeps (unused dependencies — accurate, nightly)
+### cargo-udeps (unused dependencies: accurate, nightly)
 
 - Compiles the crate and inspects compiler dep-tracking output; more accurate than
   machete but much slower and **requires nightly**.
@@ -292,7 +292,7 @@ golang/go#64945, golangci/golangci-lint discussion #6082.
   requested, issue #231). **JSON:** `--output json`.
 - **FPs:** deps used only in doc-tests.
 - Both actively maintained as of 2026. Newer third option: **cargo-shear** (AST-based via
-  syn, fast, `--fix`, feature-complete status) — reasonable middle ground.
+  syn, fast, `--fix`, feature-complete status), a reasonable middle ground.
 
 **Skill recommendation:** rustc `dead_code` (+ `#[expect]`) for code, cargo-machete
 (default, fast, JSON) with cargo-udeps as the high-accuracy escalation for dependencies.
@@ -311,7 +311,7 @@ coverage instrumentation; code never executed over the observation window is a
 dead-code *candidate*. Examples: V8 coverage for Node, `coverage.py` (low-overhead with
 Python 3.12+ `sys.monitoring`), JaCoCo in production for JVM, gcov/LLVM profiles.
 
-- **Strengths:** immune to reflection/DI/string-dispatch — it observes truth.
+- **Strengths:** immune to reflection/DI/string-dispatch, because it observes truth.
 - **Tradeoffs:** absence of execution ≠ dead (error handlers, leap-year/seasonal paths,
   admin tools, disaster-recovery code); needs a representative window; runtime overhead;
   per-line rather than per-symbol granularity.
@@ -321,16 +321,16 @@ Python 3.12+ `sys.monitoring`), JaCoCo in production for JVM, gcov/LLVM profiles
 ### Build-graph / automated-deletion prior art
 
 - **Google "Sensenmann"** (Google engineering blog, 2023): automated dead-code deletion
-  at scale — build-dependency-graph reachability from binaries/tests marks dead targets,
+  at scale. Build-dependency-graph reachability from binaries/tests marks dead targets,
   auto-generates deletion changelists, human review gates merges. The closest large-scale
   precedent for "tool proposes, reviewer adjudicates."
 - **Uber Piranha:** rule-based automated removal of *stale feature-flag* code paths
-  (multi-language) — a specialized dead-branch remover.
+  (multi-language), a specialized dead-branch remover.
 
 ### Grep / reference-tracing (the universal fallback)
 
-Extract candidate symbols, then search the entire repo — including non-code files
-(templates, YAML/JSON config, SQL, docs, CI, other languages) — for each name.
+Extract candidate symbols, then search the entire repo for each name, including non-code files
+(templates, YAML/JSON config, SQL, docs, CI, other languages).
 
 - **Strengths:** language-agnostic, catches exactly what static analyzers miss
   (string-keyed dispatch, config-file references, cross-language boundaries).
@@ -366,30 +366,30 @@ Extract candidate symbols, then search the entire repo — including non-code fi
 These are the things no static detector can know, and exactly what the model-verification
 pass must check before condemning code:
 
-1. **Reflection / dynamic lookup** — `getattr`, `reflect.MethodByName`,
+1. **Reflection / dynamic lookup**: `getattr`, `reflect.MethodByName`,
    `Type.GetMethod`, `globals()[name]`, Ruby-style send. Symbol name appears only as data.
-2. **String-keyed dispatch & registries** — route tables, plugin registries, event-name
+2. **String-keyed dispatch & registries**: route tables, plugin registries, event-name
    maps, DI containers resolving by string/token, ORM/serializer field names, CLI
    subcommand maps.
-3. **Framework entry points & conventions** — code invoked by the framework, never by
+3. **Framework entry points & conventions.** Code invoked by the framework, never by
    user code: Django views in `urls.py`, ASP.NET controllers, pytest fixtures/hooks,
    Celery tasks, serverless handlers, `main`s referenced only in deploy config, trap/signal
    handlers in shell.
-4. **Dynamic import / lazy loading** — computed `import()`/`__import__`/`require(x)`
+4. **Dynamic import / lazy loading**: computed `import()`/`__import__`/`require(x)`
    paths, entry-point metadata (Python entry_points, OSGi-style plugins).
-5. **External consumers** — public API of a published library, FFI/`#[no_mangle]`
+5. **External consumers**: public API of a published library, FFI/`#[no_mangle]`
    symbols, exported shell variables read by child processes or sourcing scripts,
    webhooks/RPC handlers called from outside the repo.
-6. **Cross-language references** — symbol referenced from templates (HTML/Jinja), YAML/
+6. **Cross-language references**: symbol referenced from templates (HTML/Jinja), YAML/
    JSON config, SQL, IaC, CI pipelines, another language in the same repo.
-7. **Code generation** — source generators (Roslyn `IIncrementalGenerator`), protobuf/
+7. **Code generation.** Source generators (Roslyn `IIncrementalGenerator`), protobuf/
    OpenAPI codegen, macros: the *reference* exists only in generated or generator code.
-8. **Conditional compilation / environment gating** — cfg features, build tags,
+8. **Conditional compilation / environment gating**: cfg features, build tags,
    `#ifdef`, platform-specific branches; dead under the analyzed configuration only.
-9. **Serialization contracts** — fields "unread" in code but required for wire/DB
+9. **Serialization contracts**: fields "unread" in code but required for wire/DB
    compatibility (write-only fields, JSON round-tripping).
-10. **Intentionally dormant code** — error/DR handlers, seasonal logic, deprecation
-    shims kept for one release, test fixtures — *reachable* but rarely executed (this is
+10. **Intentionally dormant code**: error/DR handlers, seasonal logic, deprecation
+    shims kept for one release, test fixtures. All are *reachable* but rarely executed (this is
     the coverage-based approach's false-positive class, mirrored).
 
 Conversely, the highest-confidence true positives share a signature: unexported/private
@@ -400,23 +400,23 @@ anywhere in the repo + not matching any framework naming convention.
 
 ## Prior art: LLM-assisted detection & verification-pass patterns
 
-- **Datadog engineering blog, "Using LLMs to filter out false positives"** — production
+- **Datadog engineering blog, "Using LLMs to filter out false positives"** describes production
   use of an LLM as a post-filter on static-analysis findings; the LLM reasons about
   context static tools can't (data flow across functions, validation in callers, findings
   in dead/test/deprecated paths).
-- **LLM4PFA** (arXiv 2506.10322) — LLM-agent path-feasibility analysis over static bug
-  reports; filters **72–96% of false positives**, beating baselines by 41–106%.
-- **QASecClaw** (arXiv 2605.01885) — multi-agent pattern: high-recall SAST engine first,
+- **LLM4PFA** (arXiv 2506.10322) is LLM-agent path-feasibility analysis over static bug
+  reports; it filters **72–96% of false positives**, beating baselines by 41–106%.
+- **QASecClaw** (arXiv 2605.01885) is a multi-agent pattern: high-recall SAST engine first,
   coding-specialized LLM as *secondary verifier* of each finding. Architecturally the
   same "tool-first, model-verified" shape this skill proposes.
-- **KNighter** (arXiv 2503.09002) — LLM-synthesized static checkers with a built-in
+- **KNighter** (arXiv 2503.09002) synthesizes static checkers with an LLM and adds a built-in
   *triage agent* that identifies false alarms and feeds iterative checker refinement.
-- **IRIS, LLift, ZeroFalse** — academic line of work on LLM contextual reasoning /
+- **IRIS, LLift, ZeroFalse** are an academic line of work on LLM contextual reasoning /
   constraint checking to suppress static-analysis FPs.
 - **Non-LLM precedent for the workflow itself:** Google Sensenmann (automated detection
   - generated deletion CLs + human gate) and Uber Piranha (automated stale-branch removal).
 - **Existing Claude-skill prior art (small):** community skills wrapping single tools
-  exist — a `vulture-dead-code` skill (laurigates/claude-plugins) and a `cargo-machete`
+  exist, a `vulture-dead-code` skill (laurigates/claude-plugins) and a `cargo-machete`
   skill on skill marketplaces. They are thin single-tool wrappers; none found that
   orchestrate multi-ecosystem detection with a model adjudication pass.
 
@@ -427,10 +427,10 @@ anywhere in the repo + not matching any framework naming convention.
    (including strings, templates, config, other languages), framework-convention check,
    export/visibility check, git-blame recency, cfg/feature-gate check.
 3. Verdict per finding: **dead** (delete), **alive** (add to the tool's native suppression
-   mechanism — knip ignore/`@public`, vulture whitelist, `[UsedImplicitly]`,
-   `#[expect(dead_code)]`, `# shellcheck disable` — so the next run is cleaner), or
+   mechanism, knip ignore/`@public`, vulture whitelist, `[UsedImplicitly]`,
+   `#[expect(dead_code)]`, or `# shellcheck disable`, so the next run is cleaner), or
    **uncertain** (surface to human; optionally propose a tombstone/coverage probe).
-4. Require the model to cite the evidence for "alive" verdicts — the literature's main
+4. Require the model to cite the evidence for "alive" verdicts. The literature's main
    caution is LLMs accepting plausible-looking usage; the Datadog/QASecClaw pattern works
    because the LLM adjudicates *with retrieved context*, not from the finding alone.
 

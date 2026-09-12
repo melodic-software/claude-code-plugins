@@ -17,7 +17,7 @@ this leaf owns the **label strings** triage stamps and setup migrates.
 
 Discover live members through the bound adapter's label listing (GitHub:
 `gh label list --limit 200 | grep -i work-class`). An item carries **exactly one**
-`work-class:` label; the merge partition and admission gate read the label only — never a
+`work-class:` label; the merge partition and admission gate read the label only, never a
 `Work-class: C<n>` body trailer.
 
 ## Human-floor classes exclude the autonomous-eligible role label
@@ -37,7 +37,7 @@ Enforcement, so the rule is not merely written down:
   the floor strings are `WIT_HUMAN_FLOOR_WORK_CLASS_LABELS` in
   [`../tools/work-item-tracker/lib/labels.sh`](../tools/work-item-tracker/lib/labels.sh)).
   Without that exclusion the contradictory item stays frontier-available, so each lane
-  instance in turn claims it, hits the fail-closed admission gate, and escalates — burning a
+  instance in turn claims it, hits the fail-closed admission gate, and escalates, burning a
   worker every pass while the item never moves.
 - **The attended frontier still shows it.** The exclusion is autonomous-only, so `list-frontier`
   without `--autonomous` (operator listings, container-scoped views) still returns a mislabeled
@@ -70,12 +70,12 @@ autonomous-eligible role label alone.
 Repos adopting triage's autonomous-eligible outcomes or the work-loop admission gate need all
 five labels present **before** triage applies `agent-ready`.
 
-1. **Label-as-code owner declared** — route provisioning to that system; `/work-items:setup`
+1. **Label-as-code owner declared.** Route provisioning to that system; `/work-items:setup`
    validates presence only and never writes labels ad hoc.
-2. **No label-as-code owner** — `/work-items:setup apply` is the migration path: it discovers
+2. **No label-as-code owner.** `/work-items:setup apply` is the migration path: it discovers
    missing members and, with an interactive user present, creates them via the GitHub adapter's
    label-creation mechanics using the descriptions above. An unattended `apply` stops with an
    explicit remediation instead of guessing.
 
-Triage and setup both fail closed when any canonical member is absent — triage before mutating
+Triage and setup both fail closed when any canonical member is absent: triage before mutating
 an item, setup in `check` and at the start of `apply`'s migration pass.

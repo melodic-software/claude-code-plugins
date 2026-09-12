@@ -13,14 +13,14 @@ metadata:
 
 Answers four questions about a Claude Code installation, and refuses to answer a fifth.
 
-1. **What is actually here?** Every entry labelled automatically as an authored surface or a bulk
-   tree, so a ~100k-file tree does not drown a ~150-file answer. Per-file rows live in the CSV.
-2. **What does the product already manage?** Claude Code runs its own retention sweep. Recommending
-   a manual prune of a path it owns generates churn, not space.
-3. **For each number in a filename. What IS that number?** A liveness lookup against a TCP port or a
-   shell `$$` returns a clean, confident, wrong "dead."
-4. **Is this tree in a deliberate or experimental state?** If it is, "looks like decay" is the wrong
-   reading of almost everything.
+- **What is actually here?** Every entry labelled as an authored surface or a bulk tree, so a
+  ~100k-file tree does not drown a ~150-file answer. Per-file rows live in the CSV.
+- **What does the product already manage?** Recommending a manual prune of a path the retention
+  sweep owns generates churn, not space.
+- **For each number in a filename, what IS that number?** A liveness lookup against a TCP port or
+  a shell `$$` returns a clean, confident, wrong "dead."
+- **Is this tree in a deliberate or experimental state?** If it is, "looks like decay" is the wrong
+  reading of almost everything.
 
 The fifth question, *so what should I delete?*, is deliberately not answered. This skill is
 report-only and never writes to the target tree. Deletion belongs to `/disk-hygiene:clean`, and
@@ -36,8 +36,7 @@ shedding project state belongs to `claude project purge`.
 | Is the plugin fleet current, and at what scope? | `/claude-ops:plugins audit` |
 | Delete a genuinely unmanaged leftover | `/disk-hygiene:clean` |
 
-Full rationale for every scope decision, and where each finding hands off:
-[reference/scope-and-handoffs.md](reference/scope-and-handoffs.md).
+Rationale and handoffs: [reference/scope-and-handoffs.md](reference/scope-and-handoffs.md).
 
 ## Boundary, the bundled `doctor` skill
 
@@ -78,13 +77,11 @@ its own.
 ## Never read
 
 `.credentials.json`, `daemon/control.key`, `daemon/pipe.key`, `ide/*.lock` (its body carries an
-`authToken`), and the values inside `~/.claude.json`. These are inventory line-items. Name, size,
-mtime, and nothing more. **This rule is inherited by every subagent this skill dispatches; say so
-explicitly in any prompt you fan out.**
-
-The engine enforces it in its reader rather than at each call site, and its entire content-read
-allowlist is three files: `settings.json`, `.last-cleanup`, `plugins/.last_inuse_sweep`. Everything
-else in the tree, including every file a sibling plugin deposited, is stat-only.
+`authToken`), and the values inside `~/.claude.json`. These are inventory line-items: name, size,
+mtime, and nothing more. **Every subagent this skill dispatches inherits this rule; say so
+explicitly in any prompt you fan out.** The engine enforces it in its reader, and its whole
+content-read allowlist is `settings.json`, `.last-cleanup`, `plugins/.last_inuse_sweep`; each entry
+it read by content carries `content_read: true` with the paths opened. Everything else is stat-only.
 
 ## Run it
 
@@ -93,50 +90,48 @@ python3 "${CLAUDE_PLUGIN_ROOT}/skills/audit-install-state/scripts/install_state.
   --samples 3 --csv ./claude-install-listing.csv > ./claude-install-report.json
 ```
 
-Write both artifacts **outside** the target root. `${CLAUDE_PLUGIN_DATA}` resolves to
-`~/.claude/plugins/data/<id>`, which is *inside* the tree being scanned; a report written there gets
-counted and classified by the run that created it. If a destination inside the root is unavoidable,
-pass it as `--csv` and the engine excludes it from its own scan set and records that under
-`self_excluded`.
+Write both artifacts **outside** the target root (`${CLAUDE_PLUGIN_DATA}` resolves *inside* it and
+would be counted by the run that wrote it; in a cloud session use the session scratchpad). If a
+destination inside the root is unavoidable, pass it as `--csv` and the engine excludes it under
+`self_excluded`. **Always pass `--csv`**: it is the only artifact carrying per-file rows, and
+without it `csv.path` is `null` and the run must not be described as covering every file.
+`--authored-threshold` only decides which entries the JSON *labels* `per-file` versus `rolled-up`.
+Other flags: `--root <path>` (else `$CLAUDE_CONFIG_DIR`, else `~/.claude`), `--samples N` (default
+2; use 3+ on a busy machine). Python 3.11+ is the only requirement. The header records
+`engine_version` and the exact `invocation`, so a report reproduces from itself.
 
-**Always pass `--csv`.** It is the only artifact carrying per-file rows at all. The JSON is a
-summary: one line per top-level entry, never a file listing. Without `--csv` the run wrote no
-per-file listing anywhere, `csv.path` is `null`, and the report must not be described as covering
-every file. `--authored-threshold` decides only which entries the JSON *labels* `listing:
-"per-file"` (small enough to be a hand-authored surface worth reading file by file in the CSV)
-versus `listing: "rolled-up"`; it embeds no per-file rows either way and never shrinks the CSV.
+## Phase 0. Whose tree is this?
 
-Useful flags: `--root <path>` (else `$CLAUDE_CONFIG_DIR`, else `~/.claude`) · `--samples N` (default
-2; use 3+ on a busy machine) · `--authored-threshold N` (default 200). Python 3.11+ is the only
-requirement. No PowerShell, no third-party packages.
+Read `environment` first. `tree_verdict` is `remote`, `local`, or `indeterminate`, and it is a
+label: no staleness verdict depends on it. A `remote` tree belongs to a cloud-session container,
+not the operator's workstation, so open the report with that sentence; a three-minute-old container
+reads as healthy and would otherwise be reported as someone's machine. The verdict rests on tree
+signals, each with its own evidence tag; the process-level `CLAUDE_CODE_REMOTE` variable sits under
+`session_context` and never decides the tree alone, because `--root` can point anywhere. Report
+`indeterminate` as such, never as `remote`.
 
-## Phase 1. Read the deliberate-state result FIRST
+## Phase 1. Deliberate state, before any staleness reading
 
-Before reading any other part of the report, read `deliberate_state` and `deny_roots`.
-
-A non-empty `deliberate_state` means a revert ledger (`RESTORE.md`, `PLAYBOOK.md`, `restore*.py`, or
-a `manifest.json` / baseline shallow under `plugins/data/`) was found. Its directory subtree is
-deny-listed and every entry under it reports `deny-listed` instead of a staleness verdict.
-
-Treat a deny-listed subtree as the possible **sole copy** of somebody's revert path. Do not propose
-anything for it. Check the ledger's `age_days`, since live versus abandoned changes everything, and
-**diff against the stored baseline rather than believing the ledger's own summary**. A ledger's
-self-description is written by the experiment it describes and can be wrong about its own key count.
+Then read `deliberate_state` and `deny_roots`. A non-empty `deliberate_state` means a revert
+ledger (`RESTORE.md`, `PLAYBOOK.md`, `restore*.py`, or a `manifest.json` / baseline shallow under
+`plugins/data/`) was found; its subtree reports `deny-listed` instead of a verdict. Treat it as the
+possible **sole copy** of somebody's revert path: propose nothing for it, check `age_days`, and
+**diff against the stored baseline rather than believing the ledger's own summary**.
 
 ## Phase 2. Retention, before any staleness claim
 
-Read `retention`. Report `effective_days` together with its `effective_evidence`: `measured` when a
-file supplied it, `documented-default` when nothing did and upstream's 30-day default applies.
+Read `retention`. Report `effective_days` with its `effective_evidence`: `measured` when a file
+supplied it, `documented-default` when upstream's 30-day default applies. The highest-severity
+finding lives here: **an unparsable `settings.json` pauses the retention sweep**. If
+`settings-unparsable-pauses-sweep` appears in `retention.findings`, lead with it and treat every
+staleness reading below as suspect.
 
-The highest-severity finding this skill produces lives here: **an unparsable `settings.json` pauses
-the retention sweep**, so nothing is being cleaned until it is fixed. If
-`settings-unparsable-pauses-sweep` appears in `retention.findings`, lead the report with it and
-treat every staleness reading below as suspect.
+`.last-cleanup` is read by the engine and its timestamp is observed to advance when the sweep runs,
+but no upstream page names the file, so `sentinels` carries it as `observed-undocumented` with an
+unknown cadence. Report an advance as an observation, not a documented watermark; if it advanced
+*during* your scan, say so, the tree was not quiesced.
 
-`.last-cleanup` advancing is direct evidence the sweep ran. If it advanced *during* your scan, say
-so, the tree was not quiesced.
-
-## Phase 3. Read the entries
+## Phase 3. Entries and size
 
 Each entry carries `surface`, a `reading` with its own `evidence`, and `file_count_sampled` as
 `{min, max, n}`.
@@ -144,94 +139,62 @@ Each entry carries `surface`, a `reading` with its own `evidence`, and `file_cou
 | Reading | What it means |
 |---|---|
 | `product-managed-healthy` | Every file is inside the retention window. Do not hand-prune |
-| `age-exceeds-window` | `evidence: inferred`. Some mtimes exceed the window, a measurement, not proof the sweep is failing. Read the `why`, which names the sweep's documented unit for that path |
+| `age-exceeds-window` | `evidence: inferred`. Some mtimes exceed the window, a measurement, not proof the sweep is failing; the `why` names the sweep's documented unit |
 | `keep` | Documented as retained, authored by you, session-scoped, or secret-bearing |
-| `unclassified-report-only` | `evidence: no-upstream-row`. No documentation covers it, so no retention claim is available in either direction |
+| `unclassified-report-only` | `evidence: no-upstream-row`. No documentation covers it either way |
 | `deny-listed` | A revert ledger is in this subtree. Nothing here is a candidate |
 
-`age-exceeds-window` is the reading most likely to be misread. `file-history/` retains by **checkpoint
-count** and keeps each file's first snapshot regardless of age; `subagents/` and `tool-results/` age
-out with their parent transcript; `session-env/`, `tasks/` and `debug/` are per-session. Old mtimes
-on those paths are the documented behaviour.
-Per-path retention rules: see [reference/surfaces.md](reference/surfaces.md).
+`age-exceeds-window` is the reading most likely to be misread; several swept paths retain by a
+unit other than the file. Per-path rules: [reference/surfaces.md](reference/surfaces.md). For "why
+is my install so big", read `largest_subtrees` (top directories by measured bytes) and
+`node_modules` (bytes the product installed into the cache's version directories, upstream basis in
+its `why`; `node_modules` elsewhere under `plugins/` is measured apart and attributed to nobody).
 
 ## Phase 4. Numeric names and liveness
 
-`numeric_names` carries counts by `(meaning, liveness)`, every PID-typed row, and a sample of names
-whose scheme is unrecognised.
-
-Everything that is not `pid` reads `not_applicable` **by construction**, not because a lookup
-missed. That distinction is the whole point:
-
-- `ide/<n>.lock`, the number is a **listening TCP port**. The real PID is in the body, which is not
-  opened. A process lookup on the port number returns a clean miss, and deleting on that miss breaks
-  a live IDE session.
-- `rate-limit-guard/*.tmp.<n>`. MSYS2 `$$`, not an OS PID. Judge by age and zero length.
-- `shell-snapshots/...`, `backups/...`. Epoch milliseconds. No PID anywhere in the name.
-- unrecognised. Reported as `unknown`. A scheme the table has never seen fails closed.
-
-`alive` is a measurement about *a* process with that id; PIDs get reused, so "therefore this file is
-in use" is a further inference. A probe that could not run reports `unverified`, **never** `dead`.
-Name schemes and their liveness meanings: see [reference/name-schemes.md](reference/name-schemes.md).
+`numeric_names` carries counts by `(meaning, liveness)`, every PID-typed group, and the unknown
+sample grouped by name shape with a per-directory histogram. Everything that is not `pid` reads
+`not_applicable` **by construction**, not because a lookup missed: `ide/<n>.lock` is a TCP port,
+`rate-limit-guard/*.tmp.<n>` a shell `$$`, snapshot and backup numbers are epoch milliseconds, and
+an unrecognised scheme fails closed as `unknown`. A `pid_typed` group marked `self_held` belongs to
+the session running the audit: evidence about the auditor, not the tree; `self_pids_walk:
+parent-only` means that ancestry could not be walked, so an `alive` group may still be this session.
+`alive` measures *a* process with that id; "therefore in use" is an inference. A probe that could
+not run reports `unverified`, **never** `dead`. Schemes: [reference/name-schemes.md](reference/name-schemes.md).
 
 ## Phase 5. Home-root state
 
-`~/.claude.json` lives in the home directory, not under `~/.claude`, and **no value of
-`cleanupPeriodDays` touches it**. Report its size and mtime; never its values (MCP server configs can
-carry tokens). The supported remedy for its growth is `claude project purge <path>`. It prints the
-full plan and confirms before removing anything, and `--dry-run` previews it.
-
-`.claude.json.tmp.<n>.<hash>` siblings are failed atomic-write remnants whose number *looks* like a
-PID and has never been verified, so the engine marks it `unknown` and attempts no lookup.
+`~/.claude.json` lives in the home directory, and **no value of `cleanupPeriodDays` touches it**.
+Report its size and mtime, never its values; the supported remedy for its growth is `claude project
+purge <path>`, which confirms before removing anything and supports `--dry-run`.
+`.claude.json.tmp.<n>.<hash>` siblings are failed atomic-write remnants whose number is unverified,
+so the engine marks it `unknown` and attempts no lookup.
 
 ## Phase 6. Report
 
-Reproduce every claim with the `evidence` tag the engine attached. Do not paraphrase a tagged claim
-into an untagged sentence. That is precisely the step that turns an inference into an apparent
-observation for the next reader.
+Reproduce every claim with the `evidence` tag the engine attached; an untagged paraphrase turns an
+inference into an apparent observation. Ranges, never a central tendency, for anything
+time-varying: `411–413 files, n=3`, never `~412`, and carry any `unanimous_small_n_on_volatile_path`
+flag into the report. Check `csv.rows` against `totals.files` before claiming completeness, cite the
+CSV path and row count, and state that the tree was live (`quiesced: false`). Fan-out cross-review
+and the upstream-claim rule (raw markdown only; absence from a summary is not evidence of absence):
+[reference/evidence-discipline.md](reference/evidence-discipline.md).
 
-Two output rules that are not negotiable:
+## Next
 
-- **Ranges, never a central tendency, for anything time-varying.** `411–413 files, n=3`, never
-  `~412`. If `file_count_sampled` carries `unanimous_small_n_on_volatile_path`, re-run with more
-  samples or carry the flag into the report.
-- **Reference the CSV, and check `csv.rows` against `totals.files` before claiming completeness.**
-  The CSV is the artifact in which "every file" literally exists; the JSON summary is not. Summarise
-  in chat, cite the CSV path and its row count, and never silently drop 99% of the tree.
-
-State that the tree was live (`quiesced: false`). Counts drift while a scan runs, and any orphan
-count keyed on sessions carries a margin of error, because a session whose record vanished mid-run is
-*unknown*, not *dead*.
-
-If you fan this out across agents, keep an explicit cross-review stage run by a fresh-context reviewer
-that did not produce the findings. Parallelism buys coverage, not correctness, and a producer rarely
-catches its own error. Verify a peer's claim against your own evidence before adopting it, and
-record a disagreement nothing depends on as unresolved rather than settling it silently.
-Cross-review procedure: see [reference/evidence-discipline.md](reference/evidence-discipline.md).
-
-## Verifying an upstream claim
-
-Any claim about what Claude Code itself does must come from the raw markdown endpoint. `curl -sSL`
-`https://code.claude.com/docs/en/claude-directory.md` to a file, then read the file. A summarizing
-fetch returns a small model's answer *about* the page, so **absence from it is not evidence of
-absence**, and no destructive conclusion may rest on one.
-Upstream-claim verification: see [reference/evidence-discipline.md](reference/evidence-discipline.md) §6.
+/disk-hygiene:clean
+Consumes a genuinely unmanaged leftover this report surfaced; the audit itself never deletes.
 
 ## Gotchas
 
 - **A number in a filename is not a PID until proven otherwise.** The most expensive error in this
   problem space, and the reason the liveness gate is code rather than advice.
-- **`enabledPlugins: false` does not mean disabled.** Enablement spans several scopes, plugin hooks
-  live in each plugin's own manifest, direct-path invocations from `settings.json` bypass the plugin
-  system, and enablement is read at session start. This skill emits `recent_writers` as behavioural
-  evidence and tell the user to run `/claude-ops:plugins audit` for the verdict.
-- **`backups/` cannot be pruned meaningfully.** It is a small rotating buffer that the product
-  refills on its own. Any per-file finding about it is stale before it is written.
-- **An empty directory may be deliberate.** An empty `skills/` can be an experiment's independent
-  variable, not decay. Phase 1 exists for this.
+- **`enabledPlugins: false` does not mean disabled.** Enablement spans several scopes and is read at
+  session start; `recent_writers` is behavioural evidence, `/claude-ops:plugins audit` the verdict.
+- **An empty directory may be deliberate**, and **a cloud-session tree is the common experimental
+  state.** Phases 0 and 1 exist so neither is graded as decay.
 - **`commands/`, `todos/`, `statsig/`, `logs/` being absent is good news.** It is positive evidence
   the sweep completed, including its remove-the-empty-directory step.
-- **The "safe, no judgment required" tier is the one most in need of an independent check.** A
-  case-insensitive comparer collapses deny rules that differ only by case, so a "mechanically
-  provable" dedupe can drop protections. This skill's deny matching is case-sensitive and tested; it
-  encodes no dedupe or subsumption logic at all.
+- **The "safe, no judgment required" tier most needs an independent check.** A case-insensitive
+  comparer collapses deny rules that differ only by case; this skill's deny matching is
+  case-sensitive and tested, and it encodes no dedupe or subsumption logic at all.

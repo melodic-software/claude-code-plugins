@@ -3,7 +3,7 @@
 Distilled evidence base for the four-suspect model this skill's report is read against.
 Compiled 2026-08-12 from the upstream issue tracker, release notes, and a source-level analysis
 of Claude Code v2.1.228. Per the upstream-drift convention: re-verify a row against the linked
-source before resting a conclusion on it — the platform moves, and absence from this file is not
+source before resting a conclusion on it. The platform moves, and absence from this file is not
 evidence of absence. `/claude-ops:known-issues` is the live-search complement.
 
 ## Version regressions fixed in 2.1.2xx (suspect 2)
@@ -13,19 +13,33 @@ before any reinstall.
 
 | Fixed in | What it fixed | Why it matters |
 |---|---|---|
-| v2.1.216 (2026-07-20) | Message-normalization cost grew **quadratically** with conversation turns — multi-second stalls in long sessions, slow resumes | The single strongest alternative explanation for "it got slower over weeks" |
+| v2.1.216 (2026-07-20) | Message-normalization cost grew **quadratically** with conversation turns, causing multi-second stalls in long sessions and slow resumes | The single strongest alternative explanation for "it got slower over weeks" |
 | v2.1.208 (2026-07-14) | Per-tool-call CPU with many MCP tools (up to 7x), transcript size (up to 79x in edit-heavy sessions), unbounded file-edit read cache (now 16 MB) | Couples suspect 2 to suspect 3: big fleets hurt far more on older versions |
 | v2.1.207 (2026-07-11) | Terminal freezing / keystroke lag while streaming long output; Windows process creation via kernel32 instead of PowerShell | Direct keystroke-lag fix; also removed a per-spawn security-tool trigger on Windows |
-| v2.1.203 (2026-07-07) | Per-turn CPU/memory regression (context indicator re-analyzed the whole transcript every turn) | — |
-| v2.1.221 (2026-08-10) | Fewer event-loop stalls; Windows startup improvement | — |
+| v2.1.203 (2026-07-07) | Per-turn CPU/memory regression (context indicator re-analyzed the whole transcript every turn) | n/a |
+| v2.1.221 (2026-08-10) | Fewer event-loop stalls; Windows startup improvement | n/a |
+
+- **The probed binary may not be your daily `claude`.** `cli.version` is whatever
+  `shutil.which("claude")` found on the ENGINE PROCESS PATH, which is not the operator's login
+  shell PATH, so a version captured here can belong to a binary the operator never runs: a
+  project-local `node_modules/.bin/claude`, a second install earlier on PATH, or a leftover under
+  `~/.claude/local/`. The report names `probe_path`, `resolved_path`, the containment base it
+  tested against, and every `claude` it found on PATH, and raises `cli-probe-project-local` and
+  `cli-multiple-on-path` so the ambiguity is visible rather than averaged into a version claim.
+  Multiple installs cause version mismatches and unexpected behavior and the install docs say to
+  keep exactly one; `which -a claude` (or `where.exe claude`) lists them, and `claude doctor` is
+  the first-party authority on which to keep, so both findings route there rather than convicting
+  a layout this engine cannot classify.
+  ([troubleshoot-install](https://code.claude.com/docs/en/troubleshoot-install), fetched
+  2026-09-11; recheck when the install docs publish a binary path for a second install method.)
 
 ## Accumulated-state mechanisms confirmed at source level, v2.1.228 (suspect 1)
 
 - **Retention sweep cost is a daily stat-walk of the whole tree.** Fires ~5 s after the first
   launch of the day (24 h sentinel: `.last-cleanup`; defers 10 min while the user was active in
   the last 60 s), then runs ~30 sequential sub-sweeps doing a stat (and past the window, an
-  unlink) per file. Async and yielding, so the harm mode is sustained background I/O — amplified
-  per-operation by antivirus filter drivers — not a blocked event loop.
+  unlink) per file. Async and yielding, so the harm mode is sustained background I/O, amplified
+  per-operation by antivirus filter drivers, not a blocked event loop.
 - **An unparsable `settings.json` silently pauses the entire sweep.** Nothing is cleaned for as
   long as the error persists; the only surfaces are `/doctor`, `/status`, and this skill's
   `sweep_health`. The tree then grows without bound while looking normal.
@@ -34,12 +48,12 @@ before any reinstall.
   a community report (Medium, 2026-07) confirmed surgically pruning one project's metadata from
   `~/.claude.json` fully cured an input-lag case.
 - **`cleanupPeriodDays` default 30** (minimum 1). Raising it far preserves transcripts by growing
-  the live tree — the wrong lever for preservation.
+  the live tree, which is the wrong lever for preservation.
 - **Resumed mega-sessions:** `--continue`/`--resume` loads the full transcript with no cap, and
   Windows builds force a full-viewport repaint per frame, so per-keystroke render cost scales
   with mounted transcript size. Session hygiene (fresh sessions, `/clear`) bounds it.
 
-## The "nuke ~/.claude" folk remedy — evidence status
+## The "nuke ~/.claude" folk remedy: evidence status
 
 Weakly supported. The strongest public testimonial actually pruned `~/.claude.json`, not the
 directory; the one tracker report of deleting `projects/` got partial, temporary relief
@@ -93,6 +107,81 @@ attention from per-tool-call hooks: 5 of 15 configured hooks were per-turn on th
 machine, and per-turn cost is what makes a long conversation degrade rather than a single tool
 call stall.
 
+### A registered hook row is a ceiling, and three levels decide whether it fires
+
+Counting registered rows answers "how many handlers could fire", which is the number a fleet
+audit reaches for and the number that misleads. On the audited fleet, 29 of 33 `PostToolUse`
+rows carried an `if` gate, so a write of one file kind spawned a handful of processes rather
+than 33. Three independent levels stand between a row and a spawn, and only the first is visible
+in a bucket count.
+
+**Level 1, the event key.** The `if` field is documented as
+"Only evaluated on tool events: `PreToolUse`, `PostToolUse`, `PostToolUseFailure`,
+`PermissionRequest`, and `PermissionDenied`. On other events, a hook with `if` set never runs"
+([hooks](https://code.claude.com/docs/en/hooks), common fields, `if`). Those five events are
+therefore what per-tool-call means, and a handler carrying an `if` on any other event is dead
+configuration rather than a cost. The engine reports those as `if_on_non_tool_event` and counts
+them as never firing.
+
+**Level 2, the group matcher**, which is a character class before it is a regex:
+
+| matcher | evaluated as |
+|---|---|
+| `"*"`, `""`, or omitted | "Match all" |
+| only letters, digits, `_`, `-`, spaces, `,`, and `\|` | "Exact string, or list of exact strings separated by `\|` or `,` with optional surrounding whitespace" |
+| contains any other character | "JavaScript regular expression, unanchored" |
+
+Source: [hooks](https://code.claude.com/docs/en/hooks), matcher table. Two consequences carry
+real fan-out weight. An unanchored regex catches more than it looks like it does, so `Edit.*`
+also selects `NotebookEdit`. And an exact string is compared whole, so a bare `mcp__memory`
+selects nothing at all: the tool names are `mcp__memory__<tool>`, and server-wide matching needs
+`mcp__memory__.*`. The engine's `matcher_matches` uses Python's `re.search` in place of
+JavaScript's `RegExp.prototype.test`; both are unanchored, and the substitution is stated in the
+report because a JavaScript-only regex construct would evaluate differently here. A matcher
+Python cannot compile at all is counted as selecting every tool and listed in
+`unclassified_rows` with the compile error, so an unknown selection over-counts where an operator
+can see it rather than vanishing.
+
+**Level 3, the handler `if`**, the only level that sees the call's arguments. It "holds exactly
+one permission rule. There is no `&&`, `||`, or list syntax for combining rules; to apply
+multiple conditions, define a separate hook handler for each" (same page), which is why a
+formatter that covers six extensions carries six rows rather than one. A non-match costs nothing
+at all: "the hook process only spawns when the tool call matches"
+([hooks-guide](https://code.claude.com/docs/en/hooks-guide)).
+
+The engine classifies exactly one `if` shape, `Edit(*.<ext>)`, and reports every other shape in
+`unclassified_rows` with the reason, counting it as firing. That direction is deliberate: an
+unmodelled rule inflates the projection, which an operator can investigate, where the opposite
+would hide a spawn nobody goes looking for. The file kinds projected are a fixed baseline plus
+every extension a classified gate names, so a gate on a kind outside the baseline gets its own
+row and `other` means a file no gate names.
+
+**Drift record.** *Claim:* an `Edit(*.<ext>)` `if` rule is evaluated by file extension for all
+three file-writing tools, `Write`, `Edit`, and `NotebookEdit`, so a `Write` of `notes.md` fires a
+handler gated `Edit(*.md)`. *Basis:* the hooks reference documents `"Edit(*.ts)"` as an example
+`if` value and points at permission-rule syntax, but never names the input field the pattern is
+tested against nor the tool set it covers; the permissions reference resolves the tool set from
+the other side, "Claude Code checks file permissions against `Edit(path)` and `Read(path)` rules
+only. If you write a path rule for `Write`, `NotebookEdit`, `Glob`, or the legacy `MultiEdit`
+tool instead, Claude Code accepts the rule but never consults it ... Use `Edit(docs/**)` in place
+of `Write(docs/**)`" ([permissions](https://code.claude.com/docs/en/permissions), file-path
+rules); the [CHANGELOG](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md) at
+2.1.176 records "Fixed hook `if` conditions for Read/Edit/Write tool paths: documented patterns
+like `Edit(src/**)`, `Read(~/.ssh/**)`, and `Read(.env)` now match correctly", which is the
+closest upstream statement that a file-tool path is what the rule sees; and this repository's own
+hook-budget convention already rests on the premise, since the formatter plugins carry one
+`if: Edit(*.ext)` row per extension so that a `Write` to any other file spawns nothing.
+*As of:* 2026-09-11. *Recheck trigger:* a hooks-reference revision that names the input field or
+the tool set for file-tool `if` rules, which would make the premise citable directly instead of
+assembled from three pages.
+
+Two things the projection cannot model, both over-counts rather than hidden spawns. An `if` rule
+matches only under its anchor, so an edit to a file outside the project directory never matches
+one and every gated row there is counted as firing when none of them is. And dedup is modelled
+nowhere: "If you define the same handler in more than one settings file, it runs once. A plugin's
+or skill's copy of the same handler stays separate" (hooks), so rows that collapse upstream are
+counted twice here.
+
 ### Configuration on disk is not configuration in force
 
 Plugin enablement is read AT STARTUP. On the audited machine a plugin was disabled in
@@ -136,6 +225,46 @@ Population trend matters as much as population size, and needs two samples: `con
 44 to 49 (mild accumulation) while `bash` went 153 to 137 to 93 to 134 to 112, which is CHURN,
 not accumulation. A single sample cannot tell the two apart, and the first reading of that bash
 series was written up as accumulation and had to be retracted.
+
+### Kernel threads are not workload, and only PF_KTHREAD identifies them
+
+`ps -e` lists the kernel's own threads alongside user processes, and a kworker renames its `comm`
+as it moves between queues, so a population keyed on name sees the same worker arrive under a new
+name every few seconds and reads it as accumulation. On Linux the engine classifies the
+shortlist's processes and drops a row whose every process, all of them examined, is a kernel thread, walking the ranked rows until ten survive so kernel threads at the top never crowd out user-space rows.
+
+The classifier is the kernel's own predicate, `PF_KTHREAD`, read two ways: the `Kthread:` line of
+`/proc/<pid>/status` where the kernel publishes one, else bit `0x00200000` of the task flags word,
+field 9 of `/proc/<pid>/stat`. Field 2 of `stat` is the command in parentheses and may itself
+contain spaces and `)`, so the split runs from the LAST `)`.
+
+Three classifiers that look equivalent and are not:
+
+- **Parent pid 2.** The kernel reparents user-space helpers (modprobe, coredump helpers, udev
+  helpers) onto kthreadd with `CLONE_PARENT`, and those helpers carry no `PF_KTHREAD`, so the test
+  convicts user processes. kthreadd itself has parent pid 0, so the test also misses the one
+  process it most obviously should catch.
+- **An empty `cmdline`.** A zombie reads zero bytes, and a process can rewrite or relocate its own
+  argument region, so absence proves nothing about who created the task.
+- **Bracketed names in `ps` output.** Brackets mean only that arguments were unavailable, which is
+  the same empty-`cmdline` signal one layer up.
+
+The accepted failure mode is under-exclusion, never over-exclusion. A reparented helper counts as
+a user process, which is correct by definition, and a renumbered flag bit would classify every
+kernel thread as user-space and raise the accumulation verdict spuriously. Both surface as an
+investigable false alarm rather than hiding a real user-space leak, which is why an unparsable or
+vanished process classifies as user-space too.
+
+**Drift record.** *Claim:* `PF_KTHREAD` is `0x00200000` and is exposed unmasked as field 9 of
+`/proc/<pid>/stat`; `/proc/<pid>/status` carries a derived `Kthread:` line on kernels that publish
+one. *Basis:* [proc_pid_stat(5)](https://man7.org/linux/man-pages/man5/proc_pid_stat.5.html) for
+the flags field and the parenthesised `comm` hazard,
+[Documentation/filesystems/proc.rst](https://www.kernel.org/doc/html/latest/filesystems/proc.html)
+for the `Kthread:` line, `include/linux/sched.h` for the bit value, and `kernel/umh.c`
+(`call_usermodehelper_exec_work`) for the `CLONE_PARENT` reparenting that refutes the ppid test.
+*As of:* 2026-09-11. *Recheck trigger:* a kernel release that renumbers `PF_KTHREAD`, or man-pages
+documenting `Kthread:` in `proc_pid_status(5)`, which would make the status line the citable
+primary and retire the stat fallback's role as the documented path.
 
 ## The host-level floor: a kernel Token-object leak (suspect 5, Windows)
 
@@ -273,12 +402,12 @@ is unmeasured until someone takes readings there. See [desktop.md](https://code.
 - Defender real-time scanning taxes every stat/unlink/spawn under the tree; the sweep and
   file-history churn pay it per file (handle-hold EPERM during plugin install:
   anthropics/claude-code#54053; installer false positive: #36796). Exclusions are hidden from
-  non-elevated `Get-MpPreference` on Windows 11 — an empty non-admin read proves nothing.
+  non-elevated `Get-MpPreference` on Windows 11, so an empty non-admin read proves nothing.
 - Every running session polls `~/.claude.json` at 1 Hz (cheap stat; a full main-thread re-parse
   only when another process writes it), and concurrent sessions multiply all watcher/poll load.
 - A leaked kernel reference to Token objects, from a driver or service path, fills paged pool and
   taxes every process creation system-wide at idle CPU; see "The host-level floor" above. A
   reboot restores the floor, and only attribution of the minter ends the leak.
 - Claude **Desktop** (Electron) has its own distinct lag bugs (unbounded LocalStorage sync,
-  #55149; idle disk-write churn, #58799) — do not import Desktop evidence into a CLI diagnosis
+  #55149; idle disk-write churn, #58799). Do not import Desktop evidence into a CLI diagnosis
   or vice versa; say which surface the symptom was observed on.

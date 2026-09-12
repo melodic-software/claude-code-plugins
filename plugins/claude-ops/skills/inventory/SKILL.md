@@ -43,7 +43,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/skills/inventory/scripts/inventory.py" --out ./cl
 ```
 
 Python 3.11+ is the only requirement. No `strings`, no `jq`, no PowerShell, no third-party
-packages. The run takes a few seconds, dominated by reading the executable once.
+packages. The run takes about fifteen seconds, dominated by reading and tokenizing the executable
+once.
 
 Useful flags: `--binary <path>` (else auto-detected) · `--config-dir <path>` (else
 `$CLAUDE_CONFIG_DIR`, else `~/.claude`) · `--binary-only` / `--disk-only` to skip a source.
@@ -119,8 +120,14 @@ hooks live in its own manifest. Report the map as read and tell the user to run
 `/claude-ops:plugins audit` for the verdict.
 
 **Counts that disagree are data, not noise.** `bundled_skill_notes` carries `registrations_seen`
-alongside `resolved`. When they differ, some registration used a dynamically computed name; say so
-rather than reporting the smaller number as complete.
+alongside `resolved`, and `dynamic_roster` when a registration builds its names at runtime (a loop
+over a table, or a template literal). When seen exceeds resolved, say so rather than reporting the
+smaller number as complete.
+
+**One name can be two registrations.** When two distinct bundled registrations share a name, the
+extraction keeps both as a list under that name with `collision: true`, and
+`bundled_skill_notes.collisions` names them. Report each registration on its own line with its
+description and invocation fields; never pick one and present it as the name's single meaning.
 
 **A marketplace checkout is not an installation, and neither is enablement.** Three different sets:
 a cached marketplace is a catalog of what is *available*, `disk.installed_plugins` is what is
@@ -165,14 +172,19 @@ Cite the version that introduced or removed a command rather than asserting it c
 Claude Code updates constantly, and this skill reads its internals. The design assumption is not
 that the build holds still. It is that **drift must never be silent**.
 
-**Read the integrity block before quoting any number.** Every run carries one, and it states whether
-the counts are verified or merely believed:
+**Read the integrity block before quoting any number, lane by lane.** Every run carries one, and it
+states per lane (`builtin_commands`, `bundled_skills`, `plugin_backed`) whether that lane's counts
+are verified or merely believed; the top-level status is the worst lane:
 
 | Status | Means | Do |
 |---|---|---|
-| `ok` | Build matches the last validated release, every check passed | Report counts as totals |
-| `degraded` | Extraction worked, but something is unaccounted for | Report counts as **floors**, and say what is unaccounted for |
-| `broken` | A canary command is missing or nothing resolved | Do not report counts at all; say the extractor needs updating |
+| `ok` | Build matches the last validated release, every check passed | Report that lane's counts as totals |
+| `degraded` | Extraction worked, but something is unaccounted for | Report that lane's counts as **floors**, and say what is unaccounted for |
+| `broken` | A canary is missing or nothing resolved in that lane | Do not report that lane's counts at all; name the lane and its cause; the other lanes' counts stand |
+
+A single broken lane makes the top level `degraded`, not `broken`, so a healthy command list is
+never withheld because the bundled-skill lane failed. Top-level `broken` means every lane is broken
+or the binary could not be read.
 
 The distinction earns its keep because the dangerous failure is not a crash. A renamed export throws
 and is obvious. A *new registration path* returns a clean, confident, short list, so the checks are

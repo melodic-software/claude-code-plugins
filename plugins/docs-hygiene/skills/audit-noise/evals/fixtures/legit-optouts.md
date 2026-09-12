@@ -35,18 +35,18 @@ Status amended from `accepted` to `superseded by ADR-NNNN`. Bar replaced by Baz 
 
 ## Cross-references
 
-- `baz-conventions.md` — Bar's successor convention per ADR-NNNN
-- `review/architecture.md` "Dependency direction" — Bar inherits the layer rules
+- `baz-conventions.md`: Bar's successor convention per ADR-NNNN
+- `review/architecture.md` "Dependency direction": Bar inherits the layer rules
 
 ## Sources
 
-- [Bar pattern in upstream framework](https://example.invalid/docs/bar) — original Bar shape this convention inherits
-- `incident-2026-04-22.md` — incident driving the BarContract requirement (promoted from a retired slice per Promotion paths — `git log -- .work/bar-rollout/`)
+- [Bar pattern in upstream framework](https://example.invalid/docs/bar): original Bar shape this convention inherits
+- `incident-2026-04-22.md`: incident driving the BarContract requirement (promoted from a retired slice per Promotion paths, `git log -- .work/bar-rollout/`)
 
 ## History
 
-- 2026-04-30 — Bar contract finalized after stakeholder review
-- 2026-05-15 — Bar superseded by Baz per ADR-NNNN
+- 2026-04-30: Bar contract finalized after stakeholder review
+- 2026-05-15: Bar superseded by Baz per ADR-NNNN
 
 ## Outstanding work
 

@@ -1,4 +1,4 @@
-# Artifact shape — index plus sidecars
+# Artifact shape: index plus sidecars
 
 The on-disk shape of a `/discovery:research` run's output. `SKILL.md` carries the mandate ("always
 an index"); this file carries the schema and the reasoning. `EXPLORE.md` follows the same shape with
@@ -8,14 +8,14 @@ an index"); this file carries the schema and the reasoning. `EXPLORE.md` follows
 
 A size threshold makes the artifact's shape depend on how much the run happened to write, so a
 consumer cannot know what it is holding without opening it. Worse, the threshold arrives exactly when
-the artifact is already too big to skim — the reader pays the full cost once, then the shape changes
+the artifact is already too big to skim. The reader pays the full cost once, then the shape changes
 under them on the next run. Committing to the index shape from the first line makes the contract
 stable and the reading cost proportional to what the consumer actually needs.
 
 The unit of progressive disclosure is a **section**, and the consumer decides which sections it
 wants. A planning step chasing one settled fact should read one sidecar, not the whole stage.
 
-## The index — `RESEARCH.md`
+## The index: `RESEARCH.md`
 
 Always the entry point. A consumer handed that filename must get a readable document.
 
@@ -28,15 +28,15 @@ three of this plugin's index families (`RESEARCH.md`, `EXPLORE.md`, `INTENT.md`)
 
 Body sections, after the frontmatter:
 
-1. **Task restatement** — what was asked, in the run's own words.
+1. **Task restatement**: what was asked, in the run's own words.
 2. **One-line abstract per sidecar**, copied verbatim from that sidecar's `abstract` header field.
    Verbatim matters: an abstract paraphrased into the index drifts from the sidecar it describes, and
    the reader picks a file on the strength of a summary that no longer matches its contents.
 3. **Section → file + anchor table**, so an abstract that looks relevant resolves to a path without
    opening anything.
-4. **Next-stage-handoff** — settled facts vs. open decisions for the planning step.
+4. **Next-stage-handoff**: settled facts vs. open decisions for the planning step.
 
-## The sidecars — `RESEARCH-<section>.md`
+## The sidecars: `RESEARCH-<section>.md`
 
 Siblings of the index, inside the same slice directory. Each carries the Output Format's content for
 one section, opening with a machine-readable YAML header so a consumer can grep headers rather than
@@ -69,24 +69,24 @@ produced_by: <phase id>
 The vocabulary is reused, never reinvented: `HIGH | MEDIUM | LOW` and `Tier 0..3` are the research
 skill's own, defined in `discipline.md`.
 
-**`sources[]` is not redundant with `tiers[]`.** It is what lets outcome-gate criterion 4 — "≥2
-INDEPENDENT corroborators, not two cites of one upstream pool" — be graded **by a verifier that never
+**`sources[]` is not redundant with `tiers[]`.** It is what lets outcome-gate criterion 4, "≥2
+INDEPENDENT corroborators, not two cites of one upstream pool", be graded **by a verifier that never
 saw the run**. Independence is a property of the publishing pools behind a claim; a bare tier list
 encodes neither the URL nor the pool, so without `sources[]` the verifier can only take the run's
 word for the one criterion the whole discipline rests on. Two entries sharing a `pool` are one
 corroborator.
 
 **The header set is closed; the sidecar set is open.** Adding a sidecar needs no schema change.
-Adding a header *field* does — keep the header small enough that widening it stays cheap.
+Adding a header *field* does, so keep the header small enough that widening it stays cheap.
 
-## The fetch log — the written record criteria 6 and 9 are graded against
+## The fetch log: the written record criteria 6 and 9 are graded against
 
 `SKILL.md`'s Output Format names the fetch log and its columns. This is its full specification,
-because it is a **schema a verifier parses**, not a narrative — and because two outcome values that
+because it is a **schema a verifier parses**, not a narrative, and because two outcome values that
 look interchangeable are not.
 
 **One entry per fetch, PER CLAIM:** `Claim | URL or command | artifact-ladder rung | tool used |
-outcome`. The claim key is not decoration — criterion 9 is evaluated per accepted claim, and one
+outcome`. The claim key is not decoration. Criterion 9 is evaluated per accepted claim, and one
 artifact routinely carries claim A while lacking claim B, so an unkeyed outcome cannot show which
 claim it answers.
 
@@ -96,9 +96,9 @@ Each of those states its outcome as exactly one of five:
 | Outcome | Means | Earned by |
 |---|---|---|
 | carries the claim | the claim came from this rung | the fetch |
-| **does not exist** for this claim class | the normal result for rung 1 | the full first-party surface sweep criterion 9 specifies — never one clean surface |
+| **does not exist** for this claim class | the normal result for rung 1 | the full first-party surface sweep criterion 9 specifies, never one clean surface |
 | **unresolved** | the sweep fell short, so absence is unproven | this is the **DEFAULT** whenever the sweep was not completed. A Gap row naming surfaces checked and unchecked, and never a licence to source from below the rung |
-| fetched and searched, does not carry the claim | settled only by the fetch | the artifact itself retrieved and searched — never a title, index entry, or snippet standing in for it |
+| fetched and searched, does not carry the claim | settled only by the fetch | the artifact itself retrieved and searched, never a title, index entry, or snippet standing in for it |
 | unreachable after escalation | also a Gap row | the escalation ladder in `discipline.md` walked and failed |
 
 **The middle three are not interchangeable.** Nonexistence is what an exhaustive multi-surface sweep
@@ -108,9 +108,9 @@ stand in for reading the artifact. Collapsing unresolved into nonexistence is th
 absence rule names as the worse one, and it is the likelier of the two here, because `unresolved` is
 the default whenever the sweep was not completed.
 
-**The changelog rung is required on top of that walk, not by it.** For a claim criterion 6 applies to
-— one whose subject ships releases — the recency cross-check is unconditional at every rung, so such
-a claim sourced from a rung *above* the changelog still carries its own latest-release entry. That
+**The changelog rung is required on top of that walk, not by it.** For a claim criterion 6 applies
+to, meaning one whose subject ships releases, the recency cross-check is unconditional at every rung,
+so such a claim sourced from a rung *above* the changelog still carries its own latest-release entry. That
 entry's outcome is **composite**, because one changelog fetch can serve the ladder walk and the
 cross-check at once:
 
@@ -119,37 +119,38 @@ cross-check at once:
 ```
 
 - The **ladder half** is the five-value vocabulary above, present exactly when the walk reaches this
-  rung — the claim came from the changelog itself or from a rung below it. A claim sourced from a
-  rung above the changelog has no ladder half, and its entry opens at the version.
+  rung, meaning the claim came from the changelog itself or from a rung below it. A claim sourced
+  from a rung above the changelog has no ladder half, and its entry opens at the version.
 - The **verdict half** is `current` (the claim holds as of that release), `invalidated` (a major bump
-  or a superseding change since the cited doc — the claim returns to Phase 2), or `unresolved` (the
-  latest release could not be confirmed, or its bearing on the claim could not be settled — a Gap
+  or a superseding change since the cited doc, so the claim returns to Phase 2), or `unresolved` (the
+  latest release could not be confirmed, or its bearing on the claim could not be settled, so a Gap
   row, exactly as an unreachable rung is).
 
 Criterion 9 reads the ladder half and criterion 6 the verdict; **neither half stands in for the
 other**, and a rung recorded as fetched without its verdict leaves the recency gate graded from
 recollection, which is exactly what this log exists to prevent.
 
-A claim criterion 6 does not reach — foundational doctrine and anything else with no upstream release
-stream — carries the ladder walk alone; there is no changelog artifact to cite and none is expected.
+A claim criterion 6 does not reach, meaning foundational doctrine and anything else with no upstream
+release stream, carries the ladder walk alone. There is no changelog artifact to cite and none is
+expected.
 
-## Two placement rules, both load-bearing
+## Two placement rules, both required
 
 1. **Sidecars stay inside `<memory_dir>/<slug>/`.** A sidecar root anywhere else is a placement
-   change governed by the topic-docs convention, not by this skill — and it would strand the sidecars
+   change governed by the topic-docs convention, not by this skill, and it would strand the sidecars
    for any consumer that resolves the slice and finds only the index.
 2. **`RESEARCH.md` stays the entry point.** Renaming it, or demoting it to one sidecar among several,
    breaks every consumer that was handed the declared filename.
 
 **A sub-slice satisfies both, and is the only sanctioned way to put two runs in one slice.** When a
 slice root is already occupied, or a parent is fanning out over several topics, each run writes its
-whole set — index and sidecars, under their normal names — into `<memory_dir>/<slug>/<topic-slug>/`.
+whole set, index and sidecars under their normal names, into `<memory_dir>/<slug>/<topic-slug>/`.
 That is still inside the slice, so rule 1 holds; and the index inside it is still `RESEARCH.md`, so
 rule 2 holds. What is **not** sanctioned is renaming the index to dodge a collision: `RESEARCH-*.md`
 is the sidecar pattern, so a renamed index collides with its own sidecars and every consumer handed
 the declared filename gets the *other* run's artifact. The parent assigns sub-slices in both
-families — statting the slice root pre-dispatch and putting any collision or fan-out sub-slice in
-the envelope — and a worker never picks one: two workers choosing independently can choose the same
+families, statting the slice root pre-dispatch and putting any collision or fan-out sub-slice in
+the envelope, and a worker never picks one: two workers choosing independently can choose the same
 one, and the acceptance gate grades exactly the assigned path, so a self-chosen sub-slice holds an
 artifact no gate ever grades. A worker that finds its assigned path unexpectedly occupied reports
 the occupancy rather than relocating.
@@ -158,14 +159,14 @@ A worktree that carries the index without its sidecars is strictly worse than a 
 artifact, so any glob that ships `RESEARCH.md` must also ship `RESEARCH-*.md` and `*-checklist.md`.
 The topic-docs convention's `.worktreeinclude` recipe already does.
 
-## The `EXPLORE.md` sidecar header — a different evidence kind
+## The `EXPLORE.md` sidecar header: a different evidence kind
 
 The index shape, the section-keyed filenames, the sub-slice rule, and both placement rules are
 identical for exploration. **The header is not**, and pointing an exploration run at the research
 header is a real defect rather than a shortcut: that header's fields are `confidence`, source
 `tier`, and publishing `pool`, which describe *external* evidence. Local exploration evidence is a
 repository path and whether the file was actually Read. A run handed the research header either
-fabricates URL and pool values it has none of, or improvises a shape no consumer can parse — and the
+fabricates URL and pool values it has none of, or improvises a shape no consumer can parse. The
 fabrication is worse, because it launders "I grepped a filename" into the same field a fetched
 primary source would occupy.
 
@@ -186,13 +187,13 @@ produced_by: <phase or dimension id>
 
 **`verified` is the whole point of the header**, and it is the local analogue of the source tier:
 
-- **`read`** — the file was opened and the finding comes from its contents. The only value a
+- **`read`**: the file was opened and the finding comes from its contents. The only value a
   conclusion-driving claim may carry, per the outcome gate's Read-verified criterion.
-- **`grep`** — a search hit located it and nothing was opened. Discovery only. A `grep`-verified
+- **`grep`**: a search hit located it and nothing was opened. Discovery only. A `grep`-verified
   finding is a lead, not a conclusion.
-- **`inferred`** — drawn from a filename, a directory layout, or a convention rather than from
+- **`inferred`**: drawn from a filename, a directory layout, or a convention rather than from
   content. Always suspect; name it so a reader can discount it.
 
 Keeping these three distinct is what lets a verifier grade "conclusion-driving claims are
 Read-verified, not inferred from a filename or grep hit" off the artifact instead of taking the
-run's word for it — the same job `sources[]` does for the research side.
+run's word for it, the same job `sources[]` does for the research side.

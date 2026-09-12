@@ -16,9 +16,9 @@ How to write good tests, what to test, xUnit framework patterns, and when to sto
 
 Every test has three phases:
 
-1. **Arrange** — Create objects (fixture)
-2. **Act** — Stimulate them
-3. **Assert** — Check results
+1. **Arrange**: create objects (fixture)
+2. **Act**: stimulate them
+3. **Assert**: check results
 
 Arrange is often shared (setUp); Act and Assert are unique per test.
 
@@ -44,7 +44,7 @@ Money five = Money.dollar(5);
 
 ### Test Data (Ch 25)
 
-- Use data that makes tests easy to read — "you are writing tests to an audience"
+- Use data that makes tests easy to read: "you are writing tests to an audience"
 - If there's a difference in data, it should be meaningful
 - Never use the same constant for two purposes: test `3 + 4`, not `2 + 2` (what if args are reversed?)
 - Don't use a list of 10 items when 3 leads to the same design decisions
@@ -71,7 +71,7 @@ When a test is too big (requires multiple changes to work), write a smaller test
 
 ### One Step Test (Ch 26)
 
-"Pick a test that will teach you something and that you are confident you can implement." Programs grow from **known to unknown** — neither top-down nor bottom-up.
+"Pick a test that will teach you something and that you are confident you can implement." Programs grow from **known to unknown**, neither top-down nor bottom-up.
 
 ### Starter Test (Ch 26)
 
@@ -81,13 +81,13 @@ Start with a trivially simple variant. For a polygon reducer: input = empty poly
 
 ### Assertion
 
-Be specific: `assertEquals(50, rectangle.area())` not `assertTrue(rectangle.area() != 0)`. Expected value goes first. Test observable behavior, not implementation: don't check `contract.status.class` — check what the status *enables* (like `contract.startDate()`).
+Be specific: `assertEquals(50, rectangle.area())` not `assertTrue(rectangle.area() != 0)`. Expected value goes first. Test observable behavior, not implementation: don't check `contract.status.class`. Check what the status *enables* (like `contract.startDate()`).
 
 "Wishing for white box testing is not a testing problem, it is a design problem."
 
 ### Fixture
 
-Common setup code extracted to `setUp()`. Each test gets a fresh instance — no sharing between tests. "If I find myself wanting a slightly different fixture, I start a new subclass of TestCase."
+Common setup code extracted to `setUp()`. Each test gets a fresh instance, with no sharing between tests. "If I find myself wanting a slightly different fixture, I start a new subclass of TestCase."
 
 There's no simple 1:1 relationship between test classes and model classes. "Sometimes one fixture serves to test several classes. Sometimes two or three fixtures are needed for a single model class."
 
@@ -135,8 +135,8 @@ One suite per package, one aggregating suite for the whole application. "The nex
 
 Two criteria:
 
-1. **Confidence** — never delete a test if it reduces your confidence
-2. **Communication** — if two tests exercise the same path but speak to different scenarios, keep both
+1. **Confidence**: never delete a test if it reduces your confidence
+2. **Communication**: if two tests exercise the same path but speak to different scenarios, keep both
 
 "If you have two tests that are redundant with respect to confidence AND communication, delete the least useful."
 
@@ -149,14 +149,14 @@ Tests that suggest **design problems** (not test problems):
 | **Long setup code** | Objects are too big, need splitting |
 | **Setup duplication** | Too many objects too tightly intertwined |
 | **Long running tests** | Bits and pieces are hard to test in isolation |
-| **Fragile tests** | One part surprisingly affects another — hidden coupling |
+| **Fragile tests** | One part surprisingly affects another, hidden coupling |
 
 "The equivalent of 9.8 m/s² is the ten-minute test suite. Suites that take longer than ten minutes inevitably get trimmed."
 
 ### Coverage (Ch 17)
 
 - Statement coverage: TDD should yield ~100%. JProbe found only `Money.toString()` uncovered (debugging aid, not model code)
-- Defect insertion (Jester): only `Pair.hashCode()` survived — the faked `return 0` implementation
+- Defect insertion (Jester): only `Pair.hashCode()` survived, the faked `return 0` implementation
 - Two ways to improve coverage: write more tests OR simplify the code. "Refactoring reduces paths to cover"
 
 For Khorikov's deeper treatment of coverage metrics: [code-coverage-khorikov.md](code-coverage-khorikov.md)
@@ -197,19 +197,19 @@ int fib(int n) {
 
 - **Arrange**: the largest section. If significantly larger than act + assert combined, extract into private factory methods (Object Mother pattern) or a base class
 - **Act**: should be a **single line** for unit tests. Two or more lines suggest the SUT's API lacks encapsulation (invariant violation risk). Exception: utility/infrastructure code where multi-step act is acceptable
-- **Assert**: multiple assertions are fine — a unit of behavior can have multiple outcomes. But watch for assertion sections that grow too large (sign of a missing value object with equality semantics)
+- **Assert**: multiple assertions are fine. A unit of behavior can have multiple outcomes. But watch for assertion sections that grow too large (sign of a missing value object with equality semantics)
 
 ### Avoid `if` Statements in Tests
 
-A test should be a simple, linear sequence — no branching. An `if` in a test means it verifies too many things. Split it into separate tests.
+A test should be a simple, linear sequence with no branching. An `if` in a test means it verifies too many things. Split it into separate tests.
 
 ### Naming: Plain English Over Rigid Conventions
 
-The `[MethodUnderTest]_[Scenario]_[ExpectedResult]` convention is unhelpful — it couples the test name to implementation details (method names) and forces complex behavior into a rigid format.
+The `[MethodUnderTest]_[Scenario]_[ExpectedResult]` convention is unhelpful. It couples the test name to implementation details (method names) and forces complex behavior into a rigid format.
 
 Khorikov's three naming guidelines:
 
-1. **Don't follow a rigid naming policy** — allow freedom of expression
+1. **Don't follow a rigid naming policy**: allow freedom of expression
 2. **Name the test as if describing the scenario to a non-programmer** familiar with the problem domain
 3. **Separate words with underscores** for readability
 
@@ -223,7 +223,7 @@ public void Delivery_with_past_date_should_be_invalid()  // more specific
 public void Delivery_with_a_past_date_is_invalid()       // remove "should be"
 ```
 
-Don't include the SUT's method name in the test name — you test *behavior*, not methods. If the method is renamed, the test shouldn't need renaming.
+Don't include the SUT's method name in the test name, since you test *behavior*, not methods. If the method is renamed, the test shouldn't need renaming.
 
 ### Fixture Reuse: Factory Methods Over Constructors
 
@@ -242,7 +242,7 @@ private Store CreateStoreWithInventory(Product product, int quantity)
 
 Tests specify only what's relevant to their scenario. Factory methods don't couple tests to each other. Exception: base class constructors are fine for infrastructure shared by all tests (database connections).
 
-Khorikov prefers **Object Mother** (factory methods with defaults) over **Test Data Builder** (fluent `.With*()` chains) — less boilerplate in C# thanks to optional parameters.
+Khorikov prefers **Object Mother** (factory methods with defaults) over **Test Data Builder** (fluent `.With*()` chains). Object Mother needs less boilerplate in C# thanks to optional parameters.
 
 ### Parameterized Tests
 
@@ -296,7 +296,7 @@ public static List<object[]> Data()
 }
 ```
 
-**Decision rule for parameterization**: keep positive and negative cases in a single method only when it's self-evident from the input parameters which case stands for what. Otherwise, extract the positive case. If the behavior is too complicated, don't parameterize at all — represent each negative and positive case with its own test method.
+**Decision rule for parameterization**: keep positive and negative cases in a single method only when it's self-evident from the input parameters which case stands for what. Otherwise, extract the positive case. If the behavior is too complicated, don't parameterize at all. Represent each negative and positive case with its own test method.
 
 ### Fluent Assertions (Ch 3.6)
 
@@ -310,7 +310,7 @@ Assert.Equal(30, result);
 result.Should().Be(30);
 ```
 
-`result.Should().Be(30)` reads as: "result should be 30" — subject, action, object. Khorikov prefers Fluent Assertions for this readability benefit. The library provides helper methods for numbers, strings, collections, dates, and more.
+`result.Should().Be(30)` reads as "result should be 30": subject, action, object. Khorikov prefers Fluent Assertions for this readability benefit. The library provides helper methods for numbers, strings, collections, dates, and more.
 
 **Trade-off**: fluent assertions are a dev-only dependency (not shipped to production). The readability improvement is significant enough to justify the additional package in most projects.
 

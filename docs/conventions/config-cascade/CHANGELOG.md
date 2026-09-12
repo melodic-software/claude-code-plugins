@@ -1,4 +1,4 @@
-# Config Cascade Convention — Changelog
+# Changelog for the Config Cascade Convention
 
 Notable changes to the config-cascade contract. The contract is versioned by
 `contract_version` (SemVer) and governs the layering axis (layer set, precedence, override
@@ -7,7 +7,16 @@ by a pointer line). Per-concern keys and schema are versioned by their own owner
 change independently. A change to the precedence order or the meaning of a layer is a major bump;
 adding an optional layer or relaxing a rule additively is a minor bump.
 
-## Implementers table — 2026-09-02
+## Implementers table, 2026-09-08
+
+- **`architecture` and `authoring-formats` C4 dialect surfaces (#3910).** The two rows no longer
+  sit as unexplained opposites on mermaid fitness. Each points at the mapping in its owner doc
+  (`plugins/architecture/reference/config.md`, `docs/conventions/authoring-formats/README.md`):
+  `landscape_dialect` is the landscape `/architecture:map-landscape` emits, and
+  `diagram_dialect.system` is the opt-in container view `/planning:design` emits. Defaults and
+  allowed values are unchanged. No contract rule change, so no version bump.
+
+## Implementers table, 2026-09-02
 
 - **`ai-briefing` team-only, no local overlay (#3580).** The surface no longer recommends a
   `.claude/ai-briefing/**/*.local.*` gitignore line. The implementers row and declared-deviation
@@ -16,7 +25,7 @@ adding an optional layer or relaxing a rule additively is a minor bump.
   `brand.json` are profile files in the selected team directory, not personal overlays. No
   contract rule change, so no version bump.
 
-## 1.2 — 2026-09-01
+## [1.2] - 2026-09-01
 
 - **Expression doctrine (additive, minor).** A second sanctioned expression form joins the
   dedicated file: team-shared prose configuration is expressed as a natural-language convention
@@ -33,7 +42,7 @@ adding an optional layer or relaxing a rule additively is a minor bump.
 - **Overlay spelling drift closed.** Every setup recommends the recursive line; the section now
   records the convergence and the two deliberate exceptions.
 
-## Implementers table — 2026-08-28
+## Implementers table, 2026-08-28
 
 - **Two rows cited another plugin's skill internals by path.** The `ai-slop` row resolved its
   cascade "in `skills/audit/scripts/detect.sh`" and assigned key ownership to "the plugin's
@@ -45,17 +54,17 @@ adding an optional layer or relaxing a rule additively is a minor bump.
   makes the plugin the encapsulation boundary for citation: name the public invocation, never a path
   into another plugin's private tree. The rows now read `/ai-slop:audit`, `/ai-slop:setup`, and
   `/testing:run-e2e`. No contract rule change and no layer, precedence, or override semantics
-  change — no version bump. Found by the whole-repo extract-ssot sweep's encapsulation floor.
+  change, so no version bump. Found by the whole-repo extract-ssot sweep's encapsulation floor.
 
-## Implementers table — 2026-08-23
+## Implementers table, 2026-08-23
 
 - **`work-items` overlay allowlist.** The personal overlay may refine linear and
   gitea `auth_env` alongside the original jira auth identity keys. The
-  Implementers-table wording now matches the seam allowlist so a Linear or Gitea
+  Implementers-table wording now matches the overlay allowlist so a Linear or Gitea
   user can discover the personal configuration the contract already intended
   (#3132).
 
-## Implementers table — 2026-08-19
+## Implementers table, 2026-08-19
 
 - **`ai-slop` row added.** The surface implemented the full three-layer cascade from its first
   release and was never tabled, so the table under-reported a conforming surface rather than an
@@ -65,7 +74,7 @@ adding an optional layer or relaxing a rule additively is a minor bump.
   list keys that replace rather than merge (`vocab_add` / `vocab_remove`), and that no key is
   policy-floor class.
 
-## Implementers table — 2026-08-18
+## Implementers table, 2026-08-18
 
 - **`work-items` row (#2941).** Flipped from observed deviation (single-layer, CWD-to-root climb) to
   declared: team + gitignored local overlay at the repo root (ADR 0015), per-key allowlisted overlay
@@ -73,36 +82,36 @@ adding an optional layer or relaxing a rule additively is a minor bump.
   removed. Location precedent: `standards` (layers outside `.claude/`). Includes a declared narrow
   exception to the no-plugin-writes-gitignore rule: the root-level overlay is outside the
   `.claude/**/*.local.*` one-liner, so `/work-items:setup apply` appends its line, announced. No
-  contract rule change — no version bump.
+  contract rule change, so no version bump.
 
-## Renamed — 2026-07-23
+## Renamed, 2026-07-23
 
 Folder + concept renamed `consumer-config-layering` → `config-cascade` (#1188). No contract change:
-`contract_version` and every layer/precedence rule are unchanged — this is a name/path rename only,
+`contract_version` and every layer/precedence rule are unchanged. This is a name/path rename only,
 so no version bump. The former clunky three-noun label is replaced by "cascade" (the established
 CSS-cascade term for precedence-ordered resolution with override + ratified inversion). All live
 references updated; historical topic docs and CHANGELOGs retain the former name as frozen record.
 
-## Implementers table — 2026-08-12
+## Implementers table, 2026-08-12
 
 - **`code-tidying` row (#723).** Recorded the declared deviation: no user-global or `*.local.*`
   overlay; team layer over bundled default, with personal variation limited to lane names the team
   does not track (uncommitted team-path lane file never added to the index). No contract rule change
 
-## 1.1 — 2026-07-20
+## [1.1] - 2026-07-20
 
 Additive relaxation (minor bump): ratified a named exception class. Default precedence is unchanged for
 every surface; the change carves out one surface class that may invert precedence direction on conflict.
 
-- **Sanctioned exception class — policy-floor precedence inversion.** A surface whose team layer encodes
+- **Sanctioned exception class: policy-floor precedence inversion.** A surface whose team layer encodes
   a policy floor personal layers may extend or tighten but never weaken may invert precedence so the
   team layer wins a direct conflict, provided personal layers stay add/tighten-only and provenance is
   reported. Such a surface is conformant, not a tolerated deviation. `standards` is the exemplar; ruled
   in #649.
 
-## 1.0 — 2026-07-20
+## [1.0] - 2026-07-20
 
-Initial published contract, extracted from the tracked-rich-config seam in `docs/MIGRATION-PLAYBOOK.md`
+Initial published contract, extracted from the tracked-rich-config section in `docs/migration-playbook.md`
 so fleet audits have a Convention registry row to check. No rule changed in the extraction.
 
 - Layer set and precedence: user-global → team → local overlay, resolved in that order.

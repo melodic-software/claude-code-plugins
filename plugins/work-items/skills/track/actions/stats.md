@@ -4,9 +4,9 @@ Present a dashboard summarizing the current state of work items.
 
 ## Workflow
 
-1. **Fetch category counts** and **status/assignee counts** using the aggregation projections in the bound adapter's operations reference (GitHub: `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md` "Aggregate / count (dashboard + hygiene)" — bare reads).
+1. **Fetch category counts** and **status/assignee counts** using the aggregation projections in the bound adapter's operations reference (GitHub: `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md` "Aggregate / count (dashboard + hygiene)", bare reads).
 
-1. **Check recurring due items** (optional — degrade gracefully when the consuming repo has no recurring schedule):
+1. **Check recurring due items** (optional, degrading gracefully when the consuming repo has no recurring schedule):
 
 ```bash
 SCHEDULE="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.github/recurring-schedule.json"
@@ -30,7 +30,7 @@ fi
 | (one row per `category:` label the repo defines) | |
 | **Total** | **X** |
 
-**Claimed:** X items (assigned — a seam claim is an assignee + lease)
+**Claimed:** X items (assigned: a tracker claim is an assignee + lease)
 **Unassigned:** X items (no assignee, available for pickup)
 **Recurring due:** X items past their `next_due` date (use `/work-items:track due` to see them)
 ```

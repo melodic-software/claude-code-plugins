@@ -7,13 +7,20 @@
 # whole job is noticing an argument that was never made.
 set -euo pipefail
 
-cd "$(dirname "${BASH_SOURCE[0]}")/.."
+SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SELF_DIR/.."
+
+# shellcheck source=lib/test-harness.sh
+. "$SELF_DIR/lib/test-harness.sh"
+# shellcheck source=lib/fixture-tree.sh
+. "$SELF_DIR/lib/fixture-tree.sh"
 
 script="scripts/check-detector-findings-crosswalk.sh"
-tmp="$(mktemp -d)"
-trap 'rm -rf "$tmp"' EXIT
+# The builder assigns through a nameref, which shellcheck cannot follow;
+# declaring the out-var here is what tells it (SC2154) the name is written.
+tmp=""
+fixture_tree::build tmp --label crosswalk
 
-failures=0
 header='| Rule id | What fires it | The test the disposition is argued from | Tier or disposition | Auto-applicable |'
 separator='|---|---|---|---|---|'
 good_row='| a-plugin/a-skill/rule-thing | it fired | argued from the test because the limb matches | IMPORTANT | No |'
@@ -43,18 +50,16 @@ expect() {
   got=$?
   set -e
   if [[ "$got" != "$want" ]]; then
-    echo "FAIL: $label — expected exit $want, got $got"
+    fail "$label — expected exit $want, got $got"
     cat "$tmp/err"
-    failures=$((failures + 1))
     return
   fi
   if [[ -n "$want_msg" ]] && ! grep -q -- "$want_msg" "$tmp/err"; then
-    echo "FAIL: $label — exit $got was right but the message was not; expected to see \"$want_msg\""
+    fail "$label — exit $got was right but the message was not; expected to see \"$want_msg\""
     cat "$tmp/err"
-    failures=$((failures + 1))
     return
   fi
-  echo "ok: $label"
+  ok "$label"
 }
 
 write_doc "$tmp/conforming.md" "$header" "$separator" "$good_row"
@@ -127,14 +132,9 @@ CROSSWALK_DOC="$tmp/conforming.md" bash "$script" --bogus >/dev/null 2>&1
 got=$?
 set -e
 if [[ "$got" != 2 ]]; then
-  echo "FAIL: an unknown mode should exit 2, got $got"
-  failures=$((failures + 1))
+  fail "an unknown mode should exit 2, got $got"
 else
-  echo "ok: an unknown mode exits 2"
+  ok "an unknown mode exits 2"
 fi
 
-if ((failures > 0)); then
-  echo "$failures test(s) failed."
-  exit 1
-fi
-echo "All crosswalk-gate tests passed."
+test_harness::report

@@ -83,6 +83,39 @@ repo's distribution seam names (a `managed` versus `locally-owned` split in the 
 repo documents, when it does). Findings on these become routing recommendations to the owning
 repository's tracker, never in-place edits; absent such a declaration, no exclusion applies.
 
+## Boundary, the bundled `claude-api` skill
+
+One native surface audits prompts for the same anti-pattern families this catalog names, and the
+two are routinely conflated:
+
+- **`claude-api` (bundled skill), `prompt-audit` subcommand.** Ships with Claude Code rather than
+  as a marketplace plugin. It audits the whole prompt surface of the working directory, application
+  code that calls the Claude API included, against the current model's documented anti-patterns,
+  and produces a report with a proposed diff that it applies when asked. Its catalog is the
+  vendor's own migration guidance, refreshed with the model.
+- **This skill (marketplace plugin).** A standing, report-only audit of locally-owned Claude Code
+  instruction surfaces against the versioned I-catalog in [reference/criteria.md](reference/criteria.md):
+  target-model scoping, deterministic pre-scans, the cross-surface conflict pass, and harness-claim
+  staleness the vendor sweep does not look for. Prompts embedded in application source are outside
+  this skill's scope by design; that surface stays with the bundled subcommand.
+
+**Routing.** The two compose rather than compete. When the bundled `claude-api` skill resolves in
+your session, prefer its `prompt-audit` for a model migration or any pass over application-code
+prompts, and run it as the vendor procedure whenever the target model changes. Prefer this skill for
+the standing catalog audit of Claude Code surfaces, for cross-surface conflicts, and for harness
+claims that misstate Claude Code's own behavior. Where a sweep wants both, run both: recurring gap
+shapes the vendor sweep surfaces feed this catalog as new rows, and this skill's findings never
+substitute for the vendor procedure on a model change.
+
+**Mutation gate.** `prompt-audit` edits files when the request asks for edits. This skill's contract
+is report-only, so never chain into a `prompt-audit` apply on this skill's behalf; surface the
+finding and let the user invoke the sweep themselves.
+
+**Availability is never assumed.** Bundled surfaces are gated by settings, environment, plan, and
+host; this section states what to do when the surface resolves, never that it is present. The
+subcommand set, the distribution facts behind it, and their recheck triggers are recorded in
+[reference/bundled-claude-api.md](reference/bundled-claude-api.md).
+
 ## Arguments
 
 Parse `$ARGUMENTS` for an optional scope filter. It narrows which surfaces may **produce** findings,
@@ -224,7 +257,7 @@ high-stakes and correlated blind spots are the risk, prefer a cross-vendor advis
 installed and set up**, e.g. the OpenAI Codex plugin, when its documented surface can take this
 artifact, invoked per its own docs, with the fresh-context same-vendor subagent as the stated
 fallback, never a route to a command that may not resolve
-(per `docs/PLUGIN-PHILOSOPHY.md` "Fresh-eyes checkpoints" in the marketplace repository).
+(per `docs/plugin-philosophy.md` "Fresh-eyes checkpoints" in the marketplace repository).
 Batch one verifier per surface
 (not one per finding), counted under the same ~20-dispatch gate. A proposal the verifier defends is
 demoted to `info` or dropped, never surfaced as a confident removal.

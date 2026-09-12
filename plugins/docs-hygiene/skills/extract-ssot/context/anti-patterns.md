@@ -14,12 +14,12 @@
 - [10. Encapsulation violation](#10-encapsulation-violation)
 - [11. Source-of-truth bifurcation (REFUSE trigger)](#11-source-of-truth-bifurcation-refuse-trigger)
 - [12. Primary-source citation gate (REFUSE trigger)](#12-primary-source-citation-gate-refuse-trigger)
-- [13. Shape C — dedup-by-deletion (POSITIVE pattern)](#13-shape-c--dedup-by-deletion-positive-pattern)
+- [13. Shape C: dedup-by-deletion (POSITIVE pattern)](#13-shape-c-dedup-by-deletion-positive-pattern)
 - [Cross-references](#cross-references)
 
 13-pattern taxonomy. Each entry: pattern + symptom + mitigation procedure. SKILL.md cites this file for the full taxonomy; the body lists pattern names only.
 
-Patterns are framed for markdown extraction (the dominant case) but apply to code and config extractions too — citation rot has a code analog (function rename = stale `import`), over-indirection has a code analog (re-export chains), wrong abstraction is the same Sandi Metz failure regardless of language. File-class adaptations are called out per pattern below.
+Patterns are framed for markdown extraction (the dominant case) but apply to code and config extractions too. Citation rot has a code analog (function rename = stale `import`), over-indirection has a code analog (re-export chains), wrong abstraction is the same Sandi Metz failure regardless of language. File-class adaptations are called out per pattern below.
 
 ## 1. Citation rot
 
@@ -31,9 +31,9 @@ Patterns are framed for markdown extraction (the dominant case) but apply to cod
 
 **Mitigation.**
 
-1. Cite by EXACT heading text (markdown), exact identifier (code), exact anchor (config) — never by line number or section number
-2. After ANY heading/identifier/anchor edit in an SSOT, invoke `/docs-hygiene:rename-references` via the Skill tool immediately — it sweeps all 10 syntactic forms, not just pure-token grep
-3. The SSOT file should include a `## Recheck triggers` section — a rename row triggers the sweep
+1. Cite by EXACT heading text (markdown), exact identifier (code), exact anchor (config), never by line number or section number
+2. After ANY heading/identifier/anchor edit in an SSOT, invoke `/docs-hygiene:rename-references` via the Skill tool immediately. It sweeps all 10 syntactic forms, not just pure-token grep
+3. The SSOT file should include a `## Recheck triggers` section, where a rename row triggers the sweep
 4. For code: prefer language-aware refactor (IDE / Roslyn / ts-morph) over text grep; combine with `/docs-hygiene:rename-references` for non-source references (docs, configs)
 
 ## 2. Over-indirection
@@ -42,18 +42,18 @@ Patterns are framed for markdown extraction (the dominant case) but apply to cod
 
 **Symptom.** A skill body cites a rule file; the rule file cites another rule file for the same domain. Anthropic's "head -100" partial-read failure mode triggers when the chain is deep.
 
-**Code/config analog.** Re-export chains: `module-A` re-exports from `module-B` which re-exports from `module-C`. IDE "go to definition" jumps through layers; refactor breakage cascades. The same one-level-deep rule applies — the call site imports the canonical SSOT directly.
+**Code/config analog.** Re-export chains: `module-A` re-exports from `module-B` which re-exports from `module-C`. IDE "go to definition" jumps through layers; refactor breakage cascades. The same one-level-deep rule applies: the call site imports the canonical SSOT directly.
 
 **Mitigation.**
 
-1. Enforce "one level deep" — refuse to ship the extraction if the SSOT itself references another extracted SSOT for the same domain
+1. Enforce "one level deep": refuse to ship the extraction if the SSOT itself references another extracted SSOT for the same domain
 2. If two SSOT files cover related domains, either merge them OR cite both directly from the caller (one level each)
 3. Lint check: grep the extracted SSOT for `\.md "` patterns; warn on >2 references to OTHER `.md` files
 4. Code: ban re-export-only modules (`export * from "./other"`); each module owns its own surface
 
 ## 3. Leaky abstraction
 
-**Pattern.** The extracted file uses pronouns or references that assume caller context — "the prior step", "as discussed earlier", "this command above", "that flag we mentioned".
+**Pattern.** The extracted file uses pronouns or references that assume caller context: "the prior step", "as discussed earlier", "this command above", "that flag we mentioned".
 
 **Symptom.** Reading the extracted file in isolation produces nonsense. Joel Spolsky's law applied to docs.
 
@@ -62,7 +62,7 @@ Patterns are framed for markdown extraction (the dominant case) but apply to cod
 **Mitigation.**
 
 1. Self-test: read the extracted file in isolation and ask "does this make sense without the surrounding context I just came from?"
-2. Lint pattern (markdown): detect context-assuming phrases via grep — `prior`, `earlier`, `above`, `previous`, `as mentioned`, `as discussed`, `the X we`, `that step`
+2. Lint pattern (markdown): detect context-assuming phrases via grep for `prior`, `earlier`, `above`, `previous`, `as mentioned`, `as discussed`, `the X we`, `that step`
 3. Code: pure-function preference; explicit parameters over ambient context; document required setup at the import site
 4. Config: declared inputs at the include site; no implicit variable inheritance
 5. Rewrite to self-contained form OR refuse extraction
@@ -77,7 +77,7 @@ Patterns are framed for markdown extraction (the dominant case) but apply to cod
 
 **Mitigation.**
 
-1. Cite-by-name AND inline 1-line summary at every call site. Template: `per <file>.md "<heading>" — <≤80 char shape description>`
+1. Cite-by-name AND inline 1-line summary at every call site. Template: `per <file>.md "<heading>": <≤80 char shape description>`
 2. The 1-line summary should let a reader skim the caller and understand the SHAPE of the cited rule without clicking through
 3. Code: name imports for what they do, not where they live; cluster related imports; brief comment at non-obvious call sites
 4. Config: name anchors descriptively (`&dotnet-build-defaults` not `&base`); short comment above the alias if intent isn't obvious
@@ -91,7 +91,7 @@ Patterns are framed for markdown extraction (the dominant case) but apply to cod
 
 **Mitigation.**
 
-1. The SSOT file ships with a `## Stable headings — change requires sweep-references` section listing exact anchor text + dependent call sites
+1. The SSOT file ships with a `## Stable headings: change requires sweep-references` section listing exact anchor text + dependent call sites
 2. Verify before acting: when a citation says `per X.md "Y"`, the agent MUST grep X.md for the literal heading "Y" before acting on assumed content
 3. If citation-resolution hallucination becomes measurable, add resolution-time verification tooling (a hook or lint that greps the cited heading on read/write)
 
@@ -119,9 +119,9 @@ Patterns are framed for markdown extraction (the dominant case) but apply to cod
 
 **Mitigation.**
 
-1. The `identify` action requires evidence of 3+ instances before suggesting an artifact-creating output (`rule-file` / `new-skill` / `new-action`) — Tier 0 grep output captured this turn, not recall
+1. The `identify` action requires evidence of 3+ instances before suggesting an artifact-creating output (`rule-file` / `new-skill` / `new-action`), and that evidence is Tier 0 grep output captured this turn, not recall
 2. Refuse CREATION when only 1-2 instances exist (`verify` Gate 1, `REFUSE-rule-of-three-fails`); cite Rule of Three with author attribution (Don Roberts / Fowler)
-3. Do NOT refuse to report it. The candidate stays on the roster in its N=1 or N=2 bucket with that bucket's non-abstracting remedies — `trim-to-citation`, `normalize-wording`, `name-an-owner`, `edit-existing-rule`. Every one of them edits files that already exist, so none can produce the premature abstraction this pattern is about. Suppressing the finding would not prevent the abstraction; it would only prevent the fix
+3. Do NOT refuse to report it. The candidate stays on the roster in its N=1 or N=2 bucket with that bucket's non-abstracting remedies: `trim-to-citation`, `normalize-wording`, `name-an-owner`, `edit-existing-rule`. Every one of them edits files that already exist, so none can produce the premature abstraction this pattern is about. Suppressing the finding would not prevent the abstraction; it would only prevent the fix
 4. Offer to record a tracking note in the working notes so future-self knows to revisit when the third instance lands
 
 ## 8. Self-generated SSOT
@@ -132,24 +132,24 @@ Patterns are framed for markdown extraction (the dominant case) but apply to cod
 
 **Mitigation.**
 
-1. SSOT output goes through human review — the user stages, commits, and reviews the diff
+1. SSOT output goes through human review: the user stages, commits, and reviews the diff
 2. Phase boundaries surface the diff to the user explicitly; never auto-stage/commit/push
 3. Eval cases for any new skill MUST be human-reviewed against expected output before declaring done
 
 ## 9. Always-loaded SSOT propagation lag
 
-**Pattern.** Extraction moves content into an always-loaded file (`CLAUDE.md`, an unscoped `.claude/rules/` file — rules with `paths:` frontmatter load lazily instead, so an edit before they load does take effect) that then gets edited often. Sessions already running never see the edits: those files are read once at session start, and a mid-session edit neither applies nor invalidates the cache — the new content loads on the next `/clear`, `/compact`, or restart. A correction lands in the repo while every live consumer keeps following the superseded version.
+**Pattern.** Extraction moves content into an always-loaded file that then gets edited often. The always-loaded files here are `CLAUDE.md` and unscoped `.claude/rules/` files. A rule with `paths:` frontmatter loads lazily instead, so an edit before it loads does take effect. Sessions already running never see the edits: those files are read once at session start, and a mid-session edit neither applies nor invalidates the cache. The new content loads on the next `/clear`, `/compact`, or restart. A correction lands in the repo while every live consumer keeps following the superseded version.
 
-**Scope fence — Claude Code sessions, and the cost is propagation, not caching.** A mid-session edit to an always-loaded file keeps the cached prefix, and sequential sessions in a directory share a prefix only when the startup git-status snapshot matches, which captures branch and recent commits — so committing the edit breaks sharing exactly as any other commit does, and SSOT edit frequency is not a distinct driver of cache misses ([editing CLAUDE.md mid-session](https://code.claude.com/docs/en/prompt-caching#editing-claude-md-mid-session), [cache scope](https://code.claude.com/docs/en/prompt-caching#cache-scope), verified 2026-08-04). On the API surface a volatility cost is real, because cache hits there require byte-identical prefix segments — that reaches an Agent SDK fleet assembling one shared prefix across machines, not the tracked-markdown extractions this skill scopes to ([cache storage and sharing](https://platform.claude.com/docs/en/build-with-claude/prompt-caching#cache-storage-and-sharing), verified 2026-08-04).
+**Scope fence: Claude Code sessions, and the cost is propagation, not caching.** A mid-session edit to an always-loaded file keeps the cached prefix, and sequential sessions in a directory share a prefix only when the startup git-status snapshot matches, which captures branch and recent commits, so committing the edit breaks sharing exactly as any other commit does, and SSOT edit frequency is not a distinct driver of cache misses ([editing CLAUDE.md mid-session](https://code.claude.com/docs/en/prompt-caching#editing-claude-md-mid-session), [cache scope](https://code.claude.com/docs/en/prompt-caching#cache-scope), verified 2026-08-04). On the API surface a volatility cost is real, because cache hits there require byte-identical prefix segments. That reaches an Agent SDK fleet assembling one shared prefix across machines, not the tracked-markdown extractions this skill scopes to ([cache storage and sharing](https://platform.claude.com/docs/en/build-with-claude/prompt-caching#cache-storage-and-sharing), verified 2026-08-04).
 
 **Symptom.** A rule corrected hours ago is still being violated by long-running sessions; two concurrent sessions in the same repo follow different versions of the same extracted rule.
 
 **Mitigation.**
 
-1. Decision-framework test #3 (Stable — content changes <1×/quarter) is the up-front gate
-2. If the SSOT must be edited frequently, split it: stable categorical bits stay in the always-loaded SSOT, volatile narrative moves to a surface that loads late enough to see corrections — a skill body (injects at invocation), a `paths:`-scoped rule (loads on first matching read), or a file consulted on demand. Going back inline helps only when the original home was itself lazy-loaded; inline in `CLAUDE.md` or an unscoped rule is the same always-loaded surface with the same lag, and buys nothing
+1. Decision-framework test #3 (Stable: content changes <1×/quarter) is the up-front gate
+2. If the SSOT must be edited frequently, split it: stable categorical bits stay in the always-loaded SSOT, volatile narrative moves to a surface that loads late enough to see corrections, such as a skill body (injects at invocation), a `paths:`-scoped rule (loads on first matching read), or a file consulted on demand. Going back inline helps only when the original home was itself lazy-loaded; inline in `CLAUDE.md` or an unscoped rule is the same always-loaded surface with the same lag, and buys nothing
 3. A Recheck-triggers section in the SSOT documents anticipated edit frequency; if it drifts >1×/month, raise it as a side observation
-4. After a correction live sessions must honor, say so — the fix reaches them only on `/clear`, `/compact`, or restart
+4. After a correction live sessions must honor, say so. The fix reaches them only on `/clear`, `/compact`, or restart
 
 ## 10. Encapsulation violation
 
@@ -160,24 +160,24 @@ Patterns are framed for markdown extraction (the dominant case) but apply to cod
 **Mitigation.**
 
 1. The `execute` action converts external skill-internals refs back to `/X` invocations as part of the work, NOT preserved
-2. `scripts/*.sh` is the documented public-API exception — those CAN be cited externally (see `/docs-hygiene:audit-encapsulation`)
-3. If the caller's use case has no public action covering it, surface as a side observation (NOT fix-in-passing) — the skill needs an action added before the caller can route through the public API
+2. `scripts/*.sh` is the documented public-API exception. Those CAN be cited externally (see `/docs-hygiene:audit-encapsulation`)
+3. If the caller's use case has no public action covering it, surface as a side observation (NOT fix-in-passing). The skill needs an action added before the caller can route through the public API
 4. Detection grep + remediation paths: `/docs-hygiene:audit-encapsulation`
 
 ## 11. Source-of-truth bifurcation (REFUSE trigger)
 
-**Pattern.** A concept legitimately exists at TWO tiers — a top-level always-loaded source (`CLAUDE.md` / `AGENTS.md`) for the every-session audience, AND a deep-disclosure aggregator rule file for hook/skill/script authors who need detection mechanics or implementation detail. Both are first-class canonicals serving distinct audiences. Forcing the instruction file to cite the rule creates a citation cycle.
+**Pattern.** A concept legitimately exists at TWO tiers: a top-level always-loaded source (`CLAUDE.md` / `AGENTS.md`) for the every-session audience, AND a deep-disclosure aggregator rule file for hook/skill/script authors who need detection mechanics or implementation detail. Both are first-class canonicals serving distinct audiences. Forcing the instruction file to cite the rule creates a citation cycle.
 
-**Intentional vs accidental — the distinction that decides the verdict.** The REFUSE trigger
+**Intentional vs accidental: the distinction that decides the verdict.** The REFUSE trigger
 protects the INTENTIONAL case: two tiers, two named audiences, a split someone chose. The
-accidental case looks similar and is the opposite problem — two files assert the same contract for
+accidental case looks similar and is the opposite problem: two files assert the same contract for
 the SAME audience and NEITHER is the declared owner, so nothing keeps them in sync and they drift.
 That is a defect, not a design.
 
 The **N=2 bucket is how accidental bifurcation reaches the user.** Two instances are the most common
 form of this defect, and they are rostered rather than discarded. `verify` Gate 4 splits the two:
 intentional refuses as below;
-accidental PROCEEDs at `bucket: N=2` with the remedy **`name-an-owner`** — declare one of the two
+accidental PROCEEDs at `bucket: N=2` with the remedy **`name-an-owner`**. Declare one of the two
 existing files canonical and make the other cite it. No third file is created; minting one would be
 the premature abstraction Rule of Three guards against.
 
@@ -188,8 +188,8 @@ the premature abstraction Rule of Three guards against.
 **Mitigation.**
 
 1. The `verify` action Gate 4 detects bifurcation and classifies it. Intentional (distinct named audiences) → refuses extraction with `REFUSE-source-of-truth-bifurcation`. Accidental (same audience, no declared owner) → PROCEED at `bucket: N=2` with `name-an-owner` / `edit-existing-rule` / `normalize-wording`
-2. Document both canonicals + their respective audiences in the rule file if not already explicit — that documentation is what makes the split legible as intentional on the next pass
-3. Single-concern call sites can still cite either canonical (whichever serves their narrower scope) — keep their narrow-slice usage rather than forcing whole-fact citation
+2. Document both canonicals + their respective audiences in the rule file if not already explicit. That documentation is what makes the split legible as intentional on the next pass
+3. Single-concern call sites can still cite either canonical (whichever serves their narrower scope). Keep their narrow-slice usage rather than forcing whole-fact citation
 4. **Verbatim source.** `lessons.md` Lesson 8.
 
 ## 12. Primary-source citation gate (REFUSE trigger)
@@ -208,13 +208,13 @@ the premature abstraction Rule of Three guards against.
 4. **Recheck trigger:** if the primary URL goes 404, all sites need a fallback; that's the moment to revisit
 5. **Verbatim source.** `lessons.md` Lesson 6.
 
-## 13. Shape C — dedup-by-deletion (POSITIVE pattern)
+## 13. Shape C: dedup-by-deletion (POSITIVE pattern)
 
-**Pattern (positive — applies when the cluster IS already SSOT-shaped).** When an existing canonical SSOT already documents the full content and consumer files paraphrase that content as a TL;DR, the right action is NOT extraction (it already exists) but DELETION of the redundant paraphrasers. Keep the load-bearing directive (e.g. `Read X.md first`); delete the redundant TL;DR tail prose.
+**Pattern (positive, and it applies when the cluster IS already SSOT-shaped).** When an existing canonical SSOT already documents the full content and consumer files paraphrase that content as a TL;DR, the right action is NOT extraction (it already exists) but DELETION of the redundant paraphrasers. Keep the directive the consumer acts on (e.g. `Read X.md first`); delete the redundant TL;DR tail prose.
 
 **Symptom.** The cluster body across N consumer files reads as a TL;DR / restatement of an existing canonical's intro paragraph. Consumers cite or reference the canonical but ALSO restate its content nearby. Extraction would be a no-op because the SSOT exists; the redundancy is in the consumers.
 
-**Code/config analog.** A code helper exists; consumers `import` it AND inline a copy of the body "for clarity"; the inline copy is dead weight — delete it, the import is sufficient.
+**Code/config analog.** A code helper exists; consumers `import` it AND inline a copy of the body "for clarity"; the inline copy is dead weight. Delete it, the import is sufficient.
 
 **When to apply.**
 
@@ -225,24 +225,24 @@ the premature abstraction Rule of Three guards against.
 
 **Mitigation / execution.**
 
-1. The `verify` action Gate 2 (pre-existing canonical citation) is the entry point — if it returns `REFUSE-already-cites-canonical` AND the consumer ALSO has a redundant paraphrase nearby, that's the Shape C signal
-2. Run a deletion-only sweep: for each consumer, identify the redundant TL;DR tail; delete; preserve load-bearing directives + per-consumer intentional deltas
+1. The `verify` action Gate 2 (pre-existing canonical citation) is the entry point. If it returns `REFUSE-already-cites-canonical` AND the consumer ALSO has a redundant paraphrase nearby, that's the Shape C signal
+2. Run a deletion-only sweep: for each consumer, identify the redundant TL;DR tail; delete; preserve the directives the consumer acts on + per-consumer intentional deltas
 3. No new file. No `/docs-hygiene:rename-references` sweep (no identifier change). Pure dead-text removal
 4. **Verbatim source.** `lessons.md` Lesson 9. Canonical example shape: a dozen automation prompts each carried a redundant one-line descriptor tail restating a shared doc that was already canonical with the full content; deleting the tails was correct
 
 **When NOT to apply.**
 
-- The consumer paraphrase carries unique framing (concern-driven drift per Lesson 7) — keep inline
-- The "SSOT" is itself just a paraphrase of a primary-source URL (Lesson 6) — don't grow the redundancy
-- The consumer is intentionally short-form (1-line teaching mention, not full restatement) — leave as-is per Lesson 1's exclusion
+- The consumer paraphrase carries unique framing (concern-driven drift per Lesson 7): keep inline
+- The "SSOT" is itself just a paraphrase of a primary-source URL (Lesson 6): don't grow the redundancy
+- The consumer is intentionally short-form (1-line teaching mention, not full restatement): leave as-is per Lesson 1's exclusion
 
 ## Cross-references
 
-- `decision-framework.md` — when to extract (avoiding patterns 6-9 up front); "Pre-extraction Tier 0 checklist" formalizes #11/#12/#13
-- `citation-form.md` — anti-patterns 1, 4, 5 mitigation contract for markdown call sites; for code/config see SKILL.md "Output type"
-- `/docs-hygiene:audit-encapsulation` — anti-pattern 10 detection + remediation matrix (separate skill)
-- `execution-checklist.md` — per-phase sanity checks that catch each anti-pattern
-- `lessons.md` — empirical batch-derived patterns; #11 ↔ Lesson 8, #12 ↔ Lesson 6, #13 ↔ Lesson 9
-- `actions/verify.md` — refuse-fast gates implementing anti-patterns #11 (Gate 4), #12 (Gate 3), #13 (Gate 2 entry-point); Gates 1/5/6 implement Lessons 1/3+4/5 (informational, not refuse-anti-patterns)
-- SKILL.md "Evidence discipline" — verify-before-acting for citation resolution (#5); Tier 0 evidence requirement for the #11/#12/#13 detection greps
-- `/docs-hygiene:rename-references` — the 10-pattern sweep that catches #1, #4, #5
+- `decision-framework.md`: when to extract (avoiding patterns 6-9 up front); "Pre-extraction Tier 0 checklist" formalizes #11/#12/#13
+- `citation-form.md`: anti-patterns 1, 4, 5 mitigation contract for markdown call sites; for code/config see SKILL.md "Output type"
+- `/docs-hygiene:audit-encapsulation`: anti-pattern 10 detection + remediation matrix (separate skill)
+- `execution-checklist.md`: per-phase sanity checks that catch each anti-pattern
+- `lessons.md`: empirical batch-derived patterns; #11 ↔ Lesson 8, #12 ↔ Lesson 6, #13 ↔ Lesson 9
+- `actions/verify.md`: refuse-fast gates implementing anti-patterns #11 (Gate 4), #12 (Gate 3), #13 (Gate 2 entry-point); Gates 1/5/6 implement Lessons 1/3+4/5 (informational, not refuse-anti-patterns)
+- SKILL.md "Evidence discipline": verify-before-acting for citation resolution (#5); Tier 0 evidence requirement for the #11/#12/#13 detection greps
+- `/docs-hygiene:rename-references`: the 10-pattern sweep that catches #1, #4, #5

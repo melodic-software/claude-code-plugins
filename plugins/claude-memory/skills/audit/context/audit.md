@@ -25,7 +25,7 @@ ls "$MEMORY_DIR"/*.md 2>/dev/null
 ```
 
 For each file found, record: **scope**, path, line count, visible line count (excluding HTML comments).
-Carry the scope forward — Step 2 routes on it, and a check applied at the wrong scope is a false
+Carry the scope forward. Step 2 routes on it, and a check applied at the wrong scope is a false
 positive rather than extra coverage.
 
 ## Step 2: Run checks
@@ -34,7 +34,7 @@ Read [../reference/criteria.md](../reference/criteria.md), then execute every ap
 each discovered file. Apply by entity type:
 
 - **C1-C9**: CLAUDE.md and CLAUDE.local.md, at either scope
-- **C9 is project-scoped — skip it for CLAUDE.local.md AND for every `user`-scope file.** The criteria
+- **C9 is project-scoped: skip it for CLAUDE.local.md AND for every `user`-scope file.** The criteria
   file says so directly: C9 applies to project CLAUDE.md only, and `~/.claude/CLAUDE.md` is "not
   repo-scoped". This is the reason Step 1 emits a scope tag. A user-scope `CLAUDE.md` carrying no build
   and test commands is correct, not a FAIL, and reporting one there would be a false positive
@@ -43,29 +43,45 @@ each discovered file. Apply by entity type:
   applying a check that assumes it is loaded.** An always-loaded user rule (no `paths:`) costs context
   in every session of every project, so the R-checks apply to it at least as strongly as to a project
   rule. A *path-scoped* user rule is absent until a matching file is read, so a repo-relative currency
-  or redundancy finding against one is only valid where its `paths:` can match in **this** project —
-  check that first rather than assuming co-residency
+  or redundancy finding against one is only valid where its `paths:` can match in **this** project.
+  Check that first rather than assuming co-residency
 - **R1 pairs within a scope.** A user rule's duplication check runs against the *user* `CLAUDE.md`, a
-  project rule's against the *project* one — see R1's "Which CLAUDE.md" note. Cross-scope overlap is
+  project rule's against the *project* one. See R1's "Which CLAUDE.md" note. Cross-scope overlap is
   Step 3's, not R1's, or one overlap gets reported twice
-- **Scope `both`**: one physical file that both layers reach. Two dotfiles layouts produce it — a repo
+- **Scope `both`**: one physical file that both layers reach. Two dotfiles layouts produce it: a repo
   rooted at `~` (where `.claude/rules` *is* `~/.claude/rules`) and a repo rooted at `~/.claude` itself
   (where the depth-1 `CLAUDE.md` *is* `~/.claude/CLAUDE.md`). Discovery emits such a file once with
   this tag. Report it once, and never compare it against itself in Step 3
 - **C7/R3 (currency)**: version pins and counts are checked against the repo's own pin files
   (`global.json`, `.nvmrc`, `.python-version`, `.mcp.json`, or ecosystem equivalents). File-path-existence
-  currency is **agent judgment**: read each path reference in context — instructional files cite
+  currency is **agent judgment**: read each path reference in context, since instructional files cite
   non-existent paths on purpose (examples, counter-examples, future-deferred refs, regex patterns),
   so a blind existence check false-flags heavily. Judgment is the correct tool for that half
 - **M1-M4**: Auto-memory files (doc-derived health checks)
 - **M2 (deterministic backing)**: run
   `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/memory-index-refs-check.sh"` for
-  index↔topic-file integrity — forward (index links an absent file) AND reverse (topic file present
+  index↔topic-file integrity, forward (index links an absent file) AND reverse (topic file present
   but not indexed, the orphan direction). Fold WARN lines into the report; do NOT hand-derive what the
   script computes
 - **RD1**: Always-loaded rules layer (reverse-drift orphan check; deterministic-WARN). Run
   `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/orphan-rule-check.sh"` and fold each WARN
-  line into the report — do NOT re-derive by hand
+  line into the report. Do NOT re-derive by hand. Each line already carries the file's
+  provenance and the matching fix route
+- **N1**: Nested `AGENTS.md` reachability (deterministic-FAIL). Run
+  `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/nested-agents-check.sh"` and fold each FAIL
+  line into the report. Do NOT re-derive by hand. Discovery stays depth-1 for the C-checks; this
+  check asks only whether each nested file loads at all
+- **C1 counts the expanded file**: the pre-computed header's root-file figure comes from
+  `instruction-load-stats.sh --lines`, imports expanded. For any other CLAUDE.md in scope, run it
+  with `--file <path>`; use `--breakdown` when imports contributed, and carry the per-file rows into
+  the finding
+- **Provenance**: for every FAIL or WARN that proposes an edit to a repository file, run
+  `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/file-provenance.sh" <path>`. A `synced` file
+  keeps its finding, and the fix line names the sync's source (criteria.md, "Provenance routing")
+- **One invocation for the whole spine**: `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/audit-spine.sh"`
+  prints the header the skill pre-computes plus every spine finding (N1, RD1, M2) in one block. It
+  is the same output as the per-check scripts above, so re-running it after a fix is the cheapest
+  way to confirm the spine is clean
 - **REPO checks**: any additional criteria or documented exemptions the consuming repo's own
   `CLAUDE.md` / `.claude/rules/` declare for its instruction layer (see SKILL.md
   "Consumer-convention extension seam")
@@ -73,9 +89,9 @@ each discovered file. Apply by entity type:
 For each check, record PASS or a FAIL/WARN/INFO finding with the evidence its criteria row asks
 for: the line count, file path, or contradicting text.
 
-**Be mechanical on the deterministic spine (C1/M1/RD1, and M2's script-backed half)** — the
+**Be mechanical on the deterministic spine (C1/M1/RD1/N1, and M2's script-backed half).** The
 criteria file defines what passes and fails there, so same criteria = same results. M2's other
-half stays judgment (the script checks existence, not content — see its criteria row). The
+half stays judgment (the script checks existence, not content; see its criteria row). The
 judgment-tier checks (C2-C9, R1-R4, M3-M4)
 require reading and interpreting content; apply their fixed criteria consistently rather than
 skipping the judgment.
@@ -94,7 +110,7 @@ report **redundancy** where both sides load together in the same session. Concre
    above. Both load together in every session here, so a user instruction that contradicts a project
    one is a live conflict rather than a layering choice, and a user instruction the project already
    states is redundant context on every run. Report the finding against the pair, and say which scope
-   each side came from — the resolution differs, since only one of the two is yours to edit on behalf
+   each side came from: the resolution differs, since only one of the two is yours to edit on behalf
    of the repo.
    **Two exclusions.** A `both`-scoped file is one file, not a pair: never compare it with itself. And
    a path-scoped user rule only co-resides where its `paths:` can match here, so establish that before
@@ -102,7 +118,7 @@ report **redundancy** where both sides load together in the same session. Concre
 
 ## Step 4: Generate report
 
-Use the output format from criteria.md. Save to **the path SKILL.md resolves in "Report location"** —
+Use the output format from criteria.md. Save to **the path SKILL.md resolves in "Report location"**,
 `audit/<state-key>/last-audit.md` under the plugin data directory, with `<state-key>` produced by the
 resolver SKILL.md names. Derive it there rather than restating a path here, so the writer and the two
 readers (`report` and `fix`) cannot drift apart. Create the directory if absent; audit output stays
@@ -119,7 +135,10 @@ Present the report to the user with:
 2. All FAIL findings first (must fix)
 3. WARN findings grouped by check type
 4. INFO findings (informational only)
-5. Token cost breakdown (from `/context` if available)
+5. Estimated context cost: the `instruction-load-stats.sh --tokens` figure (bytes / 4 over the
+   always-loaded set, labelled as an estimate) with the `--breakdown` rows when the reader would act
+   on them. The model cannot run `/context`; when the `context-budget` plugin is installed, name
+   `/context-budget:audit` as the measured alternative
 
 ## Step 5: Suggest next action
 

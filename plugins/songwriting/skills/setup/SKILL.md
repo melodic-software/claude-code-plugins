@@ -1,5 +1,5 @@
 ---
-description: "Configure the songwriting plugin for this repository: inventory or scaffold the project-level prompt-template overrides under songwriting/templates/pat-pattison/, and confirm where craft artifacts land. Use when: 'set up songwriting', 'configure songwriting', 'songwriting setup', 'customize a songwriting template', 'override the co-write prompt', or a craft skill reports you want to tune its bundled prompt. Actions: check (read-only inventory, default) | apply (scaffold or remove overrides). Re-runnable and safe."
+description: "Configure the songwriting plugin for this repository: inventory or scaffold the project-level prompt-template overrides under songwriting/templates/pat-pattison/, and confirm where craft artifacts land. Use when: 'set up songwriting', 'configure songwriting', 'songwriting setup', 'customize a songwriting template', 'override the co-write prompt', or a craft skill reports a bundled prompt to tune. Actions: check (read-only inventory, default) | apply (scaffold or remove overrides). Re-runnable and safe."
 argument-hint: "check | apply [scaffold <name>...] [remove <name>...]"
 user-invocable: true
 disable-model-invocation: true
@@ -7,7 +7,7 @@ disable-model-invocation: true
 
 ## Purpose
 
-Thin check-centric setup per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
+Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy.md`
 "Setup is explicit and repeatable" in the marketplace repository): `check` inventories the consuming
 repo's tracked prompt-template overrides and reports the effective artifact layout; `apply` scaffolds
 an override from a bundled default (or removes a byte-identical one). The override seam and the output

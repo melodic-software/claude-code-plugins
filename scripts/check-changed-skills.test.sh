@@ -10,20 +10,17 @@ set -uo pipefail
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SELF_DIR/check-changed-skills.sh"
 
-# A fixture runs a COPY of the gate, so it must also carry the shared
-# libraries that copy sources (scripts/lib/*.sh). Staging them here keeps the
-# fixture a faithful copy; without it the copied gate dies on a missing
-# source at line 1 and every assertion below turns into the same opaque
-# failure. See #2914.
-stage_libs() {
-  mkdir -p "$1/lib"
-  cp "$SELF_DIR/lib/changed-files.sh" "$1/lib/"
-}
 # shellcheck source=test-git-helpers.sh
 . "$SELF_DIR/test-git-helpers.sh"
 
 # shellcheck source=lib/test-harness.sh
 . "$SELF_DIR/lib/test-harness.sh"
+# shellcheck source=lib/fixture-tree.sh
+. "$SELF_DIR/lib/fixture-tree.sh"
+
+# The builder assigns through a nameref, which shellcheck cannot follow;
+# declaring the out-var here is what tells it (SC2154) the name is written.
+r=""
 
 # A stub checker shared by every scenario: records each invocation (skill name +
 # forwarded env) to $CHECK_LOG, and FAILs iff the skill is named "bad".
@@ -38,14 +35,11 @@ exit 0
 EOF
 chmod +x "$STUB"
 
+# mk_repo <out-var>. A fixture runs a COPY of the gate, so the builder stages
+# scripts/lib/ with it: without those, the copy dies on a missing source at
+# line 1 and every assertion below turns into the same opaque failure.
 mk_repo() {
-  local dir
-  dir="$(mktemp -d)"
-  git_init_safe "$dir"
-  mkdir -p "$dir/scripts"
-  cp "$SCRIPT" "$dir/scripts/check-changed-skills.sh"
-  stage_libs "$dir/scripts"
-  printf '%s' "$dir"
+  fixture_tree::build "$1" --sut "$SCRIPT" --git
 }
 
 # add_skill <repo> <plugin> <skill> [relpath]  — write a file in a skill dir.
@@ -76,7 +70,7 @@ stage_checker() {
 }
 
 # --- no changed skills passes (nothing to gate) ----------------------------
-r="$(mk_repo)"
+mk_repo r
 add_skill "$r" p1 alpha
 commit_all "$r" base >/dev/null
 b="$(base_sha "$r")"
@@ -93,7 +87,7 @@ fi
 rm -rf "$r"
 
 # --- one changed skill, checker passes -------------------------------------
-r="$(mk_repo)"
+mk_repo r
 add_skill "$r" p1 alpha
 commit_all "$r" base >/dev/null
 b="$(base_sha "$r")"
@@ -110,7 +104,7 @@ fi
 rm -rf "$r"
 
 # --- a failing checker fails the gate --------------------------------------
-r="$(mk_repo)"
+mk_repo r
 add_skill "$r" p1 bad
 commit_all "$r" base >/dev/null
 b="$(base_sha "$r")"
@@ -123,7 +117,7 @@ fi
 rm -rf "$r"
 
 # --- vendor-subtree change maps to the owning skill, deduped ---------------
-r="$(mk_repo)"
+mk_repo r
 add_skill "$r" p1 alpha
 commit_all "$r" base >/dev/null
 b="$(base_sha "$r")"
@@ -139,7 +133,7 @@ fi
 rm -rf "$r"
 
 # --- env passthrough: skills root and base ref reach the checker -----------
-r="$(mk_repo)"
+mk_repo r
 add_skill "$r" p2 beta
 commit_all "$r" base >/dev/null
 b="$(base_sha "$r")"
@@ -153,7 +147,7 @@ fi
 rm -rf "$r"
 
 # --- a deleted skill is filtered, not gated --------------------------------
-r="$(mk_repo)"
+mk_repo r
 add_skill "$r" p1 alpha
 add_skill "$r" p1 gone
 commit_all "$r" base >/dev/null
@@ -171,7 +165,7 @@ fi
 rm -rf "$r"
 
 # --- an invalid base ref fails closed (env error) --------------------------
-r="$(mk_repo)"
+mk_repo r
 add_skill "$r" p1 alpha
 commit_all "$r" base >/dev/null
 run "$r" "does-not-exist" >/dev/null 2>&1
@@ -184,7 +178,7 @@ fi
 rm -rf "$r"
 
 # --- a missing checker fails closed ----------------------------------------
-r="$(mk_repo)"
+mk_repo r
 add_skill "$r" p1 alpha
 commit_all "$r" base >/dev/null
 b="$(base_sha "$r")"
@@ -200,7 +194,7 @@ fi
 rm -rf "$r"
 
 # --- SKILL.md change forwards --require-evals to the checker ----------------
-r="$(mk_repo)"
+mk_repo r
 add_skill "$r" p1 alpha
 commit_all "$r" base >/dev/null
 b="$(base_sha "$r")"
@@ -214,7 +208,7 @@ fi
 rm -rf "$r"
 
 # --- a non-SKILL.md touch does not forward --require-evals ------------------
-r="$(mk_repo)"
+mk_repo r
 add_skill "$r" p1 alpha
 add_skill "$r" p1 alpha context/note.md
 commit_all "$r" base >/dev/null
@@ -231,7 +225,7 @@ fi
 rm -rf "$r"
 
 # --- integration: a new skill without evals fails the gate ------------------
-r="$(mk_repo)"
+mk_repo r
 stage_checker "$r"
 printf 'base\n' >"$r/README.md"
 commit_all "$r" base >/dev/null
@@ -261,7 +255,7 @@ fi
 rm -rf "$r"
 
 # --- integration: a touched legacy skill without evals fails the gate --------
-r="$(mk_repo)"
+mk_repo r
 stage_checker "$r"
 mkdir -p "$r/plugins/p1/skills/legacy"
 cat >"$r/plugins/p1/skills/legacy/SKILL.md" <<'EOF'
@@ -290,7 +284,7 @@ fi
 rm -rf "$r"
 
 # --- integration: a touched legacy skill with evals passes the gate --------
-r="$(mk_repo)"
+mk_repo r
 stage_checker "$r"
 mkdir -p "$r/plugins/p1/skills/legacy/evals"
 cat >"$r/plugins/p1/skills/legacy/SKILL.md" <<'EOF'
@@ -333,7 +327,7 @@ fi
 rm -rf "$r"
 
 # --- recorded warrant skip is not passed --require-evals (#3135) -----------
-r="$(mk_repo)"
+mk_repo r
 add_skill "$r" p1 skipme
 commit_all "$r" base >/dev/null
 b="$(base_sha "$r")"
@@ -349,7 +343,7 @@ fi
 rm -rf "$r"
 
 # --- stale exemption (skill now ships evals) fails -------------------------
-r="$(mk_repo)"
+mk_repo r
 add_skill "$r" p1 skipme
 mkdir -p "$r/plugins/p1/skills/skipme/evals"
 printf '{}\n' >"$r/plugins/p1/skills/skipme/evals/evals.json"
@@ -357,10 +351,35 @@ printf '%s\n' 'plugins/p1/skills/skipme  # stale' >"$r/scripts/evals-warrant-exe
 commit_all "$r" base >/dev/null
 b="$(base_sha "$r")"
 add_skill "$r" p1 skipme SKILL.md
-if run "$r" "$b" >/dev/null 2>&1; then
-  fail "stale evals exemption (skill ships evals) should fail"
-else
+out="$(run "$r" "$b" 2>&1)"
+rc=$?
+if [[ $rc -ne 0 ]]; then
   ok "stale evals exemption (skill ships evals) fails"
+else
+  fail "stale evals exemption (skill ships evals) should fail"
+fi
+if [[ "$out" == *"STALE BASELINE: "*"'plugins/p1/skills/skipme' names a skill that now ships evals"* ]]; then
+  ok "the stale exemption carries the shared STALE BASELINE prefix"
+else
+  fail "expected the shared STALE BASELINE diagnostic, got: $out"
+fi
+rm -rf "$r"
+
+# --- a final exemption row with no trailing newline is still loaded --------
+# The hand-rolled reader this replaced kept such a row only because it carried
+# the `|| [[ -n "$raw" ]]` tail by hand; the shared reader owns that now, and
+# dropping the row would silently hand the skill --require-evals.
+mk_repo r
+add_skill "$r" p1 skipme
+commit_all "$r" base >/dev/null
+b="$(base_sha "$r")"
+add_skill "$r" p1 skipme SKILL.md
+printf '%s' 'plugins/p1/skills/skipme' >"$r/scripts/evals-warrant-exemptions.txt"
+run "$r" "$b" >/dev/null 2>&1
+if ! grep -q "args=--require-evals skipme" "$r/checklog" 2>/dev/null; then
+  ok "a final exemption row with no trailing newline is loaded"
+else
+  fail "unterminated final exemption row was dropped: $(cat "$r/checklog" 2>/dev/null)"
 fi
 rm -rf "$r"
 
@@ -369,7 +388,7 @@ rm -rf "$r"
 # what a row means. These two cases pin the handoff: present file goes through as
 # an absolute path, absent file goes through EMPTY rather than as a path that is
 # not there — empty means "no downgrades", which is the strict direction.
-r="$(mk_repo)"
+mk_repo r
 add_skill "$r" p1 alpha
 commit_all "$r" base >/dev/null
 b="$(base_sha "$r")"
@@ -383,7 +402,7 @@ else
 fi
 rm -rf "$r"
 
-r="$(mk_repo)"
+mk_repo r
 add_skill "$r" p1 alpha
 commit_all "$r" base >/dev/null
 b="$(base_sha "$r")"
@@ -400,9 +419,10 @@ rm -rf "$r"
 # End to end through the real checker, because the acceptance this covers is
 # that a breach fails in the repository's NORMAL validation path, not that a
 # constant somewhere reads 1024.
-mk_over_cap_repo() {
+mk_over_cap_repo() { # <out-var>
   local repo desc
-  repo="$(mk_repo)"
+  mk_repo "$1" || return 1
+  repo="${!1}"
   stage_checker "$repo"
   desc="$(printf 'd%.0s' $(seq 1 1025))"
   mkdir -p "$repo/plugins/p1/skills/wordy/evals"
@@ -426,10 +446,9 @@ mk_over_cap_repo() {
   ]
 }
 EOF
-  printf '%s' "$repo"
 }
 
-r="$(mk_over_cap_repo)"
+mk_over_cap_repo r
 commit_all "$r" base >/dev/null
 b="$(base_sha "$r")"
 printf '\n## Notes\n\nTouched.\n' >>"$r/plugins/p1/skills/wordy/SKILL.md"
@@ -445,7 +464,7 @@ else
 fi
 rm -rf "$r"
 
-r="$(mk_over_cap_repo)"
+mk_over_cap_repo r
 printf '%s\n' 'plugins/p1/skills/wordy' >"$r/scripts/skill-description-cap-baseline.txt"
 commit_all "$r" base >/dev/null
 b="$(base_sha "$r")"

@@ -1,7 +1,7 @@
 # Spec-first workflow (context-budget-aware)
 
 Alternative execution mode for the staged workflow. Instead of running every stage in ONE long
-session — where every turn re-processes the growing conversation — each stage persists its output to
+session, where every turn re-processes the growing conversation, each stage persists its output to
 disk and the next stage starts fresh via `/clear`.
 
 **Why:** long sessions compound per-turn token cost and invite context rot; clearing between stages
@@ -12,12 +12,12 @@ explore + research + plan + implement stages, cross-session work that may pause 
 
 **When NOT to use:** one-line fixes, quick config tweaks, tightly-coupled
 exploration+implementation (e.g. debugging where findings shape the fix in real time). The default
-is still the single-session pattern — spec-first is opt-in.
+is still the single-session pattern; spec-first is opt-in.
 
 ## How stage handoffs work
 
 Each stage writes its output to the repo's work-artifact location (the consuming repo's documented
-convention, or the topic's memory-tier slice `<memory_dir>/<slug>/` (default `.work/`) — see the workflow skill's "Consumer
+convention, or the topic's memory-tier slice `<memory_dir>/<slug>/` (default `.work/`); see the workflow skill's "Consumer
 conventions"); `/session-flow:handoff` save-points land in the handoff skill's own home (`.work/handoffs/` by
 default). The next stage reads only that artifact.
 
@@ -41,20 +41,20 @@ test → review → verify → /session-flow:retro              ← the back hal
 ```
 
 `/clear` between every stage is the maximum-reduction pattern. In practice, collapse adjacent
-stages when context is still small — but commit to clearing at least between research and plan, and
+stages when context is still small, but commit to clearing at least between research and plan, and
 between plan and implement. Those are the biggest re-processing wins.
 
 ## Why it saves context
 
 A single-session workflow re-processes the entire growing conversation on every turn. By the
 implement stage, each turn carries every explore finding, every research pass, every plan
-iteration — even though implementation only needs the approved plan. With `/clear` between stages,
+iteration, even though implementation only needs the approved plan. With `/clear` between stages,
 each stage's context is tight and purpose-built, and compaction is rarely reached.
 
 ## /handoff: the escape hatch
 
 Mid-stage, if context grows heavy or quality degrades, invoke `/session-flow:handoff` via the Skill tool to snapshot the current
-state and `/clear` — that skill owns which sections a save-point carries. Multiple
+state and `/clear`. That skill owns which sections a save-point carries. Multiple
 save-points accumulate; timestamps keep them ordered.
 
 ## Trade-offs

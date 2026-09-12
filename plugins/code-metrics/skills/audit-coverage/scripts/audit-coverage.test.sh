@@ -4,7 +4,9 @@
 # the join it prints for each committed artifact format
 # (fixtures/coverage/lcov-1x.info, lcov-2.2.info, lcov-absolute-sf.info,
 # cobertura.xml, coverage-py.json, go-cover.out), the run rows that explain a
-# reduced result, and the markdown rendering.
+# reduced result, the sanctioned-replication collapse of the joined document
+# (fixtures/coverage/lcov-cluster.info covers both cluster copies of the
+# registry's shared file), and the markdown rendering.
 #
 # Complexity comes from the sibling audit-complexity script, so its collectors
 # are stubbed at runtime the same way its own suite does it: a temporary bin/
@@ -70,6 +72,7 @@ STUBS="$(mktemp -d)"
 EMPTY_PATH="$(mktemp -d)"
 SCRATCH="$(mktemp -d)"
 trap 'rm -rf "$STUBS" "$EMPTY_PATH" "$SCRATCH"' EXIT
+export CODE_METRICS_REPORT_DIR="$STUBS/reports"
 
 cat >"$STUBS/lizard" <<EOF
 #!/usr/bin/env bash
@@ -85,18 +88,17 @@ chmod +x "$STUBS"/*
 
 # EMPTY_PATH is the caller's PATH with every collector removed, so a real
 # lizard, radon or multimetric on this machine cannot change the rows the
-# assertions read.
-COLLECTOR_NAMES=" scc lizard radon multimetric jscpd gocyclo gocognit dupl shellmetrics eslint type-coverage mypy pmd "
-IFS=':' read -r -a path_dirs <<<"$PATH"
-for dir in "${path_dirs[@]}"; do
-  [[ -d "$dir" ]] || continue
-  for exe in "$dir"/*; do
-    [[ -f "$exe" && -x "$exe" ]] || continue
-    name="${exe##*/}"
-    [[ "$COLLECTOR_NAMES" == *" $name "* ]] && continue
-    [[ -e "$EMPTY_PATH/$name" ]] || ln -s "$exe" "$EMPTY_PATH/$name"
-  done
-done
+# assertions read. The excluded set is the ladder, not a second list.
+# shellcheck source=../../../scripts/tool-free-path.sh
+source "$PLUGIN_ROOT/scripts/tool-free-path.sh"
+cm_fill_tool_free_path "$EMPTY_PATH"
+leftover="$(cm_resolvable_ladder_collectors "$EMPTY_PATH" | sort -u | tr '\n' ' ')"
+leftover="${leftover% }"
+if [[ -z "$leftover" ]]; then
+  pass "no ladder collector is resolvable on the tool-free PATH"
+else
+  fail "no ladder collector is resolvable on the tool-free PATH" "none" "$leftover"
+fi
 unset CODE_METRICS_DISABLE_BUNDLED
 
 run_json() {
@@ -116,8 +118,8 @@ out="$(cd "$SCRATCH" && PATH="$STUBS:$EMPTY_PATH" HOME="$SCRATCH" CODE_METRICS_H
   bash "$SCRIPT" --json --all "$REPO_ROOT/$SOURCES" 2>/dev/null)"
 rc=$?
 assert_eq "no artifact anywhere still exits 0" 0 "$rc"
-assert_doc "every run row is unavailable and names the paths searched" "$out" \
-  'd["run"] and all(r["status"]=="unavailable" and "searched" in (r["reason"] or "") for r in d["run"])'
+assert_doc "every language-lane run row is unavailable and names the paths searched" "$out" \
+  'd["run"] and all(r["status"]=="unavailable" and "searched" in (r["reason"] or "") for r in d["run"] if r["lane"]!="other") and all(r["status"]=="not-applicable" for r in d["run"] if r["lane"]=="other")'
 assert_doc "the document reports that it measured nothing" "$out" 'd["status"]=="empty"'
 assert_contains "the reason lists a well-known artifact name" "$out" "coverage/lcov.info"
 
@@ -230,7 +232,22 @@ assert_eq "markdown exits 0" 0 "$rc"
 assert_contains "markdown carries the run table" "$out" "Coverage of this run"
 assert_contains "markdown states that a reference is not a bar" "$out" "never a bar"
 
-# 9. Usage.
+# 9. A sanctioned-replication registry collapses the copies of a shared file
+# in the joined document too, not only in the complexity child's: the two
+# cluster copies of shared-utils.sh stand as one row with a replica count.
+team="$(mktemp -d)"
+printf 'scope:\n  registries: [plugins/code-metrics/scripts/fixtures/registry/cluster.txt]\n' >"$team/team.yaml"
+"$PY" "$PLUGIN_ROOT/scripts/resolve-config.py" "$team/team.yaml" --ladder "$PLUGIN_ROOT/scripts/collector-ladder.tsv" >"$team/resolved.json"
+out="$(PATH="$STUBS:$EMPTY_PATH" bash "$SCRIPT" --json --config "$team/resolved.json" --all "$SOURCES" --artifacts "$COVERAGE/lcov-cluster.info" 2>/dev/null)"
+rc=$?
+assert_eq "a registry run exits 0" 0 "$rc"
+assert_doc "the two shared-utils copies collapse to one row standing for both files" "$out" \
+  'len([r for r in d["measures"] if r["file"].endswith("shared-utils.sh")])==1 and next(r for r in d["measures"] if r["file"].endswith("shared-utils.sh"))["replicas"]["count"]==2 and "replicated" in next(r for r in d["measures"] if r["file"].endswith("shared-utils.sh"))["labels"]'
+assert_doc "the summary counts the collapsed file once per row it stands for" "$out" \
+  'd["summary"]["files"]==len({f for r in d["measures"] for f in [r["file"], *(r.get("replicas") or {}).get("files", [])]})'
+rm -rf "$team"
+
+# 10. Usage.
 PATH="$EMPTY_PATH" bash "$SCRIPT" "$SOURCES/does-not-exist.py" >/dev/null 2>&1
 assert_eq "a missing explicit scope path exits 2" 2 "$?"
 PATH="$EMPTY_PATH" bash "$SCRIPT" --help 2>&1 | grep -q 'audit-coverage.sh \[--json\]'

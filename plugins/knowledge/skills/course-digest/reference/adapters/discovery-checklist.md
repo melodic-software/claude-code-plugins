@@ -23,7 +23,7 @@ Systematic exploration process for adding a new course platform provider to the 
 
 ## Phase 1: Platform Identification
 
-Determine underlying technology stack. Course platforms are often white-labeled — visible brand may not be the actual LMS.
+Determine underlying technology stack. Course platforms are often white-labeled, so the visible brand may not be the actual LMS.
 
 ### 1.1 Navigate to the course page
 
@@ -75,7 +75,7 @@ Run JavaScript to detect video delivery system:
 }
 ```
 
-**YouTube iframes:** when the player detect shows `youtube: true` or iframe hostnames include YouTube, stop — single public YouTube videos are handled by `/knowledge:video-digest`, not course-digest adapters.
+**YouTube iframes:** when the player detect shows `youtube: true` or iframe hostnames include YouTube, stop. Single public YouTube videos are handled by `/knowledge:video-digest`, not course-digest adapters.
 
 **Critical distinction**: video player may be inside a **cross-origin iframe**. If so, parent page's JS cannot access player's DOM or API. This fundamentally changes extraction strategy.
 
@@ -104,9 +104,9 @@ Check at least one lesson from each of these positions:
 |----------|-----|-------------|
 | **Course intro** (first lesson ever) | Often video-only, no resources | Minimal content |
 | **Module intro** (first in any module) | Conceptual, may have slides | Different resource mix |
-| **Mid-module coding lesson** | Richest content — code, downloads, links | Maximum attachment types |
+| **Mid-module coding lesson** | Richest content: code, downloads, links | Maximum attachment types |
 | **Module end/review** | Often has summary ZIPs, final code state | Download patterns |
-| **Resource/reference page** | Non-video content — downloads, links, PDFs | No video player |
+| **Resource/reference page** | Non-video content: downloads, links, PDFs | No video player |
 | **Course update lesson** (if exists) | May use different content patterns | Version-specific |
 | **Intermission/meta lesson** | Promotional content, reviews, asks | Third-party embeds |
 
@@ -124,7 +124,7 @@ Array.from(document.querySelectorAll('.lecture-attachment')).map(a => {
 })
 ```
 
-Adapt selector for non-Teachable platforms — class pattern will differ.
+Adapt selector for non-Teachable platforms. The class pattern will differ.
 
 **What to record per attachment type**:
 
@@ -219,19 +219,19 @@ page.on("response", async (response) => {
 
 **Gotchas**:
 
-- Tokens in URLs expire quickly — capture response body directly, don't try to re-fetch URL later
-- CORS blocks `fetch()` from parent page to video CDN — must fetch from inside iframe context
-- HLS subtitle segments overlap by design (each ~6s segment includes adjacent cues for smooth playback) — deduplicate by `startTime + text` key
-- Subtitle manifest only loads after video playback starts — must trigger play first
-- Seeking the video does NOT reliably trigger new subtitle segment loads — player caches them
+- Tokens in URLs expire quickly. Capture response body directly, don't try to re-fetch URL later
+- CORS blocks `fetch()` from parent page to video CDN, so fetch from inside iframe context
+- HLS subtitle segments overlap by design (each ~6s segment includes adjacent cues for smooth playback), so deduplicate by `startTime + text` key
+- Subtitle manifest only loads after video playback starts, so trigger play first
+- Seeking the video does NOT reliably trigger new subtitle segment loads. The player caches them
 
 ### 3.4 Check for platform API transcript endpoints
 
 Some platforms expose transcripts via API:
 
-- **Teachable**: `/api/v2/hotmart/private_video?attachment_id={id}` — returns video metadata (video_id, duration, signature) but NOT transcripts
-- **Wistia Data API**: has a captions endpoint but requires the account owner's API token — unusable for third-party courses
-- **Single public YouTube videos**: use `/knowledge:video-digest` (`transcript` / `watch` actions) — caption acquisition via yt-dlp is `/knowledge:video-digest`'s concern, not course adapters
+- **Teachable**: `/api/v2/hotmart/private_video?attachment_id={id}` returns video metadata (video_id, duration, signature) but NOT transcripts
+- **Wistia Data API**: has a captions endpoint but requires the account owner's API token, so it is unusable for third-party courses
+- **Single public YouTube videos**: use `/knowledge:video-digest` (`transcript` / `watch` actions). Caption acquisition via yt-dlp is `/knowledge:video-digest`'s concern, not course adapters
 
 ### 3.5 Fallback: audio extraction + Whisper
 
@@ -266,12 +266,12 @@ ffmpeg -y -headers "Referer: https://player.example.com/\r\n" \
 **Gotchas**:
 
 - Some platforms require `Referer` header, others don't (Hotmart works without it)
-- Some platforms use AES-128 encryption — ffmpeg handles this automatically if key URL is in manifest
+- Some platforms use AES-128 encryption. ffmpeg handles this automatically if key URL is in manifest
 - Token expiry varies by platform: read the lifetime from the token or manifest rather than assuming a window (Mux tokens carry `custom_expiration_minutes`; Hotmart tokens are in the manifest body)
 
 ### 4.3 Verify frame quality
 
-Read extracted frame with Claude's multimodal capability to verify it captures useful content (slides, code, diagrams) — not just a talking head.
+Read extracted frame with Claude's multimodal capability to verify it captures useful content (slides, code, diagrams), not just a talking head.
 
 ## Phase 5: Resource Extraction
 
@@ -279,8 +279,8 @@ Read extracted frame with Claude's multimodal capability to verify it captures u
 
 Check for downloadable files (ZIPs, SQL scripts, Postman collections, OpenAPI specs):
 
-- **Teachable**: `.lecture-attachment-type-file a[href]` — URLs on `uploads.teachablecdn.com`
-- **Dometrain**: "Download course files" button — triggers browser download
+- **Teachable**: `.lecture-attachment-type-file a[href]`, URLs on `uploads.teachablecdn.com`
+- **Dometrain**: "Download course files" button, which triggers a browser download
 - Other platforms may use different CDN domains
 
 **What to record**: file naming pattern (e.g., "02.4 - Lesson Title - Initial.zip"), CDN domain, whether auth is needed for download.
@@ -296,14 +296,14 @@ Inline code blocks shown below the video:
 
 External links provided as supplementary reading:
 
-- **Teachable**: `.lecture-attachment-type-text a[href]` — links with labels
+- **Teachable**: `.lecture-attachment-type-text a[href]`, links with labels
 - Record both URL and link label text (e.g., "Monolith First, by Martin Fowler")
 
 ### 5.4 PDF embeds/downloads
 
 Slide decks or documentation provided as PDFs:
 
-- **Teachable**: `.lecture-attachment-type-pdf_embed a[href]` — direct download from `teachablecdn.com`
+- **Teachable**: `.lecture-attachment-type-pdf_embed a[href]`, a direct download from `teachablecdn.com`
 - Other platforms may use embedded PDF viewers (Google Docs, PDF.js)
 
 ### 5.5 Course-level resources
@@ -369,7 +369,7 @@ Public-facing course page with description, instructor, ratings:
 
 Record any internal APIs found during exploration:
 
-- **Teachable**: `/api/v2/hotmart/private_video?attachment_id={id}` — returns video_id, duration, signature
+- **Teachable**: `/api/v2/hotmart/private_video?attachment_id={id}` returns video_id, duration, signature
 
 ## Phase 8: Verification Matrix
 
@@ -378,7 +378,7 @@ Before writing adapter code, verify every extraction path empirically:
 | Extraction | Method | Tested? | Output Quality |
 |------------|--------|---------|----------------|
 | Course structure | DOM read (curriculum page) | | |
-| Transcript | (platform-specific — document method) | | |
+| Transcript | (platform-specific, document method) | | |
 | Video frames | ffmpeg + HLS URL | | |
 | Code snippets | DOM read | | |
 | File downloads | HTTP GET from CDN | | |
@@ -388,7 +388,7 @@ Before writing adapter code, verify every extraction path empirically:
 | Course metadata | Landing page / API | | |
 | Authentication | Cookie injection | | |
 
-Every row must be "Tested: Yes" with a working proof-of-concept before proceeding to adapter implementation. No assumptions — empirical verification only.
+Every row must be "Tested: Yes" with a working proof-of-concept before proceeding to adapter implementation. No assumptions: empirical verification only.
 
 ## Phase 9: Platform-Specific Gotchas
 
@@ -409,12 +409,12 @@ Common gotchas across platforms:
 
 When extraction starts failing on an existing provider, re-run this subset:
 
-1. **Auth still works?** — inject saved cookies, navigate to a lesson, check for video player
-2. **DOM selectors still valid?** — run the attachment type inventory on 2-3 lessons
-3. **Video player changed?** — check the player type, iframe domain, control buttons
-4. **Transcript still accessible?** — run the transcript extraction on one lesson
-5. **HLS URL still works with ffmpeg?** — extract one frame
-6. **Download URLs still valid?** — check CDN domain hasn't changed
-7. **New content types?** — check if the platform added new attachment types
+1. **Auth still works?** Inject saved cookies, navigate to a lesson, check for video player
+2. **DOM selectors still valid?** Run the attachment type inventory on 2-3 lessons
+3. **Video player changed?** Check the player type, iframe domain, control buttons
+4. **Transcript still accessible?** Run the transcript extraction on one lesson
+5. **HLS URL still works with ffmpeg?** Extract one frame
+6. **Download URLs still valid?** Check CDN domain hasn't changed
+7. **New content types?** Check if the platform added new attachment types
 
 If any check fails, investigate the specific change and update adapter accordingly. Document the change in adapter's gotchas section with a date.

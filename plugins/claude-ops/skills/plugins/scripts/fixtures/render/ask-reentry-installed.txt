@@ -1,0 +1,10 @@
+Marketplace: market1: current (autoUpdate: on)
+In-repo: 0: <case> has no project/local installs
+Updated: 1 plugin(s)
+  - alpha@market1 (user): 0.1.0 → 0.3.0
+Installed: 1 new catalog plugin(s): beta@market1
+Divergences: 0 actionable
+Timing: <elided>
+
+Run journal: <run_dir>
+Timing: <elided>

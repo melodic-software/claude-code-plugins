@@ -3,6 +3,31 @@
 All notable changes to the `tdd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.9]
+
+### Changed
+
+- **`principles`: description prose no longer addresses the reader.** Anthropic's skill-authoring guidance keeps first and second person out of a description because it is injected into the system prompt; the rewritten clauses name the user, the session, or the repository instead. Quoted trigger phrases are unchanged.
+
+## [0.4.8]
+
+### Changed
+
+- **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
+- **Every markdown surface in the plugin passes `/ai-slop:audit`.** Em dashes in the plugin's own
+  prose (this changelog, the principles skill body, and its thirteen references covering the
+  Khorikov and Beck material) are rewritten as a comma, a period, a colon where a definition or
+  list follows, or a restructured sentence. No principle, test-double distinction, coverage
+  argument, or worked example changed.
+- **Quoted Beck and Khorikov sentences keep their em dashes**, inside ignore markers naming the
+  source in five places. Those dashes are the authors'. Where a `> — Author` attribution line
+  carried the dash instead, the attribution moves to its own blockquote paragraph rather than being
+  rewritten.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`,** so the gate defends
+  it from here on.
+- **Changelog, in-place wording corrections to released entries:** the same rewrite was applied
+  inside `[0.4.0]` and `[0.3.0]`. Wording only; every entry's facts are unchanged.
+
 ## [0.4.7]
 
 ### Changed
@@ -77,7 +102,7 @@ All notable changes to the `tdd` plugin are documented here. Format follows
 
 - **Mutation testing named as the partial exception to "no automated way to measure test suite
   quality"** (`code-coverage-khorikov.md`). The chapter's claim is about quality as it defines it and
-  stands; one property — whether assertions can detect a fault rather than merely execute code — is
+  stands; one property, whether assertions can detect a fault rather than merely execute code, is
   automatically measurable, and a file at high coverage with a low mutation score is exercised but
   not checked. The note states the measurement's limits in the same breath (unknowable ceiling from
   equivalent mutants, and targeting the number reproduces the chapter's own perverse incentive).
@@ -95,7 +120,7 @@ fallback stated inline, per the seam-phrasing convention.
 
 - **The bare `/<skill>` alias for this plugin's skills.** Their `SKILL.md` files no longer
   declare a frontmatter `name`. The field is optional and defaults to the directory name, so
-  declaring it only restated the path while registering a second, unnamespaced command — which
+  declaring it only restated the path while registering a second, unnamespaced command, which
   the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
   namespaced command; the command itself is unchanged.
 

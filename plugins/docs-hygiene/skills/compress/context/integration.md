@@ -1,4 +1,4 @@
-# Integration — composition contract
+# Integration: composition contract
 
 How `/docs-hygiene:compress` composes with sibling skills in this plugin and with a consuming repository's own workflows. Every citation below uses the `/skill-name <action>` public-surface form; nothing reaches into another skill's internals (paths, schemas, scripts, heading anchors).
 
@@ -8,11 +8,11 @@ How `/docs-hygiene:compress` composes with sibling skills in this plugin and wit
 |---|---|---|
 | The consuming repo's markdown lint | `/docs-hygiene:compress` runs it | Post-edit verification. SKILL.md "Hard rules" requires `markdownlint-cli2` PASS on every ship, using the consuming repository's markdownlint config when present. If the consumer has a broader lint workflow, it may run after a `/docs-hygiene:compress` batch to surface the full report. Failure blocks ship per the `/docs-hygiene:compress` revert rule |
 | A planning workflow (if the consumer has one) | calls `/docs-hygiene:compress` | Plan authoring. When a planning artifact grows ≥ 2000 words (or an exploration/research artifact beyond 1500 words), the author may invoke `/docs-hygiene:compress <path>` on the artifact before handing it off. Composition is plan-level; the consumer's workflow decides when |
-| An instruction-audit workflow (if the consumer has one) | calls `/docs-hygiene:compress` | Always-loaded surface audit. When such an audit flags `CLAUDE.md` or rule-file size bloat AND empirical yield > 3%, the user may invoke `/docs-hygiene:compress --force <path>` to keep a targeted sub-3% diff. `--force` is required only to **keep** a sub-3% result — the run itself proceeds and auto-reverts without it (SOFT-BLOCK per SKILL.md; not a structural refuse) |
+| An instruction-audit workflow (if the consumer has one) | calls `/docs-hygiene:compress` | Always-loaded surface audit. When such an audit flags `CLAUDE.md` or rule-file size bloat AND empirical yield > 3%, the user may invoke `/docs-hygiene:compress --force <path>` to keep a targeted sub-3% diff. `--force` is required only to **keep** a sub-3% result. The run itself proceeds and auto-reverts without it (SOFT-BLOCK per SKILL.md; not a structural refuse) |
 | `/docs-hygiene:audit-encapsulation` | parallel concern | No invocation either direction. `/docs-hygiene:audit-encapsulation` detects external citations into skill-private surfaces; `/docs-hygiene:compress` edits the markdown targets it is given. The two skills do not interact at runtime |
 | A pre-PR quality gate (if the consumer has one) | calls `/docs-hygiene:compress` | When a pre-PR check surfaces uncommitted `.md` files in the working tree, the user may invoke `/docs-hygiene:compress` (empty arg auto-detects) before PR prep. `/docs-hygiene:compress` does not auto-trigger from any gate; user-gated |
 
-Boundaries with the other bundled siblings — `/docs-hygiene:audit-noise` (noise classification, not flavor) and `/docs-hygiene:extract-ssot` (content relocation at any multiplicity, not flavor — it rosters rule-of-one / -two / -three buckets; only extraction into a NEW artifact waits for 3+ files) — are defined in `../SKILL.md` "What this skill is NOT".
+The other bundled siblings are `/docs-hygiene:audit-noise` (noise classification, not flavor) and `/docs-hygiene:extract-ssot` (content relocation at any multiplicity, not flavor. It rosters rule-of-one / -two / -three buckets; only extraction into a NEW artifact waits for 3+ files). `../SKILL.md` "What this skill is NOT" defines both boundaries.
 
 ## Public-surface invocation forms
 
@@ -42,9 +42,9 @@ NEVER cite this skill's `context/` files, its scripts, or any heading anchor ins
 
 ## Composition with build/test front-ends
 
-`/docs-hygiene:compress` does NOT compose with build or test workflows — those are code-correctness surfaces. Markdown content has no build or test gate beyond markdownlint, which `/docs-hygiene:compress` invokes directly. Within whatever pre-PR sequence the consuming repository runs, `/docs-hygiene:compress` is opportunistic before staging when uncommitted markdown exists, NOT a mandatory step.
+`/docs-hygiene:compress` does NOT compose with build or test workflows. Those are code-correctness surfaces. Markdown content has no build or test gate beyond markdownlint, which `/docs-hygiene:compress` invokes directly. Within whatever pre-PR sequence the consuming repository runs, `/docs-hygiene:compress` is opportunistic before staging when uncommitted markdown exists, NOT a mandatory step.
 
 ## Cross-references
 
-- `../SKILL.md` "Action router" — public-surface action set the composition table cites
-- `../SKILL.md` "What this skill is NOT" — boundaries against lint front-ends, code review, `/docs-hygiene:audit-noise`, `/docs-hygiene:extract-ssot`
+- `../SKILL.md` "Action router": public-surface action set the composition table cites
+- `../SKILL.md` "What this skill is NOT": boundaries against lint front-ends, code review, `/docs-hygiene:audit-noise`, `/docs-hygiene:extract-ssot`

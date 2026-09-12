@@ -6,8 +6,8 @@ Defense-in-depth redaction at output time. Write-time enforcement (in `hook::rec
 
 | Field / pattern | Action | Reason |
 |---|---|---|
-| `subject` containing path | KEEP | Path is intended signal — leak risk is low; debugging value high |
-| `subject` containing full command (`>50 chars` AND containing `\|`, `&&`, `&`, `>`, `<`) | REPLACE with first token + `[truncated]` | Hook bug — should never have logged full cmd; defensive trim |
+| `subject` containing path | KEEP | Path is intended signal, leak risk is low, debugging value high |
+| `subject` containing full command (`>50 chars` AND containing `\|`, `&&`, `&`, `>`, `<`) | REPLACE with first token + `[truncated]` | Hook bug, should never have logged full cmd; defensive trim |
 | `cwd` field | KEEP | Already a path |
 | Field values matching env-var deny list (see below) | REPLACE with `[redacted-env]` | Catches accidental env-var-as-subject |
 | Lines containing 8+ char base64-like token (`[A-Za-z0-9+/]{32,}={0,2}`) | REPLACE token with `[redacted-token]` | Catches accidental secret leak |
@@ -43,7 +43,7 @@ redact() {
 }
 ```
 
-Apply just before final stdout / file write — never to the raw JSONL input.
+Apply just before final stdout / file write, never to the raw JSONL input.
 
 ## What is NEVER redacted
 
@@ -51,7 +51,7 @@ Apply just before final stdout / file write — never to the raw JSONL input.
 - Hook names, event names, exit codes, durations
 - Branch names, commit SHAs (these are public via `git log`)
 - Cost/token totals (no PII)
-- Statusline payload — by spec contains no user content
+- Statusline payload: by spec contains no user content
 
 ## Trust boundary
 
@@ -65,7 +65,7 @@ Does NOT defend against:
 
 ## Memory feedback handling
 
-When reading `~/.claude/projects/<slug>/memory/feedback_*.md` for the calibration signal (Section 6 of report), only count occurrences — never include feedback text in output. Format:
+When reading `~/.claude/projects/<slug>/memory/feedback_*.md` for the calibration signal (Section 6 of report), only count occurrences, never include feedback text in output. Format:
 
 ```
 "<N> dismissals matching 'side observation' / 'noticed' / 'mentioned'"
@@ -85,4 +85,4 @@ Never:
 
 ## Cross-references
 
-- Write-time enforcement: the consumer's hook emitter owns what lands in `subject` — keep it path-only (no content, no URLs with tokens)
+- Write-time enforcement: the consumer's hook emitter owns what lands in `subject`, so keep it path-only (no content, no URLs with tokens)
