@@ -181,7 +181,7 @@ once setup has discovered which file carries the region.
 
 **Dual-read deprecation window.** A migrated skill that finds the retired dedicated file present
 treats it as WARN **and** reads it as authority (at minimum as inference evidence) until the
-consumer cleans it through the retirement mechanism (`docs/MIGRATION-PLAYBOOK.md`
+consumer cleans it through the retirement mechanism (`docs/migration-playbook.md`
 § Retired conventions). This covers a consumer who updated the plugin without re-running setup,
 and is the one sanctioned dual-read: declared per surface by its retirement record, WARN-visible on
 every run, never silent. The window closes for a consumer when that record's cleanup runs, and for

@@ -2,8 +2,8 @@
 
 Owner doc for one rule that has already cost this repo real test validity: **a path that originates
 in Git Bash and is handed to PowerShell, `cmd`, or a Windows-native interpreter must be converted to
-Windows form first.** The [plugin philosophy](../../PLUGIN-PHILOSOPHY.md) owns the
-[cross-platform contract](../../PLUGIN-PHILOSOPHY.md#cross-platform-contract) this rests on, "build
+Windows form first.** The [plugin philosophy](../../plugin-philosophy.md) owns the
+[cross-platform contract](../../plugin-philosophy.md#cross-platform-contract) this rests on, "build
 paths from documented anchors with platform path APIs"; this doc owns the *emit shape* that keeps it
 true at the one boundary where the failure is silent, and names the helper and the detector that back
 it.

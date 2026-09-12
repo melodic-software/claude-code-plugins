@@ -26,7 +26,7 @@ an always-loaded surface than for an on-demand one.
 Every line you write spends two budgets, and cutting one can overspend the other:
 
 - **Context load**. Tokens the agent pays, every session for always-loaded surfaces. Governed
-  marketplace-wide by PLUGIN-PHILOSOPHY's Instruction economy: an instruction earns its place
+  marketplace-wide by plugin-philosophy's Instruction economy: an instruction earns its place
   with observed-stumble evidence, or it goes.
 - **Cognitive load**. Attention the human maintainer pays. The human is the index of the doc
   set: they must be able to hold where things live. Ten tiny fragment files can be cheaper for

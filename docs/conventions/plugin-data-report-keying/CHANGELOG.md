@@ -46,7 +46,7 @@ added, and no worked example is added or removed.
 Initial published contract. Written because the hazard was already understood inside the fleet and
 applied inconsistently *within one plugin*, the signature of a missing rule rather than a per-skill
 oversight. `docs/conventions/` carried eighteen entries and none governed how a plugin names what it
-writes under `${CLAUDE_PLUGIN_DATA}`; the nearest governing text (`docs/MIGRATION-PLAYBOOK.md` seam 4)
+writes under `${CLAUDE_PLUGIN_DATA}`; the nearest governing text (`docs/migration-playbook.md` seam 4)
 scopes *what may live there*, not how it is named.
 
 - **Rule 1 [SPEC]**: every write is keyed `<component>/<state-key>/<filename>`, with `<state-key>` =

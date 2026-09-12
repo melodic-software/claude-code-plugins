@@ -8,7 +8,7 @@
 The three unused official plugin components raised as adoption candidates on this date, evaluated
 against the enforcement hierarchy (default **REJECT** unless the value is concrete and not already
 covered by an existing mechanism). This is that evaluation, not an index of every component the
-marketplace does not use — the [component-stances table](../PLUGIN-PHILOSOPHY.md#component-stances) is
+marketplace does not use — the [component-stances table](../plugin-philosophy.md#component-stances) is
 that index, and it carries a stance for components never raised here. Facts verified fresh
 2026-07-12 per `CLAUDE.md` "Fresh-docs mandate". Verdict for all three: **REJECT now**, each with an
 explicit recheck trigger — no implementation issues emitted (zero accepted).

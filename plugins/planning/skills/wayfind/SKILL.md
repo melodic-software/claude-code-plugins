@@ -183,7 +183,7 @@ owns the trigger's meaning (too-big + fog, both, not either alone).
 
 For pre-implementation efforts, the routed items above compose into a known five-pass order
 (blindspot → brainstorm/prototype → interview → reference port → plan); the workflow section of
-`docs/FINDING-YOUR-UNKNOWNS.md` in the marketplace repository states it with rationale.
+`docs/finding-your-unknowns.md` in the marketplace repository states it with rationale.
 
 ## What this skill does NOT do
 

@@ -12,7 +12,7 @@
 # Opt-in switch: workflow_resilience_check_enabled userConfig option.
 # DEFAULT OFF since 0.20.0: the #2021 hook-surface classification found this
 # is a behavioral-class context injector — two greps and a fixed checklist that
-# asserts nothing the model cannot derive — and PLUGIN-PHILOSOPHY.md's
+# asserts nothing the model cannot derive — and plugin-philosophy.md's
 # instruction-economy evidence gate ablates that class config-off first (the
 # script stays; a consumer opts back in by setting the option to true).
 

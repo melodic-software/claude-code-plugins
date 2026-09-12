@@ -7,7 +7,7 @@ disable-model-invocation: true
 
 ## Purpose
 
-Check-only setup under the Check-only carve-out (`docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit
+Check-only setup under the Check-only carve-out (`docs/plugin-philosophy.md` "Setup is explicit
 and repeatable" in the marketplace repository): this plugin's configuration surface contains no
 writable artifact, so `check` inspects, reports, and points at each remediation, and no `apply` is
 offered because there is nothing it could conformingly write. The warrant is the carve-out's
