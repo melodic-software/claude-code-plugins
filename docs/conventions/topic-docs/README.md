@@ -61,7 +61,7 @@ read again even if that session rarely looks at the file itself.
 |---|---|---|---|
 | Ephemeral | An OS-API-created temp file or directory, one per run | Never in the repo | Files nothing downstream reads: a rendered HTML view, a spill file, a throwaway |
 | Memory | `.work/<slug>/` | Never committed (self-ignoring) | `INDEX.md`, `EXPLORE.md`, `RESEARCH.md`, `INTENT.md`, `<stage>-checklist.md`, `baselines/`, raw captures and scratch, and child slices, recursively (see [The slice tree](#the-slice-tree)) |
-| Memory, concern-scoped | `.work/handoffs/`, `.work/reviews/<branch-slug>/`, `.work/running-retros/`, `.work/overengineering/<branch-slug>/`, `.work/enforceability/<branch-slug>/`, `.work/exports/`, `.work/lanes/` | Never committed | session handoffs; review reports; running-retro ledgers; overengineering findings; enforcement-rung proposal stubs; user-run `/export` conversation snapshots; claude-ops lane state (`lanes.json` + lane prompts). Their axes are session, branch, or machine, so they sit outside topic slices and stay flat unless their own contract says otherwise |
+| Memory, concern-scoped | `.work/handoffs/`, `.work/reviews/<branch-slug>/`, `.work/running-retros/`, `.work/overengineering/<branch-slug>/`, `.work/enforceability/<branch-slug>/`, `.work/exports/`, `.work/lanes/`, `.work/docs-hygiene/<branch-slug>/` | Never committed | session handoffs; review reports; running-retro ledgers; overengineering findings; enforcement-rung proposal stubs; user-run `/export` conversation snapshots; claude-ops lane state (`lanes.json` + lane prompts); the file-name rename plan. Their axes are session, branch, or machine, so they sit outside topic slices and stay flat unless their own contract says otherwise |
 | Contract | `docs/topics/<slug>/` | Committed **on the task branch only**; pruned before merge | `PLAN.md` (Brief + Plan), `PRD.md`, `design/` (incl. the `design-threads.md` / `design-resolution.md` gate files), `verification/` (the distilled manifest) |
 | Durable | knowledge-vault seam, default backend `docs/adr/`, `docs/specs/` | Committed, permanent | promotion targets |
 | Machine state | `${CLAUDE_PLUGIN_DATA}`; `.claude/observability/` | Never committed | telemetry; caches; durable machine-scoped state a later session reopens across projects |
@@ -635,7 +635,9 @@ cite it rather than redefining it.
   `exports`, `lanes`
   (the claude-ops lanes skill's state home, `lanes.json` plus lane
   prompt files, which resolves a literal `.work` root by its own
-  stated carve-out, not `memory_dir`). A topic slug that collides with
+  stated carve-out, not `memory_dir`), and `docs-hygiene`
+  (the file-name rename plan, one branch-slug child per branch).
+  A topic slug that collides with
   a reserved name takes the `-x` suffix. These names stay flat: the
   slice-tree recursion does not apply to them unless their own contract
   says otherwise.
@@ -769,7 +771,7 @@ relationship to the contract is fully stated by their table row.
 | knowledge | ingest trees; `SOURCES.md` (docpage-digest's source inventory, a reserved artifact name). **Formal carve-out**: its work root resolves through its own `library_dir` seam, not `memory_dir`; slug conformance is form-only (charset/reserved names); inside the seam the corpus tree is shape-unified to this contract's slice and `INDEX.md` rules (see [The corpus seam](#the-corpus-seam)) | memory (carved out) | by reference. The carve-out above is its entire delta |
 | claude-ops | telemetry; lane state (`lanes.json` + lane prompts) under the reserved `.work/lanes/` | machine state + memory (`lanes/`) | by reference. The lanes skill states its own literal-`.work` carve-out |
 | education | per-concept `lesson` / `reference` / `exercise` slices; `quiz-me` report library (`recall` reads it back); `primer` vocabulary-ladder HTML | machine state + ephemeral | by reference. Its workspace and report library are its own `${CLAUDE_PLUGIN_DATA}` layouts, and only the workspace-less `primer` render resolves a path this contract owns |
-| docs-hygiene | (reader) audit-noise detector recognizes these shapes | n/a | by reference. Reads shapes, writes nothing |
+| docs-hygiene | (reader) audit-noise detector recognizes these shapes; `audit-file-names` writes one rename plan at `<memory_dir>/docs-hygiene/<branch-slug>/file-names.md`, which `realign-file-names` reads back | memory, concern-scoped | delta doc: [`plugins/docs-hygiene/reference/topic-docs.md`](../../../plugins/docs-hygiene/reference/topic-docs.md). One stable filename per home, rewritten in place; a re-audit merges by finding id. The artifact's own `branch:` frontmatter proves ownership, never its directory, and a detached checkout slugs `detached-<short-sha>` |
 
 ### Implementers restate the rules; they do not share a source
 
