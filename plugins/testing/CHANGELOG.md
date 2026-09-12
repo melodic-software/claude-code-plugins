@@ -3,6 +3,28 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.2]
+
+### Added
+
+- **`audit`**: two Playwright runner-config rules beside the three test-body rules.
+  `testing/audit/rule-flaky-passes-suite` fires when retries are configured (a literal above zero or
+  an expression) while `failOnFlakyTests` is absent or literal `false`, the shape where a test that
+  fails and passes on a retry leaves the run green. `testing/audit/rule-only-not-forbidden` fires
+  when `forbidOnly` is absent or literal `false`, the shape where a committed `test.only` shrinks
+  the suite to one passing test. Both are IMPORTANT with `Confidence` omitted, advisory in `--check`
+  unless `--strict`, which gates them together with `mock-only-oracle`. A new engine,
+  `runner-config-scan.awk`, judges one config per invocation beside the shared masker
+  `mask-js.awk`; the driver walks the six `playwright.config.*` filenames in the runner's own probe
+  order, reads the first per directory and counts the rest as shadowed. Declines carry their
+  evidence (`spread-undecidable`, `variadic-undecidable`, `key-below-top-level`,
+  `retries-not-configured`, `key-set`) and a config whose object literal cannot be anchored is
+  counted as enumerated and not examined rather than judged. `cant-fail-ok:` anywhere in a config
+  exempts it, file-scoped and counted. The coverage block and the `## Surfaces` line gain the config
+  denominator; the exit-2 rule for 0 examined test files is unchanged, so a config-only tree reports
+  its findings without gating or persisting them. Crosswalk rows for both rules land in the
+  detector-findings convention 2.10.0.
+
 ## [0.8.1]
 
 ### Changed

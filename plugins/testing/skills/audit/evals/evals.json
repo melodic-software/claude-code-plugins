@@ -85,6 +85,42 @@
         "Output does not claim to audit bash test files",
         "Output names the discriminating-skip gate as the incumbent for bash skip shapes"
       ]
+    },
+    {
+      "id": 8,
+      "name": "playwright-config-flaky-passes-suite",
+      "prompt": "Our Playwright suite has been green for weeks and every test body looks fine. Audit it for tests that cannot fail.",
+      "expected_output": "Runs cant-fail-scan.sh, which reads each Playwright config alongside the test bodies, and reports testing/audit/rule-flaky-passes-suite with the fired threshold (retries > 0 or an expression, failOnFlakyTests absent or literal false) at the config's retries line. Explains the mechanism: a test that fails and then passes on a retry is flaky, and a run whose only non-passing tests are flaky exits 0, so the suite reports green whatever it caught. Proposes failOnFlakyTests: true (the config option from Playwright 1.52) or retries: 0, and notes the finding is advisory in --check unless --strict.",
+      "files": ["evals/fixtures/config/scaffold/playwright.config.ts", "evals/fixtures/config/scaffold/smoke.spec.ts"],
+      "expectations": [
+        "Output reports testing/audit/rule-flaky-passes-suite with the retries value the config sets and the absent failOnFlakyTests key",
+        "Output explains the retry-recovery mechanism: a test that fails and passes on a retry leaves the run green",
+        "Output proposes failOnFlakyTests: true or retries: 0 and notes the config findings gate only under --strict"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "playwright-config-only-not-forbidden",
+      "prompt": "Someone committed a test.only last sprint and CI stayed green. Can the can't-fail audit catch that?",
+      "expected_output": "Runs the detector, which reads the Playwright config, and reports testing/audit/rule-only-not-forbidden with the fired threshold (forbidOnly absent or literal false) at the config object's anchor line. States what the absence costs: a committed test.only shrinks the suite to that one passing test instead of failing the run. Proposes the scaffold idiom forbidOnly: !!process.env.CI, and notes any non-false expression satisfies the rule.",
+      "files": ["evals/fixtures/config/no-retries/playwright.config.ts"],
+      "expectations": [
+        "Output reports testing/audit/rule-only-not-forbidden with the fired threshold, forbidOnly absent or literal false",
+        "Output proposes forbidOnly: !!process.env.CI in the config rather than editing or deleting a test",
+        "Output states that a committed test.only otherwise shrinks the suite to one passing test"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "config-exemption-is-recorded-not-silenced",
+      "prompt": "We accept flaky retries on this suite deliberately and track them on a dashboard. Stop the audit flagging our Playwright config.",
+      "expected_output": "Offers the in-file cant-fail-ok: <reason> annotation, which in a Playwright config is file-scoped: one annotation anywhere in the file suppresses every config finding in it, and each suppression is counted in the coverage block rather than dropped in silence. Does not propose disabling the rule, turning the detector off, or editing a test, and notes the config rules are advisory in --check unless --strict.",
+      "files": ["evals/fixtures/config/exempt/playwright.config.ts"],
+      "expectations": [
+        "Output offers the cant-fail-ok: <reason> annotation in the config rather than disabling the rule or the detector",
+        "Output states the annotation is file-scoped in a config and that each suppression is counted in the coverage block",
+        "Output reports no finding for the annotated config without presenting it as a config that was never examined"
+      ]
     }
   ]
 }
