@@ -18,7 +18,7 @@ the reviewer to confirm the description still names that intent, or to restore t
 
 ## Checks
 
-`check` runs `check-skill.sh`. Twenty-five checks, reported as `FAIL:` (blocking) or `WARN:` (advisory):
+`check` runs `check-skill.sh`. Twenty-six checks, reported as `FAIL:` (blocking) or `WARN:` (advisory):
 
 - Frontmatter parses; `description` present; a declared `name` is kebab-case and matches the skill
   directory (in a plugin skill it also WARNs as redundant, because the field defaults to the directory).
@@ -148,7 +148,7 @@ stands alone.
   identity, stale metadata, committed artifacts) skip with a note outside a repo so
   marketplace plugin-cache installs (plain trees) still run the rest of the gate.
 - `npx` (Node) is optional; without it the markdownlint check downgrades to a warning and the other
-  twenty-four still gate.
+  twenty-five still gate.
 
 ## Configuration
 
