@@ -124,6 +124,34 @@ assert_contains "the entry diff keeps its status token" "$OUT" "entry-diff summa
 assert_contains "the plane lint keeps its status token" "$OUT" "checks_run=9 status="
 assert_contains "the diff keeps its own DIFF-NOTE records" "$OUT" "DIFF-NOTE:"
 
+# --- Case 9: a failed inventory fails the run --------------------------------
+# The inventory exits 2 without jq. If that status is lost, the entry point
+# reports a failure and exits 0, and automation records a completely failed
+# audit as a passing one. Exercised against a stand-in inventory so the case does
+# not depend on removing jq from the runner.
+STUB_DIR="$(mktemp -d)"
+trap 'rm -rf "$STUB_DIR"' EXIT
+for real in "$SCRIPT_DIR"/*.sh; do
+  case "$(basename "$real")" in
+  *.test.sh) continue ;;
+  *) cp "$real" "$STUB_DIR/" ;;
+  esac
+done
+cat >"$STUB_DIR/permission-state.sh" <<'STUB'
+#!/usr/bin/env bash
+echo "ERROR: jq required" >&2
+exit 2
+STUB
+
+rc=0
+OUT_FAIL=$(bash "$STUB_DIR/audit.sh" 2>/dev/null) || rc=$?
+assert_exit "a failed inventory propagates its exit status" 2 "$rc"
+assert_not_contains "and no stage output is printed" "$OUT_FAIL" "====="
+
+rc=0
+ERR_FAIL=$(bash "$STUB_DIR/audit.sh" 2>&1 >/dev/null) || rc=$?
+assert_contains "the error names the real status, not 0" "$ERR_FAIL" "failed (exit 2)"
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
   exit 0

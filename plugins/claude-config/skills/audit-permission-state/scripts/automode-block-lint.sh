@@ -248,11 +248,18 @@ present = [s for s in SECTIONS if s in config]
 # section counts as customized when it holds an entry the built-in list does not;
 # the CLI expands "$defaults" in its own output, so an untouched section arrives
 # looking identical to the built-in one.
+# Customization is ADDITIONS OR REMOVALS, not additions alone. A section holding
+# a strict subset of the built-in list has no entry the defaults lack, so an
+# additions-only test called it unmodified -- directly above C4 reporting that
+# built-in entries were discarded. Dropping "$defaults" to prune the shipped list
+# is customization, and the loudest kind.
 customized = []
 for _s in present:
     _cur = entries(config, _s)
     _base = entries(defaults, _s)
-    if any(e not in _base for e in _cur):
+    _added = any(e not in _base for e in _cur)
+    _removed = any(e not in _cur for e in _base)
+    if _added or _removed:
         customized.append(_s)
 if present:
     if customized:

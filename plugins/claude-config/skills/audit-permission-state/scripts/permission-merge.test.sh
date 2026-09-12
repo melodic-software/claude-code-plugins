@@ -365,6 +365,32 @@ EOF
 OUT_UNREAD_MERGE=$(printf '%s\n' "$UNREAD_MERGE" | bash "$SCRIPT")
 assert_contains "an unread scope makes the merge incomplete" "$OUT_UNREAD_MERGE" "status=incomplete"
 
+# --- The beaten count reconciles with the inert records -----------------------
+# inert is emitted from three sites: the whole-tool deny branch, the whole-tool
+# ask branch, and the cross-kind loop. A count that tracked only the last one
+# printed beaten=0 beside an inert record on screen.
+COUNTED_DENY=$(
+  cat <<'EOF'
+user settings present /fx/home/.claude/settings.json
+rule user settings deny Bash
+rule user settings allow Bash(git status)
+EOF
+)
+OUT=$(merge "$COUNTED_DENY")
+assert_eq "the whole-tool deny branch emits one inert record" 1 "$(count_matching "$OUT" '^inert ')"
+assert_contains "and the summary counts it" "$OUT" "beaten=1"
+
+COUNTED_ASK=$(
+  cat <<'EOF'
+user settings present /fx/home/.claude/settings.json
+rule user settings ask Bash
+rule user settings allow Bash(git status)
+EOF
+)
+OUT=$(merge "$COUNTED_ASK")
+assert_eq "the whole-tool ask branch emits one inert record" 1 "$(count_matching "$OUT" '^inert ')"
+assert_contains "and the summary counts that too" "$OUT" "beaten=1"
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
   exit 0

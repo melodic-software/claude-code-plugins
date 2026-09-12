@@ -3,6 +3,27 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.43.1]
+
+### Fixed
+
+- **`audit-permission-state`**: the plane lint keyed unreadness by scope, so it kept only the LAST
+  surface record per scope. `managed` emits four (file, drop-in directory, registry, plist), so a
+  skipped registry followed by a not-applicable plist reported `status=read`. Unreadness is now per
+  surface and sticky, and the note names the surface rather than only the scope. This was the same
+  false-clean summary the status token was added to prevent, one level down.
+- **`audit-permission-state`**: `audit.sh` captured the inventory's exit status inside an `if ! cmd`
+  branch, where the negation has already resolved it to 0. A failed inventory, such as a machine
+  without `jq`, printed "failed (exit 0)" and exited successfully, handing automation a completely
+  failed audit as a passing one. The status is captured with `|| rc=$?` instead.
+- **`audit-permission-state`**: the merge counted only the cross-kind losers, so a whole-tool deny or
+  ask that beat a scoped rule printed one `inert` record beside `beaten=0`. All three emission sites
+  now increment the count, so the summary reconciles with the records above it.
+- **`audit-permission-state`**: the `autoMode` block lint derived "customized" from added entries
+  only, so a section holding a strict subset of the built-in list was reported as the unmodified
+  built-in list directly above `C4-defaults` reporting that built-in entries were discarded. Removals
+  count as customization too.
+
 ## [0.43.0]
 
 ### Added

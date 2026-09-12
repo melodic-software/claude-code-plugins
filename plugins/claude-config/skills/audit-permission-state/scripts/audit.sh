@@ -111,10 +111,17 @@ if [[ "$want_scopes" -eq 0 && "$want_entry" -eq 0 && "$want_lint" -eq 0 && "$wan
 fi
 
 # One inventory walk, reused by every consumer below.
-if ! records="$(bash "$HERE/permission-state.sh")"; then
-  rc=$?
-  echo "ERROR: the inventory stage failed (exit $rc); no downstream stage can run without it." >&2
-  exit "$rc"
+#
+# The status is captured with `|| rc=$?` rather than tested with `if !`: the
+# negation resolves the command status to 0 before the body runs, so `$?` inside
+# an `if ! cmd; then` branch reports success for a command that just failed. That
+# would print "failed (exit 0)", exit 0, and hand automation a completely failed
+# audit as a passing one — the same false-clean report this skill exists to catch.
+inv_rc=0
+records="$(bash "$HERE/permission-state.sh")" || inv_rc=$?
+if [[ "$inv_rc" -ne 0 ]]; then
+  echo "ERROR: the inventory stage failed (exit $inv_rc); no downstream stage can run without it." >&2
+  exit "$inv_rc"
 fi
 
 section "Scopes and surfaces"

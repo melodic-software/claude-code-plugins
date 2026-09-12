@@ -190,15 +190,20 @@ END {
         if (win == "") win = kinds[i]
       }
     }
+    # Every `inert` emission increments the count, here as well as in the
+    # cross-kind loop below. A summary that counted only one of the three sites
+    # reported beaten=0 beside an inert record on screen, which is a reader
+    # unable to reconcile the summary with the records it summarizes.
     if (scoped && (tk in bare_deny)) {
       for (i = 1; i <= 3; i++) {
         k = text SUBSEP kinds[i]
-        if (k in kind_seen) print "inert " kinds[i] " scopes=" scopes[k] " removed_by=deny@" tk " " text
+        if (k in kind_seen) { print "inert " kinds[i] " scopes=" scopes[k] " removed_by=deny@" tk " " text; n_inert++ }
       }
       continue
     }
     if (scoped && win == "allow" && (tk in bare_ask)) {
       print "inert allow scopes=" scopes[text SUBSEP "allow"] " outranked_by=ask@" tk " " text
+      n_inert++
       continue
     }
 
