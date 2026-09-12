@@ -121,10 +121,12 @@ This script exports the five tunables to the collector adapters as
 `CODE_METRICS_DUP_MIN_TOKENS`, `CODE_METRICS_DUP_MIN_LINES`, `CODE_METRICS_DUP_IGNORE`,
 `CODE_METRICS_DUP_MAX_LINES`, and `CODE_METRICS_DUP_MAX_SIZE`, which is the only channel an
 adapter reads them through. `jscpd` passes the first three to the tool and applies the two caps
-itself before the tool runs, because jscpd 4 and 5 disagree on what their own `--max-size` and
-`--max-lines` default to and neither names a file it skipped; `dupl` and `cpd` have no
-minimum-lines, ignore-glob, or cap option, so their adapters apply the minimum after parsing,
-report the ignore globs as unused, and scan every file in scope.
+itself before the tool runs; the `dupl` and `cpd` adapters apply the minimum after parsing, report
+the ignore globs as unused, and scan every file in scope. Which options each tool honours, what its
+own defaults are, and why the caps are applied here rather than passed through are tool facts that
+move with the tools, so they are not restated here: the duplication rows of
+`${CLAUDE_PLUGIN_ROOT}/reference/collectors.md` carry each claim with its basis, the date it was
+verified, and the upstream event that obliges a recheck.
 
 `cpd` (PMD) sits after `jscpd` on `${CLAUDE_PLUGIN_ROOT}/scripts/collector-ladder.tsv` for every
 lane but Bash, so it runs only when `jscpd` does not resolve and `pmd` does. A repository that
@@ -162,7 +164,8 @@ overrides are validated against the ladder file and an unknown name is dropped w
 - The pair merge is exact only for byte-identical copies. A class whose copies drifted by a line
   is reported as the detector saw it: the identical span as one class, and the drifted copy's
   shorter overlap as a second group naming the same file with a different range.
-- jscpd 4 and jscpd 5 tokenize differently, so the same tree yields different class counts under
-  the two majors; compare runs made with one detector version, never across the boundary.
+- Two versions of one detector can tokenize the same tree differently and so report different
+  class counts (the jscpd rows of `${CLAUDE_PLUGIN_ROOT}/reference/collectors.md` record the
+  verified case); compare runs made with one detector version, never across a version boundary.
 - Lowering `duplication.min_tokens` finds more and smaller clones, most of them boilerplate the
   language forces; the defaults are the detector's own conservative pair.

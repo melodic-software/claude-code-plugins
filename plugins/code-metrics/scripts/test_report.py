@@ -1162,6 +1162,57 @@ class DuplicationRenderTests(unittest.TestCase):
         self.assertEqual(out.count("| unavailable | jscpd: not on PATH |"), 2)
         self.assertLess(out.index("No clone detector"), out.index("## Coverage"))
 
+    def test_a_not_applicable_lane_does_not_hide_the_no_detector_headline(
+        self,
+    ) -> None:
+        # The `other` lane carries a `not-applicable` duplication row on every
+        # run that has a file outside the language lanes; it is not a probe
+        # that failed, so it must not defeat the all-unavailable check.
+        hint = "jscpd: https://github.com/kucherenko/jscpd (npm install -g jscpd)"
+        doc = duplication_doc(
+            [],
+            status="empty",
+            run=[
+                {
+                    "lane": "bash",
+                    "measure": "duplication",
+                    "collector": None,
+                    "status": "unavailable",
+                    "reason": "jscpd: not on PATH",
+                    "hint": hint,
+                },
+                {
+                    "lane": "other",
+                    "measure": "duplication",
+                    "collector": None,
+                    "status": "not-applicable",
+                    "reason": "no collector covers this lane",
+                    "hint": None,
+                },
+            ],
+            unavailable=["bash/duplication"],
+        )
+        out = self.rendered(doc)
+        self.assertEqual(out.count("No clone detector ran in any lane"), 1)
+        self.assertEqual(out.count("npm install -g jscpd"), 1)
+
+    def test_only_not_applicable_rows_print_no_headline(self) -> None:
+        doc = duplication_doc(
+            [],
+            status="empty",
+            run=[
+                {
+                    "lane": "other",
+                    "measure": "duplication",
+                    "collector": None,
+                    "status": "not-applicable",
+                    "reason": "no collector covers this lane",
+                    "hint": None,
+                }
+            ],
+        )
+        self.assertNotIn("No clone detector ran", self.rendered(doc))
+
     def test_a_lane_that_skipped_every_file_is_partial_not_empty(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             d = Path(tmp)

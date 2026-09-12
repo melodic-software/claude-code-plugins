@@ -451,8 +451,12 @@ def render(
     duplication = _is_duplication(doc)
     lines.append(f"# code-metrics: {doc.get('skill', '?')}")
     lines.append("")
+    # A `not-applicable` row (the `other` lane, which no detector covers) is
+    # not a probe that failed, so it neither earns the headline nor blocks it.
     detector_rows = [
-        row for row in doc.get("run", []) if row.get("measure") == "duplication"
+        row
+        for row in doc.get("run", [])
+        if row.get("measure") == "duplication" and row.get("status") != "not-applicable"
     ]
     if (
         duplication
