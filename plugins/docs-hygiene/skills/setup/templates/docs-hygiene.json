@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "_comment": "Bundled defaults for the docs-hygiene file-name skills. Copy into .claude/docs-hygiene.json and edit. Every key is documented in plugins/docs-hygiene/reference/config.md. The values below are this marketplace's own: docs/ is the scope root, ADR, spec, and upstream trees are the historical tier, released changelog entries are frozen, and docs/architecture/landscape.json is generated rather than edited.",
+  "file_names": {
+    "roots": ["docs"],
+    "rule": "lower-kebab",
+    "regex": "^[a-z0-9]+([.-][a-z0-9]+)*\\.[a-z0-9]+$",
+    "exempt_basenames": ["README.md", "CHANGELOG.md", "INDEX.md"],
+    "exempt_paths": ["docs/topics/**"],
+    "exempt_extensions": ["py", "sh", "mjs", "js", "ps1"],
+    "tiers": [
+      {
+        "name": "historical",
+        "paths": ["docs/adr/**", "docs/specs/**", "docs/upstream/**"],
+        "forms": "links-and-paths"
+      },
+      {
+        "name": "released",
+        "paths": ["**/CHANGELOG.md"],
+        "forms": "none"
+      }
+    ],
+    "sweep_exclude": [
+      ".work/**",
+      "docs/topics/**",
+      "plugins/education/**",
+      "plugins/domain-driven-design/**"
+    ],
+    "sweep_exclude_sites": [],
+    "generated": [
+      {
+        "path": "docs/architecture/landscape.json",
+        "regenerate": "bash plugins/architecture/skills/map-landscape/scripts/landscape-record.sh --source 'current repository plus reference graph' --remote 'not used' --edges-from . . > docs/architecture/landscape.json",
+        "churn": ["generated_on", "repositories[].last_touched"]
+      }
+    ],
+    "redirect_map": null
+  }
+}
