@@ -5,12 +5,12 @@ capability behind it is dead or its findings are invisible**. One contract: a co
 **fails loud** or **routes its findings into an agent-readable channel**, never both green and
 silent. "Green-with-hidden-findings" and "healthy-while-dead" are contract violations.
 
-The fleet already states slices of this doctrine in prose, in [`PLUGIN-PHILOSOPHY`](../../PLUGIN-PHILOSOPHY.md)
-[Prerequisites and failure behavior](../../PLUGIN-PHILOSOPHY.md#prerequisites-and-failure-behavior)
+The fleet already states slices of this doctrine in prose, in [`plugin-philosophy`](../../plugin-philosophy.md)
+[Prerequisites and failure behavior](../../plugin-philosophy.md#prerequisites-and-failure-behavior)
 ("No black boxes: a silently skipped feature is a defect"; "Do not swallow errors or claim success
 when the promised result was not produced"), and enforces one mechanical slice in CI
 (`silent-skip-gate` over `plugins/*/hooks/*.sh`). Under the
-[convention registry](../../PLUGIN-PHILOSOPHY.md#convention-registry)'s one-owner-per-concern rule,
+[convention registry](../../plugin-philosophy.md#convention-registry)'s one-owner-per-concern rule,
 this doc closes the gap: a cross-surface contract for the **false-green** class that the hook-only
 gate cannot reach
 ([melodic-software/claude-code-plugins#532](https://github.com/melodic-software/claude-code-plugins/issues/532)).
@@ -93,7 +93,7 @@ this peel publishes the contract only.
 
 | Existing surface | How it relates |
 |---|---|
-| [`PLUGIN-PHILOSOPHY` Prerequisites and failure behavior](../../PLUGIN-PHILOSOPHY.md#prerequisites-and-failure-behavior) | Prose doctrine this convention specializes for health/status/advisory/gate surfaces. Prerequisites section remains the entry point for runtime-absence classification; this doc adds the false-green class and surface taxonomy. |
+| [`plugin-philosophy` Prerequisites and failure behavior](../../plugin-philosophy.md#prerequisites-and-failure-behavior) | Prose doctrine this convention specializes for health/status/advisory/gate surfaces. Prerequisites section remains the entry point for runtime-absence classification; this doc adds the false-green class and surface taxonomy. |
 | [`hook-observability`](../hook-observability/README.md) | Owns the three hook output surfaces (`statusMessage`, `systemMessage`, telemetry). Prerequisite-skip visibility is one *hook-shaped* instance of the core contract. |
 | `silent-skip-gate` (`scripts/check-silent-skips.sh`) | Mechanical enforcement of the hook slice only. Not a stand-in for this convention. |
 | Hygiene lane aggregator `--self-test` | Conforming counter-example for engine health-check: self-test before trust. |
@@ -146,6 +146,6 @@ instance rows is a minor bump; docs-only clarification is a patch.
 
 ## External authority
 
-- [`PLUGIN-PHILOSOPHY` Prerequisites and failure behavior](../../PLUGIN-PHILOSOPHY.md#prerequisites-and-failure-behavior): prose doctrine this convention specializes.
+- [`plugin-philosophy` Prerequisites and failure behavior](../../plugin-philosophy.md#prerequisites-and-failure-behavior): prose doctrine this convention specializes.
 - [`hook-observability`](../hook-observability/README.md): hook-shaped visibility surfaces and the `silent-skip-gate` slice.
 - `melodic-software/standards` `conventions/engineering/enforceability-tiers.md`: tier vocabulary and routing rule.

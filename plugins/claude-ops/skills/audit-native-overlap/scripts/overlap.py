@@ -71,6 +71,26 @@ OBSERVATION_CLASSES = ("extraction", "live-roster", "upstream-source")
 COMPONENT_KINDS = ("skill", "agent")
 NATIVE_MARKERS = ("hidden", "gated")
 
+# Extraction lanes the sibling extractor reports integrity for, and the
+# native class each one carries. Session-provided and marketplace classes have
+# no lane: nothing about them is derivable from the binary.
+LANE_ORDER = ("builtin_commands", "bundled_skills", "plugin_backed")
+LANE_OF_CLASS = {
+    "builtin-command": "builtin_commands",
+    "bundled-skill": "bundled_skills",
+    "plugin-backed-builtin": "plugin_backed",
+}
+
+
+def _registrations(entry: Any) -> list[dict[str, Any]]:
+    """Every registration behind one native name (a list on a name collision)."""
+    if isinstance(entry, list):
+        return [item for item in entry if isinstance(item, dict)]
+    if isinstance(entry, dict):
+        return [entry]
+    return []
+
+
 # Lane order in the generated view: (class, section heading, singular noun used
 # in a row's own prose). Provenance classes are never merged into one list -
 # they carry different disable switches and different rosters per host.
@@ -99,6 +119,20 @@ GATE_TOKEN = "resolves in your session"
 # native-references). A baked description phrase for that class carries this
 # token instead; the reverse-parity scan keys on both, per class.
 MARKETPLACE_GATE_TOKEN = "installed from its marketplace"
+
+# A description that names a native surface by class and kind inside a
+# presence clause (`when|where|if ... the bundled design skill is available`)
+# without the gate token is routing on a presence condition the registry
+# cannot see: no store row records it and no parity check protects it. The
+# availability word is what separates a presence condition from a plain
+# mention ("Not for: the bundled doctor skill's fix pass").
+PRESENCE_MENTION_RE = re.compile(
+    r"\b(?:when|where|if)\b[^.;()]{0,80}?"
+    r"\b(?:bundled|built-in|plugin-backed built-in|session-provided)\s+"
+    r"(?:[\w/-]+\s+){0,3}?(?:skill|command)s?\b"
+    r"[^.;()]{0,40}?\b(?:available|present|installed|enabled|resolves?|exists?|ships)\b",
+    re.IGNORECASE,
+)
 
 START_MARKER = "<!-- native-surfaces:start -->"
 END_MARKER = "<!-- native-surfaces:end -->"
@@ -771,6 +805,48 @@ def check_baked_parity(repo: Path, rows: list[dict[str, Any]]) -> list[str]:
     return problems
 
 
+def check_presence_mentions(repo: Path) -> list[str]:
+    """Descriptions routing on a native surface's presence without the gate token.
+
+    Advisory, never a break: the two shapes it catches on a real tree are
+    legitimate pending rows, and the fix is a store row plus a baked phrase
+    (or dropping the condition), not a red gate. A description carrying a
+    gate token anywhere is left to the parity checks, which own it.
+    """
+    advisories: list[str] = []
+    plugins_dir = repo / "plugins"
+    if not plugins_dir.is_dir():
+        return advisories
+    for skill_md in sorted(plugins_dir.glob("*/skills/*/SKILL.md")):
+        try:
+            frontmatter, _ = split_frontmatter(skill_md.read_text(encoding="utf-8"))
+        except OSError:
+            continue
+        description = frontmatter_description(frontmatter)
+        if not description:
+            continue
+        plugin = skill_md.parents[2].name
+        skill = skill_md.parent.name
+        for match in PRESENCE_MENTION_RE.finditer(description):
+            # Token presence is judged per clause, not per description: one
+            # skill may carry a gated marketplace clause and an ungated native
+            # clause, and the second is the one this check exists to find.
+            clause_end = len(description)
+            for stop in ".;)":
+                at = description.find(stop, match.start())
+                if at != -1:
+                    clause_end = min(clause_end, at)
+            clause = description[match.start() : clause_end]
+            if GATE_TOKEN in clause or MARKETPLACE_GATE_TOKEN in clause:
+                continue
+            advisories.append(
+                f"{plugin}:{skill} names a native surface behind a presence condition "
+                f'without a gate token ("{match.group(0).strip()}"); add a store row '
+                f'and bake the phrase with "{GATE_TOKEN}", or drop the condition'
+            )
+    return advisories
+
+
 # ---------------------------------------------------------------------------
 # Subcommands
 # ---------------------------------------------------------------------------
@@ -816,6 +892,19 @@ def cmd_detect(args: argparse.Namespace) -> int:
     status = (
         integrity.get("status", "unknown") if isinstance(integrity, dict) else "unknown"
     )
+    # Per-lane floors, when the extractor reports them. An older inventory
+    # without `lanes` is read through the top-level status alone, so a
+    # consumer on a newer plugin against an older extraction still parses.
+    lanes = integrity.get("lanes") if isinstance(integrity, dict) else None
+    if not isinstance(lanes, dict):
+        lanes = None
+
+    def lane_state(lane: str | None) -> dict[str, Any] | None:
+        if lane is None or lanes is None:
+            return None
+        entry = lanes.get(lane)
+        return entry if isinstance(entry, dict) else None
+
     components = scan_components(repo)
     known_skills = set(components["skills"])
     known_agents = set(components["agents"])
@@ -847,15 +936,59 @@ def cmd_detect(args: argparse.Namespace) -> int:
             evidence.append(
                 f"`{native.get('name')}` present in the extraction as {seen['class']}"
             )
-            entry = seen["entry"]
-            if isinstance(entry, dict):
+            registrations = _registrations(seen["entry"])
+            if len(registrations) > 1:
+                evidence.append(
+                    f"name collision: {len(registrations)} distinct registrations share "
+                    "this name in the extraction; a per-registration property (model "
+                    "invocability, gating) is read from the registration the row's "
+                    "evidence names, never from the bare name"
+                )
+            for position, entry in enumerate(registrations, start=1):
+                tag = f"[{position}] " if len(registrations) > 1 else ""
                 markers = [m for m in NATIVE_MARKERS if entry.get(m)]
                 if markers:
-                    evidence.append(f"markers: {', '.join(markers)}")
+                    evidence.append(f"{tag}markers: {', '.join(markers)}")
                 if entry.get("aliases"):
-                    evidence.append(f"aliases: {', '.join(entry['aliases'])}")
+                    evidence.append(f"{tag}aliases: {', '.join(entry['aliases'])}")
                 if entry.get("description"):
-                    evidence.append(f"native description: {entry['description']}")
+                    evidence.append(f"{tag}native description: {entry['description']}")
+                if "disable_model_invocation" in entry:
+                    mode = (
+                        "disabled" if entry["disable_model_invocation"] else "enabled"
+                    )
+                    flagged = "disable_model_invocation" in (
+                        entry.get("flag_driven") or []
+                    )
+                    evidence.append(
+                        f"{tag}model invocation: {mode}"
+                        + (" (flag-driven at runtime)" if flagged else "")
+                    )
+        # The lane a candidate's re-derivability depends on: the seeded class
+        # when the name is absent from the extraction, the observed class when
+        # present, and both when the two disagree (a class collision), so a
+        # broken lane on either side marks the candidate.
+        seeded_lane = LANE_OF_CLASS.get(native.get("class"))
+        observed_lane = LANE_OF_CLASS.get(seen["class"]) if seen else None
+        relevant_lanes = {lane for lane in (seeded_lane, observed_lane) if lane}
+        re_derivable: bool | None
+        if not relevant_lanes:
+            re_derivable = None  # session-provided and marketplace rows have no lane
+        else:
+            broken = [
+                lane
+                for lane in sorted(relevant_lanes)
+                if (lane_state(lane) or {}).get("status") == "broken"
+            ]
+            re_derivable = not broken
+            for lane in broken:
+                problems = (lane_state(lane) or {}).get("problems") or []
+                evidence.append(
+                    f"the `{lane}` lane of this extraction is broken"
+                    + (f" ({'; '.join(problems)})" if problems else "")
+                    + " - presence or absence in that lane is not re-derivable from "
+                    "this run"
+                )
         kind = component.get("kind", "skill")
         pool = known_agents if kind == "agent" else known_skills
         target_present = target in pool
@@ -873,26 +1006,55 @@ def cmd_detect(args: argparse.Namespace) -> int:
                 },
                 "component": component,
                 "component_present": target_present,
+                "re_derivable": re_derivable,
                 "verdict": None,
                 "evidence": evidence,
             }
         )
 
+    report_integrity: dict[str, Any] = {
+        "status": status,
+        "cli_version": integrity.get("cli_version")
+        if isinstance(integrity, dict)
+        else None,
+        "validated_against": (
+            integrity.get("validated_against") if isinstance(integrity, dict) else None
+        ),
+        "counts_are": "floors" if status != "ok" else "totals",
+    }
+    if lanes is not None:
+        # A run-wide advisory (an unvalidated CLI version) applies to every
+        # lane's numbers, so an ok lane under it still reports floors. A lane
+        # -attributed advisory (prefixed with the lane name by the extractor)
+        # degrades only its own lane: a healthy lane beside a broken one keeps
+        # its totals, which is the point of reporting per lane.
+        lane_prefixes = tuple(f"{lane}:" for lane in LANE_ORDER) + tuple(
+            f"{lane} lane broken:" for lane in LANE_ORDER
+        )
+        run_wide = [
+            advisory
+            for advisory in (integrity.get("advisories") or [])
+            if isinstance(advisory, str) and not advisory.startswith(lane_prefixes)
+        ]
+        report_integrity["lanes"] = {
+            lane: {
+                "status": (lane_state(lane) or {}).get("status", "unknown"),
+                "counts_are": (
+                    "not reportable"
+                    if (lane_state(lane) or {}).get("status") == "broken"
+                    else "floors"
+                    if (lane_state(lane) or {}).get("status") != "ok" or run_wide
+                    else "totals"
+                ),
+            }
+            for lane in LANE_ORDER
+            if lane_state(lane) is not None
+        }
+
     report = {
         "schema": 1,
         "repo": str(repo),
-        "integrity": {
-            "status": status,
-            "cli_version": integrity.get("cli_version")
-            if isinstance(integrity, dict)
-            else None,
-            "validated_against": (
-                integrity.get("validated_against")
-                if isinstance(integrity, dict)
-                else None
-            ),
-            "counts_are": "floors" if status != "ok" else "totals",
-        },
+        "integrity": report_integrity,
         "target_scan": {
             "skills": len(components["skills"]),
             "agents": len(components["agents"]),
@@ -913,10 +1075,18 @@ def cmd_detect(args: argparse.Namespace) -> int:
         _fail("inventory integrity is broken - no native-side counts are reportable")
         return 1
     if status != "ok":
-        print(
-            f"degraded: inventory integrity is {status}; every native-side count is a floor",
-            file=sys.stderr,
+        broken_lanes = [
+            lane
+            for lane in LANE_ORDER
+            if (lane_state(lane) or {}).get("status") == "broken"
+        ]
+        detail = (
+            f"; lane(s) {', '.join(broken_lanes)} broken, their counts are not "
+            "reportable and their candidates are marked re_derivable: false"
+            if broken_lanes
+            else "; every native-side count is a floor"
         )
+        print(f"degraded: inventory integrity is {status}{detail}", file=sys.stderr)
         return 3
     return 0
 
@@ -1001,6 +1171,7 @@ def cmd_self_check(args: argparse.Namespace) -> int:
             )
 
     problems.extend(check_baked_parity(repo, rows))
+    advisories.extend(check_presence_mentions(repo))
 
     # A verdict lives for the model only once the component's body carries its
     # Boundary section; the store alone ships to nobody. Broken, not degraded:
@@ -1070,30 +1241,36 @@ def cmd_self_check(args: argparse.Namespace) -> int:
     if recorded_shas:
         # Mirrors the --cli-version seam: the registry never fetches upstream
         # itself, so without the flag the comparison is honestly undecidable.
-        if args.upstream_sha:
-            current_sha = args.upstream_sha.strip().lower()
-            if not re.fullmatch(r"[0-9a-f]{8,40}", current_sha):
+        # The flag repeats, one value per upstream repository the store cites
+        # (a changelog commit in one repository, a plugin commit in another),
+        # and a recorded commit matches when any provided value matches it.
+        current_shas: list[str] = []
+        for raw in args.upstream_sha or []:
+            candidate = raw.strip().lower()
+            if not re.fullmatch(r"[0-9a-f]{8,40}", candidate):
                 # A malformed value must not silently pass: an empty or short
                 # prefix would match every recorded SHA via startswith.
                 advisories.append(
-                    f"--upstream-sha {args.upstream_sha!r} is not an 8-40 character "
+                    f"--upstream-sha {raw!r} is not an 8-40 character "
                     "hex commit prefix; the recorded upstream commit(s) "
-                    f"{', '.join(recorded_shas)} were not checked"
+                    f"{', '.join(recorded_shas)} were not checked against it"
                 )
-                current_sha = None
-        else:
-            current_sha = None
-        if current_sha:
+                continue
+            current_shas.append(candidate)
+        if current_shas:
             drifted = [
                 sha
                 for sha in recorded_shas
-                if not (sha.startswith(current_sha) or current_sha.startswith(sha))
+                if not any(
+                    sha.startswith(current) or current.startswith(sha)
+                    for current in current_shas
+                )
             ]
             if drifted:
                 advisories.append(
                     f"recorded upstream commit(s) {', '.join(drifted)} differ from "
-                    f"--upstream-sha {current_sha}; rows sourced from them are "
-                    "stale-but-honest until re-derived"
+                    f"--upstream-sha {', '.join(current_shas)}; rows sourced from them "
+                    "are stale-but-honest until re-derived"
                 )
         elif not args.upstream_sha:
             advisories.append(
@@ -1148,7 +1325,7 @@ def build_parser(default_repo: Path, default_pairs: Path) -> argparse.ArgumentPa
         sub.add_argument(
             "--view",
             default=None,
-            help="generated registry view (default: <repo>/docs/NATIVE-SURFACES.md)",
+            help="generated registry view (default: <repo>/docs/native-surfaces.md)",
         )
 
     detect = subparsers.add_parser(
@@ -1186,11 +1363,13 @@ def build_parser(default_repo: Path, default_pairs: Path) -> argparse.ArgumentPa
     )
     self_check.add_argument(
         "--upstream-sha",
+        action="append",
         default=None,
         help=(
-            "compare upstream-source rows' recorded commits against this SHA (offline "
-            "seam; the registry never fetches upstream itself - without the flag the "
-            "comparison is reported as not locally decidable)"
+            "compare upstream-source rows' recorded commits against this SHA; repeat "
+            "the flag once per upstream repository the store cites (offline seam; the "
+            "registry never fetches upstream itself - without the flag the comparison "
+            "is reported as not locally decidable)"
         ),
     )
     add_paths(self_check)
@@ -1215,7 +1394,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.store is None:
         args.store = str(repo / "docs" / "native-surfaces" / "records.json")
     if args.view is None:
-        args.view = str(repo / "docs" / "NATIVE-SURFACES.md")
+        args.view = str(repo / "docs" / "native-surfaces.md")
 
     if args.command == "detect":
         return cmd_detect(args)

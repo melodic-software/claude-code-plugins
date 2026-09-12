@@ -62,11 +62,11 @@ findings came from. Four of its results are factual defects rather than style dr
 Ordered as the predecessor's sequencing note requires: the owner doc first, then the call sites, one
 editing pass per file.
 
-### Owner edits, `docs/PLUGIN-PHILOSOPHY.md`
+### Owner edits, `docs/plugin-philosophy.md`
 
 - **A `runtime-grounded` clause** in "Setup is explicit and repeatable". The recorded cluster
   `setup-probe-dont-recite` named this owner and recorded the clause as absent; it was, and
-  `grep -n "recite" docs/PLUGIN-PHILOSOPHY.md` returned nothing. Twenty setup skills asserted the
+  `grep -n "recite" docs/plugin-philosophy.md` returned nothing. Twenty setup skills asserted the
   rule with no owner to point at.
 - **Three missing Convention registry rows.** `hook-budget`, `tracker-reference-form` and
   `untrusted-content` each open by declaring themselves owner docs and each was absent from the
@@ -74,7 +74,7 @@ editing pass per file.
   check conformance per row." A convention with no row gets no conformance check, and
   `untrusted-content` is fleet-adopted and anchors a standing refusal.
 - **A registry row for the dynamic-context precompute convention**, owned by the `playbooks` plugin.
-  The recorded cluster proposed a new `docs/PLUGIN-PHILOSOPHY.md` section named "Inline-template
+  The recorded cluster proposed a new `docs/plugin-philosophy.md` section named "Inline-template
   conventions"; that heading already exists under "Delegation mechanics" and owns a different
   subject (what a dispatch prompt must contain), so a second one would have duplicated an anchor and
   merged two unrelated concerns.
@@ -256,13 +256,13 @@ on disk. One is fixed in this change set; the second, a table cell in the same f
 
 | Cluster | Sites | Proposed owner |
 |---|---|---|
-| `read-only-artifact-write-reconciliation` | 7 audit skills | `docs/PLUGIN-PHILOSOPHY.md` "Naming". Seven skills reason from one unowned premise to two opposite bare-invocation defaults, and the repo has already shipped a detector that "quietly violated its own skill's stated hard rule" on it |
-| `destructive-consent-floor` | 5 skills | `docs/PLUGIN-PHILOSOPHY.md` "Naming", which already uses "explicit user override" and "never under a blanket approval" without defining either. The fleet holds two live rules on whether a flag is consent, for the same operation |
-| `worker-return-is-synthesis` | 13 files, 8 plugins | `docs/PLUGIN-PHILOSOPHY.md` "Delegation mechanics". The re-verification scope has already forked: four sites require every finding re-verified, one requires only the claims a conclusion rests on |
+| `read-only-artifact-write-reconciliation` | 7 audit skills | `docs/plugin-philosophy.md` "Naming". Seven skills reason from one unowned premise to two opposite bare-invocation defaults, and the repo has already shipped a detector that "quietly violated its own skill's stated hard rule" on it |
+| `destructive-consent-floor` | 5 skills | `docs/plugin-philosophy.md` "Naming", which already uses "explicit user override" and "never under a blanket approval" without defining either. The fleet holds two live rules on whether a flag is consent, for the same operation |
+| `worker-return-is-synthesis` | 13 files, 8 plugins | `docs/plugin-philosophy.md` "Delegation mechanics". The re-verification scope has already forked: four sites require every finding re-verified, one requires only the claims a conclusion rests on |
 | `dispatch-prompt-part-contract` | 6 files | The same section, which carries a four-part list that matches no consumer's. Four, five and six-part contracts are all in force |
 | `fanout-concurrency-cap` | 9 numeric sites | The same section, which has no concurrency content at all. Nine caps from 1 to a dozen with five grounds and no owner, while a fleet audit already treats "a numeric concurrency cap" as satisfying a required posture |
 | `config-cascade-unreadable-layer` | 5 setup skills | `docs/conventions/config-cascade/`, whose resolution algorithm covers a malformed layer and not an unreadable one. Five skills invented a variant; one file states it twice, differently |
-| `settings-scope-write-posture` | 3 audit skills | `docs/PLUGIN-PHILOSOPHY.md` "Configuration ownership and scope". Two owner docs exist and each is scoped so it binds none of the three sites |
+| `settings-scope-write-posture` | 3 audit skills | `docs/plugin-philosophy.md` "Configuration ownership and scope". Two owner docs exist and each is scoped so it binds none of the three sites |
 
 ### In-plugin consolidations
 
@@ -437,7 +437,7 @@ available: the alternative is a changelog entry that does not say what it change
 ### Three trees the sweep excluded by fiat
 
 The sweep's encapsulation floor scoped itself to `docs/**` and then dropped five subtrees. Two of the
-exclusions are defensible and stated as such: `docs/SKILL-CHEAT-SHEET.md` (162 citations, generated
+exclusions are defensible and stated as such: `docs/skill-cheat-sheet.md` (162 citations, generated
 and CI drift-checked, so an edit is reverted by its generator) and `docs/upstream/` (vendored, not
 this repo's prose to style). **The other three rest on nothing.** `docs/specs/` (roughly 265 sites),
 `docs/topics/` (roughly 43) and `docs/adr/` (25) were excluded on the assertion that "the dated
@@ -457,7 +457,7 @@ expression, and per this file's own recall-limits discipline none of these numbe
 
 ### A stale record found in passing, not an ADR matter
 
-`docs/MIGRATION-PLAYBOOK.md`'s "Review record: `dometrain` (ACCEPT, 2026-07-22)" carries the
+`docs/migration-playbook.md`'s "Review record: `dometrain` (ACCEPT, 2026-07-22)" carries the
 clause "Reviewed at `0.1.0`; a version bump adding a new trust surface re-triggers this review."
 **The plugin's manifest reads `0.2.7`** (`plugins/dometrain/.claude-plugin/plugin.json`, read from
 the working tree, not from the roster). Eleven releases landed in between and the review was never
@@ -491,12 +491,12 @@ the accurate statement and needs no edit. Recorded rather than left, because a s
 reading stronger in the log than in the artifact is the direction that misleads.
 
 **The `:943` re-anchoring was good practice for a reason that was not true.** `dd6c11fe`'s message
-says the spec's `dometrain` entry pinned `MIGRATION-PLAYBOOK.md:943`, "a line this change's own edit
+says the spec's `dometrain` entry pinned `migration-playbook.md:943`, "a line this change's own edit
 would have invalidated", and claims the decay rule was for the first time "caught before landing".
 The insertion lands below that line:
 
 ```console
-$ git show dd6c11fe --unified=0 --format='' -- docs/MIGRATION-PLAYBOOK.md | grep '^@@'
+$ git show dd6c11fe --unified=0 --format='' -- docs/migration-playbook.md | grep '^@@'
 @@ -944,0 +945,7 @@ ### Review record — `dometrain` (ACCEPT, 2026-07-22)
 ```
 
@@ -513,7 +513,7 @@ established.
 
 **"Every one of #3468's ADR-0018 citation fixes wrote a CHANGELOG entry" is false, in the
 harmless direction.** `c66f26ce` also fixed two sites that produced no changelog entry: the
-Convention registry row in `docs/PLUGIN-PHILOSOPHY.md`, and a `skills/confirm/SKILL.md` parenthetical
+Convention registry row in `docs/plugin-philosophy.md`, and a `skills/confirm/SKILL.md` parenthetical
 in `docs/conventions/pre-pr-ordering/README.md`, a convention that ships no `CHANGELOG.md` at all
 (`ls docs/conventions/pre-pr-ordering/` returns `README.md` alone). Both were resolved by deleting
 the path rather than by quoting it, so neither manufactured a new citation. The twelve-row count and
@@ -576,7 +576,7 @@ actually supports is the near-inverse:
 > summary an update.** Cross-file staleness is the default outcome, not the exception: the fix and
 > the record live in different files, nothing in the toolchain links them, and the commit has no
 > reason of its own to open the record. #3380 closed 32 of 34 rows spread across a `.claude/rules/`
-> file, `docs/PLUGIN-PHILOSOPHY.md`, four convention READMEs and several plugins' trees, and left a
+> file, `docs/plugin-philosophy.md`, four convention READMEs and several plugins' trees, and left a
 > two-hour-old roster in `docs/specs/` asserting the opposite, and four later passes paid for it.
 >
 > An earlier version of this paragraph said "three plugins' files", which `git show --stat 6c7a1032`
@@ -813,7 +813,7 @@ figures to differ.
   trusting the roster. That pass resolved **16 citations at 12 sites in 8 files**, every one
   rewritten to the `/plugin:skill` public invocation on the
   [`loop-lane` 9.0.1](../conventions/loop-lane/CHANGELOG.md) form. Beyond the five named above it
-  reached `docs/PLUGIN-PHILOSOPHY.md`'s Convention registry (the dynamic-context precompute row
+  reached `docs/plugin-philosophy.md`'s Convention registry (the dynamic-context precompute row
   this very change set added, written in the bare plugin-relative form ADR 0018 names as its real
   defect class), two conformance rows in `docs/conventions/config-cascade/README.md`, one in
   `docs/conventions/pre-pr-ordering/README.md`, three in
@@ -829,16 +829,16 @@ figures to differ.
   this checkout rather than an address for an obligation. They are the three worked examples in
   `docs/conventions/plugin-data-report-keying/README.md`, the four location cites in
   `docs/conventions/shell-test-helpers/README.md` (whose subject *is* where the duplicate copies
-  sit), the four `scripts/` entry-surface pointers in `docs/NATIVE-SURFACES.md` and
-  `docs/CLOUD-SESSIONS.md` that the public-surface contract's own carve-out permits, two observation
+  sit), the four `scripts/` entry-surface pointers in `docs/native-surfaces.md` and
+  `docs/cloud-sessions.md` that the public-surface contract's own carve-out permits, two observation
   rows in the `NATIVE-SURFACES` generated region (authored in
   `docs/native-surfaces/records.json`, so a hand-edit of the rendered view would be overwritten and
   the store's copy is the same citation, not a second one), that store's own note on where the
-  overlap seed file lives, the boris-baseline evidence row in `docs/PLUGIN-PHILOSOPHY.md`, the five
-  file-and-frontmatter cites inside `docs/MIGRATION-PLAYBOOK.md`'s dated `dometrain` security-review
+  overlap seed file lives, the boris-baseline evidence row in `docs/plugin-philosophy.md`, the five
+  file-and-frontmatter cites inside `docs/migration-playbook.md`'s dated `dometrain` security-review
   record (each asserting what a named file contains, under a record that re-triggers on a version
   bump), and three dated changelog entries that quote a citation as it stood.
-  `docs/SKILL-CHEAT-SHEET.md` is
+  `docs/skill-cheat-sheet.md` is
   generated too, and the dated records under `docs/specs/`, `docs/adr/` and `docs/topics/` are out
   of scope by the same test.
 - **A fifth filtered probe exists and is not in the four-site table above.**

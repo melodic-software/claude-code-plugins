@@ -1,0 +1,64 @@
+{
+  "succeeded": true,
+  "details": [
+    {
+      "character": 6,
+      "filePath": "src/a.ts",
+      "line": 4,
+      "text": "loose"
+    },
+    {
+      "character": 6,
+      "filePath": "src/a.ts",
+      "line": 5,
+      "text": "looser"
+    },
+    {
+      "character": 15,
+      "filePath": "src/a.ts",
+      "line": 5,
+      "text": "loose"
+    },
+    {
+      "character": 21,
+      "filePath": "src/a.ts",
+      "line": 5,
+      "text": "foo"
+    },
+    {
+      "character": 9,
+      "filePath": "src/a.ts",
+      "line": 6,
+      "text": "looser"
+    },
+    {
+      "character": 21,
+      "filePath": "src/sub/b.ts",
+      "line": 0,
+      "text": "v"
+    },
+    {
+      "character": 9,
+      "filePath": "src/sub/b.ts",
+      "line": 1,
+      "text": "v"
+    },
+    {
+      "character": 6,
+      "filePath": "src/sub/b.ts",
+      "line": 4,
+      "text": "w"
+    },
+    {
+      "character": 9,
+      "filePath": "src/sub/b.ts",
+      "line": 5,
+      "text": "w"
+    }
+  ],
+  "atLeastFailed": false,
+  "correctCount": 12,
+  "percent": 57.14,
+  "percentString": "57.14",
+  "totalCount": 21
+}

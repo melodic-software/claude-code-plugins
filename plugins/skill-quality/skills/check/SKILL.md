@@ -1,5 +1,5 @@
 ---
-description: "Skill-authoring QA for Claude Code skills. Use when: 'check this skill', 'skill quality', 'lint my skill', 'is this SKILL.md valid', 'validate skill frontmatter', 'check skill before publishing', 'validate evals.json', 'shared listing budget', 'is the skill listing overflowing', or before shipping a skill or plugin. Actions: `check [<skill-name>]` runs a twenty-six-check static contract gate and reports PASS/FAIL with warnings; `validate-evals [<skill-name>]` checks a skill's evals/evals.json against the bundled schema, then runs a deterministic eval-quality lint; `listing-budget [<root> ...]` reports the SHARED aggregate listing-budget estimate across every listing-eligible skill under the resolved root(s). Advisory only, never blocks. Not for: writing new skills, or running model-graded evals."
+description: "Skill-authoring QA for Claude Code skills. Use when: 'check this skill', 'skill quality', 'lint my skill', 'is this SKILL.md valid', 'validate skill frontmatter', 'check skill before publishing', 'validate evals.json', 'shared listing budget', 'is the skill listing overflowing', or before shipping a skill or plugin. Actions: `check [<skill-name>]` runs a twenty-seven-check static contract gate and reports PASS/FAIL with warnings; `validate-evals [<skill-name>]` checks a skill's evals/evals.json against the bundled schema, then runs a deterministic eval-quality lint; `listing-budget [<root> ...]` reports the SHARED aggregate listing-budget estimate across every listing-eligible skill under the resolved root(s). Advisory only, never blocks. Not for: writing new skills, or running model-graded evals."
 argument-hint: "[check|validate-evals|listing-budget] [<skill-name-or-root> ...]. Omit the action for check; omit the name/root to run over every skill under the resolved root"
 user-invocable: true
 disable-model-invocation: false
@@ -253,7 +253,7 @@ tool. This gate does not automate that reachability check; author and review aga
   model-invoked default and the only three exception classes a `true` may claim, is
   [`docs/conventions/invocation-mode/README.md`](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/invocation-mode/README.md).
   Class attribution is NOT machine-checkable: only a `setup` skill's `true` is deterministic (class
-  (ii), the PLUGIN-PHILOSOPHY setup contract), so every other `true` emits a note to hand-verify
+  (ii), the plugin-philosophy setup contract), so every other `true` emits a note to hand-verify
   rather than a warning no scan could clear.
 - Check 25 (description/verb-contract polarity) is an advisory heuristic, never a FAIL. It
   flags a listing-surface mismatch between the description lead (before `Use when:`) and the

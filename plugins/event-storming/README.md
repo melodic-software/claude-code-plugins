@@ -49,7 +49,7 @@ Both optional surfaces degrade gracefully:
   tools unavailable), `simulation` detects it at preflight and runs in structured-markdown mode
   instead of failing. Miro's official hosted server (`mcp.miro.com`) was evaluated and **rejected**
   as the target (no board-delete tool for teardown; third-party remote egress). Trust record in the
-  marketplace repo's MCP decision table (`docs/MIGRATION-PLAYBOOK.md`).
+  marketplace repo's MCP decision table (`docs/migration-playbook.md`).
 - **Web research absent.** The skills use the Perplexity MCP tools if present, otherwise Claude
   Code's built-in `WebSearch` / `WebFetch`; with no research surface at all they ask you for the
   domain context rather than guessing.

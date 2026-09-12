@@ -16,7 +16,7 @@ Companion documents: the signed-off decision contract this corpus fed, which was
 slice and is therefore pruned before merge under the topic-docs convention, so it survives as the
 `<details>` paste in its pull request; and the earlier `context-engineering-claude-5` plan, built
 on P1 alone and never engaging P2, whose slice main pruned in the topic-docs v3.0.0 adoption.
-Sibling durable outputs of the same corpus family: `docs/FINDING-YOUR-UNKNOWNS.md` and the
+Sibling durable outputs of the same corpus family: `docs/finding-your-unknowns.md` and the
 neighboring `context-engineering-*.md` specs listed at the end of this section.
 
 ## Contents

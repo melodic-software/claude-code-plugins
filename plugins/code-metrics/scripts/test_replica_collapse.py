@@ -71,12 +71,19 @@ class ReplicaCollapseTests(unittest.TestCase):
             row("plugins/b/hooks/hook-utils.sh"),
             row("plugins/a/hooks/hook-utils.sh"),
             row("plugins/c/hooks/hook-utils.sh"),
-            row("lib/other.sh", function="main", values={"cyclomatic": 3}, over_reference=[]),
+            row(
+                "lib/other.sh",
+                function="main",
+                values={"cyclomatic": 3},
+                over_reference=[],
+            ),
         ]
         result = run("--registry", str(self.registry), stdin=document(rows))
         self.assertEqual(result.returncode, 0, result.stderr)
         out = json.loads(result.stdout)["measures"]
-        self.assertEqual([r["file"] for r in out], ["plugins/a/hooks/hook-utils.sh", "lib/other.sh"])
+        self.assertEqual(
+            [r["file"] for r in out], ["plugins/a/hooks/hook-utils.sh", "lib/other.sh"]
+        )
         survivor = out[0]
         self.assertIn("replicated", survivor["labels"])
         self.assertEqual(survivor["replicas"]["count"], 3)
@@ -84,7 +91,11 @@ class ReplicaCollapseTests(unittest.TestCase):
         self.assertEqual(survivor["replicas"]["path"], "hooks/hook-utils.sh")
         self.assertEqual(
             survivor["replicas"]["files"],
-            ["plugins/a/hooks/hook-utils.sh", "plugins/b/hooks/hook-utils.sh", "plugins/c/hooks/hook-utils.sh"],
+            [
+                "plugins/a/hooks/hook-utils.sh",
+                "plugins/b/hooks/hook-utils.sh",
+                "plugins/c/hooks/hook-utils.sh",
+            ],
         )
         self.assertNotIn("replicas", out[1])
 
@@ -98,6 +109,30 @@ class ReplicaCollapseTests(unittest.TestCase):
         self.assertEqual(len(out), 2)
         self.assertTrue(all("replicas" not in r for r in out))
 
+    def test_a_cluster_line_is_left_to_the_clone_group_reader(self) -> None:
+        # `<canonical> -> <member>...` names a root canonical for the
+        # duplication audit; it is never a path-within-plugin, so this pass
+        # skips it and the plain line beside it still collapses.
+        registry = Path(self.tmp.name) / "clusters.txt"
+        registry.write_text(
+            "lib/hook-utils.sh -> plugins/*/hooks/hook-utils.sh\nhooks/hook-utils.sh\n",
+            encoding="utf-8",
+        )
+        rows = [
+            row("lib/hook-utils.sh"),
+            row("plugins/a/hooks/hook-utils.sh"),
+            row("plugins/b/hooks/hook-utils.sh"),
+        ]
+        result = run("--registry", str(registry), stdin=document(rows))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        out = json.loads(result.stdout)["measures"]
+        self.assertEqual(
+            [r["file"] for r in out],
+            ["lib/hook-utils.sh", "plugins/a/hooks/hook-utils.sh"],
+        )
+        self.assertEqual(out[1]["replicas"]["count"], 2)
+        self.assertEqual(out[1]["replicas"]["line"], 2)
+
     def test_a_single_copy_is_not_a_replica(self) -> None:
         rows = [row("plugins/a/hooks/hook-utils.sh")]
         result = run("--registry", str(self.registry), stdin=document(rows))
@@ -108,7 +143,11 @@ class ReplicaCollapseTests(unittest.TestCase):
     def test_prefix_makes_a_subdirectory_run_match_root_relative_lines(self) -> None:
         rows = [row("a/hooks/hook-utils.sh"), row("b/hooks/hook-utils.sh")]
         result = run(
-            "--prefix", "plugins/", "--registry", str(self.registry), stdin=document(rows)
+            "--prefix",
+            "plugins/",
+            "--registry",
+            str(self.registry),
+            stdin=document(rows),
         )
         out = json.loads(result.stdout)["measures"]
         self.assertEqual(len(out), 1)
@@ -120,8 +159,16 @@ class ReplicaCollapseTests(unittest.TestCase):
             "function": None,
             "lane": "bash",
             "instances": [
-                {"file": "plugins/a/hooks/hook-utils.sh", "start_line": 1, "end_line": 5},
-                {"file": "plugins/b/hooks/hook-utils.sh", "start_line": 1, "end_line": 5},
+                {
+                    "file": "plugins/a/hooks/hook-utils.sh",
+                    "start_line": 1,
+                    "end_line": 5,
+                },
+                {
+                    "file": "plugins/b/hooks/hook-utils.sh",
+                    "start_line": 1,
+                    "end_line": 5,
+                },
             ],
             "values": {"lines": 5, "tokens": 20},
         }
@@ -130,7 +177,10 @@ class ReplicaCollapseTests(unittest.TestCase):
         self.assertEqual(out, [clone, clone])
 
     def test_no_registry_changes_nothing(self) -> None:
-        rows = [row("plugins/a/hooks/hook-utils.sh"), row("plugins/b/hooks/hook-utils.sh")]
+        rows = [
+            row("plugins/a/hooks/hook-utils.sh"),
+            row("plugins/b/hooks/hook-utils.sh"),
+        ]
         result = run(stdin=document(rows))
         self.assertEqual(json.loads(result.stdout)["measures"], rows)
 

@@ -17,7 +17,7 @@ loop-lane keys, read by `/source-control:babysit-loop`. Every consumer reads thi
 bakes its own layering rules, and the three layers and per-key merge below govern both families.
 
 Implements the tracked-rich-config extensibility contract in
-[`docs/MIGRATION-PLAYBOOK.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/MIGRATION-PLAYBOOK.md).
+[`docs/migration-playbook.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/migration-playbook.md).
 
 ## The config surface
 

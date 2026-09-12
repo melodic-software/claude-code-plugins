@@ -23,12 +23,12 @@ with a **recheck trigger**, the stated observable event that obliges re-deriving
 The fleet previously practiced this in five-plus places under four names: "recheck triggers"
 ([hook-config-delivery](../hook-config-delivery/README.md)), "revisit triggers"
 ([ecosystem-commands](../ecosystem-commands/README.md), the
-[migration playbook](../../MIGRATION-PLAYBOOK.md)), "re-trigger" (the migration playbook again, on a
+[migration playbook](../../migration-playbook.md)), "re-trigger" (the migration playbook again, on a
 plugin-acceptance review record), "re-derivation triggers"
 ([loop-lane](../loop-lane/README.md)), plus the unlabeled "What would reopen it"
 ([topic-docs](../topic-docs/README.md)), with no shared definition of what a trigger must contain
 and no statement of what makes one checkable. Under the
-[convention registry](../../PLUGIN-PHILOSOPHY.md#convention-registry)'s one-owner-per-concern rule
+[convention registry](../../plugin-philosophy.md#convention-registry)'s one-owner-per-concern rule
 that is the fragmentation this doc closes
 ([melodic-software/claude-code-plugins#1638](https://github.com/melodic-software/claude-code-plugins/issues/1638)).
 
@@ -169,7 +169,7 @@ binding any absence-establishing fetch to the raw `.md` channel with `curl` plus
 on the asymmetry that "a truncated fetch cannot fabricate a PRESENCE, only an ABSENCE", after two
 of its runs asserted a false absence exactly this way. Two independent derivations of one rule is
 the signal that it wants an owner. Per the
-[convention registry](../../PLUGIN-PHILOSOPHY.md#convention-registry)'s one-owner-per-concern rule,
+[convention registry](../../plugin-philosophy.md#convention-registry)'s one-owner-per-concern rule,
 the general form belongs in this doc and those surfaces keep their page-specific detail.
 
 **The `.md` channel is per-page, not universal.** `docpage-digest`'s profile records that a
@@ -348,10 +348,10 @@ contract to fit its exceptions.
 |---|---|---|
 | [hook-config-delivery](../hook-config-delivery/README.md) §Recheck triggers | already the canonical name | Conforming records: version-pinned facts table with per-fact basis, table-wide as-of dates, and fact-scoped event triggers. |
 | [loop-lane](../loop-lane/README.md) §Versioning | "Re-derivation triggers" | Conforming records: dated upstream-claim stamps; drift outcomes recorded in its changelog. |
-| [PLUGIN-PHILOSOPHY](../../PLUGIN-PHILOSOPHY.md) component-stances staleness disclaimer | unlabeled discipline | Conforming records: per-row claim, linked page, and verified date; the re-fetch-before-acting rule is [read-time validation](#read-time-validation-is-not-a-firing), and every row's stated trigger is a fetch diverging from the row. |
-| [PLUGIN-PHILOSOPHY](../../PLUGIN-PHILOSOPHY.md#recorded-gate-runs) recorded gate runs | new with this table | Conforming records of the second kind: **recorded decisions**, one per platform surface the Native-first adoption gate has been run against, carrying an adopt/defer/decline verdict, the quoted upstream basis it rests on, and a trigger written per row rather than the generic divergence-at-fetch. A verdict is re-derived when its own trigger fires, not on any fetch that differs. |
-| [OFFICIAL-DOCS](../../OFFICIAL-DOCS.md) staleness warning and per-row verified dates | unlabeled discipline | Conforming records: same shape as the component-stances table: link + date, divergence-at-fetch as the stated trigger. |
-| [MIGRATION-PLAYBOOK](../../MIGRATION-PLAYBOOK.md) decision records | "Revisit trigger", and "Re-trigger" on the plugin-acceptance review record | Mixed: the dated component-decision records cite upstream bases and conform; the org-internal records (e.g. the ratification and plugin-acceptance review records) are named triggers; the skill-quality retrofit record is a third kind, terminal exclusions that state "no recheck trigger" by design, decided out, so nothing fires. |
+| [plugin-philosophy](../../plugin-philosophy.md) component-stances staleness disclaimer | unlabeled discipline | Conforming records: per-row claim, linked page, and verified date; the re-fetch-before-acting rule is [read-time validation](#read-time-validation-is-not-a-firing), and every row's stated trigger is a fetch diverging from the row. |
+| [plugin-philosophy](../../plugin-philosophy.md#recorded-gate-runs) recorded gate runs | new with this table | Conforming records of the second kind: **recorded decisions**, one per platform surface the Native-first adoption gate has been run against, carrying an adopt/defer/decline verdict, the quoted upstream basis it rests on, and a trigger written per row rather than the generic divergence-at-fetch. A verdict is re-derived when its own trigger fires, not on any fetch that differs. |
+| [official-docs](../../official-docs.md) staleness warning and per-row verified dates | unlabeled discipline | Conforming records: same shape as the component-stances table: link + date, divergence-at-fetch as the stated trigger. |
+| [migration-playbook](../../migration-playbook.md) decision records | "Revisit trigger", and "Re-trigger" on the plugin-acceptance review record | Mixed: the dated component-decision records cite upstream bases and conform; the org-internal records (e.g. the ratification and plugin-acceptance review records) are named triggers; the skill-quality retrofit record is a third kind, terminal exclusions that state "no recheck trigger" by design, decided out, so nothing fires. |
 | [ecosystem-commands](../ecosystem-commands/README.md) task-runner deferral | "Revisit triggers" | Named triggers only: an undated in-repo deferral; not a four-part record. |
 | [topic-docs](../topic-docs/README.md) §Implementers restate the rules | "What would reopen it" | Named trigger only: an in-repo source-hoisting decision; not a four-part record. |
 | `/ai-slop:audit`, the tell catalog it loads, §Upstream-drift record | new with 1.5.0 | Conforming record: revision-pinned four-part record over the Wikipedia source page (claim, `oldid` basis, as-of date, recurring recheck trigger: each `ai-slop` release and each fleet audit, chosen over per-revision after measuring the page at 50+ edits/week), plus a recorded fetch-gap note for two source sections the same trigger covers. |

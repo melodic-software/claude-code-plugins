@@ -17,7 +17,7 @@ PreToolUse / PostToolUse / lifecycle hook scripts.
   against the current hooks reference, not memory.
   Verified 2026-08-21 against [Hooks reference: Exit code output](https://code.claude.com/docs/en/hooks#exit-code-output).
   Recheck when the hooks reference changelog or the `hooks` doc page changes in a Claude Code release
-  this repo's `OFFICIAL-DOCS.md` index records.
+  this repo's `official-docs.md` index records.
 - **Fail-open vs fail-closed** on missing deps (jq), empty/timed-out stdin, parse errors.
 - **Enablement/scope probe**: if it self-disables based on plugin enablement or settings, does it
   read the *merged effective* scopes (user-global + project + local), not just one?

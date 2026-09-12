@@ -109,6 +109,11 @@
 #  26. Long spoke files carry a table of contents: a reference|references|context
 #      markdown file over 300 lines whose first 40 lines hold fewer than three
 #      `](#` in-page anchor links WARNs (advisory heuristic)
+#  27. `## Next` successor section: absent is INFO (a terminal skill has
+#      none); present but after `## Gotchas`, last in the file, neither
+#      the one-invocation nor the two-to-four-outcome-bullet shape, or
+#      carrying operative-chain phrasing (Skill tool, installed, fallback,
+#      otherwise) anywhere in the block is WARN
 #
 # Notes (static, git-diff-based design):
 #   - Checks 3/8/9 diff the working tree against CHECK_SKILL_BASE_REF (default
@@ -1677,7 +1682,7 @@ fi
 #
 # The exception class a `true` claims is NOT machine-checkable: a static scan
 # cannot tell class (i) manual-timing from an unjustified hide. Only class (ii)
-# is deterministic — the PLUGIN-PHILOSOPHY setup contract names `setup` skills —
+# is deterministic — the plugin-philosophy setup contract names `setup` skills —
 # so every other `true` emits a note for hand-verification against the rubric
 # rather than a warning nothing can clear.
 
@@ -1716,7 +1721,7 @@ else
 fi
 
 # --- Check 25: description/verb-contract polarity (WARN; advisory) ----------
-# PLUGIN-PHILOSOPHY Naming fixes verb meanings: audit/scan are read-only
+# plugin-philosophy Naming fixes verb meanings: audit/scan are read-only
 # findings reports (mutation only behind an explicit override such as --fix);
 # clean/tidy/fix mutate the target. This check flags a description that tells
 # a different story than that verb contract, or than the body — the two
@@ -1810,10 +1815,10 @@ VC_ALL_LC="$(printf '%s %s' "$CUR_DESC" "$CUR_WTU" | tr '[:upper:]' '[:lower:]')
 VC_HIT=""
 if [[ "$VC_LEAF" == "audit" || "$VC_LEAF" == "scan" ]] &&
   vc_lead_mutate "$VC_LEAD_LC" && ! vc_has_override "$VC_ALL_LC"; then
-  VC_HIT="leaf verb '$VC_LEAF' is a read-only findings report (PLUGIN-PHILOSOPHY Naming) but the description lead advertises mutation without an explicit override"
+  VC_HIT="leaf verb '$VC_LEAF' is a read-only findings report (plugin-philosophy Naming) but the description lead advertises mutation without an explicit override"
 elif [[ "$VC_LEAF" == "clean" || "$VC_LEAF" == "tidy" || "$VC_LEAF" == "fix" ]] &&
   vc_lead_readonly "$VC_LEAD_LC"; then
-  VC_HIT="leaf verb '$VC_LEAF' mutates the target (PLUGIN-PHILOSOPHY Naming) but the description lead claims the skill is read-only/report-only"
+  VC_HIT="leaf verb '$VC_LEAF' mutates the target (plugin-philosophy Naming) but the description lead claims the skill is read-only/report-only"
 elif vc_lead_readonly "$VC_LEAD_LC" && vc_body_bare_mutate "$VC_BODY"; then
   VC_HIT="description lead claims read-only but the body mutates on bare invocation (or hides an unadvertised mutation path)"
 elif vc_lead_mutate "$VC_LEAD_LC" && ! vc_has_override "$VC_ALL_LC" &&
@@ -1853,6 +1858,71 @@ done < <(
     find "$SKILL_DIR/$toc_dir" -type f -name '*.md'
   done | sort
 )
+
+# --- Check 27: `## Next` successor section (advisory) -------------------------
+# The skill-bodies rule says a skill with a natural successor names it in a
+# `## Next` section placed before `## Gotchas` (or before the last H2 when the
+# file has none), in one of two shapes: one `/plugin:skill` invocation on a
+# line, optionally followed by a sentence; or two to four bullets of
+# `<outcome>: /plugin:skill`. Whether a skill HAS a successor is the author's
+# call, so absence is an INFO note rather than a WARN: most skills in a large
+# fleet are terminal or not yet wired, and a WARN on each would drown the
+# gate. A section that is present but misplaced or malformed is a WARN,
+# because that is a shape the rule names and the author did not intend.
+
+NEXT_LINE="$(grep -nE '^## Next[[:space:]]*$' "$SKILL_MD" | head -1 | cut -d: -f1)"
+if [[ -z "$NEXT_LINE" ]]; then
+  note "no '## Next' section: fine for a terminal skill; a skill with a natural successor names it there (skill-bodies rule)"
+else
+  NEXT_GOTCHAS_LINE="$(grep -nEi '^##[[:space:]]+(gotchas|quirks)' "$SKILL_MD" | head -1 | cut -d: -f1)"
+  NEXT_LAST_H2="$(grep -nE '^## ' "$SKILL_MD" | tail -1 | cut -d: -f1)"
+  NEXT_HIT=""
+  if [[ -n "$NEXT_GOTCHAS_LINE" ]] && ((NEXT_LINE > NEXT_GOTCHAS_LINE)); then
+    NEXT_HIT="placed after '## Gotchas'; the rule puts it before"
+  elif [[ -z "$NEXT_GOTCHAS_LINE" ]] && ((NEXT_LINE == NEXT_LAST_H2)); then
+    NEXT_HIT="is the last section; the rule places it before the last H2"
+  fi
+  # The section body runs from the heading to the next H2 or end of file.
+  NEXT_BLOCK="$(awk -v s="$NEXT_LINE" 'NR > s { if ($0 ~ /^## /) exit; print }' "$SKILL_MD")"
+  NEXT_BULLETS="$(grep -cE '^- ' <<<"$NEXT_BLOCK" || true)"
+  NEXT_TOKEN='/[a-z0-9-]+:[a-z0-9-]+'
+  if ((NEXT_BULLETS == 0)); then
+    # The single shape opens with the invocation itself (a leading backtick
+    # allowed), not with prose that happens to mention one: prose first is
+    # how an operative chain reads.
+    NEXT_FIRST="$(grep -vE '^[[:space:]]*$' <<<"$NEXT_BLOCK" | head -1 || true)"
+    if [[ -z "$NEXT_FIRST" ]]; then
+      NEXT_HIT="${NEXT_HIT:+$NEXT_HIT; }body is empty"
+    elif ! grep -qE "^\`?${NEXT_TOKEN}(\`|[[:space:]]|[.,;:]|$)" <<<"$NEXT_FIRST"; then
+      NEXT_HIT="${NEXT_HIT:+$NEXT_HIT; }first line does not open with a /plugin:skill invocation"
+    fi
+  else
+    if ((NEXT_BULLETS < 2 || NEXT_BULLETS > 4)); then
+      NEXT_HIT="${NEXT_HIT:+$NEXT_HIT; }$NEXT_BULLETS bullet(s); the outcome-bullet shape carries two to four"
+    fi
+    # A bullet may wrap onto indented continuation lines; judge each bullet
+    # with its continuation joined.
+    NEXT_BAD="$(awk -v tok="$NEXT_TOKEN" '
+      /^- / { if (b != "" && b !~ tok) n++; b = $0; next }
+      /^[[:space:]]+[^[:space:]]/ { b = b " " $0; next }
+      END { if (b != "" && b !~ tok) n++; print n + 0 }' <<<"$NEXT_BLOCK")"
+    if ((NEXT_BAD > 0)); then
+      NEXT_HIT="${NEXT_HIT:+$NEXT_HIT; }$NEXT_BAD bullet(s) name no /plugin:skill successor"
+    fi
+  fi
+  # Either shape is a mention for the human, so the whole block, not just the
+  # line that names the successor, is read for the three things the rule
+  # excludes: Skill-tool phrasing, an installed-ness gate, a fallback clause.
+  NEXT_OPERATIVE="$(grep -oiE 'skill tool|installed|fall ?back|otherwise' <<<"$NEXT_BLOCK" | head -1 || true)"
+  if [[ -n "$NEXT_OPERATIVE" ]]; then
+    NEXT_HIT="${NEXT_HIT:+$NEXT_HIT; }carries operative-chain phrasing ('$NEXT_OPERATIVE'); a successor is a mention, with no Skill-tool phrasing, installed-ness gate, or fallback clause"
+  fi
+  if [[ -n "$NEXT_HIT" ]]; then
+    warn "'## Next' section $NEXT_HIT. The skill-bodies rule wants one /plugin:skill line, or two to four '<outcome>: /plugin:skill' bullets, placed before '## Gotchas'"
+  else
+    note "'## Next' section present and in the mention-only shape"
+  fi
+fi
 
 # --- Summary ---------------------------------------------------------------
 
