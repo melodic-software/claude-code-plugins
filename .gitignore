@@ -27,5 +27,11 @@ CLAUDE.local.md
 # Test-result artifacts (Pester runner output)
 artifacts/
 
+# coverage.py output of the plugin suite run documented in
+# plugins/code-metrics/README.md "Testing the plugin"
+.coverage
+.coverage.*
+plugins/code-metrics/coverage.json
+
 # Topic memory tier — never committed (docs/conventions/topic-docs/README.md "Memory")
 .work/
