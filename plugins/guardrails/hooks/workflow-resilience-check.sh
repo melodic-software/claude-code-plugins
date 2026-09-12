@@ -12,7 +12,7 @@
 # Opt-in switch: workflow_resilience_check_enabled userConfig option.
 # DEFAULT OFF since 0.20.0: the #2021 hook-surface classification found this
 # is a behavioral-class context injector — two greps and a fixed checklist that
-# asserts nothing the model cannot derive — and PLUGIN-PHILOSOPHY.md's
+# asserts nothing the model cannot derive — and plugin-philosophy.md's
 # instruction-economy evidence gate ablates that class config-off first (the
 # script stays; a consumer opts back in by setting the option to true).
 
@@ -122,7 +122,7 @@ fi
 
 # Fan-out with zero resilience primitives → advisory (never blocks the run).
 FINDING="Workflow resilience (advisory): this script calls parallel()/pipeline() with no wave-cap throttle (inWaves/inWavesPipeline) and no retry wrapper (agentRetry). A bare fan-out over many items launches up to the agent cap at once; sustained wide fan-out trips server-side 529. Before relying on this run, apply burst-resilience practices: wave-cap via inWaves (about five concurrent agents on the heaviest model tier, about twelve on a mid tier; chunk large-item pipelines via inWavesPipeline), wrap dispatches in agentRetry + .filter(Boolean), and on partial failure re-run ONLY the failed subset (resumeFromRunId or a fresh narrow run) — never blind-re-run the whole script. Ignore if this fan-out is over a small fixed set."
-hook::emit_additional_context PreToolUse "$FINDING"
+hook::emit_channels PreToolUse "$FINDING" ""
 FINDINGS_JSON=$(jq -n --arg f "$FINDING" '[$f]' 2>/dev/null) || FINDINGS_JSON='[]'
 emit_tel "$FINDINGS_JSON"
 

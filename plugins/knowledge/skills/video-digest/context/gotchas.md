@@ -1,4 +1,4 @@
-# Video digest — gotchas
+# Video digest gotchas
 
 Observed failure modes and their recovery behavior. Terse operational directives live at their decision points in `SKILL.md`; this file explains the *why*.
 
@@ -8,15 +8,15 @@ Acquisition tries without cookies first; on *"Sign in to confirm you're not a bo
 
 ## HTTP 429 throttling
 
-Acquisition applies yt-dlp `--retries`, `--sleep-requests`, `--sleep-subtitles` plus an **outer exponential backoff on HTTP 429**. Batch runs cap concurrency via the `max_concurrent_acquires` option (default 1, max 3) — raising it increases 429 risk.
+Acquisition applies yt-dlp `--retries`, `--sleep-requests`, `--sleep-subtitles` plus an **outer exponential backoff on HTTP 429**. Batch runs cap concurrency via the `max_concurrent_acquires` option (default 1, max 3); raising it increases 429 risk.
 
 ## Temp-session expiry
 
-Bulk frames and contact sheets stay in OS `tempSession` dirs, not the repo. When those dirs have been reaped, `run-state/watch.json` `tempSession` paths are stale — **re-run `run-watch.js`** before vision (resume detects this and stops for the same reason).
+Bulk frames and contact sheets stay in OS `tempSession` dirs, not the repo. When those dirs have been reaped, `run-state/watch.json` `tempSession` paths are stale, so **re-run `run-watch.js`** before vision (resume detects this and stops for the same reason).
 
 ## Cloud agent without media toolchain
 
-`watch` needs ffmpeg + ImageMagick for frame extraction and contact sheets. A cloud agent lacking the media toolchain must **fail closed — do not run watch**; route to the prerequisites fix path instead of producing a frameless run.
+`watch` needs ffmpeg + ImageMagick for frame extraction and contact sheets. A cloud agent lacking the media toolchain must **fail closed and not run watch**; route to the prerequisites fix path instead of producing a frameless run.
 
 ## Phase state lives only in `watch.json`
 

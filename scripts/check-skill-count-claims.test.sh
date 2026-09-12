@@ -17,18 +17,16 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SUT_SRC="$SCRIPT_DIR/check-skill-count-claims.sh"
 
-fails=0
-pass() { printf 'ok   - %s\n' "$1"; }
-fail() {
-  printf 'FAIL - %s\n' "$1" >&2
-  fails=$((fails + 1))
-}
+# shellcheck source=lib/test-harness.sh
+. "$SCRIPT_DIR/lib/test-harness.sh"
+# shellcheck source=lib/fixture-tree.sh
+. "$SCRIPT_DIR/lib/fixture-tree.sh"
 
-TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT
+# The builder assigns through a nameref, which shellcheck cannot follow;
+# declaring the out-vars here is what tells it (SC2154) the names are written.
+TMP="" CLEAN=""
 
-mkdir -p "$TMP/scripts"
-cp "$SUT_SRC" "$TMP/scripts/check-skill-count-claims.sh"
+fixture_tree::build TMP --sut "$SUT_SRC" --plugins
 SUT="$TMP/scripts/check-skill-count-claims.sh"
 EXEMPTIONS="$TMP/scripts/skill-count-claim-exemptions.txt"
 : >"$EXEMPTIONS"
@@ -157,49 +155,49 @@ out="$(run)"
 
 # 1. Correct claims in several grammars are reported ok.
 if [[ "$(grep -c '^ok .*alpha' <<<"$out")" -eq 3 ]]; then
-  pass "all three correct alpha claims verify"
+  ok "all three correct alpha claims verify"
 else
   fail "expected 3 ok rows for alpha: $out"
 fi
 
 # 2. The "other N skills" idiom is measured against total minus one.
 if grep -q 'alpha .*two -> two (total minus one)' <<<"$out"; then
-  pass "other-N idiom resolves to total minus one"
+  ok "other-N idiom resolves to total minus one"
 else
   fail "other-N idiom should compare against total-1: $out"
 fi
 
 # 3. A stale count flags, in prose and in the manifest alike.
 if [[ "$(grep -c '^MISMATCH.*beta' <<<"$out")" -eq 3 ]]; then
-  pass "stale count flags in README prose and plugin manifest"
+  ok "stale count flags in README prose and plugin manifest"
 else
   fail "expected 3 beta mismatches (2 README, 1 manifest): $out"
 fi
 
 # 4. Ordinary prose that merely mentions a number and skills does not flag.
 if ! grep -q 'gamma' <<<"$(grep '^MISMATCH' <<<"$out")"; then
-  pass "non-claim prose does not flag"
+  ok "non-claim prose does not flag"
 else
   fail "gamma prose should not produce any mismatch: $out"
 fi
 
 # 5. A definite-article reference is deliberately not a recognized form.
 if ! grep -q 'the two skills this must not' <<<"$out"; then
-  pass "definite-article reference is not treated as a claim"
+  ok "definite-article reference is not treated as a claim"
 else
   fail "'the two skills' should not be a recognized claim form: $out"
 fi
 
 # 6. CHANGELOG.md is out of scope: its historical count must not flag.
 if ! grep -q 'CHANGELOG' <<<"$out"; then
-  pass "CHANGELOG.md is not scanned"
+  ok "CHANGELOG.md is not scanned"
 else
   fail "CHANGELOG.md must be out of scope: $out"
 fi
 
 # 7. Digit-form claims are detected and answered in digits.
 if grep -qE 'MISMATCH.*epsilon .*5 -> 2$' <<<"$out"; then
-  pass "digit-form claim flags and its remediation stays numeric"
+  ok "digit-form claim flags and its remediation stays numeric"
 else
   fail "epsilon should flag as 5 -> 2 in digits: $out"
 fi
@@ -207,7 +205,7 @@ fi
 # 7b. A plugin whose skills/ directory is gone is still scanned, with a count of
 #     zero — the stale-count-by-removal case.
 if grep -qE 'MISMATCH.*zeta/README.md:1 .*one -> zero' <<<"$out"; then
-  pass "plugin with no skills/ directory is scanned as zero, not skipped"
+  ok "plugin with no skills/ directory is scanned as zero, not skipped"
 else
   fail "zeta should flag as one -> zero: $out"
 fi
@@ -215,28 +213,28 @@ fi
 # 7c. A claim split across a markdown wrap is found, and reported at the line the
 #     claim begins on.
 if grep -qE '^ok .*eta/README.md:1 ' <<<"$out"; then
-  pass "wrapped claim is found and anchored to its opening line"
+  ok "wrapped claim is found and anchored to its opening line"
 else
   fail "eta's wrapped claim should verify at line 1: $out"
 fi
 
 # 7d. An all-caps claim survives the prefilter.
 if grep -qE 'MISMATCH.*theta/README.md:1 .*three -> two' <<<"$out"; then
-  pass "all-caps claim is not dropped by the prefilter"
+  ok "all-caps claim is not dropped by the prefilter"
 else
   fail "theta's SKILLS claim should flag as three -> two: $out"
 fi
 
 # 7e. Line joining must not double-report a claim, nor glue a heading to one.
 if [[ "$(grep -c 'iota/README.md' <<<"$out")" -eq 1 ]]; then
-  pass "a claim adjacent to a blank line is reported exactly once"
+  ok "a claim adjacent to a blank line is reported exactly once"
 else
   fail "iota's claim should appear exactly once: $out"
 fi
 
 # 7f. A sentence matching two grammars across a wrap is still ONE claim.
 if [[ "$(grep -c 'kappa/README.md' <<<"$out")" -eq 1 ]]; then
-  pass "a claim satisfying two forms across a wrap is reported once"
+  ok "a claim satisfying two forms across a wrap is reported once"
 else
   fail "kappa's claim should appear exactly once: $out"
 fi
@@ -248,7 +246,7 @@ fi
 out_check="$(run --check)"
 if grep -q 'plugin zeta has zero' <<<"$out_check" &&
   grep -q 'the number should be zero' <<<"$out_check"; then
-  pass "zero-skill minus-one FAIL text agrees with itself"
+  ok "zero-skill minus-one FAIL text agrees with itself"
 else
   fail "zeta's minus-one FAIL should say 'has zero' and 'should be zero': $out_check"
 fi
@@ -256,7 +254,7 @@ fi
 # 8. --check fails while any mismatch stands.
 rc="$(run_rc --check)"
 if [[ "$rc" -eq 1 ]]; then
-  pass "--check fails on a stale count"
+  ok "--check fails on a stale count"
 else
   fail "--check should exit 1 with mismatches present (rc=$rc)"
 fi
@@ -264,7 +262,7 @@ fi
 # 9. The failure message names the site and the correction in words.
 out="$(run --check)"
 if grep -q 'plugins/beta/README.md' <<<"$out" && grep -q 'Change it to "four"' <<<"$out"; then
-  pass "failure names the site and the corrected spelled number"
+  ok "failure names the site and the corrected spelled number"
 else
   fail "failure should name site and corrected word: $out"
 fi
@@ -274,7 +272,7 @@ printf 'plugins/beta/README.md|It ships two skills\n' >"$EXEMPTIONS"
 out="$(run)"
 if grep -q '^exempt .*beta/README.md' <<<"$out" &&
   [[ "$(grep -c '^MISMATCH.*beta' <<<"$out")" -eq 2 ]]; then
-  pass "exemption suppresses exactly its own line"
+  ok "exemption suppresses exactly its own line"
 else
   fail "exemption should suppress one beta line only: $out"
 fi
@@ -283,16 +281,31 @@ fi
 printf 'plugins/beta/README.md|a sentence that is not there\n' >"$EXEMPTIONS"
 out="$(run --check)"
 if grep -q 'no longer produces a mismatch' <<<"$out"; then
-  pass "stale exemption fails --check"
+  ok "stale exemption fails --check"
 else
   fail "stale exemption should fail: $out"
+fi
+if grep -q "STALE BASELINE: .*: 'plugins/beta/README.md|a sentence that is not there'" <<<"$out"; then
+  ok "the stale exemption carries the shared STALE BASELINE prefix"
+else
+  fail "expected the shared STALE BASELINE diagnostic: $out"
+fi
+
+# 11b. A final exemption row with no trailing newline is still loaded: dropping
+#      it would let the mismatch it excuses red-line a clean tree.
+printf 'plugins/beta/README.md|It ships two skills' >"$EXEMPTIONS"
+out="$(run --check)"
+if ! grep -q 'STALE BASELINE' <<<"$out"; then
+  ok "a final exemption row with no trailing newline is loaded"
+else
+  fail "unterminated final exemption row was dropped: $out"
 fi
 
 # 12. An exemption pointing at a deleted file fails with that reason named.
 printf 'plugins/omega/README.md|anything\n' >"$EXEMPTIONS"
 out="$(run --check)"
 if grep -q 'no longer exists' <<<"$out"; then
-  pass "exemption for a missing file fails with that reason"
+  ok "exemption for a missing file fails with that reason"
 else
   fail "missing-file exemption should fail: $out"
 fi
@@ -301,7 +314,7 @@ fi
 printf 'no-separator-here\n' >"$EXEMPTIONS"
 rc="$(run_rc --check)"
 if [[ "$rc" -eq 2 ]]; then
-  pass "malformed exemption exits 2"
+  ok "malformed exemption exits 2"
 else
   fail "malformed exemption should exit 2 (rc=$rc)"
 fi
@@ -314,20 +327,19 @@ rm -rf "$TMP/plugins/beta" "$TMP/plugins/epsilon" \
 out="$(run --check)"
 rc="$(run_rc --check)"
 if [[ "$rc" -eq 0 ]] && grep -qE 'All [0-9]+ skill-count claim' <<<"$out"; then
-  pass "clean tree passes and reports its claim count"
+  ok "clean tree passes and reports its claim count"
 else
   fail "clean tree should pass with a count (rc=$rc): $out"
 fi
 
 # 15. A tree with no claims at all says so rather than reporting success.
-CLEAN="$(mktemp -d)"
-mkdir -p "$CLEAN/scripts" "$CLEAN/plugins/solo/skills/only"
-cp "$SUT_SRC" "$CLEAN/scripts/check-skill-count-claims.sh"
+fixture_tree::build CLEAN --sut "$SUT_SRC" --plugins
+mkdir -p "$CLEAN/plugins/solo/skills/only"
 printf -- '---\nname: only\n---\n' >"$CLEAN/plugins/solo/skills/only/SKILL.md"
 printf 'No counts here.\n' >"$CLEAN/plugins/solo/README.md"
 out="$( (cd "$CLEAN" && bash "$CLEAN/scripts/check-skill-count-claims.sh" 2>&1))"
 if grep -q 'No skill-count claims found' <<<"$out"; then
-  pass "a tree with no claims says so"
+  ok "a tree with no claims says so"
 else
   fail "no-claims tree should say so: $out"
 fi
@@ -336,13 +348,9 @@ rm -rf "$CLEAN"
 # 16. Unknown mode is a usage error.
 rc="$(run_rc --bogus)"
 if [[ "$rc" -eq 2 ]]; then
-  pass "unknown mode exits 2"
+  ok "unknown mode exits 2"
 else
   fail "unknown mode should exit 2 (rc=$rc)"
 fi
 
-if [[ $fails -ne 0 ]]; then
-  printf '%d assertion(s) failed\n' "$fails" >&2
-  exit 1
-fi
-printf 'all assertions passed\n'
+test_harness::report

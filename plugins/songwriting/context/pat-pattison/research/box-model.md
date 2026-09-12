@@ -1,4 +1,4 @@
-# Box Model — Verse Development Across Time
+# Box Model: Verse Development Across Time
 
 ## Contents
 
@@ -43,7 +43,7 @@ demonstration in *Writing Better Lyrics* (2009), Chapter 6:
 > Here is a simple principle for division of labor: Put separate ideas in
 > separate boxes.
 
-Two verses doing the same job leave the boxes the same size — see
+Two verses doing the same job leave the boxes the same size. See
 [Travelogue vs same-color](#travelogue-vs-same-color) for how that differs
 from a travelogue.
 
@@ -63,11 +63,11 @@ Chapter 6's box discussion:
 > resulting in the heaviest box.
 
 Pat's diagram for this is three stacked boxes, each one wider, taller and
-darker than the one above it — box 1 smallest and palest on top, box 3 largest
+darker than the one above it: box 1 smallest and palest on top, box 3 largest
 and blackest at the bottom.
 
-His worked sketch, on the title idea *I'd just like to know* — "Assume you're
-working with the idea 'I'd just like to know.'":
+His worked sketch is on the title idea *I'd just like to know*. It opens with
+"Assume you're working with the idea 'I'd just like to know.'" and continues:
 
 > Box 1: "Hi, it's nice to see you. You're looking good, and you're looking
 > really happy. Are you? I hope you don't mind my asking. I'd just like to know."
@@ -112,9 +112,11 @@ plus the unchanging title line:
 └────────────────────────────────────────────┘
 ```
 
+<!-- ai-slop-ignore-start: verbatim Pat Pattison quotation, Writing Better Lyrics (2009) Chapter 6; carries the book's em dash -->
 > Box 3 combines or resolves all the information, and delivers the point of the
 > song. It's often the "why" of the song — why I'm saying all this to you. It
 > weighs the most.
+<!-- ai-slop-ignore-end -->
 
 > Now, it's simply a matter of actually writing the song, but writing it knowing
 > where you're going. You have an outline, a scaffold to hang your song on. You
@@ -212,9 +214,11 @@ He then tracks a single chorus line through the three boxes:
 > Box 2: The hot July moon knew that our love, like so many before ("well-beaten
 > path"), wouldn't last.
 
+<!-- ai-slop-ignore-start: verbatim Pat Pattison quotation, Writing Better Lyrics (2009) Chapter 6; carries the book's em dashes -->
 > Box 3: The hot July moon knew that, over time, we'd become unable to experience
 > the innocence and power of first love — accumulated experiences would create
 > too much awareness — "the fields have grown over now."
+<!-- ai-slop-ignore-end -->
 
 > The moon grows from an observer to a prophet and predictor of the future. It
 > becomes a bigger and bigger moon, needing bigger and bigger boxes. When you
@@ -223,7 +227,7 @@ He then tracks a single chorus line through the three boxes:
 
 ## Division-of-labor strategies
 
-Chapter 6's "Development Tips" section names exactly two formulas — perspective
+Chapter 6's "Development Tips" section names exactly two formulas: perspective
 and tense. It opens:
 
 > The principle of division of labor has practical applications for your song.
@@ -247,8 +251,8 @@ Love Love Love
 > into the three different perspectives: (1) you, (2) I (me), and (3) we.
 
 All three perspectives are crammed into box 1. Split out, with the same refrain
-under each, they become (Pat's own illustration, deliberately ridiculous —
-he signs off "Okay, just kidding"):
+under each, they become the sketch below. It is Pat's own illustration,
+deliberately ridiculous, and he signs off "Okay, just kidding":
 
 ```text
 Box 1: You are amazing. And beautiful. Your blonde hair flows over your milky-white complexion like chicken gravy over mashed potatoes…
@@ -276,7 +280,9 @@ something the others are not.
 
 ### Past-Present-Future formula
 
+<!-- ai-slop-ignore-start: verbatim Pat Pattison quotation, Writing Better Lyrics (2009) Chapter 6; carries the book's em dash -->
 > Or this — you write a verse that says:
+<!-- ai-slop-ignore-end -->
 
 ```text
 We were so good together
@@ -408,8 +414,8 @@ One more dollar and I'm going home
 
 ## A sagging middle box: "Unanswered Prayers"
 
-Chapter 6's last worked example — "one last example, this one with a challenge
-in it" — is "Unanswered Prayers" (Pat Alger, Garth Brooks, Larry B. Bastian).
+Chapter 6's last worked example, "one last example, this one with a challenge
+in it", is "Unanswered Prayers" (Pat Alger, Garth Brooks, Larry B. Bastian).
 Verse three plus the second chorus:
 
 <!-- spellchecker:off -->
@@ -437,7 +443,7 @@ The bridge rescues the third chorus:
 > interesting. Other than leaving it alone as good enough (two out of three ain't
 > bad …), what would you do?
 
-Pat's own answer — reintroduce the wife in verse three and skip the bridge:
+Pat's own answer is to reintroduce the wife in verse three and skip the bridge:
 
 ```text
 She wasn't quite the angel that I remembered in my dreams
@@ -465,9 +471,9 @@ Chapter 6:
 > asking "Where do I go now?" it may help to ask "Where did I get here from?"
 > Get used to juggling and trying new things.
 
-What he claims is the reordering itself — the verse you wrote first may not be
-box 1 — not any particular destination for it. Try the material in each slot
-before assuming the song has to continue forward from the draft.
+What he claims is the reordering itself: the verse you wrote first may not be
+box 1. He does not claim any particular destination for it. Try the material in
+each slot before assuming the song has to continue forward from the draft.
 
 And the stronger version of the same advice runs upstream of the stuck point
 entirely:
@@ -490,8 +496,8 @@ in its closing exercise:
 
 Diagnosing one as the other prescribes the wrong fix. ("Same-color" below is
 this file's shorthand for the too-close pole; Pat's own term for the symptom is
-that the boxes come out the same size. The colored-spotlight framing is his —
-Chapter 7 — and the worked case is in Chapter 6.) The table below is this
+that the boxes come out the same size. The colored-spotlight framing is his,
+from Chapter 7, and the worked case is in Chapter 6.) The table below is this
 file's construction, not a table Pat prints; the chapter labels say where each
 pole's material comes from.
 
@@ -499,12 +505,13 @@ pole's material comes from.
 |---|---|---|
 | Verse ideas are | too far apart | too close together |
 | What links the verses | nothing but the title / refrain / chorus | they say the same thing twice |
-| What breaks | accumulation — each box starts a separate avalanche instead of one rolling downhill | repainting — each verse shines the same colored light, so the chorus never looks new |
+| What breaks | accumulation: each box starts a separate avalanche instead of one rolling downhill | repainting: each verse shines the same colored light, so the chorus never looks new |
 | Box symptom | boxes gain no weight; all the same size | Box 2 = Box 1 |
-| Fix | find the chain — use each verse to prepare what comes next | shift the job via You-I-We or Past-Present-Future |
+| Fix | find the chain: use each verse to prepare what comes next | shift the job via You-I-We or Past-Present-Future |
 
 *Writing Better Lyrics* (2009), Chapter 8's own image for the difference:
 
+<!-- ai-slop-ignore-start: verbatim Pat Pattison quotation, Writing Better Lyrics (2009) Chapter 8; carries the book's em dash -->
 > Your lyric accumulates power when your verses work together — using each verse
 > to prepare what comes next. It's like starting avalanches. If you go a third of
 > the way up the mountain and start three separate avalanches from different
@@ -512,6 +519,7 @@ pole's material comes from.
 > you'd gone to the top and rolled one snowball all the way down. Speed and power
 > accumulate and sweep everything away. The town is devastated. The boxes gain
 > weight and power as the snow plummets down the mountain.
+<!-- ai-slop-ignore-end -->
 
 > In a travelogue, all the boxes are the same size.
 
@@ -519,6 +527,7 @@ pole's material comes from.
 
 Pat's definition, in his words:
 
+<!-- ai-slop-ignore-start: verbatim Pat Pattison quotation, Writing Better Lyrics (2009) Chapter 8; carries the book's em dash -->
 > We've all seen travelogues. Ah, fabulous Hawaii — majestic mountains, pipeline
 > surfing, luxury hotels, exotic cuisine. The places may be interesting, but as
 > a film, a travelogue is dull, dull, dull. Its elements have no natural
@@ -526,6 +535,7 @@ Pat's definition, in his words:
 > featuring pipeline surfing? What have either of these to do with elegant hotels
 > and Oriental cuisine? Their only links are accidents of geography: They are all
 > part of fabulous Hawaii!
+<!-- ai-slop-ignore-end -->
 
 His first lyric summary, printed with the refrain repeated after every verse:
 
@@ -540,10 +550,12 @@ Verse 3: More prostitutes carry the AIDS virus every year.
 Refrain: Streets are turning deadly in the dark.
 ```
 
+<!-- ai-slop-ignore-start: verbatim Pat Pattison quotation, Writing Better Lyrics (2009) Chapter 8; carries the book's em dash -->
 > What's going on here? What does police brutality have to do with car bombs or
 > prostitutes with AIDS? Nothing, except that they are all part of fabulous
 > Streets are turning deadly in the dark. Aside from their connection to the
 > refrain, the elements have no natural relationship — they don't belong together.
+<!-- ai-slop-ignore-end -->
 
 > Verse development should mean verse relationship. Your verses should have a
 > good reason to hang out together. When verses are in the same lyric only
@@ -563,10 +575,12 @@ Verse 3: We ignore our poor and homeless.
 Refrain: We're losing the human race.
 ```
 
+<!-- ai-slop-ignore-start: verbatim Pat Pattison quotation, Writing Better Lyrics (2009) Chapter 8; carries the book's em dash -->
 > No matter how well written and interesting these verses get, the basic defect
 > remains: The verses don't work together to accumulate power — they are simply
 > a travelogue of human ineptitude. Important ideas deserve the most powerful
 > presentation you can muster.
+<!-- ai-slop-ignore-end -->
 
 The full worked travelogue and its repair ("Chain Reaction") are in
 [verse-development](verse-development.md#chain-reaction-model).
@@ -594,6 +608,7 @@ Pat's case is "Between Fathers and Sons" (John Jarvis and Gary Nicholson), in
 
 On verse three:
 
+<!-- ai-slop-ignore-start: verbatim Pat Pattison quotation, Writing Better Lyrics (2009) Chapter 6; carries the book's em dashes -->
 > This sounds familiar. Not that I've seen things from the mother's perspective
 > yet, but I have seen the father — in fact, both fathers — trying to protect the
 > child. I've also seen the child trying to go beyond the parents. Not that this
@@ -601,6 +616,7 @@ On verse three:
 > perspectives — she and you) have been covered. This doesn't bode well for the
 > second chorus. We'll need development rather than restatement to keep
 > repetition interesting.
+<!-- ai-slop-ignore-end -->
 
 On verse four:
 
@@ -621,8 +637,8 @@ The fix is redistribution, not rewriting:
 > The song contains two perspectives: a son looking at his father, and the son
 > as father. If the first box could focus only on the son looking at his father
 
-— box 1 keeps *My father had so much to tell me*, and its verse two becomes a
-new prose idea:
+In that case, box 1 keeps *My father had so much to tell me*, and its verse two
+becomes a new prose idea:
 
 ```text
 I kept him at arm's length.
@@ -634,8 +650,10 @@ That's how it always has been between fathers and sons
 Box 2 then opens with the verse that used to sit in box 1,
 *Now when I look at my own son*.
 
+<!-- ai-slop-ignore-start: verbatim Pat Pattison quotation, Writing Better Lyrics (2009) Chapter 6; carries the book's em dashes -->
 > The father's perspective colors the second chorus. It becomes — for me, at
 > least — more interesting than the first chorus.
+<!-- ai-slop-ignore-end -->
 
 > The problem in "Between Fathers and Sons" is that both ideas are in the first
 > box, leaving the lyric no place new to go. Separating the ideas into separate
@@ -653,15 +671,15 @@ prints.
 
 | Failure | Symptom | Fix |
 |---|---|---|
-| Both ideas crammed into box 1 | box 2 restates; "the second chorus is a goner" | split the ideas across boxes — the "Between Fathers and Sons" repair (Ch 6) |
+| Both ideas crammed into box 1 | box 2 restates; "the second chorus is a goner" | split the ideas across boxes, the "Between Fathers and Sons" repair (Ch 6) |
 | Boxes the same size | chorus repetition goes "static and boring" (Ch 8) | separate the perspectives (you-I-we) or the tenses (past-present-future) (Ch 6) |
-| Stagnation — verses say the same thing in different words | the sheriff summaries; "the only real fix is to take the idea new places" (Ch 6) | develop the idea, not the language |
-| Boxes unconnected, linked only by the title | travelogue — "you might end up in fabulous Hawaii" (Ch 8) | use each verse to prepare what comes next; one snowball from the top |
+| Stagnation: verses say the same thing in different words | the sheriff summaries; "the only real fix is to take the idea new places" (Ch 6) | develop the idea, not the language |
+| Boxes unconnected, linked only by the title | travelogue, "you might end up in fabulous Hawaii" (Ch 8) | use each verse to prepare what comes next; one snowball from the top |
 | Refrain resists the new color | you can't change the verse's tense or POV without breaking the refrain (Ch 9) | neutralize the refrain's tense and POV |
 
 Equal box weight is a symptom of travelogue, not a synonym for it: Pat says "in
 a travelogue, all the boxes are the same size," but boxes can also come out the
-same size inside a properly chained lyric — "Between Fathers and Sons" is
+same size inside a properly chained lyric. "Between Fathers and Sons" is
 connected throughout and still ends up with two same-size boxes. Diagnose the
 connection first, the weight second.
 
@@ -675,9 +693,11 @@ Chapter 9 opens:
 > recolored. Sometimes it can resist recoloring, no matter how well your verses
 > develop.
 
+<!-- ai-slop-ignore-start: verbatim Pat Pattison quotation, Writing Better Lyrics (2009) Chapter 9; carries the book's em dash -->
 > You can often solve the problem by neutralizing the refrain's tense and POV —
 > stripping away protective coatings so your refrain can accept the colors the
 > verses try to paint.
+<!-- ai-slop-ignore-end -->
 
 **Neutralizing tenses.** "Verbs determine tenses":
 
@@ -706,7 +726,7 @@ Future: He'll lose the human race.
 Worked on the refrain, the three give *Losing the human race*, *To lose the
 human race*, and *A loss in the human race*.
 
-**Neutralizing point of view** — "Pronouns determine POV":
+**Neutralizing point of view.** "Pronouns determine POV":
 
 > To strip your refrain's POV, omit pronouns. Sometimes you'll have to neutralize
 > verb tenses, too.
@@ -720,7 +740,7 @@ human race*, and *A loss in the human race*.
 > matter how many times you change them in the lyric. Remember as a rule of thumb
 > that verses show, chorus tells. Keep your verses specific and interesting.
 
-Pat's real-world case is Paul Simon's "Still Crazy After All These Years" — a
+Pat's real-world case is Paul Simon's "Still Crazy After All These Years", a
 refrain with no pronouns and no verb, so each verse can set its own POV:
 
 > All three work fine. The result is a productive ambiguity that adds to the
@@ -728,13 +748,13 @@ refrain with no pronouns and no verb, so each verse can set its own POV:
 
 ## Cross-references
 
-- `verse-development.md` — travelogue, power positions, trigger lines
-- `repetition.md` — repaintable chorus, hidden questions/commands,
+- `verse-development.md`: travelogue, power positions, trigger lines
+- `repetition.md`: repaintable chorus, hidden questions/commands,
   three tense-neutralization strategies, POV-neutralization
-- `song-forms.md` — V/V/Ch/V/V/Ch risk, three-system V/Ch/V/Ch/V/Ch
+- `song-forms.md`: V/V/Ch/V/V/Ch risk, three-system V/Ch/V/Ch/V/Ch
   alternatives
-- `point-of-view.md` — camera distances, POV consistency
-- `form.md` — bridge as box-3 substitute, AABA homecoming
+- `point-of-view.md`: camera distances, POV consistency
+- `form.md`: bridge as box-3 substitute, AABA homecoming
 
 ## When to load this file
 

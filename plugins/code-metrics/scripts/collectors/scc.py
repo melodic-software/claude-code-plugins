@@ -22,6 +22,8 @@ import shutil
 import subprocess
 import sys
 
+from adapter_paths import files_from
+
 MIN_PYTHON = (3, 9)
 NAME = "scc"
 
@@ -50,7 +52,59 @@ def probe() -> int:
     return 0
 
 
+# Argument-vector budget for one scc invocation, in characters. Git Bash under
+# Windows caps a native process's command line near 32,000 characters, so a
+# lane of thousands of paths is fed to scc in chunks that stay under it.
+# CODE_METRICS_ARGV_BUDGET overrides the figure (the suite uses it to force
+# several chunks over a small fixture).
+ARGV_BUDGET = 24000
+
+
+def _chunks(files: list[str]) -> list[list[str]]:
+    budget = ARGV_BUDGET
+    override = os.environ.get("CODE_METRICS_ARGV_BUDGET")
+    if override and override.isdigit() and int(override) > 0:
+        budget = int(override)
+    chunks: list[list[str]] = []
+    current: list[str] = []
+    used = 0
+    for path in files:
+        cost = len(path) + 1
+        if current and used + cost > budget:
+            chunks.append(current)
+            current, used = [], 0
+        current.append(path)
+        used += cost
+    if current:
+        chunks.append(current)
+    return chunks
+
+
+def _count_lines(path: str) -> dict[str, int | None]:
+    """The bundled counter's figures for a file scc produced no row for.
+
+    scc lists only the files whose language it recognises, so a lockfile or
+    an extensionless text file in the catch-all lane comes back with no
+    `Files[]` entry; dropping it would report the lane as measured with the
+    file missing. Its total and blank lines are counted here, comment-agnostic
+    like the bundled counter, and the row says so through its label."""
+    total = blank = 0
+    with open(path, "rb") as handle:
+        for raw in handle:
+            total += 1
+            if not raw.strip():
+                blank += 1
+    return {
+        "lines_total": total,
+        "lines_blank": blank,
+        "lines_comment": None,
+        "lines_code": None,
+        "lines_non_blank": total - blank,
+    }
+
+
 def translate(raw: str, lane: str, wanted: list[str]) -> list[dict]:
+    """Rows for `wanted`, in scc's output order, from one scc document."""
     wanted_norm = {_normalize(p): p for p in wanted}
     rows: list[dict] = []
     for language in json.loads(raw):
@@ -79,6 +133,28 @@ def translate(raw: str, lane: str, wanted: list[str]) -> list[dict]:
     return rows
 
 
+def fill_missing(rows: list[dict], lane: str, wanted: list[str]) -> list[dict]:
+    """Append a comment-agnostic row for every requested file scc omitted, so
+    the lane never reads as measured while a file in it was not."""
+    seen = {_normalize(row["file"]) for row in rows}
+    filled = list(rows)
+    for path in wanted:
+        if _normalize(path) in seen:
+            continue
+        seen.add(_normalize(path))
+        filled.append(
+            {
+                "file": path.replace("\\", "/"),
+                "function": None,
+                "lane": lane,
+                "values": _count_lines(path),
+                "collector": NAME,
+                "labels": ["comment-agnostic"],
+            }
+        )
+    return filled
+
+
 def collect(lane: str, measure: str, files: list[str]) -> int:
     if measure != "file_lines":
         print(f"scc.py: cannot collect {measure}", file=sys.stderr)
@@ -87,19 +163,26 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
     if not exe:
         print("scc not on PATH", file=sys.stderr)
         return 3
-    result = subprocess.run(
-        [exe, "--by-file", "--format", "json", *files],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    try:
-        rows = translate(result.stdout, lane, files)
-    except (json.JSONDecodeError, ValueError, TypeError) as exc:
-        print(
-            f"scc.py: unparsable scc output ({exc}); stderr: {result.stderr.strip()}",
-            file=sys.stderr,
+    rows: list[dict] = []
+    for chunk in _chunks(files):
+        result = subprocess.run(
+            [exe, "--by-file", "--format", "json", *chunk],
+            capture_output=True,
+            text=True,
+            check=False,
         )
+        try:
+            rows.extend(translate(result.stdout, lane, chunk))
+        except (json.JSONDecodeError, ValueError, TypeError) as exc:
+            print(
+                f"scc.py: unparsable scc output ({exc}); stderr: {result.stderr.strip()}",
+                file=sys.stderr,
+            )
+            return 3
+    try:
+        rows = fill_missing(rows, lane, files)
+    except OSError as exc:
+        print(f"scc.py: {exc}", file=sys.stderr)
         return 3
     for row in rows:
         print(json.dumps(row))
@@ -128,7 +211,7 @@ def main(argv: list[str]) -> int:
         if len(rest) < 2:
             print("usage: scc.py collect <lane> <measure> <file>...", file=sys.stderr)
             return 2
-        return collect(rest[0], rest[1], rest[2:])
+        return collect(rest[0], rest[1], files_from(rest[2:]))
     print(f"scc.py: unknown verb {verb}", file=sys.stderr)
     return 2
 

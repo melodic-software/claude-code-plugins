@@ -235,13 +235,34 @@ def fan_in(paths: list[str]) -> dict[str, int]:
     return out
 
 
+def _census_is_comment_token():
+    """Load comment-census.is_comment_token once so drift lines match the census."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("_comment_census", CENSUS)
+    if spec is None or spec.loader is None:
+        raise ImportError("comment-census.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod.is_comment_token
+
+
+_IS_COMMENT_TOKEN = None
+
+
 def comment_line_numbers(path: str) -> set[int]:
+    global _IS_COMMENT_TOKEN
     try:
         from pygments import lex
         from pygments.lexers import get_lexer_for_filename
-        from pygments.token import Comment
     except ImportError:
         return set()
+    if _IS_COMMENT_TOKEN is None:
+        try:
+            _IS_COMMENT_TOKEN = _census_is_comment_token()
+        except Exception:  # noqa: BLE001 - census import failed; no comment lines to report
+            return set()
+    is_comment = _IS_COMMENT_TOKEN
     try:
         lexer = get_lexer_for_filename(path, stripnl=False)
     except Exception:  # noqa: BLE001 - unknown extension means no comment lines to report
@@ -249,7 +270,7 @@ def comment_line_numbers(path: str) -> set[int]:
     src = Path(path).read_text(encoding="utf-8", errors="replace")
     line, out = 1, set()
     for tok, text in lex(src, lexer):
-        if tok in Comment and tok is not Comment.Hashbang and text.strip():
+        if is_comment(tok) and text.strip():
             out.update(range(line, line + text.count("\n") + 1))
         line += text.count("\n")
     return out

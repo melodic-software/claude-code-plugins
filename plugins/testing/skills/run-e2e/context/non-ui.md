@@ -1,6 +1,6 @@
 # Non-UI Live Testing Playbook
 
-Per-surface mapping of change-type → smoke-test invocation for non-UI code. Complements `e2e.md` (browser-driven UI evidence). Cites `/toolchain:check` for command shapes — never restates, never drifts.
+Per-surface mapping of change-type → smoke-test invocation for non-UI code. Complements `e2e.md` (browser-driven UI evidence). Cites `/toolchain:check` for command shapes. Never restates, never drifts.
 
 Load on-demand when `/testing:run-e2e` is invoked for non-UI changes. UI changes route to `e2e.md`.
 
@@ -20,15 +20,15 @@ Invocation commands come from `/toolchain:check`; framework, project-naming, and
 | 2 | API app (in-process) | The ecosystem's HTTP-test harness (e.g. WebApplicationFactory); shared-state fixture pattern when a process-global singleton forces it | Browser evidence handled via `e2e.md` when UI surfaces ship |
 | 3 | E2E orchestrator (e.g. Aspire AppHost) | Orchestrator boots in-process via its testing builder; assert resource health + endpoints | None |
 | 4 | Architecture rules | Run the project's architecture-test suite when touching project files or build infrastructure | None |
-| 5 | Hooks + shell scripts | The project's shell-test convention (`*.test.sh` siblings, bats) via its documented runner | Cross-platform — Git Bash only on Windows; tests may pass locally and fail in CI (see `/toolchain:check` bash context "CI-environment caveat") |
-| 6 | MCP server (per-runtime unit tests) | Unit-level coverage of tool handlers + transport plumbing | No protocol-level smoke test — see MCP stdio handshake pattern below |
+| 5 | Hooks + shell scripts | The project's shell-test convention (`*.test.sh` siblings, bats) via its documented runner | Cross-platform: Git Bash only on Windows; tests may pass locally and fail in CI (see `/toolchain:check` bash context "CI-environment caveat") |
+| 6 | MCP server (per-runtime unit tests) | Unit-level coverage of tool handlers + transport plumbing | No protocol-level smoke test. See MCP stdio handshake pattern below |
 | 7 | MCP server stdio handshake | See "MCP stdio handshake" section below | No upstream harness; replace bespoke recipe if an official one ships |
 | 8 | Python infrastructure / scripts | pytest (via `uv run` in uv-managed projects); standard fixtures | None |
 | 9 | PowerShell (`*.ps1` / `*.psm1`) | PSScriptAnalyzer (lint); Pester when the project has suites | None |
 
 ## MCP stdio handshake
 
-When unit tests pass but the server fails to register, the gap is the JSON-RPC `initialize` handshake — protocol-level smoke test that proves the server speaks MCP over stdio correctly.
+When unit tests pass but the server fails to register, the gap is the JSON-RPC `initialize` handshake, a protocol-level smoke test that proves the server speaks MCP over stdio correctly.
 
 **Pattern (all runtimes):**
 
@@ -37,12 +37,12 @@ When unit tests pass but the server fails to register, the gap is the JSON-RPC `
 3. Read one line from stdout; parse as JSON-RPC response
 4. Assert `result.protocolVersion`, `result.serverInfo.name`, and `result.capabilities` match expected shape
 
-**Request/response shapes:** the MCP spec owns the `initialize` request and response schemas —
-read them there rather than from a copy here (the protocol is versioned; a restated shape drifts
+**Request/response shapes:** the MCP spec owns the `initialize` request and response schemas.
+Read them there rather than from a copy here (the protocol is versioned; a restated shape drifts
 when it revs). This recipe was written against the pinned `2025-06-18` revision
 (<https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle>); check the current
 revision via <https://modelcontextprotocol.io/specification/latest> and match the recipe to the
-revision your server SDK actually implements — revisions after `2025-11-25` replace the
+revision your server SDK actually implements. Revisions after `2025-11-25` replace the
 `initialize` handshake with per-request metadata, so this handshake smoke test applies to
 legacy/dual-era servers only (verified 2026-08-26).
 
@@ -60,7 +60,7 @@ Wire as `*.handshake.test.<ext>` next to existing unit tests; runner inherits th
 
 ## Cross-references
 
-- `e2e.md` — UI surface; mandatory evidence artifacts (snapshot / screenshot / console / network / assertion)
-- `/toolchain:check` — SSOT for per-ecosystem build/test/lint invocations (per context file)
-- `/verification:confirm outcome` — composes this playbook into outcome reports when changes affect non-UI runtime
-- The consuming project's testing conventions — naming, framework gotchas, test placement
+- `e2e.md`: UI surface; mandatory evidence artifacts (snapshot / screenshot / console / network / assertion)
+- `/toolchain:check`: SSOT for per-ecosystem build/test/lint invocations (per context file)
+- `/verification:confirm outcome`: composes this playbook into outcome reports when changes affect non-UI runtime
+- The consuming project's testing conventions: naming, framework gotchas, test placement

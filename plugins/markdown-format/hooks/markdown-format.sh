@@ -19,12 +19,6 @@
 
 set -uo pipefail
 
-# Read inherited fd0 directly (bare cat) — NEVER `</dev/stdin`: on Windows Git
-# Bash, CC spawns hooks with stdin = a Win32 pipe that `/dev/stdin` cannot
-# resolve (ENOENT → silent no-op). stdin is read ONCE here and fed to both
-# hook::read_file_path (file_path) and the tool_name parse below; reading fd0
-# twice would drain the pipe on the second call.
-#
 # The hook's own directory is derived with parameter expansion rather than
 # `dirname`. On the Windows Git Bash host this hook is tuned for, an exec costs
 # about a spawn and a command substitution costs half of one, and this line runs
@@ -42,34 +36,19 @@ HOOK_DIR="${BASH_SOURCE[0]%/*}"
 # shellcheck source=hook-utils.sh
 source "$HOOK_DIR/hook-utils.sh"
 
-# Capture $EPOCHREALTIME immediately after kill-switch so duration_ms covers the
-# formatting work (pre-format exits below do not emit telemetry). EPOCHREALTIME is
-# Bash 5.0+; on older bash it is unset, so default to empty — referencing it bare
-# under `set -u` would abort before the advisory exit 0, failing every edit.
-start=${EPOCHREALTIME:-}
+# MD_CHANGED is set on the path that ran the fix pass ("true" when
+# markdownlint-cli2 reported fixes written, "false" otherwise) and stays empty
+# on every skip arm, where the key is omitted rather than guessed.
+MD_CHANGED=""
 
-# Emit this run's telemetry envelope: $1 status, $2 findings JSON array.
-# Two guards: the high-res start stamp (EPOCHREALTIME is Bash 5.0+; on older
-# bash it is empty and telemetry is skipped, so the hook still formats rather
-# than aborting) and the sink opt-in. The data payload costs a jq subprocess,
-# so it is built here after both guards — never on the unwired path.
-emit_tel() {
-  [[ -n "$start" ]] || return 0
-  hook::telemetry_enabled || return 0
-  hook::emit_telemetry "markdown-format" "PostToolUse" "$1" "$start" "$(build_data_json "$2")" "$REPO_ROOT"
+# Every arm exits through hook::finish: telemetry first, then the one JSON
+# document. This hook never rewrites behind the rewrite guard —
+# markdownlint-cli2's own fix count is authoritative — so the verdict arrives
+# on --changed, and a skip arm that passes none omits the key rather than
+# guessing one.
+emit_skipped() {
+  hook::finish skipped findings array '[]'
 }
-
-hook::buffer_stdin_to INPUT || exit 0
-
-# jq-free applicability pre-filter: never emit the jq notice for an edit this
-# hook would not process anyway. hooks.json already gates launch with
-# if: Edit(*.md)/Edit(*.mdc); this check remains because that filter is one
-# rule per handler and fails open on an unparsable payload.
-RAW_FILE=$(hook::raw_file_path "$INPUT") || exit 0
-case "$RAW_FILE" in
-*.md | *.mdc) ;;
-*) exit 0 ;;
-esac
 
 # Consumer opt-in gate (#1809's single-writer decision): the run requires a
 # markdownlint config the repository itself carries. markdownlint-cli2 ships a
@@ -91,44 +70,52 @@ esac
 # runs from $1's directory up to the repo root $2 — the same span the lint
 # run's own discovery covers for that file.
 #
-# Both `dirname` calls this walk used are parameter expansions, for the reason
-# given at the source line above: this hook runs on every Markdown Write and
-# Edit, and the walk's exec count grows with the file's depth below the repo
-# root. $1 names an existing regular file, so it carries no trailing slash and
-# the strip is exact; a path with no separator at all leaves the strip a no-op,
+# The `dirname` this gate used is a parameter expansion, for the reason given
+# at the source line above: this hook runs on every Markdown Write and Edit.
+# $1 names an existing regular file, so it carries no trailing slash and the
+# strip is exact; a path with no separator at all leaves the strip a no-op,
 # which the `.` fallback covers, and a file directly under the filesystem root
 # leaves it empty, which the `/` fallback covers (bash rejects `cd ""` as a
 # null directory, so an empty start would fail the walk closed and skip a
-# root-level file that a root config opts in). In the walk, an emptied strip
-# means the parent is the filesystem root. The walk terminates at the repo root
-# two lines above the step in every reachable case, so the root arm is defense,
-# not a path anything here takes.
+# root-level file that a root config opts in).
+# shellcheck disable=SC2329  # invoked by name, as hook::walk_up_to's predicate
+markdownlint_config_here() {
+  local candidate
+  for candidate in \
+    .markdownlint-cli2.jsonc .markdownlint-cli2.yaml \
+    .markdownlint-cli2.cjs .markdownlint-cli2.mjs \
+    .markdownlint.jsonc .markdownlint.json \
+    .markdownlint.yaml .markdownlint.yml \
+    .markdownlint.cjs .markdownlint.mjs; do
+    [[ -f "$1/$candidate" ]] && return 0
+  done
+  return 1
+}
+
 markdownlint_config_discoverable() {
-  local dir root candidate parent start
+  local root start
+  # shellcheck disable=SC2034  # the gate reads the walk's verdict, not which directory carried the config
+  local hit=""
   start="${1%/*}"
   [[ "$start" == "$1" ]] && start=.
   [[ -n "$start" ]] || start=/
-  dir="$(cd "$start" 2>/dev/null && pwd -P)" || return 1
-  # Fail CLOSED when the root cannot be resolved: an empty root would never
-  # terminate the equality check below and the walk would run to the
-  # filesystem root — scanning directories above the repository that the lint
-  # run's own discovery never reads.
+  start="$(cd "$start" 2>/dev/null && pwd -P)" || return 1
+  # Fail CLOSED when the root cannot be resolved — an unresolvable ceiling is
+  # hook::walk_up_to's own fail-closed case too, and both mean the same thing
+  # here: a walk that ran past the repository would scan directories above it
+  # that the lint run's own discovery never reads, and adopt their config as
+  # this repository's opt-in.
   root="$(cd "$2" 2>/dev/null && pwd -P)" || return 1
-  while :; do
-    for candidate in \
-      .markdownlint-cli2.jsonc .markdownlint-cli2.yaml \
-      .markdownlint-cli2.cjs .markdownlint-cli2.mjs \
-      .markdownlint.jsonc .markdownlint.json \
-      .markdownlint.yaml .markdownlint.yml \
-      .markdownlint.cjs .markdownlint.mjs; do
-      [[ -f "$dir/$candidate" ]] && return 0
-    done
-    [[ "$dir" == "$root" ]] && return 1
-    parent="${dir%/*}"
-    [[ -n "$parent" ]] || parent=/
-    [[ "$parent" != "$dir" ]] || return 1
-    dir="$parent"
-  done
+  hook::walk_up_to hit "$start" "$root" markdownlint_config_here
+}
+
+# A `.git` entry, accepted as a directory (ordinary clone) or as a FILE, which
+# is what a linked worktree and a submodule write instead — the two shapes git's
+# own discovery accepts (https://git-scm.com/docs/gitrepository-layout,
+# "$GIT_DIR", fetched 2026-08-09).
+# shellcheck disable=SC2329  # invoked by name, as hook::walk_up_to's predicate
+git_dir_entry_here() {
+  [[ -e "$1/.git" ]]
 }
 
 # Resolve the working-tree root for a path WITHOUT requiring git.
@@ -171,6 +158,7 @@ markdownlint_config_discoverable() {
 #
 # When nothing resolves, the hint stands exactly as before, which is what keeps
 # the out-of-tree bound documented under the membership scope true.
+# shellcheck disable=SC2329  # invoked by name, as hook::begin's --repo-root resolver
 resolve_repo_root_to() {
   local __md_dest="$1" hint="$2" root dir parent
   root=""
@@ -183,17 +171,16 @@ resolve_repo_root_to() {
   # Physical, matching CONFIG_ROOT and markdownlint_config_discoverable, which
   # both compare `pwd -P` results: a lexically-spelled root would never compare
   # equal to the walk's cursor and the search would run past the repository.
+  #
+  # `/` is this walk's ceiling, and deliberately so: it is looking FOR the
+  # repository root, so it has no narrower one to stop at, and passing the
+  # filesystem root states that rather than leaving the ceiling unset (which
+  # hook::walk_up_to reads as an unresolved ceiling and fails closed on).
   if dir="$(cd "$hint" 2>/dev/null && pwd -P)"; then
-    while :; do
-      if [[ -e "$dir/.git" ]]; then
-        printf -v "$__md_dest" '%s' "$dir"
-        return 0
-      fi
-      parent="${dir%/*}"
-      [[ -n "$parent" ]] || parent=/
-      [[ "$parent" == "$dir" ]] && break
-      dir="$parent"
-    done
+    if hook::walk_up_to parent "$dir" / git_dir_entry_here; then
+      printf -v "$__md_dest" '%s' "$parent"
+      return 0
+    fi
   fi
   if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
     printf -v "$__md_dest" '%s' "$CLAUDE_PROJECT_DIR"
@@ -205,7 +192,8 @@ resolve_repo_root_to() {
 # jq is required to parse Claude Code's hook payload and to emit structured
 # PostToolUse context. Absent → visible once-per-session skip notice on both
 # the agent and user channels, exit 0 — but only for a repository that opted
-# in, so the opt-in is decided FIRST. The authoritative gate is still the one
+# in, so the opt-in is decided FIRST. hook::begin calls this immediately before
+# its jq gate with the raw path as $1. The authoritative gate is still the one
 # on the jq-parsed path further down; this pre-check exists solely to suppress
 # the notice, and runs only when jq is actually missing so the normal path
 # costs nothing.
@@ -218,31 +206,41 @@ resolve_repo_root_to() {
 # declines to decide and falls through to the notice. Erring toward silence
 # would hide a real prerequisite gap; falling through only repeats the
 # behavior a repo already had.
-if ! command -v jq >/dev/null 2>&1; then
-  DECODED_FILE="${RAW_FILE//\\\"/\"}"
-  DECODED_FILE="${DECODED_FILE//\\\//\/}"
-  DECODED_FILE="${DECODED_FILE//\\\\/\\}"
-  _decoded_dir="${DECODED_FILE%/*}"
-  [[ "$_decoded_dir" == "$DECODED_FILE" ]] && _decoded_dir=.
-  [[ -n "$_decoded_dir" ]] || _decoded_dir=/
-  _decoded_root=""
-  resolve_repo_root_to _decoded_root "$_decoded_dir"
-  if [[ -f "$DECODED_FILE" ]] &&
-    ! markdownlint_config_discoverable "$DECODED_FILE" "$_decoded_root"; then
+# shellcheck disable=SC2329  # invoked by name, as hook::begin's --pre-jq callback
+opt_in_decided_without_jq() {
+  command -v jq >/dev/null 2>&1 && return 0
+  local decoded="${1//\\\"/\"}" decoded_dir decoded_root
+  decoded="${decoded//\\\//\/}"
+  decoded="${decoded//\\\\/\\}"
+  decoded_dir="${decoded%/*}"
+  [[ "$decoded_dir" == "$decoded" ]] && decoded_dir=.
+  [[ -n "$decoded_dir" ]] || decoded_dir=/
+  decoded_root=""
+  resolve_repo_root_to decoded_root "$decoded_dir"
+  if [[ -f "$decoded" ]] &&
+    ! markdownlint_config_discoverable "$decoded" "$decoded_root"; then
     # silent-skip-ok: this exit reports the opt-in verdict, not a jq verdict —
     # the repository never enabled this hook, so it is owed no notice about a
     # prerequisite for it. jq's absence stays visible for every repository that
-    # DID opt in, via the hook::require_jq call immediately below.
+    # DID opt in, via hook::begin's own gate immediately after this returns.
     exit 0
   fi
-fi
-hook::require_jq PostToolUse markdown-format "$INPUT"
+}
 
-FILE=$(printf '%s' "$INPUT" | hook::read_file_path) || exit 0
-case "$FILE" in
-*.md | *.mdc) ;;
-*) exit 0 ;;
-esac
+# The whole prologue: the start stamp, the buffered payload, the jq-free
+# applicability filter, the opt-in pre-check above, the jq gate, the parsed
+# path with its basename and directory, the repo root, and the telemetry-only
+# TOOL and FILE_REL behind the sink opt-in. Exits 0 itself on every path this
+# hook has nothing to do on.
+#
+# hooks.json already gates launch with if: Edit(*.md)/Edit(*.mdc); the glob
+# list here remains because that filter is one rule per handler and fails open
+# on an unparsable payload.
+#
+# --repo-root because hook::repo_root_to's hint fallback is the wrong ceiling
+# for a config-discovery walk; see resolve_repo_root_to above.
+hook::begin --repo-root resolve_repo_root_to --pre-jq opt_in_decided_without_jq \
+  markdown-format PostToolUse '*.md' '*.mdc'
 
 # Does <dir> sit inside a git working tree? Git's repository-selection and
 # discovery environment variables are cleared first: an inherited GIT_DIR or
@@ -330,25 +328,9 @@ physically_inside() {
 # no `.git`, discovery searches its own directory alone, and it does not lint
 # unless `/tmp` itself carries a markdownlint config.
 #
-# REPO_ROOT is resolved here because the scope needs it. It depends only on
-# FILE, and it is computed once for both.
-#
-# FILE_DIR is FILE's directory as a parameter expansion rather than a `dirname`,
-# for the reason given at the source line above, and it is resolved once for
-# every consumer below rather than per call site. FILE has cleared
-# hook::read_file_path's `-f` test, so it names an existing regular file with no
-# trailing slash; the fallbacks cover the two shapes where the strip and
-# dirname disagree: a bare relative filename with no separator, where dirname
-# answers `.`, and a file directly under the filesystem root, where the strip
-# leaves an empty string that hook::repo_root would read as `.` (the hook
-# process CWD) while dirname answers `/`. CONFIG_TARGET_DIR below derives from
-# FILE_DIR, so it inherits the same answer.
-FILE_DIR="${FILE%/*}"
-[[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR=.
-[[ -n "$FILE_DIR" ]] || FILE_DIR=/
-REPO_ROOT=""
-resolve_repo_root_to REPO_ROOT "$FILE_DIR"
-
+# REPO_ROOT and FILE_DIR come from hook::begin above, resolved once for every
+# consumer here and below rather than per call site; CONFIG_TARGET_DIR further
+# down derives from FILE_DIR, so it inherits the same answer.
 if [[ -z "${CLAUDE_PROJECT_DIR:-}" ]]; then
   FILE_PHYSICAL=""
   hook::physical_path_to FILE_PHYSICAL "$FILE"
@@ -368,58 +350,11 @@ if [[ -z "${CLAUDE_PROJECT_DIR:-}" ]]; then
   fi
 fi
 
-# Telemetry-payload precursors — TOOL and FILE_REL feed only the envelope's
-# data object, so both are built only when a sink is wired: the unwired
-# default path spawns zero telemetry-only subprocesses (the tool_name jq
-# parse, and 2× cygpath on Windows).
-#
-# FILE_REL is the repo-relative path the schema requires ("relative to the
-# consuming repo root"), degrading to the basename when the prefix strip does
-# not match, so an absolute path never reaches telemetry.
-TOOL=""
-FILE_REL="$FILE"
-if hook::telemetry_enabled; then
-  TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
-  FILE_REL=""
-  hook::repo_relative_path_to FILE_REL "$FILE" "$REPO_ROOT"
-fi
-
-# Build the telemetry data object for the current TOOL/FILE_REL. $1 is the
-# findings JSON array. jq is authoritative. The fallback is a fixed empty-shape
-# object — NOT an interpolation of TOOL/FILE_REL, which could inject quotes or
-# backslashes from a path and corrupt the envelope. The fallback is essentially
-# unreachable in practice (it fires only if `jq -n` fails, and when jq is absent
-# hook::emit_telemetry drops the envelope anyway), so losing the values here is
-# harmless and strictly safer than emitting malformed JSON.
-#
-# The findings array arrives on STDIN, never as an --argjson value. Windows caps
-# a process command line at 32767 characters, and this array is deliberately
-# uncapped — a real file with a few hundred findings serializes past that,
-# `jq -n` then fails with "argument list too long" (reproduced: 300 findings
-# pass, 600 fail), and the fallback below would emit an envelope claiming ZERO
-# findings for the noisiest files in the repository. A payload that lies is
-# worse than no payload. TOOL and FILE_REL stay as arguments: both are bounded
-# by a path length.
-# MD_CHANGED is set on the path that ran the fix pass ("true" when
-# markdownlint-cli2 reported fixes written, "false" otherwise) and stays empty
-# on every skip arm, where the key is omitted rather than guessed.
-MD_CHANGED=""
-build_data_json() {
-  printf '%s' "$1" | jq -c \
-    --arg tool "$TOOL" \
-    --arg file "$FILE_REL" \
-    --arg changed "$MD_CHANGED" \
-    '{tool:$tool,file:$file,findings:.}
-     + (if $changed == "" then {} else {changed: ($changed == "true")} end)' 2>/dev/null ||
-    printf '{"tool":"","file":"","findings":[]}'
-}
-
 # The consumer opt-in gate, on the authoritative jq-parsed path. The pre-check
 # above only decides whether the jq notice may be emitted; this is where a
 # config-less repository actually stops.
 if ! markdownlint_config_discoverable "$FILE" "$REPO_ROOT"; then
-  emit_tel "skipped" '[]'
-  exit 0
+  emit_skipped
 fi
 
 # Path-scope escape, the half the 0.9.0 config gate (#1809) did not cover: a
@@ -500,8 +435,7 @@ if ((LINT_GITIGNORED == 0)) && file_is_gitignored; then
   # the context the skip exists to save. The skip is still observable: the
   # telemetry envelope below records it, and README documents the rule and its
   # markdown_format_lint_gitignored opt-out.
-  emit_tel "skipped" '[]'
-  exit 0
+  emit_skipped
 fi
 
 # Resolve the consuming repository's pinned npm binary without invoking a
@@ -772,8 +706,7 @@ else
       "markdown-format: markdownlint-cli2 was not found on this hook's PATH or as a contained repository-local node_modules/.bin executable — Markdown lint skipped for this edit (probe re-runs on every Markdown edit; only this notice latches once per session — there is no skip latch). $(markdownlint_skip_remediation)
 PATH probed: $(format_probed_path)"
   fi
-  emit_tel "skipped" '[]'
-  exit 0
+  emit_skipped
 fi
 
 # markdownlint-cli2 configuration can cross a code-execution boundary. Its
@@ -1214,8 +1147,7 @@ if ((${#RISK_CONFIGS[@]} > 0)); then
       hook::emit_skip_notice PostToolUse \
         "markdown-format trust gate: Markdown lint/format skipped — this repository's markdownlint configuration can execute repository-supplied code ($RISK_LIST). $APPROVE_HINT"
     fi
-    emit_tel "skipped" '[]'
-    exit 0
+    emit_skipped
   fi
 fi
 
@@ -1409,15 +1341,13 @@ fi
 # every string derived from it — this report, the user-channel message, and the
 # telemetry findings array — is clean without a per-string strip.
 CTX="${CTX%"${CTX##*[![:space:]]}"}"
-hook::emit_channels PostToolUse "$CTX" "$SYSMSG"
 
-# Build the findings array in one jq pass (one JSON string per matched line).
-# The telemetry payload is NOT capped — a sink is a machine, and the cap exists
-# to protect the model's context, not a log file.
+# Build the findings array (one JSON string per matched line). The telemetry
+# payload is NOT capped — a sink is a machine, and the cap exists to protect the
+# model's context, not a log file. hook::findings_encode_to owns the sink
+# opt-in, so the encode costs nothing on the unwired default path.
 FINDINGS_JSON='[]'
-if [[ -n "$findings_raw" ]]; then
-  FINDINGS_JSON=$(printf '%s' "$findings_raw" | jq -R . | jq -s . 2>/dev/null) || FINDINGS_JSON='[]'
-fi
+hook::findings_encode_to FINDINGS_JSON "$findings_raw"
 
-emit_tel "ok" "$FINDINGS_JSON"
-exit 0
+hook::finish --context "$CTX" --message "$SYSMSG" --changed "$MD_CHANGED" \
+  ok findings array "$FINDINGS_JSON"

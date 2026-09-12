@@ -31,7 +31,7 @@ gh api --paginate "repos/{owner}/{repo}/issues/<pr_number>/comments?per_page=100
    - Any deferred items (tracked work items)
 2. **Stale-base guard:** confirm the PR head is not behind its base on overlapping
    paths before squash-merging. `gh pr view <pr_number> --json mergeStateStatus,baseRefName,headRefOid`
-   plus `gh api repos/{owner}/{repo}/compare/<baseRefName>...<headRefOid>` — if
+   plus `gh api repos/{owner}/{repo}/compare/<baseRefName>...<headRefOid>`. If
    `behind_by > 0`, update the branch (merge-forward / `gh pr update-branch`) and re-run
    readiness; do **not** squash-merge a behind head. Under a non-strict ruleset, GitHub can
    still report `CLEAN` while the head is behind, and a stale-base squash can silently revert
@@ -39,24 +39,24 @@ gh api --paginate "repos/{owner}/{repo}/issues/<pr_number>/comments?per_page=100
    consuming repo runs an overlapping-path CI gate, treat it as the tripwire; it covers the
    stale-**base** class only, and only a post-merge silent-revert detector catches a head that is
    current in history but stale in content. A consuming repo may have neither.
-3. **Comprehension quiz (default-on, self-enforced)** — when the PR carries substantial work the user didn't author line-by-line (multi-file feature/refactor, or a long agent session outran the user's reading), generate a self-contained HTML change report + quiz before asking for merge approval: the report explains the change with context and intuition (what was done, why, which existing code paths it leans on); the quiz at the bottom tests exactly that. The user merges after passing — self-enforced, no tooling gate; "skip quiz" skips it explicitly. Exemption is calibrated by size and blast radius, NOT by file type: exempt only diffs the user can genuinely review at a glance (single-file, mechanical, or a handful of small localized edits). A large multi-file instruction-only change (skills, rules, agent instructions from a long session) gets the quiz even though it is docs-only — instruction surfaces steer future agent behavior, so unread changes there carry real blast radius
-4. Wait for user approval — merge is an irreversible action
+3. **Comprehension quiz (default-on, self-enforced).** When the PR carries substantial work the user didn't author line-by-line (multi-file feature/refactor, or a long agent session outran the user's reading), generate a self-contained HTML change report + quiz before asking for merge approval: the report explains the change with context and intuition (what was done, why, which existing code paths it leans on); the quiz at the bottom tests exactly that. The user merges after passing, self-enforced with no tooling gate; "skip quiz" skips it explicitly. Exemption is calibrated by size and blast radius, NOT by file type: exempt only diffs the user can genuinely review at a glance (single-file, mechanical, or a handful of small localized edits). A large multi-file instruction-only change (skills, rules, agent instructions from a long session) gets the quiz even though it is docs-only: instruction surfaces steer future agent behavior, so unread changes there carry real blast radius
+4. Wait for user approval, since merge is an irreversible action
 
 ## 4.2 Squash merge
 
-Default merge mode is squash — one squashed commit per PR onto the default branch. Follow the consuming project's convention when it differs (merge commit / rebase-merge).
+Default merge mode is squash: one squashed commit per PR onto the default branch. Follow the consuming project's convention when it differs (merge commit / rebase-merge).
 
 ```bash
 gh pr merge <pr_number> --squash --delete-branch
 ```
 
-**Always use the explicit `<pr_number>` resolved at phase entry.** The PR title — shaped to satisfy the resolved subject/title convention, see pull-request SKILL.md's "PR title format" ladder (Conventional Commits by default) — becomes the squash commit message.
+**Always use the explicit `<pr_number>` resolved at phase entry.** The PR title becomes the squash commit message. It is shaped to satisfy the resolved subject/title convention, per pull-request SKILL.md's "PR title format" ladder (Conventional Commits by default).
 
 ## 4.3 Worktree transition and next-task setup
 
 Detect if currently in a worktree (`git worktree list`).
 
-**If in a worktree (primary pattern — worktree reuse):**
+**If in a worktree (primary pattern, worktree reuse):**
 
 Reuse the worktree for next task by creating a new branch from the latest default branch. Faster than remove+recreate and preserves gitignored files.
 
@@ -87,7 +87,7 @@ Worktree reuse (new branch from latest default branch in the same directory) is 
 
 **If on a regular branch (not in worktree):**
 
-1. **Check for uncommitted changes BEFORE checkout** — `git status --porcelain`. If uncommitted changes exist, they will be lost on the default-branch checkout (conflicting changes fail, non-conflicting changes silently carry over — neither desirable). Stash first: `git stash push -u -m "pre-merge-cleanup: <branch-name>"` (`-u` includes untracked files — without it, new files are silently skipped). Stashes survive branch deletion (stored in `.git/refs/stash`, not tied to branches)
+1. **Check for uncommitted changes BEFORE checkout** with `git status --porcelain`. If uncommitted changes exist, they will be lost on the default-branch checkout (conflicting changes fail, non-conflicting changes silently carry over, neither desirable). Stash first: `git stash push -u -m "pre-merge-cleanup: <branch-name>"` (`-u` includes untracked files, since without it new files are silently skipped). Stashes survive branch deletion (stored in `.git/refs/stash`, not tied to branches)
 2. `git checkout "$DEFAULT_BRANCH"` (resolve via `gh repo view --json defaultBranchRef -q .defaultBranchRef.name`)
 3. `git pull --ff-only`
 4. `git branch -D <merged-branch>`
@@ -95,11 +95,11 @@ Worktree reuse (new branch from latest default branch in the same directory) is 
 
 ## 4.4 Run a session retrospective (optional)
 
-If your environment provides a retrospective skill (e.g. `/session-flow:retro`), invoke it via the Skill tool **after the worktree transition (worktree reuse) or after merge (non-worktree)**. With worktree reuse, `CLAUDE_PROJECT_DIR` stays valid because the worktree directory persists — skills remain fully discoverable. If no such capability exists, skip this step.
+If your environment provides a retrospective skill (e.g. `/session-flow:retro`), invoke it via the Skill tool **after the worktree transition (worktree reuse) or after merge (non-worktree)**. With worktree reuse, `CLAUDE_PROJECT_DIR` stays valid because the worktree directory persists, so skills remain fully discoverable. If no such capability exists, skip this step.
 
 If the user declines or says "skip", proceed to step 4.5. In `full` mode, run automatically without pausing.
 
-**Exception:** if using `ExitWorktree` instead of worktree reuse (rare), run the retrospective BEFORE merge in Phase 4.1 — worktree removal orphans `CLAUDE_PROJECT_DIR` and breaks skill discovery.
+**Exception:** if using `ExitWorktree` instead of worktree reuse (rare), run the retrospective BEFORE merge in Phase 4.1, because worktree removal orphans `CLAUDE_PROJECT_DIR` and breaks skill discovery.
 
 ## 4.5 Verify clean state and offer next action
 
@@ -109,14 +109,14 @@ git worktree list       # should show only main + other active worktrees
 git branch              # merged branch should be gone, new branch active
 ```
 
-**Post-merge CI health check** — verify CI on main is green after merge commit lands:
+**Post-merge CI health check.** Verify CI on main is green after the merge commit lands:
 
 ```bash
 gh run list --branch "$DEFAULT_BRANCH" --limit 1 --json conclusion,displayTitle \
   --jq '.[0] | "\(.conclusion): \(.displayTitle)"'
 ```
 
-If latest run shows `failure`, flag it immediately — the merge may have introduced a regression on main. If run is still `in_progress`, note it and suggest checking back.
+If latest run shows `failure`, flag it immediately: the merge may have introduced a regression on main. If run is still `in_progress`, note it and suggest checking back.
 
 Report: merge complete, transition successful, state verified.
 
@@ -124,5 +124,5 @@ Report: merge complete, transition successful, state verified.
 
 > "PR merged and worktree ready for next task. What's next?"
 >
-> 1. **Continue in this session** — `/clear` for fresh context, then start the new task on the branch we just created
-> 2. **End session** — close and start fresh next time
+> 1. **Continue in this session**: `/clear` for fresh context, then start the new task on the branch we just created
+> 2. **End session**: close and start fresh next time

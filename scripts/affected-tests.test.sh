@@ -14,16 +14,15 @@ SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SELF_DIR/.." && pwd)"
 SCRIPT="$SELF_DIR/affected-tests.sh"
 
-# A fixture runs a COPY of the gate, so it must also carry the shared
-# libraries that copy sources (scripts/lib/*.sh). Staging them here keeps the
-# fixture a faithful copy; without it the copied gate dies on a missing
-# source at line 1 and every assertion below turns into the same opaque
-# failure. See #2914.
-stage_libs() {
-  mkdir -p "$1/lib"
-  cp "$SELF_DIR/lib/changed-files.sh" "$SELF_DIR/lib/read-list.sh" \
-    "$SELF_DIR/lib/sync-cluster.sh" "$1/lib/"
-}
+# A fixture runs a COPY of the gate, so the builder stages scripts/lib/ with it:
+# without those, the copy dies on a missing source at line 1 and every assertion
+# below turns into the same opaque failure.
+# shellcheck source=lib/fixture-tree.sh
+. "$SELF_DIR/lib/fixture-tree.sh"
+
+# The builder assigns through a nameref, which shellcheck cannot follow;
+# declaring the out-vars here is what tells it (SC2154) the names are written.
+repo="" repo_renamed="" repo2="" repo3="" shimdir=""
 
 # write_print_manifest <dest> <src> <copies-glob>
 # A fixture sync script that publishes via --print-manifest. The glob is
@@ -64,15 +63,12 @@ mk_widget_consumer() {
   printf 'source "$(dirname "${BASH_SOURCE[0]}")/widget.sh"\n' >"$1"
 }
 
-mk_repo() {
+mk_repo() { # <out-var>
   local dir
-  dir="$(mktemp -d "${TMPDIR:-/tmp}/affected-tests-fixture.XXXXXX")"
-  git_init_safe "$dir"
+  fixture_tree::build "$1" --sut "$SCRIPT" --git --label affected-tests-fixture || return 1
+  dir="${!1}"
 
-  mkdir -p "$dir/scripts" "$dir/lib" \
-    "$dir/plugins/alpha/hooks" "$dir/plugins/beta/hooks"
-  cp "$SCRIPT" "$dir/scripts/affected-tests.sh"
-  stage_libs "$dir/scripts"
+  mkdir -p "$dir/lib" "$dir/plugins/alpha/hooks" "$dir/plugins/beta/hooks"
   cp "$NO_SUITE" "$dir/scripts/affected-tests-no-suite.txt"
 
   # A sync manifest that publishes via --print-manifest, with a GLOB copy
@@ -97,7 +93,6 @@ mk_repo() {
 
   git_test_config "$dir" add scripts lib plugins >/dev/null
   git_test_config "$dir" commit -qm base >/dev/null
-  printf '%s' "$dir"
 }
 
 # run_sel <repo> <args...> -> selection in OUT, exit status in RC.
@@ -119,7 +114,7 @@ has_line() {
 }
 
 # --- co-located mapping ----------------------------------------------------
-repo="$(mk_repo)"
+mk_repo repo
 run_sel "$repo" plugins/alpha/hooks/alpha-hook.sh
 out="$OUT"
 if [[ "$RC" -eq 0 ]] &&
@@ -196,7 +191,7 @@ fi
 rm -rf "$repo"
 
 # --- unmapped file: fail loud, and the documented escape hatch -------------
-repo="$(mk_repo)"
+mk_repo repo
 out="$(cd "$repo" && bash scripts/affected-tests.sh scripts/zzorphan-tool.sh 2>&1)"
 RC=$?
 if [[ "$RC" -eq 1 ]] && printf '%s' "$out" | grep -q 'UNMAPPED'; then
@@ -224,7 +219,7 @@ fi
 #
 # The shim delegates every other subcommand to the REAL git, captured as an
 # absolute path so the shim cannot recurse into itself via PATH.
-shimdir="$(mktemp -d "${TMPDIR:-/tmp}/affected-tests-shim.XXXXXX")"
+fixture_tree::build shimdir --label affected-tests-shim
 REAL_GIT="$(command -v git)"
 # shellcheck disable=SC2016 # deliberate: the emitted shim must expand these, not this shell
 printf '#!/usr/bin/env bash\nif [[ "${1:-}" == "grep" ]]; then\n  echo "fatal: simulated git grep failure" >&2\n  exit 128\nfi\nexec "%s" "$@"\n' "$REAL_GIT" >"$shimdir/git"
@@ -637,7 +632,7 @@ fi
 # The old consumer scraped those spellings out of source text. A publisher
 # that never uses them, but still implements --print-manifest, must fan out
 # the same way — this is the assertion that the parsed contract is gone.
-repo_renamed="$(mk_repo)"
+mk_repo repo_renamed
 # shellcheck disable=SC2016 # deliberate: the emitted fixture must expand these
 {
   printf '#!/usr/bin/env bash\n'
@@ -822,7 +817,7 @@ fi
 # test_<stem>.py was reported UNMAPPED — a false "nothing covers this" that
 # trains people to reach for --allow-unmapped and erodes the fail-loud contract.
 # Each ecosystem names its suites differently, so each needs its own case.
-repo="$(mk_repo)"
+mk_repo repo
 mkdir -p "$repo/eco"
 
 # Python: the suite PREFIXES the stem, and this repo folds `-` to `_` for the
@@ -974,7 +969,7 @@ fi
 # shell-to-shell, and stopping at runner.sh drops command.test.sh. That is an
 # under-selection, which this tool treats as the unsafe direction, so the
 # destination-language walk has to keep going.
-repo="$(mk_repo)"
+mk_repo repo
 mkdir -p "$repo/eco/chain"
 printf 'def helper():\n    return 1\n' >"$repo/eco/chain/helper.py"
 # The shell wrapper that drives the Python helper: one crossing, py -> sh.
@@ -1001,7 +996,7 @@ fi
 # Reaching two families in ONE round takes a cross-family sync manifest, since
 # R5 seeds every copy alongside the source. zed.sh names the shell source first
 # and the JS copy second, so a last-write-wins bug resolves to "already crossed".
-repo2="$(mk_repo)"
+mk_repo repo2
 mkdir -p "$repo2/eco/agg" "$repo2/plugins/alpha/hooks"
 write_print_manifest "$repo2/scripts/sync-mixed.sh" "lib/mixed.sh" \
   "plugins/*/hooks/mixed.js"
@@ -1030,7 +1025,7 @@ fi
 # one direction this tool is built to refuse. `get.sh` is a substring of
 # `widget.sh`, which this fixture references from every plugin, so a new
 # get.sh covered by nothing at all used to come back mapped.
-repo3="$(mk_repo)"
+mk_repo repo3
 mkdir -p "$repo3/eco/name"
 printf 'echo get\n' >"$repo3/plugins/alpha/hooks/get.sh"
 

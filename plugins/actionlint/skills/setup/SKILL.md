@@ -7,7 +7,7 @@ disable-model-invocation: true
 
 ## Purpose
 
-Thin check-centric setup per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
+Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy.md`
 "Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
 reports, `apply` resolves. This plugin owns no consumer-project configuration. actionlint
 auto-discovers its own optional config from the repository, and the tunables are the native
@@ -67,13 +67,13 @@ Run `check`, then for each FAIL point at the resolution. This skill installs not
   which owns the verified-version record): interactive
   `/plugin configure actionlint@<marketplace>` any time, or headless
   `claude plugin install actionlint@<marketplace> -s <scope> --config actionlint_enabled=true`
-  (repeatable per key) — against an already-installed plugin it prints `already installed`
+  (repeatable per key). Against an already-installed plugin it prints `already installed`
   **and still writes the value**. Do **not** uninstall to reconfigure: that drops this plugin's
   entire stored `pluginConfigs` entry, resetting every option in the README's Options reference
   to its manifest default. `-s` defaults to `user`; pass the scope `claude plugin list` reports
   for this plugin, and run from that project's directory for a `project`/`local` scope, or the
   write lands at a scope that does not load. This skill never writes user settings or
-  `pluginConfigs`. Afterwards rerun `check` in a **fresh session** — the rendered
+  `pluginConfigs`. Afterwards rerun `check` in a **fresh session**. The rendered
   `${user_config.*}` is injected at skill load and each hook receives its
   `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at session start, so a same-session
   `check` still reports the OLD value; report the observed effective value, never an
@@ -94,9 +94,9 @@ Re-running `apply` after everything passes changes nothing and reports "already 
   the shared lib should declare it too.
 - **`--config`'s post-install behavior is undocumented, so the guidance above rests on
   observation.** The official docs describe `--config` only as a `claude plugin install` flag
-  and say nothing about an already-installed plugin. The verified-version record — which CLI
-  release the still-writes claim was observed on, and which conditions it covered — lives only
-  in the plugin-reconfiguration convention cited in `apply` above.
+  and say nothing about an already-installed plugin. The verified-version record lives only in
+  the plugin-reconfiguration convention cited in `apply` above. It names which CLI release the
+  still-writes claim was observed on, and which conditions it covered.
 - **`-shellcheck=` / `-pyflakes=` are deliberate, and the deadlock claim is a local
   observation.** The hook disables actionlint's external run-block linters primarily for
   edit-time latency; the additional "ShellCheck deadlocks on large blocks under the Windows

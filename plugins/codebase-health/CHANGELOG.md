@@ -3,6 +3,20 @@
 All notable changes to the `codebase-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.4]
+
+### Changed
+
+- Cite the marketplace `docs/` doctrine files by their lower-kebab names (`docs/plugin-philosophy.md`, `docs/migration-playbook.md`, and siblings); the files were renamed and the old uppercase paths no longer resolve.
+
+## [0.9.3]
+
+### Changed
+
+- **The plugin's prose drops its em dashes.** Six surfaces were rewritten: this changelog, two `skills/audit/reference/` documents, `skills/audit/context/discovery-method.md`, and the two templates under `skills/audit/templates/` and `skills/setup/templates/`. Wording only, with no change to any check, severity, source glob, or phase. Both templates were cleared for rewrite rather than marked: the plugin ships no scripts at all, and each em-dash-bearing template line appears nowhere else in the repository, so nothing parsed the separator. In `config-template.md` the dashes sat in the preamble's definition list, never in the `**primary-sources:**` field markers the config actually uses, which are byte-unchanged. Three headings changed anchor; nothing linked to them. The released sections corrected in place are 0.8.2, 0.8.1, 0.8.0, 0.7.2, 0.7.1, 0.7.0, 0.5.0, and 0.3.0: their wording changed, their facts did not.
+- **The 0.8.1 entry quotes `skills/audit/SKILL.md` as it now reads.** That body was rewritten in the same campaign, so the quotation was updated to match it rather than preserve superseded wording.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md`, the `skills/audit/` reference, context, and template trees, and the setup template, alongside the SKILL bodies it already covered.
+
 ## [0.9.2]
 
 ### Changed
@@ -118,7 +132,7 @@ All notable changes to the `codebase-health` plugin are documented here. Format 
 ### Changed
 
 - Normalized fleet-wide framing this plugin restates (cross-vendor advisor
-  fallback, untrusted-content posture, attribution/idiom prose — as touched) to the canonical
+  fallback, untrusted-content posture, attribution/idiom prose, as touched) to the canonical
   SSOT wording, operable text kept inline with provenance-only citations (#2698).
 
 ## [0.8.1]
@@ -130,10 +144,10 @@ All notable changes to the `codebase-health` plugin are documented here. Format 
   Wording only; presence gates and fallbacks unchanged.
 
   The remediation preamble is deliberately **not** rewritten: the `--fix` paragraph below it
-  requires "an explicit user-directed suggestion" and states "Do NOT auto-invoke either skill —
+  requires "an explicit user-directed suggestion" and states "Do NOT auto-invoke either skill,
   the user drives both", so phrasing that route as a Skill-tool invocation would contradict the
   gate four lines down and could launch the source-editing lane from a read-only audit. It stays
-  a recommendation to the user — a mention under the rubric's own carve-out, not an operative
+  a recommendation to the user, a mention under the rubric's own carve-out, not an operative
   chain.
 
 ## [0.8.0]
@@ -142,7 +156,7 @@ All notable changes to the `codebase-health` plugin are documented here. Format 
 
 - **The bare `/<skill>` alias for this plugin's skills.** Their `SKILL.md` files no longer
   declare a frontmatter `name`. The field is optional and defaults to the directory name, so
-  declaring it only restated the path while registering a second, unnamespaced command — which
+  declaring it only restated the path while registering a second, unnamespaced command, which
   the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
   namespaced command; the command itself is unchanged.
 
@@ -152,14 +166,14 @@ All notable changes to the `codebase-health` plugin are documented here. Format 
 
 - Fresh-eyes delegation sites now prefer a cross-vendor advisor when one is installed
   (e.g. the OpenAI Codex plugin, invoked per its own docs), with the fresh-context same-vendor
-  subagent as the stated fallback — presence-gated per the seam-phrasing convention.
+  subagent as the stated fallback, presence-gated per the seam-phrasing convention.
 
 ## [0.7.1]
 
 ### Changed
 
 - Skills with `!` dynamic-context injections now declare `shell: bash` explicitly, per
-  the pinned precompute convention — bash-only pipelines must not fall through to a
+  the pinned precompute convention. Bash-only pipelines must not fall through to a
   PowerShell host.
 
 ## [0.7.0]
@@ -167,8 +181,8 @@ All notable changes to the `codebase-health` plugin are documented here. Format 
 ### Changed
 
 - **BREAKING: `audit` stops at the Phase 3 report and delegates remediation.** The
-  inline fix/verify/self-review/retrospect phases (formerly Phases 4–7) are removed —
-  they duplicated lanes owned end-to-end by other plugins. Fixing now routes to
+  inline fix/verify/self-review/retrospect phases (formerly Phases 4–7) are removed.
+  They duplicated lanes owned end-to-end by other plugins. Fixing now routes to
   `/implementation:implement` and verification to `/verification:confirm`, referenced as
   soft dependencies (used when installed). `--fix` no longer fixes inline; it hands the
   Phase 3 findings off to those lanes, and when they are absent the findings table is the
@@ -209,9 +223,9 @@ All notable changes to the `codebase-health` plugin are documented here. Format 
 
 - **`setup` split onto the uniform check/apply contract.** `check` inspects the effective merged
   `.claude/codebase-health.md` config read-only across its user-global → team → local overlay layers
-  (presence — absent is INFO, since the audit re-infers targets each run — dimension source-list
-  validity, tracked-not-ignored, and overlay divergence) and reports a PASS/FAIL/INFO table; `apply`
-  runs the interview-infer-write flow, then re-runs `check` to verify the written file. The inference,
+  (presence, dimension source-list validity, tracked-not-ignored, and overlay divergence) and reports
+  a PASS/FAIL/INFO table. An absent config is INFO, since the audit re-infers targets each run.
+  `apply` runs the interview-infer-write flow, then re-runs `check` to verify the written file. The inference,
   example-claims, and layer-merge logic are unchanged; the read-only inspection path and the
   `check | apply` argument-hint are new.
 
@@ -233,7 +247,7 @@ All notable changes to the `codebase-health` plugin are documented here. Format 
 - Eval covering the scope-boundary decline: declining claim-extraction fan-out over
   `settings.json` / `.mcp.json` / hooks / permissions and routing to the adjacent
   `claude-config-audit` plugin's `/claude-config-audit:settings-audit` skill (or stating
-  out-of-scope when that plugin is not installed) — behavior already documented in SKILL.md,
+  out-of-scope when that plugin is not installed), behavior already documented in SKILL.md,
   now regression-tested.
 
 ## [0.2.0]

@@ -9,7 +9,11 @@
 # adapter passes and exits 1, the reporting exit code the contract says is not
 # a failure (design T13; no executable is committed). The fixture cluster is
 # scripts/fixtures/sources/cluster/{alpha,beta}/shared/shared-utils.sh and the
-# registry that sanctions it is scripts/fixtures/registry/cluster.txt.
+# registry that sanctions it is scripts/fixtures/registry/cluster.txt. The
+# three-copy cases swap in the captures jscpd-aligned3.json and
+# jscpd-offset3.json, real jscpd 5.2.0 runs over
+# scripts/fixtures/clone-classes/{aligned,offset} rewritten to repo-relative
+# names.
 #
 # The last case is the Brief's own: this repository's real
 # plugins/*/hooks/hook-utils.sh cluster against
@@ -59,10 +63,11 @@ STUBS="$(mktemp -d)"
 EMPTY_PATH="$(mktemp -d)"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$STUBS" "$EMPTY_PATH" "$WORK"' EXIT
+export CODE_METRICS_REPORT_DIR="$STUBS/reports"
 cat >"$STUBS/jscpd" <<'STUB'
 #!/usr/bin/env bash
 if [[ "${1:-}" == "--version" ]]; then
-  printf 'jscpd 5.1.2\n'
+  printf 'jscpd 5.2.0\n'
   exit 0
 fi
 [[ -z "${CM_TEST_ARGV_LOG:-}" ]] || printf '%s\n' "$*" >>"$CM_TEST_ARGV_LOG"
@@ -81,21 +86,20 @@ exit 1
 STUB
 chmod +x "$STUBS/jscpd"
 export CM_TEST_CAPTURE="$CAPTURE"
-# EMPTY_PATH is the caller's PATH with every duplication collector removed: a
-# directory of symlinks to each executable on PATH except those tools, so the
-# coreutils, git, and the interpreter stay reachable while the collectors do
-# not.
-COLLECTOR_NAMES=" jscpd pmd dupl "
-IFS=':' read -r -a path_dirs <<<"$PATH"
-for dir in "${path_dirs[@]}"; do
-  [[ -d "$dir" ]] || continue
-  for exe in "$dir"/*; do
-    [[ -f "$exe" && -x "$exe" ]] || continue
-    name="${exe##*/}"
-    [[ "$COLLECTOR_NAMES" == *" $name "* ]] && continue
-    [[ -e "$EMPTY_PATH/$name" ]] || ln -s "$exe" "$EMPTY_PATH/$name"
-  done
-done
+# EMPTY_PATH is the caller's PATH with every collector removed: a directory of
+# symlinks to each executable on PATH except the tools the ladder names (and
+# the binaries those adapters look up), so the coreutils, git, and the
+# interpreter stay reachable while the collectors do not.
+# shellcheck source=../../../scripts/tool-free-path.sh
+source "$PLUGIN_ROOT/scripts/tool-free-path.sh"
+cm_fill_tool_free_path "$EMPTY_PATH"
+leftover="$(cm_resolvable_ladder_collectors "$EMPTY_PATH" | sort -u | tr '\n' ' ')"
+leftover="${leftover% }"
+if [[ -z "$leftover" ]]; then
+  pass "no ladder collector is resolvable on the tool-free PATH"
+else
+  fail "no ladder collector is resolvable on the tool-free PATH" "none" "$leftover"
+fi
 
 # 1. The declared cluster is excluded, not counted as debt.
 out="$(PATH="$STUBS:$EMPTY_PATH" bash "$SCRIPT" --json --all "$CLUSTER" --registry "$CLUSTER_REGISTRY")"
@@ -147,19 +151,45 @@ assert_eq "a missing --registry exits 2" 2 "$?"
 
 # 6. The configured tunables reach the collector's command line.
 "$PY" "$PLUGIN_ROOT/scripts/resolve-config.py" --ladder "$PLUGIN_ROOT/scripts/collector-ladder.tsv" --home "$WORK" >"$WORK/base.json" 2>/dev/null
-"$PY" -c 'import json,sys; d=json.load(open(sys.argv[1])); d["duplication"]["min_tokens"] = 77; d["duplication"]["min_lines"] = 9; d["duplication"]["ignore"] = ["**/vendor/**"]; print(json.dumps(d))' "$WORK/base.json" >"$WORK/tuned.json"
+"$PY" -c 'import json,sys; d=json.load(open(sys.argv[1])); d["duplication"]["min_tokens"] = 77; d["duplication"]["min_lines"] = 9; d["duplication"]["ignore"] = ["**/vendor/**"]; d["duplication"]["max_size"] = "8kb"; d["duplication"]["max_lines"] = 0; print(json.dumps(d))' "$WORK/base.json" >"$WORK/tuned.json"
 CM_TEST_ARGV_LOG="$WORK/argv.log" PATH="$STUBS:$EMPTY_PATH" bash "$SCRIPT" --json --all "$CLUSTER" --config "$WORK/tuned.json" >/dev/null 2>&1
 assert_eq "the tuned run exits 0" 0 "$?"
 argv="$(cat "$WORK/argv.log" 2>/dev/null)"
 assert_contains "min_tokens reaches the collector" "$argv" "--min-tokens 77"
 assert_contains "min_lines reaches the collector" "$argv" "--min-lines 9"
 assert_contains "the ignore globs reach the collector" "$argv" "--ignore **/vendor/**"
+assert_contains "max_size reaches the collector one byte above the bound" "$argv" "--max-size 8193"
+assert_contains "a max_lines of 0 means no cap and reaches the collector as the explicit large value" "$argv" "--max-lines 2147483647"
 
-# 7. --help prints the usage without running anything.
+# 7. Three byte-identical copies are one clone class, its lines counted once.
+# jscpd pairs each later copy with the first, so the capture holds two pairs
+# that name the same instance of copy `a`.
+ALIGNED="$FIXTURES/clone-classes/aligned"
+out="$(CM_TEST_CAPTURE="$REPO_ROOT/$FIXTURES/tool-output/jscpd-aligned3.json" PATH="$STUBS:$EMPTY_PATH" bash "$SCRIPT" --json --all "$ALIGNED")"
+assert_eq "the aligned three-copy run exits 0" 0 "$?"
+if printf '%s' "$out" | "$PY" -c 'import json,sys; d=json.load(sys.stdin); assert d["summary"]["clone_groups"] == 1 and d["summary"]["duplicated_lines"] == 41, d["summary"]; row = d["measures"][0]; assert len(row["instances"]) == 3 and "clustered" in row["labels"], row' 2>/dev/null; then
+  pass "three aligned copies are one clone class with the lines counted once"
+else
+  fail "three aligned copies are one clone class with the lines counted once" "clone_groups 1, duplicated_lines 41, three instances" "$(printf '%s' "$out" | head -c 600)"
+fi
+
+# 8. A third copy that shares only part of the fragment stays its own group:
+# the two pairs name copy `c1` with different ranges, and overlap is not
+# identity.
+OFFSET="$FIXTURES/clone-classes/offset"
+out="$(CM_TEST_CAPTURE="$REPO_ROOT/$FIXTURES/tool-output/jscpd-offset3.json" PATH="$STUBS:$EMPTY_PATH" bash "$SCRIPT" --json --all "$OFFSET")"
+assert_eq "the offset three-copy run exits 0" 0 "$?"
+if printf '%s' "$out" | "$PY" -c 'import json,sys; d=json.load(sys.stdin); assert d["summary"]["clone_groups"] == 2 and d["summary"]["duplicated_lines"] == 58, d["summary"]; assert all(len(r["instances"]) == 2 and "clustered" not in r["labels"] for r in d["measures"]), d["measures"]' 2>/dev/null; then
+  pass "a partial third copy stays a second clone group"
+else
+  fail "a partial third copy stays a second clone group" "clone_groups 2, duplicated_lines 58, two instances each" "$(printf '%s' "$out" | head -c 600)"
+fi
+
+# 9. --help prints the usage without running anything.
 bash "$SCRIPT" --help 2>&1 | grep -q 'audit-duplication.sh \[--json\]'
 assert_eq "--help prints usage" 0 "$?"
 
-# 8. The Brief's case: this repository's own vendored hook-utils cluster.
+# 10. The Brief's case: this repository's own vendored hook-utils cluster.
 # The jscpd on PATH has to be a working detector, not another suite's stub or
 # a replaying fake: the probe copies one fixture into two directories under a
 # name nothing else uses and requires the report to name it back.

@@ -7,7 +7,7 @@ disable-model-invocation: true
 
 ## Purpose
 
-Setup per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit and repeatable" in
+Setup per the uniform setup contract (`docs/plugin-philosophy.md` "Setup is explicit and repeatable" in
 the marketplace repository): `check` inspects and reports, `apply` resolves. This plugin declares no
 `userConfig`, and has two setup concerns:
 
@@ -80,7 +80,7 @@ nested worktree the skill was invoked from, then report one row per layer. The s
 tracked/ignored question has opposite correct answers per layer, so verify each on its own terms:
 
 - **user-global** `~/.claude/audit-pass.md`: outside the worktree; no git command applies. INFO only.
-- **team** `.claude/audit-pass.md`: must be tracked, probed as the pair —
+- **team** `.claude/audit-pass.md`: must be tracked, probed as the pair:
   `git check-ignore -v` reports no match (a match is FAIL with the pattern) AND
   `git ls-files --error-unmatch` exits 0. Untracked while present is a hard STOP:
   teammates never receive the shared suppressions.

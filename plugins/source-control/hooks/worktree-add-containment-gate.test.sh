@@ -156,12 +156,12 @@ assert_contains "the block message names what encloses it" "$ERR" "inside:"
 assert_contains "the block message points at the skill alternative" "$ERR" "worktree create"
 assert_contains "the block message names its kill switch" "$ERR" "worktree_add_containment_gate_enabled"
 assert_contains "with nothing configured, the remedy is the git config key" "$ERR" \
-  "git config --global melodic.worktreeroot"
+  "git config --global worktreeroot.path"
 
-# When the target repository carries melodic.worktreeroot, the message names
+# When the target repository carries worktreeroot.path, the message names
 # that root — most specific first, same precedence as the creation helper.
 KEYREPO="$(mkrepo)"
-git -C "$KEYREPO" config melodic.worktreeroot "$TEST_TMPDIR/key-root"
+git -C "$KEYREPO" config worktreeroot.path "$TEST_TMPDIR/key-root"
 run "$KEYREPO" "git worktree add $KEYREPO/wt-keyed"
 assert_exit "a keyed repo still blocks the nested target" 2 "$RC"
 assert_contains "the message names the git-key root" "$ERR" "$TEST_TMPDIR/key-root"
@@ -178,12 +178,26 @@ assert_contains "the key outranks the plugin option in the message" "$ERR" \
 assert_not_contains "the outranked option root is not the named remedy" "$ERR" \
   "$TEST_TMPDIR/option-root"
 
+# A retired alias still names the root when the current key is unset, and is rewritten.
+LEGACYREPO="$(mkrepo)"
+git -C "$LEGACYREPO" config melodic.worktreeroot "$TEST_TMPDIR/legacy-root"
+run "$LEGACYREPO" "git worktree add $LEGACYREPO/wt-legacy"
+assert_exit "a retired-alias repo still blocks the nested target" 2 "$RC"
+assert_contains "the message names the git-key root" "$ERR" \
+  "$TEST_TMPDIR/legacy-root"
+legacy_rewritten=$(git -C "$LEGACYREPO" config --get --type=path worktreeroot.path)
+assert_eq "the containment gate rewrote worktreeroot.path" \
+  "$TEST_TMPDIR/legacy-root" "$legacy_rewritten"
+legacy_left_rc=0
+git -C "$LEGACYREPO" config --get melodic.worktreeroot >/dev/null 2>&1 || legacy_left_rc=$?
+assert_exit "the containment gate unset the retired alias" 1 "$legacy_left_rc"
+
 # An empty last value is still the last-wins record. Command substitution would
-# strip it and leave the preceding path; the creation helper's `tail -n 1` keeps
-# it empty and falls through. The block message must name the same fallback.
+# strip it and leave the preceding path; the shared resolver keeps it empty and
+# falls through. The block message must name the same fallback.
 EMPTYLAST="$(mkrepo)"
-git -C "$EMPTYLAST" config --add melodic.worktreeroot "$TEST_TMPDIR/first-root"
-git -C "$EMPTYLAST" config --add melodic.worktreeroot ""
+git -C "$EMPTYLAST" config --add worktreeroot.path "$TEST_TMPDIR/first-root"
+git -C "$EMPTYLAST" config --add worktreeroot.path ""
 run "$EMPTYLAST" "git worktree add $EMPTYLAST/wt-empty-last" \
   CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT="$TEST_TMPDIR/option-root"
 assert_exit "an empty last worktreeroot value still blocks the nested target" 2 "$RC"

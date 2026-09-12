@@ -31,8 +31,6 @@ and carry argued severity-crosswalk rows; rubric tells are applied by the skill'
 guidance (what to write INSTEAD of a tell) lives in [`rewrite-guide.md`](rewrite-guide.md), not
 here: this file decides what flags, that file decides what replaces it.
 
-<!-- ai-slop-ignore-file: this catalog quotes the tells it detects; scanning it flags its own rule corpus -->
-
 ## Attribution and license
 
 Derived from Wikipedia, ["Wikipedia:Signs of AI writing"](https://en.wikipedia.org/wiki/Wikipedia:Signs_of_AI_writing),
@@ -94,8 +92,8 @@ in crosswalk rows and findings files is `ai-slop/audit/rule-<slug>`. Fields:
 - **v1**: `script` (implemented in detect.sh), `rubric` (skill judgment layer), or
   `recorded-only` (catalogued, not run; reason given).
 
-Model-era entries carry four further fields (`era`, `models`, `evidence`, and — inside the
-prose — an attribution note where a harness confound applies); the evidence grades and their
+Model-era entries carry four further fields: `era`, `models`, `evidence`, and an attribution
+note inside the prose where a harness confound applies. The evidence grades and their
 placement gate are defined at the top of that section.
 
 ## False-positive posture (source Caveats)
@@ -122,13 +120,13 @@ Stated once here and inherited by every rule; the design follows Wikipedia's MOS
 minimal change" for quoted material (quotations are not the repo's own prose to restyle) and the
 detector implements it mechanically. Each rule carries a class:
 
-- **wording** — the rule judges prose the repo AUTHORS. It never scans quoted material:
+- **wording**: the rule judges prose the repo AUTHORS. It never scans quoted material:
   blockquote lines, double-quoted spans, and inline code spans are removed from its input.
   Quote-exempt candidates are counted as declined, never silently dropped.
   This is also the use/mention boundary: a document that QUOTES a tell to document it (a style
   guide, a forbidden-phrase list, a changelog citing the phrase a fix removed) is mentioning,
   not using, and backticking or double-quoting the mention is the marker-free suppression.
-- **typography** — the rule targets artifacts that are defects wherever they sit (em-dash
+- **typography**: the rule targets artifacts that are defects wherever they sit (em-dash
   bytes, curly-paste residue, formatting emoji, model citation tokens, tracking parameters).
   It scans quoted material too; MOS makes the same split by permitting typographic
   normalization inside quotations while forbidding wording edits.
@@ -152,11 +150,12 @@ defaults. Outcomes:
 - `rule-knowledge-cutoff-disclaimer` has a known false-positive class: prose ABOUT model
   knowledge cutoffs (documentation discussing models). Remedy is the in-file marker or config
   exclusion, recorded here rather than weakening the rule. **Measured on the 1214-file dogfood
-  corpus (2026-08-19): all 8 findings fall in that class** — model-spec sentences quoting a
-  cutoff date, prose arguing that cutoffs are upstream-owned, and the crosswalk row naming this
-  rule. Zero were genuine assistant-frame residue. The class is therefore the rule's whole yield
-  on a corpus that documents models, which is the corpus type most likely to trip it; it is not
-  evidence the rule is wrong, because the tell it targets is absent here rather than missed.
+  corpus (2026-08-19): all 8 findings fall in that class**. They are model-spec sentences
+  quoting a cutoff date, prose arguing that cutoffs are upstream-owned, and the crosswalk row
+  naming this rule. Zero were genuine assistant-frame residue. The class is therefore the
+  rule's whole yield on a corpus that documents models, which is the corpus type most likely
+  to trip it; it is not evidence the rule is wrong, because the tell it targets is absent here
+  rather than missed.
 - `rule-em-dash` fired 32,323 times on the calibration corpus; that is the corpus's deliberate
   house style, handled by that repo's own config when dogfooding, and confirms the shipped
   default must stay neutral (zero-tolerance) rather than inherit any one repo's taste.
@@ -182,10 +181,11 @@ Third pass, 2026-08-25, over a full repo-wide `fix` run (82 findings across 45 f
 plugin-quality audit, and a verified prior-art survey:
 
 - `rule-rule-of-three` demoted to rubric per its own calibration clause: 18 of 18 residual
-  findings after the fix pass sat on load-bearing enumerations, the ERE matched only
-  single-word triads, and no surveyed prose linter implements the tell. See the entry.
+  findings after the fix pass sat on enumerations whose every item the reader needs, the ERE
+  matched only single-word triads, and no surveyed prose linter implements the tell. See the
+  entry.
 - The quotation exemption (section above) was added after roughly half of the pass's ~40
-  suppression markers protected quoted or tell-documenting text — one use/mention problem the
+  suppression markers protected quoted or tell-documenting text, one use/mention problem the
   policy now closes marker-free. Measured on the same corpus after the change: the exemption
   moved those candidate classes from findings to declines with no loss on unquoted prose.
 - `rule-knowledge-cutoff-disclaimer` gained the source section's missing phrase families (the
@@ -198,7 +198,7 @@ Fourth pass, 2026-08-27, for the "Model-era additions (repo-owned)" section, aga
 then-current 1,361-file tracked-markdown corpus:
 
 - `rule-model-era-phrases` shipped with its anchored three-fragment roster and measured **0
-  findings corpus-wide** — the chatbot-artifacts precedent (0-3 corpus-wide ships clean)
+  findings corpus-wide**. The chatbot-artifacts precedent (0-3 corpus-wide ships clean)
   holds for the new phrase class.
 - `pre-existing` joined the shipped vocabulary list on the leverage precedent: 61 files
   contain the word and the density gate (3.0/1000, minimum 3 hits) fired on none of them.
@@ -294,7 +294,7 @@ then-current 1,361-file tracked-markdown corpus:
   "valuable", "vibrant". Mid-2024 to mid-2025 adds "align with", "enhance", "fostering",
   "highlighting", "showcasing". Mid-2025 onward: "emphasizing", "enhance", "highlighting",
   "showcasing". **The shipped list is a deliberate narrowing of that union, not the union
-  itself** — it keeps the distinctive words and drops the ones with heavy legitimate technical
+  itself**. It keeps the distinctive words and drops the ones with heavy legitimate technical
   use: "additionally", "enhance", "emphasizing", "highlighting", "align with", "valuable", and
   "landscape" as an abstract noun (the literal phrase "evolving landscape" is still caught by
   `rule-significance-inflation`). A consuming repo that wants the full union adds them through
@@ -404,11 +404,12 @@ then-current 1,361-file tracked-markdown corpus:
   source's combination reading disables the rule or uses `em_dash_allowed_paths` (or the
   generalized `rule_allowed_paths`).
 - **Spacing qualifier (mined 2026-08-25 from the same pinned section):** the source
-  distinguishes SPACED em dashes ( — ) as the stronger AI tell, while unspaced em dashes are
-  the typographically informed human convention; it cites reporting (The Economist, 2026-07-30,
-  wiki-cited, not independently verified here) that among current models only Claude still
-  over-uses them. The shipped rule stays character-level zero-tolerance as house style, and
-  records the spacing discriminator here for any consuming repo calibrating a softer setting.
+  distinguishes SPACED em dashes (`—` with a space on each side) as the stronger AI tell,
+  while unspaced em dashes are the typographically informed human convention; it cites
+  reporting (The Economist, 2026-07-30, wiki-cited, not independently verified here) that
+  among current models only Claude still over-uses them. The shipped rule stays
+  character-level zero-tolerance as house style, and records the spacing discriminator here
+  for any consuming repo calibrating a softer setting.
 - **Zero-tolerance is a house-style choice, not a detection claim.** The false-accusation
   literature the source's Caveats cite is one more reason this rule's verdict is "this repo
   does not use em dashes", never "this text is AI-written".
@@ -586,7 +587,7 @@ then-current 1,361-file tracked-markdown corpus:
 ## Comment-specific indicators
 
 Fetch gap closed 2026-08-21 (see the upstream-drift record). The source section is Wikipedia
-talk-page comments, so every tell classifies `wikipedia-specific` / `recorded-only` — they have
+talk-page comments, so every tell classifies `wikipedia-specific` / `recorded-only`. They have
 no general-prose analogue worth a script rule. Quoted from the catalog pin (revision
 1369699198, parse section 62) and confirmed on the live page (revision 1370403579).
 
@@ -755,8 +756,8 @@ emitted as findings.
 ## Ineffective indicators
 
 Fetch gap closed 2026-08-21 (see the upstream-drift record). This section lists signals the
-page's own editors consider **unreliable** for LLM detection — a guardrail on our roster, not
-a source of new rules. A signal listed here must not become a rule.
+page's own editors consider **unreliable** for LLM detection. It is a guardrail on our roster,
+not a source of new rules. A signal listed here must not become a rule.
 
 **Verdict: no shipped rule appears here.** Compared against all 15 `v1: script` slugs in
 `detect.sh`, including the two candidates named when this gap was filed (`rule-em-dash`,
@@ -768,25 +769,27 @@ pin (revision 1369699198, parse section 80, 2026-08-16) and the live recheck (re
 
 Quoted from the pin (CC BY-SA 4.0; ellipses mark dropped citation/example markup):
 
+<!-- ai-slop-ignore-start: verbatim Wikipedia quotation; it carries the em dash the catalog documents -->
 > False accusations of AI use can drive away new editors and foster an atmosphere of
 > suspicion. […] Here are several somewhat commonly used indicators that are ineffective
 > in LLM detection—and may even indicate the opposite.
+<!-- ai-slop-ignore-end -->
 
-- **Perfect grammar** — skilled human writers also produce this.
+- **Perfect grammar**: skilled human writers also produce this.
 - **Combination of casual and formal registers**, or language that sounds both "clinical"
-  and "emotional" — technical-field casual writing, mixed registers, or multi-editor pages.
-- **"Bland" or "robotic" prose** — LLM output has *specific* traits; "robotic" is not one.
-- **"Fancy", "academic", or "formal" prose** — the page's own wording: LLMs favor *specific
-  words*; "the correlation does not extend to all formal, academic, or 'fancy'-sounding
+  and "emotional": technical-field casual writing, mixed registers, or multi-editor pages.
+- **"Bland" or "robotic" prose**: LLM output has *specific* traits; "robotic" is not one.
+- **"Fancy", "academic", or "formal" prose**: in the page's own wording, LLMs favor *specific
+  words*, and "the correlation does not extend to all formal, academic, or 'fancy'-sounding
   prose." `rule-ai-vocabulary` is the specific-word rule, not a formality detector.
-- **Transition words (in isolation)** — older output overused a few (`Additionally`,
+- **Transition words (in isolation)**: older output overused a few (`Additionally`,
   `Consequently`, `Notably`); "this is not a strong tell." The shipped vocabulary list
   already dropped `additionally` for legitimate technical use; there is no standalone
   transition-words rule.
-- **Unsourced content** — most uncited articles predate LLMs; modern chatbots also cite.
-- **Bizarre wikitext** — random HTML/VisualEditor artifacts are *not* the LLM markup tells
+- **Unsourced content**: most uncited articles predate LLMs; modern chatbots also cite.
+- **Bizarre wikitext**: random HTML/VisualEditor artifacts are *not* the LLM markup tells
   already catalogued under Markup.
-- **Correct wikitext** — correct formatting is normal.
+- **Correct wikitext**: correct formatting is normal.
 
 None of those eight is a shipped script rule, a shipped rubric tell, or a Cursor-addition
 slug. No drop or re-scope follows.
@@ -841,17 +844,17 @@ already carry. The overlap map first, accounting for every upstream pattern; the
 
 Upstream patterns **catalogued by** a Wikipedia-derived entry, or routed to the rewrite guide
 (fix-time guidance is not a tell inventory). "Catalogued" is deliberately weaker than "covered":
-a row pointing at a `recorded-only` entry is bookkeeping, not detection — nothing runs it in
+a row pointing at a `recorded-only` entry is bookkeeping, not detection. Nothing runs it in
 either layer, and those rows say so.
 
 | Upstream pattern | Where it lives here |
 |---|---|
 | Puffery | `rule-significance-inflation` |
-| Name-dropping | **Not detected — deliberately out of scope for general prose.** `rule-canned-notability` records the Wikipedia-specific form and is `recorded-only`; its own entry says there is no general-prose analogue worth a rule. Not `rule-vague-attribution`, which is the opposite tell (naming *no* source, not naming many with no content) |
+| Name-dropping | **Not detected. Deliberately out of scope for general prose.** `rule-canned-notability` records the Wikipedia-specific form and is `recorded-only`; its own entry says there is no general-prose analogue worth a rule. Not `rule-vague-attribution`, which is the opposite tell (naming *no* source, not naming many with no content) |
 | Superficial -ing phrases | `rule-superficial-analysis` |
 | Promotional language | `rule-promotional-language` |
 | Vague attributions | `rule-vague-attribution` |
-| Formulaic challenges | `rule-challenges-conclusion` — the "Despite its X, faces challenges" formula its ERE actually matches |
+| Formulaic challenges | `rule-challenges-conclusion`, the "Despite its X, faces challenges" formula its ERE actually matches |
 | Generic conclusions | **Only the formulaic half is detected**, by the row above. A bare optimism closer ("The future looks bright") matches no shipped rule: `rule-superficial-analysis` needs a present-participle tail and does not reach it |
 | AI vocabulary; prefer the plain word | `rule-ai-vocabulary` (the plain-word list joined the shipped vocabulary default; see the calibration record) |
 | Fancy ways to say "is" | `rule-copulative-avoidance` |
@@ -859,9 +862,9 @@ either layer, and those rows say so.
 | Rule of three | `rule-rule-of-three` |
 | Synonym cycling | `rule-elegant-variation` |
 | Em dash overuse | `rule-em-dash`; the no-substitute-tell guardrail (no parentheses or en dashes in its place) is fix guidance in `rewrite-guide.md` |
-| Boldface overuse | `rule-bold-overuse` — `recorded-only`, so catalogued and dormant |
-| Inline-header lists | `rule-inline-header-lists` — `recorded-only`, so catalogued and dormant; the boundary refinement in that entry is calibration pre-work, not a live boundary |
-| Title case headings | `rule-title-case` — `recorded-only` here (the markdown linter lane owns heading structure) |
+| Boldface overuse | `rule-bold-overuse`, which is `recorded-only` and so catalogued and dormant |
+| Inline-header lists | `rule-inline-header-lists`, which is `recorded-only` and so catalogued and dormant; the boundary refinement in that entry is calibration pre-work, not a live boundary |
+| Title case headings | `rule-title-case`, which is `recorded-only` here (the markdown linter lane owns heading structure) |
 | Decorative emojis | `rule-emoji-formatting` |
 | Curly quotes | `rule-curly-artifacts` |
 | Cutoff disclaimers | `rule-knowledge-cutoff-disclaimer` |
@@ -880,9 +883,9 @@ either layer, and those rows say so.
   source's "chatbot phrases" and "sycophantic tone" patterns; bare "Certainly!" and "Of course!"
   were left off the phrase list as too common in legitimate prose.
 - Currency note (2026-08): "You're absolutely right" and "Found the smoking gun" remain the two
-  headline Claude tells of the 2025-2026 era — the former acknowledged by Anthropic's own
-  account and tracked in vendor-repo issues, the latter documented defying an explicit
-  CLAUDE.md ban mid-sentence. Both resist user-level suppression instructions; sources in the
+  headline Claude tells of the 2025-2026 era. Anthropic's own account acknowledges the former
+  and vendor-repo issues track it; the latter is documented defying an explicit CLAUDE.md ban
+  mid-sentence. Both resist user-level suppression instructions; sources in the
   "Model-era additions" record below.
 
 ### rule-filler-phrases: Filler phrases
@@ -944,7 +947,7 @@ either layer, and those rows say so.
   measured at >7,500x its Stack Overflow base rate in Claude Code output; seam at 62x). Their
   literal boundary is BROAD, deliberately: a Feathers seam in refactoring/testing prose, a
   load-bearing wall, and a load-bearing invariant or instruction NAMED as such deliberately in
-  architecture prose are all terms of art, not tells — the tell is the reflexive metaphor where
+  architecture prose are all terms of art, not tells. The tell is the reflexive metaphor where
   a plainer word served ("this comment is load-bearing" for "this comment matters"). These cues
   carry no config lever (the rubric layer reads no config): the boundary text here is the
   suppression surface, and saturation-level house usage of either word is a fix-pass decision
@@ -963,7 +966,7 @@ either layer, and those rows say so.
 
 ## Model-era additions (repo-owned)
 
-The repo-owned, evolving inventory of CURRENT-generation model-vocabulary tells — the layer
+The repo-owned, evolving inventory of CURRENT-generation model-vocabulary tells, the layer
 neither the Wikipedia source page nor the Cursor skill has absorbed yet (verified against both
 heads; see the model-era record below). This section is this repository's own work, not adapted
 from the Wikipedia page, so the CC BY-SA statement at the top of this file (scoped to "the
@@ -972,14 +975,14 @@ rests on. It exists to move faster than the upstream inventories: when a new mod
 introduces a tic, the entry lands here first, graded by its evidence, and migrates to the
 Wikipedia-derived inventory only if upstream later absorbs it.
 
-**Evidence grades** — every entry in this section carries one, and the grade gates placement:
+Every entry in this section carries an **evidence grade**, and the grade gates placement:
 
-- `locally-observed` — seen by this repo's owner in the wild; no indexed external attestation.
+- `locally-observed`: seen by this repo's owner in the wild; no indexed external attestation.
   Eligible for `recorded-only` or the rubric ONLY. Never a shipped script rule on one
   observer's evidence.
-- `community-attested` — documented by independent community sources (threads, catalogs,
+- `community-attested`: documented by independent community sources (threads, catalogs,
   filter lists). Eligible for any layer its false-positive measurement supports.
-- `measured` — carried by at least one quantitative frequency measurement. A SINGLE pool is
+- `measured`: carried by at least one quantitative frequency measurement. A SINGLE pool is
   still single-pool: the measured-narrowing gate (density stays quiet on legitimate files AND
   firing files are genuine residue, measured on a real corpus) governs promotion into any
   shipped default word list.
@@ -1000,21 +1003,21 @@ README's "Updating the model-era inventory".
 - evidence: community-attested
 - Multiword constructions distinctive enough to fire per occurrence. The shipped roster is the
   ANCHORED forms only (apostrophes spelled `.` per the detector's ERE convention):
-  - `the part most people skip` — "X is the part most people skip" and kin. Four in-the-wild
+  - `the part most people skip`: "X is the part most people skip" and kin. Four in-the-wild
     hits on HN, all 2025-2026, all in AI-tooling threads; no catalog documents it yet. Rare in
     human prose; near-zero expected yield is accepted.
-  - `(the|my) honest take` — the opinion-opener construction ("The honest take is..."). The
+  - `(the|my) honest take`: the opinion-opener construction ("The honest take is..."). The
     bare bigram "honest take" is recognized but NOT shipped: in blog-register prose it is
     ordinary human writing, and this corpus (which measured 0 hits) is the wrong corpus to
     prove otherwise.
-  - `that.s the unlock` — the punchline form. The bare "the unlock" is recognized but NOT
+  - `that.s the unlock`: the punchline form. The bare "the unlock" is recognized but NOT
     shipped: it has a measured domain-literal false positive in this very repo (prose about an
     actual worktree lock), and any corpus documenting locks, auth, or feature flags would fire
     the same way.
 - Sources: the Hacker News Claude-ism thread (id 48905248, 609 points) and Ask HN 49045140;
   jola.dev's filter hook; Ivo Velitchkov's "A catalog of Claude cliches"; the
   archiewood/claudeisms inventory. Consumers add or remove phrases via
-  `phrase_add`/`phrase_remove` — fragments are EREs, and the joined roster is validated at
+  `phrase_add`/`phrase_remove`. Fragments are EREs, and the joined roster is validated at
   config-read time (an invalid or empty fragment is skipped with a warning, never allowed to
   flood or silently kill the rule).
 
@@ -1026,11 +1029,11 @@ README's "Updating the model-era inventory".
 - era: 2025-2026
 - models: Claude family (composition of two documented behaviors)
 - evidence: locally-observed
-- "Two observations, and one is load-bearing" — an enumeration whose closer ranks one item as
+- "Two observations, and one is load-bearing": an enumeration whose closer ranks one item as
   the one that matters ("N observations/problems/things, and one is load-bearing / fatal / the
   real problem"). Zero indexed attestations as a named tell (checked: HN Algolia exact
   queries, general web search; unchecked: X full-text, private corpora); its components are
-  separately documented — self-ranking claims (Velitchkov's catalog) plus the load-bearing
+  separately documented: self-ranking claims (Velitchkov's catalog) plus the load-bearing
   vocabulary below. Recorded on the repo owner's observation, which is exactly what this
   section's `locally-observed` grade is for; promotes toward a script phrase when independent
   attestations land.
@@ -1043,7 +1046,7 @@ README's "Updating the model-era inventory".
 - era: 2025-2026
 - models: Claude family (attested in the HN thread)
 - evidence: community-attested (disputed)
-- The redundancy idiom, deployed by current Claude output at noticeable frequency — but the
+- The redundancy idiom, deployed by current Claude output at noticeable frequency, but the
   attestation is disputed in the same thread that raises it: commenters attest pre-LLM usage
   ("heard it since way before LLMs"), and it is a legitimate engineering idiom decades old.
   Recorded with the dispute; if ever promoted, density treatment only, never occurrence.
@@ -1064,11 +1067,11 @@ README's "Updating the model-era inventory".
   errored 215x, drift 183x, pre-existing 183x, silently 36x, verbatim 31x, canonical 27x.
 - ONE of these ships in the default vocabulary list: `pre-existing` passed the measured
   quiet-gate test on this corpus (2026-08-27: 61 files contain the word, the density gate
-  fired on none of them — the same measurement that admitted "leverage"), so it joined the
+  fired on none of them, the same measurement that admitted "leverage"), so it joined the
   shipped `rule-ai-vocabulary` list. The rest do NOT ship. Measured on this repository's
   corpus, even the pruned distinctive core fires on domain-literal prose (`uncommitted` in a
-  git document, `dedup` in a dedup-pass reference) — the exact class the shipped list's own
-  admission rule excludes — and the broad list would flag 47% of the corpus. Each remaining
+  git document, `dedup` in a dedup-pass reference), the exact class the shipped list's own
+  admission rule excludes. The broad list would flag 47% of the corpus. Each remaining
   word is a per-word candidate behind the measured-narrowing gate; until a word passes on a
   real corpus, the closure for a repo that wants it is `vocab_add` (the README lists the
   candidates). Promotion of the cluster as a class additionally waits on a second independent
@@ -1080,8 +1083,8 @@ README's "Updating the model-era inventory".
   the dates below, and neither upstream inventory carries it.
 - **Basis**: per-entry sources; upstream absence verified against the live Wikipedia page and
   the Cursor skill head.
-- **Recheck trigger**: each `ai-slop` release, each new frontier-model generation, and — for
-  `rule-model-era-vocabulary` — whether a second independent frequency pool has landed (the
+- **Recheck trigger**: each `ai-slop` release, each new frontier-model generation, and, for
+  `rule-model-era-vocabulary`, whether a second independent frequency pool has landed (the
   cluster's promotion condition, which no other trigger would look for).
 - **Record (2026-08-26, initial)**: layer established from the Hacker News thread 48905248
   (609 points), archiewood/claudeisms (two-measurement corroboration for "load-bearing":
@@ -1095,4 +1098,4 @@ README's "Updating the model-era inventory".
   output is partly prompt-primed rather than purely model-weight; the frequency spike aligns
   with the Opus 4.6 release date and the word appears in non-Code output, so the weights-side
   claim stays alive at MEDIUM. A harness prompt change can therefore collapse a phrase's base
-  rate overnight — attribution notes exist so a recheck knows which entries die that way.
+  rate overnight. Attribution notes exist so a recheck knows which entries die that way.

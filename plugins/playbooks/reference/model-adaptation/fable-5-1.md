@@ -122,6 +122,21 @@ against the live guide). The Claude Code harness keeps the prefix intact for you
 when your code builds the `messages` array itself. Resolve the current details through the `claude-api`
 skill at the moment of use; this chapter carries no model ID, price, or limit. `[CC: API-side]`
 
+## Cross-model effort economics, for model selection
+
+Before working an older model harder, test this model at lower effort. The vendor reports that
+Fable 5.1 at low effort matches Fable 5 at high effort on an agentic coding benchmark at roughly
+a third of the cost, driven by less work per task at low effort and cheaper cache reads
+(vendor-reported, unreproduced; "Reducing cost and improving performance with Claude Platform",
+claude.com blog, 2026-09-08). The transferable mechanism, from the vendor's cost documentation:
+a stronger model at low effort can beat a weaker or older model at high effort on both axes, so
+sweep model and effort together on your own evals rather than raising effort first. A flat
+cost-performance curve across effort levels on a non-saturated eval means the task is not bound
+by thinking compute, and higher effort buys nothing there
+(guide section: "Tune effort" on the optimizing-for-cost-and-intelligence page, read
+2026-09-09). Current prices and effort availability resolve through the `claude-api` skill at
+the moment of use, per this chapter's standing rule. `[CC: API-side]`
+
 ## What NOT to import from other chapters
 
 - **Do not import the Opus 5 verification delta.** See above.
@@ -138,6 +153,10 @@ skill at the moment of use; this chapter carries no model ID, price, or limit. `
   the two carrying an unconfirmed marker.
 - The Claude Fable 5.1 prompting guidance as carried by the bundled `claude-api` skill's
   model-migration reference, read 2026-09-02. It is the basis for the two marked sections.
+- <https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence>
+  ("Tune effort"), read 2026-09-09, plus the vendor's cost-and-performance article on the
+  claude.com blog (2026-09-08). Basis for the cross-model effort economics section; the benchmark
+  comparison there is vendor-reported and unreproduced.
 
 Recheck trigger: a re-fetch of the prompting guide diverging from any claim above, or a later Fable
 release. Behavioral claims decay with model and doc revisions, so re-verify them before propagating

@@ -1,15 +1,15 @@
-# Routing rubric — deciding where one piece of instruction content belongs
+# Routing rubric: deciding where one piece of instruction content belongs
 
 The adjudication layer. `audit` applies it to classify; `realign` applies it to execute what the
 operator accepts. Both read this file; neither restates it.
 
-The unit of adjudication is a **candidate**: one contiguous run of instruction content — normally a
-heading and its body — that could move as a whole. A candidate is never a single line pulled out of
+The unit of adjudication is a **candidate**: one contiguous run of instruction content, normally a
+heading and its body, that could move as a whole. A candidate is never a single line pulled out of
 a section, and never a whole file when only one section of it is misplaced.
 
 ## Contents
 
-- [Gate 0 — the hard-deny classes](#gate-0--the-hard-deny-classes)
+- [Gate 0: the hard-deny classes](#gate-0-the-hard-deny-classes)
 - [The decision ladder](#the-decision-ladder)
 - [Scope shape: glob or subtree](#scope-shape-glob-or-subtree)
 - [Deriving the glob](#deriving-the-glob)
@@ -17,16 +17,16 @@ a section, and never a whole file when only one section of it is misplaced.
 - [Pricing every move](#pricing-every-move)
 - [What this rubric does not decide](#what-this-rubric-does-not-decide)
 
-## Gate 0 — the hard-deny classes
+## Gate 0: the hard-deny classes
 
 **Runs before every other question. A candidate matching any class below is excluded from the
-candidate set entirely** — not surfaced as a risky option, not applicable behind a confirmation.
+candidate set entirely**, not surfaced as a risky option, not applicable behind a confirmation.
 `audit` reports what it held back and why, so the exclusion is visible rather than silent;
 `realign` has no path that can apply one.
 
 The justification is asymmetric consequence. Demotion trades guaranteed presence for conditional
 presence. When a style convention goes missing the cost is a nit in review. When a safety rail goes
-missing the cost is unbounded and often unrecoverable — and per
+missing the cost is unbounded and often unrecoverable, and per
 [`verified-mechanics.md`](verified-mechanics.md), the three gaps guarantee that "missing" is a real
 state, not a hypothetical one.
 
@@ -55,7 +55,7 @@ absent at the moment it was needed, not how the sentence is worded.
   not one.
 
 When a hard-deny candidate is genuinely bloating an always-loaded file, the honest remedy is
-compression in place — tighten the wording, cut what is derivable — not relocation. Say that rather
+compression in place, not relocation: tighten the wording, cut what is derivable. Say that rather
 than proposing nothing.
 
 **The same classes bind the deletion operation, owned elsewhere.** These six classes are adopted by
@@ -93,8 +93,8 @@ entry; folding into an **existing** skill adds nothing.
 **4. Is its scope narrower than the repo?** Yes → **demote**, destination by scope shape below.
 
 **5. Otherwise** → **stays** in the always-loaded surface. A repo-wide fact that applies in every
-session is already where it belongs, and "it is long" is not by itself a reason to move it —
-compress it in place instead.
+session is already where it belongs, and "it is long" is not by itself a reason to move it.
+Compress it in place instead.
 
 ## Scope shape: glob or subtree
 
@@ -107,14 +107,14 @@ file conventions, migration file conventions. Cross-cutting by nature.
 
 **Keyed to a place → nested `AGENTS.md` + `CLAUDE.md` shim** in that directory. The content governs
 a module, package, or subtree regardless of file type: "the billing service owns its own retry
-policy", "everything under `infra/` is applied by CI, never locally". The shim is mandatory —
-`verified-mechanics.md` finding 3 — and is exactly two lines:
+policy", "everything under `infra/` is applied by CI, never locally". The shim is mandatory, per
+`verified-mechanics.md` finding 3, and is exactly two lines:
 
 ```markdown
 @AGENTS.md
 ```
 
-**Keyed to both** — a file kind *within* a subtree — takes the path-scoped rule with a glob rooted
+**Keyed to both**, a file kind *within* a subtree, takes the path-scoped rule with a glob rooted
 at the subtree (`src/billing/**/*.ts`). One surface, one trigger, no duplication.
 
 **Ambiguous** → prefer the subtree destination. It is the more conservative of the two: it carries
@@ -122,14 +122,14 @@ no glob to get wrong, it survives the write-trigger gap, and it stays portable t
 
 ### Why the portable pair is the subtree default
 
-A nested `AGENTS.md` is read by other coding agents natively — the `AGENTS.md` convention is
-nearest-file-wins across the directory tree — while `.claude/rules/` is Claude-only. Putting shared
+A nested `AGENTS.md` is read by other coding agents natively, since the `AGENTS.md` convention is
+nearest-file-wins across the directory tree, while `.claude/rules/` is Claude-only. Putting shared
 content in the `AGENTS.md` and keeping the `CLAUDE.md` beside it as a shim (plus any genuinely
 Claude-specific additions below the import) means one copy serves every agent.
 
 Note the semantic difference and do not paper over it: `AGENTS.md` resolution is **nearest-wins**,
 while Claude concatenates every `CLAUDE.md` from the root down. So content that *overrides* an
-ancestor instruction behaves differently under the two tools — under Claude both statements are in
+ancestor instruction behaves differently under the two tools. Under Claude both statements are in
 context and the contradiction is live. Write subtree content as additive and self-contained rather
 than as an override, and a candidate that only makes sense as an override does not belong in this
 destination.
@@ -137,16 +137,16 @@ destination.
 ## Deriving the glob
 
 A path-scoped rule is only as good as its `paths:` list. Derivation is a proposal by the model,
-**validated mechanically** before it is ever applied — see the plugin's `glob-tools.sh`.
+**validated mechanically** before it is ever applied. See the plugin's `glob-tools.sh`.
 
 Derive from what the content actually names, in this order:
 
-1. **An explicit path or extension in the text** — "files under `src/api/`", "`*.tsx` components".
+1. **An explicit path or extension in the text**: "files under `src/api/`", "`*.tsx` components".
    Use it directly; it is the author's own statement of scope.
-2. **A language or framework named in the text** — map to that ecosystem's source extensions, and
+2. **A language or framework named in the text**: map to that ecosystem's source extensions, and
    only those. "C# conventions" → `**/*.cs`, not `**/*.{cs,csproj,sln}` unless the content actually
    discusses project files.
-3. **A directory the content is about** — `src/billing/**`.
+3. **A directory the content is about**: `src/billing/**`.
 4. **Nothing derivable** → do not invent one. The candidate drops to the subtree destination, or
    stays. A guessed glob is worse than no move.
 
@@ -156,7 +156,7 @@ Validation gates every derived glob:
   Code reports nothing when that happens.
 - **Is not over-broad.** A glob matching effectively the whole repo (`**/*`, or a match set within a
   small margin of the tracked-file count) is a demotion that saves nothing while adding a surface.
-- **Stays inside the brace budget** — 1,000 expanded patterns and 4 MiB across the rule's whole
+- **Stays inside the brace budget**: 1,000 expanded patterns and 4 MiB across the rule's whole
   `paths:` list. Over budget, the pattern is used unexpanded and matches nothing.
 - **Has valid bracket expressions.** An unbalanced `[` silently matches nothing.
 
@@ -166,11 +166,12 @@ over-broad glob loads the content constantly, which is the cost the move exists 
 ## The promote lane
 
 The mirror direction, and the one with no downside to weigh. Convention content living in ordinary
-documentation — `docs/`, `CONTRIBUTING.md`, a module README — is loaded by Claude **never**. There
+documentation, in `docs/`, in `CONTRIBUTING.md`, or in a module README, is loaded by Claude
+**never**. There
 is no presence to lose, so the compaction and subagent gaps do not apply: any working destination is
 a strict improvement over the status quo.
 
-A promote candidate must be genuinely **normative** — it tells someone what to do or not do — rather
+A promote candidate must be genuinely **normative**, telling someone what to do or not do, rather
 than explanatory, historical, or a tutorial. A design rationale document is not a convention just
 because a convention is mentioned inside it.
 
@@ -179,9 +180,9 @@ contributor guide into a rule creates two statements that drift. Resolve it per 
 
 | Situation | Action |
 |---|---|
-| The doc section exists to be *read by humans* and the rule would duplicate it | Rule body is a short **pointer** to the doc, scoped by `paths:` — the agent reads the source on trigger |
+| The doc section exists to be *read by humans* and the rule would duplicate it | Rule body is a short **pointer** to the doc, scoped by `paths:`. The agent reads the source on trigger |
 | The doc section is agent-facing and the human doc would not miss it | **Move** it, leaving a pointer in the doc back to the rule |
-| The content is already duplicated across several docs | Out of scope here — that is a deduplication concern; report and route it rather than picking a winner |
+| The content is already duplicated across several docs | Out of scope here. That is a deduplication concern; report and route it rather than picking a winner |
 
 ## Pricing every move
 
@@ -196,13 +197,13 @@ path-scoped destinations, that it returns after compaction only when a matching 
 
 Named so a reader chasing one of these lands somewhere real rather than bending this rubric.
 
-- **Whether an instruction is still needed by the current model** — prior-model workarounds,
+- **Whether an instruction is still needed by the current model**: prior-model workarounds,
   over-prescriptive scaffolding. A model-era-fit question, not a placement question.
-- **Whether a whole document earns its existence** — derivability of an entire file, as opposed to a
+- **Whether a whole document earns its existence**: derivability of an entire file, as opposed to a
   section within one.
-- **General markdown noise, prose flavor, or brevity** — compression is a separate craft and this
+- **General markdown noise, prose flavor, or brevity**: compression is a separate craft and this
   rubric never rewrites content for style while moving it.
-- **Whether two instructions contradict each other** — consistency across the instruction layer is
+- **Whether two instructions contradict each other**: consistency across the instruction layer is
   its own audit. This rubric moves content; it does not adjudicate conflicts, and a candidate known
   to conflict with another surface is reported rather than moved.
 - **Authoring the linter, hook, or skill** that rung 2 and rung 3 route to. The routing is the

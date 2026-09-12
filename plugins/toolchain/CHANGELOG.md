@@ -3,6 +3,19 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.16]
+
+### Changed
+
+- Cite the marketplace `docs/` doctrine files by their lower-kebab names (`docs/plugin-philosophy.md`, `docs/migration-playbook.md`, and siblings); the files were renamed and the old uppercase paths no longer resolve.
+
+## [0.13.15]
+
+### Changed
+
+- **The plugin's prose drops its em dashes.** Ten surfaces were rewritten: this changelog, `reference/resolution-ladder.md`, `skills/setup/SKILL.md`, and the seven `skills/check/context/` ecosystem documents. Wording only, with no change to any command key, resolution order, or ecosystem detection. Em dashes inside fenced shell examples are left alone, because there they are part of a command a reader copies rather than this repository's prose. No heading changed, so no anchor moved. The released sections corrected in place are 0.13.6, 0.13.3, 0.13.1, 0.13.0, 0.12.1, 0.12.0, 0.11.2, 0.11.0, 0.10.2, 0.10.1, 0.10.0, 0.9.0, 0.8.0, 0.7.0, 0.6.0, 0.5.2, 0.5.0, 0.4.3, 0.4.2, 0.4.1, 0.4.0, and 0.1.0: their wording changed, their facts did not.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md`, `reference/resolution-ladder.md`, every `skills/*/SKILL.md`, and the `skills/check/context/` tree, so a reintroduced em dash fails a lane rather than waiting for the next audit.
+
 ## [0.13.14]
 
 ### Changed
@@ -86,7 +99,7 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
 
 ### Changed
 
-- **`check`'s .NET gotcha scopes the `--project` requirement to the opt-in MTP runner.** Under VSTest — still the .NET 10 default — a bare positional project path is accepted; the rejection only occurs under Microsoft.Testing.Platform (enabled via `global.json`/`dotnet.config`). `--project` works in both, so the recipe still prefers it (re-checked against Microsoft's dotnet-test docs, 2026-08-26). From the repo-wide derivability/point-dont-copy audit (PR #3387).
+- **`check`'s .NET gotcha scopes the `--project` requirement to the opt-in MTP runner.** Under VSTest, still the .NET 10 default, a bare positional project path is accepted. The rejection only occurs under Microsoft.Testing.Platform (enabled via `global.json`/`dotnet.config`). `--project` works in both, so the recipe still prefers it (re-checked against Microsoft's dotnet-test docs, 2026-08-26). From the repo-wide derivability/point-dont-copy audit (PR #3387).
 
 ## [0.13.5]
 
@@ -115,8 +128,8 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
   bullet, now matching its "To run full verification" sibling, which already named the tool.
   `lint`'s quick-feedback / before-committing pair stays as prose: it sits directly under that
   skill's own `| Skill | What it runs | Speed |` comparison table, is human-facing positioning
-  rather than a chain, and its first clause names `/toolchain:lint` — the skill the sentence is
-  written in — which no skill invokes on itself. Wording only; the resolution ladder and the
+  rather than a chain, and its first clause names `/toolchain:lint`, the skill the sentence is
+  written in, which no skill invokes on itself. Wording only; the resolution ladder and the
   surfaces each skill owns are unchanged.
 
 ## [0.13.2]
@@ -133,7 +146,7 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
 ### Changed
 
 - **README de-duplicated toward its authoritative sources.** A repo-wide derivability audit (#2695)
-  spot-tested the README and found it stale where it diverged from code — its closed ecosystem list
+  spot-tested the README and found it stale where it diverged from code. Its closed ecosystem list
   named six ecosystems while `/toolchain:check` supports more (including `go`). The README now
   defers behavior, flags, and the current ecosystem surface to each skill's `SKILL.md` and the
   ecosystem-commands convention instead of restating them, keeping purpose, skill roles, install,
@@ -143,7 +156,7 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
 
 ### Added
 
-- **`/toolchain:lint --code-fix` — gated semantic lint autofixes.** New optional ecosystem key
+- **`/toolchain:lint --code-fix`: gated semantic lint autofixes.** New optional ecosystem key
   `code-fix-cmd` (ecosystem-commands contract 1.3.0) holds code-changing autofixes. The skill emits
   a plan, then requires interactive confirmation or `--yes` (non-interactive without `--yes` stops
   after the plan). `--dry-run` always stops after the plan. A default **file-cap of 40** scoped files
@@ -169,8 +182,8 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
 ### Changed
 
 - **`/toolchain:check` and `/toolchain:lint` now carry `Use when:` trigger phrasing.** `check`
-  stated its phrases as "Use after any code edit or for 'does it compile' / 'run tests' checks" —
-  the two phrases are preserved verbatim and now lead, joined by `'build it'`, `'run the tests'`,
+  stated its phrases as "Use after any code edit or for 'does it compile' / 'run tests' checks".
+  The two phrases are preserved verbatim and now lead, joined by `'build it'`, `'run the tests'`,
   `'does this still build'` and `'check it'`. `lint` had no typed phrase at all ("Use for quick
   lint/format feedback during development"), and now leads with `'lint this'`, `'run the linter'`,
   `'format check'`, `'fix the formatting'`, `'is this formatted right'` and
@@ -182,7 +195,7 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
 
 - **The bare `/<skill>` alias for this plugin's skills.** Their `SKILL.md` files no longer
   declare a frontmatter `name`. The field is optional and defaults to the directory name, so
-  declaring it only restated the path while registering a second, unnamespaced command — which
+  declaring it only restated the path while registering a second, unnamespaced command, which
   the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
   namespaced command; the command itself is unchanged.
 
@@ -192,8 +205,8 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
 
 - **The documented pyright prerequisite now matches what `/toolchain:check` actually does.**
   `context/python.md` claimed that a ruff-configured project with pyright absent reports a
-  whole-ecosystem missing-tool `skip`. It does not: the preflight probes `uv` — the runner every
-  python command is invoked through — and never probes pyright, so with `uv` installed nothing
+  whole-ecosystem missing-tool `skip`. It does not: the preflight probes `uv`, the runner every
+  python command is invoked through, and never probes pyright, so with `uv` installed nothing
   skips. The two ruff commands run and pass, `uv run pyright` then exits 2 (`Failed to spawn` /
   `program not found`, reproduced locally), and the Lint cell reports `FAIL`. The doc now states
   that outcome and names both remedies: install pyright alongside ruff, or drop it by overriding
@@ -232,15 +245,15 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
 
 - **`gates[].run-from` execution-scope override for `/toolchain:check`.** A CI-parity gate declared
   under a `project-discovery` ecosystem (`go`, `python`, `typescript`) previously always ran once per
-  discovered project root — correct for a per-project gate (`go-mod-tidy-drift`) but wrong for a
+  discovered project root, correct for a per-project gate (`go-mod-tidy-drift`) but wrong for a
   repo-wide gate (protobuf generation, schema freshness), which ran redundantly or failed in roots
   lacking its config. `run-from: repo-root` forces a single run from `$REPO_ROOT` instead; omitting
   the key preserves current per-project behavior exactly. A gate that still runs multiple times now
   reports one aggregated outcome line per gate name (`FAIL` if any invocation failed), with each
   failing invocation's output labeled by its execution root. Follows the ecosystem-commands
   convention bump to 1.2.0. Closes #1361, deferred from #1020. Under `run-from: repo-root`,
-  `<files>` expands to the full ecosystem-scoped changed-files set and `<project-dir>` is undefined —
-  a gate `cmd` using it there is reported as a `FAIL` naming the unresolvable placeholder, never
+  `<files>` expands to the full ecosystem-scoped changed-files set and `<project-dir>` is undefined.
+  A gate `cmd` using it there is reported as a `FAIL` naming the unresolvable placeholder, never
   guessed at.
 
 ## [0.10.2]
@@ -249,7 +262,7 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
 
 - **`/toolchain:check` §2 Reachability bullet now states the settled cross-ecosystem-trigger
   pattern.** A gate's `trigger-globs` narrows a run *within* its already-affected ecosystem and never
-  selects an ecosystem under auto-targeting — that subordinate model was already the implemented
+  selects an ecosystem under auto-targeting. That subordinate model was already the implemented
   behavior (#1020) but was left as an open design question in the schema and skill docs. Decided by
   #1339: the docs now state explicitly that a consumer with a cross-ecosystem gate trigger (e.g. a Go
   gate keyed off `*.proto`) adds the trigger pattern to the ecosystem's own `globs` to make it
@@ -273,8 +286,8 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
 - **pyright documented as a hard prerequisite of the python default once ruff opts the ecosystem
   in.** `context/python.md` now states that pyright shares the compound `check-cmd` with ruff and
   tool presence is evaluated per ecosystem, so a ruff-configured project with pyright absent reports
-  a whole-ecosystem missing-tool `skip` (dropping ruff coverage) rather than skipping pyright alone —
-  install pyright alongside ruff. Follow-ups from PR #859 review, batched via #657 sweep; closes #1017.
+  a whole-ecosystem missing-tool `skip` (dropping ruff coverage) rather than skipping pyright alone.
+  Install pyright alongside ruff. Follow-ups from PR #859 review, batched via #657 sweep; closes #1017.
 
 ## [0.10.0]
 
@@ -282,7 +295,7 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
 
 - **Resolved `gates` arrays now execute in `/toolchain:check`.** The ecosystem-commands
   `gates` array (`name`/`cmd`/`trigger-globs`/`remediation`) was resolved as part of each
-  ecosystem's command surface but never invoked by any workflow step — a bundled or
+  ecosystem's command surface but never invoked by any workflow step. A bundled or
   consumer-declared gate was inert. `check/SKILL.md` §2 now iterates each affected ecosystem's
   resolved `gates` after build → test → lint: under auto-detection a gate fires when a changed file
   matches its `trigger-globs` (full changed-files set) or unconditionally when `trigger-globs` is
@@ -291,18 +304,18 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
   clean tree cannot pass a committed-but-untidy `go.mod`),
   runs independent of the build/test/lint short-circuit, reports `skip` when the tool is missing or
   its version is verified below the gate's documented floor (an environment capability gap is not
-  project drift — a Go 1.22 toolchain skips `go mod tidy -diff` instead of failing every `*.go`
+  project drift: a Go 1.22 toolchain skips `go mod tidy -diff` instead of failing every `*.go`
   change, while an unexplained rejection such as a typo in a consumer's `cmd` still fails), and on
   failure surfaces `remediation` and flips Overall to `FAIL`. A gate executes from the same
-  location the ecosystem's own build/test/lint use — once per resolved `<project-dir>` for a
-  `project-discovery` ecosystem, from the `anchor`'s directory otherwise — so the bundled
-  `go.yaml` `go-mod-tidy-drift` gate runs from each `go.mod` root in a monorepo rather than only
-  `$REPO_ROOT` (a repo-root-only `go mod tidy -diff` falsely fails when the sole module is nested
+  location the ecosystem's own build/test/lint use: once per resolved `<project-dir>` for a
+  `project-discovery` ecosystem, from the `anchor`'s directory otherwise. The bundled
+  `go.yaml` `go-mod-tidy-drift` gate therefore runs from each `go.mod` root in a monorepo rather
+  than only `$REPO_ROOT` (a repo-root-only `go mod tidy -diff` falsely fails when the sole module is nested
   and misses drift in nested modules). `go.yaml`'s `go-mod-tidy-drift` bundled default and a
-  consumer's `nuget-lockfile-drift`-shaped gate now actually run. The prior path — CI-parity gates
-  documented in the consuming project's own `CLAUDE.md`, rules, or commands reference — is
-  additive, not replaced: those still run under the same fire/report/verdict rules, so no consumer
-  has to migrate to keep them. `lint` is unchanged — gates are CI-parity checks beyond lint's fast
+  consumer's `nuget-lockfile-drift`-shaped gate now actually run. The prior path is additive, not
+  replaced: CI-parity gates documented in the consuming project's own `CLAUDE.md`, rules, or
+  commands reference still run under the same fire/report/verdict rules, so no consumer
+  has to migrate to keep them. `lint` is unchanged. Gates are CI-parity checks beyond lint's fast
   build-free path. Closes #926.
 
 ## [0.9.0]
@@ -311,8 +324,9 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
 
 - **`lychee-offline` added to the `cross-cutting` ecosystem default.** The bundled
   `reference/ecosystems/cross-cutting.yaml` `check-cmd` now runs `lychee --offline --no-progress
-  './**/*.md'` alongside `typos`/`gitleaks`/editorconfig-checker — on-disk link/anchor integrity,
-  network-free (`--offline` skips external URLs; only local file and fragment targets are verified).
+  './**/*.md'` alongside `typos`/`gitleaks`/editorconfig-checker, checking on-disk link/anchor
+  integrity, network-free (`--offline` skips external URLs; only local file and fragment targets
+  are verified).
   Opt-in follows the same per-tool-config pattern as the existing cross-cutting tools: an optional
   `lychee.toml` at repo root customizes the ruleset (exclusions, fragment-check mode), absent means
   lychee's own defaults. `install-hint` gains the `lycheeverse.lychee` winget package / `lychee`
@@ -325,12 +339,12 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
 - **`go` ecosystem batch default** (`build-cmd: go build ./...`, `test-cmd: go test ./...`,
   `check-cmd`/`fix-cmd: golangci-lint run [--fix] ./...`, `project-discovery: ["go.mod"]` for
   nested-module coverage, a `go-mod-tidy-drift` gate via `go mod tidy -diff`) added to
-  `reference/ecosystems/go.yaml` — closes the Go toolchain CI/local-parity gap. Gated behind an
-  `opt-in` key (`.golangci.yml`/`.golangci.yaml`/`.golangci.toml`/`.golangci.json` presence) —
-  empirically verified golangci-lint v2 with no config file still applies its own fixed "standard"
+  `reference/ecosystems/go.yaml`, closing the Go toolchain CI/local-parity gap. Gated behind an
+  `opt-in` key (`.golangci.yml`/`.golangci.yaml`/`.golangci.toml`/`.golangci.json` presence).
+  Empirical check: golangci-lint v2 with no config file still applies its own fixed "standard"
   linter preset unconditionally, the same imposed-unconfigured-opinion risk the 0.6.0 dotnet gate
   addressed.
-- `context/go.md` reference file — Go-specific gotchas (`./...` module-boundary behavior,
+- `context/go.md` reference file: Go-specific gotchas (`./...` module-boundary behavior,
   golangci-lint's home-directory config fallback, `go mod tidy -diff`'s Go 1.23+ requirement).
 - `docs/conventions/ecosystem-commands/examples/go.yaml` worked-example fixture.
 - `go`/`golang` added to `/toolchain:check` and `/toolchain:lint`'s covered-ecosystem lists and
@@ -342,7 +356,7 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
 
 - **`pyright` added to the bundled Python ecosystem default's `check-cmd`.** Local `/toolchain:check`
   now runs `uv run pyright` alongside the existing ruff lint/format check, closing the gap where CI
-  gated pyright but the local batch was ruff-only. Rung-4 fallback only — a consumer's own
+  gated pyright but the local batch was ruff-only. Rung-4 fallback only. A consumer's own
   `.claude/ecosystems/python.yaml` overrides `check-cmd` key-by-key and is unaffected. `fix-cmd` is
   unchanged (pyright has no fix mode). `context/python.md` documents the default standard-mode gotcha
   for untyped projects.
@@ -353,25 +367,25 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
 
 - **dotnet ecosystem `opt-in` key** (`.editorconfig` with a `[*]` or C#-glob
   section, walked from the changed file up to the repo root or a
-  `root = true` marker, whichever comes first — empirically verified against
-  dotnet SDK 10.0.302 that a universal `[*]` section governs `dotnet format`'s
-  output on `.cs` files just as a `[*.cs]` section would, that a
-  `.editorconfig` with only unrelated globs has zero effect, and that a
+  `root = true` marker, whichever comes first). This closes the one
+  lint-bearing ecosystem gap where a config-presence opt-in didn't exist.
+  Empirically verified against dotnet SDK 10.0.302: a universal `[*]` section
+  governs `dotnet format`'s output on `.cs` files just as a `[*.cs]` section
+  would, a `.editorconfig` with only unrelated globs has zero effect, and a
   nested `root = true` marker genuinely stops EditorConfig discovery before
-  it reaches an outer section) — closes the one lint-bearing ecosystem gap
-  where a config-presence opt-in didn't exist.
-- **`/toolchain:check` now honors `opt-in`** for the lint phase (it never did
-  before — `dotnet format --verify-no-changes` ran unconditionally whenever
-  `.cs`/`.csproj`/etc. files changed, regardless of whether the repo
-  configured any style/analyzer preferences). Build and test are unaffected;
+  it reaches an outer section.
+- **`/toolchain:check` now honors `opt-in`** for the lint phase, which it
+  never did before. `dotnet format --verify-no-changes` ran unconditionally
+  whenever `.cs`/`.csproj`/etc. files changed, regardless of whether the repo
+  configured any style/analyzer preferences. Build and test are unaffected;
   only the lint phase is gated. This binary run/skip treatment applies to
   single-condition ecosystems (dotnet, python); multi-tool ecosystems whose
   `opt-in` bundles several sub-tools into one opaque command string (bash,
-  cross-cutting) are unchanged from prior behavior — a bundled command
+  cross-cutting) are unchanged from prior behavior. A bundled command
   cannot be partially suppressed, a known limitation documented in
   `check/SKILL.md`'s Gotchas.
 - **Visible `skip (opt-in unmet: ...)` status** in both `/toolchain:check`
-  and `/toolchain:lint` results tables — a single-condition ecosystem whose
+  and `/toolchain:lint` results tables. A single-condition ecosystem whose
   `opt-in` isn't met is now reported, not silently dropped from output as
   it previously was in `/toolchain:lint` for every opt-in-bearing ecosystem.
 
@@ -379,7 +393,7 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
 
 - dotnet's lint/format check no longer imposes Roslyn's built-in formatting
   defaults on a repo that never configured `.editorconfig`/analyzer
-  preferences — matching the same "never impose an unconfigured opinion"
+  preferences, matching the same "never impose an unconfigured opinion"
   posture already applied at the hook layer by `ruff-format`/`typos-format`.
 
 ## [0.5.2]
@@ -387,7 +401,7 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
 ### Changed
 
 - Skills with `!` dynamic-context injections now declare `shell: bash` explicitly, per
-  the pinned precompute convention — bash-only pipelines must not fall through to a
+  the pinned precompute convention. Bash-only pipelines must not fall through to a
   PowerShell host.
 
 ## [0.5.1]
@@ -403,15 +417,15 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
 
 ### Removed
 
-- **`/toolchain:setup` no longer offers the topic-docs concern file — relocated to the lifecycle
+- **`/toolchain:setup` no longer offers the topic-docs concern file, which moves to the lifecycle
   plugins that own it.** Setup step 6 wrote `.claude/topic-docs.yaml`, a consumer config resolved by
   the `implementation` and `verification` plugins for artifact placement; no `/toolchain:*` skill reads
   it, so this build/test/lint plugin was writing another plugin's consumer config. Setup is now scoped
   solely to the ecosystem command surface it owns (the tracked `.claude/ecosystems/*.yaml` files):
   `check` no longer reports the topic-docs concern and `apply` no longer offers it, and the orphaned
-  `reference/topic-docs.md` binding that only step 6 read is removed. The shared concern file is offered
-  by each lifecycle plugin's own setup — `/discovery:setup`, `/planning:setup`, and the new
-  `/verification:setup` — independent of whether the others are installed. Closes #263.
+  `reference/topic-docs.md` binding that only step 6 read is removed. Three lifecycle plugins now offer
+  the shared concern file from their own setup: `/discovery:setup`, `/planning:setup`, and the new
+  `/verification:setup`. Each does so independent of whether the others are installed. Closes #263.
 
 ## [0.4.3]
 
@@ -420,7 +434,7 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
 - **Presence-gated `dotnet-msbuild:*` build-diagnostics references in `context/dotnet.md` reframed as
   .NET-ecosystem forward references.** The `## Marketplace plugin skills for build diagnostics (invoke
   only when installed)` list gains a lead-in that frames its `dotnet-msbuild:*` skills as applicable
-  when your stack is .NET and as forward references to the planned `dotnet-*` plugin family — invoked
+  when your stack is .NET and as forward references to the planned `dotnet-*` plugin family, invoked
   only when the plugin is installed, otherwise falling back to the section's own prose remediation and
   binlog gotcha (the generic path stays first-class). Framing only: no skill reference was removed,
   renamed, or genericized, and no command string was altered. Aligns this file with the presence-gated
@@ -437,11 +451,11 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
   `branch.<name>.remote`, but when that was unset (an unpushed feature branch) it forced `REMOTE=origin`
   unconditionally. In a clone made with a differently named remote (`git clone -o vendor`) that has no
   `origin` and no pushed upstream, `origin` does not exist, so `git symbolic-ref refs/remotes/origin/HEAD`
-  and every subsequent probe failed and the branch diff was skipped ("branch diff unavailable") — the
+  and every subsequent probe failed and the branch diff was skipped ("branch diff unavailable"). The
   `origin` fallback the 0.4.1 note claimed "still resolves" a `git clone -o vendor` did not hold for the
-  not-yet-pushed case. Both call sites now probe candidate remotes in priority order — the branch's
-  tracking remote, then `origin` if present, then the rest — and select the first whose default branch
-  resolves to a locally available `refs/remotes/<remote>/<branch>` tracking ref. This also skips a remote
+  not-yet-pushed case. Both call sites now probe candidate remotes in priority order and select the
+  first whose default branch resolves to a locally available `refs/remotes/<remote>/<branch>` tracking
+  ref. The order is the branch's tracking remote, then `origin` if present, then the rest. This also skips a remote
   that was added but never fetched (whose `git ls-remote` default-branch query succeeds over the network
   but leaves no local ref for `git merge-base`) in favor of a later remote that has one, rather than
   committing to the alphabetically first remote and bailing. The common tracking-remote case still
@@ -464,9 +478,9 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
 
 - **Default branch resolved by detection, not assumption.** The clean-working-tree branch-diff
   fallback in `/toolchain:check` and `/toolchain:lint` carried a bare `<default-branch>` placeholder
-  with no resolution guidance, so the model would likely guess `main`/`master` — a baked repo
+  with no resolution guidance, so the model would likely guess `main`/`master`, a baked repo
   assumption the convention-resolution discipline forbids. Both call sites now resolve the tracked
-  remote (`branch.<name>.remote`, falling back to `origin` — never a hardcoded remote name, so a repo
+  remote (`branch.<name>.remote`, falling back to `origin`, never a hardcoded remote name, so a repo
   cloned with a different remote name still resolves), then the default branch via
   `git symbolic-ref --short refs/remotes/$REMOTE/HEAD` (with the `$REMOTE/` prefix stripped), falling
   back to a `git ls-remote --symref "$REMOTE" HEAD` query of that remote's own default branch, matching
@@ -481,13 +495,14 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
 
 ### Changed
 
-- **`/toolchain:setup` adopts the uniform setup contract** (fleet conformance wave) — delivering the
+- **`/toolchain:setup` adopts the uniform setup contract** (fleet conformance wave), delivering the
   `apply` action the 0.3.0 topic-docs note recorded as the contract's follow-on. The skill now splits
-  into a read-only `check` action (default) that reports which ecosystems are configured, each one's
-  resolved build/test/lint command surface, and the topic-docs concern file — validating the tracked
-  files against the contract's `ecosystem.schema.json`, treating an unconfigured ecosystem as INFO
-  (the bundled rung-4 default resolves) and FAILing only a configured-but-broken file (schema-invalid,
-  or excluded by `.gitignore`) — and an `apply` action that infers and writes the tracked config. The
+  into a read-only `check` action (default) and an `apply` action that infers and writes the tracked
+  config. `check` reports which ecosystems are configured, each one's resolved build/test/lint command
+  surface, and the topic-docs concern file. It validates the tracked
+  files against the contract's `ecosystem.schema.json`, treats an unconfigured ecosystem as INFO
+  (the bundled rung-4 default resolves) and FAILs only a configured-but-broken file (schema-invalid,
+  or excluded by `.gitignore`). The
   previous interview (infer per-ecosystem commands, write `.claude/ecosystems/*.yaml`, offer
   `.claude/topic-docs.yaml`) becomes `apply`'s interview path; `apply <ecosystem>` scopes the run to
   one ecosystem and writes an unambiguous inference non-interactively. The per-ecosystem inference,
@@ -527,7 +542,7 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
 
 ### Added
 
-- Initial release — three skills extracted from the `implementation` plugin (skill names unchanged):
+- Initial release. Three skills extracted from the `implementation` plugin (skill names unchanged):
   `/toolchain:build` (polyglot build + test + lint for changed files, resolved through the four-rung
   ecosystem-commands ladder), `/toolchain:lint` (lint + format only, plus the `yaml` and `cross-cutting`
   surfaces), and `/toolchain:setup` (re-runnable writer of the tracked `.claude/ecosystems/*.yaml`
@@ -536,4 +551,4 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
   `reference/ecosystems/`, and the plugin-local `reference/topic-docs.md` binding that `/toolchain:setup`
   reads to offer the topic-docs concern file.
 - Cross-plugin references to the `verification` plugin's `/verification:confirm` are informational and
-  degrade gracefully — this plugin never hard-depends on any other plugin.
+  degrade gracefully. This plugin never hard-depends on any other plugin.

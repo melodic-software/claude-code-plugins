@@ -90,7 +90,10 @@
 # plugin's front page.
 set -euo pipefail
 
-cd "$(dirname "${BASH_SOURCE[0]}")/.."
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR/.."
+# shellcheck source=lib/read-list.sh
+. "$SCRIPT_DIR/lib/read-list.sh" || exit 2
 
 exemptions_file="scripts/skill-count-claim-exemptions.txt"
 
@@ -252,21 +255,19 @@ skill_count() {
 # Exemptions: `<repo-relative-path>|<exact substring of the claim line>`, with an
 # optional trailing `# reason`. Matched on the substring rather than a line
 # number so ordinary edits above the site cannot silently retire the entry.
-declare -A exempt_subs
 exempt_keys=()
 if [[ -f "$exemptions_file" ]]; then
-  while IFS= read -r raw || [[ -n "$raw" ]]; do
-    raw="${raw%%#*}"
-    raw="${raw#"${raw%%[![:space:]]*}"}"
-    raw="${raw%"${raw##*[![:space:]]}"}"
-    [[ -n "$raw" ]] || continue
+  # `inline`: an entry is `<path>|<substring>`, never a regex, so a `#` anywhere
+  # on the line opens the reason comment (scripts/lib/read-list.sh owns the two
+  # comment families and why they must stay distinct).
+  # shellcheck disable=SC2310  # the non-zero return IS the handled case; the library reports it
+  read_list::into exempt_keys "$exemptions_file" --comments inline || exit 2
+  for raw in ${exempt_keys[@]+"${exempt_keys[@]}"}; do
     [[ "$raw" == *"|"* ]] || {
       printf 'FAIL: %s line has no "|" separator: %s\n' "$exemptions_file" "$raw" >&2
       exit 2
     }
-    exempt_subs["$raw"]=""
-    exempt_keys+=("$raw")
-  done <"$exemptions_file"
+  done
 fi
 
 # Sets `exempt_hit` rather than returning a status, for the same SC2310 reason
@@ -280,7 +281,9 @@ mark_if_exempt() {
     [[ "${key%%|*}" == "$path" ]] || continue
     sub="${key#*|}"
     if [[ "$line" == *"$sub"* ]]; then
-      exempt_subs["$key"]="used"
+      # The entry suppressed a real mismatch, so it has not outlived its reason.
+      # scripts/lib/read-list.sh owns the consumed-set.
+      read_list::mark_used "$key"
       exempt_hit=1
       return
     fi
@@ -499,17 +502,16 @@ done
 
 # Stale guard: an exemption that suppressed nothing has outlived its reason and
 # would otherwise sit there pre-authorizing a future wrong number on that line.
-for key in ${exempt_keys[@]+"${exempt_keys[@]}"}; do
-  [[ "${exempt_subs[$key]}" == "used" ]] && continue
+stale_keys=()
+read_list::stale_to stale_keys exempt_keys
+for key in ${stale_keys[@]+"${stale_keys[@]}"}; do
   path="${key%%|*}"
   sub="${key#*|}"
   if [[ ! -f "$path" ]]; then
-    printf 'FAIL: %s exempts %s, which no longer exists. Drop the entry.\n' \
-      "$exemptions_file" "$path" >&2
+    read_list::stale_line "$exemptions_file" "$key" "exempts $path, which no longer exists. Drop the entry."
   else
-    printf 'FAIL: %s exempts "%s" in %s, but that no longer produces a mismatch.\n' \
-      "$exemptions_file" "$sub" "$path" >&2
-    printf '      The prose was fixed or reworded -- drop the entry so it cannot cover a future one.\n' >&2
+    read_list::stale_line "$exemptions_file" "$key" \
+      "exempts \"$sub\" in $path, but that no longer produces a mismatch; the prose was fixed or reworded, so drop the entry before it covers a future one."
   fi
   failed=1
 done

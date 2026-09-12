@@ -142,7 +142,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Fetch base
-        uses: ./.github/actions/checkout-with-base
+        uses: ./.github/actions/checkout-with-base # zizmor: ignore[self-repository]
       - name: Test the docs-only detector
         run: bash scripts/check-docs-only.test.sh
       - name: Detect a docs-only diff
@@ -304,7 +304,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Fetch base
-        uses: ./.github/actions/checkout-with-base
+        uses: ./.github/actions/checkout-with-base # zizmor: ignore[self-repository]
 
       # PyYAML reads the frontmatter surface (YAML has no jq) for the
       # hook-exec-form and summary-reader-parity gates, and the same pinned,
@@ -563,6 +563,18 @@ jobs:
       # github format exits non-zero on any finding, which is the same
       # threshold. GH_TOKEN comes from the job's read-only workflow token, for
       # the online audits.
+      #
+      # Every `uses: ./.github/actions/checkout-with-base` in this repository
+      # carries `# zizmor: ignore[self-repository]`. zizmor 1.30 added that
+      # audit to recommend GitHub's `$/...` form over the workspace-relative
+      # `./...` form, and its auto-fix rewrites all seven call sites. The
+      # rewrite cannot be taken yet: actionlint (pinned by SHA in the
+      # melodic-software/ci-workflows action this lane also runs) rejects
+      # `$/.github/actions/checkout-with-base` as "invalid format because ref
+      # is missing", so adopting the audit's advice turns the zizmor finding
+      # into an actionlint error and the lane stays red either way. Drop the
+      # ignore comments and take the auto-fix once that actionlint pin
+      # understands the syntax.
       - name: Run zizmor
         id: zizmor
         if: needs.changes.outputs.run_workflows == 'true'
@@ -603,6 +615,15 @@ jobs:
         id: skill_leaf_names
         continue-on-error: true
         run: scripts/check-skill-leaf-names.sh --check
+
+      # Self-test first, so a broken checker cannot mask a regression.
+      - name: Run docs-naming tests
+        if: needs.changes.outputs.run_shell == 'true'
+        run: bash scripts/check-docs-naming.test.sh
+      - name: Check docs/ filenames are lower-kebab
+        id: docs_naming
+        continue-on-error: true
+        run: scripts/check-docs-naming.sh --check
 
       # A plugin's prose counts its own skills by hand ("bundling fourteen
       # skills", "the other thirteen skills are zero-config") and nothing
@@ -758,7 +779,7 @@ jobs:
         continue-on-error: true
         run: scripts/check-plugin-manifest-presence.sh
 
-      # docs/CLOUD-SESSIONS.md promises `enabledPlugins` "turns on the whole
+      # docs/cloud-sessions.md promises `enabledPlugins` "turns on the whole
       # catalog, so this repo dogfoods everything it publishes"; nothing
       # enforced it, and ai-slop (#2892), context-budget (#2932) and
       # improvement (#2985) each reached main catalogued but never enabled. The
@@ -1027,7 +1048,7 @@ jobs:
       - name: Test the lane-coverage gate
         if: needs.changes.outputs.run_shell == 'true'
         run: bash scripts/check-lane-coverage.test.sh
-      - name: Check every ci.yml job is reachable from the ci-status aggregate
+      - name: Check every ci.yml job and gate step is fed to the ci-status aggregate
         id: lane_coverage
         continue-on-error: true
         run: scripts/check-lane-coverage.sh --check
@@ -1135,7 +1156,7 @@ jobs:
       # a month after the 750k consumers had already overflowed, and a tripwire
       # that fires after the failure it exists to predict is worse than none.
       # (Neither basis speaks for a 200k-window consumer, who is over the
-      # 40,000-char budget today; docs/CLOUD-SESSIONS.md records that.)
+      # 40,000-char budget today; docs/cloud-sessions.md records that.)
       # Report-only for the same reason its sibling is. The fix for the
       # aggregate is the per-skill description trim, which #3526 owns.
       - name: Report the skill-listing budget at this repo's configured fraction
@@ -1268,6 +1289,7 @@ jobs:
             loop-lane-floor-drift=${{ steps.loop_lane_floor_drift.outcome }}
             detector-findings-crosswalk=${{ steps.detector_findings_crosswalk.outcome }}
             skill-leaf-names=${{ steps.skill_leaf_names.outcome }}
+            docs-naming=${{ steps.docs_naming.outcome }}
             skill-count-claims=${{ steps.skill_count_claims.outcome }}
             userconfig-argv=${{ steps.userconfig_argv.outcome }}
             hook-exec-form=${{ steps.hook_exec_form.outcome }}
@@ -1358,7 +1380,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Fetch base
-        uses: ./.github/actions/checkout-with-base
+        uses: ./.github/actions/checkout-with-base # zizmor: ignore[self-repository]
       # One setup-node for the root package and all four sub-projects, keyed on
       # every lockfile any of them installs from, so a change to any one of
       # them invalidates the cache the others share.
@@ -1370,7 +1392,7 @@ jobs:
           cache: npm
           cache-dependency-path: |
             package-lock.json
-            plugins/miro/package-lock.json
+            plugins/miro/server/package-lock.json
             plugins/ai-briefing/skills/generate/output/build/package-lock.json
             plugins/knowledge/skills/video-digest/extraction/package-lock.json
             plugins/knowledge/skills/course-digest/extraction/package-lock.json
@@ -1808,26 +1830,26 @@ jobs:
       - name: Install dependencies
         if: needs.changes.outputs.run_node == 'true'
         run: npm ci
-        working-directory: plugins/miro
+        working-directory: plugins/miro/server
       - name: Typecheck
         if: needs.changes.outputs.run_node == 'true'
         run: npm run typecheck
-        working-directory: plugins/miro
+        working-directory: plugins/miro/server
       - name: Lint
         if: needs.changes.outputs.run_node == 'true'
         run: npm run lint
-        working-directory: plugins/miro
+        working-directory: plugins/miro/server
       - name: Test
         if: needs.changes.outputs.run_node == 'true'
         run: npm test
-        working-directory: plugins/miro
+        working-directory: plugins/miro/server
       - name: Verify the committed bundle matches source
         if: needs.changes.outputs.run_node == 'true'
         run: npm run verify-bundle
-        working-directory: plugins/miro
+        working-directory: plugins/miro/server
       - name: Smoke-test the bundled MCP server over stdio
         if: needs.changes.outputs.run_node == 'true'
-        working-directory: plugins/miro
+        working-directory: plugins/miro/server
         run: |
           printf '%s\n%s\n' \
             '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"ci","version":"0.0.0"}}}' \
@@ -1984,7 +2006,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Fetch base
-        uses: ./.github/actions/checkout-with-base
+        uses: ./.github/actions/checkout-with-base # zizmor: ignore[self-repository]
       - name: Verify plugin copies match the shared lib
         if: needs.changes.outputs.run_tests == 'true'
         run: scripts/sync-hook-utils.sh --check

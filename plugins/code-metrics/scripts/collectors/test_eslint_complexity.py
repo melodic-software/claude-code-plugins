@@ -31,8 +31,11 @@ def make_stub(
     version_line: str = "v10.1.0",
     capture: Path | None = CAPTURE,
     exit_code: int = 1,
+    stderr_line: str | None = None,
 ) -> None:
     body = f'cat "{capture}"\n' if capture else ""
+    if stderr_line is not None:
+        body += "printf '%s\\n' " + json.dumps(stderr_line) + " >&2\n"
     stub = directory / "eslint"
     stub.write_text(
         "#!/usr/bin/env bash\n"
@@ -46,7 +49,14 @@ def make_stub(
     stub.chmod(stub.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 
-def run(*args: str, path_prefix: Path | None = None) -> subprocess.CompletedProcess:
+# ESLint's own wording, verbatim from a live run with no configuration file
+# anywhere above the target (fixtures/tool-output/eslint-no-config.txt).
+NO_CONFIG_LINE = "ESLint couldn't find an eslint.config.(js|mjs|cjs) file."
+
+
+def run(
+    *args: str, path_prefix: Path | None = None, cwd: Path | str | None = None
+) -> subprocess.CompletedProcess:
     env = dict(os.environ)
     if path_prefix is not None:
         env["PATH"] = f"{path_prefix}{os.pathsep}{env.get('PATH', '')}"
@@ -59,7 +69,7 @@ def run(*args: str, path_prefix: Path | None = None) -> subprocess.CompletedProc
         capture_output=True,
         text=True,
         env=env,
-        cwd=REPO_ROOT,
+        cwd=cwd or REPO_ROOT,
         check=False,
     )
 
@@ -71,10 +81,47 @@ class EslintComplexityAdapterTests(unittest.TestCase):
         self.assertIn("eslint", result.stderr)
 
     def test_probe_prints_the_version_when_the_stub_resolves(self) -> None:
+        # The probe does not look for a configuration file: whether ESLint
+        # can run over the target files is ESLint's own call, made in collect.
         with tempfile.TemporaryDirectory() as tmp:
             make_stub(Path(tmp))
-            result = run("probe", path_prefix=Path(tmp))
+            bare = Path(tmp) / "bare"
+            bare.mkdir()
+            result = run("probe", path_prefix=Path(tmp), cwd=bare)
             self.assertEqual((result.returncode, result.stdout.strip()), (0, "10.1.0"))
+
+    def test_collect_exits_4_when_eslint_finds_no_configuration(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            make_stub(Path(tmp), capture=None, exit_code=2, stderr_line=NO_CONFIG_LINE)
+            result = run(
+                "collect",
+                "typescript",
+                "cyclomatic",
+                f"{SOURCES}/cm-sample.ts",
+                path_prefix=Path(tmp),
+            )
+            self.assertEqual(result.returncode, 4, result.stderr)
+            self.assertEqual(result.stdout, "")
+            self.assertIn("no configuration", result.stderr)
+            self.assertIn(NO_CONFIG_LINE, result.stderr)
+
+    def test_collect_treats_another_exit_2_as_a_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            make_stub(
+                Path(tmp),
+                capture=None,
+                exit_code=2,
+                stderr_line="Oops! Something went wrong!",
+            )
+            result = run(
+                "collect",
+                "typescript",
+                "cyclomatic",
+                f"{SOURCES}/cm-sample.ts",
+                path_prefix=Path(tmp),
+            )
+            self.assertEqual(result.returncode, 3, result.stderr)
+            self.assertIn("Oops", result.stderr)
 
     def test_measures_lists_the_single_pair_it_serves(self) -> None:
         self.assertEqual(run("measures").stdout.split(), ["typescript/cyclomatic"])

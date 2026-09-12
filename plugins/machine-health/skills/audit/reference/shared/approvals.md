@@ -1,12 +1,12 @@
 # Approvals and per-user state
 
-User-specific approval state lives at `<StateBase>/state/approvals.json` — **not** in the plugin's shipped `TODO.md`. The skill ships with defaults (nothing approved); the user enables individual remediations via `/machine-health:setup` or by editing the JSON directly.
+User-specific approval state lives at `<StateBase>/state/approvals.json`, **not** in the plugin's shipped `TODO.md`. The skill ships with defaults (nothing approved); the user enables individual remediations via `/machine-health:setup` or by editing the JSON directly.
 
 Schema: [`catalog/schemas/approvals.schema.json`](../../catalog/schemas/approvals.schema.json).
 
 ## Why it lives under the state root, not in the plugin
 
-`<StateBase>` (the plugin data directory, `${CLAUDE_PLUGIN_DATA}`) is the per-machine root for state and logs — it survives plugin updates, while the plugin install directory is replaced by them. Approvals are per-machine config, not policy — they belong next to other machine-local artifacts.
+`<StateBase>` (the plugin data directory, `${CLAUDE_PLUGIN_DATA}`) is the per-machine root for state and logs, and it survives plugin updates, while the plugin install directory is replaced by them. Approvals are per-machine config, not policy, so they belong next to other machine-local artifacts.
 
 Three properties make this the right home:
 
@@ -45,14 +45,14 @@ Default state: both shipped remediations start as `approved: false`. Enable by e
 }
 ```
 
-The orchestrator reads this on every run. No restart, no cache invalidation — file is re-read per invocation.
+The orchestrator reads this on every run. No restart, no cache invalidation: the file is re-read per invocation.
 
 ## Migration from `TODO.md` checkboxes (one-time)
 
 When `approvals.json` is **missing or empty** and a `TODO.md` in the skill directory contains
 `[x]` checkboxes, the orchestrator:
 
-1. Parses TODO.md for checked approvals (best-effort — only recognizes the two known remediation names).
+1. Parses TODO.md for checked approvals (best-effort, recognizing only the two known remediation names).
 2. Writes `approvals.json` with migrated approvals and a `migration.migrated_from_todo_md: true` marker plus a checksum of the source TODO.md.
 3. Logs the migration to `<StateBase>/logs/run-YYYY-MM-DD.log`.
 4. Continues the run normally using migrated approvals.

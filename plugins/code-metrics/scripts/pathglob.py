@@ -25,6 +25,7 @@ one path matches and 1 otherwise, printing nothing.
 
 from __future__ import annotations
 
+import os
 import re
 import sys
 
@@ -35,6 +36,27 @@ _USAGE = "usage: pathglob.py [--any] <pattern> [--paths-from <file>] <path>..."
 
 def _normalize(path: str) -> str:
     path = path.replace("\\", "/")
+    while path.startswith("./"):
+        path = path[2:]
+    return path
+
+
+def root_relative(path: str, root: str) -> str:
+    """The path relative to `root` with forward slashes; unchanged without a root.
+
+    A cwd-relative path is joined onto the working directory first, so a run
+    from a subdirectory (where the dispatcher names files `../../lib/x.sh`) and
+    a run from the root name a file the same way. Shared by the report
+    summarizer, the registry filter, and the clone-class merge so the three
+    never disagree on what "root-relative" means.
+    """
+    path = (path or "").replace("\\", "/")
+    if root:
+        absolute = path if os.path.isabs(path) else os.path.join(os.getcwd(), path)
+        try:
+            path = os.path.relpath(absolute, root).replace("\\", "/")
+        except ValueError:
+            pass
     while path.startswith("./"):
         path = path[2:]
     return path

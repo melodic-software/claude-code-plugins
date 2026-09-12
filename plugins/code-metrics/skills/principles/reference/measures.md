@@ -18,10 +18,11 @@ reduces to `v(G) = e - n + 2`. Two equivalent statements from NIST SP 500-235 ar
 hand: when every decision is binary and there are `p` binary decision predicates, `v(G) = p + 1`; and
 for a planar flow graph, `v(G)` equals the number of regions including the infinite one.
 
-What it counts is the number of linearly independent paths, which is why McCabe framed it as a
-testability measure: it is the size of a basis set of paths a test suite would have to exercise. It
-says nothing directly about how hard a function is to read. The paper's own caveat about large case
-statements is in [thresholds.md](thresholds.md).
+What it counts is the number of linearly independent paths, "the size of a basis set" a test suite
+would have to exercise. McCabe's own purpose for it was modularizing software so the modules are
+"testable and maintainable", and NIST SP 500-235 sets the number of tests a module needs equal to
+it. It carries no model of nesting or reading effort, which is the gap Campbell's measure addresses.
+The paper's own caveat about large case statements is in [thresholds.md](thresholds.md).
 
 ## Cognitive complexity
 
@@ -33,10 +34,10 @@ white paper version 1.7, 29 August 2023. The paper's abstract states the motive 
 > underlying mathematical model is unsatisfactory at producing a value that measures the latter.
 
 Cognitive complexity abandons the graph model. It increments on structures that break linear reading
-and adds a nesting penalty, so a deeply nested loop costs more than a flat one, while a `switch`
-with many cases costs once rather than once per case. Two functions with equal cyclomatic complexity
-routinely carry different cognitive complexity, which is the point of the measure rather than a
-defect in either.
+and adds a nesting penalty, so a deeply nested loop costs more than a flat one, while, in the
+paper's words, "a switch and all its cases combined incurs a single structural increment". Two
+functions with equal cyclomatic complexity routinely carry different cognitive complexity, which is
+the point of the measure rather than a defect in either.
 
 The white paper prescribes no threshold. SonarSource's rule `S3776` ships a configurable default of
 15, and that is a product decision by the same vendor, not a claim the paper makes.
@@ -64,9 +65,11 @@ conflated:
 
 Difficulty reads as half the operator vocabulary times the average reuse of each operand. Doubling a
 program's length without changing its operator set or its operand-reuse ratio leaves difficulty
-unchanged while volume and effort both rise. A difficulty figure that scales with file size is
-measuring something else. Effort is defined in terms of difficulty, so it is not an independent
-alternative to it.
+unchanged while volume and effort both rise, so difficulty does not track size. It is not
+independent of how a file is cut, though: splitting or merging files changes each part's distinct
+operators and its operand reuse, so per-file difficulty legitimately moves on a split, in either
+direction. Effort is defined in terms of difficulty, so it is not an independent alternative to
+it.
 
 ## Lines per file, and the ISO function-percentage form
 
@@ -75,14 +78,16 @@ total plus non-blank from the bundled counter otherwise. The comparison runs aga
 lines.
 
 ISO/IEC 5055:2021 files a large-file weakness at 7.1.26 (CWE-1080, usage name "Excessively large
-file"), and its informative clause 6.3 Table 1 carries a 1000-line figure. The normative detection
-pattern attached to that weakness, §8.2.115, measures something different: a
-`FunctionProcedureOrMethod` whose non-empty lines exceed a percentage of the file's, default 5%. So
-the standard's normative form is a function-to-file ratio, and the line count is informative only.
-The plugin implements both: `size.mode: file-lines` compares files against `size.file_lines`, and
-`size.mode: iso-8.2.115` adds a per-function percentage against `size.function_lines_pct`. The
-second needs a collector that reports function end lines, which no Bash collector does; that lane
-says so and the run continues.
+file"), and its informative §6.3 Table 1 row for that weakness carries a 1000-line figure. The
+normative detection pattern attached to the weakness, §8.2.115, measures something different: a
+`FunctionProcedureOrMethod` whose `NumberOfNonEmptyLinesOfCode` exceeds a
+`MaxNumberOfNonEmptyLinesOfCode` whose stated default is "5%", with no base named in the clause.
+This plugin reads the base as the enclosing file's non-empty lines; that reading is the plugin's,
+and its verification record is in [thresholds.md](thresholds.md). So the standard's normative form
+is a percentage on a function, and the line count is informative only. The plugin implements both:
+`size.mode: file-lines` compares files against `size.file_lines`, and `size.mode: iso-8.2.115` adds
+a per-function percentage against `size.function_lines_pct`. The second needs a collector that
+reports function end lines, which no Bash collector does; that lane says so and the run continues.
 
 ## Duplication
 

@@ -1,12 +1,12 @@
 # Write Tests (TDD Mode)
 
-Write tests following the TDD discipline: Red (failing test) -> Green (make it pass) -> Refactor (clean up). Activates when writing new tests for code — whether test-first (TDD) or test-alongside. When uncertain about a testing decision (should I mock this? output or state test? what quadrant is this code in?), load `/tdd:principles` (when the `tdd` plugin is installed) for authoritative guidance from Beck and Khorikov.
+Write tests following the TDD discipline: Red (failing test) -> Green (make it pass) -> Refactor (clean up). Activates when writing new tests for code, whether test-first (TDD) or test-alongside. When uncertain about a testing decision (should I mock this? output or state test? what quadrant is this code in?), load `/tdd:principles` (when the `tdd` plugin is installed) for authoritative guidance from Beck and Khorikov.
 
 ## Vertical slices, not horizontal layers
 
-Write tests and implementation in vertical slices: one test, then its implementation, then the next. Writing all tests first and all implementation after is horizontal slicing, treating Red as "write all tests" and Green as "write all code." Horizontal slicing produces brittle tests: tests written in bulk test *imagined* behavior, not *actual* behavior. You end up testing the *shape* of things — data structures, function signatures — rather than user-facing behavior. You commit to test structure before understanding implementation, then tests become insensitive to real changes — they pass when behavior breaks, fail when behavior is fine.
+Write tests and implementation in vertical slices: one test, then its implementation, then the next. Writing all tests first and all implementation after is horizontal slicing, treating Red as "write all tests" and Green as "write all code." Horizontal slicing produces brittle tests: tests written in bulk test *imagined* behavior, not *actual* behavior. You end up testing the *shape* of things, such as data structures and function signatures, rather than user-facing behavior. You commit to test structure before understanding implementation, then tests become insensitive to real changes. They pass when behavior breaks, fail when behavior is fine.
 
-**Correct approach — vertical slices:** one test → one implementation → repeat. Each test responds to what you learned from the previous cycle.
+**Correct approach, vertical slices:** one test → one implementation → repeat. Each test responds to what you learned from the previous cycle.
 
 ```
 WRONG (horizontal):
@@ -26,15 +26,15 @@ This is the test-level instance of the same vertical-not-horizontal discipline `
 Before writing the first test, confirm the public interface design:
 
 - What interface changes are needed? When the session is interactive and the change is material (a new public surface, a changed contract), confirm with the user; otherwise state the interface you assume and proceed
-- Identify opportunities for deep modules — can methods be reduced, params simplified, complexity hidden behind the interface?
-- Design interfaces for testability — prefer returning results over producing side effects (testable interfaces return values, making output-based testing possible)
+- Identify opportunities for deep modules: can methods be reduced, params simplified, complexity hidden behind the interface?
+- Design interfaces for testability: prefer returning results over producing side effects (testable interfaces return values, making output-based testing possible)
 - Proceed once the interface is settled; an autonomous run states its interface assumption in the summary instead of waiting
 
 When invoked from `/implementation:implement` (plan already approved) or as part of a `/testing:write` focused on a single function, scale this step to a quick self-check rather than a full Q&A loop.
 
 ## Sequence
 
-1. **Tracer bullet first** — write ONE test confirming ONE thing about the system end-to-end. Proves the path works before investing in edge cases. Use the project's domain glossary (its ubiquitous-language / glossary file when one exists — walk up from the code under test to the nearest one) so test names and interface vocabulary match the domain language. Respect ADRs in the area you're touching. Then list remaining behavior scenarios:
+1. **Tracer bullet first**. Write ONE test confirming ONE thing about the system end-to-end. Proves the path works before investing in edge cases. Use the project's domain glossary (its ubiquitous-language / glossary file when one exists, walking up from the code under test to the nearest one) so test names and interface vocabulary match the domain language. Respect ADRs in the area you're touching. Then list remaining behavior scenarios:
    - Happy path (basic correct behavior)
    - Edge cases (null, empty, boundary values)
    - Error paths (invalid input, missing dependencies, timeouts)
@@ -42,7 +42,7 @@ When invoked from `/implementation:implement` (plan already approved) or as part
 
    You cannot test everything. Focus testing effort on critical paths and complex logic, not every possible edge case.
 
-2. **Choose the test type** — match the behavior to the right level. Location and framework come from the consuming project's testing conventions (or its existing test projects when undocumented); the role of each row is universal:
+2. **Choose the test type**. Match the behavior to the right level. Location and framework come from the consuming project's testing conventions (or its existing test projects when undocumented); the role of each row is universal:
 
    | Behavior | Test type | Location / framework source |
    |----------|-----------|------------------------------|
@@ -52,20 +52,20 @@ When invoked from `/implementation:implement` (plan already approved) or as part
    | Layer dependencies, naming, conventions | Architecture | project's architecture-test project, when one exists |
    | Critical user journeys end-to-end | E2E | project's browser-automation tooling (see `/testing:run-e2e`) |
 
-3. **Write the failing test first** (Red) — the test name IS the specification. Use the project's documented naming pattern; when undocumented, mirror the ecosystem's idiom. The forms below are illustrative (.NET/xUnit) — adapt casing/separators to the target ecosystem:
+3. **Write the failing test first** (Red). The test name IS the specification. Use the project's documented naming pattern; when undocumented, mirror the ecosystem's idiom. The forms below are illustrative (.NET/xUnit). Adapt casing/separators to the target ecosystem:
    - Unit: `{Method}_Should{Behavior}_When{Condition}`
    - Integration: `{Subject}_{Behavior}` or `{Subject}_{Behavior}_{Context}`
    - Architecture: `{Subject}_Should{Constraint}`
 
-4. **Make it pass** (Green) — write minimum code. Don't design, don't abstract, don't optimize. Make the test green
+4. **Make it pass** (Green). Write minimum code. Don't design, don't abstract, don't optimize. Make the test green
 
-5. **Refactor** — now make it clean. Both test and production code. **Run tests after each refactor step** — all tests must stay green. **Never refactor while RED.** Get to GREEN first, then refactor. Refactoring on a failing test compounds uncertainty — you cannot distinguish refactor breakage from the original failure. Refactor within the slice you just wrote; if the new code reveals a problem in existing code, note it as a follow-up rather than acting on it in this cycle. Refactor candidates beyond duplication extraction:
-   - Deepen shallow modules — combine or push complexity behind a simpler interface (Ousterhout: can I reduce methods? simplify params? hide more complexity?)
-   - Feature envy (Fowler) — logic that sends more messages to another object than its own → Move Method
-   - Primitive obsession (Fowler) — raw strings/ints representing domain concepts → introduce Value Object
-   - Apply SOLID principles where natural — don't force; let the shape emerge from the tests
+5. **Refactor**. Now make it clean. Both test and production code. **Run tests after each refactor step.** All tests must stay green. **Never refactor while RED.** Get to GREEN first, then refactor. Refactoring on a failing test compounds uncertainty. You cannot distinguish refactor breakage from the original failure. Refactor within the slice you just wrote; if the new code reveals a problem in existing code, note it as a follow-up rather than acting on it in this cycle. Refactor candidates beyond duplication extraction:
+   - Deepen shallow modules: combine or push complexity behind a simpler interface (Ousterhout: can I reduce methods? simplify params? hide more complexity?)
+   - Feature envy (Fowler): logic that sends more messages to another object than its own → Move Method
+   - Primitive obsession (Fowler): raw strings/ints representing domain concepts → introduce Value Object
+   - Apply SOLID principles where natural. Don't force; let the shape emerge from the tests
 
-6. **Repeat** — next test scenario from the list
+6. **Repeat**. Next test scenario from the list
 
 ### Per-cycle checklist
 
@@ -74,8 +74,8 @@ After each Red→Green→Refactor cycle, verify:
 - [ ] Test describes behavior, not implementation
 - [ ] Test uses public interface only
 - [ ] Test would survive internal refactor
-- [ ] One logical assertion per test — one behavioral concept, not one `Assert` statement
-- [ ] No tautological assertions — expected values are independently sourced (literal, hand-computed, known fixture), never recomputed the same way the code under test computes them; a round-trip/identity check of output against input proves nothing
+- [ ] One logical assertion per test: one behavioral concept, not one `Assert` statement
+- [ ] No tautological assertions: expected values are independently sourced (literal, hand-computed, known fixture), never recomputed the same way the code under test computes them; a round-trip/identity check of output against input proves nothing
 - [ ] Code is minimal for this test
 - [ ] No speculative features added
 
@@ -83,14 +83,14 @@ After each Red→Green→Refactor cycle, verify:
 
 Every test should score well on all four:
 
-- **Protection against regressions** — does this test catch real bugs? Tests that only verify trivial behavior (getters, constructors) score low
-- **Resistance to refactoring** — will this test break when implementation changes but behavior stays the same? Test behavior (observable output), not implementation (internal steps)
-- **Fast feedback** — does this test run quickly? Unit tests: <100ms. Integration: <5s. Slow tests get skipped
-- **Maintainability** — is this test easy to understand and change? No test should be harder to read than the code it tests
+- **Protection against regressions**. Does this test catch real bugs? Tests that only verify trivial behavior (getters, constructors) score low
+- **Resistance to refactoring**. Will this test break when implementation changes but behavior stays the same? Test behavior (observable output), not implementation (internal steps)
+- **Fast feedback**. Does this test run quickly? Unit tests: <100ms. Integration: <5s. Slow tests get skipped
+- **Maintainability**. Is this test easy to understand and change? No test should be harder to read than the code it tests
 
 ## Verify through the interface, not around it
 
-Tests that bypass the public interface to verify side effects are coupled to implementation. Verify through the same interface callers use (illustrative — .NET/xUnit; the principle is ecosystem-agnostic):
+Tests that bypass the public interface to verify side effects are coupled to implementation. Verify through the same interface callers use (illustrative: .NET/xUnit; the principle is ecosystem-agnostic):
 
 ```csharp
 // BAD: Bypasses interface — coupled to storage implementation
@@ -112,12 +112,12 @@ public async Task CreateUser_MakesUserRetrievable()
 }
 ```
 
-If the only way to verify is by reaching around the interface (querying DB directly, inspecting file system, checking internal state), that is a design signal — the interface is missing an observable output.
+If the only way to verify is by reaching around the interface (querying DB directly, inspecting file system, checking internal state), that is a design signal. The interface is missing an observable output.
 
 ## Test Pyramid vs Testing Trophy
 
-- **Backend (domain + application layers)** — follow the test pyramid (Fowler): many unit tests, moderate integration, few E2E. Domain logic is well-suited to isolated unit testing
-- **Frontend / API boundary (endpoints, middleware, UI)** — lean toward the testing trophy (Dodds): weight integration tests more heavily. "Write tests. Not too many. Mostly integration." Component interactions at the boundary are where bugs actually hide
+- **Backend (domain + application layers)**. Follow the test pyramid (Fowler): many unit tests, moderate integration, few E2E. Domain logic is well-suited to isolated unit testing
+- **Frontend / API boundary (endpoints, middleware, UI)**. Lean toward the testing trophy (Dodds): weight integration tests more heavily. "Write tests. Not too many. Mostly integration." Component interactions at the boundary are where bugs actually hide
 - **Architecture rules**. Always run the architecture-rules test suite when the project has one. Cheap, fast, and it catches structural drift before it compounds
 
 ## When NOT to write tests
@@ -130,7 +130,7 @@ No tests needed for:
 - Configuration wiring tested end-to-end through the repo's E2E orchestrator
 
 The list above is about code that needs no test. A second, different question is whether a test
-worth having is worth *this* test — and the answer is sometimes no even for code that does need
+worth having is worth *this* test, and the answer is sometimes no even for code that does need
 covering. **Prefer no new test to a bad one** (upstream cursor/plugins `tdd`), when the only
 available test would need broad harness setup, brittle mocks, slow end-to-end infrastructure,
 production-only state, a reproduction nobody can state precisely, or large unrelated fixture churn.
@@ -138,12 +138,12 @@ A test that mostly exercises its own mocks, encodes today's implementation, or w
 moment it has proved its point costs more to maintain than the confidence it buys.
 
 Declining is not skipping. Say which of those made the test impractical, then name the closest
-executable check you used instead — a targeted script, a reproduction command, a snapshot
+executable check you used instead: a targeted script, a reproduction command, a snapshot
 comparison, a log assertion, a focused integration check. A decline with a named substitute is a
 decision; a decline with silence is a gap nobody can see.
 
 ## Commit discipline
 
-- **Failing test committed** (optional but valuable) — proves the bug/requirement exists in git history
-- **Fix + green test committed together** — the fix and its proof are atomic
-- **Commit before refactoring** — separate structural from behavioral commits
+- **Failing test committed** (optional but valuable). Proves the bug/requirement exists in git history
+- **Fix + green test committed together**. The fix and its proof are atomic
+- **Commit before refactoring**. Separate structural from behavioral commits

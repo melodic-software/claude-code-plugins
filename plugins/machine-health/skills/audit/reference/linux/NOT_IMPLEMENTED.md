@@ -1,4 +1,4 @@
-# machine-health — Linux is not yet implemented
+# machine-health: Linux is not yet implemented
 
 Scaffolding placeholder. When `machine-health` is invoked on a Linux host, the skill **must** emit a clear `UNKNOWN`-severity report explaining this gap and **must not** attempt to execute scripts from `scripts/windows/` on Linux.
 
@@ -18,19 +18,19 @@ Scaffolding placeholder. When `machine-health` is invoked on a Linux host, the s
 Goal is "populate two folders," not "refactor the skill." Everything under `reference/shared/` stays the same; OS-agnostic by design.
 
 1. **Read the shared references** in order:
-   - `reference/shared/severity-rubric.md` — inherits the five levels and the trend rule.
-   - `reference/shared/output-schema.md` — every Linux check must emit this exact schema.
-   - `reference/shared/report-template.md` — report renderer is already OS-agnostic.
-   - `reference/shared/discovery-guide.md` — **Linux** section lists candidate dimensions to probe (apt/dnf/pacman state, systemd unit failures, journalctl boot errors, smartctl, LUKS status, snap/flatpak, container engine disk usage, cert expiry).
-   - `reference/shared/remediation-philosophy.md` — posture (fail-safe, one attempt, forbidden actions) is universal.
+   - `reference/shared/severity-rubric.md`: inherits the five levels and the trend rule.
+   - `reference/shared/output-schema.md`: every Linux check must emit this exact schema.
+   - `reference/shared/report-template.md`: report renderer is already OS-agnostic.
+   - `reference/shared/discovery-guide.md`: **Linux** section lists candidate dimensions to probe (apt/dnf/pacman state, systemd unit failures, journalctl boot errors, smartctl, LUKS status, snap/flatpak, container engine disk usage, cert expiry).
+   - `reference/shared/remediation-philosophy.md`: posture (fail-safe, one attempt, forbidden actions) is universal.
 2. **Populate `reference/linux/`** with:
-   - `check-catalog.md` — Linux equivalent. Account for distro variance: orchestrator must detect distro family (`/etc/os-release`) and dispatch checks appropriately (apt on Debian/Ubuntu, dnf on Fedora/RHEL, pacman on Arch, etc.).
-   - `remediation-policy.md` — explicit per-remediation authorization. Linux remediations are trickier because a single action can behave differently across distros; err heavily on surface-over-fix.
+   - `check-catalog.md`: Linux equivalent. Account for distro variance: orchestrator must detect distro family (`/etc/os-release`) and dispatch checks appropriately (apt on Debian/Ubuntu, dnf on Fedora/RHEL, pacman on Arch, etc.).
+   - `remediation-policy.md`: explicit per-remediation authorization. Linux remediations are trickier because a single action can behave differently across distros; err heavily on surface-over-fix.
 3. **Populate `scripts/linux/`** with:
-   - `Invoke-MachineHealthCheck.ps1` — PowerShell 7 on Linux works fine (`sudo apt-get install -y powershell` on Debian derivatives, etc.). Bash is fine — orchestrator can shell out and still emit the schema.
-   - `checks/Test-*.ps1` (or `.sh` equivalents) — one per catalog entry.
-   - `remediations/*.ps1` — only what the catalog authorizes.
-   - `lib/` — reuse Windows lib shapes.
+   - `Invoke-MachineHealthCheck.ps1`: PowerShell 7 on Linux works fine (`sudo apt-get install -y powershell` on Debian derivatives, etc.). Bash works too, and the orchestrator can shell out and still emit the schema.
+   - `checks/Test-*.ps1` (or `.sh` equivalents): one per catalog entry.
+   - `remediations/*.ps1`: only what the catalog authorizes.
+   - `lib/`: reuse Windows lib shapes.
 4. **Seed `catalog/checks.jsonc`** with `os: ["linux"]` entries alongside existing Windows ones. For distro-specific checks, scope with `distro: ["ubuntu", "debian"]` in an additional field the orchestrator filters on.
 5. **Validate**: dry-run on a scratch `OutputBase` (e.g., `/tmp/machine-health-smoketest`) with `-DryRun -RunMode first-run`.
 
@@ -40,7 +40,7 @@ Goal is "populate two folders," not "refactor the skill." Everything under `refe
 
 ## A note on sudo
 
-Many interesting Linux checks (SMART, full journalctl, LUKS state) require elevation. Consistent with the skill's Windows posture, **never prompt for sudo** and **never assume sudoers NOPASSWD**. When a check needs elevation and run is unprivileged, emit `UNKNOWN` with `needs_admin: true` — human decides whether to rerun under sudo.
+Many interesting Linux checks (SMART, full journalctl, LUKS state) require elevation. Consistent with the skill's Windows posture, **never prompt for sudo** and **never assume sudoers NOPASSWD**. When a check needs elevation and run is unprivileged, emit `UNKNOWN` with `needs_admin: true`. The human decides whether to rerun under sudo.
 
 ## When to remove this file
 

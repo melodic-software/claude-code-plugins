@@ -44,8 +44,8 @@ Why: a second import run currently doubles every row.
 
 ## File roles in this work
 
-- `src/importer.py` — still to modify; the composite key is not written yet.
-- `tests/test_importer.py` — test that must pass; the re-run case is still missing.
+- `src/importer.py`: still to modify; the composite key is not written yet.
+- `tests/test_importer.py`: test that must pass; the re-run case is still missing.
 
 ## Decisions already settled
 

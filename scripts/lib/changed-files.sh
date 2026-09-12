@@ -26,8 +26,8 @@
 #       itself, because a ref the user typed and got wrong has to be an error
 #       naming it rather than a silent fall-through to origin/main.
 #
-#   changed_files::into <out-array> <base> [--include-deleted] [--no-renames]
-#                       [-- <pathspec>...]
+#   changed_files::into <out-array> <base> [--include-deleted]
+#                       [--no-renames | --find-renames] [-- <pathspec>...]
 #       Fills <out-array> with the paths changed against <base>, sorted and
 #       de-duplicated.
 #
@@ -60,6 +60,14 @@
 # receive) passes this flag to see the move as a delete plus an add; a scanner
 # that only opens files on disk is served by the default, since the vanished
 # source is nothing it could open.
+#
+# `--find-renames` IS THE OTHER SIDE OF THAT SAME DECISION, and it is not the
+# same as saying nothing. Rename detection is git's DEFAULT, but `diff.renames`
+# can turn it off in a repository's config, and a gate whose verdict depends on
+# a move collapsing to its destination alone (check-contract-slice-prune.sh: a
+# `git mv` OUT of the contract dir is the graduation the convention prescribes,
+# and seeing the vanished source would red-line it) cannot let a config setting
+# decide. Passing it pins detection on for that call regardless of config.
 
 # changed_files::verify_base <ref>
 changed_files::verify_base() {
@@ -91,8 +99,8 @@ changed_files::resolve_base() {
   return 1
 }
 
-# changed_files::into <out-array> <base> [--include-deleted] [--no-renames]
-#                     [-- <pathspec>...]
+# changed_files::into <out-array> <base> [--include-deleted]
+#                     [--no-renames | --find-renames] [-- <pathspec>...]
 changed_files::into() {
   local -n _cf_paths_out="$1"
   local _cf_base="$2"
@@ -108,6 +116,10 @@ changed_files::into() {
       ;;
     --no-renames)
       _cf_renames=(--no-renames)
+      shift
+      ;;
+    --find-renames)
+      _cf_renames=(--find-renames)
       shift
       ;;
     --)

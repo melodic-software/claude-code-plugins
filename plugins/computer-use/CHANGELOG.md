@@ -3,6 +3,15 @@
 All notable changes to the `computer-use` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.6]
+
+### Changed
+
+- **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
+- **The plugin's prose drops its em dashes.** Five surfaces were rewritten: this changelog, `skills/setup/SKILL.md`, and the three `skills/diagnose/reference/` documents. Wording only. Every measured figure, verification date, citation, and recheck trigger is byte-identical, and the upstream strings the references quote (the UIPI error inside its fenced block, the allowed-applications heading, and the blockquoted resolution guidance) were not touched. The released section corrected in place is 0.1.0, in its `### Added` and `### Empirical basis` subsections: their wording changed, their facts did not.
+- **`skills/setup/SKILL.md` says what the allowlist gate actually does.** "The allowlist gate catches it safely every time" named no mechanism and no observable; it now states that the gate refuses the action with the "not in the allowed applications" error rather than sending it to the wrong app.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md`, every `skills/*/SKILL.md`, and the `skills/diagnose/reference/` tree.
+
 ## [0.1.5]
 
 ### Changed
@@ -56,15 +65,15 @@ All notable changes to the `computer-use` plugin are documented here. Format fol
 - **Initial release.** Two skills covering the computer-use concern: operating knowledge and a
   read-only preflight. Deliberately restates nothing the built-in computer-use MCP server's own
   tool descriptions already carry.
-- **`/computer-use:diagnose`** — symptom-to-cause router over three reference spokes: the
+- **`/computer-use:diagnose`** is a symptom-to-cause router over three reference spokes: the
   screenshot pixel budget and `zoom` semantics, the capture/input failure ladders, and Windows
   quirks. A symptom guide answers the common cases with no reference load, and a surface
   comparison table separates CLI (macOS-only) from Desktop (macOS and Windows) guidance.
   Named with the default imperative grammar rather than repeating the tool name: the
   `firecrawl`/`playwright` exception covers a wrapper you invoke the tool *through*, and this
-  skill drives nothing — the computer-use MCP tools are called directly. Registered as a
+  skill drives nothing. The computer-use MCP tools are called directly. Registered as a
   `diagnose` leaf-name collision alongside `songwriting` and `testing`.
-- **`/computer-use:setup`** — check-only preflight per the contract's carve-out: probes the
+- **`/computer-use:setup`** is a check-only preflight per the contract's carve-out. It probes the
   surface, tool availability via `list_granted_applications`, the screensaver/display/sleep
   timeouts, monitor count, and known focus-stealing utilities. Reports measured values with
   operator-owned remediation; writes nothing.
@@ -79,13 +88,13 @@ Measured 2026-08-10 on Windows 11 / Claude Desktop. Findings that drove the desi
   itself once the screensaver desktop refuses synthesized input.
 - **The screenshot target is a pixel budget, not a scale factor.** 2560x1440 → 1456x816 (1.19MP)
   locally against upstream's documented 3456x2234 → 1372x887 (1.22MP).
-- **`zoom` re-captures rather than crops** — corroborated by upstream's "at full resolution"
+- **`zoom` re-captures rather than crops**, corroborated by upstream's "at full resolution"
   wording and by `zoom` failing outright during a capture outage.
 - **Windows 11 shell context menus ignore a synthesized Escape**, reproducibly. Two candidate
   mechanisms (load timing, keys routing to the owning window) were tested and neither held; the
   rule ships with the mechanism recorded as unknown.
 - **A screensaver is not a lock and not display sleep.** With `ScreenSaverIsSecure = 0` a
-  `LogonUI` probe correctly reports "not locked" while capture is dead — the most misleading
+  `LogonUI` probe correctly reports "not locked" while capture is dead. It is the most misleading
   signal in the set.
 
 ### Known gaps

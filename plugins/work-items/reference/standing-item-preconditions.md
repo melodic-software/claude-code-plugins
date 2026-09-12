@@ -13,7 +13,7 @@ Optional `precondition` object on a schedule row:
 |-----|------|---------|
 | `id` | string | Stable identifier for the check (`frontier-release-since-last-checked`, …) |
 | `prompt` | string | Inline guidance to surface when the precondition is not yet satisfied |
-| `requires_operator_confirmation` | boolean | When true, only an explicit operator confirmation satisfies the check — autonomous lanes must skip the row |
+| `requires_operator_confirmation` | boolean | When true, only an explicit operator confirmation satisfies the check, so autonomous lanes must skip the row |
 
 Rows without `precondition` behave as today.
 
@@ -26,7 +26,7 @@ Before claiming (tier 4) or recheck-closing:
 
 1. Read the row's `last_checked` date.
 2. Ask whether a **frontier Claude model release** occurred **after** that date.
-3. If **no** (or unknown): **do not claim, do not recheck-close** — leave the open
+3. If **no** (or unknown): **do not claim, do not recheck-close**. Leave the open
    `[Maintenance]` issue open and report the `prompt` text inline.
 4. If **yes**: proceed, and record in the claim/recheck comment that the operator
    confirmed a post-`last_checked` frontier release.

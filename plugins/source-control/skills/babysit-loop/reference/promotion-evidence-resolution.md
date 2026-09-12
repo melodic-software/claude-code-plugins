@@ -2,7 +2,7 @@
 
 This lane's binding of the guardrail contract's promotion-state ceiling for the rung partition
 (`SKILL.md` cycle-shape step 3). The bound `promotion_state` on a security binding is a **ceiling
-only** — consumers must resolve each promotable cell's **effective** state against live
+only**. Consumers must resolve each promotable cell's **effective** state against live
 promotion-evidence telemetry before every autonomous merge decision, fail-closing to unpromoted
 when evidence is unavailable, untrusted, partial, or forgeable
 (`/autonomy:setup` owns the security binding and the `promotion_state` field this reads;
@@ -16,13 +16,13 @@ when evidence is unavailable, untrusted, partial, or forgeable
 | `c2-mechanical` | C2 mechanical only | `C2-auto-merge` |
 | `c3-autonomous` | C2 and C3 | `C2-auto-merge`, `C3-auto-merge` (and `C3-ai-review-blocking` as a prerequisite of `C3-auto-merge`) |
 | `full-autonomy` | every class up to C3 | same as `c3-autonomous` for C2/C3; still never C4/C5 |
-| `human-only` | none | none — promotion resolution is skipped (eligible set empty) |
+| `human-only` | none | none. Promotion resolution is skipped (eligible set empty) |
 
 `C4/C5` merge never promotes; no cell covers them.
 
 ## Trusted seam (required)
 
-Promotion evidence MUST be resolved through a **trusted seam** — an agent-unwritable bootstrap
+Promotion evidence MUST be resolved through a **trusted seam**: an agent-unwritable bootstrap
 outside the target repository's blast radius, the same class of surface the autonomy setup skill
 names for security-binding resolution
 ([`setup/SKILL.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/autonomy/skills/setup/SKILL.md) "Agent-unwritable bootstrap for
@@ -30,10 +30,10 @@ security resolution"). Evidence read from repo-local, agent-writable, or otherwi
 surfaces does **not** qualify: partial reads, stale snapshots, and operator-supplied JSON without
 provenance are treated as **unavailable** and fail-closed.
 
-The canonical resolution algorithm — bound ceiling, epoch-scoped contrary events
-(`gate-failure`, `reverted-merge`, `verification-divergence`), prerequisite propagation — is owned
-by [`check-security-binding.mjs`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/autonomy/skills/setup/scripts/check-security-binding.mjs)
-evaluation mode (`--evidence`). The loop lane invokes that resolution **through the trusted seam
+[`check-security-binding.mjs`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/autonomy/skills/setup/scripts/check-security-binding.mjs)
+evaluation mode (`--evidence`) owns the canonical resolution algorithm: bound ceiling, epoch-scoped
+contrary events (`gate-failure`, `reverted-merge`, `verification-divergence`), and prerequisite
+propagation. The loop lane invokes that resolution **through the trusted seam
 only**, never by re-deriving a subset in prose.
 
 **Current seam state.** This seam does not yet return a qualified, non-forgeable evidence read, so
@@ -60,7 +60,7 @@ rung is known and before any PR enters the merge-eligible set.
 | Cell bound promoted, no contrary in-epoch evidence | promoted | class may proceed to work-class + other withholdings |
 
 Report the resolution source, each cell's bound→effective pair, and any fail-closed reason in the
-cycle-start config report. Never treat a demotion as a standing rung lower — it is telemetry-driven
+cycle-start config report. Never treat a demotion as a standing rung lower. It is telemetry-driven
 exclusion for the affected class only.
 
 ## Partition interaction
@@ -68,5 +68,5 @@ exclusion for the affected class only.
 Promotion resolution is a **gate on top of** the existing rung partition, not a substitute for it.
 A PR still requires close-linked work item, label-enforced class, C4/C5 floor, do-not-merge veto,
 human blocking feedback withholdings, and every other step-3 rule. Effective-unpromoted
-`C2-auto-merge` makes a C2-mechanical PR ineligible exactly as if the rung were too low — routed to
-the `safe` per-PR pass, never a merge-capable invocation.
+`C2-auto-merge` makes a C2-mechanical PR ineligible exactly as if the rung were too low. The PR is
+routed to the `safe` per-PR pass, never a merge-capable invocation.

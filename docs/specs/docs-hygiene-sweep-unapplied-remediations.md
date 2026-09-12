@@ -141,14 +141,14 @@ a description of what moved rather than as coordinates.
 | 18 | `plugins/planning/skills/interview/SKILL.md` | T2 | 302 L / 6,346 w | 37 | `tier-mismatch`, not a new spoke: lines 233 to 274 collapse into the existing `context/session-config.md`, which already declares itself the reference layer for that exact section |
 | 19 | `plugins/work-items/skills/triage/SKILL.md` | T2 | 198 L / 4,070 w | 56 | `context/apply-outcome.md` |
 | 20 | `prompts/loops/loop-lane-prompts.md` | T3 | 1,961 L | 775 | `prompts/loops/loop-lane-profile-claude-code-plugins.md` (1,187 to 1,961). The file declares itself repository-agnostic and 40% of it is one repository's filled instance |
-| 21 | `docs/MIGRATION-PLAYBOOK.md` | T3 | 1,738 L | 266 | Six dated decision records (1,473 to 1,738) move to `docs/adr/`. **Renumber:** the spec was written for 0018 through 0023, and 0018 is now taken, so they land at 0019 through 0024 |
+| 21 | `docs/migration-playbook.md` | T3 | 1,738 L | 266 | Six dated decision records (1,473 to 1,738) move to `docs/adr/`. **Renumber:** the spec was written for 0018 through 0023, and 0018 is now taken, so they land at 0019 through 0024 |
 
 `plugins/implementation/skills/implement-dispatch/SKILL.md` was measured and is **not** a finding:
 118 lines but 3,420 words, roughly 29 words per line. It is recorded because a future addition
 crosses the ceiling without the line count moving.
 
-The `MIGRATION-PLAYBOOK.md` split is the only one with heavy inbound citation. It is cited from many
-plugin changelogs and from `docs/PLUGIN-PHILOSOPHY.md`. No citation found in the audit targets a
+The `migration-playbook.md` split is the only one with heavy inbound citation. It is cited from many
+plugin changelogs and from `docs/plugin-philosophy.md`. No citation found in the audit targets a
 moved section by anchor, but re-check anchors before cutting.
 
 ## L2 structure: 167 findings
@@ -180,7 +180,7 @@ Concentration by group, as measured, for scoping:
 | Group | Files | Largest |
 |---|---:|---|
 | `I-songwriting` | 40 | `plugins/songwriting/context/pat-pattison/research/meter.md`, 1,922 L |
-| `K-repo-docs` | 15 | `docs/MIGRATION-PLAYBOOK.md`, 1,738 L |
+| `K-repo-docs` | 15 | `docs/migration-playbook.md`, 1,738 L |
 | `C-vcs-repo` | 11 | `plugins/source-control/skills/babysit-prs/reference/orchestration.md`, 962 L |
 | `B-cc-config-ops` | 9 | `plugins/claude-config/skills/audit-instructions/reference/criteria.md`, 1,742 L |
 | `E-session-behavior` | 9 | `plugins/session-flow/reference/save-point.md`, 566 L |
@@ -263,7 +263,7 @@ useful thing to fix if anyone touches that section for another reason.
 | Path | Tier | Chain |
 |---|---|---|
 | `plugins/claude-config/skills/audit-pass/reference/terms.md` and `reference/finding-identity.md` | 2 | `plugins/claude-config/skills/audit-pass/SKILL.md:19` to `plugins/claude-config/skills/audit-pass/reference/run-contract.md:9` to leaf. Every other leaf opens by assuming `terms.md`, and it is the file furthest from the hub |
-| `plugins/architecture/skills/improve/research/deepening/*.md` (5 files) | 2 | `plugins/architecture/skills/improve/SKILL.md:35` to `plugins/architecture/skills/improve/actions/deepening.md:26` to that skill's `research/deepening/scan-briefing.md`. The citing line calls the target load-bearing for scan quality |
+| `plugins/architecture/skills/improve/research/deepening/*.md` (5 files) | 2 | `plugins/architecture/skills/improve/SKILL.md:35` to `plugins/architecture/skills/improve/actions/deepening.md:26` to that skill's `research/deepening/scan-briefing.md`. The citing line calls the target "load-bearing" for scan quality |
 | `plugins/session-flow/skills/retro/reference/ecosystem-improvement-catalog.md` | 2 | `plugins/session-flow/skills/retro/SKILL.md` to `plugins/session-flow/skills/retro/context/session.md:184` ("Load the catalog") to the catalog |
 | `plugins/knowledge/skills/course-digest/reference/screenshot-strategy.md` | 2 | `plugins/knowledge/skills/course-digest/SKILL.md` to `plugins/knowledge/skills/course-digest/context/workflow.md:46` to the strategy |
 | `plugins/claude-ops/skills/known-issues/context/issue-templates.md`, `context/output-templates.md` | 3 | Explicitly conditional offline snapshots. Alternates, not required reading. **No treatment** |
@@ -293,12 +293,12 @@ applied.
 | Cluster | Instances | Existing owner | Remedy |
 |---|---:|---|---|
 | `lane-telemetry-upsert` | 3 | `plugins/claude-ops/skills/lanes/SKILL.md`, "Never pass a body as an `@path` string" | `name-an-owner` plus `normalize-wording`. Highest value in the lane: drifted, unowned, unguarded |
-| `dynamic-context-git-preamble` | 44, 26 edited | none; proposes a `docs/PLUGIN-PHILOSOPHY.md` "Inline-template conventions" home | `normalize-wording` plus `edit-existing-rule`. One canonical fallback string corrects a live mislabel (`echo "clean"` on a failed `git status`) at 15 sites |
-| `setup-probe-dont-recite` | 17 | `docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit and repeatable" (clause absent) | `edit-existing-rule`. All 17 already cite that contract at document scope |
-| `setup-headless-reconfigure-recipe` | 22, 6 edited | `docs/PLUGIN-PHILOSOPHY.md` "Configuration ownership and scope" | `normalize-wording` |
+| `dynamic-context-git-preamble` | 44, 26 edited | none; proposes a `docs/plugin-philosophy.md` "Inline-template conventions" home | `normalize-wording` plus `edit-existing-rule`. One canonical fallback string corrects a live mislabel (`echo "clean"` on a failed `git status`) at 15 sites |
+| `setup-probe-dont-recite` | 17 | `docs/plugin-philosophy.md` "Setup is explicit and repeatable" (clause absent) | `edit-existing-rule`. All 17 already cite that contract at document scope |
+| `setup-headless-reconfigure-recipe` | 22, 6 edited | `docs/plugin-philosophy.md` "Configuration ownership and scope" | `normalize-wording` |
 | `detector-findings-producer-preamble` | 4 | `docs/conventions/detector-findings/README.md` | `normalize-wording`. Removes two em dashes in `plugins/mutation-testing/skills/audit/context/persist-findings.md:1` and `:5` as a side effect |
 | `songwriting-persistence-block` | 9 | `plugins/songwriting/context/pat-pattison/research/artifact-persistence.md` | `trim-to-citation`, the lane's only one, because it is the only cluster whose owner sits inside the same plugin as its call sites |
-| `setup-never-writes-boundary` | 41, 34 edited | `docs/PLUGIN-PHILOSOPHY.md` "Configuration ownership and scope" | `normalize-wording` |
+| `setup-never-writes-boundary` | 41, 34 edited | `docs/plugin-philosophy.md` "Configuration ownership and scope" | `normalize-wording` |
 
 ### Remediated, N equal to 2 and N equal to 1
 
@@ -332,7 +332,7 @@ Recorded so nobody re-opens them.
 | `songwriting-author-seam` | 9 | 9 of 9 already cite by exact heading |
 
 **Sequencing.** Roughly 45 `plugins/*/skills/setup/SKILL.md` files are touched by four sub-clusters
-at once and must be worked one pass per file, not in parallel. `docs/PLUGIN-PHILOSOPHY.md` carries
+at once and must be worked one pass per file, not in parallel. `docs/plugin-philosophy.md` carries
 three clusters' owner additions and must go first, because every later cluster cites it.
 
 ## L4 encapsulation: 34 violations
@@ -349,8 +349,8 @@ citing text the audit quoted.
 > commit that created this file and this whole section, while all 34 rows were open; it was true
 > then. Rows closed by [#3380](https://github.com/melodic-software/claude-code-plugins/pull/3380)
 > (`6c7a1032`): 22 of Group 1, **all 8 of Group 2**, and both of Group 3. #3380 fixed those 32 in
-> the citing files and never touched this section — `git show 6c7a1032 -- <this file>` has hunks
-> only in "Status at the stamp", L2 structure, L6 and L7 — so the summary above kept asserting a
+> the citing files and never touched this section. `git show 6c7a1032 -- <this file>` has hunks
+> only in "Status at the stamp", L2 structure, L6 and L7, so the summary above kept asserting a
 > re-verification of citing text that no longer stood. Three separate later passes each re-derived
 > this roster from scratch because of it.
 >
@@ -398,8 +398,8 @@ directory and are legal cite targets.
 | `V-slop-02` | `docs/conventions/upstream-drift/README.md:342` | `ai-slop/skills/audit/reference/catalog.md` |
 | `V-dhg-01` | `docs/conventions/upstream-drift/README.md:343` | `docs-hygiene/skills/write-for-humans/reference/sources.md` |
 | `V-sf-01` | `docs/conventions/pre-pr-ordering/README.md:5` | `session-flow/skills/workflow/context/pre-pr.md` |
-| `V-sq-01` | `docs/PLUGIN-PHILOSOPHY.md:596` | `skill-quality/skills/check/reference/fresh-eyes-declarations.md`, also unresolvable |
-| `V-sq-02` | `docs/PLUGIN-PHILOSOPHY.md:1071` | same target, also unresolvable |
+| `V-sq-01` | `docs/plugin-philosophy.md:596` | `skill-quality/skills/check/reference/fresh-eyes-declarations.md`, also unresolvable |
+| `V-sq-02` | `docs/plugin-philosophy.md:1071` | same target, also unresolvable |
 | `V-sc-15` | `plugins/work-items/skills/setup/reference/overlay-ignore-probes.md:18` | `source-control/skills/setup/reference/apply-convention.md` |
 | `V-ops-01` | `plugins/claude-config/skills/audit-pass/reference/run-state-and-resumability.md:70` | `claude-ops/skills/lanes/context/restart-consumer.md` |
 | `V-auto-01` | `plugins/source-control/skills/babysit-loop/reference/promotion-evidence-resolution.md:8` | `autonomy/skills/setup/schemas/guardrails-security-binding.schema.json` |
@@ -470,7 +470,7 @@ constraint survives the rewrite. Line numbers below are **re-verified against th
 
 ### `negation`, 6
 
-**1. `docs/PLUGIN-PHILOSOPHY.md:561`** (the audit recorded `:546`; the file gained 15 lines above it)
+**1. `docs/plugin-philosophy.md:561`** (the audit recorded `:546`; the file gained 15 lines above it)
 
 ```text
 Do not swallow errors or claim success when the promised result was not produced.
@@ -602,7 +602,7 @@ The verified auto-read enumeration behind the scope statement lands in the skill
 file at implementation.
 ```
 
-If that enumeration is load-bearing evidence rather than working notes, promote it into the brief
+If that enumeration is evidence the brief depends on rather than working notes, promote it into the brief
 instead of stripping the pointer.
 
 ### `plan-reference`, 1
@@ -984,15 +984,15 @@ README), `## Tests` (`machine-health`), `## Revisit triggers` (`instruction-plac
 | J4 | `plugins/desktop-notification/README.md:85` | `M3` | S2 |
 | J5 | `plugins/wizard/README.md:35` | `L1` | S2 |
 | J6 | `plugins/plugin-quality/README.md:9` | `L1` | S2 |
-| K1 | `docs/MIGRATION-PLAYBOOK.md:1728` | `Am3` | S3 |
+| K1 | `docs/migration-playbook.md:1728` | `Am3` | S3 |
 | K2 | `docs/conventions/standards/README.md:80` | `Am3` | S3 |
 | K3 | `docs/upstream/mattpocock-skills.md:14` | `Am2` | S3 |
 | M1 | `README.md:54` | `Am4` | S3 |
 | M2 | `SECURITY.md:9` | `A1` | S3 (no edit recommended) |
 
-`K4` is `docs/PLUGIN-PHILOSOPHY.md`, filed as an `M1` mode finding with **no edit proposed**: it is
+`K4` is `docs/plugin-philosophy.md`, filed as an `M1` mode finding with **no edit proposed**: it is
 four documents (policy reference, argument, procedure, measured findings) in over a thousand lines,
-and splitting it belongs to L2. The finding exists so L2 has the mode seams when it decides where the
+and splitting it belongs to L2. The finding exists so L2 has the mode boundaries when it decides where the
 split lines go.
 
 Beyond the 14 adjudicated `L1` findings, all 442 raw `L1` hits are enumerated per group in the
@@ -1024,7 +1024,7 @@ a quarter of the slice, from authoring-doctrine scope, and account for at least 
 | R1 | 57 | `HUMAN` | out of scope, working artifact | `docs/topics/**`. Contract-tier documents whose reader is the task's own agents |
 | R2 | 9 | `HUMAN` | `AGENT` | The `docs/conventions/*/README.md` files that declare themselves synced verbatim into agent-loaded plugin binding copies |
 | R3 | 2 | `HUMAN` | `AGENT` | `prompts/**`. Launch-prompt templates filled in by a person and read by a model |
-| R4 | 2 | `HUMAN` | out of scope, generated | `docs/CATALOG.md` and `docs/SKILL-CHEAT-SHEET.md` |
+| R4 | 2 | `HUMAN` | out of scope, generated | `docs/catalog.md` and `docs/skill-cheat-sheet.md` |
 | R5 | 4 | `HUMAN` | out of scope, functional artifact | Test-fixture READMEs under `tests/fixtures/`, `skills/worktree/fixtures/`, `scripts/fixtures/` |
 | R6 | 5 | `HUMAN` | no change, no findings filed | `docs/upstream/**` drift ledgers. A person does read them, but their table rows record what a source said and rewriting one changes the record |
 
