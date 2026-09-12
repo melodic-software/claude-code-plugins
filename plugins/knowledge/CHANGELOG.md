@@ -4,11 +4,17 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
-## [0.13.51]
+## [0.13.52]
 
 ### Changed
 
 - **Bump `vitest` 4.1.2→4.1.11 in the course-digest extraction package** (#4061): a devDependency range move plus its lockfile. No runtime code, pipeline script, or shipped skill body changes. `run-tests.sh install`, `build`, and `test` all pass on the new pin.
+
+## [0.13.51]
+
+### Changed
+
+- Cite the marketplace `docs/` doctrine files by their lower-kebab names (`docs/plugin-philosophy.md`, `docs/migration-playbook.md`, and siblings); the files were renamed and the old uppercase paths no longer resolve.
 
 ## [0.13.50]
 

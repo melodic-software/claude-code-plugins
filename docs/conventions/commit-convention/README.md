@@ -4,7 +4,7 @@ Owner doc for the machine-readable **enforcement** read of a consumer's commit-s
 PR-title convention. This concern is consumed by **more than one plugin**: `source-control`
 authors and drafts against the convention, and `guardrails` gates against it. Its ownership lives
 here at marketplace level, not inside either plugin, per
-[`docs/MIGRATION-PLAYBOOK.md`](../../MIGRATION-PLAYBOOK.md) "concern-named config consumed by >1
+[`docs/migration-playbook.md`](../../migration-playbook.md) "concern-named config consumed by >1
 plugin". A guardrails hook cites **this** doc, never `plugins/source-control/reference/`.
 
 ## Two reads of one file
@@ -151,7 +151,7 @@ purposes without it.
 
 - **Unresolved = no enforcement.** No team-tracked pattern (or a non-enforceable one) → the gate does
   nothing. A gate never blocks against the bundled Conventional Commits default: CC is not a
-  lane-1-eligible default (see [`docs/PLUGIN-PHILOSOPHY.md`](../../PLUGIN-PHILOSOPHY.md) "Two-lane
+  lane-1-eligible default (see [`docs/plugin-philosophy.md`](../../plugin-philosophy.md) "Two-lane
   convention posture"), so gating an un-opted-in repo against it would impose a convention the
   consumer never chose. **Enforcement strength = strength of explicit team config.**
 - **Policy-floor via team-only reads.** Enforcement reads the **tracked** team layer only; the

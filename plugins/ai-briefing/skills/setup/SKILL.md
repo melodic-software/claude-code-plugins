@@ -17,7 +17,7 @@ requested, install the optional deterministic presentation build toolchain. The 
 repository- and organization-agnostic; consumers supply their own authorized sources,
 audience lens, and branding.
 
-Check-centric per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
+Check-centric per the uniform setup contract (`docs/plugin-philosophy.md`
 "Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
 reports, `apply` scaffolds the profile, and the build-toolchain install is a distinct
 opt-in subaction rather than fused behind a flag. Tracked profile configuration belongs in

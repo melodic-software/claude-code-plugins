@@ -98,7 +98,7 @@ const setupSkills = pluginFiles.filter((path) =>
   /[\\/]skills[\\/]setup[\\/]SKILL\.md$/.test(path),
 );
 
-// PLUGIN-PHILOSOPHY's check-only carve-out is a consequence of a plugin's
+// plugin-philosophy's check-only carve-out is a consequence of a plugin's
 // surface, not a claim it may assert: "A plugin with even one writable owned
 // artifact takes the narrow-write shape instead." Tracked consumer config is
 // the writable artifact class this repo already registers, in the Implementers
@@ -184,7 +184,7 @@ for (const path of setupSkills) {
   if (!/^disable-model-invocation:\s*true\s*$/m.test(frontmatter)) {
     fail(path, "setup skills must set disable-model-invocation: true");
   }
-  // Uniform contract shape (PLUGIN-PHILOSOPHY "Setup is explicit and repeatable"):
+  // Uniform contract shape (plugin-philosophy "Setup is explicit and repeatable"):
   // check is the default read-only action; apply exists unless the skill declares the
   // check-only carve-out the doctrine sanctions. The registry check below is the
   // writable-artifact exclusion (tracked consumer config). Native userConfig is
@@ -289,12 +289,12 @@ for (const plugin of ["discovery", "planning", "implementation"]) {
   }
 }
 
-const canonicalLifecycleProtocol = join(root, "docs", "PLUGIN-ARTIFACT-PROTOCOL.md");
+const canonicalLifecycleProtocol = join(root, "docs", "plugin-artifact-protocol.md");
 const canonicalLifecycleContent = existsSync(canonicalLifecycleProtocol)
   ? read(canonicalLifecycleProtocol)
   : null;
 if (canonicalLifecycleContent === null) {
-  failures.push("docs/PLUGIN-ARTIFACT-PROTOCOL.md: shared lifecycle protocol is required");
+  failures.push("docs/plugin-artifact-protocol.md: shared lifecycle protocol is required");
 }
 
 const lifecycleProtocolCopies = [
@@ -313,7 +313,7 @@ for (const path of lifecycleProtocolCopies) {
     continue;
   }
   if (canonicalLifecycleContent !== null && read(path) !== canonicalLifecycleContent) {
-    fail(path, "must remain byte-identical to docs/PLUGIN-ARTIFACT-PROTOCOL.md");
+    fail(path, "must remain byte-identical to docs/plugin-artifact-protocol.md");
   }
 }
 
@@ -475,7 +475,7 @@ for (const path of pluginFiles) {
 // and the `sha256` digest that pins the bytes is documented as optional. Unpinned,
 // the same URL can serve different content on every install with nothing to detect
 // it, which is the mutable-remote-artifact surface the plugin-acceptance security
-// review (docs/MIGRATION-PLAYBOOK.md, criterion 6) denies by default. The pin is
+// review (docs/migration-playbook.md, criterion 6) denies by default. The pin is
 // required here so review never has to catch it by eye.
 const marketplacePath = join(root, ".claude-plugin", "marketplace.json");
 if (existsSync(marketplacePath)) {
@@ -526,7 +526,7 @@ if (existsSync(marketplacePath)) {
 
 // ---------------------------------------------------------------------------
 // Retired conventions: plugins/<plugin>/retirements.yaml
-// (docs/MIGRATION-PLAYBOOK.md § Retired conventions; owner doc
+// (docs/migration-playbook.md § Retired conventions; owner doc
 // docs/conventions/retired-conventions/README.md).
 //
 // A manifest is the append-only record of consumer-facing artifacts a plugin

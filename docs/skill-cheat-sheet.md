@@ -6,7 +6,7 @@ Do not hand-edit the generated block below. Edit the source frontmatter and rege
 
 Grouping axis: this page groups skills by **sequence of use**, the session-flow workflow
 stages you move through while working. The separate what-kind-of-plugin taxonomy axis is
-owned by [docs/CATALOG-TAXONOMY.md](CATALOG-TAXONOMY.md).
+owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 
 <!-- cheatsheet:start -->
 

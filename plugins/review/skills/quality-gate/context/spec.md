@@ -69,7 +69,7 @@ guess a provider; drop to rung 3 and say so.
 plugin.** A plugin "never imports files from a sibling plugin or discovers another plugin's
 installation directory," and cooperation goes through "a documented public seam: an artifact
 contract, an explicit invocation argument, or an optional namespaced skill invocation"
-([`docs/PLUGIN-PHILOSOPHY.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/PLUGIN-PHILOSOPHY.md)).
+([`docs/plugin-philosophy.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/plugin-philosophy.md)).
 The `work-items` tracker seam's CLI is that plugin's internal
 surface, so this skill does not invoke it directly. In priority order:
 
