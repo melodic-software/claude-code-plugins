@@ -187,7 +187,22 @@ The `detect` pairing check against the bundled `run` row waits for Phase 4, when
   docs/native-surfaces/records.json` prints both flags false; `git check-ignore -q
   plugins/evals/evals/results/x.json` exit 0.
 
-### Phase 2: Pilot suite and the measured Δ (integration slice) [TODO]
+### Phase 2: Pilot suite and the measured Δ (integration slice) [DONE]
+
+Landed 2026-09-12. Sanity check outcome: `grading-method-choice` Δ +1.00 in two full passes
+(with 1.00, without 0.00), `control-no-trigger` Δ 0.00, `measurable-criterion` Δ 0.00 from a
+one-case pass; every run's `error` and `aborted` null, no `skippedPaidGraders` on any run that
+supplied a delta; results ignored; `pilot.md` written. Not met literally: no single JSON holds all
+three deltas under the 2 USD ceiling, because the without-arm of the knowledge case costs about
+0.70 USD per run at the default model and a full pass about 2.7 USD (pass 1 crossed the ceiling at
+its last judge call, pass 2 skipped the third case whole). Phase spend 5.36 USD of 6, 5.97 USD of
+the 8 with the probe. The ceiling for the Phase 6 confirming pass is the user's call (raise to 3,
+pin a cheaper `--model`, or accept split evidence); `--keep-temp` on that pass preserves the
+without-arm traces. Deviation on case 2: the plan said a Δ ≤ 0 with the indicator passing gets a
+tightened rubric or a `regex` outcome grader; found Δ 0.00 with the judge at PASS 3 of 3 on all
+six runs; chose to keep the case unchanged as a regression guard on the `llm` grader path,
+because the phase budget had no room for a rerun; revisit in Phase 6 if the ceiling is raised.
+The `--trust-plugin` open question is answered: trust persists for the repository.
 
 - Term-uniqueness probe first, near-zero spend: the methodology references distill public Anthropic
   pages, so the without-arm may already know them. Pick candidate terms from repo-original passages
