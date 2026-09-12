@@ -582,6 +582,54 @@ assert_contains "a nested generic argument anchors the config object (forbidOnly
 n="$(count_lines "$out" '^finding \[')"
 if [[ "$n" == "2" ]]; then pass "generic-nested yields exactly two findings"; else fail "generic-nested yields exactly two findings" "got $n"; fi
 
+# config/multiline-guard/: a guard whose value sits on the next line is still
+# that guard's value. Reading only the key's own line leaves the value empty,
+# which reads as an expression, so a false guard would pass as set.
+rc=0
+out="$(CANT_FAIL_SCAN_ROOT="$FIX/config/multiline-guard" bash "$SCAN" 2>&1)" || rc=$?
+assert_exit "multiline-guard config report completes" 0 "$rc"
+assert_contains "a failOnFlakyTests: false written on the next line is read as false" "$out" \
+  "playwright.config.ts:5: retries: 2 at line 5 with failOnFlakyTests: false at line 6"
+assert_contains "a forbidOnly: false written on the next line fires at the key's line" "$out" \
+  "playwright.config.ts:8: forbidOnly: false at line 8"
+n="$(count_lines "$out" '^finding \[')"
+if [[ "$n" == "2" ]]; then pass "multiline-guard yields exactly two findings"; else fail "multiline-guard yields exactly two findings" "got $n"; fi
+
+# config/duplicate-guard/: a duplicate key at depth 1 resolves to the LAST
+# occurrence at runtime, so that is the one each guard is classified from and
+# anchored at.
+rc=0
+out="$(CANT_FAIL_SCAN_ROOT="$FIX/config/duplicate-guard" bash "$SCAN" 2>&1)" || rc=$?
+assert_exit "duplicate-guard config report completes" 0 "$rc"
+assert_contains "the last failOnFlakyTests wins and anchors the flaky detail" "$out" \
+  "playwright.config.js:2: retries: 2 at line 2 with failOnFlakyTests: false at line 6"
+assert_contains "the last forbidOnly wins and anchors its own finding" "$out" \
+  "playwright.config.js:7: forbidOnly: false at line 7"
+n="$(count_lines "$out" '^finding \[')"
+if [[ "$n" == "2" ]]; then pass "duplicate-guard yields exactly two findings"; else fail "duplicate-guard yields exactly two findings" "got $n"; fi
+
+# config/multiline-retries-zero/: a literal 0 written on the next line is a
+# provable zero, so the flaky shape is out of reach and neither rule fires.
+rc=0
+out="$(CANT_FAIL_SCAN_ROOT="$FIX/config/multiline-retries-zero" bash "$SCAN" 2>&1)" || rc=$?
+assert_exit "multiline-retries-zero config report completes" 0 "$rc"
+assert_not_contains "a continued retries: 0 with both guards set yields no finding" "$out" "finding ["
+assert_contains "the multiline-retries-zero config was examined" "$out" \
+  "playwright configs: 1 examined of 1 enumerated (0 shadowed, 0 without a recognizable config object, 0 unreadable)"
+
+# The same continued zero with no failOnFlakyTests key: nothing declines the
+# flaky rule ahead of the retries value, so this is where an unread continuation
+# shows up as a spurious finding.
+CFGZERO="$TMP_ROOT/cfgzero"
+mkdir -p "$CFGZERO"
+printf 'export default defineConfig({\n  forbidOnly: true,\n  retries:\n    0,\n});\n' >"$CFGZERO/playwright.config.ts"
+rc=0
+out="$(CANT_FAIL_SCAN_ROOT="$CFGZERO" bash "$SCAN" 2>&1)" || rc=$?
+assert_exit "continued retries: 0 without a flaky guard scans" 0 "$rc"
+assert_not_contains "a continued retries: 0 does not fire flaky-passes-suite" "$out" "finding ["
+assert_contains "the continued-zero config was examined" "$out" \
+  "playwright configs: 1 examined of 1 enumerated (0 shadowed, 0 without a recognizable config object, 0 unreadable)"
+
 # CRLF configs: the config engine strips its own \r, so a Windows checkout reads
 # the same keys and values as a POSIX one.
 CFGCRLF1="$TMP_ROOT/cfgcrlf1"

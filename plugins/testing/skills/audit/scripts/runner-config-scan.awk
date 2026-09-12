@@ -219,11 +219,37 @@ function scan_body(   i, j, s, rawline, c, d, seg_start, seg_colon, key, val, ve
         # A value continued onto the next line leaves its ternary colon behind,
         # and reading that as a key would invent an option and inflate the
         # depth-1 key count the absent-guard detail reports.
-        if (key ~ /^[A-Za-z_$][A-Za-z0-9_$]*$/) record_key(key, val, d, i)
+        if (key ~ /^[A-Za-z_$][A-Za-z0-9_$]*$/) {
+          # A value written on the NEXT line is still this key's value: the
+          # newline between them is nothing to JS. Reading only the key's own
+          # line leaves val empty, and an empty value classes as an expression,
+          # so failOnFlakyTests:\n false would pass as set and retries:\n 0
+          # would fire. The continuation line is only READ here; i and j stay
+          # put, so the outer loop still walks it for depth and comma resets.
+          if (val == "") val = continued_value(i)
+          record_key(key, val, d, i)
+        }
       }
     }
   }
   if (A_kind == "defineConfig" && C_line > 0) check_variadic()
+}
+
+# The value of a key whose own line ends at the colon: the first following line
+# carrying anything the masker left standing, read from its start to the end of
+# the value there. A blank or comment-only line is skipped, and a line whose
+# first token closes the enclosing object yields "", which is the same nothing
+# the key's own line gave.
+function continued_value(i,   k, ve, v) {
+  for (k = i + 1; k <= nlines; k++) {
+    if (MASKL[k] ~ /^[[:space:]]*$/) continue
+    ve = value_end(MASKL[k], 1)
+    v = substr(RAWL[k], 1, ve)
+    sub(/^[[:space:]]+/, "", v)
+    sub(/[[:space:]]+$/, "", v)
+    return v
+  }
+  return ""
 }
 
 # End of the value that starts at s[from]: the next , } or ] at the value's own
@@ -272,8 +298,13 @@ function record_key(key, val, d, line) {
     n_d1++
     d1_key = key
     if (key == "retries") count_retries(val, line)
-    else if (key == "failOnFlakyTests") { if (!guard_seen) { guard_seen = 1; guard_val = val; guard_line = line } }
-    else if (key == "forbidOnly") { if (!only_seen) { only_seen = 1; only_val = val; only_line = line } }
+    # A duplicate key in an object literal resolves to its LAST occurrence, so
+    # that is the one the run honours and the one each guard is read from.
+    # Keeping the first would classify forbidOnly: true, forbidOnly: false as
+    # set. retries is different: projects[] carries one per entry and every one
+    # of them counts, so count_retries aggregates instead of overwriting.
+    else if (key == "failOnFlakyTests") { guard_seen = 1; guard_val = val; guard_line = line }
+    else if (key == "forbidOnly") { only_seen = 1; only_val = val; only_line = line }
     return
   }
   if (key == "retries") {
