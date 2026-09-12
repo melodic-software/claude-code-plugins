@@ -256,6 +256,13 @@ given, and one disposal venue does not exist.
   reach for `tdd:principles` unprompted), and `audit_skill_visibility.py` already gates it as
   `T-full`-only.
 
+  > **Adoption note, 2026-09-12.** The README line quoted above is superseded: `claude plugin eval`
+  > shipped in Claude Code 2.1.269 on 2026-09-11 and this marketplace adopted it, so an evals
+  > filing in that command's case format now has a runner. The routing decision recorded here
+  > stands on its other grounds (the telemetry hook measures invocation directly). The adoption
+  > record is the "Adoption record" paragraph under
+  > [MIGRATION-PLAYBOOK.md § "Evals — warrant policy and consumer-verify recipe"](../MIGRATION-PLAYBOOK.md#evals--warrant-policy-and-consumer-verify-recipe).
+
 ## Lane D (#2937)
 
 Design locked 2026-08-19 after adversarial validation (two fresh-context validators, rationale

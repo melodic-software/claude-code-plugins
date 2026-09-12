@@ -4,6 +4,17 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.10.1]
+
+### Changed
+
+- **`skill-authoring`**: `reference/authoring-guidance.md` restates `claude plugin eval` from its
+  own documentation page, which the previous record named as the event to recheck on. The command
+  is documented, requires a stated minimum Claude Code version, and reads a case format its page
+  says is separate from the `evals/evals.json` the eval loop in that section uses, so the loop is
+  unchanged and a plugin measured as a plugin routes to the command. The record carries the new
+  basis, an as-of of 2026-09-12, and a trigger keyed on the format separation.
+
 ## [0.10.0]
 
 ### Added

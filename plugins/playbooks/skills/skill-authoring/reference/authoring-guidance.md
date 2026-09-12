@@ -218,8 +218,11 @@ the test transcript for four navigation signals: files read in an unexpected ord
 never followed, one file read repeatedly (promote it into the body), a bundled file never read (cut
 it or signal it better). Where the bundled skill-creator plugin is installed, its eval modes run
 this loop with a subagent per case. `/skill-doctor` (documented at v2.1.252) answers "does it
-activate" from usage data, not "is the output right". A `claude plugin eval` subcommand exists in
-the binary but is undocumented, so nothing here depends on it.
+activate" from usage data, not "is the output right". `claude plugin eval` is a documented command
+with its own page, but it evaluates a whole plugin against a no-plugin baseline from a case format
+of its own, which that page states is separate from the `evals/evals.json` this section describes.
+The loop above is the one to run for a skill's eval file; a plugin measured as a plugin routes to
+that command instead.
 
 When a rule is being missed, two fixes are on the table: directive wording ("MUST filter test
 accounts") and reasoning-based wording ("filter test accounts because they inflate every metric").
@@ -229,8 +232,13 @@ The page offers the first; the runner's linked guidance prefers the second. The 
 <https://code.claude.com/docs/en/skills>, "Evaluate and iterate on a skill" and "Find unused
 skills". Eval file shape: <https://agentskills.io/skill-creation/evaluating-skills> and
 `plugins/skill-quality/reference/evals.schema.json`. The loop and the four signals: the page,
-"Evaluation and iteration". Verified 2026-09-10. Recheck: the Claude Code page documents
-`claude plugin eval`, or the runner changes its record shape.
+"Evaluation and iteration". Verified 2026-09-10. `claude plugin eval` and the format separation:
+<https://code.claude.com/docs/en/plugin-evals> ("Test plugins with evals"), read as raw markdown,
+which requires Claude Code v2.1.269 or later and says its case format "is separate from the
+`evals/evals.json` file the skill-creator plugin uses"; verified 2026-09-12, the command is
+documented and does not read this format, which is why the loop above is unaffected by it. Recheck:
+that page drops the format-separation statement or its runner starts reading `evals/evals.json`, or
+the skills page changes the loop, the four signals, or the skill-creator modes.
 
 ## Model coverage
 

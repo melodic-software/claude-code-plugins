@@ -1,5 +1,5 @@
 ---
-description: "Answers LLM-evaluation design questions from Anthropic's official evaluation guidance — success criteria, eval-suite design, and grading methods for LLM-based applications and Claude Code skills. Use when: 'define success criteria', 'how do I eval this', 'LLM eval', 'measure prompt quality', 'LLM judge', 'model-graded eval', 'golden answer', 'grading rubric', 'eval grading method', 'exact match vs LLM-graded', 'how many eval cases', 'is my success criteria measurable' — knowledge (WHY/WHAT of eval design), not a runner; for scaffolding a suite use /evals:design, and no marketplace command executes model-graded evals."
+description: "Answers LLM-evaluation design questions from Anthropic's official evaluation guidance: success criteria, eval-suite design, and grading methods for LLM-based applications and Claude Code skills. Use when: 'define success criteria', 'how do I eval this', 'LLM eval', 'measure prompt quality', 'LLM judge', 'model-graded eval', 'golden answer', 'grading rubric', 'eval grading method', 'exact match vs LLM-graded', 'how many eval cases', 'is my success criteria measurable'. Knowledge (WHY/WHAT of eval design), not a runner: for scaffolding a suite use /evals:design, and for running and scoring a plugin's suite against a no-plugin baseline use /evals:plugin-eval."
 argument-hint: "[question or concept]"
 user-invocable: true
 disable-model-invocation: false
@@ -55,9 +55,9 @@ because this skill distills a live upstream doc.
 
 This skill is **knowledge** (WHY/WHAT of evaluation design), not **workflow**. It never runs,
 scores, or scaffolds evals. To interview for criteria and scaffold an eval suite in your repo, use
-`/evals:design`. To statically validate a Claude Code skill's eval file, use
-`/skill-quality:check validate-evals` when the `skill-quality` plugin is installed. No
-marketplace command executes model-graded evals.
+`/evals:design`. To run a plugin's suite against a no-plugin baseline and read the delta, use
+`/evals:plugin-eval`. To statically validate a Claude Code skill's eval file, use
+`/skill-quality:check validate-evals` when the `skill-quality` plugin is installed.
 
 ## Gotchas
 

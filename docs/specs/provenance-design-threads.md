@@ -111,6 +111,13 @@ fixtures with the fixture tree categorically excluded from scans, hand-scored ca
 with `score-golden.sh` doing the mechanical tally. Growth path 5-10 -> 20-50; the fix-mode
 precision gate binds only at the stated minimum n (numbers user-reserved, Q16).
 
+> **Adoption note, 2026-09-12.** The gate this thread probed twice and declined to declare fired has
+> now fired: `claude plugin eval` shipped in Claude Code 2.1.269 on 2026-09-11 and this marketplace
+> adopted it. The adoption record is the "Adoption record" paragraph under
+> [MIGRATION-PLAYBOOK.md § "Evals — warrant policy and consumer-verify recipe"](../MIGRATION-PLAYBOOK.md#evals--warrant-policy-and-consumer-verify-recipe).
+> T10 is reopenable on its own terms; that record re-decides nothing here, and the runner-agnostic
+> golden set it kept is what makes the second track available. The thread is left as resolved.
+
 ## T11 — Test-seam posture — RESOLVED
 
 Three seams, fewest that cover the surface: (1) paired script tests, fixture-driven, one per

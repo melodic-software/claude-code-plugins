@@ -202,6 +202,13 @@ case.yaml when `claude plugin eval` leaves early access. Case-level precision/re
 hand-scored; a scorer script does the mechanical tally once verdicts exist. The fixture tree
 carries the named categorical exclusion from every scan corpus.
 
+> **Adoption note, 2026-09-12.** The condition this section makes the wrap conditional on is met:
+> `claude plugin eval` shipped in Claude Code 2.1.269 on 2026-09-11 and this marketplace adopted it.
+> The adoption record is the "Adoption record" paragraph under
+> [MIGRATION-PLAYBOOK.md § "Evals — warrant policy and consumer-verify recipe"](../MIGRATION-PLAYBOOK.md#evals--warrant-policy-and-consumer-verify-recipe),
+> which also states that the two formats coexist rather than one replacing the other, so the
+> per-skill `evals/evals.json` warrant above is untouched. The section is left as recorded.
+
 ## 17. Convention engagement
 
 One combined engagement at sweep completion, drafted in `convention-engagement.md` beside this
