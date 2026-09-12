@@ -101,7 +101,7 @@ check or a docs page settles it.
 ## Session-side counterparts
 
 Claude Code owns request assembly in a session, so the session-side versions of these rows live
-elsewhere: effort-change cache cost and per-message steering in `docs/PLUGIN-PHILOSOPHY.md`
+elsewhere: effort-change cache cost and per-message steering in `docs/plugin-philosophy.md`
 under Effort tiers, subagent cache TTL mechanics in the fable-5 pack's
 `context/orchestration.md`, session cache-health observability in the `claude-ops` observability
 skill, and the byte-identical-prefix rule as it reaches shared-prefix fleets in the

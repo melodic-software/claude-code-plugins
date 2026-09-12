@@ -2,7 +2,7 @@
 
 The generated per-category plugin catalog: the block between the markers below is generated from the
 plugin manifests and kept in sync by CI. Never hand-edit it; the category vocabulary is owned by
-[`docs/CATALOG-TAXONOMY.md`](CATALOG-TAXONOMY.md).
+[`docs/catalog-taxonomy.md`](catalog-taxonomy.md).
 
 <!-- catalog:start -->
 

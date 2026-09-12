@@ -7,8 +7,8 @@ what you don't yet know while it is still cheap to find out. This doc owns the h
 conventions the methodology graduated into this marketplace: the reply-affordance
 convention, the export-button rule, and the opt-in deviation-log convention. It also owns the
 pattern catalog and the boundaries (when HTML, when not; what deliberately stays
-un-codified). Sibling docs: `PLUGIN-PHILOSOPHY.md` (governance),
-`GLOSSARY.md` (vocabulary), `MIGRATION-PLAYBOOK.md` (delivery).
+un-codified). Sibling docs: `plugin-philosophy.md` (governance),
+`glossary.md` (vocabulary), `migration-playbook.md` (delivery).
 
 **Sources and permission basis.** The material derives from public posts by their named
 author (see [Sources](#sources-and-citation-shape)). This doc quotes short attributed
@@ -75,7 +75,7 @@ Two diagnostics ride the taxonomy:
 The lifecycle is a loop: what an artifact teaches you becomes the starting map for the
 next round. The author frames this as matching the map to the territory (S1, "Matching
 map and territory"), cited here as his metaphor, not adopted as house vocabulary (see
-`GLOSSARY.md` rejected terms).
+`glossary.md` rejected terms).
 
 ## The five-pass pre-implementation workflow
 
@@ -169,7 +169,7 @@ where a skill's own contract says so.
 
 **Recorded trigger.** The moment a second plugin reads `DEVIATIONS.md` (rather than
 writing its own), the convention-registry rule fires and this section graduates to a
-registry row per `PLUGIN-PHILOSOPHY.md` "Convention registry".
+registry row per `plugin-philosophy.md` "Convention registry".
 
 ## When HTML, and when not
 
@@ -240,7 +240,7 @@ Two companions to the warning:
 ## Heuristics awaiting evidence
 
 The following corpus heuristics are recorded here as doc lines and candidate eval cases,
-not as standing skill instructions. Per `PLUGIN-PHILOSOPHY.md` "Instruction economy",
+not as standing skill instructions. Per `plugin-philosophy.md` "Instruction economy",
 they graduate into a skill body only on observed, repeated stumble evidence:
 
 - **Observed-fact evidence bar** (brainstorming): each candidate option cites an observed,

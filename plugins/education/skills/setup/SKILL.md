@@ -78,6 +78,6 @@ Claude Code. Do not claim a configuration change until a rerun observes the new 
 - Do not start a teach, explain, or quiz session; use `/education:teach`, `/education:explain`,
   or `/education:quiz-me`.
 - Do not write the plugin cache, Claude Code user settings, or `pluginConfigs`, per the uniform
-  setup contract (`docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit and repeatable" in the
+  setup contract (`docs/plugin-philosophy.md` "Setup is explicit and repeatable" in the
   marketplace repository).
 - Do not invent an organization, repository, marketplace, or environment-variable prefix.

@@ -123,7 +123,7 @@ fi
 #   * `python`, `python3`, `py` -> shadowed by zero-length WindowsApps stubs
 #   * `node`                 -> no such shim exists; node.exe is the only
 #                               resolution, which is why both
-#                               docs/PLUGIN-PHILOSOPHY.md (Hooks row) and the
+#                               docs/plugin-philosophy.md (Hooks row) and the
 #                               claude-config audit checklist name
 #                               `"command": "node", "args": [...]` as THE
 #                               Windows-correct exec-form spelling.

@@ -10,8 +10,8 @@ one shared deterministic helper, so every setup skill detects and cleans the sam
 
 This directory is the source of truth: `README.md` (the contract), `CHANGELOG.md` (version history).
 The decision record is [ADR 0018](../../adr/0018-express-team-shared-conventions-as-consumer-convention-docs.md);
-the migration playbook has a section for it (`docs/MIGRATION-PLAYBOOK.md` § Retired conventions) and the
-plugin philosophy makes the declaration mandatory (`docs/PLUGIN-PHILOSOPHY.md`, "Retirement
+the migration playbook has a section for it (`docs/migration-playbook.md` § Retired conventions) and the
+plugin philosophy makes the declaration mandatory (`docs/plugin-philosophy.md`, "Retirement
 declaration is mandatory").
 
 ## Boundary: this contract owns the mechanism, never the decision to retire
