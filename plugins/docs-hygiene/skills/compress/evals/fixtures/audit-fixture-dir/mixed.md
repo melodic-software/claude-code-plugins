@@ -1,6 +1,6 @@
 # Mixed Reference
 
-This file has a basically mixed shape — some really tight directives, some quite verbose filler. Used as fixture for batch-mode compression evals.
+This file has a basically mixed shape: some really tight directives, some quite verbose filler. Used as fixture for batch-mode compression evals.
 
 ## Hard rules
 
@@ -9,7 +9,7 @@ This file has a basically mixed shape — some really tight directives, some qui
 
 ## Some Additional Context
 
-So basically, the point of this section is just to add some kind of verbose prose into the mix. You'll notice that it's really not all that disciplined — there's quite a lot of hedging and filler that could pretty easily be cut.
+So basically, the point of this section is just to add some kind of verbose prose into the mix. You'll notice that it's really not all that disciplined. There's quite a lot of hedging and filler that could pretty easily be cut.
 
 ## Output schema
 

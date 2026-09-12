@@ -10,7 +10,7 @@ Full-text search across work items (open and closed).
 
 ## Workflow
 
-1. **Search open + closed items** using the adapter's search path (adapter: "Search items" — bare reads; run once for `--state open` and once for `--state closed` to show whether work was already done).
+1. **Search open + closed items** using the adapter's search path (adapter: "Search items", bare reads; run once for `--state open` and once for `--state closed` to show whether work was already done).
 
 1. **Search recurring schedule** (skip gracefully when the repo has no recurring schedule):
 
@@ -54,4 +54,4 @@ If no matches anywhere: "No items matching '{query}' in open, closed, or recurri
 
 ## Search syntax
 
-The provider's search qualifiers (label / exclude / assignee / sort / date / exact-phrase) are documented in the bound adapter's operations reference — GitHub: `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md` "Search items".
+The provider's search qualifiers (label / exclude / assignee / sort / date / exact-phrase) are documented in the bound adapter's operations reference. GitHub: `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md` "Search items".

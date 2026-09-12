@@ -2,8 +2,8 @@
 
 ## Why fix order matters
 
-Config issues affect build tooling — fix first. Enforcement prevents regression — add before
-refactoring. Docs reflect all changes — update last.
+Config issues affect build tooling, so fix those first. Enforcement prevents regression, so add it
+before refactoring. Docs reflect all changes, so update them last.
 
 ## Categories
 
@@ -29,7 +29,7 @@ Documentation that doesn't match code reality.
 
 ## Priority: Config Drift → Missing Enforcement → Code Quality → Doc Drift
 
-## Severity (use these consistently — never HIGH/MEDIUM/LOW)
+## Severity (use these consistently, never HIGH/MEDIUM/LOW)
 
 | Severity | Definition |
 |----------|-----------|

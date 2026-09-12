@@ -1,4 +1,4 @@
-# Topic-docs placement — where this plugin's artifacts land
+# Topic-docs placement: where this plugin's artifacts land
 
 How `overengineering:audit`, `overengineering:justify`, `overengineering:realign`, and
 `overengineering:delta` resolve where
@@ -7,8 +7,8 @@ bakes its own paths.
 
 Implements the topic-docs convention:
 <https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md>.
-The contract owns every general rule — tiers, schema, resolution order, slug spec, runtime guards,
-no-project-root fallback, non-interactive/forked mode. This document records only this plugin's
+The contract owns every general rule: tiers, schema, resolution order, slug spec, runtime guards,
+no-project-root fallback, and non-interactive/forked mode. This document records only this plugin's
 deltas.
 
 The sibling `artifact-protocol.md` defines the shared lifecycle artifact names and producer/consumer
@@ -18,23 +18,23 @@ never for their location.
 
 ## What this plugin writes
 
-**Memory tier only, concern-scoped.** An audit's axis is the **branch**, not a topic — the surface it
-walks is whatever this checkout currently enforces — so the artifact sits under the memory root's
+**Memory tier only, concern-scoped.** An audit's axis is the **branch**, not a topic, because the
+surface it walks is whatever this checkout currently enforces. So the artifact sits under the memory root's
 `overengineering/` concern name rather than inside a topic slice, exactly as branch-keyed review
 reports do:
 
 | Artifact | Type | Location (default) |
 |---|---|---|
-| Audit findings — written by `overengineering:audit` and `overengineering:justify`, status fields updated by `overengineering:realign` | `overengineering-findings` | `.work/overengineering/<branch-slug>/findings.md` — never committed |
-| Spine baseline — captured by `overengineering:delta` at the end of a cycle, for the next one to compare against | `overengineering-spine-baseline` | `.work/overengineering/<branch-slug>/spine-baseline.md` — never committed |
+| Audit findings, written by `overengineering:audit` and `overengineering:justify`, status fields updated by `overengineering:realign` | `overengineering-findings` | `.work/overengineering/<branch-slug>/findings.md`, never committed |
+| Spine baseline, captured by `overengineering:delta` at the end of a cycle for the next one to compare against | `overengineering-spine-baseline` | `.work/overengineering/<branch-slug>/spine-baseline.md`, never committed |
 
-What the baseline contains — its frontmatter, its body rules, its type — is owned by
+What the baseline contains, meaning its frontmatter, its body rules, and its type, is owned by
 `context/findings-artifact.md` under "The spine-capture obligation"; this binding owns only where it
 lands.
 
 Both are memory tier, and they are the only artifacts this plugin **places** anywhere. It produces no
 contract-tier artifact: an audit report is process output that nothing downstream enforces against,
-and the one thing that must outlive the branch — an operator's judgment — is persisted instead as a
+and the one thing that must outlive the branch, an operator's judgment, is persisted instead as a
 tracked suppression entry in
 `.claude/overengineering.md`, whose keys and layering are owned by `reference/consumer-config.md`.
 The plugin's other sanctioned writes place no artifact: that entry and the ask-gated resolution below
@@ -45,11 +45,11 @@ notification in the consumer's tracker, not a file in the repository at all.
 re-audit merges into the existing file by stable finding id, and a per-run filename would turn that
 merge into a search problem. The run's timestamp lives in the artifact's `date` frontmatter, where a
 reader and a diff can both find it. `spine-baseline.md` is one stable filename for the same reason,
-overwritten by the next capture — with one exception owned by the obligation section: an unconsumed
+overwritten by the next capture, with one exception owned by the obligation section: an unconsumed
 baseline is kept rather than overwritten. **A `spine-baseline.md` in a resolved home is not stray**;
 deleting one destroys the delta lane's only baseline.
 
-Both artifacts are therefore lane-local and **ephemeral by design** — a branch switch, a removed
+Both artifacts are therefore lane-local and **ephemeral by design**: a branch switch, a removed
 worktree, or a reclaimed container loses them. That is acceptable for evidence, verdicts, and a
 comparison baseline, all of which a run recomputes or recaptures, and is exactly why operator
 judgments are not kept here.
@@ -62,7 +62,7 @@ judgments are not kept here.
    authority).
 3. An existing conforming layout inferred from the repo (a self-ignoring memory root already holding
    this plugin's findings) → confirm with the user, persist to the concern file.
-4. Ask once — one question, recommended option first; persist the answer to the concern file.
+4. Ask once: one question, recommended option first; persist the answer to the concern file.
 5. The documented default: `.work/overengineering/<branch-slug>/`.
 
 **Persisting at rungs 2–4 is ask-gated, never automatic.** Each of those rungs persists the
@@ -74,13 +74,13 @@ order and either can reach it; each skill's "Read-only contract" discloses it, a
 headline in both is scoped to unasked writes, which all stay in the memory tier.
 
 Only rungs 1 and 5 compose `overengineering/<branch-slug>` themselves. Rungs 2–4 yield whatever
-location the consumer declared, inferred, or chose — **resolve the home, never assume its shape.** A
+location the consumer declared, inferred, or chose. **Resolve the home, never assume its shape.** A
 skill that hardcodes the default's shape writes where the other side never looks, and realign's
 failure mode for that is a missing-artifact stop indistinguishable from "the audit was never run".
 
 **Non-interactive / forked mode.** Rungs 2–4 can require asking the user or persisting config. A
-context that can do neither — a forked subagent, a dispatched worker, a scheduled or headless run —
-follows the contract's "Non-interactive / forked mode" section, which is contract-owned and cited
+context that can do neither, such as a forked subagent, a dispatched worker, or a scheduled or
+headless run, follows the contract's "Non-interactive / forked mode" section, which is contract-owned and cited
 here rather than redefined: skip the ask and persist rungs, take the resolved or documented default,
 and surface the assumption in the returned summary.
 
@@ -91,23 +91,23 @@ write.
 
 ## Branch slug
 
-`<branch-slug>` — the branch name lowercased, with `/` and every other non-`[a-z0-9._-]` character
+`<branch-slug>` is the branch name lowercased, with `/` and every other non-`[a-z0-9._-]` character
 replaced by `-`. This is the branch axis, deliberately distinct from the convention's topic-slug form.
 
 The mapping is **lossy by design** (`feature/foo` and `feature-foo` collide), so what proves an
 artifact belongs to a branch is its own `branch:` frontmatter, never the directory it sits in.
-Realign refuses an artifact whose `branch:` does not match the current branch, naming the mismatch —
-the directory alone is not evidence.
+Realign refuses an artifact whose `branch:` does not match the current branch, naming the mismatch.
+The directory alone is not evidence.
 
 **When no branch identity resolves, no home is keyed and nothing is written.** All four skills
 resolve the branch with `git symbolic-ref --quiet --short HEAD`, which fails on a detached checkout
 rather than answering the literal string `HEAD` the way `git rev-parse --abbrev-ref HEAD` does.
 Where that fails and the environment supplies no logical ref naming a branch, there is no
-`<branch-slug>` to compose, and **the rung order is not run** — the question of which rung wins never
+`<branch-slug>` to compose, and **the rung order is not run**. The question of which rung wins never
 arises, because every rung composes a path for an axis that has no value.
 
 No substitute is admitted. `HEAD` is the same string for every ref, so it would key every detached
-run to one directory — precisely the collision this segment exists to prevent, and the worst case
+run to one directory, precisely the collision this segment exists to prevent, and the worst case
 because the runs that collide are the ones a scheduled runner produces most often. The commit sha
 keys a new home every commit, which never collides but never resumes either, turning a re-audit into
 an unbounded scatter of single-use homes that no consumer ever reads back. A fixed literal such as
@@ -115,8 +115,9 @@ an unbounded scatter of single-use homes that no consumer ever reads back. A fix
 
 The consumers state the consequence at their own sites: `overengineering:audit` and
 `overengineering:justify` each persist no findings artifact, `overengineering:realign` refuses
-rather than comparing, and `overengineering:delta` compares nothing and captures no baseline. This binding fixes only the resolution's outcome — that a
-run reaching it without an identity has no path to resolve, and asks for none.
+rather than comparing, and `overengineering:delta` compares nothing and captures no baseline. This
+binding fixes only the resolution's outcome: a run reaching it without an identity has no path to
+resolve, and asks for none.
 
 `overengineering` is this plugin's concern name under the memory root, alongside the contract's own
 reserved first-level names. A topic slug that collides with it takes the contract's `-x` suffix.
@@ -124,12 +125,12 @@ reserved first-level names. A topic slug that collides with it takes the contrac
 ## Runtime guards
 
 - **Self-ignore guard:** the session's first memory-tier write verifies the **resolved memory root**
-  (whatever `memory_dir` names — never a hardcoded `.work`) contains a `.gitignore` with `*`,
+  (whatever `memory_dir` names, never a hardcoded `.work`) contains a `.gitignore` with `*`,
   creating it (announced) when absent. Once per session, per the contract. The contract also defines
   the **invalid roots at which the guard does not run**; they are enumerated in its
   [Runtime guards](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md)
   section and deliberately not listed here, so this binding cannot drift from them.
 - **Partial writes are valid.** The audit may write per layer as it walks, so an interrupted run
-  leaves a checkpoint at this path rather than nothing. The guard runs once regardless — it is scoped
+  leaves a checkpoint at this path rather than nothing. The guard runs once regardless, scoped
   to the session's first memory-tier write, not to each layer's.
 - No skill in this plugin ever edits the consumer's root `.gitignore`.

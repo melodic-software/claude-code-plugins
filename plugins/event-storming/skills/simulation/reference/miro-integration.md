@@ -1,12 +1,12 @@
 # Miro Integration for Digital EventStorming
 
-This reference covers how to use Miro as a digital canvas for EventStorming workshops, including agentic simulation. All Miro-specific details are isolated here — the rest of the skill is tool-agnostic.
+This reference covers how to use Miro as a digital canvas for EventStorming workshops, including agentic simulation. All Miro-specific details are isolated here, and the rest of the skill is tool-agnostic.
 
 ---
 
 ## Miro board access via the `miro` plugin
 
-The live-board path uses the first-party **`miro` plugin** — a bundled local-stdio MCP server that
+The live-board path uses the first-party **`miro` plugin**, a bundled local-stdio MCP server that
 exposes the full board lifecycle (create → populate → delete-teardown) plus connectors, frames,
 tags, and overlap detection. It is a **separate plugin from `event-storming`**: markdown is the
 default output, and the board capability is opt-in, so enabling `event-storming` does not start a
@@ -21,25 +21,25 @@ Miro MCP server.
 
 Because the server is plugin-bundled, its tools are namespaced at runtime as
 **`mcp__plugin_miro_miro__<tool>`** (e.g. `mcp__plugin_miro_miro__miro_create_board`). A bare
-`miro_*` name — or a bare-server-key `mcp__miro__…` — does **not** resolve for a plugin-bundled
+`miro_*` name, or a bare-server-key `mcp__miro__…`, does **not** resolve for a plugin-bundled
 server. Every `miro_*` tool named in this skill and its reference docs denotes that plugin's tool
 under the `mcp__plugin_miro_miro__` prefix; the availability gate (SKILL.md "Miro availability &
 graceful degradation") probes the prefixed form.
 
 ### Setup
 
-A fresh consumer has only `event-storming` installed — the `miro` plugin must be **installed from the
+A fresh consumer has only `event-storming` installed, so the `miro` plugin must be **installed from the
 marketplace first, then enabled** (enabling alone does not install it).
 
 1. **Find the plugin:** open `/plugin` and select the `miro` plugin from an available marketplace.
    Marketplace names are deployment details; this reusable plugin does not prescribe one.
 2. **Install the plugin.** It installs **disabled** (`defaultEnabled: false` by design).
 3. **Enable it and supply a token** through `/plugin`. Claude Code prompts for the Miro API token at
-   enable time (masked input) and stores it using its secure credential mechanism — never as a
+   enable time (masked input) and stores it using its secure credential mechanism, never as a
    non-sensitive `settings.json` value. Get a token from
    https://miro.com/app/settings/user-profile/apps with `boards:read` + `boards:write` scopes.
-4. **Verify:** in a session with the plugin enabled, `mcp__plugin_miro_miro__*` tools are callable —
-   test with "List my Miro boards".
+4. **Verify:** in a session with the plugin enabled, `mcp__plugin_miro_miro__*` tools are callable.
+   Test with "List my Miro boards".
 
 ---
 
@@ -66,7 +66,7 @@ marketplace first, then enabled** (enabling alone does not install it).
 | `dark_blue` | Dark Blue | #414BB2 |
 | `black` | Black | #1A1A2E |
 
-### EventStorming → Miro Color + Shape Mapping (Complete — All 16 Colors Assigned)
+### EventStorming → Miro Color + Shape Mapping (Complete, All 16 Colors Assigned)
 
 | EventStorming Element | Book Color | Miro Color | Miro Shape | Match | Content Convention |
 |----------------------|------------|------------|------------|-------|-------------------|
@@ -93,9 +93,9 @@ marketplace first, then enabled** (enabling alone does not install it).
 
 **Limitations:**
 
-- No sticky note rotation — can't rotate 45° for phase names. Use `cyan` color + `[PHASE]` prefix instead
-- No size control via MCP — all stickies default to ~199px. REST API supports `geometry.width` but MCP tool doesn't expose it
-- No magenta color — `red` is closest for Hot Spots
+- No sticky note rotation, so you can't rotate 45° for phase names. Use `cyan` color + `[PHASE]` prefix instead
+- No size control via MCP, so all stickies default to ~199px. REST API supports `geometry.width` but MCP tool doesn't expose it
+- No magenta color, so `red` is closest for Hot Spots
 
 ---
 
@@ -105,11 +105,11 @@ marketplace first, then enabled** (enabling alone does not install it).
 
 Create a Miro board with this layout:
 
-1. **Main Timeline** — a long horizontal area for the event flow (left to right)
-2. **Legend Frame** — a frame in the top-left corner showing the color mapping
-3. **Parking Lot Frame** — for hot spots and items to revisit
-4. **Personas Frame** — for actor/persona definitions
-5. **Bounded Context Labels** — text labels or frames to mark discovered boundaries
+1. **Main Timeline**: a long horizontal area for the event flow (left to right)
+2. **Legend Frame**: a frame in the top-left corner showing the color mapping
+3. **Parking Lot Frame**: for hot spots and items to revisit
+4. **Personas Frame**: for actor/persona definitions
+5. **Bounded Context Labels**: text labels or frames to mark discovered boundaries
 
 ### Positioning Strategy (Tested Values)
 
@@ -143,7 +143,7 @@ Persona 1 sits at the `y=0` timeline baseline.
 | Persona 5 events | 2000 | |
 | Persona 6 events | 2500 | |
 | Persona 7 events | 3000 | |
-| Persona 8 (Beneficiary — MANDATORY) | 3500 | Mandatory beneficiary row |
+| Persona 8 (Beneficiary, MANDATORY) | 3500 | Mandatory beneficiary row |
 | Walk-through new events | 4200 | |
 | [STUMBLE] markers | 4500 | 300px below walk-through |
 | Reverse narrative events | 4800 | |
@@ -178,16 +178,16 @@ Persona 1 sits at the `y=0` timeline baseline.
 | Read Models | -750 | Information panels |
 | Actors | -500 | Who issues commands |
 | Commands | -250 | Blue imperative actions |
-| **Aggregates** | **0** | Light yellow — blank first, named last |
-| Business Rules | 300 | Gray — invariants (stack at y=300, 550, 800) |
-| Domain Events | 1100 | Orange — outcomes |
+| **Aggregates** | **0** | Light yellow, blank first, named last |
+| Business Rules | 300 | Gray, invariants (stack at y=300, 550, 800) |
+| Domain Events | 1100 | Orange, outcomes |
 | Alternative outcomes | 1400 | Rejection/failure events |
-| Policies | 1650 | Violet — reactive `Whenever X, do Y` |
+| Policies | 1650 | Violet, reactive `Whenever X, do Y` |
 | What-if challenges | 1950 | Red hot spots |
 | BC Contracts (outbound) | 2250 | Published events |
 
 **Reading the layout:** every row's y comes from that phase's Y-Coordinate Table
-above — negative is up, positive is down, and the bolded row is the baseline. The
+above. Negative is up, positive is down, and the bolded row is the baseline. The
 tables are the only place y values are written down; nothing below restates them.
 
 **Horizontal placement:** the flow reads left to right, incrementing x by 400 per
@@ -200,7 +200,7 @@ Actor            x=0       row: Actors
 Command          x=0       row: Commands
 Domain Event     x=400     row: Domain Events        (happy path)
 Event (alt)      x=400     row: Alternative outcomes (rejection/failure)
-Policy           x=800     row: Policies             (reactive — "whenever")
+Policy           x=800     row: Policies             (reactive, "whenever")
 Next Command     x=1200    row: Commands             (triggered by policy)
 Next Event       x=1600    row: Domain Events
 ```
@@ -208,13 +208,13 @@ Next Event       x=1600    row: Domain Events
 **Legend frame positioning and sizing:**
 
 - Place at x=-800, y=-600 (top-left, out of the main flow)
-- **Frame size formula:** `width=500, height = (sticky_count * 200) + 200` — each sticky is ~199px tall with ~50px gap, plus 200px padding top/bottom
+- **Frame size formula:** `width=500, height = (sticky_count * 200) + 200`, because each sticky is ~199px tall with ~50px gap, plus 200px padding top/bottom
 - Big Picture legend (4-6 types): `500w x 1400h`
 - Process Modeling legend (7 types): `500w x 1600h`
 - Design-Level legend (8+ types): `500w x 1800h`
 - Legend stickies inside: stack vertically with 200px spacing, starting at the frame's top y + 100px offset
 - **Visual check required:** After placing legend stickies, verify via screenshot that all stickies are visible within the frame bounds. Frame overflow = stickies hidden behind the white frame background
-- **Place legend stickies at absolute coordinates, not with `parent_id`** — setting `parent_id`
+- **Place legend stickies at absolute coordinates, not with `parent_id`.** Setting `parent_id`
   switches x and y from board-centre-relative to frame-top-left-relative, so any coordinate computed
   against the y-coordinate tables above lands in the wrong place. Keeping the legend stickies
   parentless also means they survive deletion of the legend frame
@@ -235,12 +235,12 @@ When running simulated EventStorming sessions (see `agentic-simulation.md`), age
 
 ### Workflow
 
-1. **Create board** — manually or via API
-2. **Share board URL** — provide the board ID to the skill
-3. **Agents create stickies** — each persona agent places events using the color mapping above
-4. **Attribution** — include persona name in the sticky content (e.g., "[DomainExpert] Order Placed")
-5. **Hot spots** — agents flag disagreements by creating red stickies with "!!!" prefix
-6. **Review** — human reviews the board, moves stickies, identifies bounded contexts
+1. **Create board**, manually or via API
+2. **Share board URL**: provide the board ID to the skill
+3. **Agents create stickies**: each persona agent places events using the color mapping above
+4. **Attribution**: include persona name in the sticky content (e.g., "[DomainExpert] Order Placed")
+5. **Hot spots**: agents flag disagreements by creating red stickies with "!!!" prefix
+6. **Review**: human reviews the board, moves stickies, identifies bounded contexts
 
 ### Bulk Creation Pattern
 
@@ -255,34 +255,34 @@ The `miro` plugin's server supports bulk creation (up to 20 items per batch) via
 
 ## Limitations
 
-- **No sticky rotation** — can't rotate stickies 45 degrees (Brandolini's "not an event" signal)
-- **Arrows are available but deliberately unused during Big Picture** — `miro_create_connector`
+- **No sticky rotation**, so you can't rotate stickies 45 degrees (Brandolini's "not an event" signal)
+- **Arrows are available but deliberately unused during Big Picture.** `miro_create_connector`
   draws connectors between items, and the skill declines to use them in Big Picture on Brandolini's
   reasoning: once an arrow is drawn, the brain avoids moving stickies to preserve it. Use proximity
   and temporal order instead
-- **Overlap detection is available** — `miro_detect_overlaps` returns every pair of stickies whose
+- **Overlap detection is available.** `miro_detect_overlaps` returns every pair of stickies whose
   centres are closer than a pixel threshold, which is the mechanical form of the density check the
   quality gate would otherwise do by eye. Its 195px default is tuned for square stickies; raise it
   on rectangle-heavy boards
-- **Bulk limit** — max 20 items per bulk operation
-- **Rate limits** — Miro API has rate limits; space out bulk operations
-- **No real-time collaboration** — MCP operations are request/response, not live collaborative editing
-- **Color approximation** — Miro's 16 colors don't perfectly match physical sticky note colors, but are close enough
+- **Bulk limit**: max 20 items per bulk operation
+- **Rate limits**: Miro API has rate limits; space out bulk operations
+- **No real-time collaboration**: MCP operations are request/response, not live collaborative editing
+- **Color approximation**: Miro's 16 colors don't perfectly match physical sticky note colors, but are close enough
 
 ## Gotchas
 
-- **Frame positioning uses center point** — `x, y` is the CENTER of the frame, not the top-left corner. A frame at `x=0, width=6000` spans from `x=-3000` to `x=3000`. Calculate center as: `x = (content_min_x + content_max_x) / 2`
-- **Frame z-order** — frames created AFTER stickies render ON TOP, hiding them behind the white frame background. **Only use frames that are created BEFORE their content items and never need resizing.** The legend frame (created once, content placed inside) works well. Timeline frames that grow with each round should be SKIPPED entirely — rely on coordinate-based organization instead. If you delete and recreate a frame, it covers all existing stickies
-- **Practical recommendation** — use frames ONLY for the legend (static, created once). For the evolving timeline and content areas, skip frames and let the y-coordinate layering organize the board visually. This avoids all z-order issues
-- **Deleting frames with children** — if stickies were created with `parent_id` pointing to a frame, deleting the frame deletes all children. Stickies created WITHOUT `parent_id` survive frame deletion but may be hidden under newly created frames
-- **Board sharing via API** — use `sharing_access: "view"` parameter on `miro_create_board` to create public boards. The `miro_update_board` tool can also change sharing after creation. The sharing policy must be nested under `policy.sharingPolicy` in the Miro REST API (POST uses `policy` wrapper, PATCH accepts root-level `sharingPolicy`)
+- **Frame positioning uses center point.** `x, y` is the CENTER of the frame, not the top-left corner. A frame at `x=0, width=6000` spans from `x=-3000` to `x=3000`. Calculate center as: `x = (content_min_x + content_max_x) / 2`
+- **Frame z-order**: frames created AFTER stickies render ON TOP, hiding them behind the white frame background. **Only use frames that are created BEFORE their content items and never need resizing.** The legend frame (created once, content placed inside) works well. Timeline frames that grow with each round should be SKIPPED entirely. Rely on coordinate-based organization instead. If you delete and recreate a frame, it covers all existing stickies
+- **Practical recommendation**: use frames ONLY for the legend (static, created once). For the evolving timeline and content areas, skip frames and let the y-coordinate layering organize the board visually. This avoids all z-order issues
+- **Deleting frames with children**: if stickies were created with `parent_id` pointing to a frame, deleting the frame deletes all children. Stickies created WITHOUT `parent_id` survive frame deletion but may be hidden under newly created frames
+- **Board sharing via API**: use `sharing_access: "view"` parameter on `miro_create_board` to create public boards. The `miro_update_board` tool can also change sharing after creation. The sharing policy must be nested under `policy.sharingPolicy` in the Miro REST API (POST uses `policy` wrapper, PATCH accepts root-level `sharingPolicy`)
 
 ---
 
 ## Sources
 
 - [Miro MCP Server Overview](https://help.miro.com/hc/en-us/articles/31624028247058)
-- [Miro Developer Docs — MCP Intro](https://developers.miro.com/docs/mcp-intro)
-- [Miro Developer Docs — Connecting to Claude Code](https://developers.miro.com/docs/connecting-miro-mcp-to-ai-coding-tools)
-- [Miro REST API — Sticky Note Style](https://miroapp.github.io/api-clients/python/miro_api/models/sticky_note_style.html)
-- [Miro REST API — Create Sticky Note](https://developers.miro.com/reference/create-sticky-note-item-1)
+- [Miro Developer Docs: MCP Intro](https://developers.miro.com/docs/mcp-intro)
+- [Miro Developer Docs: Connecting to Claude Code](https://developers.miro.com/docs/connecting-miro-mcp-to-ai-coding-tools)
+- [Miro REST API: Sticky Note Style](https://miroapp.github.io/api-clients/python/miro_api/models/sticky_note_style.html)
+- [Miro REST API: Create Sticky Note](https://developers.miro.com/reference/create-sticky-note-item-1)

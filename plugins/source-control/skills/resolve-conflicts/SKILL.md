@@ -29,7 +29,7 @@ one shell invocation".
 
 ## Purpose
 
-Owns HOW conflicts get resolved once an integration — merge, rebase, or cherry-pick — stops on unmerged paths. Which integration to run (merge vs rebase, when to sync with the default branch) is the caller's decision: `/source-control:pull-request`'s branch-freshness steps, the project's convention, or the user. This skill picks up at the moment git says `CONFLICT` and ends when the operation is concluded with every gate green.
+Owns HOW conflicts get resolved once an integration stops on unmerged paths, whether merge, rebase, or cherry-pick. Which integration to run (merge vs rebase, when to sync with the default branch) is the caller's decision: `/source-control:pull-request`'s branch-freshness steps, the project's convention, or the user. This skill picks up at the moment git says `CONFLICT` and ends when the operation is concluded with every gate green.
 
 **The two non-negotiable disciplines:**
 

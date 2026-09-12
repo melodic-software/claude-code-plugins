@@ -10,7 +10,7 @@ Structured confirmation that a refactoring preserved existing behavior while imp
 
 ## The fundamental rule
 
-A refactor changes structure, not behavior. If tests passing before still pass after, that's strong evidence of behavior preservation. If ANY test previously passing now fails, the refactor introduced a behavioral change — intentional or not.
+A refactor changes structure, not behavior. If tests passing before still pass after, that's strong evidence of behavior preservation. If ANY test previously passing now fails, the refactor introduced a behavioral change, intentional or not.
 
 ## Process
 
@@ -35,7 +35,7 @@ What behavior should be preserved? This defines what to test:
 
 ### 3. Run the full test suite
 
-Not just tests for the refactored code — all tests in affected projects. Refactors can break distant consumers.
+Run every test in the affected projects, not only the ones covering the refactored code. Refactors can break distant consumers.
 
 The Stage 1 mechanical-prerequisite results from `/verification:confirm` provide this. If Stage 1 passed, that's the primary evidence.
 
@@ -47,7 +47,7 @@ Tests only prove preservation of TESTED behavior. Look for:
 - **Integration points without integration tests**: if refactored code interacts with external systems and those interactions aren't tested, preservation is assumed, not proven
 - **Configuration-dependent behavior**: if behavior changes based on config and only one configuration is tested, other configurations are unverified
 
-Flag untested areas honestly — risks, not failures.
+Flag untested areas honestly, as risks rather than failures.
 
 ### 5. Structural comparison
 
@@ -94,4 +94,4 @@ Show what changed structurally with `git diff --stat` and `git diff --name-statu
 - **CONFIRMED** if all tests pass and no untested gaps are HIGH risk
 - **LIKELY PRESERVED** if all tests pass but untested gaps exist (document the gaps)
 - **NOT CONFIRMED** if any test that passed before now fails
-- **BEHAVIORAL CHANGE DETECTED** if new test failures indicate the refactor changed behavior (may be intentional — flag for user decision)
+- **BEHAVIORAL CHANGE DETECTED** if new test failures indicate the refactor changed behavior (may be intentional, so flag for user decision)

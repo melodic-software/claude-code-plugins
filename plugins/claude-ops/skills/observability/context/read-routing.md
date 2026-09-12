@@ -1,4 +1,4 @@
-# Read routing — which source for which question
+# Read routing: which source for which question
 
 Operator setup (install, env, retention): [operator-setup.md](operator-setup.md). Pipeline:
 [otel-pipeline.md](otel-pipeline.md). Queries: [otel-queries.md](otel-queries.md).
@@ -12,9 +12,9 @@ Batch reports and JSONL jq: this skill's scope actions. Product bugs: `/claude-o
 
 | Layer | What it captures | Persistent? |
 |---|---|---|
-| **OTEL → DuckDB store** | CC CLI logs, metrics, traces (spans) | Yes — hot NDJSON + cold Parquet |
-| **OTEL → Aspire dashboard** | CC logs, metrics, traces (live in-memory) | **No** — restart drops history |
-| **JSONL observability** | Hook timing, per-session hook event log | Yes — the hook log root (`.observability/claude/` by default): `sessions/<session_id>.jsonl` and the shared `hook-events.jsonl` |
+| **OTEL → DuckDB store** | CC CLI logs, metrics, traces (spans) | Yes, hot NDJSON + cold Parquet |
+| **OTEL → Aspire dashboard** | CC logs, metrics, traces (live in-memory) | **No**, restart drops history |
+| **JSONL observability** | Hook timing, per-session hook event log | Yes, the hook log root (`.observability/claude/` by default): `sessions/<session_id>.jsonl` and the shared `hook-events.jsonl` |
 
 ```text
 CC CLI ── OTLP :4318 ──▶ Collector ──┬── file ──▶ DuckDB (cc_logs, cc_metrics, cc_spans)  ← SSOT
@@ -28,7 +28,7 @@ Every event ──▶ session-event-log (opt-in) ──▶ <root>/sessions/<sess
 The root is the plugin's `session_event_log_dir` option (project-relative, self-ignoring
 `.gitignore` inside). The skill-usage store and the OTEL store stay under `.claude/observability/`.
 
-## Quick routing — "I need to know X"
+## Quick routing: "I need to know X"
 
 | Question | Best path | Detail |
 |---|---|---|
@@ -36,10 +36,10 @@ The root is the plugin's `session_event_log_dir` option (project-relative, self-
 | Hook p95 latency, hook errors, recurring hook sequences | the hook log root (`sessions/*.jsonl` + `hook-events.jsonl`) | [data-sources.md](data-sources.md) §2 |
 | What one session did: hooks fired, blocked, rewrote, per-hook duration, the event timeline | `sessions/<session_id>.jsonl` (`session` / `session:<id>` scope) | [data-sources.md](data-sources.md) §2.5 |
 | Which hook-logging toggles and retention are in effect, guard state, stale prune sets | `probe-observability-state.sh --pipeline` | [data-sources.md](data-sources.md) §2.6 |
-| Why most installed skills never get used — starved by the listing budget, unreachable, or simply unobserved | `/claude-ops:audit-skill-visibility` | That skill owns interpretation of skill-usage data; this skill owns the store, the OTEL pipeline, and retention |
+| Why most installed skills never get used, whether starved by the listing budget, unreachable, or simply unobserved | `/claude-ops:audit-skill-visibility` | That skill owns interpretation of skill-usage data; this skill owns the store, the OTEL pipeline, and retention |
 | Tool latency, API errors (historical) | DuckDB `cc_logs` | [otel-queries.md](otel-queries.md) |
 | Token/cost metrics (historical) | DuckDB `cc_metrics` | [otel-queries.md](otel-queries.md) |
-| Cache health — is prompt caching working | DuckDB `cc_metrics`, `cacheRead` vs `cacheCreation` per model | [otel-queries.md](otel-queries.md) |
+| Cache health, is prompt caching working | DuckDB `cc_metrics`, `cacheRead` vs `cacheCreation` per model | [otel-queries.md](otel-queries.md) |
 | Cache health for an API APPLICATION's own traffic (not a Claude Code session) | Out of scope here: the platform's cache diagnostics API (beta) reports per-request miss reasons (`messages_changed`, `system_changed`, `tools_changed`, `model_changed`); resolve it from `platform.claude.com/docs/en/build-with-claude/cache-diagnostics` (verified 2026-09-09; recheck on that page changing) | This skill reads local Claude Code telemetry only |
 | Trace span tree | DuckDB `cc_spans` | [otel-queries.md](otel-queries.md) |
 | Trace summary (duration, span count) | DuckDB `cc_traces` | [otel-queries.md](otel-queries.md) |
@@ -60,18 +60,18 @@ The root is the plugin's `session_event_log_dir` option (project-relative, self-
 ## Token-efficient read rules
 
 1. Never dump raw OTLP JSON or full `body` / `user_prompt` unless the task requires verbatim content.
-2. DuckDB for historical reads — project columns, filter, `LIMIT`.
-3. Cold tier for multi-week trends — hot NDJSON full scans can take tens of seconds.
+2. DuckDB for historical reads: project columns, filter, `LIMIT`.
+3. Cold tier for multi-week trends, since hot NDJSON full scans can take tens of seconds.
 4. Aspire: always `--limit`; avoid `--follow` unless streaming is the goal.
-5. Scope by `session_id`, `trace_id`, or time — one Collector file serves all worktrees.
-6. ccusage for cost — do not reconstruct billing from OTEL metrics when ccusage is available.
+5. Scope by `session_id`, `trace_id`, or time, since one Collector file serves all worktrees.
+6. ccusage for cost. Do not reconstruct billing from OTEL metrics when ccusage is available.
 
 ## Retention
 
 Retention knobs and their defaults are defined once in
 [operator-setup-retention.md](operator-setup-retention.md#retention-knobs); full prune
-mechanics in the same file, "Pruning the store (retention) — two tiers". (Aspire holds
-telemetry in RAM only — restart to reclaim.)
+mechanics in the same file, "Pruning the store (retention): two tiers". (Aspire holds
+telemetry in RAM only, so restart to reclaim.)
 
 ## Anti-patterns
 
@@ -94,7 +94,7 @@ on this machine returns interaction spans from the SDK path; route the recheck t
 
 | Surface | Scope |
 |---|---|
-| **`/claude-ops:observability`** | **Your** telemetry — hooks, OTEL store, collector, dashboard, ccusage, trends |
-| **`/claude-ops:known-issues`** | **Anthropic product** bugs — GitHub issue registry, health checks, workarounds |
+| **`/claude-ops:observability`** | **Your** telemetry: hooks, OTEL store, collector, dashboard, ccusage, trends |
+| **`/claude-ops:known-issues`** | **Anthropic product** bugs: GitHub issue registry, health checks, workarounds |
 
 CC behaving unexpectedly → invoke `/claude-ops:known-issues search <feature>` via the Skill tool. Reading what CC emitted → this file.

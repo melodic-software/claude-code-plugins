@@ -3,6 +3,311 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.54.1]
+
+### Changed
+
+- **`audit-install-state`, `audit-skill-visibility`: description prose no longer addresses the reader, except for the presence-gate token.** Anthropic's skill-authoring guidance keeps first and second person out of a description because it is injected into the system prompt; the rewritten clauses name the user, the session, or the repository instead. The one clause kept as it was is the native-surface presence gate ("resolves in your session"): the native-overlap registry self-check matches that literal token against every baked row, so the two descriptions keep it until the token itself is changed fleet-wide. Quoted trigger phrases are unchanged.
+
+## [0.54.0]
+
+### Added
+
+- **`inventory.py` reads a bytecode-fragmented bundle.** Region rule: from the first bundle marker
+  to end of file, every printable run of at least 256 bytes, joined with newlines, in one regex
+  pass; `sources.binary` records `runs`, `joined_bytes`, `region_rule`, `runs_below_floor`
+  (registration tokens sitting under the floor, counted rather than lost, and degrading the
+  bundled-skill lane when positive), and `elapsed_seconds`. A build with no marker keeps the
+  largest-run fallback.
+- **Three registrar discovery routes.** The CJS getter, then the ESM export list
+  (`<ident> as registerBundledSkill`), then the canary registration; `bundled_skill_notes` records
+  `registrar_route`. The registrar-shaped-export advisory sees both export shapes, and the known
+  set gains `registerDesignCanvasSkill` and `registerWorkflowAuthoringSkill`.
+- **Computed names resolve by locality.** A hoisted constant resolves to its nearest preceding
+  binding, never a farther one, so an unrelated module's binding of the same identifier cannot
+  shadow the real one; a single-character identifier is trusted only within a locality window; a
+  loop or template-literal registration is a `dynamic_roster` note, not an unresolved name; a call
+  whose object carries no `name:` is another module's function and is counted apart.
+- **Per-registration invocation fields.** `user_invocable`, `disable_model_invocation`,
+  `terminal_oriented`, and `survives_kill_switch` when present; a function-valued field reads as
+  true with the key listed under `flag_driven`.
+- **Same-name registrations are both kept.** Two distinct bundled registrations sharing a name are
+  a list under that name with `collision: true` and are named in `bundled_skill_notes.collisions`;
+  `registrations_of(entry)` reads either shape.
+- **Integrity per lane.** `integrity.lanes` carries `builtin_commands`, `bundled_skills`, and
+  `plugin_backed`, each with its own status, problems, and advisories; the top-level status is the
+  worst lane, and top-level `broken` means every lane is broken or the binary is unreadable, so one
+  broken lane is a named `degraded` rather than a run with no counts. `plugin_backed` gains a canary
+  (`security-review`). Exit mappings are unchanged in both `inventory.py --self-check` (which now
+  prints each lane) and `overlap.py detect`.
+- **`overlap.py detect` reads the lanes.** The candidate report carries per-lane floors (a lane's
+  counts are totals only when the lane is ok and no run-wide advisory such as an unvalidated CLI
+  version stands; a lane-attributed advisory degrades only its own lane), and every
+  candidate carries `re_derivable`: false when the lane its seeded or observed class maps to is
+  broken (both directions on a class collision), null for session-provided and marketplace classes,
+  which have no lane. A name collision lists every registration with its invocation mode. An
+  inventory without `lanes` keeps the previous reading.
+- **`overlap.py self-check` flags a presence-gated native mention without the gate token.** A
+  description that names a native surface by class and kind inside a `when`, `where`, or `if`
+  clause with an availability word, and carries no gate token in that clause, is an advisory (exit
+  3) naming the row to add or the token to use. Judged per clause, so a gated marketplace clause
+  never excuses an ungated native clause beside it.
+- **`--upstream-sha` repeats.** One value per upstream repository the store cites; a recorded
+  commit matches when any provided value matches it.
+- **Seeded pairs** gain `doctor` and `skill-doctor` against `claude-ops:audit-skill-visibility`.
+
+### Changed
+
+- `VALIDATED_AGAINST` is `2.1.263`, validated on the Linux ELF build in a container; the PE
+  container path is covered by a byte-layout fixture, not a Windows run.
+- The audit-native-overlap description is under the 1,024-character Skills API cap: the same
+  claims and every trigger phrase, in fewer words.
+- The inventory skill's integrity table, the audit-native-overlap detection posture, and
+  `reference/extraction.md` describe the lanes, the region rule, the locality rule, and the
+  collision list; the inventory eval for degraded counts names dynamic rosters and lane statuses.
+
+## [0.53.0]
+
+### Added
+
+- **`audit-skill-visibility` Markdown names what it counts and points at the fix.** The
+  Reachability section tables misconfigured skills with their cause and states each cause's
+  remedy once; the Listing budget section, whenever a row overflows, tables the ten longest
+  competing descriptions ranked by source length beside the capped charge the listing counts,
+  labelled as length and never as a starvation ranking, so it renders the same in an unscored
+  run; and a closing Next actions section names only the fixes the run's findings support,
+  pointing at the budget control the run's provenance says is effective (the env override, a
+  managed-policy file, or the settings file that set the fraction) rather than always at the
+  fraction. Every table caps at ten rows and counts the rest. JSON schema 1.2.0, additive:
+  each listing row carries `description_chars`, the uncapped source length, beside the capped
+  `demand_chars`.
+
+## [0.52.0]
+
+### Added
+
+- **audit-performance: `fan_out.hooks.by_matcher`, one row per (event, matcher) carrying row
+  count, distinct command count, if-gated row count, and sources.** A bucket count cannot tell
+  many unconditional handlers from one dispatcher replicated once per extension behind an `if`
+  gate, and those two fleets cost very differently per tool call. `per_tool_call` keeps `count`
+  as the registered-row ceiling and gains `if_gated_rows` and `distinct_commands` beside it, so
+  the ceiling and its composition are both readable without inferring either.
+- **audit-performance: `fan_out.hooks.projection`, what one tool call actually spawns.** A row
+  per (event, tool, file kind) over a fixed baseline file-kind set (`.md`, `.py`, `.sh`, `.ts`,
+  `.json`, `other`) plus every extension a classified `if` gate names, reported as
+  `discovered_file_kinds`, for `Write`, `Edit`, and `NotebookEdit`, plus a tool-only row for
+  `Bash`, each carrying `fires`, `distinct_commands`, and `fire_always_unclassified`. Matcher
+  evaluation follows the documented character-class rule (`*`, empty, or absent matches all; a
+  matcher of letters, digits, `_`, `-`, spaces, `,`, and `|` is an exact name or alternation
+  list; anything else is an unanchored regex, so `Edit.*` also selects `NotebookEdit`), with the
+  report stating that Python's `re.search` stands in for `RegExp.prototype.test`; a regex
+  Python cannot compile counts as selecting every tool and is listed in `unclassified_rows`
+  with the compile error, never as selecting nothing. The projection
+  is pure: it reads the flattened hook records and touches no filesystem and no subprocess, and
+  `spawn_cost`, `statusline`, `config_liveness`, and `concurrency_ceilings` are unchanged.
+- **audit-performance: `fan_out.hooks.unclassified_rows` and `if_on_non_tool_event`.** The
+  engine decides exactly one `if` shape, `Edit(*.<ext>)`; every other shape (`Bash(...)`,
+  `PowerShell(...)`, `Write(...)`, a directory anchor, a `**` glob, a brace list) is counted as
+  firing and listed with `{event, matcher, source, if, reason}`, so an unmodelled gate inflates
+  the projection where an operator can see it rather than hiding a spawn. An `if` on any
+  non-tool event is reported separately and counted as NEVER firing, which is what the docs say
+  it does. `fan_out.hooks.notes` states the two limits the projection cannot model, an `if`
+  matching only under its anchor and cross-settings-file dedup, alongside the standing note that
+  parallel hook cost is never a sum.
+- **audit-performance: the reference doc carries the matcher rule and a four-part drift record**
+  for the premise that an `Edit(*.<ext>)` gate covers `Write`, `Edit`, and `NotebookEdit`,
+  assembled from the hooks reference, the permissions reference, CHANGELOG 2.1.176, and this
+  repository's own hook-budget convention, with the recheck trigger that would retire the
+  assembly.
+
+### Changed
+
+- **audit-performance: `PER_TOOL_CALL_EVENTS` widens to the five events that accept `if`.**
+  `PostToolUseFailure`, `PermissionRequest`, and `PermissionDenied` join `PreToolUse` and
+  `PostToolUse`, because those five are exactly the events on which a tool call is what fires a
+  hook. Handlers on the three added events previously landed in `other` and were invisible as
+  per-tool-call cost. **`fan_out.hooks.per_tool_call.count` therefore rises on any fleet that
+  registers handlers on them, and `other.count` falls by the same amount.** The number is not a
+  regression and the fleet did not change; the earlier count was short.
+
+## [0.51.0]
+
+### Fixed
+
+- **`audit-skill-visibility` derives the listing budget from the effective settings and a
+  model band instead of hardcoded defaults.** The report read `skillListingBudgetFraction`
+  and `skillListingMaxDescChars` from nowhere and assumed a 200k window at 4 bytes per token,
+  so a repository that tunes the fraction saw an overflow that did not exist. The script now
+  merges both keys across the user, project, local, and managed scopes (the `--settings`
+  flag scope is reported as unread, never absent), enumerates managed policy only through the
+  vendored `lib/managed-scope.sh`, honors `CLAUDE_CODE_DISABLE_1M_CONTEXT` and
+  `CLAUDE_CODE_MAX_CONTEXT_TOKENS` from the process environment, and reports a
+  window x bytes-per-token band when nothing pins the model. `--budget-fraction`,
+  `--max-desc-chars`, and `--bytes-per-token` join `--context-window`, whose silent 200k
+  default is gone. JSON schema 1.1.0, additive.
+- **`audit-skill-visibility` withholds per-skill starvation verdicts when every usage score is
+  zero.** With no observed usage the product's stable sort keeps catalog order, so "which
+  skills are starved" is a tie, not a ranking. The overflow arithmetic and the cannot-fit
+  count stay; the per-skill claim moves to the `withheld` section with its reason.
+- **`audit-skill-visibility` determines reachability in a live run.** `--installed` now reads
+  `enabledPlugins` through the same settings merge and marks a disabled plugin's skills
+  `hidden` with the scope file as evidence; `--plugins-root` says a checkout is not an install
+  instead of reporting every row `unknown`. The `skillOverrides` path is removed: plugin
+  skills are governed by `enabledPlugins`, and `skillOverrides` never applies to them, so the
+  description no longer names it as a way a plugin skill loses visibility.
+
+- **`audit-skill-visibility` honors `defaultEnabled` and keeps disabled plugins out of the listing
+  contest.** A plugin with no `enabledPlugins` entry anywhere falls back to the marketplace entry's
+  `defaultEnabled`, then the plugin's own `plugin.json` field, then enabled, with the source named as
+  evidence. A disabled plugin's skills are `exempt-hidden`: the product never loads them, so they
+  spend no budget and carry no starvation verdict.
+
+### Added
+
+- `lib/managed-scope.sh`, vendored from `claude-config` through `scripts/sync-managed-scope.sh`.
+
+## [0.50.0]
+
+### Added
+
+- **audit-performance: `operator_context`, the paragraph only a human at the machine can
+  supply, carried in the report instead of asked for beside it.** A repeatable `--note TEXT`
+  attaches one fact per flag (what was slow, how many terminals were open, what the session was
+  doing, what Task Manager showed) and `--note-source` declares who supplied them. A run with
+  none records `status: absent` with an empty list, because a silent gap reads like a clean bill
+  of health. The block states that the engine cannot verify the declared origin.
+- **audit-performance: the CLI probe reports WHICH `claude` it measured.** `cli` carries
+  `probe_path`, `resolved_path`, the statement that the search ran over the engine process PATH
+  rather than the operator's login shell, a `layout` of `documented-native`, `legacy-local-npm`,
+  or `unclassified`, and every `claude` found on PATH. Two findings name the ambiguity a bare
+  version claim hides: `cli-probe-project-local` when the resolved binary sits under the
+  containment base (the project directory when one is passed, else the working directory, both
+  reported) or inside a `node_modules` tree, and `cli-multiple-on-path` when more than one
+  install answers to the name. Both route to `claude doctor`, the first-party authority; the
+  engine observes and never adjudicates an install. `version`, `exe`, `seconds`, and
+  `slow_version_probe` keep their meanings.
+- **audit-performance: a second read allowlist, `PROC_TEXT_READS`, enforced in
+  `read_proc_text`.** On Linux the engine reads `/proc/<pid>/status` and `/proc/<pid>/stat`,
+  kernel-generated text with no user content, and the reader raises on any other name the way
+  `read_json` does, so SKILL.md's claim that the prose and the code cannot drift apart holds for
+  both surfaces. `cmdline` is deliberately absent.
+
+### Changed
+
+- **audit-performance: `processes.population.most_active` excludes the kernel's own threads on
+  Linux.** A row is dropped when every classified process behind its name carries `PF_KTHREAD`,
+  read from the `Kthread:` line of `/proc/<pid>/status` where the kernel publishes one and
+  otherwise from bit `0x00200000` of `/proc/<pid>/stat` field 9. Neither parent pid 2 nor an
+  empty `cmdline` is consulted: the kernel reparents user-space helpers onto kthreadd, and a
+  process can rewrite its own argument region. Classification walks the ranked rows until ten
+  non-kernel rows are kept, stops at `kernel_thread_read_cap` processes, and keeps any row it
+  leaves partially examined; the report carries `kernel_threads_excluded` and
+  `kernel_thread_reads`, and off Linux the count is null with the reason. An unclassifiable
+  process counts as user-space, so the failure mode is an investigable false alarm rather than a
+  hidden user-space leak.
+- **audit-performance: a name absent from the first population sample reads `appeared`, not
+  `accumulating`.** The accumulation verdict now requires a non-empty first sample, so one
+  arrival of a name nothing was running seconds earlier stops being written up as a leak.
+- **audit-performance: `orphan_attribution.candidate_names` carries a platform note.** The set
+  is unchanged and stays platform-agnostic: executable-suffixed names are inert on POSIX process
+  tables and are retained for WSL interop processes, which is the hybrid host the orphan probe
+  exists for.
+- **`known-performance-issues.md` gains the kernel-thread identification mechanism** with its
+  four-part drift record, and a gotcha on the probed binary not being the operator's daily
+  `claude`.
+
+## [0.49.0]
+
+### Added
+
+- **audit-install-state: a cloud-session tree is labelled, never graded as the operator's
+  machine.** The report opens with an `environment` block: `tree_verdict` (`remote` / `local` /
+  `indeterminate`) rests on tree signals (`launcher-settings.json`, `environment-manager/`,
+  `plugins/synced/`, root-level hook scripts as corroboration), while the documented
+  `CLAUDE_CODE_REMOTE` variable is reported as session context because `--root` can point at any
+  tree. Label only; no staleness verdict depends on it. Report schema is `claude-install-state/2`
+  and the evidence vocabulary gains `documented` and `observed-undocumented` as closed values.
+- **audit-install-state: the JSON answers "why is my install so big".** `largest_subtrees`
+  ranks directories by measured bytes under every rolled-up entry, collapsing pass-through
+  prefixes, and `node_modules` sums the bytes the product installed into the plugin cache with the
+  upstream basis in its `why`. The header records `engine_version` and the exact `invocation`.
+- **audit-install-state: `.in_use/<pid>` markers are a PID scheme.** One row per PID with a count
+  and a bounded path list replaces one row per marker; a PID that is the auditing process or an
+  ancestor is marked `self_held`. The ancestry walk reads `/proc` on Linux, one `ps` listing on
+  macOS and other POSIX hosts, and one Win32_Process listing on Windows; `self_pids_walk` names
+  which, and `parent-only` says the launching session was not seen. The unknown-name sample groups
+  by shape with a per-directory histogram, so one repeated schema file cannot fill it.
+- **audit-install-state: only the cache's version directories count as product-installed
+  `node_modules`.** A `node_modules` under a marketplace checkout or a plugin data directory is
+  measured in `elsewhere_under_plugins` and attributed to nobody. A sentinel's `content_read` is
+  true only when its bytes were actually opened, never for an absent file.
+
+### Changed
+
+- **audit-install-state: entries name what the engine read by content.** `content_read` and
+  `content_read_paths` sit on the entry rows for `settings.json`, `.last-cleanup` and
+  `plugins/.last_inuse_sweep`; surfaces are unchanged. The two sentinels are reported under
+  `sentinels` as `observed-undocumented`, and the skill body and `reference/surfaces.md` no longer
+  call `.last-cleanup` the sweep's watermark as documented fact.
+- **audit-install-state: SKILL.md gains Phase 0 (whose tree is this) and a `## Next` section, and
+  drops under the skill-quality soft line cap** by pointing at the reference files for detail the
+  hub duplicated.
+
+## [0.48.2]
+
+### Changed
+
+- **Options reference drops its em dashes.** The generated How-to-set-these block is rewritten by `scripts/sync-plugin-options-docs.py`, which is the fix site: its output is regenerated, never hand-edited. The block no longer needs the ignore marker that exempted it from the repository's em-dash gate, so that marker is gone as well.
+
+- **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and
+  defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's
+  em-dash gate reads.
+- **Every markdown surface in the plugin passes `/ai-slop:audit`.** Em dashes in the plugin's own
+  prose (the README, this changelog, every skill body, and the contexts and references under
+  `plugins`, `observability`, `lanes`, `known-issues`, `changelog`, `inventory`,
+  `audit-install-state`, and `audit-skill-visibility`) are rewritten as a comma, a period, a colon
+  where a definition or list follows, or a restructured sentence. No command, flag, exit code,
+  scope rule, or telemetry field changed.
+- **The sync report template is rewritten at both of its homes, and they match again.** The
+  canonical fenced block lives in `skills/plugins/SKILL.md` and a verbatim copy lives in
+  `skills/plugins/context/sync.md`. The detector strips fenced blocks from prose scanning, so a
+  report template can emit an em dash while its file reports zero findings; rewriting one copy
+  alone would have left the pair mismatched. Both now use the colon form, along with the
+  `observability` report templates in `context/output-format.md` and the four emitted warning
+  strings in `context/data-sources.md`.
+- **A released entry's quotation of an emitted string follows it.** `[0.38.1]` quotes the `In-repo:`
+  row's `skipped` state verbatim, so it now reads `skipped: no project context resolved`, matching
+  what the skill emits.
+- **Reflexive `load-bearing` and `seam` become the concrete word each stood for**, and two table
+  cells whose whole value was a bare em dash, meaning "no note", render `n/a`.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`,** so the gate defends
+  it from here on.
+- **Changelog, in-place wording corrections to released entries:** the same rewrite was applied
+  inside
+  `[0.42.13]`, `[0.42.9]`, `[0.42.7]`, `[0.42.5]`, `[0.42.2]`, `[0.41.0]`, `[0.38.21]`,
+  `[0.38.10]`, `[0.38.1]`, `[0.38.0]`, `[0.37.1]`, `[0.37.0]`, `[0.36.0]`, `[0.35.4]`, `[0.35.2]`,
+  `[0.35.1]`, `[0.35.0]`, `[0.34.0]`, `[0.33.2]`, `[0.33.1]`, `[0.33.0]`, `[0.32.8]`, `[0.32.7]`,
+  `[0.32.6]`, `[0.32.5]`, `[0.32.3]`, `[0.32.1]`, `[0.32.0]`, `[0.31.11]`, `[0.31.8]`, `[0.31.7]`,
+  `[0.31.1]`, `[0.31.0]`, `[0.30.0]`, `[0.29.2]`, `[0.29.1]`, `[0.29.0]`, `[0.28.5]`, `[0.28.4]`,
+  `[0.28.3]`, `[0.28.2]`, `[0.28.1]`, `[0.28.0]`, `[0.27.6]`, `[0.27.5]`, `[0.27.3]`, `[0.27.2]`,
+  `[0.27.1]`, `[0.27.0]`, `[0.26.0]`, `[0.25.1]`, `[0.25.0]`, `[0.24.4]`, `[0.24.3]`, `[0.24.2]`,
+  `[0.24.1]`, `[0.24.0]`, `[0.23.2]`, `[0.23.0]`, `[0.22.1]`, `[0.22.0]`, `[0.21.6]`, `[0.21.4]`,
+  `[0.21.2]`, `[0.21.1]`, `[0.21.0]`, `[0.20.0]`, `[0.19.3]`, `[0.19.1]`, `[0.19.0]`, `[0.18.3]`,
+  `[0.18.2]`, `[0.18.1]`, `[0.17.3]`, `[0.17.2]`, `[0.17.0]`, `[0.16.0]`, `[0.15.4]`, `[0.15.3]`,
+  `[0.15.1]`, `[0.15.0]`, `[0.14.0]`, `[0.13.1]`, `[0.11.0]`, and `[0.9.0]`. Wording only; every
+  entry's facts are unchanged.
+- **`audit-native-overlap` renders `docs/NATIVE-SURFACES.md` without em dashes.** The generated
+  view is gated by a sync check, so its em dashes could only be fixed at the source. In
+  `scripts/overlap.py` the header prose, the verdict and observation lines, and the budget-caveat
+  sentence take a colon or a period, and the empty-tally placeholder renders `none` rather than a
+  bare dash. The reason, detail, and recheck-trigger strings in `docs/native-surfaces/records.json`
+  are reworded the same way. Every verdict, hedge, date, version string, integrity hash, and
+  surface name is unchanged; only punctuation and the wording a clean rewrite needed moved.
+- **Changelog, in-place correction to the released `## [0.42.5]` entry:** its `--from` bullet
+  drops the filler phrase `in order to` (`to recompute a block the caller was already holding`).
+  Wording only; the entry's facts are unchanged. Found by the repo-wide `/ai-slop:audit` run
+  (#3987).
+
 ## [0.48.1]
 
 ### Changed
@@ -667,7 +972,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 - **The compare reads the plugin's source path from the RECORDED commit, not from the marketplace
   clone's current checkout.** A plugin directory renamed or moved after the recorded commit was
   otherwise looked up under its present-day path against an older tree, and `git ls-tree` treats a
-  pathspec that matches nothing as success with empty output rather than an error — so every file in
+  pathspec that matches nothing as success with empty output rather than an error, so every file in
   a perfectly healthy cache became an extra and the install reported `stale-content`. The manifest is
   now read with `git show <sha>:.claude-plugin/marketplace.json`, with no fallback to the checkout,
   so the source path and the expected tree describe the same revision. A pathspec that still matches
@@ -677,7 +982,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 - **Pathnames travel NUL-separated end to end.** `ls-tree -z`, `find -print0` and `check-ignore -z`
   replace their line-oriented forms. Without `-z`, git quotes and escapes any pathname carrying
   non-ASCII, a tab, a newline or a backslash, and the compare then read that quoted spelling and the
-  raw path as two different files — an unchanged accented filename was reported as both
+  raw path as two different files. An unchanged accented filename was reported as both
   missing-from-cache and extra-in-cache. `git hash-object --stdin-paths` has no `-z` switch, so a
   cache path containing a newline, and only that character, is hashed by its own process instead.
 - **Tracked symlinks are compared mode-aware instead of reported missing.** A symlink is an ordinary
@@ -775,7 +1080,8 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 - **known-issues:** the GitHub search step takes whatever authentication the consumer already has,
   and the maintainer to-do list of unintegrated sources is dropped.
 - **lanes:** every tracker reference is out of the body, the description, and the reference files;
-  the prompt-storage contract is stated in the present tense with `prompt_dir` as its seam; and the
+  the prompt-storage contract is stated in the present tense with `prompt_dir` as its extension
+  point; and the
   telemetry-upsert summary points at the script's `--help` header instead of copying it.
 - **morning-brief:** the stranded-findings rationale drops its tracker reference.
 - **observability:** the compute/privacy/render step names its three references, the Collector
@@ -805,7 +1111,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 - **Re-verified the `plugins` skill's empirical claims against Claude Code 2.1.261 and
   updated the stamps to match what was actually re-run.** Confirmed unchanged on 2.1.261:
   `update -s project` still writes no committed settings file, re-proved against a real
-  version bump rather than a no-op — a throwaway local marketplace served `probe-plugin`
+  version bump rather than a no-op. A throwaway local marketplace served `probe-plugin`
   at `0.1.0`, a project-scope install dirtied the scratch repo's committed
   `.claude/settings.json`, that file was reverted to clean, and the update then advanced
   the `installed_plugins.json` record to `0.1.1` (new `lastUpdated` and `installPath`)
@@ -931,7 +1237,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   each mutating step, and every selector is derivable from it, so the separate
   live `--ids` process was paying a second process to re-parse
   `installed_plugins.json`, re-walk the catalog manifests, and re-run `realpath`
-  in order to recompute a block the caller was already holding. `--from` reads no
+  to recompute a block the caller was already holding. `--from` reads no
   Claude Code state file at all and runs the SAME jq projection the live mode
   runs, so the CR-free, TAB-separated output contract is unchanged, which is the
   reason the selector exists instead of a hand-written `jq` at each call site.
@@ -946,7 +1252,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   projection program consumes (only `update-candidates-user` reads
   `catalog_versions`), and a missing or wrong-typed one is exit 2 naming the file
   and the field, because `{"marketplace":{"name":"m"},"installed":[]}` otherwise
-  evaluated the absent array with `[]?`, emitted nothing, and exited 0 — a
+  evaluated the absent array with `[]?`, emitted nothing, and exited 0. A
   silently-empty id list read as "nothing to do". A field that is present but
   empty still exits 0 with empty output, so the exit status is a usable
   discriminator. `--marketplace` under `--from` is an optional consistency check,
@@ -1068,8 +1374,8 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 
 - **Vendored `hook-utils.sh` drops two `buffer_stdin` startup subshells and a
   `tr` exec on every `repo_root`.** Timeout and slice resolution write into
-  caller variables (`printf -v`) instead of `$( )` / process substitution —
-  GNU Bash forks a subshell for both even when the body is builtins only.
+  caller variables (`printf -v`) instead of `$( )` / process substitution,
+  because GNU Bash forks a subshell for both even when the body is builtins only.
   `hook::repo_root` strips CR with parameter expansion, the same substitution
   `buffer_stdin` already uses for the payload. New `hook::json_str_object_to`
   builds compact string-field objects without jq, for telemetry data builders
@@ -1377,7 +1683,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   marketplace"): a baked description phrase for that class carries it, and the
   reverse-parity scan now keys on both tokens per class, so suggest-install
   routing lines stay traceable to store rows exactly as native gates do.
-- **`self-check --upstream-sha` advisory seam**, mirroring `--cli-version`:
+- **`self-check --upstream-sha` advisory check**, mirroring `--cli-version`:
   upstream-source rows' recorded commits are compared against the given SHA
   (prefix match in either direction), and without the flag the comparison is
   reported as not locally decidable. A malformed value (anything but an 8-40
@@ -1541,7 +1847,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   Adversarial payload probes byte-identical across all paths; suite 88/88.
   (An analogous jq_fields consolidation in the two skill-usage hooks was
   attempted, refuted by differential testing on pathological payloads, and
-  reverted — recorded in the sweep report rather than shipped.)
+  reverted, recorded in the sweep report rather than shipped.)
 - **restart-consumer.sh declares five formerly implicit globals `local` to
   `process_lane`** (no post-return reader exists; full caller-graph and trap
   audit) and drops two `${lock_rc:-0}` defaults dominated by an unconditional
@@ -1655,7 +1961,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 
 ### Changed
 
-- **`audit-install-state` surfaces table caught up to the current `claude-directory` docs** (verified 2026-08-26): adds the swept `uploads/<session>/`, `feedback/drafts/` (shorter-of-two-windows retention), and `usage-data/` rows, and splits `image-cache/` from `paste-cache/` to record its distinct all-other-sessions sweep rule — load-bearing for the skill's `age-exceeds-window` reasoning.
+- **`audit-install-state` surfaces table caught up to the current `claude-directory` docs** (verified 2026-08-26): adds the swept `uploads/<session>/`, `feedback/drafts/` (shorter-of-two-windows retention), and `usage-data/` rows, and splits `image-cache/` from `paste-cache/` to record its distinct all-other-sessions sweep rule, which the skill's `age-exceeds-window` reasoning depends on.
 - **`observability` read-routing retention summary became a pointer** at `operator-setup-retention.md#retention-knobs` instead of a duplicated defaults table. From the repo-wide derivability/point-dont-copy audit (PR #3387).
 
 ## [0.38.9]
@@ -1779,7 +2085,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   `normalize-enabled-plugins.sh` against the user-scope file only: a strict key reorder (values
   byte-identical), reported on the new `Normalized:` row, and refused loudly on permission
   denial, unreadable JSON, or a semantic diff. Project-scope maps are inspected and reported,
-  never rewritten — `converge` remains the only action that may touch committed settings.
+  never rewritten. `converge` remains the only action that may touch committed settings.
   The semantic-diff guard uses `jq -e` so a false comparison actually aborts; the write
   is a sibling tempfile + `mv` so a crash cannot truncate settings; compact and CRLF
   inputs keep that shape instead of being pretty-printed to two-space JSON.
@@ -1824,7 +2130,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   process sample taken seconds after the first separates accumulation from churn, which look
   identical in one sample and mean opposite things.
 - **`audit-performance` process collection now carries pid, parent pid, and start time.**
-  `tasklist` supplies none of the last two and they are load-bearing for three of the new probes,
+  `tasklist` supplies none of the last two and three of the new probes depend on them,
   so the Windows collector reads the toolhelp snapshot and process times through `ctypes` and the
   POSIX collector reads `ps` elapsed time. Standard library only, as before.
 - **`audit-performance`'s content-read allowlist widens to four non-secret config files** and is
@@ -1891,20 +2197,20 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 ### Changed
 
 - **`known-issues`: cross-references follow the `bug-report` → `bugs` plugin rename.** The
-  composition section and evals now name `/bugs:write` and "the `bugs` plugin". Wording only —
+  composition section and evals now name `/bugs:write` and "the `bugs` plugin". Wording only,
   no behavior change.
 
 ## [0.37.0]
 
 ### Added
 
-- **`audit-native-overlap` — a twelfth skill that maps native Claude Code surfaces against this
+- **`audit-native-overlap`: a twelfth skill that maps native Claude Code surfaces against this
   repository's own components.** Claude Code's surface moves every week, and a skill written when
   no bundled equivalent existed can wake up duplicating one with nothing in the product saying so:
   plugin skills are namespaced, so a native surface never shadows ours and the collision is silent.
   The model then picks between two overlapping capabilities from descriptions alone.
 
-  Bare invocation is a read-only report per the `audit` verb contract — overlap candidates with
+  Bare invocation is a read-only report per the `audit` verb contract: overlap candidates with
   evidence, the detection integrity floors carried through, and a shared-listing-budget exposure
   section composed from `skill-quality` when that plugin is installed. Mutation sits behind an
   explicit apply step and never runs on bare invocation.
@@ -1912,22 +2218,22 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   Detection names its two substrates rather than blurring them: the native side is the sibling
   `inventory` extractor's JSON, consumed with a `schema == 1` assertion and a presence check on
   every key read (`builtin_commands`, `bundled_skills`, `plugin_backed`, `integrity`), because the
-  extractor's integrity block guards extraction drift and not its own key names — a missing key is
+  extractor's integrity block guards extraction drift and not its own key names. A missing key is
   reported as broken rather than read as an empty surface. The target side is the skill's own scan
   of the audited repository's plugin tree, since the extractor scans installed trees, which are not
   necessarily the repo in front of you.
 
   Verdicts come from a five-value enum (`prefer-native`, `prefer-ours`, `complementary`,
   `superseded`, `defer`) with no blanket preference rule, and every one of them is a human's: a run
-  recommends and reports, never records. Session-provided (cloud) surfaces stay observation-only —
-  one environment's roster on one day is not a basis for a routing line shipped to consumers.
+  recommends and reports, never records. Session-provided (cloud) surfaces stay observation-only.
+  One environment's roster on one day is not a basis for a routing line shipped to consumers.
 
   Ships `overlap.py` (Python 3.11+, stdlib only) with `detect`, `generate`, and `self-check`
   subcommands on a 0 ok / 1 broken / 3 degraded exit contract, matching the sibling extractor rather
   than the repo's shell gates, plus a 38-case `unittest` suite and its wrapper. The self-check's
   scope is what is locally decidable: store schema and row well-formedness, per-row recheck-trigger
   presence including a bare-date rejection, store-to-view drift, and direction-sensitive baked-line
-  parity — every baked line traces to a store row, while a row without a baked line is legal
+  parity: every baked line traces to a store row, while a row without a baked line is legal
   pending-sweep state. Whether an upstream event actually *fired* is a session act, not a gate's.
 
 - **A presence-gated `doctor` reference on `audit-install-state`.** Its description gains one clause
@@ -1966,9 +2272,9 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
   from 66 `claude plugin update` calls to **0**.
 
   **The selector fails open by construction, and that is the dominant path, not an edge case.** An
-  id whose catalog version cannot be read — an object-valued `source`, an unmaterialized plugin
-  directory, a manifest with no `version`, unparsable JSON — is emitted as a candidate, exactly as
-  if no pre-filter existed. Measured across the nine marketplaces registered on the authoring
+  id whose catalog version cannot be read is emitted as a candidate, exactly as if no pre-filter
+  existed. That covers an object-valued `source`, an unmaterialized plugin directory, a manifest
+  with no `version`, and unparsable JSON. Measured across the nine marketplaces registered on the authoring
   machine: the version resolves for **every** entry of five (`melodic-software` 70/70, plus four
   single-plugin marketplaces), **partially** for two (`claude-plugins-official` 13/53,
   `dotnet-agent-skills` 1/15), and for **none** of two (`anthropic-agent-skills` 0/5, `caveman`
@@ -1978,7 +2284,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 
   **The manifest it reads must sit inside the marketplace checkout, and that is enforced
   physically.** A catalog entry's `source` is third-party content, and the only unsafe direction
-  this pre-filter has is *withholding* an update — a foreign manifest that happens to carry the
+  this pre-filter has is *withholding* an update. A foreign manifest that happens to carry the
   installed version string would suppress a real update. A lexical `../` refusal is not sufficient,
   because a symlink inside the checkout pointing outside it is reached by an ordinary `./name`
   source that no string inspection can see. So the resolved manifest path is required to sit under
@@ -1986,16 +2292,16 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
   symlink escape (created with `MSYS=winsymlinks:nativestrict` so Git Bash emits a link rather than
   silently deep-copying, and skipped where the platform yields no real symlink) is refused, while an
   in-checkout directory of the same shape still resolves.
-- **`project_root`** (top level) — the resolved project root, or `null`. Closes the F1 silent no-op:
+- **`project_root`** (top level): the resolved project root, or `null`. Closes the F1 silent no-op:
   `currentProject` is a tri-state whose `null` collapses "no project context resolved at all"
   together with "this is a user-scope record", so a run from `$HOME` and a run inside a repo with
   no in-repo installs produced an identical downstream signal and an identical report.
-- **`user_scope_orphans`** (top level) plus an `--ids user-scope-orphans` selector — ids holding a
+- **`user_scope_orphans`** (top level) plus an `--ids user-scope-orphans` selector: ids holding a
   project/local record and no user-scope record. Structurally invisible before: `divergences[]`
   discards any id with fewer than two records, and `missing_from_user_install` excludes ids that
   are installed somewhere, so nothing in the output named them.
 - **`projectPathPresent`** on every project/local `installed[]` record and every
-  `divergences[].scopes[]` entry — advisory only, never a filter.
+  `divergences[].scopes[]` entry. Advisory only, never a filter.
 - Five eval cases covering the silent-failure paths the suite never reached (skipped in-repo step,
   `sync all` marketplace coverage, absent-`projectPath` handling, pre-filter fail-open, and the
   version-capture divergence branch).
@@ -2003,14 +2309,14 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 ### Fixed
 
 - **Step 2 no longer skips silently.** It now branches on `project_root` and the report carries a
-  fixed `In-repo:` row in all three states, including `skipped — no project context resolved`.
+  fixed `In-repo:` row in all three states, including `skipped: no project context resolved`.
 - **`sync all` no longer sweeps one marketplace while reporting as though it covered every one.**
   Steps 2–5 are the per-marketplace loop body and every `--ids` call carries `--marketplace`.
 - **Divergences are no longer routed to a `converge` command that cannot run.** Records whose
   `projectPath` is not present get their own report section, outside the actionable Divergences
   count, and `converge` emits them as *blocked* rather than as runnable commands.
 - **`pluginConfigs` scope claim corrected.** It is read from user settings, `--settings`, and
-  managed settings only — project and local entries are ignored (since v2.1.207) — while
+  managed settings only, ignoring project and local entries (since v2.1.207), while
   `enabledPlugins`, read by this same skill, still honors them. The old text said "some
   `pluginConfigs` scope", which invited setting `install_new` in a repo where it does nothing.
 - **`/reload-plugins --force` guidance restated as the docs' two-step.** The trigger is prompt-cache
@@ -2025,7 +2331,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 - **`install_new: all` recurrence** and **unset-`userConfig` install notices** now have report slots
   instead of living only in prose.
 - **`setup`: the headless `--config` route no longer prescribes an uninstall/reinstall cycle.**
-  Rerunning the install writes the option against an already-installed plugin — it prints
+  Rerunning the install writes the option against an already-installed plugin. It prints
   `already installed` and still writes the value (verified on Claude Code 2.1.240, for a
   non-sensitive option at `user` scope; a `sensitive` option and `project`/`local` scope were not
   covered, and the wording says so). The old cycle was unnecessary and actively destructive:
@@ -2034,7 +2340,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
   `*_audit_enabled` toggles as seven rather than eight).
 
   It also separates the two claims a reader conflates: the **write** lands, but the **running
-  session's** behavior does not change — `${user_config.*}` is injected at skill load and each
+  session's** behavior does not change. `${user_config.*}` is injected at skill load and each
   hook's `CLAUDE_PLUGIN_OPTION_*` comes from an environment fixed at session start, so a
   same-session `check` still reports the OLD value and reading that as a failed write is wrong.
   Verify in a fresh session.
@@ -2053,14 +2359,14 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
   `${user_config.*}` substitution, and `sync` updating its own plugin mid-run.
 - `SKILL.md`'s "index, not a substitute" rule now names its two deliberate exceptions and why they
   must live in the hub.
-- Version capture now instructs retaining the pre-sweep snapshot for the whole run — it is the sole
+- Version capture now instructs retaining the pre-sweep snapshot for the whole run. It is the sole
   source of every `<old>`.
 
 ### Deferred (audit findings deliberately not closed in this release)
 
 - **`--run-log` written by `fleet-state.sh`** (audit remediation 19, F12's most ambitious tier).
   The script's own header advertises it as read-only, and the auditor's correction notes the
-  tension. F12's cheapest tier — retain the pre-sweep snapshot — is implemented instead. A durable
+  tension. F12's cheapest tier, retaining the pre-sweep snapshot, is implemented instead. A durable
   log, if wanted, belongs in a sibling script that owns it rather than in the read-only inspector.
 - **A fourth `install_new` value with declined-install memory** (remediation 20, F9's durable fix).
   Needs persistent state the skill does not have today; the recurrence clause narrates the surprise
@@ -2070,10 +2376,10 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
   regression. The finding is cosmetic (the skill sets `disable-model-invocation: true`, so the
   phrases only serve as `/`-menu help) and is not worth fighting a validator for.
 - **A `--selfcheck` that reports whether the rendered `install_new` value is the literal placeholder
-  token** (F8's most ambitious tier). F8 graded the *record*, not the claim — the defect was a stamp
+  token** (F8's most ambitious tier). F8 graded the *record*, not the claim. The defect was a stamp
   with no recheck trigger, and that is fixed. Turning the prose stamp into a runtime observation is
   a separate enhancement.
-- **An upstream issue for the absent record-reaping verb** (remediation 21) — not a change to this
+- **An upstream issue for the absent record-reaping verb** (remediation 21), not a change to this
   repository.
 
 ## [0.35.4]
@@ -2088,7 +2394,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
   repointed at the headings that hold the content. Emitted by
   `scripts/sync-plugin-options-docs.py`, which regenerates every plugin README from one
   template, so this plugin's README moves with the fleet. This plugin's `setup` skill is NOT
-  touched here — the same correction lands there separately.
+  touched here. The same correction lands there separately.
 
 ## [0.35.3]
 
@@ -2119,8 +2425,8 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
   called `fetch_repo_label_names` (and `label_exists_in_repo`) while both definitions still sat
   further down the file, so at that point in execution the call died with `command not found` and
   the probe silently never short-circuited. Both definitions now sit immediately after the `jq`
-  presence check, ahead of their first caller, with a comment saying why the order is
-  load-bearing. This is a pre-existing bug — it reproduces unchanged at `origin/main` — surfaced
+  presence check, ahead of their first caller, with a comment saying why the order
+  matters. This is a pre-existing bug, reproducing unchanged at `origin/main`, surfaced
   by the new eval suite's sibling test run: `morning-brief.test.sh` went from 2 failing cases
   (`[41] missing decision label degrades gracefully`, `[43] empty label inventory degrades
   decision section`) to all 83 passing.
@@ -2130,7 +2436,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 
 ### Added
 
-- **`morning-brief`: its first eval suite (#3002).** Seven cases pinning the shipped contract —
+- **`morning-brief`: its first eval suite (#3002).** Seven cases pinning the shipped contract:
   run-the-script-and-print-verbatim, the read-only refusal, repo resolved from `gh repo view`
   rather than hardcoded, per-section degradation when no telemetry issue or queue labels exist,
   merge-readiness authority routing to `/source-control:babysit-prs`, local telemetry routing to
@@ -2146,7 +2452,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
   formula.** `write_csv` passed `relpath`, `surface`, `number_meaning`, `liveness`,
   `liveness_reason`, and `evidence` straight through `csv.writer`, and every one of those is derived
   from walking the install tree. A plugin, project, or worktree directory under `~/.claude` may be
-  named anything — including `=HYPERLINK("http://x","click")` — and a spreadsheet evaluates a cell
+  named anything, including `=HYPERLINK("http://x","click")`, and a spreadsheet evaluates a cell
   opening with `=`, `+`, `-`, or `@` as a formula. The skill's whole reason for emitting this file
   is that it is the artifact where "every file" literally exists and is read row by row, so it lands
   in a spreadsheet by design. A new `csv_safe` prefixes such a cell with a single quote, which
@@ -2167,7 +2473,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 
 - **`audit-skill-visibility` gains a pair co-occurrence reading (closes #3048).**
   `scripts/skill-pair-cooccurrence.sh` answers a question the visibility audit does not: not *can*
-  the model see a skill, but does one skill's run actually coincide with another's — the case being
+  the model see a skill, but does one skill's run actually coincide with another's, the case being
   "skill X's instructions tell the model to invoke skill Y; does that happen?"
 
   **Placement is a correction to the filing.** The item proposed `observability` as the natural
@@ -2176,24 +2482,24 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
   routing table was right and the guess was wrong.
 
   **It is a proxy and refuses to be read as more.** The `SkillUse` record carries no caller
-  attribution — a PostToolUse hook on the Skill tool receives `tool_name`, `tool_input`, and
+  attribution. A PostToolUse hook on the Skill tool receives `tool_name`, `tool_input`, and
   `tool_response`, and nothing in that payload names the skill whose instructions caused the call.
   So the script observes only that both skills fired in the same `(project_id, branch)` group,
   ordered by timestamp; a callee the user typed by hand counts identically to one the caller
   produced. There is no session id either, so that group key merges two sessions on one branch and
-  splits one session across a branch switch. The caveat is printed in **both** renderers — prose
-  and `--json` — because a machine consumer stripping it is the same defect as a human not seeing
+  splits one session across a branch switch. The caveat is printed in **both** renderers, prose
+  and `--json`, because a machine consumer stripping it is the same defect as a human not seeing
   it.
 
   It inherits this skill's refusal rather than routing around it: below the 30-day exposure floor
   (the same constant `audit_skill_visibility.py` uses) or below a minimum denominator, it returns
   `WITHHELD` with a reason instead of a small number. **The trap it exists to refuse is the empty
-  denominator** — if the caller never ran, "0% of its sessions also used the callee" is a claim
+  denominator.** If the caller never ran, "0% of its sessions also used the callee" is a claim
   about a population that was never observed, not a rate of zero.
 
   33 regression cases. The guards were checked by removing them and confirming the relevant cases
   fail: dropping the empty-denominator branch and neutering the span-floor comparison each turn
-  green red. One case caught a real defect in the first draft — the header promised malformed rows
+  green red. One case caught a real defect in the first draft: the header promised malformed rows
   cost only themselves while `jq -s` failed the whole file on the first bad line; the read is now
   `jq -Rn` with `fromjson?`.
 
@@ -2205,16 +2511,16 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
   from `~/.claude/plugins/installed_plugins.json` rather than from a directory that happens to sit
   under the current working directory. `--plugins-root` measures a checkout; `--installed` measures
   the install. Measured here the two differ and both are right: the repo held 221 skills, the
-  installed fleet 216 — three plugins present in the checkout were never installed.
+  installed fleet 216. Three plugins present in the checkout were never installed.
 
-  **The manifest lists one entry per install SCOPE, not per plugin**, and that distinction is
-  load-bearing rather than cosmetic. On this machine 67 plugins carried 134 entries — a `project`
+  **The manifest lists one entry per install SCOPE, not per plugin**, and that distinction
+  changes the count rather than being cosmetic. On this machine 67 plugins carried 134 entries: a `project`
   and a `user` install of the same marketplace, bound to the same `projectPath`. Because the fleet
   is the denominator the listing budget is measured against, counting entries would have roughly
   doubled the reported overflow and fabricated the headline number. Resolution keys by plugin
   identity, and the report prints both counts so the collapse is auditable instead of trusted.
 
-  **Multi-scope installs resolve by the documented precedence `local > project > user`** — the
+  **Multi-scope installs resolve by the documented precedence `local > project > user`**: the
   record that loads is the highest-precedence *applicable* one, never the newest version installed.
   The rule, including its explicit warning against the newest-version heuristic, lives in this same
   plugin's `skills/plugins/context/scope-semantics.md`. Getting it wrong is not cosmetic: 7 plugins
@@ -2227,7 +2533,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
   would inflate the fleet with skills the model can never see. The current project is taken from
   `CLAUDE_PROJECT_DIR`, falling back to the working directory.
 
-  **A directory-source marketplace loads its checkout**, not either cached `installPath` — verified
+  **A directory-source marketplace loads its checkout**, not either cached `installPath`, verified
   by a skill executing out of the marketplace directory. The plugin root for those comes from the
   catalog's declared `source`, because `plugins/<name>` is the common layout but not a rule: an entry
   may declare `.` or any other directory, and assuming the layout would silently drop its skills.
@@ -2237,13 +2543,13 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 ### Fixed
 
 - **`audit-skill-visibility`'s own docs now describe the skill that shipped.** Three strings were
-  left behind by the two late changes in 0.33.0 — the `audit-skill-starvation` → `-visibility`
+  left behind by the two late changes in 0.33.0: the `audit-skill-starvation` → `-visibility`
   rename, and the commit that added the live collection path. The *Run it* section and
   `argument-hint` documented only `--fixture`, so an operator following the documentation
-  hand-authored a JSON bundle instead of running the engine live — the path that actually answers
+  hand-authored a JSON bundle instead of running the engine live, the path that actually answers
   the question the skill exists for. The live invocation is now the primary form, with `--fixture`
   described as the reproduction path the tests use. *Run it* also now states where each live input
-  comes from, because the two resolve differently and the difference is load-bearing: usage reads
+  comes from, because the two resolve differently and the difference matters: usage reads
   this machine's `~/.claude.json` wherever you run it, but the fleet being audited defaults to
   `./plugins` **relative to the current directory**, so outside a plugins-layout checkout the bare
   command exits non-zero with `no skills found` and `--plugins-root <dir>` is required. Nothing is
@@ -2260,7 +2566,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
   whole-repo `check-shell-portability.sh --all` audit runs clean instead of reporting three hits it
   will always report. The backslashes in `'C:\temp\skills'`, `'\\server\share\skills'` and
   `'telemetry\skills'` are the input these cases normalize, not GNU `\s` classes, so the construct
-  cannot be spelled away — an exemption with a stated reason is the correct disposition. Each marker
+  cannot be spelled away. An exemption with a stated reason is the correct disposition. Each marker
   rides its own `case` arm rather than a shared comment block above them, so reordering the arms
   cannot silently detach an exemption from the site it excuses. No behavior change; the suite's
   assertions are untouched.
@@ -2269,15 +2575,15 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 
 ### Added
 
-- **`/claude-ops:audit-skill-visibility` — audit whether the model can actually SEE each installed
+- **`/claude-ops:audit-skill-visibility`: audit whether the model can actually SEE each installed
   skill.** That is the question behind "why does most of my fleet never get used?": a skill the model
   cannot see can never be chosen, so unused is very often a visibility failure rather than a
-  preference. *Visibility* is Claude Code's own term here — `skillOverrides` is documented under
-  "Override skill visibility" — and this skill audits every way a skill loses it.
+  preference. *Visibility* is Claude Code's own term here, since `skillOverrides` is documented
+  under "Override skill visibility", and this skill audits every way a skill loses it.
   Claude Code budgets the model-visible skill listing at `skillListingBudgetFraction` of the
   context window and, when it overflows, drops descriptions starting with the skills you invoke
   least. A skill at zero usage therefore loses its description, loses the keywords a request would
-  match against, and stays at zero — "unused" is partly self-causing. The skill separates **starved**
+  match against, and stays at zero. So "unused" is partly self-causing. The skill separates **starved**
   from **genuinely unwanted** from **not observable**, across three independent fields
   (`reachability`, `observation`, `starvation`) rather than one flat verdict, because those demand
   opposite actions: only `model-reachable` with no observation is a starvation candidate, `user-only`
@@ -2289,7 +2595,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
     as the first libels most of a fleet on any fresh install. Every window is clamped to a computed
     `observed_horizon`, and declined claims appear in a first-class `withheld` section with reasons.
   - **Sources are reconciled, never summed.** Native counters and `skill-usage.jsonl` record the same
-    invocation, so at a given instant the count is the max across sources — while two same-instant
+    invocation, so at a given instant the count is the max across sources, while two same-instant
     events from ONE source still count twice, because those are two real invocations.
 
   The listing-overflow figure is computed from documented settings alone (budget = fraction ×
@@ -2301,7 +2607,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 ### Changed
 
 - **`clean` can prune `skill-usage.jsonl`, opt-in and on its own window.** Inert unless
-  `--skill-usage-scope` is passed, so a run without the flag behaves exactly as before — that is the
+  `--skill-usage-scope` is passed, so a run without the flag behaves exactly as before. That is the
   rollback path. Its window is `--keep-skill-usage-days` (default 365, far longer than the 30-day
   hook-events window) because a starvation report wants long history and those rows carry skill
   names and branches only. Scope and directory arrive as **flags, never environment**: a
@@ -2326,7 +2632,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 
 ### Changed
 
-- Sync `hook-utils.sh` from `lib/` — two header-echo comments removed in
+- Sync `hook-utils.sh` from `lib/`: two header-echo comments removed in
   `hook::emit_telemetry` (comment-only; no behavior change).
 
 ## [0.32.7]
@@ -2340,7 +2646,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
   `GIT_CONFIG` at source time. `git -C <fixture>` is a readability guard, not an isolation
   guarantee: an exported **absolute** `GIT_DIR` overrides repository discovery,
   so `git config`'s default `--local` scope resolves to the caller's gitdir and
-  the fixture identity is written there instead — leaving the fixture with no
+  the fixture identity is written there instead, leaving the fixture with no
   `.git` and silently re-authoring the caller's next commit. `GIT_CONFIG` is
   cleared as a **second** leak path rather than another spelling of the first:
   it replaces the file the `git config` subcommand reads and writes, so an
@@ -2356,19 +2662,19 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
   launch-failure evidence on its own. Review found that predicate wrong: a registered shell hook
   launches successfully and still exits 126 or 127 whenever a command *inside* it is missing or not
   executable, so labelling that a launch failure hands the operator the restart-the-session remedy
-  for a defect restarting cannot touch — the exact misdiagnosis #2849 exists to fix, in a narrower
+  for a defect restarting cannot touch. That is the exact misdiagnosis #2849 exists to fix, in a narrower
   shape. Classification is now three-way:
-  - `launch failure` — the record's stderr carries an exec-failure signature (`execvpe`,
+  - `launch failure`: the record's stderr carries an exec-failure signature (`execvpe`,
     `execve(`, `exec format error`). **Signature evidence decides this regardless of exit code.**
-  - `completed non-zero exit` — no signature, and `exitCode` is not 126 or 127.
-  - `ambiguous: exit 126/127 with no exec-failure signature` — the message states plainly that both
+  - `completed non-zero exit`: no signature, and `exitCode` is not 126 or 127.
+  - `ambiguous: exit 126/127 with no exec-failure signature`: the message states plainly that both
     readings are possible and gives **both** remedies (check that the registered command exists and
     is executable, *and* read the hook's own logic for a command it could not run) rather than
     picking one.
 
   The measured corpus (175 records, 2026-08-16) is why neither signal alone is sufficient: 163
   records carry an `execvpe` signature at `exitCode` **1**, and the single `exitCode` 127 record
-  carries **no** stderr signature at all — exit code and signature are close to independent in
+  carries **no** stderr signature at all. Exit code and signature are close to independent in
   practice. The signature set still deliberately excludes `command not found`, `cannot execute`,
   and cmd.exe's `is not recognized as an internal or external command`: a successfully launched
   hook prints all three about a command it ran itself.
@@ -2385,8 +2691,8 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 ### Fixed
 
 - **Hook-failure audit tells a launch failure apart from a completed non-zero exit (#2849).** The
-  `hook-failure-audit` Stop hook emitted one unconditional sentence — "A hook that fails to launch
-  enforces nothing" — plus a restart-the-session remedy, on every record, including a hook that ran
+  `hook-failure-audit` Stop hook emitted one unconditional sentence, "A hook that fails to launch
+  enforces nothing", plus a restart-the-session remedy, on every record, including a hook that ran
   to completion and exited non-zero, the exact case #2593 was written for. Each record is now
   classified, and the diagnosis and remedy follow the classification: the launch-failure wording
   and the restart remedy are kept verbatim where they are correct and are simply not asserted about
@@ -2401,7 +2707,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
   positive launch, so a record with no `exitCode` at all is not told it launched.
 - **The harness's synthesized "no stderr" sentence is no longer attributed to the hook (#2849).**
   The empty-stderr placeholder shipped in 0.32.2 keyed on `.stderr == ""`, a shape Claude Code does
-  not emit — 0 of 175 measured records carry it, while 12 carry the literal
+  not emit: 0 of 175 measured records carry it, while 12 carry the literal
   `Failed with non-blocking status code: No stderr output`, which passed through verbatim and read
   as though the hook had emitted that sentence. Both shapes now render as
   `last stderr: (none — hook produced no stderr)`. A real stderr is still passed through unchanged;
@@ -2426,7 +2732,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 
 - **`known-issues/context/registry-schema.md` is now a pointer, not a copy.** A repo-wide
   derivability audit (#2695) spot-tested the doc: a fresh-context agent reproduced every field,
-  enum, and validation rule from `scripts/registry_manager.py` alone — and more accurately than the
+  enum, and validation rule from `scripts/registry_manager.py` alone, and more accurately than the
   restatement. The file now points at the script's `REQUIRED_FIELDS` / `VALID_CATEGORIES` /
   `VALID_STATUSES` / `validate_issue()` / `resolve_data_dir()` instead of restating them.
 
@@ -2444,9 +2750,9 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 
 ### Added
 
-- **`plugins`:** `fleet-state.sh --ids <selector>` emits the id list each `sync` step loops — one
+- **`plugins`:** `fleet-state.sh --ids <selector>` emits the id list each `sync` step loops: one
   record per line, tab-separated, first field always the fully-qualified `<name>@<marketplace>`,
-  CR-free by construction — so no caller hand-writes `jq -r … | while read` over the JSON.
+  CR-free by construction, so no caller hand-writes `jq -r … | while read` over the JSON.
   Selectors: `installed-user`, `current-project`, `missing-user-install`, `missing-enabled`.
   `current-project` carries the record's `scope` as a second field, because one plugin can hold both
   a project- and a local-scope record for the same repo and the id alone cannot pick the right `-s`
@@ -2462,7 +2768,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
   `installed[]` / `missing_*`" and loop, without supplying the extraction, so every reader wrote
   their own `jq -r`. On Windows the native `jq` writes stdout in text mode and `$(…)` strips only
   the trailing CRLF, so every id but the last reached `claude plugin update` as
-  `<name>@<marketplace>\r` and failed with `Plugin "<name>" not found` — text identical to the
+  `<name>@<marketplace>\r` and failed with `Plugin "<name>" not found`, text identical to the
   bare-name gotcha, so it misread as that. Observed live: 64/65 updates failed. Steps 2-5 now cite
   `--ids` (#2578).
 
@@ -2471,7 +2777,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 - **`plugins` gotchas: corrected the CRLF mechanism.** The CR section claimed a single-line capture
   retains the `\r`, which predicts the wrong symptom (all ids failing). Verified on jq 1.8.2 / MSYS
   bash 5.3.9: `$(…)` strips the trailing `\r\n` as a unit, so a single-line capture is clean and
-  only multi-line output keeps a CR on every line **but the last** — the all-but-last signature that
+  only multi-line output keeps a CR on every line **but the last**, the all-but-last signature that
   identifies the cause on sight. Also records that `mapfile -t` has no last-element reprieve, and
   that jq→jq relays are self-cleaning because jq's stdin is text-mode too, which narrows the hazard
   to jq output reaching a non-jq consumer (#2578).
@@ -2482,7 +2788,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 
 - **`hook-failure-audit` (Stop): surface hook launch/exec failures Claude Code records
   only as `hook_non_blocking_error` transcript attachments and shows to nobody (#2577).**
-  A hook that fails to launch is a non-blocking error — the guarded tool call proceeds
+  A hook that fails to launch is a non-blocking error: the guarded tool call proceeds
   as if approved, silently. The #1416 incident class proved an in-plugin detector is no
   shelter: disk-hygiene's own Stop monitor shared its guard's registration form and died
   the same launch death on all 23 of its runs (163 unsurfaced failures total on the
@@ -2490,10 +2796,10 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
   stale pre-fix config). This detector is decoupled: it lives here, launches through
   this plugin's always-shell-form registrations, tails a bounded transcript window, and
   matches structurally (`.type == "attachment"` and
-  `.attachment.type == "hook_non_blocking_error"` — never substring, so a
+  `.attachment.type == "hook_non_blocking_error"`, never substring, so a
   `hook_success` quoting an error text or a message quoting a failure record cannot
   fire it). Warns via `systemMessage` once per session per distinct failing hook
-  registration — identity is `(hookName, command)`, since several plugins register on
+  registration, whose identity is `(hookName, command)`, since several plugins register on
   the same event+matcher (re-warns when a NEW registration starts failing; marker loss
   degrades toward re-warning, never silence), names the stale-session restart remedy,
   and emits the standard telemetry envelope with privacy-safe subjects (hook names
@@ -2535,8 +2841,8 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
   `claude plugin enable <id> -s project` for any `currentProject: true` completeness gap, and that
   call writes exactly that file (verified on Claude Code 2.1.228 in 0.31.8). 0.31.8 documented the
   exposure and asked the report to name it; this removes it. Step 5 now enables automatically only
-  at `user` and `local` scope — neither is team-shared state, since `local` writes the gitignored
-  `.claude/settings.local.json` — and reports a `project`-scope gap as an "Action needed" row
+  at `user` and `local` scope, since neither is team-shared state: `local` writes the gitignored
+  `.claude/settings.local.json`. Step 5 reports a `project`-scope gap as an "Action needed" row
   carrying the runnable `cd`-into-its-own-`projectPath` command instead of filling it. Confirming
   was rejected as the fix: `converge` can afford a confirm because it aborts in an autonomous
   session, while `sync` is the headless maintenance action with no such abort, so there may be no
@@ -2575,12 +2881,12 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
   effective* value, so enabling an id that is `true` only at user scope fails rather than writing a
   project entry.
 - **`sync.md` Step 5 names its own exposure.** A `-s project` enable can leave a team-shared tracked
-  file modified with no diff surfaced — the failure class `converge` Step 5 prevents, in the default
+  file modified with no diff surfaced, the failure class `converge` Step 5 prevents, in the default
   action. Flagged with instructions to name it in the report; the diff-surfacing remediation is
   tracked separately.
 - **`gotchas.md` records that a subdirectory install is invisible to the skill.** The CLI keys
-  `projectPath` on the literal cwd — installing from `<checkout>/nested/subdir` recorded that
-  subdirectory and created its own `.claude/settings.json` — while `fleet-state.sh` resolves the
+  `projectPath` on the literal cwd, so installing from `<checkout>/nested/subdir` recorded that
+  subdirectory and created its own `.claude/settings.json`, while `fleet-state.sh` resolves the
   checkout root. A plugin installed below the checkout root therefore never matches
   `currentProject`, never updates, and never appears in a divergence row, while still loading in
   that subtree. The same mechanism is why two `git worktree` checkouts of one repo pin
@@ -2597,8 +2903,8 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
   `"enabledPlugins": {}` rather than deleting the key, writes the key even into a file that never had
   one, and rewrites the file in Claude Code's key order so unrelated sibling keys move. Step 5 now
   checks every touched project unconditionally and classifies the diff as inert (empty map plus
-  reorder — recommend discarding, so a team-shared file carries no churn) or substantive (an entry
-  actually removed — the user decides). `scope-semantics.md` records install's and uninstall's
+  reorder: recommend discarding, so a team-shared file carries no churn) or substantive (an entry
+  actually removed: the user decides). `scope-semantics.md` records install's and uninstall's
   behavior as a section beside the update exemption, which was re-verified on the same version and
   still holds.
 
@@ -2608,7 +2914,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
   Verified by uninstalling one id in a repo's main checkout and watching its `git worktree`'s record
   for the same id survive. Two checkouts of one repo share a `.git` and a tracked
   `.claude/settings.json` yet pin independently, so `converge` must keep them as separate rows with
-  separate `cd` targets — converging one never clears the other.
+  separate `cd` targets. Converging one never clears the other.
 - **`sync.md` records one observation on `installed_plugins.json` write timing.** A 63-plugin
   user-scope sweep on 2.1.228 had all 21 CLI-reported updates already visible to a post-sweep
   re-read. Logged as a single data point that does not retire the `<new>` fallback, since it shows
@@ -2649,7 +2955,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 ### Fixed
 
 - **`skills/inventory` bundled-skill fields could bleed from the next registration.** The extractor
-  read each registration through a fixed 4000-character window — the failure mode `build_brace_map`
+  read each registration through a fixed 4000-character window, the failure mode `build_brace_map`
   exists to prevent for commands, and the one `reference/extraction.md` names as the thing not to
   do. A registration omitting a description adopted the following one's. Fields are now bound to
   their own literal via the brace map, and an unmatched brace is counted and surfaced rather than
@@ -2672,7 +2978,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
   scanned, so a plugin installed from a marketplace that is no longer cached was invisible;
   `disk.installed_plugins` now walks the plugin cache, and catalog, installed, and enabled are
   reported as three distinct sets. A project's `.claude` tree contributes skills, agents, and wired
-  hook events that no machine-scope scan sees — `--project-dir` defaults to the working directory.
+  hook events that no machine-scope scan sees. `--project-dir` defaults to the working directory.
   Wired hook events are reported, never hook scripts on disk, which would repeat the
   present-versus-active error the skill warns about.
 
@@ -2681,16 +2987,16 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 ### Added
 
 - **`audit-performance`: a read-only slowness-diagnostic capture, run at the moment the machine or
-  a session feels slow — before anyone restarts or deletes anything.** The failure mode it replaces
+  a session feels slow, before anyone restarts or deletes anything.** The failure mode it replaces
   is the folk remedy: "it was slow, so I nuked `~/.claude` and reinstalled" destroys the evidence
   and permanently confounds the fix, because a reinstall also crosses version upgrades (v2.1.216
   fixed a quadratic long-session slowdown; v2.1.208 cut per-tool-call MCP overhead up to 7x;
-  v2.1.207 fixed keystroke lag — all within weeks of each other). One engine pass
+  v2.1.207 fixed keystroke lag, all within weeks of each other). One engine pass
   (`audit_performance.py`, Python 3.11+ stdlib only) captures the evidence to separate the three
   documented suspects: **accumulated install-tree state** (retention-sweep health including the
   silent unparsable-settings pause, plus a timed stat-walk of the whole tree whose duration
   approximates what the product's own daily sweep costs on that volume right now), **version
-  regression** (CLI version, probed with its own latency recorded — a ten-second `--version` is
+  regression** (CLI version, probed with its own latency recorded, since a ten-second `--version` is
   itself a finding), and **component bloat** (plugin-fleet and process censuses, with the verdict
   routed to `/claude-ops:plugins audit`). Phase timings are first-class evidence throughout: on a
   struggling machine the audit itself runs slow, and that is signal, not failure.
@@ -2707,7 +3013,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 
 - **Hard read boundaries.** The engine mutates nothing anywhere, never elevates (Defender guidance
   is advisory text for the operator's own elevated shell), and its content-read allowlist is two
-  files — `settings.json` and `.last-cleanup`; `~/.claude.json` values and `history.jsonl`
+  files: `settings.json` and `.last-cleanup`; `~/.claude.json` values and `history.jsonl`
   contents are stat-only line items, never opened. The skill reports and routes: deletion belongs
   to `/disk-hygiene:clean`, per-project shedding to `claude project purge`, deep inventory to
   `/claude-ops:audit-install-state`, and settings repair to `/claude-config:audit`.
@@ -2716,20 +3022,20 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 
 ### Added
 
-- **`skills/inventory` — read-only enumeration of the complete invocable surface.**
+- **`skills/inventory`: read-only enumeration of the complete invocable surface.**
   Answers "what can this machine actually invoke, and where did each thing come from" in one
   report: built-in CLI commands with aliases and hidden/gated markers, bundled skills, and every
   component of every installed plugin across all marketplaces. Built-in and bundled surfaces are
-  read from the shipped binary because upstream publishes no built-in command list —
+  read from the shipped binary because upstream publishes no built-in command list.
   `docs/en/slash-commands` and `docs/en/skills` return byte-identical markdown since commands were
-  merged into skills — so no documentation source is complete for them. Filters accept either a
+  merged into skills, so no documentation source is complete for them. Filters accept either a
   flag (`--builtin`, `--plugins`, `--marketplace <name>`, `--agents`, `--hooks`, `--diff`) or the
   equivalent sentence; one extraction feeds every view.
 
   The extraction survives ordinary releases by resolving at runtime what changes between them:
   registrar names come from the bundle's export maps (`registerBundledSkill:()=>xu`) rather than a
   hardcoded minified identifier, the bundle is located by export-name anchor rather than section
-  layout, and each command's fields are read by brace depth rather than a text window — adjacent
+  layout, and each command's fields are read by brace depth rather than a text window. Adjacent
   minified literals otherwise bleed into one another. `scripts/inventory.py` needs only Python
   3.11+; no `strings`, `jq`, or PowerShell, so it behaves the same on all three platforms.
 
@@ -2757,7 +3063,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 
 - **`skills/lanes/scripts` `--paginate` reads now carry `per_page=100`.**
   `restart-consumer.sh`'s telemetry-comment read and `telemetry-upsert.sh`'s comment listing
-  paginated without a page size — complete, but non-conformant with the published pagination rule
+  paginated without a page size: complete, but non-conformant with the published pagination rule
   and 3.3x the requests at the 30-item default. No behavior change: both folds are page-shape
   agnostic. `telemetry-upsert.test.sh`'s `gh` stub matched the list endpoint with an exact `*/comments`
   suffix, which the query string would have fallen through silently; it now matches the query form
@@ -2768,8 +3074,8 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 - **`telemetry-upsert.sh`'s slurp rationale no longer misdescribes `gh --paginate`.** The comment
   above the comment listing claimed `--paginate` "concatenates one JSON array per page". It does
   not: with no `--jq`, `gh` merges array-shaped pages into ONE array, so `jq -s 'add'` unwraps a
-  one-element slurp rather than concatenating. `--paginate` is still load-bearing (it is what makes
-  a page-2 comment visible at all) and `add` is still correct — but for a different reason than the
+  one-element slurp rather than concatenating. `--paginate` is still required (it is what makes
+  a page-2 comment visible at all) and `add` is still correct, but for a different reason than the
   comment gave, and a reader trusting it would mispredict the next endpoint's shape. Same correction
   applied to the pagination fixture's header comment in `telemetry-upsert.test.sh`. Measured against
   `gh` 2.95.0.
@@ -2779,13 +3085,13 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 ### Changed
 
 - **Shared `hook-utils.sh`: the jq gate now has a fail-CLOSED sibling, and the posture reasoning
-  lives at the helper (#2146).** `hook::require_jq` is unchanged and still fails OPEN — one visible
-  skip notice per session, then exit 0 — which is the correct posture for every hook in this plugin,
+  lives at the helper (#2146).** `hook::require_jq` is unchanged and still fails OPEN, with one
+  visible skip notice per session and then exit 0, which is the correct posture for every hook in this plugin,
   so **nothing in this plugin's behaviour changes**. What is new is `hook::require_jq_blocking`, a
   second named function that denies the tool call instead, for the narrow class of guards whose job
   is blocking an irreversible operation (today only two, both in `guardrails`). A sibling function
   rather than a parameter, because a flag's omitted value would default to fail-open and a guard
-  whose flag someone forgot would then fail open *silently* — the exact defect #2146 reports,
+  whose flag someone forgot would then fail open *silently*, the exact defect #2146 reports,
   reintroduced at the API. The two postures are now argued together in one block above both
   functions, which is what #2146 asked for: previously each call site asserted a posture in a
   comment and nothing where the decision is made explained it. Synced from `lib/hook-utils.sh`.
@@ -2804,7 +3110,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 ### Added
 
 - **`audit-install-state`: a read-only audit of the machine-scope Claude Code installation
-  directory** — the `~/.claude` tree plus the home-root `~/.claude.json` — filling a gap nothing in
+  directory**, the `~/.claude` tree plus the home-root `~/.claude.json`, filling a gap nothing in
   the marketplace covered. `claude-config` audits a *repo's* configuration files and its coordinator
   refuses any target that is not the active project root; `disk-hygiene:clean` deliberately routes
   product-managed state *out* of its engine; `claude-ops:plugins` reads
@@ -2815,10 +3121,10 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
   refuses a fifth: what is here (inventory split automatically into a per-file authored surface and
   rolled-up bulk trees, with a CSV artifact so "every file" literally exists), what Claude Code's own
   retention sweep already manages, what each number in a filename actually *is*, and whether the tree
-  is in a deliberate or mid-experiment state. It does not answer "so what should I delete" —
+  is in a deliberate or mid-experiment state. It does not answer "so what should I delete":
   deletion routes to `/disk-hygiene:clean`, shedding project state routes to `claude project purge`.
 
-- **The liveness gate is code, not advice — a number in a filename is not reliably a PID.** A prior
+- **The liveness gate is code, not advice: a number in a filename is not reliably a PID.** A prior
   audit came one step from deleting `ide/22580.lock` because a process lookup for "22580" returned
   nothing: 22580 is a listening TCP port, and the real PID in the file body was alive and serving a
   running IDE integration. A lookup against a non-PID returns a clean, confident, *wrong* "dead."
@@ -2830,20 +3136,20 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 
 - **Evidence tags and sampled ranges are schema properties, not conventions.** Every emitted claim
   carries `measured` / `documented-default` / `inferred` / `no-upstream-row`, and every count that
-  can move during a scan is emitted as `{min, max, n}` — there is no field a single averaged number
+  can move during a scan is emitted as `{min, max, n}`. There is no field a single averaged number
   could go in. A known-churning directory returning identical counts across fewer than three samples
   is flagged `unanimous_small_n_on_volatile_path`, because agreement within one moment on a dynamic
   system is a red flag rather than a confirmation.
 
 - **Deliberate-state detection runs before any staleness verdict.** A revert ledger (`RESTORE.md`,
   `PLAYBOOK.md`, `restore*.py`, or a shallow `manifest.json` / baseline under `plugins/data/`)
-  deny-lists its whole subtree — such a directory is frequently the *only* copy of somebody's revert
+  deny-lists its whole subtree. Such a directory is frequently the *only* copy of somebody's revert
   path, and a prior audit's largest near-miss was a correct check run against a tree whose state was
   deliberate. The skill also records that a ledger's own summary is not authoritative and must be
   diffed against the stored baseline.
 
-- **The CSV artifact is complete by construction.** `--csv` writes one row per file in the scan set
-  — 86,653 rows for an 86,653-file install — and is the only artifact carrying per-file rows at
+- **The CSV artifact is complete by construction.** `--csv` writes one row per file in the scan set,
+  86,653 rows for an 86,653-file install, and is the only artifact carrying per-file rows at
   all; `--authored-threshold` governs only which entries the JSON summary *labels* `per-file`
   rather than `rolled-up`. Driving the artifact off the JSON rollup instead produced
   a 169-row CSV for the same install (86,984 files at that instant; the tree is live and the total
@@ -2861,13 +3167,13 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
   The exception is measured rather than assumed: the paused-sweep finding is raised while reading
   `settings.json`, before managed settings have been looked at, so on an enterprise machine that
   supplies a valid `cleanupPeriodDays` it was left standing and told the reader that nothing is
-  being swept and every staleness reading is suspect — when the exception named in its own claim
+  being swept and every staleness reading is suspect, even though the exception named in its own claim
   applied. It is now withdrawn once managed settings are measured to supply a usable value; the
   parse failure itself stays on the record in `user_settings_parse`.
 
   `cleanupPeriodDays` is also validated rather than merely type-checked. `bool` is an `int` in
   Python, so `true` would have been read as a one-day window and `false` as a zero-day one, and a
-  zero or negative value is below the documented minimum of one day — a negative window puts the
+  zero or negative value is below the documented minimum of one day. A negative window puts the
   retention cutoff in the *future* and marks effectively every swept file as past retention. A
   rejected value is reported as `invalid: <value>` in `user_setting_days` / `managed_setting_days`
   and the documented default stands.
@@ -2875,7 +3181,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 - **An entry holding a secret-bearing file is classified by its contents, not by its own name.**
   Entry-level surfaces came from `SURFACE_TABLE` keyed on the top-level directory name alone.
   `ide/*.lock` is in the never-read list and every row under `ide/` was promoted to `secret`, but
-  `ide` has no table row — so the entry line a reader scans first read `unclassified`, with the
+  `ide` has no table row, so the entry line a reader scans first read `unclassified`, with the
   milder `unclassified-report-only` verdict, over rows that were all `secret`. A `secret` member
   now promotes its entry to `secret` (verdict `keep`) and the note carries the *count* of such
   files, so a mixed tree promoted by a couple of vendored `*.pem` bundles can be read against the
@@ -2908,7 +3214,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 
 - **Upstream doc stamps re-verified against the live pages (2026-08-10).** Each dated claim below was re-checked against the complete raw markdown source of the page it cites (`https://code.claude.com/docs/en/<page>.md`), not a summarized fetch, and each was confirmed by a verbatim quote before its stamp was refreshed. No claim changed; only the verification dates moved.
 
-  - `skills/observability/context/output-format.md` — Claude Code computing its own dollar figures
+  - `skills/observability/context/output-format.md`: Claude Code computing its own dollar figures
     from token counts at standard list rates, the basis for the fixed Token / cost caveat line
     (costs reference).
 
@@ -2927,7 +3233,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
   `sync` installs with the `claude plugin install` shell command, which "doesn't run in a session, so
   Claude Code loads the plugins it installs the next time you start Claude Code, or when you run
   `/reload-plugins` in a session that's already open". The activation line matters only when reading a
-  user's own `/plugin` summary — and its prompt-cache branch is the same condition `--force` exists for.
+  user's own `/plugin` summary, and its prompt-cache branch is the same condition `--force` exists for.
 
 ## [0.28.3]
 
@@ -2936,12 +3242,12 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 - **Shared `hook-utils.sh`: `hook::jq_fields` now REPORTS a NUL byte in a payload value
   (#2122).** 0.28.1 stopped a NUL from failing the helper's cardinality check, by stripping every
   NUL out of each value. That keeps the helper working, but stripping also silently rewrites the
-  value — `--no-verify<NUL>x` arrives as `--no-verifyx` — so a caller that owns a block/allow
-  verdict cannot tell a clean payload from one that carried a NUL, and matches against a token the
+  value: `--no-verify<NUL>x` arrives as `--no-verifyx`. A caller that owns a block/allow
+  verdict then cannot tell a clean payload from one that carried a NUL, and matches against a token the
   payload never held contiguously. The fact is now reported in a new `HOOK_JQ_FIELDS_NUL` global,
   set on EVERY call including every failure path, so such a caller can fail closed on its own terms.
   It is computed from the values as the payload carried them, BEFORE the strip; strip first and the
-  flag would read "0" on every payload. Values themselves are unchanged — still stripped, so a
+  flag would read "0" on every payload. Values themselves are unchanged, still stripped, so a
   scanning caller still sees everything after the NUL. This plugin's own hooks do not consult the
   new global, so their behaviour is unchanged. Synced from `lib/hook-utils.sh`.
 
@@ -2953,7 +3259,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
   git guards (#2124).** `-S` exists so a shebang line can pass OPTIONS to env
   (`#!/usr/bin/env -S -i prog`), so the words it splits out are env's own arguments. The resolver
   spliced them back into the scan but resumed at the COMMAND dispatcher, which read a leading
-  option in the split string as the command NAME and gave up — `env -S '-C <dir> git push --force'`
+  option in the split string as the command NAME and gave up: `env -S '-C <dir> git push --force'`
   resolved to no git at all, so every guard built on `hook::git_resolve_index` skipped the command
   unexamined. Parsing now resumes inside env's own option loop. That also keeps env's single chdir
   slot last-wins across the splice, so `env -C a -S '-C b git …'` reports `b`, matching GNU env.
@@ -2965,13 +3271,13 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 
 - **Shared `hook-utils.sh`: a NUL byte inside a payload value no longer makes `hook::jq_fields`
   come back empty (#2120).** The helper delimits its batched fields with NUL, and a JSON string may
-  legitimately encode one — a `Write`/`Edit`/`NotebookEdit` content field can. jq emitted the raw
+  legitimately encode one. A `Write`/`Edit`/`NotebookEdit` content field can. jq emitted the raw
   byte, the read split that value in two, the cardinality check saw one value too many, and the
-  helper returned non-zero — which every caller treats as "skip", so the hook exited without doing
+  helper returned non-zero, which every caller treats as "skip", so the hook exited without doing
   its work. Each value is now NUL-stripped INSIDE the jq filter, so the delimiter provably cannot
   occur in a value. Stripping is not a lesser alternative to an encoding scheme, it is the only
   representable behavior: a bash variable cannot hold a NUL byte, and the per-field command
-  substitution this helper replaced dropped the byte and kept the rest of the value — so content
+  substitution this helper replaced dropped the byte and kept the rest of the value, so content
   AFTER a NUL is returned and scanned exactly as it was before the batching. Synced from
   `lib/hook-utils.sh`.
 
@@ -2981,7 +3287,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 
 - **The bare `/<skill>` alias for this plugin's skills.** Their `SKILL.md` files no longer
   declare a frontmatter `name`. The field is optional and defaults to the directory name, so
-  declaring it only restated the path while registering a second, unnamespaced command — which
+  declaring it only restated the path while registering a second, unnamespaced command, which
   the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
   namespaced command; the command itself is unchanged.
 
@@ -2991,7 +3297,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 
 - **`lanes`: the launch-commit marker is keyed in the repository it describes, so staleness
   detection survives a SHA-256 checkout (#1383).** `git hash-object` digests with the object format
-  of whatever repository it resolves, and the launcher called it unscoped — keying on the CALLER's
+  of whatever repository it resolves, and the launcher called it unscoped, keying on the CALLER's
   format while taking the toplevel from the repository `--repo` names. Reached from a SHA-1 working
   directory, a SHA-256 target produced a 40-character key, while `lanes/context/refresh.md`'s probe
   runs inside that checkout and computed the 64-character one: the launcher wrote its marker to a
@@ -3004,7 +3310,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 
 - **`lanes`: a lane that sets an empty stop-gate marker disables that channel instead of falling
   through to the user's (#1865).** The option read ended `select(type == "string") ] | last //
-  empty`, which prints nothing for an explicit `""` and nothing for an absent key — so the launcher
+  empty`, which prints nothing for an explicit `""` and nothing for an absent key, so the launcher
   could not tell the two apart, and dropped `--marker` for both. The arm record then carried no
   marker at all, and the gate's precedence (managed ▷ arm record ▷ user settings ▷ default) walked
   past it to the user-level marker, where a marker file left over from another lane can authorize a
@@ -3015,7 +3321,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 
 - **`lanes`: the stop-gate arm id reaches only the autonomy installs that asked for it (#1865).**
   Arming keyed off an any-quantifier over the `autonomy` / `autonomy@*` namespace, then injected
-  `lane_stop_gate_arm_id` into every entry in it — so one install requesting the gate had the id
+  `lane_stop_gate_arm_id` into every entry in it, so one install requesting the gate had the id
   written into siblings that did not, and the option read likewise took its last match from any
   entry rather than a requesting one. The gate never treats this channel as a trusted verdict in
   either direction, so an id landing on an entry set to `false` was not overriding that `false`;
@@ -3031,7 +3337,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 
 - **README: the "copy the reference sink into your repo" wiring form now names its
   `hook-utils.sh` dependency.** The sink `source`s `hook-utils.sh` from its own directory, so the
-  documented bare copy failed at startup (`No such file or directory`) — found dogfooding the
+  documented bare copy failed at startup (`No such file or directory`), found dogfooding the
   wiring in the marketplace repo itself (#2021 line 5 disposition). The README now says to copy
   `hook-utils.sh` alongside or repoint the copy's `source` line.
 
@@ -3055,7 +3361,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
   with jq. On Windows Git Bash, where process creation is `fork()` emulation, each spawn costs
   ~140 ms. Behavior is unchanged: the slice keeps the three-decimal form `read -t` is given, the
   buffer is CR-stripped as before, and the completeness verdict is reused only when jq itself
-  produced it — so a host without jq still fails open exactly as it did. Also adds
+  produced it, so a host without jq still fails open exactly as it did. Also adds
   `hook::jq_fields`, which extracts several fields from one payload in a single jq process for
   hooks that read two or three of them. Synced from `lib/hook-utils.sh`.
 
@@ -3067,7 +3373,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
   differently.** The exclusion that keeps `$HOME` out of project scope compared `pwd -W`'s native
   path against `$HOME` exactly as the environment carried it. Those are the same directory in two
   spellings, and an MSYS mount alias carries no drive letter for the normalizer to reconcile, so
-  `/tmp/x` never matched the `C:/…` reported for it — the exclusion silently failed and
+  `/tmp/x` never matched the `C:/…` reported for it. The exclusion silently failed and
   `$HOME/.claude/settings.json` was read as the project map, duplicating the user map. Both sides
   are now spelled by the same command before they are compared. Normalizing harder could not have
   fixed it: the two inputs disagreed before the normalizer saw them.
@@ -3075,7 +3381,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
   Both spellings go through `builtin cd` / `builtin pwd`, extending the shadow discipline the
   script already applies to its own directory resolution. An exported `cd` that returns success
   without moving would otherwise resolve `$HOME` to the cwd, collapsing every corroborated non-git
-  project onto `$HOME` and stripping its project settings — the inverse failure, and a worse one.
+  project onto `$HOME` and stripping its project settings, the inverse failure, and a worse one.
 
 ## [0.27.1]
 
@@ -3092,25 +3398,25 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
   The applied-versions scan grepped git log with patterns pinned to `v2\.1\.`, so a 2.2.x/3.x
   release would return nothing without erroring. The scan now matches any
   `CC v<major>.<minor>.<patch>` (`-E --grep="CC v[0-9]+\.[0-9]+\.[0-9]+"`), semantics otherwise
-  unchanged; a skill-wide sweep confirmed no other file carries the series pin — remaining
+  unchanged; a skill-wide sweep confirmed no other file carries the series pin. Remaining
   `v2.1.x` literals are illustrative examples.
 - **`changelog` fetch steps target the raw-markdown channel (`docs/en/changelog.md`), not the
-  rendered HTML page.** The `.md` sibling is the smaller, chrome-free channel — 514,578 B against
-  the rendered page's 2,696,671 B (~5x), measured 2026-08-04 — and both carry the same 355
+  rendered HTML page.** The `.md` sibling is the smaller, chrome-free channel, 514,578 B against
+  the rendered page's 2,696,671 B (~5x), measured 2026-08-04, and both carry the same 355
   releases. It buys no extra version depth: WebFetch truncates **both** channels identically, to
   the same 32 most-recent versions with a `[Content truncated due to length...]` marker, because
   its budget applies after HTML-to-markdown conversion. Reaching a deep version needs a
   range-scoped fetch or a direct `curl`, on either channel. Every fetch-source reference in the
   skill now points at the `.md` URL.
 - **`lanes` no longer skips a lane whose effort is `ultracode`.** The launcher validated
-  `lanes[].effort` against `low|medium|high|xhigh|max`, so `ultracode` — a documented
+  `lanes[].effort` against `low|medium|high|xhigh|max`, so `ultracode`, a documented
   `claude --effort` value since CC 2.1.203 (verified 2026-08-04 against
-  [model-config](https://code.claude.com/docs/en/model-config#adjust-effort-level)) — made the
+  [model-config](https://code.claude.com/docs/en/model-config#adjust-effort-level)), made the
   lane silently unlaunchable. The valid set now includes it, gated on the installed
   `claude --version` meeting that floor: below it the CLI rejects the value outright (`Unknown
   --effort value 'ultracode'`) and starts the session at the default effort, so the launcher skips
   the lane rather than launching it at an unintended effort. That check runs in the shared
-  launch-input preflight, which `restart` already performs BEFORE stopping — so a lane the gate
+  launch-input preflight, which `restart` already performs BEFORE stopping, so a lane the gate
   refuses keeps running rather than being taken down and left down. The whole run shares one
   `claude --version` probe, and `--dry-run` keeps working with no CLI installed (the exemption
   `require_claude` documents): with no binary to probe, the preview reports the gate unevaluated
@@ -3123,7 +3429,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 - **`observability` reports cache health, the one cost signal its store already carried and its
   report never rendered.** `cc_metrics` has always split `claude_code.token.usage` by `attr_type`
   into `input` / `output` / `cacheRead` / `cacheCreation`, and `read-routing.md` has always pointed
-  historical token metrics at the query file — but no report section rendered the cache half, so it
+  historical token metrics at the query file, but no report section rendered the cache half, so it
   reached an operator only if they went looking for it by hand. The skeleton now carries a **Cache
   health** section and the routing table a question keyed to it, with the reading upstream supplies:
   a high read-to-creation ratio is healthy, and creation staying high turn after turn means
@@ -3136,7 +3442,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
   store, and the pre-existing token-usage query is latest-session-scoped with no model dimension.
   Widening that table would have mixed two sources silently and rendered a per-model row from
   session-grain data. So this ships a **new per-model windowed query** rather than reusing the
-  existing one — verified by execution against a live OTEL store, not composed from the schema.
+  existing one, verified by execution against a live OTEL store, not composed from the schema.
 
   **Hot tier only, for a reason worth recording:** `cc_metrics_cold()` raises `IO Error: No files
   found that match the pattern …` when the cold tier holds no parquet yet, so a hot+cold union
@@ -3146,7 +3452,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
   **Reported at `INFO`, deliberately ungraded.** Every other numeric signal in this skill carries a
   severity band, and this one does not: upstream states the direction without a threshold, so a
   `HIGH`/`MEDIUM` cutoff would be a number this repo invented and then cited as if sourced. That
-  rule sits in Rendering rules, outside the skeleton's fence — a directive placed inside it would
+  rule sits in Rendering rules, outside the skeleton's fence. A directive placed inside it would
   be emitted verbatim into the operator's report. The invalidation causes stay behind the pointer
   rather than being enumerated into a list that drifts as the harness adds actions.
 
@@ -3154,21 +3460,21 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 
 ### Changed
 
-- **`lane-launcher.sh` arms the autonomy lane-stop gate at launch — fail closed (#1784).** The
+- **`lane-launcher.sh` arms the autonomy lane-stop gate at launch, fail closed (#1784).** The
   gate (autonomy 0.12.0+) no longer honors the bare `CLAUDE_PLUGIN_OPTION_*` environment, which is
-  the only form a `--settings`-delivered option ever reaches a hook in — so passing
+  the only form a `--settings`-delivered option ever reaches a hook in, so passing
   `lane_stop_gate_enabled` through the lane's `settings` object alone would leave the lane silently
   ungated. A lane whose settings request the gate
   (`pluginConfigs["autonomy[@…]"].options.lane_stop_gate_enabled == true`) is now ARMED before
   launch: the launcher generates a random arm id, runs the autonomy plugin's
   `hooks/lane-stop-gate-arm.sh` (which records the lane's sentinel/marker config under autonomy's
   own install-derived data directory), and injects the id into the launched `--settings` as
-  `lane_stop_gate_arm_id`. A gate-requesting lane that cannot be armed — helper missing (autonomy
-  not installed or pre-0.12.0), arming error, managed-settings veto — is **skipped with an error**
-  rather than launched ungated: the operator is present at launch, so failing closed there is
-  cheap, while the hook itself stays fail-open at stop time. Helper discovery anchors on the
+  `lane_stop_gate_arm_id`. A gate-requesting lane that cannot be armed is **skipped with an error**
+  rather than launched ungated, whether the helper is missing (autonomy not installed or
+  pre-0.12.0), the arming errored, or managed settings vetoed it. The operator is present at
+  launch, so failing closed there is cheap, while the hook itself stays fail-open at stop time. Helper discovery anchors on the
   launcher's own `plugins/cache` install path (never `CLAUDE_CONFIG_DIR`/`HOME`, which a watched
-  repo's `env` block reaches — exactly the redirect this design closes); the new
+  repo's `env` block reaches, exactly the redirect this design closes); the new
   `--gate-arm-script FILE` flag overrides discovery for tests and dev checkouts. `--dry-run`
   previews the arming without writing anything. Lanes without a gate request launch exactly as
   before.
@@ -3176,7 +3482,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
   On a machine carrying more than one autonomy install, **every** discovered helper must arm or
   the lane is skipped. Each install writes into its own install-derived store and the launcher
   cannot tell which one the session will load, so accepting a partial arm would launch a lane
-  carrying an id its own gate resolves to nothing — ungated, with only a stale-arm notice to show
+  carrying an id its own gate resolves to nothing, ungated, with only a stale-arm notice to show
   for it. The preflight that checks helper presence reads discovery through a command substitution
   rather than `… | grep -q .`: under `pipefail` the `grep` exits on the first line and the producer
   takes SIGPIPE on its next write, so exactly those multi-install machines would read as "no helper
@@ -3187,14 +3493,15 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 ### Changed
 
 - **The `@path`-as-body rule now records that an inlined upsert enforces it mechanically, not on
-  trust — and corrects which consumer the failure actually deceives (#943).** The rule's closing
+  trust, and corrects which consumer the failure actually deceives (#943).** The rule's closing
   paragraph claimed the prose was "the only thing standing between" an inlined upsert and a silent
-  observability fail-open. That is no longer true: every lane that inlines the `gh api` upsert —
-  `source-control:babysit-loop`, `work-items:work-loop`, `work-items:attend-queue` — now carries three
-  checks in its own block: a pre-write body gate, a check of the write's own exit status, and a
-  post-write read-back of what the write stored. The paragraph states which guarantees travel inline
+  observability fail-open. That is no longer true: every lane that inlines the `gh api` upsert
+  now carries three checks in its own block: a pre-write body gate, a check of the write's own exit
+  status, and a post-write read-back of what the write stored. Those lanes are
+  `source-control:babysit-loop`, `work-items:work-loop`, and `work-items:attend-queue`. The
+  paragraph states which guarantees travel inline
   (those three) and which do not: the 64 KiB cap, the body-file containment checks, retries, and this
-  script's distinct non-zero exit codes — an inline branch always exits 0 and reports through stderr,
+  script's distinct non-zero exit codes. An inline branch always exits 0 and reports through stderr,
   so a caller cannot detect a failed cycle from its exit status. It also names the limits an inline
   block inherits rather than fixes: a PATCH that succeeds while storing the previous body still
   verifies, and the read-back proves *some* well-formed telemetry is present, not *this* cycle's.
@@ -3202,7 +3509,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
   freshness check "passes over a blind lane". Verified against `morning-brief.sh`'s `print_telemetry`:
   it parses `lane:` and `last-cycle:` out of the comment BODY, so an `@path` body carries no `lane:`
   field and the lane disappears from the report entirely rather than reading as healthy. What a
-  degraded body deceives is any consumer keying on the comment's timestamp instead of its body — the
+  degraded body deceives is any consumer keying on the comment's timestamp instead of its body. The
   timestamp moves on every successful write regardless of content. The rule now attributes the
   failure that way rather than naming a sibling reader that would in fact surface it.
 
@@ -3211,8 +3518,8 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 - **`lanes`: a lane field whose JSON value is `false` is no longer read as an absent field (#1784).**
   Both field readers in `lane-launcher.sh` used jq's `//` alternative operator, which fires on every
   FALSY value rather than on absence. A lane configured `"settings": false` therefore yielded
-  `empty`, reached bash as `""`, and — because `validate_launch_inputs` guards its "settings must be
-  a JSON object" check on `[[ -n "$settings" ]]` — that type check never ran at all: the lane launched
+  `empty`, reached bash as `""`, and, because `validate_launch_inputs` guards its "settings must be
+  a JSON object" check on `[[ -n "$settings" ]]`, that type check never ran at all: the lane launched
   with `--settings` silently omitted, no error, nothing for the operator to see. `lane_json_field` now
   tests presence with `has`, so `false` reaches the type check and the lane is skipped with the error
   that was already written for it. The scalar reader had the same collapse for `name`/`model`/
@@ -3226,13 +3533,13 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 ### Changed
 
 - **`telemetry-upsert.sh` accepts the writer-identity marker suffix (#1295).** The marker charset
-  gains `@`, so a marker can name one *writer* (`<lane>@<instance>`) rather than a lane type — the
+  gains `@`, so a marker can name one *writer* (`<lane>@<instance>`) rather than a lane type, the
   loop-lane convention's fix for concurrent instances of one lane sharing, and clobbering, a single
   telemetry comment. This script is that convention's interim home, so a marker shape its validator
   rejected would have left the contract and its executable owner disagreeing. `@` is added to
   **both** lookaround classes in the two-tier detection's fallback as well, for exactly the reason
   `-` is already in them: without it, `lane:x` matches inside `lane:x@laptop-a` and would adopt that
-  instance's comment — the boundary rule one level down from the `lane:triage` /
+  instance's comment, the boundary rule one level down from the `lane:triage` /
   `lane:triage-old` prefix collision it already guards. Two cases cover the new boundary in both
   directions, plus one asserting a suffixed marker validates at all.
 
@@ -3240,7 +3547,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 
 - **`restart-consumer.sh` would have gone silently blind on suffixed markers.** Its per-lane
   `telemetry.marker` binding matched a comment by exact marker equality, so once lanes carry
-  `<marker>@<instance>` no bound lane's comment would match — the consumer would report `no-state`
+  `<marker>@<instance>` no bound lane's comment would match. The consumer would report `no-state`
   forever and restart nothing, the worst failure shape for an unattended relaunch trigger. A bound
   marker now names a lane **type** and matches every writer instance of it, with the same trailing
   boundary that keeps `work-items:work-loop` from adopting `work-items:work-loop-v2`. A new optional
@@ -3251,7 +3558,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
   request is *report* it: the run records `unbound-instance` naming the asking writer and
   relaunches nothing, because an instance-suffixed comment is some machine's writer and consuming
   it unpinned would relaunch the locally configured lane on **every** stopped consumer sharing the
-  issue — sibling instances started by a request none of them owns. Only the pinned instance's
+  issue, sibling instances started by a request none of them owns. Only the pinned instance's
   comment, or the legacy un-suffixed one, is actionable.
 
 ## [0.24.4]
@@ -3259,20 +3566,20 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 ### Fixed
 
 - **`lanes` and `observability` load again when invoked from a worktree-isolated agent (#1687).**
-  Four `## Pre-computed context` lines carried genuine shell expansion — `lanes` line 16's
+  Four `## Pre-computed context` lines carried genuine shell expansion: `lanes` line 16's
   `$(claude --version)` and line 19's `$c` / `${CLAUDE_OPS_LANES_CONFIG:-…}` / `$(git rev-parse …)`,
   `observability` line 19's `$f` / `$(…)` and line 21's `$d` / `${CC_OTEL_STORE:-…}`. The harness
   composes that whole block into one shell invocation, and the worktree-isolation Bash guard refuses
   any `$`-expansion, so the block failed and the skill never loaded. `lanes` line 16 is now the
   `$`-free `claude --version 2>/dev/null || echo "MISSING (required)"`; the other three hoist their
-  logic into two bundled scripts — `skills/lanes/scripts/probe-lane-config.sh` and
-  `skills/observability/scripts/probe-observability-state.sh` (`--hook-events` / `--otel-store`) —
+  logic into two bundled scripts, `skills/lanes/scripts/probe-lane-config.sh` and
+  `skills/observability/scripts/probe-observability-state.sh` (`--hook-events` / `--otel-store`),
   invoked through `${CLAUDE_PLUGIN_ROOT}`, which the harness substitutes into a literal path before
   any shell sees it, so the replacement lines carry no `$` at all. Path resolution, env overrides
   (`CLAUDE_OPS_LANES_CONFIG`, `CC_OTEL_STORE`), and every output string are unchanged and covered by
   equivalence tests that diff each script against the line it replaced. **One output shape did
   change:** the `claude CLI:` line now reads `2.1.220 (Claude Code)` rather than
-  `present (2.1.220 (Claude Code))` — same information, no `present (…)` wrapper. `observability`
+  `present (2.1.220 (Claude Code))`, same information, no `present (…)` wrapper. `observability`
   line 20 (`OTEL collector :4318`) was already plugin-variable-only and is untouched.
 
 ## [0.24.3]
@@ -3283,39 +3590,39 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
   refresh fails (#1764, F1).** `claude plugin marketplace update` is known to fail against an
   existing non-empty marketplace directory
   ([anthropics/claude-code#76129](https://github.com/anthropics/claude-code/issues/76129), open),
-  and Step 1 documented no behavior at all on a non-zero exit in single/default mode — only `all`
+  and Step 1 documented no behavior at all on a non-zero exit in single/default mode. Only `all`
   mode and Step 3 had inline-failure prose. Step 1 now says the refresh is attempted rather than
   guaranteed, cites the upstream bug, and directs a failure to "Action needed" with the catalog
   reported as possibly stale instead of current. Catalog-dependent mutations (Step 4 installs,
-  Step 5 enable-state) are deferred for that marketplace until a run where the refresh succeeds —
-  stale catalog metadata must not drive installs or enables. Cache surgery stays out of scope; the
+  Step 5 enable-state) are deferred for that marketplace until a run where the refresh succeeds.
+  Stale catalog metadata must not drive installs or enables. Cache surgery stays out of scope; the
   named staleness diagnostic is `git ls-remote origin HEAD` against the local `HEAD` (genuinely
-  read-only — a plain `git fetch` writes `FETCH_HEAD`, remote-tracking refs, and objects).
+  read-only, unlike a plain `git fetch`, which writes `FETCH_HEAD`, remote-tracking refs, and objects).
 - **`plugins` skill: `sync` now says where the report's `<old> → <new>` versions come from (#1764,
   F3).** The report format mandated a per-plugin version pair that no step instructed capturing.
-  A new "Version capture for the report" section fixes three sources in precedence order — `<old>`
-  from the pre-mutation snapshot the Concurrency section already requires, `<new>` from the update
-  call's own output, and a post-sweep re-read as fallback — and forbids synthesizing a value.
+  A new "Version capture for the report" section fixes three sources in precedence order and
+  forbids synthesizing a value: `<old>` from the pre-mutation snapshot the Concurrency section
+  already requires, `<new>` from the update call's own output, and a post-sweep re-read as fallback.
   The fallback is explicitly second because `claude plugin update`'s help says "restart required to
   apply" and this skill has not established when the CLI writes `installed_plugins.json`; if that
   write is deferred, a post-sweep re-read would report no change for a plugin that did update.
 - **`plugins` skill: the TOCTOU gotcha now covers catalog content, not just installed/enabled state
   (#1764, F2).** A refresh landing mid-session rewrites the catalog, so two reads within one session
-  can legitimately disagree on plugin count — which is why diffing `fleet-state.sh`'s catalog
+  can legitimately disagree on plugin count, which is why diffing `fleet-state.sh`'s catalog
   against a separately-read raw `marketplace.json` is not a valid staleness check, and why a
   mismatch is not evidence of an enumeration bug.
 - **`fleet-state.sh`: a non-git working directory no longer manufactures project context (#1764,
   F4).** `PROJECT_ROOT` fell through to bare `$PWD` whenever `CLAUDE_PROJECT_DIR` was unset and cwd
   was not a git tree, so the "project" settings read became whatever `.claude/settings.json` sat
-  under cwd — in `$HOME`, the user settings file itself — and an install record whose `projectPath`
+  under cwd, which in `$HOME` is the user settings file itself, and an install record whose `projectPath`
   equalled that directory would be promoted to `currentProject: true`. Project context now resolves
-  from `CLAUDE_PROJECT_DIR`, a real git toplevel, or — because Claude Code does not require a
-  repo — a non-git cwd corroborated by its own `.claude` directory, with `$HOME` always excluded
+  from `CLAUDE_PROJECT_DIR`, a real git toplevel, or, because Claude Code does not require a
+  repo, a non-git cwd corroborated by its own `.claude` directory, with `$HOME` always excluded
   (its `.claude` is user scope); an uncorroborated cwd stays an empty root, and the downstream
   reads were already guarded for it.
 - **`plugins` skill: the action-router table reads as an index again (#1764, F5).** The `sync` row's
   Description spelled out the full six-step chain, complete enough that a session could execute the
-  action without opening `context/sync.md` — which is how F1's and F3's gaps went unnoticed during a
+  action without opening `context/sync.md`, which is how F1's and F3's gaps went unnoticed during a
   live run. Descriptions now name territory only, above an explicit instruction to read the linked
   detail file before executing.
 
@@ -3325,14 +3632,14 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 
 - **Shared `hook-utils.sh`: the OS temp tree is no longer treated as project content (#1769).**
   `hook::read_file_path` scoped a file to the project by prefix-matching `CLAUDE_PROJECT_DIR`, so a
-  session whose project directory is the user's home admitted everything under the OS temp root —
+  session whose project directory is the user's home admitted everything under the OS temp root,
   including Claude Code's own per-session scratchpad, which lives there. Hooks that lint, rewrite, or
   autocorrect then ran on throwaway files that are not project content and carry no project config to
   opt out with; the reported case was `typos-format` autocorrecting a shell variable in a scratch
   script and silently breaking it. The guard now rejects a file inside the OS temp tree when the
-  project root is outside it. The exemption is deliberate and load-bearing: when the project root
-  itself lives under temp — a `mktemp -d` fixture checkout, which is how this repository's own hook
-  suites run — its files are still accepted. Temp roots come from `TMPDIR` / `TMP` / `TEMP` plus the
+  project root is outside it. The exemption is deliberate and necessary: when the project root
+  itself lives under temp, as in a `mktemp -d` fixture checkout, which is how this repository's own
+  hook suites run, its files are still accepted. Temp roots come from `TMPDIR` / `TMP` / `TEMP` plus the
   POSIX defaults, canonicalized through the same pipeline the membership comparison already uses.
   Synced from `lib/hook-utils.sh`.
 
@@ -3343,7 +3650,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 - **Shared `hook-utils.sh`: a wrapper's working-directory change is no longer lost when a caller
   parses only git's own global options (#1503).** `hook::git_resolve_index` walks wrapper programs
   (`env`, `sudo`, …) to reach the real `git` token, and a caller that scopes its git-global parsing
-  to the slice starting at that token cannot see a relocation the wrapper already performed — GNU env
+  to the slice starting at that token cannot see a relocation the wrapper already performed. GNU env
   documents `-C, --chdir=DIR` as "change working directory to DIR". The resolver now reports those
   directories in a new `HOOK_GIT_RESOLVED_WRAPPER_DIRS` result global, in execution order, so a
   caller composes them ahead of git's own globals instead of dropping them. Five spellings are read
@@ -3360,7 +3667,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 - **`morning-brief` reports findings stranded on merged pull requests (#1777).** A review that lands
   *after* a merge had nowhere to go: the ruleset's `required_review_thread_resolution` is a
   merge-time predicate that already passed, the babysit lane works only *open* pull requests, and
-  nothing on a merged pull request surfaces its open threads. Six findings — one P1 — posted 46
+  nothing on a merged pull request surfaces its open threads. Six findings, one of them P1, posted 46
   seconds after #1720 merged sat unread for a day, and were found only because a later session
   happened to audit the merge batch.
 
@@ -3374,22 +3681,22 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 
   Run against this repository on its first live invocation, it immediately surfaced four further
   stranded findings on other merged pull requests, including a P1 recording that a shipped plugin
-  cell never reached installations — so this is a standing leak, not a one-off.
+  cell never reached installations, so this is a standing leak, not a one-off.
 
-  Severity is read from the **structured marker only** — the badge alt-text, the shields badge URL,
-  or a leading bracket — never from body prose. A body-wide substring test falsely promotes a P2
+  Severity is read from the **structured marker only**, the badge alt-text, the shields badge URL,
+  or a leading bracket, never from body prose. A body-wide substring test falsely promotes a P2
   titled "Preserve P1 labels", and any finding that merely discusses `CRITICAL` or `SECURITY`.
   Ranking is numeric rather than lexicographic, because `"--"` sorts before `"P0"` as a string: an
   unclassified thread sitting beside a genuine P0 would otherwise collapse the pull request to
   `[--]` and hide it.
 
   A thread connection that **truncates** is reported as a partial read. `--paginate` follows only
-  the outer cursor, so a pull request with more than 100 review threads would be silently cut short
-  — and a partial read that renders as an all-clear is the same failure the section exists to catch.
+  the outer cursor, so a pull request with more than 100 review threads would be silently cut
+  short, and a partial read that renders as an all-clear is the same failure the section exists to catch.
 
   The section **fails loud rather than clear**. A GraphQL error document is well-formed JSON that
   simply carries no `data`, so an unread API would otherwise extract to an empty list and render as
-  "every merged PR in the window is clear" — an all-clear asserted from an answer never received,
+  "every merged PR in the window is clear", an all-clear asserted from an answer never received,
   which is the same fail-open shape the section exists to catch. Caught during development when a
   rate-limit error did exactly that; an API error now says explicitly that it is not an all-clear
   and prints the message.
@@ -3407,30 +3714,30 @@ Six review findings raised on #1720 forty-six seconds *after* it merged, so they
   **never process a lane while Task Scheduler recorded successful ticks**. `acquire_lock` now
   separates "the store is unusable" (exit 4, loud) from "another run holds it" (exit 0, routine).
 - **A lock reclaimed on age alone.** A legitimate run outliving the one-hour bound had its live lock
-  removed, letting a second run enter the relaunch span concurrently — reachable because
+  removed, letting a second run enter the relaunch span concurrently, reachable because
   `lane-launcher.sh` performs an unbounded `git pull --ff-only` and marketplace update before launch.
   The holder now records an owner PID, and age only gates *when to ask*; liveness decides.
 - **Offline telemetry parse failures swallowed.** An unconditional `return 0` after the fixture-read
   `jq` turned a missing, unreadable, or malformed `--telemetry-json` into a successful empty read,
-  reported as `no-state` — indistinguishable from "the lane did not ask". The offline branch now
+  reported as `no-state`, indistinguishable from "the lane did not ask". The offline branch now
   carries the same contract the network read already had.
 - **An unwritable ledger reduced to a warning.** The breaker counts attempts by querying the ledger,
   so an attempt that could not be recorded was invisible to `--max-restarts`: a launcher that kept
   failing was retried on every polling tick forever. Writability is now proved *before* the relaunch,
   and a failed append fails the lane instead of warning past it.
 - **Liveness read from a stale snapshot before mutating.** The session list is loaded once per run,
-  so a lane started since — by a concurrent operator invocation — still read as stopped, and
+  so a lane started since, by a concurrent operator invocation, still read as stopped, and
   `lane-launcher.sh restart` *stops* a running lane before relaunching. A healthy session could be
   interrupted despite the documented "not currently running" predicate. The predicate is now
   rechecked against a fresh list immediately before the mutation.
 - **A reused PID could masquerade as the lock owner.** `kill -0` proves only that *some* process
-  holds that number — and after the reboot this reclaim path exists to handle, the number is very
+  holds that number, and after the reboot this reclaim path exists to handle, the number is very
   likely reused, which would wedge every later tick exactly as before. The lock now records a boot
   identity beside the PID: a lock from a previous boot is reclaimed regardless of who holds its PID
   now, and where no boot identity is available a live PID may only *defer* the reclaim, never defer
   it past a hard 24-hour ceiling.
 - **The fresh liveness re-check failed open.** A transient `claude agents --json` failure made the
-  `&&` condition false and fell through to the launcher on the stale snapshot — reintroducing the
+  `&&` condition false and fell through to the launcher on the stale snapshot, reintroducing the
   race the re-check exists to prevent. A failed re-read is now an error that skips the mutation.
 - **A post-launch ledger failure was still invisible.** The pre-flight probe cannot cover storage
   that disappears *during* the launcher's unbounded work, so a relaunch could succeed while its
@@ -3439,7 +3746,7 @@ Six review findings raised on #1720 forty-six seconds *after* it merged, so they
 - **`print-schedule` dropped behavior-affecting options.** A non-default `--config` or
   `--target-repo` was absent from the emitted schtasks, logon, cron, and offline forms, so the
   scheduled invocation silently fell back to `<repo>/.work/lanes.json` and the checkout's own
-  repository — a different lane configuration and a different telemetry repository than the command
+  repository, a different lane configuration and a different telemetry repository than the command
   that generated it. All four forms now carry them; a defaulted option is still omitted.
 
 ## [0.23.1]
@@ -3460,31 +3767,31 @@ Six review findings raised on #1720 forty-six seconds *after* it merged, so they
 
 ### Added
 
-- **`lanes consume-restarts` — the lane restart-request consumer (#1653).** A loop lane that
+- **`lanes consume-restarts`: the lane restart-request consumer (#1653).** A loop lane that
   hits its cycle budget or the `/loop` seven-day expiry writes a `restart_request` into its
   telemetry state block and stops; nothing consumed that field, so every budget or expiry hit
   was a terminal manual-restart state. `scripts/restart-consumer.sh` (new `consume-restarts`
   action on `/claude-ops:lanes`) reads each configured lane's telemetry and relaunches the
-  stopped lanes that asked, through `lane-launcher.sh restart` — so each lane's prompt, model,
+  stopped lanes that asked, through `lane-launcher.sh restart`, so each lane's prompt, model,
   effort, and settings (autonomy tier) come from the existing lane config. Meant to run
   unattended on an OS-owned schedule (Task Scheduler / cron): `print-schedule` emits the
   registration and removal commands; registering them stays an operator action. Guardrails: a
   telemetry comment is a signal, never a target (only operator-configured lanes can be
   relaunched; nothing from a comment is interpolated into a command); a per-lane circuit
-  breaker (default 3 restarts per rolling 24 h) that **fails closed** — a run ledger that does
+  breaker (default 3 restarts per rolling 24 h) that **fails closed**: a run ledger that does
   not parse reports the budget as spent, with a warning, rather than silently restoring the
   full budget on exactly the file a crashed writer left behind; a not-currently-running
   predicate that makes the consumer self-clearing without editing another writer's comment;
   and an mkdir-atomic **cross-process lock** held across the whole read → decide → relaunch →
-  append span. The lock is load-bearing rather than defensive: the emitted registration is two
+  append span. The lock is required rather than defensive: the emitted registration is two
   scheduled tasks (a poll and an `ONLOGON` companion) that both fire at logon, and Task
   Scheduler's instance policy is per task, so without it both runs read the same breaker count
   and one lane name ends up with two background sessions. A run that cannot take the lock
   skips cleanly (exit 0, `lock-held`); a lock left by a hard-killed run ages out. A telemetry
   read that ERRORS is its own `api-error` decision, never conflated with `no-state` ("the lane
   did not ask"). Observability: a JSONL run ledger under the plugin data dir recording
-  incidents only — not the routine per-tick decisions, which on a 15-minute schedule would
-  grow the breaker's own input by hundreds of rows a day forever — plus the consumer's own
+  incidents only, not the routine per-tick decisions, which on a 15-minute schedule would
+  grow the breaker's own input by hundreds of rows a day forever, plus the consumer's own
   sentinel-marked telemetry comment in the `morning-brief.sh` format, posted by default to the
   issue that reader resolves (its own title search, reused), so a schedule that stops firing
   surfaces as a STALE lane in the morning brief. `check` is read-only in fact as well as in
@@ -3493,22 +3800,22 @@ Six review findings raised on #1720 forty-six seconds *after* it merged, so they
   labeled UNVERIFIED items: `skills/lanes/context/restart-consumer.md`.
   - **The circuit breaker bounds relaunch ATTEMPTS, not successes.** `restarted` and `failed`
     rows both spend budget. Counting only `restarted` left the breaker permanently closed on
-    exactly the failure it exists for — a launcher that exits non-zero, or one that returns
+    exactly the failure it exists for, a launcher that exits non-zero, or one that returns
     success while the background lane never appears (the UNVERIFIED Windows
-    scheduler-spawn hazard this consumer confirms rather than trusts) — so every tick would
+    scheduler-spawn hazard this consumer confirms rather than trusts), so every tick would
     re-attempt a pull, a marketplace refresh, and a launch, indefinitely. The pre-launch read
     failures (`error`, `api-error`) stay ledgered but uncounted: a transient forge outage must
     not spend a lane's restart budget.
   - **A failed issue lookup is an `api-error`, not a routine `no-telemetry` tick.**
     `resolve_issue_by_title` piped `gh issue list` into `jq`, so an unreachable or unauthorized
-    forge became an empty result and read as "no issue carries this title" — an unattended
+    forge became an empty result and read as "no issue carries this title". An unattended
     consumer stayed apparently healthy while never observing that lane's request. It now
     returns non-zero on the list failure, and the caller records `api-error` and flags the run,
     matching what `lane_comment_bodies` already did for the comment read.
   - **The target repo resolves from the checkout directory.** `gh repo view` takes an
     `[<owner>/]<repo>` argument and parses a leading path segment as a HOST, so passing the
-    absolute checkout path made the default (no `--target-repo`) path — the one every generated
-    scheduled command uses — exit 4 before reading any request. The repo is now selected by
+    absolute checkout path made the default (no `--target-repo`) path, the one every generated
+    scheduled command uses, exit 4 before reading any request. The repo is now selected by
     running the command in `$REPO`.
   - **The published telemetry comment no longer carries the absolute ledger path.** A default
     data dir embeds the operator's home-directory user name and a `--data-dir` override can
@@ -3523,10 +3830,10 @@ Six review findings raised on #1720 forty-six seconds *after* it merged, so they
 - **Shared `hook-utils.sh`: a path spelled as a Windows 8.3 short name now canonicalizes to the
   same physical path as its long spelling (#1636).** `hook::physical_path` canonicalized with
   GNU realpath, which under Git Bash resolves symlinks but leaves 8.3 short names (`KYLESE~1`)
-  unexpanded, so a short-form path — the shape Claude Code's own scratchpad paths take — read
+  unexpanded, so a short-form path, the shape Claude Code's own scratchpad paths take, read
   as a different path than its long form everywhere the canonicalizer's output is compared. The
   lib now expands short names on Windows/MSYS hosts (new `hook::expand_8dot3`, via `cygpath -l`)
-  on the resolver's success path, and only when the expanded form actually differs — a
+  on the resolver's success path, and only when the expanded form actually differs. A
   legitimate long name containing `~` passes through untouched. 8.3 generation is a per-volume
   property (`fsutil 8dot3name query`), so the mismatch was live only on volumes that generate
   short names. For this plugin that means the path-membership validation in
@@ -3541,7 +3848,7 @@ Six review findings raised on #1720 forty-six seconds *after* it merged, so they
 - **`lanes`: `telemetry-upsert.sh` refuses a degraded telemetry body before it writes it, then
   confirms what landed (#952).** The gate is pre-write: the caller's body is rejected with exit `3`,
   having made no API call at all, if it begins with a literal `@` or falls under a 16-byte floor.
-  This guards the #943 defect class — a caller that composed an `@path` string as its body content,
+  This guards the #943 defect class: a caller that composed an `@path` string as its body content,
   meaning the file, posts the literal path text, and because the comment's timestamp still moves the
   telemetry surface looks fresh while carrying no data, an observability fail-open no freshness check
   can see. Catching it before the `POST`/`PATCH` means nothing degraded is ever published to a public
@@ -3550,20 +3857,20 @@ Six review findings raised on #1720 forty-six seconds *after* it merged, so they
   gate exists for the body TEXT a lane hands it. After the write the comment is re-read through a
   separate `GET` and the same assertions re-run against what a reader will actually find, plus the
   marker sentinel. That pass is scoped honestly: because the sent body was already cleared and the
-  `GET` targets the id just written, it sees only what happened to that comment afterwards — a
-  mangled store, a concurrent writer stripping the sentinel, a deletion — and a failure exits `6`
+  `GET` targets the id just written, it sees only what happened to that comment afterwards: a
+  mangled store, a concurrent writer stripping the sentinel, a deletion. A failure exits `6`
   naming the comment's URL. It cannot detect that detection resolved the wrong comment, and editing
   another user's comment is not its job either (that `PATCH` 403s and exits `5`). The create/update
   response echo is deliberately not trusted in place of the re-read: it proves the request was
   accepted, not what landed. An unreachable `GET` is retried once and then reports the cycle
-  UNCONFIRMED rather than known-bad — a check that could not run is not a check that disagreed. It
+  UNCONFIRMED rather than known-bad. A check that could not run is not a check that disagreed. It
   carries `gh`'s own error text (bounded) and branches its verdict on it: a `404` says the comment
-  is NOT RETRIEVABLE — deleted, its issue deleted, or the token's read access lost — which rules out
+  is NOT RETRIEVABLE, whether deleted, its issue deleted, or the token's read access lost, which rules out
   the "probably intact" reading that anything else (a `403`/`429` secondary rate limit) keeps. The
-  retry is a network-blip guard only — it does not honor `Retry-After`, so a secondary rate limit
+  retry is a network-blip guard only. It does not honor `Retry-After`, so a secondary rate limit
   outlasts both attempts by design. Capturing that error text is a diagnostic and never the thing
   that fails a good write: an unwritable `TMPDIR` degrades to no capture rather than turning exit
-  `0` into exit `6`. One limitation is stated rather than papered over — the read-back asserts
+  `0` into exit `6`. One limitation is stated rather than papered over: the read-back asserts
   properties, not that the body changed, so a PATCH that silently no-ops still verifies and a stale
   comment reads as a good cycle; freshness belongs to the reader (`morning-brief`), not here. There
   is no `--no-verify` opt-out; this script is driven by lane prompts, so an escape hatch would be
@@ -3571,7 +3878,7 @@ Six review findings raised on #1720 forty-six seconds *after* it merged, so they
 - **`lanes` doctrine: the `@path`-as-body anti-pattern is stated once, in the skill.** Telemetry and
   comment bodies are passed as file contents or piped, never as an `@path` string interpolated into
   a body value: `gh issue comment --body @path` and `gh api -f body=@path` send the literal text.
-  Reading from a file takes `gh issue comment --body-file`, or `gh api -F`/`--field key=@path` —
+  Reading from a file takes `gh issue comment --body-file`, or `gh api -F`/`--field key=@path`.
   `gh api` has no `--body-file` flag at all. The rule covers the `gh api` upsert a lane inlines as
   well as the wrapper, because an installed plugin cannot invoke a sibling plugin's script and an
   inlined upsert carries none of the wrapper's body checks.
@@ -3580,7 +3887,7 @@ Six review findings raised on #1720 forty-six seconds *after* it merged, so they
 
 - **`telemetry-upsert.sh` now rejects bodies it previously accepted (#952).** A body beginning with
   a literal `@`, or shorter than 16 bytes, exits `3` instead of being posted. Both shapes are the
-  #943 fail-open rather than legitimate telemetry, so the rejection is the point — but a caller
+  #943 fail-open rather than legitimate telemetry, so the rejection is the point, but a caller
   passing either today changes from a silent success to a hard failure. The `@` rule is positional,
   so a body whose FIRST line is a GitHub @mention is rejected too: lead with a telemetry key and put
   mentions on a later line. No in-repo caller is affected: nothing invokes the wrapper yet, by
@@ -3601,11 +3908,11 @@ Six review findings raised on #1720 forty-six seconds *after* it merged, so they
   pipe one byte at a time (~32 KB/s on Git Bash), so the `stdin_read_timeout` bound was really a
   ~64 KB throughput ceiling rather than the stall detector it was written to be. Past that ceiling
   the read returned a truncated payload and rc 1, and this plugin's hooks took their `|| exit 0`
-  branch — the hook did not run at all, with no diagnostic, on exactly the large writes it was
+  branch: the hook did not run at all, with no diagnostic, on exactly the large writes it was
   most wanted for. The read is now chunked (`read -N`), which bash satisfies with block reads, and
   the bound became a true idle bound: `read -t` is a deadline for the whole requested read rather
   than an inactivity timer, so a timed-out read that nevertheless returned bytes is now treated as
-  progress — its partial chunk is kept and a fresh window is armed. Only a window that delivers
+  progress: its partial chunk is kept and a fresh window is armed. Only a window that delivers
   nothing at all is a stall. `read -N` is Bash 4.1+, and these hooks support Bash 3.2+ (macOS
   system bash), so the pre-4.1 path falls back to the delimiter read inside the same re-arming
   loop. Measured: 50 KB drops from ~2100 ms to ~20 ms, 200 KB from ~6800 ms to ~85 ms. Synced
@@ -3621,12 +3928,12 @@ Six review findings raised on #1720 forty-six seconds *after* it merged, so they
 
 - **`stdin_read_timeout` is documented as the idle bound it now is.** This plugin already exposed
   the option, and its README and manifest description both described it as bounding "how long each
-  hook waits for its payload before failing open" — a total read deadline. It is now an inactivity
+  hook waits for its payload before failing open", a total read deadline. It is now an inactivity
   deadline: any byte resets it, so a producer that keeps emitting is bounded by Claude Code's own
   hook timeout rather than by this value, and the bound is read in four slices so a stall is detected
-  within a quarter of the configured interval — except on a shell without fractional `read -t`
+  within a quarter of the configured interval, except on a shell without fractional `read -t`
   (Bash 3.2, the macOS system shell), where the bound is read as one window and the detection can
-  take up to two intervals. Documentation only — the configuration contract users
+  take up to two intervals. Documentation only: the configuration contract users
   read was materially misleading after the shared-library change above.
 
 ## [0.21.5]
@@ -3646,7 +3953,7 @@ Six review findings raised on #1720 forty-six seconds *after* it merged, so they
 
 ### Changed
 
-- **Test scaffolding: migrated `mktemp -p` temp file/dir creation to the portable `mktemp "$DIR/template"` form.** BSD/macOS `mktemp` has no `-p` flag; the directory now rides in the positional TEMPLATE argument instead, which both GNU and BSD `mktemp` accept identically. Test-only — no hook behavior change. Part of #1527 (`claude-ops-test-helpers.sh`).
+- **Test scaffolding: migrated `mktemp -p` temp file/dir creation to the portable `mktemp "$DIR/template"` form.** BSD/macOS `mktemp` has no `-p` flag; the directory now rides in the positional TEMPLATE argument instead, which both GNU and BSD `mktemp` accept identically. Test-only, no hook behavior change. Part of #1527 (`claude-ops-test-helpers.sh`).
 
 ## [0.21.3]
 
@@ -3673,7 +3980,7 @@ Six review findings raised on #1720 forty-six seconds *after* it merged, so they
 - **`plugins` skill's `converge.md` no longer overstates when `uninstall` needs `-y`.** It claimed
   any non-TTY `uninstall` requires `-y` "by the CLI itself." Verified against the live CLI (2.1.220)
   and current docs: `-y` only skips `uninstall`'s `--prune` confirmation, and this action's
-  `uninstall` calls never pass `--prune` — so `-y` was never warranted here and adding it would only
+  `uninstall` calls never pass `--prune`, so `-y` was never warranted here and adding it would only
   ever bypass a different, unused prompt, not Step 3's per-plugin confirm (#1410).
 
 ## [0.21.1]
@@ -3685,7 +3992,7 @@ Six review findings raised on #1720 forty-six seconds *after* it merged, so they
   both halves to `-s user`. When this plugin is installed at `project` or `local` scope, that
   silently uninstalled a separate user-scope record while the effective project/local install kept
   loading, and the reinstall landed at a scope that does not load. Both commands now carry
-  `-s <scope>`, sourced from what `claude plugin list` reports for this plugin — the same fix
+  `-s <scope>`, sourced from what `claude plugin list` reports for this plugin, the same fix
   already applied to `session-flow` and `rate-limit-guard` in #1393.
   The recipe also now requires the reinstall to re-supply **every** key whose value should
   stay non-default, not only the key being changed: uninstalling drops the stored
@@ -3698,17 +4005,17 @@ Six review findings raised on #1720 forty-six seconds *after* it merged, so they
 
 - **`lanes` skill: `lane-launcher.sh` now captures and persists the launch commit
   (`#792`).** `context/refresh.md`'s git staleness probe referenced a
-  `<lane-launch-commit>` placeholder with no producer — the repo HEAD when
+  `<lane-launch-commit>` placeholder with no producer: the repo HEAD when
   `lanes start`/`restart` last ran was advisory-only, with no automated way to
   retrieve it. `lane-launcher.sh` now captures `git rev-parse HEAD` right after
   the pre-launch pull (a pure read, so it also previews correctly under
   `--dry-run`) and writes it, for every lane actually (re)started that run, to
-  `<data-dir>/lanes/<lane>-launch-commit` — a lane `start` skips as
+  `<data-dir>/lanes/<lane>-launch-commit`. A lane `start` skips as
   already-running keeps its existing marker untouched. New `--data-dir DIR`
   option (default: the `$CLAUDE_PLUGIN_DATA` env var if set, else
   `~/.claude/plugins/data/claude-ops`, matching `check-all.sh`'s convention).
   `SKILL.md`'s invocation now passes `--data-dir "${CLAUDE_PLUGIN_DATA}"`
-  explicitly — per current
+  explicitly. Per current
   [plugins-reference](https://code.claude.com/docs/en/plugins-reference#environment-variables),
   `CLAUDE_PLUGIN_DATA` is exported as a real env var only to hook/MCP/LSP
   subprocesses, not to a script a skill shells out to via the Bash tool, so a
@@ -3728,16 +4035,16 @@ Six review findings raised on #1720 forty-six seconds *after* it merged, so they
     where it resolves. Per
     [plugins-reference](https://code.claude.com/docs/en/plugins-reference#environment-variables),
     `${CLAUDE_PLUGIN_DATA}` substitutes inline in *skill and agent content* but is
-    exported as a real environment variable only to hook and MCP/LSP subprocesses
-    — and `context/refresh.md` is read raw rather than rendered as skill content.
+    exported as a real environment variable only to hook and MCP/LSP subprocesses,
+    and `context/refresh.md` is read raw rather than rendered as skill content.
     An env-var-with-fallback expression there would have silently resolved to the
     unqualified `~/.claude/plugins/data/claude-ops` guess, read no marker, and
     skipped the staleness check without saying so. `SKILL.md` now carries the
     substituted `data_dir=` assignment and `context/refresh.md` points at it.
   - A lane name is now validated as a single path component at config preflight
     (exit `3` on `/`, `\`, `.`, or `..`). The name is the marker's filename, so
-    without that check two distinct configured lanes — `work` and
-    `group/../work` — would share one marker file and a targeted restart of
+    without that check two distinct configured lanes, `work` and
+    `group/../work`, would share one marker file and a targeted restart of
     either would make the other's probe read a launch commit it never launched
     at. Rejecting rather than encoding keeps the documented
     `<data-dir>/lanes/<lane>-launch-commit` path literally true.
@@ -3745,7 +4052,7 @@ Six review findings raised on #1720 forty-six seconds *after* it merged, so they
     (`<data-dir>/lanes/<repo-key>/<lane>-launch-commit`). The data directory is
     plugin-wide but a lane name is only unique within one repo, so a
     conventional `work` lane in two checkouts would otherwise share a marker and
-    each repo's probe would diff against the other's unrelated history — usually
+    each repo's probe would diff against the other's unrelated history, usually
     an invalid-revision error, at best a silently wrong answer. `<repo-key>` is
     `git hash-object` over `git rev-parse --show-toplevel`: a digest rather than
     a character fold, because folding collapses two real checkout paths like
@@ -3766,8 +4073,8 @@ Six review findings raised on #1720 forty-six seconds *after* it merged, so they
 
 - **`lanes`: per-lane `settings` passthrough, wiring the autonomy lane-stop gate into the shipped
   launch flow (#535 review follow-up).** The autonomy plugin's `Stop`-hook lane-stop gate is
-  default-OFF and documents a per-session opt-in via `claude --settings`, but the lane launcher —
-  the repository's shipped standing-lane flow — built only `claude --bg -n … [--model] [--effort]`
+  default-OFF and documents a per-session opt-in via `claude --settings`, but the lane launcher,
+  the repository's shipped standing-lane flow, built only `claude --bg -n … [--model] [--effort]`
   and never supplied that override, so no launched lane ever received the gate or its operator
   notification. The lane config now takes an optional per-lane `settings` JSON object that the
   launcher passes verbatim as `--settings` (session-only, never persisted) on `start`/`restart`,
@@ -3785,7 +4092,7 @@ Six review findings raised on #1720 forty-six seconds *after* it merged, so they
   catalog/installed/enabled-scale JSON payload embedded that value as a literal command-line
   argument; for a marketplace catalog large enough (confirmed against a real 273-plugin catalog,
   reproduced here with a synthetic 500-plugin fixture), the serialized JSON exceeded the
-  platform/shell's argv-length ceiling and `jq` failed before emitting anything — silently dropping
+  platform/shell's argv-length ceiling and `jq` failed before emitting anything, silently dropping
   that marketplace from `sync`/`audit`/`converge`. Confirmed on Windows Git Bash/MSYS `jq`, but the
   underlying argv-length ceiling is a real limit on every platform, just reached sooner there.
   Every affected call site now routes its payload through a temp file via `jq --slurpfile` instead
@@ -3796,7 +4103,7 @@ Six review findings raised on #1720 forty-six seconds *after* it merged, so they
   only.
   - Temp files created for `--slurpfile` routing live in one per-run directory removed by an EXIT
     trap; each call site invokes the writer inside a `$(...)` subshell, so files are not tracked in
-    an array (a subshell-local append would vanish on return) — the whole directory is the cleanup
+    an array (a subshell-local append would vanish on return). The whole directory is the cleanup
     unit instead.
   - A malformed source file (e.g. `settings.json`) used to make the affected `--argjson` fail loud
     immediately; `--slurpfile` instead tolerates a genuinely empty payload as "zero JSON values"
@@ -3822,8 +4129,8 @@ Six review findings raised on #1720 forty-six seconds *after* it merged, so they
   version bump of claude-ops itself (`#1176`, audit finding F1).** `fleet-state.sh`'s
   `resolve_default_marketplace` exact-matched the running plugin root against the version-pinned
   `installPath` in `installed_plugins.json`; any time the session's loaded version differed from the
-  installed one — a marketplace `autoUpdate` shortly after session start, or `sync`'s own Step-3
-  self-update — the join found nothing and the skill's primary invocation form failed with "could not
+  installed one, whether from a marketplace `autoUpdate` shortly after session start or `sync`'s own
+  Step-3 self-update, the join found nothing and the skill's primary invocation form failed with "could not
   resolve the default marketplace". Added a version-agnostic fallback that matches the version-stripped
   `…/cache/<marketplace>/<plugin>` prefix (exact match still tried first; marketplace stays
   distinguishable), plus a clearer error that prints the searched root and names the version-skew cause.
@@ -3832,14 +4139,14 @@ Six review findings raised on #1720 forty-six seconds *after* it merged, so they
 ### Changed
 
 - **`context/gotchas.md`: generalized the CRLF gotcha (audit finding F2).** The trailing-`\r` hazard
-  is not `jq`-only — any captured Windows value (`python` `print`, PowerShell interop, `git config`,
+  is not `jq`-only: any captured Windows value (`python` `print`, PowerShell interop, `git config`,
   a CRLF file read) can corrupt a constructed `claude plugin` id so the CLI reports
   `Plugin "<name>" not found` with the full id passed (marketplace suffix silently corrupted). Rescoped
   the entry to "any captured value", documented the collision with the bare-name symptom, and
   cross-referenced the two.
 - **`plugins` SKILL.md: corrected the `install_new` render contract (audit finding F3).** An unset
   `${user_config.install_new}` renders the literal placeholder (the manifest `default` is not
-  substituted for an unset key; verified against CC 2.1.218) — the common default-config case. The doc
+  substituted for an unset key; verified against CC 2.1.218), the common default-config case. The doc
   now reads that literal placeholder as the expected unset state → use the default `ask` without
   flagging it as an invalid value; only an explicitly-set unsupported value is the invalid case.
 
@@ -3847,28 +4154,28 @@ Six review findings raised on #1720 forty-six seconds *after* it merged, so they
 
 ### Added
 
-- **`skill_usage_scope` userConfig — the skill-usage store's home is now scope-selectable
+- **`skill_usage_scope` userConfig: the skill-usage store's home is now scope-selectable
   (`repo` | `user` | `data-dir`), and the repo scope keeps `git status` clean via a
   machine-local `.git/info/exclude` entry (`#1151`).** Previously the store was forced into
   every consuming repo's tree (`.claude/observability/skill-usage.jsonl` as untracked
   `git status` noise) and the `skill_usage_dir` containment validation made user/machine
-  scope unreachable by config — containment as a ceiling instead of a default. Now: `repo`
+  scope unreachable by config, containment as a ceiling instead of a default. Now: `repo`
   (default, unchanged location) resolves the contained `skill_usage_dir` subpath under the
   repo root and idempotently adds the store dir to `.git/info/exclude` (machine-local; never
   `.gitignore` or tracked files; tracked content is unaffected by ignore semantics; opt out
   with the new `skill_usage_git_exclude=false` for teams that deliberately commit the
-  telemetry); `user` resolves the same contained subpath under `$HOME` — one cross-repo
-  operator store; `data-dir` writes `${CLAUDE_PLUGIN_DATA}/skill-usage/<repo-slug>` —
+  telemetry); `user` resolves the same contained subpath under `$HOME`, one cross-repo
+  operator store; `data-dir` writes `${CLAUDE_PLUGIN_DATA}/skill-usage/<repo-slug>`,
   plugin-owned, update-safe, keyed by repo. Unknown scope values fall back to `repo` with a
   one-time advisory (prose-validated; the manifest schema has no enum type). Store rows gain
   `project` (project-root basename, display) and `project_id` (basename + 8-char digest of
-  the physical path — same-basename checkouts stay distinguishable) so cross-repo scopes
+  the physical path, keeping same-basename checkouts distinguishable) so cross-repo scopes
   keep repo identity; the data-dir key uses the same collision-resistant slug, and the
   exclude line is segment-normalized (a configured `./x` or `x//y` still matches) and
   glob-escaped (`*` `?` `[` in a configured dir write a literal exclude pattern, not a
   glob that over-matches sibling dirs). A `skill_usage_dir=.` (repo-root) store excludes
   the store file (`/skill-usage.jsonl`) rather than the whole tree.
-  **Default-flip decision (recorded):** the default deliberately stays `repo` — the store
+  **Default-flip decision (recorded):** the default deliberately stays `repo`: the store
   sits beside `hook-events.jsonl` per the observability skill's project-local posture (that
   skill reads only `hook-events.jsonl` and the OTEL store, so colocation is convention, not
   a read dependency), the exclude entry removes the status noise that motivated the change,
@@ -3883,7 +4190,7 @@ Six review findings raised on #1720 forty-six seconds *after* it merged, so they
   The test-only `FLEET_STATE_HOOK_UTILS` env override let any caller able to set
   an environment variable (a project `.claude/settings.json` env block, an
   inherited shell, another hook) redirect the `source` at an attacker-controlled
-  file, executed with the script's ambient permissions — the existing guard only
+  file, executed with the script's ambient permissions. The existing guard only
   checked the path existed, not that it was trusted. `hook-utils.sh` is a fixed
   sibling shipped with the plugin, so it is now loaded unconditionally from the
   script-relative plugin root; the override was removed rather than gated because,
@@ -3904,14 +4211,14 @@ Six review findings raised on #1720 forty-six seconds *after* it merged, so they
 - Sync of the shared `hook-utils.sh`: the git-option parser distinguishes `--config-env`
   (an env-var name) from `-c`/`--config` (an inline value), and a `--config-env` alias for
   a guarded subcommand is refused by shape rather than by resolving the environment
-  variable's value (`#740`). No behavior change for this plugin — it does not inspect git
+  variable's value (`#740`). No behavior change for this plugin: it does not inspect git
   config values; shipped so consumers receive the shared library update.
 
 ## [0.18.1]
 
 ### Changed
 
-- **`lanes` skill — document that a relaunch is the only context reset a loop
+- **`lanes` skill: document that a relaunch is the only context reset a loop
   lane gets.** A `/loop` lane re-invokes in the same session and cannot `/clear`
   itself, so the "restart at ~N% context" discipline has no in-session
   enforcement; the skill's `restart` (fresh session from the canonical prompt) is
@@ -3957,7 +4264,7 @@ Six review findings raised on #1720 forty-six seconds *after* it merged, so they
   The two `git rev-parse --show-toplevel` probes in `SKILL.md`'s front matter are
   already `!` dynamic-context injections (fallback + `shell: bash`), so nothing to
   convert there. The `context/refresh.md` staleness probe correctly stays a body
-  instruction — it fails all four conditions: conditional (only when weighing a
+  instruction. It fails all four conditions: conditional (only when weighing a
   restart), needs a computed `<lane-launch-commit>` argument, and its `git fetch`
   is an unbounded network round-trip that mutates remote-tracking refs. Added that
   reason inline so a future reader does not re-litigate the decision.
@@ -3967,7 +4274,7 @@ Six review findings raised on #1720 forty-six seconds *after* it merged, so they
 ### Changed
 
 - Skills with `!` dynamic-context injections now declare `shell: bash` explicitly, per
-  the pinned precompute convention — bash-only pipelines must not fall through to a
+  the pinned precompute convention: bash-only pipelines must not fall through to a
   PowerShell host.
 
 ## [0.17.1]
@@ -3985,17 +4292,17 @@ Six review findings raised on #1720 forty-six seconds *after* it merged, so they
 
 ### Added
 
-- **`lanes` skill — scripted two per-cycle lane mechanics that need no reasoning.**
+- **`lanes` skill: scripted two per-cycle lane mechanics that need no reasoning.**
   A `/loop` lane otherwise hand-assembles both every session; now the prompt
   references a script and the output is deterministic and testable.
-  - **`machine-behavior.sh`** emits the MACHINE-BEHAVIOR block — gh identity, clone
-    path, worktree inventory (root + count + per-worktree branch), and installed
-    plugin versions — as a verbatim-printable text block. It emits only
+  - **`machine-behavior.sh`** emits the MACHINE-BEHAVIOR block as a verbatim-printable
+    text block: gh identity, clone path, worktree inventory (root + count +
+    per-worktree branch), and installed plugin versions. It emits only
     mechanically unambiguous facts: it deliberately does NOT compute "deviations
     from standing rules" (a model judgment over prose rules, not a scripted field).
     Plugin versions are the INSTALLED runtime versions (read from
     `installed_plugins.json`), which can lag repo HEAD mid-session per
-    `context/refresh.md` — the honest number for a running lane. `--plugin <id>`
+    `context/refresh.md`, the honest number for a running lane. `--plugin <id>`
     (repeatable) scopes the block to the plugins a lane runs.
   - **`telemetry-upsert.sh`** maintains exactly ONE marker-identified telemetry
     comment on a tracking issue, editing it in place instead of posting a second
@@ -4012,14 +4319,14 @@ Six review findings raised on #1720 forty-six seconds *after* it merged, so they
     (pipe an in-memory body via `-`), and the body is capped at 64 KiB.
 
   Both ship with a sibling `.test.sh` (PATH-stubbed `gh`/`git`, fixture
-  `installed_plugins.json` and comment lists — no network) and are documented in
+  `installed_plugins.json` and comment lists, no network) and are documented in
   the skill's `SKILL.md`. (#538)
 
 ## [0.16.0]
 
 ### Added
 
-- **`plugins` skill — `fleet-state.sh` now emits `missing_from_user_install`.**
+- **`plugins` skill: `fleet-state.sh` now emits `missing_from_user_install`.**
   A new user-scope completeness field (catalog ids not installed at `user`
   scope, minus any explicitly opted out) alongside the existing all-scope
   `missing_from_install`. `sync` Step 4 now keys its user-scope install offer
@@ -4032,14 +4339,14 @@ Six review findings raised on #1720 forty-six seconds *after* it merged, so they
 
 ### Fixed
 
-- **`plugins` skill — `fleet-state.sh` shape validation now checks each plugin
+- **`plugins` skill: `fleet-state.sh` shape validation now checks each plugin
   entry, not just the top-level type.** A drifted individual entry (a non-array
   value) passed the `{plugins: {...}}` object check, then failed inside the
   installed-flatten `jq` pipeline in a command substitution; with `set -uo
   pipefail` but no `set -e` the failure was swallowed and the script exited 0
   with `installed: []` instead of failing loud per its stated design. The check
   now asserts every entry is an array and exits 2 on drift. (#254)
-- **`plugins` skill — `fleet-state.sh --marketplace` with no name now exits 2
+- **`plugins` skill: `fleet-state.sh --marketplace` with no name now exits 2
   instead of infinite-looping.** With one positional param left, `shift 2`
   failed silently (no `set -e`), leaving `$1` unchanged so the arg loop re-read
   `--marketplace` forever and the post-loop guard was never reached. The empty
@@ -4049,7 +4356,7 @@ Six review findings raised on #1720 forty-six seconds *after* it merged, so they
 
 ### Changed
 
-- **`changelog` skill — installed CC version is now precomputed via `!`
+- **`changelog` skill: installed CC version is now precomputed via `!`
   dynamic-context injection.** The version-awareness step previously told Claude
   to run `claude --version` as a body instruction (a per-invocation tool
   round-trip); it now inlines the probe at load time with
@@ -4063,13 +4370,13 @@ Six review findings raised on #1720 forty-six seconds *after* it merged, so they
 
 ### Added
 
-- **`lanes` skill — mid-session staleness & restart-cadence guidance
+- **`lanes` skill: mid-session staleness & restart-cadence guidance
   (`context/refresh.md`).** Loop lanes merge fixes to the very plugins they run on,
   but a running lane keeps the skill versions it loaded at launch. New
   documentation establishes, against current Claude Code docs, that a true
-  mid-session hot-reload of a running loop lane is not achievable — a live session
+  mid-session hot-reload of a running loop lane is not achievable, since a live session
   retains its launch-time plugin versions, `/loop` never re-reads a skill's body on
-  later cycles, and a loop cannot self-trigger `/reload-plugins` — so restart is the
+  later cycles, and a loop cannot self-trigger `/reload-plugins`, so restart is the
   honest refresh mechanism (composing with the #496 context-reset cadence). Adds a
   read-only git probe to detect an unconsumed self-fix on `origin/main` and a
   trigger-based + periodic-floor restart cadence keyed to `/claude-ops:lanes
@@ -4090,7 +4397,7 @@ Six review findings raised on #1720 forty-six seconds *after* it merged, so they
 
 ### Fixed
 
-- **`lanes` skill — launch aborts on a failed pre-launch refresh.** `start` /
+- **`lanes` skill: launch aborts on a failed pre-launch refresh.** `start` /
   `restart` previously ran `refresh_repo_and_plugins || rc=1` and launched lanes
   regardless, so a failed `git pull --ff-only` (divergent/dirty checkout) or
   `claude plugin marketplace update` still seeded background lanes from stale
@@ -4099,18 +4406,18 @@ Six review findings raised on #1720 forty-six seconds *after* it merged, so they
   message; `--no-pull` / `--no-update` remain the intentional-skip path (a
   skipped step is not a failure). (#639)
 
-- **`lanes` skill — unknown restart/stop targets are rejected before any refresh
+- **`lanes` skill: unknown restart/stop targets are rejected before any refresh
   mutation.** `restart does-not-exist` ran `git pull --ff-only` +
   `claude plugin marketplace update` before discovering the target was unknown.
   The `TARGET_LANES` existence check now runs up front in `main`, ahead of the
   refresh step, so a misspelled target fails fast (exit 3) with no repo/plugin
-  mutation — matching `stop`'s fail-first behaviour. (#639)
+  mutation, matching `stop`'s fail-first behaviour. (#639)
 
 ## [0.15.0]
 
 ### Added
 
-- **`lanes` skill** — a scripted launcher that starts, restarts, stops, and
+- **`lanes` skill**: a scripted launcher that starts, restarts, stops, and
   reports loop lanes as **named background Claude Code sessions** seeded from
   canonical prompt files, replacing the manual morning refresh (cancel loop,
   clear, re-paste the canonical prompt) across N lanes. `start` (default) and
@@ -4118,20 +4425,20 @@ Six review findings raised on #1720 forty-six seconds *after* it merged, so they
   then launch each configured lane with `claude --bg -n <lane>` mirroring the
   lane's `model`/`effort`; `status` prints a per-lane running/stopped table with
   the live sessionId; `stop` ends a lane via `claude stop <sessionId>` (resolved
-  from `claude agents --json` — there is no `claude agents stop` verb). Acts on a
+  from `claude agents --json`, since there is no `claude agents stop` verb). Acts on a
   session **only** when its name is a configured lane, so a hand-started session
   is never touched. Lanes come from a JSON config (`--config`, else
   `$CLAUDE_OPS_LANES_CONFIG`, else `<repo>/.work/lanes.json`); `--dry-run`,
   `--no-pull`, `--no-update`, and `--agents-json` support previewing and offline
   reuse. Prompt files are read from a session-local `.work` dir today via the
-  single `prompt_dir`/`resolve_prompt_dir` seam, which composes with #480
+  single `prompt_dir`/`resolve_prompt_dir` interface, which composes with #480
   (loop-prompt authoring skill) when durable prompt storage lands.
 
 ## [0.14.0]
 
 ### Added
 
-- **`morning-brief` skill** — a read-only, `gh`-based operator morning view for
+- **`morning-brief` skill**: a read-only, `gh`-based operator morning view for
   the current repo, collapsing the daily hand-run queries into one 5-second
   picture: open counts per queue label (`priority: needs-triage`, `status: ready`,
   `status: needs-decision`, `needs-human`), the gh-native merge-ready PR list
@@ -4150,7 +4457,7 @@ Six review findings raised on #1720 forty-six seconds *after* it merged, so they
 
 - **`hook-telemetry-sink` quiet jq skip documented at the site** with a
   `silent-skip-ok` annotation (the marketplace's new silent-skip CI gate). No
-  behavior change: the sink is fire-and-forget — its producer discards
+  behavior change: the sink is fire-and-forget, since its producer discards
   stdout+stderr, so prerequisite visibility is owned by the producer side.
 
 ## [0.13.0]
@@ -4224,7 +4531,7 @@ Six review findings raised on #1720 forty-six seconds *after* it merged, so they
   retired and no longer read. A consumer that set any of these in a settings
   `env` block must re-express the value as the matching `userConfig` option.
   Zero-config behavior is unchanged (all audit hooks on, same defaults). The
-  `HOOK_TELEMETRY_SINK` consumer-side telemetry seam is unaffected.
+  `HOOK_TELEMETRY_SINK` consumer-side telemetry integration point is unaffected.
 
 ## [0.10.1]
 
@@ -4249,10 +4556,10 @@ Six review findings raised on #1720 forty-six seconds *after* it merged, so they
 - New `plugins` skill (`/claude-ops:plugins`): brings a machine's plugin fleet current on demand.
   `sync` (default) refreshes marketplaces, updates in-repo project/local-scope installs plus the
   user-scope sweep, installs new catalog plugins per the `install_new` policy, and fills any
-  `enabledPlugins` completeness gap — all CLI-mediated, never hand-editing Claude Code's internal
+  `enabledPlugins` completeness gap, all CLI-mediated, never hand-editing Claude Code's internal
   state files. `audit` runs the same algorithm read-only. `converge` is the one action that can
   touch a committed `.claude/settings.json`: it detects actionable (version-behind) scope
-  divergence, previews and confirms per plugin, then surfaces the resulting diff for review — never
+  divergence, previews and confirms per plugin, then surfaces the resulting diff for review, never
   auto-committed, and it aborts outright in an autonomous session. Adds a read-only
   `scripts/fleet-state.sh` state-inspection script and the `install_new` userConfig scalar
   (`ask` default / `all` / `none`).

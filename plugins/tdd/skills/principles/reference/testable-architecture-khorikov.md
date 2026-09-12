@@ -6,8 +6,8 @@ Four types of code (2x2 matrix), the Humble Object pattern, code depth vs width,
 
 All production code can be categorized along two dimensions:
 
-1. **Complexity or domain significance** — the number of decision-making (branching) points, including implicit ones in libraries. Domain significance = how directly connected to the problem domain
-2. **Number of collaborators** — mutable or out-of-process dependencies that must be set up in tests. Immutable dependencies (values, value objects) don't count
+1. **Complexity or domain significance**: the number of decision-making (branching) points, including implicit ones in libraries. Domain significance = how directly connected to the problem domain
+2. **Number of collaborators**: mutable or out-of-process dependencies that must be set up in tests. Immutable dependencies (values, value objects) don't count
 
 ```
                         Few collaborators    Many collaborators
@@ -23,10 +23,10 @@ All production code can be categorized along two dimensions:
 
 **Where to invest unit testing effort:**
 
-- **Domain model and algorithms** (top-left) — best return on investment. Tests are highly valuable (complex/important logic) AND cheap (few collaborators = low maintenance). *This is what you should unit test*
-- **Trivial code** (bottom-left) — constructors, one-line properties. Tests have close-to-zero value. Don't test
-- **Controllers** (bottom-right) — coordinate work between domain classes and external systems. Test briefly as part of integration tests (Ch 8-10), not unit tests
-- **Overcomplicated code** (top-right) — high on both dimensions. *Fat controllers* that do complex work AND coordinate many dependencies. **Split into algorithms + controllers** using the Humble Object pattern
+- **Domain model and algorithms** (top-left): best return on investment. Tests are highly valuable (complex/important logic) AND cheap (few collaborators = low maintenance). *This is what you should unit test*
+- **Trivial code** (bottom-left): constructors, one-line properties. Tests have close-to-zero value. Don't test
+- **Controllers** (bottom-right): coordinate work between domain classes and external systems. Test briefly as part of integration tests (Ch 8-10), not unit tests
+- **Overcomplicated code** (top-right): high on both dimensions. *Fat controllers* that do complex work AND coordinate many dependencies. **Split into algorithms + controllers** using the Humble Object pattern
 
 > "The more important or complex the code, the fewer collaborators it should have."
 >
@@ -34,7 +34,7 @@ All production code can be categorized along two dimensions:
 
 ## The Humble Object Pattern
 
-Extract testable logic out of hard-to-test code. The remaining code becomes a thin, *humble* wrapper — it glues the hard-to-test dependency and the extracted logic together, but itself contains little or no logic and doesn't need testing.
+Extract testable logic out of hard-to-test code. The remaining code becomes a thin, *humble* wrapper. It glues the hard-to-test dependency and the extracted logic together, but itself contains little or no logic and doesn't need testing.
 
 Both hexagonal and functional architectures implement this pattern:
 
@@ -49,7 +49,7 @@ The functional core has *no* collaborators (all dependencies are values), placin
 
 Controllers orchestrate many dependencies (wide, many arrows) but aren't complex on their own (shallow blocks). Domain classes are the opposite: complex logic (tall blocks) but few external connections. Visualize it as tall-narrow vs short-wide blocks.
 
-This maps to well-known patterns: MVP, MVC, DDD Aggregates — all separate complex logic from orchestration. The Presenter/Controller/Application Service is the humble object.
+This maps to well-known patterns: MVP, MVC, and DDD Aggregates all separate complex logic from orchestration. The Presenter/Controller/Application Service is the humble object.
 
 ## The CRM 4-Take Refactoring
 
@@ -57,7 +57,7 @@ A CRM system with a `User.ChangeEmail()` method demonstrates progressive refacto
 
 ### Initial State (Overcomplicated)
 
-`User` directly calls `Database` and `MessageBus` — static out-of-process dependencies. High domain significance (email change logic) AND high collaborator count (database + message bus). Falls in the overcomplicated quadrant.
+`User` directly calls `Database` and `MessageBus`, both static out-of-process dependencies. High domain significance (email change logic) AND high collaborator count (database + message bus). Falls in the overcomplicated quadrant.
 
 ```csharp
 // BEFORE — overcomplicated: business logic + out-of-process deps mixed
@@ -72,19 +72,19 @@ public void ChangeEmail(int userId, string newEmail)
 
 ### Take 1: Make Implicit Dependencies Explicit
 
-Introduce interfaces for `Database` and `MessageBus`, inject them. **Not enough** — from the types-of-code perspective, interfaces behind out-of-process dependencies are still out-of-process. Tests still need complicated mock machinery.
+Introduce interfaces for `Database` and `MessageBus`, inject them. **Not enough**. From the types-of-code perspective, interfaces behind out-of-process dependencies are still out-of-process. Tests still need complicated mock machinery.
 
 > "It doesn't matter if the domain model refers to out-of-process dependencies directly or via an interface. Such dependencies are still *out-of-process*."
 
 ### Take 2: Introduce Application Services Layer
 
-Move all out-of-process communication to a `UserController` (application service). `User` no longer touches `Database` or `MessageBus` — zero collaborators, moves to the domain model quadrant.
+Move all out-of-process communication to a `UserController` (application service). `User` no longer touches `Database` or `MessageBus`. With zero collaborators, it moves to the domain model quadrant.
 
-**Problem**: the controller now contains reconstruction logic (mapping raw `object[]` data to domain objects) and returns the updated employee count from `User.ChangeEmail()` — a misplaced responsibility.
+**Problem**: the controller now contains reconstruction logic (mapping raw `object[]` data to domain objects) and returns the updated employee count from `User.ChangeEmail()`, a misplaced responsibility.
 
 ### Take 3: Remove Complexity from the Application Service
 
-Extract reconstruction logic into `UserFactory` and `CompanyFactory`. The controller is now firmly in the controllers quadrant — pure orchestration, no domain logic.
+Extract reconstruction logic into `UserFactory` and `CompanyFactory`. The controller is now firmly in the controllers quadrant: pure orchestration, no domain logic.
 
 ### Take 4: Introduce a Company Class
 
@@ -132,20 +132,20 @@ public class UserController
 }
 ```
 
-`Company`'s methods follow the **Tell Don't Ask** principle — `User` *tells* `Company` to change its employee count rather than asking for raw data and doing it itself.
+`Company`'s methods follow the **Tell Don't Ask** principle. `User` *tells* `Company` to change its employee count rather than asking for raw data and doing it itself.
 
 ### Final Types-of-Code Placement
 
 | Quadrant | Few collaborators | Many collaborators |
 |----------|------------------|--------------------|
-| **High complexity/significance** | `User.ChangeEmail`, `Company.ChangeNumberOfEmployees`, `Company.IsEmailCorporate`, `UserFactory`, `CompanyFactory` | *(empty — goal achieved)* |
+| **High complexity/significance** | `User.ChangeEmail`, `Company.ChangeNumberOfEmployees`, `Company.IsEmailCorporate`, `UserFactory`, `CompanyFactory` | *(empty, goal achieved)* |
 | **Low complexity/significance** | Constructors in `User` and `Company` | `UserController.ChangeEmail` |
 
 ## Testing After Refactoring
 
 ### Domain Layer (Unit Test)
 
-High-value, low-cost tests — output-based and state-based on in-memory objects:
+High-value, low-cost tests, output-based and state-based on in-memory objects:
 
 ```csharp
 [Fact]
@@ -166,7 +166,7 @@ Four tests cover all branches. Parameterized tests work well for simpler classes
 
 ### Trivial Code (Don't Test)
 
-Constructors with no logic — tests would provide close-to-zero value.
+Constructors with no logic. Tests would provide close-to-zero value.
 
 ### Preconditions
 
@@ -178,7 +178,7 @@ Covered in Ch 8-10, not unit tested directly.
 
 ## The Three-Way Trade-Off
 
-When business logic needs intermediate data from out-of-process dependencies (can't push all reads/writes to edges), three attributes compete — you can only have two:
+When business logic needs intermediate data from out-of-process dependencies (can't push all reads/writes to edges), three attributes compete and you can only have two:
 
 ```
          Controller simplicity
@@ -203,11 +203,11 @@ When business logic needs intermediate data from out-of-process dependencies (ca
 - Gets: domain model testability + performance
 - Loses: **controller simplicity** (controller gets decision-making points)
 
-> Khorikov recommends Option 3 in most cases — performance matters, and overcomplicated domain models (Option 2) are what we refactored away from. Two patterns mitigate the controller complexity cost:
+> Khorikov recommends Option 3 in most cases. Performance matters, and overcomplicated domain models (Option 2) are what we refactored away from. Two patterns mitigate the controller complexity cost:
 
 ## CanExecute/Execute Pattern
 
-Prevents business logic from leaking into controllers when splitting decisions into steps. The domain model exposes a `CanExecute` method that the controller calls first — the `Execute` method has a precondition requiring `CanExecute` to pass.
+Prevents business logic from leaking into controllers when splitting decisions into steps. The domain model exposes a `CanExecute` method that the controller calls first. The `Execute` method has a precondition requiring `CanExecute` to pass.
 
 ```csharp
 // Domain model — all validation encapsulated
@@ -233,9 +233,9 @@ if (error != null)
 
 Benefits:
 
-- Controller doesn't need to know *anything* about email change rules — just calls `CanChangeEmail()`
+- Controller doesn't need to know *anything* about email change rules. It just calls `CanChangeEmail()`
 - The precondition in `ChangeEmail()` guarantees the method is never called without validation
-- Multiple validations consolidate into the `CanExecute` method — extensible without touching the controller
+- Multiple validations consolidate into the `CanExecute` method, extensible without touching the controller
 
 > "For simplicity's sake, I'm using a `string` to denote an error. In a real-world project, you may want to introduce a custom `Result` class."
 
@@ -243,7 +243,7 @@ Benefits:
 
 Track important changes in the domain model and convert them to out-of-process calls *after* the business operation completes. Prevents the controller from needing to decide *when* to notify external systems.
 
-> **"A domain event describes an event in the application that is meaningful to domain experts."** Domain events should always be named in the past tense because they represent things that already happened. They are values — immutable and interchangeable.
+> **"A domain event describes an event in the application that is meaningful to domain experts."** Domain events should always be named in the past tense because they represent things that already happened. They are values: immutable and interchangeable.
 
 ```csharp
 public class EmailChangedEvent
@@ -269,7 +269,7 @@ foreach (var ev in user.EmailChangedEvents)
 }
 ```
 
-This solves the notification bug (sending messages when email didn't change) by making the domain model responsible for *when* events are generated. Tests verify domain event creation directly — no mocks needed:
+This solves the notification bug (sending messages when email didn't change) by making the domain model responsible for *when* events are generated. Tests verify domain event creation directly, with no mocks needed:
 
 ```csharp
 sut.EmailChangedEvents.Should().Equal(
@@ -282,7 +282,7 @@ sut.EmailChangedEvents.Should().Equal(
 
 > "Think of the observable behavior and implementation details as onion layers. Test each layer from the outer layer's point of view, and disregard how that layer talks to the underlying layers."
 
-The external client cares about the controller's `ChangeEmail` method and the message bus call. The controller (as client of `User`) cares about `User.ChangeEmail` — but calls from `User` to `Company` are implementation details from the controller's perspective.
+The external client cares about the controller's `ChangeEmail` method and the message bus call. The controller (as client of `User`) cares about `User.ChangeEmail`, but calls from `User` to `Company` are implementation details from the controller's perspective.
 
 **Rule**: don't verify interactions between domain classes. Only the first call from a controller to a domain class has an immediate connection to the controller's goal. Subsequent inter-domain calls are implementation details.
 
@@ -292,6 +292,6 @@ The external client cares about the controller's `ChangeEmail` method and the me
 
 - Domain events abstract upcoming messages on the bus
 - Changes in domain classes abstract upcoming database modifications
-- Both can be tested with plain unit tests — no out-of-process dependencies needed
+- Both can be tested with plain unit tests, with no out-of-process dependencies needed
 
 The goal is to keep all side effects in memory until the very end of the business operation. The controller then materializes them. This lets you test business logic without involving out-of-process dependencies, using output-based and state-based testing on in-memory objects.

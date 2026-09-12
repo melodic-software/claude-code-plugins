@@ -48,7 +48,7 @@ Why: a second import run doubles every row.
 
 ## File roles in this work
 
-- `tests/test_importer.py` — still to modify; the re-run case is missing.
+- `tests/test_importer.py`: still to modify; the re-run case is missing.
 
 ## Decisions already settled
 

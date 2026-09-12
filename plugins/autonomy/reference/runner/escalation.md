@@ -17,7 +17,7 @@ terminal outcome, carried in the structured-output envelope's `outcome` field
 
 | `outcome` | Meaning |
 |---|---|
-| `success` | the item drained clean — gates passed, disposition applied |
+| `success` | the item drained clean: gates passed, disposition applied |
 | `gate-failed` | a blocking verification gate failed |
 | `needs-human` | the run cannot proceed without human judgment or intervention |
 | `cap-exceeded` | a turn, budget, or wall-clock cap bounded the drain before completion |
@@ -25,34 +25,35 @@ terminal outcome, carried in the structured-output envelope's `outcome` field
 **Non-success outcomes file the escalation item.** `gate-failed`, `needs-human`, and
 `cap-exceeded` each file a human-gated work item on the governed queue carrying the evidence
 bundle: a failure summary, the run-transcript link, the run cost, the trace link, and the
-`resume_handle`. Human takeover is not a distinct API — it resumes the persisted session behind
+`resume_handle`. Human takeover is not a distinct API. It resumes the persisted session behind
 the `resume_handle` ([session-and-resume seam](seams.md)), so the escalation item is a
 resumable takeover, not a cold restart.
 
-**`success` never escalates — the runner's own outcome.** A successful outcome completes
-through the normal path — the per-item disposition ([lifecycle leaf](lifecycle.md)) and the
-task-boundary return-accounting capture ([return-accounting](../return-accounting.md)) — with
+**The runner's own outcome: `success` never escalates.** A successful outcome completes
+through the normal path, the per-item disposition ([lifecycle leaf](lifecycle.md)) and the
+task-boundary return-accounting capture ([return-accounting](../return-accounting.md)), with
 no runner escalation item and no acknowledgment or re-escalation obligation. Escalation is the
 non-success path only; if a healthy drain filed escalation work, every clean run would generate
 a false human task.
 
-**Inherited always-firing classes are untouched by the success exception.** An event class the
-[guardrail escalation contract](../guardrails.md#escalation) fires unconditionally —
-`untrusted-provenance` on every `C5` item — fires regardless of outcome, success included: the
+**Inherited always-firing classes are untouched by the success exception.** `untrusted-provenance`
+on every `C5` item is an event class the
+[guardrail escalation contract](../guardrails.md#escalation) fires unconditionally, and it
+fires regardless of outcome, success included: the
 runner emits it before the run completes, and the resulting item and fan-out follow that
 class's own route and severity, not the runner outcome mapping. The success exception
 suppresses only the runner's own outcome escalation, never an inherited class's standing
 obligation.
 
-## Stop-criteria taxonomy — two families
+## Stop-criteria taxonomy: two families
 
 A stop belongs to one of two families. The family determines who detects the stop, not its
-severity — severity is resolved by the mapping below.
+severity. Severity is resolved by the mapping below.
 
 - **`runner-owned` (deterministic).** The runner detects these itself, without agent judgment:
   turn, budget, or wall-clock cap reached; execution error persisting after retries; model
   refusal; verification-gate failure; isolation violation; missing plan approval (a `C4`
-  structural run leased without its recorded approval —
+  structural run leased without its recorded approval, per the
   [lifecycle leaf](lifecycle.md#c4-pre-execution-plan-approval)). Each is an observable runner
   condition, not a signal the agent has to raise.
 - **`agent-signaled` (judgment).** The executing agent raises these through the envelope's
@@ -61,18 +62,18 @@ severity — severity is resolved by the mapping below.
   security/data-integrity event, an unresolvable blocker, and no-progress (a stuck loop making
   no forward movement).
 
-**Transient-recoverable never escalates.** A transient, recoverable condition — a rate limit,
-a retryable execution error, a rescheduled run — is retried with backoff and is not a stop.
+**Transient-recoverable never escalates.** A transient, recoverable condition is retried with
+backoff and is not a stop: a rate limit, a retryable execution error, a rescheduled run.
 Only exhaustion of the retry budget converts it into a `runner-owned` execution-error stop.
 
-## Severity resolution — the two-step mapping
+## Severity resolution: the two-step mapping
 
 Severity routing keys on the escalation *event class*. A runner outcome alone never names an
 event class, and a stop reason never names its outcome, so resolution is a deterministic two
 steps: stop reason to terminal outcome, then outcome to event class. Every non-success stop
 traces the full path stop reason → outcome → event class → severity → route.
 
-### Step one — stop reason to terminal outcome
+### Step one: stop reason to terminal outcome
 
 | Family | Stop reason | `outcome` |
 |---|---|---|
@@ -88,26 +89,26 @@ traces the full path stop reason → outcome → event class → severity → ro
 | `agent-signaled` | unresolvable blocker | `needs-human` |
 | `agent-signaled` | no-progress | `needs-human` |
 
-### Step two — terminal outcome to event class
+### Step two: terminal outcome to event class
 
 | `outcome` | Event class | Provenance |
 |---|---|---|
-| `gate-failed` | `gate-failure` | the [guardrail contract's](../guardrails.md#escalation) existing gate-failure class — reused, not re-minted |
+| `gate-failed` | `gate-failure` | the [guardrail contract's](../guardrails.md#escalation) existing gate-failure class, reused, not re-minted |
 | `needs-human` | `runner-needs-human` | runner-new, registered additively |
 | `cap-exceeded` | `runner-cap-exceeded` | runner-new, registered additively |
 
 `gate-failed` routes through the guardrail contract's own gate-failure event class; only
 `needs-human` and `cap-exceeded` introduce new classes. The two runner classes
 `runner-needs-human` and `runner-cap-exceeded` extend the escalation event-class registry
-additively, alongside the guardrail contract's set — the security binding accepts route and
+additively, alongside the guardrail contract's set. The security binding accepts route and
 severity bindings for them exactly as it does for any guardrail event class, and existing
 bindings validate unchanged. Their contract-default severities are `attention` and `notice`,
 both org-bindable.
 
 **Runner launch precondition.** Both runner classes' queue routes are part of the runner's
 required governance: at launch the runner verifies that `runner-needs-human` and
-`runner-cap-exceeded` each carry a bound `escalation_routes` entry, and fail-closes — blocking
-dispatch — when either is absent, exactly as it does for an absent security binding
+`runner-cap-exceeded` each carry a bound `escalation_routes` entry, and fail-closes, blocking
+dispatch, when either is absent, exactly as it does for an absent security binding
 ([topology leaf](topology.md)). Every non-success stop maps to one of these classes, so a
 runner without their routes would have no queue destination for its required human-gated
 handoff. The requirement binds the RUNNER, not the binding: a binding without the runner keys
@@ -116,8 +117,8 @@ stays valid for every pre-runner surface, which is why the static checker cannot
 
 ## Severity axis and notification fan-out
 
-Every event class escalates at a severity on a three-level axis — `notice`, `attention`,
-`urgent` — that maps to org-bound notification fan-out over the single filed item. The fan-out
+Every event class escalates at a severity on a three-level axis of `notice`, `attention`, and
+`urgent`, which maps to org-bound notification fan-out over the single filed item. The fan-out
 is notification depth on the one queue item, not a second escalation channel; the one-channel
 invariant ([guardrail escalation contract](../guardrails.md#escalation)) holds.
 
@@ -129,7 +130,7 @@ invariant ([guardrail escalation contract](../guardrails.md#escalation)) holds.
 
 The tracker item is always filed; channel notification and the personal-push tier are
 org-bound routes, and each leg exists only where its route is bound. An unbound leg degrades
-the fan-out toward the always-filed tracker item — an org with no push adapter legitimately
+the fan-out toward the always-filed tracker item. An org with no push adapter legitimately
 binds `urgent` with the channel leg alone, and absent a bound channel adapter fan-out degrades
 to tracker-item-only; degradation never drops the escalation item itself. The one rejected
 shape is the inverse: a push leg bound without the channel leg beneath it, because the ladder
@@ -138,21 +139,21 @@ is cumulative and the push tier rides on top of the channel notification.
 ### Fan-out transport grounding
 
 Neither org-bindable leg waits on a primitive that has to be invented. Each binds to a distinct
-transport surface class, and both classes have shipped first-party mechanisms today — adapters to
+transport surface class, and both classes have shipped first-party mechanisms today, adapters to
 compose at build:
 
-- **Channel leg — the deterministic hook-transport class.** A lifecycle-hook handler that POSTs
+- **Channel leg: the deterministic hook-transport class.** A lifecycle-hook handler that POSTs
   the event payload to an endpoint the org configures. It fires whenever the matched lifecycle
   event fires, with no model judgment in the path, and it carries no account-tier or paired-device
   dependency. That determinism is why the ladder rests on this leg.
-- **Personal-push leg — the model-discretionary push-notification surface class.** A built-in
+- **Personal-push leg: the model-discretionary push-notification surface class.** A built-in
   notification capability the agent invokes at its own discretion, reaching an operator's local
   desktop and, where a paired personal device surface is connected, that operator's phone. Both
   the discretionary invocation and the pairing dependency are why this leg rides on top of the
   channel leg and never substitutes for it.
 
-The runner binds each class's concrete adapter — and re-verifies its behavior — at build from live
-docs. This grounding fixes only which class each leg belongs to and the ladder order between them;
+At build, from live docs, the runner binds each class's concrete adapter and re-verifies its
+behavior. This grounding fixes only which class each leg belongs to and the ladder order between them;
 naming instances is the binding surface's job, not this contract's.
 
 **Both classes shipped, dated record.** *Claim:* each leg's transport class has a first-party
@@ -195,7 +196,7 @@ Two stop reasons carry an `urgent` severity override that sits on top of the eve
 default: an **isolation violation** and a **security/data-integrity event**. Both resolve to
 `needs-human` → `runner-needs-human`, whose default severity is `attention`; the override
 forces the filed item to `urgent` regardless of that default. The override keys on the stop
-reason, not the outcome or the event class — a `needs-human` stop from any other reason keeps
+reason, not the outcome or the event class. A `needs-human` stop from any other reason keeps
 the `attention` default.
 
 ## The filed escalation item
@@ -207,15 +208,15 @@ which condition raised it.
 **Acknowledgment and re-escalation.** An escalation item carries an acknowledgment state. An
 unacknowledged item that goes stale re-escalates once with a one-level severity bump; an
 acknowledged item never re-escalates. The bump saturates at `urgent`: an item already at
-`urgent` — an untrusted-provenance default, or either urgent stop-reason override — still
+`urgent`, whether by the untrusted-provenance default or either urgent stop-reason override, still
 re-escalates once, by re-notifying with a fresh `urgent` fan-out at the same severity, never by
 skipping the re-escalation or minting a level above the axis. Both knobs are org-bindable: the
 default staleness window is 72h, and the re-escalation cap is 1 (a single bump, never a loop).
 
-## Deferred — mid-run interrupt
+## Deferred: mid-run interrupt
 
-A mid-run interrupt shape — pausing the run to await human input before it reaches a terminal
-state — is deferred. Its adoption trigger is evidence that kill-and-resume loses material cost
+A mid-run interrupt shape, pausing the run to await human input before it reaches a terminal
+state, is deferred. Its adoption trigger is evidence that kill-and-resume loses material cost
 or context on real drains; until then, terminal handoff with a resumable session is the whole
 escalation surface. First-party pause-and-resume mechanisms exist and are re-verified at build,
 so adopting the interrupt shape later needs no change to this contract.
@@ -260,11 +261,11 @@ may not carry, so the bind-at-build instruction on each is where it gets settled
 trigger: a build binding closes a gap, or this review date passes six months without one, in
 which case re-review rather than repeat a gap on this stamp's authority.
 
-- CI-action-class failure-reporting specifics — whether a failure surfaces as a comment, a
-  check result, or a job failure — are UNVERIFIED; bind the exact reporting surface at build
+- CI-action-class failure-reporting specifics, whether a failure surfaces as a comment, a
+  check result, or a job failure, are UNVERIFIED; bind the exact reporting surface at build
   from live docs.
-- Cross-vendor agent-needs-human signaling — the agent-protocol and agent-instruction-file
-  guidance for how an agent raises a needs-human stop across surfaces — is UNVERIFIED; bind at
+- Cross-vendor agent-needs-human signaling, the agent-protocol and agent-instruction-file
+  guidance for how an agent raises a needs-human stop across surfaces, is UNVERIFIED; bind at
   build.
 - Managed-agent event names drift between the stream surface and the webhook surface; bind the
   exact event names at build from live docs rather than pinning them here.

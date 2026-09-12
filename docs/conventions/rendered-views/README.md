@@ -172,8 +172,8 @@ markdown record the better deliverable, flipping back is conformant, not a devia
 
 ## Loop closure and the export obligation
 
-A rendered view that only shows things is a dead end: the reader has to retype what they
-picked. Loop closure is the family of patterns that hands the reader a terse payload to
+A rendered view that only shows things makes the reader retype what they picked, which is
+a dead end. Loop closure is the family of patterns that hands the reader a terse payload to
 give back; export is the pattern that gets live page state off the page.
 
 **When a view owes an export.** A custom editor always ends with one: a view that lets a
@@ -232,7 +232,7 @@ owner declaration.
 - **Surface**: `.claude/rendered-views.md`, in all three layers (user-global
   `~/.claude/rendered-views.md`, team `.claude/rendered-views.md`, overlay
   `.claude/rendered-views.local.md`).
-- **Keys** (per-key override, declared here per the contract): `medium` — one of `auto`,
+- **Keys** (per-key override, declared here per the contract): `medium`, one of `auto`,
   `terminal`, `file`, `artifact`; the preferred rung for rendered views, applied within
   reachability. Future keys are added here first.
 - **No policy-floor class**: every key is a taste dial over deliverable presentation; a

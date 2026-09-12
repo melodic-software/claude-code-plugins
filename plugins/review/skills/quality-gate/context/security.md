@@ -18,26 +18,26 @@ Delegates to this plugin's `security-reviewer` agent for a cross-ecosystem secur
 
 Launch the `security-reviewer` agent with:
 
-- **Scope** — the changed files and their security context
-- **Focus** — specific concerns (e.g. "this handles user-uploaded file paths")
-- **Input** — the review diff base (SKILL.md "Shared inputs") or specific file paths
+- **Scope**: the changed files and their security context
+- **Focus**: specific concerns (e.g. "this handles user-uploaded file paths")
+- **Input**: the review diff base (SKILL.md "Shared inputs") or specific file paths
 
 The agent covers per-ecosystem injection/XSS/deserialization/path-traversal checks, the OWASP Top 10, security headers, and auth-specific checks (see the agent definition for the full baseline).
 
 ## Deep-scan escalation
 
-When the ask outgrows a diff-scoped agent pass — a whole-repository audit, threat-model depth, or
-independently verified findings with patch suggestions — recommend the official Claude Security
-plugin's `/claude-security` command instead of widening this mode. Presence-gated: route to it only
+Some asks outgrow a diff-scoped agent pass: a whole-repository audit, threat-model depth, or
+independently verified findings with patch suggestions. For those, recommend the official Claude
+Security plugin's `/claude-security` command instead of widening this mode. Presence-gated: route to it only
 when its command appears in the skill listing; otherwise suggest installing
 `claude-security@claude-plugins-official`. Jobs, prerequisites, and output contract are
-upstream-owned — do not restate them; see
+upstream-owned. Do not restate them; see
 <https://code.claude.com/docs/en/claude-security>.
 
 ## After the review
 
-- **CRITICAL findings** — fix immediately, no exceptions
-- **Input validation gaps** — add validation at the boundary (entry point), not deep in the call stack
-- **Secrets exposure** — rotate exposed secrets first, then fix the code
-- **Dependency CVEs** — run the ecosystem's audit command; update or pin
-- **Static-analysis backstop** — when the project runs a security scanner (CodeQL or similar), consider triggering it for urgent checks
+- **CRITICAL findings**: fix immediately, no exceptions
+- **Input validation gaps**: add validation at the boundary (entry point), not deep in the call stack
+- **Secrets exposure**: rotate exposed secrets first, then fix the code
+- **Dependency CVEs**: run the ecosystem's audit command; update or pin
+- **Static-analysis backstop**: when the project runs a security scanner (CodeQL or similar), consider triggering it for urgent checks

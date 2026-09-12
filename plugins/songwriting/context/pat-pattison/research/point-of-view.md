@@ -12,7 +12,7 @@
 - [First-person narrative](#first-person-narrative)
 - [Direct address](#direct-address)
 - [The hangman problem](#the-hangman-problem)
-- [Direct address — do the facts belong in the song?](#direct-address--do-the-facts-belong-in-the-song)
+- [Direct address: do the facts belong in the song?](#direct-address-do-the-facts-belong-in-the-song)
 - [Natural ways to include shared history](#natural-ways-to-include-shared-history)
 - [Hangman repair workflow](#hangman-repair-workflow)
 - [Natural information test](#natural-information-test)
@@ -26,8 +26,8 @@
 - [POV check](#pov-check)
 - [Exercises as coaching prompts](#exercises-as-coaching-prompts)
 - [Skill workflow](#skill-workflow)
-- [Close-up vs middle distance — the cinematic metaphor](#close-up-vs-middle-distance--the-cinematic-metaphor)
-- [Audience-centering — the song is about them](#audience-centering--the-song-is-about-them)
+- [Close-up vs middle distance: the cinematic metaphor](#close-up-vs-middle-distance-the-cinematic-metaphor)
+- [Audience-centering: the song is about them](#audience-centering-the-song-is-about-them)
 - [Direct address + present tense = maximum intimacy](#direct-address--present-tense--maximum-intimacy)
 - [Pronoun-consistency anti-pattern](#pronoun-consistency-anti-pattern)
 - [You as flexible English pronoun](#you-as-flexible-english-pronoun)
@@ -41,12 +41,12 @@ to rewrite the same lyric from another camera distance.
 
 Quoted material is Pat's printed text, reproduced verbatim from *Writing Better
 Lyrics* (2009), including the lyrics he analyses, as he prints them. Songs are
-named, with their writers where Pat names them — several carry no writer credit
+named, with their writers where Pat names them. Several carry no writer credit
 in his text or on the permissions page, and none is invented here.
 
 An earlier pass imposed a "complete third-party song lyrics are not reproduced"
 rule and cut the lyrics down to fragments. **That rule was never the repo
-owner's and has been revoked** — he owns all four books and keeps this as a
+owner's and has been revoked.** He owns all four books and keeps this as a
 personal reference. Sibling files such as `box-model.md` already reproduce the
 lyrics Pat works with in full; this file is being brought into line with them.
 **Some excerpts here are still short and are a known remaining gap, not a
@@ -54,12 +54,12 @@ policy.**
 
 Source images inspected:
 
-- Chapter 10: `image_rsrcAU6.jpg` (the POINT OF VIEW: CAMERA ANGLES scale —
+- Chapter 10: `image_rsrcAU6.jpg` (the POINT OF VIEW: CAMERA ANGLES scale,
   transcribed below).
 - Chapters 11-13: no linked page-scan images; text layer only.
 
 Three sections near the end rest on **non-book sources** (Berklee Online /
-patpattison.com) that could not be read for this pass — audience-centering,
+patpattison.com) that could not be read for this pass: audience-centering,
 direct-address-plus-present-tense, and the pronoun-consistency anti-pattern.
 They are marked inline with `<!-- unaudited -->` comments and their paraphrases
 are retained as paraphrase. A fourth section, the cinematic metaphor, was
@@ -75,6 +75,7 @@ Related files: [verse development](verse-development.md),
 Pat opens *Writing Better Lyrics* (2009), Chapter 10 with the questions every
 lyric has to answer:
 
+<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison, Writing Better Lyrics, Chapter 10 -->
 > Whenever you put pen to paper, you must answer a few fundamental questions:
 > Who is doing the talking? Is it you personally? Is it a character you're
 > creating? What should that character's relationship to the audience be? A
@@ -93,7 +94,8 @@ lyric has to answer:
 > a movie camera, allowing the audience to look at the song's world from various
 > distances, from long shots to close-ups.
 >
-> — *Writing Better Lyrics* (2009), Chapter 10
+> *Writing Better Lyrics* (2009), Chapter 10
+<!-- ai-slop-ignore-end -->
 
 The figure Pat prints is headed **POINT OF VIEW: CAMERA ANGLES**
 (`image_rsrcAU6.jpg`). Its axis labels and its four tick marks, transcribed
@@ -162,7 +164,7 @@ you as a disguise for I."*
 
 ## One test for second-person narrative
 
-<!-- This heading previously read "Translation tests" — plural. CHANGELOG line
+<!-- This heading previously read "Translation tests", plural. CHANGELOG line
      63 records invented translation "tests" as removed from this file, but the
      plural heading survived the removal. Pat prints ONE test, singular, and the
      heading is now his own printed phrase (2009 spine 019:167). There is no set
@@ -175,12 +177,12 @@ Pat states the test in one sentence:
 
 He runs both translations on "The Fire Inside" and reports what each one does.
 
-First person — *"There's a reckless feeling in my heart as I head out tonight"*:
+In first person, *"There's a reckless feeling in my heart as I head out tonight"*:
 
 > The result is a clear first-person narrative. But something gets lost: a kind
 > of universal feeling that *you* seems to add.
 
-Third person — *"There's a reckless feeling in her heart as she heads out
+In third person, *"There's a reckless feeling in her heart as she heads out
 tonight"*:
 
 > Continue reading the whole lyric in third person. Take your time. Now it's a
@@ -241,7 +243,7 @@ His verdict, and the reason this belongs in a separate bin from the Seger case:
 > panoramic view. We, the audience, are simply observing the song's world. We
 > are not participants.
 
-Pat's pronoun table, as printed — all four rows, both columns:
+Pat's pronoun table as printed, all four rows and both columns:
 
 | | Singular | Plural |
 |---|---|---|
@@ -258,7 +260,7 @@ Pat's pronoun table, as printed — all four rows, both columns:
 > look at the song's world. The singer functions as storyteller or narrator, and
 > the audience observes.
 
-Pat's first specimen is **Buck Ram's "The Great Pretender"** — he prints it whole
+Pat's first specimen is **Buck Ram's "The Great Pretender"**. He prints it whole
 here and then twice more with the pronouns changed (first-person narrative, then
 direct address), so it is the control case for the whole comparison. His
 third-person version in full:
@@ -310,14 +312,15 @@ thing the rest of the chapter keeps rewriting:
 | Possessive adjective | my | our |
 | Possessive predicate | mine | ours |
 
-The membership rule, in Pat's words — the second sentence is the one that
+The membership rule, in Pat's words. The second sentence is the one that
 actually does diagnostic work:
 
 > In a first-person narrative, the first-person pronouns mix with third-person
 > pronouns. There is no you.
 
-He then reprints **"The Great Pretender"** in first person — the same control
-case, pronouns changed, so the two versions can be read against each other. Note
+He then reprints **"The Great Pretender"** in first person, the same control
+case with the pronouns changed, so the two versions can be read against each
+other. Note
 that he sets the "Too real" couplet off as its own stanza here, and that the
 "(or she's)" parentheticals are his:
 
@@ -369,13 +372,13 @@ On *"Lost in thought I read his letters"*:
 > The language is more appropriate from the mouth of an observer than from the
 > mouth of a participant.
 
-The one section that survives the conversion is the bridge — and Pat says why:
+The one section that survives the conversion is the bridge, and Pat says why:
 
 > The bridge sounds natural in first person, since she's telling us something
 > about herself we couldn't know from simply looking. Of course, looking into a
 > character's mind is also perfectly appropriate in third-person narrative.
 
-So the repair is not pronoun swapping — Pat rewrites the lines from inside her
+So the repair is not pronoun swapping. Pat rewrites the lines from inside her
 head, and then allows: *"Okay, so the rewrite could be more elegant. The point is
 that it works better."* Which lines he changed, and why, is under
 [rewrite is not pronoun replacement](#rewrite-is-not-pronoun-replacement) below.
@@ -390,8 +393,8 @@ that it works better."* Which lines he changed, and why, is under
 > quivering and the jaw muscles tightening with emotion. This is about feelings,
 > not facts.
 
-That last sentence is where the figure's axis labels come from — Close-up:
-Feelings at one end, Long Range: Facts at the other.
+That last sentence is where the figure's axis labels come from. Close-up:
+Feelings sits at one end, Long Range: Facts at the other.
 
 | | Singular | Plural |
 |---|---|---|
@@ -400,11 +403,13 @@ Feelings at one end, Long Range: Facts at the other.
 | Possessive adjective | your | your |
 | Possessive predicate | yours | yours |
 
+<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison, Writing Better Lyrics, Chapter 10 -->
 > Second-person pronouns are mixed with first-person pronouns to produce direct
 > address — contact between I and you.
+<!-- ai-slop-ignore-end -->
 
 He reprints **"The Great Pretender"** a third time to show it. Note that he
-starts this printing at the *second* stanza — the opening quatrain contains no
+starts this printing at the *second* stanza. The opening quatrain contains no
 you, so it cannot demonstrate direct address:
 
 > Yes, I'm the great pretender
@@ -421,7 +426,7 @@ you, so it cannot demonstrate direct address:
 > I'm wearing my heart like a crown
 > Pretending that you're still around
 
-Pat prints **four** listener positions, not "several" — and states them from
+Pat prints **four** listener positions, not "several", and states them from
 inside the listener's head, first person:
 
 > This is the camera close-up. The singer sings directly to another person or
@@ -511,15 +516,15 @@ And the transfer to lyrics:
 > problem: second person trying to do first or third person's job. Don't give
 > the facts to someone who already should know them!
 
-## Direct address — do the facts belong in the song?
+## Direct address: do the facts belong in the song?
 
 <!-- This heading previously read "Direct-address fact test". Pat never uses the
-     phrase "fact test" — `grep -i "fact test"` returns zero hits in Writing
-     Better Lyrics (2009), Chapter 11 — and the four-question "test" that once
+     phrase "fact test": `grep -i "fact test"` returns zero hits in Writing
+     Better Lyrics (2009), Chapter 11, and the four-question "test" that once
      sat here was invented and has already been removed. The heading is a
-     PARAPHRASE of Pat's printed question at spine 018:70 — "Do you really want
+     PARAPHRASE of Pat's printed question at spine 018:70, "Do you really want
      the audience to know that it was Saturday and she had braids and she made
-     the first move?" — not printed text itself. Do not reintroduce a numbered
+     the first move?", and not printed text itself. Do not reintroduce a numbered
      test here. -->
 
 Pat's first two repairs are pure pronoun moves, printed side by side with the
@@ -596,23 +601,25 @@ Pat's words. The rule:
 > the audience a history lesson, either put it in third person or find a natural
 > way to list your facts. If you've gotta swing, make it quick and natural.
 
-The habit — note that Pat asks for **all three** points of view on **every**
-lyric, and that the method is reading aloud, not silent editing:
+The habit follows. Note that Pat asks for **all three** points of view on
+**every** lyric, and that the method is reading aloud, not silent editing:
 
+<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison, Writing Better Lyrics, Chapter 11 -->
 > As a matter of habit, you should try out all three points of view — first,
 > second, and third person — for each lyric you write from now until you die,
 > just to make sure you are using the best possible one for each song. Read your
 > lyric aloud, each time substituting the different pronouns to see which you
 > like best. Sometimes, a change in point of view will raise a bland lyric from
 > the dead.
+<!-- ai-slop-ignore-end -->
 
 ## Natural information test
 
 Pat never prints a checklist for this. He states it as a mouth test, twice, in
 the "Sentimental Lady" conversion, and once as a rule for direct address. The
-three sentences that carry it — all restored in full above — are:
+three sentences that carry it, all restored in full above, are:
 
-- external or descriptive detail about the speaker — *best left to a
+- external or descriptive detail about the speaker, *best left to a
   third-person narrator* ([first person](#first-person-narrative))
 - language that belongs to an observer rather than a participant
   ([first person](#first-person-narrative))
@@ -620,7 +627,7 @@ three sentences that carry it — all restored in full above — are:
 
 Against those sits the counter-case in the same chapter: the "Sentimental Lady"
 bridge survives first person because she is telling us something about herself
-we could not get by looking — and Pat immediately grants third person the same
+we could not get by looking, and Pat immediately grants third person the same
 access. So the constraint is asymmetric. Interior access is available to both
 narratives; **outside-looking-in description of the speaker is the thing first
 person cannot say naturally.**
@@ -642,11 +649,13 @@ becomes:
 
 An outside observation becomes a sensation on the skin. Likewise *"Knows where
 she's headed for / She goes inside / Shuts the door"* becomes *"I know what I'm
-headed for / Slip inside / Shut the door"* — intention replacing observed
+headed for / Slip inside / Shut the door"*, intention replacing observed
 behavior. His summary of the whole operation:
 
+<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison, Writing Better Lyrics, Chapter 10 -->
 > The trick is to put yourself in her mind — look from her perspective, and say
 > what comes naturally.
+<!-- ai-slop-ignore-end -->
 
 ## Duplication of function
 
@@ -682,8 +691,8 @@ He then applies it by deletion:
 > Maybe the daughter is a gun that isn't going off. Let's see what happens if we
 > eliminate her altogether
 
-The narrator disappears and the character is named — *"Edwin loved the greyhounds
-/ He lived to watch 'em run"* — and:
+The narrator disappears and the character is named: *"Edwin loved the greyhounds
+/ He lived to watch 'em run"*. Then:
 
 > Much cleaner than with two characters. Simplify, simplify, simplify.
 
@@ -711,7 +720,7 @@ And he refuses to make it a rule:
 ## Dialogue and POV
 
 Chapter 13 opens with the raw material as a transcript, before it is a lyric at
-all — Pat's framing is *"Conversation overheard in a country home, using a
+all. Pat's framing is *"Conversation overheard in a country home, using a
 surveillance microphone"*:
 
 > **Alphonse:** What gifts can I bring you to prove that my love for you is
@@ -786,7 +795,7 @@ before he names the cause:
 > balance, a little forced. Why is this guy standing up there with his
 > microphone telling us the story, anyway? What's his point?
 
-The diagnosis, the named model, and Pat's own draft repair — all in one
+The diagnosis, the named model, and Pat's own draft repair, all in one
 paragraph:
 
 > Maybe the source of the problem is that the lyric is about her, not I. Our
@@ -810,16 +819,18 @@ Swapping the narrator to the woman does not by itself fix it:
 ## Direct-address dialogue
 
 Pat's verdict on this one is flat, and he offers **no** conditions under which it
-works — the paraphrase's list of four "use it only when" exceptions had no source
+works. The paraphrase's list of four "use it only when" exceptions had no source
 in the chapter. He sets it up (*"Next, let's get up close and personal"*), writes
 it out, and then:
 
+<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison, Writing Better Lyrics, Chapter 13 -->
 > Total disaster — the worst of history lessons. The you of the song was already
 > there during the conversation, so what's the point of telling her about it
 > again? The same is true if the woman sings the song:
 >
 > You asked me, "What gifts can I bring you / To prove that my love for you is
 > true?"
+<!-- ai-slop-ignore-end -->
 
 > As we saw in chapter eleven, "Second Person and the Hangman," simply telling
 > people what they already know doesn't make for credible dialogue.
@@ -843,7 +854,7 @@ Its opening quatrain and the transitional bridge that follows:
 > You have given willingly
 > So now there's only one more thing I need
 
-His verdict — and, immediately, the refusal to generalize it into a rule:
+His verdict, followed immediately by the refusal to generalize it into a rule:
 
 > Nifty. It doesn't matter if the singer is male or female, the dialogue seems
 > complete and natural. This doesn't mean that third-person narrative is always
@@ -853,12 +864,14 @@ His verdict — and, immediately, the refusal to generalize it into a rule:
 
 ## Dialogue structure note
 
-Pat tacks a structural reading onto the end of the chapter — *"Something on
-structure while we're here"* — because *"there's more to like about this little
+Pat tacks a structural reading onto the end of the chapter, *"Something on
+structure while we're here"*, because *"there's more to like about this little
 gem of a lyric… a really nice display of technical savvy."*
 
+<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison, Writing Better Lyrics, Chapter 13 -->
 **The verse.** *"The verses are fairly balanced — four lines in common meter,
-rhyming xaxa"* — with the stress counts exactly as printed in his table:
+rhyming xaxa"*, with the stress counts exactly as printed in his table:
+<!-- ai-slop-ignore-end -->
 
 | Line | Rhyme | Stresses |
 |---|---|---|
@@ -873,6 +886,7 @@ rhyming xaxa"* — with the stress counts exactly as printed in his table:
 **The transitional bridge.** Pat gives the section its whole roster of names
 before choosing one:
 
+<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison, Writing Better Lyrics, Chapter 13 -->
 > The section between the verse and chorus (call it whatever you want to — vest,
 > pre-chorus, prime, lift, channel, runway, climb — I call it a transitional
 > bridge) throws us off balance with its three lines […]
@@ -881,8 +895,9 @@ before choosing one:
 >
 > We are toppled into the chorus, praying to find a secure landing. Perfect.
 > That's what a transitional bridge is supposed to do.
+<!-- ai-slop-ignore-end -->
 
-**The chorus.** Pat walks the ear's expectation line by line — *"The first two
+**The chorus.** Pat walks the ear's expectation line by line. *"The first two
 lines feel sturdy, balancing each other with three stresses"*, then *"a
 four-stress line sets up a little more tension"* on *"A bird in a cage will
 forget how to sing"*:
@@ -890,8 +905,8 @@ forget how to sing"*:
 > Boy, do we ever want a three-stress line rhyming with fly. How come? The aba
 > rhyme scheme, wings/fly/sing, begs for a pairing with the unrhymed word.
 
-He writes the resolved version the ear is asking for — *"I must soar beyond the
-sky"* — calls it *"pretty cheesy"*, and then rejects it on prosody grounds:
+He writes the resolved version the ear is asking for, *"I must soar beyond the
+sky"*, calls it *"pretty cheesy"*, and then rejects it on prosody grounds:
 
 > The rhyme structure, wings/fly/sing/sky, feels much more resolved than the
 > situation of the song intends. She's asking for, not getting, wings. That's
@@ -899,14 +914,16 @@ sky"* — calls it *"pretty cheesy"*, and then rejects it on prosody grounds:
 
 The payoff accomplishes exactly **three** things, numbered in the text:
 
+<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison, Writing Better Lyrics, Chapter 13 -->
 > The last line fools you (I call it a deceptive cadence), and in doing so, it
 > accomplishes three things: (1) it repeats the title — a good commercial move;
 > (2) the structural surprise spotlights the title; and (3) it resolves the
 > chorus, though not as solidly as a rhyme for fly would have. The surprise
 > rhyme is emotionally better suited to the intent of the chorus since it's a
 > little less secure.
+<!-- ai-slop-ignore-end -->
 
-See [deceptive cadence](hook.md#deceptive-cadence--spotlight-the-title-by-withholding-the-rhyme).
+See [deceptive cadence](hook.md#deceptive-cadence-spotlight-the-title-by-withholding-the-rhyme).
 
 Pat files this under structure, and it belongs primarily to [form](form.md),
 [meter](meter.md), and [prosody](prosody.md). The POV consequence is ours, not
@@ -939,13 +956,15 @@ addition about where the odds sit:
 
 ## Exercises as coaching prompts
 
-Chapters 10-13 contain exactly **two** numbered exercises — 14 and 15. Chapters
+<!-- ai-slop-ignore-start: quoted retired headings from an earlier draft of this file -->
+Chapters 10-13 contain exactly **two** numbered exercises, 14 and 15. Chapters
 11 and 13 have none. (An earlier draft of this file listed a "Chapter 11 —
 Hangman rewrite" and a "Chapter 13 — Dialogue POV test"; neither exists in the
 book. What those chapters give instead is un-numbered, and is quoted in place
 above.)
+<!-- ai-slop-ignore-end -->
 
-**EXERCISE 14** (Chapter 10) — it names the two songs, and Pat's own phrasing
+**EXERCISE 14** (Chapter 10) names the two songs, and Pat's own phrasing
 depends on the question he asks immediately before it, *"Does that mean we should
 always go for intimacy?"*:
 
@@ -956,8 +975,8 @@ The chapter also sets an un-numbered companion task under the heading "Back to
 Third-Person Narrative": *"As a further exercise, go back and try changing
 'Digging for the Line' into a third-person narrative."*
 
-**EXERCISE 15** (Chapter 12) — the passage is Steely Dan's "Kid Charlemagne", and
-Pat supplies the first line of each translation:
+**EXERCISE 15** (Chapter 12) takes its passage from Steely Dan's "Kid
+Charlemagne", and Pat supplies the first line of each translation:
 
 > While the music played
 > You worked by candlelight
@@ -982,8 +1001,8 @@ Pat answers his own exercise, and then warns about the exit:
 
 Chapter 13's two un-numbered tasks are quoted where they occur: the
 turn-this-dialogue-into-a-song prompt under
-[dialogue and POV](#dialogue-and-pov), and — after Pat swaps the narrator to the
-woman — *"Go back to the first version and make the rest of the changes."*
+[dialogue and POV](#dialogue-and-pov), and, after Pat swaps the narrator to the
+woman, *"Go back to the first version and make the rest of the changes."*
 
 ## Skill workflow
 
@@ -1004,7 +1023,7 @@ end, on every lyric, reading aloud with the pronouns substituted.
 10. Check repeated material with [repetition](repetition.md) if tense or POV
    blocks later verse colors.
 
-## Close-up vs middle distance — the cinematic metaphor
+## Close-up vs middle distance: the cinematic metaphor
 
 <!-- corrected against the book: an earlier draft of this section (sourced to
      patpattison.com / Berklee Online) assigned second-person narrative the
@@ -1017,15 +1036,15 @@ end, on every lyric, reading aloud with the pronouns substituted.
 The camera metaphor is Pat's own, from Chapter 10, and every rung of it is
 printed in the book. In his words, not a summary:
 
-- **Direct address** — *"This is the close-up, the most intimate a song can be…
+- **Direct address**: *"This is the close-up, the most intimate a song can be…
   This is about feelings, not facts."*
-- **Second-person narrative** — no film term assigned; the printed scale puts it
+- **Second-person narrative**: no film term assigned; the printed scale puts it
   one tick out from direct address, and Pat explains the position in Chapter 12:
   its intimacy *"comes from its suggestion of direct address"* while we still
   watch the character.
-- **First-person narrative** — *"In film terms, this is the middle-distance
+- **First-person narrative**: *"In film terms, this is the middle-distance
   shot."*
-- **Third-person narrative** — *"this is the long-distance, panoramic view. We,
+- **Third-person narrative**: *"this is the long-distance, panoramic view. We,
   the audience, are simply observing the song's world. We are not
   participants."*
 
@@ -1034,7 +1053,7 @@ chapter with, restored under [core idea](#core-idea): who is doing the talking,
 is it you personally, is it a character you're creating, and what should that
 character's relationship to the audience be.
 
-## Audience-centering — the song is about them
+## Audience-centering: the song is about them
 
 <!-- unaudited: non-book source (Berklee Online / interviews); paraphrase
      retained. The blockquote that stood here was a paraphrase formatted as a
@@ -1047,7 +1066,7 @@ listener participates. The reported gist is that a song should somehow always be
 about *them*.
 
 The book does support the mechanism, in Chapter 10, where Pat lists the four
-things a listener does with a direct-address lyric — three of the four put the
+things a listener does with a direct-address lyric. Three of the four put the
 listener inside the song ("I imagine the singer is singing to me", "I can
 imagine that the singer is someone I know singing to me", "I can identify with
 the singer and sing to someone I know"). See
@@ -1057,13 +1076,13 @@ the singer and sing to someone I know"). See
 
 <!-- unaudited: non-book source (Berklee Online); paraphrase retained. The
      blockquote that stood here was already labelled "paraphrased" inside
-     quotation marks — a fabricated quote — and has been de-quoted. -->
+     quotation marks, a fabricated quote, and has been de-quoted. -->
 
 Paraphrase, unverified: Pat is reported to name direct address plus present
 tense as the strongest intimacy combination. The tense half of that claim is
 **not** in Chapters 10-13; the closest the book comes is his "As Each Year Ends"
 comparison, where moving to third person lets the chorus sit in present rather
-than future tense — a point about overview of time, not about intimacy.
+than future tense, a point about overview of time, not about intimacy.
 
 Mechanism (derived, not Pat's printed words):
 
@@ -1124,15 +1143,15 @@ This one is book-grounded and needs no outside source. Pat establishes each job
 of `you` in the text; all three passages are quoted in full earlier in this
 file:
 
-1. **Singular and plural at once** — *"In English, there is no difference between
+1. **Singular and plural at once**: *"In English, there is no difference between
    singular and plural you, unless we resort to y'all or youse as plural forms,
    both forms intended as sophistications in a barren language that forgot to
-   make the distinction."* (Chapter 10 — see [direct address](#direct-address))
-2. **A stand-in for `one`** — *"Part of it works like using you as a substitute
-   for one."* (Chapter 12 — see
+   make the distinction."* (Chapter 10, see [direct address](#direct-address))
+2. **A stand-in for `one`**: *"Part of it works like using you as a substitute
+   for one."* (Chapter 12, see
    [how second-person narrative works](#how-second-person-narrative-works))
-3. **A stand-in for `I`, or an internal command** — *"C'mon, can't you be clear
-   for once?"* / *"C'mon, be clear for once!"* (Chapter 12 — see
+3. **A stand-in for `I`, or an internal command**: *"C'mon, can't you be clear
+   for once?"* / *"C'mon, be clear for once!"* (Chapter 12, see
    [internal second person](#internal-second-person))
 
 The earlier claim that `you` is also *formal and intimate* is not something Pat
@@ -1142,13 +1161,13 @@ of the ambiguity is the listener saying *"This character could easily be me."*
 
 ## Cross-references
 
-- [repetition](repetition.md) — POV and tense are repaintable
+- [repetition](repetition.md): POV and tense are repaintable
   across repeats; later verses can shift the camera.
-- [stable / unstable](stable-unstable-meta.md) — POV and tense are
+- [stable / unstable](stable-unstable-meta.md): POV and tense are
   stability levers (POV is unstable when it shifts).
-- [verse development](verse-development.md) — power positions
+- [verse development](verse-development.md): power positions
   interact with POV choice.
-- [cliche](cliche.md) — POV inconsistency is often misdiagnosed as
+- [cliche](cliche.md): POV inconsistency is often misdiagnosed as
   cliche when it is actually a POV problem.
-- [workflows](workflows.md) "Scenario 6 — Diagnose" — POV audit is
-  a standard step.
+- [workflows](workflows.md) "Scenario 6: Diagnose without rewrite": POV audit
+  is a standard step.

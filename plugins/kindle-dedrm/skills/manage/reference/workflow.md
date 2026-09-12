@@ -18,9 +18,9 @@ Run `scripts/status.sh` and confirm:
 | Existing ICACLS deny | absent (will be applied) |
 | `~/Tools/Kindle_Key_Finder` | absent (will be created) |
 
-If a non-2.8.0 Kindle for PC is installed, user must uninstall it first (Settings → Apps → Amazon Kindle → Uninstall). Skill does NOT auto-uninstall — that's destructive and costly to reverse (a full re-download/re-sync of the library), so it stays user-driven.
+If a non-2.8.0 Kindle for PC is installed, user must uninstall it first (Settings → Apps → Amazon Kindle → Uninstall). Skill does NOT auto-uninstall. That is destructive and costly to reverse (a full re-download/re-sync of the library), so it stays user-driven.
 
-## Step 1 — Download three artifacts
+## Step 1: Download three artifacts
 
 Land in `~/Downloads/` for predictability + retention. SHA256 verify against `reference/versions.md`.
 
@@ -73,9 +73,9 @@ curl -L -o "$(basename "$ZIP_URL")" "$ZIP_URL"
 sha256sum KindleForPC-installer-2.8.70980.exe DeDRM_tools-*.zip Kindle_Key_Finder_*.JH.zip
 ```
 
-Verify hashes against `reference/versions.md`. If hashes diverge, **stop and re-fetch** — Amazon binaries do not legitimately change at a fixed version pin; a hash mismatch means the binary changed (either Amazon repackaged or URL now serves something different) and you should investigate before running it.
+Verify hashes against `reference/versions.md`. If hashes diverge, **stop and re-fetch**. Amazon binaries do not legitimately change at a fixed version pin; a hash mismatch means the binary changed (either Amazon repackaged or URL now serves something different) and you should investigate before running it.
 
-## Step 2 — Extract DeDRM_tools and Kindle_Key_Finder
+## Step 2: Extract DeDRM_tools and Kindle_Key_Finder
 
 ```bash
 cd ~/Downloads
@@ -104,7 +104,7 @@ Expected after extract:
     modules/                (config, utils)
 ```
 
-## Step 3 — User runs Kindle for PC installer (interactive)
+## Step 3: User runs Kindle for PC installer (interactive)
 
 Cannot drive UAC + EULA programmatically. Tell the user:
 
@@ -116,7 +116,7 @@ Run: ~/Downloads/KindleForPC-installer-2.8.70980.exe
 - After install: do NOT open Kindle yet
 ```
 
-**CHECKPOINT — wait for user confirmation that installer completed.**
+**CHECKPOINT: wait for user confirmation that installer completed.**
 
 Verify install:
 
@@ -126,9 +126,9 @@ powershell.exe -NoProfile -Command "(Get-Item '${LOCALAPPDATA}\Amazon\Kindle\app
 
 Expect `2.8.0.70980`. If anything else, installer ran an upgrade (see `reference/troubleshooting.md` "Installed wrong Kindle for PC version").
 
-## Step 4 — Sign-in race window (CRITICAL)
+## Step 4: Sign-in race window (CRITICAL)
 
-Highest-risk window in the entire workflow. Amazon stages a 2.9.x installer aggressively when Kindle.exe phones home. Firewall block from step 7 stops the download, but at this point we don't have it in place yet — sign-in REQUIRES network access, so we accept a small race window.
+Highest-risk window in the entire workflow. Amazon stages a 2.9.x installer aggressively when Kindle.exe phones home. Firewall block from step 7 stops the download, but at this point we don't have it in place yet. Sign-in REQUIRES network access, so we accept a small race window.
 
 Before the user opens Kindle, brief them with:
 
@@ -142,7 +142,7 @@ Before the user opens Kindle, brief them with:
 7. Quit Kindle entirely (File → Exit). Verify no tray icon.
 ```
 
-**CHECKPOINT — wait for user confirmation that books synced and Kindle is quit.**
+**CHECKPOINT: wait for user confirmation that books synced and Kindle is quit.**
 
 Verify books on disk:
 
@@ -159,7 +159,7 @@ ls "${USERPROFILE}/Documents/My Kindle Content/$(ls ${USERPROFILE}/Documents/My\
 
 Should contain `*.azw`, `*.voucher`, `*.azw.md`, `*.azw.res`. Voucher file holds the encrypted DRM key; .azw is the encrypted book content.
 
-## Step 5 — Apply firewall block
+## Step 5: Apply firewall block
 
 Now we lock down. User opens admin PowerShell and runs:
 
@@ -181,7 +181,7 @@ Get-NetFirewallRule -DisplayName "Block Kindle for PC (lock 2.8.0)" | Format-Lis
 
 Expect `Action: Block, Enabled: True, Direction: Outbound`.
 
-## Step 6 — Delete cached installer + apply ICACLS deny
+## Step 6: Delete cached installer + apply ICACLS deny
 
 If sign-in already triggered an update download, an installer will sit at `%LOCALAPPDATA%\Amazon\Kindle\updates\KindleForPC-installer.exe`. Delete it, then deny write on the directory so Kindle can't re-download.
 
@@ -204,21 +204,21 @@ touch "${LOCALAPPDATA}/Amazon/Kindle/updates/test-write" && echo "LOCK FAILED" |
 
 Expect `LOCK OK` (Permission denied).
 
-## Step 7 — Install Calibre plugins (user-driven GUI)
+## Step 7: Install Calibre plugins (user-driven GUI)
 
 Cannot drive Calibre's plugin UI programmatically. Tell the user:
 
 ```text
 Open Calibre.
 
-Plugin 1 — KFX Input:
+Plugin 1: KFX Input
 1. Preferences → Plugins (Advanced section)
 2. Click "Get new plugins"
 3. Filter: "KFX Input"
 4. Select → Install → Yes (security warning)
 5. Restart Calibre when prompted
 
-Plugin 2 — DeDRM:
+Plugin 2: DeDRM
 1. After restart: Preferences → Plugins
 2. Click "Load plugin from file"
 3. Yes (security warning)
@@ -230,9 +230,9 @@ Plugin 2 — DeDRM:
 Verify: Preferences → Plugins → expand "File type plugins" → see both KFX Input and DeDRM (multiple entries).
 ```
 
-**CHECKPOINT — wait for user confirmation that both plugins loaded and Calibre restarted.**
+**CHECKPOINT: wait for user confirmation that both plugins loaded and Calibre restarted.**
 
-## Step 8 — Run keyfinder
+## Step 8: Run keyfinder
 
 Quit Calibre completely (keyfinder writes to Calibre's `dedrm.json` and conflicts if Calibre is running).
 
@@ -250,16 +250,16 @@ First-run wizard prompts (defaults are fine):
 
 Tool runs four phases in order:
 
-1. **Phase 1 — Key extraction.** Runs KFXKeyExtractor28.exe per book; falls back to KFXArchiver283.exe for unsupported versions. Writes `~/Tools/Kindle_Key_Finder/Keys/kindlekey.txt` + `kindlekey.k4i`.
-2. **Phase 2 — DeDRM config.** Reads keys, writes them to `%APPDATA%\calibre\plugins\dedrm.json`.
-3. **Phase 3 — Calibre import.** Uses `calibredb add` per book; DeDRM strips encryption on import.
-4. **Phase 4 — KFX → EPUB conversion.** Uses `ebook-convert` per book.
+1. **Phase 1: Key extraction.** Runs KFXKeyExtractor28.exe per book; falls back to KFXArchiver283.exe for unsupported versions. Writes `~/Tools/Kindle_Key_Finder/Keys/kindlekey.txt` + `kindlekey.k4i`.
+2. **Phase 2: DeDRM config.** Reads keys, writes them to `%APPDATA%\calibre\plugins\dedrm.json`.
+3. **Phase 3: Calibre import.** Uses `calibredb add` per book; DeDRM strips encryption on import.
+4. **Phase 4: KFX → EPUB conversion.** Uses `ebook-convert` per book.
 
-**CHECKPOINT — wait for user confirmation that all 4 phases completed without errors.**
+**CHECKPOINT: wait for user confirmation that all 4 phases completed without errors.**
 
 Console output is verbose. If any book fails, tool prints a per-book summary at end. Failed books typically reflect Kindle version mismatches (e.g., a book downloaded by 2.9.x won't decrypt with 2.8.x keys).
 
-## Step 9 — Verify EPUBs
+## Step 9: Verify EPUBs
 
 ```bash
 find "${USERPROFILE}/Calibre Library/" -name "*.epub" | grep -v "Quick Start"

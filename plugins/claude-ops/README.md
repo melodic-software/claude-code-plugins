@@ -365,8 +365,7 @@ project-relative defaults; the bundled scripts make no outbound network calls
 except `gh`/`curl` reads of GitHub and Claude status pages in the
 known-issues skill.
 
-<!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
-<!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
+<!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
 
@@ -378,9 +377,9 @@ reads it from.
 | --- | --- | --- | --- | --- |
 | `registry_dir` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_REGISTRY_DIR` | Optional contained project-relative directory holding the known-issues registry (registry.json). Absolute, drive, UNC, traversal, and escaping-symlink paths are invalid. Leave unset to use ${CLAUDE_PLUGIN_DATA}. |
 | `skill_usage_dir` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_SKILL_USAGE_DIR` | Optional contained relative directory where the skill-usage-audit hooks write skill-usage.jsonl, resolved under the skill_usage_scope root (repo scope: the project root; user scope: $HOME). Absolute, drive, UNC, traversal, and escaping-symlink paths are invalid in every scope. Ignored by the data-dir scope (plugin-owned layout). Leave unset to use .claude/observability. |
-| `skill_usage_scope` | string | `"repo"` | `CLAUDE_PLUGIN_OPTION_SKILL_USAGE_SCOPE` | Where the skill-usage store lives. Valid values: "repo" (default — project tree under the repo root, kept out of git status via a machine-local .git/info/exclude entry), "user" (the skill_usage_dir subpath under $HOME, one cross-repo store; rows carry a project field), "data-dir" (${CLAUDE_PLUGIN_DATA}/skill-usage/<repo-slug>, plugin-owned and update-safe). The manifest schema has no enum type, so this validates in prose; any other value is treated as "repo" with a one-time advisory. |
+| `skill_usage_scope` | string | `"repo"` | `CLAUDE_PLUGIN_OPTION_SKILL_USAGE_SCOPE` | Where the skill-usage store lives. Valid values: "repo" (the default, a project tree under the repo root, kept out of git status via a machine-local .git/info/exclude entry), "user" (the skill_usage_dir subpath under $HOME, one cross-repo store; rows carry a project field), "data-dir" (${CLAUDE_PLUGIN_DATA}/skill-usage/<repo-slug>, plugin-owned and update-safe). The manifest schema has no enum type, so this validates in prose; any other value is treated as "repo" with a one-time advisory. |
 | `skill_usage_git_exclude` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_SKILL_USAGE_GIT_EXCLUDE` | When the repo-scope store sits inside a git work tree, idempotently add its directory to .git/info/exclude (machine-local; never touches .gitignore or tracked files) so git status stays clean. Set false if your team deliberately commits the telemetry. |
-| `install_new` | string | `"ask"` | `CLAUDE_PLUGIN_OPTION_INSTALL_NEW` | Controls what `sync` does with catalog plugins that aren't installed yet. Valid values: "ask" (default — offer them in one batched multi-select prompt), "all" (install every one automatically), "none" (report only, never install). The manifest schema has no enum type, so this validates in prose, not JSON Schema; any other value is treated as "ask". |
+| `install_new` | string | `"ask"` | `CLAUDE_PLUGIN_OPTION_INSTALL_NEW` | Controls what `sync` does with catalog plugins that aren't installed yet. Valid values: "ask" (the default, which offers them in one batched multi-select prompt), "all" (install every one automatically), "none" (report only, never install). The manifest schema has no enum type, so this validates in prose, not JSON Schema; any other value is treated as "ask". |
 | `api_error_audit_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_API_ERROR_AUDIT_ENABLED` | Emit turn-failure telemetry on API errors |
 | `config_change_audit_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_CONFIG_CHANGE_AUDIT_ENABLED` | Emit telemetry on config-source mutations |
 | `instructions_loaded_audit_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_INSTRUCTIONS_LOADED_AUDIT_ENABLED` | Emit telemetry on rule/instruction file loads |
@@ -390,7 +389,7 @@ reads it from.
 | `tool_failure_audit_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_TOOL_FAILURE_AUDIT_ENABLED` | Emit telemetry on Write/Edit/Bash tool failures |
 | `hook_failure_audit_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_HOOK_FAILURE_AUDIT_ENABLED` | Warn once per session per hook when the transcript records hook launch/exec failures Claude Code never surfaced |
 | `instructions_loaded_audit_log_session_start` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_INSTRUCTIONS_LOADED_AUDIT_LOG_SESSION_START` | Opt back into logging session_start instruction loads (dropped by default as deterministic and high-volume) |
-| `stdin_read_timeout` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT` | Idle bound on reading the hook payload from stdin — how long the pipe may go silent before the hook gives up and fails open |
+| `stdin_read_timeout` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT` | Idle bound on reading the hook payload from stdin: how long the pipe may go silent before the hook gives up and fails open |
 | `session_event_log_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED` | Append one JSON line per hook event to <session_event_log_dir>/sessions/<session_id>.jsonl, on every documented event the generated registry marks observable. Off by default: a consumer who has not turned it on pays the kill-switch read and nothing else. The same switch gates the SessionEnd retention hook. |
 | `session_event_log_dir` | string | `".observability/claude"` | `CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_DIR` | Contained project-relative directory holding the per-session hook event log (sessions/) and the telemetry sink's hook-events.jsonl. Absolute, drive, UNC, traversal and escaping paths are invalid, and the project root itself is refused. Inside a checkout the directory carries a self-ignoring .gitignore, created on the first write. Leave unset to use .observability/claude. |
 | `session_event_log_categories` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_CATEGORIES` | Comma-separated event categories to record (session, prompt, tool, permission, agent, task, turn, config, worktree, compaction, model, mcp, display, other). Empty records every category the registry marks observable. |
@@ -402,9 +401,9 @@ reads it from.
 
 Three supported routes, in the order most people want them:
 
-1. **Interactively** — Claude Code prompts for declared options when you enable the
+1. **Interactively.** Claude Code prompts for declared options when you enable the
    plugin. To change them later: `/plugin configure claude-ops@<marketplace>`.
-2. **Headless** — repeat `--config` for each option. Replace
+2. **Headless.** Repeat `--config` for each option. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
 
    ```shell
@@ -424,7 +423,7 @@ Three supported routes, in the order most people want them:
    Claude Code session before expecting new behavior. A check run in the old session
    still reports the old value, and that is not a failed write.
 
-3. **By hand, in settings** — add the value under `pluginConfigs` in your **user**
+3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
    settings (`~/.claude/settings.json`):
 
    ```json
@@ -440,7 +439,7 @@ Three supported routes, in the order most people want them:
    ```
 
    Plugin option values are read from **user**, `--settings`, and managed settings
-   only — **not** from a project's `.claude/settings.json`. To vary behavior per
+   only, **not** from a project's `.claude/settings.json`. To vary behavior per
    repository, enable or disable the plugin in that project's `enabledPlugins`
    instead of setting an option there.
 
@@ -449,14 +448,13 @@ hands a configured value to a hook process; the value comes from the routes abov
 
 ### Upstream documentation
 
-- [User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration) — the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
-- [Plugin install options](https://code.claude.com/docs/en/plugins-reference#plugin-install) — the `--config` flag's reference entry
-- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills) — `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
-- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect) — user vs project vs local precedence
-- [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins) — enabling, disabling, `/plugin list`
+- [User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration): the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
+- [Plugin install options](https://code.claude.com/docs/en/plugins-reference#plugin-install): the `--config` flag's reference entry
+- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
+- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
+- [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins): enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
-<!-- ai-slop-ignore-end -->
 
 ## License
 

@@ -1,8 +1,8 @@
-# Metrics Criterion — baseline / compare
+# Metrics Criterion: baseline / compare
 
 Verify a **code-quality-improvement claim** (simpler, cleaner, less coupled, better covered) against measured deltas. Use when someone claims code is "simpler," "cleaner," "more maintainable," or "better organized" and you need evidence, not assertion.
 
-This file owns the metrics-family measurement discipline; the phase table, invocation forms, measure-delta vs review-for-ship boundary, and tooling notes are owned by SKILL.md ("Two-phase model" / "Purpose") — run the phases manually when the consuming project has no collector. Do not route metric measurement into a review gate — that would graft measurement onto a review skill and orphan `performance`'s twin.
+This file owns the metrics-family measurement discipline; the phase table, invocation forms, measure-delta vs review-for-ship boundary, and tooling notes are owned by SKILL.md ("Two-phase model" / "Purpose"). Run the phases manually when the consuming project has no collector. Do not route metric measurement into a review gate. That would graft measurement onto a review skill and orphan `performance`'s twin.
 
 ## Quality metrics (measurable proxies)
 
@@ -23,17 +23,17 @@ Produce every count with a command or script whose output goes into the report (
 
 ## `baseline` phase (at planning time)
 
-1. **Map the claim to a proxy** — "simpler" → fewer lines / lower complexity / less nesting; "cleaner" → better naming / less duplication; "more maintainable" → fewer deps / better cohesion / more tests; "better organized" → feature-aligned structure / reduced coupling.
+1. **Map the claim to a proxy:** "simpler" → fewer lines / lower complexity / less nesting; "cleaner" → better naming / less duplication; "more maintainable" → fewer deps / better cohesion / more tests; "better organized" → feature-aligned structure / reduced coupling.
 2. **Capture pre-change metrics** for the chosen proxies. Invoke the matching `/code-metrics:audit-<measure> --json --base <base>` when the `code-metrics` plugin is installed and keep the document (a report whose `status` is `empty` on either side makes the comparison INCONCLUSIVE); otherwise the manual counts (line count of each file at the base revision, with `git show <base>:<file>` run on its own and its output written to a scratch file and counted in a second call, since a worktree-isolated session refuses a pipe around git; complexity count, dependency count). Store in the topic's memory-tier baselines directory (SKILL.md "Two-phase model", machine-bound, never committed) and record in the plan.
 
 ## `compare` phase (at `/verification:measure metrics`)
 
 1. **Measure the after-state** on the same proxies.
-2. **Qualitative assessment** for aspects that resist quantification — naming, abstraction level, single-responsibility, readability — backed by specific examples ("`ProcessOrder` was 47 lines / 6 nesting levels → 3 methods averaging 12 lines / max 2 levels").
+2. **Qualitative assessment** for aspects that resist quantification: naming, abstraction level, single-responsibility, readability. Back it with specific examples ("`ProcessOrder` was 47 lines / 6 nesting levels → 3 methods averaging 12 lines / max 2 levels").
 3. **Report:**
 
    ```text
-   ## Metrics — compare vs baseline
+   ## Metrics: compare vs baseline
 
    ### Claim
    <what improvement is claimed>
@@ -57,25 +57,25 @@ Produce every count with a command or script whose output goes into the report (
    ```
 
 4. **Verdict:**
-   - **CONFIRMED** — measurable metrics improved AND no significant trade-offs
-   - **MIXED** — some improved, some degraded (document both)
-   - **NOT CONFIRMED** — metrics neutral or worse despite the claim
-   - Quality changes without measurable impact may still be valid — back them with qualitative examples, not assertions
+   - **CONFIRMED**: measurable metrics improved AND no significant trade-offs
+   - **MIXED**: some improved, some degraded (document both)
+   - **NOT CONFIRMED**: metrics neutral or worse despite the claim
+   - Quality changes without measurable impact may still be valid. Back them with qualitative examples, not assertions
 
 ## Measuring a "better tested" claim
 
-"More tests" and "higher coverage" are both weak proxies for it — a test count rises with
+"More tests" and "higher coverage" are both weak proxies for it. A test count rises with
 assertion-free tests, and coverage rises with code the tests execute without checking. The proxy
 that measures the claim directly is the **covered-code mutation score** (PIT names it *test
 strength*, Infection names it *Covered Code MSI*): the share of injected faults the suite detects,
 counting only faults in code the tests actually reach. Report it beside coverage, and report the
-*delta* diff-scoped to the change — a whole-repo score moves too slowly to attribute to one change.
+*delta* diff-scoped to the change. A whole-repo score moves too slowly to attribute to one change.
 
 To collect it, invoke `/mutation-testing:audit` via the Skill tool when the `mutation-testing` plugin is installed; it
 owns the run and the metric vocabulary. Without that plugin, run your ecosystem's own mutation tool
 (StrykerJS, Stryker.NET, PIT, Infection, mutmut) scoped to the diff with its own since/incremental
 flag, and read the covered-code figure rather than the headline one. When the language has no such
-tool, this proxy is unavailable — say so and fall back to the qualitative test-quality assessment
+tool, this proxy is unavailable. Say so and fall back to the qualitative test-quality assessment
 below rather than substituting a coverage number for it.
 
 Three caveats belong with the number whenever it is reported: scores are not comparable across
@@ -85,6 +85,6 @@ unknown amount. Never present it as a pass/fail bar.
 
 ## Common pitfalls
 
-- **"Fewer lines" isn't always better** — extracting a 5-line inline block into a 20-line file just moves complexity.
-- **More abstractions isn't always better** — a `UserServiceFactory` → `UserService` → `UserRepository` chain is worse than the repository directly unless each layer earns its place.
-- **Don't confuse motion with progress** — renaming files / reorganizing directories / reformatting is housekeeping, not quality improvement. Valid, but don't claim it improved quality.
+- **"Fewer lines" isn't always better.** Extracting a 5-line inline block into a 20-line file just moves complexity.
+- **More abstractions isn't always better.** A `UserServiceFactory` → `UserService` → `UserRepository` chain is worse than the repository directly unless each layer earns its place.
+- **Don't confuse motion with progress.** Renaming files / reorganizing directories / reformatting is housekeeping, not quality improvement. Valid, but don't claim it improved quality.

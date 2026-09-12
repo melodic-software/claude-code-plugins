@@ -1,4 +1,4 @@
-# Seam phrasing — presence-gated cross-plugin references
+# Seam phrasing: presence-gated cross-plugin references
 
 Owner doc for the shared phrasing convention every optional cross-plugin reference uses.
 The design rule it implements lives in the plugin philosophy's design boundary: optional
@@ -10,23 +10,23 @@ the *rule*.
 
 Every optional reference to another plugin's skill carries, at the reference site:
 
-1. **The gate** — an explicit installed-ness condition on the invocation:
+1. **The gate** is an explicit installed-ness condition on the invocation:
    "invoke `/other-plugin:skill` (if that plugin is installed)" or an equivalent
    "when the `<name>` plugin is installed" clause. The gate names the plugin, not the
    marketplace (marketplace-qualified IDs never appear in reusable content outside
    install-recipe sites, for which see the carve-out below).
-2. **The fallback** — what the skill does instead, stated in the same sentence or the one
+2. **The fallback** is what the skill does instead, stated in the same sentence or the one
    adjacent: degrade to a bundled capability, record into the artifact at hand, or report
    the missing optional capability clearly. "Skip silently" is not a fallback.
-3. **Ownership framing** — when the collaborator owns a concern (a glossary, a tracker
+3. **Ownership framing.** When the collaborator owns a concern (a glossary, a tracker
    seam, a stage skill), the reference says what it owns so the fallback's scope is
    evident. Descriptive ownership tables need no gate when every invocation site nearby is
    gated; the gate belongs where the invocation is instructed.
 
 ### Install-recipe carve-out
 
-An install-recipe site — the lines a skill prints so an operator can install an optional
-plugin themselves — is the one place a marketplace-qualified ID belongs, because the
+An install-recipe site, the lines a skill prints so an operator can install an optional
+plugin themselves, is the one place a marketplace-qualified ID belongs, because the
 commands do not resolve without it: the operator has to add the marketplace before
 `claude plugin install <plugin>@<marketplace>` can run at all.
 

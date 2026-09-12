@@ -158,7 +158,11 @@ class TempRepo:
         if cli_version is not None:
             args += ["--cli-version", cli_version]
         if upstream_sha is not None:
-            args += ["--upstream-sha", upstream_sha]
+            shas = (
+                [upstream_sha] if isinstance(upstream_sha, str) else list(upstream_sha)
+            )
+            for sha in shas:
+                args += ["--upstream-sha", sha]
         return overlap.main(args)
 
     def cleanup(self):
@@ -309,7 +313,7 @@ class GenerateTests(unittest.TestCase):
         self.assertIn(overlap.START_MARKER, text)
         self.assertIn(overlap.END_MARKER, text)
         self.assertIn("`doctor`", text)
-        self.assertIn("never hand-edit", text)
+        self.assertIn("Never hand-edit", text)
 
     def test_generate_is_idempotent(self):
         self.repo.generate()
@@ -711,6 +715,28 @@ class MarketplaceLaneTests(unittest.TestCase):
         repo.generate()
         self.assertEqual(repo.self_check(upstream_sha=FIXTURE_UPSTREAM_SHA), 0)
 
+    def test_self_check_accepts_one_sha_per_upstream_repository(self):
+        # Two upstream-source rows citing two repositories: a recorded commit
+        # matches when ANY provided value matches it, so neither drifts.
+        other = deep_copy(MARKETPLACE_ROW)
+        other["component"]["skill"] = "other-skill"
+        other["observation"]["detail"] = (
+            "anthropics/claude-code at commit d7dbd9a09f59775726ed14bbea8fc9dfdff62f7b"
+        )
+        repo = TempRepo([BASE_ROW, MARKETPLACE_ROW, other])
+        self.addCleanup(repo.cleanup)
+        repo.generate()
+        self.assertEqual(
+            repo.self_check(
+                upstream_sha=[
+                    FIXTURE_UPSTREAM_SHA,
+                    "d7dbd9a09f59775726ed14bbea8fc9dfdff62f7b",
+                ]
+            ),
+            0,
+        )
+        self.assertEqual(repo.self_check(upstream_sha=[FIXTURE_UPSTREAM_SHA]), 3)
+
     def test_self_check_with_short_prefix_sha_still_matches(self):
         repo = TempRepo(rows=[BASE_ROW, MARKETPLACE_ROW])
         self.addCleanup(repo.cleanup)
@@ -1026,6 +1052,196 @@ class DetectTests(unittest.TestCase):
         payload = json.loads(shipped.read_text(encoding="utf-8"))
         self.assertEqual(overlap.validate_pairs(payload), [])
 
+    def lanes(self, **statuses):
+        lanes = {}
+        for lane in overlap.LANE_ORDER:
+            status = statuses.get(lane, "ok")
+            lanes[lane] = {
+                "status": status,
+                "problems": [f"{lane} failed"] if status == "broken" else [],
+                "advisories": [],
+            }
+        return lanes
+
+    def test_a_broken_lane_marks_its_candidates_not_re_derivable(self):
+        # Seeded bundled-skill `doctor`, absent from a broken bundled lane:
+        # the seeded class decides the lane, and its absence proves nothing.
+        self.write_inventory(
+            bundled_skills={},
+            integrity={
+                "status": "degraded",
+                "cli_version": FIXTURE_CLI_VERSION,
+                "validated_against": FIXTURE_CLI_VERSION,
+                "lanes": self.lanes(bundled_skills="broken"),
+            },
+        )
+        out = self.repo.root / "candidates.json"
+        self.assertEqual(self.detect(out), 3)
+        report = json.loads(out.read_text(encoding="utf-8"))
+        self.assertEqual(
+            report["integrity"]["lanes"]["bundled_skills"]["counts_are"],
+            "not reportable",
+        )
+        self.assertEqual(
+            report["integrity"]["lanes"]["builtin_commands"]["counts_are"], "totals"
+        )
+        candidate = report["candidates"][0]
+        self.assertFalse(candidate["re_derivable"])
+        self.assertTrue(
+            any(
+                "lane of this extraction is broken" in item
+                for item in candidate["evidence"]
+            )
+        )
+
+    def test_a_healthy_lane_keeps_its_candidates_re_derivable(self):
+        self.write_inventory(
+            integrity={
+                "status": "degraded",
+                "cli_version": FIXTURE_CLI_VERSION,
+                "validated_against": FIXTURE_CLI_VERSION,
+                "lanes": self.lanes(builtin_commands="broken"),
+            }
+        )
+        out = self.repo.root / "candidates.json"
+        self.assertEqual(self.detect(out), 3)
+        candidate = json.loads(out.read_text(encoding="utf-8"))["candidates"][0]
+        self.assertTrue(candidate["re_derivable"])
+
+    def test_a_class_collision_is_marked_in_both_directions(self):
+        # Seeded as a bundled skill, observed as a built-in command: a broken
+        # lane on EITHER side marks the candidate.
+        collided = {
+            "builtin_commands": {
+                "help": {"name": "help"},
+                "doctor": {"name": "doctor"},
+            },
+            "bundled_skills": {},
+        }
+        for broken in ("builtin_commands", "bundled_skills"):
+            self.write_inventory(
+                **collided,
+                integrity={
+                    "status": "degraded",
+                    "cli_version": FIXTURE_CLI_VERSION,
+                    "validated_against": FIXTURE_CLI_VERSION,
+                    "lanes": self.lanes(**{broken: "broken"}),
+                },
+            )
+            out = self.repo.root / "candidates.json"
+            self.assertEqual(self.detect(out), 3)
+            candidate = json.loads(out.read_text(encoding="utf-8"))["candidates"][0]
+            self.assertEqual(candidate["native"]["class"], "builtin-command")
+            self.assertEqual(candidate["native"]["seeded_class"], "bundled-skill")
+            self.assertFalse(candidate["re_derivable"], broken)
+
+    def test_top_level_drift_makes_every_ok_lane_report_floors(self):
+        # An unvalidated CLI version degrades the run, not a lane; the lane
+        # labels must agree with the top-level `counts_are`.
+        self.write_inventory(
+            integrity={
+                "status": "degraded",
+                "cli_version": FIXTURE_CLI_VERSION,
+                "validated_against": "2.1.228",
+                "advisories": [
+                    f"cli {FIXTURE_CLI_VERSION} differs from the last validated build "
+                    "2.1.228; counts are believed, not verified"
+                ],
+                "lanes": self.lanes(),
+            }
+        )
+        out = self.repo.root / "candidates.json"
+        self.assertEqual(self.detect(out), 3)
+        report = json.loads(out.read_text(encoding="utf-8"))
+        self.assertEqual(report["integrity"]["counts_are"], "floors")
+        for lane in overlap.LANE_ORDER:
+            self.assertEqual(report["integrity"]["lanes"][lane]["status"], "ok")
+            self.assertEqual(report["integrity"]["lanes"][lane]["counts_are"], "floors")
+
+    def test_a_lane_attributed_advisory_degrades_only_its_lane(self):
+        lanes = self.lanes()
+        lanes["bundled_skills"]["status"] = "degraded"
+        lanes["bundled_skills"]["advisories"] = [
+            "1 registration(s) register a dynamic roster"
+        ]
+        self.write_inventory(
+            integrity={
+                "status": "degraded",
+                "cli_version": FIXTURE_CLI_VERSION,
+                "validated_against": FIXTURE_CLI_VERSION,
+                "advisories": [
+                    "bundled_skills: 1 registration(s) register a dynamic roster"
+                ],
+                "lanes": lanes,
+            }
+        )
+        out = self.repo.root / "candidates.json"
+        self.assertEqual(self.detect(out), 3)
+        report = json.loads(out.read_text(encoding="utf-8"))
+        self.assertEqual(
+            report["integrity"]["lanes"]["bundled_skills"]["counts_are"], "floors"
+        )
+        self.assertEqual(
+            report["integrity"]["lanes"]["builtin_commands"]["counts_are"], "totals"
+        )
+
+    def test_an_inventory_without_lanes_keeps_the_old_behaviour(self):
+        self.write_inventory()
+        out = self.repo.root / "candidates.json"
+        self.assertEqual(self.detect(out), 0)
+        report = json.loads(out.read_text(encoding="utf-8"))
+        self.assertNotIn("lanes", report["integrity"])
+        self.assertTrue(report["candidates"][0]["re_derivable"])
+
+    def test_a_session_skill_candidate_has_no_lane(self):
+        self.write_inventory()
+        self.write_pairs(
+            {
+                "schema": 1,
+                "pairs": [
+                    {
+                        "native": {"name": "morning", "class": "session-skill"},
+                        "component": {"plugin": "demo", "skill": "demo-audit"},
+                    }
+                ],
+            }
+        )
+        out = self.repo.root / "candidates.json"
+        self.assertEqual(self.detect(out), 0)
+        self.assertIsNone(
+            json.loads(out.read_text(encoding="utf-8"))["candidates"][0]["re_derivable"]
+        )
+
+    def test_a_name_collision_lists_every_registration(self):
+        self.write_inventory(
+            bundled_skills={
+                "doctor": [
+                    {
+                        "name": "doctor",
+                        "description": "Hub",
+                        "disable_model_invocation": True,
+                        "collision": True,
+                    },
+                    {
+                        "name": "doctor",
+                        "description": "Canvas",
+                        "gated": True,
+                        "user_invocable": True,
+                        "collision": True,
+                    },
+                ]
+            }
+        )
+        out = self.repo.root / "candidates.json"
+        self.assertEqual(self.detect(out), 0)
+        evidence = json.loads(out.read_text(encoding="utf-8"))["candidates"][0][
+            "evidence"
+        ]
+        self.assertTrue(any(item.startswith("name collision: 2") for item in evidence))
+        self.assertIn("[1] model invocation: disabled", evidence)
+        self.assertIn("[2] markers: gated", evidence)
+        self.assertIn("[2] native description: Canvas", evidence)
+
     def test_absent_native_is_reported_as_an_extraction_statement(self):
         self.write_inventory(bundled_skills={})
         out = self.repo.root / "candidates.json"
@@ -1038,6 +1254,107 @@ class DetectTests(unittest.TestCase):
                 for item in candidate["evidence"]
             )
         )
+
+
+class PresenceMentionTests(unittest.TestCase):
+    """A presence-gated native mention without the gate token is an advisory."""
+
+    def setUp(self):
+        self.repo = TempRepo()
+        self.addCleanup(self.repo.cleanup)
+        self.repo.generate()
+
+    def check(self):
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            code = self.repo.self_check()
+        return code, buffer.getvalue()
+
+    def test_presence_clause_without_the_token_is_an_advisory(self):
+        self.repo.write_skill(
+            "viz",
+            "visualize",
+            description=(
+                "Picks a form (a mermaid diagram, or, where the bundled design skill is "
+                "available, a hand-editable design canvas)."
+            ),
+        )
+        code, out = self.check()
+        self.assertEqual(code, 3)
+        self.assertIn(
+            "viz:visualize names a native surface behind a presence condition", out
+        )
+
+    def test_a_description_carrying_the_token_is_left_to_parity(self):
+        row = deep_copy(BASE_ROW)
+        row["baked"]["description_phrase"] = True
+        self.repo.write_store(make_store([row]))
+        self.repo.generate()
+        self.repo.write_skill(
+            "demo",
+            "demo-audit",
+            description=(
+                "When the bundled doctor skill resolves in your session, prefer it for the "
+                "quick pass."
+            ),
+            extra=BOUNDARY_EXTRA,
+        )
+        code, out = self.check()
+        self.assertEqual(code, 0)
+        self.assertNotIn("presence condition", out)
+
+    def test_the_token_is_judged_per_clause_not_per_description(self):
+        # A gated marketplace clause does not excuse an ungated native clause
+        # elsewhere in the same description.
+        claimed = deep_copy(MARKETPLACE_ROW)
+        claimed["component"]["skill"] = "mixed"
+        claimed["baked"]["description_phrase"] = True
+        self.repo.write_store(make_store([BASE_ROW, claimed]))
+        self.repo.generate()
+        self.repo.write_skill(
+            "demo",
+            "mixed",
+            description=(
+                "Builds mockups (or, where the bundled design skill is available, a canvas). "
+                "Not for an explorer: that is the playground skill, routed via /playgrounds:use "
+                "where the upstream playground plugin is installed from its marketplace."
+            ),
+        )
+        code, out = self.check()
+        self.assertEqual(code, 3)
+        self.assertIn("demo:mixed names a native surface", out)
+
+    def test_seam_phrasing_plugin_clause_is_not_flagged(self):
+        self.repo.write_skill(
+            "demo",
+            "seam",
+            description="Routes chart craft to the dataviz plugin if that plugin is installed.",
+        )
+        code, out = self.check()
+        self.assertEqual(code, 0)
+        self.assertNotIn("presence condition", out)
+
+    def test_not_for_clause_without_a_presence_condition_is_not_flagged(self):
+        self.repo.write_skill(
+            "demo",
+            "notfor",
+            description="Audits an install directory. Not for: the bundled doctor skill's fix pass.",
+        )
+        code, out = self.check()
+        self.assertEqual(code, 0)
+        self.assertNotIn("presence condition", out)
+
+    def test_a_plain_mention_in_a_when_clause_is_not_flagged(self):
+        # "when the user asks about a built-in command" states no presence
+        # condition; only an availability word makes one.
+        self.repo.write_skill(
+            "demo",
+            "plain",
+            description="Use when the user asks whether a built-in command is a real command.",
+        )
+        code, out = self.check()
+        self.assertEqual(code, 0)
+        self.assertNotIn("presence condition", out)
 
 
 class ScanTests(unittest.TestCase):
