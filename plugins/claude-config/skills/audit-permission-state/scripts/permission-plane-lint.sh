@@ -325,7 +325,20 @@ END {
       finding("warning", "C6-uncoveredPath", scope, text " — file permissions are checked against Edit(path) and Read(path) rules only, so a path rule for " tool " is accepted but never consulted (warns at startup, v2.1.210+; a Glob rule passed in --allowedTools is the documented exception)")
   }
 
-  print "lint summary findings=" n_findings + 0 " checks_run=9"
+  # A scope the reader could not open contributes no findings, and `findings=0`
+  # alone reads as a clean plane. status= carries the difference, in the same
+  # vocabulary managed-conformance.sh already emits, so a mute summary can no
+  # longer be mistaken for a clean one.
+  n_unread = 0
+  unread_list = ""
+  for (s in status_of)
+    if (status_of[s] == "skipped" || status_of[s] == "unreadable" || status_of[s] == "invalid-json") {
+      n_unread++
+      unread_list = unread_list (unread_list == "" ? "" : ",") s
+    }
+  if (n_unread > 0)
+    print "LINT-NOTE: " n_unread " scope(s) could not be read (" unread_list "), so their configuration was never linted. A finding count of " n_findings + 0 " covers the scopes that WERE read, and is not a clean bill for the plane."
+  print "lint summary findings=" n_findings + 0 " checks_run=9 status=" (n_unread > 0 ? "incomplete" : "read")
 }
 ')" || {
   echo "ERROR: no scope records on input — permission-plane-lint.sh will not report a clean plane it never read" >&2

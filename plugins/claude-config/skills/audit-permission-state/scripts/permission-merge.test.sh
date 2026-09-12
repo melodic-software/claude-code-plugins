@@ -323,6 +323,48 @@ else
   pass "end-to-end reader merge (skipped — jq not installed)"
 fi
 
+# --- The merge states its result instead of leaving silence -------------------
+# On a machine with no rules the merge used to emit two caveats and stop, leaving
+# the reader to interpret absence of output. Every sibling stage ends in a
+# summary; this one now does too.
+EMPTY_IN=$(
+  cat <<'EOF'
+managed file absent <managed>/managed-settings.json
+user settings present <userhome>/.claude/settings.json
+project settings present <proj>/.claude/settings.json
+EOF
+)
+OUT_EMPTY=$(printf '%s\n' "$EMPTY_IN" | bash "$SCRIPT")
+assert_contains "an empty plane still reports a summary" "$OUT_EMPTY" "merge summary allow=0 ask=0 deny=0"
+assert_contains "and says every scope was read" "$OUT_EMPTY" "status=read"
+
+COUNT_IN=$(
+  cat <<'EOF'
+user settings present <userhome>/.claude/settings.json
+project settings present <proj>/.claude/settings.json
+rule user settings allow Bash(npm test)
+rule user settings allow Bash(git status)
+rule project settings ask Bash(git push *)
+rule project settings deny Read(./.env)
+EOF
+)
+OUT_COUNT=$(printf '%s\n' "$COUNT_IN" | bash "$SCRIPT")
+assert_contains "the summary counts each kind" "$OUT_COUNT" "merge summary allow=2 ask=1 deny=1"
+
+# The beaten count must not be named `inert`: consumers match that prefix as a
+# record, so a field carrying the substring reads as a record that is not there.
+assert_not_contains "the summary field is not named inert" "$OUT_COUNT" "inert="
+
+UNREAD_MERGE=$(
+  cat <<'EOF'
+managed file unreadable <managed>/managed-settings.json
+user settings present <userhome>/.claude/settings.json
+rule user settings deny Bash(rm -rf:*)
+EOF
+)
+OUT_UNREAD_MERGE=$(printf '%s\n' "$UNREAD_MERGE" | bash "$SCRIPT")
+assert_contains "an unread scope makes the merge incomplete" "$OUT_UNREAD_MERGE" "status=incomplete"
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
   exit 0
