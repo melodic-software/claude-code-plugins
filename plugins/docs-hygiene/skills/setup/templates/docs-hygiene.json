@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "_comment": "Bundled defaults for the docs-hygiene file-name skills. Copy into .claude/docs-hygiene.json and edit. Every key is documented in plugins/docs-hygiene/reference/config.md. The values below are this marketplace's own: docs/ is the scope root, ADR, spec, and upstream trees are the historical tier, released changelog entries are frozen, and docs/architecture/landscape.json is generated rather than edited.",
+  "_comment": "Bundled defaults for the docs-hygiene file-name skills. Copy into .claude/docs-hygiene.json and edit. Every key is documented in plugins/docs-hygiene/reference/config.md. The values below are modelled on this marketplace's own: docs/ is the scope root, ADR, spec, and upstream trees are the historical tier, released changelog entries are frozen, and docs/architecture/landscape.json is generated rather than edited. A consuming repository adds its own historical paths and its own sweep exclusions; this marketplace's team layer carries several that are specific to it.",
   "file_names": {
     "roots": ["docs"],
     "rule": "lower-kebab",
@@ -22,9 +22,7 @@
     ],
     "sweep_exclude": [
       ".work/**",
-      "docs/topics/**",
-      "plugins/education/**",
-      "plugins/domain-driven-design/**"
+      "docs/topics/**"
     ],
     "sweep_exclude_sites": [],
     "generated": [

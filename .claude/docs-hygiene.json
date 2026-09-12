@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "_comment": "Bundled defaults for the docs-hygiene file-name skills. Copy into .claude/docs-hygiene.json and edit. Every key is documented in plugins/docs-hygiene/reference/config.md. The values below are this marketplace's own: docs/ is the scope root, ADR, spec, and upstream trees are the historical tier, released changelog entries are frozen, and docs/architecture/landscape.json is generated rather than edited.",
+  "_comment": "This repository's own file-name configuration. Every key is documented in plugins/docs-hygiene/reference/config.md. docs/ is the scope root; ADR, spec, upstream, and unhobble trees are the historical tier, so their links and paths are repointed and their narrative is left as written; released changelog entries are frozen; and docs/architecture/landscape.json is generated rather than edited. The two sweep exclusions under plugins/ are vocabulary collisions, not scope calls: the teach and curate-language skills document a learner-workspace GLOSSARY.md that has nothing to do with docs/glossary.md, and a basename sweep cannot tell them apart. They are scoped to those two skills so the rest of both plugins is still swept.",
   "file_names": {
     "roots": [
       "docs"
@@ -28,7 +28,8 @@
         "paths": [
           "docs/adr/**",
           "docs/specs/**",
-          "docs/upstream/**"
+          "docs/upstream/**",
+          ".claude/unhobble/**"
         ],
         "forms": "links-and-paths"
       },
@@ -43,8 +44,8 @@
     "sweep_exclude": [
       ".work/**",
       "docs/topics/**",
-      "plugins/education/**",
-      "plugins/domain-driven-design/**"
+      "plugins/education/skills/teach/**",
+      "plugins/domain-driven-design/skills/curate-language/**"
     ],
     "sweep_exclude_sites": [],
     "generated": [
