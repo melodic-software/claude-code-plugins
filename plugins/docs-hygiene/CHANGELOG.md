@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [0.21.46]
+
+### Changed
+
+- **`audit-noise`, `write-for-humans`: description prose no longer addresses the reader.** Anthropic's skill-authoring guidance keeps first and second person out of a description because it is injected into the system prompt; the rewritten clauses name the user, the session, or the repository instead. Quoted trigger phrases are unchanged.
+
 ## [0.21.45]
 
 ### Changed

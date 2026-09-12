@@ -27,9 +27,16 @@ as guidance, not as an instruction to the reader.
 One skill has one description, optionally extended by `when_to_use`, which Claude Code appends to
 it in the skill listing. Put the key use case first: the listing truncates tail-first, and a
 trigger phrase after the cut never reaches the model. Say what the skill does and when to use it,
-with the nouns a user would type. The page asks for the third person ("Processes Excel files", not
-"I can help you process"); apply that to new skills and leave the fleet's existing imperative
-descriptions alone, since a voice rewrite changes trigger phrases for no measured gain.
+with the nouns a user would type. Keep first and second person out of the description prose: the
+page's rule is "write in third person", its Avoid examples are "I can help you process" and "You
+can use this to process", and its reason is that the text is injected into the system prompt where
+"I" and "you" have no stable referent. Imperative verb phrases ("Extract text and tables from PDF
+files") and third-person singular ("Processes Excel files") both conform, and the page's own
+effective examples, the Claude Code skills page's examples, and the bundled skill-creator's own
+description all use the imperative, so this marketplace's imperative descriptions stand. Name the
+user, the session, or the repository where a clause would otherwise address the reader. A quoted
+trigger phrase is a user utterance and keeps whatever voice the user would type ('audit my
+.claude folder').
 
 Two caps apply at two layers:
 
@@ -48,10 +55,14 @@ pressure; a long, vague one loses its trigger words first.
 upload requirement). 1,536 and the 1% budget:
 <https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short> and
 <https://code.claude.com/docs/en/skills#frontmatter-reference> (`description` and `when_to_use`
-rows), which is also where "key use case first" comes from. Third person:
-<https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#writing-effective-descriptions>.
-Verified 2026-09-10. Recheck: either number changes on its owning page, or the Claude Code page
-begins stating a validation cap of its own.
+rows), which is also where "key use case first" comes from. Voice rule and its Avoid examples:
+<https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#writing-effective-descriptions>;
+the imperative examples on that same section, at
+<https://code.claude.com/docs/en/skills#frontmatter-reference>, and in the skill-creator's own
+frontmatter at <https://github.com/anthropics/skills/blob/main/skills/skill-creator/SKILL.md>.
+Verified 2026-09-10 (voice examples re-read 2026-09-11). Recheck: either number changes on its
+owning page, the Claude Code page begins stating a validation cap of its own, or the
+best-practices page rewrites its description examples in third-person singular.
 
 ## Conciseness and the listing budget
 

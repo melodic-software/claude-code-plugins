@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [0.35.9]
+
+### Changed
+
+- **`handoff`, `keep-going`, `orient`: description prose no longer addresses the reader.** Anthropic's skill-authoring guidance keeps first and second person out of a description because it is injected into the system prompt; the rewritten clauses name the user, the session, or the repository instead. Quoted trigger phrases are unchanged. The plugin manifest's orient summary follows the same wording.
+
 ## [0.35.8]
 
 ### Changed

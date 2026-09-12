@@ -15,8 +15,10 @@ dedicated script. Editing one copy breaks the sync path; a fix-capable pass that
 corrupt the cluster.
 
 **Derivation.** Ask the target whether it documents a shared-source registry. In this marketplace
-that is `scripts/cross-plugin-source-registry.txt`, whose entries are paths *within* each plugin;
-resolve each entry against every plugin root to get the live copy set. When the target documents no
+that is `scripts/cross-plugin-source-registry.txt`, whose plain entries are paths *within* each
+plugin (resolve each against every plugin root to get the live copy set) and whose cluster lines,
+`<canonical> -> <member>...`, name a root-relative canonical copy and the plugin paths or globs that
+carry it (the canonical and every match are the copy set). When the target documents no
 such registry, **this class is empty**. Say so in `skipped` rather than inferring one from
 similarity, which would exclude files nobody registered.
 

@@ -19,7 +19,10 @@
     "min_tokens": 50,
     "min_lines": 5,
     "ignore": [],
-    "registries": []
+    "registries": [],
+    "max_lines": null,
+    "max_size": "1mb",
+    "rollup_depth": 2
   },
   "coverage": {
     "artifacts": [],
@@ -65,14 +68,14 @@
       "config_key": "size.file_lines",
       "value_key": "lines_non_blank",
       "direction": "at_or_above",
-      "provenance": "the plugin's own number, not ISO-backed: it coincides with the informative figure in ISO/IEC 5055:2021 §6.3 Table 1, which is not normative, while the normative form (§8.2.115) is a function-level percentage; 500 is the operator-list figure, selectable; size.mode iso-8.2.115 selects the normative function-percentage alternative"
+      "provenance": "the plugin's own number, not ISO-backed: it coincides with the informative figure in ISO/IEC 5055:2021 §6.3 Table 1, which is not normative, while the normative form (§8.2.115) is a function-level percentage; 500 is selectable; size.mode iso-8.2.115 selects the normative function-percentage alternative"
     },
     {
       "measure": "function_lines_pct",
       "config_key": "size.function_lines_pct",
       "value_key": "function_lines_pct",
       "direction": "at_or_above",
-      "provenance": "ISO/IEC 5055:2021 §8.2.115 (normative): a function whose non-empty lines exceed this percentage of the file's; used when size.mode is iso-8.2.115"
+      "provenance": "ISO/IEC 5055:2021 §8.2.115 (normative) states the 5% with no base; the percentage-of-file reading is the plugin's; used when size.mode is iso-8.2.115"
     },
     {
       "measure": "coverage",
