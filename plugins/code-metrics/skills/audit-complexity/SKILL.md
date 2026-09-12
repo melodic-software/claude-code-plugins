@@ -86,7 +86,8 @@ INCONCLUSIVE; otherwise keep it beside your notes and compare by hand.
   `empty` when nothing was measured; the run table says why for every non-`ok` row.
 - Exit 0 whenever a report was produced, including an `empty` one; exit 2 for a usage error such
   as an explicitly named path that does not exist; exit 3 when a collector resolved but produced
-  nothing parseable, with its stderr in the run table.
+  nothing parseable, with its stderr in the run table and an `Exit 3:` line in the markdown
+  summary naming that row, so the exit is never the only trace of the failure.
 
 `/code-metrics:principles` is where the measures are defined, what each one can and cannot tell
 you, and why no threshold here is a verdict.

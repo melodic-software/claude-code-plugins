@@ -54,6 +54,13 @@ MIN_PYTHON = (3, 9)
 SCHEMA = "code-metrics/v1"
 RUN_STATUSES = ("ok", "partial", "unavailable", "not-applicable", "deferred")
 MAX_RENDERED_ROWS = 200
+# The reason prefix the dispatcher writes on a run row when a collector ran and
+# produced nothing parseable; it is also what makes an entry script exit 3.
+COLLECT_FAILED = "collect failed (exit 3)"
+# The reason prefix the coverage join writes on every run row when no artifact
+# was named and none was discovered; the rendering points at the table that
+# says how to get one, since the skill itself runs nothing.
+NO_ARTIFACT = "no coverage artifact found"
 
 
 def _read_json(path: str) -> Any:
@@ -276,9 +283,13 @@ def _primary_threshold(
 ) -> dict[str, Any] | None:
     """The threshold whose value orders the rows that are not over any
     reference: the first one whose `value_key` the rows carry, so a size
-    report lists the longest files first and a coverage report the least
-    covered, and a document whose rows carry none of them (clone groups)
-    keeps its file order."""
+    report lists the longest files first, and a document whose rows carry
+    none of them (clone groups) keeps its file order. A table carrying `crap`
+    is ordered by it (see `_coverage_rank`), whatever the thresholds' order,
+    so the crap threshold is the one the row cap names."""
+    for entry in thresholds_:
+        if entry.get("value_key") == "crap" and "crap" in keys:
+            return entry
     for entry in thresholds_:
         if entry.get("value_key") in keys:
             return entry
@@ -293,6 +304,33 @@ def _primary_rank(primary: dict[str, Any] | None, row: dict[str, Any]) -> tuple:
     if not _is_number(value):
         return (1, 0)
     return (0, value if primary.get("direction") == "below" else -value)
+
+
+def _coverage_rank(row: dict[str, Any]) -> tuple:
+    """Order within a coverage document, ahead of the primary rank.
+
+    Function rows carrying a CRAP number come first, highest first, so the row
+    cap never drops the most complex untested function in favour of an
+    alphabetically earlier file; function rows with a null CRAP follow them;
+    file rows come after, least covered first with a null percentage last. A
+    row that carries neither `crap` nor `coverage_pct` ranks as a constant, so
+    every other skill's table is ordered by its primary value alone.
+    """
+    values = row.get("values") or {}
+    if "crap" not in values and "coverage_pct" not in values:
+        return (0, 0, False, 0)
+    crap = values.get("crap")
+    coverage = values.get("coverage_pct")
+    if row.get("function"):
+        group = 0 if _is_number(crap) else 1
+    else:
+        group = 2
+    return (
+        group,
+        -crap if _is_number(crap) else 0,
+        not _is_number(coverage),
+        coverage if _is_number(coverage) else 0,
+    )
 
 
 def _fmt(value: Any) -> str:
@@ -555,6 +593,10 @@ def render(
                     0 if "lane-total" in (r.get("labels") or []) else 1,
                     -len(r.get("over_reference", [])),
                     -_over_distance(r, references),
+                    # A coverage table leads with the highest-CRAP function
+                    # and lists file rows least covered first; elsewhere
+                    # this component is a constant.
+                    _coverage_rank(r),
                     _primary_rank(primary, r),
                     # A lane row (type debt) has `file: null`; `or ""` keeps
                     # it comparable with the file rows it now sorts among.
@@ -691,6 +733,24 @@ def render(
         )
     if doc.get("unavailable"):
         lines.append("Unavailable: " + ", ".join(doc["unavailable"]) + ".")
+    failed = [
+        row for row in doc.get("run", []) if COLLECT_FAILED in (row.get("reason") or "")
+    ]
+    if failed:
+        # The dispatcher's `collect failed (exit 3)` reason is what makes the
+        # entry script exit 3, in this skill and in a skill whose run rows carry
+        # it forward. Naming the row here keeps that exit from being the only
+        # trace of a collector that ran and produced nothing parseable.
+        named = []
+        for row in failed:
+            reason = row.get("reason") or ""
+            label = row.get("collector") or reason.split(":", 1)[0]
+            named.append(f"{row.get('lane', '*')}/{row.get('measure', '*')} ({label})")
+        lines.append(
+            "Exit 3: a collector ran and produced nothing parseable: "
+            + "; ".join(named)
+            + ". The run table carries its output."
+        )
     partial = [
         f"{row.get('lane', '*')}/{row.get('measure', '*')}"
         for row in doc.get("run", [])
@@ -700,6 +760,18 @@ def render(
         lines.append("Partial: " + ", ".join(partial) + ".")
     if document_path:
         lines.append(f"Full document: {document_path}")
+    if any(NO_ARTIFACT in (row.get("reason") or "") for row in doc.get("run", [])):
+        # Every lane is unavailable for the same cause, and the cause has a
+        # documented remedy the skill will not apply on its own: the table of
+        # producers and command shapes, per lane, in the skill body and README.
+        # It closes the report, after the document path, so the remedy is the
+        # last thing read.
+        lines.append(
+            "No coverage artifact was found, so no line was measured. The "
+            '"Getting a first artifact" table in the audit-coverage skill body and '
+            "the plugin README names, per lane, the producer that writes one and the "
+            "command shape; this skill runs none of them."
+        )
     return "\n".join(lines) + "\n"
 
 
