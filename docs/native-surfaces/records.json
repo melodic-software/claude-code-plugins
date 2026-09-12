@@ -390,6 +390,33 @@
       },
       "baked": { "description_phrase": false, "boundary_section": false },
       "budget_caveat": false
+    },
+    {
+      "native": { "name": "plugin eval", "class": "builtin-command", "markers": ["gated"] },
+      "component": { "plugin": "evals", "skill": "plugin-eval", "kind": "skill" },
+      "verdict": "complementary",
+      "reason": "The CLI runs and scores: `claude plugin eval <target>` loads the plugin, runs every case in a with-plugin arm and a no-plugin baseline arm, grades each run, and reports WITH, W/OUT, and the delta. evals:plugin-eval is the guided practice around that command, which the CLI does not ship: a preflight that reports the CLI version against the floor, whether a sandbox backend exists on this machine, and the target type (plugin, wrapped skill, wrapped agent, hooks as advisory; CLAUDE.md and rules refused because the run strips them by design); static validation of the case files with no model call; a cost estimate from cases x runs x arms and a ceiling from plugin user config passed as --max-cost-usd; and a delta-first reading with the iteration loop. Neither replaces the other: the skill never grades, and the command never preflights, prices, or reads. The row is registry-only with nothing baked: the native-references gate token is a condition on the model's skill listing, and a CLI subcommand never enters that listing, so the skill gates on the CLI itself (preflight's version floor) and carries no listing phrase. The gated marker rests on two switches: below the floor the binary prints an early-access refusal, and a server-side switch prints an unavailable refusal that nothing local restores.",
+      "evidence": [
+        "`claude plugin eval --help` at 2.1.269 (read 2026-09-11): 'Run eval cases (<eval dir>/**/case.yaml or prompt.md + graders/*.md; the eval dir is evals/ unless --eval-dir or the manifest says otherwise) against a plugin and report scored results. Target is a path, a plugin name, or a plugin@marketplace id: installed and skills-dir plugins both resolve (and add a no-plugin baseline arm)'; `--ablation` defaults to with-without whenever a plugin resolves and reports the score delta, and under it graders marked with-only, including `tool_used: Skill`, are a plugin-fired indicator rather than part of the score",
+        "the same help text: `--max-cost-usd` is an optional hard ceiling checked before each run launches (exit 2 with partial results when hit; paid graders skipped on the breaching run while free graders still score it); `--trust-plugin` answers the first-run trust prompt for CI; `--threshold` defaults to 1.0; `--allow-tools` is the operator grant for Bash, Write, Edit, WebFetch, and mcp__*; `init` takes only --bare, --eval-dir, and -i",
+        "https://code.claude.com/docs/en/plugin-evals.md (the raw variant; read 2026-09-11) documents the same flag set, the case layout, the exit codes 0/1/2/130/143, and the aggregate-result.json fields; the raw page matched `--help` exactly where a summarizer over the rendered page had fabricated a flag table",
+        "gate basis: the command shipped in Claude Code 2.1.269 (anthropics/claude-code, 2026-09-11); below that floor the binary prints `plugin eval is currently in early access`, and a server-side switch prints `plugin eval is currently unavailable`, which no local setting restores",
+        "the docs page: the run strips user settings, hooks, CLAUDE.md, MCP servers, other plugins, memory, and skills, so a rules or CLAUDE.md target has nothing to measure; native Windows has no sandbox backend, so a case granting Bash, Write, or Edit is refused rather than run unconfined, with WSL2 named for Windows and bubblewrap plus socat for Linux",
+        "the docs page: the case format (`prompt.md` plus `graders/*.md`, or `case.yaml` with `schema_version: \"1.1\"`) is not the skill-creator `evals/evals.json` format this marketplace's skills carry, so the two coexist and `skill-quality:check validate-evals` keeps the other one",
+        "our planned description: preflight, validate without spending, price, and read the delta for a `claude plugin eval` run; the CLI runs and scores, this skill guides the practice around it (the skill lands in the phase after this row, per docs/topics/plugin-evals/PLAN.md)",
+        "`plugin eval` is absent from the 2.1.232 and 2.1.251 extractions the sibling rows rest on; absence from an extraction is a statement about the extraction, and the command postdates both"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "`claude plugin eval --help` from the installed CLI at 2.1.269 (`claude --version` prints `2.1.269 (Claude Code)`), read live in the session on 2026-09-11; a targeted observation of one subcommand's help text, not a re-extraction of the binary's roster",
+        "date": "2026-09-11"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release after 2.1.269 changes the plugin eval flag set, the case schema version, the exit codes, the ablation exclusion rule for with-only and `tool_used: Skill` graders, the early-access or unavailable gate strings, or the sandbox backend list; or the command or its docs page gains a preflight, validate-only, dry-run, or cost-estimate mode that makes any part of evals:plugin-eval redundant",
+        "verified": "2026-09-11"
+      },
+      "baked": { "description_phrase": false, "boundary_section": false },
+      "budget_caveat": true
     }
   ]
 }

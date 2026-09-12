@@ -160,7 +160,14 @@ plugin as it was.
   `scripts/check-skill-leaf-names.sh --check` (no registry change: `plugin-eval` and `validate` collide with no
   plugin), `scripts/run-plugin-tests.sh` (discovers the new `.test.sh`).
 
-### Phase 1: Prerequisites the later phases cite [TODO]
+### Phase 1: Prerequisites the later phases cite [DONE]
+
+Landed 2026-09-11. Sanity check outcome: `self-check` exits 3 (degraded), not 0, on this machine
+before and after the row: the two advisories are pre-existing (three sibling rows record extraction
+versions 2.1.232, 2.1.251, and 2.1.252 against the current 2.1.269; the upstream-commit comparison has no
+`--upstream-sha`), and the row count moved from 16 to 17 with no row-level problem line. The bar for
+this phase is therefore "same two advisories verbatim, no row problem", and `generate --check` exit 0.
+The `detect` pairing check against the bundled `run` row waits for Phase 4, when the skill exists.
 
 - Add the `plugin eval` row to `docs/native-surfaces/records.json`, shaped like the `skill-doctor` row:
   `native {name: "plugin eval", class: builtin-command, markers: [gated]}`, `component {plugin: evals,
