@@ -48,7 +48,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Fetch base
-        uses: ./.github/actions/checkout-with-base
+        uses: ./.github/actions/checkout-with-base # zizmor: ignore[self-repository]
       - name: Switch to PR head
         env:
           HEAD_REF: ${{ github.head_ref }}
