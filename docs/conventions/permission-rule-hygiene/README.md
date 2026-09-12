@@ -123,20 +123,37 @@ anchors for the file tools, not shell-command expansion). A rule like
   path changes), and
 - leaks a username into version control.
 
-Two substitutions *are* expanded in `allowed-tools`: per
-[skills](https://code.claude.com/docs/en/skills#available-string-substitutions), Claude Code
-substitutes `${CLAUDE_SKILL_DIR}` and `${CLAUDE_PROJECT_DIR}` in the skill's markdown content and in
-Bash rules in `allowed-tools` (the `${CLAUDE_PROJECT_DIR}` substitution requires Claude Code
-v2.1.196 or later; below that floor the rule stays a literal string and never matches).
-`${CLAUDE_PLUGIN_ROOT}` is **not** among them — it does not appear anywhere on that page —
-so a rule written with it stays a literal string, never matches, and the grant is inert.
+Four substitutions *are* expanded in `allowed-tools`, and two of them only inside a plugin. Per
+[skills](https://code.claude.com/docs/en/skills#available-string-substitutions) (fetched
+2026-09-12): *"Claude Code substitutes `${CLAUDE_SKILL_DIR}` and `${CLAUDE_PROJECT_DIR}` in two
+places: the skill's markdown content, and Bash rules in the `allowed-tools` frontmatter. In a plugin
+skill, Claude Code substitutes `${CLAUDE_PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_DATA}` in the same two
+places."* The `${CLAUDE_PROJECT_DIR}` substitution requires Claude Code v2.1.196 or later; below that
+floor the rule stays a literal string and never matches.
 
-`${CLAUDE_SKILL_DIR}` is therefore the correct token for a rule that must match a skill's own bundled
-script, and pairing it with the same token in the skill body is the documented way to run that script
-without a prompt. `${CLAUDE_PROJECT_DIR}` anchors to the consuming project rather than to a portable
-command, so it is not the right tool for a shared code-execution helper. Neither changes
-anti-pattern 1: auto mode still drops broad/interpreter-shaped rules regardless of how the path was
-written.
+**The plugin-scoped pair carries a boundary, and it is the whole of the rule.** The same page's
+variable table states `${CLAUDE_PLUGIN_ROOT}` is *"Substituted only in plugin skills."* So in a
+personal or project skill, in an agent or command, and in any settings file's `permissions.allow`
+array, both tokens stay literal and the grant is inert. No page documents `${CLAUDE_*}` expansion in
+a settings allow rule at all.
+
+An earlier revision of this section said `${CLAUDE_PLUGIN_ROOT}` "does not appear anywhere on that
+page" and concluded every rule written with it is inert. Both halves were wrong: it appears twice on
+that page, and upstream fixed the substitution in **v2.1.0** (*"Fixed `${CLAUDE_PLUGIN_ROOT}` not
+being substituted in plugin `allowed-tools` frontmatter, which caused tools to incorrectly require
+approval"*). Treat a grant naming it from inside a plugin skill as correct, not as a defect.
+
+`${CLAUDE_SKILL_DIR}` remains the right token for a rule matching a skill's **own** bundled script,
+and pairing it with the same token in the skill body is the documented way to run that script without
+a prompt. `${CLAUDE_PLUGIN_ROOT}` is the one that can name a script shared between a plugin's skills,
+which `${CLAUDE_SKILL_DIR}` cannot express. `${CLAUDE_PROJECT_DIR}` anchors to the consuming project
+rather than to a portable command, so it is not the right tool for a shared code-execution helper.
+
+**None of this changes anti-pattern 1**, and the distinction is worth holding: substitution decides
+whether a rule *resolves*, never whether auto mode *keeps* it. Auto mode still drops
+broad and interpreter-shaped rules however the path was written. The docs establish that the token
+resolves; they do not establish that the resolved rule matches at runtime on every host, so do not
+ship a grant on docs alone.
 
 ## Anti-pattern 3 — assuming a skill or plugin can self-grant
 
@@ -253,8 +270,8 @@ building on it.
   shaped `Bash(*<wrapper-name> *)` does not match it, and fails before the auto-mode question is even
   reached. Derive the candidate from the exact command string operators are told to run.
 - **Whether a leading-wildcard rule survives auto mode is unverified.** The documented drop list
-  enumerates blanket rules, wildcarded interpreters, package-manager runners, and `Agent` rules, and
-  says nothing about a leading wildcard in the command position.
+  enumerates blanket rules, wildcarded interpreters, package-manager runners, `Agent` rules, and
+  `Monitor` rules, and says nothing about a leading wildcard in the command position.
 
 Weigh too that a rule anchored on a bare wrapper name matches that name at *any* path, including an
 unvetted copy.

@@ -680,6 +680,53 @@ mkdir -p "$D8G4/.claude"
 jq -n '{permissions:{allow:["Read(%USERPROFILE%/notes.txt)"]}}' >"$D8G4/.claude/settings.json"
 assert_eq "non-Bash rules with inert spellings are not P4-flagged" "0" "$(run "$D8G4" --count)"
 
+# A PLUGIN skill is the one place the plugin-scoped tokens DO substitute in
+# allowed-tools, so flagging them there is a false positive. Skills page,
+# "Available string substitutions": "In a plugin skill, Claude Code substitutes
+# ${CLAUDE_PLUGIN_ROOT} and ${CLAUDE_PLUGIN_DATA} in the same two places."
+# Upstream fixed the plugin-root case in v2.1.0.
+D8G5="$TEST_TMPDIR/issue-2397-plugin-skill"
+mkdir -p "$D8G5/plugins/demo/.claude-plugin" "$D8G5/plugins/demo/skills/thing"
+jq -n '{name:"demo"}' >"$D8G5/plugins/demo/.claude-plugin/plugin.json"
+cat >"$D8G5/plugins/demo/skills/thing/SKILL.md" <<'EOF'
+---
+name: thing
+allowed-tools:
+  - Bash(${CLAUDE_PLUGIN_ROOT}/scripts/x.sh:*)
+  - Bash(${CLAUDE_PLUGIN_DATA}/bin/y.sh:*)
+---
+body
+EOF
+assert_eq "plugin-scoped tokens in a PLUGIN skill are not P4-flagged" "0" "$(run "$D8G5" --count)"
+
+# Same tokens, same layout, but the always-inert Windows spelling still fires —
+# the plugin-skill carve-out is scoped to the two plugin-scoped tokens only.
+D8G6="$TEST_TMPDIR/issue-2397-plugin-skill-userprofile"
+mkdir -p "$D8G6/plugins/demo/.claude-plugin" "$D8G6/plugins/demo/skills/thing"
+jq -n '{name:"demo"}' >"$D8G6/plugins/demo/.claude-plugin/plugin.json"
+cat >"$D8G6/plugins/demo/skills/thing/SKILL.md" <<'EOF'
+---
+name: thing
+allowed-tools:
+  - Bash(${CLAUDE_PLUGIN_ROOT}/scripts/x.sh:*)
+  - Bash(%USERPROFILE%/scripts/y.sh:*)
+---
+body
+EOF
+OUT_PLUGIN_MIXED=$(run "$D8G6")
+assert_eq "a plugin skill still gets one P4 for the always-inert token" "1" "$(run "$D8G6" --count)"
+assert_contains "the surviving finding names %USERPROFILE%" "$OUT_PLUGIN_MIXED" "%USERPROFILE%"
+assert_not_contains "the plugin-root grant is not flagged in a plugin skill" "$OUT_PLUGIN_MIXED" "Bash(\${CLAUDE_PLUGIN_ROOT}/scripts/x.sh:*)"
+
+# A settings file is not a skill at all: no page documents ${CLAUDE_*}
+# expansion in a settings permissions.allow array, so the tokens stay flagged
+# even inside a plugin-shaped checkout.
+D8G7="$TEST_TMPDIR/issue-2397-plugin-root-in-settings"
+mkdir -p "$D8G7/.claude"
+jq -n '{permissions:{allow:["Bash(${CLAUDE_PLUGIN_ROOT}/scripts/x.sh:*)"]}}' \
+  >"$D8G7/.claude/settings.json"
+assert_eq "plugin-root token in a settings allow rule is still P4-flagged" "1" "$(run "$D8G7" --count)"
+
 # --- Case 9: missing jq exits 2 ---------------------------------------------
 real_bash=$(command -v bash)
 empty_path_dir="$TEST_TMPDIR/empty-path"
