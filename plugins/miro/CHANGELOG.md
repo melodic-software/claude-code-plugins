@@ -3,6 +3,12 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.3]
+
+### Changed
+
+- **Bump the npm-minor-patch group** (#4102): `zod` 4.4.3→4.5.4, `@biomejs/biome` 2.5.10→2.5.12, `@types/node` 26.3.0→26.4.1. `zod` is a runtime dependency the server bundles, so `dist/index.min.js` is regenerated from source; the other two are development dependencies. Typecheck, lint, and all 32 tests pass, and `verify-bundle` confirms the committed artifact matches source.
+
 ## [0.4.2]
 
 ### Changed
