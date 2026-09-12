@@ -265,6 +265,11 @@ while IFS="$(printf '\t')" read -r old _new; do
   base="${old##*/}"
   set_form_patterns "$base"
   stem="${base%.*}"
+  # The stem goes into an ERE below, so its own metacharacters are escaped the
+  # same way `set_form_patterns` escapes the basename. A stem like `v1.2.schema`
+  # carries dots that would otherwise match any character, widening the sweep to
+  # lines that name no file at all.
+  stem_esc="$(printf '%s' "$stem" | sed 's/[][\\.^$*+?(){}|]/\\&/g')"
   seen=""
 
   while IFS= read -r hit; do
@@ -300,7 +305,7 @@ while IFS="$(printf '\t')" read -r old _new; do
   # basename from the line and ask whether the stem still stands on its own in
   # what is left. A line whose only stem occurrences ARE the basename adds
   # nothing and is skipped, as before.
-  stem_pattern="(^|[^A-Za-z0-9_-])$stem([^A-Za-z0-9_-]|\$)"
+  stem_pattern="(^|[^A-Za-z0-9_-])$stem_esc([^A-Za-z0-9_-]|\$)"
   stem_outside_basename() {
     residue="${1//"$base"/}"
     [[ "$residue" =~ $stem_pattern ]]

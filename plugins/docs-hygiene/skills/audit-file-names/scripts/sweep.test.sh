@@ -126,6 +126,34 @@ assert_eq "a stem that appears only inside a hyphenated compound matches nothing
   printf '%s\n' "$compound" | grep -c '^REF' || true
 )"
 
+# --- a stem carrying regex metacharacters -------------------------------------
+#
+# The stem goes into an ERE. Unescaped, the dots in `v1.2.schema` match any
+# character, so `v1x2yschema` would be reported as a reference to a file that
+# has nothing to do with it. The decisive fixture carries the near-miss and NOT
+# the real stem, so an escaped pattern reports nothing at all.
+
+root7="$(new_fixture)"
+printf 'A near miss that is not the file: v1x2yschema appears here.\n' \
+  >"$root7/docs/near-miss.md"
+git -C "$root7" add docs/near-miss.md >/dev/null
+git -C "$root7" commit -qm "near miss" >/dev/null
+printf 'docs/v1.2.schema.md\tdocs/v1-2-schema.md\n' >"$TEST_TMPDIR/meta.tsv"
+meta="$(bash "$SUT" --root "$root7" --pairs "$TEST_TMPDIR/meta.tsv")"
+
+assert_eq "a dot in a stem does not match an arbitrary character" "0" \
+  "$(printf '%s\n' "$meta" | grep -c 'near-miss.md' || true)"
+
+# And the real thing is still found, so the escaping did not simply break the
+# pattern.
+root8="$(new_fixture)"
+printf 'The real one: v1.2.schema is cited here.\n' >"$root8/docs/real-hit.md"
+git -C "$root8" add docs/real-hit.md >/dev/null
+git -C "$root8" commit -qm "real hit" >/dev/null
+hit="$(bash "$SUT" --root "$root8" --pairs "$TEST_TMPDIR/meta.tsv")"
+
+assert_contains "the literal stem is still matched" "$hit" "docs/real-hit.md"
+
 # --- one line, two forms -----------------------------------------------------
 #
 # A markdown link whose LABEL is the old name and whose target is the old path
