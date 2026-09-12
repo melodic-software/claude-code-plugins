@@ -106,7 +106,8 @@ records' site tables, the orphan sweep has run for every applied or `applying`
 pair, and the working tree is left uncommitted for the operator to review.
 
 A finding the operator declined reads `declined`, and the durable
-`exempt_paths` entry was offered and not taken.
+`exempt_paths` entry was offered and not taken. A finding whose file moved under
+the plan reads `blocked`, and the re-audit that settles it has been named.
 
 ## What this skill does NOT do
 
@@ -151,6 +152,10 @@ Per applied pair, for the reference forms the plan's sweep does not classify.
 - **`DRIFTED` is not a smaller `EDITED`.** It means the recorded line no longer
   carries the old name, so the audit's decision no longer describes that site.
   Re-audit; do not hand-edit the sites the script declined to touch.
+- **A bare stem is rewritten anchored, a basename is not.** The audit only
+  records a bare-stem site where the surrounding characters are not name
+  characters; an unanchored apply would reach inside a longer name and point it
+  at a file nobody renamed.
 - **The closing `--regenerate-only` pass is not optional.** Skipping it leaves
   the last renamed file stale inside a generated record, which is the one change
   a reviewer will not see.

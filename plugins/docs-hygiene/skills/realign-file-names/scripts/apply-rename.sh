@@ -37,13 +37,14 @@
 #
 # Usage:
 #   apply-rename.sh --artifact <plan.md> --id <FN-xxxxxxxx>
-#   apply-rename.sh --regenerate-only [--config <json>] [--root <dir>]
 #                   [--config <json>] [--root <dir>] [--dry-run]
+#   apply-rename.sh --regenerate-only [--config <json>] [--root <dir>]
 #   apply-rename.sh --help
 #
 # Exit: 0 applied (or, with --dry-run, planned), 1 blocked (the reason and the
-#       remedy on stderr; nothing was changed), 2 usage or a missing
-#       prerequisite.
+#       remedy on stderr; the TREE is unchanged, and a record the operator had
+#       accepted is marked `blocked` so the decision does not read as still
+#       queued), 2 usage or a missing prerequisite.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -62,6 +63,17 @@ blocked() {
 usage() {
   sed -n '2,/^set -uo/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//; $d'
 }
+
+# Every temp file this run creates is named `*.tmp.$$` or `*.err.$$` beside its
+# target, so a run killed mid-edit does not leave clutter inside the consumer's
+# worktree for the resume to trip over.
+TEMPS=()
+# shellcheck disable=SC2329  # invoked by the EXIT trap below, not by name
+cleanup() {
+  [[ ${#TEMPS[@]} -gt 0 ]] && rm -f "${TEMPS[@]}"
+  return 0
+}
+trap cleanup EXIT
 
 ARTIFACT=""
 ID=""
@@ -170,6 +182,14 @@ fi
 [[ "$PLAN_BRANCH" == "$NOW_BRANCH" ]] ||
   blocked "the plan was written on branch '$PLAN_BRANCH' and this checkout is on '$NOW_BRANCH'; re-audit here"
 
+# THE ID IS VALIDATED BEFORE IT REACHES A PATTERN. It is interpolated into awk
+# regexes below, so an id carrying regex metacharacters would select more than
+# one record: `--id 'FN-.*'` would take its paths from the first match while
+# absorbing every record's site rows, and one acceptance would then move one
+# file and edit the sites of findings the operator never saw.
+[[ "$ID" =~ ^FN-[0-9a-f]+$ ]] ||
+  die "--id must be a finding id of the form FN-xxxxxxxx, not '$ID'"
+
 RECORD="$(awk -v id="$ID" '
   $0 ~ "^### " id " " { inrec = 1; print; next }
   inrec && /^### FN-/ { exit }
@@ -215,6 +235,25 @@ $(printf '%s' "$CONFIG" | jq -r '.file_names.generated[] | [.path, (.regenerate 
 EOF
 }
 
+set_status() {
+  tmp="$ARTIFACT.tmp.$$"
+  TEMPS+=("$tmp")
+  awk -v id="$ID" -v st="$1" '
+    $0 ~ "^### " id " " { inrec = 1 }
+    inrec && /^- \*\*Status:\*\* / && !done { print "- **Status:** " st; done = 1; next }
+    /^### FN-/ && $2 != id { inrec = 0 }
+    { print }
+  ' "$ARTIFACT" >"$tmp" || {
+    rm -f "$tmp"
+    die "cannot update the plan"
+  }
+  cat "$tmp" >"$ARTIFACT" || {
+    rm -f "$tmp"
+    die "cannot write the plan"
+  }
+  rm -f "$tmp"
+}
+
 # --- the sites ---------------------------------------------------------------
 #
 # Every row of the record's site table, exactly as the audit classified it.
@@ -240,6 +279,15 @@ elif [[ "$STATUS" == "applying" ]] && git -C "$ROOT" ls-files --error-unmatch "$
   RESUMING=1
   printf 'apply-rename: resuming an interrupted apply of %s\n' "$ID" >&2
 else
+  # A record the operator ACCEPTED, whose file has since moved, is a decision
+  # the tree can no longer carry out. Recording `blocked` is what keeps that
+  # visible across the re-audit: a record left `accepted` reads as work still
+  # queued. A `pending` record is left alone, because nothing was decided about
+  # it yet and there is nothing to block.
+  case "$STATUS" in
+  accepted | applying) set_status blocked ;;
+  *) ;;
+  esac
   blocked "'$OLD' is no longer tracked at this root; the fix is a re-audit, not a guess"
 fi
 
@@ -302,31 +350,36 @@ check_regenerators "$TOUCHED_GENERATED"
 
 if [[ "$DRY_RUN" -eq 1 ]]; then
   printf 'DRY-RUN\t%s\t%s\t%s\n' "$ID" "$OLD" "$NEW"
+  # The per-tier form table, straight from the record's own rows: one line per
+  # tier naming which forms it would rewrite and which it would only list. An
+  # operator reading a dry run is deciding about the citations, not the move,
+  # and a flat edit list hides which tier each one belongs to.
+  printf '%s' "$SITES" | awk -F'\t' '
+    NF >= 5 {
+      tier = $4
+      seen[tier] = 1
+      if ($5 == "edit" && !index(" " rewrites[tier] " ", " " $3 " ")) {
+        rewrites[tier] = rewrites[tier] " " $3
+      }
+      if ($5 != "edit" && !index(" " listed[tier] " ", " " $3 " ")) {
+        listed[tier] = listed[tier] " " $3
+      }
+    }
+    END {
+      for (t in seen) {
+        printf "WOULD-TIER\t%s\trewrites: %s\tlists: %s\n", t,
+          (rewrites[t] == "" ? "(none)" : substr(rewrites[t], 2)),
+          (listed[t] == "" ? "(none)" : substr(listed[t], 2))
+      }
+    }
+  ' | sort
   printf '%s' "$planned" | awk -F'\t' 'NF==3 {print "WOULD-EDIT\t" $1 "\t" $2 "\t" $3}'
   printf 'WOULD-SKIP\t%d\n' "$skipped"
-  printf 'WOULD-REGENERATE\t%s\n' "${TOUCHED_GENERATED# }"
+  printf 'WOULD-REGENERATE\t%s\n' "$(printf '%s' "${TOUCHED_GENERATED# }" | sed 's/ *$//')"
   exit 0
 fi
 
 # --- apply -------------------------------------------------------------------
-
-set_status() {
-  tmp="$ARTIFACT.tmp.$$"
-  awk -v id="$ID" -v st="$1" '
-    $0 ~ "^### " id " " { inrec = 1 }
-    inrec && /^- \*\*Status:\*\* / && !done { print "- **Status:** " st; done = 1; next }
-    /^### FN-/ && $2 != id { inrec = 0 }
-    { print }
-  ' "$ARTIFACT" >"$tmp" || {
-    rm -f "$tmp"
-    die "cannot update the plan"
-  }
-  cat "$tmp" >"$ARTIFACT" || {
-    rm -f "$tmp"
-    die "cannot write the plan"
-  }
-  rm -f "$tmp"
-}
 
 set_status applying
 
@@ -336,8 +389,12 @@ set_status applying
 # next apply finds its sites where the plan says they are.
 remap_sites() {
   tmp="$ARTIFACT.tmp.$$"
+  TEMPS+=("$tmp")
+  # `new` is spliced in by length, never handed to `sub` as a replacement
+  # string: there an `&` in a path component would expand to the whole match
+  # and corrupt the row.
   awk -v old="| \`$OLD\` |" -v new="| \`$NEW\` |" '
-    index($0, old) == 1 { sub(/^\| `[^`]*` \|/, new); print; next }
+    index($0, old) == 1 { print new substr($0, length(old) + 1); next }
     { print }
   ' "$ARTIFACT" >"$tmp" || {
     rm -f "$tmp"
@@ -353,6 +410,14 @@ remap_sites() {
 if [[ "$RESUMING" -eq 0 ]]; then
   git -C "$ROOT" mv "$OLD" "$NEW" || blocked "git mv refused: $OLD to $NEW"
   remap_sites
+  # A file that cites ITSELF has its own sites planned against the old path,
+  # which the move just retired. `remap_sites` fixes the artifact's rows; this
+  # fixes the rows already read into this run, so a self-citing offender does
+  # not fail mid-apply with the tree half-changed.
+  planned="$(printf '%s' "$planned" | awk -F'\t' -v old="$OLD" -v new="$NEW" '
+    NF == 3 { if ($1 == old) { $1 = new } print $1 "\t" $2 "\t" $3 }
+  ')
+"
 fi
 
 # Each edit is written back through the SAME inode so mode bits and symlink
@@ -370,24 +435,67 @@ while IFS="$(printf '\t')" read -r file lineno form; do
   # The substitution is LITERAL, never a regex. A basename carries dots
   # (`v1.2.schema.json`), and `gsub` would read each one as "any character" and
   # rewrite a line the audit never pointed at.
-  if ! awk -v ln="$lineno" -v from="$from" -v to="$to" '
+  #
+  # A BARE STEM IS ANCHORED; A BASENAME IS NOT. The sweep only records a
+  # bare-stem site where the characters around the stem are not name
+  # characters, so applying one unanchored would undo that care: a line naming
+  # both `Alpha-One` and `Alpha-One-notes.md` would have the second rewritten
+  # into a reference to a file nobody renamed. A basename already carries its
+  # extension and needs no such guard.
+  anchored=0
+  [[ "$form" == "bare-stem" ]] && anchored=1
+  awkerr="$ROOT/$file.err.$$"
+  TEMPS+=("$tmp" "$awkerr")
+  if ! awk -v ln="$lineno" -v from="$from" -v to="$to" -v anchored="$anchored" '
+    function namechar(c) { return (c ~ /[A-Za-z0-9_-]/) }
     NR == ln {
       n = 0
       out = ""
       rest = $0
       while ((p = index(rest, from)) > 0) {
-        out = out substr(rest, 1, p - 1) to
+        # The character before the match is the one just left of it in the
+        # remaining text, or, when the match opens that text, the last one
+        # already emitted. Both are the original line, read in order.
+        if (p > 1) {
+          before = substr(rest, p - 1, 1)
+        } else if (length(out) > 0) {
+          before = substr(out, length(out), 1)
+        } else {
+          before = ""
+        }
+        after = substr(rest, p + length(from), 1)
+        ok = 1
+        if (anchored == 1) {
+          if (before != "" && namechar(before)) { ok = 0 }
+          if (after != "" && namechar(after)) { ok = 0 }
+        }
+        if (ok == 1) {
+          out = out substr(rest, 1, p - 1) to
+          n++
+        } else {
+          out = out substr(rest, 1, p - 1) from
+        }
         rest = substr(rest, p + length(from))
-        n++
       }
       $0 = out rest
-      if (n == 0) { print "ZERO\t" NR > "/dev/stderr" }
+      if (n == 0) { print "ZERO" > "/dev/stderr" }
     }
     { print }
-  ' "$ROOT/$file" >"$tmp" 2>/dev/null; then
+  ' "$ROOT/$file" >"$tmp" 2>"$awkerr"; then
     rm -f "$tmp"
-    blocked "cannot rewrite $file:$lineno"
+    msg="$(tr '\n' ' ' <"$awkerr")"
+    rm -f "$awkerr"
+    blocked "cannot rewrite $file:$lineno${msg:+: $msg}"
   fi
+  # A recorded site that matched the pre-flight but substitutes zero times is
+  # reported rather than silently written back unchanged.
+  if grep -q '^ZERO$' "$awkerr" 2>/dev/null; then
+    printf 'apply-rename: substitution hit zero times, left as found: %s:%s\n' "$file" "$lineno" >&2
+    zero_hits=$((zero_hits + 1))
+    rm -f "$tmp" "$awkerr"
+    continue
+  fi
+  rm -f "$awkerr"
   cat "$tmp" >"$ROOT/$file" || {
     rm -f "$tmp"
     blocked "cannot write $file"

@@ -38,9 +38,10 @@ ${CLAUDE_SKILL_DIR}/scripts/apply-rename.sh \
   --artifact <resolved>/file-names.md --id FN-9a1c4e70 --root <repo>
 ```
 
-`--dry-run` prints the same decisions without touching the tree; use it when the
-operator asks what a finding would do, never as a substitute for the presentation
-above.
+`--dry-run` prints the same decisions without touching the tree, plus a
+`WOULD-TIER` row per tier naming which reference forms it would rewrite and
+which it would only list. Use it when the operator asks what a finding would do,
+never as a substitute for the presentation above.
 
 The output is five rows: `APPLIED`, `EDITED`, `SKIPPED`, `DRIFTED`,
 `REGENERATED`. Read them back rather than summarizing them.
@@ -49,8 +50,12 @@ The output is five rows: `APPLIED`, `EDITED`, `SKIPPED`, `DRIFTED`,
   name. The script named each one on stderr and edited none of them. Say which,
   and say that a re-audit is what settles it. Do not go and edit them.
 - The exits: `0` applied, `1` blocked with the reason and the remedy on stderr
-  and nothing changed, `2` a usage or prerequisite problem. A `1` is reported to
-  the operator as it was written; it is not retried with different arguments.
+  and the tree unchanged, `2` a usage or prerequisite problem. A `1` is reported
+  to the operator as it was written; it is not retried with different arguments.
+- A `1` whose cause is the old path being gone also writes `blocked` into a
+  record the operator had accepted. That is deliberate: a decision the tree can
+  no longer carry out should not read as work still queued. Say so, and name the
+  re-audit.
 
 ## 3. Sweep for stragglers, per pair
 
