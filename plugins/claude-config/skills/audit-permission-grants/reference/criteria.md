@@ -179,8 +179,8 @@ classes, because one of them is context-dependent:
 
 | Token | Inert where |
 | --- | --- |
-| `%USERPROFILE%`, `$env:USERPROFILE` | everywhere — Bash rules match literally and neither Windows spelling is ever expanded |
-| `${CLAUDE_PLUGIN_ROOT}`, `${CLAUDE_PLUGIN_DATA}` | everywhere **except a plugin skill's `allowed-tools`** — a personal or project skill, an agent, a command, or any settings file |
+| `%USERPROFILE%`, `$env:USERPROFILE` | everywhere. Bash rules match literally and neither Windows spelling is ever expanded |
+| `${CLAUDE_PLUGIN_ROOT}`, `${CLAUDE_PLUGIN_DATA}` | everywhere **except a plugin skill's `allowed-tools`**, meaning a personal or project skill, an agent, a command, or any settings file |
 
 A grant naming the plugin-scoped pair from inside a plugin skill **resolves and is not flagged**. The
 substitution has a version floor of **v2.1.0**, recorded upstream as *"Fixed `${CLAUDE_PLUGIN_ROOT}`
