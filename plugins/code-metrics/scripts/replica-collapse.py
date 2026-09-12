@@ -52,6 +52,12 @@ def read_registry(path: str) -> list[tuple[int, str]]:
             line = raw.strip()
             if not line or line.startswith("#"):
                 continue
+            # A cluster line (`<canonical> -> <member>...`) names a root
+            # canonical outside any plugin and the globs that carry it; it is
+            # the clone-group reader's (registry-filter.py) and never a
+            # path-within-plugin, so this pass leaves it alone.
+            if " -> " in line:
+                continue
             entries.append((number, line.replace("\\", "/").lstrip("/")))
     return entries
 
@@ -170,7 +176,10 @@ def main(argv: list[str]) -> int:
     try:
         document = json.load(sys.stdin)
     except (json.JSONDecodeError, ValueError) as exc:
-        print(f"replica-collapse.py: stdin is not a JSON document ({exc})", file=sys.stderr)
+        print(
+            f"replica-collapse.py: stdin is not a JSON document ({exc})",
+            file=sys.stderr,
+        )
         return 2
     print(json.dumps(collapse(document, registries, args.prefix), indent=2))
     return 0
@@ -178,6 +187,9 @@ def main(argv: list[str]) -> int:
 
 if __name__ == "__main__":
     if sys.version_info < MIN_PYTHON:
-        print("replica-collapse.py needs Python %d.%d or later" % MIN_PYTHON, file=sys.stderr)
+        print(
+            "replica-collapse.py needs Python %d.%d or later" % MIN_PYTHON,
+            file=sys.stderr,
+        )
         sys.exit(2)
     sys.exit(main(sys.argv[1:]))
