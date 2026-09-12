@@ -246,7 +246,20 @@ The `--trust-plugin` open question is answered: trust persists for the repositor
   `partial` and can inflate Δ), the sum of `costUsd` over the phase's JSON files at most 6; `git status --porcelain
   plugins/evals/evals/results` prints nothing (ignored); `pilot.md` exists with a Δ row per case.
 
-### Phase 3: Static validator, script first, thin skill on top [TODO]
+### Phase 3: Static validator, script first, thin skill on top [DONE]
+
+Landed 2026-09-12 by a scope-fenced worker, test-first (25 of 27 red before the script existed).
+Sanity check outcome: 29 tests OK; the tracked pilot suite exits 0 with no finding; ruff clean;
+check-skill 0 errors and 0 warnings; the whole suite also green on a real CPython 3.8. A fresh-context
+verifier passed every criterion, including hand-built probes for the unknown key, the duplicate
+grader in `case.yaml`, `runs: 51`, and a block scalar (each exit 1 with the expected FAIL line), no
+graders (exit 1), a clean copy (exit 0), and a missing directory (exit 2); the verifier needed its
+probe fixtures pre-authored because the guardrails hook blocks shell file writes and its cage bars
+Write. Deviation: the worker brief asked for a frontmatter `name:`; found the plugin dropped that key
+on purpose (CHANGELOG 0.2.0) and the siblings carry none; chose to remove it; revisit never. LOC
+landed about 1,670 against the ~500 estimate; the bounded YAML-subset parser is the bulk. Recorded
+limits: an unknown top-level `case.yaml` key draws no finding (the rejection is recorded for
+`prompt.md` only) and `name` is accepted in a `.md` grader frontmatter.
 
 Review: code-design
 
