@@ -193,6 +193,20 @@ assert_contains "the rebuilt record carries the new path" "$gen" "docs/alpha-one
 assert_absent "the rebuilt record drops the old path" "$gen" "docs/Alpha-One.md"
 
 # --- mode bits survive an edit ------------------------------------------------
+#
+# The INDEX assertion is the contract, and it holds everywhere: it is what a
+# clone restores and what a reviewer reads in the diff. The worktree `-x` test
+# is the same fact where the filesystem records it, and NTFS does not record it
+# at all, so it is probed rather than assumed. Probed, not sniffed by OS name:
+# what matters is whether this filesystem carries the bit, which is also false
+# on a POSIX volume mounted `noexec`.
+
+probe="$TEST_TMPDIR/exec-probe-$RANDOM"
+printf '#!/bin/sh\n' >"$probe"
+chmod +x "$probe" 2>/dev/null
+FS_CARRIES_EXEC_BIT=no
+[[ -x "$probe" ]] && FS_CARRIES_EXEC_BIT=yes
+rm -f "$probe"
 
 root="$(new_fixture)"
 chmod +x "$root/docs/tool.py"
@@ -204,10 +218,14 @@ accept "$plan" "$id"
 out="$(run --artifact "$plan" --id "$id" --root "$root")"
 
 assert_contains "the executable site was edited" "$(cat "$root/docs/tool.py")" 'DOC = "docs/beta.md"'
-assert_eq "an edited executable keeps its mode bits" "yes" \
-  "$([[ -x "$root/docs/tool.py" ]] && echo yes || echo no)"
-assert_eq "the index keeps the executable bit too" "100755" \
+assert_eq "the index keeps the executable bit" "100755" \
   "$(git -C "$root" ls-files -s -- docs/tool.py | awk '{print $1}')"
+if [[ "$FS_CARRIES_EXEC_BIT" == yes ]]; then
+  assert_eq "and the file on disk keeps it too" "yes" \
+    "$([[ -x "$root/docs/tool.py" ]] && echo yes || echo no)"
+else
+  printf 'SKIP: worktree executable bit — this filesystem records none, so the index assertion above is the whole contract here\n'
+fi
 
 # --- two mutually referencing offenders, applied one after the other ----------
 
