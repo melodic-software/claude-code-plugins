@@ -3,6 +3,29 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.5]
+
+### Changed
+
+- Cite the marketplace `docs/` doctrine files by their lower-kebab names (`docs/plugin-philosophy.md`, `docs/migration-playbook.md`, and siblings); the files were renamed and the old uppercase paths no longer resolve.
+
+## [0.42.4]
+
+### Changed
+
+- **`audit-pass`: the exclusion-set reference describes both registry line shapes.** The
+  sanctioned-replication cluster class is derived from the marketplace's
+  `scripts/cross-plugin-source-registry.txt`, whose plain entries are paths within each plugin and
+  whose cluster lines, `<canonical> -> <member>...`, name a root-relative canonical copy and the
+  plugin paths or globs that carry it; the reference now says how to resolve each shape to its
+  copy set. Wording only; the pass's behavior is unchanged.
+
+## [0.42.3]
+
+### Changed
+
+- **`audit-permission-state`, `draft-auto-mode-rules`: description prose no longer addresses the reader.** Anthropic's skill-authoring guidance keeps first and second person out of a description because it is injected into the system prompt; the rewritten clauses name the user, the session, or the repository instead. Quoted trigger phrases are unchanged.
+
 ## [0.42.2]
 
 ### Changed

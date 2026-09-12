@@ -187,13 +187,13 @@ surface owned.
 ## [1.1.0] - 2026-08-10
 
 Adopters registry gains a row for
-[`PLUGIN-PHILOSOPHY` recorded gate runs](../../PLUGIN-PHILOSOPHY.md#recorded-gate-runs)
+[`plugin-philosophy` recorded gate runs](../../plugin-philosophy.md#recorded-gate-runs)
 ([#2175](https://github.com/melodic-software/claude-code-plugins/issues/2175)). No required part,
 canonical name, or enforceability verdict changed.
 
 - The new table is the registry's first entry of the **recorded-decision** kind that also carries a
   per-row trigger: each row states the observable event for its own verdict, rather than the
-  divergence-at-fetch trigger the component-stances and `OFFICIAL-DOCS` rows share. The row says so,
+  divergence-at-fetch trigger the component-stances and `official-docs` rows share. The row says so,
   so a reader does not carry the wrong firing rule across from the sibling table.
 
 ## [1.0.0] - 2026-07-26
@@ -220,6 +220,6 @@ from upstream-owned sources.
 - Enforceability classified per `enforceability-tiers.md`; the stamp-carries-trigger presence check
   named as the one deterministic candidate, deferred per the routing rule.
 - Migrated citing surfaces: hook-config-delivery, ecosystem-commands, loop-lane, topic-docs,
-  PLUGIN-PHILOSOPHY (component stances + registry row), OFFICIAL-DOCS, MIGRATION-PLAYBOOK. The
+  plugin-philosophy (component stances + registry row), official-docs, migration-playbook. The
   adopter table states per row what the surface carries: conforming four-part records, named
   triggers on an in-repo decision, or deliberately trigger-less terminal exclusions.

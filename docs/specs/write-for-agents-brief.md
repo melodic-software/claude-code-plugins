@@ -55,7 +55,7 @@ them.
   extraction. Settled by: the shipped `evals/evals.json` suite, where every positive case fires the
   skill, every negative control (audit phrasing, "create a skill", human-README writing) does
   not. This criterion was drafted naming `claude plugin eval`; the skill shipped in #3003 with
-  this marketplace's own eval format, which `MIGRATION-PLAYBOOK.md` "Evals" explains is
+  this marketplace's own eval format, which `migration-playbook.md` "Evals" explains is
   `skill-creator`'s and not that command's, and which nothing executes, so the suite is a
   written specification checked by `check-evals-quality.sh`, exercised by hand per that
   section's recipe, rather than a pass/fail gate on the implementation PR.

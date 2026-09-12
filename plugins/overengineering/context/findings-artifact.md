@@ -679,7 +679,7 @@ therefore belongs to that mechanic, and the artifact's own writes stay in `audit
 
 ## External authority
 
-- `docs/PLUGIN-ARTIFACT-PROTOCOL.md`: the lifecycle profile this artifact conforms to, covering
+- `docs/plugin-artifact-protocol.md`: the lifecycle profile this artifact conforms to, covering
   memory-tier placement, resolution through the current plugin's `reference/topic-docs.md` binding,
   and the missing-prerequisite stop.
 - `docs/conventions/finding-suppression/`: the `finding_id` derivation, the required entry keys,

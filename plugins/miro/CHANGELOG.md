@@ -3,6 +3,24 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.3]
+
+### Changed
+
+- **Bump the npm-minor-patch group** (#4102): `zod` 4.4.3→4.5.4, `@biomejs/biome` 2.5.10→2.5.12, `@types/node` 26.3.0→26.4.1. `zod` is a runtime dependency the server bundles, so `dist/index.min.js` is regenerated from source; the other two are development dependencies. Typecheck, lint, and all 32 tests pass, and `verify-bundle` confirms the committed artifact matches source.
+
+## [0.4.2]
+
+### Changed
+
+- **Bump `hono` 4.13.0→4.13.7** (#4101): a transitive runtime dependency that `@modelcontextprotocol/sdk` pulls in, so the bump lands in `server/package-lock.json` and no manifest range moves. `verify-bundle` reports `dist/index.min.js` still matches source, so the shipped artifact is byte-identical.
+
+## [0.4.1]
+
+### Changed
+
+- Cite the marketplace `docs/` doctrine files by their lower-kebab names (`docs/plugin-philosophy.md`, `docs/migration-playbook.md`, and siblings); the files were renamed and the old uppercase paths no longer resolve.
+
 ## [0.4.0]
 
 ### Changed

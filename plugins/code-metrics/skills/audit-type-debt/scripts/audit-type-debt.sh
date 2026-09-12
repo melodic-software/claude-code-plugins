@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # /code-metrics:audit-type-debt entry point: how much of the code is typed,
-# per lane, as a percentage from `type-coverage` (TypeScript) and from mypy's
-# `--any-exprs-report` (Python).
+# per file and per lane, as a percentage from `type-coverage` (TypeScript) and
+# from mypy's `--any-exprs-report` (Python).
 #
 #   audit-type-debt.sh [--json] [--all] [--base <ref>] [--config <resolved.json>] [<path>...]
 #

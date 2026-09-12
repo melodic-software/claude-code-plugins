@@ -4,7 +4,7 @@ This document is the single owner of the marketplace's category vocabulary. Each
 `.claude-plugin/marketplace.json` carries one `category` value drawn from the controlled set below, and
 the generated catalog groups plugins by it. Three consumers of this vocabulary conform to this document
 and cite it, never restating its definitions: the marketplace file, the catalog generator, and
-`docs/CATALOG.md`.
+`docs/catalog.md`.
 
 Category is display-and-grouping metadata only. It never appears in an install identifier
 (`plugin-name@marketplace`) or a skill invocation (`/plugin-name:skill`). Physical layout stays flat
@@ -97,7 +97,7 @@ Plugin-scoped (owned by the named plugin's README):
 
 The human-browsable catalog is generated, not hand-maintained. `marketplace.json` is the single source of
 truth for each plugin's `category` and the ordering key; `plugin.json` owns each description. The generator
-emits the grouped catalog section between markers in `docs/CATALOG.md`, and a CI check fails when the committed
+emits the grouped catalog section between markers in `docs/catalog.md`, and a CI check fails when the committed
 section drifts from what the manifests would produce. This retires hand-maintained catalog duplication and
 keeps the grouped view and the manifests from diverging.
 

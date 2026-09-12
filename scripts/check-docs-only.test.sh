@@ -36,9 +36,9 @@ mk_repo() {
     "$dir/plugins/miro" "$dir/.github/workflows"
   printf 'seed\n' >"$dir/docs/topics/example/PLAN.md"
   printf 'seed\n' >"$dir/README.md"
-  printf 'seed\n' >"$dir/docs/PLUGIN-ARTIFACT-PROTOCOL.md"
-  printf 'seed\n' >"$dir/docs/CATALOG-TAXONOMY.md"
-  printf 'seed\n' >"$dir/docs/MIGRATION-PLAYBOOK.md"
+  printf 'seed\n' >"$dir/docs/plugin-artifact-protocol.md"
+  printf 'seed\n' >"$dir/docs/catalog-taxonomy.md"
+  printf 'seed\n' >"$dir/docs/migration-playbook.md"
   printf 'seed\n' >"$dir/plugins/p1/skills/alpha/SKILL.md"
   printf 'seed\n' >"$dir/plugins/miro/index.ts"
   printf 'seed\n' >"$dir/.github/workflows/ci.yml"
@@ -77,13 +77,13 @@ assert_flag "docs/topics new nested file" true "docs/topics/new-precedent/NOTES.
 
 # --- the grep payoff: docs a code lane actually consumes are NOT docs-only --
 assert_flag "README.md (not on the allowlist; runs full)" false "README.md"
-assert_flag "docs/PLUGIN-ARTIFACT-PROTOCOL.md (validator reads it)" false "docs/PLUGIN-ARTIFACT-PROTOCOL.md"
-assert_flag "docs/CATALOG-TAXONOMY.md (catalog reads it)" false "docs/CATALOG-TAXONOMY.md"
-assert_flag "docs/SKILL-CHEAT-SHEET.md (cheat-sheet --check reads it)" false "docs/SKILL-CHEAT-SHEET.md"
-assert_flag "docs/CATALOG.md (catalog --check reads it)" false "docs/CATALOG.md"
+assert_flag "docs/plugin-artifact-protocol.md (validator reads it)" false "docs/plugin-artifact-protocol.md"
+assert_flag "docs/catalog-taxonomy.md (catalog reads it)" false "docs/catalog-taxonomy.md"
+assert_flag "docs/skill-cheat-sheet.md (cheat-sheet --check reads it)" false "docs/skill-cheat-sheet.md"
+assert_flag "docs/catalog.md (catalog --check reads it)" false "docs/catalog.md"
 
 # --- conservative: any non-topics doc, and every code class, run full ------
-assert_flag "non-topics docs/ file" false "docs/MIGRATION-PLAYBOOK.md"
+assert_flag "non-topics docs/ file" false "docs/migration-playbook.md"
 assert_flag "plugin SKILL.md is code" false "plugins/p1/skills/alpha/SKILL.md"
 assert_flag "plugin source" false "plugins/miro/index.ts"
 assert_flag "scripts/ change" false "scripts/run-plugin-tests.sh"

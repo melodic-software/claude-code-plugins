@@ -86,6 +86,8 @@ assert_doc "every fixture is measured exactly once" "$out" \
   'sorted(r["file"].rsplit("/",1)[1] for r in d["measures"])==["CmSample.cs","cm-notes.md","cm-sample.go","cm-sample.sh","cm-sample.ts","cm_sample.py","shared-utils.sh","shared-utils.sh"]'
 assert_doc "threshold carries the plugin-default provenance" "$out" \
   'd["thresholds"][0]["measure"]=="file_lines" and d["thresholds"][0]["reference"]==1000 and "not normative" in d["thresholds"][0]["provenance"]'
+assert_doc "a collector that said nothing leaves its ok row's reason null" "$out" \
+  'all(r["reason"] is None for r in d["run"] if r["status"]=="ok")'
 
 # 2. scc present: the ladder prefers it and comment counts appear.
 out="$(PATH="$STUBS:$EMPTY_PATH" bash "$SCRIPT" audit-size --measures file_lines --all "$SOURCES")"
@@ -103,6 +105,8 @@ assert_doc "status empty and every row unavailable with a reason" "$out" \
   'd["status"]=="empty" and d["run"] and all(r["status"]!="ok" and r["reason"] for r in d["run"]) and len(d["unavailable"])==6 and d["measures"]==[]'
 assert_doc "the reason names both rungs and the install hint" "$out" \
   '"scc: scc not on PATH" in d["run"][0]["reason"] and "line-counter: disabled by CODE_METRICS_DISABLE_BUNDLED" in d["run"][0]["reason"] and "boyter/scc" in d["run"][0]["reason"]'
+assert_doc "an unavailable row also carries the first install hint as its own field" "$out" \
+  'd["run"][0]["hint"] and "boyter/scc" in d["run"][0]["hint"]'
 
 # 4. A ladder row whose adapter does not exist is reported, not skipped.
 ladder="$(mktemp)"
@@ -137,7 +141,7 @@ assert_eq "missing skill name exits 2" 2 "$?"
 empty_dir="$(mktemp -d)"
 out="$(PATH="$EMPTY_PATH" bash "$SCRIPT" audit-size --measures file_lines --all "$empty_dir")"
 assert_doc "empty scope yields one not-applicable row" "$out" \
-  'd["status"]=="empty" and d["scope"]["files"]==0 and d["run"]==[{"lane":"*","measure":"*","collector":None,"status":"not-applicable","reason":"no measurable files in scope"}]'
+  'd["status"]=="empty" and d["scope"]["files"]==0 and d["run"]==[{"lane":"*","measure":"*","collector":None,"status":"not-applicable","reason":"no measurable files in scope","hint":None}]'
 rmdir "$empty_dir"
 
 # 8. A collector that probes but fails in collect: exit 3, row unavailable.
@@ -156,6 +160,32 @@ assert_eq "collect failure exits 3" 3 "$rc"
 assert_doc "collect failure row is unavailable with the stderr relayed" "$out" \
   'd["run"][0]["status"]=="unavailable" and d["run"][0]["collector"]=="scc 9.9.9" and "collect failed" in d["run"][0]["reason"] and "boom" in d["run"][0]["reason"]'
 rm -rf "$broken"
+
+# 8b. A collector that succeeds while saying something on stderr: the ok row
+# carries what it said as its reason (mypy's error count reaches the run
+# table this way); a silent success leaves the reason null.
+noisy="$(mktemp -d)"
+cat >"$noisy/mypy" <<EOF
+#!/usr/bin/env bash
+if [[ "\${1:-}" == "--version" ]]; then printf 'mypy 1.19.1 (compiled: yes)\n'; exit 0; fi
+dir=""
+prev=""
+for arg in "\$@"; do
+  [[ "\$prev" == "--any-exprs-report" ]] && dir="\$arg"
+  prev="\$arg"
+done
+[[ -n "\$dir" ]] && mkdir -p "\$dir"
+cp "$SCRIPT_DIR/fixtures/tool-output/mypy-any-exprs.txt" "\$dir/any-exprs.txt"
+printf '%s\n' 'cm_sample.py:5: error: Incompatible return value type  [return-value]'
+exit 1
+EOF
+chmod +x "$noisy/mypy"
+out="$(PATH="$noisy:$EMPTY_PATH" bash "$SCRIPT" audit-type-debt --measures type_coverage "$SOURCES/cm_sample.py")"
+rc=$?
+assert_eq "a noisy success exits 0" 0 "$rc"
+assert_doc "the ok row's reason is what the adapter said on stderr" "$out" \
+  'any(r["lane"]=="python" and r["status"]=="ok" and r["reason"]=="mypy reported 1 error (0 missing stubs)" for r in d["run"])'
+rm -rf "$noisy"
 
 # 9. Change scope resolves in a throwaway repository.
 repo="$(mktemp -d)"
@@ -455,6 +485,28 @@ case "$err" in
 *) fail "the refusal names the offending key" "mentions scope.exclude" "$err" ;;
 esac
 rm -rf "$repo" "$home"
+
+# 25. A collector that leaves inputs out reports the lane as partial with its
+#     reason, through the partial-reason file the dispatcher hands every
+#     collect. The jscpd adapter skips both cluster copies under a 100-byte
+#     cap, so the fake `jscpd` (probe only; never reached for collect) has
+#     nothing to replay.
+skipper="$(mktemp -d)"
+cat >"$skipper/jscpd" <<'EOF'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "--version" ]]; then printf 'jscpd 5.2.0\n'; exit 0; fi
+printf 'jscpd should not have been invoked\n' >&2
+exit 1
+EOF
+chmod +x "$skipper/jscpd"
+out="$(PATH="$skipper:$EMPTY_PATH" CODE_METRICS_DUP_MAX_SIZE=100 bash "$SCRIPT" audit-duplication --measures duplication --all "$SOURCES/cluster")"
+rc=$?
+assert_eq "a run whose inputs were all skipped exits 0" 0 "$rc"
+assert_doc "a skipped input makes the lane row partial with the reason" "$out" \
+  'any(r["lane"]=="bash" and r["measure"]=="duplication" and r["status"]=="partial" and r["reason"].startswith("2 of 2 files skipped by duplication.max_size 100") for r in d["run"])'
+assert_doc "a skipped input leaves the row's hint null" "$out" \
+  'all(r.get("hint") is None for r in d["run"])'
+rm -rf "$skipper"
 
 # 20. The default scope exclusions drop dependency and build-output directories
 # and the scope names each pattern's count.

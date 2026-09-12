@@ -42,7 +42,7 @@ capabilities and limits rather than relying on numbers written here.
 
 A routine fires a fresh cloud session, and this skill exists there only when the `improvement`
 plugin is installed in that session's environment. Per this marketplace's
-[docs/CLOUD-SESSIONS.md](../../docs/CLOUD-SESSIONS.md), a SessionStart-hook install is never
+[docs/cloud-sessions.md](../../docs/cloud-sessions.md), a SessionStart-hook install is never
 visible to the session that ran it. So the plugin must be pre-installed by the cloud environment's
 setup script (or otherwise present before the session process starts). That is why the template
 below opens with a hard guard: if `/improvement:find` is unavailable, stop and report. A run
