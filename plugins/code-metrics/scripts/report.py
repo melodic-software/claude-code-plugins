@@ -283,9 +283,13 @@ def _primary_threshold(
 ) -> dict[str, Any] | None:
     """The threshold whose value orders the rows that are not over any
     reference: the first one whose `value_key` the rows carry, so a size
-    report lists the longest files first and a coverage report, whose wrapper
-    requests the crap threshold first, the highest CRAP; a document whose rows
-    carry none of them (clone groups) keeps its file order."""
+    report lists the longest files first, and a document whose rows carry
+    none of them (clone groups) keeps its file order. A table carrying `crap`
+    is ordered by it (see `_coverage_rank`), whatever the thresholds' order,
+    so the crap threshold is the one the row cap names."""
+    for entry in thresholds_:
+        if entry.get("value_key") == "crap" and "crap" in keys:
+            return entry
     for entry in thresholds_:
         if entry.get("value_key") in keys:
             return entry

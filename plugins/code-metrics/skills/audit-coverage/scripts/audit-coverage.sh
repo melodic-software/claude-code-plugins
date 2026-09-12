@@ -207,7 +207,7 @@ bash "$PLUGIN_ROOT/scripts/dispatch.sh" audit-coverage --measures coverage --con
   ${SEARCHED_ARGS[@]+"${SEARCHED_ARGS[@]}"} \
   --measures-out "$WORK/rows.jsonl" --run-out "$WORK/run.jsonl" >/dev/null || exit 2
 
-"${PY[@]}" "$REPORT" thresholds --config "$CONFIG" --measures crap,coverage >"$WORK/thresholds.json" || exit 2
+"${PY[@]}" "$REPORT" thresholds --config "$CONFIG" --measures coverage,crap >"$WORK/thresholds.json" || exit 2
 "${PY[@]}" "$REPORT" assemble --skill audit-coverage --scope "$WORK/scope.json" \
   --run "$WORK/run.jsonl" --measures "$WORK/rows.jsonl" \
   --thresholds "$WORK/thresholds.json" >"$WORK/assembled.json" || exit 2
