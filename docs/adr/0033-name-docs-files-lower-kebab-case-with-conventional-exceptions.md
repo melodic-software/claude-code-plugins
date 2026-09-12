@@ -45,12 +45,15 @@ and upstream notes change only in markdown links and backtick paths, so the link
 narrative stays what it was. Plugin `CHANGELOG.md` released entries do not change, except one real
 markdown link, corrected under the plugin's own new release entry, which names the correction.
 
-**Enforcement is a checker with a co-located test, plus a path-scoped rule.**
-`scripts/check-docs-naming.sh --check` walks `git ls-files docs/`, applies the rule and the
-exemptions, and independently fails any two tracked paths under `docs/` that differ only by case.
-It runs in the `lint` job as an advisory step fed to the `ci-status` aggregate, beside the sibling
-gates. `.claude/rules/docs-naming.md` (`paths: ["docs/**"]`) states the rule for a reader and
-names the script as the gate.
+**Enforcement is a checker with a co-located test.** `scripts/check-docs-naming.sh --check`
+walks `git ls-files docs/`, applies the rule and the exemptions, and independently fails any two
+tracked paths under `docs/` that differ only by case. It runs in the `lint` job as an advisory
+step fed to the `ci-status` aggregate, beside the sibling gates. This record is the owner
+document a reader consults; a path-scoped `.claude/rules/` file that restates it for `docs/**`
+is not added while `main` carries the unhobble bare baseline recorded under `.claude/unhobble/`,
+whose method strips pointer rules that have an owner document and a deterministic oracle and
+restores a rule only when the stumble ledger defends it. The readd phase recreates such a rule
+from this record if the ledger earns it.
 
 **Duplicate ADR numbers stay.** `0018`, `0025`, and `0028` each name two records. This record takes
 the next free number and renumbers nothing; a uniqueness gate is a separate change.

@@ -16,7 +16,6 @@ context, read the file directly.
 
 | Surface | Covers | Topic |
 |---|---|---|
-| `.claude/rules/docs-naming.md` | `docs/**` | Every file under docs/ is named in lower-kebab-case, with README.md, CHANGELOG.md, INDEX.md, docs/topics/, and code files exempt; scripts/check-docs-naming.sh --check is the gate; read before adding or renaming a docs/ file |
 | `.claude/rules/ruff-pin.md` | `**/*.py` | Python linting runs through the pinned ruff wrapper, never a bare ruff on PATH |
 | `.claude/rules/skill-bodies-state-current-rules.md` | `plugins/*/skills/**, plugins/*/agents/**` | Skill and agent bodies carry a four-part verification record for any volatile specific they restate, and name their successor in a `## Next` section; read before editing any skill body |
 | `plugins/autonomy/AGENTS.md` | `plugins/autonomy/**` | autonomy plugin: contributor conventions |

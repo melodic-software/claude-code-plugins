@@ -31,9 +31,9 @@
 # lookup and a rename never happens twice. The three uppercase names stay
 # because they are conventions readers already know, and code files stay
 # because their language owns their casing. The ADR that records the decision
-# and the .claude/rules/docs-naming.md file that loads it on read cite this
-# script as the gate: a path-scoped rule loads when a covered file is read,
-# never when one is created, so the rule alone cannot catch a new file.
+# cites this script as the gate: a path-scoped rule, where one exists, loads
+# when a covered file is read, never when one is created, so a rule alone
+# cannot catch a new file.
 #
 # Output follows the check-script contract (README.md, "The check-script
 # contract"): one `path: reason` finding per offender on stderr, the clean-run
