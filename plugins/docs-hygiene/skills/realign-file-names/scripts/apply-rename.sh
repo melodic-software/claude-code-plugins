@@ -484,10 +484,26 @@ while IFS="$(printf '\t')" read -r file lineno form; do
   esac
   awkerr="$ROOT/$file.err.$$"
   TEMPS+=("$tmp" "$awkerr")
-  if ! awk -v ln="$lineno" -v from="$from" -v to="$to" -v anchored="$anchored" \
-    -v prefix_re="$prefix_re" -v suffix_re="$suffix_re" \
-    -v exclude_prefix_re="$exclude_prefix_re" '
+  # ENVIRON[], not `-v`. A `-v` assignment is not a transparent channel: POSIX
+  # has it undergo escape processing, so gawk turns `\]\([^)]*$` into
+  # `]([^)]*$` and dies on the unmatched `(`, while mawk passes unknown escapes
+  # through untouched. A suite run on mawk alone is green over a script that
+  # cannot rewrite a single markdown link on a gawk machine. ENVIRON[] hands
+  # the bytes over verbatim on both.
+  if ! AR_LN="$lineno" AR_FROM="$from" AR_TO="$to" AR_ANCHORED="$anchored" \
+    AR_PREFIX_RE="$prefix_re" AR_SUFFIX_RE="$suffix_re" \
+    AR_EXCLUDE_PREFIX_RE="$exclude_prefix_re" \
+    awk '
     function namechar(c) { return (c ~ /[A-Za-z0-9_-]/) }
+    BEGIN {
+      ln = ENVIRON["AR_LN"] + 0
+      from = ENVIRON["AR_FROM"]
+      to = ENVIRON["AR_TO"]
+      anchored = ENVIRON["AR_ANCHORED"] + 0
+      prefix_re = ENVIRON["AR_PREFIX_RE"]
+      suffix_re = ENVIRON["AR_SUFFIX_RE"]
+      exclude_prefix_re = ENVIRON["AR_EXCLUDE_PREFIX_RE"]
+    }
     NR == ln {
       n = 0
       out = ""
