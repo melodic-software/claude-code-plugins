@@ -13,7 +13,7 @@ hi-fi orchestral hall reverb
 
 ## Lyrics shell
 
-Most classical / cinematic prompts are **instrumental** — leave the lyrics field with `[Instrumental]` or `[Melodic Instrumental]`. If you do want vocals (operatic, choral), use the structure below.
+Most classical / cinematic prompts are **instrumental**. Leave the lyrics field with `[Instrumental]` or `[Melodic Instrumental]`. If you do want vocals (operatic, choral), use the structure below.
 
 ```
 [Intro]

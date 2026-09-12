@@ -113,8 +113,8 @@ The script being tested (e.g., `Test-DiskHealth.ps1`) is invoked directly. Only 
 - `New-MockPhysicalDisk -HealthStatus <str> -MediaType <str>`
 - `New-MockService -Name <str> -StartType <str> -Status <str>`
 - `New-MockEventLogRecord -Provider <str> -Id <int> -TimeCreated <dt>`
-- `New-MockDefenderComputerStatus` — shapes `Get-MpComputerStatus` output
-- `New-MachineHealthTempDir` / `Remove-MachineHealthTempDir` — per-test scratch dirs
+- `New-MockDefenderComputerStatus`: shapes `Get-MpComputerStatus` output
+- `New-MachineHealthTempDir` / `Remove-MachineHealthTempDir`: per-test scratch dirs
 
 Use these in preference to inline `[pscustomobject]@{}` for consistency.
 

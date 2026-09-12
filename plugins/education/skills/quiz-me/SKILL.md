@@ -1,5 +1,5 @@
 ---
-description: "Post-work comprehension check: after a change is complete, generate a self-contained HTML report of what was done (context, intuition, decisions) with a quiz at the bottom that you answer. Verifying the HUMAN absorbed the work, not the artifact. Non-gating by default; the quiz_policy userConfig tunes offer cadence. Also recalls prior work from the retained report library. Use when: 'quiz me', 'quiz me on this change', 'do I understand this change', 'comprehension check', 'a quiz at the bottom that I must pass', 'I want to make sure I understand everything that happened', 'what did we do on <ticket>'. Sibling to education:teach (multi-session coach) and education:explain (one-shot explainer); this verifies comprehension of COMPLETED WORK. Not artifact verification. That is verification:confirm (if installed)."
+description: "Post-work comprehension check: after a change is complete, generate a self-contained HTML report of what was done (context, intuition, decisions) with a quiz at the bottom for the user to answer. Verifying the HUMAN absorbed the work, not the artifact. Non-gating by default; the quiz_policy userConfig tunes offer cadence. Also recalls prior work from the retained report library. Use when: 'quiz me', 'quiz me on this change', 'do I understand this change', 'comprehension check', 'a quiz at the bottom that I must pass', 'I want to make sure I understand everything that happened', 'what did we do on <ticket>'. Sibling to education:teach (multi-session coach) and education:explain (one-shot explainer); this verifies comprehension of COMPLETED WORK. Not artifact verification. That is verification:confirm (if installed)."
 argument-hint: "[recall <query>] (empty = quiz me on the change just completed)"
 user-invocable: true
 disable-model-invocation: false
@@ -17,7 +17,7 @@ user answers. The failure mode this addresses: people glaze over plans and expla
 the human merging a PR cannot represent the change to a reviewer and their mental model of
 the codebase decays, degrading future prompting.
 
-Three value props:
+Three reasons it exists:
 
 - **Representation accountability**. Can the user explain this change to a reviewer?
 - **Loop retention**. Keeping the user's mental model of the codebase current keeps their
@@ -82,7 +82,7 @@ redundant summaries, or boilerplate.
 - **Each question carries a source anchor, and a miss routes to it.** Anchor every
   question to the report section that teaches its answer (a report-internal anchor, or a
   durable pointer per the reference discipline below). On a missed question, send the
-  reader to that exact section — the skimmed material, quoted or linked — before any
+  reader to that exact section, quoting or linking the skimmed material, before any
   retry; the miss's job is routing, not scoring.
 - **The answer key is fresh-context authored.** Produce or verify the embedded key with a
   fresh-context pass that reads only the report and the diff, not the authoring

@@ -18,12 +18,12 @@ conformingly write:
   which owns the verified-version record): interactive `/plugin configure
   rate-limit-guard@<marketplace>` any time, or headless `claude plugin install
   rate-limit-guard@<marketplace> -s <scope> --config rate_limit_guard_enabled=<value>` (repeatable
-  per key) — against an already-installed plugin it prints `already installed` and still writes
+  per key). Against an already-installed plugin it prints `already installed` and still writes
   the value. Do **not** uninstall to reconfigure: that drops this plugin's entire stored
   `pluginConfigs` entry, resetting every option in the README's Options reference to its manifest
   default. `-s` defaults to `user`; pass the scope `claude plugin list` reports, and run from that
   project's directory for a `project`/`local` scope, or the write lands at a scope that does not
-  load. Afterwards rerun `check` in a **fresh session** — the rendered `${user_config.*}` is
+  load. Afterwards rerun `check` in a **fresh session**, because the rendered `${user_config.*}` is
   injected at skill load and each hook's `CLAUDE_PLUGIN_OPTION_*` is fixed at session start, so a
   same-session `check` still reports the old value; report the observed effective value, never an
   unobserved change.

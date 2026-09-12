@@ -1,12 +1,12 @@
-# Topic-docs resolution — where planning artifacts land
+# Topic-docs resolution: where planning artifacts land
 
 How every planning skill resolves the destination for its per-topic artifacts. All pipeline
 skills read this one document; none bakes its own placement rules.
 
 Implements the topic-docs convention:
 <https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md>.
-The contract owns every general rule — tiers, schema, resolution order, slug spec, runtime guards,
-no-project-root fallback, non-interactive/forked mode, the contract-slice lifecycle with its
+The contract owns every general rule: tiers, schema, resolution order, slug spec, runtime guards,
+no-project-root fallback, non-interactive/forked mode, and the contract-slice lifecycle with its
 redaction bar. This document records only this plugin's deltas.
 
 The sibling `artifact-protocol.md` defines the shared lifecycle artifact names and producer/consumer
@@ -17,34 +17,34 @@ behavior; this binding and topic-docs remain authoritative for their placement.
 | Artifact (writer) | Tier | Location (default) |
 |---|---|---|
 | `PRD.md` (`/planning:prd`) | Contract | `docs/topics/<topic-slug>/`, committed on the task branch |
-| `PLAN.md` — Brief (`/planning:interview`), Plan (`/planning:plan`) | Contract | same slice |
-| `design/` — ALL design artifacts, including the `design-threads.md` / `design-resolution.md` gate files (`/planning:design`, gated by `/planning:design-handoff`; gate files must travel with the branch) | Contract | `docs/topics/<topic-slug>/design/` |
-| `interview-checklist.md`, `plan-checklist.md` | Memory | `.work/<topic-slug>/` — never committed |
-| `baselines/` — machine-bound captures from the plan skill's baseline step | Memory | `.work/<topic-slug>/baselines/` |
-| Opt-in `brainstorm.md` (`/planning:brainstorm` — never a default write) | Memory | `.work/<topic-slug>/` |
-| `questionnaire-<recipient-role-slug>.md` (`/planning:questionnaire`) | Memory | `.work/<topic-slug>/` — never committed; names a real person, so the memory tier's self-ignore is load-bearing |
-| `interview-round-<n>.html` — the dense-round decision table (`/planning:interview`) | Ephemeral | One OS temp directory per interview run, created through the platform's temp API; each round's file lands inside it, is handed back as a path, and is never deleted before returning |
+| `PLAN.md`, holding the Brief (`/planning:interview`) and the Plan (`/planning:plan`) | Contract | same slice |
+| `design/`, ALL design artifacts, including the `design-threads.md` / `design-resolution.md` gate files (`/planning:design`, gated by `/planning:design-handoff`; gate files must travel with the branch) | Contract | `docs/topics/<topic-slug>/design/` |
+| `interview-checklist.md`, `plan-checklist.md` | Memory | `.work/<topic-slug>/`, never committed |
+| `baselines/`, machine-bound captures from the plan skill's baseline step | Memory | `.work/<topic-slug>/baselines/` |
+| Opt-in `brainstorm.md` (`/planning:brainstorm`, never a default write) | Memory | `.work/<topic-slug>/` |
+| `questionnaire-<recipient-role-slug>.md` (`/planning:questionnaire`) | Memory | `.work/<topic-slug>/`, never committed; names a real person, so the memory tier's self-ignore is what keeps that name out of git history |
+| `interview-round-<n>.html`, the dense-round decision table (`/planning:interview`) | Ephemeral | One OS temp directory per interview run, created through the platform's temp API; each round's file lands inside it, is handed back as a path, and is never deleted before returning |
 | PRD pitch view (`/planning:prd`) | Ephemeral | One file per run, created through the platform's temp API; handed back as a path and never deleted before returning |
 | Brainstorm reaction-capture page (`/planning:brainstorm`) | Ephemeral | same |
 | Plan view (`/planning:plan`) | Ephemeral | same |
 | Design topology view (`/planning:design`) | Ephemeral | same |
 
-Every HTML row above is an optional rendered view of a record kept elsewhere — the conversation, the
-ledger, or a markdown artifact in a row above — so nothing downstream reads the view again and
+Every HTML row above is an optional rendered view of a record kept elsewhere, whether the conversation, the
+ledger, or a markdown artifact in a row above, so nothing downstream reads the view again and
 none of them may sit beside the record they render. The four single-file views land in the ephemeral
-tier for that reason, and their rules are the contract's — one deterministic path, never the session
+tier for that reason, and their rules are the contract's, not a delta of this plugin's: one deterministic path, never the session
 scratchpad, no delete-before-return because the path is the delivery mechanism, and one file per run
-because nothing documented reclaims the temp tree — not a delta of this plugin's.
+because nothing documented reclaims the temp tree.
 
 The round tables are ephemeral for the same reason, and earn a directory rather than a file because
 one run produces several. `/planning:interview`
 records every resolved branch in the `interview-checklist.md` ledger the moment it locks, and a resumed
-session picks up from the first open ledger checkbox — never from a round's HTML. A user reopening a table
+session picks up from the first open ledger checkbox, never from a round's HTML. A user reopening a table
 mid-interview is exactly what the tier's lifetime rule covers (a returned path stays readable), so it is not
 a reason to persist. One directory per run keeps the per-round files from becoming the accumulating tree the
 tier's footprint rule prohibits.
 
-`contract_tier: local` moves the contract rows into the memory slice with an identical layout —
+`contract_tier: local` moves the contract rows into the memory slice with an identical layout,
 the contract's solo/offline mode. Roots are configurable via the concern file's `contract_dir` /
 `memory_dir` keys.
 
@@ -53,7 +53,7 @@ contract's pointer discipline (≥ 2.0.0), `PLAN.md` records **distilled baselin
 never cites a memory-slice capture path. Checklists are the stage-ledger kind the contract's
 `.worktreeinclude` template carries into new worktrees where the consuming repo materializes it.
 
-## Close-out — the vault seam
+## Close-out: the vault seam
 
 `/planning:plan` owns describing the contract-slice close-out. Its promotion step resolves
 the concern file's `vault_backend`: `docs` (default) → a guarded, history-preserving `git mv`

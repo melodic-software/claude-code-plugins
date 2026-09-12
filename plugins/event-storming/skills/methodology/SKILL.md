@@ -1,5 +1,5 @@
 ---
-description: "EventStorming facilitation knowledge and reference across Big Picture, Process Modeling, and Design-Level formats. Use when: 'run EventStorming', 'model a domain', 'discover bounded contexts', 'Big Picture session', 'map domain events', 'find aggregates', 'DDD workshop', 'bounded context heuristics'. Actions: --big-picture / --process / --design-level (format guidance), --patterns (facilitation patterns/anti-patterns), --glossary, --notation, --remote. No args: interactive discovery — checks Miro for boards (if available), asks goal, recommends format. Not for agentic simulation — use /event-storming:simulation."
+description: "EventStorming facilitation knowledge and reference across Big Picture, Process Modeling, and Design-Level formats. Use when: 'run EventStorming', 'model a domain', 'discover bounded contexts', 'Big Picture session', 'map domain events', 'find aggregates', 'DDD workshop', 'bounded context heuristics'. Actions: --big-picture / --process / --design-level (format guidance), --patterns (facilitation patterns/anti-patterns), --glossary, --notation, --remote. No args: interactive discovery, which checks Miro for boards (if available), asks goal, recommends format. Not for agentic simulation. Use /event-storming:simulation."
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[--big-picture|--process|--design-level|--patterns|--glossary|--notation|--remote]"
@@ -51,8 +51,8 @@ When Miro IS available, query it for recent boards: `mcp__plugin_miro_miro__miro
 If recent boards exist, present them:
 > "I found these EventStorming boards:
 >
-> - [Board Name] (last modified [date]) — [item count] items
-> - [Board Name] (last modified [date]) — [item count] items
+> - [Board Name] (last modified [date]), [item count] items
+> - [Board Name] (last modified [date]), [item count] items
 >
 > Would you like to:
 >
@@ -72,14 +72,14 @@ If the user picks an existing board, read it via `miro_list_board_items` (`limit
 Use AskUserQuestion:
 > "What are you trying to accomplish? This determines which EventStorming format to use:
 >
-> 1. **Explore a whole business/domain** — discover what we don't know, find the biggest problems, identify bounded contexts (Big Picture)
-> 2. **Design a specific process** — model how a particular workflow should work end-to-end (Process Modeling)
-> 3. **Design software** — discover aggregates, commands, and events for implementation (Design-Level)
-> 4. **Improve an existing process** — retrospective on what's broken and where to fix it (Retrospective)
-> 5. **Understand value delivery** — where value is created and destroyed, for whom (Value Exploration)
-> 6. **Onboard someone** — teach how the business works through guided discovery (Induction)
-> 7. **Optimize user experience** — follow the customer journey, find friction, design for flawless execution (UX-Driven)
-> 8. **I'm not sure** — let's figure it out together"
+> 1. **Explore a whole business/domain**: discover what we don't know, find the biggest problems, identify bounded contexts (Big Picture)
+> 2. **Design a specific process**: model how a particular workflow should work end-to-end (Process Modeling)
+> 3. **Design software**: discover aggregates, commands, and events for implementation (Design-Level)
+> 4. **Improve an existing process**: retrospective on what's broken and where to fix it (Retrospective)
+> 5. **Understand value delivery**: where value is created and destroyed, for whom (Value Exploration)
+> 6. **Onboard someone**: teach how the business works through guided discovery (Induction)
+> 7. **Optimize user experience**: follow the customer journey, find friction, design for flawless execution (UX-Driven)
+> 8. **I'm not sure**: let's figure it out together"
 
 ### Step 3: Scope the domain
 
@@ -109,7 +109,7 @@ Then recommend based on Brandolini's transition funnel: almost always start with
 
 ## Overview
 
-EventStorming is a flexible workshop format for collaborative exploration of complex business domains. It uses simple notation (colored sticky notes on an unlimited modeling surface) to rapidly build a shared understanding of a business process.
+EventStorming is a workshop format for exploring a complex business domain together. It uses simple notation (colored sticky notes on an unlimited modeling surface) to build a shared understanding of a business process.
 
 **Three main formats, increasing in precision:**
 
@@ -188,8 +188,11 @@ aggregates, read models, policies. See `reference/design-level.md` ("Relationshi
 Architecture") for the sticky-color-to-tactical-pattern mapping and how to translate it to the
 building blocks your own stack uses.
 
-EventStorming directly informs bounded context discovery, domain event design, aggregate
-boundaries, command/query separation, policy identification, and hot-spot tracking.
+Each building block feeds one modeling decision: differently worded stickies for the same moment
+mark a bounded-context boundary, orange stickies become domain event types, business rules grouped
+in Design-Level become aggregate boundaries, blue commands and green read models split the write
+side from the read side, lilac stickies name the policies, and magenta hot spots carry the open
+questions forward.
 
 When using this skill for domain modeling, read the consuming project's own architecture and
 language conventions (its `CLAUDE.md` / `.claude/rules` or equivalent) and map the tactical

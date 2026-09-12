@@ -1,6 +1,6 @@
-# audit-pass — finding identity
+# audit-pass: finding identity
 
-This file owns §1: what identifies a finding — the `(check, claim, sites)` tuple, `surface`, `anchor`,
+This file owns §1: what identifies a finding, meaning the `(check, claim, sites)` tuple, `surface`, `anchor`,
 normalization, and the derived `finding_id`.
 
 Terms: [terms.md](terms.md). Full index: [run-contract.md](run-contract.md).
@@ -8,13 +8,13 @@ Terms: [terms.md](terms.md). Full index: [run-contract.md](run-contract.md).
 **Recheck trigger:** re-verify the SARIF citations below (§3.27.12, §3.27.17, §3.29.4) if OASIS
 publishes a SARIF spec revision beyond v2.1.0 that renumbers or changes those sections, or if
 GitHub's CodeQL `fingerprints.ts` changes how it computes a result's partial fingerprint or which
-location(s) it hashes — the divergence the "Two deliberate divergences" section below documents
+location(s) it hashes, the divergence the "Two deliberate divergences" section below documents
 against.
 
 ## 1. Finding identity
 
 Prose judgements are undiffable. Identity is three parts, emitted machine-readably, and the third is
-a **set** — because a cross-surface finding is about a relation between sites, not about one site
+a **set**, because a cross-surface finding is about a relation between sites, not about one site
 with a footnote.
 
 ```text
@@ -22,23 +22,23 @@ identity = (check, claim, sites)
 sites    = sorted([(surface, anchor), …])   # one entry, or two for a pairwise finding
 ```
 
-- **`check`** — fully qualified, `<plugin>/<skill>/<check>`. A bare check id is ambiguous across
+- **`check`**: fully qualified, `<plugin>/<skill>/<check>`. A bare check id is ambiguous across
   catalogs.
-- **`claim`** — the check's canonical claim id plus its bound parameters, never free prose. Prose is
+- **`claim`**: the check's canonical claim id plus its bound parameters, never free prose. Prose is
   a rendering of the claim, never the claim itself. **The template set comes from the delegated
-  invocation's own output, never from the owning plugin's files** — this pass dispatches skills and
+  invocation's own output, never from the owning plugin's files.** This pass dispatches skills and
   never reads inside one, so a template set it could learn only by opening another plugin's catalog
   is one it can never learn, and requiring one would make every finding unemittable. An invocation
   that declares its templates is validated against what it declared. An invocation that declares
-  none — which no delegated catalog declares — is **claim-unqualified**: the pass binds
+  none, which no delegated catalog declares, is **claim-unqualified**: the pass binds
   `claim` to the check's own id with no parameters, and names that catalog in the report's coverage
   notes as owing a declaration. The fallback is coarse deliberately. It merges the distinct claims
   one check can make at one site onto a single identity, which is a precision loss the coverage note
-  states rather than hides — and it is stable across runs, which is the one thing identity cannot do
+  states rather than hides. And it is stable across runs, which is the one thing identity cannot do
   without.
-- **`sites`** — the set of `(surface, anchor)` pairs the finding is *about*, canonically sorted by
+- **`sites`**: the set of `(surface, anchor)` pairs the finding is *about*, canonically sorted by
   the byte ordering of `surface \x1f anchor`. **Sorted, because an ordered pair hashes X-versus-Y
-  differently from Y-versus-X** — the same conflict would then be reported twice and would not
+  differently from Y-versus-X.** The same conflict would then be reported twice and would not
   survive a re-run that happened to visit the surfaces in the other order.
 
 **A cross-surface conflict is ONE finding with two sites, never two linked findings.** SARIF reserves
@@ -48,11 +48,11 @@ A contradiction between two instruction surfaces is retired by fixing *either* s
 are not independently correctable and are not two results.
 
 **`primary_site` and `related_site` are presentation and remediation fields, OUTSIDE the hash.**
-Which side a report leads with, and which side a `--fix` proposes editing, is a routing judgement —
-project scope is editable, user scope is routed, managed policy never — and routing must be free to
+Which side a report leads with, and which side a `--fix` proposes editing, is a routing judgement:
+project scope is editable, user scope is routed, managed policy never. Routing must be free to
 change without renaming the finding.
 
-### `surface` — the physical file, never the loading entry point
+### `surface`: the physical file, never the loading entry point
 
 The canonicalized **physical file** the content lives in. Project-scope surfaces are repo-relative
 POSIX paths with no leading `./`; user-scope and managed-policy surfaces are scope-prefixed
@@ -60,21 +60,21 @@ POSIX paths with no leading `./`; user-scope and managed-policy surfaces are sco
 absolute paths differ.
 
 A symlink resolves to its target. **A target resolving outside the target root takes the
-scope-prefixed logical form**, not the resolved absolute path — otherwise one shared rules file
+scope-prefixed logical form**, not the resolved absolute path. Otherwise one shared rules file
 symlinked into several repositories yields a different surface in each, and a suppression recorded in
 one is invisible to the rest.
 
 The file that imported the content is a **load edge**, not identity. The harness already emits the
 split: an `InstructionsLoaded` hook payload carries `file_path` (the surface) alongside
-`parent_file_path` (the edge it was loaded through) — verified on Claude Code 2.1.220.
+`parent_file_path` (the edge it was loaded through), verified on Claude Code 2.1.220.
 
-**`load_path`** — the ordered chain of entry points through which a surface loaded — is carried as a
+**`load_path`**, the ordered chain of entry points through which a surface loaded, is carried as a
 **non-identity** field for diagnosis, capped at **5 entries** and truncated with an explicit marker
 beyond that. Observed import depth is four hops, so the cap admits the real maximum with one to
 spare. It is outside the hash because the same file reached through a second import path is the same
 content and the same defect.
 
-### `anchor` — content-derived, granularity-discriminated, versioned
+### `anchor`: content-derived, granularity-discriminated, versioned
 
 **Content-derived, never line-derived.** A line number shifts whenever anything above it changes,
 churning the whole report on an unrelated edit. The anchor field name carries its algorithm version:
@@ -89,17 +89,17 @@ Two granularities, discriminated by prefix:
 | Granularity | Form | Identity reduces to |
 |---|---|---|
 | Excerpt | `e:<sha256(normalized_excerpt) truncated to 12 hex>:<n>` | `(surface, anchor, check, claim)` |
-| Whole surface | `s:` — bare, no digest | `(surface, check, claim)` |
+| Whole surface | `s:`, bare, no digest | `(surface, check, claim)` |
 
 `<n>` **discriminates identical excerpts within a surface, and it is not a positional ordinal.** A
-rule repeated verbatim three times must yield three distinct anchors rather than one collision — but
+rule repeated verbatim three times must yield three distinct anchors rather than one collision. But
 a 1-based position among the duplicates is the wrong discriminator, because deleting the first
 occurrence renumbers the second from `:2` to `:1`, where it **inherits the deleted occurrence's
 `finding_id` and any suppression attached to it**. The operator's decision about the text they
 removed silently transfers to text they never judged, and the stale entry is never reported stale
 because something still matches its key. Insertion has the same shape in the other direction.
 
-So `<n>` is a **stable occurrence discriminator**, derived in full here rather than deferred — an
+So `<n>` is a **stable occurrence discriminator**, derived in full here rather than deferred. An
 underspecified derivation is not a weaker contract, it is a different anchor per implementation and
 therefore a different `finding_id` for the same text:
 
@@ -108,13 +108,13 @@ therefore a different `finding_id` for the same text:
 ```
 
 where `heading_path` is the surface's ordered enclosing headings joined by `\x1f`, normalized by the
-same v1 rules as the excerpt — the same path already carried alongside each site for legibility, now
-load-bearing. A surface with no heading structure above the excerpt, or no heading concept at all (a
+same v1 rules as the excerpt. That is the same path already carried alongside each site for legibility, now
+an identity input. A surface with no heading structure above the excerpt, or no heading concept at all (a
 prompt-type hook in JSON), uses the fixed sentinel `\x00`.
 
 **Why the enclosing heading path and not the neighbouring text.** A digest over adjacent blocks would
 satisfy this thread and violate assertion 1.2 in the same stroke: inserting an unrelated paragraph
-directly above a finding would change its neighbours, hence its anchor, hence its `finding_id` —
+directly above a finding would change its neighbours, hence its anchor, hence its `finding_id`,
 churning suppressions on edits that touch nothing relevant, which is the failure content-derived
 anchoring exists to avoid. The heading path is invariant under insertion, deletion, and reordering of
 *content*, and changes only when the document's structure around the excerpt changes, which is a
@@ -124,19 +124,19 @@ surface.
 **Two duplicates under one heading path are genuinely indistinguishable, and the contract fails
 closed rather than guessing.** No positional scheme can separate them without reintroducing the
 transfer bug, so their anchors collide: the finding is reported **once**, the collision is named with
-its occurrence count, and **no suppression carries forward across it** — an operator suppressing one
+its occurrence count, and **no suppression carries forward across it**. An operator suppressing one
 of two identical sentences in one section is making a decision the record cannot faithfully attach to
 one of them. Splitting the heading, or making the sentences differ, resolves it in the document where
 the ambiguity actually lives.
 
 **A whole-surface finding is content-FREE by construction**, and that is the point: a finding about a
-file *as a whole* — it should not exist, it is unreachable, it duplicates another — must not be
+file *as a whole*, that it should not exist, is unreachable, or duplicates another, must not be
 retired by editing a line inside it. SARIF grounds the same decomposition: "If the region property is
 absent, the `physicalLocation` object refers to the entire artifact"
 ([§3.29.4](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html), verified 2026-07-24).
 The consequence must be stated where an operator will meet it: **an `s:` suppression survives every
 edit to the file and does not survive a rename.** A rename is a new surface, so the suppression goes
-stale and is re-reported — correctly, because a renamed file is a decision worth re-judging.
+stale and is re-reported. That is correct, because a renamed file is a decision worth re-judging.
 
 **An `s:` anchor in a two-site finding is a hard error, not a warning.** A pairwise claim asserts a
 relation between two pieces of text; with no excerpt on a side there is nothing to show the operator
@@ -144,7 +144,7 @@ and nothing to fix, and every contradiction between the same two files would col
 
 The heading path is **also** an identity input, via the duplicate discriminator above; its rendered
 form (`## Rules > ### Naming`) travels alongside each site for legibility
-only — the anchor is what identity compares.
+only. The anchor is what identity compares.
 
 ### Normalization, v1
 
@@ -154,7 +154,7 @@ identifiers.
 1. Strip trailing whitespace; collapse internal whitespace runs to one space.
 2. Strip surrounding markdown emphasis markers.
 3. **Preserve backticks and the text they delimit.** Stripping them would normalize `` `@README` ``
-   to `@README` — literal text quoted *as an example of an import* would then hash identically to a
+   to `@README`, and literal text quoted *as an example of an import* would then hash identically to a
    real import, and a check about imports would fire on prose describing one.
 4. **Strip block-level HTML comments that fall outside a fenced code block.** They are removed before
    the content reaches the model, so hashing them churns anchors over text no check ever saw. Inside
@@ -164,13 +164,13 @@ identifiers.
 
 Both are stated here together because they share one premise and one dissent, and reading either
 alone makes it look like an ad-hoc exception. **Shared premise:** SARIF's decomposition of a result
-into logical location plus partial fingerprints is adopted wholesale — that is where `sites`, the
+into logical location plus partial fingerprints is adopted wholesale. That is where `sites`, the
 region/no-region granularity split, and versioned anchor names all come from. **Shared dissent:** the
 *input to the hash* is chosen for this corpus, not inherited.
 
 1. **Pairwise identity hashes both sides.** GitHub keys a result on `locations[0]` alone, treating
    any further location as context. For a cross-surface contradiction the second surface is not
-   context — it is half of what makes the finding true, and dropping it merges every conflict a file
+   context. It is half of what makes the finding true, and dropping it merges every conflict a file
    has with anything into one identity.
 2. **Whole-surface identity is content-free.** CodeQL's `fingerprints.ts` hashes the file's first
    line when no region is available. That gives a file-level finding a content dependency it does not
@@ -188,7 +188,7 @@ anchor versions that entry itself stores**, which is what gives assertion 4.5 a 
 |---|---|
 | 1.1 | For a fixed tree **and a fixed live surface set**, `finding_id` is stable across runs, working directories, operating systems, and path separators. Liveness is named because it can change with no tree change at all, and an identity claim that ignored it would be false the first time a run started from a different directory. |
 | 1.2 | Inserting an unrelated paragraph above a finding does not change its `finding_id`. |
-| 1.3 | Every emitted finding validates against the report schema. When the invocation that produced it declared a claim-template set, the finding's `claim` id exists in that set and one that does not is a **hard error**. When the invocation declared none, `claim` is the check's own id with no parameters and that catalog is named in the coverage notes. Free prose in `claim` is a hard error either way — that is what stops prose leaking back in. |
+| 1.3 | Every emitted finding validates against the report schema. When the invocation that produced it declared a claim-template set, the finding's `claim` id exists in that set and one that does not is a **hard error**. When the invocation declared none, `claim` is the check's own id with no parameters and that catalog is named in the coverage notes. Free prose in `claim` is a hard error either way. That is what stops prose leaking back in. |
 | 1.4 | A pairwise finding discovered as (A, B) and the same finding discovered as (B, A) produce one identical `finding_id`. Swapping `primary_site` and `related_site` does not change it either. |
 | 1.5 | Reaching a surface through a different import chain changes `load_path` and does not change `finding_id`. A `load_path` longer than 5 entries is truncated with an explicit marker rather than dropped silently. |
 | 1.6 | A finding emitted with an `s:` anchor and two sites is rejected as a **hard error**. |

@@ -2,13 +2,13 @@
 
 Platform-specific extraction logic for Dometrain (dometrain.com) courses.
 
-**Implementation:** `extraction/adapters/dometrain.js` — all Dometrain-specific DOM interaction, URL patterns, auth flow. Implements `CourseExtractAdapter` contract defined in `adapters/adapter-contract.js`.
+**Implementation:** `extraction/adapters/dometrain.js`, which holds all Dometrain-specific DOM interaction, URL patterns, and auth flow. Implements `CourseExtractAdapter` contract defined in `adapters/adapter-contract.js`.
 
 ## Video player
 
 Dometrain uses **Mux Player** (`<mux-player>` custom element) loaded from `cdn.jsdelivr.net/npm/@mux/mux-player`. Videos are HLS streams with JWT-protected access tokens (playback-restricted, user-scoped, and short-lived). Read the remaining lifetime from the token itself rather than assuming a window; the check is under "Getting the HLS URL" below.
 
-Video player is NOT a standard `<video>` element — it's a web component with a shadow DOM. Do not try to interact with `<video>` directly.
+Video player is NOT a standard `<video>` element. It's a web component with a shadow DOM. Do not try to interact with `<video>` directly.
 
 ## Course structure extraction (Phase 1)
 
@@ -20,7 +20,7 @@ Sidebar contains full curriculum. Read page with `read_page` and look for:
 
 - Lesson title (text content)
 - Duration (e.g., "3m 43s")
-- URL (href attribute — full lesson URL)
+- URL (href attribute, the full lesson URL)
 - Completion status (checkmark icon = completed)
 
 **Course metadata** (from the sidebar header):
@@ -32,14 +32,14 @@ Sidebar contains full curriculum. Read page with `read_page` and look for:
 
 **Resources** (from the top bar):
 
-- "Download course files" button — may trigger a download
-- "Get the code" / "View course code on GitHub" link — may be `href="#"` if no repo available
-- "Show lesson notes" button — opens a side panel
-- "Read this lesson" button — loads written content from API
+- "Download course files" button: may trigger a download
+- "Get the code" / "View course code on GitHub" link: may be `href="#"` if no repo available
+- "Show lesson notes" button: opens a side panel
+- "Read this lesson" button: loads written content from API
 
 ## Transcript extraction (Phase 2)
 
-Dometrain has a **built-in transcript panel** in the sidebar. Primary extraction method — no video download needed.
+Dometrain has a **built-in transcript panel** in the sidebar. Primary extraction method. No video download needed.
 
 **Steps:**
 
@@ -80,13 +80,13 @@ Dometrain has a **built-in transcript panel** in the sidebar. Primary extraction
 
 Some lessons have supplementary written content. Three resource buttons exist in every lesson page's DOM but conditionally shown via `display:none`:
 
-1. **"Download course files" button** (`button.download-files-btn`) — visible on module intro ("The example we will work on") and section recap lessons. Hidden on theory/welcome/code-heavy lessons. Downloads a ZIP with instructor source code for that section
-2. **"Show lesson notes" button** — opens a side panel. Hidden on all TDD course lessons (this course has no lesson notes). May appear on newer courses
-3. **"Read this lesson" button** — calls `api.dometrain.com/private/api/courses/{courseId}/lessons/{lessonId}/content`. Hidden on all TDD course lessons. May appear on newer courses with written content
+1. **"Download course files" button** (`button.download-files-btn`): visible on module intro ("The example we will work on") and section recap lessons. Hidden on theory/welcome/code-heavy lessons. Downloads a ZIP with instructor source code for that section
+2. **"Show lesson notes" button**: opens a side panel. Hidden on all TDD course lessons (this course has no lesson notes). May appear on newer courses
+3. **"Read this lesson" button**: calls `api.dometrain.com/private/api/courses/{courseId}/lessons/{lessonId}/content`. Hidden on all TDD course lessons. May appear on newer courses with written content
 
-**Detection strategy:** navigate to lesson, check `getComputedStyle(btn).display !== 'none'` for each button. All three exist in DOM on every lesson page — only visibility differs.
+**Detection strategy:** navigate to lesson, check `getComputedStyle(btn).display !== 'none'` for each button. All three exist in DOM on every lesson page, and only visibility differs.
 
-Both notes and written content optional — TDD course has neither, but buttons are present for courses that do.
+Both notes and written content are optional. The TDD course has neither, but buttons are present for courses that do.
 
 ## Video frame extraction for Dometrain
 
@@ -131,7 +131,7 @@ ffmpeg -y -user_agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" \
 
 **Key flags:**
 
-- `-user_agent` is required — Mux rejects requests without a browser user-agent
+- `-user_agent` is required, since Mux rejects requests without a browser user-agent
 - `-ss BEFORE -i` for fast keyframe-based seeking
 - `-update 1` for single-frame output (avoids "no image sequence pattern" error)
 - Output: 1920x1080 PNG by default
@@ -140,22 +140,22 @@ ffmpeg -y -user_agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" \
 
 | Content type | How to detect from transcript | Frame extraction? |
 |---|---|---|
-| Talking head | Opinions/concepts, no code keywords | Skip — transcript covers it |
-| IDE/code demo | File names, classes, `dotnet`, code constructs | Yes — extract at code cue timestamps |
-| Slides | Conceptual explanations with diagrams | Yes — extract at slide transitions |
-| Terminal output | Running commands, test results | Yes — extract at output timestamps |
+| Talking head | Opinions/concepts, no code keywords | Skip, transcript covers it |
+| IDE/code demo | File names, classes, `dotnet`, code constructs | Yes, extract at code cue timestamps |
+| Slides | Conceptual explanations with diagrams | Yes, extract at slide transitions |
+| Terminal output | Running commands, test results | Yes, extract at output timestamps |
 
 ### Mux player API (verified on Dometrain)
 
 The `<mux-player>` element exposes standard HTMLMediaElement properties:
 
-- `player.currentTime` — get/set playback position (seconds)
-- `player.duration` — total length (read-only)
-- `player.paused` — playback state (read-only)
-- `player.play()` / `player.pause()` — control playback
-- `player.media.nativeEl` — access the underlying `<video>` element
-- `player.src` — the HLS manifest URL with JWT token
-- `player._hls` — the underlying hls.js instance
+- `player.currentTime`: get/set playback position (seconds)
+- `player.duration`: total length (read-only)
+- `player.paused`: playback state (read-only)
+- `player.play()` / `player.pause()`: control playback
+- `player.media.nativeEl`: access the underlying `<video>` element
+- `player.src`: the HLS manifest URL with JWT token
+- `player._hls`: the underlying hls.js instance
 
 **Note:** `crossOrigin` set to `"anonymous"` by default on Dometrain; inner `<video>` element is accessible via `player.media.nativeEl`.
 
@@ -167,7 +167,7 @@ To move between lessons, use direct URL navigation rather than clicking Next/Pre
 https://dometrain.com/take/course/{course-slug}/lesson-slug/
 ```
 
-Each lesson link is available from sidebar after Phase 1 extraction. Navigate directly to each lesson URL — more reliable than clicking through UI.
+Each lesson link is available from sidebar after Phase 1 extraction. Navigate directly to each lesson URL, which is more reliable than clicking through UI.
 
 ## Course landing page
 
@@ -185,25 +185,25 @@ Public landing page URL pattern differs from lesson player URL:
 - **Visible sections**: "About This Course" (description), "Course Curriculum" (sections with lesson counts and durations), "Meet Your Instructor" (bio, photo, "View all courses" link)
 - **Course Details sidebar**: Level, Duration, Rating (star display)
 
-**No date metadata found** — no `dateCreated`, `dateModified`, `datePublished` in JSON-LD or meta tags. Course freshness is not available from the landing page.
+**No date metadata found:** no `dateCreated`, `dateModified`, `datePublished` in JSON-LD or meta tags. Course freshness is not available from the landing page.
 
 ## Additional platform features (discovered 2026-04-01)
 
-- **AI Assistant** — button in top-right bar. Platform-level AI chatbot for course questions
-- **Coding exercises** — "Give me a hint", "Review my code", "Explain the failure", "Review Solution" buttons. Interactive coding environment with Console and Test Results panels
-- **Quizzes** — "Submit Quiz", "Review Answers" buttons
-- **Certificates** — "Get Your Certificate" button (behind completion gate)
-- **XP system** — gamification with XP points and leaderboard
-- **Autocomplete** — toggle to auto-mark lessons as completed
+- **AI Assistant**: button in top-right bar. Platform-level AI chatbot for course questions
+- **Coding exercises**: "Give me a hint", "Review my code", "Explain the failure", "Review Solution" buttons. Interactive coding environment with Console and Test Results panels
+- **Quizzes**: "Submit Quiz", "Review Answers" buttons
+- **Certificates**: "Get Your Certificate" button (behind completion gate)
+- **XP system**: gamification with XP points and leaderboard
+- **Autocomplete**: toggle to auto-mark lessons as completed
 
 These features are platform-level and not course-specific. They don't contain extractable content for course digest pipeline.
 
 ## Dometrain-specific gotchas
 
 1. **Auto-play:** Videos may start playing when you navigate to a lesson. Doesn't affect transcript extraction (transcripts load independently of playback)
-2. **Trial limits:** If user's subscription lapses, "Upgrade to Dometrain Pro" modal appears. Check for "Trial Limit Reached" or "Sign in to watch" text in page — if found, stop and inform user
+2. **Trial limits:** If user's subscription lapses, "Upgrade to Dometrain Pro" modal appears. Check for "Trial Limit Reached" or "Sign in to watch" text in page. If found, stop and inform user
 3. **Rate limiting:** Don't navigate to lessons faster than ~2 seconds apart. Rapid navigation may trigger platform protections
-4. **Session expiry:** Mux JWT tokens expire; re-read the remaining time from the token before a long extraction rather than assuming a window. For long extraction sessions, user's Dometrain session may expire — watch for login redirects
+4. **Session expiry:** Mux JWT tokens expire; re-read the remaining time from the token before a long extraction rather than assuming a window. For long extraction sessions, user's Dometrain session may expire, so watch for login redirects
 5. **Course IDs:** Course URL contains numeric course ID (e.g., `2732006`); lesson URL contains numeric lesson ID (e.g., `54128298`). Stable identifiers
-6. **Windows convert.exe conflict:** On Windows, `convert` resolves to FAT/NTFS converter (`C:\Windows\system32\convert.exe`), not ImageMagick. Always use `magick` (ImageMagick 7) — never `convert`
-7. **Never guess the instructor.** Course author is NOT inferable from platform or course URL. ALWAYS extract from landing page JSON-LD (`@graph` → `Course` → `author[].name`) or "Meet Your Instructor" section. Do not assume based on Dometrain association — Dometrain hosts courses from many instructors
+6. **Windows convert.exe conflict:** On Windows, `convert` resolves to FAT/NTFS converter (`C:\Windows\system32\convert.exe`), not ImageMagick. Always use `magick` (ImageMagick 7), never `convert`
+7. **Never guess the instructor.** Course author is NOT inferable from platform or course URL. ALWAYS extract from landing page JSON-LD (`@graph` → `Course` → `author[].name`) or "Meet Your Instructor" section. Do not assume based on Dometrain association. Dometrain hosts courses from many instructors

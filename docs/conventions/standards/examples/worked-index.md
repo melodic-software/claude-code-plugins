@@ -1,11 +1,11 @@
-# Worked example — one consumer's standards index
+# Worked example: one consumer's standards index
 
 A repository with C# services, a docs lane, and a pre-existing
 engineering-philosophy document it did not want to relocate. Standards
 root is the default `docs/standards/` (no `.claude/standards.yaml`
 needed).
 
-## The index — `docs/standards/README.md`
+## The index: `docs/standards/README.md`
 
 ```markdown
 ---
@@ -28,7 +28,7 @@ content lives in the files, never here.
 - The first three rows are **in-root**: paths relative to
   `docs/standards/`.
 - The last row is **external**: a repo-relative path (forward slashes,
-  from the git top-level) to content adopted where it already lives — no
+  from the git top-level) to content adopted where it already lives. No
   reorg required. Setup validates the path on every run; a skill that
   finds it broken surfaces the break and offers the fix.
 
@@ -49,6 +49,6 @@ docs/engineering-philosophy.md  # external row target, tracked as-is
 
 `testing.local.md` overlays `testing.md` by filename convention. It might
 ADD "also run mutation tests on touched files" (applied, with the
-personal layer named as provenance) or attempt to RELAX a team rule —
+personal layer named as provenance) or attempt to RELAX a team rule,
 which loses: on direct conflict the team-tracked file wins. It is
 glob-discovered at load time; the tracked index never lists it.

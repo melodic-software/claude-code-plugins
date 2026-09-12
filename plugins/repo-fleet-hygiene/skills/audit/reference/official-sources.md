@@ -7,53 +7,53 @@ and evidence contracts; the plugin does not rely on remembered behavior.
 
 ## Claude Code
 
-- [Create plugins](https://code.claude.com/docs/en/plugins) — plugin root/layout, namespaced skills,
+- [Create plugins](https://code.claude.com/docs/en/plugins): plugin root/layout, namespaced skills,
   local `--plugin-dir` testing, and reusable plugin boundary.
-- [Plugins reference](https://code.claude.com/docs/en/plugins-reference) — manifest fields,
+- [Plugins reference](https://code.claude.com/docs/en/plugins-reference): manifest fields,
   `${CLAUDE_PLUGIN_ROOT}`, and plugin cache isolation.
-- [Skills](https://code.claude.com/docs/en/skills) — skill frontmatter, arguments, and `allowed-tools`
+- [Skills](https://code.claude.com/docs/en/skills): skill frontmatter, arguments, and `allowed-tools`
   semantics. `allowed-tools` grants permission but does not remove other tools, so the skill also states
   its report-only behavioral boundary explicitly.
-- [Plugin marketplaces](https://code.claude.com/docs/en/plugin-marketplaces) — local marketplace
+- [Plugin marketplaces](https://code.claude.com/docs/en/plugin-marketplaces): local marketplace
   catalog structure and validation.
 
 ## Git
 
-- [`git` environment and global options](https://git-scm.com/docs/git) — `GIT_NO_LAZY_FETCH=1`
+- [`git` environment and global options](https://git-scm.com/docs/git): `GIT_NO_LAZY_FETCH=1`
   prevents on-demand promisor-remote fetches, while `GIT_OPTIONAL_LOCKS=0` prevents optional
   lock-taking side effects such as index refreshes.
-- [`git for-each-ref`](https://git-scm.com/docs/git-for-each-ref) — exact ref iteration fields and the
+- [`git for-each-ref`](https://git-scm.com/docs/git-for-each-ref): exact ref iteration fields and the
   documented `%00` NUL and `%09` TAB format escapes used for branch/tip records.
-- [`git rev-parse`](https://git-scm.com/docs/git-rev-parse) — `--show-toplevel`,
+- [`git rev-parse`](https://git-scm.com/docs/git-rev-parse): `--show-toplevel`,
   `--git-common-dir`, `--path-format=absolute`, and repository-layout-safe path resolution.
-- [`git remote`](https://git-scm.com/docs/git-remote) — `get-url` expands Git URL rewrite rules and
+- [`git remote`](https://git-scm.com/docs/git-remote): `get-url` expands Git URL rewrite rules and
   returns the configured fetch URL without changing it.
-- [`git worktree`](https://git-scm.com/docs/git-worktree) — stable porcelain output, `locked` and
+- [`git worktree`](https://git-scm.com/docs/git-worktree): stable porcelain output, `locked` and
   `prunable` annotations, the linked-worktree `.git` file/common-directory relationship, repair after
   moves, and the instruction to use Git plumbing instead of assuming administrative paths.
 
 ## GitHub
 
-- [`gh api graphql`](https://cli.github.com/manual/gh_api) — aliased `repository` /
+- [`gh api graphql`](https://cli.github.com/manual/gh_api): aliased `repository` /
   `pullRequests(headRefName:, first:, states:)` queries for exact-name merged-PR evidence; `--jq`
   flattens alias pages. Never use the search API's `head:` qualifier (prefix semantics).
-- [GitHub GraphQL rate limits](https://docs.github.com/en/graphql/overview/rate-limits-and-node-limits-for-the-graphql-api) —
+- [GitHub GraphQL rate limits](https://docs.github.com/en/graphql/overview/rate-limits-and-node-limits-for-the-graphql-api):
   5,000-point/hour primary limit, 500,000 nodes per call, `first`/`last` ∈ 1–100. Measured cost for
   the collector's aliased merged-PR page stays 1 (nodeCount equals the alias count, ≤100 per page).
 - [`gh repo view`](https://cli.github.com/manual/gh_repo_view) and
-  [`gh api`](https://cli.github.com/manual/gh_api) — repository-qualified JSON/API lookup and
+  [`gh api`](https://cli.github.com/manual/gh_api): repository-qualified JSON/API lookup and
   formatted output.
-- [`gh environment`](https://cli.github.com/manual/gh_help_environment) — host, prompt, update-check,
+- [`gh environment`](https://cli.github.com/manual/gh_help_environment): host, prompt, update-check,
   extension-update-check, and telemetry controls used to keep the audit non-interactive and constrain
   undeclared egress.
-- [Get a repository REST endpoint](https://docs.github.com/en/rest/repos/repos#get-a-repository) —
+- [Get a repository REST endpoint](https://docs.github.com/en/rest/repos/repos#get-a-repository):
   canonical `full_name`/`default_branch` response and documented 200, 301, 403, and 404 outcomes.
-- [Transferring a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/transferring-a-repository) —
+- [Transferring a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/transferring-a-repository):
   old repository URLs redirect after transfer, but GitHub recommends updating existing local remotes.
 
 ## Process bounds
 
-- [GNU Coreutils `timeout`](https://www.gnu.org/software/coreutils/manual/html_node/timeout-invocation.html) —
+- [GNU Coreutils `timeout`](https://www.gnu.org/software/coreutils/manual/html_node/timeout-invocation.html):
   `--kill-after` guarantees KILL escalation after the initial TERM deadline, including when the
   managed command ignores or blocks TERM. The collector feature-detects this capability and otherwise
   uses an equivalent finite Bash watchdog.
@@ -62,7 +62,7 @@ and evidence contracts; the plugin does not rely on remembered behavior.
 
 - Git porcelain/common-dir facts establish local registration and linkage; directory naming never does.
 - GitHub merged state is repository-qualified, and the PR head OID must match the local tip before a
-  high-confidence local/worktree handoff — or the remote-tracking tip before a high-confidence
+  high-confidence local/worktree handoff, or the remote-tracking tip before a high-confidence
   `merged-remote-branch` handoff. HIGH for that kind also requires `git ls-remote --heads` to confirm
   the tip still exists on the remote; a last-fetched remote-tracking match alone is only MEDIUM when
   the probe fails, and emits nothing when the remote head is already gone. A remaining remote head

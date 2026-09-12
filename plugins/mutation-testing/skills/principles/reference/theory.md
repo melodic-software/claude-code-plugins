@@ -21,7 +21,7 @@ from a correct program, not wholesale rewrites.
 it. This is why operators are small and syntactically local, and why a mutant that changes a program
 beyond recognition would prove nothing.
 
-**When it fails:** in code that is not nearly correct — a first draft, a spike, a component with a
+**When it fails:** in code that is not nearly correct: a first draft, a spike, a component with a
 misunderstood specification. There, the real bug is not one token away, and a high mutation score
 buys less confidence than it appears to.
 
@@ -30,10 +30,11 @@ buys less confidence than it appears to.
 A test suite that detects simple faults will also detect the complex faults built out of them.
 
 **Consequence:** you do not need to enumerate realistic multi-line bugs. Killing the cheap
-single-operator mutants is evidence about the expensive compound ones. This is the load-bearing
-assumption — without it, mutation score would say nothing about real defect-detection ability.
+single-operator mutants is evidence about the expensive compound ones. Everything mutation score
+claims rests on this assumption. Without it, the score would say nothing about real
+defect-detection ability.
 
-**When it fails:** for faults that are not compositions of local errors — a wrong algorithm, a
+**When it fails:** for faults that are not compositions of local errors: a wrong algorithm, a
 missing requirement, a concurrency interleaving, a security property nobody expressed as behavior.
 Mutation testing is silent on all of these. A perfect mutation score is not a correctness argument.
 
@@ -56,8 +57,8 @@ survey identifies it as the dominant cost driver in the field, and it is why:
 
 - every mutation score has a permanent, unknowable ceiling below 100%;
 - classification of survivors is a *judgment* step, not a computation;
-- an "unkillable" verdict should cite evidence, because the alternative — asserting equivalence from
-  inspection alone — is exactly where this technique produces false confidence.
+- an "unkillable" verdict should cite evidence, because the alternative, asserting equivalence from
+  inspection alone, is exactly where this technique produces false confidence.
 
 **Practical stance:** treat "equivalent" as a claim requiring a demonstration, not a default
 explanation for an inconvenient survivor. The failure mode is reaching for equivalence whenever a
@@ -75,8 +76,8 @@ test exercises, nothing about whether the specification is right, and nothing ab
 outside the operator catalog.
 
 Read alongside Khorikov's framing of test value: a test's protection against regressions is its
-guard against false negatives — missed bugs. Mutation testing is the closest available *empirical
+guard against false negatives, meaning missed bugs. Mutation testing is the closest available *empirical
 measurement* of that specific property, which is why it earns a place beside coverage rather than
 replacing the judgment-based assessment of a test suite. It measures one pillar well; it does not
-measure resistance to refactoring, fast feedback, or maintainability at all — and a suite optimized
+measure resistance to refactoring, fast feedback, or maintainability at all, and a suite optimized
 for mutation score alone will degrade those.

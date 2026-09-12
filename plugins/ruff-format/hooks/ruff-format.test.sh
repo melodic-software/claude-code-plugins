@@ -512,7 +512,7 @@ fi
 
 # --- Symlinked repo root: the lint target must stay the edited file ----------
 # The hook passes Ruff a repo-relative path so diagnostics read cleanly, and it
-# computes that path with hook::repo_relative_path, which REDACTS to a bare
+# computes that path with hook::repo_relative_path_to, which REDACTS to a bare
 # basename when the repo-root prefix strip does not match. Reaching one repo
 # through a symlink produces exactly that mismatch: file_path keeps the
 # symlinked spelling while `git rev-parse --show-toplevel` answers with the
@@ -557,26 +557,17 @@ fi
 # handler without a spawn (hooks reference, `if`, re-fetched 2026-09-07; the
 # installed CLI logs "Skipping hook due to if condition ... not matching"), and
 # an Edit(...) rule is the one consulted for Write and NotebookEdit as well.
-# The script's own case filter stays as defense in depth, so the two sets must
-# be IDENTICAL: an if row the script does not handle spawns a process that
-# exits at the case, and an extension the script handles with no if row is a
-# silent regression, since the hook then never runs for it.
+# The script's own filter stays as defense in depth, so the two sets must be
+# IDENTICAL: an if row the script does not handle spawns a process that exits
+# at the filter, and an extension the script handles with no if row is a silent
+# regression, since the hook then never runs for it.
 #
-# The expected set is every pattern of every arm in the script's whole
-# `case "$RAW_FILE" ... esac` block except the bare `*` catch-all, so an arm
-# added anywhere in the block counts. The block is read the way bash reads it:
-# a backslash continuation joins lines with nothing in between (so `;\` and a
-# following `;` is one `;;`), a comment after `in` or on any arm is dropped, a
-# one-line `case ... esac` is one block, `in` on the line after the `case`
-# word opens the block all the same, and every arm terminator bash has
-# (`;;`, the `;&` fall-through and the `;;&` continue-matching form) ends an
-# arm, so the patterns of an arm reached only by fall-through count too. What
-# the parser does not read is an arm's body, so a pattern in any arm, even one
-# after `*)` that can never match, counts as handled and must have its row.
-# The script's `case "$FILE"` re-check after path normalization (the duplicate
-# #3408 owns folding) is read the same way, and every such gate must yield the
-# same set, so an exclusion added to either gate fails here instead of sitting
-# unread; a script with one gate left passes as it is.
+# The script's set is the glob list it hands hook::begin, lifted from that call
+# with continuation lines joined the way bash joins them. One declaration
+# serves both of the script's gates — the jq-free pre-filter and the re-check
+# on the parsed path — so the two cannot disagree with each other and this
+# pairing with the manifest is the only one left to check. An extraction that
+# finds no call fails loudly below rather than passing on no evidence.
 #
 # On the manifest side every handler under every event and matcher group is
 # read. Two things are pinned separately, since they answer different
@@ -594,75 +585,25 @@ fi
 # with no prefix, suffix or argument. What this does not reach is a
 # registration outside hooks/hooks.json.
 HOOKS_JSON="$HOOK_DIR/hooks.json"
-SCRIPT_GATES="$(awk '
-  function flush(   n, i, m, j, p, pats, arms, alts) {
-    inblock = 0
-    print nblocks "\t"
-    gsub(/;;&/, "\n", block)
-    gsub(/;;/, "\n", block)
-    gsub(/;&/, "\n", block)
-    n = split(block, arms, "\n")
-    for (i = 1; i <= n; i++) {
-      if (index(arms[i], ")") == 0) continue
-      pats = substr(arms[i], 1, index(arms[i], ")") - 1)
-      sub(/^[[:space:]]*\(/, "", pats)
-      m = split(pats, alts, "|")
-      for (j = 1; j <= m; j++) {
-        p = alts[j]
-        gsub(/[[:space:]]+/, "", p)
-        if (p != "" && p != "*") print nblocks "\t" p
-      }
+BEGIN_LINE="$(awk '
+  /^hook::begin[[:space:]]/ {
+    line = $0
+    while (line ~ /\\$/) {
+      sub(/[[:space:]]*\\$/, "", line)
+      if ((getline nxt) <= 0) break
+      sub(/^[[:space:]]+/, "", nxt)
+      line = line " " nxt
     }
-  }
-  !inblock && !pending && $0 ~ /^case "[$](RAW_FILE|FILE)"[[:space:]]*(#.*)?$/ {
-    pending = 1
-    next
-  }
-  pending && match($0, /^[[:space:]]*in([[:space:]]|$)/) {
-    pending = 0
-    inblock = 1
-    nblocks++
-    block = ""
-    sep = ""
-    $0 = substr($0, RLENGTH + 1)
-  }
-  !inblock && match($0, /^case "[$](RAW_FILE|FILE)" in([[:space:]]|$)/) {
-    inblock = 1
-    nblocks++
-    block = ""
-    sep = ""
-    $0 = substr($0, RLENGTH + 1)
-  }
-  inblock {
-    sub(/#.*/, "")
-    if ($0 ~ /^[[:space:]]*esac([[:space:]]|$)/) {
-      flush()
-      next
-    }
-    if (match($0, /[[:space:]]esac([[:space:]]|$)/)) {
-      block = block sep substr($0, 1, RSTART - 1)
-      flush()
-      next
-    }
-    if (sub(/\\$/, "")) {
-      block = block sep $0
-      sep = ""
-    } else {
-      block = block sep $0
-      sep = " "
-    }
+    print line
+    exit
   }' "$HOOK")"
-CASE_BLOCKS="$(printf '%s\n' "$SCRIPT_GATES" | cut -f1 | LC_ALL=C sort -u | grep -c .)"
-SCRIPT_EXTS="$(printf '%s\n' "$SCRIPT_GATES" | awk -F'\t' '$1 == 1 && $2 != "" { print $2 }' | LC_ALL=C sort -u)"
-GATES_OFF=""
-for ((g = 2; g <= CASE_BLOCKS; g++)); do
-  GATE_EXTS="$(printf '%s\n' "$SCRIPT_GATES" | awk -F'\t' -v g="$g" '$1 == g && $2 != "" { print $2 }' | LC_ALL=C sort -u)"
-  [[ "$GATE_EXTS" == "$SCRIPT_EXTS" ]] || GATES_OFF+=" gate$g=(${GATE_EXTS//$'\n'/ })"
-done
+SCRIPT_EXTS="$(printf '%s\n' "$BEGIN_LINE" |
+  sed -n 's/^.*[[:space:]]PostToolUse[[:space:]][[:space:]]*//p' |
+  tr -d "'\"" | tr ' ' '\n' | grep . | LC_ALL=C sort -u)"
 EXPECTED_IF="$(printf '%s\n' "$SCRIPT_EXTS" | sed 's/.*/Edit(&)/' | tr '\n' ' ')"
 EXPECTED_IF="${EXPECTED_IF% }"
 EXPECTED_COUNT="$(printf '%s\n' "$SCRIPT_EXTS" | grep -c .)"
-if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" && "$CASE_BLOCKS" -ge 1 && -z "$GATES_OFF" && "$EXPECTED_COUNT" -gt 0 ]]; then
+if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" && -n "$BEGIN_LINE" && "$EXPECTED_COUNT" -gt 0 ]]; then
   HANDLERS="$(jq -c '[.hooks | to_entries[] | .key as $ev | .value[]? | .matcher as $m | .hooks[]? | . + {event: $ev, matcher: ($m // "(none)")}]' "$HOOKS_JSON")"
   HANDLER_COUNT="$(jq 'length' <<<"$HANDLERS")"
   HANDLER_GROUPS="$(jq -r '[.[] | "\(.event):\(.matcher)"] | unique | join(",")' <<<"$HANDLERS")"
@@ -671,12 +612,12 @@ if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" && "$CASE_BLOCKS" -ge 1 
   WRITE_IF="$(jq '[.[] | select(has("if") and (.if | startswith("Write(")))] | length' <<<"$HANDLERS")"
   CMD_OFF="$(jq -r '[.[] | (.command // "(none)") | select(test("^(\"[$][{]?CLAUDE_PLUGIN_ROOT[}]?\"/hooks/ruff-format[.]sh|\"[$][{]?CLAUDE_PLUGIN_ROOT[}]?/hooks/ruff-format[.]sh\")$") | not)] | unique | join(",")' <<<"$HANDLERS")"
   if [[ "$HANDLER_COUNT" == "$EXPECTED_COUNT" && "$IF_VALUES" == "$EXPECTED_IF" && "$WRITE_IF" == "0" && -z "$GROUPS_OFF" && -z "$CMD_OFF" ]]; then
-    ok "hooks.json: every handler ($HANDLER_GROUPS) is a PostToolUse Write and Edit group running the plugin's script, and the if rows are exactly $EXPECTED_IF, the script's own extension set ($CASE_BLOCKS case gates agree)"
+    ok "hooks.json: every handler ($HANDLER_GROUPS) is a PostToolUse Write and Edit group running the plugin's script, and the if rows are exactly $EXPECTED_IF, the script's own hook::begin glob list"
   else
     fail "hooks.json launch gate: handlers=$HANDLER_COUNT/$EXPECTED_COUNT groups=$HANDLER_GROUPS groups_off='$GROUPS_OFF' if='$IF_VALUES' expected='$EXPECTED_IF' write_if=$WRITE_IF cmd_off='$CMD_OFF'"
   fi
 else
-  fail "hooks.json launch-gate assertions need jq, $HOOKS_JSON and agreeing case \"\$RAW_FILE\" / \"\$FILE\" gates in the script (gates=$CASE_BLOCKS gate1=(${SCRIPT_EXTS//$'\n'/ }) disagreeing:${GATES_OFF:- none})"
+  fail "hooks.json launch-gate assertions need jq, $HOOKS_JSON and a hook::begin glob list in the script (begin='$BEGIN_LINE' globs=(${SCRIPT_EXTS//$'\n'/ }))"
 fi
 
 echo

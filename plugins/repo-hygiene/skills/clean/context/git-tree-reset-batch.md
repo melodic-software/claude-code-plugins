@@ -1,4 +1,4 @@
-# The `tree-batch` action — multi-repo working-tree realignment
+# The `tree-batch` action: multi-repo working-tree realignment
 
 Full detail for the batch `tree` mode. SKILL.md §6.5 carries the headline; this
 file carries gates, the script contract, and examples. The single-repo `tree`
@@ -10,7 +10,7 @@ additive orchestrator over it.
 A hand-rolled `ghq list` reset loop `reset --hard`s repos it was meant to skip: a
 skip entry written with one path separator silently fails to match the same path
 carrying the other, and unstaged work in the repo it hits is unrecoverable.
-`tree-batch` is the supported capability that closes both defects — skip-matching
+`tree-batch` is the supported capability that closes both defects. Skip-matching
 is separator-agnostic so an entry matches whichever separator the path carries,
 and the dirty guard is on by default so a repo with uncommitted work is skipped
 rather than reset.
@@ -54,7 +54,7 @@ A `ghq list`, a shell glob, and an explicit list all reduce to a path list:
 Inputs are resolved to their canonical toplevel (`git rev-parse --show-toplevel`)
 and deduped, so the same repo named two ways is processed once.
 
-### Skip list (separator-agnostic — the core fix)
+### Skip list (separator-agnostic, the core fix)
 
 `--skip ENTRY` (repeatable) / `--skip-from FILE`. Each enumerated repo path and
 each skip entry is normalized to a separator-agnostic key before comparison, so a
@@ -85,13 +85,13 @@ map straight through, so single-repo safety semantics are preserved verbatim.
 A "fresh-clone state" fleet is typically all on the default branch, and the child
 blocks a default-branch reset unless `--force-default-branch`. Expect an all-blocked
 dry-run summary in that case and pass `--force-default-branch` once you have
-confirmed the plan — the dry-run surfaces this before any mutation.
+confirmed the plan. The dry-run surfaces this before any mutation.
 
 ## Gates
 
 - **Single batch-wide gate:** run `--dry-run` once, show the whole-batch plan (the
   per-repo outcomes + `Summary` + any `UnmatchedSkip`), [confirmation gate](../SKILL.md#confirmation-gate) once, then
-  `--apply` once. One confirmation covers the batch — do not gate per repo. When the
+  `--apply` once. One confirmation covers the batch. Do not gate per repo. When the
   repo list comes from `--repos-from -` (stdin), the `--apply` invocation must re-run
   the same `ghq list -p | …` pipe (stdin is consumed once); the list is re-enumerated
   at apply, a benign window in the same class as the child's fetch-between-dry-run-and-
@@ -100,10 +100,10 @@ confirmed the plan — the dry-run surfaces this before any mutation.
   confirmation; the `--include-dirty` confirmation must name the dirty repos whose
   uncommitted changes will be discarded.
 - **Autonomous sessions** (`CLAUDE_CODE_REMOTE`, `/loop`, `/schedule`): the batch
-  `--apply` aborts, same as the single-repo `tree` — user re-invokes interactively.
+  `--apply` aborts, same as the single-repo `tree`. The user re-invokes interactively.
 - The wrapper runs each child reset as a subprocess, so the session destructive
-  guard sees only `bash git-tree-reset-batch.sh`, not an inline `reset --hard` —
-  invoke via the wrapper, never inline git.
+  guard sees only `bash git-tree-reset-batch.sh`, not an inline `reset --hard`.
+  Invoke via the wrapper, never inline git.
 
 ## Examples
 
@@ -123,7 +123,7 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-tree-reset-batch.sh --apply 
   --force-default-branch --repo ~/repos/a --repo ~/repos/b
 ```
 
-Include dirty repos (discards their uncommitted changes — confirm separately):
+Include dirty repos (discards their uncommitted changes, confirm separately):
 
 ```bash
 bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-tree-reset-batch.sh --apply \

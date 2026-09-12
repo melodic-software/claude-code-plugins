@@ -17,12 +17,18 @@ REPO_ROOT="$(cd "$SELF_DIR/.." && pwd)"
 # form; pwd -W emits it there and fails harmlessly elsewhere).
 REAL_SCRIPTS_DIR="$(cd "$SELF_DIR" && (pwd -W 2>/dev/null || pwd))"
 case "$REAL_SCRIPTS_DIR" in
-  /*) REAL_CONFIG_URL="file://$REAL_SCRIPTS_DIR/cheatsheet-config.mjs" ;;
-  *) REAL_CONFIG_URL="file:///$REAL_SCRIPTS_DIR/cheatsheet-config.mjs" ;;
+/*) REAL_CONFIG_URL="file://$REAL_SCRIPTS_DIR/cheatsheet-config.mjs" ;;
+*) REAL_CONFIG_URL="file:///$REAL_SCRIPTS_DIR/cheatsheet-config.mjs" ;;
 esac
 
 # shellcheck source=lib/test-harness.sh
 . "$SELF_DIR/lib/test-harness.sh"
+# shellcheck source=lib/fixture-tree.sh
+. "$SELF_DIR/lib/fixture-tree.sh"
+
+# The builder assigns through a nameref, which shellcheck cannot follow;
+# declaring the out-var here is what tells it (SC2154) the name is written.
+tree=""
 
 # write_skill <dir> <plugin> <skill> [metadata lines...]
 write_skill() {
@@ -46,10 +52,11 @@ write_skill() {
 
 # mk_tree — baseline green fixture: one mapped skill, one rule-excluded setup
 # skill, one operator skill; single-stage spine.
-mk_tree() {
+mk_tree() { # <out-var>
   local dir
-  dir="$(mktemp -d)"
-  mkdir -p "$dir/scripts" "$dir/docs" "$dir/.claude-plugin" \
+  fixture_tree::build "$1" || return 1
+  dir="${!1}"
+  mkdir -p "$dir/docs" "$dir/.claude-plugin" \
     "$dir/plugins/session-flow/skills/workflow/context"
   cat >"$dir/scripts/cheatsheet-config.mjs" <<EOF
 export { CADENCES, summaryError } from "$REAL_CONFIG_URL";
@@ -81,7 +88,6 @@ EOF
     'workflow-stage: operator' \
     'cadence: continuous' \
     'summary: Fixture operator skill with a cadence'
-  printf '%s' "$dir"
 }
 
 run_gen() { # run_gen <tree> [extra args...] — stdout+stderr to $OUT, exit code in $CODE
@@ -104,7 +110,7 @@ assert_fails() {
 }
 
 # --- green path: generate, idempotent --check, content shape -----------------
-tree="$(mk_tree)"
+mk_tree tree
 run_gen "$tree"
 if [[ "$CODE" -eq 0 ]]; then ok "green generate exits 0"; else fail "green generate (exit=$CODE: $OUT)"; fi
 run_gen "$tree" --check
@@ -143,8 +149,8 @@ fi
 
 # --- drift: hand-edit after generate, --check fails ---------------------------
 sed -i.bak 's/Fixture skill mapped to the plan stage/edited by hand/' \
-  "$tree/plugins/alpha/skills/mapped/SKILL.md" \
-  && rm -f "$tree/plugins/alpha/skills/mapped/SKILL.md.bak"
+  "$tree/plugins/alpha/skills/mapped/SKILL.md" &&
+  rm -f "$tree/plugins/alpha/skills/mapped/SKILL.md.bak"
 run_gen "$tree" --check
 if [[ "$CODE" -ne 0 && "$OUT" == *"drift"* ]]; then ok "--check fails on drift"; else fail "drift not detected (exit=$CODE: $OUT)"; fi
 # The drift DETAIL comes from scripts/lib/report-first-difference.mjs, the block
@@ -159,34 +165,34 @@ fi
 rm -rf "$tree"
 
 # --- enforcement failure modes -------------------------------------------------
-tree="$(mk_tree)"
+mk_tree tree
 write_skill "$tree" alpha mapped # metadata stripped entirely
 assert_fails "missing workflow-stage names the skill" "$tree" \
   "alpha/mapped: no workflow-stage and no exclusion entry"
 
-tree="$(mk_tree)"
+mk_tree tree
 write_skill "$tree" alpha setup 'workflow-stage: plan' \
   'summary: Excluded skill wrongly carrying a stage'
 assert_fails "excluded skill carrying stage is a conflict" "$tree" \
   "alpha/setup: excluded (infra setup) but carries workflow-stage/summary/cadence metadata"
 
-tree="$(mk_tree)"
+mk_tree tree
 write_skill "$tree" alpha mapped 'workflow-stage: design' \
   'summary: Unknown stage enum value'
 assert_fails "unknown stage enum" "$tree" 'unknown workflow-stage "design"'
 
-tree="$(mk_tree)"
+mk_tree tree
 write_skill "$tree" beta looper 'workflow-stage: operator' \
   'cadence: hourly' 'summary: Unknown cadence enum value'
 assert_fails "unknown cadence enum" "$tree" 'unknown cadence "hourly"'
 
-tree="$(mk_tree)"
+mk_tree tree
 long_summary="$(printf 'x%.0s' $(seq 1 101))"
 write_skill "$tree" alpha mapped 'workflow-stage: plan' \
   "summary: $long_summary"
 assert_fails "summary over 100 codepoints" "$tree" "exceeds 100 codepoints"
 
-tree="$(mk_tree)"
+mk_tree tree
 write_skill "$tree" alpha mapped 'workflow-stage: plan' \
   'summary: "quoted summaries are rejected"'
 assert_fails "charset guard rejects YAML-special lead" "$tree" \
@@ -195,52 +201,52 @@ assert_fails "charset guard rejects YAML-special lead" "$tree" \
 # Remaining summaryError branches, plus the generator's own raw-value check:
 # a trailing " #" comment on a swept key is rejected from the RAW value before
 # comment-strip semantics apply, so a hand-edit cannot silently truncate.
-tree="$(mk_tree)"
+mk_tree tree
 write_skill "$tree" alpha mapped 'workflow-stage: plan' \
   'summary: truncated by a trailing # comment'
 assert_fails "trailing comment on a swept key" "$tree" \
   'carries a trailing " #" comment'
 
-tree="$(mk_tree)"
+mk_tree tree
 write_skill "$tree" alpha mapped 'workflow-stage: plan' 'summary:'
 assert_fails "empty summary" "$tree" "empty summary"
 
-tree="$(mk_tree)"
+mk_tree tree
 write_skill "$tree" alpha mapped 'workflow-stage: plan' \
   'summary: bad: mapping indicator inside'
 assert_fails "summary with colon-space" "$tree" 'contains ": "'
 
-tree="$(mk_tree)"
+mk_tree tree
 write_skill "$tree" alpha mapped 'workflow-stage: plan' \
   'summary: ends with a colon:'
 assert_fails "summary with trailing colon" "$tree" "ends with a colon or whitespace"
 
-tree="$(mk_tree)"
+mk_tree tree
 write_skill "$tree" alpha mapped 'workflow-stage: plan' \
   "$(printf 'summary: has\ttab inside')"
 assert_fails "summary with control character" "$tree" "tab or control character"
 
-tree="$(mk_tree)"
+mk_tree tree
 write_skill "$tree" alpha mapped 'workflow-stage: plan' \
   'cadence: daily' 'summary: Cadence outside operator stage'
 assert_fails "cadence without operator stage" "$tree" \
   "cadence is only valid with workflow-stage operator"
 
-tree="$(mk_tree)"
+mk_tree tree
 write_skill "$tree" beta looper 'workflow-stage: operator' \
   'summary: Operator row with no cadence'
 assert_fails "operator without cadence" "$tree" \
   "workflow-stage operator requires cadence"
 
-tree="$(mk_tree)"
+mk_tree tree
 sed -i.bak 's/EXCLUDED_SKILLS = new Map()/EXCLUDED_SKILLS = new Map([["alpha\/ghost", "gone"]])/' \
-  "$tree/scripts/cheatsheet-config.mjs" \
-  && rm -f "$tree/scripts/cheatsheet-config.mjs.bak"
+  "$tree/scripts/cheatsheet-config.mjs" &&
+  rm -f "$tree/scripts/cheatsheet-config.mjs.bak"
 assert_fails "orphaned exclusion entry" "$tree" \
   'orphaned exclusion: skill "alpha/ghost" does not exist'
 
 # --- blank line inside metadata block does not truncate later keys --------------
-tree="$(mk_tree)"
+mk_tree tree
 cat >"$tree/plugins/beta/skills/looper/SKILL.md" <<'EOF'
 ---
 name: looper
@@ -263,7 +269,7 @@ fi
 rm -rf "$tree"
 
 # --- spine drift ----------------------------------------------------------------
-tree="$(mk_tree)"
+mk_tree tree
 printf '## 3. Blueprint (renamed upstream)\n' \
   >"$tree/plugins/session-flow/skills/workflow/context/steps.md"
 assert_fails "spine-drift assertion fires on renamed stage" "$tree" "spine drift"

@@ -32,7 +32,7 @@ subtree:
 | Key | Required | Meaning |
 |---|---|---|
 | `host` | yes | Bare hostname of the instance. Receives the credential, so it is validated before any request. |
-| `scopes` | yes | Non-empty array. The declared read scope **and** the authorization boundary — a verb refuses an item outside it even when the credential can see it. |
+| `scopes` | yes | Non-empty array. The declared read scope **and** the authorization boundary. A verb refuses an item outside it even when the credential can see it. |
 | `auth_env` | yes | **Name of** the environment variable holding the credential. The credential itself is never written to this tracked file. |
 | `host_suffix` | no | Your own pin on `host`. Default: `none — Gitea / Forgejo is self-hosted, so there is no vendor domain to pin against`. |
 | `allow_custom_domain` | no | `true` opts out of the suffix pin. Explicit and diffable. |
@@ -46,8 +46,8 @@ adapter's guards:
   `auth_env` and passed to curl through a stdin config (`-K -`). Process arguments are
   world-readable on a shared machine; a token there is disclosed to every local
   process. `common.test.sh` asserts this directly.
-- **Deny-by-default credential egress.** `host` must be a bare hostname — no scheme,
-  path, userinfo, or port — so a PR-modifiable binding cannot smuggle URL structure
+- **Deny-by-default credential egress.** `host` must be a bare hostname, with no scheme,
+  path, userinfo, or port, so a PR-modifiable binding cannot smuggle URL structure
   that redirects the token. Where a suffix pin applies it denies by default, and
   `allow_custom_domain` is the explicit opt-out.
 - **HTTPS only, no redirects.** curl runs with `--proto '=https'` and does not follow
@@ -56,7 +56,7 @@ adapter's guards:
 - **Allowlist, never escape.** Values interpolated into request paths and queries
   (`scopes`) are matched against an anchored allowlist and refused when they do not
   conform. A rejection is loud; an escaping bug is silent.
-- **Host pin posture:** **no code-level pin.** Gitea / Forgejo is self-hosted, so no vendor domain exists to pin against; the host is bare-hostname-validated and HTTPS-only, and the remaining defence is that `host` lives in a tracked, review-gated file. Set `config.gitea.host_suffix` in your binding to pin it to your own instance — recommended.
+- **Host pin posture:** **no code-level pin.** Gitea / Forgejo is self-hosted, so no vendor domain exists to pin against; the host is bare-hostname-validated and HTTPS-only, and the remaining defence is that `host` lives in a tracked, review-gated file. Setting `config.gitea.host_suffix` in your binding to pin it to your own instance is recommended.
 
 ## Verb coverage
 
@@ -73,7 +73,7 @@ adapter's guards:
 | `list-sub-items` | `false` | exit `6` at the capability gate |
 | `capabilities` | `true` | generated, complete |
 
-A verb declared `false` exits `6` at the core capability gate with a clear message —
+A verb declared `false` exits `6` at the core capability gate with a clear message:
 explicit degradation, never a silent no-op or a faked result. Do not declare a verb
 `true` before its provider mapping is written: a scaffold that still calls
 `wit_gitea_unimplemented` exits `1`, which is what stops unfinished work
@@ -105,11 +105,11 @@ bash tools/work-item-tracker/conformance/run-conformance.sh --binding gitea
   explicitly named throwaway target. Until that pass happens, treat the live behaviour
   as documented-and-tested-against-the-documentation, not as verified.
 
-  **Correcting an earlier claim in this file: it is not that no instance is *obtainable*.**
+  **An instance is obtainable. A privileged host for it is not.**
   Gitea ships as a single self-contained binary with sqlite built in, and a real one was
   downloaded and version-verified in the build environment. What stopped the pass is that
-  serving it needs privileged setup — a dedicated unprivileged user plus
-  `cap_net_bind_service`, because Gitea declines to run as root — and that setup is
+  serving it needs privileged setup: a dedicated unprivileged user plus
+  `cap_net_bind_service`, because Gitea declines to run as root. That setup is
   gated by the sandbox's permission policy, not by reachability.
 
   Port 443 and TLS are **not preferences**: `wit_gitea_http` builds `https://<host>/api/v1`
@@ -118,7 +118,7 @@ bash tools/work-item-tracker/conformance/run-conformance.sh --binding gitea
   That rule exists so a PR-modifiable binding cannot smuggle URL structure and redirect
   the credential off the intended tenant; widening it to make a test run would trade a
   real security control for a green check. Run the suite against a genuine TLS instance
-  on 443, or leave it unrun and honestly recorded — as here.
+  on 443, or leave it unrun and honestly recorded, as here.
 
 ## Provider notes
 
@@ -130,13 +130,13 @@ Things about Gitea that shaped this adapter, each verified against the upstream 
   populated. `list-items` drops them: a PR arriving as a work item would be selected and
   worked like one.
 - **`create-item` takes label IDs, not names.** `CreateIssueOption.labels` is
-  `[]int64` — a real divergence from GitHub. The adapter resolves names against the
-  repo's label set first and **refuses an unknown name** rather than dropping it: an item
+  `[]int64`, a real divergence from GitHub. The adapter resolves names against the
+  repo's label set first and **refuses an unknown name** rather than dropping it. An item
   filed without its type or priority label is invisible to the very selection tiers that
   would have picked it up.
 - **`blocked_by_count` costs one extra request per item.** Gitea's `Issue` carries no
   dependency data and there is no bulk endpoint, so `list-items` is N+1. Returning `0`
-  instead would be worse than slow — `list-frontier` filters on `blocked_by_count == 0`,
+  instead would be worse than slow. `list-frontier` filters on `blocked_by_count == 0`,
   so every blocked item would surface as available work.
 - **Dependency direction:** `POST /issues/{index}/dependencies` makes the **URL** issue
   depend on the **body** issue. The sibling `/blocks` endpoint is the same edge from the
@@ -147,7 +147,7 @@ Things about Gitea that shaped this adapter, each verified against the upstream 
   case the API answers `400 CrossRepositoryDependencies not enabled`. The adapter maps
   that to exit `7` and names the setting.
 - **No issue-type axis and no sub-item link.** `Issue` has neither, so normalized `type`
-  and `parent_id` are structurally `null` for this provider — not "unmapped". `--type` is
+  and `parent_id` are structurally `null` for this provider, not "unmapped". `--type` is
   reported as ignored on stderr rather than dropped silently, and `--parent` is a usage
   error.
 - **A repo can have the dependencies unit switched off**, which answers `404` on the
@@ -158,6 +158,6 @@ Things about Gitea that shaped this adapter, each verified against the upstream 
 
 Facts this adapter was built without, each carrying a config override so the adapter does not depend on guessing them. Settle them against a live instance and record the answers here.
 
-- **Lease arbitration is unverified, so `leases` is `false`.** Gitea has the primitives the github adapter's lease is built from (assignees plus issue comments), but whether concurrent assignment is arbitrated or last-write-wins cannot be settled without a live instance and two identities. An emulated lease over last-write-wins loses races silently, which is worse than not having one — so the three lease verbs are gated to exit `6` until a live pass settles it. Enabling them later is a manifest change plus three verb scripts; nothing else in the adapter assumes their absence.
-- **`limits.list_items_max` is the adapter's own paging bound, not a provider ceiling.** Gitea caps a single page at `api.MAX_RESPONSE_ITEMS` (default 50) and defaults an unspecified `limit` to `api.DEFAULT_PAGING_NUM` (30) — both instance-configurable, and neither is discoverable through the API. The adapter therefore always sends an explicit `limit` (`config.gitea.page_size`, default 50) and pages to 1000 items. If an instance sets `MAX_RESPONSE_ITEMS` below the configured page size, Gitea silently returns fewer per page; the adapter still terminates correctly because it pages until a short page, but a live pass should confirm the instance's actual cap.
+- **Lease arbitration is unverified, so `leases` is `false`.** Gitea has the primitives the github adapter's lease is built from (assignees plus issue comments), but whether concurrent assignment is arbitrated or last-write-wins cannot be settled without a live instance and two identities. An emulated lease over last-write-wins loses races silently, which is worse than not having one, so the three lease verbs are gated to exit `6` until a live pass settles it. Enabling them later is a manifest change plus three verb scripts; nothing else in the adapter assumes their absence.
+- **`limits.list_items_max` is the adapter's own paging bound, not a provider ceiling.** Gitea caps a single page at `api.MAX_RESPONSE_ITEMS` (default 50) and defaults an unspecified `limit` to `api.DEFAULT_PAGING_NUM` (30). Both are instance-configurable, and neither is discoverable through the API. The adapter therefore always sends an explicit `limit` (`config.gitea.page_size`, default 50) and pages to 1000 items. If an instance sets `MAX_RESPONSE_ITEMS` below the configured page size, Gitea silently returns fewer per page; the adapter still terminates correctly because it pages until a short page, but a live pass should confirm the instance's actual cap.
 - **Forgejo API parity is assumed, not measured.** Forgejo forked from Gitea and keeps the `/api/v1` surface; the endpoints this adapter uses are the long-stable ones (issues, dependencies). A live pass against a Forgejo instance would turn that from an assumption into a fact.

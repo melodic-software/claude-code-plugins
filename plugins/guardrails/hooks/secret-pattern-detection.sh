@@ -141,7 +141,7 @@ secret_path_allowlisted() {
 #   local test would skip every MCP write (a relative path is never under the
 #   project root), which is a silent hole, not a scope.
 #
-#   hook::normalize_path. It folds Windows drive letters and case for comparison
+#   hook::normalize_path_to. It folds Windows drive letters and case for comparison
 #   against local paths. A GitHub path is already `/`-separated, case-sensitive,
 #   and never carries a drive letter.
 #
@@ -220,7 +220,7 @@ mcp_lane() {
     labels_json=$(printf '%s\n' "${labels[@]}" | jq -Rn '[inputs]' 2>/dev/null) || labels_json='[]'
     # `file` carries the repo-relative path the MCP call named. It is authored
     # content, not a local filesystem path, so it embeds no username and needs
-    # none of hook::repo_relative_path's redaction.
+    # none of hook::repo_relative_path_to's redaction.
     data=$(jq -n --arg file "$first_offender" --argjson violations "$labels_json" \
       '{tool:"'"$TOOL"'",file:$file,violations:$violations}' 2>/dev/null) ||
       data='{"tool":"","file":"","violations":[]}'
@@ -259,7 +259,7 @@ NORM_FILE=""
 hook::normalize_path_to NORM_FILE "$FILE"
 
 # Case-preserved, slash-normalized path for the allowlist globs below. On
-# Windows hook::normalize_path lower-cases the remainder so the membership
+# Windows hook::normalize_path_to lower-cases the remainder so the membership
 # comparison is effectively case-insensitive; reusing that folded value for the
 # case-sensitive allowlist would silently break the upper-case patterns
 # (CLAUDE.local.md). The allowlist globs are suffix/substring matches, so a

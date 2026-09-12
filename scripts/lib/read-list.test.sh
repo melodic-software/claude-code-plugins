@@ -187,6 +187,135 @@ for victim in file mode line out; do
 done
 rm -f "$f"
 
+# --- read_list::into_text parses a string exactly as into parses a file ----
+#
+# The text reader exists for a list that has no path (a baseline read out of a
+# git rev). Asserting it against the SAME inputs as the file reader is what
+# proves the two share one parse rather than growing a second one.
+
+text_expect() {
+  local label="$1" mode="$2" content="$3" want="$4"
+  local -a entries=()
+  local got
+  if ! read_list::into_text entries "$content" --comments "$mode"; then
+    fail "$label: read_list::into_text returned non-zero"
+    return
+  fi
+  got="$(printf '%s\n' ${entries[@]+"${entries[@]}"})"
+  if [[ "$got" == "$want" ]]; then
+    ok "$label"
+  else
+    fail "$label: got [$got] want [$want]"
+  fi
+}
+
+text_expect "into_text inline: truncates at a non-leading #" inline $'keep me # drop\nb\n' $'keep me\nb'
+text_expect "into_text leading: keeps a non-leading # as data" leading $'keep me # and this\n' $'keep me # and this'
+text_expect "into_text: drops blanks and whole-line comments" inline $'# note\n\n  a  \n' $'a'
+text_expect "into_text: keeps a final line with no trailing newline" inline $'a\nb' $'a\nb'
+text_expect "into_text: an empty string is an empty list" inline '' ''
+
+entries=()
+if read_list::into_text entries $'a\n' 2>/dev/null; then
+  fail "into_text accepted a missing --comments"
+else
+  ok "into_text requires --comments too"
+fi
+
+# --- the stale-entry guard -------------------------------------------------
+
+read_list::reset_used
+# shellcheck disable=SC2034  # passed to the library BY NAME; the nameref is the use
+declare -a list=(alpha beta gamma)
+read_list::mark_used beta
+declare -a stale=()
+read_list::stale_to stale list
+if [[ "${stale[*]}" == "alpha gamma" ]]; then
+  ok "stale_to returns the unmarked entries in list order"
+else
+  fail "stale_to returned [${stale[*]}], want [alpha gamma]"
+fi
+
+read_list::reset_used
+read_list::mark_used alpha beta gamma
+stale=()
+read_list::stale_to stale list
+if ((${#stale[@]} == 0)); then
+  ok "a fully consumed list is not stale"
+else
+  fail "a fully consumed list reported [${stale[*]}] stale"
+fi
+
+# reset_used must actually forget, or a gate that walks two lists in one process
+# would inherit the first list's marks and under-report the second.
+read_list::reset_used
+stale=()
+read_list::stale_to stale list
+if [[ "${stale[*]}" == "alpha beta gamma" ]]; then
+  ok "reset_used forgets every mark"
+else
+  fail "after reset_used, stale_to returned [${stale[*]}]"
+fi
+
+# An empty list under `set -u` must not abort: the zero-entry list is the END
+# state every shrink-only baseline is driving toward.
+read_list::reset_used
+# shellcheck disable=SC2034  # passed to the library BY NAME; the nameref is the use
+declare -a empty_list=()
+stale=(sentinel)
+if read_list::stale_to stale empty_list && ((${#stale[@]} == 0)); then
+  ok "an empty list yields no stale entries and does not abort"
+else
+  fail "an empty list did not yield an empty stale set"
+fi
+
+# A duplicated entry is reported once: the operator gets one line to delete.
+read_list::reset_used
+# shellcheck disable=SC2034  # passed to the library BY NAME; the nameref is the use
+declare -a dupes=(same same other)
+stale=()
+read_list::stale_to stale dupes
+if [[ "${stale[*]}" == "same other" ]]; then
+  ok "a duplicated stale entry is reported once"
+else
+  fail "duplicate handling returned [${stale[*]}], want [same other]"
+fi
+
+# report_stale: one prefix, one line per stale entry, rc 1 only when stale.
+read_list::reset_used
+read_list::mark_used beta
+report_out="$(read_list::report_stale list scripts/demo.txt 'no longer shadows anything' 2>&1)" && report_rc=0 || report_rc=$?
+if [[ "$report_rc" == 1 ]]; then
+  ok "report_stale returns 1 when the list holds a stale entry"
+else
+  fail "report_stale returned $report_rc, want 1"
+fi
+want_report=$'STALE BASELINE: scripts/demo.txt: \'alpha\' no longer shadows anything\nSTALE BASELINE: scripts/demo.txt: \'gamma\' no longer shadows anything'
+if [[ "$report_out" == "$want_report" ]]; then
+  ok "report_stale prints the one unified prefix per stale entry"
+else
+  fail "report_stale printed [$report_out]"
+fi
+
+read_list::reset_used
+read_list::mark_used alpha beta gamma
+if read_list::report_stale list scripts/demo.txt 'unused' >/dev/null 2>&1; then
+  ok "report_stale returns 0 when nothing is stale"
+else
+  fail "report_stale returned non-zero for a fully consumed list"
+fi
+
+# stale_line is public so a gate whose entries go stale for different reasons
+# still spells the prefix once.
+line_out="$(read_list::stale_line scripts/demo.txt entry 'gained a CHANGELOG.md' 2>&1)"
+if [[ "$line_out" == "STALE BASELINE: scripts/demo.txt: 'entry' gained a CHANGELOG.md" ]]; then
+  ok "stale_line writes the unified diagnostic to stderr"
+else
+  fail "stale_line printed [$line_out]"
+fi
+
+read_list::reset_used
+
 # --- the shipped files still parse under the mode their consumer uses ------
 #
 # Liveness: these assert against the REAL data files, so a file that grows an

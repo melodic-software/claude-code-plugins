@@ -397,7 +397,7 @@ SEVERITY_PLAIN_RE = re.compile(r"\[P[0-3]\]")
 # bracket -- never by a bare space. That is the discriminator between the
 # dispositions `reference/review-discipline.md` documents and prose that happens
 # to start with a disposition word:
-#   documented   `VALID -- fixing`  `VALID (defer)`  `VALID -- fix now`
+#   documented   `VALID: fixing`  `VALID (defer)`  `VALID (fix now)`
 #   prose        `Valid cache entries are rejected`
 # Matching anywhere in the row instead would also credit `| CI check | result is
 # valid |`, and either miss lets an unclassified finding past the
@@ -438,9 +438,7 @@ def thread_is_open(comment: dict[str, Any]) -> bool:
     review-summary comments, which are not review threads, and the bash-compatible
     fixture shape) counts -- there is nothing to discount.
     """
-    return not (
-        bool(comment.get("isResolved")) or bool(comment.get("isOutdated"))
-    )
+    return not (bool(comment.get("isResolved")) or bool(comment.get("isOutdated")))
 
 
 # The surface a comment lives on -- not just its resolution state -- is
@@ -503,9 +501,7 @@ def severity_occurrences(text: str) -> int:
     )
 
 
-def count_findings(
-    comments: list[dict[str, Any]], self_logins: frozenset[str]
-) -> int:
+def count_findings(comments: list[dict[str, Any]], self_logins: frozenset[str]) -> int:
     """Count currently-open source-finding occurrences across every comment body.
 
     Ports the readiness gate's occurrence counting (one marker per finding, not
@@ -605,9 +601,7 @@ def count_effective_classified(
     return sum(_capped_credit(bucket, self_logins) for bucket in buckets.values())
 
 
-def _capped_credit(
-    comments: list[dict[str, Any]], self_logins: frozenset[str]
-) -> int:
+def _capped_credit(comments: list[dict[str, Any]], self_logins: frozenset[str]) -> int:
     return min(
         count_classified(comments, self_logins),
         count_findings(comments, self_logins),

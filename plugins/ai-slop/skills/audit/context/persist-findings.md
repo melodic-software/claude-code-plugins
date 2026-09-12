@@ -26,15 +26,22 @@ Never overwrite: when the path exists, take `-2`, `-3`, the smallest free intege
 
 Once the destination is resolved and the contract fetch succeeded, run
 `${CLAUDE_SKILL_DIR}/scripts/emit-findings.sh --from <detect output file> --out <resolved path>`.
+A chunked run passes `--from` once per chunk output, in chunk order; the script sums the per-rule
+counts across chunks and reports a rule as returning no result only when every chunk agreed.
 A repo-scale run produces thousands of rows; composing them in prose is exactly the hand-transform
 the fleet's scripting discipline forbids, and the script owns the mechanical half: cell assembly,
-escaping, tier lookup (a mirror of the crosswalk — the crosswalk row is authoritative), rank
-ordering, the non-overwrite suffix, and the `## Surfaces` counts. What stays with the model is
+escaping, tier lookup (a mirror of the crosswalk, whose row is authoritative), rank ordering, the
+non-overwrite suffix, and the `## Surfaces` counts.
+
+The self-ignore guard file is the one write the script does not own. Create it with the Write
+tool, never with a shell redirect: a repository running the guardrails plugin blocks
+`printf '*' > <memory root>/.gitignore` as a hook bypass, and the same block applies to any
+other shell write into the checkout. What stays with the model is
 everything before the script (rung-order resolution, the fetch-and-refuse gate, the self-ignore
-guard) and everything after it (reading the written file's head to confirm shape, severity-
-vocabulary mapping when the consuming project defines its own — edit the written file's `Tier`
-cells per the contract's consumer-precedence rule). Hand-compose only when the script cannot run
-(no bash), on a small run, following "What each cell says" below.
+guard) and everything after it (reading the written file's head to confirm shape, and
+severity-vocabulary mapping when the consuming project defines its own, done by editing the
+written file's `Tier` cells per the contract's consumer-precedence rule). Hand-compose only when
+the script cannot run (no bash), on a small run, following "What each cell says" below.
 
 ## What each cell says
 
@@ -48,7 +55,7 @@ cells per the contract's consumer-precedence rule). Hand-compose only when the s
 - **`Action`** states the remediation shape the crosswalk row implies: the reworded sentence for
   style rules (judgment; the fix action owns it), the parameter strip for
   `rule-utm-params`, the delete-or-source decision for the two IMPORTANT residue rules.
-- **Cell-escape** `Finding` and `Action` per the shape's rule (`\|`, newlines to spaces) — the
+- **Cell-escape** `Finding` and `Action` per the shape's rule (`\|`, newlines to spaces). The
   detector's excerpts already replace `|` with `/`, but the composed cells must be re-checked.
 - **`Tier`** is LOOKED UP from the rule's crosswalk row, then mapped to the consuming project's
   severity vocabulary when it defines one (the contract's consumer-precedence rule).
@@ -61,10 +68,12 @@ illustrative row or carry one forward.
 
 ## Surfaces, and when the file is written at all
 
-`## Surfaces` names `ai-slop:audit` once, states what was scanned (target set, files scanned),
-and carries the declined counts per rule id straight from the detector's `Summary` rows
-(`declined=` and `disabled=`), in the section's line form. Omit `tier:`, `## By dimension`, and
-`## Unparsed` (one dimension; nothing unparsed).
+`## Surfaces` names `ai-slop:audit` once, states what was scanned (files scanned, chunk count,
+whole files declined), names every rule the config disabled, and carries the declined counts per
+rule id straight from the detector's `Summary` rows (`declined=` with its `declined_marker=`,
+`declined_quote=`, and `declined_config=` split, and `disabled=` for the disabled-rule list), in
+the section's line form. The script writes all of it. Omit `tier:`,
+`## By dimension`, and `## Unparsed` (one dimension; nothing unparsed).
 
 - Findings to emit → write.
 - Files scanned, zero findings → write anyway with the empty `## Findings` header: coverage is

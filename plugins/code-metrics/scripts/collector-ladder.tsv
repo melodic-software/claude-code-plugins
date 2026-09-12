@@ -59,3 +59,6 @@ dotnet	duplication	jscpd
 dotnet	duplication	cpd
 dotnet	type_coverage	n/a	no tool produces a comparable percentage for C#; a dynamic/object occurrence count is not comparable to a ratio
 dotnet	*	deferred	C# lane deferred; research tag probe:dotnet-metrics-linux
+other	file_lines	scc
+other	file_lines	line-counter
+other	*	n/a	files outside every language lane carry a line count and nothing else

@@ -1,6 +1,6 @@
 # Windows remediation policy
 
-This policy is the **only** authorization source for remediations on Windows. If a remediation is not listed here with exact conditions, it does not run — even if a check recommends it. Shared `reference/shared/remediation-philosophy.md` still governs global behavior (one attempt, before/after logging, fail-safe posture).
+This policy is the **only** authorization source for remediations on Windows. If a remediation is not listed here with exact conditions, it does not run, even if a check recommends it. Shared `reference/shared/remediation-philosophy.md` still governs global behavior (one attempt, before/after logging, fail-safe posture).
 
 Every authorized remediation has:
 
@@ -23,7 +23,7 @@ Orchestrator consults this list after check execution and before any action.
   - `DryRun -eq $true`.
   - User-load heuristic tripped.
   - Service name appears in `approvals.json` `check_overrides.services.service_exclusions` (per-host user curation).
-  - `Start-Service` requires elevation the run lacks — log `UNKNOWN` for the remediation attempt, do not auto-elevate.
+  - `Start-Service` requires elevation the run lacks. Log `UNKNOWN` for the remediation attempt, do not auto-elevate.
 - **Default state:** **DISABLED** until user sets `remediations.restart-stopped-service.approved: true` in `<StateBase>/state/approvals.json`. First run dry-modes it regardless.
 - **On failure:** corresponding `services` finding upgrades to `CRIT` with `"notes": "Restart-StoppedService failed for <svc>: <message>"`.
 
@@ -40,7 +40,7 @@ Orchestrator consults this list after check execution and before any action.
 - **Abort conditions:**
   - `DryRun -eq $true`.
   - User-load heuristic tripped.
-  - Free space on `C:` >15% — no longer WARN/CRIT, so no action (idempotent re-run safety).
+  - Free space on `C:` >15%, no longer WARN/CRIT, so no action (idempotent re-run safety).
 - **Default state:** **DISABLED** until the user sets `remediations.clear-temp-files.approved: true` in `<StateBase>/state/approvals.json`. First run dry-modes it regardless.
 - **Output contract:**
   - `before`: `{ "temp_usage_bytes": <int>, "count": <int> }` for each target path.
@@ -50,7 +50,7 @@ Orchestrator consults this list after check execution and before any action.
 - **Explicitly not deleted:**
   - Anything under `%USERPROFILE%\Documents`, `%USERPROFILE%\Desktop`, or OneDrive-synced folders.
   - Anything not matching the age filter.
-  - Directories themselves — only files are removed; empty directories remain.
+  - Directories themselves. Only files are removed; empty directories remain.
 
 ---
 
@@ -62,8 +62,8 @@ These remediations are proposed periodically in online discussions but are **not
 - **Driver reinstall / rollback.** Wrong driver version can blue-screen the machine.
 - **Defender signature force-update.** `Update-MpSignatures` is usually safe, but a failed update can leave Defender in an odd state; surface age as CRIT instead.
 - **Registry cleanup of any kind.** No exceptions.
-- **Network stack reset.** `netsh winsock reset`, `ipconfig /flushdns`, route table changes — all out.
-- **Service configuration changes.** Start type, account, dependencies — read-only.
+- **Network stack reset.** `netsh winsock reset`, `ipconfig /flushdns`, and route table changes are all out.
+- **Service configuration changes.** Start type, account, and dependencies are read-only.
 - **Reboots.** Period.
 
 ---

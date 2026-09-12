@@ -16,7 +16,7 @@ Failure patterns confirmed across implementation sessions. Each entry describes 
 
 **What happens**: A build error appears after the first logical block, but you continue implementing the next block because "I'll fix it later."
 
-**Why it's bad**: Second block's code may compile against the wrong types, methods, or signatures — you're writing code against a broken API. When you fix block 1, block 2 may need significant rework.
+**Why it's bad**: Second block's code may compile against the wrong types, methods, or signatures. You're writing code against a broken API. When you fix block 1, block 2 may need significant rework.
 
 **How to avoid**: Fix build errors before continuing. Incremental validation cadence (implement → build → test → commit) exists precisely for this.
 
@@ -26,7 +26,7 @@ Failure patterns confirmed across implementation sessions. Each entry describes 
 
 **Why it's bad**: Not catastrophic, but it wastes the work-on-main commit cycle. You either rebase the work onto a new branch or rewrite history.
 
-**How to avoid**: Step 1 of `/implementation:implement` checks the branch. Creating one — `git checkout -b <branch>`, following the project's branch-naming convention (`<type>/<description>` is a common default) — takes 2 seconds.
+**How to avoid**: Step 1 of `/implementation:implement` checks the branch. Creating one takes 2 seconds: `git checkout -b <branch>`, following the project's branch-naming convention (`<type>/<description>` is a common default).
 
 ### Mixing concerns in commits
 
@@ -34,4 +34,4 @@ Failure patterns confirmed across implementation sessions. Each entry describes 
 
 **Why it's bad**: If the feature needs reverting, you lose the refactor and bug fix too. PR review can't evaluate each change on its own merits.
 
-**How to avoid**: Follow Tidy First principle — structural commits separate from behavioral commits. Commit more often, not less.
+**How to avoid**: Follow Tidy First principle: structural commits separate from behavioral commits. Commit more often, not less.

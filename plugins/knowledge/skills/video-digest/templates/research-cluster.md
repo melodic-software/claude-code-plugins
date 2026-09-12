@@ -2,7 +2,7 @@
 
 ## Author claim (Tier 2/3)
 
-{What the video states — transcript timestamp refs.}
+{What the video states, with transcript timestamp refs.}
 
 ## Research execution
 
@@ -11,7 +11,7 @@
 
 ## Consensus
 
-{Tier 0/1 sources — agree / disagree / nuance.}
+{Tier 0/1 sources: agree / disagree / nuance.}
 
 ## Staleness
 
@@ -23,4 +23,4 @@
 
 ## Repo implication
 
-{One paragraph — affects synthesis item IDs.}
+{One paragraph, naming the synthesis item IDs it affects.}

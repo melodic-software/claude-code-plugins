@@ -65,7 +65,7 @@ No action → open the co-write protocol (No-Free-Zone session opener).
   in context with changed lines marked `►`, one labeled block per variation. The 30-50+ columns stay
   in `variations/`/`worksheets/`; the display cap never lowers the generated volume. That is what
   "not an inline dump" means, and a response with nothing singable in it has not been delivered. See
-  [variations](../../context/pat-pattison/research/variations.md) "Presenting the candidates — chat vs file".
+  [variations](../../context/pat-pattison/research/variations.md) "Presenting the candidates: chat vs file".
 - **Rubric before the menu:** every candidate cycles all passes of
   [line-edit-rubric](../../context/pat-pattison/research/line-edit-rubric.md) before it is shown,
   and pass 1 must come back CLEAN, not merely run. A candidate the AI has itself flagged as failing
@@ -124,7 +124,7 @@ The rows run in the order work actually happens: inputs, then the self-check, th
 **Every row except the rubric row may be skipped**, and a skip is **named, with its reason, in the
 output**. That is the "tools, not rules" stance applied honestly. A silent skip is the failure, and
 so is listing a box as passed while its artifact does not exist. Those rows stay skippable because
-how much scaffolding a line gets is the writer's craft call, and "There are no rules, only tools."
+how much support a line gets is the writer's craft call, and "There are no rules, only tools."
 (*Writing Better Lyrics* (2009), Chapter 18, quoted in
 [response-filter](../../context/pat-pattison/research/response-filter.md)) is why. The skeptic row
 is in that class deliberately: a refutation pass costs a subagent dispatch, and whether one is

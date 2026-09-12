@@ -1,4 +1,4 @@
-# machine-health — Linux scripts not yet implemented
+# machine-health: Linux scripts not yet implemented
 
 Scaffolding placeholder. Eventually contains:
 
@@ -12,7 +12,7 @@ scripts/linux/
 
 ## Contract for the skill runtime
 
-Owned by [`../../reference/linux/NOT_IMPLEMENTED.md`](../../reference/linux/NOT_IMPLEMENTED.md) § "What the skill should do on Linux today" — detection, the `UNKNOWN` `os-support` report, and the clean exit.
+Owned by [`../../reference/linux/NOT_IMPLEMENTED.md`](../../reference/linux/NOT_IMPLEMENTED.md) § "What the skill should do on Linux today": detection, the `UNKNOWN` `os-support` report, and the clean exit.
 
 **Do not attempt to execute any script from `scripts/windows/` on Linux.** Those scripts call Windows-only cmdlets and fail noisily.
 

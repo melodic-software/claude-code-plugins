@@ -2,9 +2,9 @@
 
 A scan-and-go "doing X → run this skill" map of every listed skill in this marketplace,
 generated from each skill's SKILL.md frontmatter by `scripts/generate-cheatsheet.mjs`.
-Do not hand-edit the generated block below — edit the source frontmatter and regenerate.
+Do not hand-edit the generated block below. Edit the source frontmatter and regenerate.
 
-Grouping axis: this page groups skills by **sequence of use** — the session-flow workflow
+Grouping axis: this page groups skills by **sequence of use**, the session-flow workflow
 stages you move through while working. The separate what-kind-of-plugin taxonomy axis is
 owned by [docs/CATALOG-TAXONOMY.md](CATALOG-TAXONOMY.md).
 
@@ -40,7 +40,7 @@ owned by [docs/CATALOG-TAXONOMY.md](CATALOG-TAXONOMY.md).
 
 | Skill | Plugin | What it does |
 | --- | --- | --- |
-| [`/architecture:map-landscape`](../plugins/architecture/skills/map-landscape/SKILL.md) | `architecture` | Chart discovered repositories as a C4 system landscape plus an application-portfolio table |
+| [`/architecture:map-landscape`](../plugins/architecture/skills/map-landscape/SKILL.md) | `architecture` | Chart a repository and the systems it references as a C4 system landscape and portfolio table |
 | [`/discovery:blindspot`](../plugins/discovery/skills/blindspot/SKILL.md) | `discovery` | Surface your unknown-unknowns and sharpen the prompt before unfamiliar work |
 | [`/discovery:explore`](../plugins/discovery/skills/explore/SKILL.md) | `discovery` | Explore code, history, tests, and config before changing anything |
 | [`/discovery:trace-intent`](../plugins/discovery/skills/trace-intent/SKILL.md) | `discovery` | Reconstruct why a thing was built this way, from evidence outside the code |
@@ -61,7 +61,7 @@ owned by [docs/CATALOG-TAXONOMY.md](CATALOG-TAXONOMY.md).
 | Skill | Plugin | What it does |
 | --- | --- | --- |
 | [`/architecture:improve`](../plugins/architecture/skills/improve/SKILL.md) | `architecture` | Scan the codebase for shallow modules and friction, then design the chosen fix several ways |
-| [`/domain-driven-design:curate-language`](../plugins/domain-driven-design/skills/curate-language/SKILL.md) | `domain-driven-design` | Maintain the domain glossary — resolve terms, record rejected synonyms |
+| [`/domain-driven-design:curate-language`](../plugins/domain-driven-design/skills/curate-language/SKILL.md) | `domain-driven-design` | Maintain the domain glossary. Resolve terms, record rejected synonyms |
 | [`/event-storming:methodology`](../plugins/event-storming/skills/methodology/SKILL.md) | `event-storming` | EventStorming facilitation reference across all three formats |
 | [`/event-storming:simulation`](../plugins/event-storming/skills/simulation/SKILL.md) | `event-storming` | Multi-persona agentic EventStorming workshop on Miro |
 | [`/naming:name-it-better`](../plugins/naming/skills/name-it-better/SKILL.md) | `naming` | Generate and evaluate name candidates from blind fresh-context lenses |
@@ -168,7 +168,7 @@ owned by [docs/CATALOG-TAXONOMY.md](CATALOG-TAXONOMY.md).
 | [`/code-metrics:audit-coverage`](../plugins/code-metrics/skills/audit-coverage/SKILL.md) | `code-metrics` | Coverage and CRAP read from build artifacts, no verdict |
 | [`/code-metrics:audit-duplication`](../plugins/code-metrics/skills/audit-duplication/SKILL.md) | `code-metrics` | Clone groups minus the replication the repo declares, no verdict |
 | [`/code-metrics:audit-size`](../plugins/code-metrics/skills/audit-size/SKILL.md) | `code-metrics` | Lines per file beside a cited reference, no verdict |
-| [`/code-metrics:audit-type-debt`](../plugins/code-metrics/skills/audit-type-debt/SKILL.md) | `code-metrics` | Typed-code percentage per lane, with no standard behind it |
+| [`/code-metrics:audit-type-debt`](../plugins/code-metrics/skills/audit-type-debt/SKILL.md) | `code-metrics` | Typed-code percentage per file and per lane, with no standard behind it |
 | [`/code-metrics:principles`](../plugins/code-metrics/skills/principles/SKILL.md) | `code-metrics` | What each code measure can and cannot tell you |
 | [`/code-tidying:audit-dead-code`](../plugins/code-tidying/skills/audit-dead-code/SKILL.md) | `code-tidying` | Whole-repo dead-code hunt across four labelled lanes with adjudicated candidates |
 | [`/code-tidying:tidy`](../plugins/code-tidying/skills/tidy/SKILL.md) | `code-tidying` | Proactively hunt one lane for safe structural tidyings and ship a structure-only PR |

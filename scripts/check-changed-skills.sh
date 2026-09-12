@@ -38,6 +38,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
 cd "$SCRIPT_DIR/.." || exit 2
 # shellcheck source=lib/changed-files.sh
 . "$SCRIPT_DIR/lib/changed-files.sh" || exit 2
+# shellcheck source=lib/read-list.sh
+. "$SCRIPT_DIR/lib/read-list.sh" || exit 2
 
 BASE="${1:?usage: check-changed-skills.sh <base-ref>}"
 
@@ -70,25 +72,28 @@ fi
 EXEMPTIONS="${EVALS_WARRANT_EXEMPTIONS:-scripts/evals-warrant-exemptions.txt}"
 evals_skip_dirs=()
 if [[ -f "$EXEMPTIONS" ]]; then
-  while IFS= read -r raw || [[ -n "$raw" ]]; do
-    raw="${raw%%#*}"
-    raw="${raw#"${raw%%[![:space:]]*}"}"
-    raw="${raw%"${raw##*[![:space:]]}"}"
-    [[ -n "$raw" ]] || continue
+  # `inline`: entries are skill paths, never regexes, so a `#` anywhere on the
+  # line opens the reason comment (scripts/lib/read-list.sh owns the two comment
+  # families and why they must stay distinct).
+  read_list::into evals_skip_dirs "$EXEMPTIONS" --comments inline || exit 2
+  evals_stale=0
+  for raw in ${evals_skip_dirs[@]+"${evals_skip_dirs[@]}"}; do
     if [[ "$raw" != plugins/*/skills/* || "$raw" == */*/*/*/* ]]; then
       printf 'FAIL: %s: not a skill path: %s\n' "$EXEMPTIONS" "$raw" >&2
       exit 2
     fi
+    # A row still doing its job names a live skill that ships no evals; anything
+    # else is an exemption outliving what it excuses. scripts/lib/read-list.sh
+    # owns the consumed-set and the diagnostic.
     if [[ ! -f "$raw/SKILL.md" ]]; then
-      printf 'FAIL: %s: stale row, skill gone: %s\n' "$EXEMPTIONS" "$raw" >&2
-      exit 1
+      read_list::stale_line "$EXEMPTIONS" "$raw" 'names a skill that is gone'
+      evals_stale=1
+    elif [[ -f "$raw/evals/evals.json" ]]; then
+      read_list::stale_line "$EXEMPTIONS" "$raw" 'names a skill that now ships evals'
+      evals_stale=1
     fi
-    if [[ -f "$raw/evals/evals.json" ]]; then
-      printf 'FAIL: %s: stale row, skill now ships evals: %s\n' "$EXEMPTIONS" "$raw" >&2
-      exit 1
-    fi
-    evals_skip_dirs+=("$raw")
-  done <"$EXEMPTIONS"
+  done
+  ((evals_stale == 0)) || exit 1
 fi
 
 evals_warrant_skip() {

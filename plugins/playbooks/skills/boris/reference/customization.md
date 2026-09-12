@@ -1,6 +1,6 @@
 # Customization (Sections 16–27)
 
-Personalizing Claude Code — Part 3 (Feb 11, 2026).
+Personalizing Claude Code: Part 3 (Feb 11, 2026).
 
 ---
 
@@ -23,11 +23,11 @@ Quick settings to make Claude Code feel right:
 
 `/effort` picks your preferred effort level:
 
-- **`low`** — fewer tokens, faster responses
-- **`medium`** — balanced behavior
-- **`high`** — more tokens, more intelligence
-- **`xhigh`** — deeper reasoning for coding and agentic work
-- **`max`** — reasons as long as it needs; highest token spend
+- **`low`**: fewer tokens, faster responses
+- **`medium`**: balanced behavior
+- **`high`**: more tokens, more intelligence
+- **`xhigh`**: deeper reasoning for coding and agentic work
+- **`max`**: reasons as long as it needs; highest token spend
 
 Boris uses High for everything.
 
@@ -91,7 +91,7 @@ Opt into Claude Code's open source sandbox runtime to improve safety while reduc
 
 Custom status lines show below the composer. Show model, directory, remaining context, cost, anything else you want while working.
 
-Everyone on the Claude Code team has a different statusline. `/statusline` to get started — Claude generates one based on your `.bashrc`/`.zshrc`.
+Everyone on the Claude Code team has a different statusline. `/statusline` to get started. Claude generates one based on your `.bashrc`/`.zshrc`.
 
 ---
 
@@ -113,7 +113,7 @@ Hooks deterministically hook into Claude's lifecycle. Use them to:
 
 - Auto-route permission requests to Slack or Opus
 - Nudge Claude to keep going at end of turn (can kick off an agent or use a prompt to decide whether Claude should keep going)
-- Pre-process or post-process tool calls — e.g., add your own logging
+- Pre-process or post-process tool calls, e.g., add your own logging
 
 Ask Claude to add a hook to get started.
 
@@ -123,7 +123,7 @@ Ask Claude to add a hook to get started.
 
 ### Customize Your Spinner Verbs
 
-Little things make CC feel personal. Ask Claude to customize spinner verbs — add or replace the default list with your own.
+Little things make CC feel personal. Ask Claude to customize spinner verbs. Add or replace the default list with your own.
 
 Check `settings.json` into source control to share verbs with your team.
 
@@ -135,9 +135,9 @@ Check `settings.json` into source control to share verbs with your team.
 
 `/config` and set an output style to have Claude respond in a different tone or format.
 
-- **Explanatory** — great when getting familiar with a new codebase; Claude explains frameworks and code patterns as it works
-- **Learning** — Claude coaches you through code changes
-- **Custom** — create your own to adjust Claude's voice your way
+- **Explanatory**: great when getting familiar with a new codebase; Claude explains frameworks and code patterns as it works
+- **Learning**: Claude coaches you through code changes
+- **Custom**: create your own to adjust Claude's voice your way
 
 ---
 

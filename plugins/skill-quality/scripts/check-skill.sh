@@ -44,7 +44,11 @@
 #
 # Checks:
 #   1. Frontmatter parses; description present; a declared name matches the dir
-#      (and, in a plugin skill, WARNs as redundant)
+#      (and, in a plugin skill, WARNs as redundant); the effective name (the
+#      declared field, else the directory) is at most 64 codepoints (FAIL;
+#      Agent Skills spec portability) and carries neither "anthropic" nor
+#      "claude" (WARN; Skills API upload portability). Claude Code itself
+#      enforces neither.
 #   2. description + when_to_use <= 1536 chars (per-skill listing-entry cap;
 #      counts the literal " - " joiner the harness inserts when when_to_use is
 #      populated)
@@ -61,11 +65,14 @@
 #      with no sibling host (including coincidental overlap with a sibling
 #      that carried it all along) WARNs asking the reviewer to confirm the
 #      description still names that intent, or to restore the phrase
-#   4. SKILL.md < 500 lines (hard cap)
+#   4. SKILL.md < 500 lines (hard cap; counted over the whole file, the stricter
+#      of the two upstream scopes)
 #   5. Backtick-cited skill-internal supporting files resolve (a path that misses
 #      here but resolves under a SIBLING skill also names that sibling and the
 #      `${CLAUDE_PLUGIN_ROOT}/skills/<sibling>/…` cross-skill form, without
-#      dropping the hand-verify caveat — the hit may be a name collision)
+#      dropping the hand-verify caveat — the hit may be a name collision); a
+#      cited path with a backslash separator FAILs (rejected at plugin load on
+#      macOS and Linux)
 #   6. markdownlint clean (markdownlint-cli2; WARN-skip if npx absent)
 #   7. scripts/*.test.sh pass where present
 #   8. vendor/ byte-identical vs HEAD, unless paired with an upstream-version
@@ -99,6 +106,14 @@
 #      elsewhere)
 #  25. Description/verb-contract polarity: read-only vs mutate (WARN;
 #      description lead vs Naming verb vs body; #2896)
+#  26. Long spoke files carry a table of contents: a reference|references|context
+#      markdown file over 300 lines whose first 40 lines hold fewer than three
+#      `](#` in-page anchor links WARNs (advisory heuristic)
+#  27. `## Next` successor section: absent is INFO (a terminal skill has
+#      none); present but after `## Gotchas`, last in the file, neither
+#      the one-invocation nor the two-to-four-outcome-bullet shape, or
+#      carrying operative-chain phrasing (Skill tool, installed, fallback,
+#      otherwise) anywhere in the block is WARN
 #
 # Notes (static, git-diff-based design):
 #   - Checks 3/8/9 diff the working tree against CHECK_SKILL_BASE_REF (default
@@ -259,9 +274,45 @@ DESC_FIELD_WARN_MARGIN=32
 # listed skill now at or under the cap is a stale row and FAILs. Unset (the
 # default, and every consumer repo) means no downgrades at all.
 DESC_FIELD_BASELINE="${CHECK_SKILL_DESC_FIELD_BASELINE:-}"
+# Agent Skills spec maximum for `name`: 64 characters, lowercase alphanumerics
+# and hyphens, matching the directory (https://agentskills.io/specification,
+# the "name" field), enforced by the spec's `skills-ref` validator. The two
+# reserved words, "anthropic" and "claude", are NOT in the spec: they are a
+# Skills API upload requirement
+# (https://platform.claude.com/docs/en/build-with-claude/skills-guide#creating-a-skill,
+# repeated at #limits-and-constraints, and the overview's `name` rules at
+# https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview#skill-structure),
+# which the platform best-practices page restates. Claude Code enforces neither
+# rule, measured on Claude Code 2.1.263: `claude plugin validate` passes an
+# 88-codepoint name containing "claude" (2026-09-10), and a `--plugin-dir`
+# load probe (`claude -p`, 2026-09-11) loaded and invoked that same skill and a
+# 608-line SKILL.md; Claude Code also ships bundled skills named `claude-api`
+# and `claude-in-chrome`. So the 64 limb is a PORTABILITY FAIL (loads here,
+# fails the spec's validator elsewhere) and the reserved-word limb is a WARN
+# (loads here and everywhere except a Skills API upload). Recheck trigger: the
+# spec's validator gaining a word list, the upload requirements changing, or a
+# Claude Code release rejecting either form re-derives this constant, the word
+# list, and the severities.
+NAME_MAX_LEN=64
+NAME_RESERVED_WORDS='anthropic claude'
 LINE_HARD_CAP=500
 LINE_SOFT_CAP=200
 SYNCED_MAX_AGE_DAYS=180
+# Check 26: a spoke file this long gets a table of contents. Two upstream
+# statements of the threshold: the bundled skill-creator says a TOC for
+# reference files over 300 lines
+# (https://github.com/anthropics/skills/blob/main/skills/skill-creator/SKILL.md);
+# the platform best-practices page says over 100
+# (https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#structure-longer-reference-files-with-table-of-contents).
+# This check WARNs at the looser 300; the
+# 100-to-300 band is judgment `docs-hygiene:audit-progressive-disclosure` owns
+# (its missing-toc finding). Both verified 2026-09-10. Recheck trigger: either
+# source moving its threshold re-derives this constant. The TOC heuristic below
+# mirrors that skill's `has_toc` (three or more `](#` anchor links in the first
+# 40 lines) so the two never disagree on what counts as a TOC.
+TOC_LINE_THRESHOLD=300
+TOC_HEAD_LINES=40
+TOC_MIN_ANCHORS=3
 
 FAILED=0
 WARNINGS=0
@@ -379,6 +430,34 @@ else
     # declaring a matching name is the only way to register it.
     warn "frontmatter name '$CUR_NAME' repeats the plugin skill's directory — omit it unless the bare /$CUR_NAME alias is wanted"
   fi
+
+  # Spec portability limbs on the EFFECTIVE name: the declared field when there
+  # is one, else the directory leaf, which is the name the harness uses when
+  # the field is absent (https://code.claude.com/docs/en/skills#frontmatter-reference).
+  # Run outside the chain above so an over-long or reserved directory leaf is
+  # caught even with no `name:` line. Basis, and the measurement that Claude
+  # Code enforces neither rule: NAME_MAX_LEN above. Counted in codepoints with
+  # the same iconv form check 2b uses, so the count is the spec's unit on any
+  # locale.
+  EFFECTIVE_NAME="${CUR_NAME:-$SKILL_NAME}"
+  name_source="directory name"
+  [[ -n "$CUR_NAME" ]] && name_source="declared name"
+  if command -v iconv >/dev/null 2>&1; then
+    NAME_CP_LEN=$(($(printf '%s' "$EFFECTIVE_NAME" | iconv -f UTF-8 -t UTF-32BE | wc -c) / 4))
+  else
+    NAME_CP_LEN="$(
+      LC_ALL=C.UTF-8
+      printf '%s' "${#EFFECTIVE_NAME}"
+    )"
+  fi
+  if ((NAME_CP_LEN > NAME_MAX_LEN)); then
+    err "skill name '$EFFECTIVE_NAME' is $NAME_CP_LEN codepoints (Agent Skills spec maximum $NAME_MAX_LEN); Claude Code loads it but the spec's validator rejects it, so shorten the $name_source"
+  fi
+  for reserved_word in $NAME_RESERVED_WORDS; do
+    if [[ "$EFFECTIVE_NAME" == *"$reserved_word"* ]]; then
+      warn "skill name '$EFFECTIVE_NAME' contains the word '$reserved_word', which a Skills API upload rejects ('anthropic' and 'claude' are reserved there; Claude Code loads it and ships bundled skills carrying the word); rename the $name_source if the skill will ever be uploaded"
+    fi
+  done
 fi
 
 # --- Check 2: description + when_to_use <= DESC_CHAR_CAP chars --------------
@@ -562,6 +641,18 @@ else
 fi
 
 # --- Check 4: SKILL.md < LINE_HARD_CAP lines -------------------------------
+# Counted over the WHOLE file, frontmatter included (`grep -c ''`). The two
+# upstream statements of the 500 differ in scope: the platform best-practices
+# page applies it to the SKILL.md body
+# (https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#progressive-disclosure-patterns);
+# the Claude Code skills page's Tip applies it to the file
+# (https://code.claude.com/docs/en/skills#add-supporting-files, "Keep SKILL.md
+# under 500 lines"). Whole-file is the stricter reading, so a skill that passes
+# here satisfies both, and it stays. Both verified 2026-09-10. Neither surface
+# enforces the number: a `--plugin-dir` load probe on Claude Code 2.1.263
+# (2026-09-11) loaded and invoked a 608-line SKILL.md. Recheck trigger: either
+# page moving the number or its scope, or a Claude Code release rejecting a
+# long file, re-derives LINE_HARD_CAP.
 
 LINE_COUNT="$(grep -c '' "$SKILL_MD")"
 if ((LINE_COUNT >= LINE_HARD_CAP)); then
@@ -675,6 +766,48 @@ done < <(
     grep -oE "\`(\$\{CLAUDE_PLUGIN_ROOT\}/)?($INTERNAL_DIRS)/[A-Za-z0-9._/-]+\`" "$SKILL_MD" 2>/dev/null | tr -d '`'
     grep -oE "\]\((\$\{CLAUDE_PLUGIN_ROOT\}/)?($INTERNAL_DIRS)/[A-Za-z0-9._/#-]+\)" "$SKILL_MD" 2>/dev/null |
       sed -E 's/^\]\(//; s/\)$//; s/#.*$//'
+  } | sort -u
+)
+
+# A backslash-separated pointer is a defect in its own right, not a miss: Claude
+# Code rejects a plugin component path containing a backslash at load on macOS
+# and Linux (https://code.claude.com/docs/en/plugins-reference, "Path traversal
+# limitations"; verified 2026-09-10; recheck trigger: that section dropping or
+# widening the rule). The resolve loop above never sees such a path (its
+# char-class has no backslash), so without this limb a Windows-authored
+# `scripts\helper.py` skipped the check silently and shipped. The pattern is
+# deliberately tight: a known internal dir token, one or more backslash-led
+# segments, and a final filename with a known extension. A prose escape (`\_`,
+# `\n`, `[--check\|--apply]`) has no such shape and never matches.
+# The scan covers SKILL.md and every markdown spoke under the routed dirs
+# (reference|references|context, at any depth): a spoke is loaded on demand and
+# its pointers resolve against the same skill root, so a backslash there ships
+# the same load-time defect, and the authoring checklist's forward-slash row
+# counts as mechanically decided only if the spokes are read too.
+# Two literal backslashes, the ERE spelling of one literal backslash.
+BS="\\\\"
+BACKSLASH_EXTS='md|sh|bash|py|json|jsonc|txt|yaml|yml|mjs|js|ts|ps1|csv|toml|xml|html'
+while IFS= read -r bs_file; do
+  [[ -f "$bs_file" ]] || continue
+  bs_rel="${bs_file#"$SKILL_DIR"/}"
+  while IFS= read -r ref; do
+    [[ -z "$ref" ]] && continue
+    ref_line="$(grep -nF "$ref" "$bs_file" 2>/dev/null | head -1 | cut -d: -f1)"
+    err "backslash path separator in skill-internal ref: $ref (cited at ${bs_rel}:${ref_line:-?}); a plugin component path with a backslash is rejected at load on macOS and Linux, so write it with forward slashes: ${ref//\\//}"
+  done < <(
+    {
+      grep -oE "\`(\$\{CLAUDE_PLUGIN_ROOT\}[/$BS])?($INTERNAL_DIRS)(${BS}[A-Za-z0-9._-]+)*${BS}[A-Za-z0-9._-]+\.($BACKSLASH_EXTS)\`" "$bs_file" 2>/dev/null | tr -d '`'
+      grep -oE "\]\((\$\{CLAUDE_PLUGIN_ROOT\}[/$BS])?($INTERNAL_DIRS)(${BS}[A-Za-z0-9._-]+)*${BS}[A-Za-z0-9._-]+\.($BACKSLASH_EXTS)(#[^)]*)?\)" "$bs_file" 2>/dev/null |
+        sed -E 's/^\]\(//; s/\)$//; s/#.*$//'
+    } | sort -u
+  )
+done < <(
+  {
+    printf '%s\n' "$SKILL_MD"
+    for bs_dir in reference references context; do
+      [[ -d "$SKILL_DIR/$bs_dir" ]] || continue
+      find "$SKILL_DIR/$bs_dir" -type f -name '*.md'
+    done
   } | sort -u
 )
 
@@ -1697,6 +1830,98 @@ if [[ -n "$VC_HIT" ]]; then
   warn "description/verb-contract mismatch: $VC_HIT — a mismatch is a factual defect in the listing surface being routed on, not a style issue. Hand-verify; --fix in the description is the compliant override shape. Out of scope: whether this skill should gain a --fix path, and any rename"
 else
   note "description/verb-contract polarity consistent (or no Naming verb / no polarity language)"
+fi
+
+# --- Check 26: long spoke files carry a table of contents (WARN; advisory) ---
+# A spoke long enough that its reader (the model, mid-task) cannot take in its
+# shape in one pass needs a table of contents up front, so the section it wants
+# is one anchor hop away instead of a scan. Threshold, basis, and the heuristic's
+# source: TOC_LINE_THRESHOLD above. Scoped to every markdown file under the
+# spoke dirs check 15 routes (reference|references|context), at any depth,
+# because nested spoke layouts (`reference/<topic>/<file>.md`) are a supported
+# shape and a long file two levels down costs its reader the same scan.
+# vendor/ is upstream material this gate never lints. A TOC is a per-file
+# property, so the finding names the file relative to the skill root. Advisory
+# only: a long file can be a flat catalog that a TOC would not help, so a WARN
+# is a candidate to judge, not a defect.
+while IFS= read -r toc_md; do
+  [[ -f "$toc_md" ]] || continue
+  toc_lines="$(grep -c '' "$toc_md")"
+  ((toc_lines > TOC_LINE_THRESHOLD)) || continue
+  toc_anchors="$(head -n "$TOC_HEAD_LINES" "$toc_md" | grep -o '](#' | wc -l | tr -d '[:space:]')"
+  if ((toc_anchors < TOC_MIN_ANCHORS)); then
+    warn "${toc_md#"$SKILL_DIR"/} is $toc_lines lines with no table of contents in its first $TOC_HEAD_LINES lines (${toc_anchors:-0} in-page anchor links; $TOC_MIN_ANCHORS or more count as a TOC); add a Contents block listing its section anchors so a reader jumps instead of scanning"
+  fi
+done < <(
+  for toc_dir in reference references context; do
+    [[ -d "$SKILL_DIR/$toc_dir" ]] || continue
+    find "$SKILL_DIR/$toc_dir" -type f -name '*.md'
+  done | sort
+)
+
+# --- Check 27: `## Next` successor section (advisory) -------------------------
+# The skill-bodies rule says a skill with a natural successor names it in a
+# `## Next` section placed before `## Gotchas` (or before the last H2 when the
+# file has none), in one of two shapes: one `/plugin:skill` invocation on a
+# line, optionally followed by a sentence; or two to four bullets of
+# `<outcome>: /plugin:skill`. Whether a skill HAS a successor is the author's
+# call, so absence is an INFO note rather than a WARN: most skills in a large
+# fleet are terminal or not yet wired, and a WARN on each would drown the
+# gate. A section that is present but misplaced or malformed is a WARN,
+# because that is a shape the rule names and the author did not intend.
+
+NEXT_LINE="$(grep -nE '^## Next[[:space:]]*$' "$SKILL_MD" | head -1 | cut -d: -f1)"
+if [[ -z "$NEXT_LINE" ]]; then
+  note "no '## Next' section: fine for a terminal skill; a skill with a natural successor names it there (skill-bodies rule)"
+else
+  NEXT_GOTCHAS_LINE="$(grep -nEi '^##[[:space:]]+(gotchas|quirks)' "$SKILL_MD" | head -1 | cut -d: -f1)"
+  NEXT_LAST_H2="$(grep -nE '^## ' "$SKILL_MD" | tail -1 | cut -d: -f1)"
+  NEXT_HIT=""
+  if [[ -n "$NEXT_GOTCHAS_LINE" ]] && ((NEXT_LINE > NEXT_GOTCHAS_LINE)); then
+    NEXT_HIT="placed after '## Gotchas'; the rule puts it before"
+  elif [[ -z "$NEXT_GOTCHAS_LINE" ]] && ((NEXT_LINE == NEXT_LAST_H2)); then
+    NEXT_HIT="is the last section; the rule places it before the last H2"
+  fi
+  # The section body runs from the heading to the next H2 or end of file.
+  NEXT_BLOCK="$(awk -v s="$NEXT_LINE" 'NR > s { if ($0 ~ /^## /) exit; print }' "$SKILL_MD")"
+  NEXT_BULLETS="$(grep -cE '^- ' <<<"$NEXT_BLOCK" || true)"
+  NEXT_TOKEN='/[a-z0-9-]+:[a-z0-9-]+'
+  if ((NEXT_BULLETS == 0)); then
+    # The single shape opens with the invocation itself (a leading backtick
+    # allowed), not with prose that happens to mention one: prose first is
+    # how an operative chain reads.
+    NEXT_FIRST="$(grep -vE '^[[:space:]]*$' <<<"$NEXT_BLOCK" | head -1 || true)"
+    if [[ -z "$NEXT_FIRST" ]]; then
+      NEXT_HIT="${NEXT_HIT:+$NEXT_HIT; }body is empty"
+    elif ! grep -qE "^\`?${NEXT_TOKEN}(\`|[[:space:]]|[.,;:]|$)" <<<"$NEXT_FIRST"; then
+      NEXT_HIT="${NEXT_HIT:+$NEXT_HIT; }first line does not open with a /plugin:skill invocation"
+    fi
+  else
+    if ((NEXT_BULLETS < 2 || NEXT_BULLETS > 4)); then
+      NEXT_HIT="${NEXT_HIT:+$NEXT_HIT; }$NEXT_BULLETS bullet(s); the outcome-bullet shape carries two to four"
+    fi
+    # A bullet may wrap onto indented continuation lines; judge each bullet
+    # with its continuation joined.
+    NEXT_BAD="$(awk -v tok="$NEXT_TOKEN" '
+      /^- / { if (b != "" && b !~ tok) n++; b = $0; next }
+      /^[[:space:]]+[^[:space:]]/ { b = b " " $0; next }
+      END { if (b != "" && b !~ tok) n++; print n + 0 }' <<<"$NEXT_BLOCK")"
+    if ((NEXT_BAD > 0)); then
+      NEXT_HIT="${NEXT_HIT:+$NEXT_HIT; }$NEXT_BAD bullet(s) name no /plugin:skill successor"
+    fi
+  fi
+  # Either shape is a mention for the human, so the whole block, not just the
+  # line that names the successor, is read for the three things the rule
+  # excludes: Skill-tool phrasing, an installed-ness gate, a fallback clause.
+  NEXT_OPERATIVE="$(grep -oiE 'skill tool|installed|fall ?back|otherwise' <<<"$NEXT_BLOCK" | head -1 || true)"
+  if [[ -n "$NEXT_OPERATIVE" ]]; then
+    NEXT_HIT="${NEXT_HIT:+$NEXT_HIT; }carries operative-chain phrasing ('$NEXT_OPERATIVE'); a successor is a mention, with no Skill-tool phrasing, installed-ness gate, or fallback clause"
+  fi
+  if [[ -n "$NEXT_HIT" ]]; then
+    warn "'## Next' section $NEXT_HIT. The skill-bodies rule wants one /plugin:skill line, or two to four '<outcome>: /plugin:skill' bullets, placed before '## Gotchas'"
+  else
+    note "'## Next' section present and in the mention-only shape"
+  fi
 fi
 
 # --- Summary ---------------------------------------------------------------

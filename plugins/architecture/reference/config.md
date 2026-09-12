@@ -25,13 +25,15 @@ into it and no dual-read window exists.
 
 ## Resolution order, per key
 
-1. The convention home resolves (resolver exit 0) and `<home>/architecture/README.md` declares the
+1. `--out <dir>` on the invocation overrides `architecture_dir` for that run alone. It is a
+   redirect, not a declaration: it never writes the topic doc and never changes the dialect.
+2. The convention home resolves (resolver exit 0) and `<home>/architecture/README.md` declares the
    key, so that value wins.
-2. Otherwise the skill INFERS a proposal from repository evidence: an existing `*.dsl` proposes
+3. Otherwise the skill INFERS a proposal from repository evidence: an existing `*.dsl` proposes
    `landscape_dialect: structurizr`; an existing `docs/architecture/` or `architecture/` proposes
    that directory as `architecture_dir`. Inference proposes; only the operator's confirmation binds.
-3. Otherwise the skill asks once.
-4. Unanswered: `landscape_dialect` falls back to its documented default, `mermaid`.
+4. Otherwise the skill asks once.
+5. Unanswered: `landscape_dialect` falls back to its documented default, `mermaid`.
    `architecture_dir` has no fallback. Undeclared and unconfirmed, including every non-interactive
    run, `map-landscape` stops and points at `/architecture:setup`.
 
@@ -52,7 +54,7 @@ landscape_dialect: mermaid            # structurizr | mermaid
 
 | Key | Values | Default | Meaning |
 |---|---|---|---|
-| `architecture_dir` | repo-relative directory path | **none** | Where `map-landscape` writes `landscape.dsl` / `landscape.md` and `portfolio.md`. No default: an undeclared, unconfirmed value stops the skill rather than picking a directory. |
+| `architecture_dir` | repo-relative directory path | **none** | Where `map-landscape` writes `landscape.json`, `landscape.dsl` / `landscape.md`, and `portfolio.md`, and where it reads `landscape-notes.md`. No default: an undeclared, unconfirmed value stops the skill rather than picking a directory. `--out <dir>` overrides it for one run. |
 | `landscape_dialect` | `structurizr` \| `mermaid` | `mermaid` | Which landscape artifact `map-landscape` emits. `structurizr` emits `landscape.dsl` with a `systemLandscape` view; `mermaid` emits `landscape.md` with a `C4Context` block. |
 
 An unknown key, or a `landscape_dialect` value outside the two above, is reported by

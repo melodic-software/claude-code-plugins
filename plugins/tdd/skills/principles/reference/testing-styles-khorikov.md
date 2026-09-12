@@ -9,13 +9,13 @@
 - [Drawbacks of Functional Architecture](#drawbacks-of-functional-architecture)
 - [Decision Framework](#decision-framework)
 
-Three unit testing styles — output-based, state-based, communication-based — evaluated against the Four Pillars, plus functional programming as a technique to maximize output-based tests (Ch 6). Builds on the Four Pillars framework (Ch 4) and mock/stub taxonomy (Ch 5).
+Three unit testing styles, output-based, state-based, and communication-based, evaluated against the Four Pillars, plus functional programming as a technique to maximize output-based tests (Ch 6). Builds on the Four Pillars framework (Ch 4) and mock/stub taxonomy (Ch 5).
 
 ## The Three Styles Defined
 
 ### Output-Based Testing (Functional)
 
-Feed an input to the SUT and check the output it produces. Only applicable to code that doesn't change global or internal state — the only result is the return value.
+Feed an input to the SUT and check the output it produces. Only applicable to code that doesn't change global or internal state. The only result is the return value.
 
 ```csharp
 // SUT — a mathematical function (no side effects)
@@ -73,7 +73,7 @@ public void Adding_a_product_to_an_order()
 }
 ```
 
-State-based assertion parts tend to be larger — even this simplified test has four assertion lines. Mitigations: helper methods, value objects with equality comparison (via Fluent Assertions' `BeEquivalentTo`), but both are only occasionally applicable.
+State-based assertion parts tend to be larger. Even this simplified test has four assertion lines. Mitigations: helper methods, value objects with equality comparison (via Fluent Assertions' `BeEquivalentTo`), but both are only occasionally applicable.
 
 ### Communication-Based Testing
 
@@ -98,7 +98,7 @@ public void Sending_a_greetings_email()
 
 ## Comparing the Styles (Four Pillars)
 
-All three styles score equally on **protection against regressions** and **fast feedback** — these depend on how much code executes and whether tests touch out-of-process dependencies, not on style.
+All three styles score equally on **protection against regressions** and **fast feedback**. These depend on how much code executes and whether tests touch out-of-process dependencies, not on style.
 
 The distinguishing metrics are **resistance to refactoring** and **maintainability**:
 
@@ -109,17 +109,17 @@ The distinguishing metrics are **resistance to refactoring** and **maintainabili
 
 ### Resistance to Refactoring
 
-- **Output-based**: best protection against false positives — tests couple only to the method's return value. The only way to couple to implementation details is if the method under test is itself an implementation detail
-- **State-based**: more prone to false positives — tests work with the class's state, which is a larger API surface. Greater coupling = higher chance of tying to a leaking implementation detail
-- **Communication-based**: most vulnerable — "the vast majority of tests that check interactions with test doubles end up being brittle." Legitimate only when verifying interactions that cross the application boundary with externally visible side effects
+- **Output-based**: best protection against false positives. Tests couple only to the method's return value. The only way to couple to implementation details is if the method under test is itself an implementation detail
+- **State-based**: more prone to false positives. Tests work with the class's state, which is a larger API surface. Greater coupling = higher chance of tying to a leaking implementation detail
+- **Communication-based**: most vulnerable, since "the vast majority of tests that check interactions with test doubles end up being brittle." Legitimate only when verifying interactions that cross the application boundary with externally visible side effects
 
 ### Maintainability
 
 Two characteristics: (1) how hard it is to understand the test (function of size), (2) how hard it is to run the test (function of out-of-process dependencies).
 
-- **Output-based**: almost always short and concise — supply input, verify output. No global/internal state changes, no out-of-process dependencies. Best on both characteristics
-- **State-based**: normally less maintainable — state verification takes more space. Even simplified state-based tests have multi-line assertion sections that grow with object complexity
-- **Communication-based**: worst on maintainability — requires setting up test doubles, interaction assertions, and often *mock chains* (mocks returning mocks, several layers deep)
+- **Output-based**: almost always short and concise. Supply input, verify output. No global/internal state changes, no out-of-process dependencies. Best on both characteristics
+- **State-based**: normally less maintainable. State verification takes more space. Even simplified state-based tests have multi-line assertion sections that grow with object complexity
+- **Communication-based**: worst on maintainability. It requires setting up test doubles, interaction assertions, and often *mock chains* (mocks returning mocks, several layers deep)
 
 ### The Verdict
 
@@ -131,7 +131,7 @@ Two characteristics: (1) how hard it is to understand the test (function of size
 
 A *mathematical function* (pure function) has no hidden inputs or outputs. All inputs and outputs are explicitly expressed in the method signature. It produces the same output for a given input regardless of how many times it's called.
 
-**Test for purity — referential transparency**: can you replace a call to the method with its return value without changing the program's behavior?
+**Test for purity, referential transparency**: can you replace a call to the method with its return value without changing the program's behavior?
 
 ```csharp
 // Mathematical function — referentially transparent
@@ -148,9 +148,9 @@ public int Increment() { x++; return x; }
 
 Types that break mathematical function status:
 
-- **Side effects** (hidden output) — mutating class state, writing files, updating databases
-- **Exceptions** (hidden output) — creating an alternate return path not in the method signature
-- **Reference to internal/external state** (hidden input) — `DateTime.Now`, database queries, private mutable fields
+- **Side effects** (hidden output): mutating class state, writing files, updating databases
+- **Exceptions** (hidden output): creating an alternate return path not in the method signature
+- **Reference to internal/external state** (hidden input): `DateTime.Now`, database queries, private mutable fields
 
 > "Explicit inputs and outputs make mathematical functions extremely testable because the resulting tests are short, simple, and easy to understand and maintain. Mathematical functions are the only type of methods where you can apply output-based testing."
 
@@ -162,8 +162,8 @@ The goal of functional programming is not to eliminate side effects but to *sepa
 
 This separation creates two types of code:
 
-1. **Functional core (immutable core)** — makes decisions using mathematical functions. No side effects
-2. **Mutable shell** — gathers inputs, feeds them to the functional core, converts the core's decisions into side effects (database writes, file I/O, messages)
+1. **Functional core (immutable core)**: makes decisions using mathematical functions. No side effects
+2. **Mutable shell**: gathers inputs, feeds them to the functional core, converts the core's decisions into side effects (database writes, file I/O, messages)
 
 The cooperation pattern:
 
@@ -192,7 +192,7 @@ An audit system that tracks visitors in text files demonstrates the progression 
 
 ### Stage 1: Initial Implementation (Tightly Coupled)
 
-`AuditManager` directly reads/writes the filesystem via `Directory.GetFiles()` and `File.WriteAllText()`. Tests must work with actual files — shared dependency makes them slow, non-parallelizable, and hard to maintain.
+`AuditManager` directly reads/writes the filesystem via `Directory.GetFiles()` and `File.WriteAllText()`. Tests must work with actual files. The shared dependency makes them slow, non-parallelizable, and hard to maintain.
 
 | Pillar | Score |
 |--------|-------|
@@ -203,7 +203,7 @@ An audit system that tracks visitors in text files demonstrates the progression 
 
 ### Stage 2: With Mocks (IFileSystem Interface)
 
-Extract filesystem operations behind `IFileSystem` interface, inject via constructor. Tests mock the interface — no real filesystem needed.
+Extract filesystem operations behind `IFileSystem` interface, inject via constructor. Tests mock the interface. No real filesystem needed.
 
 ```csharp
 // Test uses mock to verify file write
@@ -212,7 +212,7 @@ fileSystemMock.Verify(x => x.WriteAllText(
     "Alice;2019-04-06T18:00:00"));
 ```
 
-Improvement: fast feedback restored, maintainability improved. But mock setups are convoluted — tests are less readable than pure input/output.
+Improvement: fast feedback restored, maintainability improved. But mock setups are convoluted. Tests are less readable than pure input/output.
 
 | Pillar | Score |
 |--------|-------|
@@ -259,7 +259,7 @@ public class ApplicationService
 }
 ```
 
-The test becomes pure input/output with plain values — no mocks, no filesystem:
+The test becomes pure input/output with plain values, no mocks and no filesystem:
 
 ```csharp
 [Fact]
@@ -294,7 +294,7 @@ public void A_new_file_is_created_when_the_current_file_overflows()
 
 ### Key Insight: Values, Not Collaborators
 
-The functional core's output (`FileUpdate`) is a *value* (or set of values) — two instances are interchangeable if their contents match. Convert to `struct` or define custom equality for even cleaner assertions:
+The functional core's output (`FileUpdate`) is a *value* (or set of values). Two instances are interchangeable if their contents match. Convert to `struct` or define custom equality for even cleaner assertions:
 
 ```csharp
 Assert.Equal(
@@ -308,9 +308,9 @@ Assert.Equal(
 
 More complex use cases still fit the pattern:
 
-- **Multiple operations** (e.g., `DeleteAllMentions`) — return `FileUpdate[]` instead of `FileUpdate`
-- **Delete operations** — rename `FileUpdate` to `FileAction` with an `ActionType` enum
-- **Error handling** — embed errors in the return type: `public (FileUpdate update, Error error) AddRecord(...)` — the application service checks for errors and skips the persister call
+- **Multiple operations** (e.g., `DeleteAllMentions`): return `FileUpdate[]` instead of `FileUpdate`
+- **Delete operations**: rename `FileUpdate` to `FileAction` with an `ActionType` enum
+- **Error handling**: embed errors in the return type, `public (FileUpdate update, Error error) AddRecord(...)`. The application service checks for errors and skips the persister call
 
 ## Drawbacks of Functional Architecture
 
@@ -327,14 +327,14 @@ public FileUpdate AddRecord(
 
 Two workarounds when intermediate dependencies are needed:
 
-1. **Gather everything upfront** in the application service — preserves functional core separation but wastes performance (unconditional queries even when not needed)
-2. **Introduce a check method** (`IsAccessLevelCheckRequired()`) — the service calls it first, conditionally queries the database, then passes the result as a value. Preserves decision-making in the core but leaks some decision responsibility to the service
+1. **Gather everything upfront** in the application service. This preserves functional core separation but wastes performance (unconditional queries even when not needed)
+2. **Introduce a check method** (`IsAccessLevelCheckRequired()`). The service calls it first, conditionally queries the database, then passes the result as a value. Preserves decision-making in the core but leaks some decision responsibility to the service
 
-Neither option is perfect — this is the applicability limit of functional architecture.
+Neither option is perfect. This is the applicability limit of functional architecture.
 
 ### Performance Drawbacks
 
-The read-decide-act approach requires more calls to out-of-process dependencies than the initial tightly-coupled version (which read lazily). It's not that *tests* get slower — output-based tests are faster. The *system itself* makes more I/O calls.
+The read-decide-act approach requires more calls to out-of-process dependencies than the initial tightly-coupled version (which read lazily). It's not that *tests* get slower. Output-based tests are faster. The *system itself* makes more I/O calls.
 
 > "The choice between a functional architecture and a more traditional one is a trade-off between performance and code maintainability (both production and test code). In some systems where the performance impact is not as noticeable, it's better to go with functional architecture for additional gains in maintainability. In others, you might need to make the opposite choice. There's no one-size-fits-all solution."
 

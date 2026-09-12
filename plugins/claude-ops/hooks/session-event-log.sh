@@ -17,12 +17,13 @@
 # a filtered category, an uncontained root) and never a missing prerequisite:
 # it needs no jq and no git.
 #
-# Every line carries the spine (ts, session_id, hook_event_name, status,
-# duration_ms, source) plus whichever correlation keys the payload carries
-# (prompt_id, tool_use_id, agent_id, traceparent) and, for events that carry a
-# decision or a change, a small payload (tool_name, file_path, reason). Values
-# are the payload's own JSON string bodies, re-emitted verbatim, so no escaping
-# is re-derived here; ids are constrained to file-name-safe characters because
+# Every line is one hook event record in the key set session-log-lib.sh
+# documents and formats (slog_event_record_to): the spine, `category`, and
+# whichever correlation keys the payload carries (prompt_id, tool_use_id,
+# agent_id, traceparent) plus, for events that carry a decision or a change, a
+# small payload (tool_name, file_path, reason). Those three pass as the
+# payload's own JSON string bodies, re-emitted verbatim, so no escaping is
+# re-derived here; ids are constrained to file-name-safe characters because
 # session_id names the file.
 #
 # stdin is read in bounded slices the way hook::buffer_stdin does, without
@@ -45,8 +46,21 @@ start=${EPOCHREALTIME:-}
 source "${BASH_SOURCE[0]%/*}/session-log-lib.sh"
 
 # --- bounded stdin read -------------------------------------------------------
+# The same rejection rules hook::resolve_read_timeout_to applies to this
+# variable, restated because this producer does not source the library. An
+# unusable value is a silent disable, not a tuning mistake: `read -t 0`
+# returns at once having consumed nothing, a fractional value is a usage error
+# on a Bash before 4.0 (integer-only -t), and a positive value under 10 µs
+# returns before the payload's bytes arrive. Each falls back to the default.
 idle="${CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT:-2}"
-[[ "$idle" =~ ^[0-9]+(\.[0-9]+)?$ ]] || idle=2
+if ! [[ "$idle" =~ ^[0-9]+(\.[0-9]+)?$ ]] || [[ "$idle" =~ ^0+(\.0+)?$ ]] ||
+  { [[ "$idle" == *.* ]] && ((BASH_VERSINFO[0] < 4)); }; then
+  idle=2
+elif [[ "$idle" =~ ^([0-9]+)(\.([0-9]+))?$ ]]; then
+  whole="${BASH_REMATCH[1]}"
+  frac="${BASH_REMATCH[3]:-}000000"
+  ((10#$whole * 1000000 + 10#${frac:0:6} < 10)) && idle=2
+fi
 # Four slices per idle bound when this shell takes a fractional -t (Bash 4+),
 # so a stall is declared within a quarter-bound of the configured interval; one
 # whole-bound slice otherwise.
@@ -119,7 +133,8 @@ done
 # shellcheck disable=SC2034  # the payload keys are read through ${!key} below
 session_id="" event="" prompt_id="" tool_use_id="" agent_id="" tool_name=""
 # shellcheck disable=SC2034
-file_path="" reason="" cwd="" category="" root="" ts="" duration_ms=""
+file_path="" reason="" cwd="" category="" root="" ts="" duration_ms="" line=""
+extras=()
 field_to() { # <var> <key>: the JSON string body of "<key>": "..." or ""
   if [[ "$buf" =~ \"$2\"[[:space:]]*:[[:space:]]*\"(([^\"\\]|\\.)*)\" ]]; then
     printf -v "$1" '%s' "${BASH_REMATCH[1]}"
@@ -169,16 +184,22 @@ if [[ -n "$file_path" ]]; then
 fi
 slog_ts_to ts
 slog_duration_ms_to duration_ms "$start"
-line="{\"ts\":\"$ts\",\"session_id\":\"$session_id\",\"hook_event_name\":\"$event\""
-line+=",\"category\":\"$category\",\"status\":\"ok\",\"source\":\"event-log\""
-line+=",\"duration_ms\":${duration_ms:-null}"
+# `category` and the ids are drawn from validated vocabularies, so they pass as
+# decoded strings; tool_name, file_path and reason are the payload's own JSON
+# string bodies and pass as bodies (type `b`), which is what keeps this hook
+# from re-deriving an escape it has no jq to check.
+extras=(category s "$category")
 for key in prompt_id tool_use_id agent_id tool_name file_path reason; do
   [[ -n "${!key}" ]] || continue
-  [[ "$key" == prompt_id || "$key" == tool_use_id || "$key" == agent_id ]] && ! slog_valid_id "${!key}" && continue
-  line+=",\"$key\":\"${!key}\""
+  if [[ "$key" == prompt_id || "$key" == tool_use_id || "$key" == agent_id ]]; then
+    slog_valid_id "${!key}" || continue
+    extras+=("$key" s "${!key}")
+  else
+    extras+=("$key" b "${!key}")
+  fi
 done
-[[ -n "${TRACEPARENT:-}" && "$TRACEPARENT" =~ ^[0-9a-f-]+$ ]] && line+=",\"traceparent\":\"$TRACEPARENT\""
-line+="}"
+[[ -n "${TRACEPARENT:-}" && "$TRACEPARENT" =~ ^[0-9a-f-]+$ ]] && extras+=(traceparent s "$TRACEPARENT")
+slog_event_record_to line event-log "$ts" "$session_id" "$event" ok "$duration_ms" "${extras[@]}"
 
 printf '%s\n' "$line" >>"$root/sessions/$session_id.jsonl" 2>/dev/null
 exit 0

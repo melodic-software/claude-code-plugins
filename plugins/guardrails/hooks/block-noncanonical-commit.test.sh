@@ -20,14 +20,13 @@ source "$HOOK_DIR/guardrails-test-helpers.sh"
 # and the fixtures stay comparable.
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
 
+GUARD_UNDER_TEST="$HOOK"
+
 # run <label> <command> <expected-exit> [extra-env NAME=VAL ...]
 run() {
   local label="$1" command="$2" expected="$3"
   shift 3
-  local rc
-  env "$@" bash "$HOOK" <<<"$(command_json "$command")" >/dev/null 2>&1
-  rc=$?
-  assert_exit "$label" "$expected" "$rc"
+  expect "$label" "$expected" --command "$command" -- "$@"
 }
 
 # --- the anti-pattern this guard exists for -----------------------------------
@@ -584,7 +583,7 @@ fi
 # earlier in this file — are where the cost lives, and a persisted chain is the
 # only shape that gives one fork PER HOP for the linear ceilings below.
 # An inline HOP is free: it sets inline_alias_handled and skips the config
-# lookup, and effective_dir is pure string composition. Measured with the shim
+# lookup, and the directory composition is pure string work. Measured with the shim
 # below, the 20-hop dual-spelling and 60-hop single-spelling inline chains to
 # `commit -F -` cost ZERO spawns. But an inline chain is not uniformly free: its
 # TERMINAL subcommand can still fork, by either of two DISTINCT routes that must
@@ -988,7 +987,7 @@ if [[ -d "$WRAP/outer/other/.git" ]]; then
   wrapper_cd_case "a chdir before -S survives the splice restart" \
     "env -C other -S 'git a'" 2
   # A directory operand containing a space must survive the array round-trip
-  # into effective_dir's argv.
+  # into hook::git_effective_dir_to's argv.
   wrapper_cd_case "a wrapper chdir into a directory with a space" \
     "env -C 'has space' git a" 2
   # GNU env refuses `-0` alongside a command outright ("cannot specify --null
@@ -1310,10 +1309,8 @@ fi
 # cannot parse is DEFERRED here (#1858) and blocked by `block-dangerous-git`,
 # asserted below.
 run_pwsh() {
-  local label="$1" command="$2" expected="$3" rc
-  bash "$HOOK" <<<"$(pwsh_command_json "$command")" >/dev/null 2>&1
-  rc=$?
-  assert_exit "$label" "$expected" "$rc"
+  local label="$1" command="$2" expected="$3"
+  expect "$label" "$expected" --tool PowerShell --command "$command"
 }
 run_pwsh "PS: canonical here-string | git commit -F - (allowed)" \
   "$(printf '%s\n%s\n%s' "@'" "feat: x" "'@ | git commit -F -")" 0
@@ -1340,11 +1337,10 @@ run_pwsh "PS: unbalanced here-string hiding a -m commit (deferred — classifier
 # these for an UNRELATED reason, silently breaking the coupling the deferral
 # rests on — so the block reason is asserted from stderr too.
 run_sibling() {
-  local label="$1" sibling="$2" command="$3" out rc
-  out=$(bash "$HOOK_DIR/$sibling.sh" <<<"$(pwsh_command_json "$command")" 2>&1)
-  rc=$?
-  assert_exit "$label" 2 "$rc"
-  assert_contains "$label: for the unparsable reason" "$out" "cannot be parsed with confidence"
+  local label="$1" sibling="$2" command="$3"
+  guard_invoke --hook "$HOOK_DIR/$sibling.sh" --tool PowerShell --command "$command" --merge-stderr
+  assert_exit "$label" 2 "$GUARD_RC"
+  assert_contains "$label: for the unparsable reason" "$GUARD_OUT" "cannot be parsed with confidence"
 }
 for sibling in block-dangerous-git block-no-verify; do
   run_sibling "PS: backtick-continued commit still blocked by $sibling" \
@@ -1468,5 +1464,25 @@ if command -v strace >/dev/null 2>&1 && strace -o /dev/null -e trace=execve true
 else
   echo "ok: process-creation pins skipped (no working strace on this host)"
 fi
+
+# --- The same verdicts under the dispatcher ----------------------------------
+# The census above runs this guard through run-guards.sh but discards stdout and
+# asserts a process count, never a verdict. hooks.json ships the guard under the
+# dispatcher, where stdin is re-served from one buffer and `.tool_input.command`
+# comes from the primed jq cache rather than the guard's own jq call, so a
+# verdict is worth asserting on that path too.
+expect_both "dispatched parity: multi-line -m blocks" 2 \
+  --command "git commit -m 'feat: x${NL}body'"
+expect_both "dispatched parity: single-line -m allowed" 0 \
+  --command "git commit -m 'feat: x'"
+expect_both "dispatched parity: bare git commit allowed" 0 --command "git commit"
+expect_both "dispatched parity: \$'…' multi-line decodes and blocks" 2 \
+  --command "git commit -m \$'feat: x\nbody'"
+expect_both "dispatched parity: PowerShell here-string -m blocks" 2 \
+  --tool PowerShell --lib lib/powershell/ps-command.sh \
+  --command "$(printf '%s\n%s\n%s' "git commit -m @'" "feat: x" "'@")"
+expect_both "dispatched parity: PowerShell canonical -F - allowed" 0 \
+  --tool PowerShell --lib lib/powershell/ps-command.sh \
+  --command "$(printf '%s\n%s\n%s' "@'" "feat: x" "'@ | git commit -F -")"
 
 report

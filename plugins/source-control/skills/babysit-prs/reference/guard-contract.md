@@ -8,7 +8,7 @@ consumer may assume about this lane's entry points. Rows in the refusal,
 predicate, effect, and documented-command tables are executed as assertions by
 `scripts/tests/test_guards.py`; a guard change that falsifies one fails CI with
 a message naming the claim. The columns listed under "Not covered here" are
-rendered from the same data but are not asserted — read those as annotation, not
+rendered from the same data but are not asserted. Read those as annotation, not
 as proof.
 
 Cite a row by its ID. IDs are stable; rows are removed only when the behavior is.

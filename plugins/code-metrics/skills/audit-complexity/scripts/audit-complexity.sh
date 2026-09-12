@@ -53,6 +53,12 @@ rc=$?
 if [[ $JSON -eq 1 ]]; then
   cat "$WORK/report.json"
 else
-  "${PY[@]}" "$REPORT" render <"$WORK/report.json" || exit 2
+  # shellcheck source=../../../scripts/persist-report.sh
+  source "$PLUGIN_ROOT/scripts/persist-report.sh"
+  render_args=()
+  if document="$(cm_persist_report audit-complexity "$WORK/report.json")"; then
+    render_args=(--document "$document")
+  fi
+  "${PY[@]}" "$REPORT" render "${render_args[@]}" <"$WORK/report.json" || exit 2
 fi
 exit "$rc"

@@ -23,10 +23,15 @@
 #
 #   hook::rewrite_guard_begin "$FILE"      # before the tool that may rewrite
 #   ...run the formatter...
-#   # on an arm that carries its own additionalContext:
-#   hook::rewrite_take_disclosure "$FILE" "<plugin>: reformatted ..."
+#   hook::finish --disclose "<plugin>: reformatted ..." ok findings array "$f"
+#
+# hook::finish owns the take, the data.changed verdict, the telemetry emit and
+# the ONE stdout document, in that order, so a hook never reads the globals
+# below or sequences the steps itself. The take and the compose-and-emit forms
+# stay public for a caller outside that shape:
+#
+#   hook::rewrite_take_disclosure "" "<plugin>: reformatted ..."
 #   hook::emit_channels PostToolUse "$ctx" "$HOOK_REWRITE_MESSAGE"
-#   # on an arm with no context of its own:
 #   hook::rewrite_disclose PostToolUse "$FILE" "<plugin>: reformatted ..."
 #
 # The take is a DESTRUCTIVE read: the first call after begin sets
@@ -50,6 +55,12 @@
 readonly _HOOK_REWRITE_GUARD_LOADED=1
 
 _HOOK_REWRITE_BEFORE=""
+# The file begin was given. The take compares against THIS path unless the
+# caller names another, so the two halves of one guard cannot disagree about
+# which file was snapshotted — a hook that formats a normalized spelling of the
+# path (Windows mixed-form) and takes on the original was comparing a snapshot
+# of one file against the bytes of another.
+_HOOK_REWRITE_FILE=""
 _HOOK_REWRITE_PREV_EXIT_TRAP=""
 _HOOK_REWRITE_SNAPSHOT_FAILED=0
 HOOK_REWRITE_MESSAGE=""
@@ -79,6 +90,7 @@ hook::_rewrite_guard_on_exit() {
 #   hook::rewrite_guard_begin "$FILE"
 hook::rewrite_guard_begin() {
   _HOOK_REWRITE_BEFORE=""
+  _HOOK_REWRITE_FILE="$1"
   _HOOK_REWRITE_SNAPSHOT_FAILED=1
   HOOK_REWRITE_MESSAGE=""
   HOOK_REWRITE_CHANGED=""
@@ -112,15 +124,18 @@ hook::rewrite_guard_begin() {
 
 # Compare <file> against the snapshot, record <message> in
 # HOOK_REWRITE_MESSAGE when it changed (empty otherwise), set the
-# HOOK_REWRITE_CHANGED verdict, and release the snapshot. Destructive read for
-# the message — see the lifecycle block above; the verdict of the first take
-# after begin survives a later take, so a producer that emits telemetry after
-# its take still reads the answer. The caller passes HOOK_REWRITE_MESSAGE as
-# the systemMessage argument of its ONE hook::emit_channels call, so a run
-# that both rewrote and found things puts both channels in one JSON document.
-#   hook::rewrite_take_disclosure "$FILE" "my-plugin: reformatted $(basename "$FILE") via tool."
+# HOOK_REWRITE_CHANGED verdict, and release the snapshot. An EMPTY <file> means
+# the file begin was given, which is the spelling hook::finish uses and the one
+# every caller should prefer: the guard already knows which file it snapshotted.
+# Destructive read for the message — see the lifecycle block above; the verdict
+# of the first take after begin survives a later take, so a producer that emits
+# telemetry after its take still reads the answer. The caller passes
+# HOOK_REWRITE_MESSAGE as the systemMessage argument of its ONE
+# hook::emit_channels call, so a run that both rewrote and found things puts
+# both channels in one JSON document.
+#   hook::rewrite_take_disclosure "" "my-plugin: reformatted a.sh via tool."
 hook::rewrite_take_disclosure() {
-  local file="$1" message="$2"
+  local file="${1:-$_HOOK_REWRITE_FILE}" message="$2"
   HOOK_REWRITE_MESSAGE=""
   if [[ -z "$_HOOK_REWRITE_BEFORE" ]]; then
     # No snapshot: either begin never ran (no rewrite attempted, so the file

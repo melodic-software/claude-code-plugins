@@ -1,6 +1,6 @@
 # EventStorming Notation and Building Blocks
 
-This reference covers the complete EventStorming notation — colors, sticky note types, and how they relate to each other. The notation is born from the available colors for physical sticky notes and has been adopted by digital modeling platforms.
+This reference covers the complete EventStorming notation: colors, sticky note types, and how they relate to each other. The notation is born from the available colors for physical sticky notes and has been adopted by digital modeling platforms.
 
 ## Core Principle: Incremental Notation
 
@@ -19,16 +19,16 @@ The fundamental building block of EventStorming. A Domain Event represents **som
 - Examples: `Order Placed`, `Payment Received`, `Ticket Sold`, `Training Description Published`
 - Domain Events are placed along a **timeline** from left to right
 - They are precise: they capture a specific moment in the business process
-- They have no implicit scope limitation — they can span organizational boundaries
-- They are triggers for consequences — other things happen because of them
-- They lead toward bottlenecks — where events cluster, complexity lives
+- They have no implicit scope limitation. They can span organizational boundaries
+- They are triggers for consequences: other things happen because of them
+- They lead toward bottlenecks: where events cluster, complexity lives
 - Domain Events as state transitions: they mark the transition from one state to another
 
 **Common mistakes:**
 
 - Writing a phase or process name instead of a specific event (turn the sticky 45° to signal "not an event")
-- Searching for the "perfect wording" too early — keep moving, refine later
-- Duplicates are fine initially — they surface different perspectives. Stack genuinely identical
+- Searching for the "perfect wording" too early. Keep moving, refine later
+- Duplicates are fine initially. They surface different perspectives. Stack genuinely identical
   stickies later if you like, but keep differently worded stickies for the same moment visible side
   by side: that divergence is a bounded-context signal, not a defect to resolve
 
@@ -36,7 +36,7 @@ The fundamental building block of EventStorming. A Domain Event represents **som
 
 1. A **Command** triggered by a **User** (human decision)
 2. An **External System** (something outside our boundary)
-3. **Time passing** (e.g., `PaymentTermsExpired`) — no action involved
+3. **Time passing** (e.g., `PaymentTermsExpired`), with no action involved
 4. A **consequence** of another event, via a **Policy** ("whenever X happens, then Y")
 
 ### Command / Action / Intention (Blue sticky note)
@@ -45,7 +45,7 @@ A Command represents a **user intention, action, or decision** that triggers one
 
 - Examples: `Place Order`, `Send Invitation`, `Reserve Seat`, `Cancel Reservation`
 - Commands are the result of some user **decision**
-- Some commands look like rephrasing of the corresponding Domain Event — that's fine, not every brick has to be complex
+- Some commands look like rephrasing of the corresponding Domain Event. That's fine, not every brick has to be complex
 - Developers naturally look for **semantic symmetry**: if there's `ReserveSeat`, they look for `CancelReservation`
 - Thinking in terms of user decisions forces thinking about what data the user needs to make that decision (→ Read Models)
 
@@ -68,7 +68,7 @@ The information a person needs to **make a decision** (issue a Command).
 
 ### Policy (Lilac/purple sticky note)
 
-Reactive logic — **"whenever X happens, do Y"**. Policies connect Domain Events to Commands.
+Reactive logic: **"whenever X happens, do Y"**. Policies connect Domain Events to Commands.
 
 - Mostly start with the word **"whenever"**: "whenever the exposure passes the threshold, notify the risk manager"
 - Captured early without making assumptions about implementation
@@ -77,7 +77,7 @@ Reactive logic — **"whenever X happens, do Y"**. Policies connect Domain Event
 
 ### External System (Large pink/red sticky note)
 
-A system outside the current domain boundary — external organizations, services, or online applications.
+A system outside the current domain boundary: external organizations, services, or online applications.
 
 - Represented with larger stickies to visually distinguish from the core flow
 - Examples: payment gateways, regulatory systems, third-party APIs
@@ -99,9 +99,9 @@ A **consistency boundary** in Domain-Driven Design. Aggregates group related Com
 
 - Introduced at Design-Level, not Big Picture
 - Named in a **responsibility-driven fashion**
-- When you start grouping commands and events around aggregates, the timeline breaks — that's fine. Timeline was for big-picture reasoning; responsibility is the driver for system design
+- When you start grouping commands and events around aggregates, the timeline breaks. That's fine. Timeline was for big-picture reasoning; responsibility is the driver for system design
 - Aggregates look like little **state machines**
-- Naming should be **postponed** — discover the behavior first, name it later
+- Naming should be **postponed**: discover the behavior first, name it later
 
 ### Opportunity / Value (Green sticky note)
 
@@ -114,7 +114,7 @@ Represents **value, revenue, or positive outcomes** in the business flow.
 
 When precision emerges from a domain expert's words, key term definitions are captured on a special sticky note placed below the normal flow.
 
-- Not a "Wikipedia-ready" definition — just the precise meaning of that term in that specific conversation
+- Not a "Wikipedia-ready" definition, just the precise meaning of that term in that specific conversation
 - Captures the **Bounded Context**-specific vocabulary
 - At wrap-up, resolved terms are graduation candidates for the consumer repo's committed project glossary (mechanics in `glossary-and-tools.md`)
 
@@ -161,10 +161,10 @@ This is drawn on a flip chart and kept visible throughout the workshop as a refe
 
 ## Key Principles of the Notation
 
-1. **Incremental introduction** — don't dump all building blocks at once. Start with events, add others as the conversation needs them
-2. **Low-fidelity is intentional** — sticky notes are imprecise on purpose. They invite challenge and refinement
-3. **Conversation over notation** — the stickies trigger conversations; the conversations are the real value
-4. **Progressive precision** — start fuzzy, get more precise as understanding grows
-5. **The right to be wrong** — wrong stickies are better than no stickies. Correction is learning
-6. **Extensible** — if your domain needs a new concept, pick an unused color and add it
-7. **"There is no right one"** — looking for perfect wording slows you down. Keep moving, refine later
+1. **Incremental introduction**: don't dump all building blocks at once. Start with events, add others as the conversation needs them
+2. **Low-fidelity is intentional**: sticky notes are imprecise on purpose. They invite challenge and refinement
+3. **Conversation over notation**: the stickies trigger conversations; the conversations are the real value
+4. **Progressive precision**: start fuzzy, get more precise as understanding grows
+5. **The right to be wrong**: wrong stickies are better than no stickies. Correction is learning
+6. **Extensible**: if your domain needs a new concept, pick an unused color and add it
+7. **"There is no right one"**: looking for perfect wording slows you down. Keep moving, refine later

@@ -1,4 +1,4 @@
-# Legacy statusline detection — shared classification
+# Legacy statusline detection: shared classification
 
 The shared, plugin-name-free half of the two statusline guard plugins' legacy detection. The hub
 SKILL.md supplies every concrete path: the DURABLE SHIM COPY (the `bin/statusline-shim.sh` under

@@ -1,10 +1,10 @@
-# The `git` action — branch audit + classification + deletion
+# The `git` action: branch audit + classification + deletion
 
 Full detail for the `git` action's branch-audit half (§4.2–§4.7). SKILL.md keeps the §4 framing, the §4.1 prune/gc step, and the branch-deletion safety rule; this file carries classification semantics, the report shape, and interactive deletion.
 
 ## 4.2–4.4 Collect branch facts (script)
 
-Run the branch-audit script — do not reimplement collection inline:
+Run the branch-audit script. Do not reimplement collection inline:
 
 ```bash
 bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-branch-audit.sh
@@ -18,7 +18,7 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-branch-audit.sh
 
 **`Tip:` line and the tip capture.** Every branch carries its tip commit id as its own field, whatever its verdict: a verdict can be wrong in either direction, and the tip is what makes a wrongly deleted branch restorable. The same facts are written to a durable TSV, the **tip capture**, and its path is printed as `TipCapture:`. Path convention: `<git-common-dir>/repo-hygiene/branch-tips/<utc-stamp>-<pid>.tsv`, i.e. the main checkout's `.git/repo-hygiene/branch-tips/` even when the audit ran in a linked worktree (`--capture-file PATH` overrides). Columns: `branch`, `tip`, `tier`, `pr`, `upstream`, `ahead`, `behind`, `not_on_default`, `captured_at`, with header lines naming the repository, its common dir, the default branch, and the restore command. The file is sealed only when every row landed; otherwise the audit prints `TipCaptureError:` and no path. **A `TipCaptureError:` means no deletion can proceed from this run**: fix the cause (or pass `--capture-file` to a writable location) and re-run the audit. Capture files are small and are never removed by this skill; delete old ones by hand if they accumulate.
 
-**`Unpushed:` line** — commits at risk of loss. With an upstream: `N ahead of <upstream>`. With no upstream: `no upstream, M commits not on origin/<default>` (or `no upstream (no origin/<default> to compare)` when the default branch is unfetched). Never-pushed local work is invisible to `@{upstream}`-based ahead reporting, so this line is the only signal that a no-upstream branch carries unmerged commits — surface it before offering any deletion.
+**`Unpushed:` line**, commits at risk of loss. With an upstream: `N ahead of <upstream>`. With no upstream: `no upstream, M commits not on origin/<default>` (or `no upstream (no origin/<default> to compare)` when the default branch is unfetched). Never-pushed local work is invisible to `@{upstream}`-based ahead reporting, so this line is the only signal that a no-upstream branch carries unmerged commits. Surface it before offering any deletion.
 
 **Default branch resolution** (inside script): `origin/HEAD` symbolic ref → `gh repo view --json defaultBranchRef` → `main`.
 
@@ -28,6 +28,7 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-branch-audit.sh
 
 The script applies rules in priority order (first match wins), then refines a REVIEW verdict into LOSSY when the loss is measured and positive (see the refinement below the table). Agent interprets output; do not duplicate the bash loop.
 
+<!-- ai-slop-ignore-start: the priority-4 Reason cell quotes the string scripts/git-branch-audit.sh emits verbatim (line 263, "checked out in worktree — clean up the worktree first"); the table is wrapped because a marker between rows would break it -->
 | Priority | Condition | Tier | Reason |
 |----------|-----------|------|--------|
 | 1 | Branch = current | PROTECTED | current branch |
@@ -42,8 +43,9 @@ The script applies rules in priority order (first match wins), then refines a RE
 | 9 | No upstream, M commits not on origin/default | REVIEW | no upstream, M commits not on origin/<default> |
 | 10 | Age > 90 days | REVIEW | stale |
 | 11 | No PR, no tracking, not merged | REVIEW | orphaned |
+<!-- ai-slop-ignore-end -->
 
-Stale threshold: 90 days (`CLEAN_STALE_BRANCH_DAYS` in `cleanup-paths.sh`). Branch can match multiple REVIEW reasons — list all in report.
+Stale threshold: 90 days (`CLEAN_STALE_BRANCH_DAYS` in `cleanup-paths.sh`). Branch can match multiple REVIEW reasons. List all in report.
 
 **LOSSY refinement (after the table).** A REVIEW verdict becomes LOSSY, "deletable, and deleting it loses work", when every condition below holds; the `Reason:` keeps the chain's text and the `Loss:` line carries the count. The boundary is a conjunction of checkable facts, not a judgement:
 
@@ -59,11 +61,11 @@ Stale threshold: 90 days (`CLEAN_STALE_BRANCH_DAYS` in `cleanup-paths.sh`). Bran
 
 Every missing or failed signal therefore lands in REVIEW, never in LOSSY and never in SAFE: doubt about the loss is resolved toward the verdict that asks more of the operator. The other direction is closed by construction, since SAFE and LIKELY-SAFE are never re-examined here and the refinement only ever moves a branch from REVIEW to LOSSY. A PR map that is unavailable (no `gh`) does not withhold the tier: the loss is a git fact and the block still names it; only the MERGED and OPEN demotions cannot fire, so under `PRDataUnavailable:` treat the block's branches as possibly carrying an open PR.
 
-**WORKTREE tier (priority 4)** — a branch checked out in a linked worktree is a real cleanup candidate (it may be merged or gone), but `git branch -d` on it fails or, forced, breaks the worktree. It is therefore its own bucket, distinct from PROTECTED: never offer it for deletion here — route the user to the worktree-management tool to remove the worktree first (after which a later audit reclassifies the branch on its merge/PR state). Priority 4 sits below the protected checks so a `release/*` or default branch that also happens to be checked out stays PROTECTED.
+**WORKTREE tier (priority 4).** A branch checked out in a linked worktree is a real cleanup candidate (it may be merged or gone), but `git branch -d` on it fails or, forced, breaks the worktree. It is therefore its own bucket, distinct from PROTECTED: never offer it for deletion here. Route the user to the worktree-management tool to remove the worktree first (after which a later audit reclassifies the branch on its merge/PR state). Priority 4 sits below the protected checks so a `release/*` or default branch that also happens to be checked out stays PROTECTED.
 
 **No-upstream class (priority 9).** A never-pushed branch with commits not on `origin/<default>` is unmerged local work; it ranks above the generic stale/orphaned REVIEW reasons so the unpushed-commit count is the headline. Never SAFE or LIKELY-SAFE: with a measured positive loss it is LOSSY and appears in the loss block with its own confirmation; otherwise it stays REVIEW.
 
-**Protected branch patterns (priority 3):** exact names and globs that MUST NEVER be offered for deletion — `main`, `master`, `develop`, `release/*`, `hotfix/*`. Matched via bash `case` in `clean_branch_matches_protected_pattern`. Extend with repo-specific long-lived branches if needed (e.g. `staging`, `production`, `deploy/*`).
+**Protected branch patterns (priority 3):** exact names and globs that MUST NEVER be offered for deletion, namely `main`, `master`, `develop`, `release/*`, `hotfix/*`. Matched via bash `case` in `clean_branch_matches_protected_pattern`. Extend with repo-specific long-lived branches if needed (e.g. `staging`, `production`, `deploy/*`).
 
 **Squash-merge handling:** `git branch --merged` (priority 6) misses squash-merged branches because squash creates a new combined commit. `gh pr list` (priority 5) correctly detects these via PR state. When the PR map is unavailable or truncated, the affected squash-merged branches land in REVIEW tier, which is safe-conservative handling only because the audit says so out loud: that is what the `PRDataUnavailable:` and `PRDataTruncated:` lines are for. A silently short map produces the same REVIEW verdicts with nothing to distinguish them from a genuine one.
 
@@ -106,7 +108,7 @@ If SAFE or LIKELY-SAFE branches exist, present options via the [confirmation gat
 
 - "Delete all SAFE branches"
 - "Delete SAFE + LIKELY-SAFE"
-- "Skip (audit only)" — no deletion
+- "Skip (audit only)": no deletion
 
 None of those answers covers a LOSSY branch. If the loss block is non-empty, ask about it **separately**, after the loss block has been shown and after the question above has been answered, naming the branches and what each loses:
 

@@ -1,14 +1,14 @@
-# Title Game — Co-Write Title Cascade
+# Title Game: Co-Write Title Cascade
 
 Pat Pattison's documented Title Game exercise, used as a co-write warmup
 and as a solo title-generation drill. Source: Songwriter Trysts podcast
-episode 40 (verified web research 2026-05-10) — the most detailed public
+episode 40 (verified web research 2026-05-10), the most detailed public
 documentation of the mechanics.
 
 > **Sourcing note.** The Title Game does **not** appear in *Writing
 > Better Lyrics* (2009) or *Songwriting Without Boundaries* (2011). An
 > earlier version of this file claimed it was "referenced briefly in
-> *Writing Better Lyrics* (2009) appendix" — that is false. The appendix
+> *Writing Better Lyrics* (2009) appendix". That is false. The appendix
 > ("Co-Writing: The 'No'-Free Zone") mentions Pat arriving at a Nashville
 > session "with my notes and titles" and contains no title exercise of
 > any kind. This file's cascade mechanics are podcast-sourced and cannot
@@ -33,16 +33,16 @@ Trigger phrases: "Title Game", "Pat's title cascade", "co-write warmup",
 ## Solo mechanics (warmup or generation drill)
 
 1. **Start with a seed title.** Any title; doesn't have to be good.
-2. **Identify the stressed vowel** (the title's load-bearing vowel).
+2. **Identify the stressed vowel** (the vowel the title hangs on).
 3. **Generate the next title** under one of these constraints:
    - Same stressed vowel, different content
    - Same stressed vowel + same syllable count, different content
    - Adjacent vowel on Pat's vowel triangle (per `rhyme-sonic-bonding.md`)
    - Front-heavy → back-heavy shift (or reverse) on same vowel
    - Same emotional shape, different POV
-4. **Repeat** — each new title spawns the next, chained.
+4. **Repeat.** Each new title spawns the next, chained.
 5. **Stop after 10-15** titles in the chain.
-6. **Mine** — which titles want to develop? Which clusters share family
+6. **Mine.** Which titles want to develop? Which clusters share family
    rhyme territory?
 
 The chain trains rapid generation under sonic constraint AND surfaces
@@ -53,7 +53,7 @@ unexpected adjacencies the writer wouldn't reach by deliberation.
 For two writers:
 
 1. **Each writer brings 5-10 candidate titles** to the session
-2. **Read titles aloud, trade off** — Writer A reads a title; Writer B
+2. **Read titles aloud, trade off.** Writer A reads a title; Writer B
    takes the stressed vowel of A's title and generates a new title from
    it; passes to A; A generates from B's title; repeat
 3. **No rejection.** Per the No-Free Zone. Pat learned it from Stan Webb,
@@ -73,28 +73,32 @@ For two writers:
 
    Pat's own addition, same appendix: "Never talk about writing in a
    co-writing room, especially about technique. Telling what you know
-   about writing isn't writing." And the closing line: "Don't be afraid
-   to write crap — it makes the best fertilizer. The more of it you
-   write, the better your chances are of growing something wonderful."
+   about writing isn't writing." And the closing line:
+
+   <!-- ai-slop-ignore-start: verbatim quotation from Writing Better Lyrics (2009), Appendix -->
+   "Don't be afraid to write crap — it makes the best fertilizer. The more
+   of it you write, the better your chances are of growing something
+   wonderful."
+   <!-- ai-slop-ignore-end -->
 4. **Cascade for 5-10 minutes** without stopping to judge
-5. **Mine together** — both writers underline the 3-5 titles in the chain
+5. **Mine together.** Both writers underline the 3-5 titles in the chain
    that pulled hardest
-6. **Pick one** — the title the room agrees on, by either word or by
+6. **Pick one.** The title the room agrees on, by either word or by
    shared silence-attention. Begin the song from there.
 
 The cascade is a warmup, not the song. By the time a chosen title emerges,
 both writers have heard each other's instincts, sonic preferences, and
-emotional altitudes — preparing them for collaborative drafting.
+emotional altitudes, which prepares them for collaborative drafting.
 
 ## Why the cascade works
 
 Pat's stance: titles cluster in stressed-vowel families. The strongest
 titles a writer can find in a session are usually NOT the ones they
-brought — they're the ones the cascade surfaces by chaining off the
+brought. They're the ones the cascade surfaces by chaining off the
 brought titles' phonetics. The exercise is a forced-search method.
 
 It also defuses the "my title is precious" defensiveness that often kills
-co-writes. After 10 titles in a chain, no single title feels load-bearing;
+co-writes. After 10 titles in a chain, no single title feels indispensable;
 the writers can let any of them go.
 
 ## Constraints to declare before the cascade
@@ -112,7 +116,7 @@ constraints surface variety but make mining harder.
 
 ### The vowel constraint's book source
 
-The cascade's stressed-vowel machinery is not invented — it is Pat's
+The cascade's stressed-vowel machinery is not invented. It is Pat's
 **targeting** technique from *Writing Better Lyrics* (2009), Chapter 19
 ("Understanding Motion"), applied to titles. His instruction, Exercise
 28:
@@ -124,9 +128,9 @@ The cascade's stressed-vowel machinery is not invented — it is Pat's
 > third line (B line) to target a different vowel sound in the title. As in
 > the sample that follows."
 
-The point Pat is making — that a title's **inner** vowels, not its end
-rhyme, are the sonic handles — is what makes a stressed-vowel cascade
-productive rather than a rhyme-list. His worked illustration uses the
+Pat's point is that a title's **inner** vowels, not its end rhyme, are the
+sonic handles. That is what makes a stressed-vowel cascade productive
+rather than a rhyme-list. His worked illustration uses the
 title "For One Smile in a Million": an unrhymed `while` in line three of
 the preceding section emphasizes `smile` in the chorus. Exercise 41
 generalizes it: "Construct a title that matches the unmatched line in
@@ -158,7 +162,7 @@ Word-play on the same vowel). Sticking to one type tightens focus.
 ## Stressed-vowel cascade example (synthesized)
 
 The chain below is **synthesized, not Pat's**. No cascade transcript
-exists in either book — the exercise is podcast-sourced, and the podcast
+exists in either book. The exercise is podcast-sourced, and the podcast
 does not print a title chain. Nothing is being withheld here; there is no
 source text to restore. Treat the shape as a template and generate real
 titles into it.
@@ -166,7 +170,7 @@ titles into it.
 Seed: 3-stress title with long-A vowel
 ↓ (next: same vowel, different content)
 Title 2: 3-stress, long-A, different angle
-↓ (next: adjacent vowel — long-A's left-leg neighbor is long-E)
+↓ (next: adjacent vowel. Long-A's left-leg neighbor is long-E)
 Title 3: 3-stress, long-E, related image
 ↓ (next: same vowel, front-heavy)
 Title 4: 3-stress, long-E, front-heavy
@@ -211,10 +215,10 @@ sessions.
 
 ## Cross-references
 
-- `hook.md` — title generation seven types, Nashville stressed-vowel method
-- `co-writing.md` — No-Free Zone protocol (the discipline that enables the cascade)
-- `idea-to-title.md` — solo title development (broader workflow)
-- `rhyme-sonic-bonding.md` — vowel triangle (adjacent-vowel constraint)
-- `phrasing.md` — front-heavy / back-heavy classification
-- `beyond-books.md` — Songwriter Trysts ep. 40 source citation
-- `brainstorm.md` — Path D (title cascade) cross-references this
+- `hook.md`: title generation seven types, Nashville stressed-vowel method
+- `co-writing.md`: No-Free Zone protocol (the discipline that enables the cascade)
+- `idea-to-title.md`: solo title development (broader workflow)
+- `rhyme-sonic-bonding.md`: vowel triangle (adjacent-vowel constraint)
+- `phrasing.md`: front-heavy / back-heavy classification
+- `beyond-books.md`: Songwriter Trysts ep. 40 source citation
+- `brainstorm.md`: Path D (title cascade) cross-references this

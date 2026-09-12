@@ -108,6 +108,6 @@ expands to an empty string and the fill succeeds while typing nothing.
 
 ## Security invariants
 
-- Default sessions are in-memory — safer for sensitive operations. Use `--persistent` only when auth carry-through across browser restarts required
+- Default sessions are in-memory, which is safer for sensitive operations. Use `--persistent` only when auth carry-through across browser restarts required
 - `state-save` files contain raw tokens. Treat as secrets: gitignore, delete after tests, don't share between developers
 - Prefer env-var-driven test credentials over hard-coded values in skill examples

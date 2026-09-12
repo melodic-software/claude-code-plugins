@@ -1,7 +1,7 @@
 # Drift-delta sweep
 
 Normative leaf of the [routine catalog](../routines.md): the `drift-delta-sweep` v1 class
-definition — a standing sweep that runs the repository's installed drift lanes on a cadence
+definition, a standing sweep that runs the repository's installed drift lanes on a cadence
 and reports what moved since the previous cycle.
 
 ## Purpose
@@ -16,15 +16,15 @@ keep.
 ## Trigger and cadence
 
 Trigger-taxonomy slot: **schedule**. The routine enters work as a `temporal`-class signal
-through the [trigger-dispatch contract](../trigger-dispatch.md)'s temporal adapter — a
+through the [trigger-dispatch contract](../trigger-dispatch.md)'s temporal adapter, a
 scheduled trigger behind the governed queue, never a private execution or merge path.
-Suggested cadence default: **weekly** — an org-bindable value set in the org's routine
+Suggested cadence default: **weekly**, an org-bindable value set in the org's routine
 binding, never contract-fixed.
 
 The run predicate is a fact of the class, not a requirement the class imposes on a binding.
 The two delta lanes compare against their previous cycle, and capture a comparison point for
-the next one, only when the executing session resolves a **branch identity** — a branch
-checkout, or a logical ref the runner supplies — and finds its memory-tier home
+the next one, only when the executing session resolves a **branch identity**, either a branch
+checkout or a logical ref the runner supplies, and finds its memory-tier home
 **persisted across** runs. A run that resolves neither still executes and still reports: it
 compares nothing, captures nothing, and says so.
 
@@ -35,7 +35,7 @@ No vendor scheduling surface is named here; guided setup researches scheduling s
 
 ## Access scope
 
-Repo — the sweep reads the repository tree and writes through the governed queue and tracker
+Repo: the sweep reads the repository tree and writes through the governed queue and tracker
 only. No merge path: the repository drift audit lane runs without `--fix`, and no lane in the
 fan-out prepares or applies a repository change. No production, product, org, or external-web
 access, so the connector-prerequisite branch of the mapping rules never applies. Per the
@@ -44,16 +44,16 @@ prerequisite ([guardrail contract](../guardrails.md)).
 
 ## Output contract
 
-- **Advisory report** — one report per run, carrying one section per lane, a **coverage line**
+- **Advisory report.** One report per run, carrying one section per lane, a **coverage line**
   naming which enforcement-surface layers and which audit dimension this cycle walked, and a
   "lanes not run" section naming each absent or blocked lane and why it did not run.
-- **Work items** — filed through the governed queue for movement whose correction needs
+- **Work items.** Filed through the governed queue for movement whose correction needs
   authorial judgment.
 
 The report is also the evidence with which this class keeps its own place on the enforcement
 surface. A catalog routine's handler runs no work itself and enqueues one signal onto a
-tracker-held governed queue item, so the durable record of the class is that queue item — the
-recurring-work-item shape the enforcement-surface lane's own guidance prefers — minted by a
+tracker-held governed queue item, so the durable record of the class is that queue item, the
+recurring-work-item shape the enforcement-surface lane's own guidance prefers, minted by a
 scheduled tick. That queue item is itself an item on the enforcement surface, and the report
 is what has to justify it.
 
@@ -67,8 +67,8 @@ fallback in the same sentence.
    `instruction-placement` plugin is installed; where it is absent, record the lane as not run
    and continue. The lane owns what moved in the instruction-placement findings since its own
    last run. Bootstrap rule: where the lane reports no prior artifact to compare against,
-   invoke `/instruction-placement:audit` instead — read-only, its only write being its own
-   findings artifact — so the next cycle has a baseline, and record the cycle as a bootstrap
+   invoke `/instruction-placement:audit` instead, which is read-only apart from writing its own
+   findings artifact, so the next cycle has a baseline, and record the cycle as a bootstrap
    in the coverage line.
 
 2. **The enforcement-surface delta lane.** Invoke `/overengineering:delta` with `unattended`
@@ -85,7 +85,7 @@ fallback in the same sentence.
    | 3 | `satellite-workflows branch-protection` |
    | 4 | `forge-apps external-integrations` |
 
-   The rotation is stateless — a function of the week alone — so a 53-week year repeats one
+   The rotation is stateless, a function of the week alone, so a 53-week year repeats one
    pair, which the coverage line records. The report carries the lane's own coverage line.
 
 3. **The repository drift audit lane.** Invoke `/codebase-health:audit` without `--fix` and
@@ -103,17 +103,17 @@ fallback in the same sentence.
    | 3 | `--arch-only` |
 
    Before invoking, read the lane's own tracked configuration and expand that dimension's
-   `primary-sources` globs. Where the configuration resolves no targets for the dimension, or
-   the expanded list exceeds twenty files — the lane's confirm threshold, which an unattended
-   session cannot answer — do not invoke the lane, and record it as not run with the dimension
-   and the file count. Keep the lane's checklist in-response and take no persist offer.
+   `primary-sources` globs. Twenty files is the lane's confirm threshold, and an unattended
+   session cannot answer that confirm. Where the configuration resolves no targets for the
+   dimension, or the expanded list exceeds twenty files, do not invoke the lane, and record it
+   as not run with the dimension and the file count. Keep the lane's checklist in-response and take no persist offer.
 
 ## Derived guardrail row
 
 The row is derived through the catalog's mapping rules, never hand-assigned:
 
 1. **Judgment axis.** Which movement matters, and which of it needs authorial judgment, is
-   semantic judgment no rule engine resolves — agent judgment (`AGT`). Detection belongs to
+   semantic judgment no rule engine resolves, so it is agent judgment (`AGT`). Detection belongs to
    the lanes; the sweep's judgment is over what they returned.
 2. **Output axes.** The advisory report derives `C1` through the `AGT` + report rule, and the
    filed work items derive `C1` through the `AGT` + work-item rule: governed-queue and tracker
@@ -126,7 +126,7 @@ The row is derived through the catalog's mapping rules, never hand-assigned:
 4. **Access axis → prerequisite.** Repo scope sets the `L2` unattended floor as the dispatch
    prerequisite; the `C1` matrix row keeps the floor at `L2`.
 
-Derived row: `C1`, with the `L2` unattended floor — in the
+Derived row: `C1`, with the `L2` unattended floor, in the
 [guardrail matrix](../guardrails.md).
 
 ## Prerequisites
@@ -143,10 +143,10 @@ shape, so no posture-qualified identity is minted.
 | Axis | Value |
 |---|---|
 | Access class | `repo` |
-| Isolation floor | `L2` — cited from the [matrix](../guardrails.md#the-matrix) `C1` row and the [unattended floor](../guardrails/isolation-ladder.md#unattended-floor) |
-| Connector entitlements | none — `repo` access; the connector branch of [Access to prerequisites](../routines.md#access-to-prerequisites) does not apply |
+| Isolation floor | `L2`, cited from the [matrix](../guardrails.md#the-matrix) `C1` row and the [unattended floor](../guardrails/isolation-ladder.md#unattended-floor) |
+| Connector entitlements | none. Access is `repo`, so the connector branch of [Access to prerequisites](../routines.md#access-to-prerequisites) does not apply |
 | Connector entitlement rung | n/a (no connector). For `prod` / `product` / `org` / `ext`, entitlement binds at the [Org binding layer](../binding-seam.md#resolution-ladder) |
-| `executor_class` merge cap | cited from [executor surface classes](../trigger-dispatch.md#executor-surface-classes) — security-binding `executor_class`; `vendor-hosted` caps every class at human-gated merge; never repo-derivable. Merge policy for this identity is n/a (`C1`) |
+| `executor_class` merge cap | cited from [executor surface classes](../trigger-dispatch.md#executor-surface-classes). Security-binding `executor_class`; `vendor-hosted` caps every class at human-gated merge; never repo-derivable. Merge policy for this identity is n/a (`C1`) |
 | Repo needs | repository source tree; documentation corpus; tracker binding when filing work items through the work-item tracker seam. The class's substantive prerequisites, three optional sibling plugins present and a run that resolves a branch identity and persists its memory-tier home, are not representable in the generated emission |
 
 ## Admission and escalation
