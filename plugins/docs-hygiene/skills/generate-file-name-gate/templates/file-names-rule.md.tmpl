@@ -1,0 +1,28 @@
+---
+paths: @@RULE_PATHS@@
+---
+
+# File names under @@ROOTS_HUMAN@@
+
+Every tracked file under @@ROOTS_HUMAN@@ carries a @@RULE@@ basename, matching
+`@@REGEX@@`.
+
+Exempt from the rule:
+
+- the basenames @@EXEMPT_BASENAMES_HUMAN@@, conventional spellings tooling and
+  forges look for exactly
+- the paths @@EXEMPT_PATHS_HUMAN@@
+- the extensions @@EXEMPT_EXTENSIONS_HUMAN@@, whose casing belongs to the
+  language rather than to this rule
+
+No two tracked paths under the roots may differ only by case. A
+case-insensitive checkout writes the second over the first, so such a pair is a
+corrupted tree rather than a style question.
+
+`@@SCRIPT_PATH@@` is the gate. It runs over the tracked set and is what actually
+enforces this; a path-scoped rule loads when a covered file is READ, never when
+one is created, so this file cannot catch a new name on its own.
+
+Renaming an existing file is `/docs-hygiene:audit-file-names` to plan it and
+`/docs-hygiene:realign-file-names` to apply it, one acceptance per file: the
+rename is the small half, and repointing every citation of it is the rest.

@@ -24,7 +24,7 @@ set -uo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
 
-SKILLS=(audit-noise audit-progressive-disclosure setup audit-file-names realign-file-names)
+SKILLS=(audit-noise audit-progressive-disclosure setup audit-file-names realign-file-names generate-file-name-gate)
 
 # Optional per-skill allowlist, space-separated and sorted. When a skill names
 # one, the granted set must equal it EXACTLY — this is the guard for a
