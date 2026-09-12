@@ -201,15 +201,23 @@ assert_absent "the rebuilt record drops the old path" "$gen" "docs/Alpha-One.md"
 # what matters is whether this filesystem carries the bit, which is also false
 # on a POSIX volume mounted `noexec`.
 
-probe="$TEST_TMPDIR/exec-probe-$RANDOM"
-printf '#!/bin/sh\n' >"$probe"
+root="$(new_fixture)"
+chmod +x "$root/docs/tool.py"
+
+# THE PROBE IS A COPY OF THE SUBJECT, not a file of its own shape. Git Bash
+# answers `-x` by sniffing the content and the extension rather than by reading
+# a recorded bit, so a probe written as `#!/bin/sh` reports executable on NTFS
+# while `docs/tool.py`, which opens with a docstring and carries no shebang,
+# never can. That difference is not a property of the filesystem, it is a
+# property of the two files, and it made the probe predict the opposite of what
+# the assertion would find. Copying the subject removes the only variable.
+probe="$TEST_TMPDIR/exec-probe-$RANDOM.py"
+cp "$root/docs/tool.py" "$probe"
 chmod +x "$probe" 2>/dev/null
 FS_CARRIES_EXEC_BIT=no
 [[ -x "$probe" ]] && FS_CARRIES_EXEC_BIT=yes
 rm -f "$probe"
 
-root="$(new_fixture)"
-chmod +x "$root/docs/tool.py"
 git -C "$root" update-index --chmod=+x docs/tool.py
 git -C "$root" commit -qm "tool.py is executable" -a >/dev/null 2>&1
 plan="$(stage "$root")"
