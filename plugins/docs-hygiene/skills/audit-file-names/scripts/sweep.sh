@@ -289,8 +289,22 @@ while IFS="$(printf '\t')" read -r old _new; do
     sites=$((sites + 1))
   done < <(git -C "$ROOT" grep -n -F -- "$base" "${search_pathspec[@]+"${search_pathspec[@]}"}" 2>/dev/null)
 
-  # Bare stems, on lines the basename pass did not already report.
+  # Bare stems. A line the basename pass already reported is still eligible: one
+  # line can carry BOTH forms, and the common shape is a markdown link whose
+  # LABEL is the old name and whose target is the old path,
+  # `[`PLUGIN-PHILOSOPHY`](../plugin-philosophy.md)`. Reporting only the first
+  # match leaves the label reading the old name after the rename, which is a
+  # current-tier site the rule says must change.
+  #
+  # The test is exact rather than a re-scan: remove every occurrence of the
+  # basename from the line and ask whether the stem still stands on its own in
+  # what is left. A line whose only stem occurrences ARE the basename adds
+  # nothing and is skipped, as before.
   stem_pattern="(^|[^A-Za-z0-9_-])$stem([^A-Za-z0-9_-]|\$)"
+  stem_outside_basename() {
+    residue="${1//"$base"/}"
+    [[ "$residue" =~ $stem_pattern ]]
+  }
   while IFS= read -r hit; do
     [[ -n "$hit" ]] || continue
     file="${hit%%:*}"
@@ -301,7 +315,7 @@ while IFS="$(printf '\t')" read -r old _new; do
 $seen" in
     *"
 $file:$lineno
-"*) continue ;;
+"*) stem_outside_basename "$text" || continue ;;
     *) ;;
     esac
     tinfo="$(tier_of "$file")"

@@ -126,6 +126,39 @@ assert_eq "a stem that appears only inside a hyphenated compound matches nothing
   printf '%s\n' "$compound" | grep -c '^REF' || true
 )"
 
+# --- one line, two forms -----------------------------------------------------
+#
+# A markdown link whose LABEL is the old name and whose target is the old path
+# is two sites, not one. Reporting only the first leaves the label reading the
+# old name after the rename, which the current tier says must change. The
+# adjacent case is the discriminating half: a line whose only stem occurrence
+# IS the basename adds nothing and must still be reported once.
+
+root5="$(new_fixture)"
+# shellcheck disable=SC2016  # backticks are literal markdown in the seeded line
+printf 'A label link: [`Alpha-One`](Alpha-One.md) and a plain one: [see](Alpha-One.md).\n' \
+  >"$root5/docs/labels.md"
+git -C "$root5" add docs/labels.md >/dev/null
+git -C "$root5" commit -qm labels >/dev/null
+labels_raw="$(bash "$SUT" --root "$root5" --pairs "$TEST_TMPDIR/pairs.tsv")"
+labels="$(printf '%s\n' "$labels_raw" | awk -F'\t' '$1=="REF" && $3=="docs/labels.md" {print $5}')"
+
+assert_contains "the link target is recorded" "$labels" "md-link"
+assert_contains "and the label beside it is recorded as a bare stem" "$labels" "bare-stem"
+assert_eq "exactly two sites on the one line" "2" "$(printf '%s\n' "$labels" | grep -c . || true)"
+
+root6="$(new_fixture)"
+printf 'Only the path, no label: [see](Alpha-One.md) and nothing else.\n' \
+  >"$root6/docs/plain.md"
+git -C "$root6" add docs/plain.md >/dev/null
+git -C "$root6" commit -qm plain >/dev/null
+plain_raw="$(bash "$SUT" --root "$root6" --pairs "$TEST_TMPDIR/pairs.tsv")"
+plain="$(printf '%s\n' "$plain_raw" | awk -F'\t' '$1=="REF" && $3=="docs/plain.md" {print $5}')"
+
+assert_eq "a line whose only stem occurrence is the basename is one site" "1" \
+  "$(printf '%s\n' "$plain" | grep -c . || true)"
+assert_eq "and that site is not a bare stem" "0" "$(printf '%s\n' "$plain" | grep -c 'bare-stem' || true)"
+
 # --- per-site exclusions -----------------------------------------------------
 
 root3="$(new_fixture)"
