@@ -670,7 +670,11 @@ for slot in "${COLLECT_SLOTS[@]}"; do
     if [[ -s "$WORK/partial.$slot" ]]; then
       run_row "$slot" "$lane" "$measure" "$tool $version" partial "$(head -n 1 "$WORK/partial.$slot")"
     else
-      run_row "$slot" "$lane" "$measure" "$tool $version" ok ''
+      # What an adapter said on stderr while succeeding (mypy's error count,
+      # a module the scope did not cover) is the ok row's reason; an adapter
+      # that said nothing leaves it null.
+      note="$(tr '\n' ' ' <"$WORK/err.$slot" | cut -c1-500)"
+      run_row "$slot" "$lane" "$measure" "$tool $version" ok "${note% }"
     fi
     progress "$lane/$measure: $tool finished in ${elapsed:-?}s, $(wc -l <"$WORK/out.$slot" | tr -d ' ') row(s)"
   elif [[ "${rc:-1}" -eq 4 ]]; then

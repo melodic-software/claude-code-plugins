@@ -3,7 +3,7 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.2.4]
+## [0.3.1]
 
 ### Added
 
@@ -52,6 +52,60 @@ All notable changes to the `code-metrics` plugin are documented here. Format fol
   still states `duplicated_lines: 0`.
 - **A run from a subdirectory matches the same registry lines as a run from the root**, because
   instance paths are normalized against the repository root before matching.
+
+## [0.3.0]
+
+### Added
+
+- **`audit-type-debt` reports per file.** One row per scope file the tool listed (`function`
+  null) plus one row per lane labelled `lane-total`; the summary's `Files:` count is the file
+  rows, where it read 0 before. The Python lane row sums the file rows, so a change-scoped run
+  reports the scope's own coverage rather than everything mypy followed. mypy names modules, not
+  files, so the collector re-derives its `--explicit-package-bases` naming from each scope path
+  (checked against a real 186-file run of this repository, every listed name matched), matches
+  the shorter names a config base such as `mypy_path = src` gives by suffix, and, when nothing
+  matches, keeps mypy's own Total as the lane row and says so in the run row's reason. A
+  TypeScript file row carries `any_count` alone, the occurrences
+  `type-coverage --detail --show-relative-path` lists for the file, because the CLI exposes no
+  per-file denominator; the tsconfig program's file set is read through the project's own
+  `typescript`, so a scope file the program leaves out gets no row and is counted in the run
+  row's reason rather than reported as 0. In the raw rows the lane row comes first, and the
+  rendered table leads with it and never drops it under the row cap.
+- **mypy's error count reaches the run table.** When mypy exits 1 the Python run row's reason
+  reads `mypy reported N errors (M missing stubs)`, the missing ones being the `import-untyped`
+  and `import-not-found` codes; `--show-error-codes` and `--no-pretty` are passed so a consumer
+  config that hides codes or wraps messages does not hide the count.
+
+### Changed
+
+- **An `ok` run row carries what its collector said on stderr.** The dispatcher dropped an
+  adapter's stderr on exit 0; it is now the row's reason (500 characters, newlines folded), and
+  null when the adapter said nothing. Every skill's run table gains this.
+- **The renderer sorts a `file: null` row among file rows and joins rows per lane.** The
+  `lane-total` row and a file row can tie on every earlier sort key, which compared `None` with a
+  path; and two lanes' rows with the same values used to join into one line, because the join
+  key left the lane out.
+
+### Fixed
+
+- **`audit-type-debt`: an aborted mypy run no longer reads as 100% typed.** mypy exits 2 on a
+  blocking error (a duplicate module name, a usage or config error) before analysing anything and
+  still writes a report whose only row is `Total 0 0 100.00%`; the collector accepted that as a
+  measurement labelled `mypy-reported-errors`, so a repository carrying sanctioned replication read
+  as fully typed over zero expressions. Exit 2 is now the adapter contract's exit 4: the Python row
+  reads `unavailable` with mypy's own message and the run continues. A Total row with zero
+  expressions reports `type_coverage_pct: null`, never 100.
+- **`audit-type-debt`: sanctioned replication measures instead of aborting.** The collector passes
+  `--explicit-package-bases`, so mypy names each module by its path (`plugins.a.lib.x`) and two
+  same-named files under identifier-named directories no longer collide. Same-named files under
+  two hyphenated directories still collide, because mypy's module walk stops at a directory whose
+  name is not a Python identifier; that case reaches the `unavailable` row above. mypy accepts the
+  flag only with namespace packages on, so when the consumer's config turns them off the run
+  repeats without it, in mypy's own `__init__.py` naming, and the run row's reason says so.
+- **`audit-type-debt`: no `.mypy_cache/` in the consumer's tree.** The collector passes
+  `--cache-dir` with the platform's null device, mypy's documented value for disabling the cache;
+  a one-shot report gained nothing from it (6.8s without a cache against 8.2s with a warm one over
+  this repository's 179 Python files).
 
 ## [0.2.3]
 

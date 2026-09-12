@@ -86,6 +86,8 @@ assert_doc "every fixture is measured exactly once" "$out" \
   'sorted(r["file"].rsplit("/",1)[1] for r in d["measures"])==["CmSample.cs","cm-notes.md","cm-sample.go","cm-sample.sh","cm-sample.ts","cm_sample.py","shared-utils.sh","shared-utils.sh"]'
 assert_doc "threshold carries the plugin-default provenance" "$out" \
   'd["thresholds"][0]["measure"]=="file_lines" and d["thresholds"][0]["reference"]==1000 and "not normative" in d["thresholds"][0]["provenance"]'
+assert_doc "a collector that said nothing leaves its ok row's reason null" "$out" \
+  'all(r["reason"] is None for r in d["run"] if r["status"]=="ok")'
 
 # 2. scc present: the ladder prefers it and comment counts appear.
 out="$(PATH="$STUBS:$EMPTY_PATH" bash "$SCRIPT" audit-size --measures file_lines --all "$SOURCES")"
@@ -158,6 +160,32 @@ assert_eq "collect failure exits 3" 3 "$rc"
 assert_doc "collect failure row is unavailable with the stderr relayed" "$out" \
   'd["run"][0]["status"]=="unavailable" and d["run"][0]["collector"]=="scc 9.9.9" and "collect failed" in d["run"][0]["reason"] and "boom" in d["run"][0]["reason"]'
 rm -rf "$broken"
+
+# 8b. A collector that succeeds while saying something on stderr: the ok row
+# carries what it said as its reason (mypy's error count reaches the run
+# table this way); a silent success leaves the reason null.
+noisy="$(mktemp -d)"
+cat >"$noisy/mypy" <<EOF
+#!/usr/bin/env bash
+if [[ "\${1:-}" == "--version" ]]; then printf 'mypy 1.19.1 (compiled: yes)\n'; exit 0; fi
+dir=""
+prev=""
+for arg in "\$@"; do
+  [[ "\$prev" == "--any-exprs-report" ]] && dir="\$arg"
+  prev="\$arg"
+done
+[[ -n "\$dir" ]] && mkdir -p "\$dir"
+cp "$SCRIPT_DIR/fixtures/tool-output/mypy-any-exprs.txt" "\$dir/any-exprs.txt"
+printf '%s\n' 'cm_sample.py:5: error: Incompatible return value type  [return-value]'
+exit 1
+EOF
+chmod +x "$noisy/mypy"
+out="$(PATH="$noisy:$EMPTY_PATH" bash "$SCRIPT" audit-type-debt --measures type_coverage "$SOURCES/cm_sample.py")"
+rc=$?
+assert_eq "a noisy success exits 0" 0 "$rc"
+assert_doc "the ok row's reason is what the adapter said on stderr" "$out" \
+  'any(r["lane"]=="python" and r["status"]=="ok" and r["reason"]=="mypy reported 1 error (0 missing stubs)" for r in d["run"])'
+rm -rf "$noisy"
 
 # 9. Change scope resolves in a throwaway repository.
 repo="$(mktemp -d)"
