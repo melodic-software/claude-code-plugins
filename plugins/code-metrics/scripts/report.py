@@ -337,7 +337,9 @@ def join_rows(measures: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if function and (not isinstance(start, int) or isinstance(start, bool)):
             known = starts.get((file, function), set())
             start = next(iter(known)) if len(known) == 1 else None
-        key = (file, function, start)
+        # The lane is part of the identity: two lane rows (`file` null) from
+        # two lanes must never join into one line.
+        key = (file, function, start, row.get("lane"))
         candidates = by_key.setdefault(key, [])
         for candidate in candidates:
             if _merge_into(candidate, row):
@@ -452,10 +454,15 @@ def render(doc: dict[str, Any], document_path: str | None = None) -> str:
         for row in sorted(
             measures,
             key=lambda r: (
+                # A lane row (`lane-total`) is the lane's figure: it leads its
+                # table and never falls under the row cap.
+                0 if "lane-total" in (r.get("labels") or []) else 1,
                 -len(r.get("over_reference", [])),
                 -_over_distance(r, references),
                 _primary_rank(primary, r),
-                r.get("file", ""),
+                # A lane row (type debt) has `file: null`; `or ""` keeps it
+                # comparable with the file rows it now sorts among.
+                r.get("file") or "",
                 r.get("start_line") or 0,
             ),
         ):
