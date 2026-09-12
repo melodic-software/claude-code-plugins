@@ -165,7 +165,7 @@ here instead, one level up, where gate step 1 has already put the payload in the
 ### What the harness actually guarantees about a resume
 
 Verified 2026-08-08 against <https://code.claude.com/docs/en/sub-agents> (the page
-`docs/OFFICIAL-DOCS.md` indexes for subagents), quoting it:
+`docs/official-docs.md` indexes for subagents), quoting it:
 
 - The parent has the identifier it needs: "When a subagent completes, Claude receives its agent ID."
 - The mechanism: "Claude uses the `SendMessage` tool with the agent's ID or name as the `to` field

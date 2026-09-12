@@ -29,7 +29,7 @@ How skills, hooks, and agents become reusable plugins in this marketplace. One p
 time: lift it out, make it work in plugin form and in any repo, build in configuration and extensibility,
 vet it against best practices, then publish.
 
-The durable design policy is [Plugin philosophy](PLUGIN-PHILOSOPHY.md). This playbook applies that
+The durable design policy is [Plugin philosophy](plugin-philosophy.md). This playbook applies that
 policy to migration, validation, cutover, and release; it does not redefine the policy.
 
 All schema and behavior claims below were verified against the official docs on 2026-06-22 (the
@@ -325,7 +325,7 @@ two fixed setup lines; this playbook only names the mechanism. Schema is reposit
 machine-scope files under `~/.claude/` stay outside it (ADR 0018).
 
 This ladder is the runtime application of the durable convention posture owned by
-[PLUGIN-PHILOSOPHY.md § Two-lane convention posture](PLUGIN-PHILOSOPHY.md): a pre-prescribed
+[plugin-philosophy.md § Two-lane convention posture](plugin-philosophy.md): a pre-prescribed
 convention is a hardcoded dependency, so a plugin ships a default only in lane 1 (a good-practice
 value that cannot conflict in any consuming repo) and otherwise takes lane 2, where its setup discovers
 the consumer's convention and externalizes it as an extensibility point the ladder then resolves.
@@ -334,7 +334,7 @@ the consumer's convention and externalizes it as an extensibility point the ladd
 
 Whether a plugin needs a `setup` skill, and the uniform contract it follows (`setup` name,
 `disable-model-invocation: true`, `check` + `apply` actions, non-interactive completion), is owned
-by [PLUGIN-PHILOSOPHY.md § Setup is explicit and repeatable](PLUGIN-PHILOSOPHY.md). Migration work
+by [plugin-philosophy.md § Setup is explicit and repeatable](plugin-philosophy.md). Migration work
 applies it as-is. Playbook-specific additions: the Thariq `config.json` first-run pattern is
 **rejected** for plugins: it is not an official mechanism, and it writes into
 `${CLAUDE_PLUGIN_ROOT}`, which is replaced on every update (the plugins-reference caching note), so
@@ -388,7 +388,7 @@ cover trigger/routing, the happy path, at least one refusal/guardrail, and one a
 must not do.
 
 **Method source.** The methodology behind this policy is Anthropic's "Define success criteria and
-build evaluations" ([indexed in OFFICIAL-DOCS.md](OFFICIAL-DOCS.md#evaluation-guidance-platform-docs);
+build evaluations" ([indexed in official-docs.md](official-docs.md#evaluation-guidance-platform-docs);
 the `evals` plugin distills it). The rich form is that guidance's eval anatomy with the golden
 answer in its rubric-instructions form (`expected_output` + `expectations` are what a grader is
 told to look for), and every case must carry one. The schema rejects a case with no
@@ -749,7 +749,7 @@ Catalog these per migration; they are the usual failures when an in-repo skill b
     the path [resolves against the repository checkout](https://code.claude.com/docs/en/plugin-marketplaces#relative-paths),
     including cloud sessions that install from the clone at session start, with no separate
     `marketplace add` step. Local collaborators still see the interactive trust prompt once they
-    trust the folder. See [`docs/CLOUD-SESSIONS.md`](CLOUD-SESSIONS.md) "Plugins in sessions on this repo".
+    trust the folder. See [`docs/cloud-sessions.md`](cloud-sessions.md) "Plugins in sessions on this repo".
 
 ## Per-plugin migration gate
 
@@ -763,11 +763,11 @@ For each skill/hook/agent being migrated:
 4. **Bundle + isolate.** Move required assets inside the plugin; reference via `${CLAUDE_PLUGIN_ROOT}`.
 5. **Expose extensibility.** Declare `userConfig` for consumer choices; document each option. Apply
    the userConfig full-potential criterion and the exec-form hook rule from
-   [PLUGIN-PHILOSOPHY.md § Configuration ownership and scope](PLUGIN-PHILOSOPHY.md): no custom
+   [plugin-philosophy.md § Configuration ownership and scope](plugin-philosophy.md): no custom
    config channel where the native schema fits, and no `${user_config.*}` in shell-form hooks.
 6. **Strip PII / secrets.** Hard gate, before the first commit.
 7. **Check component stances.** Every component the plugin ships conforms to the component stance
-   table in [PLUGIN-PHILOSOPHY.md](PLUGIN-PHILOSOPHY.md): no `commands/`, no unjustified
+   table in [plugin-philosophy.md](plugin-philosophy.md): no `commands/`, no unjustified
    `settings.json` `agent`, wait-listed components absent; setup criteria applied per its setup
    section; runtime prerequisites degrade per its failure-behavior rules.
 8. **Idempotent, modular, extensible.** Re-running is safe; pieces compose; variability is declared.
@@ -781,7 +781,7 @@ For each skill/hook/agent being migrated:
     even with `metadata.pluginRoot` set, despite the marketplaces-doc example to the contrary (verified
     2026-06-23). Then run `claude plugin validate --strict <repo-root>` to validate the **catalog manifest
     itself**: a bad entry surfaces only there, not in per-plugin validation. The catalog page
-    (`docs/CATALOG.md`) regenerates from the manifests, so run `node scripts/generate-catalog.mjs`.
+    (`docs/catalog.md`) regenerates from the manifests, so run `node scripts/generate-catalog.mjs`.
 
 ## Migration order, PRs & parallelization
 
@@ -798,7 +798,7 @@ conflicts. Group units into one PR only when they are hard-coupled, or when the 
 mechanical bulk edit.
 
 **Expect one shared-file conflict, resolved at merge.** The two files parallel PRs all touch are the
-catalog manifest (`.claude-plugin/marketplace.json`) and the generated catalog page (`docs/CATALOG.md`). Those conflicts are
+catalog manifest (`.claude-plugin/marketplace.json`) and the generated catalog page (`docs/catalog.md`). Those conflicts are
 expected: resolve them by **serializing the final merges**, not by serializing authorship.
 
 **Gate every unit before publish.** Each unit clears its parity / acceptance gate, the per-plugin
@@ -907,7 +907,7 @@ plugins-reference, and hooks pages 2026-07-17; re-verify per the `CLAUDE.md` fre
      does.
 7. **Main-thread and PATH surfaces.** A plugin `settings.json` `agent` entry takes over the
    consumer's main thread, and is prohibited by default per the component stance table in
-   [PLUGIN-PHILOSOPHY.md](PLUGIN-PHILOSOPHY.md); an exception requires the documented justification
+   [plugin-philosophy.md](plugin-philosophy.md); an exception requires the documented justification
    the stance demands, reviewed here. `bin/` executables join the Bash tool's `PATH` while the
    plugin is enabled: names must be collision-safe (plugin-prefixed), and each binary's provenance
    is reviewed like any hook script.
@@ -1484,7 +1484,7 @@ surface to a published plugin for a single consumer's low-value nicety.
    `sensitive` value is absent from settings entirely (smoke-test A) and cannot be verified this way.
    **Exception:** a `directory`/`file` relative-path entry in checked-in project settings resolves
    against the repo checkout (cloud sessions included). See
-   [`docs/CLOUD-SESSIONS.md`](CLOUD-SESSIONS.md). Otherwise the marketplace is known but the plugin is absent, and step 3's
+   [`docs/cloud-sessions.md`](cloud-sessions.md). Otherwise the marketplace is known but the plugin is absent, and step 3's
    verify edit would run with no plugin hook.
 2. Interactively, `/plugin configure` adjusts `userConfig` toggles at any time; keep the
    `HOOK_TELEMETRY_SINK` wiring and the sink script (the bridge), adapting the sink for any

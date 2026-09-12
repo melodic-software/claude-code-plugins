@@ -334,7 +334,7 @@ re-run the sweep rather than treating the row set as complete.
 | **#1268** false `context: fork` rationale | No / No — **title-filter false positive** | Matched only on the literal `audit` inside another topic's slice path (`docs/topics/plugin-audit-port/`, PR #1241). It corrects one rationale inside that topic's design record, explicitly says "Do not change the decision", and has since closed. Recorded so a reader can see it was assessed rather than silently dropped |
 
 Per D-8, anything touching `plugins/skill-quality/scripts/check-skill.sh` or
-`docs/PLUGIN-PHILOSOPHY.md` sequences behind PR #1096, which claims **check 21**. The next free check
+`docs/plugin-philosophy.md` sequences behind PR #1096, which claims **check 21**. The next free check
 number is **22**. Neither L2 nor L3 needs a `check-skill.sh` slot — L2 lands in `claude-config`, L3 is
 a catalog edit — so #1096 is a constraint to respect, not a blocker either lane waits on.
 

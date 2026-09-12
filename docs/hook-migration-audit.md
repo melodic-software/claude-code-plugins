@@ -2,16 +2,16 @@
 
 Point-in-time audit of the **general-purpose** subset of `melodic-software/medley`'s in-repo hooks
 for extraction into this marketplace's hook plugins (`guardrails`, `claude-ops`). This is an **audit
-snapshot**, not durable policy. The [migration playbook](MIGRATION-PLAYBOOK.md) is the policy; this
+snapshot**, not durable policy. The [migration playbook](migration-playbook.md) is the policy; this
 table records each candidate's gate compliance on the audit date and which follow-up issue owns each
 accepted migration. Empirical claims decay: a row is only true as of the stamp below.
 
 Audited 2026-07-12 (`melodic-software/medley#1391`, under wave-2 map `melodic-software/medley#1369`).
 Facts are Tier-0, read from each hook's `.sh`, its `.test.sh`, and medley's `.claude/settings.json`
 registration this session. The shipped-standard column is measured against the published hook-plugin
-conventions: the [four-seam extensibility contract](MIGRATION-PLAYBOOK.md), the
+conventions: the [four-seam extensibility contract](migration-playbook.md), the
 [hook-telemetry envelope contract](conventions/hook-telemetry/README.md), and the
-[shared-`hook-utils.sh` decision record](MIGRATION-PLAYBOOK.md).
+[shared-`hook-utils.sh` decision record](migration-playbook.md).
 
 ## Scope
 
@@ -112,7 +112,7 @@ parameterized tool or are consumer-owned by design.
   **Revisit trigger:** a second repo adopts the `.work/`-prep-evidence-before-PR convention → extract
   a generic prep-gate whose slug derivation, artifact glob, and freshness field are declared config.
 - **`hook-telemetry-sink`**: the consumer sink the [envelope contract](conventions/hook-telemetry/README.md)
-  "Mediator boundary" and the playbook's [Reintegration](MIGRATION-PLAYBOOK.md) step, which keeps the
+  "Mediator boundary" and the playbook's [Reintegration](migration-playbook.md) step, which keeps the
   sink script as the bridge, both say stays consumer-owned. It maps the envelope into medley's own store; it is
   not a producer to migrate. **Revisit trigger:** see the generic-sink gap below.
 - **`cc-telemetry-ensure`**: medley OTEL-pipeline enablement, bound to `tools/observability/*`

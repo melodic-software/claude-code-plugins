@@ -2,7 +2,7 @@
 
 Owner doc for the three observability surfaces every fleet hook declares or emits: a during-run
 status label, a user-visible notice when a runtime prerequisite is missing, and the fleet's
-telemetry envelope. The [plugin philosophy](../../PLUGIN-PHILOSOPHY.md) owns the posture rule:
+telemetry envelope. The [plugin philosophy](../../plugin-philosophy.md) owns the posture rule:
 advisory-versus-blocking, fail-open-versus-closed. This doc owns which of the three surfaces a
 given situation uses and how each is shaped.
 

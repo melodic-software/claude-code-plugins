@@ -250,8 +250,8 @@ already correct:
 
 - `scripts/validate-plugin-contracts.mjs:271` declares `lspServers: [".lsp.json"]`
 - `plugins/claude-ops/skills/inventory/scripts/inventory.py:88` inventories `lsp-servers`
-- `docs/OFFICIAL-DOCS.md:44` tracks the LSP servers doc page
-- `docs/PLUGIN-PHILOSOPHY.md:180` says "*Adopt on need. Consumer must have the language-server binary;
+- `docs/official-docs.md:44` tracks the LSP servers doc page
+- `docs/plugin-philosophy.md:180` says "*Adopt on need. Consumer must have the language-server binary;
   declare the prerequisite per the failure-behavior rules.*"
 
 That last line is the governing house policy and it points the same way as this research.

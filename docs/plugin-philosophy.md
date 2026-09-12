@@ -19,8 +19,8 @@
 - [Authoritative references](#authoritative-references)
 
 This is the durable design policy for plugins in this marketplace. The
-[migration playbook](MIGRATION-PLAYBOOK.md) applies it to migration and release work; the
-[plugin artifact protocol](PLUGIN-ARTIFACT-PROTOCOL.md) defines the shared artifact contract used by
+[migration playbook](migration-playbook.md) applies it to migration and release work; the
+[plugin artifact protocol](plugin-artifact-protocol.md) defines the shared artifact contract used by
 lifecycle plugins.
 
 ## Design boundary
@@ -653,7 +653,7 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Shared concern | Owner |
 |---|---|
 | Topic-docs two-tier binding | [`docs/conventions/topic-docs/`](conventions/topic-docs/README.md) |
-| Lifecycle artifact protocol | [`docs/PLUGIN-ARTIFACT-PROTOCOL.md`](PLUGIN-ARTIFACT-PROTOCOL.md) |
+| Lifecycle artifact protocol | [`docs/plugin-artifact-protocol.md`](plugin-artifact-protocol.md) |
 | Shared hook utility library | `lib/hook-utils.sh`, synced by `scripts/sync-hook-utils.sh` |
 | Cross-plugin shared-source clusters | `scripts/cross-plugin-source-registry.txt` |
 | Config cascade: consumer-config layering, precedence, overlay naming, and expression form | [`docs/conventions/config-cascade/`](conventions/config-cascade/README.md) |
@@ -688,8 +688,8 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Always-on hook cost ceiling | [`docs/conventions/hook-budget/`](conventions/hook-budget/README.md) |
 | Tracker reference form inside a code comment | [`docs/conventions/tracker-reference-form/`](conventions/tracker-reference-form/README.md) |
 | Untrusted-content framing contract | [`docs/conventions/untrusted-content/`](conventions/untrusted-content/README.md) |
-| Reply affordance on decision-collecting artifacts | [`docs/FINDING-YOUR-UNKNOWNS.md`](FINDING-YOUR-UNKNOWNS.md#reply-affordance-convention) |
-| Export button on interactive HTML artifacts | [`docs/FINDING-YOUR-UNKNOWNS.md`](FINDING-YOUR-UNKNOWNS.md#export-button-rule) |
+| Reply affordance on decision-collecting artifacts | [`docs/finding-your-unknowns.md`](finding-your-unknowns.md#reply-affordance-convention) |
+| Export button on interactive HTML artifacts | [`docs/finding-your-unknowns.md`](finding-your-unknowns.md#export-button-rule) |
 | Retired-convention detection and cleanup (manifest + shared helper) | [`docs/conventions/retired-conventions/`](conventions/retired-conventions/README.md) |
 | Authoring formats: acceptance-criteria format and diagram dialect by artifact kind, read by `/planning:interview`, `/planning:prd`, and `/planning:design` | [`docs/conventions/authoring-formats/`](conventions/authoring-formats/README.md) |
 
@@ -1193,7 +1193,7 @@ cannot assume a plugin layout.
 ## Authoritative references
 
 The complete categorized index of plugin-relevant official pages is
-[`docs/OFFICIAL-DOCS.md`](OFFICIAL-DOCS.md); `https://code.claude.com/docs/llms.txt` is the
+[`docs/official-docs.md`](official-docs.md); `https://code.claude.com/docs/llms.txt` is the
 authoritative self-updating master list. The Claude Code pages this document rests on, each
 re-fetched 2026-08-10 and confirmed to still carry the topics named beside it (the
 `melodic-software/standards` entry below is not a Claude Code page and was not re-checked on that

@@ -5,7 +5,7 @@ Owner doc for choosing a skill's **invocation mode**: whether the model may invo
 (`disable-model-invocation: true`). Consumed by skill authors at design time
 (`playbooks:skill-authoring`), by the fleet gate (`skill-quality:check`), and by audits grading
 existing skills. One home per the convention registry
-([`docs/PLUGIN-PHILOSOPHY.md`](../../PLUGIN-PHILOSOPHY.md) "Convention registry"); this doc decides,
+([`docs/plugin-philosophy.md`](../../plugin-philosophy.md) "Convention registry"); this doc decides,
 other surfaces point here.
 
 Provenance: AI Hero course steering lane 8
@@ -55,7 +55,7 @@ of its cited page no longer matching the bullet re-derives it here):
    triggering signal is private to the human (e.g. `discipline:wait-what`, where only the human knows
    comprehension broke), or it enters a persistent session-consuming mode the human should choose
    deliberately (e.g. `education:teach`).
-2. **(ii) Setup skills.** Per the PLUGIN-PHILOSOPHY setup contract ("Setup is explicit and
+2. **(ii) Setup skills.** Per the plugin-philosophy setup contract ("Setup is explicit and
    repeatable"): `setup` skills are named `setup` and carry `disable-model-invocation: true`.
 3. **(iii) Maintainer-only skills.** Operate on this marketplace's working tree (vendored-content
    sync, drift checks); meaningless or harmful for consumers to reach via the model.
@@ -160,7 +160,7 @@ Upstream's router pattern, a model-invoked skill whose job is routing the agent 
 skills, is rejected for this fleet: under the model-invoked default, the always-in-context
 listing already does that job, and this fleet's `true` set is *deliberately* model-invisible, so
 a router reaching into it would defeat the exception classes. The human-side cognitive-load
-problem is answered by `docs/SKILL-CHEAT-SHEET.md` and `claude-ops:inventory`.
+problem is answered by `docs/skill-cheat-sheet.md` and `claude-ops:inventory`.
 **Carve-out:** domain-scoped *composition* routers (`discipline:sweep-all`, whose membership is
 derived from corrector metadata) are a distinct, admitted pattern; they compose model-invoked skills
 rather than recovering discoverability for hidden ones.
@@ -222,7 +222,7 @@ listing omitting every `true` skill and dropping ~82% of descriptions least-invo
 the whole reason this skill resolves from the installed catalog instead. The second turns on
 *naming* versus *reaching*: `show-options` renders a menu and explicitly does not execute what the
 human picks, and both surfaces the router verdict itself blesses as the answer to the human-side
-problem, `docs/SKILL-CHEAT-SHEET.md` and `claude-ops:inventory` (itself `false`), already name the
+problem, `docs/skill-cheat-sheet.md` and `claude-ops:inventory` (itself `false`), already name the
 `true` set to a human from a model-reachable surface. Naming hidden skills to a human is settled
 practice in this fleet; only the agent invoking them is what the exception classes forbid. Nor is it
 the composition-router carve-out, which composes model-invoked skills rather than surfacing hidden
@@ -287,7 +287,7 @@ in the table above**, and the table's two flips are the only entries that are no
 
 ## Cross-references
 
-- PLUGIN-PHILOSOPHY: setup contract (class ii source), Instruction economy (listing-cost
+- plugin-philosophy: setup contract (class ii source), Instruction economy (listing-cost
   doctrine), Convention registry (this doc's row).
 - `skill-quality:check`: `listing-budget` (measurement) and check 24, the explicit-key criterion
   (enforcement: FAIL for a marketplace plugin skill, WARN elsewhere; class attribution is
