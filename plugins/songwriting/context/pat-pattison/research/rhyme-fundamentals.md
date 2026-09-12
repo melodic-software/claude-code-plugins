@@ -5,16 +5,16 @@
 - [2014 Preface](#2014-preface)
 - [Image inventory](#image-inventory)
 - [The five structural areas](#the-five-structural-areas)
-- [Anchor stance — sonic roadmap](#anchor-stance--sonic-roadmap)
-- [Introduction — "Do I Have To Rhyme?"](#introduction--do-i-have-to-rhyme)
+- [Anchor stance: sonic roadmap](#anchor-stance-sonic-roadmap)
+- [Introduction: "Do I Have To Rhyme?"](#introduction-do-i-have-to-rhyme)
 - [Core idea](#core-idea)
 - [What counts as rhyme](#what-counts-as-rhyme)
 - [Identity is not rhyme](#identity-is-not-rhyme)
-- [Perfect rhyme — Pat prefers "fully resolved"](#perfect-rhyme--pat-prefers-fully-resolved)
-- ["Shaking Hands" — what the heading actually means](#shaking-hands--what-the-heading-actually-means)
+- [Perfect rhyme: Pat prefers "fully resolved"](#perfect-rhyme-pat-prefers-fully-resolved)
+- ["Shaking Hands": what the heading actually means](#shaking-hands-what-the-heading-actually-means)
 - [Masculine / feminine / mosaic](#masculine--feminine--mosaic)
-- [Secondary stress — the "appreciate" case](#secondary-stress--the-appreciate-case)
-- [Finding vs. using — the fundamentals claim](#finding-vs-using--the-fundamentals-claim)
+- [Secondary stress: the "appreciate" case](#secondary-stress-the-appreciate-case)
+- [Finding vs. using: the fundamentals claim](#finding-vs-using-the-fundamentals-claim)
 - [Masculine rhyme](#masculine-rhyme)
 - [Feminine rhyme](#feminine-rhyme)
 - [Rhyme scheme notation](#rhyme-scheme-notation)
@@ -25,19 +25,20 @@
 - [Closure types](#closure-types)
 - [Exercises to preserve](#exercises-to-preserve)
 - [Revision moves](#revision-moves)
-- [Identity vs rhyme — the three-condition test](#identity-vs-rhyme--the-three-condition-test)
-- [Sound repetition vs order repetition — two forces](#sound-repetition-vs-order-repetition--two-forces)
+- [Identity vs rhyme: the three-condition test](#identity-vs-rhyme-the-three-condition-test)
+- [Sound repetition vs order repetition: two forces](#sound-repetition-vs-order-repetition-two-forces)
 - [The accelerator metaphor](#the-accelerator-metaphor)
 - [Ambiguity as a craft tool (*Essential Guide to Lyric Form and Structure* (1991), Chapter 4)](#ambiguity-as-a-craft-tool-essential-guide-to-lyric-form-and-structure-1991-chapter-4)
 - [Cross-references](#cross-references)
 
-Pat Pattison — *Essential Guide to Lyric Form and Structure* (1991), Chapter 4.
+Pat Pattison, *Essential Guide to Lyric Form and Structure* (1991), Chapter 4.
 Extended by *Essential Guide to Rhyming* (2014), Introduction and Chapters 1-2.
 
 ## 2014 Preface
 
 *Essential Guide to Rhyming* (2014), Preface.
 
+<!-- ai-slop-ignore-start: verbatim Preface of Essential Guide to Rhyming -->
 This is not a general book on lyric writing. It has a very specific purpose: *to help you find better rhymes and use them more effectively.*
 
 If you’ve written lyrics before, maybe even professionally, and you want to take a new look or gain even greater control and understanding of your craft, this book could be just the thing for you.
@@ -49,35 +50,36 @@ Rhyme is one of the most crucial areas of lyric writing. The great lyricists hav
 You can work completely through this book in two or three sittings. If you do the exercises, you’ll understand it the first time through. After that, use it for reference.
 
 You’ll need a rhyming dictionary. I use *The Complete Rhyming Dictionary*, edited by Clement Wood (Dell Publishing) as my source. I suggest you use it too. However, you can easily apply the information in this book to any rhyming dictionary.
+<!-- ai-slop-ignore-end -->
 
 ## Image inventory
 
 *Essential Guide to Lyric Form and Structure* (1991), Chapter 4: **40 linked
 page-scan figures, 40 unique**, read at 3x upscale. Earlier revisions of this
-file carried no inventory line at all. The chapter argues in its scans — the
+file carried no inventory line at all. The chapter argues in its scans: the
 six balance paradigms, every through-written/fragmented pair, all three closure
 types, and the printed answer keys to its exercises exist only as images. The
 `abba` correction below came from a figure and from an exercise key, neither of
 which is in the text layer.
 
 *Essential Guide to Rhyming* (2014), Introduction (printed pages ix–xii; spine
-items 010–013): **4 linked figures, 4 unique** — `image_2-page10.jpg` …
+items 010–013): **4 linked figures, 4 unique**: `image_2-page10.jpg` …
 `image_2-page13.jpg`. All four were rendered and read directly at 2x on the
 front-matter audit pass, and the text layer was confirmed complete against every
 one. Two things exist only in the scans: the **blank two-column Love/Desire
 table** on page xi (the text layer flattens it to the bare words `Love Desire`),
-and Pat's italics — `listen` in the opening paragraph's second sentence,
+and Pat's italics: `listen` in the opening paragraph's second sentence,
 `lines` in "just like *lines* in poetry," `not` in "The decision is *not*
 between rhyming and not rhyming," and both numbered COLD SPOT versions, which
 are set entirely in italic.
 
 *Essential Guide to Rhyming* (2014), Chapter 1 (printed pages 1–8): **8 linked
-figures, 8 unique** — `image_2-page14.jpg` … `image_2-page20.jpg` and
+figures, 8 unique**: `image_2-page14.jpg` … `image_2-page20.jpg` and
 `image_4-page1.jpg`. Each is a whole-page scan, and the 2014 EPUB carries a
 complete word-level text layer over it, so nothing in this chapter exists only
 in an image. Two consequences for anyone re-auditing it: Pat's stress marks
 (`/`, `//`) sit on their own collapsed lines in the text layer, and the text
-hard-wraps at every printed line — a single-line grep for a full sentence
+hard-wraps at every printed line, so a single-line grep for a full sentence
 returns zero hits even though the sentence is on the page.
 
 ## The five structural areas
@@ -97,30 +99,30 @@ These are the same five properties as the Structural Pentad in
 [meter](meter.md), measured against the rhyme scheme instead of the stress
 pattern. The preceding chapter introduces the Pentad on rhythmic structure;
 this chapter applies all five to rhyme structure. Diagnose a section once with
-the Pentad and read both surfaces off it — do not run two separate frameworks.
+the Pentad and read both surfaces off it. Do not run two separate frameworks.
 
-## Anchor stance — sonic roadmap
+## Anchor stance: sonic roadmap
+
+Pat Pattison, *Essential Guide to Rhyming* (2014), Introduction:
 
 > "Songs are made for ears, not eyes."
-> — Pat Pattison, *Essential Guide to Rhyming* (2014), Introduction
 
 > "Rhyme creates a sonic roadmap: it tells those eyeless ears where to
 > go and when to stop."
-> — Pat Pattison, *Essential Guide to Rhyming* (2014), Introduction
 
-The "eyeless ears" framing is load-bearing. The listener cannot SEE the
+The "eyeless ears" framing is what the rest of this file rests on. The listener cannot SEE the
 lyric. The rhyme structure tells them where the section is heading and
 when it has arrived. Spelling is irrelevant; the sung sound is the
 gate.
 
-## Introduction — "Do I Have To Rhyme?"
+## Introduction: "Do I Have To Rhyme?"
 
 The Introduction of *Essential Guide to Rhyming* (2014) (printed pages ix–xii;
 spine items 010–013) is craft content, not front matter. It is where the two
 anchor quotes above come from, and where Pat argues the case the rest of the
-book rests on. Chapter 2 back-references it by name — "Even if you wanted
+book rests on. Chapter 2 back-references it by name, "Even if you wanted
 'strafe,' it is a transitive verb needing a direct object to complete it.
-(Remember 'besiege'?)" — so the worked example below has to be on file for that
+(Remember 'besiege'?)", so the worked example below has to be on file for that
 reference to mean anything.
 
 The two quoted sentences above are the Introduction's first and third
@@ -221,7 +223,7 @@ To lay the castle under siege.
 
 The move that saves it is a **part-of-speech** move, not a rhyme move: Pat trades
 the transitive verb for a noun so the sentence can end where the rhyme has to
-end. Run that check before you rewrite a line's syntax — see
+end. Run that check before you rewrite a line's syntax. See
 [rhyme worksheets](rhyme-worksheets.md) for the same filter applied at the
 worksheet stage.
 
@@ -256,8 +258,8 @@ horses. Unfortunately, English is full of them. Faced with these two problems:"
 
 "…you might be tempted to chuck rhyme altogether."
 
-Pat's roster of the actual offenders is in [cliche](cliche.md) "Cliche rhymes" —
-that list is from a different book and is not reprinted here.
+Pat's roster of the actual offenders is in [cliche](cliche.md) "Cliche rhymes".
+That list is from a different book and is not reprinted here.
 
 ### Why refusing to rhyme is not the escape
 
@@ -271,7 +273,7 @@ Pat italicizes *lines* there: the printed line-break is the eye's road sign, and
 a lyric has no printed line-breaks for the listener. That is the whole argument
 for rhyme in one substitution.
 
-He then prints the same seven-line section twice — unrhymed, then rhymed — under
+He then prints the same seven-line section twice, unrhymed, then rhymed, under
 "There is a big difference between these two systems." Both versions are quoted
 in full below.
 
@@ -307,9 +309,9 @@ approximately (maybe even exactly) the same meaning."
 > to learn how to rhyme more effectively."
 
 That sentence is the Introduction's verdict, and the reason the book is a
-technique book rather than an argument for rhyme. Its closing paragraph — "Rhyme
-can be your best friend…" — is quoted under
-["Shaking Hands"](#shaking-hands--what-the-heading-actually-means) below.
+technique book rather than an argument for rhyme. Its closing paragraph, "Rhyme
+can be your best friend…", is quoted under
+["Shaking Hands"](#shaking-hands-what-the-heading-actually-means) below.
 
 ## Core idea
 
@@ -317,8 +319,9 @@ Rhyme is structural, not decorative. It creates expectation by repeating
 sound relationships, then controls how strongly a section moves, stops,
 accelerates, fragments, closes, or surprises.
 
-> "Rhyme is a powerhouse." — Pat Pattison,
-> *Essential Guide to Lyric Form and Structure* (1991), Chapter 4
+Pat Pattison, *Essential Guide to Lyric Form and Structure* (1991), Chapter 4:
+
+> "Rhyme is a powerhouse."
 
 Use rhyme as one of the main tools for prosody: the sound pattern should
 behave like the idea.
@@ -332,14 +335,14 @@ last syllables rhyme in `underwear/repair`; the other syllables, `under/re`,
 
 "When two syllables rhyme perfectly, three things happen:"
 
-1. "The syllables' vowel sounds are identical." — `wear/pair`. "Even though
+1. "The syllables' vowel sounds are identical." Example: `wear/pair`. "Even though
    they have different letters, they make the same sound in these words. Only
    your ears count, not your eyes."
-2. "The consonant sounds after the vowels (if any) are identical." — `wear/pair`.
+2. "The consonant sounds after the vowels (if any) are identical." Example: `wear/pair`.
    "(As you can see by the 'ea' in 'wear' and 'ear,' the same letters can make
    different sounds in different contexts.)" The "(if any)" matters because
    syllables don't always end in consonants, as in `disagree/referee`.
-3. "The syllables begin differently." — `wear/pair`.
+3. "The syllables begin differently." Example: `wear/pair`.
 
 "When syllables meet all three of these conditions, call it perfect rhyme."
 
@@ -358,10 +361,12 @@ This is called an identity:"
 fuse/confuse
 ```
 
+<!-- ai-slop-ignore-start: verbatim quote from Essential Guide to Rhyming, Chapter 1 -->
 "This isn't a rhyme. Your ear doesn't pay attention to the sounds of the
 syllables. Rhyme works with sounds, just like music. Tension/resolution. If
 there is no tension—no 'difference' to be resolved—there can be no
 resolution." (*Essential Guide to Rhyming* (2014), Chapter 1.)
+<!-- ai-slop-ignore-end -->
 
 Pat's cheerleader illustration runs in both books (*Essential Guide to Lyric
 Form and Structure* (1991), Chapter 4 and again in *Essential Guide to
@@ -401,17 +406,19 @@ peace/lease    piece/police
 2. ace, brace, chase, erase, face, disgrace, resting place
 ```
 
+<!-- ai-slop-ignore-start: verbatim quote from Essential Guide to Rhyming, Chapter 1 -->
 "Say them aloud. Your ear doesn't focus on the sounds in the first list, but
 it's drawn like a magnet to the sounds in the second list. In the first list,
 you hear simple repetition. In the second list, you hear the sound of music—or,
 rather, of tension/resolution."
+<!-- ai-slop-ignore-end -->
 
-## Perfect rhyme — Pat prefers "fully resolved"
+## Perfect rhyme: Pat prefers "fully resolved"
 
 Perfect rhyme is the baseline in *Essential Guide to Lyric Form and
 Structure* (1991), Chapter 4: same vowel sound, same ending consonant
 sound, different beginning. In *Essential Guide to Rhyming* (2014), Pat
-prefers the term **"fully resolved rhyme"** over "perfect" — because
+prefers the term **"fully resolved rhyme"** over "perfect", because
 "perfect" implies "better," and a fully resolved rhyme is one tier on
 the stability scale, not the only valid rhyme.
 
@@ -419,7 +426,7 @@ The terminology preference pervades Pat's later teaching. The skill uses
 both interchangeably; when teaching, prefer "fully resolved" to avoid the
 implied hierarchy.
 
-## "Shaking Hands" — what the heading actually means
+## "Shaking Hands": what the heading actually means
 
 "SHAKING HANDS" is the title of the opening section of *Essential Guide to
 Rhyming* (2014), Chapter 1. It is a heading, not a model of rhyme. The
@@ -428,31 +435,33 @@ book's opening chapters: Chapter 1 introduces you, and Chapter 2 opens "You
 have been introduced. Now find out what Rhyme does for a living." The
 introduction runs on through the chapter titles, in the order the printed
 CONTENTS lists them (*Essential Guide to Rhyming* (2014), Contents, spine items
-004–005 — the pages carry no folio):
+004–005, the pages carrying no folio):
 
-1. "RHYME IS YOUR FRIEND" — the introduction itself, opening on "SHAKING HANDS."
-2. "EXCHANGING BUSINESS CARDS" — what Rhyme does for a living
+1. "RHYME IS YOUR FRIEND": the introduction itself, opening on "SHAKING HANDS."
+2. "EXCHANGING BUSINESS CARDS": what Rhyme does for a living
    ([rhyme spotlight/connection](rhyme-spotlight-connection.md)).
-3. "GETTING REFERENCES" — checking up on the new acquaintance, i.e. worksheets
+3. "GETTING REFERENCES": checking up on the new acquaintance, i.e. worksheets
    ([rhyme worksheets](rhyme-worksheets.md)).
-4. "FAMILY FRIENDS" — family rhyme ([rhyme types](rhyme-types.md)).
-5. "FRIENDLY RELATIVES" — additive/subtractive rhyme (same file).
-6. "KISSIN' COUSINS" — assonance, consonance, partial rhyme (same file).
-7. "THE FRUITS OF FRIENDSHIP" — what the widened field buys you.
+4. "FAMILY FRIENDS": family rhyme ([rhyme types](rhyme-types.md)).
+5. "FRIENDLY RELATIVES": additive/subtractive rhyme (same file).
+6. "KISSIN' COUSINS": assonance, consonance, partial rhyme (same file).
+7. "THE FRUITS OF FRIENDSHIP": what the widened field buys you.
 
 The metaphor is a single unbroken arc from handshake to family: an earlier
 revision of this paragraph named only items 4-7 and dropped the first three,
 which are the ones that actually establish the personification.
 
+<!-- ai-slop-ignore-start: verbatim quote from Essential Guide to Rhyming, Introduction -->
 The chapter's closing stance under that personification: "Rhyme can be your
 best friend—your biggest help in leading all those eyeless ears through your
 lyrics. Or it can be your enemy. I want to show you how to make rhyme your
 friend. That’s why you should work your way through this book. All the way.
 Carefully." (*Essential Guide to Rhyming* (2014), Introduction.)
+<!-- ai-slop-ignore-end -->
 
 Everything the section itself teaches about rhyme is the three-condition test
 above. Do not tell a writer that rhyme is two people walking toward each other,
-meeting, and shaking hands — Pat never says that, and it invites the error that
+meeting, and shaking hands. Pat never says that, and it invites the error that
 the *vowel* is the meeting and the *ending consonant* is the handshake.
 
 ## Masculine / feminine / mosaic
@@ -461,7 +470,7 @@ This is **two** categories, not three. *Essential Guide to Rhyming* (2014),
 Chapter 1: "Most rhymes, including perfect rhymes, belong to one of two
 categories. Never to both. Every rhyme is either masculine or feminine. (We
 will conveniently ignore three-syllable rhymes, at least for now.)" Mosaic is
-not a third category — it is a way of *building* either one, out of pieces of
+not a third category. It is a way of *building* either one, out of pieces of
 more than one word.
 
 "Here are some masculine rhymes:"
@@ -483,7 +492,7 @@ rhymes. (Masculine rhymes are one-syllable rhymes.)"
 
 The stressed syllables carry the work. Look at the feminine list above and
 "you'll see that they're all perfect rhymes": `mand-ing`, `land-ing`,
-`stand-ing`, `pand-ing`, `strand-ing` — the stress falls on the first syllable
+`stand-ing`, `pand-ing`, `strand-ing`. The stress falls on the first syllable
 of each pair. "Stressed syllables, whether in feminine rhymes or masculine
 rhymes, are the creators of rhyme's tension and resolution."
 
@@ -508,14 +517,16 @@ asks for three perfect rhymes for nonsense or partial syllables such as `lant`,
 sound matches first, usable words second.
 <!-- spellchecker:on -->
 
-## Secondary stress — the "appreciate" case
+## Secondary stress: the "appreciate" case
 
+<!-- ai-slop-ignore-start: verbatim quote from Essential Guide to Rhyming, Chapter 1 -->
 *Essential Guide to Rhyming* (2014), Chapter 1: "Some words end on secondary
 stress—a syllable that, while it is not the primary stress in the word, is
 stronger than the syllables around it. Use '//' to mark secondary stress."
 Pat's notation puts `/` over the primary stress and `//` over the secondary. He
 marks the four-syllable word `ap–pre–ci–ate` with `/` over `pre` and `//` over
 `ate`.
+<!-- ai-slop-ignore-end -->
 
 "Listen to it. You can tell by the pitch of the last syllable that it is
 stronger than the syllable before it. You can't treat it as a feminine rhyme,
@@ -525,7 +536,7 @@ stronger than the last syllable."
 
 "You have two choices when you rhyme 'appreciate.'"
 
-1. "You can treat it as a one-syllable masculine rhyme." — `appreciate/fate/relate`.
+1. "You can treat it as a one-syllable masculine rhyme." Example: `appreciate/fate/relate`.
    "Even better, you can use secondary stresses:" `appreciate`, `navigate`,
    `compensate` (each marked `/` on the primary, `//` on the final syllable).
    Both sub-cases are masculine; matching secondary stress to secondary stress
@@ -538,7 +549,7 @@ more stressed than the one before it. The somersaults you have to turn for
 these little gems are worth it only if you are writing comedy. They sure do
 dance."
 
-## Finding vs. using — the fundamentals claim
+## Finding vs. using: the fundamentals claim
 
 Under "FINDING RHYMES," *Essential Guide to Rhyming* (2014), Chapter 1 draws
 the line the whole rhyme workflow rests on: "Use a rhyming dictionary. This is
@@ -552,9 +563,9 @@ available, the real creative process begins: using rhyme. And the more
 alternatives you have to choose from, the more room you have to be creative.
 Anyone can find a rhyme; not everyone can use rhyme creatively."
 
-The procedure this implies — the alphabet-process critique, the Clement Wood
-walkthrough, Exercises 1.1 and 1.2 — lives in
-[rhyme dictionary practice](rhyme-dictionary-practice.md). Do not duplicate it
+The procedure this implies lives in
+[rhyme dictionary practice](rhyme-dictionary-practice.md): the alphabet-process
+critique, the Clement Wood walkthrough, Exercises 1.1 and 1.2. Do not duplicate it
 here; this file holds the claim, that file holds the method.
 
 ## Masculine rhyme
@@ -583,7 +594,7 @@ liver / give her
 ```
 
 Only the stressed syllable must rhyme. `only / lonely` is a feminine **rhyme**,
-not an identity — the stressed syllables differ before the vowel (nothing
+not an identity. The stressed syllables differ before the vowel (nothing
 against `l`), which is exactly what condition 3 asks for. Its unstressed tail
 happens to be identical, and the chapter permits that: the tail may rhyme or
 may be an identity without changing the classification. Do not read a matching
@@ -629,7 +640,7 @@ The third line repeats the first sound, so the ear expects the second sound to
 return. `dive` can balance the order; `live/dive` after `alive` alone does not
 create the same balanced series because the original order has not returned.
 
-Pat prints six paradigms of BALANCE. All six deliver the same two things —
+Pat prints six paradigms of BALANCE. All six deliver the same two things,
 repetition of sound and repetition of order:
 
 ```text
@@ -639,8 +650,8 @@ abab      xaxa      aa      aabb      abcabc      xxaxxa
 **`abba` is not among them, and is not a balanced pattern.** An earlier
 revision of this list included it. The chapter uses `abba` as the explicit
 counterexample: an opening `abb` is *not* balanced by adding a fourth line
-that returns to `a`. It is balanced by repeating the whole series —
-`abbabb` — or by answering it with a fresh pair, `abbacc`. The chapter's
+that returns to `a`. It is balanced by repeating the whole series,
+`abbabb`, or by answering it with a fresh pair, `abbacc`. The chapter's
 printed exercise key independently marks `abba` **open**, and a balanced
 system is by definition closed.
 
@@ -699,7 +710,7 @@ b
 b
 ```
 
-These two are not free-standing rhyme facts — the chapter names them as the
+These two are not free-standing rhyme facts. The chapter names them as the
 rhyme-side twins of the rhythm Paradigms from the preceding chapter. `abab` is
 the simplest through-written system *"like rhythm Paradigm One"*; `aabb` is the
 simplest fragmented system *"like rhythm Paradigm Two"*. See
@@ -707,7 +718,7 @@ simplest fragmented system *"like rhythm Paradigm Two"*. See
 writer who has already chosen a rhythmic paradigm has half-chosen the rhyme
 flow that matches it.
 
-`aab` fragments for the same reason `aabb` does — the `a` pair bonds and rests
+`aab` fragments for the same reason `aabb` does: the `a` pair bonds and rests
 before anything else happens. Whether a further sound follows makes no
 difference; the balancing has already occurred.
 
@@ -718,13 +729,13 @@ than a new fragment.
 Worked example: Pattison contrasts Marvell's rhymed couplets, which stop in
 little thought units, with the final six lines of Shelley's "Ozymandias," which
 keep moving. **Both passages are quoted in full under
-[Two structural-ambiguity examples](#two-structural-ambiguity-examples)** —
-read them there rather than duplicating the analysis here.
+[Two structural-ambiguity examples](#two-structural-ambiguity-examples)**.
+Read them there rather than duplicating the analysis here.
 
 Worth recording for the rhyme-type files: the chapter names one of those
 Shelley end-sounds an imperfect rhyme and glosses it **"a Consonance Rhyme."**
 The full stability scale is developed in *Essential Guide to Rhyming* (2014),
-Chapters 4-6 and belongs there — but consonance is already named in 1991, so
+Chapters 4-6 and belongs there. But consonance is already named in 1991, so
 the 2014 scale extends this vocabulary rather than introducing it.
 
 ## Open and closed systems
@@ -783,8 +794,8 @@ Two conditions make closure deceptive:
 - The system raises a specific expectation.
 - The actual resolving sound already exists in the structure.
 
-Even when the system is lengthened by an acceleration, the expectation survives
-— after `fool / slow / school / nitwit / sit ...` you still expect `low`. That
+Even when the system is lengthened by an acceleration, the expectation survives.
+After `fool / slow / school / nitwit / sit ...` you still expect `low`. That
 leaves two possible deceptions, and both are deceptive:
 
 ```text
@@ -796,7 +807,7 @@ sit     c        sit     c
 rule    a        spit    c
 ```
 
-Contrast these, which are NOT deceptive — they are simply OPEN, because in the
+Contrast these, which are NOT deceptive. They are simply OPEN, because in the
 place you expect the closure they use a sound the system has not used yet:
 
 ```text
@@ -808,7 +819,7 @@ rise    c        slip    c
 
 A resolution is UNEXPECTED in either of two cases.
 
-**Case 1 — expectations were already satisfied, then the last sound repeats:**
+**Case 1: expectations were already satisfied, then the last sound repeats:**
 
 ```text
 blood  a        blood  a
@@ -818,7 +829,7 @@ bash   b        bash   b
 mash   b        mash   b
 ```
 
-**Case 2 — the system sets up no clear expectation before the resolution:**
+**Case 2: the system sets up no clear expectation before the resolution:**
 
 ```text
 fool      a
@@ -828,7 +839,7 @@ surprise  c
 ```
 
 This closure comes out of nowhere; it is a real surprise. Pat notes Shakespeare
-is fond of it for getting out of an unrhymed blank-verse passage — the closing
+is fond of it for getting out of an unrhymed blank-verse passage. The closing
 couplet of Emilia's speech in *Othello* IV.iii lands exactly this way. Put
 important or surprising ideas where the structure surprises and the ideas work
 with the structure to create prosody.
@@ -843,7 +854,7 @@ Why can't I have you?         a
 Why can't I have you?         a
 ```
 
-Here we are clearly looking backward — a clear case of Identity, so the system
+Here we are clearly looking backward, a clear case of Identity, so the system
 really has only two phrases, and it is closed. But:
 
 ```text
@@ -864,7 +875,7 @@ Chapter 4 runs Exercises 18-28. Full wording and content live in
 [exercises](exercises.md); the three labeling drills print their answer keys on
 the page, and those keys are the fastest way to check a reading of the theory:
 
-**Ex 23 — mark each `T` for through-written or `F` for fragmented:**
+**Ex 23: mark each `T` for through-written or `F` for fragmented:**
 
 <!-- spellchecker:off -->
 ```text
@@ -875,10 +886,10 @@ answers: 1. T; 2. F; 3. F; 4. T; 5. F; 6. F; 7. T; 8. T; 9. F; 10. F
 ```
 
 Item 7 (`abbaa`) is **T**, and the chapter says why: consecutive rhymes do not
-fragment when they follow something that creates a stronger effect — here, an
+fragment when they follow something that creates a stronger effect, here an
 odd number of phrases.
 
-**Ex 24 — mark each `C` for closed or `O` for open:**
+**Ex 24: mark each `C` for closed or `O` for open:**
 
 ```text
  1. ababa  2. aabbb  3. aaabb  4. abcab  5. abcac
@@ -887,7 +898,7 @@ odd number of phrases.
 answers: 1. C; 2. C; 3. O; 4. O; 5. C; 6. O; 7. either; 8. C; 9. C; 10. O
 ```
 
-**Ex 25 — mark each `E` expected, `U` unexpected, or `D` deceptive:**
+**Ex 25: mark each `E` expected, `U` unexpected, or `D` deceptive:**
 
 ```text
  1. ababb  2. abaa   3. aabba  4. aaba   5. abaaa
@@ -922,7 +933,7 @@ scheme to plot (28).
 - Put the title or strongest idea in expected, deceptive, or unexpected closure
   only when that spotlight serves the song.
 
-## Identity vs rhyme — the three-condition test
+## Identity vs rhyme: the three-condition test
 
 *Essential Guide to Lyric Form and Structure* (1991), Chapter 4 enforces a strict distinction: identity is not rhyme.
 
@@ -932,7 +943,7 @@ A fully resolved (perfect) rhyme needs three conditions:
 2. Same consonant sound after the vowel.
 3. Different consonant sound before the vowel.
 
-Identity matches conditions 1 and 2 but **fails** condition 3 — the
+Identity matches conditions 1 and 2 but **fails** condition 3: the
 consonant before the vowel is the *same*, not different. That single
 failure is what makes it identity rather than rhyme: with no difference
 to resolve, there is no tension, so the ear hears a repeat instead of a
@@ -946,12 +957,12 @@ distinguishes the two and would pass every identity as a rhyme.
 Use identity only when deliberate repetition serves the song.
 Otherwise filter at the worksheet stage.
 
-## Sound repetition vs order repetition — two forces
+## Sound repetition vs order repetition: two forces
 
 Rhyme satisfies two distinct desires:
 
-- **Sound repetition** — the same sound coming back.
-- **Order repetition** — the same pattern coming back across
+- **Sound repetition**: the same sound coming back.
+- **Order repetition**: the same pattern coming back across
   stanzas (e.g., `abab` repeating).
 
 The two forces work independently. A section can satisfy one and
@@ -986,8 +997,8 @@ without knowing where to start. Density first, types second.
 
 ## Ambiguity as a craft tool (*Essential Guide to Lyric Form and Structure* (1991), Chapter 4)
 
-Pat's distinctive *Essential Guide to Lyric Form and Structure* (1991) stance: structural ambiguity is not a flaw to fix
-— it is a tool to use.
+Pat's distinctive *Essential Guide to Lyric Form and Structure* (1991) stance: structural ambiguity is not a flaw to fix.
+It is a tool to use.
 
 The rhyme-scheme `aaa` and `ababa` patterns sit between fully closed and
 fully open. Pat calls them "more open than closed" and frames the slight
@@ -1022,7 +1033,7 @@ Time's winged chariot hurrying near ...
 ```
 
 Marvell's lines are 8-syllable, 4-stress (tetrameter) couplets. Each rhymed
-couplet works as a little unit of thought, almost like a paragraph — equal line
+couplet works as a little unit of thought, almost like a paragraph. Equal line
 lengths create balanced couplets, but it is rhyme that applies the brakes.
 
 The contrasting through-written passage, the last six lines of "Ozymandias":
@@ -1037,21 +1048,21 @@ The lone and level sands stretch far away.      c
 ```
 
 "Kings" rhymes with "things" three lines earlier; "appear" is an imperfect
-rhyme — technically a Consonance Rhyme — with "despair" and "bare." Had line
+rhyme, technically a Consonance Rhyme, with "despair" and "bare." Had line
 four used either "things" or "bare," the six-line system would have FRAGMENTED
 and gained an internal point of closure. Instead a new sound at line four keeps
 it moving, so the system is THROUGH-WRITTEN.
 
 The two examples the chapter builds on:
 
-- **Marvell, "To His Coy Mistress" — couplet flow**, quoted above. Use it when
+- **Marvell, "To His Coy Mistress": couplet flow**, quoted above. Use it when
   a writer wants rhyme-controlled fragmentation rather than enjambed flow: the
   couplet stops between idea-units even when the syntax could run on. Shelley,
-  also above, is the contrast case — the same device withheld.
-- **Shakespeare, *Othello* Act IV — unexpected closure** (*Essential Guide to Lyric Form and Structure* (1991), Chapter 4).
+  also above, is the contrast case, the same device withheld.
+- **Shakespeare, *Othello* Act IV: unexpected closure** (*Essential Guide to Lyric Form and Structure* (1991), Chapter 4).
   Shakespeare's blank verse establishes an expectation of no rhyme.
   When a closing couplet arrives without prior rhyme buildup, the
-  closure is unexpected — it lands harder than a couplet in a fully
+  closure is unexpected. It lands harder than a couplet in a fully
   rhymed scene because the ear had no rhyme expectation to satisfy.
   Use this when a section needs sudden closure that the prior structure
   hasn't telegraphed.
@@ -1062,10 +1073,10 @@ decoration. Couplet closure in Marvell paces; couplet closure in
 
 ## Cross-references
 
-- [rhyme strategy](rhyme-strategy.md) — three named strategies,
+- [rhyme strategy](rhyme-strategy.md): three named strategies,
   decision matrix, Shelley anchor.
-- [rhyme types](rhyme-types.md) — full stability scale.
-- [rhyme generation](rhyme-generation.md) — internal generation discipline.
-- [rhyme worksheets](rhyme-worksheets.md) — search algorithm per slot.
-- [Five Compositional Elements](five-compositional-elements.md) —
+- [rhyme types](rhyme-types.md): full stability scale.
+- [rhyme generation](rhyme-generation.md): internal generation discipline.
+- [rhyme worksheets](rhyme-worksheets.md): search algorithm per slot.
+- [Five Compositional Elements](five-compositional-elements.md):
   rhyme scheme (row 3) and rhyme types (row 4).

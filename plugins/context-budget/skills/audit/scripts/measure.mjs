@@ -9,11 +9,11 @@
 // Modes, in fixed preference order (the degradation ladder):
 //   sdk        Agent SDK getContextUsage() — exact integers. Requires
 //              @anthropic-ai/claude-agent-sdk to be resolvable (see --sdk-dir).
-//   cli-parse  `<binary> -p "/context"` markdown, parsed version-aware —
+//   cli-parse  `<binary> -p "/context"` markdown, parsed version-aware, with
 //              display-rounded values. Headless /context is undocumented as a
-//              -p-capable command, so this mode is load-bearing but
-//              unsanctioned; the record says so in `caveats`.
-//   (neither)  a structured error naming the remediation — never a wrong
+//              -p-capable command, so this mode depends on unsanctioned
+//              behavior. The record says so in `caveats`.
+//   (neither)  a structured error naming the remediation, never a wrong
 //              number.
 //
 // Subcommands:
@@ -475,7 +475,7 @@ function cliSnapshot({ bin, deny, label }) {
     },
     caveats: [
       'cli-parse mode: values are display-rounded, not exact integers',
-      'headless /context is undocumented as a -p-capable command (load-bearing but unsanctioned)',
+      'headless /context is undocumented as a -p-capable command, so this rung depends on unsanctioned behavior',
     ],
   };
 }

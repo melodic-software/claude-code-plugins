@@ -3,21 +3,81 @@
   "evals": [
     {
       "id": 1,
-      "name": "explicit-list-bypasses-discovery",
-      "prompt": "/architecture:map-landscape --repos /srv/code/platform/billing,/srv/code/platform/web\n\nThe repo-fleet-hygiene plugin is NOT installed. The convention home resolves and its architecture topic doc is the mermaid fixture below.",
-      "expected_output": "Charts exactly the two listed repositories with no discovery of any kind. Runs the bundled facts script over both paths, writes landscape.md (mermaid C4Context) and portfolio.md into docs/architecture, and never mentions a fallback walk because no discovery ran.",
+      "name": "bare-invocation-charts-this-repo-and-its-references",
+      "prompt": "/architecture:map-landscape\n\nThe convention home resolves and its architecture topic doc is the mermaid fixture below. The current repository is a git checkout whose tracked workflows carry `uses: acme/ci-workflows/...` lines and whose docs name `acme/standards`. No landscape.json exists yet.",
+      "expected_output": "Charts the current repository plus the repositories its tracked files reference, one hop out, without any scope argument. Builds landscape.json from the two collector scripts, renders landscape.md and portfolio.md into docs/architecture, and closes with the fixed report.",
       "files": ["evals/fixtures/topic-doc-mermaid.md"],
       "expectations": [
-        "Charts EXACTLY the two paths given; runs no discovery walk and no fleet-hygiene invocation, because an explicit list bypasses discovery outright",
-        "Does NOT announce a bundled-walk fallback: the fallback belongs to the --root mode, and announcing it here would misreport how the set was chosen",
-        "Runs `${CLAUDE_SKILL_DIR}/scripts/portfolio-facts.sh` with both paths rather than reading manifests by hand",
-        "Writes landscape.md (mermaid dialect from the topic doc) and portfolio.md into docs/architecture, the declared architecture_dir",
-        "The portfolio table carries all six columns (Repository, Owner, Target framework, Runtime, Dependencies, Last touched) with one row per repository, sorted by name",
-        "Never scans the session's working directory"
+        "Does NOT stop asking for a scope argument: a bare invocation is the primary use, charting the current repository plus its reference graph",
+        "Resolves the subject from `git rev-parse --show-toplevel` rather than walking the working directory for nested repositories",
+        "Runs `${CLAUDE_SKILL_DIR}/scripts/landscape-record.sh` to build the record rather than calling the two collectors separately and stitching JSON by hand",
+        "Writes `docs/architecture/landscape.json` and renders from it with `${CLAUDE_SKILL_DIR}/scripts/render-landscape.sh`, rather than composing landscape.md or portfolio.md by hand",
+        "Records the discovery source as the default (current repository plus reference graph), not as an explicit list",
+        "acme/ci-workflows appears as a node with a `uses-workflow` edge, and acme/standards with a `cites` edge",
+        "Closes with the fixed report: artifacts, repositories charted, edges by type, unknown count, discovery source, remote state, drift"
       ]
     },
     {
       "id": 2,
+      "name": "referenced-repos-are-nodes-without-invented-facts",
+      "prompt": "/architecture:map-landscape\n\nThe convention home resolves to the mermaid fixture below. The current repository references acme/ci-workflows and anthropics/claude-code. Neither is checked out anywhere on this machine, and --remote was not passed.",
+      "expected_output": "Draws both as systems: acme/ci-workflows inside the acme boundary because it shares the subject's owner, anthropics/claude-code as an external system. Both carry no probed facts, and the portfolio row for each is unknown rather than guessed.",
+      "files": ["evals/fixtures/topic-doc-mermaid.md"],
+      "narration": true,
+      "expectations": [
+        "Both referenced repositories are nodes even though neither is a local checkout",
+        "acme/ci-workflows is internal (its owner matches the subject's origin owner) and anthropics/claude-code is external",
+        "Neither gains a runtime, framework, or dependency list: an uncollected fact stays `unknown` and is NEVER filled from the repository name, ecosystem memory, or what the reference looks like",
+        "Makes no network call, because --remote was not passed; the record and the closing report both say remote was not used",
+        "Does not write to, fetch from, or otherwise touch either referenced repository"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "drift-against-the-committed-record",
+      "prompt": "/architecture:map-landscape\n\nThe convention home resolves to the mermaid fixture below. `docs/architecture/landscape.json` already exists from an earlier run. Since then a workflow gained a `uses: acme/new-service/...` line and a doc that cited acme/medley was deleted.",
+      "expected_output": "Compares the fresh collection against the committed record BEFORE writing, surfaces the drift report naming the added acme/new-service edge and the removed acme/medley one, then writes the refreshed record and re-renders.",
+      "files": ["evals/fixtures/topic-doc-mermaid.md"],
+      "narration": true,
+      "expectations": [
+        "Runs the comparison with `--drift-against docs/architecture/landscape.json` BEFORE writing anything, rather than overwriting the record and losing what changed",
+        "Surfaces the drift report to the operator: the added acme/new-service edge and the removed acme/medley edge are both named",
+        "Then writes the refreshed landscape.json and re-renders the artifacts from it, because this is not a --check run",
+        "Reports the drift in the closing block rather than only in passing",
+        "Does not treat a drifting record as an error to stop on: drift is the answer the operator asked for"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "check-writes-nothing-and-fails-on-drift",
+      "prompt": "/architecture:map-landscape --check\n\nThe convention home resolves to the mermaid fixture below. `docs/architecture/landscape.json` exists and the repository has since gained a workflow `uses:` line naming a repository the record does not carry. This is a non-interactive CI run.",
+      "expected_output": "Runs the comparison, prints the drift report, writes no file at all, and ends the run with the comparison's non-zero exit code.",
+      "files": ["evals/fixtures/topic-doc-mermaid.md"],
+      "narration": true,
+      "expectations": [
+        "Writes NOTHING: no landscape.json, no landscape.md, no portfolio.md, no temp or fallback file anywhere",
+        "Ends the run with the comparison's non-zero exit code so a CI lane fails on drift",
+        "Prints the drift report naming the new edge, so the failure explains itself",
+        "Does not fall back to writing the refreshed record 'so the next run is clean': --check is read-only by contract"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "explicit-list-bypasses-discovery",
+      "prompt": "/architecture:map-landscape --repos /srv/code/platform/billing,/srv/code/platform/web\n\nThe repo-fleet-hygiene plugin is NOT installed. The convention home resolves and its architecture topic doc is the mermaid fixture below.",
+      "expected_output": "Charts exactly the two listed repositories with no discovery of any kind. Collects facts for both through the record script, renders landscape.md (mermaid C4Context) and portfolio.md into docs/architecture, and never mentions a fallback walk because no discovery ran.",
+      "files": ["evals/fixtures/topic-doc-mermaid.md"],
+      "expectations": [
+        "Charts EXACTLY the two paths given; runs no discovery walk and no fleet-hygiene invocation, because an explicit list bypasses discovery outright",
+        "Does NOT chart the current repository as well: an explicit list replaces the default subject, it does not extend it",
+        "Does NOT announce a bundled-walk fallback: the fallback belongs to the --root mode, and announcing it here would misreport how the set was chosen",
+        "Records the discovery source as the explicit list, so a later reader can tell it from a default run",
+        "The portfolio table carries all seven columns (Repository, Owner, Target framework, Runtime, Dependencies, Tooling, Last touched) with one row per repository, sorted by name",
+        "Never walks the session's working directory for nested repositories"
+      ]
+    },
+    {
+      "id": 6,
       "name": "root-with-collaborator-installed",
       "prompt": "/architecture:map-landscape --root /srv/code/platform\n\nThe repo-fleet-hygiene plugin IS installed. Its audit writes the plan fixture below, whose repositories[] includes an entry outside the requested root.",
       "expected_output": "Invokes /repo-fleet-hygiene:audit with --plan-file pointing into the topic-docs memory slice, confirms schema_version is 1, filters repositories[] to entries whose discovered path lies under /srv/code/platform, and charts billing and web from their canonical paths. The operator's personal scratchpad, present in the plan, is excluded.",
@@ -28,14 +88,15 @@
       "expectations": [
         "Invokes /repo-fleet-hygiene:audit via the Skill tool with `--plan-file <memory_dir>/<topic-slug>/fleet-plan.json`, creating the memory slice first",
         "Confirms the plan's `schema_version` is `1` before reading `repositories[]`",
-        "FILTERS `repositories[]` to entries whose `discovered` path lies under the requested root: /srv/personal/scratchpad is present in the plan and MUST NOT appear in either artifact",
+        "FILTERS `repositories[]` to entries whose `discovered` path lies under the requested root: /srv/personal/scratchpad is present in the plan and MUST NOT appear in any artifact",
         "Uses each kept entry's `canonical` path (so the web worktree charts as /srv/code/platform/web) and its `remote`",
         "Announces that the collaborator's audit collects GitHub evidence and may need `gh` authentication",
+        "Records the discovery source as the fleet plan, not as a bundled walk or an explicit list",
         "Treats fleet-plan.json as a temp artifact in the self-ignoring memory slice; never commits it or copies it into architecture_dir"
       ]
     },
     {
-      "id": 3,
+      "id": 7,
       "name": "root-with-collaborator-absent-falls-back",
       "prompt": "/architecture:map-landscape --root /srv/code/platform\n\nThe repo-fleet-hygiene plugin is NOT installed.",
       "expected_output": "Announces the fallback, then runs the bundled walk: recurse from the root to depth 5, treat a .git entry as a repository without descending into it, skip node_modules, vendor and .venv, and resolve each canonical checkout from the first record of `git worktree list --porcelain`.",
@@ -45,28 +106,43 @@
         "Recurses from the root to depth 5, treats a `.git` entry as a repository and does NOT descend into it",
         "Skips `node_modules`, `vendor`, and `.venv`",
         "Resolves each canonical checkout from the first record of `git worktree list --porcelain`, not from `git rev-parse --show-toplevel`",
-        "Falls back the same way when the plan file is missing or carries a schema_version other than 1, rather than parsing an unrecognized plan"
+        "Falls back the same way when the plan file is missing or carries a schema_version other than 1, rather than parsing an unrecognized plan",
+        "Records the discovery source as the bundled walk"
       ]
     },
     {
-      "id": 4,
+      "id": 8,
       "name": "structurizr-dialect-from-topic-doc",
       "prompt": "/architecture:map-landscape --repos /srv/code/platform/billing,/srv/code/platform/web\n\nThe convention home resolves and its architecture topic doc is the structurizr fixture below.",
-      "expected_output": "Emits landscape.dsl (not landscape.md) into the declared architecture directory: a workspace with a model of softwareSystem elements and -> relationships, and views { systemLandscape \"landscape\" { include * autoLayout } }. Relationships appear only where a collected fact names the target.",
+      "expected_output": "Passes --dialect structurizr to the render script, which emits landscape.dsl (not landscape.md) into the declared architecture directory: a workspace with a model of softwareSystem elements grouped by owner, -> relationships labelled by edge type and count, and views { systemLandscape \"landscape\" { include * autoLayout } }.",
       "files": ["evals/fixtures/topic-doc-structurizr.md"],
       "expectations": [
         "Emits `landscape.dsl`, NOT `landscape.md`, because the topic doc declares landscape_dialect: structurizr",
+        "Reaches that output by passing --dialect to the render script, rather than writing DSL by hand",
         "The DSL carries a `workspace` with a `model` of `softwareSystem` elements and `->` relationships",
         "The DSL carries `views { systemLandscape \"landscape\" { include * autoLayout } }`",
         "Writes into `architecture/`, the declared architecture_dir, not a guessed docs/architecture",
-        "Draws an edge ONLY where a collected fact in the source names the target (dependency name equals the target's repository name or package id, a ProjectReference or workspace path resolves into it, or its remote URL appears in tracked config or README), and states the matched string as the edge description",
-        "Does not infer an edge from naming similarity, a shared owner, or directory adjacency"
+        "Relationship labels are the edge type and count the extractor produced, not a re-description of what the relationship means"
       ]
     },
     {
-      "id": 5,
+      "id": 9,
+      "name": "out-overrides-the-declared-home-for-one-run",
+      "prompt": "/architecture:map-landscape --out /tmp/scratch-landscape\n\nThe convention home resolves and its architecture topic doc declares architecture_dir: docs/architecture (the mermaid fixture below).",
+      "expected_output": "Writes the record and both artifacts into /tmp/scratch-landscape for this run only. docs/architecture is untouched, and the topic doc is not rewritten to point at the override.",
+      "files": ["evals/fixtures/topic-doc-mermaid.md"],
+      "narration": true,
+      "expectations": [
+        "Writes into /tmp/scratch-landscape, the override, rather than the declared docs/architecture",
+        "Leaves docs/architecture untouched: an override is one run, not a change of home",
+        "Does NOT rewrite the topic doc or the root instruction file to record the override",
+        "Still emits the dialect the topic doc declares: --out overrides the directory, not the dialect"
+      ]
+    },
+    {
+      "id": 10,
       "name": "no-topic-doc-and-no-inference-evidence",
-      "prompt": "/architecture:map-landscape --repos /srv/code/platform/billing\n\nThe resolver exits 1 (no pointer line anywhere). The repository contains no *.dsl file, no docs/architecture/ and no architecture/ directory. This is a non-interactive run.",
+      "prompt": "/architecture:map-landscape\n\nThe resolver exits 1 (no pointer line anywhere). The repository contains no *.dsl file, no docs/architecture/ and no architecture/ directory. No --out was passed. This is a non-interactive run.",
       "expected_output": "Stops and points at /architecture:setup. architecture_dir has no default, inference found no evidence to propose, and a non-interactive run cannot confirm one, so no artifact is written anywhere.",
       "files": [],
       "narration": true,
@@ -74,23 +150,38 @@
         "STOPS and points at `/architecture:setup`; does not pick a directory",
         "Writes NO artifact anywhere, including no temp or fallback location",
         "Names architecture_dir specifically as the key with no default, distinguishing it from landscape_dialect which does default to mermaid",
-        "Does not write the consumer's root instruction file, inside or outside the marked convention-home region",
-        "Does not treat the absent pointer line as permission to infer a home"
+        "Does not treat the bare invocation's default SUBJECT scope as permission to default the output HOME: the two are separate decisions",
+        "Does not write the consumer's root instruction file, inside or outside the marked convention-home region"
       ]
     },
     {
-      "id": 6,
-      "name": "no-scope-names-both-forms",
-      "prompt": "/architecture:map-landscape",
-      "expected_output": "Stops and names both scope forms, --repos <path>[,<path>...] and --root <dir>. Does not scan the session's working directory, and does not treat the current repository as an implied single-repository scope.",
-      "files": [],
+      "id": 11,
+      "name": "remote-requested-but-unavailable",
+      "prompt": "/architecture:map-landscape --remote\n\nThe convention home resolves to the mermaid fixture below. Neither the GitHub MCP tools nor an authenticated `gh` is available in this session.",
+      "expected_output": "Presence-gates, finds no backend, names the missing backend in the closing report, and completes the run local-only rather than failing. Referenced repositories keep their unknown rows.",
+      "files": ["evals/fixtures/topic-doc-mermaid.md"],
       "narration": true,
       "expectations": [
-        "STOPS rather than choosing a scope",
-        "Names BOTH forms explicitly: `--repos <path>[,<path>...]` and `--root <dir>`",
-        "Does NOT scan the session's working directory",
-        "Does NOT treat the current repository as an implied one-repository landscape",
-        "Runs no facts collection and writes no artifact"
+        "Checks for the GitHub MCP tools and then for an authenticated `gh` BEFORE attempting any fetch",
+        "Completes the run local-only rather than aborting: an unavailable backend degrades the facts, it does not invalidate the landscape",
+        "Names the missing backend in the closing report so the operator knows why the rows are unknown",
+        "NEVER prompts for a token, a password, or any other credential",
+        "Referenced repositories keep `unknown` facts rather than gaining plausible ones"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "remote-facts-lose-to-a-local-checkout",
+      "prompt": "/architecture:map-landscape --repos /srv/code/platform/billing --remote\n\nThe convention home resolves to the mermaid fixture below. The GitHub MCP tools are available. /srv/code/platform/billing is a local checkout whose probe finds runtime dotnet and last_touched 2026-01-01; the remote reports primary language C# and pushed_at 2026-06-01.",
+      "expected_output": "Keeps the local probe's facts for billing and does not overwrite them with the remote's. Remote facts fill only what no local checkout could supply, and each one's evidence names the call that produced it.",
+      "files": ["evals/fixtures/topic-doc-mermaid.md"],
+      "narration": true,
+      "expectations": [
+        "billing keeps runtime dotnet and last_touched 2026-01-01 from the local probe: a local checkout always wins for a fact both sources carry",
+        "Does NOT silently replace last_touched with pushed_at for a repository that is checked out here",
+        "Any fact that DID come from the remote names the API call or `gh` command in its evidence entry, not a bare 'remote'",
+        "A remote-sourced last_touched is labelled as pushed_at rather than local HEAD, so the two are never conflated",
+        "The record and the closing report both say remote was used, so a later local-only run can explain a moving date"
       ]
     }
   ]

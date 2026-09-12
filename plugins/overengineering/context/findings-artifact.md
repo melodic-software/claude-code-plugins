@@ -1,4 +1,4 @@
-# Findings artifact — the audit → realign contract
+# Findings artifact: the audit → realign contract
 
 ## Contents
 
@@ -12,7 +12,7 @@
 - [Ordering](#ordering)
 - [The stable spine / free prose split](#the-stable-spine--free-prose-split)
 - [The spine-capture obligation](#the-spine-capture-obligation)
-- [Aggregating containers — the container is the finding](#aggregating-containers--the-container-is-the-finding)
+- [Aggregating containers: the container is the finding](#aggregating-containers-the-container-is-the-finding)
 - [Per-finding fields](#per-finding-fields)
 - [Status vocabulary](#status-vocabulary)
 - [Status transitions are owned by realign](#status-transitions-are-owned-by-realign)
@@ -21,19 +21,19 @@
 - [Obligations, by skill](#obligations-by-skill)
 - [External authority](#external-authority)
 
-One markdown file is the whole seam between this plugin's four skills. **Two of them produce it**:
-`overengineering:audit` writes a `mode: walk` run over the ten enforcement layers, and
+One markdown file is the whole interface between this plugin's four skills. **Two of them produce
+it**: `overengineering:audit` writes a `mode: walk` run over the ten enforcement layers, and
 `overengineering:justify` writes a `mode: targeted` run over the five justification layers. Both are
 read-only on everything else. `overengineering:realign` is its **only mutating** consumer and its
 only writer of operator judgment. `overengineering:delta` reads it across runs and writes nothing
 here at all. All four skills read this document; **none restates a rule of it as a second
-authority** — where a skill states one in its own voice, as `realign` does for the moved-verdict
+authority**. Where a skill states one in its own voice, as `realign` does for the moved-verdict
 trigger it acts on, this document governs and settles every disagreement. No other plugin is
 assumed to read it.
 
-The artifact is the single source of truth for a run: everything that drives the reasoning —
-evidence citations, liveness answers, intent reconstruction, rediscovery, cost weighing, verdict —
-lives here. An inline terminal summary is a view of it, never a second record.
+The artifact is the single source of truth for a run. Everything that drives the reasoning lives
+here: evidence citations, liveness answers, intent reconstruction, rediscovery, cost weighing, and
+the verdict. An inline terminal summary is a view of it, never a second record.
 
 ## Deliberately NOT `type: review-findings`
 
@@ -41,12 +41,12 @@ This artifact declares `type: overengineering-findings` and **must never be made
 `type: review-findings`**, nor be written into the directory where a fix relay scans.
 
 The reasoning is structural, not stylistic. The `review:fanout` fix relay locates its input purely
-by frontmatter — files declaring `type: review-findings` whose `branch:` matches the current branch
-— and never by provenance; nothing authenticates the writer
+by frontmatter, matching files that declare `type: review-findings` and whose `branch:` matches the
+current branch, and never by provenance; nothing authenticates the writer
 (`docs/conventions/detector-findings/README.md`). A findings file of that type is therefore
 **auto-applicable by construction**. Realignment is consent-gated *per item*: routing it through the
-relay would launder exactly the human gate that makes this plugin safe to run — the same reasoning
-that convention states for a rule whose only remediation is a consent-gated write.
+relay would launder exactly the human gate that makes this plugin safe to run. That is the same
+reasoning that convention states for a rule whose only remediation is a consent-gated write.
 
 Consequences, so the boundary is not re-litigated one field at a time:
 
@@ -63,20 +63,20 @@ Consequences, so the boundary is not re-litigated one field at a time:
 
 **Memory tier, concern-scoped, never committed.** The home is resolved through this plugin's
 `reference/topic-docs.md` binding, which owns the rung order, the slug rule, the non-interactive
-collapse, and the self-ignore guard. This document names that binding and **never restates it** —
-and a skill must run the *whole* rung order rather than assuming the documented default's shape, or
-it writes where the other side never looks.
+collapse, and the self-ignore guard. This document names that binding and **never restates it**. A
+skill must run the *whole* rung order rather than assuming the documented default's shape, or it
+writes where the other side never looks.
 
 Two properties the contract does fix:
 
 - **Branch-keyed sub-path.** The resolved home carries a branch-derived segment, so concurrent
   branches, worktrees, and clones never clobber each other's runs. What proves an artifact belongs
-  to a branch is its own `branch:` frontmatter, never the directory it sits in — the branch-slug
+  to a branch is its own `branch:` frontmatter, never the directory it sits in. The branch-slug
   mapping is lossy by design and two branch names can slug to one directory.
   **A branch identity that does not resolve therefore keys no home at all.** A detached checkout has
   no branch name, and every substitute collapses the axis this segment exists to separate: `HEAD` is
   the same string for every ref, and the commit sha is a different one every commit. The producer
-  writes nothing rather than writing somewhere shared — see "No branch identity, no artifact" below.
+  writes nothing rather than writing somewhere shared. See "No branch identity, no artifact" below.
 - **One stable filename per home, rewritten in place.** A re-audit merges into the existing file
   (see "Re-run merge semantics") rather than depositing a timestamped sibling. A per-run filename
   would turn the merge into a search problem and make the artifact's history a guess; the run's
@@ -84,7 +84,7 @@ Two properties the contract does fix:
 
 The artifact is **ephemeral by design**: a branch switch, a removed worktree, or a reclaimed
 container loses it. That is acceptable for evidence and verdicts, which are recomputed, and
-unacceptable for operator judgments — see "The durable judgment record".
+unacceptable for operator judgments. See "The durable judgment record".
 
 ## Frontmatter
 
@@ -106,9 +106,9 @@ branch: <branch at audit time; never `HEAD`, and never written at all when the b
 | `schema` | yes | Integer contract version, currently `2`. A consumer reading an unrecognized value **stops with a visible message** rather than guessing at the shape. |
 | `mode` | yes | `walk` or `targeted`. A `walk` run inventories whole layers and is what `overengineering:audit` writes. A `targeted` run examines only the items named in `targets` and is what a pointed lane such as `overengineering:justify` writes. The merge rules below branch on this key, so a run that omits it cannot be merged safely. Required of every run this contract governs, which means every `schema: 2` run: a `schema: 1` artifact predates the key and legitimately carries none, and merging into one upgrades it, so the writer supplies `mode` for its own run rather than reading an absence as a fault. |
 | `targets` | when `mode: targeted` | The item identifiers this run examined, one per line, each a repo-relative path, a `path#heading`, or a kind-prefixed identifier from the closed set under "Finding ids". A `walk` run omits the key. It is the merge rules' authority for what this run did and did not look at; `scope` in a targeted run carries the prior artifact's value forward and adds the layers those targets fall in, and the added layers are for ordering only and assert no exhaustive walk. |
-| `date` | yes | ISO-basic UTC (`YYYYMMDDTHHMMSSZ`): compact, unambiguous about its zone, and lexically sortable — string order is chronological order. The only record of when the audit actually ran. (Colon-freedom buys nothing *inside* a file; it is a **filename** property, and this contract fixes one stable filename per home rather than a timestamped one.) |
+| `date` | yes | ISO-basic UTC (`YYYYMMDDTHHMMSSZ`): compact, unambiguous about its zone, and lexically sortable, so string order is chronological order. The only record of when the audit actually ran. (Colon-freedom buys nothing *inside* a file; it is a **filename** property, and this contract fixes one stable filename per home rather than a timestamped one.) |
 | `scope` | yes | The layers walked, from the layer vocabulary below. A layer-scoped pass says so here; **a layer absent from `scope` was not walked, and is not the same as a layer walked and found empty.** The merge rules depend on this distinction. |
-| `branch` | yes | The branch at audit time, resolved with `git symbolic-ref` — **never the literal `HEAD`**, which is what `git rev-parse --abbrev-ref HEAD` answers on a detached checkout. Realign refuses an artifact whose `branch:` does not match the current branch, naming the mismatch, and equally refuses one whose `branch:` is absent, empty, or `HEAD`. The field is required because the artifact is: where no branch identity resolves, there is no artifact to carry it (below). |
+| `branch` | yes | The branch at audit time, resolved with `git symbolic-ref`, and **never the literal `HEAD`**, which is what `git rev-parse --abbrev-ref HEAD` answers on a detached checkout. Realign refuses an artifact whose `branch:` does not match the current branch, naming the mismatch, and equally refuses one whose `branch:` is absent, empty, or `HEAD`. The field is required because the artifact is: where no branch identity resolves, there is no artifact to carry it (below). |
 
 ## No branch identity, no artifact
 
@@ -121,7 +121,7 @@ this is an ordinary condition for this artifact, not an exotic one.
 Where the identity does not resolve, and no logical ref is supplied by the environment:
 
 - **`audit` writes no artifact.** Not the file with `branch:` omitted, not the file with a placeholder
-  value, not the file at a home keyed by something else — none of it. The walk still runs and the
+  value, not the file at a home keyed by something else, none of it. The walk still runs and the
   inline summary is still emitted; only the persisted write is declined, and the run says so.
 - **`justify` writes no artifact either**, on the same terms: the pass runs against the target, the
   inline report is emitted in full, and only the persisted write is declined, with the run saying so.
@@ -141,7 +141,7 @@ it.
 
 ## Layer vocabulary
 
-Fixed enum, in this order — the order is load-bearing for sorting (below):
+Fixed enum, in this order. The ordering rule below sorts on it:
 
 `agent-hooks` · `agent-instructions` · `repo-hooks` · `vcs-hooks` · `ci-lanes` · `gate-scripts` ·
 `satellite-workflows` · `branch-protection` · `forge-apps` · `external-integrations` ·
@@ -155,7 +155,7 @@ this enum with a `schema` bump, never as a free-text value.
 the justification lane's**, examined one target at a time by `overengineering:justify`, and they
 never inventory an enforcement kind: a target whose whole content an enforcement layer's discovery
 probe would inventory routes to the enforcement lane and produces no row at all. The order remains
-load-bearing for sorting, so the five are appended rather than interleaved.
+the sort key, so the five are appended rather than interleaved.
 
 ## Document shape
 
@@ -212,12 +212,12 @@ Constituents, and nothing else:
 
 | Constituent | Value for this producer |
 |---|---|
-| `check` | `overengineering/<producer>/rule-<layer>` — lowercase `[a-z0-9-]` per segment, `<producer>` one of `audit` or `justify`, the layer taken from the enum above. The producer segment is part of the identity: two lanes judging the same surface would otherwise derive one id, and each run would carry or close the other's finding. |
-| `claim` | `enforcement-item` for an ordinary finding of the enforcement lane; `artifact-item` for one of the justification lane; either with `(member=<name>)` where an aggregating container carries per-member sub-verdicts. A canonical id with bound parameters — never free prose. |
-| `sites` | One `{surface, anchor/v1}` per artifact the finding is about. `surface` is the repo-relative path or kind-prefixed identifier; `anchor/v1` is `sha256` of the ordered locator path within that surface, truncated to 8 hex — `[<artifact-identity>]` for a whole item, and for a sub-member the member's path within its container: `[<container>, <member>]` where the member list is flat, and the member's full ancestry where the members are nested headings, per "A heading is a member, not an ordinal" below. **Never a positional ordinal.** A cross-artifact finding (a CONSOLIDATE naming two mechanisms covering one concern) carries *every* site here — the constituents are where all of a finding's sites bind, and that is what makes such an id reproducible across runs. See "Cross-artifact findings" below for how the sites then appear in the finding. |
+| `check` | `overengineering/<producer>/rule-<layer>`, lowercase `[a-z0-9-]` per segment, `<producer>` one of `audit` or `justify`, the layer taken from the enum above. The producer segment is part of the identity: two lanes judging the same surface would otherwise derive one id, and each run would carry or close the other's finding. |
+| `claim` | `enforcement-item` for an ordinary finding of the enforcement lane; `artifact-item` for one of the justification lane; either with `(member=<name>)` where an aggregating container carries per-member sub-verdicts. A canonical id with bound parameters, never free prose. |
+| `sites` | One `{surface, anchor/v1}` per artifact the finding is about. `surface` is the repo-relative path or kind-prefixed identifier; `anchor/v1` is `sha256` of the ordered locator path within that surface, truncated to 8 hex. It is `[<artifact-identity>]` for a whole item, and for a sub-member the member's path within its container: `[<container>, <member>]` where the member list is flat, and the member's full ancestry where the members are nested headings, per "A heading is a member, not an ordinal" below. **Never a positional ordinal.** A cross-artifact finding (a CONSOLIDATE naming two mechanisms covering one concern) carries *every* site here. The constituents are where all of a finding's sites bind, and that is what makes such an id reproducible across runs. See "Cross-artifact findings" below for how the sites then appear in the finding. |
 
 The id is `sha256` over the `US`-joined `[check, claim, *flattened canonically-sorted sites]`,
-truncated to 16 hex — the convention owns that computation and this document does not re-derive it.
+truncated to 16 hex. The convention owns that computation and this document does not re-derive it.
 
 **Deliberately excluded from the constituents: the verdict, the evidence, the status, and every
 prose field.** They are recomputed every run. An id that moved when a verdict moved would break
@@ -234,7 +234,7 @@ must either take its own layers or make its rows indistinguishable to every exis
 is the reason this partition is stated here rather than left as an observation about today's enum.
 
 **Cross-artifact findings: the id binds every site; the body names every site.** The spine's
-`Artifact` field is single-line by contract and carries the finding's **primary subject** — the one
+`Artifact` field is single-line by contract and carries the finding's **primary subject**, the one
 path or identifier it is filed under and sorts by. It is not the site list and cannot be, because
 identity lives in the `sites` constituents above. A finding about more than one artifact therefore
 names **every** site in its body, saying what each one contributes, rather than one site plus a
@@ -242,13 +242,13 @@ footnote.
 
 **Kind prefixes for items with no path in this repo.** `protection:<rule-name>`, `app:<name>`,
 `integration:<name>`, `package:<ecosystem>/<name>` for a declared dependency or pinned tool in the
-`dependencies` layer, and — for layers 1–7 — `settings:<path>` for a *registration surface* outside
+`dependencies` layer, and, for layers 1–7, `settings:<path>` for a *registration surface* outside
 the repo tree, such as a user- or machine-scope settings file that registers a mechanism governing
 work here. The prefix set is closed here and is the same set a `sites` `surface` draws from; a new
 one is added to this list, never coined per run, or two runs derive two different ids for one item.
 
 **`package:` carries its ecosystem because a name alone is not an identity.** The `<ecosystem>`
-segment is the manifest that declares the dependency — `npm`, `pypi`, `nuget`, `go`, `cargo`, or
+segment is the manifest that declares the dependency: `npm`, `pypi`, `nuget`, `go`, `cargo`, or
 `tool` for a pinned CLI binary with no package manifest. A polyglot consumer routinely declares one
 name in more than one of them, and an unqualified `package:ruff` would derive a single id for the
 PyPI package, an npm package of the same name, and a pinned binary, so a suppression or a status an
@@ -293,7 +293,7 @@ same lines, or every diff is noise.
 ## The stable spine / free prose split
 
 **The spine** is the machine-stable part: `id`, `layer`, `artifact`, `verdict`, `status`. It is
-**line-formatted** — the `id` as the finding's own heading line (`### <finding-id>`), and each
+**line-formatted**: the `id` as the finding's own heading line (`### <finding-id>`), and each
 remaining field on its own line, in the fixed order shown in "Document shape", with the literal
 bold label and a single-line value drawn from a closed vocabulary or a path. Nothing else may
 appear on a spine line.
@@ -325,18 +325,18 @@ tries to "audit, then diff the file" does not fail loudly; it reports "no baseli
 forever. A separately persisted spine is mandatory.
 
 **That spine is captured at the end of a cycle, from the post-audit artifact**, and it is the
-baseline the *next* cycle compares its own post-audit spine against. The timing is load-bearing, and
-`Status` is why: `overengineering:realign` is the sole writer of a status and a human runs it
+baseline the *next* cycle compares its own post-audit spine against. The timing decides whether the
+comparison can see anything, and `Status` is why: `overengineering:realign` is the sole writer of a status and a human runs it
 **between** cycles, while an audit only ever writes `OPEN` on a newly-seen id and carries every other
 status forward untouched. A capture taken at the *start* of a cycle therefore already holds whatever
 status realign wrote, the audit carries that same status through, and both sides of the comparison
-agree on it for every pre-existing finding — the one class that reports "a human acted" becomes
+agree on it for every pre-existing finding. The one class that reports "a human acted" becomes
 unobservable in exactly the case it exists for. Capturing after the audit leaves a later realign on
 the far side of the baseline, where the next cycle sees it.
 
 **One pre-audit capture is sanctioned: the bootstrap.** A home holding this artifact and no
-`spine-baseline.md` — audits were run manually here before any comparing consumer existed — captures
-the artifact's spine pre-audit, so that first cycle has a baseline at all. A bootstrap cycle **cannot
+`spine-baseline.md`, which happens where audits were run manually before any comparing consumer
+existed, captures the artifact's spine pre-audit, so that first cycle has a baseline at all. A bootstrap cycle **cannot
 detect a status change**, for the reason above, and a consumer says so rather than implying coverage
 it does not have. Every later cycle can.
 
@@ -359,9 +359,9 @@ compared: <ISO-basic UTC, written by the LATER cycle that consumes this baseline
 and the one that consumed it. A freshly written baseline carrying no `compared:` is the ordinary
 steady state, not a fault.
 
-Its body carries only material already fixed by this contract — each finding's `### <finding-id>`
-heading and its four spine lines verbatim, each container's `**Members (<n>):**` lines verbatim, and
-the per-tier tokens from `## Evidence availability` — and no prose field, ever.
+Its body carries only material already fixed by this contract, and no prose field, ever: each
+finding's `### <finding-id>` heading and its four spine lines verbatim, each container's
+`**Members (<n>):**` lines verbatim, and the per-tier tokens from `## Evidence availability`.
 
 Three properties keep it from becoming a second record of findings:
 
@@ -372,7 +372,7 @@ Three properties keep it from becoming a second record of findings:
   already governs; it asserts nothing the artifact did not already assert, and it is never merged
   into.
 - **It is a snapshot, not a history.** One file per home, overwritten by the next end-of-cycle
-  capture — but **only by a cycle that consumed it.** A capture is earned by having completed the
+  capture, but **only by a cycle that consumed it.** A capture is earned by having completed the
   comparison and by nothing else: where the cycle stopped short (the audit never ran or failed, the
   schema was unrecognized, two homes disagreed, the branch identity did not resolve) the stored
   baseline is kept exactly as it is and that cycle writes none. Overwriting it would move the
@@ -380,10 +380,10 @@ Three properties keep it from becoming a second record of findings:
   would be reported by no cycle at all. The kept baseline instead widens the next comparison's span,
   which that cycle names from its `source-date`.
 
-## Aggregating containers — the container is the finding
+## Aggregating containers: the container is the finding
 
-Where an item aggregates independent members — a hooks manifest registering several entries, a lane
-whose own definition carries its member list — **the container is the finding**: one spine row, one
+Where an item aggregates independent members, such as a hooks manifest registering several entries
+or a lane whose own definition carries its member list, **the container is the finding**: one spine row, one
 container verdict, one id. Members are deliberately **not** spine rows. Promoting them would make
 the container's own judgment unlocatable, and it would put two grains of thing in one sort order.
 
@@ -400,11 +400,11 @@ under a `**Members (<n>):**` label, one entry per member:
 - `<member-id>` `<member-name>` — **<VERDICT>** — <prose, wrapping freely below>
 ```
 
-The three fixed constituents — id, name, verdict — lead the entry in that order and stay on its
+The three fixed constituents, id, name, and verdict, lead the entry in that order and stay on its
 first physical line; everything after the second em dash is prose. A member id derives from the same
-rule as every other id, with `claim` = the producing lane's own claim carrying `(member=<name>)` —
-`enforcement-item(member=<name>)` on the enforcement lane, `artifact-item(member=<name>)` on the
-justification lane — and its site anchored at the member's ordered locator path within the
+rule as every other id, with `claim` = the producing lane's own claim carrying `(member=<name>)`, so
+`enforcement-item(member=<name>)` on the enforcement lane and `artifact-item(member=<name>)` on the
+justification lane, and its site anchored at the member's ordered locator path within the
 container: `[<container>, <member>]` where the member list is flat, and the member's full ancestry
 where the members are nested headings, per the ancestry rule under "Finding ids". A member keyed by
 name alone would collide wherever a container repeats a member name at two depths. So a suppression
@@ -414,11 +414,11 @@ or a realignment can key on a member without keying on the container.
 whole; it neither overrides a member's verdict nor is computed from them.
 
 **A member's basis goes in its prose.** The entry format is fixed at three leading constituents, so
-a member carries no `Basis` field. Where a lane's rules bind a verdict to a basis — a `KEEP` that
-must be `measured`, say — the member's prose states the basis in those same words, and a member
+a member carries no `Basis` field. Where a lane's rules bind a verdict to a basis, say a `KEEP` that
+must be `measured`, the member's prose states the basis in those same words, and a member
 verdict whose prose states none is read as unsupported rather than as measured.
 
-**What the cross-run diff covers.** The documented spine diff compares **container spines** — that
+**What the cross-run diff covers.** The documented spine diff compares **container spines**. That
 is what the spine's line format guarantees, and it is unaffected by how many members a container
 carries. Member lines are comparable **within a finding**: same container id, members matched by
 member id, read for a changed verdict token. A run reporting member verdicts states how many, so a
@@ -434,9 +434,9 @@ reader can never mistake a member count for a finding count.
 | `Status` | yes | always | One vocabulary value (below). Written `OPEN` by the audit on a new finding; otherwise carried forward. |
 | `Protected` | no | when a class match bore on the verdict, whether or not that class carries a cap | Which class and which pattern matched; whether a retirement cap was applied; and, when it was, the retirement-direction verdict it would otherwise have been. A class that carries no cap says so, and the row's `Verdict` and `Basis` still carry the earned-keep judgment on the item's own evidence. Recording an uncapped class match here is what keeps a class claim out of the verdict, where it would read as an answer to a question it does not answer. |
 | `Evidence` | no | always | At least one empirical citation with its tier (`scrutiny-method` §2), or `UNPROVEN` naming the tier consulted and whether it was **silent** or **unavailable**. Doc-only support is marked `unverified`. |
-| `Liveness` | no | always | Three independently-answered lines — source posture, wiring, runtime enforcement — each naming what was actually read. An unread question is recorded as unread, never inferred. |
+| `Liveness` | no | always | Three independently-answered lines, source posture, wiring, and runtime enforcement, each naming what was actually read. An unread question is recorded as unread, never inferred. |
 | `Intent` | no | always | The reconstruction and its confidence; `OPEN-INTENT` where the run was unattended and confidence was low. |
-| `Rediscovery` | no | always | The simplest adequate re-solution, native-first, with the tech-drift check and its date — or one of the two sanctioned dispositions below. |
+| `Rediscovery` | no | always | The simplest adequate re-solution, native-first, with the tech-drift check and its date, or one of the two sanctioned dispositions below. |
 | `Cost` | no | always | Removal, refactor, and testing cost as it entered the verdict. |
 | `Owner` | no | always | The resolved owner, or `operator (last resort)`, with the authorship evidence that resolved it. |
 | `Threshold` | no | when one was applied | Which threshold row fired, its source, and its analogical label carried verbatim. A threshold cited without its label is a contract violation, not a style slip. |
@@ -450,7 +450,7 @@ reader can never mistake a member count for a finding count.
 rows the run is reading, so a tier-1 window read late in a run contains the run itself. Two
 obligations follow: **bound the tier-1 read window at walk start** and state the bound, so no
 verdict's evidence grows underneath it; and where rows are attributable to the audit run itself,
-**exclude them and say so** — how many, and on what attribution. Self-generated rows admitted as
+**exclude them and say so**, stating how many and on what attribution. Self-generated rows admitted as
 evidence would let an audit prove a mechanism live by auditing it.
 
 **`OPEN-INTENT` is an `Intent` value and never a `Status`.** The status vocabulary below is closed
@@ -463,9 +463,9 @@ dated rather than remembered; it does not require one *per item*, and per-item c
 surface are both unaffordable and, for some items, meaningless. Two dispositions are sanctioned, and
 each is written into the field in these words:
 
-- `Deferred — no tech-drift check claimed` — a re-solution is stated, but no current-documentation
+- `Deferred — no tech-drift check claimed`. A re-solution is stated, but no current-documentation
   check was made this run. Nothing else in the finding may then read as though one was.
-- `Not applicable — <reason>` — no re-solution is this run's to make: custody is upstream (§12), or
+- `Not applicable — <reason>`. No re-solution is this run's to make: custody is upstream (§12), or
   liveness is unread, so there is no reconstructed problem to re-solve yet.
 
 **Batch the drift check per lane or per class rather than per item.** One dated check against the
@@ -482,14 +482,14 @@ in silence instead of dispositioned in the open.
 | `ACCEPTED` | The operator accepted the finding; remediation is authorized. |
 | `REJECTED` | The operator judged the finding and declined it; the mechanism stays. |
 | `REALIGNED` | Remediation executed and the change landed. |
-| `DELEGATED-EXTERNAL` | Accepted, but the remediation lies **outside this repository** — organization-level policy, a managed or synced upstream, a forge control plane. Carries a `Delegation` pointer to the artifact that carries the request: an upstream change request, an administrator issue, or written instructions handed to the owner. Realign never edits an out-of-repo surface in place, and never patches a managed copy locally. |
+| `DELEGATED-EXTERNAL` | Accepted, but the remediation lies **outside this repository**: organization-level policy, a managed or synced upstream, a forge control plane. Carries a `Delegation` pointer to the artifact that carries the request: an upstream change request, an administrator issue, or written instructions handed to the owner. Realign never edits an out-of-repo surface in place, and never patches a managed copy locally. |
 | `ABLATION-PENDING` | Accepted into a bounded ablation batch; not yet disabled. |
 | `ABLATION-ACTIVE` | Disabled at rung 1 of the rollback ladder; observation window running; `Ablation` carries the end date. |
 | `ABLATION-CONCLUDED-RETIRE` | The window elapsed with nothing escaping; deletion at rung 3 is authorized. |
-| `ABLATION-CONCLUDED-KEEP` | The window showed the mechanism load-bearing; it was re-enabled and the finding closes as KEEP with the evidence the window produced. |
+| `ABLATION-CONCLUDED-KEEP` | The window showed the mechanism catching something real; it was re-enabled and the finding closes as KEEP with the evidence the window produced. |
 
 The vocabulary is closed. A consumer encountering a value not in this table **reports it and takes
-no action on that finding** — soft degradation, never a guess about what an unknown state meant.
+no action on that finding**: soft degradation, never a guess about what an unknown state meant.
 
 Every `ABLATION-*` state carries a **durable pointer** (a suppression entry or a tracked issue) as
 well as its window. An observation window recorded only in an ephemeral artifact is an abandonment:
@@ -504,14 +504,14 @@ acceptance from the operator.
 `overengineering:audit` writes `OPEN` on a finding it has not seen before and otherwise **carries
 the prior status forward** verbatim. It never advances, downgrades, or clears one. This is not a
 courtesy: the audit's verb contract is read-only, and a read-only producer that rewrote statuses
-would silently erase decisions a human made — the failure the durable judgment record exists to
-prevent, reintroduced by the producer itself.
+would silently erase decisions a human made. That is the failure the durable judgment record exists
+to prevent, reintroduced by the producer itself.
 
 ## Re-run merge semantics
 
 **Every producer re-reads immediately before it writes.** Two lanes write this file, so a producer
 that merges against a copy it loaded earlier in its run silently drops whatever the other wrote in
-between — and drops it with no record, because rule 3 writes a closure row only for a layer this run
+between, and drops it with no record, because rule 3 writes a closure row only for a layer this run
 walked, and the two producers walk disjoint layers. Load the on-disk artifact immediately before
 each write, merge against that copy, and read a `date` newer than the one this run loaded as another
 producer's work to merge rather than to overwrite. This is a producer obligation binding on every
@@ -580,15 +580,15 @@ A re-audit **rewrites the artifact in place**, merging against the prior content
 each finding:
 
 1. **Id present in the prior artifact.** The merge **carries forward** the prior `Status` verbatim,
-   together with its status-bound fields (`Delegation`, `Ablation`, `Judgment`). Everything else —
-   evidence, liveness, intent, rediscovery, cost, owner, and **the verdict** — is recomputed and
-   replaces the prior value. A stale verdict is worse than no verdict; a wiped status is worse than
+   together with its status-bound fields (`Delegation`, `Ablation`, `Judgment`). Everything else is
+   recomputed and replaces the prior value: evidence, liveness, intent, rediscovery, cost, owner, and
+   **the verdict**. A stale verdict is worse than no verdict; a wiped status is worse than
    both.
 2. **Id absent from the prior artifact.** A new finding, `Status: OPEN`.
 3. **Prior id absent from this run, and its layer WAS walked.** The underlying artifact is gone
    (deleted, renamed, or already retired). The finding is **dropped with a note**: a
    `## Closed since last run` row records the id, **its `Layer`**, its last verdict, its last status,
-   and the reason class — `artifact absent`, `renamed to <successor id>` where the rename is
+   and the reason class: `artifact absent`, `renamed to <successor id>` where the rename is
    evidenced, or `layer no longer configured`. The layer is required for the same reason it is
    required on a spine row: it is the only serialized thing that says which producer owned the
    finding, since `check` is a hash input no consumer can read back. Without it a consumer filtering
@@ -612,7 +612,7 @@ each finding:
 6. **The spine is authoritative over the prior artifact's own prose.** Only the fields in rule 1 are
    carried; a prior run's summary, counts, and narrative are **recomputed from the spine actually
    written this run** and never inherited. A prior summary that contradicts its own spine is a
-   miscount, not a second source — recompute it and say nothing more about it.
+   miscount, not a second source. Recompute it and say nothing more about it.
 7. **Prior-artifact prose claims about status are not authoritative; the `Status` spine lines are.**
    A sentence elsewhere in the file asserting that something was accepted, rejected, or already
    realigned carries no weight against the spine line for that id. Where the two disagree, the spine
@@ -638,8 +638,8 @@ the **same per-item gate** that authorized the remediation.
 - **Offered, never taken.** A producer that wrote a suppression entry unprompted would record an
   acceptance nobody made. Realign proposes the entry, shows it, and writes only on an explicit yes.
 - **Which judgments qualify.** A `REJECTED` finding (the operator judged it and kept the mechanism)
-  and an `ABLATION-CONCLUDED-KEEP` one. A `REALIGNED` finding needs no entry — the mechanism is
-  gone, so the finding cannot recur.
+  and an `ABLATION-CONCLUDED-KEEP` one. A `REALIGNED` finding needs no entry, because the mechanism
+  is gone and the finding cannot recur.
 - **The ids already match.** The artifact's finding id *is* the `finding_id` the suppression record
   keys on, because both derive from the same constituents by the same rule. No translation step
   exists to get wrong.
@@ -653,7 +653,7 @@ the **same per-item gate** that authorized the remediation.
 - **The record is excluded from the audit's own scan set**, so recording a judgment does not perturb
   the next run's inputs.
 - **Suppression is visible, never silent.** On the next run, a finding whose id carries an entry is
-  reported in `## Suppressed` with its reason, date, and contributing layer — and every entry that
+  reported in `## Suppressed` with its reason, date, and contributing layer, and every entry that
   did *not* suppress (personal-only, malformed, stale) is reported there too.
 
 The key shapes and merge forms for the consumer's concern file are owned by this plugin's
@@ -663,30 +663,30 @@ The key shapes and merge forms for the consumer's concern file are owned by this
 
 | Obligation | `audit` | `justify` | `realign` | `delta` |
 |---|---|---|---|---|
-| Writes the artifact | yes — the walking producer, `mode: walk` | yes — the pointed producer, `mode: targeted`, and only rows in the five justification layers | yes — status and status-bound fields only | **never** — a reader, and no writer of any field here |
+| Writes the artifact | yes, the walking producer, `mode: walk` | yes, the pointed producer, `mode: targeted`, and only rows in the five justification layers | yes, status and status-bound fields only | **never**: a reader, and no writer of any field here |
 | Mutates anything outside the artifact | the two auxiliary writes its own read-only contract sanctions, and nothing else: the memory-tier self-ignore guard, and the concern-file persistence on the resolution rungs, which happens only on explicit confirmation; **never the surface it walks** | the same two, on the same terms, since it runs the same rung order; **never the artifact it judges** | only behind explicit per-item acceptance | the spine baseline, plus one queue route gated on config and presence; never the surface |
-| Writes `Status` | `OPEN` on new findings; carries the rest forward | `OPEN` on a finding it has not seen; carries every other status forward | the sole owner of every transition | **never** — it reports that one moved, which stays realign's alone |
+| Writes `Status` | `OPEN` on new findings; carries the rest forward | `OPEN` on a finding it has not seen; carries every other status forward | the sole owner of every transition | **never**: it reports that one moved, which stays realign's alone |
 | Leads with the evidence-availability assessment | yes, before any finding | appends its own per-target lines; never replaces the walk's per-tier tokens | reads it; never recomputes it | reads the tokens and compares them run to run; never recomputes them |
 | Refuses on a mismatched `branch:` or an unrecognized `schema:` | yes for `schema:`, with a visible message: it merges into whatever artifact it finds, so it reads one, and `1` and `2` are both recognized. `branch:` is its own to write | yes for `schema:`, with a visible message, because it merges against what it finds; `branch:` is its own to write | yes, with a visible message | mismatched `branch:` → no baseline, naming both branches; unrecognized `schema:` → stop before invoking anything |
-| Behavior when no branch identity resolves | writes **no artifact** — the walk runs, the inline summary is emitted, the persisted write is declined and the run says so | the same: the pass runs, the inline report is emitted in full, the persisted write is declined and the run says why | **refuses**, whether its own checkout or the artifact's `branch:` is the unresolved side; never compares | compares nothing and captures nothing, saying why |
-| Behavior when the artifact is missing | n/a | n/a — it creates one where the run wrote a row, since a first pointed run has nothing to merge against; a run that wrote no row creates nothing, however it got there | **stop** with a visible message naming both producers, `overengineering:audit` for a walk and `overengineering:justify` for a pointed run — the artifact-protocol missing-prerequisite rule; never scan on its own | not a stop but a **first run**: it says so, establishes the baseline, and reports nothing as a delta |
-| Re-reads immediately before writing | yes — the producer obligation above binds every writer | yes | yes | n/a — it writes nothing here |
+| Behavior when no branch identity resolves | writes **no artifact**: the walk runs, the inline summary is emitted, the persisted write is declined and the run says so | the same: the pass runs, the inline report is emitted in full, the persisted write is declined and the run says why | **refuses**, whether its own checkout or the artifact's `branch:` is the unresolved side; never compares | compares nothing and captures nothing, saying why |
+| Behavior when the artifact is missing | n/a | n/a: it creates one where the run wrote a row, since a first pointed run has nothing to merge against; a run that wrote no row creates nothing, however it got there | **stop** with a visible message naming both producers, `overengineering:audit` for a walk and `overengineering:justify` for a pointed run, which is the artifact-protocol missing-prerequisite rule; never scan on its own | not a stop but a **first run**: it says so, establishes the baseline, and reports nothing as a delta |
+| Re-reads immediately before writing | yes, the producer obligation above binds every writer | yes | yes | n/a, it writes nothing here |
 
 The `delta` column follows from what that lane is: it composes `audit` to produce this cycle's
 artifact, compares that artifact's spine against the baseline the previous cycle left behind, and
-captures a fresh baseline at the end of the cycle per the obligation above — so every write it makes
-belongs to that mechanic, and the artifact's own writes stay in `audit`'s column.
+captures a fresh baseline at the end of the cycle per the obligation above. Every write it makes
+therefore belongs to that mechanic, and the artifact's own writes stay in `audit`'s column.
 
 ## External authority
 
-- `docs/PLUGIN-ARTIFACT-PROTOCOL.md` — the lifecycle profile this artifact conforms to: memory-tier
-  placement, resolution through the current plugin's `reference/topic-docs.md` binding, and the
-  missing-prerequisite stop.
-- `docs/conventions/finding-suppression/` — the `finding_id` derivation, the required entry keys,
+- `docs/plugin-artifact-protocol.md`: the lifecycle profile this artifact conforms to, covering
+  memory-tier placement, resolution through the current plugin's `reference/topic-docs.md` binding,
+  and the missing-prerequisite stop.
+- `docs/conventions/finding-suppression/`: the `finding_id` derivation, the required entry keys,
   the constituents-are-authoritative rule, and the policy-floor precedence inversion.
-- `docs/conventions/detector-findings/README.md` — the fix relay's type-only selection, which is why
+- `docs/conventions/detector-findings/README.md`: the fix relay's type-only selection, which is why
   this artifact's type is deliberately not `review-findings`.
-- `docs/conventions/config-cascade/README.md` — the layering axis the consumer's tracked concern
+- `docs/conventions/config-cascade/README.md`: the layering axis the consumer's tracked concern
   file resolves through.
-- `context/scrutiny-method.md` — the verdict ladder, evidence taxonomy, protected-class cap,
+- `context/scrutiny-method.md`: the verdict ladder, evidence taxonomy, protected-class cap,
   thresholds, and rollback ladder whose output every field above records.

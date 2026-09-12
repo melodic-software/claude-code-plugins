@@ -91,7 +91,7 @@ configuration.
   reference first, then function rows by CRAP descending with a null CRAP last, then file rows by
   coverage ascending with a null percentage last, and file and line only as the tie-break. The
   first function row is the highest-CRAP function in scope, however its file name sorts; the rows
-  the cap drops are counted on the last line and are all in the `--json` document, which is not
+  the cap drops are counted on the table's last row and are all in the `--json` document, which is not
   capped.
 - `cov_source` says where the coverage came from: `artifact-region` when the artifact carried the
   function's own region (coverage.py `functions`, a Cobertura `<method>`, an lcov 2.2 `FNL` end

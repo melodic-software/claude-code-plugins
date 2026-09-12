@@ -1,4 +1,4 @@
-# Recurring wiring — how a consumer schedules this lane
+# Recurring wiring: how a consumer schedules this lane
 
 `overengineering:delta` is a **single-pass mechanic**. It runs once, compares once, reports once, and
 exits. Recurrence is entirely the consumer's, and this plugin **adopts no cadence and ships no
@@ -19,17 +19,16 @@ Every shape below invokes the same line, and the two arguments are not optional 
 - **`unattended` is mandatory for anything unwatched.** It selects the audit's unattended
   disposition for low-confidence intent (`${CLAUDE_PLUGIN_ROOT}/context/scrutiny-method.md` §4): record `OPEN-INTENT`, ask
   nothing, guess nothing. The harness gives a prose skill no reliable probe for whether a human is
-  watching, so the caller owns the flag — and a scheduled run that omits it will sit waiting on a
+  watching, so the caller owns the flag, and a scheduled run that omits it will sit waiting on a
   checkpoint question nobody will answer.
 - **Layer scope is how a large surface fits.** A mature surface runs past a hundred items and does
-  not fit one context window. A rotation — one or two layers per cycle, covering the ten-layer
-  enforcement
-  vocabulary over several cycles — composes correctly, because a re-run merges into the same
+  not fit one context window. A rotation of one or two layers per cycle, covering the ten-layer
+  enforcement vocabulary over several cycles, composes correctly, because a re-run merges into the same
   artifact by stable finding id. What it costs is stated in the skill body: findings in the layers a
   cycle did not walk contribute to no delta class, and the cycle's report names them as coverage.
   **Rotate deliberately, and read the coverage line.**
 
-## Shape 1 — a fixed-interval loop (interactive, the simplest)
+## Shape 1: a fixed-interval loop (interactive, the simplest)
 
 ```text
 /loop 1w /overengineering:delta unattended
@@ -43,10 +42,10 @@ documents the jitter the scheduler adds to a recurring fire time. Verified 2026-
 Claude Code 2.1.263 and that page as fetched that day. Recheck when that page drops the fixed-interval
 or jitter section, or when a release note names `/loop` scheduling.
 
-**A fixed interval is the right shape here, and the reason is specific.** The self-paced shape — an
-omitted interval, with the model choosing each delay — earns its keep for a *drain* loop, where what
+**A fixed interval is the right shape here, and the reason is specific.** The self-paced shape, an
+omitted interval with the model choosing each delay, earns its keep for a *drain* loop, where what
 the last cycle observed should govern when the next one fires and where the loop needs to be able to
-end itself. This lane drains nothing and never ends: an enforcement surface has no terminal state,
+end itself. This lane drains nothing and never ends. An enforcement surface has no terminal state,
 and the interval chosen once *is* the whole cadence policy, so there is no per-cycle signal for a
 self-paced schedule to consume.
 
@@ -67,7 +66,7 @@ against Claude Code 2.1.263 and that page as fetched that day. Recheck when that
 expiry window, changes the provider list or the version floor, or when a release note names
 scheduled-task expiry or self-paced `/loop` scheduling.
 
-## Shape 2 — a scheduled task (headless)
+## Shape 2: a scheduled task (headless)
 
 Where the harness offers a headless scheduled-task surface, register the same one-line prompt there.
 This is shape 1 without a session to keep open, and it makes the same trade.
@@ -87,14 +86,14 @@ Two things to get right:
   artifact, so every cycle is a first run and every report says so. Either persist the memory root
   across runs, or use shape 4 instead, where the durable record is a tracker item rather than a file.
 
-## Shape 3 — a CI schedule
+## Shape 3: a CI schedule
 
 A scheduled CI job can run the lane, and the trade is the sharpest of the four.
 
 **What it buys:** a cadence nobody has to remember, and a queue route that reaches a human through
 the forge.
 
-**What it costs:** a scheduled CI lane *is itself an enforcement-surface item* — one this plugin's
+**What it costs:** a scheduled CI lane *is itself an enforcement-surface item*, one this plugin's
 own audit will later walk, judge on carry cost, and quite possibly recommend retiring. Wire it
 knowing that, and give it the evidence it will be judged on: record what each cycle found, so the
 lane can prove its own keep rather than becoming the UNPROVEN row it exists to find. A recurring
@@ -104,13 +103,13 @@ report lane nobody reads is exactly the clutter the audit is pointed at.
 shallow. A fresh container has no baseline, so the lane has nothing to compare; a shallow clone makes
 the version-control evidence tier *unavailable*, which the audit reports honestly and which changes
 what UNPROVEN means for every row. If you take this shape, persist the memory-tier home between runs
-and fetch enough history for the evidence tiers to be readable — otherwise the lane reports a first
+and fetch enough history for the evidence tiers to be readable. Otherwise the lane reports a first
 run, forever, over a thin evidence base.
 
-## Shape 4 — a recurring work item (the lowest-commitment shape)
+## Shape 4: a recurring work item (the lowest-commitment shape)
 
-Register a recurring item in the consumer's own tracker — "run `/overengineering:delta unattended`
-and record what moved" — on whatever cadence that tracker already understands, and let the operator's
+Register a recurring item in the consumer's own tracker, "run `/overengineering:delta unattended`
+and record what moved", on whatever cadence that tracker already understands, and let the operator's
 existing work-selection routine pick it up when it comes due.
 
 **This is the shape to prefer when in doubt**, and it is the one this plugin's own repository is
@@ -133,5 +132,5 @@ a target rather than a guarantee.
 - **No shape may drop `unattended`.** An unwatched attended run stalls at the first intent
   checkpoint.
 - **No shape substitutes for the operator's judgment about the cadence.** If a lane's last several
-  cycles were all quiet, the correct response is to lengthen the interval or retire the lane — not to
+  cycles were all quiet, the correct response is to lengthen the interval or retire the lane, not to
   keep it and stop reading it.

@@ -971,6 +971,33 @@ class RunRowTests(unittest.TestCase):
             "partial, 0 of 1 scope files present in the artifacts", row["reason"]
         )
 
+    def test_the_other_lane_is_not_applicable_rather_than_unmatched(self) -> None:
+        # The dispatcher's scope listing names the lane per file; the catch-all
+        # lane holds text files no coverage format measures, so it is not a
+        # "0 of N present" gap and must not withhold complete from the run.
+        with tempfile.TemporaryDirectory() as tmp:
+            case = JoinCase(tmp).complexity(
+                [complexity_row("src/a.ts", "classify", 1, 3, "typescript", 2)]
+            )
+            (case.dir / "scope.txt").write_text(
+                "typescript\tsrc/a.ts\nother\tdocs/a.md\nother\tconfig.json\n",
+                encoding="utf-8",
+            )
+            document = case.artifact(
+                "lcov", {"src/a.ts": {"lines": {"1": 1}, "functions": None}}
+            ).join()
+        other = [r for r in document["run"] if r["lane"] == "other"]
+        self.assertEqual(
+            sorted((r["measure"], r["status"]) for r in other),
+            [("coverage", "not-applicable"), ("crap", "not-applicable")],
+        )
+        self.assertTrue(all(r["reason"] for r in other))
+        typescript = [r for r in document["run"] if r["lane"] == "typescript"]
+        self.assertEqual(typescript[0]["status"], "ok")
+        self.assertFalse(
+            any(r["file"].startswith("docs/") for r in document["measures"])
+        )
+
     def test_no_artifact_at_all_lists_the_paths_searched(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             document = (

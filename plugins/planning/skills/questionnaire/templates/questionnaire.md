@@ -1,4 +1,4 @@
-# Questionnaire template — the literal shape
+# Questionnaire template: the literal shape
 
 Fill every `<placeholder>`; keep the section order. Order questions most-important-first; group under `##` theme headings once there are more than a handful.
 

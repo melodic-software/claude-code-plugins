@@ -11,42 +11,50 @@ Refresh this file from current official docs via the skill's `update` action.
 ## Size and adherence
 
 > "**Size**: target under 200 lines per CLAUDE.md file. Longer files consume more context and reduce adherence."
-> — code.claude.com/docs/en/memory
+>
+> code.claude.com/docs/en/memory
 
 <!-- -->
 
 > "Files over 200 lines consume more context and may reduce adherence."
-> — code.claude.com/docs/en/memory (troubleshooting section)
+>
+> code.claude.com/docs/en/memory (troubleshooting section)
 
 <!-- -->
 
 > "Bloated CLAUDE.md files cause Claude to ignore your actual instructions!"
-> — code.claude.com/docs/en/best-practices
+>
+> code.claude.com/docs/en/best-practices
 
 <!-- -->
 
 > "If Claude keeps doing something you don't want despite having a rule against it, the file is probably too long and the rule is getting lost."
-> — code.claude.com/docs/en/best-practices
+>
+> code.claude.com/docs/en/best-practices
 
 <!-- -->
 
 > "Less than 300 lines is best, and shorter is even better."
-> — humanlayer.dev/blog/writing-a-good-claude-md
+>
+> humanlayer.dev/blog/writing-a-good-claude-md
 
 ## Context injection clarification
 
 > "CLAUDE.md content is delivered as a user message after the system prompt, not as part of the system prompt itself. Claude reads it and tries to follow it, but there's no guarantee of strict compliance, especially for vague or conflicting instructions."
-> — code.claude.com/docs/en/memory (troubleshoot section)
+>
+> code.claude.com/docs/en/memory (troubleshoot section)
 
 <!-- -->
 
 > "For instructions you want at the system prompt level, use `--append-system-prompt`."
-> — code.claude.com/docs/en/memory
+>
+> code.claude.com/docs/en/memory
 
 ## The deletion test
 
 > "Keep it concise. For each line, ask: 'Would removing this cause Claude to make mistakes?' If not, cut it."
-> — code.claude.com/docs/en/best-practices
+>
+> code.claude.com/docs/en/best-practices
 
 ## What to include vs exclude
 
@@ -65,13 +73,15 @@ Official include/exclude table (code.claude.com/docs/en/best-practices):
 ## Build and test commands
 
 > "Create this file and add instructions that apply to anyone working on the project: build and test commands, coding standards, architectural decisions, naming conventions, and common workflows."
-> — code.claude.com/docs/en/memory, "Set up a project CLAUDE.md"
+>
+> code.claude.com/docs/en/memory, "Set up a project CLAUDE.md"
 
 Build and test commands lead the list of what project memory is for. The inference cost of omitting
 them is stated on the same page, in what `/init` does instead:
 
 > "Claude analyzes your codebase and creates a file with build commands, test instructions, and project conventions it discovers."
-> — code.claude.com/docs/en/memory
+>
+> code.claude.com/docs/en/memory
 
 So a project CLAUDE.md that omits them leaves those commands to be discovered per session rather
 than read. Backs C9.
@@ -79,7 +89,8 @@ than read. Backs C9.
 ## @import syntax
 
 > "CLAUDE.md files can import additional files using `@path/to/import` syntax. Imported files are expanded and loaded into context at launch alongside the CLAUDE.md that references them."
-> — code.claude.com/docs/en/memory
+>
+> code.claude.com/docs/en/memory
 
 Key details:
 
@@ -91,7 +102,8 @@ Key details:
 ## claudeMdExcludes setting
 
 > "In large monorepos, ancestor CLAUDE.md files may contain instructions that aren't relevant to your work. The `claudeMdExcludes` setting lets you skip specific files by path or glob pattern."
-> — code.claude.com/docs/en/memory
+>
+> code.claude.com/docs/en/memory
 
 ```json
 {
@@ -109,29 +121,34 @@ Key details:
 ## Skills vs CLAUDE.md
 
 > "CLAUDE.md is loaded every session, so only include things that apply broadly. For domain knowledge or workflows that are only relevant sometimes, use skills instead. Claude loads them on demand without bloating every conversation."
-> — code.claude.com/docs/en/best-practices
+>
+> code.claude.com/docs/en/best-practices
 
 <!-- -->
 
 > "Rules load into context every session or when matching files are opened. For task-specific instructions that don't need to be in context all the time, use skills instead, which only load when you invoke them or when Claude determines they're relevant to your prompt."
-> — code.claude.com/docs/en/memory (rules section)
+>
+> code.claude.com/docs/en/memory (rules section)
 
 ## Hooks vs CLAUDE.md
 
 > "Unlike CLAUDE.md instructions which are advisory, hooks are deterministic and guarantee the action happens."
-> — code.claude.com/docs/en/best-practices
+>
+> code.claude.com/docs/en/best-practices
 
 ## InstructionsLoaded hook
 
 > "Use the `InstructionsLoaded` hook to log exactly which instruction files are loaded, when they load, and why. This is useful for debugging path-specific rules or lazy-loaded files in subdirectories."
-> — code.claude.com/docs/en/memory (troubleshoot section)
+>
+> code.claude.com/docs/en/memory (troubleshoot section)
 
-Observability-only — cannot block loading or modify content.
+Observability-only: cannot block loading or modify content.
 
 ## Specificity
 
 > "Write instructions that are concrete enough to verify."
-> — code.claude.com/docs/en/memory
+>
+> code.claude.com/docs/en/memory
 
 Official examples:
 
@@ -142,16 +159,18 @@ Official examples:
 ## Consistency
 
 > "If two rules contradict each other, Claude may pick one arbitrarily. Review your CLAUDE.md files, nested CLAUDE.md files in subdirectories, and `.claude/rules/` periodically to remove outdated or conflicting instructions."
-> — code.claude.com/docs/en/memory
+>
+> code.claude.com/docs/en/memory
 
 ## Rules files
 
 > "For larger projects, you can organize instructions into multiple files using the `.claude/rules/` directory. This keeps instructions modular and easier for teams to maintain. Rules can also be scoped to specific file paths, so they only load into context when Claude works with matching files, reducing noise and saving context space."
-> — code.claude.com/docs/en/memory
+>
+> code.claude.com/docs/en/memory
 
 Additional features:
 
-- Symlinks supported in `.claude/rules/` — maintain shared rules across projects
+- Symlinks supported in `.claude/rules/` to maintain shared rules across projects
 - User-level rules in `~/.claude/rules/` apply to every project (loaded before project rules)
 - Path-specific rules use `paths:` YAML frontmatter with glob patterns
 
@@ -159,37 +178,42 @@ Additional features:
 
 Caveats that do survive, each verified:
 
-- An `@import` **inside** a path-scoped rule defeats the scoping: the imported content inlines at session start whether or not a matching file is ever read. Per the docs, "Imported files are expanded and loaded into context at launch" — code.claude.com/docs/en/memory.
+- An `@import` **inside** a path-scoped rule defeats the scoping: the imported content inlines at session start whether or not a matching file is ever read. Per code.claude.com/docs/en/memory, "Imported files are expanded and loaded into context at launch".
 - Path-scoped content is invisible to subagents, teammates, and skill-forked contexts. Issue #32906 covers this and is closed as not planned, so it is accepted behavior rather than a pending fix. Basis: `gh api repos/anthropics/claude-code/issues/32906`, which returns `state: closed` and `state_reason: not_planned`. Verified 2026-09-06 against Claude Code 2.1.263. Recheck when that issue reopens or closes as completed, or when the memory page's subagent section changes.
-- Writing a NEW file does not trigger the rule. The trigger is a read: "Path-scoped rules trigger when Claude reads files matching the pattern, not on every tool use" — code.claude.com/docs/en/memory.
+- Writing a NEW file does not trigger the rule. The trigger is a read, per code.claude.com/docs/en/memory: "Path-scoped rules trigger when Claude reads files matching the pattern, not on every tool use".
 - Excluding `project` from `--setting-sources` also excludes on-demand rules, both path-scoped rules and rules in nested `.claude/rules/` directories (code.claude.com/docs/en/memory).
 
 ## Auto-memory limits
 
 > "The first 200 lines of `MEMORY.md`, or the first 25KB, whichever comes first, are loaded at the start of every conversation. Content beyond that threshold is not loaded at session start."
-> — code.claude.com/docs/en/memory
+>
+> code.claude.com/docs/en/memory
 
 <!-- -->
 
 > "This limit applies only to `MEMORY.md`. CLAUDE.md files are loaded in full regardless of length, though shorter files produce better adherence."
-> — code.claude.com/docs/en/memory
+>
+> code.claude.com/docs/en/memory
 
 <!-- -->
 
 > "The check measures only the content that loads: YAML frontmatter and block-level HTML comments are stripped before the index is loaded, so they don't count toward the limits."
-> — code.claude.com/docs/en/memory (limit check on writes to MEMORY.md)
+>
+> code.claude.com/docs/en/memory (limit check on writes to MEMORY.md)
 
 ## Auto-memory storage
 
 > "Each project gets its own memory directory at `~/.claude/projects/<project>/memory/`. The `<project>` path is derived from the git repository, so all worktrees and subdirectories within the same repo share one auto memory directory."
-> — code.claude.com/docs/en/memory
+>
+> code.claude.com/docs/en/memory
 
-**`autoMemoryDirectory` setting:** Override default location; read from any settings scope — user, project, local, policy, or `--settings`. From a project's `.claude/settings.json` or `.claude/settings.local.json`, the value is honored only after you accept the workspace trust dialog for that folder (the same gate that governs hooks).
+**`autoMemoryDirectory` setting:** Override default location; read from any settings scope: user, project, local, policy, or `--settings`. From a project's `.claude/settings.json` or `.claude/settings.local.json`, the value is honored only after you accept the workspace trust dialog for that folder (the same gate that governs hooks).
 
 ## Subagent persistent memory
 
 > "The `memory` field gives the subagent a persistent directory that survives across conversations."
-> — code.claude.com/docs/en/sub-agents
+>
+> code.claude.com/docs/en/sub-agents
 
 Three scopes:
 
@@ -206,24 +230,28 @@ Three scopes:
 ## HTML comments
 
 > "Block-level HTML comments (`<!-- maintainer notes -->`) in CLAUDE.md files are stripped before the content is injected into Claude's context. Use them to leave notes for human maintainers without spending context tokens on them. Comments inside code blocks are preserved."
-> — code.claude.com/docs/en/memory
+>
+> code.claude.com/docs/en/memory
 
 When you open a CLAUDE.md file directly with the Read tool, comments remain visible.
 
 ## Boris Cherny (CC creator)
 
 > "Anytime we see Claude do something incorrectly we add it to the CLAUDE.md, so Claude knows not to do it next time."
-> — howborisusesclaudecode.com
+>
+> howborisusesclaudecode.com
 
 <!-- -->
 
 > "Ruthlessly edit your CLAUDE.md over time. Keep iterating until Claude's mistake rate measurably drops."
-> — howborisusesclaudecode.com
+>
+> howborisusesclaudecode.com
 
 <!-- -->
 
 > "End corrections with: 'Update your CLAUDE.md so you don't make that mistake again'"
-> — howborisusesclaudecode.com
+>
+> howborisusesclaudecode.com
 
 **Auto-Dream (memory consolidation):** Boris describes a subagent that "reviews past sessions, keeps what matters, removes what doesn't, and merges insights into cleaner structured memory."
 
@@ -234,27 +262,28 @@ When you open a CLAUDE.md file directly with the Read tool, comments remain visi
 ## Style enforcement
 
 > "Never send an LLM to do a linter's job. LLMs are comparably expensive and incredibly slow."
-> — humanlayer.dev/blog/writing-a-good-claude-md
+>
+> humanlayer.dev/blog/writing-a-good-claude-md
 
 ## Compaction by steering method (June 2026)
 
-Per [Steering Claude Code](https://claude.com/blog/steering-claude-code-skills-hooks-rules-subagents-and-more) and [memory docs](https://code.claude.com/docs/en/memory) — what survives `/compact` vs what reloads on demand:
+Per [Steering Claude Code](https://claude.com/blog/steering-claude-code-skills-hooks-rules-subagents-and-more) and [memory docs](https://code.claude.com/docs/en/memory), what survives `/compact` vs what reloads on demand:
 
 | Method | Session start | After compaction | On-demand trigger |
 |--------|---------------|------------------|-------------------|
 | CLAUDE.md | Full load | Project-root re-injected; nested reload on demand | Nested: file read in that subdirectory |
 | Path-scoped rules | Matching paths only | Re-injected when paths match again | File read / edit |
-| Unscoped rules | Full load | Re-injected | — |
+| Unscoped rules | Full load | Re-injected | None |
 | Skills | Name + description | Listing re-injected; body on invoke | `/skill` or model choice |
 | Subagents | Name + description | Same as skills | Dispatch |
 | Hooks | N/A (deterministic) | N/A | Every tool call |
-| Auto-memory MEMORY.md | First 200 lines / 25KB | Persists on disk | — |
+| Auto-memory MEMORY.md | First 200 lines / 25KB | Persists on disk | None |
 | Output style | If non-default | Persists for session | `/config` |
 
 `AGENTS.md` is deliberately absent from that table: the memory doc's `AGENTS.md` section states
 "Claude Code reads `CLAUDE.md`, not `AGENTS.md`", and prescribes an `@AGENTS.md` import or a symlink
 as the way to make one load. So an `AGENTS.md` loads only through a `CLAUDE.md` that references it,
-on that `CLAUDE.md`'s row — never as a surface of its own.
+on that `CLAUDE.md`'s row, never as a surface of its own.
 
 ## No official scoring rubric
 

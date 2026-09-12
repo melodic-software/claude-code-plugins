@@ -62,19 +62,19 @@ findings came from. Four of its results are factual defects rather than style dr
 Ordered as the predecessor's sequencing note requires: the owner doc first, then the call sites, one
 editing pass per file.
 
-### Owner edits, `docs/PLUGIN-PHILOSOPHY.md`
+### Owner edits, `docs/plugin-philosophy.md`
 
 - **A `runtime-grounded` clause** in "Setup is explicit and repeatable". The recorded cluster
   `setup-probe-dont-recite` named this owner and recorded the clause as absent; it was, and
-  `grep -n "recite" docs/PLUGIN-PHILOSOPHY.md` returned nothing. Twenty setup skills asserted the
+  `grep -n "recite" docs/plugin-philosophy.md` returned nothing. Twenty setup skills asserted the
   rule with no owner to point at.
 - **Three missing Convention registry rows.** `hook-budget`, `tracker-reference-form` and
   `untrusted-content` each open by declaring themselves owner docs and each was absent from the
-  registry that indexes them. The registry's own text makes the omission load-bearing: "Fleet audits
+  registry that indexes them. The registry's own text says what the omission costs: "Fleet audits
   check conformance per row." A convention with no row gets no conformance check, and
   `untrusted-content` is fleet-adopted and anchors a standing refusal.
 - **A registry row for the dynamic-context precompute convention**, owned by the `playbooks` plugin.
-  The recorded cluster proposed a new `docs/PLUGIN-PHILOSOPHY.md` section named "Inline-template
+  The recorded cluster proposed a new `docs/plugin-philosophy.md` section named "Inline-template
   conventions"; that heading already exists under "Delegation mechanics" and owns a different
   subject (what a dispatch prompt must contain), so a second one would have duplicated an anchor and
   merged two unrelated concerns.
@@ -111,8 +111,8 @@ reason §6 gives rather than for anything the prompts say: §6 binds the three c
 and a prompt quoting the floor is not a lane. An earlier draft of this paragraph claimed both files
 "say in their own text that the quotation sits outside the byte-audited block". They do not. The
 only sentence in either naming that block reads "Two further reader-contract rules apply alongside
-the floor (outside the byte-audited block)", whose subject is those two rules, not the quotation —
-the same attach-the-quote-to-the-wrong-subject error this record was corrected for once already, in
+the floor (outside the byte-audited block)", whose subject is those two rules, not the quotation.
+That is the same attach-the-quote-to-the-wrong-subject error this record was corrected for once already, in
 the `detector-findings-tier-self-restatement` row. Neither prompt is counted in the five. Their wording was brought to the same text anyway, because a reader who diffs a quotation
 against its source should find only the wrapping different.
 
@@ -219,8 +219,8 @@ this sweep created none and none of these needs one. They are ordered by the har
 Four of the factual defects this survey found were applied in the same change set and so are not
 rostered here: `auto-mode-dropped-class-roster`, `songwriting-title-type-attribution`,
 `songwriting-section2-load-list-gate`, and `check-skill-trigger-fence-line-reference`. Their
-per-site detail is in the affected plugins' changelogs — `claude-config`, `songwriting`, and
-`docs-hygiene` respectively — and in the pull request that carried them. An earlier draft said they
+per-site detail is in the affected plugins' changelogs, `claude-config`, `songwriting`, and
+`docs-hygiene` respectively, and in the pull request that carried them. An earlier draft said they
 were "listed under Applied above"; that section covers the owner edits, the inline floor, and the
 call-site normalizations, and names none of these four, so a resumer following the pointer found
 nothing.
@@ -236,7 +236,7 @@ Line 414 is inside a comment stating that a trigger **move** WARNs and never blo
 being merged, `main` fixed one of the four in `detector-findings` 2.7.1, independently and by the
 same reasoning, which left the roster at four wrong within hours. The remaining three were fixed
 here, on `main`'s remedy: name the check, never the line. A line number in a citation is the decay
-rule's clearest case — it is wrong the moment anything above it moves, and nothing tells you.
+rule's clearest case. It is wrong the moment anything above it moves, and nothing tells you.
 
 What remains:
 
@@ -256,13 +256,13 @@ on disk. One is fixed in this change set; the second, a table cell in the same f
 
 | Cluster | Sites | Proposed owner |
 |---|---|---|
-| `read-only-artifact-write-reconciliation` | 7 audit skills | `docs/PLUGIN-PHILOSOPHY.md` "Naming". Seven skills reason from one unowned premise to two opposite bare-invocation defaults, and the repo has already shipped a detector that "quietly violated its own skill's stated hard rule" on it |
-| `destructive-consent-floor` | 5 skills | `docs/PLUGIN-PHILOSOPHY.md` "Naming", which already uses "explicit user override" and "never under a blanket approval" without defining either. The fleet holds two live rules on whether a flag is consent, for the same operation |
-| `worker-return-is-synthesis` | 13 files, 8 plugins | `docs/PLUGIN-PHILOSOPHY.md` "Delegation mechanics". The re-verification scope has already forked: four sites require every finding re-verified, one requires only load-bearing claims |
+| `read-only-artifact-write-reconciliation` | 7 audit skills | `docs/plugin-philosophy.md` "Naming". Seven skills reason from one unowned premise to two opposite bare-invocation defaults, and the repo has already shipped a detector that "quietly violated its own skill's stated hard rule" on it |
+| `destructive-consent-floor` | 5 skills | `docs/plugin-philosophy.md` "Naming", which already uses "explicit user override" and "never under a blanket approval" without defining either. The fleet holds two live rules on whether a flag is consent, for the same operation |
+| `worker-return-is-synthesis` | 13 files, 8 plugins | `docs/plugin-philosophy.md` "Delegation mechanics". The re-verification scope has already forked: four sites require every finding re-verified, one requires only the claims a conclusion rests on |
 | `dispatch-prompt-part-contract` | 6 files | The same section, which carries a four-part list that matches no consumer's. Four, five and six-part contracts are all in force |
 | `fanout-concurrency-cap` | 9 numeric sites | The same section, which has no concurrency content at all. Nine caps from 1 to a dozen with five grounds and no owner, while a fleet audit already treats "a numeric concurrency cap" as satisfying a required posture |
 | `config-cascade-unreadable-layer` | 5 setup skills | `docs/conventions/config-cascade/`, whose resolution algorithm covers a malformed layer and not an unreadable one. Five skills invented a variant; one file states it twice, differently |
-| `settings-scope-write-posture` | 3 audit skills | `docs/PLUGIN-PHILOSOPHY.md` "Configuration ownership and scope". Two owner docs exist and each is scoped so it binds none of the three sites |
+| `settings-scope-write-posture` | 3 audit skills | `docs/plugin-philosophy.md` "Configuration ownership and scope". Two owner docs exist and each is scoped so it binds none of the three sites |
 
 ### In-plugin consolidations
 
@@ -291,7 +291,7 @@ surrounding cluster was rostered.
 3. **Are unscoped `.claude/rules/` visible inside a subagent?** One plugin says no and marks the cell
    `(measured)`; the measurement's own fixture contained no unscoped rule, and the same file's README
    generalizes correctly to deferred surfaces only. Another plugin quotes the official docs saying
-   yes. The cell is load-bearing for the first plugin's central design argument.
+   yes. The first plugin's central design argument depends on that cell.
 4. **Do skill bodies come back after `/compact`?** Two files say yes with a specific per-skill and
    combined token budget sourced to the skills docs; two say no. Four copies of one table.
 5. **The freshness window is "this session" in a declared home and "this turn" in five of its own
@@ -400,9 +400,9 @@ names "the public invocation that replaced it **in the same sentence**", and tha
 entry asserts non-resolution "in the same sentence" as the quoted forms. Neither is accurate as
 written, and the rulings do not depend on it.
 The `detector-findings` bullet beginning "The `docs-hygiene:audit-noise` adopter row stops
-path-citing the producer's shape library" names **no slash invocation as the replacement** — the row
+path-citing the producer's shape library" names **no slash invocation as the replacement**: the row
 "now says 'its shape library' and 'the scanner'", a rename to the row's own terms rather than a
-routing fix — and the other eleven name the invocation in a **later sentence of the same bullet**.
+routing fix. The other eleven name the invocation in a **later sentence of the same bullet**.
 `config-cascade`'s non-resolution assertion ("All three are plugin-relative paths that resolve
 against nothing from this file") is likewise the sentence that follows the three quoted forms rather
 than the sentence carrying them. The unit that carries the evidence claim is the bullet, not the
@@ -411,7 +411,7 @@ sentence, and the substance holds at that unit: every row states what it removed
 A first attempt at this correction said that bullet "names **no** invocation at all", which its own
 text refutes: it names `docs-hygiene:audit-noise` and `claude-config:audit-instructions`, just not as
 the replacement. That attempt also pinned the `config-cascade` sentences at `:13-14` and `:11-13`
-when the quoted forms are on 12, 13 and 14 and the assertion runs 14 to 16 — a line pin written into
+when the quoted forms are on 12, 13 and 14 and the assertion runs 14 to 16, a line pin written into
 the very file whose decay rule says the check is the text. Both are corrected here on text anchors,
 and both were caught by the round verifying this one.
 
@@ -437,7 +437,7 @@ available: the alternative is a changelog entry that does not say what it change
 ### Three trees the sweep excluded by fiat
 
 The sweep's encapsulation floor scoped itself to `docs/**` and then dropped five subtrees. Two of the
-exclusions are defensible and stated as such: `docs/SKILL-CHEAT-SHEET.md` (162 citations, generated
+exclusions are defensible and stated as such: `docs/skill-cheat-sheet.md` (162 citations, generated
 and CI drift-checked, so an edit is reverted by its generator) and `docs/upstream/` (vendored, not
 this repo's prose to style). **The other three rest on nothing.** `docs/specs/` (roughly 265 sites),
 `docs/topics/` (roughly 43) and `docs/adr/` (25) were excluded on the assertion that "the dated
@@ -457,7 +457,7 @@ expression, and per this file's own recall-limits discipline none of these numbe
 
 ### A stale record found in passing, not an ADR matter
 
-`docs/MIGRATION-PLAYBOOK.md`'s "Review record — `dometrain` (ACCEPT, 2026-07-22)" carries the
+`docs/migration-playbook.md`'s "Review record: `dometrain` (ACCEPT, 2026-07-22)" carries the
 clause "Reviewed at `0.1.0`; a version bump adding a new trust surface re-triggers this review."
 **The plugin's manifest reads `0.2.7`** (`plugins/dometrain/.claude-plugin/plugin.json`, read from
 the working tree, not from the roster). Eleven releases landed in between and the review was never
@@ -491,12 +491,12 @@ the accurate statement and needs no edit. Recorded rather than left, because a s
 reading stronger in the log than in the artifact is the direction that misleads.
 
 **The `:943` re-anchoring was good practice for a reason that was not true.** `dd6c11fe`'s message
-says the spec's `dometrain` entry pinned `MIGRATION-PLAYBOOK.md:943`, "a line this change's own edit
+says the spec's `dometrain` entry pinned `migration-playbook.md:943`, "a line this change's own edit
 would have invalidated", and claims the decay rule was for the first time "caught before landing".
 The insertion lands below that line:
 
 ```console
-$ git show dd6c11fe --unified=0 --format='' -- docs/MIGRATION-PLAYBOOK.md | grep '^@@'
+$ git show dd6c11fe --unified=0 --format='' -- docs/migration-playbook.md | grep '^@@'
 @@ -944,0 +945,7 @@ ### Review record — `dometrain` (ACCEPT, 2026-07-22)
 ```
 
@@ -506,20 +506,20 @@ No violation was caught; a hazard was avoided that was not present on this diff.
 
 **"Two checks were run … which the note says" is false about the note.** `dd6c11fe`'s message says
 two checks were run to avoid claiming a trust surface was added, "which the note says". The note
-says nothing about any checks — it states the reviewed version, the shipping version, that the
+says nothing about any checks. It states the reviewed version, the shipping version, that the
 question is unadjudicated, and that the re-review is owed. Whether the two checks ran is not
 recoverable from the diff either. Treat the note's own text as the whole of what this pass
 established.
 
 **"Every one of #3468's ADR-0018 citation fixes wrote a CHANGELOG entry" is false, in the
 harmless direction.** `c66f26ce` also fixed two sites that produced no changelog entry: the
-Convention registry row in `docs/PLUGIN-PHILOSOPHY.md`, and a `skills/confirm/SKILL.md` parenthetical
-in `docs/conventions/pre-pr-ordering/README.md` — a convention that ships no `CHANGELOG.md` at all
+Convention registry row in `docs/plugin-philosophy.md`, and a `skills/confirm/SKILL.md` parenthetical
+in `docs/conventions/pre-pr-ordering/README.md`, a convention that ships no `CHANGELOG.md` at all
 (`ls docs/conventions/pre-pr-ordering/` returns `README.md` alone). Both were resolved by deleting
 the path rather than by quoting it, so neither manufactured a new citation. The twelve-row count and
 the "16 fixed and 35 kept" arithmetic are unaffected; only the universal is wrong. It matters
-because the sweep's own lesson — that documenting a fix by quoting the citation it removed
-manufactures the shape being swept — is a tendency of the changelog form, not a law of the pass, and
+because the sweep's own lesson, that documenting a fix by quoting the citation it removed
+manufactures the shape being swept, is a tendency of the changelog form, not a law of the pass, and
 these two are the counter-examples that show the tendency is escapable.
 
 ## The L4 roster is closed, all 34 rows, and Group 2 was never open
@@ -527,9 +527,14 @@ these two are the counter-examples that show the tendency is escapable.
 A pass dispatched to fix the predecessor roster's eight Group 2 rows found **nothing to fix**. All
 eight were closed on 2026-08-26 by
 [#3380](https://github.com/melodic-software/claude-code-plugins/pull/3380) (`6c7a1032`). Its own
-message says so in a clause nobody carried forward: "eight citations written with an implied base of
-the plugin root while the real base was `reference/` — none of them resolved for any reader". It
-fixed them in the citing files and left the roster's summary line asserting that all 34 still
+message says so in a clause nobody carried forward:
+
+<!-- ai-slop-ignore-start: verbatim quotation of #3380's commit message -->
+> eight citations written with an implied base of the plugin root while the real base was
+> `reference/` — none of them resolved for any reader
+<!-- ai-slop-ignore-end -->
+
+That PR fixed them in the citing files and left the roster's summary line asserting that all 34 still
 resolved to the citing text the audit quoted.
 
 **#3380 did not write the roster, and that is the whole point.** An earlier version of this section,
@@ -571,7 +576,7 @@ actually supports is the near-inverse:
 > summary an update.** Cross-file staleness is the default outcome, not the exception: the fix and
 > the record live in different files, nothing in the toolchain links them, and the commit has no
 > reason of its own to open the record. #3380 closed 32 of 34 rows spread across a `.claude/rules/`
-> file, `docs/PLUGIN-PHILOSOPHY.md`, four convention READMEs and several plugins' trees, and left a
+> file, `docs/plugin-philosophy.md`, four convention READMEs and several plugins' trees, and left a
 > two-hour-old roster in `docs/specs/` asserting the opposite, and four later passes paid for it.
 >
 > An earlier version of this paragraph said "three plugins' files", which `git show --stat 6c7a1032`
@@ -604,8 +609,8 @@ All seven distinct targets exist on disk. Group 3's two heading anchors are clos
 commit, dropped to file-level links, so **the 34-row roster stands at 34 closed, 0 open**: 22 of
 Group 1 plus all of Groups 2 and 3 by #3380, and `V-review-13` and `V-review-14` by
 [#3468](https://github.com/melodic-software/claude-code-plugins/pull/3468) (`c66f26ce`), which
-rewrote all three `docs/conventions/native-references/README.md` sites — the Boundary section's
-worked model and both Adopters rows — to `/review:quality-gate`, `/review:fanout` and
+rewrote all three `docs/conventions/native-references/README.md` sites, the Boundary section's
+worked model and both Adopters rows, to `/review:quality-gate`, `/review:fanout` and
 `/claude-ops:audit-install-state`. An earlier version of this line, and the merged messages of
 both #3477 and #3478, credited #3475; `git show --stat 02e1d8b0` shows that PR touched
 only `docs/conventions/native-references/CHANGELOG.md`, never the README the two rows cite.
@@ -622,9 +627,9 @@ implies.
 **The second derivation's result was reported as "52 tokens, 0 clause 3 failures". That is false:
 the population held three failures, and the first derivation was structurally unable to see them.**
 Its regex requires a `(reference|context|actions|evals|templates)/` tail, and all three of these end
-in `SKILL.md`. A third derivation, run on 2026-08-28 with a wider expression — every
+in `SKILL.md`. A third derivation ran on 2026-08-28 with a wider expression: every
 `skills/…` path token ending in a real file extension, resolved against the base its own form
-implies, over the same population — returned **119 tokens and 3 clause-3 failures**, each one the
+implies, over the same population. It returned **119 tokens and 3 clause-3 failures**, each one the
 exact defect class ADR 0018's correction 1 names, an implied base of the plugin root against a real
 base of the citing file's directory:
 
@@ -650,7 +655,7 @@ then failed to apply to its own fix.
 Re-running the third expression after the fixes leaves no clause-3 failure in the three files. The
 `config-resolution.md` row leaves the path population altogether, since an invocation is not a path.
 
-The token counts differ between derivations because the expressions do — 52 against 119 — and per
+The token counts differ between derivations because the expressions do, 52 against 119, and per
 this file's own recall-limits discipline neither is a total. The **failure** count is the claim that
 matters, and 0 was wrong. The lesson generalises past these three rows: **a second derivation
 confirms a first only if it can fail differently.** The first two here missed the same three rows,
@@ -690,8 +695,8 @@ Recorded because the dispatch asked for it explicitly and because tidying these 
 clause would have been easy.
 
 **Group 2 was never an encapsulation defect.** The roster says so itself: "Legal as citations under
-ADR 0018, defective as paths." Clause 1 names this exact citing surface — it covers "plugin-level
-`context/`, `reference/` and `agents/` docs" reaching a sibling skill's private files — and
+ADR 0018, defective as paths." Clause 1 names this exact citing surface: it covers "plugin-level
+`context/`, `reference/` and `agents/` docs" reaching a sibling skill's private files, and
 legalises it. Clause 2 does not reach them: both files ship inside one plugin, so for a reader
 inside that plugin the runtime absence motivating clause 2 does not arise. A consumer enabling
 `source-control` gets `reference/review-discipline.md` and `skills/babysit-prs/reference/safety.md`
@@ -716,7 +721,7 @@ that reader, because the variable denotes their plugin and not this one, while
 document. So this row went to the invocation. The paragraph reasoned its way to the exposure and
 then declined to draw the consequence for the fix sitting in the same commit; a review pass drew it.
 
-Clause 1 still legalises the citation and only clause 3 has teeth on it — that much stands. What
+Clause 1 still legalises the citation and only clause 3 has teeth on it. That much stands. What
 does not is the inference from "clause 3 only" to "path form only". Where a file is fetched across
 the boundary, clause 3 alone can force the invocation, because for the fetched reader no path form
 resolves. A pass auditing intra-plugin citation forms must treat "who fetches this file" as a live
@@ -726,7 +731,7 @@ So **only clause 3 reaches Group 2**, and clause 3 is a resolvability rule, not 
 rule. The amendment's fix-an-address / keep-evidence test does not apply either: that test divides
 clause 2 applications, and these are not clause 2 matters. Had the eight still been open, the remedy
 would have been the path form for any of them whose file is read only from inside its own plugin,
-and the invocation for any that is fetched across the boundary — never a promotion of content to a
+and the invocation for any that is fetched across the boundary, never a promotion of content to a
 shared location. **Which of the eight are fetched was not checked**, because all eight were already
 closed; a pass that reopens one owes that check first, on the evidence of the row above, where
 exactly that question decided the remedy. **Intra-plugin genuinely is a different case, and the file that says
@@ -735,7 +740,7 @@ error and named this narrower shape as the real defect: an implied base of the p
 real base of the citing file's directory.
 
 The one clause that earned its keep here is the ADR's warning that "proximity did not prevent
-them" — eight of the ten non-resolving citations in the corpus were intra-plugin, inside the case
+them". Eight of the ten non-resolving citations in the corpus were intra-plugin, inside the case
 the decision legalises. Legalising a citation class and requiring it to resolve are separate
 obligations, and only the second one had teeth in this set.
 
@@ -755,7 +760,7 @@ A finding count read as a defect count is worse than no count. An adversarial ve
 Pass A detector itself; the measurements below are its, not the detector author's.
 
 **Every number in this section is unreproducible from this repository.** The Pass A detector was a
-session tool — a shingling script, a triage driver and a batch runner, written in a scratch
+session tool: a shingling script, a triage driver and a batch runner, written in a scratch
 directory and deliberately not committed, because a one-run measurement instrument is not a
 marketplace artifact and shipping it would create a surface nobody maintains. So these figures
 cannot be re-derived by running anything in the change set; they are a record of what one run
@@ -808,15 +813,15 @@ figures to differ.
   trusting the roster. That pass resolved **16 citations at 12 sites in 8 files**, every one
   rewritten to the `/plugin:skill` public invocation on the
   [`loop-lane` 9.0.1](../conventions/loop-lane/CHANGELOG.md) form. Beyond the five named above it
-  reached `docs/PLUGIN-PHILOSOPHY.md`'s Convention registry (the dynamic-context precompute row
+  reached `docs/plugin-philosophy.md`'s Convention registry (the dynamic-context precompute row
   this very change set added, written in the bare plugin-relative form ADR 0018 names as its real
   defect class), two conformance rows in `docs/conventions/config-cascade/README.md`, one in
   `docs/conventions/pre-pr-ordering/README.md`, three in
   `docs/conventions/native-references/README.md` (two of them `V-review-13` and `V-review-14`, the
   last two rows of the predecessor's 34-item L4 roster still open by that roster's own text test:
   re-derivation found 22 of its other 32 rows already closed, twelve of them by #3380 itself, so
-  what remains of the 34 is its eight Group 2 intra-plugin path-form defects, untouched here — a
-  claim a later pass refuted: those eight were closed by #3380 too, see
+  what remains of the 34 is its eight Group 2 intra-plugin path-form defects, untouched here. A
+  later pass refuted that claim: those eight were closed by #3380 too, see
   [the L4 roster's closure](#the-l4-roster-is-closed-all-34-rows-and-group-2-was-never-open)), and
   one adopter-row detail
   in `docs/conventions/detector-findings/README.md`. **What remains is a judgment set, not a
@@ -824,21 +829,21 @@ figures to differ.
   this checkout rather than an address for an obligation. They are the three worked examples in
   `docs/conventions/plugin-data-report-keying/README.md`, the four location cites in
   `docs/conventions/shell-test-helpers/README.md` (whose subject *is* where the duplicate copies
-  sit), the four `scripts/` entry-surface pointers in `docs/NATIVE-SURFACES.md` and
-  `docs/CLOUD-SESSIONS.md` that the public-surface contract's own carve-out permits, two observation
+  sit), the four `scripts/` entry-surface pointers in `docs/native-surfaces.md` and
+  `docs/cloud-sessions.md` that the public-surface contract's own carve-out permits, two observation
   rows in the `NATIVE-SURFACES` generated region (authored in
   `docs/native-surfaces/records.json`, so a hand-edit of the rendered view would be overwritten and
   the store's copy is the same citation, not a second one), that store's own note on where the
-  overlap seed file lives, the boris-baseline evidence row in `docs/PLUGIN-PHILOSOPHY.md`, the five
-  file-and-frontmatter cites inside `docs/MIGRATION-PLAYBOOK.md`'s dated `dometrain` security-review
+  overlap seed file lives, the boris-baseline evidence row in `docs/plugin-philosophy.md`, the five
+  file-and-frontmatter cites inside `docs/migration-playbook.md`'s dated `dometrain` security-review
   record (each asserting what a named file contains, under a record that re-triggers on a version
   bump), and three dated changelog entries that quote a citation as it stood.
-  `docs/SKILL-CHEAT-SHEET.md` is
+  `docs/skill-cheat-sheet.md` is
   generated too, and the dated records under `docs/specs/`, `docs/adr/` and `docs/topics/` are out
   of scope by the same test.
 - **A fifth filtered probe exists and is not in the four-site table above.**
   `plugins/docs-hygiene/skills/compress/SKILL.md` already binds its fallback inside the brace group,
-  so unlike the four it *is* reachable — but its fallback is `none`, which collapses "no matching
+  so unlike the four it *is* reachable, but its fallback is `none`, which collapses "no matching
   files" and "git did not run" into one string. Same ambiguity, arrived at from the other direction.
   A pass that fixes the four should fix this one too. **It did**: the follow-up pass recorded under
   [Call-site normalizations](#call-site-normalizations) took all five, and the table there now

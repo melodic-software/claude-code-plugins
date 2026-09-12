@@ -24,7 +24,7 @@ Symptoms encountered (or expected) during setup / sync / cleanup, with diagnosis
 
 ## Cached installer popped up when opening Kindle
 
-**Symptom:** User opens Kindle (with firewall block in place) and an installer dialog appears — "Install Kindle for PC" or similar.
+**Symptom:** User opens Kindle (with firewall block in place) and an installer dialog appears, "Install Kindle for PC" or similar.
 
 **Diagnosis:** Installer downloaded BEFORE firewall block applied (typical sign-in race window). Now auto-running on launch. Kindle.exe firewall block doesn't stop the installer because installer is a separate process.
 
@@ -162,7 +162,7 @@ bash -x "${CLAUDE_PLUGIN_ROOT}/skills/manage/scripts/sync-finalize.sh"
 
    Should have entries under `kindlekeys` or similar.
 
-3. Manually try importing one book via Calibre GUI (drag-and-drop the `.azw` file). If Calibre import works manually but not via Phase 3, keyfinder's calibredb invocation has a path issue — open `~/Tools/Kindle_Key_Finder/key_finder.log` for detail.
+3. Manually try importing one book via Calibre GUI (drag-and-drop the `.azw` file). If Calibre import works manually but not via Phase 3, keyfinder's calibredb invocation has a path issue. Open `~/Tools/Kindle_Key_Finder/key_finder.log` for detail.
 
 ## Cleanup leaves orphaned firewall rule
 

@@ -18,10 +18,17 @@ the reviewer to confirm the description still names that intent, or to restore t
 
 ## Checks
 
-`check` runs `check-skill.sh`. Twenty-five checks, reported as `FAIL:` (blocking) or `WARN:` (advisory):
+`check` runs `check-skill.sh`. Twenty-six checks, reported as `FAIL:` (blocking) or `WARN:` (advisory):
 
 - Frontmatter parses; `description` present; a declared `name` is kebab-case and matches the skill
   directory (in a plugin skill it also WARNs as redundant, because the field defaults to the directory).
+  The effective name (the declared field, else the directory leaf) is at most 64 codepoints
+  (FAIL; the Agent Skills spec's `name` cap, <https://agentskills.io/specification>, enforced by
+  its `skills-ref` validator) and carries neither `anthropic` nor `claude` (WARN; a Skills API
+  upload requirement, <https://platform.claude.com/docs/en/build-with-claude/skills-guide#creating-a-skill>,
+  not a spec rule). Claude Code enforces neither and ships bundled skills named `claude-api` and
+  `claude-in-chrome`, so both are portability findings (verified 2026-09-10; recheck when the
+  spec's validator, the upload requirements, or a Claude Code release changes either rule).
 - `description` + `when_to_use` within the 1536-char **per-skill** listing-entry cap (overflow
   truncates that entry). A different, narrower limit from the shared budget below. The cap and the
   1% budget default are upstream's
@@ -41,11 +48,14 @@ the reviewer to confirm the description still names that intent, or to restore t
 - Trigger-keyword preservation vs `HEAD` (advisory: a dropped phrase warns naming it and never
   fails the run; a phrase moved to a sibling skill warns naming the host; skipped for a new,
   uncommitted skill).
-- `SKILL.md` under 500 lines (hard) / 200 lines (soft, advisory).
+- `SKILL.md` under 500 lines, the cap the official skill-authoring guidance sets.
 - Backtick- and link-cited skill-internal supporting files resolve. When a path that misses instead
   resolves under a sibling skill, the finding names that sibling and the
   `${CLAUDE_PLUGIN_ROOT}/skills/<sibling>/...` cross-skill form, while keeping the hand-verify
-  caveat (the sibling hit is evidence, not proof: paths can collide).
+  caveat (the sibling hit is evidence, not proof: paths can collide). A cited path with a backslash
+  separator (`scripts\helper.py`), in SKILL.md or in any markdown spoke under `reference/`,
+  `references/`, or `context/`, FAILs outright, naming the citing file and the forward-slash
+  form: Claude Code rejects such a component path at plugin load on macOS and Linux.
 - `markdownlint-cli2` clean (advisory-skips when `npx` is absent).
 - `scripts/*.test.sh` pass where present.
 - Vendored `vendor/` byte-identical vs `HEAD`; stale-tracking metadata keys preserved; sync age.
@@ -69,6 +79,11 @@ the reviewer to confirm the description still names that intent, or to restore t
 - Description/verb-contract polarity (advisory). The description lead contradicts the
   Naming verb contract or the body (read-only vs mutate). `--fix` in the listing is the
   compliant override shape.
+- Long spoke files carry a table of contents (advisory). A markdown file under `reference/`,
+  `references/`, or `context/`, at any depth, over 300 lines whose first 40 lines hold fewer than
+  three `](#` in-page anchor links warns, naming the file. The threshold is the bundled skill-creator's; the
+  100-to-300 band stays with `docs-hygiene:audit-progressive-disclosure`, whose TOC heuristic
+  this check mirrors.
 
 `listing-budget` runs `check-listing-budget.sh`. An always-advisory report on the **shared** budget
 every loaded skill draws from together (`skillListingBudgetFraction`, default 1% of the model's context
@@ -133,12 +148,11 @@ stands alone.
   identity, stale metadata, committed artifacts) skip with a note outside a repo so
   marketplace plugin-cache installs (plain trees) still run the rest of the gate.
 - `npx` (Node) is optional; without it the markdownlint check downgrades to a warning and the other
-  twenty-four still gate.
+  twenty-five still gate.
 
 ## Configuration
 
-<!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
-<!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
+<!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
 
@@ -154,9 +168,9 @@ reads it from.
 
 Three supported routes, in the order most people want them:
 
-1. **Interactively** — Claude Code prompts for declared options when you enable the
+1. **Interactively.** Claude Code prompts for declared options when you enable the
    plugin. To change them later: `/plugin configure skill-quality@<marketplace>`.
-2. **Headless** — repeat `--config` for each option. Replace
+2. **Headless.** Repeat `--config` for each option. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
 
    ```shell
@@ -176,7 +190,7 @@ Three supported routes, in the order most people want them:
    Claude Code session before expecting new behavior. A check run in the old session
    still reports the old value, and that is not a failed write.
 
-3. **By hand, in settings** — add the value under `pluginConfigs` in your **user**
+3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
    settings (`~/.claude/settings.json`):
 
    ```json
@@ -192,7 +206,7 @@ Three supported routes, in the order most people want them:
    ```
 
    Plugin option values are read from **user**, `--settings`, and managed settings
-   only — **not** from a project's `.claude/settings.json`. To vary behavior per
+   only, **not** from a project's `.claude/settings.json`. To vary behavior per
    repository, enable or disable the plugin in that project's `enabledPlugins`
    instead of setting an option there.
 
@@ -201,11 +215,10 @@ hands a configured value to a hook process; the value comes from the routes abov
 
 ### Upstream documentation
 
-- [User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration) — the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
-- [Plugin install options](https://code.claude.com/docs/en/plugins-reference#plugin-install) — the `--config` flag's reference entry
-- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills) — `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
-- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect) — user vs project vs local precedence
-- [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins) — enabling, disabling, `/plugin list`
+- [User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration): the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
+- [Plugin install options](https://code.claude.com/docs/en/plugins-reference#plugin-install): the `--config` flag's reference entry
+- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
+- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
+- [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins): enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
-<!-- ai-slop-ignore-end -->

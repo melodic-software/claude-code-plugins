@@ -3,6 +3,39 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.2]
+
+### Changed
+
+- Cite the marketplace `docs/` doctrine files by their lower-kebab names (`docs/plugin-philosophy.md`, `docs/migration-playbook.md`, and siblings); the files were renamed and the old uppercase paths no longer resolve.
+- **Released-entry correction, declared here per the changelog-parity discipline:** the
+  `plugin-philosophy` link inside the 0.3.2 entry now points at `docs/plugin-philosophy.md`; the
+  old uppercase path no longer exists.
+
+## [0.6.1]
+
+### Changed
+
+- **Options reference drops its em dashes.** The generated How-to-set-these block is rewritten by `scripts/sync-plugin-options-docs.py`, which is the fix site: its output is regenerated, never hand-edited. The block no longer needs the ignore marker that exempted it from the repository's em-dash gate, so that marker is gone as well.
+
+- **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
+- **The plugin's prose drops its em dashes.** This changelog and `skills/visualize/context/decision-matrix.md` were rewritten. Wording only, with no change to any form row, source, verification date, or CSP fact. Every mermaid and sparkline literal was already inside backticks or a fence and is untouched. Two headings changed anchor, and the only inbound references are plain file links carrying no anchor, so nothing broke. The released sections corrected in place are 0.3.3, 0.3.2, 0.3.0, 0.2.0, 0.1.2, 0.1.1, and 0.1.0: their wording changed, their facts did not.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md`, every `skills/*/SKILL.md`, and the `skills/visualize/context/` tree.
+
+## [0.6.0]
+
+### Added
+
+- **`visualize`**: the `## Boundary` section gains the design-canvas split against the bundled
+  `design` skill: routing (offer the canvas as an explicit alternative when the skill is listed
+  with the canvas description and the medium permits publishing, invoke it only on the user's
+  choice), a mutation gate (the canvas persists under the user's account, so it is never a
+  silent default), and an availability rule that names the presence check. The catalog spoke's
+  design canvas section carries the re-verified surface facts: the canvas registration is
+  model-invocable with a rollout flag that now defaults on, and a same-named Claude Design hub
+  variant with model invocation disabled registers behind an `allow_design_sync` setting, so the
+  listed description is what distinguishes them.
+
 ## [0.5.2]
 
 ### Added
@@ -188,7 +221,7 @@ All notable changes to the `visualization` plugin are documented here. Format fo
 ### Changed
 
 - Normalized fleet-wide framing this plugin restates (cross-vendor advisor
-  fallback, untrusted-content posture, attribution/idiom prose — as touched) to the canonical
+  fallback, untrusted-content posture, attribution/idiom prose, as touched) to the canonical
   SSOT wording, operable text kept inline with provenance-only citations (#2698).
 
 ## [0.3.2]
@@ -209,9 +242,9 @@ All notable changes to the `visualization` plugin are documented here. Format fo
 ### Unchanged, deliberately
 
 - **No `setup` skill.** One was written and then dropped: `medium` is **trivial** by
-  [PLUGINPHILOSOPHY](../../docs/PLUGIN-PHILOSOPHY.md)'s own test — a self-contained scalar with
+  [PLUGINPHILOSOPHY](../../docs/plugin-philosophy.md)'s own test, a self-contained scalar with
   a default preserving zero-config behavior, whose out-of-set values are documented as falling
-  back to that default — and this plugin has no external prerequisite and no consumer-project
+  back to that default. This plugin also has no external prerequisite and no consumer-project
   configuration surface. None of the three criteria that require a `setup` skill holds, so
   shipping one would be the blanket ceremony that doctrine warns against
   ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)).
@@ -231,11 +264,11 @@ All notable changes to the `visualization` plugin are documented here. Format fo
 
 - **`visualize`: a design-canvas form row.** A visual layout the user would rather tweak by
   hand (UI mockup, screen flow, poster, banner, one-pager) now routes to a design-canvas
-  capability — the bundled `design` skill (the Claude Design canvas preview), when it appears
-  in the session's skill list — offered as an explicit alternative, never a silent default.
+  capability, the bundled `design` skill (the Claude Design canvas preview), when it appears
+  in the session's skill list. The offer is an explicit alternative, never a silent default.
   Fallbacks branch on two states: absent from the list → the rich rendered page, with no
   mention of `/design`; listed but invocation refused → suggest the user run `/design`. No new
-  `medium` config value: the canvas rides the existing published-Artifact tier — and because that
+  `medium` config value: the canvas rides the existing published-Artifact tier. Because that
   is its only surface, the offer is also skipped when an explicit `terminal`/`file` argument or
   the configured medium preference pins delivery on-machine (the rich page or local file carries
   the layout instead), so a "never publish" choice is honored. Surface facts,
@@ -265,7 +298,7 @@ All notable changes to the `visualization` plugin are documented here. Format fo
 
 - **The bare `/<skill>` alias for this plugin's skills.** Their `SKILL.md` files no longer
   declare a frontmatter `name`. The field is optional and defaults to the directory name, so
-  declaring it only restated the path while registering a second, unnamespaced command — which
+  declaring it only restated the path while registering a second, unnamespaced command, which
   the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
   namespaced command; the command itself is unchanged.
 
@@ -275,7 +308,7 @@ All notable changes to the `visualization` plugin are documented here. Format fo
 
 - **Decision matrix covers connector-backed live data on published Artifacts.**
   The published-Artifact tier now notes that from Claude Code v2.1.209 a
-  published page can call declared MCP connectors at view time — through
+  published page can call declared MCP connectors at view time: through
   claude.ai (the CSP still holds; the page itself makes no network call), via
   each viewer's own approved connector account, never shareable to a public
   link, and gated on Team/Enterprise by the org Owner "Enable artifact
@@ -287,20 +320,20 @@ All notable changes to the `visualization` plugin are documented here. Format fo
 ### Changed
 
 - **Local HTML files get an explicit ephemeral-tier placement rule.** The
-  local-file medium now writes via the platform temp primitive — a private run
+  local-file medium now writes via the platform temp primitive: a private run
   directory from `mktemp -d "${TMPDIR:-/tmp}/visualize-XXXXXX"` on
   Unix/Linux/Git Bash with the page inside it, a user-scoped temp under
-  `%LOCALAPPDATA%\Temp` on Windows — never into the consumer's repository tree,
-  one file per run, and the handed-back path is never deleted. Previously the
-  skill named no placement at all.
+  `%LOCALAPPDATA%\Temp` on Windows. It never writes into the consumer's repository
+  tree, writes one file per run, and never deletes the handed-back path. Previously
+  the skill named no placement at all.
 
   The temp root rides in the positional TEMPLATE rather than in a flag.
   `-p` (which GNU also spells `--tmpdir`) is documented in both dialects but does
   not mean the same thing: GNU treats the template as relative to that directory
   and lets the flag beat `TMPDIR`, while BSD/macOS consult it only as a fallback
-  for `-t` when `TMPDIR` is unset — so with a bare template and no `-t` the flag
-  does nothing there and the template resolves against the current directory,
-  silently writing into the consumer's repo. GNU additionally marks `-t`
+  for `-t` when `TMPDIR` is unset. With a bare template and no `-t` the flag
+  therefore does nothing there, and the template resolves against the current
+  directory, silently writing into the consumer's repo. GNU additionally marks `-t`
   deprecated. The `XXXXXX` is also **trailing**: BSD `mktemp` substitutes only
   trailing Xs, so `visualize-XXXXXX.html` cannot be created at all on macOS.
   Naming the page inside a generated directory is what preserves the `.html`
@@ -310,7 +343,7 @@ All notable changes to the `visualization` plugin are documented here. Format fo
 
 ### Added
 
-- **Initial release.** `/visualization:visualize` — a form-and-medium router that
+- **Initial release.** `/visualization:visualize` is a form-and-medium router that
   infers what in the current conversation should be shown visually, picks a form
   (a mermaid diagram, a markdown table, a hand-authored SVG/CSS chart, ASCII/Unicode
   art, or a rich rendered page) and a medium (inline terminal, a local HTML file, or
@@ -322,13 +355,13 @@ All notable changes to the `visualization` plugin are documented here. Format fo
   local file or terminal rather than assuming the surface exists.
 - **`medium` `userConfig`** (string, default `auto`; values `auto` / `terminal` /
   `file` / `artifact`, validated in-skill since `userConfig` has no native enum
-  type) — a personal preference for the auto-selected delivery medium, with `file`
+  type): a personal preference for the auto-selected delivery medium, with `file`
   keeping richer output on the machine and never published.
 - **Router, not craft.** Chart craft routes to a chart-craft/dataviz capability and
   rich-page fundamentals to an artifact-design capability and the Artifact tool's
-  own contract — each presence-gated with a documented fallback, never restated.
+  own contract. Each is presence-gated with a documented fallback, never restated.
 - **Grounded catalog.** The skill's `context/decision-matrix.md` records the
   rendering-surface facts (terminal GFM, terminal mermaid as source only, the
   artifact CSP and availability gating), the thirteen stable mermaid families (with
-  the newest set flagged unverified), and the zero-dependency chart paths — with
+  the newest set flagged unverified), and the zero-dependency chart paths, with
   sources and verification dates.

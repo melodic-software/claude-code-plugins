@@ -1,6 +1,6 @@
 # PowerShell Build Commands
 
-PowerShell has no build step — Pester tests and static analysis via PSScriptAnalyzer.
+PowerShell has no build step. This ecosystem runs Pester tests and static analysis via PSScriptAnalyzer.
 
 ## Test (Pester)
 
@@ -16,7 +16,7 @@ pwsh -NoProfile -Command '
 '
 ```
 
-**Never use `Invoke-Pester -CI` directly** — its default CWD-relative `testResults.xml` leaks at repo root.
+**Never use `Invoke-Pester -CI` directly.** Its default CWD-relative `testResults.xml` leaks at repo root.
 
 **Install hint:** `Install-PSResource -Name Pester` (or `Install-Module Pester` on older pwsh). On Linux/macOS without pwsh, report `skip`.
 
@@ -39,8 +39,8 @@ Omit `-Settings` when the repo has no `PSScriptAnalyzerSettings.psd1`.
 ## Gotchas
 
 - **PSScriptAnalyzer has no `-ExcludePath`.** Pre-filter with `-notlike` wildcard patterns, not `-notmatch` regex: regex escaping is unreliable across the bash to pwsh boundary
-- **No production `.ps1`/`.psm1` files may exist** — if none found after filtering, report as `skip` with note
-- **Settings file** — `PSScriptAnalyzerSettings.psd1` at repo root configures rules when present
+- **No production `.ps1`/`.psm1` files may exist**: if none found after filtering, report as `skip` with note
+- **Settings file**: `PSScriptAnalyzerSettings.psd1` at repo root configures rules when present
 
 ## File discovery
 

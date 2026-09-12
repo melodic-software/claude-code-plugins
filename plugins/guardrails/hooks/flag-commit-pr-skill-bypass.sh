@@ -45,7 +45,7 @@
 # Opt-in switch: flag_commit_pr_skill_bypass_enabled userConfig option.
 # DEFAULT OFF since 0.20.0: the #2021 hook-surface classification found this
 # is a behavioral-class context injector — a fixed prose nudge that consults no
-# external ground truth — and PLUGIN-PHILOSOPHY.md's instruction-economy
+# external ground truth — and plugin-philosophy.md's instruction-economy
 # evidence gate ablates that class config-off first (the script stays; a
 # consumer opts back in by setting the option to true).
 
@@ -170,8 +170,8 @@ sc_key_value() {
 # — collapsing distinct keys to one value would wrongly decide a mixed migration
 # state. Uncertain/absent -> return 1 (stay silent).
 source_control_enabled() {
-  local root user_settings settings local_settings keys key uval bval lval effective
-  root=$(hook::repo_root "${CLAUDE_PROJECT_DIR:-.}")
+  local root="" user_settings settings local_settings keys key uval bval lval effective
+  hook::repo_root_to root "${CLAUDE_PROJECT_DIR:-.}" || :
   # User-global settings live at $CLAUDE_CONFIG_DIR/settings.json when that is
   # set (Claude Code's relocatable config dir), else ~/.claude/settings.json.
   user_settings="${CLAUDE_CONFIG_DIR:+$CLAUDE_CONFIG_DIR/settings.json}"
@@ -265,7 +265,7 @@ CONTEXT="Commit/PR skill composition (advisory): "
 for m in "${MESSAGES[@]}"; do
   CONTEXT+="$m "
 done
-hook::emit_additional_context PreToolUse "${CONTEXT% }"
+hook::emit_channels PreToolUse "${CONTEXT% }" ""
 
 emit_tel
 exit 0

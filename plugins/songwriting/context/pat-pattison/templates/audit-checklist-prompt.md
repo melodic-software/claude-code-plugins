@@ -2,7 +2,7 @@
 
 Use when writer asks to pre-lock a line, a section, the title, or the
 form. "There are no rules, only tools." (*Writing Better Lyrics* (2009),
-Chapter 18) — each box is a deliberate choice point, not a gate. Naming a
+Chapter 18). Each box is a deliberate choice point, not a gate. Naming a
 skip is fine; silent skips are not.
 
 ## Coach posture
@@ -43,7 +43,7 @@ For the chosen line, walk through each cluster aloud with the writer:
 - [ ] Grey-area stress flagged, not silently resolved?
 - [ ] Sing-check passed?
 
-**Rhyme stability** (*Essential Guide to Lyric Form and Structure* (1991), Chapter 4; *Writing Better Lyrics* (2009), Chapter 4; *Essential Guide to Rhyming* (2014), Chapters 4-6) — if rhyme position
+**Rhyme stability** (*Essential Guide to Lyric Form and Structure* (1991), Chapter 4; *Writing Better Lyrics* (2009), Chapter 4; *Essential Guide to Rhyming* (2014), Chapters 4-6), if rhyme position
 - [ ] Identity check: pre-vowel consonants DIFFER?
 - [ ] Stability tier chosen by emotional intent?
 - [ ] No automatic cliche pair?
@@ -88,7 +88,7 @@ the writer at once unless asked.
 After running per-line on the section's lines, zoom out:
 
 ```
-**Section:** <type — verse / chorus / bridge / refrain / TB>
+**Section:** <type, one of verse / chorus / bridge / refrain / TB>
 
 **Section type diagnosis** (*Essential Guide to Lyric Form and Structure* (1991), Chapter 5)
 - [ ] Section is doing the right job for its type
@@ -99,7 +99,7 @@ After running per-line on the section's lines, zoom out:
 - [ ] Line lengths counted (stress count)
 - [ ] Rhyme scheme (capital-letter notation per *Writing Better Lyrics* (2009), Chapter 19)
 - [ ] Rhyme types per position
-- [ ] Rhythm — duple / triple / mixed; consistent across like sections
+- [ ] Rhythm: duple / triple / mixed; consistent across like sections
 
 **Stable / unstable**
 - [ ] Section's lyric stability matches its melodic stability?
@@ -141,7 +141,7 @@ After running per-line on the section's lines, zoom out:
 - [ ] Central section chosen (chorus or refrain)?
 - [ ] Title position decided?
 - [ ] Repetition strategy: chorus repaints? refrain exact?
-- [ ] Bridge present? — fulfills at least one *Essential Guide to Lyric Form and Structure* (1991), Chapter 6 function?
+- [ ] Bridge present? Fulfills at least one *Essential Guide to Lyric Form and Structure* (1991), Chapter 6 function?
 - [ ] "Four times is a lot" risk checked (*Writing Better Lyrics* (2009), Chapter 22)?
 - [ ] Verse-job division clear (box model)?
 ```
@@ -165,5 +165,5 @@ Which?
 
 ## Cross-references
 
-- `audit-checklist.md` — full content
+- `audit-checklist.md`: full content
 - All diagnostic context files

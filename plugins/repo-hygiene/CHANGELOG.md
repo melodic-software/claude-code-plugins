@@ -3,6 +3,23 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.41]
+
+### Changed
+
+- Cite the marketplace `docs/` doctrine files by their lower-kebab names (`docs/plugin-philosophy.md`, `docs/migration-playbook.md`, and siblings); the files were renamed and the old uppercase paths no longer resolve.
+
+## [0.10.40]
+
+### Changed
+
+- **Options reference drops its em dashes.** The generated How-to-set-these block is rewritten by `scripts/sync-plugin-options-docs.py`, which is the fix site: its output is regenerated, never hand-edited. The block no longer needs the ignore marker that exempted it from the repository's em-dash gate, so that marker is gone as well.
+
+- **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
+- **The plugin's prose drops its em dashes.** Nine surfaces were rewritten: this changelog, `skills/clean/reference/cleanup-config.md`, the six `skills/clean/context/` documents, and `skills/setup/SKILL.md`. Wording only, with no change to any tier, path, guard, or command. The released sections corrected in place are 0.10.28, 0.10.9, 0.10.4, 0.10.1, 0.10.0, 0.9.1, 0.9.0, 0.8.1, 0.8.0, 0.7.2, 0.7.0, 0.6.0, 0.5.0, 0.4.6, 0.4.5, 0.4.3, 0.4.2, 0.4.1, 0.4.0, 0.3.3, 0.3.2, 0.3.1, 0.3.0, and 0.2.1: their wording changed, their facts did not.
+- **The `git` section of `cleanup-config.md` separates with a colon, and its drift test parses that.** The heading is now `### git: stale-state hygiene (write-safe)`, and the report-only bullet separates its path from its note with `` `: `` rather than a dashed run. `scripts/lib/cleanup-paths.test.sh` reads both: it passes the heading to `extract_section_bullets` verbatim and strips each bullet's note with an awk substitution. Both were updated in the same change, so the drift contract still compares the same bullets against `GIT_PRUNE_OPS`.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md`, every `skills/*/SKILL.md`, and the `skills/clean/context/` and `skills/clean/reference/` trees, so a reintroduced em dash fails a lane rather than waiting for the next audit.
+
 ## [0.10.39]
 
 ### Changed
@@ -279,7 +296,7 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
 - **The batch-common suite drops a dead array reset.** Its low-fd case runs the
   read inside a subshell that declares its own array and asserts on that
   subshell's stdout, so the outer reset was never read; it mimicked the sibling
-  cases that do assert on the outer array, which made it look load-bearing. A
+  cases that do assert on the outer array, which made it look required. A
   comment now records why this case is the exception. Every other caller keeps
   its reset, which is required because the read function appends rather than
   assigns. Tested adversarially: with a stale array injected so the edited file
@@ -473,7 +490,7 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
 
 ### Added
 
-- **`/repo-hygiene:setup`** — the plugin declared `userConfig` but shipped no setup skill. Adds
+- **`/repo-hygiene:setup`.** The plugin declared `userConfig` but shipped no setup skill. Adds
   the fleet's uniform check/apply contract: `check` verifies what the native configuration
   prompt cannot, `apply` routes a reconfiguration and then reads the effective value back before
   reporting it ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)).
@@ -520,7 +537,7 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
 - **`skills/clean/reference/ecosystems.md` is now a pointer, not teaching tables.** A repo-wide
   derivability audit (#2695) spot-tested it: a fresh-context agent reproduced the full tier
   membership, protected classes, and the "no `dotnet clean`" rationale from `cleanup-config.md`
-  and the `clean-*.sh` script comments alone — the tables were a drift surface (the header already
+  and the `clean-*.sh` script comments alone. The tables were a drift surface (the header already
   called them illustrative). The file now points at `cleanup-config.md` and the action scripts;
   `cleanup-config.md`'s cross-reference was updated to match.
 
@@ -542,7 +559,7 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   `bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/…` to `${CLAUDE_SKILL_DIR}/scripts/…`.
   `${CLAUDE_SKILL_DIR}` substitutes in SKILL.md content and `allowed-tools` only (skills docs,
   changelog v2.1.69); context files are Read raw and whether substitution reaches them is
-  unverified — a wrong conversion expands to `/scripts/…` and fails silently. New spoke
+  unverified. A wrong conversion expands to `/scripts/…` and fails silently. New spoke
   `skills/clean/reference/invocation-forms.md`; `allowed-tools-pairing.test.sh` now guards that
   `context/*.md` never adopt the direct `${CLAUDE_SKILL_DIR}/scripts/…` form.
 
@@ -566,7 +583,7 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   pool while every call fails; only a bare-name deny rule removes it from context entirely. Keying
   the fallback on absence let a `dontAsk` session pick a tool it cannot use and leave the destructive
   confirmation gate unsatisfied rather than asking inline. The fallback now triggers on absent,
-  denied, **or otherwise unusable** — including a denial discovered only by calling it — mirroring
+  denied, **or otherwise unusable**, including a denial discovered only by calling it. This mirrors
   the sibling fix in `disk-hygiene` (#2016).
 
 ## [0.10.0]
@@ -577,13 +594,13 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   granted.** The single rule `Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/*)` never matched:
   `${CLAUDE_PLUGIN_ROOT}` is not substituted in `allowed-tools` (only `${CLAUDE_SKILL_DIR}` and
   `${CLAUDE_PROJECT_DIR}` are), so it stayed a literal string. Had it matched, it would have
-  pre-approved every script in the directory behind a single wildcarded-interpreter rule — the shape
-  auto mode drops outright — including `git-tree-reset.sh` and `remove-path.sh`.
+  pre-approved every script in the directory behind a single wildcarded-interpreter rule, the shape
+  auto mode drops outright. That covers `git-tree-reset.sh` and `remove-path.sh`.
 
   Dropping `bash` from the rule, the repair that suggests itself, would have produced a **dead**
   grant rather than a working one: `bash` is not among the wrappers Claude Code strips before
   matching (`timeout`, `time`, `nice`, `nohup`, `stdbuf`, `command`, `builtin`, `noglob`), so a rule
-  without it stops matching a body that still says `bash <path>`. The change is **paired** — the
+  without it stops matching a body that still says `bash <path>`. The change is **paired**. The
   skill body now invokes its scripts directly through `${CLAUDE_SKILL_DIR}/scripts/…`, and the rules
   name those same strings. All five granted scripts are invoked from `SKILL.md`, so the pairing is
   complete for everything the grant covers.
@@ -592,14 +609,14 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   `bash ${CLAUDE_PLUGIN_ROOT}/…` and are deliberately left alone: the skills documentation scopes
   `${CLAUDE_SKILL_DIR}` substitution to "the skill's markdown content", and whether that reaches a
   bundled context file loaded later is not resolved either way by the docs. Converting them on that
-  assumption could silently defeat the very pairing this change makes — an unsubstituted body emits a
+  assumption could silently defeat the very pairing this change makes. An unsubstituted body emits a
   literal that cannot match the substituted rule. It fails safe (a prompt, not a wrong action), but
   silently, which is the defect class this change exists to remove. Tracked separately, gated on
   settling the substitution scope.
 
 ### Changed
 
-- **The grant is now five narrow rules covering the read-only scripts only** —
+- **The grant is now five narrow rules covering the read-only scripts only**:
   `resolve-clean-action.sh`, `scan.sh`, `preflight.sh`, `git-branch-audit.sh`, `git-stash-audit.sh`.
   The mutating scripts (`clean-caches`, `clean-build`, `git-prune`, `git-tree-reset`,
   `git-tree-reset-batch`, `remove-path`, `clean-batch`) are deliberately **not** pre-approved: they
@@ -608,8 +625,8 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   regresses; what changes is that the read-only inventory step stops prompting while the destructive
   tiers keep their gate.
 
-  The PreToolUse guard's own `command` still resolves `${CLAUDE_PLUGIN_ROOT}` and is unchanged —
-  hook commands are a different substitution context, where that variable is documented to work.
+  The PreToolUse guard's own `command` still resolves `${CLAUDE_PLUGIN_ROOT}` and is unchanged.
+  Hook commands are a different substitution context, where that variable is documented to work.
 
 ### Added
 
@@ -621,7 +638,7 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   It also pins the granted **set** against an allowlist of the five read-only scripts. The pairing
   checks alone could not catch a re-widening: every mutating script here is bundled, executable, and
   named in the skill's markdown, so a rule added for one of them would "pair" correctly and pass
-  green. Verified by injecting a `clean-caches.sh` grant — the pairing checks passed and only the
+  green. Verified by injecting a `clean-caches.sh` grant. The pairing checks passed and only the
   allowlist failed.
 
 ## [0.9.1]
@@ -631,8 +648,8 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
 - **`/repo-hygiene:clean`'s trigger phrases are now single-quoted.** The `Use when:` list was a bare
   comma-separated run of words (`clean, disk space, remove caches, ...`), which the skill-quality
   gate's trigger-drop protection cannot track, and several entries were bare nouns rather than
-  phrasings. All fourteen are now quoted, with the noun-shaped ones rewritten as things a user says
-  — `'free up disk space'`, `'clear build artifacts'`, `'clean up my stashes'`.
+  phrasings. All fourteen are now quoted, with the noun-shaped ones rewritten as things a user says:
+  `'free up disk space'`, `'clear build artifacts'`, `'clean up my stashes'`.
 
 ## [0.9.0]
 
@@ -640,7 +657,7 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
 
 - **The bare `/<skill>` alias for this plugin's skills.** Their `SKILL.md` files no longer
   declare a frontmatter `name`. The field is optional and defaults to the directory name, so
-  declaring it only restated the path while registering a second, unnamespaced command — which
+  declaring it only restated the path while registering a second, unnamespaced command that
   the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
   namespaced command; the command itself is unchanged.
 
@@ -655,22 +672,22 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   the context spokes, the reference docs, and the scripts) valid.
 - **The batch spokes' "Why this exists" sections state the standing constraint instead of narrating
   the session that prompted them.** `clean-batch.md` and `git-tree-reset-batch.md` keep every durable
-  rationale — the auto-mode classifier blocking a hand-rolled bulk `rm` even after confirmation,
-  separator-agnostic skip-matching, and the dirty-by-default guard — with the chronology dropped.
+  rationale: the auto-mode classifier blocking a hand-rolled bulk `rm` even after confirmation,
+  separator-agnostic skip-matching, and the dirty-by-default guard. The chronology is dropped.
 
 ## [0.8.0]
 
 ### Changed
 
 - **`clean`'s confirmation gates now state an invariant plus a conditional surface, instead of
-  naming `AskUserQuestion` as the only way to confirm (#1724).** Every gate — §1.5 pre-flight, §4.2
-  branch deletion, §4.3 stash drop, §6 `tree`, §6.5 `tree-batch`, §7 orphaned-path removal, §8
-  selective batch — and the `context/` spokes that restate them pointed at that one tool. The tool is
+  naming `AskUserQuestion` as the only way to confirm (#1724).** Every gate, and the `context/`
+  spokes that restate them, pointed at that one tool: §1.5 pre-flight, §4.2 branch deletion, §4.3
+  stash drop, §6 `tree`, §6.5 `tree-batch`, §7 orphaned-path removal, §8 selective batch. The tool is
   not always in the pool: permission mode `dontAsk` denies it unconditionally, a bare-name
   `permissions.deny` rule removes it from Claude's context entirely, and a `disallowed-tools` entry
   removes it from the pool while the skill is active. In
   those sessions the gate named something absent, so it was unsatisfiable rather than strict, and the
-  model had to improvise a confirmation the text did not describe — with no floor underneath it,
+  model had to improvise a confirmation the text did not describe, with no floor underneath it,
   because `destructive-guard.sh` is bypassed by the model-settable `CLEAN_GUARD_ACK=1` prefix and §6's
   destructive work happens inside `git-tree-reset.sh --apply`, which the guard's pattern list does not
   match. A new **Confirmation gate** section now owns both halves once: the bar (the user's own
@@ -679,7 +696,7 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   self-supplied or inferred; autonomous sessions abort) and the surface (`AskUserQuestion` preferred
   because its answer cannot be fabricated, an inline numbered question when it is absent). Every gate
   site now points at that section rather than restating it. **The bar is unchanged and no gate was
-  removed** — only the surface became conditional. This is #1724 on its own merits and settles
+  removed.** Only the surface became conditional. This is #1724 on its own merits and settles
   nothing in #1722: the operator-level question of whether `AskUserQuestion` may be called at all is
   still open, and a rewrite on one side is not that decision.
 
@@ -693,19 +710,19 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   passed a fixed `"build caches"` allow-list to `clean_apply_manifest`
   regardless of `--include-caches`, so a plain build-tier apply still accepted
   and removed `caches` lines (`.pytest_cache/`, `.ruff_cache/`, …) from a
-  stale or caller-supplied manifest — defeating the tier-isolation guard on
+  stale or caller-supplied manifest, defeating the tier-isolation guard on
   the documented `--manifest` surface. The allowed classes are now derived
   from the apply invocation's own `--include-caches` flag (`build` only when
   unset, `build caches` when set), so a build-only apply rejects a `caches`
   line as `Rejected (wrong tier)` and leaves the cache target in place.
   **Caller-visible:** the manifest-flow's tier now tracks the *apply* call, not
-  the dry-run that built the manifest — the documented `clean-build.sh
+  the dry-run that built the manifest. The documented `clean-build.sh
   --include-caches` build-tier flow (`SKILL.md` §3) must repeat
   `--include-caches` on the `--apply --manifest <path>` step too, or the
   folded-in `caches` entries are rejected instead of removed.
 - **`clean-batch.sh --apply` now validates the batch plan against the requested
-  `--tier` before touching disk.** The apply-time `--tier` was informational only —
-  dispatch keyed purely on each plan line's `REPO`/`GITDIR` kind — so a stale or
+  `--tier` before touching disk.** The apply-time `--tier` was informational only,
+  with dispatch keyed purely on each plan line's `REPO`/`GITDIR` kind, so a stale or
   swapped plan executed its full gated content while the banner named a narrower
   tier (e.g. a `--tier build` dry-run plan applied with `--tier caches` removed both
   `bin/` and `.pytest_cache/` while printing `Tier: caches`). Apply now pre-scans the
@@ -723,7 +740,7 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   naming no representative worktree (or a `REPO` line naming no manifest) names no
   target, so counting it would let a narrower plan clear the `all` requirement and
   then print `Tier: all` with `gitdirs=1` while performing no Git cleanup at all.
-  Such a record now also fails closed per-record at apply — reported as `malformed
+  Such a record now also fails closed per-record at apply, reported as `malformed
   plan record`, counted in `failed=` and never in `gitdirs=`, instead of being
   reported as a store that vanished after the dry-run. **Caller-visible:** a plan
   carrying a malformed record of the kind the `all` tier still needs is now refused
@@ -743,22 +760,22 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
 
 ### Added
 
-- **`stash` action — stash audit and triage across every tier that previously
+- **`stash` action: stash audit and triage across every tier that previously
   ignored stashes.** `git-stash-audit.sh` reports each stash's age, source
-  branch, diffstat, and a PR/merge signal, with a per-stash keep/drop advisory —
-  and **never drops a stash**; the agent confirms keep-or-drop per entry. A
+  branch, diffstat, and a PR/merge signal, with a per-stash keep/drop advisory.
+  It **never drops a stash**; the agent confirms keep-or-drop per entry. A
   `possibly superseded` / `likely superseded` advisory (source branch merged into
   `origin/<default>` or via a merged PR) is a hint to raise first, never an
   autonomous drop. Deduped across linked worktrees by the `--git-common-dir`
   `StashStore:` key (worktrees share one stash ref). Each stash also carries its
-  stable commit id (`Commit:`) — the safe handle when dropping several, since the
-  `stash@{n}` selector renumbers after every drop — and a confirmed `git stash
+  stable commit id (`Commit:`), the safe handle when dropping several, since the
+  `stash@{n}` selector renumbers after every drop. A confirmed `git stash
   drop`/`clear` is now covered by the session destructive guard (blocked until the
   `CLEAN_GUARD_ACK=1` acknowledgement). Runs standalone (`stash`) and as part of
   the `git` tier. (#996)
 - **Branch audit now surfaces unpushed commits per branch, including no-upstream
   branches.** A new `Unpushed:` line reports `N ahead of <upstream>` or, for a
-  never-pushed branch, `no upstream, M commits not on origin/<default>` — the
+  never-pushed branch, `no upstream, M commits not on origin/<default>`. The
   latter is invisible to `@{upstream}`-based ahead reporting, so unmerged local
   work no longer goes unseen. Such branches form their own REVIEW class ranked
   above generic stale/orphaned, so the unpushed-commit count is the headline. A
@@ -775,7 +792,7 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
 
 - **Branches checked out in a linked worktree are their own `WORKTREE` bucket, no
   longer folded into `PROTECTED`.** Such a branch is a real cleanup candidate but
-  `git branch -d` on it fails or, forced, breaks the worktree — so it is
+  `git branch -d` on it fails or, forced, breaks the worktree, so it is
   subtracted from the deletion set and routed to the worktree-management tool
   ("clean up the worktree first") rather than mislabeled untouchable. The
   protected-name checks now rank above the worktree check so a `release/*` or
@@ -796,7 +813,7 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   tiers.** A new `clean-batch.sh --tier <caches|build|git|all>` orchestrator runs
   the single-repo tiers across a set of repositories behind ONE confirmation gate,
   the way `tree-batch` already does for the destructive `tree` tier. It runs no
-  removal itself — each per-repo action delegates to the unchanged single-repo
+  removal itself. Each per-repo action delegates to the unchanged single-repo
   child (`clean-caches.sh`, `clean-build.sh`, `git-prune.sh`), so every child gate
   (protection classes, submodule/reparse guards, the dry-run manifest + re-stat
   staleness guard) is reused verbatim. New action spellings `caches-batch` /
@@ -806,7 +823,7 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   exactly the repos and shared object stores to act on (plus a per-repo child
   manifest for `caches`/`build`), prints `BatchPlan: <path>` and an aggregate
   `Summary: repos=N planned=P bytes=K`. `--apply --batch-plan <plan>` acts on that
-  plan ONLY and is a usage error without it — so a live fleet that races the sweep
+  plan ONLY and is a usage error without it, so a live fleet that races the sweep
   is tolerated exactly: a repo that vanished after the dry-run applies idempotently
   (its manifest paths are already gone), a repo that appeared is not in the plan and
   is never touched. (#994)
@@ -841,8 +858,8 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   second walk); a killed apply resumes by re-running the same command
   (already-gone entries are idempotent no-ops). `--apply` without a manifest
   builds one then applies it, preserving the standalone CLI contract. With
-  `--include-caches` the caches tier folds into the same manifest — one walk per
-  tier, no subprocess. (#995)
+  `--include-caches` the caches tier folds into the same manifest, so each tier is
+  one walk with no subprocess. (#995)
 - **Apply ends with a machine-parseable summary and fails closed.** Each `--apply`
   run prints `Summary: removed=N failed=M bytes=K` (bytes actually reclaimed) and
   exits non-zero when any removal fails, so a fleet sweep no longer requires
@@ -853,7 +870,7 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
 - **The `dotnet clean` build-system driver.** `clean-build.sh` no longer runs
   `dotnet clean <solution>` before removing `bin/`/`obj/`. The universal artifact
   removal already deletes everything the driver would, so running it first was
-  pure overhead — a full MSBuild evaluation (minutes on a large solution) that
+  pure overhead. It ran a full MSBuild evaluation (minutes on a large solution) that
   also re-created `obj/` evaluation artifacts. One walk + `rm` is strictly faster
   and equally complete. Removes the `Planned: dotnet clean …` (dry-run) and
   `DRIVER_FAILED:` (apply) output markers. (#999)
@@ -862,12 +879,12 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
 
 ### Fixed
 
-- **Destructive-guard hook now launches on Windows — was silently fail-open.** The
+- **Destructive-guard hook now launches on Windows. It was silently fail-open.** The
   exec-form hook (`command: "bash"` + `args`) resolves `bash` via PATH, which on
   Windows finds the WSL relay (`System32\bash.exe`) and fails to launch; Claude Code
   treats a failed hook launch as non-blocking, so the guard enforced nothing (48
   errors in one field session). The hook now uses shell form with `shell: bash`,
-  which Claude Code runs via Git Bash on Windows — the guard launches wherever the
+  which Claude Code runs via Git Bash on Windows, so the guard launches wherever the
   skill itself can run.
 - **Missing jq now degrades fail-closed instead of fail-open.** Without jq the guard
   previously announced itself inactive and allowed everything. It now matches the
@@ -880,7 +897,7 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
 ### Changed
 
 - Skills with `!` dynamic-context injections now declare `shell: bash` explicitly, per
-  the pinned precompute convention — bash-only pipelines must not fall through to a
+  the pinned precompute convention. Bash-only pipelines must not fall through to a
   PowerShell host.
 
 ## [0.4.4]
@@ -896,7 +913,7 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
 
 ### Fixed
 
-- **`tree-batch` — `--repo` now consumes every consecutive path, so the documented
+- **`tree-batch`: `--repo` now consumes every consecutive path, so the documented
   shell-glob form works.** `--repo ~/repos/*` reaches the script as one `--repo`
   flag followed by N positional paths (the shell expands the glob before exec), but
   the arg-parsing arm consumed only the first: the second expanded path hit the
@@ -913,12 +930,12 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
 
 ### Fixed
 
-- **`git-tree-reset` context doc — surfaces the `reset --hard` non-atomicity
+- **`git-tree-reset` context doc: surfaces the `reset --hard` non-atomicity
   caveat on the exit-5 gate.** The exit-5 bullet in
   `skills/clean/context/git-tree-reset.md` accurately described the gating
   contract (a failed `reset --hard` skips `clean` and the restore guard, so the
   tree is never left cleaned-but-not-reset) but omitted that `reset --hard` is
-  not atomic and may have partially modified tracked files before it failed —
+  not atomic and may have partially modified tracked files before it failed,
   a caveat the runtime exit-5 stderr message already surfaces. The bullet now
   carries that parenthetical, so the doc is consistent with the script's stderr
   output. (#485)
@@ -927,7 +944,7 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
 
 ### Fixed
 
-- **`git-tree-reset` — exit-7 clean-failure path now emits the restore-guard
+- **`git-tree-reset`: exit-7 clean-failure path now emits the restore-guard
   warning identically to the success path.** When `git clean -fdx` fails for a
   non-locked-file cause (exit 7) after the restore guard recovered one or more
   tracked files deleted via reparse-point traversal (`RestoredTracked: N`, N>0),
@@ -935,14 +952,14 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   success path already emits under that condition. Previously the warning was
   emitted only on the success path, so an operator hitting the failure path saw
   the machine-readable `RestoredTracked: N` line but not the human-visible signal
-  that data-loss recovery fired — parity between both paths for this specific
+  that data-loss recovery fired. Both paths now have parity for this specific
   signal. (#605)
 
 ## [0.4.0]
 
 ### Added
 
-- **`tree-batch` — multi-repo working-tree reset with a skip-list and a dirty guard.**
+- **`tree-batch`: multi-repo working-tree reset with a skip-list and a dirty guard.**
   A new `clean` action that runs the `tree` tier across a set of repositories
   (`ghq list` output via `--repos-from -`, a shell glob, or explicit `--repo`
   flags) behind a single dry-run -> confirm -> apply gate, then reports a per-repo
@@ -953,13 +970,13 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
 
   Closes the gap that caused an unrecoverable data loss when an operator
   hand-rolled a `ghq list` reset loop. Two defects are fixed as first-class
-  behavior: (1) **separator-agnostic skip-matching** — a skip entry and the
+  behavior: (1) **separator-agnostic skip-matching**, in which a skip entry and the
   enumerated repo path are each normalized to a canonical separator-agnostic key
   (`clean_path_key`) before comparison, so a Windows `\`-path skip entry reliably
   matches a repo whose path git enumerated with `/` (the exact match that silently
   failed and reset a repo that should have been skipped); a skip entry matching no
   repo is surfaced as `UnmatchedSkip:`, never silently ignored. (2) **Dirty-by-
-  default guard** — a repo with uncommitted/untracked changes or unpushed commits
+  default guard**, in which a repo with uncommitted/untracked changes or unpushed commits
   is skipped with a reported reason; `--include-dirty` opts in and is gated with
   its own explicit confirmation, like `--include-secrets`.
 
@@ -967,15 +984,15 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
 
 ### Fixed
 
-- **`git-tree-reset.sh` — `AppliedClean` no longer claims success when `git clean` failed.**
+- **`git-tree-reset.sh`: `AppliedClean` no longer claims success when `git clean` failed.**
   On the `--apply` path the script captured `git clean -fdx` stderr but never checked its
-  exit status, then printed `AppliedClean: git clean -fdx …` unconditionally — so a clean
+  exit status, then printed `AppliedClean: git clean -fdx …` unconditionally, so a clean
   that errored still reported success, misleading any operator or automation keying off that
   line to conclude the tree reached a known-good state. The clean exit code is now inspected:
   a non-zero exit whose cause is NOT locked/in-use files (the expected non-fatal case, already
   reported via `Unremovable:`) is a genuine failure that prints an explicit `FAILED:` line and
   `AppliedClean: failed` instead of a success line, and exits 7. The `AppliedReset:` success
-  line is now emitted as soon as the reset genuinely succeeds — before `clean` — so a
+  line is now emitted as soon as the reset genuinely succeeds, before `clean`, so a
   subsequent clean failure still surfaces the truthful reset outcome. The reparse-point restore
   guard runs on the failure path too, so tracked files a partially-run clean may have deleted
   are still recovered.
@@ -984,14 +1001,14 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
 
 ### Fixed
 
-- **`git-tree-reset.sh` — unresolvable upstream now gated before any destructive op.**
+- **`git-tree-reset.sh`: unresolvable upstream now gated before any destructive op.**
   When a branch's upstream is configured (`branch.<name>.remote` + `.merge`) but its
-  remote-tracking ref is absent — e.g. a feature branch whose squash-merged PR left the
-  remote branch deleted and pruned — `git rev-parse --abbrev-ref '@{u}'` prints the literal
+  remote-tracking ref is absent, for example a feature branch whose squash-merged PR left the
+  remote branch deleted and pruned, `git rev-parse --abbrev-ref '@{u}'` prints the literal
   token `@{u}` rather than a ref name, and the trailing pipe masked git's non-zero exit, so
   the non-empty guard passed and `UPSTREAM=@{u}`. On `--apply` this reached `git reset --hard
   @{u}` → `fatal: ambiguous argument '@{u}'`, and (before the reset-success gate) `git clean
-  -fdx` still ran — a partial destructive op (tree cleaned but not reset). The script now
+  -fdx` still ran, a partial destructive op (tree cleaned but not reset). The script now
   verifies `@{u}` resolves to a real ref (a local-only upstream, `branch.remote="."`, still
   resolves and passes) and otherwise skips the repo with `Blocked: upstream-unresolved
   (<remote>/<branch>)` and `PlannedReset`/`PlannedClean: none` before any `reset`/`clean`,
@@ -1001,10 +1018,10 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
 
 ### Fixed
 
-- **`git-tree-reset.sh` — `clean` now gated on a successful `reset --hard`.** The
+- **`git-tree-reset.sh`: `clean` now gated on a successful `reset --hard`.** The
   `--apply` path runs under `set -uo pipefail` (no `-e`) and never checked the
   `git reset --hard` exit status before running `git clean -fdx`, so a failed reset
-  fell through to the destructive clean — leaving the tree cleaned but not reset (a
+  fell through to the destructive clean, leaving the tree cleaned but not reset (a
   partial destructive op). A non-zero reset now aborts the apply before `clean` and
   the reparse-point restore guard ever run, prints an explicit failure line, emits
   honest `AppliedReset: failed` / `AppliedClean: none` (never a success line for a
@@ -1014,9 +1031,9 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
 
 ### Added
 
-- **`remove-path.sh` — guarded orphaned-path removal.** A new `clean` skill action that
+- **`remove-path.sh`: guarded orphaned-path removal.** A new `clean` skill action that
   removes a whole orphaned clone or leftover directory under the ghq root (`--root`
-  overrides) — the whole-directory deletion the selective tiers never perform (e.g. a local
+  overrides), the whole-directory deletion the selective tiers never perform (e.g. a local
   clone whose upstream repository was deleted). Defaults to `--dry-run`; it is not composed
   into any tier and runs only on explicit request. Guards resolve both sides physically
   before a strict-containment check (a symlinked/junction ancestor cannot slip a target
@@ -1024,10 +1041,10 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   ancestor bind mount to another filesystem cannot escape it either; a same-device bind
   mount is the documented residual of this path-based containment model), and refuse the
   containment root itself, symlink/reparse-point targets, linked worktrees, and any plain
-  directory still holding nested git repos — a normal clone, a submodule/linked worktree, or
+  directory still holding nested git repos, whether a normal clone, a submodule/linked worktree, or
   a bare mirror. A repo (or bare repo) is blocked on uncommitted changes, stash entries,
   registered worktrees, ignored secret-class files (`--include-secrets` to override), or
-  unpushed work — unpushed branches or local-only tags (`--allow-unpushed` to override); a
+  unpushed work, meaning unpushed branches or local-only tags (`--allow-unpushed` to override); a
   plain directory is scanned for the same secret class, and any git state that cannot be
   inspected (working tree, stash, or worktree list) fails closed. Any target holding ignored
   skill-owned `data/` (irreplaceable user synthesis) is refused with no override, matching the
@@ -1041,7 +1058,7 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
 - The `clean` skill's PreToolUse destructive-guard hook now uses the
   interpreter-named exec form (`command: "bash"`,
   `args: [".../destructive-guard.sh"]`) instead of naming the bare `.sh` as
-  the command — the doctrine-prescribed Windows-safe spawn shape
+  the command, the doctrine-prescribed Windows-safe spawn shape
   (cross-platform declaration wave).
 
 ## [0.2.0]

@@ -2,82 +2,82 @@
 
 ## Contents
 
-- [Imperative 1 — DELEGATE / FAN OUT](#imperative-1--delegate--fan-out)
-- [Imperative 2 — SPEC EVERY SPAWN](#imperative-2--spec-every-spawn)
-- [Imperative 3 — FRESH-CONTEXT VERIFY](#imperative-3--fresh-context-verify)
-- [Imperative 4 — RUN WORKERS WELL](#imperative-4--run-workers-well)
-- [Imperative 5 — NESTED SUBAGENTS](#imperative-5--nested-subagents)
-- [Priming addendum — surface reachability](#priming-addendum--surface-reachability)
-- [Imperative 6 — SURFACE DRIFT](#imperative-6--surface-drift)
-- [Imperative 7 — CALIBRATE TO CONDITIONS](#imperative-7--calibrate-to-conditions)
+- [Imperative 1: DELEGATE / FAN OUT](#imperative-1-delegate--fan-out)
+- [Imperative 2: SPEC EVERY SPAWN](#imperative-2-spec-every-spawn)
+- [Imperative 3: FRESH-CONTEXT VERIFY](#imperative-3-fresh-context-verify)
+- [Imperative 4: RUN WORKERS WELL](#imperative-4-run-workers-well)
+- [Imperative 5: NESTED SUBAGENTS](#imperative-5-nested-subagents)
+- [Priming addendum: surface reachability](#priming-addendum-surface-reachability)
+- [Imperative 6: SURFACE DRIFT](#imperative-6-surface-drift)
+- [Imperative 7: CALIBRATE TO CONDITIONS](#imperative-7-calibrate-to-conditions)
 
 Official sources backing each imperative in the brief. **URLs are authoritative; fetch them to
 confirm.** Lines marked *(paraphrase)* are summarizer renderings captured during research
-(2026-06-14), concept-faithful but not byte-exact — re-fetch the URL for verbatim wording. Lines
+(2026-06-14), concept-faithful but not byte-exact. Re-fetch the URL for verbatim wording. Lines
 marked *(verbatim, verified)* were confirmed against the raw doc at capture time.
 
 **What *(verbatim)* tolerates.** Quotes are reproduced word-for-word, with four presentational
 normalizations that carry no meaning: markdown link syntax is stripped to its text
 (`[depth limit](#anchor)` → `depth limit`), inline emphasis may be dropped or added, an escaped
 `\_` in a raw changelog line is unescaped, and a fragment lifted mid-sentence may take a
-sentence-final period. Anything that changes wording is **not** a normalization — a quote that no
+sentence-final period. Anything that changes wording is **not** a normalization. A quote that no
 longer matches the source is a defect, not a style choice.
 
-## Imperative 1 — DELEGATE / FAN OUT
+## Imperative 1: DELEGATE / FAN OUT
 
 - **Start simple; a single agent goes far.** "Start with the simplest approach that works, and add
   complexity only when evidence supports it"; "A well-designed single agent with appropriate tools
-  can accomplish far more than many developers expect." *(paraphrase)* —
+  can accomplish far more than many developers expect." *(paraphrase)*. Source:
   <https://claude.com/blog/building-multi-agent-systems-when-and-how-to-use-them>
 - **Decompose by context boundary, not work type.** "Group work by what context it requires, not
   by what kind of work it is"; sequential phases of one feature "share too much context."
-  *(paraphrase)* — same URL
+  *(paraphrase)*. Same URL.
 - **Coding is less parallelizable than research.** "Most coding tasks involve fewer truly
-  parallelizable tasks than research." *(paraphrase)* —
+  parallelizable tasks than research." *(paraphrase)*. Source:
   <https://www.anthropic.com/engineering/multi-agent-research-system>
 - **Cost multipliers.** Multi-agent "typically use 3–10× more tokens than single-agent approaches";
   the research system reports ~4× per agent vs chat and ~15× for multi-agent; "token usage by
-  itself explains 80% of the variance." *(paraphrase)* — both URLs above
+  itself explains 80% of the variance." *(paraphrase)*. Both URLs above.
 - **Use multi-agent only for context-protection / parallelization / specialization; outside these
-  "coordination costs typically exceed the benefits."** *(paraphrase)* —
-  building-multi-agent-systems (URL above)
+  "coordination costs typically exceed the benefits."** *(paraphrase)*. Source:
+  building-multi-agent-systems (URL above).
 
-## Imperative 2 — SPEC EVERY SPAWN
+## Imperative 2: SPEC EVERY SPAWN
 
 - "Each subagent needs an objective, an output format, guidance on the tools and sources to use,
   and clear task boundaries." Without it, agents "duplicate work, leave gaps, or fail to find
-  necessary information." *(paraphrase)* —
+  necessary information." *(paraphrase)*. Source:
   <https://www.anthropic.com/engineering/multi-agent-research-system>
 - Scale effort to complexity: "Simple fact-finding requires just 1 agent with 3–10 tool calls …
-  complex research might use more than 10 subagents." *(paraphrase)* — same URL
+  complex research might use more than 10 subagents." *(paraphrase)*. Same URL.
 - The REASON field: "Claude Fable 5 tends to perform better when it understands the intent behind a
   request: context lets it connect the task to relevant information rather than inferring intent on
   its own. Provide context about why you're asking, especially for long-running agents drawing on
-  multiple workstreams." —
+  multiple workstreams." Source:
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5>
 
-## Imperative 3 — FRESH-CONTEXT VERIFY
+## Imperative 3: FRESH-CONTEXT VERIFY
 
 - **Fresh context beats self-review.** A reviewer "running in a fresh subagent context sees only
   the diff and the criteria you give it, not the reasoning that produced the change."
-  *(paraphrase)* — <https://code.claude.com/docs/en/best-practices>
+  *(paraphrase)*. Source: <https://code.claude.com/docs/en/best-practices>
 - **Verifier needs explicit criteria or it rubber-stamps.** "A verifier told only to check whether
   output is good, with no further criteria, will rubber-stamp the generator's output"; specify
   "Run the full test suite and report all failures" rather than "make sure it works."
-  *(paraphrase)* — <https://claude.com/blog/multi-agent-coordination-patterns> + best-practices
-  (URL above)
+  *(paraphrase)*. Sources: <https://claude.com/blog/multi-agent-coordination-patterns> +
+  best-practices (URL above).
 - **Scope the reviewer.** "Tell the reviewer to flag only gaps that affect correctness or the
-  stated requirements." *(paraphrase)* — best-practices (URL above)
+  stated requirements." *(paraphrase)*. Source: best-practices (URL above).
 - **Judge final state, not process.** "Evaluate whether it achieved the correct final state"
-  rather than "whether the agent followed a specific process." *(paraphrase)* —
+  rather than "whether the agent followed a specific process." *(paraphrase)*. Source:
   <https://www.anthropic.com/engineering/multi-agent-research-system>
 - Fable-5 verifier guidance (verbatim, verified): "Separate, fresh-context verifier subagents tend
-  to outperform self-critique." —
+  to outperform self-critique." Source:
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5>
 
-## Imperative 4 — RUN WORKERS WELL
+## Imperative 4: RUN WORKERS WELL
 
-All three sub-behaviors are from the Fable 5 prompting guide (verbatim, verified) —
+All three sub-behaviors are from the Fable 5 prompting guide (verbatim, verified),
 <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5>:
 
 - **Async over blocking:** "prefer asynchronous communication between orchestrator and subagents
@@ -123,7 +123,7 @@ through that same tool per the first quote above, so deny-listing it also forfei
 continuation. A session that wants no cross-session messaging but keeps continuation uses that
 page's narrower controls (`crossSessionInbound`) instead of the deny rule.
 
-## Imperative 5 — NESTED SUBAGENTS
+## Imperative 5: NESTED SUBAGENTS
 
 Re-verified 2026-08-10 against two official surfaces: the prose page
 <https://code.claude.com/docs/en/sub-agents> ("Let subagents spawn their own subagents") and the
@@ -133,7 +133,7 @@ trigger: a changelog entry touching subagent nesting, depth, or concurrency.
 
 - Shipped, **not** experimental. Changelog v2.1.172 *(verbatim, verified 2026-08-10)*:
   "Sub-agents can now spawn their own sub-agents (up to 5 levels deep)." **This version number is a
-  historical citation — the release that shipped nesting — not a verification pin. Do not bump it.**
+  historical citation, the release that shipped nesting, not a verification pin. Do not bump it.**
   The sub-agents page's own version-history note corroborates it *(verbatim, verified 2026-08-10)*:
   "**v2.1.172 through v2.1.216**: subagents could nest by default, up to five layers deep, and the
   limit couldn't be changed."
@@ -141,20 +141,20 @@ trigger: a changelog entry touching subagent nesting, depth, or concurrency.
   v2.1.219 *(verbatim, verified 2026-08-10)*: "Subagents can now spawn nested subagents up to depth
   3 by default (was 1); set `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1` to disable nesting." Sub-agents
   page *(verbatim, verified 2026-08-10)*: "By default, a subagent can spawn subagents of its own, up
-  to three layers below the main conversation." The immediately preceding state was the opposite —
-  changelog v2.1.217 *(verbatim, verified 2026-08-10)*: "Changed subagents to no longer spawn nested
+  to three layers below the main conversation." The immediately preceding state was the opposite.
+  Changelog v2.1.217 *(verbatim, verified 2026-08-10)*: "Changed subagents to no longer spawn nested
   subagents by default; set `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` to allow deeper nesting."
 - **The `Agent` tool is withheld at the depth limit, not while nesting is off** *(verbatim, verified
-  2026-08-10 — sub-agents page)*: "At the depth limit, Claude Code withholds the `Agent` tool from
+  2026-08-10, sub-agents page)*: "At the depth limit, Claude Code withholds the `Agent` tool from
   every subagent except a fork, so a subagent at the limit does its delegated work itself and
   returns one summary. A fork at the limit keeps `Agent` in its inherited tool list, but the tool
   returns an error instead of spawning."
-- Gating by tool list — necessary, not sufficient *(verbatim, verified 2026-08-10 — sub-agents
+- Gating by tool list is necessary, not sufficient *(verbatim, verified 2026-08-10, sub-agents
   page)*: "In a subagent definition, listing `Agent` in `tools` lets that subagent spawn subagents
   of its own while the depth limit allows it, but any type list inside the parentheses is ignored."
   To stop one spawning while nesting is on, "omit `Agent` from its `tools` list or add it to
   `disallowedTools`."
-- **Two caps now, not three — the per-session total was removed** *(verified 2026-08-10 — sub-agents
+- **Two caps now, not three. The per-session total was removed** *(verified 2026-08-10, sub-agents
   page)*. What remains is the concurrency limit and the depth limit: "By default, when 20 subagents
   are running in a session, spawning another with the Agent tool fails with `Concurrent subagent
   limit reached`, and the error tells Claude not to retry. Spawning succeeds again when the running
@@ -171,7 +171,7 @@ trigger: a changelog entry touching subagent nesting, depth, or concurrency.
   the limit isn't enforced there", an in-session `/subtask` fork "takes a slot while it runs and
   is never blocked by the limit", and "Resuming a subagent that already finished takes a fresh slot
   without checking the limit, so resumes can push the running count past it."
-  Also verified 2026-08-15: these Agent-tool caps do not govern other spawn surfaces — "Agents that
+  Also verified 2026-08-15: these Agent-tool caps do not govern other spawn surfaces. "Agents that
   other features run, such as workflow agents and agent team teammates, follow their own limits
   instead" (sub-agents page).
   Changelog v2.1.232 *(paraphrase, read 2026-08-13)*: subagent forking is on by default, and
@@ -191,57 +191,57 @@ as authoritative for the env-var mechanism and cap semantics, and confirm with t
 in `gotchas.md`.
 
 The brief's "never author a tree that needs a specific or deep nesting level" is justified by
-reliability degradation with depth, by the caps above, and — most of all — by the fact that the
+reliability degradation with depth, by the caps above, and above all by the fact that the
 default moved three times in seven weeks (fixed 5 → off → configurable 3). That volatility is the
 argument, not any one of the values. The surfaces agreeing again does not weaken it.
 
-## Priming addendum — surface reachability
+## Priming addendum: surface reachability
 
 Backs the addendum's parenthetical on dynamic workflows. Two halves are needed: `Workflow` is on the
-filter that strips tools from every subagent, AND forks are exempt from that filter — either alone
+filter that strips tools from every subagent, AND forks are exempt from that filter. Either alone
 proves nothing.
 
-- **`Workflow` is removed from subagents by the first filter** *(verbatim, verified 2026-08-10 —
+- **`Workflow` is removed from subagents by the first filter** *(verbatim, verified 2026-08-10,
   sub-agents page)*: "Subagents inherit the built-in tools and MCP tools available in the main
   conversation, narrowed by two filters: the first removes a short list of tools from every
   subagent, and the second reduces the built-in tool set for subagents that run in the background,
   which is the default." That first filter "removes these tools, even when listed in the `tools`
-  field:" — a list whose members include `Workflow`. —
+  field:", a list whose members include `Workflow`. Source:
   <https://code.claude.com/docs/en/sub-agents>
-- **Forks are exempt, so a fork keeps `Workflow`** *(verbatim, verified 2026-08-10 — sub-agents
-  page)*: "Forks skip both filters and receive the main conversation's exact tool pool." — same URL
+- **Forks are exempt, so a fork keeps `Workflow`** *(verbatim, verified 2026-08-10, sub-agents
+  page)*: "Forks skip both filters and receive the main conversation's exact tool pool." Same URL.
 - Teammates do not get it back: the agent-teams carve-out is additive to the background filter only
-  *(verbatim, verified 2026-08-10 — sub-agents page)*: "Teammates in agent teams additionally keep
+  *(verbatim, verified 2026-08-10, sub-agents page)*: "Teammates in agent teams additionally keep
   the task tools and cron tools: `TaskCreate`, `TaskGet`, `TaskList`, `TaskUpdate`, `CronCreate`,
-  `CronDelete`, and `CronList`." — same URL
+  `CronDelete`, and `CronList`." Same URL.
 
-## Imperative 6 — SURFACE DRIFT
+## Imperative 6: SURFACE DRIFT
 
 Authoring convention, NOT canonical Anthropic orchestration guidance (it appears in none of the
 multi-agent sources). Kept in the brief because drift-flagging is useful for any worker: a one-line
 flag preserves the signal without derailing the task.
 
-## Imperative 7 — CALIBRATE TO CONDITIONS
+## Imperative 7: CALIBRATE TO CONDITIONS
 
-Part-sourced, part authoring convention — the boundary is called out per factor.
+Part-sourced, part authoring convention. The boundary is called out per factor.
 
 - **Size effort to complexity (S/M/L).** "Simple fact-finding requires just 1 agent with 3–10 tool
-  calls … complex research might use more than 10 subagents." *(paraphrase — same quote backing
-  imperative 2)* — <https://www.anthropic.com/engineering/multi-agent-research-system>
+  calls … complex research might use more than 10 subagents." *(paraphrase, same quote backing
+  imperative 2)*. Source: <https://www.anthropic.com/engineering/multi-agent-research-system>
 - **Single-agent is the floor; multi-agent is spent, not defaulted.** The 3–10× cost multiplier and
   "coordination costs typically exceed the benefits" outside context-protection / parallelization /
   specialization (both quotes backing imperative 1) are the reason a small ask stays single-agent.
-  *(paraphrase)* —
+  *(paraphrase)*. Sources:
   <https://claude.com/blog/building-multi-agent-systems-when-and-how-to-use-them> +
   <https://www.anthropic.com/engineering/multi-agent-research-system>
 - **Model capability shifts the sizing.** The Fable 5 guide frames delegation as a capability the
-  orchestrator wields deliberately (async dispatch, long-lived subagents, monitor-and-steer — the
+  orchestrator wields deliberately (async dispatch, long-lived subagents, monitor-and-steer, the
   quotes backing imperative 4), which presumes a model strong enough to orchestrate well; a weaker
-  model needs more decomposition and tighter specs. *(interpretation of the same guide)* —
+  model needs more decomposition and tighter specs. *(interpretation of the same guide)*. Source:
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5>
 - **Advisor / verifier availability, context pressure, and concurrent-session / rate-limit
-  headroom** are operational authoring convention, NOT canonical Anthropic orchestration guidance —
-  they scale the same underlying trade-offs (a fresh-context verifier is worth leaning on when one
+  headroom** are operational authoring convention, NOT canonical Anthropic orchestration guidance.
+  They scale the same underlying trade-offs (a fresh-context verifier is worth leaning on when one
   is on hand; a filling window is itself the context-protection trigger imperative 1 names; thin
   rate-limit headroom is a hard ceiling on parallel workers).
 - **Unobservable headroom → thin-by-default (cloud / remote).** The rate-limit-guard reader
@@ -249,43 +249,43 @@ Part-sourced, part authoring convention — the boundary is called out per facto
   and states that cloud / remote containers typically have no statusline producer so the tee path
   is absent by expectation. Imperative 7's thin-by-default concurrent cap, sibling-429 backoff, and
   "never invent window percentages" clauses are the orchestration consumption of that
-  classification — not a second contract. —
+  classification, not a second contract. Source:
   `plugins/rate-limit-guard/reference/reader-contract.md` ("Cloud / remote sessions", capability
   detection).
 - **Per-worker model tier is an explicit spawn decision.** The subagents doc names cost control as
   a purpose of subagents: "Control costs by routing tasks to faster, cheaper models like Haiku"
-  *(verbatim, verified)*, and documents the model-resolution order — `CLAUDE_CODE_SUBAGENT_MODEL`
+  *(verbatim, verified)*, and documents the model-resolution order: `CLAUDE_CODE_SUBAGENT_MODEL`
   env var, then the per-invocation `model` parameter, then the agent definition's `model`
   frontmatter, then the main conversation's model; an omitted `model` "defaults to `inherit`"
   *(verbatim, verified)*. A spawn that never states a tier therefore runs every worker on the
-  parent session's model — the mechanism behind premium-model fan-outs (imperatives 2 and 7's
-  tiering clauses). — <https://code.claude.com/docs/en/sub-agents>
-- **Tier is model AND effort — effort is a per-worker lever, not only the model.** The `effort`
+  parent session's model, the mechanism behind premium-model fan-outs (imperatives 2 and 7's
+  tiering clauses). Source: <https://code.claude.com/docs/en/sub-agents>
+- **Tier is model AND effort. Effort is a per-worker lever, not only the model.** The `effort`
   frontmatter field: "Effort level when this subagent is active. Overrides the session effort
   level. Default: inherits from session. Options: `low`, `medium`, `high`, `xhigh`, `max`;
-  available levels depend on the model." *(verbatim, verified)* — this backs imperative 7's
+  available levels depend on the model." *(verbatim, verified)*. This backs imperative 7's
   "match the reasoning depth (effort) to the subtask too" clause: a cheaper tier is a cheaper
-  model, a lower effort, or both. — <https://code.claude.com/docs/en/sub-agents>
+  model, a lower effort, or both. Source: <https://code.claude.com/docs/en/sub-agents>
 - **Volume-driven default: a fleet inherits the session model unless explicitly routed.** "Every
   agent in a workflow uses your session's model unless the script routes a stage to a different one
   or the `CLAUDE_CODE_SUBAGENT_MODEL` environment variable is set, which overrides both"; cost
   guidance: "Ask Claude to use a smaller model for stages that don't need the strongest one when
-  you describe the task." *(verbatim, verified)* — this is the same inherit mechanism as the
-  subagent path, at fan-out scale: the premium-fleet default imperative 7 flips. —
+  you describe the task." *(verbatim, verified)*. This is the same inherit mechanism as the
+  subagent path, at fan-out scale: the premium-fleet default imperative 7 flips. Source:
   <https://code.claude.com/docs/en/workflows>
-- **The platform itself treats width as a volume threshold — the empirical anchor for
+- **The platform itself treats width as a volume threshold, the empirical anchor for
   "wide fan-out."** A run is flagged `Large workflow` "When a workflow schedules more than 25
   agents, or its projected token total passes 1.5 million" (min-version 2.1.203); the `/config`
   size guideline sets the agent count Claude aims for (`small` "Fewer than 5 agents", `medium`
   "Fewer than 15 agents", `large` "Fewer than 50 agents"), and the runtime caps a run at "Up to 16
   concurrent agents, fewer when Claude Code has fewer CPUs available, including inside a
-  CPU-limited container" / 1,000 total agents — the concurrency bound is CPU-dependent with no
+  CPU-limited container" / 1,000 total agents. The concurrency bound is CPU-dependent with no
   env-var override. *(re-verified 2026-08-15; the 2026-08-10 capture lacked the CPU clause)*
   Empirical, unpinned datum: a 4-CPU cloud container bound a run at 2 concurrent (observed
-  2026-08-15; the exact formula is not documented — the page commits only to "fewer when ... fewer
-  CPUs available"). Riders on the 25-agent Large-workflow threshold (verified 2026-08-15): a
+  2026-08-15). The exact formula is not documented. The page commits only to "fewer when ... fewer
+  CPUs available". Riders on the 25-agent Large-workflow threshold (verified 2026-08-15): a
   user-chosen size guideline's agent count replaces the 25 threshold (built-in default keeps 25);
   ultracode sessions don't show the warning; the default size guideline is `medium` on v2.1.219+.
   These concrete numbers are
   version-pinned and stay in this sources file, NOT the model-/tool-agnostic brief, which speaks of
-  a "wide fan-out" abstractly. — <https://code.claude.com/docs/en/workflows>
+  a "wide fan-out" abstractly. Source: <https://code.claude.com/docs/en/workflows>

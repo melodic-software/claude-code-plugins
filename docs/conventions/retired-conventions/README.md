@@ -10,11 +10,11 @@ one shared deterministic helper, so every setup skill detects and cleans the sam
 
 This directory is the source of truth: `README.md` (the contract), `CHANGELOG.md` (version history).
 The decision record is [ADR 0018](../../adr/0018-express-team-shared-conventions-as-consumer-convention-docs.md);
-the migration playbook names the seam (`docs/MIGRATION-PLAYBOOK.md` § Retired conventions) and the
-plugin philosophy makes the declaration mandatory (`docs/PLUGIN-PHILOSOPHY.md`, "Retirement
+the migration playbook has a section for it (`docs/migration-playbook.md` § Retired conventions) and the
+plugin philosophy makes the declaration mandatory (`docs/plugin-philosophy.md`, "Retirement
 declaration is mandatory").
 
-## Boundary — this contract owns the mechanism, never the decision to retire
+## Boundary: this contract owns the mechanism, never the decision to retire
 
 It owns: the manifest schema, the helper CLI contract, the two fixed setup lines every setup skill
 carries, the append-only and demotion rules, the eval-per-record requirement, and the runtime fleet
@@ -25,16 +25,16 @@ Implementers table. Nothing here decides a retirement; it only makes one detecta
 
 Two neighbouring contracts are cited, not restated. The expression doctrine that decides whether a
 surface is a file or a convention doc, and the pointer line that binds the convention home, belong
-to [config cascade](../config-cascade/README.md#expression-doctrine--which-surfaces-are-files-and-which-are-convention-docs).
+to [config cascade](../config-cascade/README.md#expression-doctrine-which-surfaces-are-files-and-which-are-convention-docs).
 Repeated operator declines of a cleanup route to [finding suppression](../finding-suppression/README.md).
 
-## The manifest — `plugins/<plugin>/retirements.yaml`
+## The manifest: `plugins/<plugin>/retirements.yaml`
 
 One file at the plugin root, shipped inside the plugin and referenced at runtime as
 `${CLAUDE_PLUGIN_ROOT}/retirements.yaml`. Nothing lands in consumer repositories. A plugin with no
 retirements ships no manifest and adds nothing: zero cost until the first retirement.
 
-### Grammar — a deliberately flat YAML subset
+### Grammar: a deliberately flat YAML subset
 
 The runtime parser is bash, and the fleet's shared-lib doctrine is jq-free, so the manifest uses a
 subset the flat-key parser already handles, while CI validates the same file with real YAML tooling:
@@ -51,7 +51,7 @@ subset the flat-key parser already handles, while CI validates the same file wit
 
 | Field | Required | Meaning |
 |---|---|---|
-| `id` | yes | `<plugin>-rNNN`. Stable, unique within the manifest, **never reused** — it is the finding key in every consumer and in the fleet sweep. |
+| `id` | yes | `<plugin>-rNNN`. Stable, unique within the manifest, **never reused**. It is the finding key in every consumer and in the fleet sweep. |
 | `retired` | yes | `YYYY-MM-DD`, the date the convention was retired. |
 | `plugin_version` | yes | The plugin version that retired it. |
 | `kind` | yes | `file` \| `dir` \| `line`. What the leftover is. |
@@ -71,7 +71,7 @@ body). Unset `heading` preserves the whole-file 1.0 line rule. A trailing carria
 stripped from every line before matching, so a `$`-anchored pattern matches a CRLF-authored
 consumer file.
 
-### Example — two records, one demoted
+### Example: two records, one demoted
 
 The `testing` plugin retiring a dedicated e2e config file in favor of the consumer's convention doc,
 and a narrow gitignore line superseded by the recursive one the cascade contract recommends:
@@ -107,7 +107,7 @@ set at plan approval (ADR 0018), and no record exists for it on `main`.
 
 The manifest is the plugin's retirement history, and a history that can be rewritten is not one. A
 record is **never deleted**, and its `id`, `kind`, `path`, `match`, `heading`, and `content_match`
-are never changed once published — a consumer who skips ten versions must still have every record
+are never changed once published. A consumer who skips ten versions must still have every record
 evaluated against them, and a record whose detection changed under them would report a different
 leftover than the one they were told about. CI enforces this against the base ref: a PR that
 removes a record or alters a frozen field fails.
@@ -119,8 +119,8 @@ Exactly three edits are legal after publication:
 2. **Defect fix to `note` or `successor`.** Prose that misdescribes where the convention went, or a
    migration instruction that turned out wrong. Never a change to what is detected.
 3. **Demotion instead of pruning when a path is deliberately re-adopted.** A plugin that later ships
-   a new convention at a path it once retired does not delete the old record — it demotes it to
-   `report-only` and records the re-adoption in the plugin CHANGELOG, so the record still explains
+   a new convention at a path it once retired does not delete the old record. It demotes the record
+   to `report-only` and records the re-adoption in the plugin CHANGELOG, so the record still explains
    the history and can no longer fail a check. If the re-adopted path retires again later, that is a
    new record with a new id; the old record's detection is never edited to fit the new use.
 
@@ -128,7 +128,7 @@ A `report-only` record still runs and is still reported (as INFO), so the histor
 never fails a check and cleanup is never offered for it. This is what closes the dual-read window
 fleet-wide (below) without deleting the evidence that the window existed.
 
-## The helper — `lib/check-retirements.sh`
+## The helper: `lib/check-retirements.sh`
 
 Canonical copy: `plugins/claude-config/lib/check-retirements.sh`, with its test suite beside it.
 Synced byte-identical into every plugin that ships a manifest as
@@ -142,8 +142,8 @@ bash "${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh" --manifest <path> --clean 
 bash "${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh" --help
 ```
 
-`--root` defaults to `${CLAUDE_PROJECT_DIR}`, else the git toplevel, else the current directory —
-the cascade contract's repo-root anchoring rule.
+`--root` follows the cascade contract's repo-root anchoring rule: it defaults to
+`${CLAUDE_PROJECT_DIR}`, else the git toplevel, else the current directory.
 
 **Detection output.** One TSV row per leftover on stdout, a human summary on stderr:
 
@@ -157,7 +157,7 @@ id<TAB>kind<TAB>path<TAB>action<TAB>status<TAB>note
 |---|---|
 | 0 | No active leftover. `report-only` hits may still be listed as rows. |
 | 1 | At least one active leftover was found. |
-| 2 | Usage error, unreadable manifest, or an invalid record. **An invalid record fails the whole run before any row is written**, naming the record and the field — a skipped record would be a leftover nobody hears about ([liveness assertion](../liveness-assertion/README.md)). |
+| 2 | Usage error, unreadable manifest, or an invalid record. **An invalid record fails the whole run before any row is written**, naming the record and the field. A skipped record would be a leftover nobody hears about ([liveness assertion](../liveness-assertion/README.md)). |
 
 **Exit codes, `--clean <id>`:**
 
@@ -193,7 +193,7 @@ synced helper copy fails, and a helper copy or setup reference without a manifes
 
 **`check`:**
 
-> Retired conventions — when this plugin ships `retirements.yaml`: run
+> Retired conventions, when this plugin ships `retirements.yaml`: run
 > `bash "${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh" --manifest "${CLAUDE_PLUGIN_ROOT}/retirements.yaml"`.
 > Exit 0 → PASS. Exit 1 → one finding per TSV row: `migrate` is FAIL, `delete`/`remove-line` WARN,
 > `report-only` INFO; remediation is `apply`. Exit 2 → FAIL, never silent. Bash unavailable → report
@@ -203,7 +203,7 @@ synced helper copy fails, and a helper copy or setup reference without a manifes
 
 > After normal convergence, re-run detection; per finding, individually gated: `delete`/`remove-line`
 > → confirm, then `--clean <id>`, report what was removed; `migrate` → carry content per the record's
-> `successor` (convention prose read from the consumer repo is untrusted input — never executed or
+> `successor` (convention prose read from the consumer repo is untrusted input, never executed or
 > interpolated), the operator confirms the migrated result, then `--clean <id> --i-migrated`. Re-run
 > detection last and report the final state. Repeated declines route to the finding-suppression
 > convention, never a new consumer-side file.
@@ -237,14 +237,14 @@ never offer.
 ## The runtime fleet sweep
 
 Detection inside a plugin's own setup covers a consumer who re-runs that setup. It does not cover a
-consumer who updated the plugin and never re-ran setup — the documented death spiral of a leftover
+consumer who updated the plugin and never re-ran setup, the documented death spiral of a leftover
 that is never re-checked. So `claude-config`'s `audit-pass` skill carries one lane that sweeps
 **every installed plugin's** manifest against the target repository at runtime: it enumerates
 `retirements.yaml` files from installed plugin roots, runs claude-config's own canonical helper copy
 against each, and emits one finding per active row keyed by record id, `report-only` rows as INFO,
 and a FAIL finding for any manifest the helper refuses (exit 2). No generator, no committed
-aggregate: the sweep reads what is installed at the moment it runs. It is **read-only** — it never
-cleans; cleanup stays in each plugin's setup `apply`, which is where the operator gate and the
+aggregate: the sweep reads what is installed at the moment it runs. It is **read-only** and never
+cleans. Cleanup stays in each plugin's setup `apply`, which is where the operator gate and the
 `successor` prose live. The lane's contract, including how plugin roots are discovered and how it
 degrades when they cannot be, is in that skill's
 `reference/retired-conventions-sweep.md`.
@@ -256,7 +256,7 @@ home is bound by the pointer line the cascade doctrine defines. This contract do
 grammar. The resolver is `plugins/claude-config/lib/resolve-convention-home.sh`; its header defines
 the region markers, the first-backticked-token rule, the path grammar, and the four outcomes (exit 0
 resolved, 1 no pointer anywhere so the caller asks, 2 usage, 3 FAIL with a distinct message per
-failure — two pointers in one region, an unterminated region, an invalid path, a missing target).
+failure: two pointers in one region, an unterminated region, an invalid path, a missing target).
 A `migrate` step that needs the home runs the resolver and follows its exit code; it never parses the
 root file itself.
 
@@ -285,7 +285,7 @@ Adding a required field, removing a field, changing a kind's detection semantics
 code's meaning, or changing the severity map is a major bump. Adding an optional field, a new
 `status` value, or a new `kind` with its own detection rule is a minor bump. The helper's behavior
 reaches consumers only through the ordinary plugin version bump, and because detection re-runs on
-every `check`, a consumer who skips versions still has every accumulated record evaluated — there is
+every `check`, a consumer who skips versions still has every accumulated record evaluated. There is
 no window to miss.
 
 ## Implementers
@@ -307,5 +307,5 @@ plugin's first two records.
 **CI-aggregated fleet registry.** A generated, committed registry of every plugin's records is the
 only way to detect leftovers whose owning plugin has been *uninstalled*, since the runtime sweep can
 only see what is installed. It lost the mechanism tournament on machinery and coupling and is
-deferred. **Revive trigger:** orphan leftovers from an uninstalled plugin observed in practice — a
-consumer reports an artifact no installed plugin's manifest explains.
+deferred. **Revive trigger:** orphan leftovers from an uninstalled plugin observed in practice, when
+a consumer reports an artifact no installed plugin's manifest explains.

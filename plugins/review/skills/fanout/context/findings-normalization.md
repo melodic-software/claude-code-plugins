@@ -1,4 +1,4 @@
-# Findings normalization — runtime pipeline
+# Findings normalization, runtime pipeline
 
 The 5-stage main-thread pipeline that turns heterogeneous free-text findings from every dispatched surface into one severity-ranked, deduplicated report.
 
@@ -14,13 +14,13 @@ The 5-stage main-thread pipeline that turns heterogeneous free-text findings fro
 | `doc-drift-detector` | Stale / Missing / Aspirational | high / medium / low (table column) | doc-file line (table) |
 | slice-subagents | project's tiers (or baseline) | high / medium / low (template column) | `file:line` (inferred) |
 | `code-review` plugin | none (flat issue list) | 0–100, filters <80 | GitHub permalink `#L[s]-L[e]` |
-| `pr-review-toolkit` orchestrator | Critical / Important / Suggestion | — | `[file:line]` (inferred) |
+| `pr-review-toolkit` orchestrator | Critical / Important / Suggestion | none | `[file:line]` (inferred) |
 
-Line numbers from LLM reviewers drift — treat inferred lines as approximate and keep dedup noise-tolerant.
+Line numbers from LLM reviewers drift. Treat inferred lines as approximate and keep dedup noise-tolerant.
 
-**One row's raw text is not returned to the session:** the `code-review` plugin ends by posting its surviving findings as a PR comment, so the dispatch itself yields no parsable output. After an opted-in dispatch, fetch that comment and feed the body to Stage 0 as this surface's raw text — identified as the comment THIS invocation created, never by position.
+**One row's raw text is not returned to the session:** the `code-review` plugin ends by posting its surviving findings as a PR comment, so the dispatch itself yields no parsable output. After an opted-in dispatch, fetch that comment and feed the body to Stage 0 as this surface's raw text, identified as the comment THIS invocation created, never by position.
 
-SKILL.md "Orchestrator plugins" takes the pre-dispatch comment-ID snapshot, because that is the step that runs before the dispatch. Splice the array it printed in here as a literal — a shell variable set in an earlier tool call is gone by the time this one runs:
+SKILL.md "Orchestrator plugins" takes the pre-dispatch comment-ID snapshot, because that is the step that runs before the dispatch. Splice the array it printed in here as a literal. A shell variable set in an earlier tool call is gone by the time this one runs:
 
 ```shell
 gh pr view <n> --json comments |
@@ -31,23 +31,23 @@ gh pr view <n> --json comments |
     | if length == 1 then .[0].body else empty end'
 ```
 
-Identity, not position or time. `.comments[-1]` is whatever landed most recently, with no filter at all — any bot or reviewer commenting between the dispatch and this fetch is normalized as `code-review` findings and corrupts the persisted report. A timestamp cutoff narrows the window but still cannot say who wrote a comment inside it, so a third party quoting the `### Code review` heading mid-dispatch would win it. The ID-set difference answers the question actually being asked: which comment did not exist before this invocation.
+Identity, not position or time. `.comments[-1]` is whatever landed most recently, with no filter at all. Any bot or reviewer commenting between the dispatch and this fetch is normalized as `code-review` findings and corrupts the persisted report. A timestamp cutoff narrows the window but still cannot say who wrote a comment inside it, so a third party quoting the `### Code review` heading mid-dispatch would win it. The ID-set difference answers the question actually being asked: which comment did not exist before this invocation.
 
-Identity says a comment is NEW, not whose it is — so shape is the second filter. A third party quoting the review mid-dispatch posts a genuinely new comment carrying the heading, and when the dispatch itself posted nothing that quotation is the only new match, so a substring test would normalize it as this surface's findings. The plugin's command file mandates ("follow the following format precisely") a body that BEGINS with the `### Code review` heading and carries the `🤖 Generated with [Claude Code]` trailer; a quotation fails both, because `> ### Code review` is not a `startswith`. Match the trailer by that prefix, never its full link — the URL is free to change upstream and would silently un-match. Author is deliberately not a third filter: the plugin posts via `gh pr comment` under whatever credential invoked it, so there is no fixed login to match and a hardcoded one would break for the next consumer.
+Identity says a comment is NEW, not whose it is, so shape is the second filter. A third party quoting the review mid-dispatch posts a genuinely new comment carrying the heading, and when the dispatch itself posted nothing that quotation is the only new match, so a substring test would normalize it as this surface's findings. The plugin's command file mandates ("follow the following format precisely") a body that BEGINS with the `### Code review` heading and carries the `🤖 Generated with [Claude Code]` trailer; a quotation fails both, because `> ### Code review` is not a `startswith`. Match the trailer by that prefix, never its full link. The URL is free to change upstream and would silently un-match. Author is deliberately not a third filter: the plugin posts via `gh pr comment` under whatever credential invoked it, so there is no fixed login to match and a hardcoded one would break for the next consumer.
 
-The `length == 1` guard is the refusal to guess. Zero new heading-bearing comments means the dispatch produced none; two or more means the window is genuinely ambiguous. Both yield empty output — the row has no input, so the surface is not normalized and belongs in `## Surfaces` as a skip. Never widen the filter or fall back to the latest comment to fill it.
+The `length == 1` guard is the refusal to guess. Zero new heading-bearing comments means the dispatch produced none; two or more means the window is genuinely ambiguous. Both yield empty output. The row has no input, so the surface is not normalized and belongs in `## Surfaces` as a skip. Never widen the filter or fall back to the latest comment to fill it.
 
-**Not in this table:** the bundled `/code-review` command and the managed Code Review GitHub App service (SKILL.md "Boundary — the bundled command and the managed service"), both distinct from the `code-review` plugin row above. The managed service posts its findings to the PR rather than returning them to normalize; bare `/code-review` is report-only, but is itself a multi-agent review of the same diff whose output has no documented schema to parse. Neither is dispatched as a fan-out leaf here.
+**Not in this table:** the bundled `/code-review` command and the managed Code Review GitHub App service (SKILL.md "Boundary, the bundled command and the managed service"), both distinct from the `code-review` plugin row above. The managed service posts its findings to the PR rather than returning them to normalize; bare `/code-review` is report-only, but is itself a multi-agent review of the same diff whose output has no documented schema to parse. Neither is dispatched as a fan-out leaf here.
 
-## Stage 0 — Extraction (subagent)
+## Stage 0: Extraction (subagent)
 
 Per-surface free-text → records `{surface, file, line, line_basis, category, native_severity, native_confidence, raw_text}`.
 
-- **Line normalization** — permalink range → start line. `file:line` → as-is, `line_basis: inferred`. No-line findings → `line: null`, file-scoped bucket. Doc-drift lines → `space: doc` (never bucket against source lines).
-- **Category normalization** — a small enum (`security`, `architecture`, `performance`, `testing`, `error-handling`, `concurrency`, `docs`, …; unmappable → `other`), NOT raw per-source strings (they false-split).
-- **Parse-failure accounting** — record raw vs normalized counts per surface; preserve unparsable findings as raw text in the report's `## Unparsed` appendix. NEVER drop.
+- **Line normalization**: permalink range → start line. `file:line` → as-is, `line_basis: inferred`. No-line findings → `line: null`, file-scoped bucket. Doc-drift lines → `space: doc` (never bucket against source lines).
+- **Category normalization**: a small enum (`security`, `architecture`, `performance`, `testing`, `error-handling`, `concurrency`, `docs`, …; unmappable → `other`), NOT raw per-source strings (they false-split).
+- **Parse-failure accounting**: record raw vs normalized counts per surface; preserve unparsable findings as raw text in the report's `## Unparsed` appendix. NEVER drop.
 
-## Stage 1 — Severity crosswalk (deterministic)
+## Stage 1: Severity crosswalk (deterministic)
 
 Map native severity → the tier vocabulary in effect (the project's own, else `${CLAUDE_PLUGIN_ROOT}/context/severity.md`):
 
@@ -55,22 +55,22 @@ Map native severity → the tier vocabulary in effect (the project's own, else `
 - code-reviewer, slice-subagents, pr-review-toolkit: identity mapping (Critical/Important-or-Warning/Suggestion).
 - architecture-guardian: Violation → CRITICAL (broken rule today) or IMPORTANT (drift) by content; **Risk → SUGGESTION + `forward-flag: future` (NEVER a blocking tier)**; Opportunity → SUGGESTION.
 - doc-drift: Stale → IMPORTANT; Missing/Aspirational → SUGGESTION.
-- **Surfaces emitting no severity** → DERIVE from content: bug/correctness → CRITICAL or IMPORTANT by impact; convention-adherence → IMPORTANT; ambiguous → IMPORTANT + `pending: human-tier`. A confidence filter having passed is confidence-of-realness, NOT severity — a high-confidence nitpick is still a nitpick.
+- **Surfaces emitting no severity** → DERIVE from content: bug/correctness → CRITICAL or IMPORTANT by impact; convention-adherence → IMPORTANT; ambiguous → IMPORTANT + `pending: human-tier`. A confidence filter having passed is confidence-of-realness, NOT severity. A high-confidence nitpick is still a nitpick.
 
-## Stage 2 — Confidence enum (deterministic)
+## Stage 2: Confidence enum (deterministic)
 
 Per `${CLAUDE_PLUGIN_ROOT}/context/severity.md` "Confidence axis": plugin-filtered high scores → `high`; a native high/medium/low label (every agent leaf per its output format; slice-subagents via the per-slice template's Confidence column) passes straight through; surfaces emitting none → `unscored`. **Absent confidence ≠ low.**
 
-## Stage 3 — Dedup (subagent)
+## Stage 3: Dedup (subagent)
 
-Key = normalized file path + line-proximity bucket (±3 lines), NOT category. File-scoped findings (null `line`) bucket by path + category + a content-gist check — merge two line-less records only when their `raw_text` describes the same issue; path alone would collapse distinct architecture/doc findings in the same file. Doc-space never merges with source-space. **Minimize FALSE-MERGE over FALSE-SPLIT** — a false merge silently drops a real issue; a false split only adds noise. When in doubt, do NOT merge.
+Key = normalized file path + line-proximity bucket (±3 lines), NOT category. File-scoped findings (null `line`) bucket by path + category + a content-gist check: merge two line-less records only when their `raw_text` describes the same issue. Path alone would collapse distinct architecture/doc findings in the same file. Doc-space never merges with source-space. **Minimize FALSE-MERGE over FALSE-SPLIT.** A false merge silently drops a real issue; a false split only adds noise. When in doubt, do NOT merge.
 
-## Stage 4 — Agreement / rank (deterministic)
+## Stage 4: Agreement / rank (deterministic)
 
-- **Cross-surface merge takes MAX severity + MAX confidence** — never a filtered value.
+- **Cross-surface merge takes MAX severity + MAX confidence**, never a filtered value.
 - **Agreement = positive presence only.** Count the surfaces that flagged the issue; a surface's ABSENCE carries no signal (it may have been confidence-filtered, not judged absent).
 - **Rank:** (1) tier CRITICAL → IMPORTANT → SUGGESTION; (2) agreement count descending; (3) confidence, in the rank order [`context/severity.md`](../../../context/severity.md) "Confidence axis" owns. Render `pending: human-tier` and `forward-flag` markers visibly.
-- **Two-axis presentation:** the merged ranked queue is the primary view; the report ALSO regroups the same findings by review dimension (the Stage-0 category enum) under per-dimension headings — a merged rank can mask one dimension failing badly while the others pass.
+- **Two-axis presentation:** the merged ranked queue is the primary view; the report ALSO regroups the same findings by review dimension (the Stage-0 category enum) under per-dimension headings. A merged rank can mask one dimension failing badly while the others pass.
 
 ## Model assignment
 

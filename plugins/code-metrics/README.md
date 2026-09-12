@@ -14,20 +14,23 @@ value to count against, not a bar.
 |---|---|
 | `/code-metrics:audit-complexity` | Per-function cyclomatic and cognitive complexity and Halstead difficulty from whichever collector resolves (`lizard`, `radon`, ESLint rules, `gocyclo`, `gocognit`, `shellmetrics`, `multimetric`), beside the ISO/IEC 5055 §8.2.117 reference of 20 with 10 and 15 selectable; cognitive and Halstead carry no standard threshold. |
 | `/code-metrics:audit-size` | Lines per file (total, blank, comment, code through `scc`; total and non-blank from a bundled counter otherwise) beside a cited reference; `size.mode: iso-8.2.115` adds the ISO function-percentage form. |
-| `/code-metrics:audit-duplication` | Clone groups (duplicated lines and tokens, every instance's range) from `jscpd`, `dupl`, or PMD CPD, minus the replication the repository declares in a sanctioned-replication registry, which is an exclusion, not a suppression. |
+| `/code-metrics:audit-duplication` | Clone classes (the detector's pairs merged; duplicated lines and tokens, every instance's range) from `jscpd`, `dupl`, or PMD CPD, rolled up per lane and per directory, minus the replication the repository declares in a sanctioned-replication registry (a path-within-plugin, or a `canonical -> copies` cluster line), which is an exclusion, not a suppression. A file over the size cap is reported as skipped, never silently dropped. |
 | `/code-metrics:audit-coverage` | Line coverage per file and per function read from the artifacts a build already produced (lcov 1.x and 2.2, Cobertura, coverage.py JSON, Go cover profile), plus CRAP per function from the complexity rows; it never runs a test, a missing artifact is a visible warning, and a function with no executable lines reports `null`, never zero. |
-| `/code-metrics:audit-type-debt` | The typed-code percentage per lane: `type-coverage` for TypeScript, mypy's `--any-exprs-report` for Python; no standard or CWE anchors the measure, so the reference is `null` by design. C# is reported as not applicable. |
+| `/code-metrics:audit-type-debt` | The typed-code percentage per file and per lane: `type-coverage` for TypeScript, mypy's `--any-exprs-report` for Python; no standard or CWE anchors the measure, so the reference is `null` by design. C# is reported as not applicable. |
 | `/code-metrics:principles` | Metric literacy: what each measure can and cannot tell you, where every reference value came from, CRAP's corrected provenance, the cross-metric caveats (carried once, here), and gated pointers to the plugins that own mutation score, tautological tests, dead code, coupling, and lint. |
 | `/code-metrics:setup` | `check` probes the interpreter, every configuration layer, and every collector; `apply` writes the tracked team configuration per key, idempotently, and never installs a tool. |
 
 ## Works in any repo
 
 Lanes are detected from file extensions (TypeScript/JavaScript, Python, Bash, Go, and C#, whose
-complexity lane is deferred and reported as such). When the consuming repository tracks
-`.claude/ecosystems/<lane>.yaml` files, their `globs` override the bundled map for that lane. The
-default scope is the change: files that differ from the merge-base with the default branch plus
-uncommitted and untracked files; explicit paths or `--all` (every tracked or untracked-but-not-
-ignored file) widen it. Nothing depends on a framework, a build system, or the publisher.
+complexity lane is deferred and reported as such). Every other text file, markdown, JSON, YAML,
+PowerShell, a `Makefile`, lands in the catch-all `other` lane, which carries a line count and
+nothing else: `audit-size` measures it, and every other measure reports it as not applicable.
+When the consuming repository tracks `.claude/ecosystems/<lane>.yaml` files, their `globs`
+override the bundled map for that lane. Two scopes are first-class: the default is the change,
+files that differ from the merge-base with the default branch plus uncommitted and untracked
+files, and `--all` is the whole tree (every tracked or untracked-but-not-ignored file); explicit
+paths narrow either. Nothing depends on a framework, a build system, or the publisher.
 
 ## Requirements
 
@@ -72,7 +75,10 @@ This plugin has no `userConfig`. Everything tunable lives in the consumer's
 `.claude/code-metrics.yaml`, layered as user-global (`~/.claude/code-metrics.yaml`), team
 (tracked), and local overlay (`.claude/code-metrics.local.yaml`, gitignored; recommended line
 `.claude/**/*.local.*`) with per-key override, and every key has a bundled default
-(`scripts/config-defaults.json`), so the plugin works with no configuration at all. The consumer's
+(`scripts/config-defaults.json`), so the plugin works with no configuration at all; the one
+opinionated default is `scope.exclude`, which drops `node_modules`, `vendor`, `dist`, and `build`
+directories at any depth and reports what it dropped, and a team file that sets the key replaces
+the list whole. The consumer's
 `.claude/ecosystems/<lane>.yaml` files, when tracked, override lane detection with their `globs`
 and `enabled`. References ship with their provenance: cyclomatic 20 cites ISO/IEC 5055:2021
 §8.2.117; the 1000-line file default is the plugin's own number and says so. Files are written in
@@ -84,8 +90,13 @@ a documented YAML subset (block style, flow sequences of scalars, no flow mappin
 Every audit prints one `code-metrics/v1` JSON document (`--json`) or its markdown rendering. The
 document opens with a "Coverage of this run" table naming, per lane and measure, the collector
 used or the reason none did, and a `status` of `complete`, `partial`, or `empty`, so a run that
-measured nothing can never read as green. Field reference: `reference/report-schema.md`. Tool
-provenance stamps: `reference/collectors.md`.
+measured nothing can never read as green. The markdown table shows each function once with every
+collector's values on that line, rows over a reference first, and stops at 200 rows; every
+markdown run also writes the whole document under `CLAUDE_PLUGIN_DATA` (else
+`~/.claude/plugins/data/code-metrics/reports`) and names the path, so the rows past the cap need no
+second run. A repository that declares its deliberate replication in a registry
+(`scope.registries`) sees each replicated function once, with the copy count beside the path.
+Field reference: `reference/report-schema.md`. Tool provenance stamps: `reference/collectors.md`.
 
 ## Getting a first artifact
 
@@ -162,7 +173,8 @@ figure for a live session.
   `scripts/config-defaults.json`. The setup template and the `reference/config.md` key table both
   are, by a test and by `scripts/check-code-metrics-config-reference.py`; what remains unbound is
   the number written into a sentence or a small illustrative table, currently `coverage.reference`
-  in `audit-coverage`, `duplication.min_tokens` and `duplication.min_lines` in `audit-duplication`,
+  in `audit-coverage`, `duplication.min_tokens`, `duplication.min_lines`, `duplication.max_size`,
+  `duplication.max_lines`, and `duplication.rollup_depth` in `audit-duplication`,
   `type_debt.reference` in `audit-type-debt`, and the cyclomatic reference in `setup`. Those drift
   silently until someone reads them.
 

@@ -6,13 +6,13 @@ The `research` action does **on-the-fly external lookups** to fill gaps static s
 
 Trigger `research` when the user's intent involves any of:
 
-- **"Sound like <artist>"** — need that artist's sonic signature translated to Suno descriptors
+- **"Sound like <artist>"**: need that artist's sonic signature translated to Suno descriptors
 - **"Mix of X, Y, Z"** with non-obvious genres (one-off subgenres, regional styles)
-- **Reference a specific song** by title — need BPM, key, instrumentation, production characteristics
+- **Reference a specific song** by title: need BPM, key, instrumentation, production characteristics
 - **Current trend** ("2026 hyperpop", "what's TikTok hip-hop sounding like right now")
 - **Niche genre** the static templates don't cover (zeuhl, witch house, slowcore, mariachi, gqom, drill regional variants)
-- **Recording / mic / production technique** — gear-specific or technique-specific advice
-- **Live event-driven** — Suno feature shipped this month, model update, current pricing tier change
+- **Recording / mic / production technique**: gear-specific or technique-specific advice
+- **Live event-driven**: Suno feature shipped this month, model update, current pricing tier change
 
 ## How the action runs
 
@@ -23,16 +23,16 @@ Research orchestrator. Run these phases in order; STOP early if Phase 1 returns 
 Tools (in priority order):
 
 1. **WebFetch** on canonical sources:
-   - `help.suno.com` — for Suno feature questions
-   - Wikipedia — for artist / genre / song basic facts (BPM, key, year, genre tags)
-   - Genius / SecondHandSongs — for song lyrics + structural metadata
-   - AllMusic — for genre lineage + influences
+   - `help.suno.com` for Suno feature questions
+   - Wikipedia for artist / genre / song basic facts (BPM, key, year, genre tags)
+   - Genius / SecondHandSongs for song lyrics + structural metadata
+   - AllMusic for genre lineage + influences
 2. **A web-search capability, when one is available.** Use whichever the session offers, preferring
    one that returns citations and accepts a recency filter. Where the `firecrawl` plugin is
    installed, `/firecrawl:firecrawl search` is the bundled route. With no search capability
    available, say so and fall back to the WebFetch sources above plus the clarifying questions in
    "When research finds nothing useful".
-3. **Context7** — only if user references a specific tool/SDK/library (rarely applicable for Suno prompting)
+3. **Context7**, only if the user references a specific tool/SDK/library (rarely applicable for Suno prompting)
 
 For artist sonic profile, the canonical query shape:
 
@@ -46,7 +46,7 @@ For current-trend research:
 
 ```
 Search restricted to the past month or year:
-"Current trends in <genre> production 2026 — instrumentation,
+"Current trends in <genre> production 2026: instrumentation,
 BPM ranges, vocal styles, common signature elements"
 ```
 
@@ -77,11 +77,11 @@ Translate findings into the 6-layer formula vocabulary:
 
 Return:
 
-1. **Style prompt block** — full 6-layer formula using research-derived descriptors
-2. **Lyrics shell** — section structure matching the artist's typical song format if researched
-3. **Confidence note** — HIGH if claims confirmed by primary sources, MEDIUM if Perplexity synthesis only, LOW if speculative
-4. **Source citations** — URLs for the user to verify
-5. **Suno-specific caveats** — any descriptor that's known to be ignored (e.g., naming the artist directly), workarounds applied
+1. **Style prompt block**: full 6-layer formula using research-derived descriptors
+2. **Lyrics shell**: section structure matching the artist's typical song format if researched
+3. **Confidence note**: HIGH if claims confirmed by primary sources, MEDIUM if Perplexity synthesis only, LOW if speculative
+4. **Source citations**: URLs for the user to verify
+5. **Suno-specific caveats**: any descriptor that's known to be ignored (e.g., naming the artist directly), workarounds applied
 
 ## Worked example: "I want a song to sound like John Mayer"
 
@@ -108,7 +108,7 @@ no autotune, no electronic instruments
 **Phase 3 output:**
 
 - Confidence: HIGH on instrumentation + tempo (well-documented), MEDIUM on production "feel" (translates from descriptive language)
-- Caveat: never name the artist in Suno — already stripped
+- Caveat: never name the artist in Suno. Already stripped
 - Sources: Wikipedia <artist-page>, AllMusic <bio-url>, Perplexity synthesis 2026
 
 ## Worked example: "Mix of dream pop, modern pop, synthesizer, modern retro throwback"
@@ -119,7 +119,7 @@ no autotune, no electronic instruments
 - Dream pop: ethereal vocals, reverb-soaked, washy guitars, mid-tempo
 - Modern pop: tight production, polished mix, vocal layering
 - Synth-driven: analog or digital lead synths, pad layers
-- Modern retro throwback: 80s synth-pop revival currently strong (Weeknd, Dua Lipa-era influences) — gated drums, FM bass, neon-colored chord progressions
+- Modern retro throwback: 80s synth-pop revival currently strong (Weeknd, Dua Lipa-era influences), with gated drums, FM bass, neon-colored chord progressions
 <!-- spellchecker:on -->
 
 **Phase 2 translation:**
@@ -140,11 +140,11 @@ modern hi-fi production with vintage analog warmth, no autotune
 
 ## When research finds nothing useful
 
-If Phase 1 + Phase 2 return nothing actionable (rare — genre's too obscure or artist's catalog too small):
+If Phase 1 + Phase 2 return nothing actionable (rare: the genre's too obscure or the artist's catalog too small):
 
-1. Tell the user honestly — don't fake it
+1. Tell the user honestly. Don't fake it
 2. Ask 2-3 clarifying questions to anchor the prompt manually:
-   - "Pick 1-2 reference songs you like — I'll use those as proxy"
+   - "Pick 1-2 reference songs you like. I'll use those as proxy"
    - "Era + region? (90s UK, 2020s LA, etc.)"
    - "Energy level? (chill / mid / hype)"
    - "Vocal style? (clean / raw / melismatic / spoken)"
@@ -183,4 +183,4 @@ Always return:
 <HIGH/MEDIUM/LOW per claim, source URLs>
 ```
 
-Don't dump raw research notes — synthesize into a usable prompt.
+Don't dump raw research notes. Synthesize them into a usable prompt.

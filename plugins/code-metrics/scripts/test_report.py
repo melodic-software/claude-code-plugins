@@ -139,7 +139,11 @@ class AssembleTests(unittest.TestCase):
             {"files": 2, "functions": 0, "over_reference": {"file_lines": 1}},
         )
         self.assertEqual(doc["unavailable"], [])
-        self.assertNotIn("value_key", doc["thresholds"][0])
+        # The value the reference was applied to, and in which direction,
+        # travel with the document: the renderer orders rows by them and a
+        # consumer comparing two documents needs them.
+        self.assertEqual(doc["thresholds"][0]["value_key"], "lines_non_blank")
+        self.assertEqual(doc["thresholds"][0]["direction"], "at_or_above")
 
     def test_null_reference_counts_nothing_and_null_value_never_counts(self) -> None:
         threshold = dict(self.THRESHOLD, reference=None)
@@ -548,6 +552,270 @@ class RenderTests(unittest.TestCase):
             "| * | * |  | not-applicable | no measurable files in scope |",
             result.stdout,
         )
+        # An empty change is the common empty run: the headline says how to
+        # widen the scope, since the skill body is not in front of the reader.
+        headline = result.stdout.splitlines()[2]
+        self.assertIn("against `abc`", headline)
+        self.assertIn("pass paths or `--all` to widen the scope", headline)
+        self.assertNotIn("Functions:", result.stdout)
+
+    def test_an_empty_all_scope_carries_no_widening_hint(self) -> None:
+        doc = {
+            "schema": "code-metrics/v1",
+            "skill": "audit-size",
+            "status": "empty",
+            "scope": {"mode": "all", "base": None, "files": 0, "excluded": 0},
+            "run": [],
+            "thresholds": [],
+            "measures": [],
+            "summary": {"files": 0, "functions": 0, "over_reference": {}},
+            "excluded": [],
+            "unavailable": [],
+        }
+        result = run("render", stdin=json.dumps(doc))
+        self.assertNotIn("widen the scope", result.stdout)
+
+    def _size_doc(self, rows: list[dict]) -> dict:
+        return {
+            "schema": "code-metrics/v1",
+            "skill": "audit-size",
+            "status": "complete",
+            "scope": {"mode": "all", "base": None, "files": len(rows), "excluded": 0},
+            "run": [],
+            "thresholds": [
+                {
+                    "measure": "file_lines",
+                    "value_key": "lines_non_blank",
+                    "direction": "at_or_above",
+                    "reference": 10,
+                    "provenance": "p",
+                    "layer": "bundled default",
+                }
+            ],
+            "measures": rows,
+            "summary": {"files": len(rows), "functions": 0, "over_reference": {}},
+            "excluded": [],
+            "unavailable": [],
+        }
+
+    def test_rows_are_ordered_by_the_primary_value_largest_first(self) -> None:
+        rows = [
+            {
+                "file": "a.py",
+                "function": None,
+                "lane": "python",
+                "values": {"lines_non_blank": 5},
+                "over_reference": [],
+            },
+            {
+                "file": "b.md",
+                "function": None,
+                "lane": "other",
+                "values": {"lines_non_blank": 12},
+                "over_reference": ["file_lines"],
+            },
+            {
+                "file": "c.py",
+                "function": None,
+                "lane": "python",
+                "values": {"lines_non_blank": None},
+                "over_reference": [],
+            },
+            {
+                "file": "d.sh",
+                "function": None,
+                "lane": "bash",
+                "values": {"lines_non_blank": 7},
+                "over_reference": [],
+            },
+        ]
+        result = run("render", stdin=json.dumps(self._size_doc(rows)))
+        measures_section = result.stdout.split("## Measures", 1)[1]
+        table = [
+            line for line in measures_section.splitlines() if line.startswith("| ")
+        ]
+        files = [line.split(" | ")[0].lstrip("| ") for line in table[1:]]
+        # Largest first, a null value after every number, the over-reference
+        # row leading because it is the extreme rather than by a separate sort.
+        self.assertEqual(files, ["b.md", "d.sh", "a.py", "c.py"])
+
+    def test_a_below_reference_orders_smallest_first(self) -> None:
+        doc = self._size_doc([])
+        doc["thresholds"] = [
+            {
+                "measure": "coverage",
+                "value_key": "coverage_pct",
+                "direction": "below",
+                "reference": None,
+                "provenance": "p",
+                "layer": "bundled default",
+            }
+        ]
+        doc["measures"] = [
+            {
+                "file": "a.py",
+                "function": "f",
+                "lane": "python",
+                "start_line": 1,
+                "values": {"coverage_pct": 90.0},
+                "over_reference": [],
+            },
+            {
+                "file": "b.py",
+                "function": "g",
+                "lane": "python",
+                "start_line": 1,
+                "values": {"coverage_pct": 10.0},
+                "over_reference": [],
+            },
+        ]
+        doc["summary"] = {"files": 2, "functions": 2, "over_reference": {}}
+        result = run("render", stdin=json.dumps(doc))
+        self.assertLess(
+            result.stdout.index("| b.py |"), result.stdout.index("| a.py |")
+        )
+        self.assertIn("Files: 2. Functions: 2. Over reference: none.", result.stdout)
+
+    def test_a_lane_row_sorts_among_file_rows_that_tie_on_the_value(self) -> None:
+        # audit-type-debt emits file rows and a lane row (`file: null`) that
+        # can tie on every earlier key; the sort must not compare None with
+        # a path.
+        doc = self._size_doc([])
+        doc["skill"] = "audit-type-debt"
+        doc["thresholds"] = [
+            {
+                "measure": "type_coverage",
+                "value_key": "type_coverage_pct",
+                "direction": "below",
+                "reference": None,
+                "provenance": "p",
+                "layer": "bundled default",
+            }
+        ]
+        values = {
+            "any_expressions": 0,
+            "expressions_total": 13,
+            "type_coverage_pct": 100.0,
+        }
+        doc["measures"] = [
+            {
+                "file": None,
+                "function": None,
+                "lane": "python",
+                "values": values,
+                "labels": ["lane-total"],
+                "over_reference": [],
+            },
+            {
+                "file": "a.py",
+                "function": None,
+                "lane": "python",
+                "values": values,
+                "labels": [],
+                "over_reference": [],
+            },
+        ]
+        doc["summary"] = {"files": 1, "functions": 0, "over_reference": {}}
+        result = run("render", stdin=json.dumps(doc))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("| a.py |", result.stdout)
+        self.assertIn("lane-total", result.stdout)
+        self.assertIn("Files: 1. Over reference: none.", result.stdout)
+
+    def _type_debt_doc(self, measures: list[dict]) -> dict:
+        doc = self._size_doc([])
+        doc["skill"] = "audit-type-debt"
+        doc["thresholds"] = [
+            {
+                "measure": "type_coverage",
+                "value_key": "type_coverage_pct",
+                "direction": "below",
+                "reference": None,
+                "provenance": "p",
+                "layer": "bundled default",
+            }
+        ]
+        doc["measures"] = measures
+        doc["summary"] = {"files": 0, "functions": 0, "over_reference": {}}
+        return doc
+
+    def test_two_lane_rows_with_equal_values_stay_two_lines(self) -> None:
+        # Both lanes fully typed: the rows tie on file, function and start
+        # line and must still render one line per lane.
+        doc = self._type_debt_doc(
+            [
+                {
+                    "file": None,
+                    "function": None,
+                    "lane": lane,
+                    "collector": collector,
+                    "values": {"type_coverage_pct": 100.0},
+                    "labels": ["lane-total"],
+                    "over_reference": [],
+                }
+                for lane, collector in (
+                    ("python", "mypy-report"),
+                    ("typescript", "type-coverage"),
+                )
+            ]
+        )
+        result = run("render", stdin=json.dumps(doc))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.count("| lane-total |"), 2)
+        self.assertNotIn("mypy-report, type-coverage", result.stdout)
+
+    def test_the_lane_row_leads_and_survives_the_row_cap(self) -> None:
+        rows = [
+            {
+                "file": f"m{i:03d}.py",
+                "function": None,
+                "lane": "python",
+                "values": {"type_coverage_pct": float(i % 100)},
+                "labels": [],
+                "over_reference": [],
+            }
+            for i in range(201)
+        ]
+        rows.append(
+            {
+                "file": None,
+                "function": None,
+                "lane": "python",
+                "values": {"type_coverage_pct": 50.0},
+                "labels": ["lane-total"],
+                "over_reference": [],
+            }
+        )
+        doc = self._type_debt_doc(rows)
+        result = run("render", stdin=json.dumps(doc))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("| lane-total |", result.stdout)
+        self.assertIn("more rows", result.stdout)
+        table_lines = [
+            line for line in result.stdout.splitlines() if "| python |" in line
+        ]
+        self.assertIn("lane-total", table_lines[0])
+
+    def test_the_row_cap_names_the_key_it_kept_the_top_rows_by(self) -> None:
+        rows = [
+            {
+                "file": f"f{i:04d}.md",
+                "function": None,
+                "lane": "other",
+                "values": {"lines_non_blank": i},
+                "over_reference": [],
+            }
+            for i in range(250)
+        ]
+        result = run("render", stdin=json.dumps(self._size_doc(rows)))
+        self.assertIn(
+            "50 more rows; re-run with --json for the full document; the 200 shown "
+            "are those over a reference first, then the top by lines_non_blank",
+            result.stdout,
+        )
+        self.assertIn("| f0249.md |", result.stdout)
+        self.assertNotIn("| f0049.md |", result.stdout)
+        self.assertIn("Files: 250. Over reference: none.", result.stdout)
 
     def test_measures_table_lists_value_keys_and_over_reference(self) -> None:
         doc = {
@@ -591,10 +859,10 @@ class RenderTests(unittest.TestCase):
         }
         result = run("render", stdin=json.dumps(doc))
         self.assertIn(
-            "| File | Function | Lane | lines_total | lines_non_blank | Over reference |",
+            "| File | Function | Lane | Labels | lines_total | lines_non_blank | Over reference |",
             result.stdout,
         )
-        self.assertIn("| a.py |  | python | 12 | 11 | file_lines |", result.stdout)
+        self.assertIn("| a.py |  | python |  | 12 | 11 | file_lines |", result.stdout)
         self.assertIn("never a bar", result.stdout)
         self.assertIn("Over reference: file_lines 1.", result.stdout)
 
@@ -671,11 +939,13 @@ class RenderTests(unittest.TestCase):
         self.assertEqual(len(measure_rows), 200)
         self.assertTrue(
             measure_rows[0].startswith(
-                "| zzz/join.py | join | python | 0 | 3 | 3192 |"
+                "| zzz/join.py | join | python |  | 0 | 3 | 3192 |"
             ),
             measure_rows[0],
         )
-        self.assertIn("| 55 more rows in the JSON |", result.stdout)
+        self.assertIn(
+            "| 55 more rows; re-run with --json for the full document |", result.stdout
+        )
         # The filler outranks nothing above it: its rows follow the top function by
         # CRAP descending, so the second row is the highest filler CRAP (3 + 6).
         self.assertIn("| 9 |", measure_rows[1])
@@ -903,10 +1173,37 @@ class CloneGroupRowTests(unittest.TestCase):
         }
         result = run("render", stdin=json.dumps(doc))
         self.assertIn(
-            "| alpha/shared/u.sh:1-20, beta/shared/u.sh:1-20 |  | bash | 20 | 90 |",
+            "| alpha/shared/u.sh:1-20, beta/shared/u.sh:1-20 |  | bash |  | 20 | 90 |",
             result.stdout,
         )
         self.assertIn("Duplicated lines: 20 in 1 clone group(s).", result.stdout)
+
+    def test_resummarize_counts_every_file_a_replica_row_stands_for(self) -> None:
+        doc = AssembleTests().assemble(
+            [],
+            [
+                {
+                    "file": "plugins/a/hooks/u.sh",
+                    "function": "greet",
+                    "start_line": 8,
+                    "lane": "bash",
+                    "values": {"cyclomatic": 3},
+                    "replicas": {
+                        "count": 3,
+                        "files": [
+                            "plugins/a/hooks/u.sh",
+                            "plugins/b/hooks/u.sh",
+                            "plugins/c/hooks/u.sh",
+                        ],
+                    },
+                }
+            ],
+            [],
+        )
+        result = run("resummarize", stdin=json.dumps(doc))
+        out = json.loads(result.stdout)
+        self.assertEqual(out["summary"]["files"], 3)
+        self.assertEqual(out["summary"]["functions"], 1)
 
     def test_resummarize_recomputes_the_summary_after_rows_are_dropped(self) -> None:
         doc = AssembleTests().assemble(
@@ -932,6 +1229,507 @@ class CloneGroupRowTests(unittest.TestCase):
         self.assertEqual(out["excluded"], doc["excluded"])
         self.assertEqual(out["status"], "complete")
         self.assertEqual(out["run"], doc["run"])
+
+
+def clone_row(lane: str, first: str, second: str, lines: int, tokens: int = 90) -> dict:
+    return {
+        "file": None,
+        "function": None,
+        "lane": lane,
+        "instances": [
+            {"file": first, "start_line": 1, "end_line": lines},
+            {"file": second, "start_line": 1, "end_line": lines},
+        ],
+        "values": {"lines": lines, "tokens": tokens},
+        "over_reference": [],
+    }
+
+
+def duplication_doc(measures: list[dict], **overrides: object) -> dict:
+    doc = {
+        "schema": "code-metrics/v1",
+        "skill": "audit-duplication",
+        "status": "complete",
+        "scope": {"mode": "all", "base": None, "files": 4, "excluded": 0},
+        "run": [
+            {
+                "lane": "bash",
+                "measure": "duplication",
+                "collector": "jscpd 5.2.0",
+                "status": "ok",
+                "reason": None,
+                "hint": None,
+            }
+        ],
+        "thresholds": [],
+        "measures": measures,
+        "summary": {"files": 0, "functions": 0, "over_reference": {}},
+        "excluded": [],
+        "unavailable": [],
+    }
+    doc.update(overrides)
+    return doc
+
+
+def resummarized(doc: dict, *args: str) -> dict:
+    result = run("resummarize", *args, stdin=json.dumps(doc))
+    assert result.returncode == 0, result.stderr
+    return json.loads(result.stdout)
+
+
+class DuplicationRollupTests(unittest.TestCase):
+    ROWS = [
+        clone_row("bash", "a/x/u.sh", "b/x/u.sh", 20),
+        clone_row("python", "a/y/v.py", "c/y/v.py", 7, 30),
+        clone_row("bash", "a/x/w.sh", "d/x/w.sh", 5, 12),
+    ]
+
+    def test_the_rollups_sum_to_the_totals_and_root_restates_them(self) -> None:
+        summary = resummarized(duplication_doc(self.ROWS))["summary"]
+        self.assertEqual(summary["duplicated_lines"], 32)
+        self.assertEqual(
+            summary["by_lane"],
+            {
+                "bash": {"groups": 2, "duplicated_lines": 25},
+                "python": {"groups": 1, "duplicated_lines": 7},
+            },
+        )
+        self.assertEqual(
+            sum(b["duplicated_lines"] for b in summary["by_lane"].values()),
+            summary["duplicated_lines"],
+        )
+        self.assertEqual(
+            summary["by_directory"]["."], {"groups": 3, "duplicated_lines": 32}
+        )
+
+    def test_directory_rollups_are_cumulative_over_the_first_instance(self) -> None:
+        by_directory = resummarized(duplication_doc(self.ROWS))["summary"][
+            "by_directory"
+        ]
+        # Every group's first instance sits under `a`, so `a` carries all three
+        # while its children split them; the second instances count nowhere.
+        self.assertEqual(by_directory["a"], {"groups": 3, "duplicated_lines": 32})
+        self.assertEqual(by_directory["a/x"], {"groups": 2, "duplicated_lines": 25})
+        self.assertEqual(by_directory["a/y"], {"groups": 1, "duplicated_lines": 7})
+        self.assertNotIn("b", by_directory)
+        self.assertEqual(
+            set(by_directory), {".", "a", "a/x", "a/y"}, sorted(by_directory)
+        )
+
+    def test_root_makes_directory_keys_root_relative(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            rows = [
+                clone_row(
+                    "bash",
+                    str(root / "plugins" / "p" / "u.sh"),
+                    str(root / "plugins" / "q" / "u.sh"),
+                    9,
+                )
+            ]
+            by_directory = resummarized(duplication_doc(rows), "--root", tmp)[
+                "summary"
+            ]["by_directory"]
+        self.assertEqual(set(by_directory), {".", "plugins", "plugins/p"})
+
+    def test_a_document_without_clone_rows_carries_no_rollup_maps(self) -> None:
+        summary = resummarized(duplication_doc([]))["summary"]
+        self.assertNotIn("by_lane", summary)
+        self.assertNotIn("by_directory", summary)
+
+
+class DuplicationRenderTests(unittest.TestCase):
+    def rendered(self, doc: dict, *args: str) -> str:
+        result = run("render", *args, stdin=json.dumps(doc))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return result.stdout
+
+    def test_clone_groups_render_largest_first(self) -> None:
+        rows = [
+            clone_row("bash", "a/small.sh", "b/small.sh", 5, 12),
+            clone_row("bash", "a/big.sh", "b/big.sh", 20),
+            clone_row("bash", "a/mid.sh", "b/mid.sh", 5, 40),
+        ]
+        out = self.rendered(resummarized(duplication_doc(rows)))
+        self.assertLess(out.index("a/big.sh"), out.index("a/mid.sh"))
+        self.assertLess(out.index("a/mid.sh"), out.index("a/small.sh"))
+
+    def test_the_rollup_section_cuts_directories_at_the_depth(self) -> None:
+        rows = [clone_row("bash", "a/x/z/u.sh", "b/u.sh", 20)]
+        doc = resummarized(duplication_doc(rows))
+        self.assertIn("a/x/z", doc["summary"]["by_directory"])
+        out = self.rendered(doc)
+        self.assertIn("## Rollup", out)
+        self.assertIn("| bash | 1 | 20 |", out)
+        self.assertIn("| . | 1 | 20 |", out)
+        self.assertIn("| a/x | 1 | 20 |", out)
+        self.assertNotIn("| a/x/z |", out)
+        self.assertIn("| a/x/z | 1 | 20 |", self.rendered(doc, "--rollup-depth", "3"))
+
+    def test_the_summary_line_counts_files_with_clones(self) -> None:
+        rows = [clone_row("bash", "a/u.sh", "b/u.sh", 20)]
+        out = self.rendered(resummarized(duplication_doc(rows)))
+        self.assertIn("\nFiles with clones: 2.\n", out)
+        self.assertNotIn("Functions:", out)
+
+    def test_an_empty_excluded_list_is_stated_with_its_reason(self) -> None:
+        rows = [clone_row("bash", "a/u.sh", "b/u.sh", 20)]
+        out = self.rendered(resummarized(duplication_doc(rows)))
+        self.assertIn(
+            "Excluded by a sanctioned-replication registry: 0 (no registry configured, or "
+            "none matched).",
+            out,
+        )
+        doc = resummarized(duplication_doc(rows))
+        doc["excluded"] = [{"registry": "r.txt", "line": 3, "path": "u.sh"}]
+        self.assertIn(
+            "Excluded by a sanctioned-replication registry: 1.", self.rendered(doc)
+        )
+
+    def test_no_detector_prints_one_headline_with_the_hint(self) -> None:
+        hint = "jscpd: https://github.com/kucherenko/jscpd (npm install -g jscpd)"
+        doc = duplication_doc(
+            [],
+            status="empty",
+            run=[
+                {
+                    "lane": lane,
+                    "measure": "duplication",
+                    "collector": None,
+                    "status": "unavailable",
+                    "reason": "jscpd: not on PATH",
+                    "hint": hint,
+                }
+                for lane in ("bash", "python")
+            ],
+            unavailable=["bash/duplication", "python/duplication"],
+        )
+        out = self.rendered(doc)
+        self.assertEqual(out.count("No clone detector ran in any lane"), 1)
+        self.assertEqual(out.count("npm install -g jscpd"), 1)
+        self.assertIn("/code-metrics:setup", out)
+        self.assertEqual(out.count("| unavailable | jscpd: not on PATH |"), 2)
+        self.assertLess(out.index("No clone detector"), out.index("## Coverage"))
+
+    def test_a_not_applicable_lane_does_not_hide_the_no_detector_headline(
+        self,
+    ) -> None:
+        # The `other` lane carries a `not-applicable` duplication row on every
+        # run that has a file outside the language lanes; it is not a probe
+        # that failed, so it must not defeat the all-unavailable check.
+        hint = "jscpd: https://github.com/kucherenko/jscpd (npm install -g jscpd)"
+        doc = duplication_doc(
+            [],
+            status="empty",
+            run=[
+                {
+                    "lane": "bash",
+                    "measure": "duplication",
+                    "collector": None,
+                    "status": "unavailable",
+                    "reason": "jscpd: not on PATH",
+                    "hint": hint,
+                },
+                {
+                    "lane": "other",
+                    "measure": "duplication",
+                    "collector": None,
+                    "status": "not-applicable",
+                    "reason": "no collector covers this lane",
+                    "hint": None,
+                },
+            ],
+            unavailable=["bash/duplication"],
+        )
+        out = self.rendered(doc)
+        self.assertEqual(out.count("No clone detector ran in any lane"), 1)
+        self.assertEqual(out.count("npm install -g jscpd"), 1)
+
+    def test_only_not_applicable_rows_print_no_headline(self) -> None:
+        doc = duplication_doc(
+            [],
+            status="empty",
+            run=[
+                {
+                    "lane": "other",
+                    "measure": "duplication",
+                    "collector": None,
+                    "status": "not-applicable",
+                    "reason": "no collector covers this lane",
+                    "hint": None,
+                }
+            ],
+        )
+        self.assertNotIn("No clone detector ran", self.rendered(doc))
+
+    def test_a_lane_that_skipped_every_file_is_partial_not_empty(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            d = Path(tmp)
+            result = run(
+                "assemble",
+                "--skill",
+                "audit-duplication",
+                "--scope",
+                write(d, "s.json", json.dumps({"mode": "all", "files": 1})),
+                "--run",
+                write(
+                    d,
+                    "r.jsonl",
+                    jsonl(
+                        [
+                            {
+                                "lane": "bash",
+                                "measure": "duplication",
+                                "collector": "jscpd 5.2.0",
+                                "status": "partial",
+                                "reason": "1 of 1 files skipped by duplication.max_size 1mb / max_lines none",
+                                "hint": None,
+                            }
+                        ]
+                    ),
+                ),
+                "--measures",
+                write(d, "m.jsonl", ""),
+                "--thresholds",
+                write(d, "t.json", "[]"),
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        doc = json.loads(result.stdout)
+        self.assertEqual(doc["status"], "partial")
+        out = self.rendered(doc)
+        self.assertNotIn("Measured nothing", out)
+        self.assertIn("Status: partial", out)
+        self.assertIn("\nPartial: bash/duplication.\n", out)
+
+    def test_a_size_document_renders_as_before(self) -> None:
+        doc = {
+            "schema": "code-metrics/v1",
+            "skill": "audit-size",
+            "status": "partial",
+            "scope": {"mode": "all", "base": None, "files": 1, "excluded": 0},
+            "run": [
+                {
+                    "lane": "python",
+                    "measure": "size",
+                    "collector": "scc 3.4.0",
+                    "status": "partial",
+                    "reason": "1 of 2 files unreadable",
+                    "hint": None,
+                }
+            ],
+            "thresholds": [],
+            "measures": [
+                {
+                    "file": "a.py",
+                    "function": None,
+                    "lane": "python",
+                    "values": {"lines_non_blank": 12},
+                    "over_reference": ["file_lines"],
+                }
+            ],
+            "summary": {
+                "files": 1,
+                "functions": 0,
+                "over_reference": {"file_lines": 1},
+            },
+            "excluded": [],
+            "unavailable": [],
+        }
+        out = self.rendered(doc)
+        self.assertEqual(
+            out,
+            "# code-metrics: audit-size\n"
+            "\n"
+            "Status: partial. Scope: all, 1 file(s).\n"
+            "\n"
+            "## Coverage of this run\n"
+            "\n"
+            "| Lane | Measure | Collector | Status | Reason |\n"
+            "|---|---|---|---|---|\n"
+            "| python | size | scc 3.4.0 | partial | 1 of 2 files unreadable |\n"
+            "\n"
+            "## Measures\n"
+            "\n"
+            "| File | Function | Lane | Labels | lines_non_blank | Over reference |\n"
+            "|---|---|---|---|---|---|\n"
+            "| a.py |  | python |  | 12 | file_lines |\n"
+            "\n"
+            "## Summary\n"
+            "\n"
+            "Files: 1. Over reference: file_lines 1.\n",
+        )
+
+
+def render_doc(measures: list[dict], thresholds_: list[dict] | None = None, **scope):
+    doc = {
+        "schema": "code-metrics/v1",
+        "skill": "audit-complexity",
+        "status": "partial",
+        "scope": {"mode": "paths", "base": None, "files": 1, "excluded": 0, **scope},
+        "run": [],
+        "thresholds": thresholds_
+        or [
+            {
+                "measure": "cyclomatic",
+                "reference": 20,
+                "provenance": "p",
+                "layer": "bundled default",
+            }
+        ],
+        "measures": measures,
+        "summary": {"files": 1, "functions": 0, "over_reference": {}},
+        "excluded": [],
+        "unavailable": [],
+    }
+    return doc
+
+
+def function_row(**fields) -> dict:
+    row = {
+        "file": "a.py",
+        "function": "f",
+        "start_line": 3,
+        "end_line": 9,
+        "lane": "python",
+        "values": {},
+        "collector": "lizard",
+        "labels": [],
+        "over_reference": [],
+    }
+    row.update(fields)
+    return row
+
+
+class JoinedRenderTests(unittest.TestCase):
+    """The table joins one function's rows; the JSON keeps one row per collector."""
+
+    def test_a_cyclomatic_row_and_a_halstead_row_render_as_one_line(self) -> None:
+        rows = [
+            function_row(values={"cyclomatic": 4}),
+            function_row(
+                start_line=None,
+                end_line=None,
+                collector="radon",
+                labels=["no-line-range"],
+                values={"halstead_difficulty": 1.5},
+            ),
+        ]
+        out = run("render", stdin=json.dumps(render_doc(rows))).stdout
+        self.assertEqual(out.count("| a.py | f |"), 1)
+        self.assertIn("| a.py | f | python | no-line-range | 4 | 1.5 |  |", out)
+
+    def test_two_same_named_functions_keep_a_start_line_less_row_separate(
+        self,
+    ) -> None:
+        rows = [
+            function_row(values={"cyclomatic": 4}),
+            function_row(start_line=30, end_line=40, values={"cyclomatic": 6}),
+            function_row(
+                start_line=None,
+                end_line=None,
+                collector="radon",
+                values={"halstead_difficulty": 1.5},
+            ),
+        ]
+        out = run("render", stdin=json.dumps(render_doc(rows))).stdout
+        self.assertEqual(out.count("| a.py | f |"), 3)
+
+    def test_disagreeing_values_are_never_merged(self) -> None:
+        rows = [
+            function_row(values={"cyclomatic": 4}),
+            function_row(collector="radon", values={"cyclomatic": 5}),
+        ]
+        out = run("render", stdin=json.dumps(render_doc(rows))).stdout
+        self.assertEqual(out.count("| a.py | f |"), 2)
+
+    def test_over_reference_rows_come_first_furthest_past_the_reference(self) -> None:
+        rows = [
+            function_row(
+                function="mild",
+                values={"cyclomatic": 21},
+                over_reference=["cyclomatic"],
+            ),
+            function_row(function="calm", values={"cyclomatic": 3}),
+            function_row(
+                function="wild",
+                values={"cyclomatic": 48},
+                over_reference=["cyclomatic"],
+            ),
+        ]
+        out = run("render", stdin=json.dumps(render_doc(rows))).stdout
+        self.assertLess(out.index("| wild |"), out.index("| mild |"))
+        self.assertLess(out.index("| mild |"), out.index("| calm |"))
+
+    def test_labels_column_carries_the_row_labels(self) -> None:
+        rows = [
+            function_row(
+                function=None,
+                start_line=None,
+                end_line=None,
+                collector="multimetric",
+                labels=["file-level"],
+                values={"halstead_difficulty": 12.5},
+            )
+        ]
+        out = run("render", stdin=json.dumps(render_doc(rows))).stdout
+        self.assertIn("| a.py |  | python | file-level | 12.5 |  |", out)
+
+    def test_a_halstead_zero_gets_the_measurement_footnote(self) -> None:
+        rows = [function_row(values={"halstead_difficulty": 0})]
+        out = run("render", stdin=json.dumps(render_doc(rows))).stdout
+        self.assertIn("A Halstead value of 0 is a measurement", out)
+        rows = [function_row(values={"halstead_difficulty": 2})]
+        out = run("render", stdin=json.dumps(render_doc(rows))).stdout
+        self.assertNotIn("A Halstead value of 0", out)
+
+    def test_the_cap_line_names_the_persisted_document_or_says_to_rerun(self) -> None:
+        rows = [
+            function_row(function=f"f{i}", start_line=i + 1, values={"cyclomatic": 1})
+            for i in range(205)
+        ]
+        doc = render_doc(rows)
+        out = run("render", stdin=json.dumps(doc)).stdout
+        self.assertIn("5 more rows; re-run with --json for the full document", out)
+        out = run("render", "--document", "/tmp/r.json", stdin=json.dumps(doc)).stdout
+        self.assertIn("5 more rows in the JSON document at /tmp/r.json", out)
+        self.assertIn("Full document: /tmp/r.json", out)
+
+    def test_replicas_and_exclusions_are_stated(self) -> None:
+        rows = [
+            function_row(
+                file="plugins/a/hooks/u.sh",
+                lane="bash",
+                values={"cyclomatic": 22},
+                over_reference=["cyclomatic"],
+                labels=["replicated"],
+                replicas={
+                    "count": 3,
+                    "registry": "r.txt",
+                    "line": 2,
+                    "path": "hooks/u.sh",
+                    "files": [
+                        "plugins/a/hooks/u.sh",
+                        "plugins/b/hooks/u.sh",
+                        "plugins/c/hooks/u.sh",
+                    ],
+                },
+            )
+        ]
+        doc = render_doc(
+            rows,
+            excluded=4,
+            exclusions=[{"pattern": "**/build/**", "files": 4}],
+        )
+        out = run("render", stdin=json.dumps(doc)).stdout
+        self.assertIn(
+            "| plugins/a/hooks/u.sh (+2 replicas) | f | bash | replicated | 22 | cyclomatic |",
+            out,
+        )
+        self.assertIn(
+            "Replicated files collapsed by a sanctioned-replication registry: 1 row(s) standing for 3 files.",
+            out,
+        )
+        self.assertIn("Excluded by scope.exclude: `**/build/**` 4.", out)
 
 
 if __name__ == "__main__":

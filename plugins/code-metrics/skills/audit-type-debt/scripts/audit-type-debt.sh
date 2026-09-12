@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # /code-metrics:audit-type-debt entry point: how much of the code is typed,
-# per lane, as a percentage from `type-coverage` (TypeScript) and from mypy's
-# `--any-exprs-report` (Python).
+# per file and per lane, as a percentage from `type-coverage` (TypeScript) and
+# from mypy's `--any-exprs-report` (Python).
 #
 #   audit-type-debt.sh [--json] [--all] [--base <ref>] [--config <resolved.json>] [<path>...]
 #
@@ -74,6 +74,12 @@ rc=$?
 if [[ $JSON -eq 1 ]]; then
   cat "$WORK/report.json"
 else
-  "${PY[@]}" "$REPORT" render <"$WORK/report.json" || exit 2
+  # shellcheck source=../../../scripts/persist-report.sh
+  source "$PLUGIN_ROOT/scripts/persist-report.sh"
+  render_args=()
+  if document="$(cm_persist_report audit-type-debt "$WORK/report.json")"; then
+    render_args=(--document "$document")
+  fi
+  "${PY[@]}" "$REPORT" render "${render_args[@]}" <"$WORK/report.json" || exit 2
 fi
 exit "$rc"

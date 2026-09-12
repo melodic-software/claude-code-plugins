@@ -22,8 +22,8 @@
 - [Chapter 6 exercise as coaching prompt](#chapter-6-exercise-as-coaching-prompt)
 - [Skill workflow](#skill-workflow)
 - [Named verse-development formulas (*Writing Better Lyrics* (2009), Chapter 6)](#named-verse-development-formulas-writing-better-lyrics-2009-chapter-6)
-- [Hidden questions and hidden commands (*Writing Better Lyrics* (2009), Chapter 6) — grammatical detail](#hidden-questions-and-hidden-commands-writing-better-lyrics-2009-chapter-6--grammatical-detail)
-- [Structural repetition — make the repeat necessary (*Essential Guide to Lyric Form and Structure* (1991), Chapter 7)](#structural-repetition--make-the-repeat-necessary-essential-guide-to-lyric-form-and-structure-1991-chapter-7)
+- [Hidden questions and hidden commands (*Writing Better Lyrics* (2009), Chapter 6): grammatical detail](#hidden-questions-and-hidden-commands-writing-better-lyrics-2009-chapter-6-grammatical-detail)
+- [Structural repetition: make the repeat necessary (*Essential Guide to Lyric Form and Structure* (1991), Chapter 7)](#structural-repetition-make-the-repeat-necessary-essential-guide-to-lyric-form-and-structure-1991-chapter-7)
 - [Cross-references](#cross-references)
 
 Pat Pattison - *Writing Better Lyrics* (2009), Chapter 6 and Chapter 9, plus
@@ -74,10 +74,12 @@ The repeated section is color-resistant when:
 
 Pat's image for the failure:
 
+<!-- ai-slop-ignore-start: verbatim blockquote from Writing Better Lyrics (2009) Chapter 9 -->
 > It's frustrating when a refrain or chorus proves to be color resistant — the
 > words in the refrain or chorus won't work with the next verse without changing
 > the words somehow because they're protected from receiving the next verse's
 > color by coats and coats of verbal polyurethane.
+<!-- ai-slop-ignore-end -->
 
 When the repeat resists recoloring, strip it.
 
@@ -86,14 +88,14 @@ When the repeat resists recoloring, strip it.
 Verbs determine tense. To make a refrain or chorus tense-neutral, use one of
 three strategies:
 
-Chapter 9's worked refrain is *He lost the human race* — a good line, double
+Chapter 9's worked refrain is *He lost the human race*, a good line, double
 meaning and all, which then refuses to sit under a future-tense verse (*He'll
 tilt his head one final night*). The three strategies applied to it:
 
 | Strategy | Chapter 9's version | What Pat says it does |
 | --- | --- | --- |
 | `-ing` form | Losing the human race | "the neutralized refrain accepts any tense" |
-| Infinitive | To lose the human race | Same — Pat gives the infinitive **no distinct effect**; he says only "whichever results you like better, the `-ing` form or the infinitive, it's nice to have the option" |
+| Infinitive | To lose the human race | Same. Pat gives the infinitive **no distinct effect**; he says only "whichever results you like better, the `-ing` form or the infinitive, it's nice to have the option" |
 | No verb | A loss in the human race | "it makes the refrain sound like a commentary" |
 
 Pat's closing instruction on the three: **"Always try all three options. Use
@@ -102,7 +104,7 @@ whichever feels best."**
 Pat's rules for each: with `-ing`, omit any helping verbs (*losing*, not *is
 losing* / *was losing* / *will be losing*), and don't confuse the verb form with
 a participle (*a losing strategy*) or a gerund (*losing builds character*). With
-the infinitive, omit the main verb — *to lose*, not *I hate to lose*.
+the infinitive, omit the main verb: *to lose*, not *I hate to lose*.
 
 The original, tense-locked:
 
@@ -114,7 +116,7 @@ As thousands cheered he came to grief
 He lost the human race
 ```
 
-The `-ing` refrain under Pat's three printed tense settings — same last line
+The `-ing` refrain under Pat's three printed tense settings, same last line
 every time:
 
 ```text
@@ -169,7 +171,7 @@ too hard a fall
 ```
 
 Each neutral version lets the verse supply who fell and when. *Losing the human
-race* does the same double duty — no verb tense, no pronoun — and the chapter
+race* does the same double duty, with no verb tense and no pronoun, and the chapter
 proves it by running the identical refrain under five different verse POVs:
 
 ```text
@@ -217,12 +219,14 @@ Losing the human race
 **Watch the third-person `-s`.** Pat's note on when you can skip verb
 neutralization entirely:
 
+<!-- ai-slop-ignore-start: verbatim blockquote from Writing Better Lyrics (2009) Chapter 9 -->
 > When you use third person with present tense, the verb adds an *s*: She
 > loses. If you don't use *he*, *she*, or *it* in your lyric, none of your verbs
 > will add an *s*, so your verbs will all already by POV neutral. You won't need
 > to neutralize the verbs — you just need to drop the pronouns:
+<!-- ai-slop-ignore-end -->
 
-"all already **by** POV neutral" is as printed — the raw XHTML has `by`, not
+"all already **by** POV neutral" is as printed: the raw XHTML has `by`, not
 `be`. Do not correct it.
 
 Which is why *And lose the human race* works under I / we / you / they. But it
@@ -284,7 +288,7 @@ The chapter attaches an instruction to the rule in the same breath: "Keep your
 verses specific and interesting."
 
 The rule constrains the CHORUS's grammar, not its imagination. Pat first offers
-a deliberately dumb prototype to isolate the grammar —
+a deliberately dumb prototype to isolate the grammar:
 
 ```text
 Losing the human race
@@ -293,7 +297,7 @@ Yeah, yeah, yeah
 Losing the human race
 ```
 
-— then makes it artistic without committing to anything:
+Then he makes it artistic without committing to anything:
 
 ```text
 Losing the human race
@@ -328,7 +332,7 @@ to rewrite the chorus first.
 
 Changing the repeat IS available as a last resort when a refrain proves
 color-resistant and cannot be neutralized. Chapter 9 does exactly that before
-showing the better repair — *He lost the human race* becomes *He'll lose the
+showing the better repair: *He lost the human race* becomes *He'll lose the
 human race* to survive a future-tense verse:
 
 > Though this isn't the kiss of death, it would be preferable to avoid changing
@@ -411,18 +415,18 @@ Ask:
 - If the chorus comes back unchanged, has the listener changed enough to hear
   it differently?
 
-Box 3 is usually the song's **why** — why the speaker is saying any of this —
+Box 3 is usually the song's **why**, the reason the speaker is saying any of this,
 which is what makes it the heaviest rather than merely the last.
 
 **A box is not always one section.** Chapter 6 analyzes "Between Fathers and
 Sons" (John Jarvis and Gary Nicholson), whose boxes are each *two* verses plus a
-chorus — verses one and two plus chorus one are box 1; verses three and four
+chorus: verses one and two plus chorus one are box 1; verses three and four
 plus chorus two are box 2. Count boxes by idea movement, not by section count:
 two verses that share one angle are one box, and diagnosing them as two hides
 the stagnation.
 
-The lyric holds two perspectives — a son looking at his father, and the son as
-father — but spends both inside box 1 (*My father had so much to tell me* …,
+The lyric holds two perspectives, a son looking at his father and the son as
+father, but spends both inside box 1 (*My father had so much to tell me* …,
 then *Now when I look at my own son*). So box 2 has nowhere new to go. Pat on
 verse four:
 
@@ -444,7 +448,7 @@ He kept trying, but I wouldn't let him.
 That's how it always has been between fathers and sons
 ```
 
-That frees box 2 to "look from the other side of the river" — *Now when I look
+That frees box 2 to "look from the other side of the river". *Now when I look
 at my own son* moves down into it, and the father's perspective colors chorus
 two. Same chorus text both times; two different colors.
 
@@ -507,13 +511,15 @@ Symptoms:
 Fix stagnant repetition by changing the development, not by changing the
 chorus words first.
 
-**Stagnation does not merely flatten the boxes — it can shrink them.**
+**Stagnation does not merely flatten the boxes. It can shrink them.**
 
+<!-- ai-slop-ignore-start: verbatim blockquote from Writing Better Lyrics (2009) Chapter 6 -->
 > The refrain suffers from the same disease as the verses: stagnation. Boredom is
 > amplified. The boxes, at best, are all the same size — they don't gain any
 > weight. More likely, the boxes lose weight. You can feel the letdown when you
 > get to the second and third boxes. You can only fix stagnation by developing
 > the ideas.
+<!-- ai-slop-ignore-end -->
 
 **Polished language cannot fix it.** Chapter 6's demonstration is a sheriff
 song, written as bare prose summaries on purpose. Stagnant:
@@ -530,7 +536,7 @@ Verse 3. Everyone in town knows the sheriff is tough. They are afraid of him.
 > polished the language, it would only disguise the fact that something
 > important is missing: development.
 
-Developed — and note the language is still bland:
+Developed, and note the language is still bland:
 
 ```text
 Verse 1. The sheriff is the toughest man in town.
@@ -554,7 +560,7 @@ Box 3  Everyone in town knows the sheriff is tough.
        Beware, beware. All hands beware.
 ```
 
-Developed version — same refrain, unchanged:
+Developed version, same refrain, unchanged:
 
 ```text
 Box 1  The sheriff is the toughest man in town.
@@ -569,11 +575,13 @@ Box 3  She is married to the weakest man in town.
 > result is boredom. When it attaches to verses that develop the idea, it gains
 > weight and impact. It dances.
 
+<!-- ai-slop-ignore-start: verbatim quotation from Writing Better Lyrics (2009) Chapter 6 -->
 Strong imagery on stagnant boxes only decorates the problem. This is the
 diagnostic order: check whether the verse summaries move before touching a
 single word of the lines. Pat's own summary of the remedy: "you fix a stagnant
 chorus or refrain by doing the same thing you do if you have only verses — you
 develop the idea."
+<!-- ai-slop-ignore-end -->
 
 > Don't waste your verses. Don't let them sit idle waiting for the hook to come
 > around and rescue them. Too often, there won't be anyone around to witness the
@@ -624,14 +632,16 @@ around before assuming the song must continue forward from the first draft.
 > next?").
 
 Reordering is the rescue; planning the boxes is the prevention. When a writer arrives with an idea and no verses yet, sketch the box
-summaries before drafting — that is the intervention, and it is unavailable once
+summaries before drafting. That is the intervention, and it is unavailable once
 the verses exist.
 
 Six questions are the chapter's named tool for filling a box that will not open:
 
+<!-- ai-slop-ignore-start: verbatim blockquote from Writing Better Lyrics (2009) Chapter 6 -->
 > And don't be afraid to call your six best friends — who, what, where, when,
 > why, and how — to ask them for specific suggestions. They're always helpful,
 > especially *when* and *where*.
+<!-- ai-slop-ignore-end -->
 
 ## Chorus and refrain weight
 
@@ -665,7 +675,7 @@ Use this when:
 - the bridge supplies contrast and new weight,
 - the final chorus becomes stronger because the weak middle chorus is gone.
 
-This is a formal risk, but Chapter 6 treats it as a valid toolbox move — and
+This is a formal risk, but Chapter 6 treats it as a valid toolbox move, and
 records it as a real-world one. The lyric is "Unanswered Prayers" (Pat Alger,
 Garth Brooks, and Larry B. Bastian). Verses one and two set up the situation (a
 man runs into his old high school flame at a hometown football game while his
@@ -687,19 +697,21 @@ elaborates rather than develops. Pat's verdict:
 
 The bridge then reintroduces the wife (*And as she walked away I looked at my
 wife / And then and there I thanked the good Lord for the gifts in my life*) and
-the third chorus works again — "I had forgotten about the wife. … The wife
+the third chorus works again: "I had forgotten about the wife. … The wife
 becomes God's greatest gift. A lovely payoff."
 
 The recorded solution cuts the sagging middle chorus and goes straight from
 verse three into the bridge. Pat quotes co-writer Pat Alger on why: the
 conventional verse / verse / chorus / verse / chorus / bridge / chorus layout
-made the song "feel too long." Pat's gloss — "Another way of saying the song
+made the song "feel too long." Pat's gloss: "Another way of saying the song
 sagged, and listeners would lose interest." "Too long" is the audible symptom of
 a sagging box.
 
+<!-- ai-slop-ignore-start: verbatim blockquote from Writing Better Lyrics (2009) Chapter 6 -->
 > They left out the second chorus and went immediately to the bridge — an
 > unusual formal move, especially in commercial music. But it works; both
 > choruses shine, and we stay interested in the song all the way through.
+<!-- ai-slop-ignore-end -->
 
 The chapter names a second gain beyond removing the sag:
 
@@ -709,7 +721,7 @@ The chapter names a second gain beyond removing the sag:
 > contrast at the same time. Put this move in your toolbox.
 
 **Diagnose the sag before cutting.** Pat's alternative repair for the same song
-is to develop verse three instead — reintroduce the wife there and skip the
+is to develop verse three instead, reintroducing the wife there and skipping the
 bridge entirely:
 
 ```text
@@ -720,7 +732,7 @@ And recognized the gift I'd been given in my life
 ```
 
 That yields "a simple three verse, two chorus layout with both choruses doing
-their work" — no cut required. Cutting a chorus and developing the verse are two
+their work", no cut required. Cutting a chorus and developing the verse are two
 answers to one diagnosis; run the box-weight test first and decide which the
 song needs.
 
@@ -735,8 +747,8 @@ or emotional turn.
 > isolated and repeated, giving additional information or emphasis.
 
 The key is that the repeated fragment must add meaning, not merely echo sound.
-Pat allows sound as one reason to repeat something — "Maybe the words just feel
-good in your mouth," his example being *Peaceful, easy feeling* — but the
+Pat allows sound as one reason to repeat something: "Maybe the words just feel
+good in your mouth," his example being *Peaceful, easy feeling*. But the
 productive kind is the kind that gains:
 
 > The words we repeat stay interesting when we say them again. They gain
@@ -745,12 +757,12 @@ productive kind is the kind that gains:
 
 His three examples of productive repetition at section scale:
 
-- **"Strawberry Wine"** — the second chorus outweighs the first because verse two
+- **"Strawberry Wine"**: the second chorus outweighs the first because verse two
   adds a fleeting summer romance to verse one's picture of love on the riverbank.
-- **"Still Crazy After All These Years"** — the second refrain adds cynicism and
+- **"Still Crazy After All These Years"**: the second refrain adds cynicism and
   denial to verse one's encounter with an old lover. "We learn more about what
   kind of crazy he is, and how deep it runs."
-- **Suzanne Vega's "Luka" and Joni Mitchell's "Roses Blue"** — both end by
+- **Suzanne Vega's "Luka" and Joni Mitchell's "Roses Blue"**: both end by
   repeating the *first verse*. "We know Luka's plight, though we didn't
   understand it the first time."
 
@@ -800,7 +812,7 @@ Love me.
 ```
 
 Pat's limit on this is categorical, not a preference: "Remember that this
-technique only works in first person and second person, not third person" —
+technique only works in first person and second person, not third person":
 third person adds an *s* to the verb, so you get simple repetition and no
 command. With past- or future-tense verbs, isolate the infinitive instead. Full
 matrices below.
@@ -823,8 +835,8 @@ When reviewing a draft:
 Exercise 11 - Three refrains, increasing weight:
 
 - Write three verses, each ending with the line **`ashes, ashes, all fall down`**
-  (a refrain, because it is part of the verse rather than a separate section) —
-  a three-system song, verse / refrain / verse / refrain / verse / refrain.
+  (a refrain, because it is part of the verse rather than a separate section).
+  That is a three-system song, verse / refrain / verse / refrain / verse / refrain.
 - Pat supplies the first two boxes and leaves the third open:
 
 ```text
@@ -838,7 +850,7 @@ Box 3  ?
   work for both childhood and the war. Then object-write from your own sense
   pool.
 - His metaphor prompt: see each found idea as a metaphor for other parts of the
-  lyric. *Falling down* goes well beyond the childhood game — childhood dreams
+  lyric. *Falling down* goes well beyond the childhood game: childhood dreams
   can fall, so can innocence, and so can bombs, rockets, and soldiers.
 - His hint for box 3: "He certainly could tumble like a child whenever a door
   slams."
@@ -872,11 +884,11 @@ When applying this file:
 
 Pat gives two named shortcuts for distributing verse jobs across the boxes
 in a multi-verse song. Both work by ensuring each verse has its own
-exclusive job — no two verses share the same angle.
+exclusive job: no two verses share the same angle.
 
 ### You-I-We formula
 
-Pat's setup is a verse summary with nowhere to go — "It's difficult to see where
+Pat's setup is a verse summary with nowhere to go. "It's difficult to see where
 to go next. It feels like everything's been covered":
 
 ```text
@@ -891,9 +903,9 @@ Love Love Love
 The three perspectives are already sitting inside it, stacked in one box. Split
 them out and the boxes gain weight:
 
-- **You** — verse focuses on the other person; their action, presence, absence
-- **I** — verse focuses on the speaker; the speaker's response, state
-- **We** — verse focuses on the shared frame; what we are, were, could be
+- **You**: verse focuses on the other person; their action, presence, absence
+- **I**: verse focuses on the speaker; the speaker's response, state
+- **We**: verse focuses on the shared frame; what we are, were, could be
 
 Any reordering: I → You → We, We → I → You, You → I → We. The formula is
 the distribution, not the order. See [box-model](box-model.md) for Pat's own
@@ -915,11 +927,11 @@ Love Love Love
 > This idea contains three tenses: past, present, and future. Try separating
 > them into separate boxes:
 
-- **Past** — what happened (the seed event)
-- **Present** — what is now (current state)
-- **Future** — what will be / could be (projection or fear)
+- **Past**: what happened (the seed event)
+- **Present**: what is now (current state)
+- **Future**: what will be / could be (projection or fear)
 
-Reverse-chronology orderings are strong plays — Future → Present → Past
+Reverse-chronology orderings are strong plays: Future → Present → Past
 makes the listener reconstruct backwards.
 
 Note the diagnostic hiding in both cases: the stuck verse *already contained*
@@ -950,20 +962,20 @@ Two consequences for how these get applied:
   losing night at the dice table, then begging on the street) "moves the story
   forward, making chances of getting home more and more remote." The refrain
   *One more dollar and I'm going home* is unchanged and means something worse
-  each time. No formula needed — the plot did it.
+  each time. No formula needed. The plot did it.
 - **Name the formula as a candidate, not a prescription.** Proposing You-I-We
   because the boxes are stagnant is the tool working. Proposing it because a
   song has three verses is the habit the chapter warns against.
 
 Cross-ref [box-model](box-model.md) for full division-of-labor framework.
 
-## Hidden questions and hidden commands (*Writing Better Lyrics* (2009), Chapter 6) — grammatical detail
+## Hidden questions and hidden commands (*Writing Better Lyrics* (2009), Chapter 6): grammatical detail
 
 Pat's line-level repetition technique creates short repaintings inside a
 single section by deleting grammatical scaffolding. The deleted element
 isolates the question or command underneath.
 
-### Hidden questions — full grammatical matrix
+### Hidden questions: full grammatical matrix
 
 Pat builds it one step at a time:
 
@@ -1038,15 +1050,17 @@ And only with your laughter can you win
 Can you win? Can you win?
 ```
 
+<!-- ai-slop-ignore-start: verbatim blockquote from Writing Better Lyrics (2009) Chapter 6 -->
 > In the last two lines, by simply isolating and repeating a portion of the line,
 > *can you win*, she moves from a declarative sentence into a question, creating
 > new energy and adding a new idea — in this case, the character's uncertainty
 > whether winning (laughter) is possible.
+<!-- ai-slop-ignore-end -->
 
 Nothing was added. The statement of the terms became a doubt about whether the
 terms can be met.
 
-### Hidden commands — subject deletion
+### Hidden commands: subject deletion
 
 Pat states the precondition, then runs it:
 
@@ -1072,8 +1086,10 @@ Note: **third-person cannot generate commands** because English third-
 person verbs take an -s. Pat states it and then runs his counterexample through
 the same two passes:
 
+<!-- ai-slop-ignore-start: verbatim blockquote from Writing Better Lyrics (2009) Chapter 6 -->
 > Note that this trick doesn't work in third person, since third person adds an
 > *s* to the verb. You create only simple repetition — no command is isolated:
+<!-- ai-slop-ignore-end -->
 
 ```text
 She tells me that she wants me.
@@ -1092,7 +1108,7 @@ second-person direct address."
 > repeat, starting from the verb, to create a command. Remember that this
 > technique only works in first person and second person, not third person.
 
-### Infinitive isolation — past and future
+### Infinitive isolation: past and future
 
 > With past-tense or future-tense verbs, you can use the infinitive (*to*) form
 > of the verb, so the verb can be isolated, creating a present-tense command:
@@ -1112,7 +1128,7 @@ second-person direct address."
 The last example shows the staging: the fragment can be isolated once, then
 isolated again, each pass shedding another layer and landing harder.
 
-This is why the main verb's tense stops mattering — the infinitive carries no
+This is why the main verb's tense stops mattering: the infinitive carries no
 tense of its own, so the same surface fragment works after a past verse and a
 future one alike. That makes it the line-level counterpart of the chorus-level
 tense-neutralization above.
@@ -1138,19 +1154,19 @@ Pat closes the chapter by running the technique on his own prose:
 >
 > Be a better writer.
 
-Those last four lines are the chapter's final words — Pat demonstrating both moves
+Those last four lines are the chapter's final words, Pat demonstrating both moves
 (statement → command, question → command) on himself.
 
 ### When to use
 
-Hidden questions / commands work in **repaintable choruses** especially —
-the section's surface words stay constant; the verses around each chorus
+Hidden questions / commands work in **repaintable choruses** especially.
+The section's surface words stay constant; the verses around each chorus
 visit shift what the hidden question / command means in context.
 
 Cross-ref the chorus-stripping workflow above and the
 [box-model](box-model.md) division-of-labor framework.
 
-## Structural repetition — make the repeat necessary (*Essential Guide to Lyric Form and Structure* (1991), Chapter 7)
+## Structural repetition: make the repeat necessary (*Essential Guide to Lyric Form and Structure* (1991), Chapter 7)
 
 Everything above asks whether a repeat *means* more. Chapter 7 of *Essential
 Guide to Lyric Form and Structure* (1991) asks a different, purely structural
@@ -1160,7 +1176,7 @@ question: whether the repeat is *needed* to finish the section. It is strategy
 > Your HOOK should come at least once in each Song System. That is usually
 > enough. Within reason you can squeeze it in a few more times.
 
-The warning and the rule arrive in one sentence — Pat demonstrating the vice
+The warning and the rule arrive in one sentence, Pat demonstrating the vice
 inside the caution against it. It is printed exactly like this; it is not a
 transcription error, and it must not be "fixed":
 
@@ -1169,7 +1185,7 @@ transcription error, and it must not be "fixed":
 > yourself too much you get boring, so be cautious. If you can make your
 > repetition *necessary* to finish the structure, all the better:
 
-Figure `image_rsrc346`, transcribed — a ten-phrase section whose last two
+Figure `image_rsrc346`, transcribed. It is a ten-phrase section whose last two
 phrases are the same phrase, with Pat's rhyme letters at the right:
 
 ```text
@@ -1187,7 +1203,7 @@ phrases are the same phrase, with Pat's rhyme letters at the right:
 
 > The section is balanced by the repetition.
 
-### The repeat that finishes the structure — "SEEING SOMEONE ELSE"
+### The repeat that finishes the structure: "SEEING SOMEONE ELSE"
 
 Chapter 7's second case is a section that will not balance until its last
 phrase is repeated. As first written it is four phrases:
@@ -1200,8 +1216,8 @@ You're SEEING SOMEONE ELSE
 ```
 
 Pat's diagnosis, in order. Each quote is followed in the book by a scansion
-figure — `image_rsrc347` (the first two phrases), `image_rsrc348` (the last
-two), `image_rsrc349` (the first two run together as one phrase):
+figure. The figures are `image_rsrc347` (the first two phrases), `image_rsrc348`
+(the last two), and `image_rsrc349` (the first two run together as one phrase):
 
 > The first two phrases are each 3-stresses at best. There are certainly some
 > grey areas here:
@@ -1216,7 +1232,7 @@ two), `image_rsrc349` (the first two run together as one phrase):
 > It still fails to balance the last phrase. Repeating the last phrase does the
 > trick.
 
-The repaired section — six phrases, the last two a repeat of phrases three and
+The repaired section is six phrases, the last two a repeat of phrases three and
 four:
 
 ```text
@@ -1232,18 +1248,18 @@ You're SEEING SOMEONE ELSE
 
 **The diagnostic this gives you.** Before cutting a repeat, ask the structural
 question as well as the meaning question: if the repeat came out, would the
-section still close? In this case it would not — so the repeat is load-bearing
-and stays. That is the whole of Pat's "all the better" clause.
+section still close? In this case it would not, so the repeat is needed to close
+the section and stays. That is the whole of Pat's "all the better" clause.
 
 ## Cross-references
 
-- [box-model](box-model.md) — full division-of-labor framework
-- [form](form.md) — section identification, candy bar discipline
-- [song-forms](song-forms.md) — V/V/Ch/V/V/Ch warnings, AABA homecoming
-- [verse-development](verse-development.md) — power positions, travelogue
-- [point-of-view](point-of-view.md) — camera distances
-- [stable-unstable-meta](stable-unstable-meta.md) — section prosody scan
-- [hook](hook.md) — the other four hook strategies from *Essential Guide to
+- [box-model](box-model.md): full division-of-labor framework
+- [form](form.md): section identification, candy bar discipline
+- [song-forms](song-forms.md): V/V/Ch/V/V/Ch warnings, AABA homecoming
+- [verse-development](verse-development.md): power positions, travelogue
+- [point-of-view](point-of-view.md): camera distances
+- [stable-unstable-meta](stable-unstable-meta.md): section prosody scan
+- [hook](hook.md): the other four hook strategies from *Essential Guide to
   Lyric Form and Structure* (1991), Chapter 7; "Repeat the HOOK" is strategy 3
-- [song-forms-examples](song-forms-examples.md) — the full "SEEING SOMEONE
+- [song-forms-examples](song-forms-examples.md): the full "SEEING SOMEONE
   ELSE" Song System this section's repair belongs to

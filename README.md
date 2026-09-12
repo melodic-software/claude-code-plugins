@@ -16,7 +16,7 @@ Browse and manage with `/plugin`. To refresh after updates: `/plugin marketplace
 When you consume this repo from a local `directory` source, the install cache keys on semver
 `version`, not commit, so several commits under one version leave early installs on a stale
 snapshot and `plugin update` can report "already at the latest version" while SHA lags. See
-[`docs/MIGRATION-PLAYBOOK.md`](docs/MIGRATION-PLAYBOOK.md) ("Same-version commit drift") and
+[`docs/migration-playbook.md`](docs/migration-playbook.md) ("Same-version commit drift") and
 [#2061](https://github.com/melodic-software/claude-code-plugins/issues/2061).
 
 ### Enable plugin suggestions for an organization
@@ -51,12 +51,12 @@ user opts in with `/plugin enable`; an existing install is never flipped by cata
 
 ## Finding your way
 
-- Not sure which skill to invoke? Start at the [skill cheat sheet](docs/SKILL-CHEAT-SHEET.md). A
+- Not sure which skill to invoke? Start at the [skill cheat sheet](docs/skill-cheat-sheet.md). A
   scan-and-go map from what you are doing to the skill that does it.
-- [Plugin catalog](docs/CATALOG.md). Every plugin by category, generated from the manifests and
+- [Plugin catalog](docs/catalog.md). Every plugin by category, generated from the manifests and
   kept in sync by CI. New plugins clear the per-plugin migration gate in
-  [`docs/MIGRATION-PLAYBOOK.md`](docs/MIGRATION-PLAYBOOK.md).
-- [Catalog taxonomy](docs/CATALOG-TAXONOMY.md). The category vocabulary the catalog is grouped by.
+  [`docs/migration-playbook.md`](docs/migration-playbook.md).
+- [Catalog taxonomy](docs/catalog-taxonomy.md). The category vocabulary the catalog is grouped by.
 
 ## What's here
 
@@ -73,13 +73,13 @@ user opts in with `/plugin enable`; an existing install is never flipped by cata
   source-control convention). It governs work done here and ships to no one.
 - `.github/`, workflows plus the policy files they read (runner policy, security paths, recurring
   schedule, PR template).
-- `docs/MIGRATION-PLAYBOOK.md`, design charter, extensibility model, the per-plugin migration
+- `docs/migration-playbook.md`, design charter, extensibility model, the per-plugin migration
   gate, and the local development loop.
 - `docs/`, further design records and audits (CI runner routing, extensibility-contract smoke
   tests, migration audits).
 - `CLAUDE.md`, operating rules for AI agents working in this repo (fresh-docs mandate + plugin
   design rules).
-- `docs/OFFICIAL-DOCS.md`, canonical index of the official Claude Code doc pages the mandate
+- `docs/official-docs.md`, canonical index of the official Claude Code doc pages the mandate
   sends you to.
 
 ## Validate a change
@@ -139,6 +139,61 @@ The runner is deliberately sequential: parallelising it measured sublinear
 ceilings that fail spuriously under concurrency. Selection is the lever.
 
 CI is unaffected, it still runs everything.
+
+### The check-script contract
+
+`scripts/check-*.sh` is one family with one caller-visible interface, so a CI
+lane, a wrapper, or an agent reads a run's outcome without knowing which member
+produced it.
+
+| Exit | Meaning |
+|---|---|
+| `0` | Clean. The check ran over its whole corpus and found nothing. |
+| `1` | Findings. The check ran and something in the tree is wrong. |
+| `2` | Environment or usage. The check could not run: a missing tool, a bad argument, a repo root or shared library that did not resolve, a git query that failed. Nothing was inspected, so this is never a pass. |
+
+Findings and diagnostics go to **stderr**; **stdout** carries the clean-run
+statement and, for the discovery or list modes some members offer, the report
+that mode exists to print.
+
+Keeping `1` and `2` apart is the whole point: "your tree is wrong" and "I could
+not look" are different answers, and a lane that reads only success or failure
+collapses them into one. This is the mechanical form, for this family, of the
+fail-loud rule in
+[`docs/conventions/liveness-assertion/`](docs/conventions/liveness-assertion/README.md).
+An environment failure is spelled out rather than left to `set -e`: resolving the
+repo root and sourcing a shared library each end in `|| exit 2`, because `set -e`
+would exit with the failing command's own status and hand the caller a `1` that
+reads as findings.
+
+[`scripts/check-script-contract.test.sh`](scripts/check-script-contract.test.sh)
+holds the contract. Every member is registered there and a new one fails as
+unregistered. Each member that declares a prerequisite is run with that
+prerequisite taken away and must exit `2` on stderr; each member with a fixture
+recipe is also run clean (exit `0`, statement on stdout) and against a seeded
+violation (exit `1`, finding on stderr and not on stdout). A member with no
+recipe yet is held to those last two halves by its own co-located suite.
+
+Three readings diverge on purpose and are recorded here rather than forced into
+line:
+
+- `scripts/check-hook-exec-form.sh` treats a hook declaration it cannot parse as
+  a finding (`1`), not an environment problem. The input is what is wrong, and
+  clearing a file the gate never read is the silent no-op it exists to catch.
+- `scripts/check-killswitch-hoist.sh` stops at `1`, not `2`, when the hook corpus
+  scans to empty or the inlined kill-switch predicate no longer agrees with the
+  `hook::is_enabled` it duplicates. Both are statements about the tree, not about
+  the host.
+- `scripts/check-changelog-parity.sh` discusses exit `128` and `141` at length
+  and emits neither. Those are git's "no merge base" and a reader killed by
+  SIGPIPE, each converted to an `exit 2` or read correctly. Grepping the file for
+  those numbers finds the guards, not divergence.
+
+The contract governs the observable interface, not the option set: `set -euo`
+and `set -uo` both appear in the family and neither is required, which is why
+the prologue states its own `|| exit 2` instead of depending on which one is in
+force. Members still resolving the repo root under `set -e` alone are aligned on
+touch.
 
 ## Official documentation
 

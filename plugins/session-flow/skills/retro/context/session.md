@@ -1,16 +1,16 @@
-# Session Mode — Full 5-Phase Retrospective
+# Session Mode: Full 5-Phase Retrospective
 
-Comprehensive post-session analysis. Default mode and most thorough — use at end of session or
-after a PR merges.
+Comprehensive post-session analysis. The default mode and the most thorough. Use it at end of
+session or after a PR merges.
 
 ## Phase 1: Extract (automated metrics)
 
-> Skip this phase if the user explicitly requests it, or if the parser errors (exit 2) — report the
+> Skip this phase if the user explicitly requests it, or if the parser errors (exit 2). Report the
 > error and continue with conversation-context analysis only.
 
 ### Phase 1.0: Discover the session chain (multi-session-aware)
 
-When handoff save-points exist (the sibling `handoff` skill's directory — the resolved
+When handoff save-points exist (the sibling `handoff` skill's directory, meaning the resolved
 `<memory_dir>/handoffs/` (default `.work/handoffs/`), or the consuming repo's documented
 location), the retro analyzes EVERY chained session across
 `/session-flow:handoff` + `/clear` cycles, not just the current one. The parser walks the chain itself via
@@ -21,7 +21,7 @@ the first entry lacking `session_id`).
 work: this session resumed from it (the resume prompt loaded it), this session wrote it, or its
 `topic` frontmatter and stated goal clearly match the current task. A shared directory can hold
 save-points
-from completed or abandoned tasks — chaining from an unrelated newest file would splice stale
+from completed or abandoned tasks, and chaining from an unrelated newest file would splice stale
 sessions into this retro's aggregate. When continuity is absent or unclear, fall back to the
 single-session form.
 
@@ -71,19 +71,19 @@ parser is stdlib-only.
 
 JSON to stdout: `status` / `summary`, plus per-session `data` (session info, turns, tokens, tool
 usage + rejections, compactions, turn durations, stop reasons, files modified, subagents, errors)
-and — in multi-session form — an `aggregate` block and a `chain_coverage` block. Exit codes:
+and, in multi-session form, an `aggregate` block and a `chain_coverage` block. Exit codes:
 0 = success, 1 = warning, 2 = error.
 
 `--sessions` accepts its ids space-separated OR comma-joined; both spell the same list.
 
 ### Check chain coverage before presenting
 
-`chain_coverage` reports `requested` / `found` / `available` / `ratio` — `available` being the
+`chain_coverage` reports `requested` / `found` / `available` / `ratio`, `available` being the
 transcripts present for this project, which is the denominator the walk itself cannot see. The
 `--chain-from` walk ends at the first session that wrote no handoff file, so a chain linked by
 hand-pasted continuation prompts can cover a fraction of the work and still look complete here.
 
-When `ratio` is below ~0.5, say so before presenting the retro — name `found` and `available`, and
+When `ratio` is below ~0.5, say so before presenting the retro. Name `found` and `available`, and
 offer to re-run with the ids enumerated:
 
 ```bash
@@ -94,7 +94,7 @@ Do not silently scope a chain retrospective to what the walk happened to reach.
 
 ### Present metrics
 
-Format as two GFM tables — **Session Summary** (duration, model, assistant turns, human messages,
+Format as two GFM tables: **Session Summary** (duration, model, assistant turns, human messages,
 compactions, total context tokens, tool rejections, subagent count) and **Tool Distribution**
 (tool / count / %, sorted descending).
 
@@ -102,15 +102,15 @@ compactions, total context tokens, tool rejections, subagent count) and **Tool D
 
 ## Session type detection
 
-Before analysis, identify the session type from conversation context — it calibrates Phase 5
+Before analysis, identify the session type from conversation context. It calibrates Phase 5
 scoring:
 
-- **Coding** — code changes made. Score Technical quality on code quality
-- **Planning/Design** — architecture decisions, documentation, API design. Score on design
+- **Coding.** Code changes made. Score Technical quality on code quality
+- **Planning/Design.** Architecture decisions, documentation, API design. Score on design
   reasoning and decision quality
-- **Research** — investigation, comparison, learning. Score on research rigor and conclusion
+- **Research.** Investigation, comparison, learning. Score on research rigor and conclusion
   quality
-- **Mixed** — score each task individually, then aggregate
+- **Mixed.** Score each task individually, then aggregate
 
 ---
 
@@ -134,13 +134,13 @@ Check adherence to the staged workflow (the sibling `workflow` skill, or the con
 documented workflow if it defines one):
 
 - Which stages were followed? Which were skipped, and was the skip justified?
-- Was research performed for load-bearing claims, with current authoritative sources?
+- Was research performed for the claims the work depends on, with current authoritative sources?
 - Was a plan written and approved for non-trivial work? Stress-tested when blast radius was wide?
 - Was uncertainty flagged when verification wasn't possible?
 
 ### 2C. Feedback regression check
 
-One of the most valuable parts — prevents repeating previously corrected mistakes. If the consumer
+This check prevents repeating previously corrected mistakes. If the consumer
 uses Claude Code auto-memory (`<SESSION_DATA_DIR>/memory/` exists), read the `feedback_*.md` files
 and check whether this session violated any saved guidance:
 
@@ -148,7 +148,7 @@ and check whether this session violated any saved guidance:
 | --- | --- | --- |
 | `feedback_example.md` | YES / No / N/A | (specific session behavior) |
 
-Flag regressions prominently — a regression means a previously corrected behavior has resurfaced.
+Flag regressions prominently. A regression means a previously corrected behavior has resurfaced.
 No memory directory → note "auto-memory not in use" and move on.
 
 ### 2D. Technical assessment
@@ -158,10 +158,10 @@ code changes were made, note "N/A" and skip.
 
 ### 2E. Efficiency assessment
 
-- Compaction count — were compactions avoidable (earlier `/session-flow:handoff`, tighter reads)?
+- Compaction count. Were compactions avoidable (earlier `/session-flow:handoff`, tighter reads)?
 - Parallel tool-call opportunities missed; redundant file reads
-- Subagent usage — appropriate delegation?
-- Longest/slowest turns — what caused them?
+- Subagent usage. Was the delegation appropriate?
+- Longest/slowest turns. What caused them?
 
 ### Phase 2 output
 
@@ -178,22 +178,22 @@ Map each Phase 2 finding to an improvement target. Also identify improvements no
 findings.
 
 **Research before recommending.** For any recommendation involving skills, hooks, agents, or Claude
-Code configuration: verify it against current official docs before presenting — never recommend
+Code configuration: verify it against current official docs before presenting. Never recommend
 features from training-data assumptions.
 
 **Load the catalog.** Read `${CLAUDE_PLUGIN_ROOT}/skills/retro/reference/ecosystem-improvement-catalog.md`
-before filling the table — the placement decision tree and the per-target recommendation formats
+before filling the table. The placement decision tree and the per-target recommendation formats
 (memory, rules, hooks, skills, agents, MCP servers, settings) live there.
 
 Present as a GFM table with a **Scope** column distinguishing:
 
-- **project** — git-tracked, shared with the team (the repo's `CLAUDE.md`, rules, skills, settings)
-- **personal** — machine-specific, NOT committed (auto-memory, user settings)
+- **project.** Git-tracked, shared with the team (the repo's `CLAUDE.md`, rules, skills, settings)
+- **personal.** Machine-specific, NOT committed (auto-memory, user settings)
 
 | # | Target | Scope | Type | Recommendation | Justification | Priority |
 | --- | --- | --- | --- | --- | --- | --- |
 
-### Skill candidate analysis (REQUIRED — always include)
+### Skill candidate analysis (REQUIRED, always include)
 
 Evaluate whether the session revealed a genuinely repeatable multi-step workflow worth
 encapsulating as a skill:
@@ -205,42 +205,42 @@ encapsulating as a skill:
 | Complexity | Requires judgment or branching | Simple command alias |
 | Context | Needs reference files or rubrics | Self-evident workflow |
 
-Always present the subsection — either candidate(s) with name/description/rationale, or "no
+Always present the subsection, either candidate(s) with name/description/rationale, or "no
 candidates" with a one-line explanation of what was considered.
 
 **Name where an accepted candidate goes.** Invoke `/playbooks:skill-authoring` via the Skill
 tool to read its doctrine, draft the candidate against it, then gate the result on
-`/skill-quality:check` — when those are installed; otherwise say the candidate has no authoring
+`/skill-quality:check`, when those are installed; otherwise say the candidate has no authoring
 route here and leave it recorded. A candidate with no destination is a finding that evaporates
 between sessions, and a skill written ad hoc at the end of a retro is the one most likely to
-miss the conventions that playbook exists to carry. It is a knowledge surface — no arguments,
-no actions — so it informs the drafting rather than doing it: there is nothing to hand it.
+miss the conventions that playbook exists to carry. It is a knowledge surface with no arguments
+and no actions, so it informs the drafting rather than doing it: there is nothing to hand it.
 
-### Follow-up candidates (REQUIRED — always include)
+### Follow-up candidates (REQUIRED, always include)
 
 Evaluate whether the session produced follow-up work for the consumer's work-item tracker:
 deferred research, discovered gaps (missing tests, undocumented conventions), research context
-worth preserving. Present as a table, or "no candidates — session work was self-contained."
+worth preserving. Present as a table, or "no candidates. Session work was self-contained."
 
 ---
 
 ## Phase 4: Act (with user approval)
 
 Group Phase 3 recommendations by action type, then **explicitly ask the user** which items to
-execute — do not proceed without their response.
+execute. Do not proceed without their response.
 
-- **Personal (not committed):** proposed auto-memory entries — create only on approval
+- **Personal (not committed):** proposed auto-memory entries, created only on approval
 - **Project (already validated this session):** rule/instruction-file updates codifying what
   HAPPENED (a gotcha discovered through failures, a convention established through implementation).
   Apply on approval
 - **Queue for follow-up (needs further research):** recommendations beyond what this session
-  validated — list them; do NOT make those changes now
+  validated. List them; do NOT make those changes now
 
 Apply the team-shared-first lens: if a learning generalizes to ANY contributor, it belongs in a
 tracked surface (the repo's instruction files), not personal memory. Reserve auto-memory for facts
 true only for this machine/person.
 
-**Every approved codification follows the workflow** — verify the claim, cross-reference existing
+**Every approved codification follows the workflow:** verify the claim, cross-reference existing
 content for duplication, then edit. No "just save it" shortcut.
 
 End Phase 4 with an explicit question, e.g.: "Which of these recommendations should I execute now?

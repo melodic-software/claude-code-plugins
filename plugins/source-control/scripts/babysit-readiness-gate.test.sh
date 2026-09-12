@@ -333,11 +333,12 @@ assert_contains "2valid is not a classification -> classified=0" "$r" "classifie
 assert_contains "2valid is not a classification -> BLOCKED" "$r" "READINESS_BLOCKED reason=under-decomposed"
 
 # --- Case: the DOCUMENTED annotated dispositions count (#619) ---------------
-# reference/review-discipline.md specifies `VALID — fixing`, `VALID (defer)` and
-# `VALID — fix now` as canonical disposition values. A rule that demanded the
-# token be the whole cell rejected the dash-annotated forms, so a reply written
+# reference/review-discipline.md specifies `VALID: fixing`, `VALID (defer)` and
+# `VALID (fix now)` as canonical disposition values. A rule that demanded the
+# token be the whole cell rejected every annotated form, so a reply written
 # exactly as documented scored unclassified — codex on #1347. Punctuation is
-# what introduces an annotation, so all three count.
+# what introduces an annotation, so the dash, colon, and bracket forms all
+# count; the rows below pin the dash form the gate must keep accepting.
 F=$(mkjson documented-dispositions '[
   {author:"claude[bot]", body:"### 1. [CRITICAL] a\n### 2. [CRITICAL] b\n### 3. [CRITICAL] c"},
   {author:"me[bot]", body:"| 1 | a | VALID — fixing | x |\n| 2 | b | VALID (defer) | y |\n| 3 | c | VALID — fix now | z |"}

@@ -1,8 +1,8 @@
-# audit-pass — the run contract
+# audit-pass: the run contract
 
 The run contract is split per topic; this file routes to the part that owns each rule. The `§1`–`§7`
 section numbering travels with the content, so every cross-reference inside the
-contract — `§3`, `per 4.2`, `assertion 1.10a`, `§6's P2`, `§7's delimiters` — still resolves through
+contract, among them `§3`, `per 4.2`, `assertion 1.10a`, `§6's P2`, and `§7's delimiters`, still resolves through
 the map below.
 
 | File | Sections | What it owns |

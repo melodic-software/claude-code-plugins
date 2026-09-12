@@ -34,7 +34,7 @@ Playwright uses minimatch-style globs:
 | `**/*.{png,jpg,jpeg}` | Extension set |
 | `**/search?q=*` | Query-string wildcard |
 
-## Advanced — via `run-code`
+## Advanced mocking via `run-code`
 
 CLI route commands cover static mocking. For conditional responses, request inspection, response modification, or timing control, use `run-code`:
 
@@ -89,8 +89,8 @@ playwright-cli run-code "async page => {
 
 ## When to mock in E2E tests
 
-- **Deterministic assertions** on data-driven UI — fix the response shape for reproducibility
-- **Error-path coverage** — 500/401/timeout flows that are hard to trigger against real backends
-- **Offline-state UI** — test reconnect logic
+- **Deterministic assertions** on data-driven UI: fix the response shape for reproducibility
+- **Error-path coverage**: 500/401/timeout flows that are hard to trigger against real backends
+- **Offline-state UI**: test reconnect logic
 
-**When NOT to mock:** full end-to-end flows against a running locally-orchestrated stack. If already orchestrating the real backend, mocking network calls defeats the purpose — see [e2e-orchestrator-recipe.md](e2e-orchestrator-recipe.md).
+**When NOT to mock:** full end-to-end flows against a running locally-orchestrated stack. If already orchestrating the real backend, mocking network calls defeats the purpose. See [e2e-orchestrator-recipe.md](e2e-orchestrator-recipe.md).

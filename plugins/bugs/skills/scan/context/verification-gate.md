@@ -1,14 +1,14 @@
-# The verification gate — the precision stage of `/bugs:scan`
+# The verification gate: the precision stage of `/bugs:scan`
 
-Loaded on demand by `/bugs:scan` Step 3. This is the prompt contract for the gate: **one
-separate fresh-context subagent per candidate**, dispatched by the scan skill, never the hunter that
-produced the candidate.
+Loaded on demand by `/bugs:scan` Step 4. This is the prompt contract for the gate: **one
+separate fresh-context subagent per candidate**, dispatched by the scan skill on the gate tier its
+sizing table names, never the hunter that produced the candidate.
 
 Why separate and fresh: a model re-checking its own work rubber-stamps it. The gate must arrive with
-no memory of why the candidate looked convincing — only the candidate, the code, and a mandate to
-kill it.
+no memory of why the candidate looked convincing, carrying only the candidate, the code, and a mandate
+to kill it.
 
-## Stance — default refute
+## Stance: default refute
 
 The gate's job is **not** "confirm this bug". It is: *try to prove this is not a bug, and report a
 finding only if you fail.*
@@ -28,7 +28,7 @@ verdict.
 
 - The single candidate: symptom, `path:line`, evidence quote, claimed fault, claimed trigger, impact.
 - Read access to the repository.
-- Nothing else — no other candidates, no hunter rationale, no prior verdicts. Blackbox verification is
+- Nothing else: no other candidates, no hunter rationale, no prior verdicts. Blackbox verification is
   cheap precisely because context transfer is minimal.
 
 ## Falsification routes (attempt each, name the ones you tried)
@@ -36,8 +36,8 @@ verdict.
 1. **Unreachable path.** Is there a guard, an earlier validation, a type constraint, or a caller
    contract that makes the claimed trigger impossible? Find the callers before concluding it is
    reachable.
-2. **Already handled.** Is the fault caught downstream — a wrapper, a retry, an error boundary, a
-   framework default, a database constraint — such that the observable behavior is correct?
+2. **Already handled.** Is the fault caught downstream by a wrapper, a retry, an error boundary, a
+   framework default, or a database constraint, such that the observable behavior is correct?
 3. **Misread source.** Re-read the quoted lines in their full context. Is the operator, the type, the
    shadowed variable, or the overload what the candidate assumed?
 4. **Intended behavior.** Does a test, a docstring, a comment, or a repo convention assert the current
@@ -47,13 +47,13 @@ verdict.
 
 If a route succeeds, the candidate is **refuted** and you are done.
 
-## Confirming — what a surviving finding must carry
+## Confirming: what a surviving finding must carry
 
 A candidate survives only with **all** of:
 
 - A verbatim evidence quote of the offending source (`path:line`), re-extracted by the gate itself.
 - A **concrete reproduction argument**: the specific input, state, or call sequence that reaches the
-  fault, traced from a real entry point — not "if a caller passes null".
+  fault, traced from a real entry point, not "if a caller passes null".
 - A statement of the observable wrong behavior, and who or what it affects.
 - The falsification routes attempted, and why each failed to explain the candidate away.
 
@@ -65,11 +65,11 @@ Every surviving finding carries exactly one label:
 
 | Label | Use when |
 |---|---|
-| `reproduced` | A check was actually run and observed to fail — an existing test, a scratch invocation, a script, a query. State the command and what it showed. |
+| `reproduced` | A check was actually run and observed to fail: an existing test, a scratch invocation, a script, a query. State the command and what it showed. |
 | `verified-by-reading` | No cheap check exists, and the fault is established from the source plus a traced reproduction argument. State why a check was not run (no harness, no fixture, side effects, requires production data). |
 
 **Attempt a cheap reproduction first.** If a test file, a REPL, or a one-line invocation can settle it
-in under a minute, run it — reproduction is the strongest precision lever available. Never claim
+in under a minute, run it. Reproduction is the strongest precision lever available. Never claim
 `reproduced` for a check you did not run, and never run anything that mutates the repository or any
 external system.
 
@@ -95,12 +95,13 @@ VERDICT: refuted
 refuting-argument: <the specific route that explained it away, with its own quote or path:line>
 ```
 
-A refutation needs its own evidence, at the same standard as a finding — "seems fine" is not a
-refuting argument.
+A refutation needs its own evidence, at the same standard as a finding. An answer of "seems fine" is
+not a refuting argument.
 
 ## Boundaries
 
 - Read-only. No edits, no writes, no branches, no filing, no network mutation.
-- One candidate per dispatch. Do not compare candidates or deduplicate — the scan skill owns that.
+- One candidate per dispatch. Do not compare candidates or deduplicate. The scan skill owns that.
 - Do not rewrite the candidate into a different, better bug you noticed while reading. Refute this one
-  and mention the observation in one line; the next hunt wave can pick it up.
+  and mention the observation in one line with its `path:line`; the scan records it in the report's
+  side observations, and the next hunt wave can pick it up.

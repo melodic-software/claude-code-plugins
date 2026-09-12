@@ -20,7 +20,7 @@ extract_section_bullets() {
     in_section && /^- `/ {
       line = $0
       sub(/^- `/, "", line)
-      sub(/` —.*/, "", line)
+      sub(/`: .*/, "", line)
       sub(/`$/, "", line)
       gsub(/`\*\*\/\*\*`/, "", line)
       if (line ~ /^git /) print line
@@ -87,7 +87,7 @@ while IFS= read -r bullet; do
   [[ -z "$bullet" ]] && continue
   [[ "$bullet" == *"branch --merged"* ]] && continue
   assert_set_contains "config git op: $bullet" "$bullet" "${GIT_PRUNE_OPS[@]}"
-done < <(extract_section_bullets "### git — stale-state hygiene (write-safe)" | grep '^git ')
+done < <(extract_section_bullets "### git: stale-state hygiene (write-safe)" | grep '^git ')
 
 if [[ $FAILED -ne 0 ]]; then
   echo "FAILED: $FAILED test(s)"

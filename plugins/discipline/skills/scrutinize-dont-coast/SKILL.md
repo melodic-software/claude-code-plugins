@@ -1,5 +1,5 @@
 ---
-description: "Re-anchor adversarial self-scrutiny. Stop coasting on your own recent output, re-examine whether it is actually sound (not merely confidently produced) through a fresh-context pass blind to the reasoning that made it, and remediate with the user. Use when: 'scrutinize don't coast', 'wait, stop', 'are you sure about this', 'second-guess this', 'poke holes in what you just did', \"you're steamrolling\", 'push back on yourself', with an optional focus to scope the re-examination, or at conversation start to set the posture."
+description: "Re-anchor adversarial self-scrutiny. Stop coasting on recent output, re-examine whether it is actually sound (not merely confidently produced) through a fresh-context pass blind to the reasoning that made it, and remediate with the user. Use when: 'scrutinize don't coast', 'wait, stop', 'are you sure about this', 'second-guess this', 'poke holes in what you just did', \"you're steamrolling\", 'push back on yourself', with an optional focus to scope the re-examination, or at conversation start to set the posture."
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -59,9 +59,9 @@ runs in a fresh context"):
 2. **Remediate *with* the user, not autonomously.** The shared loop's step 3 (correct forward)
    corrects forward on its own, in-tree, now. Here that step becomes collaborative:
    surface the adversarial findings and work the fixes **with** the user rather than
-   barrelling ahead into an autonomous rewrite. The reason is the same failure mode
-   — the remedy for over-confident momentum cannot be *more* unilateral momentum;
-   the user just hit the brakes, so they stay in the loop on what changes. Purely
+   barrelling ahead into an autonomous rewrite. The reason is the same failure mode:
+   the remedy for over-confident momentum cannot be *more* unilateral momentum.
+   The user just hit the brakes, so they stay in the loop on what changes. Purely
    mechanical, unambiguous corrections (a typo the pass surfaced) are still fixed
    directly; anything carrying a judgment call is proposed and worked jointly.
 

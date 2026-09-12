@@ -802,6 +802,27 @@ def join(
     run: list[dict[str, Any]] = []
     for lane in sorted(lanes):
         files = lanes[lane]
+        if lane == "other":
+            # The catch-all lane holds every text file outside the language
+            # lanes (markdown, JSON, YAML, ...). No coverage artifact format
+            # measures those, so the lane has nothing to join and is not
+            # applicable rather than "0 of N present", which would turn every
+            # run over a documented repository partial for a reason that is
+            # not a gap.
+            for measure in ("coverage", "crap"):
+                run.append(
+                    {
+                        "lane": lane,
+                        "measure": measure,
+                        "collector": None,
+                        "status": "not-applicable",
+                        "reason": (
+                            "files outside every language lane; no coverage "
+                            "artifact format measures them"
+                        ),
+                    }
+                )
+            continue
         matched = [path for path in files if path in merged]
         # The scope files no artifact mentions, root-relative and sorted. The
         # count alone says how much of the lane went unmeasured; the paths say

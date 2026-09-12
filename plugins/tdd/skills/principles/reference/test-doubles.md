@@ -19,8 +19,8 @@ public void testOrderLookup() {
 
 **Benefits beyond performance:**
 
-- **Readability** — you can read the test end-to-end. With a real database of realistic data, "you have no idea why 14 is the right answer"
-- **Design pressure** — Mock Objects "encourage you down the path of carefully considering the visibility of every object, reducing the coupling in your designs"
+- **Readability**: you can read the test end-to-end. With a real database of realistic data, "you have no idea why 14 is the right answer"
+- **Design pressure**: Mock Objects "encourage you down the path of carefully considering the visibility of every object, reducing the coupling in your designs"
 
 **Risk:** What if the Mock doesn't behave like the real object? Mitigate by having tests that run against both the Mock and real object.
 
@@ -44,7 +44,7 @@ def startTest(self):
     self.count = self.count + 1
 ```
 
-The test case *is* the mock. "Tests written with Self Shunt tend to read better" — you can see both values in one place. May require Extract Interface. In Java, you'll implement "all sorts of bizarre interfaces."
+The test case *is* the mock. "Tests written with Self Shunt tend to read better" because you can see both values in one place. May require Extract Interface. In Java, you'll implement "all sorts of bizarre interfaces."
 
 ## Log String
 
@@ -107,19 +107,21 @@ This maps directly to **Command Query Separation (CQS)**:
 
 **Critical rule:** never assert interactions with stubs. A stub call is a means to produce the end result, not the end result itself. Verifying it is overspecification.
 
-> "Asserting interactions with stubs is a common anti-pattern that leads to fragile tests." — Khorikov
+> "Asserting interactions with stubs is a common anti-pattern that leads to fragile tests."
+>
+> Khorikov
 
-When a single double serves both roles (provides canned answers AND is verified), it's still called a mock — the mock role is the more important fact.
+When a single double serves both roles (provides canned answers AND is verified), it's still called a mock. The mock role is the more important fact.
 
 ## Five Mocking Best Practices (Khorikov, Ch 9)
 
-1. **Mock only unmanaged dependencies** — managed deps (database) use real instances; unmanaged deps (message bus, SMTP) get mocked
-2. **Verify interactions at system edges** — mock the last type in the chain (e.g., `IBus` not `IMessageBus`). Maximizes protection against regressions and resistance to refactoring
-3. **Mocks in integration tests only** — domain model tests are unit tests with no mocks. Controllers are integration tests — that's where mocks belong
-4. **Multiple mocks per test are fine** — the "one mock per test" guideline is a misconception. The number depends on the number of unmanaged dependencies in the operation
-5. **Verify both expected AND unexpected calls** — use `Times.Once` + `VerifyNoOtherCalls()` to ensure backward compatibility in both directions
+1. **Mock only unmanaged dependencies**: managed deps (database) use real instances; unmanaged deps (message bus, SMTP) get mocked
+2. **Verify interactions at system edges**: mock the last type in the chain (e.g., `IBus` not `IMessageBus`). Maximizes protection against regressions and resistance to refactoring
+3. **Mocks in integration tests only**: domain model tests are unit tests with no mocks. Controllers are integration tests, and that's where mocks belong
+4. **Multiple mocks per test are fine**: the "one mock per test" guideline is a misconception. The number depends on the number of unmanaged dependencies in the operation
+5. **Verify both expected AND unexpected calls**: use `Times.Once` + `VerifyNoOtherCalls()` to ensure backward compatibility in both directions
 
-**Spies are superior to mocks at system edges** — handwritten mocks with fluent assertion interfaces provide reusable, readable verification and don't rely on production code for assertions.
+**Spies are superior to mocks at system edges**. Handwritten mocks with fluent assertion interfaces provide reusable, readable verification and don't rely on production code for assertions.
 
 ## SDK-Style Interfaces Over Generic Fetchers
 
@@ -149,13 +151,13 @@ SDK approach: each mock returns one specific shape, no conditional logic in test
 
 Beck focuses on the *mechanics* of test doubles (how to build them). Khorikov focuses on the *policy* (when to use which kind, and what to verify). They agree on the core principle: mocks exist to verify interactions with external dependencies, not to isolate classes from each other. Beck's design pressure from mocks ("pass the Exchange as a parameter") aligns with Khorikov's stance that the need to mock reveals coupling problems.
 
-**Key difference:** Beck's Self Shunt and Log String patterns verify intra-system interactions (the test case implements the interface). Khorikov explicitly warns against this for domain classes — inter-domain interactions are implementation details. Use Beck's patterns for verifying *external-facing* communication; use Khorikov's taxonomy to decide whether to mock at all.
+**Key difference:** Beck's Self Shunt and Log String patterns verify intra-system interactions (the test case implements the interface). Khorikov explicitly warns against this for domain classes. Inter-domain interactions are implementation details. Use Beck's patterns for verifying *external-facing* communication; use Khorikov's taxonomy to decide whether to mock at all.
 
 Mock/stub taxonomy and CQS in full: [observable-behavior-khorikov.md](observable-behavior-khorikov.md). Managed vs unmanaged dependencies and the mocking best practices: [integration-testing-khorikov.md](integration-testing-khorikov.md).
 
 ## Replace, Don't Layer (Ousterhout)
 
-> Editorial synthesis — draws on Ousterhout, not from either source book.
+> Editorial synthesis, drawing on Ousterhout, not from either source book.
 
 When merging shallow modules behind a deeper interface ("deepening" per Ousterhout's *A Philosophy of Software Design*), the test surface moves to the deepened interface. The discipline: write new tests at the deepened interface, delete the old shallow-module tests, assert observable outcomes not internal state. If the `architecture` plugin is installed, `/architecture:improve` covers the wider deepening workflow ("Replace, don't layer"); when it is absent, the summary above is the full guidance.
 

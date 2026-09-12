@@ -127,18 +127,18 @@ generated once per session, `heartbeat_at` is rewritten every cycle, alongside `
 - No block at all → the marker is unclaimed. **Claim it before any work**: upsert a cycle-0 block
   carrying my nonce and heartbeat, immediately re-read, and run the creation-race reconcile above.
   If the canonical (lowest-id) comment for my marker then carries a different nonce, another
-  session claimed the instance first — take the live-collision branch below. Claiming first bounds
+  session claimed the instance first. Take the live-collision branch below. Claiming first bounds
   the race to the claim itself: two same-id sessions starting together each stop before either has
   performed work or overwritten the other's first durable state.
 - Nonce matches mine → ordinary continuation.
 - Nonce differs **and** the block carries a non-null `restart_request` → **clean handoff.**
   Recording the request is a stopping lane's last write, so a fresh `heartbeat_at` beneath one is
   a stopped predecessor, not a live writer. Adopt the block, clear `restart_request`, write my
-  nonce, continue — a replacement launched right after a cycle-budget or expiry stop starts
+  nonce, continue, so a replacement launched right after a cycle-budget or expiry stop starts
   immediately instead of waiting out the staleness window.
 - Nonce differs **and** the block is stale (`heartbeat_at` over **2 hours** old, and past
   `paused_until` when set) → an earlier session of this same instance restarted or died. Adopt the
-  block, write my nonce, continue — the ordinary restart path. Two hours is twice the one-hour
+  block, write my nonce, continue. This is the ordinary restart path. Two hours is twice the one-hour
   `ScheduleWakeup` ceiling, so a healthy lane at maximum idle backoff never reads as stale.
 - Nonce differs **and** the block is fresh with no pending `restart_request` → **another live lane
   holds my instance id.** Write nothing to the block, escalate per the convention's escalation
@@ -148,8 +148,8 @@ generated once per session, `heartbeat_at` is rewritten every cycle, alongside `
 work*; `paused_until` says *do not read my silence as death*. Write it before entering a rate-limit
 pause so a paused lane is never adopted as a dead one.
 
-Report the instance on its own `instance:` line in the cycle report, never appended to `lane:` —
-that reader's capture is `[a-z0-9_-]+` and would truncate the suffix at the `@`, rendering the lane
+Report the instance on its own `instance:` line in the cycle report, never appended to `lane:`.
+That reader's capture is `[a-z0-9_-]+` and would truncate the suffix at the `@`, rendering the lane
 as if nothing were partitioned.
 
 The legacy un-suffixed comment is never adopted, edited, or tombstoned: its marker names no writer,

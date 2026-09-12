@@ -3,6 +3,20 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.11]
+
+### Changed
+
+- Cite the marketplace `docs/` doctrine files by their lower-kebab names (`docs/plugin-philosophy.md`, `docs/migration-playbook.md`, and siblings); the files were renamed and the old uppercase paths no longer resolve.
+
+## [0.6.10]
+
+### Changed
+
+- **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
+- **The plugin's prose drops its em dashes.** Eleven surfaces were rewritten: this changelog, `skills/playwright/actions/update.md`, and nine `skills/playwright/reference/` documents. Wording only, with no change to any command, flag, selector, or recipe. Four headings lost a dashed separator and so changed anchor (`## Video basics`, `## Video hero scripts (via run-code)`, `## Advanced mocking via run-code`, and `## Raw mode: pipe into jq, diff, and similar`); nothing in the repository linked to any of them. Em dashes inside fenced examples are left alone, because there they are sample output rather than this repository's prose. The released sections corrected in place are 0.6.5, 0.6.2, 0.6.0, 0.5.0, 0.4.0, and 0.3.0: their wording changed, their facts did not.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md`, every `skills/*/SKILL.md`, and the `skills/playwright/actions/` and `skills/playwright/reference/` trees. The vendored upstream tree stays excluded, because it is reference material rather than this repository's own writing.
+
 ## [0.6.9]
 
 ### Changed
@@ -49,7 +63,7 @@ All notable changes to the `playwright` plugin are documented here. Format follo
 
 ### Changed
 
-- **Unsourced "27K vs 114K / roughly 4x" token figure removed** from README and the skill description/body — the number is not in upstream `@playwright/cli`'s docs (checked 2026-08-26), matching this changelog's 0.5.0 precedent of dropping unsourced performance figures. The qualitative claim (artifacts on disk, only paths in context) stands. From the repo-wide derivability/point-dont-copy audit (PR #3387).
+- **Unsourced "27K vs 114K / roughly 4x" token figure removed** from README and the skill description/body. The number is not in upstream `@playwright/cli`'s docs (checked 2026-08-26), matching this changelog's 0.5.0 precedent of dropping unsourced performance figures. The qualitative claim (artifacts on disk, only paths in context) stands. From the repo-wide derivability/point-dont-copy audit (PR #3387).
 
 ## [0.6.4]
 
@@ -80,7 +94,7 @@ All notable changes to the `playwright` plugin are documented here. Format follo
   canonical fleet wording, keeping the operable text inline with a provenance-only citation
   (whole-repo extract-ssot batch, #2698).
 - Normalized fleet-wide framing this plugin restates (cross-vendor advisor
-  fallback, untrusted-content posture, attribution/idiom prose — as touched) to the canonical
+  fallback, untrusted-content posture, attribution/idiom prose, as touched) to the canonical
   SSOT wording, operable text kept inline with provenance-only citations (#2698).
 
 ## [0.6.1]
@@ -102,8 +116,8 @@ All notable changes to the `playwright` plugin are documented here. Format follo
 
 - **The bare `/<skill>` alias for this plugin's skills.** Their `SKILL.md` files no longer
   declare a frontmatter `name`. The field is optional and defaults to the directory name, so
-  declaring it only restated the path while registering a second, unnamespaced command — which
-  the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
+  declaring it only restated the path while registering a second, unnamespaced command. The
+  slash-command picker then echoed that back as `/plugin:skill (skill)`. Invoke a skill by its
   namespaced command; the command itself is unchanged.
 
 ## [0.5.0]
@@ -116,9 +130,9 @@ All notable changes to the `playwright` plugin are documented here. Format follo
   browser-context creation and fitted into an 800×800 box, so the previously
   canonical bare `video-start demo.webm` recorded at 800×450 regardless of
   viewport intent, and `resize` afterwards did not change it. A correct
-  recording needs two matched levers — `PLAYWRIGHT_MCP_VIEWPORT_SIZE` prefixed
-  on `open` for what the page renders at, and `--size` for the output frame —
-  and the section tabulates the measured outcome of each partial combination.
+  recording needs two matched levers: `PLAYWRIGHT_MCP_VIEWPORT_SIZE` prefixed
+  on `open` for what the page renders at, and `--size` for the output frame.
+  The section tabulates the measured outcome of each partial combination.
   Also notes that the config file's `saveVideo` block is whole-session
   auto-save, a different mechanism from on-demand `video-start`.
 
@@ -127,16 +141,16 @@ All notable changes to the `playwright` plugin are documented here. Format follo
 - The canonical video example now carries both size levers, with a neutral
   illustrative resolution, and the capture checklist points at the new section.
 - `SKILL.md`'s "Defaults (accept, don't override)" section gains an explicit
-  video-recording exception. The `1280×720` viewport row stays — it is the
-  correct CLI default — and so does the "don't put `PLAYWRIGHT_MCP_*` in
-  project settings" posture; what was missing was the documented carve-out that
+  video-recording exception. The `1280×720` viewport row stays, because it is
+  the correct CLI default, and so does the "don't put `PLAYWRIGHT_MCP_*` in
+  project settings" posture. What was missing was the documented carve-out that
   video needs a per-command viewport prefix on `open`. Skill frontmatter is
   untouched.
 
 ### Fixed
 
 - "Known costs" no longer claims "1280×720 WebM is ~5 MB/minute". The CLI never
-  emits 1280×720 by default, and the figure was unsourced — it appears in no
+  emits 1280×720 by default, and the figure was unsourced. It appears in no
   upstream or official Playwright documentation. Replaced with a qualitative
   statement that size scales with frame area and on-screen motion, rather than
   re-anchoring an invented number to a different resolution.
@@ -152,9 +166,9 @@ All notable changes to the `playwright` plugin are documented here. Format follo
   `&`-in-URL shell-escaping guidance, all in `reference/commands.md`;
   `video-show-actions`/`video-hide-actions` auto-annotated video overlays in
   `reference/tracing-and-video.md`; and a distilled summary of the (now-merged)
-  spec-driven plan/generate/heal workflow in `reference/test-generation.md` —
-  self-contained rather than pointing normal use at `vendor/`, which this
-  skill's own SKILL.md reserves for drift-detection reading only.
+  spec-driven plan/generate/heal workflow in `reference/test-generation.md`.
+  That summary is self-contained rather than pointing normal use at `vendor/`,
+  which this skill's own SKILL.md reserves for drift-detection reading only.
 
 ## [0.3.2]
 
@@ -184,7 +198,7 @@ All notable changes to the `playwright` plugin are documented here. Format follo
   the main skill and its `reference/` files as the single source of truth and probes the
   `playwright-cli` binary and browser resolvability (surfacing the `install-browser` step and
   sandbox-egress caveat from the plugin's own docs). `apply` is guidance-and-verify with
-  exactly one write path — the explicitly invoked `apply install-cli`, which runs the global
+  exactly one write path: the explicitly invoked `apply install-cli`, which runs the global
   `npm install -g @playwright/cli` (stated before running) and re-probes the binary
   afterward. It points at `/playwright:playwright update` for the vendored-baseline flow
   rather than wrapping it.

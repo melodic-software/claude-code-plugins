@@ -14,19 +14,25 @@
 #
 # Output: JSON Lines on stdout, one object per repository, in argument order:
 #
-#   {"name":…,"path":…,"remote":…,"owner":…,"runtime":…,
-#    "target_framework":…,"dependencies":[…],"last_touched":…,"evidence":{…}}
+#   {"name":…,"path":…,"remote":…,"owner":…,"runtime":…,"tooling":…,
+#    "target_framework":…,"dependencies":[…],"dev_dependencies":[…],
+#    "last_touched":…,"evidence":{…}}
 #
 #   name              directory basename
 #   path              absolute path, as the shell resolved it
 #   remote            `origin` URL, or "unknown"
 #   owner             CODEOWNERS default rule, else the remote's owner segment,
 #                     else "unknown". Never a commit author.
-#   runtime           comma-joined list of every detected runtime, primary first,
-#                     or "unknown"
-#   target_framework  the primary runtime's framework/version declaration, or
-#                     "unknown"
-#   dependencies      sorted, de-duplicated, capped at 25
+#   runtime           comma-joined list of every runtime-scope family, primary
+#                     first, or "unknown"
+#   tooling           comma-joined list of every family found ONLY at
+#                     development scope, or "unknown"
+#   target_framework  the primary RUNTIME's framework/version declaration, or
+#                     "unknown". A development-scope declaration never fills it:
+#                     an engine constraint for a linter is not what the
+#                     repository runs on.
+#   dependencies      runtime scope; sorted, de-duplicated, capped at 25
+#   dev_dependencies  development scope; same sort, de-duplication, and cap
 #   last_touched      `git log -1 --format=%cI` on the given checkout (local
 #                     HEAD; nothing here fetches), or "unknown"
 #   evidence          per fact, the repo-relative file that supplied it, or the
@@ -92,12 +98,34 @@ json_escape() {
 # cached list. Thirteen separate `find` invocations over the same tree is the
 # obvious spelling and is minutes slower per repository on a filesystem with
 # per-open overhead, which is exactly where a fleet-wide run lives.
+#
+# Dot-directories are pruned by default, because the ones that accumulate are
+# caches and build output (`.venv`, `.mypy_cache`, `.tox`, `.next`) whose
+# vendored manifests describe someone else's package, not this repository.
+# `.git` goes with them. Enumerating cache directories is a losing game;
+# enumerating the CI and container config directories is not, so those few are
+# kept: their manifests are real evidence about the repository's TOOLING.
+#
+# A manifest under any dot-directory can therefore only ever be development
+# scope (see `effective_scope`). That is the path rule doing exactly one job,
+# with the runtime-versus-tooling call left to the scope axis: a
+# `requirements-ci.txt` under `.github/` names the linters CI installs, and
+# reporting it as a Python RUNTIME makes every shell-and-markdown repository
+# "a Python project". GitHub Linguist draws the same line from the other side,
+# vendoring `(^|/)\.github/` out of its language statistics.
+#
+# `-mindepth 1` keeps the prune off the starting point. Without it a repository
+# checked out at a dotted path (`~/.local/src/billing`) prunes ITSELF and every
+# probe reports unknown.
 REPO_FILES=""
 index_repo_files() {
   local root="$1"
   REPO_FILES="$(
-    find "$root" -maxdepth "$PROBE_DEPTH" \
-      \( -name node_modules -o -name vendor -o -name .venv -o -name .git \) -prune -o \
+    find "$root" -mindepth 1 -maxdepth "$PROBE_DEPTH" \
+      \( \( -name '.?*' \
+      ! -name '.github' ! -name '.gitlab' ! -name '.circleci' \
+      ! -name '.devcontainer' \) \
+      -o -name node_modules -o -name vendor \) -prune -o \
       -type f \( \
       -name '*.csproj' -o -name '*.fsproj' -o -name 'global.json' \
       -o -name 'package.json' \
@@ -111,13 +139,19 @@ index_repo_files() {
   )"
 }
 
-# First indexed file whose basename matches the glob, into FIND_HIT. Returns 1
+# The indexed file whose basename matches the glob, into FIND_HIT. Returns 1
 # and clears FIND_HIT when nothing matches. Assigns rather than prints for the
 # same reason json_escape does: a command substitution per probe is a fork per
 # probe, and there are a dozen probes per repository.
+#
+# A ROOT-LEVEL manifest wins over any deeper one, whatever the sort order says.
+# The root manifest describes the repository; a deeper one describes a single
+# component inside it. Taking the first sorted hit instead reports whichever
+# component happens to sort first, so a monorepo whose root `package.json`
+# targets Node 22 was reported as `apps/inner`'s Node 18.
 FIND_HIT=""
 find_first() {
-  local pattern="$1" line base
+  local pattern="$1" line base first_hit=""
   FIND_HIT=""
   while IFS= read -r line; do
     [[ -n "$line" ]] || continue
@@ -127,13 +161,22 @@ find_first() {
     # shellcheck disable=SC2254
     case "$base" in
     $pattern)
-      FIND_HIT="$line"
-      return 0
+      [[ -n "$first_hit" ]] || first_hit="$line"
+      # No slash means the hit sits at the repository root.
+      case "$line" in
+      */*) ;;
+      *)
+        FIND_HIT="$line"
+        return 0
+        ;;
+      esac
       ;;
     *) ;;
     esac
   done <<<"$REPO_FILES"
-  return 1
+  [[ -n "$first_hit" ]] || return 1
+  FIND_HIT="$first_hit"
+  return 0
 }
 
 # Every indexed file whose basename matches the glob, one per line.
@@ -350,6 +393,78 @@ requirements_names() {
 }
 
 # ---------------------------------------------------------------------------
+# Manifest scope
+# ---------------------------------------------------------------------------
+#
+# A repository RUNS ON its runtime and is BUILT WITH its tooling. Every
+# ecosystem that separates the two does it on scope rather than on path:
+# CycloneDX `scope`, SPDX DEV_DEPENDENCY_OF and BUILD_TOOL_OF, npm
+# devDependencies, PEP 735 dependency groups, and the GitHub dependency graph's
+# runtime/development. Each classifier reports `runtime` or `development` for
+# ONE manifest; the caller routes the family and its dependencies accordingly.
+
+# A package.json names tooling when devDependencies are its only dependency
+# section. Absence of every section is NOT evidence of tooling, so a manifest
+# carrying no dependencies at all stays runtime: it still declares a package.
+node_manifest_scope() {
+  local file="$1"
+  if [[ -n "$(
+    json_object_keys "$file" dependencies
+    json_object_keys "$file" peerDependencies
+  )" ]]; then
+    printf 'runtime'
+  elif [[ -n "$(json_object_keys "$file" devDependencies)" ]]; then
+    printf 'development'
+  else
+    printf 'runtime'
+  fi
+}
+
+# A requirements file names its own scope in its filename: `-dev`, `-ci`, and
+# `-test` are the pre-PEP-735 convention for a dependency group. Each token is
+# matched WITH its separator, because a bare substring test catches real
+# names — `requirements-scientific.txt` contains "ci" and is not tooling.
+requirements_scope() {
+  case "${1##*/}" in
+  *-dev.txt | *_dev.txt | *-dev-*.txt | dev-*.txt | \
+    *-ci.txt | *_ci.txt | *-ci-*.txt | ci-*.txt | \
+    *-test.txt | *_test.txt | test-*.txt | \
+    *-lint.txt | *-docs.txt | *-typing.txt)
+    printf 'development'
+    ;;
+  *) printf 'runtime' ;;
+  esac
+}
+
+# True when a repo-relative path has a dot-directory segment.
+dotdir_path() {
+  case "/$1" in
+  */.*/*) return 0 ;;
+  *) return 1 ;;
+  esac
+}
+
+# The scope a manifest actually carries: its content's scope, unless it sits
+# inside a dot-directory, which pins it to development however it reads. The
+# kept dot-directories are CI and container config, so a manifest there
+# describes the build, never what the repository runs on.
+effective_scope() {
+  if dotdir_path "$1"; then printf 'development'; else printf '%s' "$2"; fi
+}
+
+# A `[project]` table declares a Python project. A pyproject whose only
+# dependency surface is PEP 735 `[dependency-groups]` declares tooling.
+pyproject_scope() {
+  if grep -q '^[[:space:]]*\[project\]' "$1" 2>/dev/null; then
+    printf 'runtime'
+  elif grep -q '^[[:space:]]*\[dependency-groups\]' "$1" 2>/dev/null; then
+    printf 'development'
+  else
+    printf 'runtime'
+  fi
+}
+
+# ---------------------------------------------------------------------------
 # Per-repository collection
 # ---------------------------------------------------------------------------
 
@@ -393,13 +508,26 @@ for raw_path in "$@"; do
     fi
   fi
 
-  # --- runtime (first hit is primary, every hit is listed) ------------------
+  # --- runtime and tooling (first RUNTIME hit is primary) -------------------
   runtimes=()
+  toolings=()
   runtime_evidence=""
-  add_runtime() {
-    runtimes+=("$1")
-    [[ -n "$runtime_evidence" ]] && runtime_evidence="$runtime_evidence, "
-    runtime_evidence="$runtime_evidence$1: $2"
+  tooling_evidence=""
+  # $1 family, $2 manifest, $3 content scope. The dot-directory rule is applied
+  # here so every family gets it, including the ones that pass a literal
+  # `runtime` because their manifest format has no development scope of its own.
+  add_family() {
+    local scope
+    scope="$(effective_scope "$2" "$3")"
+    if [[ "$scope" == "development" ]]; then
+      toolings+=("$1")
+      [[ -n "$tooling_evidence" ]] && tooling_evidence="$tooling_evidence, "
+      tooling_evidence="$tooling_evidence$1: $2 (development scope)"
+    else
+      runtimes+=("$1")
+      [[ -n "$runtime_evidence" ]] && runtime_evidence="$runtime_evidence, "
+      runtime_evidence="$runtime_evidence$1: $2"
+    fi
   }
 
   dotnet_proj=""
@@ -410,39 +538,61 @@ for raw_path in "$@"; do
       break
     fi
   done
-  [[ -n "$dotnet_proj" ]] && add_runtime dotnet "$dotnet_proj"
+  [[ -n "$dotnet_proj" ]] && add_family dotnet "$dotnet_proj" runtime
 
   node_manifest=""
+  node_scope="runtime"
   if find_first 'package.json'; then
     node_manifest="$FIND_HIT"
+    node_scope="$(effective_scope "$node_manifest" "$(node_manifest_scope "$repo/$node_manifest")")"
     js_runtime="node"
     if [[ -f "$repo/bun.lockb" || -f "$repo/bun.lock" || -f "$repo/bunfig.toml" ]]; then
       js_runtime="bun"
     elif [[ -f "$repo/deno.json" || -f "$repo/deno.jsonc" || -f "$repo/deno.lock" ]]; then
       js_runtime="deno"
     fi
-    add_runtime "$js_runtime" "$node_manifest"
+    add_family "$js_runtime" "$node_manifest" "$node_scope"
   else
     node_manifest=""
   fi
 
+  # A pyproject settles the scope on its own. Otherwise a RUNTIME-scope
+  # requirements file is preferred over a development-scope one: taking the
+  # first sorted hit reports the repository as tooling merely because
+  # `requirements-dev.txt` sorts ahead of `requirements.txt`.
   py_manifest=""
-  for pattern in 'pyproject.toml' 'requirements*.txt' 'setup.py'; do
-    if find_first "$pattern"; then
-      hit="$FIND_HIT"
-      py_manifest="$hit"
-      break
+  py_dev_manifest=""
+  py_scope="runtime"
+  if find_first 'pyproject.toml'; then
+    py_manifest="$FIND_HIT"
+    py_scope="$(effective_scope "$py_manifest" "$(pyproject_scope "$repo/$py_manifest")")"
+  else
+    while IFS= read -r hit; do
+      [[ -n "$hit" ]] || continue
+      if [[ "$(effective_scope "$hit" "$(requirements_scope "$hit")")" == "development" ]]; then
+        [[ -n "$py_dev_manifest" ]] || py_dev_manifest="$hit"
+      else
+        py_manifest="$hit"
+        break
+      fi
+    done < <(find_all 'requirements*.txt')
+    if [[ -z "$py_manifest" ]] && find_first 'setup.py'; then
+      py_manifest="$FIND_HIT"
     fi
-  done
-  [[ -n "$py_manifest" ]] && add_runtime python "$py_manifest"
+    if [[ -z "$py_manifest" && -n "$py_dev_manifest" ]]; then
+      py_manifest="$py_dev_manifest"
+      py_scope="development"
+    fi
+  fi
+  [[ -n "$py_manifest" ]] && add_family python "$py_manifest" "$py_scope"
 
   go_manifest=""
   if find_first 'go.mod'; then go_manifest="$FIND_HIT"; else go_manifest=""; fi
-  [[ -n "$go_manifest" ]] && add_runtime go "$go_manifest"
+  [[ -n "$go_manifest" ]] && add_family go "$go_manifest" runtime
 
   rust_manifest=""
   if find_first 'Cargo.toml'; then rust_manifest="$FIND_HIT"; else rust_manifest=""; fi
-  [[ -n "$rust_manifest" ]] && add_runtime rust "$rust_manifest"
+  [[ -n "$rust_manifest" ]] && add_family rust "$rust_manifest" runtime
 
   jvm_manifest=""
   for pattern in 'pom.xml' 'build.gradle*'; do
@@ -452,22 +602,24 @@ for raw_path in "$@"; do
       break
     fi
   done
-  [[ -n "$jvm_manifest" ]] && add_runtime jvm "$jvm_manifest"
+  [[ -n "$jvm_manifest" ]] && add_family jvm "$jvm_manifest" runtime
 
   ruby_manifest=""
   if find_first 'Gemfile'; then ruby_manifest="$FIND_HIT"; else ruby_manifest=""; fi
-  [[ -n "$ruby_manifest" ]] && add_runtime ruby "$ruby_manifest"
+  [[ -n "$ruby_manifest" ]] && add_family ruby "$ruby_manifest" runtime
 
   php_manifest=""
   if find_first 'composer.json'; then php_manifest="$FIND_HIT"; else php_manifest=""; fi
-  [[ -n "$php_manifest" ]] && add_runtime php "$php_manifest"
+  [[ -n "$php_manifest" ]] && add_family php "$php_manifest" runtime
 
-  # `shell` only when nothing else claimed the repository.
+  # `shell` only when no RUNTIME-scope family claimed the repository. A
+  # development-scope family never suppresses it: a shell-and-markdown
+  # repository that lints with Node still runs on shell.
   if [[ ${#runtimes[@]} -eq 0 ]]; then
     for pattern in '*.sh' '*.ps1'; do
       if find_first "$pattern"; then
         hit="$FIND_HIT"
-        add_runtime shell "$hit"
+        add_family shell "$hit" runtime
         break
       fi
     done
@@ -475,11 +627,21 @@ for raw_path in "$@"; do
 
   if [[ ${#runtimes[@]} -eq 0 ]]; then
     runtime="unknown"
-    runtime_evidence="no runtime manifest under depth $PROBE_DEPTH"
+    runtime_evidence="no runtime-scope manifest under depth $PROBE_DEPTH"
   else
     runtime="$(
       IFS=,
       printf '%s' "${runtimes[*]}"
+    )"
+  fi
+
+  if [[ ${#toolings[@]} -eq 0 ]]; then
+    tooling="unknown"
+    tooling_evidence="no development-scope manifest under depth $PROBE_DEPTH"
+  else
+    tooling="$(
+      IFS=,
+      printf '%s' "${toolings[*]}"
     )"
   fi
 
@@ -540,12 +702,22 @@ for raw_path in "$@"; do
   *) ;;
   esac
 
-  # --- dependencies (every detected runtime family contributes) -------------
+  # --- dependencies, split by scope -----------------------------------------
+  # Runtime-scope names land in `dependencies`; development-scope names land in
+  # `dev_dependencies`. devDependencies are collected either way: a runtime
+  # manifest still has tooling, and reporting it is what keeps the two columns
+  # honest instead of silently dropping half the manifest.
   dep_raw=""
   dep_sources=""
+  dev_dep_raw=""
+  dev_dep_sources=""
   note_dep_source() {
     [[ -n "$dep_sources" ]] && dep_sources="$dep_sources, "
     dep_sources="$dep_sources$1"
+  }
+  note_dev_dep_source() {
+    [[ -n "$dev_dep_sources" ]] && dev_dep_sources="$dev_dep_sources, "
+    dev_dep_sources="$dev_dep_sources$1"
   }
 
   # `global.json` alone marks the runtime but carries no references, so it must
@@ -564,12 +736,19 @@ for raw_path in "$@"; do
   fi
 
   if [[ -n "$node_manifest" ]]; then
-    hits="$(
-      json_object_keys "$repo/$node_manifest" dependencies
-      json_object_keys "$repo/$node_manifest" peerDependencies
-    )"
-    [[ -n "$hits" ]] && dep_raw="$dep_raw$hits"$'\n'
-    note_dep_source "$node_manifest (dependencies + peerDependencies)"
+    if [[ "$node_scope" != "development" ]]; then
+      hits="$(
+        json_object_keys "$repo/$node_manifest" dependencies
+        json_object_keys "$repo/$node_manifest" peerDependencies
+      )"
+      [[ -n "$hits" ]] && dep_raw="$dep_raw$hits"$'\n'
+      note_dep_source "$node_manifest (dependencies + peerDependencies)"
+    fi
+    hits="$(json_object_keys "$repo/$node_manifest" devDependencies)"
+    if [[ -n "$hits" ]]; then
+      dev_dep_raw="$dev_dep_raw$hits"$'\n'
+      note_dev_dep_source "$node_manifest (devDependencies)"
+    fi
   fi
 
   if [[ -n "$py_manifest" ]]; then
@@ -595,8 +774,15 @@ for raw_path in "$@"; do
     else
       hits="$(requirements_names <"$repo/$py_manifest")"
     fi
-    [[ -n "$hits" ]] && dep_raw="$dep_raw$hits"$'\n'
-    note_dep_source "$py_manifest"
+    if [[ "$py_scope" == "development" ]]; then
+      if [[ -n "$hits" ]]; then
+        dev_dep_raw="$dev_dep_raw$hits"$'\n'
+        note_dev_dep_source "$py_manifest (development scope)"
+      fi
+    else
+      [[ -n "$hits" ]] && dep_raw="$dep_raw$hits"$'\n'
+      note_dep_source "$py_manifest"
+    fi
   fi
 
   if [[ -n "$go_manifest" ]]; then
@@ -624,7 +810,16 @@ for raw_path in "$@"; do
       dependencies+=("$dep")
     done < <(printf '%s' "$dep_raw" | grep -v '^[[:space:]]*$' | LC_ALL=C sort -u | head -"$DEP_CAP")
   fi
-  [[ -n "$dep_sources" ]] || dep_sources="no dependency manifest"
+  [[ -n "$dep_sources" ]] || dep_sources="no runtime-scope dependency manifest"
+
+  dev_dependencies=()
+  if [[ -n "$dev_dep_raw" ]]; then
+    while IFS= read -r dep; do
+      [[ -n "$dep" ]] || continue
+      dev_dependencies+=("$dep")
+    done < <(printf '%s' "$dev_dep_raw" | grep -v '^[[:space:]]*$' | LC_ALL=C sort -u | head -"$DEP_CAP")
+  fi
+  [[ -n "$dev_dep_sources" ]] || dev_dep_sources="no development-scope dependency manifest"
 
   # --- last touched (local HEAD; nothing here fetches) ----------------------
   last_touched="$(git -C "$repo" log -1 --format=%cI 2>/dev/null)" || last_touched=""
@@ -642,6 +837,7 @@ for raw_path in "$@"; do
   json_escape "$remote" && record="$record\"remote\":\"$JSON_ESC\","
   json_escape "$owner" && record="$record\"owner\":\"$JSON_ESC\","
   json_escape "$runtime" && record="$record\"runtime\":\"$JSON_ESC\","
+  json_escape "$tooling" && record="$record\"tooling\":\"$JSON_ESC\","
   json_escape "$target_framework" && record="$record\"target_framework\":\"$JSON_ESC\","
   record="$record\"dependencies\":["
   for ((di = 0; di < ${#dependencies[@]}; di++)); do
@@ -649,18 +845,26 @@ for raw_path in "$@"; do
     json_escape "${dependencies[$di]}"
     record="$record\"$JSON_ESC\""
   done
+  record="$record],\"dev_dependencies\":["
+  for ((di = 0; di < ${#dev_dependencies[@]}; di++)); do
+    [[ "$di" -gt 0 ]] && record="$record,"
+    json_escape "${dev_dependencies[$di]}"
+    record="$record\"$JSON_ESC\""
+  done
   record="$record],"
   json_escape "$last_touched" && record="$record\"last_touched\":\"$JSON_ESC\","
   record="$record\"evidence\":{"
   json_escape "$owner_evidence" && record="$record\"owner\":\"$JSON_ESC\","
   json_escape "$runtime_evidence" && record="$record\"runtime\":\"$JSON_ESC\","
+  json_escape "$tooling_evidence" && record="$record\"tooling\":\"$JSON_ESC\","
   json_escape "$tf_evidence" && record="$record\"target_framework\":\"$JSON_ESC\","
   json_escape "$dep_sources" && record="$record\"dependencies\":\"$JSON_ESC\","
+  json_escape "$dev_dep_sources" && record="$record\"dev_dependencies\":\"$JSON_ESC\","
   json_escape "$lt_evidence" && record="$record\"last_touched\":\"$JSON_ESC\""
   record="$record}}"
   printf '%s\n' "$record"
 
-  unset -f add_runtime note_dep_source
+  unset -f add_family note_dep_source note_dev_dep_source
 done
 
 exit "$exit_code"

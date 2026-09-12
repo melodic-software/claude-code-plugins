@@ -1,19 +1,19 @@
-# Purge Workflow (destructive — confirm-gated)
+# Purge Workflow (destructive, confirm-gated)
 
 Delete the auto-memory files for the current repo. This is irreversible. Never delete before
 the confirmation gate in Step 3.
 
-For `purge all` (machine-wide): the flow is the same Steps 1–5 with a wider candidate set —
-in Step 1, the candidates are EVERY per-project store from
+For `purge all` (machine-wide): the flow is the same Steps 1–5 with a wider candidate set.
+In Step 1, the candidates are EVERY per-project store from
 `bash "${CLAUDE_PLUGIN_ROOT}/skills/stateless/scripts/enumerate-all-projects.sh"` (plus any
 `autoMemoryDirectory` overrides found in the scopes readable from here), not just the current
 project's. Step 2 captures ONE combined manifest across all candidate dirs (the loop already
 takes a list). Step 3 raises ONE combined gate that states the machine-wide total file count
-AND lists every directory with its per-dir count — a machine-wide delete must never ride on a
+AND lists every directory with its per-dir count. A machine-wide delete must never ride on a
 single-project-sounding confirmation. The backup offer applies to the whole manifest (each
 source dir gets its own sibling `.bak-<UTC>/`, same timestamp). Steps 4–5 are unchanged.
 
-Known limit — state it in the combined gate: a project that relocated its store via
+State this known limit in the combined gate: a project that relocated its store via
 `autoMemoryDirectory` in its own repo's `.claude/settings(.local).json` is NOT discoverable
 from enumeration (only that repo's settings scopes know), so its store is absent from the
 manifest and survives `purge all`. Say so in the gate ("relocated per-repo stores are not
@@ -24,10 +24,10 @@ included") and offer to additionally check any repos the user names.
 The store may be relocated by `autoMemoryDirectory`, which is read from **any** settings scope
 (user, project, local, policy, `--settings`). Miss that and you purge the wrong place. So:
 
-1. Read `autoMemoryDirectory` from every present settings scope (managed / local / project /
-   user — the snapshot in SKILL.md lists which files exist; Read each). Expand `~/` to `$HOME`.
+1. Read `autoMemoryDirectory` from every present settings scope: managed, local, project, and
+   user. The snapshot in SKILL.md lists which files exist; Read each. Expand `~/` to `$HOME`.
 2. Resolve the default via the snapshot / `scope-report.sh` (slug-derived
-   `${CLAUDE_CONFIG_DIR:-~/.claude}/projects/<project>/memory/` — the config root honors
+   `${CLAUDE_CONFIG_DIR:-~/.claude}/projects/<project>/memory/`, and the config root honors
    `CLAUDE_CONFIG_DIR`, so a config root relocated by it is the *expected* tree, not a flag).
 3. Build the candidate set = the highest-precedence `autoMemoryDirectory` override if any set,
    plus the default. Include the default even when an override exists (older writes may remain
@@ -35,8 +35,8 @@ The store may be relocated by `autoMemoryDirectory`, which is read from **any** 
 
 ## Step 2: Capture the exact manifest (and flag relocations)
 
-Enumerate the files ONCE into an explicit list, and delete exactly that captured list in Step 4
-— never re-glob at deletion time (a re-glob reopens a time-of-check/time-of-use gap and can
+Enumerate the files ONCE into an explicit list, and delete exactly that captured list in Step 4.
+Never re-glob at deletion time (a re-glob reopens a time-of-check/time-of-use gap and can
 delete files created between the manifest and the delete). Capture regular files only (`-type f`
 skips symlinks, so a symlinked `*.md` is never followed):
 
@@ -58,13 +58,13 @@ Present to the user:
 - Each directory and the **resolved absolute path** of every file in `$manifest` (with count).
 - **Explicitly flag any `UNEXPECTED RELOCATION` line**: a candidate dir outside the config root's
   `projects/` tree came from an `autoMemoryDirectory` override that a project/local settings file
-  can set — confirm the user intends to delete from that absolute path before proceeding, since
+  can set. Confirm the user intends to delete from that absolute path before proceeding, since
   it could point at an unrelated directory.
-- That this deletes auto-memory notes only — **not** CLAUDE.md, rules, transcripts, or history.
+- That this deletes auto-memory notes only, **not** CLAUDE.md, rules, transcripts, or history.
   If the intent is the full per-project wipe, point to `claude project purge` instead, and state
   its scope to the user (what it deletes and what it leaves alone)
   from the verbatim quotes in
-  [reference/official-guidance.md](../reference/official-guidance.md) rather than from memory —
+  [reference/official-guidance.md](../reference/official-guidance.md) rather than from memory.
   <https://code.claude.com/docs/en/claude-directory> owns the deletion plan and flags.
 - If `$manifest` is empty, report that there is nothing to purge and stop (no-op).
 
@@ -79,20 +79,19 @@ paths), and offer an opt-in backup in the same question, e.g.:
 > cancelled too (you can re-confirm a plain delete afterwards). Type "yes" to delete, or
 > "yes, with backup" to snapshot first.
 
-Proceed only on an unambiguous yes. Anything else — abort and change nothing. Never infer
+Proceed only on an unambiguous yes. On anything else, abort and change nothing. Never infer
 consent from the original request; the gate is a separate, explicit step.
 
 **A bundled or earlier multi-option answer does NOT satisfy this gate.** Consent that rode
-along in an upstream flow — a `/planning:interview` round where "purge" was one bullet of a bundled
-answer, a numbered menu selection (`"1"`) whose option happened to include the purge, or a
-"go stateless and purge" given before the manifest existed — is materially weaker than this
-gate's bar. The gate must restate the concrete, now-known scope (file count, directories)
+along in an upstream flow is materially weaker than this gate's bar: a `/planning:interview` round
+where "purge" was one bullet of a bundled answer, a numbered menu selection (`"1"`) whose option
+happened to include the purge, or a "go stateless and purge" given before the manifest existed. The gate must restate the concrete, now-known scope (file count, directories)
 and receive a fresh confirmation that references that scope specifically.
 
 ## Step 4: Optional backup, then delete the captured manifest
 
 **Backup first when the user opted in** ("yes, with backup"). Copy exactly the files
-captured in `$manifest` — same no-re-glob discipline as the delete; never copy a directory
+captured in `$manifest`, the same no-re-glob discipline as the delete; never copy a directory
 recursively. Each source directory gets its own sibling snapshot `<dir>.bak-<UTC>/`:
 
 ```bash
@@ -124,14 +123,14 @@ fi
 ```
 
 Proceed to the delete ONLY when `copied == total`. On any shortfall (full disk,
-permissions), abort the purge, report the partial snapshot's path, and change nothing —
-the user can re-confirm a plain no-backup delete afterwards if they still want it.
+permissions), abort the purge, report the partial snapshot's path, and change nothing. The
+user can re-confirm a plain no-backup delete afterwards if they still want it.
 `cp -- "$file"` on a manifest entry copies a regular file only (the Step 2 capture was
 `-type f`); the backup lives beside the memory dir, outside it, so it is never re-matched
 by a future purge's `-maxdepth 1` enumeration of the memory dir itself.
 
 After confirmation (and the backup, when requested), delete exactly the paths captured in
-`$manifest` in Step 2 — do not re-enumerate, do not `find ... -delete`, do not `rm -rf`
+`$manifest` in Step 2. Do not re-enumerate, do not `find ... -delete`, do not `rm -rf`
 any directory:
 
 ```bash
@@ -150,13 +149,13 @@ otherwise leaving the empty directory is harmless.
 
 - Confirm what was deleted (files, directories).
 - If a backup was taken, report its absolute path(s) (`<dir>.bak-<UTC>/`) and note the
-  snapshot is the user's to keep or delete — the skill never auto-prunes it.
+  snapshot is the user's to keep or delete, since the skill never auto-prunes it.
 - Purge removes existing notes but does **not** stop new ones. If the user wants to stay
   stateless, point to `disable` (or run it now if they ask) so Claude doesn't immediately
   re-accumulate memory.
 - If the intent was wiping everything Claude holds for this repo, point to
-  `claude project purge` (Step 2's pointer) — its scope is the full per-project one quoted in
+  `claude project purge` (Step 2's pointer). Its scope is the full per-project one quoted in
   [reference/official-guidance.md](../reference/official-guidance.md), not auto memory alone.
 - If the user wants to be stateless everywhere, summarize the Claude Desktop / claude.ai
-  account store steps in [desktop.md](desktop.md) — that store is server-side and cannot be
+  account store steps in [desktop.md](desktop.md). That store is server-side and cannot be
   deleted from here.

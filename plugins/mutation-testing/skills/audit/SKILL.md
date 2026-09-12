@@ -41,7 +41,7 @@ Arguments: `$ARGUMENTS`
 - **`--no-suppress`**: include mutants that the arid-node record would otherwise suppress, marked as
   suppressed. Read-only inspection of the suppression policy; it never edits the record.
 - **`--persist-findings`**: after reporting, also write the survivors as a findings file the
-  `review:fanout` `fix` action consumes ([Phase 6](#phase-6--persist-opt-in)). Off by default.
+  `review:fanout` `fix` action consumes ([Phase 6](#phase-6-persist-opt-in)). Off by default.
 
 ### Effort, the mutant cap of last resort
 
@@ -72,19 +72,19 @@ Three properties, stated first because everything below depends on them:
    regime permits, so a run **either** ends with tracked source byte-identical to tracked source at
    the start **or** ends in failure naming what it could not restore, never in a reported outcome
    over edited source. The first tracked path that cannot be confirmed restored is that failure: no
-   later phase runs and nothing is persisted ([Phase 3](#phase-3--execute)). Per the
+   later phase runs and nothing is persisted ([Phase 3](#phase-3-execute)). Per the
    naming doctrine's verb contract, `audit` reports and stops, and bare invocation does exactly
    that. `--persist-findings` is the explicit user override that verb contract sanctions
-   (the marketplace's `docs/PLUGIN-PHILOSOPHY.md` verb table). Its writes, the findings file and
+   (the marketplace's `docs/plugin-philosophy.md` verb table). Its writes, the findings file and
    the self-ignore guard's own `.gitignore` when a governing checkout was found and the guard heals
    that root, are each **proven outside tracked space before that write is made**, never in tracked
    source and never in a file another producer owns.
 2. **No tests are written here.** Survivors are handed to the test-authoring lane. This skill never
    both creates a gap and closes it.
 3. **No verdict this skill produces is graded by the context that produced it.** See
-   [Phase 4](#phase-4--triage-fresh-context).
+   [Phase 4](#phase-4-triage-fresh-context).
 
-## Phase 0 — Preflight
+## Phase 0: Preflight
 
 Refuse to proceed, with the specific remediation, when any of these fail:
 
@@ -103,11 +103,11 @@ stale.
 
 **Capture `git status --porcelain` here.** This is *the Phase 0 snapshot* every later restoration
 check compares against, and the rest of this skill refers to it by that name. It is taken before the
-first mutant is applied and never re-taken: a snapshot refreshed mid-run would absorb the very
+first mutant is applied and never re-taken. A snapshot refreshed mid-run would absorb the very
 difference it exists to detect.
 
 **Resolve the write regime here too**, because it decides which restoration gate
-[Phase 3](#phase-3--execute) can run: does the configured tool write mutants out of tree, rewrite the
+[Phase 3](#phase-3-execute) can run: does the configured tool write mutants out of tree, rewrite the
 working file whole once, or apply and revert it per mutant? Read the project's own config and the
 installed tool version for it. Two rows of the `principles` skill's
 [`tooling.md`](../principles/reference/tooling.md) table can land in tree: StrykerJS under
@@ -118,7 +118,7 @@ State the resolved regime in the scope report. Refuse when the regime is in-tree
 tool offers neither per-mutant observability nor interrupt safety: the gate that regime requires
 cannot be run, and a check that cannot run is not a check.
 
-## Phase 1 — Scope
+## Phase 1: Scope
 
 1. Resolve the changed lines: `git diff --unified=0 <diff-target>...HEAD` for the files inside the
    configured `mutate` globs, intersected with any `--paths` or scope argument.
@@ -153,7 +153,7 @@ cannot be run, and a check that cannot run is not a check.
    and the estimated wall-clock from `baseline-suite-ms × mutants`. If a cap truncates the set, say
    what was dropped, a truncated run must never read as a clean one.
 
-## Phase 2 — Generate
+## Phase 2: Generate
 
 **At most one mutant per changed line.** Not every operator at every location. The marginal value of
 a second mutant on a line is near zero: if the line is unchecked, one mutant proves it.
@@ -162,7 +162,7 @@ Where the configured tool supports diff-scoped generation, use it. `--since`, `-
 `--git-diff-lines`. Where `tool: manual`, apply the single-operator protocol from the `principles`
 skill's `tooling.md`: prefer statement/block removal, then relational-operator inversion.
 
-## Phase 3 — Execute
+## Phase 3: Execute
 
 For each mutant: apply, run the cached covering tests, record the state
 (killed / survived / no-coverage / timeout / invalid), revert. **Where the mutant was written to
@@ -179,7 +179,7 @@ Phase 0 snapshot rather than a clean tree, the three regimes that decide when th
 run, and what a failed restore does to the rest of the run. Phases 5 and 6 exist only for a run
 whose restoration was verified here.
 
-## Phase 4 — Triage (fresh context)
+## Phase 4: Triage (fresh context)
 
 Every surviving mutant is one of three things, and the difference is a judgment:
 
@@ -211,7 +211,7 @@ either from inspection alone is exactly where this technique manufactures false 
   returned**, piping it in so nothing is written:
   `printf '%s\n' '<the proposed entry under a suppressions: mapping>' | bash "${CLAUDE_PLUGIN_ROOT}/scripts/suppression-lint.sh" -`.
   The check stays here rather than going out with the judgment because it is mechanical, the same
-  exemption [Phase 3](#phase-3--execute) states: there is no independence to buy from a derivation
+  exemption [Phase 3](#phase-3-execute) states: there is no independence to buy from a derivation
   that has one answer. The verdict is arid only when the lint reports `ok`; `malformed`, `mismatch`,
   or `unknown-kind` makes it *unclassified*. The lint reads the kind vocabulary at run time from the `principles`
   skill's [`scaling-and-suppression.md`](../principles/reference/scaling-and-suppression.md) "The
@@ -227,7 +227,7 @@ reading the report and then the findings file cannot be shown "arid" in one and 
 other. It also means the bar binds a bare run, not only `--persist-findings`, the human-facing
 report is exactly where an unevidenced withholding claim does its damage.
 
-## Phase 5 — Report
+## Phase 5: Report
 
 Per file, ranked by **oracle gap**, not by score. The gap is defined once, in the `principles`
 skill's [`${CLAUDE_PLUGIN_ROOT}/skills/principles/reference/metrics.md`](../principles/reference/metrics.md), and this skill does not restate it:
@@ -252,7 +252,7 @@ answers "are my tests weak", the second mixes that with "do I have tests at all"
 Then stop, unless `--persist-findings` was passed. Remediation is delegated. This phase is reached
 only by a run whose restoration Phase 3 verified; a failed restore ended it there.
 
-## Phase 6 — Persist (opt-in)
+## Phase 6: Persist (opt-in)
 
 Runs **only** under `--persist-findings`, and only on a run whose restoration Phase 3 verified.
 Without the flag this phase does not exist and Phase 5 is the end of the run; without a verified
@@ -340,11 +340,11 @@ Each one produces a *plausible* result, which is what makes them worth listing.
 - **A partially-completed run must report as partial.** Mutants that never ran are named as not-run,
   never counted as killed, never silently omitted. The same rule applies to a mutant set truncated
   by a cap. **A run cut short by a failed restore is not this case**. It reports failure, not a
-  partial result ([Phase 3](#phase-3--execute)). A partial report describes a tree that is intact;
+  partial result ([Phase 3](#phase-3-execute)). A partial report describes a tree that is intact;
   that one is not.
 - **Reaching for a withholding label is the standard way this technique manufactures false
   confidence.** "Equivalent" is the convenient explanation for any survivor whose test is hard to
-  write. [Phase 4](#phase-4--triage-fresh-context) holds the bar for both withholding labels; do not
+  write. [Phase 4](#phase-4-triage-fresh-context) holds the bar for both withholding labels; do not
   soften it when a survivor is inconvenient.
 - **A persisted findings file written to the wrong directory fails silently.** Nothing reports the
   miss: the run says it persisted, the file exists, and the consumer never scans that path. It is the
