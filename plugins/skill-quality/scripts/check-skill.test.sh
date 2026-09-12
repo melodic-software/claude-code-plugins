@@ -631,6 +631,102 @@ else
   fail "commented misnamed skill should still fail (rc=$rc): $out"
 fi
 
+# 17b. The effective name is capped at the Agent Skills spec's 64 codepoints.
+#      With no declared `name:` the directory leaf IS the name the harness uses,
+#      so a 65-char leaf FAILs even though the frontmatter carries no name line.
+#      Claude Code itself loads such a skill; the finding is portability.
+long_leaf='abcde-abcde-abcde-abcde-abcde-abcde-abcde-abcde-abcde-abcde-fghij'
+make_skill "$long_leaf" '---
+description: "Over-long directory leaf. Use when: '"'"'checking the name length cap'"'"'."
+---
+
+## Purpose
+
+Fixture whose 65-character directory leaf is its effective name.
+
+## Gotchas
+
+None known.
+'
+out="$(run "$long_leaf" 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q "is 65 codepoints (Agent Skills spec maximum 64)" <<<"$out"; then
+  pass "a 65-codepoint effective name fails the spec length cap"
+else
+  fail "a 65-codepoint name should fail the length cap (rc=$rc): $out"
+fi
+
+# 17b-boundary. Exactly 64 is conforming: the spec says a maximum, so 64 passes
+#               and 65 is the first breach.
+edge_leaf='abcde-abcde-abcde-abcde-abcde-abcde-abcde-abcde-abcde-abcde-fghi'
+make_skill "$edge_leaf" '---
+description: "Sixty-four character leaf. Use when: '"'"'checking the name length boundary'"'"'."
+---
+
+## Purpose
+
+Fixture whose directory leaf sits exactly at the cap.
+
+## Gotchas
+
+None known.
+'
+out="$(run "$edge_leaf" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'Agent Skills spec maximum 64' <<<"$out"; then
+  pass "a 64-codepoint effective name is conforming"
+else
+  fail "a 64-codepoint name should pass the length cap (rc=$rc): $out"
+fi
+
+# 17c. A reserved word anywhere in the effective name WARNs (a Skills API upload
+#      rejects it; Claude Code loads it). Directory-leaf form: no declared name,
+#      the leaf carries "claude".
+make_skill claude-helper '---
+description: "Reserved word in the leaf. Use when: '"'"'checking reserved names'"'"'."
+---
+
+## Purpose
+
+Fixture whose directory leaf carries a reserved word.
+
+## Gotchas
+
+None known.
+'
+out="$(run claude-helper 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q "WARN: skill name 'claude-helper' contains the word 'claude'" <<<"$out"; then
+  pass "a directory leaf containing 'claude' warns on the reserved-word rule and passes"
+else
+  fail "a leaf containing 'claude' should warn and pass (rc=$rc): $out"
+fi
+
+# 17d. Declared-name form of 17c: the same rule reads the declared field when
+#      there is one, and names it as the thing to rename.
+make_skill anthropic-notes '---
+name: anthropic-notes
+description: "Reserved word in the declared name. Use when: '"'"'checking reserved names'"'"'."
+---
+
+## Purpose
+
+Fixture whose declared name carries a reserved word.
+
+## Gotchas
+
+None known.
+'
+out="$(run anthropic-notes 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] &&
+  grep -q "WARN: skill name 'anthropic-notes' contains the word 'anthropic'" <<<"$out" &&
+  grep -q 'rename the declared name' <<<"$out"; then
+  pass "a declared name containing 'anthropic' warns, passes, and names the declared field"
+else
+  fail "a declared name containing 'anthropic' should warn and pass (rc=$rc): $out"
+fi
+
 # 18a. A fenced shell block of read-only context-gathering commands, with no `!`
 #      injection anywhere, warns (precompute opportunity) but passes.
 make_skill precompute-cand '---
@@ -2548,6 +2644,95 @@ else
   fail "unhosted ref should keep the broken-internal-ref message (rc=$rc): $out"
 fi
 
+# 36d. Check 5: a backslash-separated pointer FAILs in its own right, naming the
+#      forward-slash form. The resolve loop never sees such a path (its
+#      char-class has no backslash), so without this limb a Windows-authored
+#      pointer skipped the check silently. Both citation forms are covered; the
+#      file existing under the skill does not rescue it, because the defect is
+#      the separator (rejected at plugin load on macOS and Linux), not a miss.
+mkdir -p "$SKILLS/backslash-citer/scripts" "$SKILLS/backslash-citer/reference"
+printf 'echo helper\n' >"$SKILLS/backslash-citer/scripts/helper.py"
+printf 'guide\n' >"$SKILLS/backslash-citer/reference/guide.md"
+make_skill backslash-citer '---
+description: "Cites files with backslashes. Use when: '"'"'checking backslash pointers'"'"'."
+---
+
+## Purpose
+
+Run `scripts\helper.py` first, then read [the guide](reference\guide.md#setup).
+
+## Gotchas
+
+None known.
+'
+out="$(run backslash-citer 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] &&
+  grep -q 'backslash path separator in skill-internal ref: scripts\\helper.py' <<<"$out" &&
+  grep -q 'write it with forward slashes: scripts/helper.py' <<<"$out" &&
+  grep -q 'backslash path separator in skill-internal ref: reference\\guide.md' <<<"$out"; then
+  pass "a backslash-separated pointer fails and names the forward-slash form"
+else
+  fail "backslash pointers should fail in both citation forms (rc=$rc): $out"
+fi
+
+# 36e. False-positive guard: a prose escape is not a path. An escaped pipe in a
+#      usage synopsis, an escaped underscore, and a `\n` in a code span all carry
+#      a backslash near an internal-dir token and none has the dir, backslash,
+#      filename-with-extension shape the limb requires.
+mkdir -p "$SKILLS/escape-prose/scripts"
+printf 'echo update\n' >"$SKILLS/escape-prose/scripts/update.sh"
+make_skill escape-prose '---
+description: "Carries prose escapes. Use when: '"'"'checking backslash false positives'"'"'."
+---
+
+## Purpose
+
+Run `scripts/update.sh [--check\|--apply]`; the scripts\_dir note uses `\n` between context\ lines.
+
+## Gotchas
+
+None known.
+'
+out="$(run escape-prose 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'backslash path separator' <<<"$out"; then
+  pass "prose escapes near an internal-dir token do not trip the backslash limb"
+else
+  fail "prose escapes should not trip the backslash limb (rc=$rc): $out"
+fi
+
+# 36f. The backslash limb reads the spokes too, at any depth: a pointer inside
+#      `reference/usage.md` or a nested `reference/topic/notes.md` resolves
+#      against the same skill root and ships the same load-time defect, and the
+#      authoring checklist counts the forward-slash row as mechanically decided
+#      only because the spokes are scanned. The finding names the citing file.
+mkdir -p "$SKILLS/backslash-spoke/scripts" "$SKILLS/backslash-spoke/reference/topic"
+printf 'echo helper\n' >"$SKILLS/backslash-spoke/scripts/helper.py"
+make_skill backslash-spoke '---
+description: "Clean hub over a spoke with a backslash pointer. Use when: '"'"'checking spoke backslash pointers'"'"'."
+---
+
+## Purpose
+
+See `reference/usage.md` and `reference/topic/notes.md`.
+
+## Gotchas
+
+None known.
+'
+printf '# Usage\n\nRun `scripts\\helper.py` before anything else.\n' >"$SKILLS/backslash-spoke/reference/usage.md"
+printf '# Notes\n\nDetails in [the helper](scripts\\helper.py).\n' >"$SKILLS/backslash-spoke/reference/topic/notes.md"
+out="$(run backslash-spoke 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] &&
+  grep -q 'backslash path separator in skill-internal ref: scripts\\helper.py (cited at reference/usage.md:3)' <<<"$out" &&
+  grep -q 'backslash path separator in skill-internal ref: scripts\\helper.py (cited at reference/topic/notes.md:3)' <<<"$out"; then
+  pass "a backslash pointer inside a spoke fails and names the citing file, nested spokes included"
+else
+  fail "backslash pointers inside spokes should fail and name the file (rc=$rc): $out"
+fi
+
 # 42. --require-evals FAILs on any shape without evals/evals.json.
 make_skill no-evals '---
 description: "A plain skill. Use when: '"'"'checking evals presence'"'"'."
@@ -3355,6 +3540,99 @@ else
   fail "scoped does-not-modify should not warn (rc=$rc): $out"
 fi
 
+# 26a. A reference spoke over 300 lines with no table of contents in its first
+#      40 lines WARNs (advisory: the run still passes). 301 lines is the first
+#      count over the threshold.
+toc_hub='---
+description: "Routes to a long spoke. Use when: '"'"'checking the spoke TOC heuristic'"'"'."
+disable-model-invocation: false
+---
+
+## Purpose
+
+Read `reference/x.md` for the long form.
+
+## Gotchas
+
+None known.
+'
+make_skill toc-long "$toc_hub"
+mkdir -p "$SKILLS/toc-long/reference"
+{
+  printf '# Long spoke\n\n'
+  for ((i = 1; i <= 299; i++)); do printf 'line %s\n' "$i"; done
+} >"$SKILLS/toc-long/reference/x.md"
+out="$(run toc-long 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] &&
+  grep -q 'WARN: reference/x.md is 301 lines with no table of contents in its first 40 lines' <<<"$out"; then
+  pass "a 301-line spoke without a TOC warns and still passes"
+else
+  fail "a 301-line spoke without a TOC should WARN (rc=$rc): $out"
+fi
+
+# 26b. The same length with three in-page anchor links up front is a TOC by
+#      the heuristic (mirrors audit-progressive-disclosure's has_toc), so no WARN.
+make_skill toc-present "$toc_hub"
+mkdir -p "$SKILLS/toc-present/reference"
+{
+  printf '# Long spoke\n\n## Contents\n\n- [One](#one)\n- [Two](#two)\n- [Three](#three)\n\n## One\n\n'
+  for ((i = 1; i <= 291; i++)); do printf 'line %s\n' "$i"; done
+} >"$SKILLS/toc-present/reference/x.md"
+out="$(run toc-present 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'no table of contents' <<<"$out"; then
+  pass "a long spoke with a three-link TOC does not warn"
+else
+  fail "a long spoke with a TOC should not warn (rc=$rc): $out"
+fi
+
+# 26c. Under the threshold nothing fires: the 100-to-300 band belongs to
+#      audit-progressive-disclosure's judgment, not this gate.
+make_skill toc-short "$toc_hub"
+mkdir -p "$SKILLS/toc-short/reference"
+{
+  printf '# Short spoke\n\n'
+  for ((i = 1; i <= 148; i++)); do printf 'line %s\n' "$i"; done
+} >"$SKILLS/toc-short/reference/x.md"
+out="$(run toc-short 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'no table of contents' <<<"$out"; then
+  pass "a 150-line spoke without a TOC does not warn"
+else
+  fail "a 150-line spoke without a TOC should not warn (rc=$rc): $out"
+fi
+
+# 26d. Nested spoke layouts are a supported shape, so the walk is recursive: a
+#      long file at `reference/topic/details.md` is checked like one at the top
+#      of the directory, and the finding names it relative to the skill root.
+make_skill toc-nested '---
+description: "Routes to a nested long spoke. Use when: '"'"'checking the nested spoke TOC heuristic'"'"'."
+disable-model-invocation: false
+---
+
+## Purpose
+
+Read `reference/topic/details.md` for the long form.
+
+## Gotchas
+
+None known.
+'
+mkdir -p "$SKILLS/toc-nested/reference/topic"
+{
+  printf '# Nested long spoke\n\n'
+  for ((i = 1; i <= 304; i++)); do printf 'line %s\n' "$i"; done
+} >"$SKILLS/toc-nested/reference/topic/details.md"
+out="$(run toc-nested 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] &&
+  grep -q 'WARN: reference/topic/details.md is 306 lines with no table of contents in its first 40 lines' <<<"$out"; then
+  pass "a long nested spoke without a TOC warns and names its path from the skill root"
+else
+  fail "a long nested spoke without a TOC should WARN (rc=$rc): $out"
+fi
+
 # Portability guard: no ERE interval expressions in the checker's awk regexes.
 #
 # Every other assertion here is black-box, but this failure mode is invisible to
@@ -3720,6 +3998,173 @@ else
   else
     fail "the evals-warrant walk never terminated (timed out at a dirname fixed point)"
   fi
+fi
+
+# Check 27: the `## Next` successor section. Absence is INFO and never a
+# warning; a conforming section is silent; a misplaced or malformed one warns
+# and still passes (advisory).
+out="$(run good-skill 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q "INFO: no '## Next' section" <<<"$out" && ! grep -q "WARN: '## Next'" <<<"$out"; then
+  pass "a skill with no '## Next' gets an INFO note and no warning"
+else
+  fail "absent '## Next' should be INFO only (rc=$rc): $out"
+fi
+
+make_skill next-ok '---
+name: next-ok
+description: "Next fixture. Use when: '"'"'next ok'"'"'."
+---
+
+## Purpose
+
+Conforming successor section in the bullet shape.
+
+## Next
+
+- The numbers feed a comparison: `/verification:measure metrics`.
+- A number is about to be quoted at someone, so the caveats come first:
+  `/code-metrics:principles`.
+
+## Gotchas
+
+None known.
+'
+out="$(run next-ok 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q "INFO: '## Next' section present" <<<"$out" && ! grep -q "WARN: '## Next'" <<<"$out"; then
+  pass "a conforming bullet-shape '## Next' before '## Gotchas' passes silently"
+else
+  fail "conforming '## Next' should not warn (rc=$rc): $out"
+fi
+
+make_skill next-single '---
+name: next-single
+description: "Next fixture. Use when: '"'"'next single'"'"'."
+---
+
+## Purpose
+
+Conforming successor section in the single-invocation shape.
+
+## Next
+
+`/code-metrics:audit-complexity`. The sibling skills cover the other measures.
+
+## Gotchas
+
+None known.
+'
+out="$(run next-single 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q "WARN: '## Next'" <<<"$out"; then
+  pass "a conforming single-invocation '## Next' passes silently"
+else
+  fail "single-invocation '## Next' should not warn (rc=$rc): $out"
+fi
+
+make_skill next-late '---
+name: next-late
+description: "Next fixture. Use when: '"'"'next late'"'"'."
+---
+
+## Purpose
+
+Successor section placed after Gotchas.
+
+## Gotchas
+
+None known.
+
+## Next
+
+`/code-metrics:audit-complexity`.
+'
+out="$(run next-late 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q "WARN: '## Next' section placed after '## Gotchas'" <<<"$out"; then
+  pass "a '## Next' after '## Gotchas' warns and passes"
+else
+  fail "misplaced '## Next' should warn and pass (rc=$rc): $out"
+fi
+
+make_skill next-malformed '---
+name: next-malformed
+description: "Next fixture. Use when: '"'"'next malformed'"'"'."
+---
+
+## Purpose
+
+Successor section with one bullet that names no skill.
+
+## Next
+
+- Go do the next thing.
+
+## Gotchas
+
+None known.
+'
+out="$(run next-malformed 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q "WARN: '## Next' section 1 bullet(s); the outcome-bullet shape carries two to four; 1 bullet(s) name no /plugin:skill successor" <<<"$out"; then
+  pass "a malformed '## Next' warns on both the bullet count and the missing successor"
+else
+  fail "malformed '## Next' should warn on count and token (rc=$rc): $out"
+fi
+
+make_skill next-operative '---
+name: next-operative
+description: "Next fixture. Use when: '"'"'next operative'"'"'."
+---
+
+## Purpose
+
+Single-shape successor section written as an operative chain: prose first, a
+Skill-tool instruction, an installed-ness gate, and a fallback clause.
+
+## Next
+
+Ask the Skill tool to invoke /code-metrics:audit-complexity when it is installed.
+Otherwise measure by hand.
+
+## Gotchas
+
+None known.
+'
+out="$(run next-operative 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q "WARN: '## Next' section first line does not open with a /plugin:skill invocation; carries operative-chain phrasing ('Skill tool')" <<<"$out"; then
+  pass "a prose-first operative '## Next' warns on the opening and the chain phrasing"
+else
+  fail "operative '## Next' should warn on opening and phrasing (rc=$rc): $out"
+fi
+
+make_skill next-bullets-fallback '---
+name: next-bullets-fallback
+description: "Next fixture. Use when: '"'"'next bullets fallback'"'"'."
+---
+
+## Purpose
+
+Bullet-shape successor section whose second bullet carries a fallback clause.
+
+## Next
+
+- The numbers feed a comparison: `/verification:measure metrics`.
+- A number is about to be quoted: `/code-metrics:principles`, or fall back to
+  the README when that plugin is absent.
+
+## Gotchas
+
+None known.
+'
+out="$(run next-bullets-fallback 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q "WARN: '## Next' section carries operative-chain phrasing ('fall back')" <<<"$out"; then
+  pass "a bullet-shape '## Next' with a fallback clause warns on the chain phrasing"
+else
+  fail "bullet '## Next' with a fallback should warn on phrasing (rc=$rc): $out"
 fi
 
 if [[ $fails -ne 0 ]]; then

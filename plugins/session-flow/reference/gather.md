@@ -1,4 +1,4 @@
-# Durable-state gather — the shared probe set
+# Durable-state gather: the shared probe set
 
 Owner doc for the small set of read-only probes session-flow skills run before they do anything
 else. Seven skills carried a near-identical copy of this block; `discipline:point-dont-copy` pins
@@ -20,7 +20,7 @@ never an abort. These probes colour a report; they are not gates.
 ## Why these are gathered at run time, never pre-computed
 
 A worktree-isolated agent **refuses any command carrying a `$`-expansion**, which made these skills
-fail at load — in `handoff`'s case, in exactly the isolated sessions that most need a save-point.
+fail at load, in `handoff`'s case in exactly the isolated sessions that most need a save-point.
 Keep `$`-expansion out of the pre-compute block
 (melodic-software/claude-code-plugins#1687).
 
@@ -30,7 +30,7 @@ refused. Prefer a probe that needs no expansion at all.
 ## The probes
 
 Each consumer names the subset it takes. Where a probe is parameterised, the consumer states the
-value it uses — the differences below are deliberate and load-bearing, not drift to normalise.
+value it uses. The differences below are deliberate, not drift to normalise.
 
 | Probe | Command | Notes |
 |---|---|---|
@@ -44,13 +44,13 @@ value it uses — the differences below are deliberate and load-bearing, not dri
 
 | Consumer | session-id | branch | status | recent-commits | changed-files |
 |---|---|---|---|---|---|
-| `continue-in-background` | yes | yes | yes | `-5` | — |
-| `find-handoff` | yes | yes | — | — | — |
-| `handoff` | yes | yes | yes | `-5` | — |
-| `orient` | yes | yes | yes | **`-8`** | — |
+| `continue-in-background` | yes | yes | yes | `-5` | no |
+| `find-handoff` | yes | yes | no | no | no |
+| `handoff` | yes | yes | yes | `-5` | no |
+| `orient` | yes | yes | yes | **`-8`** | no |
 | `retro` | yes | yes | yes | `-5` | yes |
-| `running-retro` | yes | yes | yes | `-5` | — |
-| `workflow` | — | yes | yes | `-5` | — |
+| `running-retro` | yes | yes | yes | `-5` | no |
+| `workflow` | no | yes | yes | `-5` | no |
 
 `orient`'s deeper log is intentional: it synthesises a situation report and reads further back than
 a skill that only stamps a save-point.
@@ -59,6 +59,6 @@ a skill that only stamps a save-point.
 
 **It is never a gate.** `continue-in-background` makes this explicit and the rule generalises: its
 dirty-tree check at delivery step 1 runs its **own** commands and reads a git failure as a reason
-*not* to launch. Never carry this block's shrug — or its non-`-uall` `git status` output — into a
+*not* to launch. Never carry this block's shrug, or its non-`-uall` `git status` output, into a
 decision that must fail closed. A probe set whose contract is "carry on when it fails" cannot also
 be the thing that stops you.

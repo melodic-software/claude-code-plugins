@@ -3,6 +3,177 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.3]
+
+### Changed
+
+- **`audit-type-debt`, `principles`: description prose no longer addresses the reader.** Anthropic's skill-authoring guidance keeps first and second person out of a description because it is injected into the system prompt; the rewritten clauses name the user, the session, or the repository instead. Quoted trigger phrases are unchanged.
+
+## [0.2.2]
+
+### Fixed
+
+- **`principles`: the Halstead split-file answer overstated what the formula supports.** The
+  quick guide said difficulty "should not have" moved when a file was split, and eval 1 expected
+  the same. Difficulty `(n1/2) * (N2/n2)` carries no explicit length term, but both factors change
+  per half on a split, and a radon run on two functions measured together and apart gave 1.667 for
+  the whole against 1.000 and 1.800 for the halves. The entry and the eval now say per-file
+  difficulty legitimately moves on a split, in either direction.
+- **`principles`: the §8.2.115 reading is labelled as the plugin's.** thresholds.md, measures.md,
+  and the configuration reference presented "a function's non-empty lines as a percentage of the
+  file's" as the clause's words. The clause states `MaxNumberOfNonEmptyLinesOfCode` with a default
+  of "5%" and names no base; the percentage-of-file base is this plugin's reading, and thresholds.md
+  now carries the four-part verification record for it (OMG ASCQM v1.1 and the ISO edition, as of
+  2026-09-11, recheck on a new revision). The same files now name ISO/IEC 5055:2021 as the ISO
+  publication of ASCQM v1.0, with v1.1 identical for the cited clauses, and note that the
+  document's informative CWE summary rows carry different defaults (1000 lines per file, 10%) from
+  its detection patterns (5%, 90%).
+- **`principles`: McCabe's framing and Campbell's switch rule are quoted as written.** McCabe 1976
+  frames cyclomatic complexity for modules that are "testable and maintainable", not testability
+  alone; Campbell v1.7 states "a switch and all its cases combined incurs a single structural
+  increment". measures.md and literature.md carry both verbatim.
+
+### Changed
+
+- **`principles`: the quick guide answers "which measure should I look at" with an intent-keyed
+  tree**, each branch grounded in its primary: testing burden to cyclomatic (McCabe; NIST SP 500-235
+  sets the test count equal to it), readability to cognitive (Campbell), diff size and copying to
+  lines per file and duplication (ISO/IEC 5055 CWE-1080 and CWE-1041), and whether a suite would
+  catch a fault to the mutation-testing presence gate, because coverage records execution and the
+  primary literature disagrees on how well it predicts fault detection (Inozemtseva and Holmes
+  2014 against Gopinath, Jensen and Groce 2014 and Kochhar, Thung and Lo 2015). A duplication entry
+  states that no reference ships and that the percentage moves with `duplication.min_tokens`, and
+  the routing table names the plugin's report-schema reference for the report vocabulary.
+- **`principles`: the no-verdict rule is stated once**, at the top of the skill body, and the
+  reference files no longer cite the marketplace's ADR by number, which a consumer of the installed
+  plugin cannot read.
+- **`principles`: the reference files state present-tense facts and carry no research narrative.**
+  The thresholds file's account of how ten candidate values were commissioned from a social post,
+  scrutinized at an interview, and full-text searched is replaced by a table of popular numbers with
+  no found source, naming what was checked and what was not; literature.md states each source's
+  confidence and its basis without narrating the pass that established it. For the record, that
+  candidate list was 22 (cyclomatic), 22 (cognitive), 80 (Halstead difficulty), 500 (lines per
+  file), 100 (coverage), 25 (CRAP), and four zeros for count-based concerns; 20 and 1000 survived
+  as shipped defaults because a citation exists for them, and the rest traced to no source.
+- **`principles`: a `## Next` section** names the audit skill for the measure in question and
+  `/code-metrics:setup` for setting the reader's own reference values, in the mention-only shape
+  the sibling skills use.
+- **`principles`: literature.md gains a coverage-and-test-effectiveness section** citing the five
+  primaries above with their DOIs, and a duplication row in the thresholds table records that no
+  duplication reference ships and why.
+
+## [0.2.1]
+
+### Changed
+
+- **`audit-size` measures every text file in scope.** Files whose extension no language lane
+  claims (markdown, JSON, YAML, PowerShell, a `Makefile`) used to count toward `scope.files` and
+  then went unmeasured. They now land in a catch-all `other` lane that the ladder serves with
+  `file_lines` alone: `scc` and the bundled counter count any text file, and every other measure
+  carries a `not-applicable` row for the lane, so complexity, duplication, type-debt, and
+  coverage runs settle exactly as before. `lanes.other.enabled: false` opts the lane out. A file
+  the consumer's ecosystem globs leave out of its extension's lane is still dropped, not moved.
+- **Lane detection and the run table stop forking per file and per field.** The extension lookup
+  returned its lane through a command substitution, one fork per scoped file, and each run row
+  was written with one interpreter call per field; the lookup now returns through a variable and
+  a row is one call. A whole-tree `audit-size` run on this repository takes about two seconds.
+- **A lane's file list reaches its collector through a file, not the argument vector.** The
+  dispatcher passes `--paths-from <file>` to every adapter's `collect` verb, read through the new
+  shared `scripts/collectors/adapter_paths.py` (positional paths still work and combine with it),
+  because a whole repository's lane is thousands of paths and Git Bash under Windows caps a
+  native process's command line far below that. The `scc` adapter feeds scc itself in chunks
+  under an argument budget (`CODE_METRICS_ARGV_BUDGET` overrides it) for the same reason.
+- **A file the scope filter cannot read is named on stderr.** It is still dropped, so one locked
+  file does not turn its whole lane unavailable, but it no longer vanishes from the scope with
+  nothing said.
+- **A file `scc` says nothing about is still counted.** scc lists only the languages it knows,
+  so a lockfile or an extensionless text file in the catch-all lane came back with no row and the
+  lane still read as measured. The adapter now counts every requested file scc omitted, total and
+  blank lines, and labels the row `comment-agnostic` with `lines_comment` and `lines_code` null.
+- **The rows under the over-reference block are ordered by the number they report.** After the
+  rows over a reference (furthest past it first), the rest sort by the primary reference's value,
+  largest first (smallest first for a `below` reference such as coverage), so a size report reads
+  longest to shortest instead of alphabetically, and the 200-row cap names the key it kept the
+  top rows by. The `thresholds[]` entries now carry `value_key` and `direction` so a consumer of
+  the JSON can tell which value a reference was applied to.
+- **An empty change says how to widen the scope in the markdown headline too**, beside the run
+  row's reason.
+- **`Functions:` leaves the summary line when no function rows exist**, which is every
+  `audit-size` report in `file-lines` mode.
+- **One provenance sentence for the 1000-line reference.** The report, the `audit-size` body, and
+  the principles threshold table carry the same words, sourced from `scripts/config-defaults.json`
+  and checked by the `audit-size` suite. The `audit-size` description names `--all` as a
+  first-class scope alongside the `change` default rather than disowning it.
+
+## [0.2.0]
+
+### Added
+
+- **`scope.registries`**, the sanctioned-replication registry list every audit reads. The
+  dispatcher collapses the per-file and per-function rows of every copy of a listed file into one
+  row labelled `replicated` with a `replicas` object (`count`, `registry`, `line`, `path`,
+  `files`), so a file vendored into ten plugins shows each function once and its over-reference
+  count once, and `summary.files` still counts every copy. `duplication.registries` stays as the
+  older name, read when the scope-level list is empty. New `scripts/replica-collapse.py` and
+  `resolve-config.py --format registries`; `audit-duplication` reads its registries through the
+  same format.
+- **Default scope exclusions.** `scope.exclude` now defaults to `**/node_modules/**`,
+  `**/vendor/**`, `**/dist/**`, and `**/build/**`, and the document carries
+  `scope.exclusions[]` (one `{pattern, files}` per glob that matched) so the markdown can say
+  which exclusion dropped what. Fixtures and evals stay in scope; a team file that sets the key
+  replaces the list whole.
+- **The persisted document.** Every markdown run writes the `code-metrics/v1` document it
+  rendered to `CODE_METRICS_REPORT_DIR`, else `<CLAUDE_PLUGIN_DATA>/reports`, else
+  `~/.claude/plugins/data/code-metrics/reports`, keeping the newest twenty per skill, and the
+  table's cap line and the summary name that path. A directory that cannot be written is
+  reported on stderr and the cap line says to re-run with `--json` instead. New
+  `scripts/persist-report.sh`, sourced by all five entry points, and `report.py render
+  --document`.
+- **Progress on stderr** for a run whose scope passes two hundred files, or under
+  `CODE_METRICS_PROGRESS=1`; `=0` silences it.
+
+### Changed
+
+- **The markdown table joins each function's rows.** One line per function carries every
+  collector's values (a cyclomatic row and a Halstead row no longer print the same function twice
+  with complementary nulls); a row with no start line joins the one function of its name in the
+  file and stays separate when the name is ambiguous, and rows whose values disagree are never
+  merged. The JSON keeps one row per collector. A Labels column now shows `start-line-only`,
+  `file-level`, `multimetric-approximation`, and `replicated`. Rows over a reference sort by how
+  far past it they sit, worst first, then by file. A Halstead value of 0 gets a footnote saying
+  it is a measurement.
+- **Collectors run in parallel**, one process per lane and measure, capped at the CPU count or
+  `CODE_METRICS_JOBS`; the run table and the rows come out in lane order whatever the concurrency.
+  The scope's normalization, deduplication, and binary sniff moved from a shell loop with two
+  subprocesses per file into `scripts/scope-filter.py`, and `detect-lanes.sh` lower-cases
+  extensions in the shell. A whole-tree run on this repository went from 95 seconds to 49, the
+  remainder being shellmetrics' own time.
+- **An empty change scope says why.** The `*/*` run row's reason names the merge-base ref and
+  the `--all` alternative when the branch sits at it with a clean tree, or says the changed files
+  belong to no lane.
+- **ESLint with no configuration is `unavailable`, not a failed run.** The adapter contract
+  gains exit 4, "resolved but cannot run here": `eslint-complexity` returns it when ESLint
+  reports that it found no configuration for the files, and the dispatcher writes an
+  `unavailable` row carrying ESLint's own message instead of failing the run with exit 3. The
+  adapter does not look for a configuration file itself; ESLint resolves it per target file.
+- **Version probes for tools with no version flag.** `multimetric` reports the distribution
+  version from the interpreter its launcher names, `gocognit` the module version from `go
+  version -m`, and both read `version unavailable (<tool> has no version flag)` rather than
+  `unknown-version` when nothing answers.
+
+## [0.1.9]
+
+### Fixed
+
+- **The tool-free PATH in the audit suites is derived from the collector ladder.** Each suite
+  that builds an environment with collectors removed used to keep a second, hardcoded list of
+  tool names off PATH. A collector added to `scripts/collector-ladder.tsv` stayed reachable
+  and the no-collector case stopped being tool-free. The excluded set is now the ladder's tool
+  column (skipping the reserved `none`, `n/a`, and `deferred` rungs) plus the PATH binaries those
+  adapters look up, and after that environment is built the suite asserts that none of those
+  collectors still resolves. Python interpreters on that PATH are resolved to a non-mutating
+  executable so a pyenv (or similar) shim cannot prepend skipped collectors back onto PATH.
+
 ## [0.1.8]
 
 ### Added

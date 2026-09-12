@@ -15,7 +15,7 @@ rewriting, open an issue first and get a second pair of eyes on the plan.
 ## Secrets
 
 Never commit a `.env` file or any credential. If a secret reaches a commit, rotate it before doing
-anything else — removing the commit is not sufficient, the value is compromised.
+anything else. Removing the commit is not sufficient, the value is compromised.
 
 ## C# naming
 
@@ -30,7 +30,7 @@ Every component in `src/components/` is a function component. Props interfaces a
 ## Test files
 
 Test files use the `*.test.ts` suffix and live beside the code under test. Tests must never hit the
-network — use the fixture server. Prefer table-driven tests for pure functions.
+network. Use the fixture server. Prefer table-driven tests for pure functions.
 
 ## New service checklist
 
@@ -39,10 +39,10 @@ the deployment manifest before it is merged.
 
 ## Directory layout
 
-- `src/` — application code
-- `services/` — deployable services
-- `docs/` — documentation
-- `scripts/` — build and maintenance scripts
+- `src/`: application code
+- `services/`: deployable services
+- `docs/`: documentation
+- `scripts/`: build and maintenance scripts
 
 ## Formatting
 
@@ -51,5 +51,5 @@ literals.
 
 ## Billing module
 
-The billing service owns its own retry policy. Do not add retries at the caller — a caller-side
+The billing service owns its own retry policy. Do not add retries at the caller. A caller-side
 retry on top of the service's own produces duplicate charges.

@@ -1,4 +1,4 @@
-# Style lane — full reference
+# Style lane: full reference
 
 The style/genre prompt tells Suno **what kind of song to make**. v5/v5.5 expanded this field from ~200 chars (v4) to ~1,000 chars, and adherence to nuanced descriptors improved dramatically. Treat the style prompt as a layered tag list, not a sentence.
 
@@ -12,7 +12,7 @@ The style/genre prompt tells Suno **what kind of song to make**. v5/v5.5 expande
 | Title | **~100 chars** | Up from ~80 in v4. Minimal or no known effect on musical output; community reports differ |
 | Exclude (Custom mode Advanced Options) | Free-text box | Same vocabulary as inline negatives |
 
-**Re-verified 2026-07-18 — position flipped since the 2026-05-10 pass.** Current third-party testers agree the lyrics hard cap is **5,000 chars on v4.5/v5/v5.5**; 3,000 was the v4-and-earlier cap, and the earlier "3,000 consensus" conflated that old cap with the quality threshold. ~3,000 remains the practical budget. No official Suno page states field limits — sources: [hookgenius character limits](https://hookgenius.app/learn/suno-character-limits/), [aimusicapi cheat sheet, 2026-07-03](https://aimusicapi.ai/en/blog/suno-ai-prompt-character-limits).
+**Re-verified 2026-07-18. Position flipped since the 2026-05-10 pass.** Current third-party testers agree the lyrics hard cap is **5,000 chars on v4.5/v5/v5.5**; 3,000 was the v4-and-earlier cap, and the earlier "3,000 consensus" conflated that old cap with the quality threshold. ~3,000 remains the practical budget. No official Suno page states field limits. Sources: [hookgenius character limits](https://hookgenius.app/learn/suno-character-limits/), [aimusicapi cheat sheet, 2026-07-03](https://aimusicapi.ai/en/blog/suno-ai-prompt-character-limits).
 
 **Recheck trigger:** hookgenius or the aimusicapi cheat sheet revises the lyrics hard cap or quality-threshold figures above, **or** an official Suno page states style-prompt / lyrics / title character limits directly. Not a date.
 
@@ -20,15 +20,15 @@ The style/genre prompt tells Suno **what kind of song to make**. v5/v5.5 expande
 
 Order matters. Early tags are weighted more heavily.
 
-### Layer 1 — Genre / subgenre
+### Layer 1: Genre / subgenre
 
 **Specific, not generic.** "pop" → generic AI sound. `synth-pop, 80s-inspired` → recognizable era and palette.
 
 Good: `nu-disco`, `dream-pop`, `Nashville country`, `boom bap hip-hop`, `vapor-soul`, `Berlin minimal techno`, `bossa nova jazz`, `neo-soul`, `post-punk revival`, `K-pop ballad`
 
-Hybrids work if intentional: `nu-metal dubstep`, `synthwave country`, `lo-fi neoclassical`. Avoid stacking 3+ genres — produces muddy output.
+Hybrids work if intentional: `nu-metal dubstep`, `synthwave country`, `lo-fi neoclassical`. Avoid stacking 3+ genres. It produces muddy output.
 
-### Layer 2 — Mood
+### Layer 2: Mood
 
 **2-3 related words.** "9-word mood lists" produce conflicting emotional signals.
 
@@ -36,7 +36,7 @@ Good: `nostalgic and hopeful`, `dark and brooding`, `euphoric, triumphant`, `mel
 
 Avoid: `happy sad angry triumphant melancholic dreamy aggressive contemplative joyful` (model picks at random)
 
-### Layer 3 — Instrumentation
+### Layer 3: Instrumentation
 
 **Specific instruments, not categories.** "guitar" → unspecified. `fingerpicked nylon-string acoustic guitar` → exact texture.
 
@@ -48,7 +48,7 @@ Avoid: `happy sad angry triumphant melancholic dreamy aggressive contemplative j
 | synth | analog Moog pad / shimmering supersaws / glassy FM bell / wobble bass |
 | piano | Rhodes electric piano / grand piano with felt damper / honky-tonk upright |
 
-### Layer 4 — Vocal direction
+### Layer 4: Vocal direction
 
 **Acoustic descriptors, not value judgments.** "amazing vocals" → no effect. `breathy female vocals with slight rasp` → specific timbre.
 
@@ -56,9 +56,9 @@ Good: `breathy`, `raspy`, `intimate`, `belted`, `airy`, `warm`, `nasal`, `chesty
 
 Bad (zero effect): `amazing`, `epic`, `beautiful`, `incredible`, `perfect`, `stunning`
 
-**v5.5 caveat:** when using Voices or Custom Models, **drop gender/tone descriptors entirely** — they conflict with the personalization layer.
+**v5.5 caveat:** when using Voices or Custom Models, **drop gender/tone descriptors entirely**. They conflict with the personalization layer.
 
-### Layer 5 — BPM (numeric)
+### Layer 5: BPM (numeric)
 
 **Numbers beat descriptors.** Numeric BPM adherence is reported as high on v5.5 and better than on v4, but **no adherence rate is stated here**: no source states one, and this skill does not restore a percentage without a citation. Descriptors like "fast" drift ±20 BPM.
 
@@ -76,9 +76,9 @@ Syntax: `128 BPM`, `95 BPM`, `174 BPM`. Place after instrumentation/vocals, befo
 | Trap | 140 |
 | Drum & bass | 174 |
 
-### Layer 6 — Production / mix
+### Layer 6: Production / mix
 
-The final layer paints the **acoustic environment** — what makes a track sound "polished" vs "lo-fi" vs "vintage".
+The final layer paints the **acoustic environment**, what makes a track sound "polished" vs "lo-fi" vs "vintage".
 
 | Style | Descriptors |
 |-------|-------------|
@@ -117,18 +117,18 @@ avoid 4-on-the-floor kick
 
 The `no X` syntax is community-attested. No source establishes that negatives must go at the end; grouping them there is an organizational convention only.
 
-**Exclude field (Custom mode Advanced Options):** a separate free-text box for unwanted elements. Use the same vocabulary. The Exclude field has stronger effect than inline negatives in some cases — try both if one fails.
+**Exclude field (Custom mode Advanced Options):** a separate free-text box for unwanted elements. Use the same vocabulary. The Exclude field has stronger effect than inline negatives in some cases. Try both if one fails.
 
 **Highest-signal v5.5 negatives:**
 
-- `no autotune` — pushes toward raw, organic vocals
-- `no reverb wash` — pushes toward dry, present mix
+- `no autotune`: pushes toward raw, organic vocals
+- `no reverb wash`: pushes toward dry, present mix
 
 **When negatives are ignored:**
 
 - Pair with a positive (`piano only` is better than `no guitar`)
 - Increase specificity (`no electric guitar` is better than `no guitar`)
-- Cap at 2-3 negatives — stacking 5+ creates conflicts
+- Cap at 2-3 negatives. Stacking 5+ creates conflicts
 - Switch to the Exclude field
 
 ## Key, time signature, groove
@@ -137,7 +137,7 @@ The `no X` syntax is community-attested. No source establishes that negatives mu
 | Parameter | Syntax | Reliability |
 |-----------|--------|-------------|
 | Key | `key of D minor`, `A minor`, `Bb major` | Generally respected |
-| Time signature | `4/4`, `3/4`, `7/8` in style prompt | Inconsistent — Studio supports editing but the generative model isn't yet wired to it |
+| Time signature | `4/4`, `3/4`, `7/8` in style prompt | Inconsistent. Studio supports editing but the generative model isn't yet wired to it |
 | Groove / feel | `swing`, `shuffle`, `half-time`, `triplet feel`, `straight 8ths` | Effective |
 <!-- spellchecker:on -->
 
@@ -177,4 +177,4 @@ no live guitars, no acoustic instruments
 - **Generate 4 versions** per prompt; A/B compare; refine one variable at a time
 - **Reuse exact metadata** across regenerations to maintain vibe (`Track ID: lonelyrobot_v1, A minor, 95 BPM`)
 - **Rotate synonyms** if regenerating produces diminishing returns: `gritty → raw → visceral → unpolished`
-- **Audio Influence slider** (with upload) and **Style Influence slider** are your fine-tuning knobs in Custom mode — see [advanced.md](advanced.md)
+- **Audio Influence slider** (with upload) and **Style Influence slider** are your fine-tuning knobs in Custom mode. See [advanced.md](advanced.md)

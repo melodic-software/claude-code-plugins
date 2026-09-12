@@ -18,6 +18,13 @@ Every claim the engine emits carries an `evidence` field:
 | `documented-default` | Not present locally; the value is upstream's documented default |
 | `inferred` | A step was taken beyond what was measured |
 | `no-upstream-row` | No documentation covers this path, so no claim is made either way |
+| `documented` | The claim's basis is an upstream page, cited with the date it was verified and a recheck trigger |
+| `observed-undocumented` | Seen on real trees in this or an earlier run, and no upstream page names it; the role is an observation, never a documented fact |
+
+The vocabulary is closed: `EVIDENCE_VOCABULARY` in the engine enumerates it, and a new value is a
+schema bump (`schema` in the report header), never a silent parallel tag. The last two rows exist
+for the environment block and the sentinels the engine reads by content: `CLAUDE_CODE_REMOTE` has a
+documented row; `launcher-settings.json` and `.last-cleanup` do not, and the tag says so.
 
 Hedging in prose does not work. A downstream reader, human or agent, consumes an inference and an
 observation identically unless the artifact distinguishes them structurally. An unmarked inference
@@ -39,8 +46,8 @@ mechanism.
 
 ## 3. Agreement within one moment is not evidence
 
-For a timing, racing, or periodic property, repeated sampling *at one instant* proves nothing —
-sample across the varying dimension.
+For a timing, racing, or periodic property, repeated sampling *at one instant* proves nothing.
+Sample across the varying dimension.
 
 Two samples of a timestamp comparison taken in one moment can return a clean, unanimous
 `equal=True`, and two more taken a moment later a clean, unanimous `equal=False`. Neither
@@ -79,7 +86,7 @@ subagent that did not produce them. A reviewer carrying the producing agent's co
 producing agent's blind spot, which is exactly the failure mode this section documents. If this skill
 is run across several agents, that delegation is not optional. What works:
 
-- lanes broadcast load-bearing findings mid-flight, not only at the end;
+- lanes broadcast findings other lanes depend on mid-flight, not only at the end;
 - a receiving lane **verifies before adopting** rather than propagating;
 - retractions stay in place as worked examples, so the next reader does not re-derive the same dead
   hypothesis, which several lanes can reach independently when one grep would falsify it;

@@ -14,14 +14,16 @@ HELPERS="$REPO_ROOT/plugins/source-control/scripts/test-helpers.sh"
 
 # shellcheck source=lib/test-harness.sh
 . "$SELF_DIR/lib/test-harness.sh"
+# shellcheck source=lib/fixture-tree.sh
+. "$SELF_DIR/lib/fixture-tree.sh"
 
-new_fixture() {
-  local dir
-  dir="$(mktemp -d)"
-  mkdir -p "$dir/scripts" "$dir/plugins/alpha/skills/demo/scripts"
-  cp "$SCRIPT" "$dir/scripts/check-discriminating-test-skips.sh"
-  chmod +x "$dir/scripts/check-discriminating-test-skips.sh"
-  printf '%s' "$dir"
+# The builder assigns through a nameref, which shellcheck cannot follow;
+# declaring the out-var here is what tells it (SC2154) the name is written.
+f=""
+
+new_fixture() { # <out-var>
+  fixture_tree::build "$1" --sut "$SCRIPT" --plugins || return 1
+  mkdir -p "${!1}/plugins/alpha/skills/demo/scripts"
 }
 
 # test_file <fixture> <relative-path-under-plugins> <content>
@@ -36,7 +38,7 @@ run_check() (
 )
 
 # --- copy-pairing skip_case fails the static gate ---------------------------
-f="$(new_fixture)"
+new_fixture f
 test_file "$f" alpha/skills/demo/scripts/demo.test.sh \
   'if [[ "$x" == "1" ]]; then :; else skip_case "this git did not pair the fixture as a copy"; fi'
 if out="$(run_check "$f" 2>&1)"; then
@@ -51,7 +53,7 @@ fi
 rm -rf "$f"
 
 # --- fail_discriminating_skip is not flagged --------------------------------
-f="$(new_fixture)"
+new_fixture f
 test_file "$f" alpha/skills/demo/scripts/demo.test.sh \
   'if [[ "$x" == "1" ]]; then :; else fail_discriminating_skip "unpaired"; fi'
 if out="$(run_check "$f" 2>&1)"; then
@@ -62,7 +64,7 @@ fi
 rm -rf "$f"
 
 # --- annotated skip_case passes ---------------------------------------------
-f="$(new_fixture)"
+new_fixture f
 test_file "$f" alpha/skills/demo/scripts/demo.test.sh \
   '# discriminating-skip-ok: synthetic exemption fixture
 skip_case "this git did not pair the fixture as a copy"'
@@ -101,7 +103,7 @@ fi
 rm -f "$tmp_test"
 
 # --- discriminating-skip-required rejects any skip_case reason --------------
-f="$(new_fixture)"
+new_fixture f
 test_file "$f" alpha/skills/demo/scripts/demo.test.sh \
   '# discriminating-skip-required: load-bearing branch
 if [[ "$x" == "1" ]]; then :; else skip_case "feature unavailable"; fi'
@@ -117,7 +119,7 @@ fi
 rm -rf "$f"
 
 # --- single-line if/fi must not corrupt later multi-line block tracking -----
-f="$(new_fixture)"
+new_fixture f
 test_file "$f" alpha/skills/demo/scripts/demo.test.sh \
   'if [[ "$x" == "1" ]]; then ok "passed"; else fail "failed"; fi
 if [[ "$x" == "1" ]]; then :; else skip_case "this git did not pair the fixture as a copy"; fi'

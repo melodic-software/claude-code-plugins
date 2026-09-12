@@ -1,4 +1,4 @@
-# Recurring concerns — the reusable plugin-audit checklist
+# Recurring concerns: the reusable plugin-audit checklist
 
 These are design failure modes that recur across Claude Code plugin components. Walk every one each
 audit.
@@ -19,15 +19,15 @@ A guard is only as good as its coverage. Find the paths where it *doesn't* fire.
 ## 2. Enforcement scope & who it fires for
 
 - **Plugin-enablement probes.** If a hook gates its behavior on whether a plugin is "enabled", does
-  it resolve enablement the way Claude Code actually does — merged across user-global + project +
+  it resolve enablement the way Claude Code actually does, merged across user-global + project +
   local scopes? A probe that only checks project scope false-negatives for the common global
   install. Verify against real resolution, not the code's assumption.
 - **User-gated by default.** Guardrails a user adds should default to firing only for that user (and
-  their agents) — never surprise-blocking teammates who didn't opt in. Prefer mechanisms invisible
+  their agents), never surprise-blocking teammates who didn't opt in. Prefer mechanisms invisible
   to uninvolved parties (machine-local git hooks, user-scope config) with a clean migration path to
   shared enforcement later. Flag anything that imposes on non-adopters by default.
 
-## 3. Enforcement tiers — what CAN vs CANNOT be gated
+## 3. Enforcement tiers: what CAN vs CANNOT be gated
 
 - **Mechanics** (verifiable command shape, e.g. message-on-stdin): hook-enforceable → gate it.
 - **Declarative conventions** (a subject/title matches a pattern): hook-enforceable by inspecting
@@ -47,19 +47,19 @@ A guard is only as good as its coverage. Find the paths where it *doesn't* fire.
   frontmatter-in-markdown (brittle for shell) and beats a tool-specific config that traps the value
   in a language (e.g. a regex inside a JS parserPreset a shell hook can't read).
 - Where a contract file explicitly declares an inline-floor rule (consumers copy named values
-  verbatim), check the copies actually match — byte-identity drift between a writer's contract and
+  verbatim), check the copies actually match. Byte-identity drift between a writer's contract and
   a consumer's inlined constants is a silent split-brain.
 
 ## 5. Coupling & portability
 
 - **`.claude/` coupling.** Is an artifact under `.claude/` because it must be, or just by default?
-  `.claude/` is not write-protected and not special for storage — a tool-agnostic doc other tools
+  `.claude/` is not write-protected and not special for storage, so a tool-agnostic doc other tools
   should consume doesn't belong there. Ask whether the path should be configurable.
 - **Single-plugin artifact in a shared repo.** A committed file only one plugin reads is inert (and
   confusing) for everyone else. Make it self-describing, or make its location configurable, or
   derive it from an existing shared source.
 - **Hardcoded consumer specifics.** A reusable plugin must not bake in one machine's paths, one
-  org's repo names, or one project's conventions — those belong in the consumer's own config
+  org's repo names, or one project's conventions. Those belong in the consumer's own config
   layers.
 
 ## 6. Cross-platform
@@ -78,4 +78,4 @@ A guard is only as good as its coverage. Find the paths where it *doesn't* fire.
 ## 8. Observability & failure reporting
 
 - When the guard degrades (missing dependency, timeout), does it surface that to the user, or
-  silently disable itself? A silently-skipped guard is a defect — it should be visible.
+  silently disable itself? A silently-skipped guard is a defect, and it should be visible.

@@ -1,4 +1,4 @@
-# Dissolving moves — comment shape → named refactoring
+# Dissolving moves: comment shape → named refactoring
 
 All names are Fowler-catalog names. Basis: <https://refactoring.com/catalog/>, read 2026-08-17.
 Recheck trigger: a move name in the table below failing to resolve on that page.
@@ -38,10 +38,10 @@ net; interface-creating moves need a test net and stay proposals in non-interact
   search, which asks whether rationale is recoverable elsewhere and has no rationale to ask about.
 - **Extraction has a cost curve.** Each extraction adds an interface. A name that must grow
   megasyllabic to stay honest (`isLeastRelevantMultipleOfLargerPrimeFactor`) signals the
-  information did not fit the name channel — short name + terse class-C comment, or Inline
+  information did not fit the name channel: short name + terse class-C comment, or Inline
   Function, is the correct move, not a longer name.
 - **Names cannot carry why.** Every move above targets *what*-information. Rationale, warnings,
-  contract units, and negative information are class-C keeps — no refactoring dissolves them.
+  contract units, and negative information are class-C keeps, and no refactoring dissolves them.
 - **Assertions replace only checkable claims.** Introduce Assertion covers machine-checkable
   state; a comment stating an unverifiable assumption (about an external system, an operational
   constraint) stays a comment.
@@ -49,7 +49,7 @@ net; interface-creating moves need a test net and stay proposals in non-interact
   outside the run's scope needs every call site updated in the same pass; if references cannot be
   fully resolved (dynamic dispatch, reflection, string-based lookup), demote to a proposal.
 
-## Apply capacity — what class B can actually change on a given repository
+## Apply capacity: what class B can actually change on a given repository
 
 Class B reads like the skill's main engine. On many repositories it turns over nothing, and a run
 planned around it should know the three limits up front. All three are deliberate.
@@ -62,7 +62,7 @@ planned around it should know the three limits up front. All three are deliberat
   is tier 2" ([safety.md](safety.md)) demotes the two renames into the test-net tier with
   everything else. On a repository with neither a runnable test net nor tree-sitter, a class-B pass
   produces a proposal list and no edits.
-- **No move dissolves a why.** Names carry what and how, not why — the cost curve above says a name
+- **No move dissolves a why.** Names carry what and how, not why, and the cost curve above says a name
   that grows to carry rationale is a dishonest name. Rationale therefore never leaves through
   class B; it is decided by the class-C earn-its-keep test, which `SKILL.md` step 5 evaluates on
   evidence.

@@ -146,8 +146,17 @@ else
     $QUIET || echo "verify-cli-flag: '$BIN ${SUBCMDS[*]} --help' failed (rc=$HELP_RC, empty/timeout)" >&2
     exit 2
   fi
-  # Persist to cache (best-effort).
-  printf '%s' "$HELP_OUTPUT" >"$CACHE_FILE" 2>/dev/null || true
+  # Persist to cache (best-effort), published by rename. Concurrent hooks race
+  # to refresh one key, and bash's printf to a file is many write(2) calls, not
+  # one, so a reader that passes the -s and mtime gates mid-rewrite would read
+  # a prefix and report a documented flag as unknown. `mv` is atomic within a
+  # filesystem: the reader sees the previous whole text or the new whole text.
+  CACHE_TMP="$CACHE_FILE.$$.tmp"
+  if printf '%s' "$HELP_OUTPUT" >"$CACHE_TMP" 2>/dev/null; then
+    mv -f "$CACHE_TMP" "$CACHE_FILE" 2>/dev/null || rm -f "$CACHE_TMP" 2>/dev/null || true
+  else
+    rm -f "$CACHE_TMP" 2>/dev/null || true
+  fi
 fi
 
 # The match pattern is the shared definition (cli-flag-cache.sh documents the

@@ -1,5 +1,5 @@
 ---
-description: "Verify or configure an ai-briefing profile and, only when explicitly requested, install the deterministic HTML/PDF/PPTX build toolchain. Use when: 'set up ai-briefing', 'configure ai-briefing', 'add an ai-briefing profile', 'is ai-briefing working', or 'ai-briefing setup'. Actions: check (read-only verification, default) | apply (scaffold the profile) | apply install-build-deps (also install the build toolchain). Idempotent — safe to re-run."
+description: "Verify or configure an ai-briefing profile and, only when explicitly requested, install the deterministic HTML/PDF/PPTX build toolchain. Use when: 'set up ai-briefing', 'configure ai-briefing', 'add an ai-briefing profile', 'is ai-briefing working', or 'ai-briefing setup'. Actions: check (read-only verification, default) | apply (scaffold the profile) | apply install-build-deps (also install the build toolchain). Idempotent, safe to re-run."
 argument-hint: "check | apply [install-build-deps] [--profile <name>]"
 user-invocable: true
 disable-model-invocation: true
@@ -60,13 +60,13 @@ anything.
      plugin-reconfiguration convention
      (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
      which owns the verified-version record): `claude plugin install ai-briefing@<marketplace>
-     -s <scope> --config active_profile=<name>` (repeatable per key) — against an
+     -s <scope> --config active_profile=<name>` (repeatable per key). Against an
      already-installed plugin it prints `already installed` **and still writes the value**. Do
      **not** uninstall to reconfigure: that drops this plugin's entire stored `pluginConfigs`
      entry, resetting every option in the README's Options reference to its manifest default.
      `-s` defaults to `user`; pass the scope `claude plugin list` reports for this plugin, and
      run from that project's directory for a `project`/`local` scope, or the write lands at a
-     scope that does not load. Afterwards rerun `check` in a **fresh session** — the rendered
+     scope that does not load. Afterwards rerun `check` in a **fresh session**. The rendered
      `${user_config.*}` is injected at skill load, so a same-session `check` still reports the
      OLD value; report the observed effective value, never an unobserved change.
    - **Neither, for a one-off:** a per-run `--profile <name>` selects a different profile without

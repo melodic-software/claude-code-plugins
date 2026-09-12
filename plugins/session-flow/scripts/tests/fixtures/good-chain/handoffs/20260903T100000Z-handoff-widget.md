@@ -58,8 +58,8 @@ Superseded:
 
 ## File roles in this work
 
-- `src/importer.py` — modified; merged in PR #42.
-- `tests/test_importer.py` — modified; merged in PR #42.
+- `src/importer.py`: modified; merged in PR #42.
+- `tests/test_importer.py`: modified; merged in PR #42.
 
 ## Decisions already settled
 

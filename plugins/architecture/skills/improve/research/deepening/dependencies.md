@@ -8,7 +8,7 @@ When assessing a candidate for deepening, classify dependencies. Category determ
 
 ### 1. In-process
 
-Pure computation, in-memory state, no I/O. Always deepenable — merge the modules and test through the new interface directly. No adapter needed.
+Pure computation, in-memory state, no I/O. Always deepenable: merge the modules and test through the new interface directly. No adapter needed.
 
 ### 2. Local-substitutable
 
@@ -33,9 +33,9 @@ Third-party services (Stripe, Twilio, etc.) you don't control. Deepened module t
 
 When deepening merges shallow modules behind a deep interface:
 
-- Old unit tests on shallow modules become waste once tests at the deepened interface exist — **delete them**
+- Old unit tests on shallow modules become waste once tests at the deepened interface exist, so **delete them**
 - Write new tests at the deepened module's interface. The **interface is the test surface**
 - Tests assert on observable outcomes through the interface, not internal state
-- Tests should survive internal refactors — they describe behavior, not implementation. If a test changes when implementation changes, it's testing past the interface
+- Tests should survive internal refactors. They describe behavior, not implementation. If a test changes when implementation changes, it's testing past the interface
 
-This principle applies beyond the deepening lens — any module consolidation that moves the test surface to a deeper interface. Choose test doubles at the deepened seam per the dependency category above.
+This principle applies beyond the deepening lens: to any module consolidation that moves the test surface to a deeper interface. Choose test doubles at the deepened seam per the dependency category above.

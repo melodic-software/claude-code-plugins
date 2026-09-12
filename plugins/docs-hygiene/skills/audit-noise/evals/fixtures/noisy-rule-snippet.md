@@ -25,4 +25,4 @@ See PR #45 for the ordering rationale.
 
 ## Cross-references
 
-- `src/net/backoff.md` — backoff curve derivation
+- `src/net/backoff.md`: backoff curve derivation

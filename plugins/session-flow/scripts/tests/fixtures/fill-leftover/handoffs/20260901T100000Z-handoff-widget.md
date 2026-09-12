@@ -20,7 +20,9 @@ chain:
 Opening ask:
 Make the widget importer idempotent.
 
+<!-- ai-slop-ignore-start: generator output, the FILL slot emitted verbatim by _fill() in scripts/save_point.py -->
 **Next action serves it by:** <!-- FILL: drift-check — one sentence tying the first remaining action back to the goal -->
+<!-- ai-slop-ignore-end -->
 
 ## Resumption brief
 
@@ -47,7 +49,7 @@ Why: a second import run doubles every row.
 
 ## File roles in this work
 
-- `tests/test_importer.py` — still to modify; the re-run case is missing.
+- `tests/test_importer.py`: still to modify; the re-run case is missing.
 
 ## Decisions already settled
 

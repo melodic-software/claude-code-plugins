@@ -1,6 +1,6 @@
 # Captured version pins
 
-URLs and SHA256 hashes as captured at each row's `Captured` date (initial capture 2026-05-10; DeDRM archive re-fetched + SHA-verified and upstream URLs re-probed 2026-07-19). A `Captured` date attests the artifact was downloaded and its hash matched — NOT that a full single-book extraction was re-run at that date (that is manual and machine-bound; see "How to refresh this file"). The `update` action diffs upstream against these. Treat each row as a Tier 0 fact at the date captured; verify before re-using.
+URLs and SHA256 hashes as captured at each row's `Captured` date (initial capture 2026-05-10; DeDRM archive re-fetched + SHA-verified and upstream URLs re-probed 2026-07-19). A `Captured` date attests the artifact was downloaded and its hash matched. It does NOT attest that a full single-book extraction was re-run at that date (that is manual and machine-bound; see "How to refresh this file"). The `update` action diffs upstream against these. Treat each row as a Tier 0 fact at the date captured; verify before re-using.
 
 ## Kindle for PC
 
@@ -12,7 +12,7 @@ URLs and SHA256 hashes as captured at each row's `Captured` date (initial captur
 | File size | 285 MB (298,242,024 bytes) |
 | Captured | 2026-05-10 |
 
-Why this version: KFXKeyExtractor hard-codes memory offsets for Kindle for PC builds 2.8.0 / 2.8.1 / 2.8.2. KFXArchiver supports up to 2.8.3 + 2.9.1. 2.8.0.70980 is the oldest Amazon still serves directly via the S3 path; older versions were revoked. Newer versions (2.8.3+) still work with KFXArchiver but Amazon revoked those S3 URLs as of capture date — 2.8.0.70980 is the last installer re-fetchable without finding a third-party mirror.
+Why this version: KFXKeyExtractor hard-codes memory offsets for Kindle for PC builds 2.8.0 / 2.8.1 / 2.8.2. KFXArchiver supports up to 2.8.3 + 2.9.1. 2.8.0.70980 is the oldest Amazon still serves directly via the S3 path; older versions were revoked. Newer versions (2.8.3+) still work with KFXArchiver but Amazon revoked those S3 URLs as of capture date. 2.8.0.70980 is the last installer re-fetchable without finding a third-party mirror.
 
 Auto-update behavior: Kindle.exe phones home on launch and stages newer installer at `%LOCALAPPDATA%\Amazon\Kindle\updates\KindleForPC-installer.exe`, then auto-runs it on next launch. Mitigation: firewall rule (this skill installs) plus ICACLS deny on the `updates/` dir.
 
@@ -32,7 +32,7 @@ Observed staged update during 2026-05-10 setup: `2.9.1.71006`. Captured installe
 
 Previous pin for rollback: `v10.0.20` (SHA256 `c908be142934a7a030d890ba023ba32becc4f8ef4637bd42d8efdcef90b3f2d2`, 1,112,576 bytes, asset date 2026-04-18, captured 2026-05-10).
 
-Repo: `https://github.com/Satsuoni/DeDRM_tools` — fork of the original NoDRM/Apprentice Harper DeDRM_tools, maintained specifically for compatibility with current Kindle for PC / KFX format. Upstream `noDRM/DeDRM_tools` is also viable but lags this fork on KFX support.
+Repo: `https://github.com/Satsuoni/DeDRM_tools`. This is a fork of the original NoDRM/Apprentice Harper DeDRM_tools, maintained specifically for compatibility with current Kindle for PC / KFX format. Upstream `noDRM/DeDRM_tools` is also viable but lags this fork on KFX support.
 
 Asset contents (verified 2026-07-19, v10.0.28):
 
@@ -78,7 +78,7 @@ code/tools/KFXArchiver291.exe      (Kindle 2.9.1)
 code/tools/KFXKeyExtractor282.exe  (Kindle 2.8.x — supports 2.8.0 / 2.8.1 / 2.8.2)
 ```
 
-Phase scripts (Python 3.6+, standard library only — no pip install required):
+Phase scripts (Python 3.6+, standard library only, no pip install required):
 
 ```text
 phase_01_key_extraction.py     (run KFXKeyExtractor + KFXArchiver, write Keys/)
@@ -112,7 +112,7 @@ KFXARCHIVER_TOOL_MAP = [
 ]
 ```
 
-Mode A (default) = try KFXKeyExtractor first, fall back to KFXArchiver. Mode B (force_alt) = KFXArchiver only — useful on 2.8.3+.
+Mode A (default) = try KFXKeyExtractor first, fall back to KFXArchiver. Mode B (force_alt) = KFXArchiver only, useful on 2.8.3+.
 
 ## Calibre
 
@@ -140,7 +140,7 @@ Plugin install paths (after Calibre sees them):
 | Verified | 3.14.4 |
 | Resolution | Run_keyfinder.bat skips WindowsApps stubs and PythonSoftwareFoundation sandbox installs; accepts python.org / uv installs |
 
-Keyfinder excludes the WindowsApps stub (App Execution Alias) and the Microsoft Store sandbox install (`PythonSoftwareFoundation` packages folder). Confirm via `where python` — first non-stub result wins.
+Keyfinder excludes the WindowsApps stub (App Execution Alias) and the Microsoft Store sandbox install (`PythonSoftwareFoundation` packages folder). Confirm via `where python`. The first non-stub result wins.
 
 ## How to refresh this file
 

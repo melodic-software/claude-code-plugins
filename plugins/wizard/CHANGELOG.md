@@ -3,6 +3,15 @@
 All notable changes to the `wizard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.8]
+
+### Changed
+
+- **Manifest description drops its em dashes.** Wording only; the plugin's behavior, options, and defaults are unchanged. The description renders into `docs/CATALOG.md`, which the repository's em-dash gate reads.
+- **The plugin's prose drops its em dashes.** This changelog was rewritten. Wording only, with no change to any generated-script shape, dispatch rule, or upstream reference. No heading was touched. The released sections corrected in place are 0.2.0 and 0.1.0: their wording changed, their facts did not.
+- **`seam` stays in the 0.2.5 entry, because the sentence defines it.** It names the single `exec 3</dev/tty` open that `skills/generate/template.test.sh` pins and rewrites, which is a testing seam in the Feathers sense rather than a reflexive metaphor.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md` alongside the README and SKILL bodies it already covered.
+
 ## [0.2.7]
 
 ### Changed
@@ -81,7 +90,7 @@ All notable changes to the `wizard` plugin are documented here. Format follows
 
 - **The bare `/<skill>` alias for this plugin's skills.** Their `SKILL.md` files no longer
   declare a frontmatter `name`. The field is optional and defaults to the directory name, so
-  declaring it only restated the path while registering a second, unnamespaced command — which
+  declaring it only restated the path while registering a second, unnamespaced command, which
   the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
   namespaced command; the command itself is unchanged.
 
@@ -89,7 +98,7 @@ All notable changes to the `wizard` plugin are documented here. Format follows
 
 ### Added
 
-- **`generate` — author an interactive bash wizard for human-only steps**
+- **`generate`: author an interactive bash wizard for human-only steps**
   (`/wizard:generate`, model-invoked with an explicit non-trigger fence: never
   for steps the agent can perform itself). Ported from
   [mattpocock/skills](https://github.com/mattpocock/skills) v1.2.3
@@ -97,13 +106,13 @@ All notable changes to the `wizard` plugin are documented here. Format follows
   `docs/upstream/mattpocock-skills.md`. Hardening deltas over upstream:
   - **Human approval gate (stop-the-line):** the full `STAGES` block is printed
     to the user and explicitly approved BEFORE `chmod +x` or any run
-    instruction — upstream verified and handed off without a human read gate.
+    instruction. Upstream verified and handed off without a human read gate.
   - **https-only `open_url`:** non-https URLs are refused with a visible
-    warning, and the full URL prints before dispatch — also closes a Windows
-    UNC/NTLM credential-leak path through the `explorer.exe` branch.
+    warning, and the full URL prints before dispatch. This also closes a
+    Windows UNC/NTLM credential-leak path through the `explorer.exe` branch.
   - **TTY-only, fail-closed prompts:** all reads come from `/dev/tty` (fd 3),
     the script aborts with a clear message when no TTY exists, and a read
-    failure in `pause`/`confirm`/`ask`/`ask_secret` is fatal — retiring a
+    failure in `pause`/`confirm`/`ask`/`ask_secret` is fatal. That retires a
     verified multi-line-paste bypass of the confirmation gates and `pause`'s
     fail-open at EOF (upstream `read || true`).
   - **Hardened `.env` writes:** values stored single-quoted with embedded
@@ -119,10 +128,10 @@ All notable changes to the `wizard` plugin are documented here. Format follows
     (warn + summary, `gh` never called); `gh` stderr surfaces into the closing
     summary instead of `>/dev/null`.
   - **Key-name validation** (`^[A-Za-z_][A-Za-z0-9_]*$`) at the top of
-    `ask`/`ask_secret`/`write_env`/`set_secret`/`set_var`/`_existing` — fail
+    `ask`/`ask_secret`/`write_env`/`set_secret`/`set_var`/`_existing`, failing
     fast before a malformed name reaches the env file or a `gh` call.
-  - **Readline on non-secret `ask` prompts** (`read -e`; kept off `ask_secret`)
-    — fixes upstream issue #741's arrow-key breakage where safe.
+  - **Readline on non-secret `ask` prompts** (`read -e`; kept off
+    `ask_secret`), fixing upstream issue #741's arrow-key breakage where safe.
   - **Names-only live-`.env` scoping:** the authoring step reads key names only
     from a live `.env` (`grep -oE '^[A-Za-z_][A-Za-z0-9_]*=' .env`), never
     values, and the skill states the secrets-and-context property honestly
@@ -135,4 +144,4 @@ All notable changes to the `wizard` plugin are documented here. Format follows
     entry, idempotent upserts with re-run defaults, `gh`-absence graceful
     degradation (warn + SKIPPED, optional-feature class), names-only closing
     summary, ephemeral-by-default doctrine. The Codex `agents/openai.yaml`
-    sidecar was not ported (no Codex target — SSOT precedent).
+    sidecar was not ported (no Codex target, per SSOT precedent).

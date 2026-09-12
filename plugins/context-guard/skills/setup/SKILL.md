@@ -1,5 +1,5 @@
 ---
-description: "Verify the context-guard plugin's wiring on this machine — jq, the installed statusline shim, statusline wiring (including legacy version-pinned plugin-cache paths), live-session snapshot freshness — print the exact statusline edit for the operator, and install the shim plus seed ~/.claude/context-guard/zones.json from the shipped defaults. Use when: 'set up context-guard', 'is the context tee working', 'wire the context statusline', a consumer reports zone unknown in a live session, or after a plugin update. Actions: check (read-only; never edits settings), apply (writes ONLY inside ~/.claude/context-guard/, the shim and zones.json, on explicit request)."
+description: "Verify the context-guard plugin's wiring on this machine: jq, the installed statusline shim, statusline wiring (including legacy version-pinned plugin-cache paths), and live-session snapshot freshness. Print the exact statusline edit for the operator, and install the shim plus seed ~/.claude/context-guard/zones.json from the shipped defaults. Use when: 'set up context-guard', 'is the context tee working', 'wire the context statusline', a consumer reports zone unknown in a live session, or after a plugin update. Actions: check (read-only; never edits settings), apply (writes ONLY inside ~/.claude/context-guard/, the shim and zones.json, on explicit request)."
 argument-hint: "check | apply [defaults]"
 user-invocable: true
 disable-model-invocation: true
@@ -140,9 +140,9 @@ zone bands, zones.json shape) are owned by
 5. **zones.json state**, a read-only report over the pre-computed `zones.json` value: absent
    (shipped defaults in effect, percentage 50/75 plus the window-class token bands; valid
    zero-config state, not a defect), present and valid
-   (report the bands in effect, both shapes), or present with a malformed shape (report per shape
-   — the resolver validates percentage keys and `token_bands` independently and falls back per
-   shape with a stderr notice; a percentage-only file without `token_bands` is valid, with
+   (report the bands in effect, both shapes), or present with a malformed shape (report per
+   shape: the resolver validates percentage keys and `token_bands` independently and falls back
+   per shape with a stderr notice; a percentage-only file without `token_bands` is valid, with
    shipped token bands silently in effect; remediation: `apply`). A `(present but unreadable)`
    token, or a `cat:` error in place of the contents, is the fourth state: the file exists and
    cannot be read, which is a defect the absent branch would hide. Report the read error and route
@@ -214,9 +214,9 @@ result (a no-op on Windows ACL volumes; the wiring invokes it through `bash` any
   Otherwise overwrite it (this is the update path after a plugin version bump changes the shim)
   and report the `# shim-revision:` values, old → new.
 - The shim is **inert until wired**: installing it starts nothing. Only the operator's
-  `settings.json` edit — step 7 of `check`, which this skill never applies — puts it on the
-  statusline path. Say that explicitly when reporting the write.
-- After installing, print the wiring edit (`check` step 7) — honoring that step's exceptions —
+  `settings.json` edit puts it on the statusline path. That edit is step 7 of `check`, which
+  this skill never applies. Say that explicitly when reporting the write.
+- After installing, print the wiring edit (`check` step 7), honoring that step's exceptions,
   so the operator's next action is in front of them when there is one, and note that a
   statusline already wired to the shim needs no change now or on any future plugin update.
 
@@ -250,7 +250,7 @@ Seed or refresh `~/.claude/context-guard/zones.json` from the shipped defaults
    - `apply defaults`: set all recognized band keys (both percentage keys and `token_bands`) to
      the shipped defaults explicitly. This converges forward to a known state; it is not teardown,
      and it never removes the file or any key it does not recognize.
-   - Both modes **preserve every unrecognized key semantically** — same keys, same JSON values —
+   - Both modes **preserve every unrecognized key semantically**: same keys, same JSON values
      (the file is a shared SSOT the operator's own statusline may extend). Preservation is
      value-level, not lexical: a `jq` merge reserializes the document, so formatting and escape
      spellings may normalize (`"blue"` → `"blue"`); consumers of this file must parse it as

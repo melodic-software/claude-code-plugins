@@ -175,7 +175,8 @@ mcp__github__create_pull_request | mcp__github__update_pull_request) ;;
 *) exit 0 ;;
 esac
 
-REPO_ROOT=$(hook::repo_root "${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}")
+REPO_ROOT=""
+hook::repo_root_to REPO_ROOT "${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}" || :
 
 # The consuming repo's own workflows are the authority: the gate runs only
 # where one of them wires in the `pr-contract` composite step. No step, no

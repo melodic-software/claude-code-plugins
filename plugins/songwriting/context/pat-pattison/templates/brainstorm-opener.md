@@ -13,18 +13,18 @@ Pick one entry path:
 
 1. **Sense-bound 10-minute write** (Pat's Challenge 1)
    Pick a seed category and one seed word. I'll set the prompt; you write
-   for 10 minutes — all seven senses, no rhyme, no meter, no explanation,
+   for 10 minutes: all seven senses, no rhyme, no meter, no explanation,
    stop mid-word when the buzzer hits.
 
-   - **What** — mirror, arrow, broken cup, bus ticket, ...
-   - **Who** — waitress, priest, drummer, child in a hallway, ...
-   - **When** — first snowfall, late evening, 6 a.m., graduation, ...
-   - **Where** — hotel bar, cliff, parking lot, old church, ...
+   - **What**: mirror, arrow, broken cup, bus ticket, ...
+   - **Who**: waitress, priest, drummer, child in a hallway, ...
+   - **When**: first snowfall, late evening, 6 a.m., graduation, ...
+   - **Where**: hotel bar, cliff, parking lot, old church, ...
 
    Reply with: category + one seed word. Or say "you pick" and I'll seed.
 
 2. **Lived-input pull** (no timer)
-   Answer one of these — first answer that arrives:
+   Answer one of these, first answer that arrives:
    - What did you notice recently that's still with you?
    - What scrap of language stuck this week?
    - What conversation / image / scene won't let go?
@@ -44,25 +44,25 @@ Which path?
 
 ## After the writer picks
 
-### Path 1 — Sense-bound
+### Path 1: Sense-bound
 
-- Confirm seed; set 10-minute timer (verbally — writer runs the timer)
+- Confirm seed; set 10-minute timer (verbally, the writer runs the timer)
 - After they finish, ask for the page; mine for strongest image, surprising
   verb, possible title seed
 - Route mined material to `idea-to-title.md`
 
-### Path 2 — Lived-input
+### Path 2: Lived-input
 
 - Take their one-line answer; treat as seed; route to Path 1's
   object-write
 - Or, if the answer is already title-shaped, route to `idea-to-title.md`
 
-### Path 3 — Recent envy
+### Path 3: Recent envy
 
 - Probe: what specifically did you envy / notice?
 - Treat the specific detail as seed; route to Path 1
 
-### Path 4 — Title cascade
+### Path 4: Title cascade
 
 - Run the cascade per `title-game.md` (solo mechanics)
 - 10-15 titles, stressed-vowel chained

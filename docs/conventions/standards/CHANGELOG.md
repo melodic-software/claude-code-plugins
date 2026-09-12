@@ -1,6 +1,6 @@
-# Changelog — standards convention
+# Changelog for the standards convention
 
-## 1.0.0 — 2026-07-17
+## [1.0.0] - 2026-07-17
 
 Initial contract:
 
@@ -19,7 +19,7 @@ Initial contract:
   by `standards.schema.json`.
 - Six-rung resolution ladder with a no-silent-writes guarantee, an
   ambient-content rule, and a tolerant-reader rule.
-- `.claude/rules` division-of-content seam: rules push, standards pull;
+- `.claude/rules` division of content: rules push, standards pull;
   pointer pattern instead of imports or restated content.
 - Normative setup-and-migration procedure: idempotent re-runnable
   bootstrap (run twice, no diff), conforming-index short-circuit,

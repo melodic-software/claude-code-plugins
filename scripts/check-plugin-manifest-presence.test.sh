@@ -14,18 +14,17 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SUT_SRC="$SCRIPT_DIR/check-plugin-manifest-presence.sh"
 
-fails=0
-pass() { printf 'ok   - %s\n' "$1"; }
-fail() {
-  printf 'FAIL - %s\n' "$1" >&2
-  fails=$((fails + 1))
-}
+# shellcheck source=lib/test-harness.sh
+. "$SCRIPT_DIR/lib/test-harness.sh"
+# shellcheck source=lib/fixture-tree.sh
+. "$SCRIPT_DIR/lib/fixture-tree.sh"
 
-TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT
+# The builder assigns through a nameref, which shellcheck cannot follow;
+# declaring the out-var here is what tells it (SC2154) the name is written.
+TMP=""
 
-mkdir -p "$TMP/scripts" "$TMP/.claude-plugin"
-cp "$SUT_SRC" "$TMP/scripts/check-plugin-manifest-presence.sh"
+fixture_tree::build TMP --sut "$SUT_SRC"
+mkdir -p "$TMP/.claude-plugin"
 SUT="$TMP/scripts/check-plugin-manifest-presence.sh"
 MARKETPLACE="$TMP/.claude-plugin/marketplace.json"
 
@@ -66,7 +65,7 @@ printf 'alpha\t./plugins/alpha\nbeta\t./plugins/beta\n' | write_marketplace
 out="$(run)"
 rc=$?
 if [[ $rc -eq 0 ]] && grep -q 'no unregistered plugin directories' <<<"$out"; then
-  pass "happy path (manifests present, names match, no orphans) passes"
+  ok "happy path (manifests present, names match, no orphans) passes"
 else
   fail "happy path should pass (rc=$rc): $out"
 fi
@@ -76,7 +75,7 @@ rm -rf "$TMP/plugins/alpha/.claude-plugin"
 out="$(run)"
 rc=$?
 if [[ $rc -eq 1 ]] && grep -q 'MISSING MANIFEST' <<<"$out" && grep -q "'alpha'" <<<"$out"; then
-  pass "a plugin directory losing its .claude-plugin/plugin.json fails the gate"
+  ok "a plugin directory losing its .claude-plugin/plugin.json fails the gate"
 else
   fail "missing manifest should fail (rc=$rc): $out"
 fi
@@ -87,7 +86,7 @@ rm -rf "$TMP/plugins/beta"
 out="$(run)"
 rc=$?
 if [[ $rc -eq 1 ]] && grep -q 'MISSING PLUGIN DIRECTORY' <<<"$out" && grep -q "'beta'" <<<"$out"; then
-  pass "a catalog entry pointing at a vanished directory fails the gate"
+  ok "a catalog entry pointing at a vanished directory fails the gate"
 else
   fail "vanished plugin directory should fail (rc=$rc): $out"
 fi
@@ -98,7 +97,7 @@ make_plugin beta "not-beta"
 out="$(run)"
 rc=$?
 if [[ $rc -eq 1 ]] && grep -q 'NAME MISMATCH' <<<"$out" && grep -q "'beta'" <<<"$out" && grep -q 'not-beta' <<<"$out"; then
-  pass "a manifest name/catalog key mismatch fails the gate"
+  ok "a manifest name/catalog key mismatch fails the gate"
 else
   fail "name mismatch should fail (rc=$rc): $out"
 fi
@@ -110,7 +109,7 @@ echo '{"version": "0.1.0"}' >"$TMP/plugins/beta/.claude-plugin/plugin.json"
 out="$(run)"
 rc=$?
 if [[ $rc -eq 1 ]] && grep -q 'MALFORMED MANIFEST' <<<"$out"; then
-  pass "a manifest with no name field fails the gate"
+  ok "a manifest with no name field fails the gate"
 else
   fail "manifest without a name field should fail (rc=$rc): $out"
 fi
@@ -121,7 +120,7 @@ make_plugin gamma
 out="$(run)"
 rc=$?
 if [[ $rc -eq 1 ]] && grep -q 'UNREGISTERED PLUGIN DIRECTORY' <<<"$out" && grep -q 'gamma' <<<"$out"; then
-  pass "a plugin directory with no catalog entry fails the gate"
+  ok "a plugin directory with no catalog entry fails the gate"
 else
   fail "unregistered plugin directory should fail (rc=$rc): $out"
 fi
@@ -135,7 +134,7 @@ printf 'alpha\t./plugins/alpha\nbeta\t./plugins/beta\nevil\t../../etc\n' | write
 out="$(run)"
 rc=$?
 if [[ $rc -eq 1 ]] && grep -q 'UNSAFE CATALOG SOURCE' <<<"$out" && grep -q 'evil' <<<"$out"; then
-  pass "a catalog source escaping the repo root fails the gate"
+  ok "a catalog source escaping the repo root fails the gate"
 else
   fail "path-escaping catalog source should fail (rc=$rc): $out"
 fi
@@ -150,7 +149,7 @@ printf 'alpha\t./plugins/alpha/\nbeta\tplugins/./beta\n' | write_marketplace
 out="$(run)"
 rc=$?
 if [[ $rc -eq 0 ]]; then
-  pass "trailing-slash and dot-segment spellings of a registered directory stay green"
+  ok "trailing-slash and dot-segment spellings of a registered directory stay green"
 else
   fail "equivalent source spellings should pass (rc=$rc): $out"
 fi
@@ -163,7 +162,7 @@ printf 'alpha\t./plugins/alpha\nbeta\t./plugins/beta\nevil\t./plugins/.//../../e
 out="$(run)"
 rc=$?
 if [[ $rc -eq 1 ]] && grep -q 'UNSAFE CATALOG SOURCE' <<<"$out" && grep -q 'evil' <<<"$out"; then
-  pass "dot segments around a '..' do not launder a path-escaping source"
+  ok "dot segments around a '..' do not launder a path-escaping source"
 else
   fail "obfuscated path-escaping source should fail (rc=$rc): $out"
 fi
@@ -173,7 +172,7 @@ printf 'alpha\t./plugins/alpha\nbeta\t./plugins/beta\n' | write_marketplace # re
 out="$(run)"
 rc=$?
 if [[ $rc -eq 0 ]]; then
-  pass "gate returns to green once every fixture is restored"
+  ok "gate returns to green once every fixture is restored"
 else
   fail "restored tree should pass (rc=$rc): $out"
 fi
@@ -183,13 +182,9 @@ rm -f "$MARKETPLACE"
 out="$(run)"
 rc=$?
 if [[ $rc -eq 2 ]]; then
-  pass "missing marketplace.json exits 2"
+  ok "missing marketplace.json exits 2"
 else
   fail "missing marketplace.json should exit 2 (rc=$rc): $out"
 fi
 
-if [[ $fails -ne 0 ]]; then
-  printf '%d assertion(s) failed\n' "$fails" >&2
-  exit 1
-fi
-printf 'all assertions passed\n'
+test_harness::report

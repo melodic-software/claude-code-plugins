@@ -1,4 +1,4 @@
-# Run-everything mode — full-breadth review
+# Run-everything mode: full-breadth review
 
 The heavy, exhaustive sweep: run the main-thread orchestrator plugins AND fan out the full leaf roster (`leaf-roster.md`: its finding-producing agents + every discovered ownerless slice), then normalize everything into one severity-ranked report. The leaf fan-out is accelerated by a Workflow when available; a main-thread fallback preserves coverage when it is not.
 
@@ -6,19 +6,19 @@ Trigger: `$ARGUMENTS` is `run-everything` / `everything` / `all`. Distinct from 
 
 ## Flow
 
-1. **Pre-launch availability gate** (below) — run BEFORE any launch.
-2. **Resolve the review diff base** (SKILL.md "Shared inputs") — resolve it up front, because the orchestrator step passes it to Codex via `--base` and the leaf fan-out substitutes it into `REVIEW_DIFF`; every surface must diff the same base.
-3. **Main-thread orchestrators** — sequentially invoke the optional orchestrator plugins per SKILL.md "Orchestrator plugins". They fan out their OWN agents and stay on the main thread, never inside the Workflow (rationale: SKILL.md "Orchestrator plugins"). This exhaustive sweep is where the cross-vendor `codex` surface earns its cost most — when the plugin is present, invoke `/codex:review --wait --base <review-base>` (and `/codex:adversarial-review --wait --base <review-base>` for red-team breadth), since a different model is the one source of uncorrelated blind spots the Claude leaves and orchestrators structurally share. Two flags are load-bearing: `--wait` keeps the review in the foreground (without a flag the command prompts or backgrounds, returning only a status handle, so the step-6 synchronous normalization would see an empty surface and silently drop Codex), and `--base` carries the step-2 review diff base so Codex diffs the SAME change set as every other surface — without it Codex auto-picks the working tree or default branch and reviews a different diff on any PR whose base is not the default branch. Coverage boundary: `--base` runs Codex in branch mode (`git diff <base>..HEAD`, committed only), which coincides with the leaves' `git diff <base>` on a clean branch (the review case) but NOT when the branch also carries uncommitted tracked edits — there Codex covers the committed diff while the leaves additionally cover the dirty tree. Name that gap in `## Surfaces` for a mixed branch+dirty run rather than assuming identical change sets.
-4. **Resolve the roster** — run the discovery recipe in `leaf-roster.md` to get the slice list.
-5. **Leaf fan-out** — if the gate passed, substitute the step-2 diff base into `REVIEW_DIFF` and the discovered slice names into `OWNERLESS_SLICES` in the script below, then launch it via the Workflow tool. Else take the coverage-parity fallback.
-6. **Normalize main-thread** — gather the Workflow's extracted leaf records + the raw orchestrator outputs; run Stage 0 on the orchestrator outputs (the Workflow only extracted the leaf branch), then Stages 1–4 of `findings-normalization.md` over the combined record set. Reconcile per surface against the Workflow's `raw` array: any surface whose raw output is non-empty but yielded zero extracted records gets Stage 0 re-run main-thread on that raw text; whatever still fails to parse goes verbatim into `## Unparsed` — partial extraction never silently drops a surface.
+1. **Pre-launch availability gate** (below). Run BEFORE any launch.
+2. **Resolve the review diff base** (SKILL.md "Shared inputs"). Resolve it up front, because the orchestrator step passes it to Codex via `--base` and the leaf fan-out substitutes it into `REVIEW_DIFF`; every surface must diff the same base.
+3. **Main-thread orchestrators.** Sequentially invoke the optional orchestrator plugins per SKILL.md "Orchestrator plugins". They fan out their OWN agents and stay on the main thread, never inside the Workflow (rationale: SKILL.md "Orchestrator plugins"). This exhaustive sweep is where the cross-vendor `codex` surface earns its cost most. When the plugin is present, invoke `/codex:review --wait --base <review-base>` (and `/codex:adversarial-review --wait --base <review-base>` for red-team breadth), since a different model is the one source of uncorrelated blind spots the Claude leaves and orchestrators structurally share. Two flags are required: `--wait` keeps the review in the foreground (without a flag the command prompts or backgrounds, returning only a status handle, so the step-6 synchronous normalization would see an empty surface and silently drop Codex), and `--base` carries the step-2 review diff base so Codex diffs the SAME change set as every other surface. Without it Codex auto-picks the working tree or default branch and reviews a different diff on any PR whose base is not the default branch. Coverage boundary: `--base` runs Codex in branch mode (`git diff <base>..HEAD`, committed only), which coincides with the leaves' `git diff <base>` on a clean branch (the review case) but NOT when the branch also carries uncommitted tracked edits. There Codex covers the committed diff while the leaves additionally cover the dirty tree. Name that gap in `## Surfaces` for a mixed branch+dirty run rather than assuming identical change sets.
+4. **Resolve the roster.** Run the discovery recipe in `leaf-roster.md` to get the slice list.
+5. **Leaf fan-out.** If the gate passed, substitute the step-2 diff base into `REVIEW_DIFF` and the discovered slice names into `OWNERLESS_SLICES` in the script below, then launch it via the Workflow tool. Else take the coverage-parity fallback.
+6. **Normalize main-thread.** Gather the Workflow's extracted leaf records + the raw orchestrator outputs; run Stage 0 on the orchestrator outputs (the Workflow only extracted the leaf branch), then Stages 1–4 of `findings-normalization.md` over the combined record set. Reconcile per surface against the Workflow's `raw` array: any surface whose raw output is non-empty but yielded zero extracted records gets Stage 0 re-run main-thread on that raw text; whatever still fails to parse goes verbatim into `## Unparsed`. Partial extraction never silently drops a surface.
 7. **Persist** per `findings-file-shape.md` "Findings-writer contract"; prepend the DEGRADED block when the fallback was taken.
 
-**Pre-flight gate first:** SKILL.md's pre-flight gate applies to this mode too — the ask-shape check routes a whole-repo security-audit ask to the `leaf-roster.md` "Deep-scan escalation" before any diff resolution, and an unresolvable base ref or an empty change set (including untracked-only) reports and stops before step 1; with nothing diffable, every leaf would diff an empty tree and return nothing. Do NOT stage files.
+**Pre-flight gate first:** SKILL.md's pre-flight gate applies to this mode too. The ask-shape check routes a whole-repo security-audit ask to the `leaf-roster.md` "Deep-scan escalation" before any diff resolution, and an unresolvable base ref or an empty change set (including untracked-only) reports and stops before step 1; with nothing diffable, every leaf would diff an empty tree and return nothing. Do NOT stage files.
 
 ## Pre-launch availability gate
 
-The Workflow tool is org-disableable and not present in every session, and a failed launch is silent, not throwable — decide availability BEFORE attempting. Any failure → main-thread fallback:
+The Workflow tool is org-disableable and not present in every session, and a failed launch is silent, not throwable, so decide availability BEFORE attempting. Any failure → main-thread fallback:
 
 | Check | Unavailable when |
 |---|---|
@@ -32,10 +32,10 @@ If availability cannot be positively confirmed, fall back (fail-safe, not fail-o
 
 Constructed at dispatch: copy the script below, substitute `REVIEW_DIFF` (the resolved diff base) and `OWNERLESS_SLICES` (the discovered slice names, each as `'<path-or-name>'`), and pass it via `Workflow({script})`. Design constraints baked in:
 
-- Plain JS — no TypeScript annotations; no `Date.now()`/`Math.random()`/argless `new Date()`.
+- Plain JS: no TypeScript annotations; no `Date.now()`/`Math.random()`/argless `new Date()`.
 - Each leaf reads the diff via its OWN Bash (`git diff <REVIEW_DIFF>`); the script layer has no filesystem access.
-- Leaves return raw free-text (NO `schema`) — schema over a custom agent's baked-in output prose is unreliable. Only the dedicated extraction agent uses `schema` (a fresh general-purpose agent, where it is reliable).
-- Backstop: the script always returns `raw` (every leaf's raw output alongside extracted records) so the main thread can reconcile per surface — partial extraction preserves unparsed surfaces, not just the all-zero case.
+- Leaves return raw free-text (NO `schema`). Schema over a custom agent's baked-in output prose is unreliable. Only the dedicated extraction agent uses `schema` (a fresh general-purpose agent, where it is reliable).
+- Backstop: the script always returns `raw` (every leaf's raw output alongside extracted records) so the main thread can reconcile per surface. Partial extraction preserves unparsed surfaces, not just the all-zero case.
 
 ```javascript
 export const meta = {
@@ -68,7 +68,7 @@ const COVERAGE_CLAUSE =
   ' Your goal at this stage is coverage: it is better to surface a finding that later gets filtered ' +
   'out than to silently drop a real bug. Report every issue you find, including ones you are ' +
   'uncertain about or consider low-severity. Do not filter for importance or confidence at this ' +
-  'stage — a separate normalization pass deduplicates and ranks findings downstream. For each ' +
+  'stage, a separate normalization pass deduplicates and ranks findings downstream. For each ' +
   'finding, include your confidence level (high / medium / low) and an estimated severity.'
 
 const AGENT_PROMPT =
@@ -137,7 +137,7 @@ const extracted = await agent(
   'You are the Stage-0 extraction step of a review-findings pipeline. Below are raw free-text findings from ' +
   'several review surfaces, each under a "### Surface:" header. Emit one record per finding (surface, file, ' +
   'line, line_basis, category, native_severity, native_confidence, raw_text). Do NOT crosswalk severity or ' +
-  'confidence (later stages do that). Preserve EVERY finding — never drop one.\n\n' + extractInput,
+  'confidence (later stages do that). Preserve EVERY finding, never drop one.\n\n' + extractInput,
   { schema: RECORD_SCHEMA, model: 'sonnet', label: 'stage0-extract', phase: 'Extract' }
 )
 
@@ -150,13 +150,13 @@ return {
 }
 ```
 
-**Null reconciliation:** the reduce returns `nulls` (every leaf that produced no record, regardless of cause) and `ran` (the full expected roster). Render a `## Surfaces` line — `Ran: [...]. Returned no result: [...]` — NO silent caps; every null is named.
+**Null reconciliation:** the reduce returns `nulls` (every leaf that produced no record, regardless of cause) and `ran` (the full expected roster). Render a `## Surfaces` line in the form `Ran: [...]. Returned no result: [...]`, with NO silent caps. Every null is named.
 
 **Agent-type namespacing:** the `agentType` values above use the marketplace-installed form (`review:<agent>`). When running via `--plugin-dir` or in a context where the plain names resolve, substitute the unqualified names at dispatch.
 
 ## Coverage-parity fallback (Workflows unavailable)
 
-Spawn the SAME roster on the main thread via parallel Agent-tool calls (the main thread CAN spawn agents), using the same resolved review diff base, then run Stages 0–4 main-thread. Coverage and the findings contract are identical; what is lost: background execution, out-of-context intermediates, resume caching, and higher concurrency. If a dropped property is load-bearing for the caller, STOP and surface it rather than silently downgrading.
+Spawn the SAME roster on the main thread via parallel Agent-tool calls (the main thread CAN spawn agents), using the same resolved review diff base, then run Stages 0–4 main-thread. Coverage and the findings contract are identical; what is lost: background execution, out-of-context intermediates, resume caching, and higher concurrency. If the caller depends on a dropped property, STOP and surface it rather than silently downgrading.
 
 ## Degraded notice
 
@@ -170,4 +170,4 @@ When the fallback is taken, prepend a structurally distinct block at the TOP of 
 
 ## Interrupted-run handling
 
-If the Workflow is interrupted, relaunch with `Workflow({scriptPath, resumeFromRunId})` within the same session — the unchanged prefix of `agent()` calls returns cached. Across sessions, re-run from scratch. The report is written ONCE, main-thread, after the reduce returns — never partially from inside concurrent leaves.
+If the Workflow is interrupted, relaunch with `Workflow({scriptPath, resumeFromRunId})` within the same session. The unchanged prefix of `agent()` calls returns cached. Across sessions, re-run from scratch. The report is written ONCE, main-thread, after the reduce returns, never partially from inside concurrent leaves.

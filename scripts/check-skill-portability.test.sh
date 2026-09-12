@@ -15,15 +15,16 @@ SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SELF_DIR/.." && pwd)"
 SCRIPT="$SELF_DIR/check-skill-portability.sh"
 
-# A fixture runs a COPY of the gate, so it must also carry the shared
-# libraries that copy sources (scripts/lib/*.sh). Staging them here keeps the
-# fixture a faithful copy; without it the copied gate dies on a missing
-# source at line 1 and every assertion below turns into the same opaque
-# failure. See #2914.
-stage_libs() {
-  mkdir -p "$1/lib"
-  cp "$SELF_DIR/lib/changed-files.sh" "$SELF_DIR/lib/token-scan.sh" "$SELF_DIR/lib/read-list.sh" "$1/lib/"
-}
+# A fixture runs a COPY of the gate, so the builder stages scripts/lib/ with it:
+# without those, the copy dies on a missing source at line 1 and every assertion
+# below turns into the same opaque failure.
+# shellcheck source=lib/fixture-tree.sh
+. "$SELF_DIR/lib/fixture-tree.sh"
+
+# The builder assigns through a nameref, which shellcheck cannot follow;
+# declaring the out-var here is what tells it (SC2154) the name is written.
+fx=""
+
 REAL_TOKENS="$REPO_ROOT/scripts/skill-portability-tokens.txt"
 . "$SELF_DIR/test-git-helpers.sh"
 
@@ -321,10 +322,7 @@ rm -f "$f"
 # (#1513, shared fix with check-shell-portability.sh's identical mechanism —
 # see #1531)
 # =============================================================================
-fx="$(mktemp -d)"
-mkdir -p "$fx/scripts"
-cp "$SCRIPT" "$fx/scripts/"
-stage_libs "$fx/scripts"
+fixture_tree::build fx --sut "$SCRIPT"
 printf 'diff against origin/main\n' >"$fx/FOO=bar.md"
 out="$(cd "$fx" && SKILL_PORTABILITY_TOKENS="$TEST_TOKENS" bash scripts/check-skill-portability.sh --paths "FOO=bar.md" 2>&1)"
 rc=$?
@@ -346,10 +344,7 @@ rm -rf "$fx"
 # The path must be RELATIVE for this to bite. The gate cd's to its own parent,
 # and an absolute path begins with `/`, which awk can only read as a filename.
 # =============================================================================
-fx="$(mktemp -d)"
-mkdir -p "$fx/scripts"
-cp "$SCRIPT" "$fx/scripts/"
-stage_libs "$fx/scripts"
+fixture_tree::build fx --sut "$SCRIPT"
 cp "$TEST_TOKENS" "$fx/t=custom.txt"
 printf 'diff against origin/main\n' >"$fx/plain.md"
 out="$(cd "$fx" && SKILL_PORTABILITY_TOKENS="t=custom.txt" bash scripts/check-skill-portability.sh --paths "plain.md" 2>&1)"
@@ -686,10 +681,8 @@ else
 fi
 
 # --- --all excludes vendor/, evals/, and *.test.sh -------------------------
-fx="$(mktemp -d)"
-mkdir -p "$fx/scripts" "$fx/plugins/alpha/skills/x/vendor" "$fx/plugins/alpha/skills/x/evals"
-cp "$SCRIPT" "$fx/scripts/"
-stage_libs "$fx/scripts"
+fixture_tree::build fx --sut "$SCRIPT"
+mkdir -p "$fx/plugins/alpha/skills/x/vendor" "$fx/plugins/alpha/skills/x/evals"
 printf 'diff against origin/main\n' >"$fx/plugins/alpha/skills/x/SKILL.md"
 printf 'origin/main\n' >"$fx/plugins/alpha/skills/x/vendor/upstream.md"
 printf 'origin/main\n' >"$fx/plugins/alpha/skills/x/evals/e.md"
@@ -706,10 +699,7 @@ fi
 rm -rf "$fx"
 
 # --- empty scope passes ----------------------------------------------------
-fx="$(mktemp -d)"
-mkdir -p "$fx/scripts" "$fx/plugins"
-cp "$SCRIPT" "$fx/scripts/"
-stage_libs "$fx/scripts"
+fixture_tree::build fx --sut "$SCRIPT" --plugins
 if (cd "$fx" && SKILL_PORTABILITY_TOKENS="$TEST_TOKENS" bash scripts/check-skill-portability.sh --all >/dev/null 2>&1); then
   ok "empty skill tree passes"
 else
@@ -727,10 +717,7 @@ rm -rf "$fx"
 # ASCII hit proves -z left the common path intact, and two COUPLING lines prove
 # the quoted path was read, not skipped. The non-ASCII name is built with octal
 # escapes so this test source stays pure ASCII.
-fx="$(mktemp -d)"
-mkdir -p "$fx/scripts"
-cp "$SCRIPT" "$fx/scripts/"
-stage_libs "$fx/scripts"
+fixture_tree::build fx --sut "$SCRIPT"
 quoted_name="$(printf 'quoted-\303\251.md')" # trailing U+00E9 byte — non-ASCII, triggers Git quoting
 out="$(
   cd "$fx" &&

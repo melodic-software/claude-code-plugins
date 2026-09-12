@@ -73,9 +73,19 @@ or as a daily routine. Two properties are worth knowing before you rely on it:
 - **A bare run is read-only toward your repository and stays within a budget**. It stops at
   three verified findings or a complete lane sample. Filing happens only when you pass
   `--track`, and a complete lane sample is never reported as the lane being bug-free.
+- **Cost follows the scope, never the precision.** Hunters run on a cheap general-purpose tier and
+  gates on a strong reasoning tier (the skill's sizing table names the current aliases); the scope's
+  size picks how many lenses run and how many candidates reach a gate, and the session's effort
+  level is the ceiling. A main-thread triage step seeds from the previous run's ungated tail, merges
+  same-cause candidates, and parks cosmetic ones before any gate is spent.
 
-Verified findings are handed off, not fixed here: root-causing routes to `/debugging:debug`,
-and anything security-relevant routes to the `review:security-review` lane.
+Verified findings leave through one ladder: in an interactive session a local finding (one plugin,
+no documented contract change, a test file to extend) is fixed in that session through the implement
+lane; a non-local or security-relevant one, and every finding from an unattended run, is filed with
+`--track`. Root-causing routes to `/debugging:debug`, and anything security-relevant routes to the
+`review:security-review` lane. On a cloud or scheduled session the plugin data directory does not
+outlive the container, so pass `--track`: the filed item is the only durable output and is what the
+next rotation reads back.
 
 ## Configuration
 
@@ -106,8 +116,7 @@ Project-specific conventions, naming, areas, tracker choice, priority labels, ar
 read from the **consuming project's own `CLAUDE.md` / rules**; the plugin imposes
 none of its own.
 
-<!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
-<!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
+<!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
 
@@ -123,9 +132,9 @@ reads it from.
 
 Three supported routes, in the order most people want them:
 
-1. **Interactively** — Claude Code prompts for declared options when you enable the
+1. **Interactively.** Claude Code prompts for declared options when you enable the
    plugin. To change them later: `/plugin configure bugs@<marketplace>`.
-2. **Headless** — repeat `--config` for each option. Replace
+2. **Headless.** Repeat `--config` for each option. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
 
    ```shell
@@ -145,7 +154,7 @@ Three supported routes, in the order most people want them:
    Claude Code session before expecting new behavior. A check run in the old session
    still reports the old value, and that is not a failed write.
 
-3. **By hand, in settings** — add the value under `pluginConfigs` in your **user**
+3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
    settings (`~/.claude/settings.json`):
 
    ```json
@@ -161,7 +170,7 @@ Three supported routes, in the order most people want them:
    ```
 
    Plugin option values are read from **user**, `--settings`, and managed settings
-   only — **not** from a project's `.claude/settings.json`. To vary behavior per
+   only, **not** from a project's `.claude/settings.json`. To vary behavior per
    repository, enable or disable the plugin in that project's `enabledPlugins`
    instead of setting an option there.
 
@@ -170,14 +179,13 @@ hands a configured value to a hook process; the value comes from the routes abov
 
 ### Upstream documentation
 
-- [User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration) — the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
-- [Plugin install options](https://code.claude.com/docs/en/plugins-reference#plugin-install) — the `--config` flag's reference entry
-- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills) — `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
-- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect) — user vs project vs local precedence
-- [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins) — enabling, disabling, `/plugin list`
+- [User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration): the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
+- [Plugin install options](https://code.claude.com/docs/en/plugins-reference#plugin-install): the `--config` flag's reference entry
+- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
+- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
+- [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins): enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
-<!-- ai-slop-ignore-end -->
 
 ## Filing a report
 

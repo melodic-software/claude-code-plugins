@@ -3,6 +3,46 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.11]
+
+### Changed
+
+- **Options reference drops its em dashes.** The generated How-to-set-these block is rewritten by
+  `scripts/sync-plugin-options-docs.py`, which is the fix site: its output is regenerated, never
+  hand-edited. The block no longer needs the ignore marker that exempted it from the repository's
+  em-dash gate, so that marker is gone as well.
+
+- **`skills/setup/reference/legacy-statusline-detect.md` follows its canonical copy.** That file is
+  held byte-identical with `context-guard`'s by `scripts/sync-legacy-statusline-detect.sh`, and the
+  em-dash purge rewrote the canonical side first. Synced with that script rather than edited here,
+  so the pair matches again. The heading is the only line that moved; the classification rules are
+  unchanged.
+- **The plugin's prose drops its em dashes.** Four surfaces were rewritten: this changelog,
+  `reference/reader-contract.md`, `bench/README.md`, and `skills/setup/SKILL.md`. Wording only,
+  with no change to any lane, threshold, or statusline behavior. The operable-floor block in
+  `reference/reader-contract.md` carried no em dash and is byte-identical, so the six consumers
+  `scripts/check-loop-lane-floor-drift.sh` compares against it still match. The reader contract's
+  H1 lost a dashed separator and so changed anchor; nothing linked to it. The released sections
+  corrected in place are 0.7.36, 0.7.33, 0.7.8, 0.7.7, 0.7.4, 0.7.0, 0.6.1, 0.6.0, 0.5.8, 0.5.7,
+  0.5.5, 0.5.4, 0.5.3, 0.5.2, 0.5.1, 0.5.0, 0.4.4, 0.4.3, 0.4.2, 0.4.0, 0.3.7, 0.3.6, 0.3.5,
+  0.3.4, 0.3.3, 0.3.1, 0.3.0, 0.2.1, 0.2.0, and 0.1.0: their wording changed, their facts did not.
+- **`reference/reader-contract.md` says what the scope column decides instead of calling it
+  load-bearing.** It now reads "the scope column decides how far a failure reaches", which names
+  the thing the reader needs in order to use the table.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends
+  `CHANGELOG.md`, `reference/reader-contract.md`, `bench/README.md`, and every `skills/*/SKILL.md`.
+
+## [0.8.10]
+
+### Changed
+
+- **Vendored `hook-utils.sh` refresh.** The shared library gained one exit arm
+  (`hook::finish`) and one ceiling-bounded parent walk (`hook::walk_up_to`),
+  and retired seven value-printing helpers whose whole body called their
+  caller-writes-to-a-variable twin, so each call site stops paying a subshell
+  fork for a value the shell already has. This plugin's own hooks are
+  unchanged; the version moves so consumers receive the library.
+
 ## [0.8.9]
 
 ### Fixed
@@ -146,14 +186,14 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
   state file: bash `$(<file)` plus parameter-expansion extraction 3.6–4.0 s, unusable on any path;
   `jq -r` over stdin 35 ms; `claude auth status --json` 175 ms. Bash opens the file and jq reads
   stdin, so the Windows MSYS-path limitation that keeps every other file out of jq's argv does not
-  apply. The batch jq pass gained two output lines for this — the chosen record's shard name, which
+  apply. The batch jq pass gained two output lines for this: the chosen record's shard name, which
   is what the staleness comparison dates against, and a structural `keys_unsorted` test for an
   existing account key, asked the same way the window-bearing verdict is asked with `has()` rather
   than as a substring scan.
 
   `.oauthAccount.emailAddress` is **internal CLI state**, not a documented surface: the reader
   contract carries it as a recheck trigger, and the untrusted-value rule applies to the field
-  unchanged. **The value is judged on its codepoints inside jq, before it leaves the parser** —
+  unchanged. **The value is judged on its codepoints inside jq, before it leaves the parser**:
   3 to 254 of them, none below 32 and none equal to 34, 92, or 127, and at least one `@`. Judging
   it after the value crossed into bash would not hold: command substitution strips embedded null
   bytes and trailing newlines, so an address carrying a JSON-escaped control character would arrive
@@ -168,7 +208,7 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
   on Windows terminates its output lines with CRLF and `read -r` splits on LF only, so a token line
   arrived as `true\r` and compared equal to nothing; only the LAST line was reliably clean, because
   MSYS command substitution drops the trailing CRLF. Which verdict was correct therefore depended on
-  how many lines the pass emitted and on whether the enablement verdict was empty — with an empty
+  how many lines the pass emitted and on whether the enablement verdict was empty. With an empty
   verdict the window-bearing token was clean and the verdict was not, and with a configured verdict
   the reverse. Adding two lines for the account field would have left both wrong, which is how this
   surfaced. The payload keeps its CR deliberately: the snapshot's bytes stay what jq wrote, and the
@@ -216,7 +256,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 
 - **Vendored `hook-utils.sh` drops two `buffer_stdin` startup subshells and a
   `tr` exec on every `repo_root`.** Timeout and slice resolution write into
-  caller variables (`printf -v`) instead of `$( )` / process substitution —
+  caller variables (`printf -v`) instead of `$( )` / process substitution.
   GNU Bash forks a subshell for both even when the body is builtins only.
   `hook::repo_root` strips CR with parameter expansion, the same substitution
   `buffer_stdin` already uses for the payload. New `hook::json_str_object_to`
@@ -240,7 +280,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 - **The statusline tee's five copies of the stamp-read idiom became one
   `_rlg_read_stamp` helper.** Every one of the five sites is on a render path,
   so the helper is builtins throughout and no call site pays a process. The
-  validation is the load-bearing half and is now spelled once: bash evaluates
+  validation is the half that matters and is now spelled once: bash evaluates
   the TEXT of an arithmetic operand, so an unvalidated stamp shaped like
   `a[$(cmd)]` would run `cmd` on every render. Spawn counts were measured with
   `strace` on every path rather than assumed, and no path increased.
@@ -576,11 +616,11 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   whole stored `pluginConfigs` entry, resetting every declared option to its manifest default.
   On Claude Code 2.1.240 a plain `claude plugin install … --config` against an already-installed
   plugin prints `already installed` and still writes the value, so that is now the documented
-  route — stamped with the CLI version it was verified against
+  route, stamped with the CLI version it was verified against
   ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). `apply` also
   now separates the write from its effect: the stored value changes immediately, but the running
   session's hooks keep the `CLAUDE_PLUGIN_OPTION_*` they were handed at session start, so
-  verification means rerunning `check` in a FRESH session — a same-session rerun reports the old
+  verification means rerunning `check` in a FRESH session. A same-session rerun reports the old
   value, which is not a failed write. It never asserts an unobserved change.
 - **Docs:** the generated options block's headless route no longer implies `--config` applies
   only at install time, and now carries the CLI version its claim was verified against
@@ -595,7 +635,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 
 ### Changed
 
-- Sync `hook-utils.sh` from `lib/` — two header-echo comments removed in
+- Sync `hook-utils.sh` from `lib/`: two header-echo comments removed in
   `hook::emit_telemetry` (comment-only; no behavior change).
 
 ## [0.7.6]
@@ -627,7 +667,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   (`bench/bench-idle.sh`, `bench/bench-load.sh`, `bench/trace-probe.sh`, `bench/lib-bench.sh`),
   adapted to run from a clean checkout against the repo's own tee, with `bench/README.md`
   recording the baseline numbers, platform, and spawn-floor method, and `bench/bench.test.sh`
-  smoke-testing the harness in CI — behaviour and output shape only, never timing (#2582).
+  smoke-testing the harness in CI for behaviour and output shape only, never timing (#2582).
   Review hardening over the scratch originals: fork-free timer reads (`printf -v`, no command
   substitution), a loud bash >= 5.0 refusal instead of an `EPOCHREALTIME` unbound-variable
   abort, render failures abort a lane instead of being timed, and the load lane's
@@ -662,7 +702,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   elected refresh per 30 seconds flushes the batch.** Measured same-window here
   (Windows/MSYS, n=9): `render.sh` alone 234.4 ms, `render.sh` behind this wrapper
   1047.1 ms. The wrapper dominated, and the dominant term inside it was process
-  creation — a cost MSYS has no cheap primitive for, on a path that fires on every
+  creation, a cost MSYS has no cheap primitive for, on a path that fires on every
   assistant message AND every `refreshInterval` tick, once per open session. 0.6.x
   made that work cheaper (nine spawns to four); this release takes it off the render
   path instead. The common refresh now runs **zero external processes and zero
@@ -679,9 +719,9 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   behaviour unspecified; through Cygwin/MSYS the observed no-interleave bound on
   appends is around a kilobyte while statusline payloads are multiple kilobytes, and
   bash's buffered builtin output can split one large record across syscalls anyway.
-  Atomicity therefore comes from **file disjointness** — no two writers ever share a
-  file, each record is one line written with a truncating `>` — instead of from an
-  argument about write sizes. A record torn by a kill mid-write fails `fromjson` in
+  Atomicity therefore comes from **file disjointness**, not from an argument about
+  write sizes. No two writers ever share a file, and each record is one line written
+  with a truncating `>`. A record torn by a kill mid-write fails `fromjson` in
   the drain and is dropped, which is covered by a test.
 
   **The filename is a shard key, never trusted data.** `session_id` arrives in the
@@ -693,7 +733,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   timer to hang this on: Claude Code hooks are strictly event-driven and none fires on
   a schedule (<https://code.claude.com/docs/en/hooks.md>), an OS scheduler would mean
   three mechanisms across three platforms, and a resident lock-holder would have to be
-  forked off a render — the exact cost being removed — and would be killed with it,
+  forked off a render, the exact cost being removed, and would be killed with it,
   since Claude Code cancels in-flight statusline scripts. So the renders are the clock:
   whichever finds `spool/.last-drain` older than the cadence takes `spool/.drain.lock`,
   re-reads the stamp under it (a herd collapses for one failed `mkdir`), and flushes.
@@ -705,7 +745,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   `diff <(jq -S 'del(.captured_at)' pristine) <(jq -S 'del(.captured_at)' patched)`.
   The body projection is now one shared jq function called by both the live probe and
   the drain, so the two cannot drift. `captured_at` is the **observation time of the
-  chosen record**, never the flush time — which is what lets a windowless refresh
+  chosen record**, never the flush time. That is what lets a windowless refresh
   flush a window-bearing sibling's record without faking freshness.
 
   **Reader-visible change, inside the existing contract:** the contract file now trails
@@ -715,13 +755,13 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   the `spool/` inventory and the `.tee-disabled` marker.
 
   **The enablement gate still gates the write**, but it cannot be evaluated on the
-  render path — reading settings costs a `jq`. A drain that reads
+  render path, because reading settings costs a `jq`. A drain that reads
   `rate_limit_guard_enabled: false` writes an epoch-stamped `.tee-disabled` marker and
   drops the spool; refreshes then stop recording on one builtin test. The marker
   expires, so a re-enabled plugin recovers on its own without a restart.
 
-  Bash 4.2 is the floor (`%(%s)T` is a 4.2 builtin). Below it — macOS bash 3.2, where
-  `fork` is cheap and this problem does not arise — the previous synchronous path runs
+  Bash 4.2 is the floor (`%(%s)T` is a 4.2 builtin). Below it, on macOS bash 3.2 where
+  `fork` is cheap and this problem does not arise, the previous synchronous path runs
   untouched, and `RLG_TEE_ASYNC=1` keeps its current behaviour on every version.
 
   All 75 pre-existing assertions pass unmodified; the suite is now 96.
@@ -747,10 +787,10 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 - **The settings document reaches `jq` through the environment, not through argv
   and not through a temp file.** A settings file can hold credentials, and argv is
   world-readable via `ps`/`/proc/<pid>/cmdline` for the life of the process while
-  `/proc/<pid>/environ` is owner-only. Both readers — `_rlg_settings_option`, which
-  the managed scope calls on every refresh wherever a `managed-settings.json`
-  exists, and `_rlg_probe` — now bind `$doc` from `env.RLG_SETTINGS_DOC` through one
-  shared prelude, so neither can drift back.
+  `/proc/<pid>/environ` is owner-only. Both readers now bind `$doc` from
+  `env.RLG_SETTINGS_DOC` through one shared prelude, so neither can drift back:
+  `_rlg_settings_option`, which the managed scope calls on every refresh wherever a
+  `managed-settings.json` exists, and `_rlg_probe`.
 
   This also restores the fail-OPEN behaviour on a malformed settings file. Parsing
   the document jq-side (`--argjson`, `--slurpfile`) aborts the whole invocation
@@ -761,7 +801,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 
   Net spawns: measured against the slurpfile form on the same machine, a
   steady-state refresh drops two external commands (`mktemp` and `rm`, which that
-  form added) and one subshell — 7 distinct `BASHPID`s to 6. The externals that
+  form added) and one subshell: 7 distinct `BASHPID`s to 6. The externals that
   remain are the ones 0.6.0 documented as the contract itself.
 
 ## [0.6.0]
@@ -771,19 +811,19 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 - **The statusline tee cost ~450 ms of process spawns on every refresh; it now costs ~180 ms,
   with no change to what it writes.** This script runs once per assistant message AND once per
   `refreshInterval` tick, in every open session, so its cost is multiplied by how many sessions
-  the user keeps open — at ten sessions on `refreshInterval: 1` it was the dominant term in
+  the user keeps open. At ten sessions on `refreshInterval: 1` it was the dominant term in
   statusline latency. Nothing about the snapshot changed: the contract file's body is
   byte-identical, and the 71 pre-existing assertions pass unmodified.
 
   Per refresh, external commands went from nine to four and subshell forks from eleven to six.
-  The four that remain are the contract itself and are deliberately untouched — one `jq` to build
+  The four that remain are the contract itself and are deliberately untouched: one `jq` to build
   the snapshot, `mkdir`/`rmdir` for the concurrent-writer lock, and `mv` for the atomic rename.
   What went:
 
   - **Three `jq` spawns became one.** A new `_rlg_probe` produces the snapshot body, the
     window-bearing verdict and the user-scope enablement verdict in a single pass. The settings
     document is read by bash (`$(<file)`, which bash performs without forking) and handed over as
-    `--argjson`, never opened by jq — preserving the existing reason the read was a shell
+    `--argjson`, never opened by jq, preserving the existing reason the read was a shell
     redirection: a native jq on Windows cannot open an MSYS-style path. The verdict filter is now
     a single constant shared by the probe and `_rlg_settings_option`, so the two cannot drift.
   - **`_rlg_tee_enabled` consumes the probed verdict**, with a fallback to its own read when no
@@ -799,14 +839,14 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   One deliberate behavioural tradeoff, called out because it is a real one: the contract
   directory's owner-only mode is now asserted at creation instead of re-asserted on every refresh,
   so a mode that a user or another tool later loosens is no longer silently corrected. No builtin
-  can read a file mode, so the alternative is a `stat` process per refresh — exactly the cost being
+  can read a file mode, so the alternative is a `stat` process per refresh, exactly the cost being
   removed.
 
 ### Added
 
 - **`RLG_TEE_ASYNC=1` detaches the snapshot from the render. Off by default, and the measurements
-  say why.** The snapshot is a side effect — nothing the wrapped command prints depends on it, and
-  the reader contract budgets ten minutes of staleness — so it is a natural candidate for running
+  say why.** The snapshot is a side effect. Nothing the wrapped command prints depends on it, and
+  the reader contract budgets ten minutes of staleness, so it is a natural candidate for running
   out of line. It skips no work: every refresh still takes the lock and writes.
 
   Detaching is a clear win for one session and a clear loss for many. MSYS has no native `fork()`,
@@ -822,11 +862,11 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   | ten sessions, peak bash processes | **50**         | 71         |
 
   Sessions, not refresh rate, is the variable that decides. Turn it on if you run one or two
-  windows; leave it off if you run many. The durable fix removes the cost instead of moving it —
-  the render appending its payload to a spool file with zero forks, drained by one periodic
-  writer — and that is not this flag.
+  windows; leave it off if you run many. The durable fix removes the cost instead of moving it:
+  the render appends its payload to a spool file with zero forks, drained by one periodic
+  writer. That is not this flag.
 
-  When enabled, detachment is threefold and each part is load-bearing: stdout and stderr go to
+  When enabled, detachment is threefold and every part is required: stdout and stderr go to
   `/dev/null` (otherwise the child holds the statusline pipe open and Claude Code waits for EOF
   long after the render finished, cancelling out the point), stdin is closed, and the job is
   disowned. A cancelled refresh can now be killed mid-write, which is the case the existing
@@ -855,13 +895,13 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 ### Changed
 
 - **Shared `hook-utils.sh`: the jq gate now has a fail-CLOSED sibling, and the posture reasoning
-  lives at the helper (#2146).** `hook::require_jq` is unchanged and still fails OPEN — one visible
-  skip notice per session, then exit 0 — which is the correct posture for every hook in this plugin,
-  so **nothing in this plugin's behaviour changes**. What is new is `hook::require_jq_blocking`, a
+  lives at the helper (#2146).** `hook::require_jq` is unchanged and still fails OPEN, with one
+  visible skip notice per session and then exit 0. That is the correct posture for every hook in
+  this plugin, so **nothing in this plugin's behaviour changes**. What is new is `hook::require_jq_blocking`, a
   second named function that denies the tool call instead, for the narrow class of guards whose job
   is blocking an irreversible operation (today only two, both in `guardrails`). A sibling function
   rather than a parameter, because a flag's omitted value would default to fail-open and a guard
-  whose flag someone forgot would then fail open *silently* — the exact defect #2146 reports,
+  whose flag someone forgot would then fail open *silently*, the exact defect #2146 reports,
   reintroduced at the API. The two postures are now argued together in one block above both
   functions, which is what #2146 asked for: previously each call site asserted a posture in a
   comment and nothing where the decision is made explained it. Synced from `lib/hook-utils.sh`.
@@ -875,18 +915,18 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   implemented the user settings file alone. This repository's own
   [hook-config-delivery](../../docs/conventions/hook-config-delivery/README.md) convention, fact 5,
   states that `pluginConfigs` is read back from **user settings, the `--settings` flag, and managed
-  settings** — so an organization that set `rate_limit_guard_enabled: false` in
+  settings**, so an organization that set `rate_limit_guard_enabled: false` in
   `managed-settings.json` had the tee keep writing anyway. Managed settings are the
   highest-precedence scope and cannot be overridden by any user or project scope, which is exactly
   what makes that a policy bypass rather than a cosmetic omission.
 
   The gate now reads managed settings too, mirroring the channel-F exemplars the convention points
-  at — `plugins/disk-hygiene/lib/killswitch_config.py` and the sibling bash reader
+  at, `plugins/disk-hygiene/lib/killswitch_config.py` and the sibling bash reader
   `plugins/autonomy/hooks/lane-stop-gate-lib.sh`: the fixed per-platform root-owned paths
   (`/Library/Application Support/ClaudeCode/`, `/etc/claude-code/`, `C:/Program Files/ClaudeCode/`)
   selected by `uname -s`, plus the `managed-settings.d/` drop-ins in sorted order with later files
   overriding earlier ones. The Windows path is the literal absolute path the docs give, never
-  `%ProgramFiles%`-derived, and every resolved path is re-checked as absolute — an
+  `%ProgramFiles%`-derived, and every resolved path is re-checked as absolute. An
   environment-derived or relative base would let a repository redirect the one scope that outranks
   every other.
 
@@ -899,9 +939,9 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   settings scope configured. Every previously held property survives: the tee fails **open** on a
   missing file, missing `jq`, malformed JSON, or an unrecognized platform; the `pluginConfigs` key
   is still matched by prefix so a fork or private catalog works; and the jq filter still avoids
-  `// empty` on the value — the alternative operator treats `false` as falsy and would discard the
-  exact value this gate exists to detect — using `tostring` plus an explicit `length == 0` emptiness
-  test instead.
+  `// empty` on the value, using `tostring` plus an explicit `length == 0` emptiness test instead.
+  The alternative operator treats `false` as falsy and would discard the exact value this gate
+  exists to detect.
 
   **Residuals (accepted, unchanged by this release).** The *user* settings file is still located
   from `${CLAUDE_CONFIG_DIR:-$HOME/.claude}` rather than channel F's install-cache anchor, so a
@@ -918,7 +958,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   file, and a file with no `pluginConfigs`), user `false` and user `true`, a `false` under a
   different marketplace suffix (the prefix match), another plugin's identically-named option and a
   prefix-colliding plugin name, malformed JSON and a missing `jq` (both fail open), and managed
-  `false` over user `true` *and* managed `true` over user `false` — the mirror case is what
+  `false` over user `true` *and* managed `true` over user `false`. The mirror case is what
   distinguishes real precedence from an or-of-falses. Every case also asserts that the wrapped
   statusline's stdout is unchanged, because a gate that blanked the status line would be worse than
   the bug it closes; one unstubbed end-to-end case exercises the script exactly as `settings.json`
@@ -933,7 +973,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   the manifest's option `description` (which is what `/plugin configure` shows) and the README's
   `## Configuration` section called `rate_limit_guard_enabled` the kill switch for the StopFailure
   hook alone, and the README additionally told operators that "disabling the statusline tee is the
-  operator's edit" — true before `0.5.5` gated the tee's write on the same option, wrong since.
+  operator's edit", true before `0.5.5` gated the tee's write on the same option, wrong since.
   Both now say the switch governs the hook **and** the tee's snapshot write, and the README states
   where each surface reads it from and that the tee's precedence is managed → user → environment,
   so an operator can tell why a managed value outranks the one they set themselves.
@@ -960,7 +1000,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 - **The statusline tee ignored `rate_limit_guard_enabled` and wrote on every render regardless.**
   `scripts/statusline-tee.sh` is invoked by absolute path from the user's `settings.json`
   `statusLine`, not by the plugin hook runner, so it was reached whatever the plugin's enablement
-  said — it was the one code path in this plugin that kept running while the plugin was disabled,
+  said. It was the one code path in this plugin that kept running while the plugin was disabled,
   rewriting `~/.claude/rate-limit-guard/rate-limits.json` on the statusline's refresh cadence. It
   now consults the option before taking the snapshot.
 
@@ -987,11 +1027,11 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 
 - **Upstream doc stamps re-verified against the live pages (2026-08-10).** Each dated claim below was re-checked against the complete raw markdown source of the page it cites (`https://code.claude.com/docs/en/<page>.md`), not a summarized fetch, and each was confirmed by a verbatim quote before its stamp was refreshed. No claim changed; only the verification dates moved.
 
-  - `hooks/record-rate-limit-stop.sh` — `StopFailure` still carries `Can block?: No` with
+  - `hooks/record-rate-limit-stop.sh`: `StopFailure` still carries `Can block?: No` with
     "Output and exit code are ignored", which is what makes the hook side-effect-only.
-  - `scripts/statusline-shim.sh` — the 14-day orphaned-version-directory grace period, quoted
+  - `scripts/statusline-shim.sh`: the 14-day orphaned-version-directory grace period, quoted
     verbatim from the plugins reference.
-  - `reference/reader-contract.md` — `used_percentage` running 0 to 100, `resets_at` in Unix
+  - `reference/reader-contract.md`: `used_percentage` running 0 to 100, `resets_at` in Unix
     epoch seconds, and `rate_limits` appearing only for Claude.ai subscribers with each window
     independently absent (statusline reference).
 
@@ -1002,12 +1042,12 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 - **Shared `hook-utils.sh`: `hook::jq_fields` now REPORTS a NUL byte in a payload value
   (#2122).** 0.5.1 stopped a NUL from failing the helper's cardinality check, by stripping every
   NUL out of each value. That keeps the helper working, but stripping also silently rewrites the
-  value — `--no-verify<NUL>x` arrives as `--no-verifyx` — so a caller that owns a block/allow
-  verdict cannot tell a clean payload from one that carried a NUL, and matches against a token the
-  payload never held contiguously. The fact is now reported in a new `HOOK_JQ_FIELDS_NUL` global,
+  value: `--no-verify<NUL>x` arrives as `--no-verifyx`. A caller that owns a block/allow
+  verdict then cannot tell a clean payload from one that carried a NUL, and matches against a token
+  the payload never held contiguously. The fact is now reported in a new `HOOK_JQ_FIELDS_NUL` global,
   set on EVERY call including every failure path, so such a caller can fail closed on its own terms.
   It is computed from the values as the payload carried them, BEFORE the strip; strip first and the
-  flag would read "0" on every payload. Values themselves are unchanged — still stripped, so a
+  flag would read "0" on every payload. Values themselves are unchanged, still stripped, so a
   scanning caller still sees everything after the NUL. This plugin's own hooks do not consult the
   new global, so their behaviour is unchanged. Synced from `lib/hook-utils.sh`.
 
@@ -1019,7 +1059,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   git guards (#2124).** `-S` exists so a shebang line can pass OPTIONS to env
   (`#!/usr/bin/env -S -i prog`), so the words it splits out are env's own arguments. The resolver
   spliced them back into the scan but resumed at the COMMAND dispatcher, which read a leading
-  option in the split string as the command NAME and gave up — `env -S '-C <dir> git push --force'`
+  option in the split string as the command NAME and gave up. `env -S '-C <dir> git push --force'`
   resolved to no git at all, so every guard built on `hook::git_resolve_index` skipped the command
   unexamined. Parsing now resumes inside env's own option loop. That also keeps env's single chdir
   slot last-wins across the splice, so `env -C a -S '-C b git …'` reports `b`, matching GNU env.
@@ -1031,13 +1071,13 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 
 - **Shared `hook-utils.sh`: a NUL byte inside a payload value no longer makes `hook::jq_fields`
   come back empty (#2120).** The helper delimits its batched fields with NUL, and a JSON string may
-  legitimately encode one — a `Write`/`Edit`/`NotebookEdit` content field can. jq emitted the raw
+  legitimately encode one: a `Write`/`Edit`/`NotebookEdit` content field can. jq emitted the raw
   byte, the read split that value in two, the cardinality check saw one value too many, and the
-  helper returned non-zero — which every caller treats as "skip", so the hook exited without doing
+  helper returned non-zero, which every caller treats as "skip", so the hook exited without doing
   its work. Each value is now NUL-stripped INSIDE the jq filter, so the delimiter provably cannot
   occur in a value. Stripping is not a lesser alternative to an encoding scheme, it is the only
   representable behavior: a bash variable cannot hold a NUL byte, and the per-field command
-  substitution this helper replaced dropped the byte and kept the rest of the value — so content
+  substitution this helper replaced dropped the byte and kept the rest of the value, so content
   AFTER a NUL is returned and scanned exactly as it was before the batching. Synced from
   `lib/hook-utils.sh`.
 
@@ -1047,7 +1087,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 
 - **The bare `/<skill>` alias for this plugin's skills.** Their `SKILL.md` files no longer
   declare a frontmatter `name`. The field is optional and defaults to the directory name, so
-  declaring it only restated the path while registering a second, unnamespaced command — which
+  declaring it only restated the path while registering a second, unnamespaced command, which
   the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
   namespaced command; the command itself is unchanged.
 
@@ -1056,10 +1096,10 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 ### Added
 
 - **Reader contract: an operable read cadence for the reactive-only detection records.** The
-  contract told consumers to "react to the detection records" with no when and no recency bound —
+  contract told consumers to "react to the detection records" with no when and no recency bound,
   the one thing a lane agent cannot derive. It now specifies: read on entering reactive-only and
   again before each new work claim; the recency baseline starts at the consumer's own start time
-  and advances with each resume attempt (per-consumer, in-memory, never persisted) — records newer
+  and advances with each resume attempt (per-consumer, in-memory, never persisted). Records newer
   than it are live signal, older ones are history that never justifies a new pause on its own. The
   two inlined floors in `prompts/loops/loop-lane-prompts.md` are updated in the same change.
 
@@ -1070,21 +1110,21 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 - **The shim no longer runs an uninstalled plugin's tee (#1849).** `claude plugin uninstall` does
   not delete the version directory: the plugins reference documents that updating or uninstalling
   marks the previous version directory orphaned and removes it automatically 14 days later, so the
-  files — `scripts/statusline-tee.sh` included — stay on disk for that whole window. `resolve_tee()`
+  files, `scripts/statusline-tee.sh` included, stay on disk for that whole window. `resolve_tee()`
   matched on the glob and mtime alone, so a removed plugin kept teeing and kept writing snapshots
   with no signal to the operator. A candidate whose version directory carries the orphan marker is
   now skipped, so uninstalling stops the tee at the next statusline refresh. The marking is
   documented; the marker's on-disk spelling was measured (Claude Code 2.1.220, against a relocated
   `CLAUDE_CONFIG_DIR`) and the shim's header records both, along with the fallback: should upstream
-  rename or drop the marker, resolution degrades to exactly what it does today — a stale tee, never
+  rename or drop the marker, resolution degrades to exactly what it does today: a stale tee, never
   a broken statusline. The undocumented `installed_plugins.json` the header previously rejected
   stays rejected. Port of the context-guard fix from #1787 / PR #1844; the two shims remain
   deliberately unregistered as a byte-identical cluster (plugin name and header prose differ).
 
   **Existing installs need one `apply`.** The statusline runs the durable copy at
   `~/.claude/rate-limit-guard/bin/statusline-shim.sh`, which a plugin update never overwrites, so
-  an operator who ran `apply` before this release keeps running the old shim — and keeps selecting
-  orphaned tees — until they re-run it. `setup check` previously reported any installed-vs-shipped
+  an operator who ran `apply` before this release keeps running the old shim, and keeps selecting
+  orphaned tees, until they re-run it. `setup check` previously reported any installed-vs-shipped
   difference as INFO on the premise that an older revision "still resolves the newest tee"; that
   premise is what this fix falsifies, so a copy below revision 3 is now a FAIL with the migration
   stated in the finding. Uninstalling first is the trap worth naming: the setup skill goes with the
@@ -1112,7 +1152,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   with jq. On Windows Git Bash, where process creation is `fork()` emulation, each spawn costs
   ~140 ms. Behavior is unchanged: the slice keeps the three-decimal form `read -t` is given, the
   buffer is CR-stripped as before, and the completeness verdict is reused only when jq itself
-  produced it — so a host without jq still fails open exactly as it did. Also adds
+  produced it, so a host without jq still fails open exactly as it did. Also adds
   `hook::jq_fields`, which extracts several fields from one payload in a single jq process for
   hooks that read two or three of them. Synced from `lib/hook-utils.sh`.
 
@@ -1124,7 +1164,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   (#1807).** Claude Code
   [cancels an in-flight statusline script](https://code.claude.com/docs/en/statusline) when a new
   update arrives while the previous one is still running, and a cancellation between the write and
-  the rename left the temp file behind permanently — no failed `rm` was needed to explain it, the
+  the rename left the temp file behind permanently. No failed `rm` was needed to explain it. The
   process simply never reached the reclaim line. The only reclaim paths were write-failure and
   retry-exhaustion. 61 orphans were found clustered in one busy 27-hour window, which is the shape
   the correlation predicts: the rename retry loop holds the file open longest exactly when the
@@ -1136,29 +1176,29 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   so the kill lands inside the window: **before**, SIGTERM and SIGKILL each leak one file;
   **after**, SIGTERM leaks none and a SIGKILL orphan is reclaimed by the next refresh.
 
-  The sweep costs nothing on a clean directory — a shell glob decides whether to spawn anything at
+  The sweep costs nothing on a clean directory. A shell glob decides whether to spawn anything at
   all, so a normal refresh runs no extra process on a path that already sits at two to four times
   the 300 ms debounce interval. Its one-minute age floor cannot race a concurrent session's live
   temp, whose write-to-rename window is sub-second and bounded by the 300 ms retry loop.
 
 - **A session with no rate-limit windows no longer overwrites a snapshot that has them (#1807).**
   On a mixed-auth machine an API-key or enterprise session would land a snapshot with `rate_limits`
-  absent and a **fresh** `captured_at`, so consumers never saw "stale" — they saw a current snapshot
+  absent and a **fresh** `captured_at`, so consumers never saw "stale". They saw a current snapshot
   with no data and dropped to whole-guard reactive-only, on a machine where a window-bearing session
   had good data available. Each such landing could destroy up to the reader contract's full
   ten-minute staleness budget of usable proactive data.
 
   The tee now skips the write when this session has no `rate_limits` and the target already has
   them. Window-bearing is decided structurally (jq `has("rate_limits")`, on the payload and on the
-  target) — never by substring, which a forwarded value merely containing the string
+  target), never by substring, which a forwarded value merely containing the string
   `"rate_limits"` (e.g. a session name) would defeat and clobber real windows. The preservation
   decision is serialized with the rename through a `mkdir`-based writer lock (atomic everywhere
   this runs, including Git Bash where `flock` is unavailable; a lock left by a killed writer is
   stolen past the same one-minute age floor the temp sweep uses), because an unserialized
   check-then-write let a windowless writer pass its check, lose the CPU to a window-bearing
   writer's rename, and clobber the fresh windows anyway. On lock-acquisition failure the
-  windowless writer skips its write and the window-bearing writer proceeds unlocked —
-  last-writer-wins between window-bearing snapshots is the pre-existing contract. The orphan sweep
+  windowless writer skips its write and the window-bearing writer proceeds unlocked.
+  Last-writer-wins between window-bearing snapshots is the pre-existing contract. The orphan sweep
   runs before the preservation early-return, so a machine where only windowless sessions remain
   active still reclaims a killed session's temp file. A windowless session still writes when the
   target has no windows either, so a machine with no window-bearing session keeps an honest
@@ -1170,7 +1210,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   `stop-events.jsonl.lock` and explicitly told tooling sweeping the directory to expect it, while
   omitting the only litter actually found there. It now documents
   `.rate-limits.json.tmp.<pid>.<random>`, why it can outlive its writer, and that a cleanup tool
-  should leave it alone — one may belong to a live concurrent session, and the tee reclaims them
+  should leave it alone. One may belong to a live concurrent session, and the tee reclaims them
   itself. The script header's atomicity comment says the same, rather than implying the rename is
   the only outcome.
 
@@ -1180,14 +1220,15 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 
 - **Shared `hook-utils.sh`: the OS temp tree is no longer treated as project content (#1769).**
   `hook::read_file_path` scoped a file to the project by prefix-matching `CLAUDE_PROJECT_DIR`, so a
-  session whose project directory is the user's home admitted everything under the OS temp root —
+  session whose project directory is the user's home admitted everything under the OS temp root,
   including Claude Code's own per-session scratchpad, which lives there. Hooks that lint, rewrite, or
   autocorrect then ran on throwaway files that are not project content and carry no project config to
   opt out with; the reported case was `typos-format` autocorrecting a shell variable in a scratch
   script and silently breaking it. The guard now rejects a file inside the OS temp tree when the
-  project root is outside it. The exemption is deliberate and load-bearing: when the project root
-  itself lives under temp — a `mktemp -d` fixture checkout, which is how this repository's own hook
-  suites run — its files are still accepted. Temp roots come from `TMPDIR` / `TMP` / `TEMP` plus the
+  project root is outside it. The exemption is deliberate and required: when the project root
+  itself lives under temp, its files are still accepted. That case is a `mktemp -d` fixture
+  checkout, which is how this repository's own hook suites run. Temp roots come from `TMPDIR` /
+  `TMP` / `TEMP` plus the
   POSIX defaults, canonicalized through the same pipeline the membership comparison already uses.
   Synced from `lib/hook-utils.sh`.
 
@@ -1198,7 +1239,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 - **Shared `hook-utils.sh`: a wrapper's working-directory change is no longer lost when a caller
   parses only git's own global options (#1503).** `hook::git_resolve_index` walks wrapper programs
   (`env`, `sudo`, …) to reach the real `git` token, and a caller that scopes its git-global parsing
-  to the slice starting at that token cannot see a relocation the wrapper already performed — GNU env
+  to the slice starting at that token cannot see a relocation the wrapper already performed. GNU env
   documents `-C, --chdir=DIR` as "change working directory to DIR". The resolver now reports those
   directories in a new `HOOK_GIT_RESOLVED_WRAPPER_DIRS` result global, in execution order, so a
   caller composes them ahead of git's own globals instead of dropping them. Five spellings are read
@@ -1229,7 +1270,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 
 - **The tee's `account` forward-pass no longer promises a no-change upgrade path it cannot deliver
   (#1685).** Four surfaces claimed that the release adding an account identifier upgrades the tee
-  file for free — the reader contract's tee-shape bullet and single-account gap invariant, the
+  file for free: the reader contract's tee-shape bullet and single-account gap invariant, the
   README's known-gap bullet ("the wrapper automatically adopts any future account-identifying field
   the schema grows"), and the tee script's own header comment. Each described the writer accurately
   and then drew a conclusion broader than it supports. The writer selects on the **top-level key
@@ -1242,7 +1283,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 - **The reader contract now states that a forward-passed key carries its whole value.** A selected
   top-level key crosses complete, nested objects included (`account_info: {uuid, display_name}`), so
   the untrusted-value discipline is restated to cover an **object of arbitrary strings** rather than
-  only a scalar — the parse-with-a-JSON-parser, never-interpolate rule applies to the whole subtree.
+  only a scalar. The parse-with-a-JSON-parser, never-interpolate rule applies to the whole subtree.
 - `statusline-tee.sh`'s **behavior is unchanged**; only its header comment was corrected. Widening
   the filter is a design question owned by `TODO(#1218)`, not this correction.
 
@@ -1255,12 +1296,12 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   values" into one whole-guard `unknown → reactive-only` row, while the prose four lines below scoped
   an absurd value to "that window". The table is the line consumers copied, so the stricter reading
   won in practice: a single garbage window dropped the entire guard to reactive-only even with a valid
-  window sitting at or above the 90% pause threshold — the guard failed open in exactly the case where
+  window sitting at or above the 90% pause threshold. The guard failed open in exactly the case where
   it still had trustworthy data to pause on. The table now carries a **Scope** column and splits that
   row: tee file absent, stale, or missing `rate_limits` stay whole-guard; an absurd `used_percentage`
   or `resets_at` makes only that window unknown; and a separate whole-guard row states that
   reactive-only is reached only when no window is plausible. The prose adds the operative consequence
-  the contract had left implicit — keep applying the floor to every still-plausible window, one absurd
+  the contract had left implicit: keep applying the floor to every still-plausible window, one absurd
   window is no reason to ignore a valid window already at or above 90, and a trip on the only
   plausible window is still a trip. The operable floor's values are unchanged.
 
@@ -1273,11 +1314,11 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   pipe one byte at a time (~32 KB/s on Git Bash), so the `stdin_read_timeout` bound was really a
   ~64 KB throughput ceiling rather than the stall detector it was written to be. Past that ceiling
   the read returned a truncated payload and rc 1, and this plugin's hooks took their `|| exit 0`
-  branch — the hook did not run at all, with no diagnostic, on exactly the large writes it was
+  branch. The hook did not run at all, with no diagnostic, on exactly the large writes it was
   most wanted for. The read is now chunked (`read -N`), which bash satisfies with block reads, and
   the bound became a true idle bound: `read -t` is a deadline for the whole requested read rather
   than an inactivity timer, so a timed-out read that nevertheless returned bytes is now treated as
-  progress — its partial chunk is kept and a fresh window is armed. Only a window that delivers
+  progress. Its partial chunk is kept and a fresh window is armed. Only a window that delivers
   nothing at all is a stall. `read -N` is Bash 4.1+, and these hooks support Bash 3.2+ (macOS
   system bash), so the pre-4.1 path falls back to the delimiter read inside the same re-arming
   loop. Measured: 50 KB drops from ~2100 ms to ~20 ms, 200 KB from ~6800 ms to ~85 ms. Synced
@@ -1305,22 +1346,22 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 
 - **Setup's headless reconfigure recipe no longer claims `-y` is CLI-required for a non-TTY
   `uninstall`.** Verified against the live CLI (2.1.220) and current docs: `-y` only skips
-  `uninstall`'s `--prune` confirmation, and this recipe never passes `--prune` — so `-y` had no
+  `uninstall`'s `--prune` confirmation, and this recipe never passes `--prune`, so `-y` had no
   effect and is no longer part of the recipe (#1410).
 
 ## [0.3.0]
 
 ### Added
 
-- `scripts/statusline-shim.sh` — the durable statusline wiring target. The operator wires the shim
+- `scripts/statusline-shim.sh`: the durable statusline wiring target. The operator wires the shim
   once; it resolves the newest installed `statusline-tee.sh` at run time (newest by mtime across
   marketplaces under the effective `${CLAUDE_CONFIG_DIR:-~/.claude}` config root, skipping
   transient `temp_*` cache clones), so plugin version bumps never require re-wiring. Transparent
   in every path: no tee installed degrades to running the wrapped statusline alone, and a
   wired-standalone shim prints one diagnostic line instead of leaving a blank bar.
-  Pure Bash builtins — no subprocess on the statusline path. Black-box test harness with 31
+  Pure Bash builtins, with no subprocess on the statusline path. Black-box test harness with 31
   assertions, including the two-shim chaining case and a relocated `CLAUDE_CONFIG_DIR`.
-- **`setup apply`** — the skill is no longer check-only. `apply` installs the shim (byte-identical
+- **`setup apply`**: the skill is no longer check-only. `apply` installs the shim (byte-identical
   copy to `~/.claude/rate-limit-guard/bin/statusline-shim.sh`, idempotent, inert until the operator
   wires it) and writes nothing else; `settings.json` stays the operator's to edit.
 
@@ -1330,7 +1371,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   keeps working until the next update). `setup check` prints
   `bash ~/.claude/rate-limit-guard/bin/statusline-shim.sh …`, gained an installed-shim state check,
   and reclassifies a statusline wired to a version-pinned plugin-cache path as LEGACY wiring
-  regardless of whether that file currently exists — the old state only flagged a missing file.
+  regardless of whether that file currently exists. The old state only flagged a missing file.
   Rationale: `${CLAUDE_PLUGIN_ROOT}` is version-pinned and the old version directory is pruned
   ~14 days after an update, so cache-path wiring stops teeing at the next bump and then breaks the
   operator's whole statusline (`bash <missing>` → 127).
@@ -1338,8 +1379,8 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   states the measured per-tee refresh cost (~0.6–0.9 s on Windows/Git Bash, spawn-bound).
 - `setup check` **unwraps recognized guard shims before composing the wiring it prints**, so a
   statusline already wired through the sibling shim (or through this one) is not wrapped a
-  second time. Re-wrapping produced a chain running one tee twice — a duplicated write and
-  another 0.6–0.9 s on every refresh — whenever the plugins were configured in sequence or
+  second time. Re-wrapping produced a chain running one tee twice, a duplicated write and
+  another 0.6–0.9 s on every refresh, whenever the plugins were configured in sequence or
   `check` was simply re-run.
 - The **combined sibling wiring is gated on the sibling shim actually existing**. `context-guard`
   being installed is not enough: its shim is written by its own `setup apply`, and printing a
@@ -1348,7 +1389,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   with the sibling's `apply` named as the step that unlocks the combined form.
 - **Uninstall guidance is now ordered**: unwrap `statusLine` FIRST, then remove
   `~/.claude/rate-limit-guard/`. The previous "either order" wording let an operator delete the shim
-  while the wiring still named it, which is the 127 failure again — and the shim's own fallback
+  while the wiring still named it, which is the 127 failure again. The shim's own fallback
   cannot cover it, because the fallback lives in the deleted file.
 
 ## [0.2.1]
@@ -1356,12 +1397,12 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 ### Changed
 
 - **Setup states the accurate reason it is check-only.** It claimed the check-only carve-out as
-  scoped to plugins whose entire configuration is native `userConfig` — a premise this plugin does
+  scoped to plugins whose entire configuration is native `userConfig`, a premise this plugin does
   not meet, since its statusline wiring lives in the user's own `settings.json`. The conclusion was
   right and the justification was not. The Purpose now names the condition that actually holds: no
   writable owned artifact anywhere in the surface. Each of the three surfaces is enumerated with why
   setup cannot write it, and the machine files under `~/.claude/rate-limit-guard/` are called out as
-  runtime-owned plugin data rather than a fourth, operator-editable surface — which is what
+  runtime-owned plugin data rather than a fourth, operator-editable surface, which is what
   distinguishes a plugin that must not invent an `apply` from one that owes a narrow one.
 - **Setup documents the headless reconfiguration route beside the interactive one.** The kill
   switch's only route was `/plugin configure rate-limit-guard`, leaving a headless consumer with
@@ -1373,7 +1414,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   uninstall requires the confirmation flag to run at all.
 - **The reader contract no longer cites a repository-level document.** Its no-`experimental.monitors`
   note pointed at `docs/PLUGIN-PHILOSOPHY.md`, a path that does not exist in an installed plugin's
-  cache — where this contract is read by sibling-plugin consumers, the citation resolves to nothing.
+  cache. Where this contract is read by sibling-plugin consumers, the citation resolves to nothing.
   The note now states the reason a reader needs (Monitors is experimental; this plugin takes no
   dependency on one until it stabilizes) without a pointer that cannot be followed.
 
@@ -1383,7 +1424,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 
 - **The single-account-per-machine text is repointed at its owner.** This reader contract
   carried its own copy of the assumption while naming loop-lane §6 as its owner, so the copy would
-  contradict §6 the moment §6 moved — which it now has: §6 reframes the assumption as a known gap.
+  contradict §6 the moment §6 moved, which it now has: §6 reframes the assumption as a known gap.
   §6 owns the framing; what stays here cites it rather than asserting it independently. What is
   local to the guard stays local: the writer already
   forward-passes any top-level `account`-matching key, so an identity field costs no plugin change
@@ -1404,12 +1445,12 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   side-effect-only, jq-free reactive fallback appending bounded JSONL detection records to
   `~/.claude/rate-limit-guard/stop-events.jsonl`. Kill switch via the `rate_limit_guard_enabled`
   `userConfig` boolean.
-- **Reader contract** (`reference/reader-contract.md`): the operable floor consumers inline —
-  fixed tee path, 90%-of-either-window pause threshold, tripped-window `resets_at` pause end
+- **Reader contract** (`reference/reader-contract.md`): the operable floor consumers inline, namely
+  the fixed tee path, 90%-of-either-window pause threshold, tripped-window `resets_at` pause end
   (later `resets_at` only when both windows trip), 10-minute staleness rule with mandatory
   session-Monitor arming while paused, capability-detect fail-open (absent/absurd values →
   reactive-only), and drain-then-pause.
 - **Check-only `setup` skill**: verifies `jq`, tee freshness (distinguishing "no statusline
   configured" from "wrapper missing" and from a cache path gone stale after a plugin update), and
-  the hook kill switch; prints the exact `settings.json` statusline edit for the operator — the
+  the hook kill switch; prints the exact `settings.json` statusline edit for the operator. The
   skill never mutates user settings.

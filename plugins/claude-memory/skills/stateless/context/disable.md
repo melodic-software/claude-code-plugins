@@ -10,12 +10,12 @@ Ask which reach the user wants; recommend based on intent:
 - **Machine-wide (RECOMMENDED for "make Claude stateless")** → user settings at
   `${CLAUDE_CONFIG_DIR:-~/.claude}/settings.json`. Applies to every project on this machine.
   Honor `CLAUDE_CONFIG_DIR`: when it is set, the user config root (and this file) live under it,
-  not `~/.claude` — the SKILL.md snapshot reports the resolved path.
+  not `~/.claude`. The SKILL.md snapshot reports the resolved path.
 - **This repo only** → project settings `<repo>/.claude/settings.json` (team-shared, committed)
   or local `<repo>/.claude/settings.local.json` (personal, gitignored). Ask which; local for a
   personal choice, project to disable it for everyone on the team.
 
-Do not proceed until the scope is chosen — the wrong scope silently changes memory behavior for the
+Do not proceed until the scope is chosen. The wrong scope silently changes memory behavior for the
 wrong audience (machine-wide vs. this repo).
 
 ## Step 2: Apply both levers
@@ -33,7 +33,7 @@ keeps the `/memory` toggle consistent if the env var is later unset (see SKILL.m
 }
 ```
 
-Merge into existing JSON — do not clobber other keys or an existing `env` block. Prefer a
+Merge into existing JSON, and do not clobber other keys or an existing `env` block. Prefer a
 deterministic merge over hand-editing. When `jq` is available, use it (it preserves every other
 key and only adds/overwrites the two targets; it starts from `{}` when the file is absent):
 
@@ -47,8 +47,8 @@ tmp=$(mktemp)
   mv "$tmp" "$settings" || { rm -f "$tmp"; echo "jq merge failed — fall back to a careful manual edit"; }
 ```
 
-The `mkdir -p` matters for a repo/local scope whose `.claude/` directory does not exist yet —
-without it the `mv` fails. `jq` reformats the file (2-space JSON) — acceptable for a
+The `mkdir -p` matters for a repo/local scope whose `.claude/` directory does not exist yet:
+without it the `mv` fails. `jq` reformats the file (2-space JSON), which is acceptable for a
 machine-managed settings file. If `jq` is unavailable, Read the file and edit it by hand
 (creating the parent directory first): add/set exactly these two keys, leave every other key
 and any existing `env` entries intact, and keep the trailing newline.
@@ -61,11 +61,11 @@ it is OS-specific and outside a settings file, so present the command, don't run
 ## Step 3: Dotfile / config-management backfill
 
 A user-scope `settings.json` is often tracked by a dotfile manager. If it is, a live edit
-must be backfilled to the source of truth — do not leave the tracked file drifted, and never
+must be backfilled to the source of truth. Do not leave the tracked file drifted, and never
 run an `apply` that could revert your edit.
 
-Detect and route generically (repo-agnostic — no single manager assumed). Three concrete
-detectors — chezmoi and yadm track real files and answer path queries; GNU stow (and
+Detect and route generically (repo-agnostic, with no single manager assumed). Three concrete
+detectors: chezmoi and yadm track real files and answer path queries; GNU stow (and
 similar) manages via symlinks, so a symlinked settings file is the discriminator:
 
 ```bash
@@ -101,7 +101,7 @@ The fingerprint fallback matters when a manager's artifacts exist but its binary
 PATH (fresh shell, partial install): report it as unconfirmed rather than silently
 concluding the file is unmanaged. If tracked, tell the user to backfill through their
 dotfiles repo's own flow (chezmoi: its `add-dotfile` / drift-reconcile path; yadm:
-`yadm add` + commit; stow: edit the file inside the stow package — the symlink already
+`yadm add` + commit; stow: edit the file inside the stow package, since the symlink already
 points there), never an `apply`/`restow` from this session that could revert the live
 edit. If nothing is detected, note that a manually managed settings file needs no backfill.
 

@@ -26,20 +26,18 @@ SCRIPT="$SELF_DIR/check-silent-revert.sh"
 # shellcheck source=lib/test-harness.sh
 . "$SELF_DIR/lib/test-harness.sh"
 
-TMPDIRS=()
-cleanup() {
-  local d
-  for d in ${TMPDIRS+"${TMPDIRS[@]}"}; do
-    [[ -n "$d" ]] && rm -rf "$d"
-  done
-}
-trap cleanup EXIT
+# shellcheck source=lib/fixture-tree.sh
+. "$SELF_DIR/lib/fixture-tree.sh"
+
+# The builder assigns through a nameref, which shellcheck cannot follow;
+# declaring the out-var here is what tells it (SC2154) the name is written.
+repo=""
 
 # A repo laid out the way the incident was: a base file, then a "culprit" commit
 # that adds a block of content, then optional filler commits, then whatever the
 # test wants to do to that block.
 #
-# It must NEVER return an empty path. Callers invoke it as `repo="$(mk_repo)"`,
+# It must NEVER return an empty path. Callers invoke it as `mk_repo repo`,
 # so a `return 1` from inside the command substitution cannot abort the suite --
 # the caller just gets "" and carries on. And "" is not inert: `git -C ""`
 # operates on the CALLER's repository, so the very next `add -A` + `commit`
@@ -54,23 +52,17 @@ trap cleanup EXIT
 # SELF_DIR rather than written as a drive-root absolute like /nonexistent/...,
 # which MSYS rewrites into the Git installation prefix on Windows.
 MK_REPO_FAILED="$SELF_DIR/.mk-repo-failed-this-path-does-not-exist"
-mk_repo() {
+mk_repo() { # <out-var>
+  local -n _mk_repo_out="$1"
   local dir
-  dir="$(mktemp -d)" || {
-    printf '%s' "$MK_REPO_FAILED"
+  if ! fixture_tree::build dir --sut "$SCRIPT" --git >/dev/null; then
+    _mk_repo_out="$MK_REPO_FAILED"
     return 0
-  }
-  TMPDIRS+=("$dir")
-  git_init_test_repo "$dir" >/dev/null || {
-    printf '%s' "$MK_REPO_FAILED"
-    return 0
-  }
-  mkdir -p "$dir/scripts"
-  cp "$SCRIPT" "$dir/scripts/check-silent-revert.sh"
+  fi
   printf 'base line %s\n' $(seq 1 5) >"$dir/feature.txt"
   git_test_config "$dir" add -A >/dev/null
   git_test_config "$dir" commit -qm "base"
-  printf '%s' "$dir"
+  _mk_repo_out="$dir"
 }
 
 # add_block <repo> <file> <count> <tag> -- the content a later commit will drop.
@@ -155,7 +147,7 @@ run_canary() {
 # --------------------------------------------------------------------------
 t_fires_on_silent_revert() {
   local repo out
-  repo="$(mk_repo)"
+  mk_repo repo
   add_block "$repo" feature.txt 40 alpha
   filler "$repo" 2
   drop_block "$repo" feature.txt alpha "feat: unrelated feature (#99)"
@@ -172,7 +164,7 @@ t_fires_on_silent_revert() {
 # to name what vanished, which commit removed it, and which commit added it.
 t_finding_is_actionable() {
   local repo out culprit remover
-  repo="$(mk_repo)"
+  mk_repo repo
   add_block "$repo" feature.txt 40 alpha
   culprit="$(git -C "$repo" rev-parse --short=9 HEAD)"
   drop_block "$repo" feature.txt alpha "feat: unrelated feature (#99)"
@@ -197,7 +189,7 @@ t_finding_is_actionable() {
 # --------------------------------------------------------------------------
 t_quiet_below_threshold() {
   local repo out
-  repo="$(mk_repo)"
+  mk_repo repo
   add_block "$repo" feature.txt 40 alpha
   drop_block "$repo" feature.txt alpha "chore: trim (#99)"
   SILENT_REVERT_THRESHOLD=500 run_canary "$repo" --commit HEAD
@@ -211,7 +203,7 @@ t_quiet_below_threshold() {
 
 t_quiet_outside_recency_window() {
   local repo out
-  repo="$(mk_repo)"
+  mk_repo repo
   add_block "$repo" feature.txt 40 alpha
   filler "$repo" 6
   drop_block "$repo" feature.txt alpha "chore: remove old guard (#99)"
@@ -229,7 +221,7 @@ t_quiet_outside_recency_window() {
 # the routine case the volume threshold exists to exclude.
 t_does_not_sum_across_culprits() {
   local repo out
-  repo="$(mk_repo)"
+  mk_repo repo
   add_block "$repo" feature.txt 18 alpha
   add_block "$repo" feature.txt 18 beta
   grep -v 'guard rejects' "$repo/feature.txt" >"$repo/f.tmp" || true
@@ -252,7 +244,7 @@ t_does_not_sum_across_culprits() {
 # that a live false-positive class rather than a hypothetical one.
 t_rename_is_not_a_removal() {
   local repo out
-  repo="$(mk_repo)"
+  mk_repo repo
   add_block "$repo" moved.txt 60 alpha
   git_test_config "$repo" mv moved.txt relocated.txt >/dev/null
   git_test_config "$repo" commit -qm "refactor: relocate the guard (#99)"
@@ -288,7 +280,7 @@ t_rename_is_not_a_removal() {
 # try to run it, and the canary must not depend on how that failure presents.
 t_counts_are_immune_to_ambient_git_config() {
   local repo clean_sink hostile_sink cfg revs
-  repo="$(mk_repo)"
+  mk_repo repo
   add_block "$repo" feature.txt 40 alpha
   local culprit
   culprit="$(git -C "$repo" rev-parse HEAD)"
@@ -385,7 +377,7 @@ strip_pin() {
 # behaviour; this covers the pin that survives a hostile caller.
 t_rename_pin_is_load_bearing() {
   local repo culprit cfg intact_rc stripped_rc
-  repo="$(mk_repo)"
+  mk_repo repo
   printf 'the alpha guard rejects a relocation outside the session root, case %s\n' \
     $(seq 1 500) >"$repo/moved.txt"
   git_test_config "$repo" add -A >/dev/null
@@ -458,7 +450,7 @@ build_basename_changing_relocation() {
 # sees the lock (text) and not the png (binary content).
 t_minus_diff_lock_file_is_attributed() {
   local repo sink lock_culprit txt_culprit
-  repo="$(mk_repo)"
+  mk_repo repo
   {
     printf '*.lock -diff\n'
     printf '*.png binary\n'
@@ -506,7 +498,7 @@ t_minus_diff_lock_file_is_attributed() {
 # GREEN at the shipped threshold, the issue's measured outcome.
 t_minus_diff_recovery_is_load_bearing() {
   local repo intact_sink stripped_sink intact_rc stripped_rc
-  repo="$(mk_repo)"
+  mk_repo repo
   printf '*.lock -diff\n' >"$repo/.gitattributes"
   git_test_config "$repo" add -A >/dev/null
   git_test_config "$repo" commit -qm "chore: hide lock diffs"
@@ -554,7 +546,7 @@ t_detector_does_not_pass_text() {
 # is the #2883 impact case.
 t_minus_diff_whole_file_deletion_is_attributed() {
   local repo sink culprit
-  repo="$(mk_repo)"
+  mk_repo repo
   printf '*.lock -diff\n' >"$repo/.gitattributes"
   git_test_config "$repo" add -A >/dev/null
   git_test_config "$repo" commit -qm "chore: hide lock diffs"
@@ -578,7 +570,7 @@ t_minus_diff_whole_file_deletion_is_attributed() {
 # it a non-finding -- the reviewer's 320-line PDF-like fixture.
 t_explicit_binary_ascii_is_not_attributed() {
   local repo sink
-  repo="$(mk_repo)"
+  mk_repo repo
   printf '*.pdf binary\n' >"$repo/.gitattributes"
   git_test_config "$repo" add -A >/dev/null
   git_test_config "$repo" commit -qm "chore: mark pdfs binary"
@@ -609,7 +601,7 @@ t_explicit_binary_ascii_is_not_attributed() {
 # coming back: the same fixture under `--text` fires on ~800 lines.
 t_binary_asset_churn_is_not_a_finding() {
   local repo sink
-  repo="$(mk_repo)"
+  mk_repo repo
   printf '*.png binary\n' >"$repo/.gitattributes"
   git_test_config "$repo" add -A >/dev/null
   git_test_config "$repo" commit -qm "chore: mark pngs binary"
@@ -639,7 +631,7 @@ t_binary_asset_churn_is_not_a_finding() {
 # is the measured trip point when src == dst == N.
 t_rename_limit_does_not_decompose_basename_changing_relocation() {
   local repo
-  repo="$(mk_repo)"
+  mk_repo repo
   build_basename_changing_relocation "$repo" 1001 10
   SILENT_REVERT_THRESHOLD=200 run_canary "$repo" --commit HEAD
   if [[ "$RC" -eq 0 ]]; then
@@ -654,7 +646,7 @@ t_rename_limit_does_not_decompose_basename_changing_relocation() {
 # 1001 files at the default 1000, cheap enough to run twice.
 t_rename_limit_flag_is_load_bearing() {
   local repo cfg intact_rc stripped_rc intact_sink stripped_sink
-  repo="$(mk_repo)"
+  mk_repo repo
   build_basename_changing_relocation "$repo" 12 20
 
   cfg="$repo/low-rename-limit-gitconfig"
@@ -696,7 +688,7 @@ t_rename_limit_flag_is_load_bearing() {
 # defend.
 t_ext_diff_pin_is_load_bearing() {
   local repo cfg intact_rc stripped_rc intact_sink stripped_sink
-  repo="$(mk_repo)"
+  mk_repo repo
   add_block "$repo" feature.txt 300 alpha
   drop_block "$repo" feature.txt alpha "feat: unrelated feature (#99)"
 
@@ -764,7 +756,7 @@ t_ext_diff_pin_is_load_bearing() {
 t_textconv_pin_is_load_bearing() {
   local repo cfg clean_sink intact_sink both_sink blame_sink diff_sink
   local clean_rc intact_rc live_before live_after clean_n both_n
-  repo="$(mk_repo)"
+  mk_repo repo
   printf '*.md diff=markdown\n' >"$repo/.gitattributes"
   # feature.md needs content from an EARLIER commit ahead of the block the
   # culprit adds. Misaligned -L ranges only become visible as a changed
@@ -912,7 +904,7 @@ t_textconv_pin_is_load_bearing() {
 #   fixture would also pass both ways.
 t_show_signature_pin_is_load_bearing() {
   local repo cfg intact_rc stripped_rc intact_out grafted
-  repo="$(mk_repo)"
+  mk_repo repo
   add_block "$repo" feature.txt 40 alpha
   grep -v 'the alpha guard rejects' "$repo/feature.txt" >"$repo/f.tmp" || true
   mv "$repo/f.tmp" "$repo/feature.txt"
@@ -968,7 +960,7 @@ t_show_signature_pin_is_load_bearing() {
 assert_declared() {
   local label="$1" msg="$2" expect_rc="$3"
   local repo out
-  repo="$(mk_repo)"
+  mk_repo repo
   add_block "$repo" feature.txt 40 alpha
   drop_block "$repo" feature.txt alpha "$msg"
   SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
@@ -1034,7 +1026,7 @@ t_empty_trailer_still_fires() {
 # --------------------------------------------------------------------------
 t_acknowledged_commit_is_cleared() {
   local repo out sha
-  repo="$(mk_repo)"
+  mk_repo repo
   add_block "$repo" feature.txt 40 alpha
   drop_block "$repo" feature.txt alpha "feat: unrelated feature (#99)"
   sha="$(git -C "$repo" rev-parse HEAD)"
@@ -1053,7 +1045,7 @@ t_acknowledged_commit_is_cleared() {
 # reviewed -- the difference between an audit trail and a mute button.
 t_abbreviated_ack_does_not_clear() {
   local repo out sha
-  repo="$(mk_repo)"
+  mk_repo repo
   add_block "$repo" feature.txt 40 alpha
   drop_block "$repo" feature.txt alpha "feat: unrelated feature (#99)"
   sha="$(git -C "$repo" rev-parse --short=9 HEAD)"
@@ -1073,7 +1065,7 @@ t_abbreviated_ack_does_not_clear() {
 # readers must not drift (#2874 finding 3).
 t_ack_last_row_without_newline_is_honored() {
   local repo out sha
-  repo="$(mk_repo)"
+  mk_repo repo
   add_block "$repo" feature.txt 40 alpha
   drop_block "$repo" feature.txt alpha "feat: unrelated feature (#99)"
   sha="$(git -C "$repo" rev-parse HEAD)"
@@ -1099,7 +1091,7 @@ t_ack_last_row_without_newline_is_honored() {
 # broken shipped default.
 t_default_threshold_is_wired() {
   local repo out
-  repo="$(mk_repo)"
+  mk_repo repo
   add_block "$repo" feature.txt 260 alpha
   drop_block "$repo" feature.txt alpha "feat: unrelated feature (#99)"
   run_canary "$repo" --commit HEAD
@@ -1110,7 +1102,7 @@ t_default_threshold_is_wired() {
     fail "shipped default did not fire on 260 lines, rc=$RC: $out"
   fi
   # And the shipped default must not fire on a drop well under it.
-  repo="$(mk_repo)"
+  mk_repo repo
   add_block "$repo" feature.txt 60 beta
   drop_block "$repo" feature.txt beta "feat: unrelated feature (#98)"
   run_canary "$repo" --commit HEAD
@@ -1124,7 +1116,7 @@ t_default_threshold_is_wired() {
 
 t_range_mode_scans_every_commit() {
   local repo out base
-  repo="$(mk_repo)"
+  mk_repo repo
   base="$(git -C "$repo" rev-parse HEAD)"
   add_block "$repo" feature.txt 40 alpha
   filler "$repo" 1
@@ -1145,7 +1137,7 @@ t_range_mode_scans_every_commit() {
 # range mode shows it, because --commit mode stops after the one commit.
 t_declared_note_ends_its_line() {
   local repo out base
-  repo="$(mk_repo)"
+  mk_repo repo
   base="$(git -C "$repo" rev-parse HEAD)"
   add_block "$repo" feature.txt 40 alpha
   drop_block "$repo" feature.txt alpha 'revert: remove the alpha guard (#99)'
@@ -1162,7 +1154,7 @@ t_declared_note_ends_its_line() {
 
 t_whole_file_deletion_is_attributed() {
   local repo out
-  repo="$(mk_repo)"
+  mk_repo repo
   printf 'the alpha guard rejects relocation, case %s\n' $(seq 1 40) >"$repo/guard.txt"
   git_test_config "$repo" add -A >/dev/null
   git_test_config "$repo" commit -qm "feat: add the guard file"
@@ -1183,7 +1175,7 @@ t_whole_file_deletion_is_attributed() {
 # false-green this whole check exists to eliminate.
 t_unresolvable_range_fails_closed() {
   local repo out
-  repo="$(mk_repo)"
+  mk_repo repo
   run_canary "$repo" "deadbeef..HEAD"
   out="$OUT"
   if [[ "$RC" -eq 2 ]]; then
@@ -1209,7 +1201,7 @@ t_unresolvable_range_fails_closed() {
 
 t_root_commit_is_handled() {
   local repo out
-  repo="$(mk_repo)"
+  mk_repo repo
   run_canary "$repo" --commit HEAD
   out="$OUT"
   if [[ "$RC" -eq 0 ]] && printf '%s' "$out" | grep -q 'root commit'; then
@@ -1223,7 +1215,7 @@ t_root_commit_is_handled() {
 # distinguishable from a failure.
 t_empty_range_is_clean() {
   local repo out head
-  repo="$(mk_repo)"
+  mk_repo repo
   add_block "$repo" feature.txt 5 alpha
   head="$(git -C "$repo" rev-parse HEAD)"
   run_canary "$repo" "$head..$head"
@@ -1240,7 +1232,7 @@ t_empty_range_is_clean() {
 # --------------------------------------------------------------------------
 t_replay_fails_on_broken_expectation() {
   local repo out sha
-  repo="$(mk_repo)"
+  mk_repo repo
   add_block "$repo" feature.txt 40 alpha
   drop_block "$repo" feature.txt alpha "feat: unrelated feature (#99)"
   sha="$(git -C "$repo" rev-parse HEAD)"
@@ -1285,7 +1277,7 @@ t_replay_fails_on_broken_expectation() {
 # regressions is pinned here directly.
 t_replay_asserts_the_recorded_attribution() {
   local repo out culprit other
-  repo="$(mk_repo)"
+  mk_repo repo
   add_block "$repo" feature.txt 40 alpha
   culprit="$(git -C "$repo" rev-parse HEAD)"
   other="$(git -C "$repo" rev-parse HEAD~1)"
@@ -1408,7 +1400,7 @@ t_replay_asserts_the_recorded_attribution() {
 # on the corpus's previous closest miss and the row stayed green (#2879).
 t_replay_asserts_clean_row_attribution() {
   local repo out culprit other sha
-  repo="$(mk_repo)"
+  mk_repo repo
   add_block "$repo" feature.txt 15 alpha
   culprit="$(git -C "$repo" rev-parse HEAD)"
   other="$(git -C "$repo" rev-parse HEAD~1)"
@@ -1468,14 +1460,13 @@ t_replay_asserts_clean_row_attribution() {
 # is the quiet pass the header contract forbids.
 t_attribute_file_git_failure_is_exit_2() {
   local repo real_git shimdir sha out
-  repo="$(mk_repo)"
+  mk_repo repo
   add_block "$repo" feature.txt 40 alpha
   drop_block "$repo" feature.txt alpha "feat: drop (#99)"
   sha="$(git -C "$repo" rev-parse HEAD)"
 
   real_git="$(command -v git)"
-  shimdir="$(mktemp -d)"
-  TMPDIRS+=("$shimdir")
+  fixture_tree::build shimdir --label silent-revert-shim
   cat >"$shimdir/git" <<EOF
 #!/usr/bin/env bash
 real_git=$(printf '%q' "$real_git")
@@ -1576,7 +1567,7 @@ EOF
 # remove (#2874).
 t_replay_refuses_a_zero_row_or_truncated_file() {
   local repo out sha culprit
-  repo="$(mk_repo)"
+  mk_repo repo
   add_block "$repo" feature.txt 40 alpha
   culprit="$(git -C "$repo" rev-parse HEAD)"
   drop_block "$repo" feature.txt alpha "feat: unrelated feature (#99)"
@@ -1677,7 +1668,7 @@ mk_restoration_repo() {
 
 t_restoration_reports_present_and_absent_markers() {
   local repo out sha
-  repo="$(mk_repo)"
+  mk_repo repo
   sha="$(mk_restoration_repo "$repo")"
 
   # A restored marker passes.
@@ -1796,7 +1787,7 @@ t_restoration_reports_present_and_absent_markers() {
 # detector that has stopped detecting.
 t_restoration_refuses_a_malformed_corpus() {
   local repo out sha
-  repo="$(mk_repo)"
+  mk_repo repo
   sha="$(mk_restoration_repo "$repo")"
 
   # THE central refusal: a `fires` row with no marker. Skipping it would let
@@ -2000,7 +1991,7 @@ BAD_ROWS
 # is pinned here rather than left to reviewer vigilance.
 t_restoration_binds_a_marker_to_exactly_one_file() {
   local repo out sha widened
-  repo="$(mk_repo)"
+  mk_repo repo
   sha="$(mk_restoration_repo "$repo")"
 
   # THE amplifier case, in its strongest form: the target content is nowhere in
@@ -2179,7 +2170,7 @@ t_restoration_binds_a_marker_to_exactly_one_file() {
 # #2833 puts after a fires row's sha.
 t_restoration_and_replay_share_the_corpus() {
   local repo out sha culprit
-  repo="$(mk_repo)"
+  mk_repo repo
   add_block "$repo" feature.txt 40 alpha
   culprit="$(git -C "$repo" rev-parse HEAD)"
   drop_block "$repo" feature.txt alpha "feat: unrelated feature (#99)"

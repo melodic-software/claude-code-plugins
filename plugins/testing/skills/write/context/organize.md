@@ -18,14 +18,14 @@ Per-ecosystem naming + locations come from the consuming project's testing conve
 
 ## When to create a new test project
 
-**YES — create a test project when the library has:**
+**YES, create a test project when the library has:**
 
 - Business logic, conditional branching, or state management
 - Custom implementations of interfaces (not pure delegation)
 - Algorithm or transformation logic
 - Error handling paths that could fail silently
 
-**NO — skip when the library contains only:**
+**NO, skip when the library contains only:**
 
 - Pure contracts (interfaces, attributes, records with no logic)
 - Constants (validated by drift guard tests in consumers)
@@ -36,11 +36,11 @@ Per-ecosystem naming + locations come from the consuming project's testing conve
 
 ## Fixture patterns
 
-### Architecture-test project — stays as ONE project per ecosystem
+### Architecture-test project: stays as ONE project per ecosystem
 
 When the project has an architecture-test project, all architecture rules for that ecosystem share one assembly-loading context. Scale via per-app fixtures (one fixture per app, parameterized tests), not separate test projects.
 
-### Collection fixtures — repo-specific shared-state workarounds
+### Collection fixtures: repo-specific shared-state workarounds
 
 Where a process-global singleton, expensive lifecycle, or framework-side limitation forces a specific fixture pattern, the consuming project's testing conventions name the affected projects and the required pattern. Consult them before writing or moving tests under any such project.
 

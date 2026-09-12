@@ -306,7 +306,7 @@ MARKETPLACES_JSON="${FLEET_STATE_MARKETPLACES_JSON:-$HOME/.claude/plugins/known_
 USER_SETTINGS="${FLEET_STATE_USER_SETTINGS:-$HOME/.claude/settings.json}"
 
 # Case-fold path comparisons ONLY on case-insensitive filesystems (mirrors
-# hook::normalize_path's own $OSTYPE check exactly). Applying ascii_downcase
+# hook::normalize_path_to's own $OSTYPE check exactly). Applying ascii_downcase
 # unconditionally makes two genuinely different sibling repos on a
 # case-sensitive POSIX host (e.g.
 # /work/repo and /work/Repo) compare equal, which can point a project-scope
@@ -1208,7 +1208,7 @@ emit_marketplace() {
   hook::_physical_prime "${prime[@]}"
 
   # Containment root for the check below, resolved ONCE per marketplace.
-  # hook::normalize_path folds separators, and on Windows also folds drive-letter
+  # hook::normalize_path_to folds separators, and on Windows also folds drive-letter
   # case, so two normalized physical paths compare directly with `==` on either
   # platform, so no ad-hoc downcasing here. On failure hook::_physical_cached_to
   # leaves the input in place and returns non-zero; the root itself keeps the

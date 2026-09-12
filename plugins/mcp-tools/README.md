@@ -5,9 +5,9 @@ returns a per-tool PASS/WARN/FAIL scorecard. It **reports**; it never edits your
 
 The criteria come from three upstream authorities, cited so the current text always governs:
 
-- [MCP specification 2025-11-25 — Tools](https://modelcontextprotocol.io/specification/2025-11-25/server/tools)
-- [Anthropic — Writing effective tools for AI agents](https://www.anthropic.com/engineering/writing-tools-for-agents)
-- [Claude Code — Connect Claude Code to tools via MCP](https://code.claude.com/docs/en/mcp)
+- [MCP specification 2025-11-25: Tools](https://modelcontextprotocol.io/specification/2025-11-25/server/tools)
+- [Anthropic: Writing effective tools for AI agents](https://www.anthropic.com/engineering/writing-tools-for-agents)
+- [Claude Code: Connect Claude Code to tools via MCP](https://code.claude.com/docs/en/mcp)
 
 ## What it checks
 

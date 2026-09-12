@@ -236,6 +236,31 @@ else
   fail "disclose emitted on an unchanged file: $out"
 fi
 
+# --- an empty <file> takes against the file begin was given ------------------
+# The spelling hook::finish uses. The two halves of one guard cannot disagree
+# about which file was snapshotted, which is what a hook that formats a
+# normalized path spelling and takes on the original did.
+hook::rewrite_guard_begin "$target"
+printf 'remembered\n' >"$target"
+hook::rewrite_take_disclosure "" "msg-remembered"
+if [[ "$HOOK_REWRITE_MESSAGE" == "msg-remembered" && "$HOOK_REWRITE_CHANGED" == "true" ]]; then
+  ok "an empty file argument compares against the file begin was given"
+else
+  fail "empty file argument yielded message='$HOOK_REWRITE_MESSAGE' changed='$HOOK_REWRITE_CHANGED'"
+fi
+if [[ "$(scratch_count)" == "0" ]]; then
+  ok "take releases the snapshot (remembered-file path)"
+else
+  fail "take left $(scratch_count) file(s) behind (remembered-file path)"
+fi
+hook::rewrite_guard_begin "$target"
+hook::rewrite_take_disclosure "" "msg-remembered-unchanged"
+if [[ -z "$HOOK_REWRITE_MESSAGE" && "$HOOK_REWRITE_CHANGED" == "false" ]]; then
+  ok "an empty file argument on an unchanged file yields no message"
+else
+  fail "empty file argument, unchanged: message='$HOOK_REWRITE_MESSAGE' changed='$HOOK_REWRITE_CHANGED'"
+fi
+
 # --- take composes with emit_channels as ONE document ------------------------
 # The #3406 class: rewrite disclosure plus findings context must be one JSON
 # document carrying both channels.

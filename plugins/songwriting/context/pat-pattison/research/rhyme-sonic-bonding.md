@@ -17,8 +17,8 @@
 - [Voice leading and prosody](#voice-leading-and-prosody)
 - [Exercises as coaching prompts](#exercises-as-coaching-prompts)
 - [Chapter 8 skill workflow](#chapter-8-skill-workflow)
-- [Juncture — sound at word boundaries](#juncture--sound-at-word-boundaries)
-- [Sonic fabric — the section-wide texture](#sonic-fabric--the-section-wide-texture)
+- [Juncture: sound at word boundaries](#juncture-sound-at-word-boundaries)
+- [Sonic fabric: the section-wide texture](#sonic-fabric-the-section-wide-texture)
 - [Cross-references](#cross-references)
 
 Pat Pattison - *Essential Guide to Rhyming*
@@ -50,9 +50,13 @@ Sonic bonding is the craft of choosing words for sound as well as meaning,
 rhythm, and structure. The point is not decoration. Sound can connect ideas,
 smooth motion, create contrast, force a pause, or make a line more singable.
 
+<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison, Essential Guide to Rhyming, Chapter 8 -->
 > "As a writer, you are constantly in the business of making choices —
 > sometimes for meaning, other times for rhythm or sound. Or maybe for
-> structure." — Pat Pattison, *Essential Guide to Rhyming* (2014), Chapter 8
+> structure."
+>
+> Pat Pattison, *Essential Guide to Rhyming* (2014), Chapter 8
+<!-- ai-slop-ignore-end -->
 
 The chapter's purpose is ear training: "to choose for reasons rather than
 relying on flipping the proverbial instinct coin." Pat's own roadmap for it:
@@ -63,11 +67,12 @@ relying on flipping the proverbial instinct coin." Pat's own roadmap for it:
 4. voice leading and prosody
 5. juncture
 
-On the terminology arguments the chapter invites — internal rhyme or
-assonance? rhyme or voice leading? — Pat's ruling:
+The chapter invites terminology arguments: internal rhyme or assonance?
+rhyme or voice leading? Pat's ruling:
 
-> "The effect is what counts." — Pat Pattison,
-> *Essential Guide to Rhyming* (2014), Chapter 8
+> "The effect is what counts."
+>
+> Pat Pattison, *Essential Guide to Rhyming* (2014), Chapter 8
 
 Skill behavior: when a user asks why a lyric line feels flat, awkward, too
 smooth, too choppy, or less singable than it should, inspect sound connections
@@ -77,7 +82,7 @@ inside the line before changing the idea.
 
 Internal rhyme means exactly what it says: rhymes occurring inside a line.
 Often they are placed symmetrically, midline and end line, creating a kind of
-acceleration — Pat's example is the familiar limerick form:
+acceleration. Pat's example is the familiar limerick form:
 
 ```text
 There once was a student named Esser
@@ -95,7 +100,7 @@ The paint is stripped from hard winds blowin'
 And storms have ripped shingles from the roof…
 ```
 
-`stripped/ripped` is symmetrical — consecutive lines, same rhythmic position.
+`stripped/ripped` is symmetrical: consecutive lines, same rhythmic position.
 `yard/hard` is asymmetrical, "creating a more off-balance feel. Of course, the
 house is a bit off-balance here." The asymmetry is prosody, not sloppiness.
 
@@ -110,7 +115,7 @@ I have heard the mermaids singing, each to each.
 
 "Call it sonic fabric, created by placing rhymes internally. Great stuff."
 
-More Eliot — from *The Waste Land*:
+More Eliot, from *The Waste Land*:
 
 ```text
 Oil and tar
@@ -134,7 +139,7 @@ put it in your section, let it do its work, then forget about it."
 
 The three effects Pat actually names for it, in order of appearance:
 **acceleration** (symmetrical placement, midline and end line); an
-**off-balance feel** (asymmetrical placement, which he uses prosodically —
+**off-balance feel** (asymmetrical placement, which he uses prosodically:
 "the house is a bit off-balance here"); and **sonic fabric** (rhymes placed
 internally across several lines). Nothing else in the section claims a use
 for it.
@@ -173,7 +178,7 @@ Easy / lazy         Slip / in         lazy / days / away
 
 "You could call them internal rhymes, but they do not seem to have a rhyming
 purpose. Instead, they seem to be there to make the phrases flow smoothly."
-That effect is **voice leading** — and you can create it with vowels
+That effect is **voice leading**, and you can create it with vowels
 (assonance) or consonants (alliteration).
 
 Voice leading is Pattison's musical analogy, and he gives it a literal musical
@@ -184,14 +189,14 @@ definition:
 
 His worked chord move: going from a C triad (C E G) to an F triad, since the F
 triad contains a C, you keep C under your finger, then move the E the shortest
-distance possible to F and the G to A — voicing the F triad as C F A.
+distance possible to F and the G to A, voicing the F triad as C F A.
 
 That maps onto the three assonance types directly. Simple and hidden assonance
 are the *retained* note (the C you keep). Family assonance is the *moved* note
-(E→F, G→A) — a change, but the smallest one available.
+(E→F, G→A): a change, but the smallest one available.
 
 You can create the effect "both with vowels (assonance) and consonants
-(alliteration)" — which is the chapter's own structure from here on. Its
+(alliteration)", which is the chapter's own structure from here on. Its
 audible result, per Pat, is that "these vowel connections can create a
 smoother, more legato line," and that the words' purpose "is to lead you
 through the words smoothly."
@@ -216,7 +221,7 @@ Distinguish two uses:
   tide / life     float / loan     family / lasting     pub / slums
   ```
 
-- **Assonance voice leading:** vowel connection inside a phrase — "a connection
+- **Assonance voice leading:** vowel connection inside a phrase, "a connection
   between words rather than phrases." It helps the words flow but does not
   create new structure and does not create acceleration. Pat's example is the
   tail of the cotton-candy lyric above:
@@ -261,7 +266,7 @@ where he names them.)
 
 Pat's whole summary of the type is one line: "Simple assonance. The
 repetition of vowel sounds." The purpose he attaches to it is the one he
-attaches to all sonic repetition — to "link ideas sonically as well as
+attaches to all sonic repetition: to "link ideas sonically as well as
 conceptually."
 
 Chapter 8 sets no test or checklist here; it sets **Exercise 8.1**, which is
@@ -291,7 +296,7 @@ the phrase:
 Play head games
 ```
 
-you hear simple assonance between the long `a` of `play` and `games` — but
+you hear simple assonance between the long `a` of `play` and `games`, but
 under it runs a subtle voice leading of the short `ĕ` that populates all three
 words. Slow it down and listen:
 
@@ -307,7 +312,7 @@ Ple ee eenie meenie miney moe
 ```
 
 In singing, hidden assonance is usually *more* obvious, because the singer
-holds one component of the diphthong — and which one depends on the diphthong.
+holds one component of the diphthong, and which one depends on the diphthong.
 In `play head games` the singer would usually hold the short `ĕ` rather than
 the long `ē`. Long `ī` holds the first component, the `ä` as in "papa." Long
 `ū` as in `few` holds the *second*, the `oo`, rather than the initial `ee`.
@@ -319,11 +324,11 @@ The long day wanes, the slow moon climbs
 The deep moans round in many voices
 ```
 
-1. **short `ŏ`** — `long` (`ŏ`), `slow` (`ŏ`+`ū`), `moans` (`ŏ`+`ū`), `voices`
+1. **short `ŏ`:** `long` (`ŏ`), `slow` (`ŏ`+`ū`), `moans` (`ŏ`+`ū`), `voices`
    (`ŏ`+`ū`).
-2. **`ee`** — `day` (`ĕ`+`ē`), `wanes` (`ĕ`+`ē`), `climbs` (`ä`+`ē`), `deep`
+2. **`ee`:** `day` (`ĕ`+`ē`), `wanes` (`ĕ`+`ē`), `climbs` (`ä`+`ē`), `deep`
    (`ē`).
-3. **`oo`** — `slow` (`ŏ`+`ū`), `moon` (`ū`), `moans` (`ŏ`+`ū`), `round` (`ū`).
+3. **`oo`:** `slow` (`ŏ`+`ū`), `moon` (`ū`), `moans` (`ŏ`+`ū`), `round` (`ū`).
 
 Pat's next example ("This one is pretty cool too"):
 
@@ -338,7 +343,7 @@ sound of the diphthong in `brain`, as well as the long `ee`, the second vowel
 sound in the long `a`. Whew."
 
 Pat then restates `oi` and `ou` as "other than the diphthongs formed by many
-of the long vowels, there are others" — and note he re-spells them here, and
+of the long vowels, there are others". Note that he re-spells them here, and
 adds a parenthesis he does not repeat anywhere else:
 
 ```text
@@ -404,7 +409,7 @@ in "papa"), the most open sound." The two legs run outward from it, tongue
 vowels left and lip vowels right. Adjacency along a leg is what family
 assonance trades on.
 
-Pat prints it as a **V** — the point at the *bottom*, "Tongue Vowels" heading
+Pat prints it as a **V**: the point at the *bottom*, "Tongue Vowels" heading
 the left leg, "Lip Vowels" the right, both legs opening upward and outward:
 
 <!-- phonetic vowel markings trip the spell-checker --><!-- spellchecker:off -->
@@ -436,11 +441,11 @@ Vowels printed at the same height sit on opposite legs: ē/ū, ĭ/oo, ĕ/ŏ,
 laid out.)
 
 > **Transcription warning.** The EPUB text layer emits this figure in the
-> wrong order — it hoists `ä` to the top and swaps the outer two vowels on
+> wrong order: it hoists `ä` to the top and swaps the outer two vowels on
 > each leg, giving `ă ĕ ē ĭ` and `ŭ ŏ ū oo`. The printed figure (spine 095,
 > reprinted at 100, 101 and 103) shows `ĭ` *between* `ĕ` and `ē`, and `oo`
 > *between* `ŏ` and `ū`. The printed order is also the phonetically correct
-> one — the tongue rises ă → ĕ → ĭ → ē, the lips round ŭ → ŏ → oo → ū.
+> one: the tongue rises ă → ĕ → ĭ → ē, the lips round ŭ → ŏ → oo → ū.
 > Pat's prose independently fixes which leg is which: the Eliot lines "work
 > with ah (at the point of the vowel triangle) and the first two steps of
 > the lip vowels: short u and short o." So `ŭ` and `ŏ` are *lip* vowels.
@@ -450,7 +455,7 @@ laid out.)
 <!-- spellchecker:on -->
 
 Pat's description of how the legs work: at the point is `ä` (as in "papa"),
-the most open sound — say "Ahh." From there, **lip vowels** move outward along
+the most open sound. Say "Ahh." From there, **lip vowels** move outward along
 the right leg; "you form each one in turn by rounding and closing your lips a
 little more. Your tongue stays out of the way." **Tongue vowels** move outward
 along the left leg; "you form each one in turn by raising your tongue a little
@@ -458,28 +463,28 @@ higher toward the roof of your mouth. Your lips stay out of the way, but widen
 as your tongue gets higher."
 
 **The "Yeow!" articulation drill** (*Essential Guide to Rhyming* (2014),
-Chapter 8): say `Yeow!` — "It covers all the vowel positions, from extreme lip
+Chapter 8): say `Yeow!`. "It covers all the vowel positions, from extreme lip
 vowels to extreme tongue vowels." The full triangle is traversed in one
 syllable. The drill teaches what mouth changes accompany which vowel
-transitions — useful when picking family-assonance partners.
+transitions, useful when picking family-assonance partners.
 
 ### Counting steps
 
 Pat does not tabulate the moves; he counts steps in prose while working a
 passage, and only three step-counts actually appear in Chapter 8:
 
-- **same vowel** — simple assonance. `brown` and `dawn` "share the triangle's
+- **same vowel:** simple assonance. `brown` and `dawn` "share the triangle's
   point, `ah`."
-- **one step** — the working definition of family assonance, and the whole
+- **one step:** the working definition of family assonance, and the whole
   instruction for Exercise 8.6: "supply a word that moves no more than one
   step from the stressed syllable of the italicized word." Pat's instance:
   "the double short `u` of `London` is a step away from both `ah` and
   short `o`."
-- **two steps** — still counted as connection: the initial `ah` of `crowd`
+- **two steps:** still counted as connection. The initial `ah` of `crowd`
   "is two steps from `flowed` and `over`'s initial short `o`."
 
 For contrast he gives a direction rather than a number: "You can also use it
-to create strong sonic contrast by seeking out words several steps away" —
+to create strong sonic contrast by seeking out words several steps away",
 the `death` of Exercise 8.5 being the worked case.
 
 ### What the triangle is for
@@ -490,18 +495,18 @@ rhymes, but also related vowel sounds. Work on two levels at once: you'll be
 mining ideas and sounds simultaneously."
 
 The diphthong decomposition that pairs with it is printed once, in the hidden
-assonance section above — the same five rows. It is not repeated here.
+assonance section above, the same five rows. It is not repeated here.
 
 ## Family assonance
 
-Family assonance is "the third, and even more remote category" — nearby vowel
+Family assonance is "the third, and even more remote category": nearby vowel
 positions on the triangle rather than exact repeated vowels. "Adjacent vowel
 sounds require minimal changes of position: step-by-step rounding of the lips
 for the lip vowels, and a step-by-step raising of the tongue for the tongue
 vowels." That is the voice-leading principle of moving as few steps as
 possible, applied to vowels.
 
-Pat's worked passage — the Eliot lines from earlier in the chapter — works
+Pat's worked passage, the Eliot lines from earlier in the chapter, works
 `ah` (at the point of the triangle) plus the first two steps of the lip vowels,
 short `u` and short `o`:
 
@@ -532,10 +537,12 @@ A crowd flowed over London Bridge, so many,
 I had not thought death had undone so many.
 ```
 
+<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison, Essential Guide to Rhyming, Chapter 8 -->
 "Notice how sonically isolated (and scary) `death` is." This is the other half
 of the tool: "When you have a choice between words, this principle of voice
 leading — taking small sonic steps (or large steps, as Eliot did with `death`)
 — could make the difference between a good line and a great one."
+<!-- ai-slop-ignore-end -->
 
 That completes the vowel side of the chapter, and Pat closes it by stacking
 the three levels: "You've now seen all three levels of vowel relationships:
@@ -572,7 +579,7 @@ His demonstration line, from Eliot's finale to *Prufrock*:
 I have seen them riding seaward on the waves
 ```
 
-Same line, three passes — note that only the first pass is initial
+Same line, three passes. Note that only the first pass is initial
 alliteration:
 
 | Sound | Where it lands | Type |
@@ -606,8 +613,8 @@ work more quietly, giving texture without sounding slogan-like.
 
 Note on the source text: Chapter 8 marks all of this by bolding or underlining
 individual letters inside the printed lines. Where this file lists the
-alliterating words in a table instead, that is a transcription convenience —
-the words and sounds are Pat's.
+alliterating words in a table instead, that is a transcription convenience.
+The words and sounds are Pat's.
 
 ## Horizontal and vertical consonant families
 
@@ -620,8 +627,8 @@ the activity of the air column:
 | Fricatives | `v`, `TH`, `z`, `zh`, `j` (voiced) / `f`, `th`, `s`, `sh`, `ch` (unvoiced) |
 | Nasals | `m`, `n`, `ng` (all voiced) |
 
-Pat's approximation examples, one per family — the perfect rhyme first, then
-the family substitute that swaps in a related consonant after the vowel:
+Pat's approximation examples, one per family. The perfect rhyme comes first,
+then the family substitute that swaps in a related consonant after the vowel:
 
 ```text
 plosives:    mud / blood   →  mud / rut
@@ -631,7 +638,7 @@ nasals:      strum / hum   →  strum / fun,    strum / rung
 
 Those groups are useful for family rhyme. Chapter 8 adds vertical families for
 alliteration, based on **tongue position**. Pat's derivation is physical, not
-theoretical — say each nasal and notice what your tongue does. `M` closes the
+theoretical: say each nasal and notice what your tongue does. `M` closes the
 lips and flattens the tongue. `N` raises the tip of the tongue to the hard
 palate. `NG` (as in "sing") raises the middle of the tongue to the soft palate.
 Those three tongue positions are identical to the three vertical columns of the
@@ -648,9 +655,10 @@ not. Neat, huh?"
 
 The rest of each family is derived the same way:
 
-- `v` and `f` are labiodentals — lips and teeth, tongue flat. **M position.**
-- `w` is a **semi-vowel** — Pat's term, and his reason for reaching for it here
-  is that Pat moves to "a consonant not included in the Table of Family Rhymes":
+- `v` and `f` are labiodentals: lips and teeth, tongue flat. **M position.**
+- `w` is a **semi-vowel**. The term is Pat's, and his reason for reaching for
+  it here is that Pat moves to "a consonant not included in the Table of Family
+  Rhymes":
   say "Wow!" and "Come willingly"; note how close the lips are to closed while
   the tongue "stays in relatively the same position." **M position**, initial
   only: "When it ends a word, as in `slow`, it doesn’t close, nor does it sound."
@@ -665,7 +673,7 @@ The rest of each family is derived the same way:
 - `y` is "the other semi-vowel." Note how close the tongue is to the soft
   palate. "Like `w`, `y` sounds when it begins a word, but not when it ends a
   word." In Pat's words, "When it is initial, it becomes another member of NG’s
-  small but potent family"—the **NG** column below.
+  small but potent family": the **NG** column below.
 
 The Table of Vertical Families, "organized from closer to more remote
 relationships as it descends":
@@ -683,7 +691,7 @@ relationships as it descends":
 Notes:
 
 - `w` and `y` count only in initial position.
-- `TH` and `th` put the tongue on the top teeth — not close enough to the hard
+- `TH` and `th` put the tongue on the top teeth: not close enough to the hard
   palate for `N`, not flat enough for `M`. `R`, "the hardest consonant to
   learn, belongs to none of the vertical families."
 - The lower entries in each vertical family are more remote.
@@ -710,8 +718,8 @@ First the obvious relationships, which he lays out before the concealed layer:
 
 | Layer | What connects |
 | --- | --- |
-| assonance | long `a`: d**ay**, w**a**nes — long `o`: sl**ow**, M**o**ans, v**oi**ces |
-| climbing vowels | "the slow moon climbs" — the vowels open as the moon rises |
+| assonance | long `a` in d**ay**, w**a**nes and long `o` in sl**ow**, M**o**ans, v**oi**ces |
+| climbing vowels | "the slow moon climbs", where the vowels open as the moon rises |
 | initial alliteration | day/deep, moon/moans/many |
 | `l` (internal) | **l**ong, s**l**ow, c**l**imbs |
 | `m` | **m**oon, cli**m**bs, **M**oans, **m**any |
@@ -719,7 +727,7 @@ First the obvious relationships, which he lays out before the concealed layer:
 | `n` | wa**n**es, moo**n**, Moa**n**s, rou**n**d, ma**n**y |
 
 Then the concealed layer. Read the two lines aloud very slowly and count how
-many times the tip of your tongue rises to touch the hard palate — that is
+many times the tip of your tongue rises to touch the hard palate. That is
 every member of N's family (`d`, `t`, `j`, `ch`, `l`, `z`, `s`):
 
 - **Ten solid members** of N's family, not counting `s` and `z`.
@@ -729,7 +737,7 @@ every member of N's family (`d`, `t`, `j`, `ch`, `l`, `z`, `s`):
 "N's family helps create the wonderful sound and feeling in these lines, using
 concealed alliteration to create a kind of voice leading." And it does
 structural work too: the concealed alliteration links and supports the spondaic
-substitutions in the iambic pentameter —
+substitutions in the iambic pentameter:
 
 ```text
 The lóng dáy wánes
@@ -773,7 +781,7 @@ That makes it a prosody tool, not merely a texture tool.
 
 Juncture is "the way the end of one word moves into the beginning of the next
 word." Pat's entry point is the humblest fact in English grammar: we have two
-indefinite articles, `a` and `an`, purely to guarantee a smooth glide —
+indefinite articles, `a` and `an`, purely to guarantee a smooth glide:
 `an orange`, `a pickle`. "The rule about English articles is there to make
 talking easier."
 
@@ -789,7 +797,7 @@ the puzzled expression:
 She can't take your rent.
 ```
 
-Two juncture problems — `can't → take` and `your → rent` — because the ending
+Two juncture problems, `can't → take` and `your → rent`, because the ending
 consonants of `can't` and `your` are the same as the beginning consonants of
 `take` and `rent`. Move through the phrase smoothly and it comes out:
 
@@ -814,7 +822,7 @@ The lone and level sands / stretch / far away
 ```
 
 The terminal-and-initial `s` in `sands/stretch`, and the terminal-and-initial
-fricatives in `stretch/far`, force a pause — "a space between the words,
+fricatives in `stretch/far`, force a pause, "a space between the words,
 lengthening the desert horizon, reinforcing the distance created by the
 spondee" (`strétch/fár`). Look closely at the doubled staccato juncture in
 `sands/stretch`: the plosives and fricatives form a retrograde pattern,
@@ -831,7 +839,7 @@ alliteration of `p` and `m`.
 
 Pat's third example is Robert Frost's two-line "The Span of Life" (he asks you
 to look it up rather than reprinting it): notice how much trouble the old dog
-has moving through the difficult junctures of the first line, e.g. `old/dog` —
+has moving through the difficult junctures of the first line, e.g. `old/dog`,
 and how the puppy of the second line runs effortless circles, "each word moving
 smoothly into the next. Say it. Now say it keeping your teeth together. The
 legato junctures illustrate the puppy's former ease of motion."
@@ -848,7 +856,7 @@ meaning.
 
 Prosody happens when sonic behavior supports meaning. Chapter 8's final point
 is that word choice can be driven by the sound effect the line needs, not only
-by dictionary meaning — and Pat proves it by deliberately misquoting a poem.
+by dictionary meaning, and Pat proves it by deliberately misquoting a poem.
 
 Here is Arnold's "Dover Beach" with one word changed:
 
@@ -878,9 +886,11 @@ Gin end then gain gin
 "It gives you a feeling of continuous forward motion... like waves, it makes
 you want to keep starting over after you finish."
 
+<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison, Essential Guide to Rhyming, Chapter 8 -->
 **And that is exactly the problem.** "The meaning of the last line is that the
 waves' motion comes to a stop — a pause — before continuing on. But the sound
 does just the opposite! It keeps going without any pause at all!"
+<!-- ai-slop-ignore-end -->
 
 Here is what Arnold actually wrote:
 
@@ -890,7 +900,7 @@ Begin, and cease, and then again begin
 
 "What a difference! It is the break in the voice leading that is expressive!"
 
-Pat then runs three synonym comparisons — the drill to preserve. Each pair
+Pat then runs three synonym comparisons, the drill to preserve. Each pair
 means about the same thing; ask which works better and why:
 
 ```text
@@ -913,21 +923,23 @@ do is listen for prosody, then choose accordingly."
 
 > "Moral: Put yourself in situations where you have several alternatives,
 > and, provided that you understand how and why to pick, your writing will
-> get better." — Pat Pattison, *Essential Guide to Rhyming* (2014),
-> Chapter 8
+> get better."
+>
+> Pat Pattison, *Essential Guide to Rhyming* (2014), Chapter 8
 
-> "Reasons for choosing. Choosing for reasons." — Pat Pattison,
-> *Essential Guide to Rhyming* (2014), Chapter 8
+> "Reasons for choosing. Choosing for reasons."
+>
+> Pat Pattison, *Essential Guide to Rhyming* (2014), Chapter 8
 
 Pat asks exactly one pair of questions at each comparison, and asks it three
 times unchanged: **"Given these two ways to say the same thing, which word
-works better? Why?"** Keep the wording — the second question is the whole
+works better? Why?"** Keep the wording: the second question is the whole
 lesson, and the chapter supplies no rubric for answering it beyond listening.
 
 ## Exercises as coaching prompts
 
 Preserve Chapter 8's exercises as practice modes. The fill-in-the-blank lists
-look alike but are **not** interchangeable — the differences are the pedagogy,
+look alike but are **not** interchangeable. The differences are the pedagogy,
 so keep them distinct. (The book has no Exercise 8.7.)
 
 **Exercise 8.1. Assonance.** Mark the simple assonance relationships in:
@@ -954,14 +966,14 @@ naming it. Reproduced with the devices intact:
 > By **sea**-*girls* **wreathed** with **seaweed** red and brown
 > Till human voices <u>wake</u> us, and **we** drown.
 
-Reading the devices — **this gloss is inference, not Pat's; he prints the
-marks and names nothing**: italic = short `ŭ` (*Under*, *London*, *undone*);
+**This gloss is inference, not Pat's; he prints the marks and names
+nothing.** Reading the devices: italic = short `ŭ` (*Under*, *London*, *undone*);
 underline = the `ou` diphthong (<u>brown</u>, <u>crowd</u>); capitals =
 long `ō` (FLOWED, OVER, SO); bold-italic = short `ŏ` (***not thought***).
 In the second passage bold = long `ē` (**sea**, **wreathed**, **seaweed**,
 **we**), italic = `ər` (lin*gered*, cham*bers*, *girls*), underline = long
 `ā` (<u>cham</u>bers, <u>wake</u>). Bold in the *first* passage covers two
-sets at once — `fog`/`dawn` and `win`ter/`Bridge` — so do not read a single
+sets at once, `fog`/`dawn` and `win`ter/`Bridge`, so do not read a single
 vowel off it.
 
 **Exercise 8.2. Simple Assonance Practice.** Using your rhyming dictionary,
@@ -1001,7 +1013,7 @@ stripped from the text layer; recovered from the page scan):
 
 <!-- spellchecker:on -->
 
-The italics fall on the short `ĕ` — overt in `pebbles`, hidden inside the
+The italics fall on the short `ĕ`: overt in `pebbles`, hidden inside the
 long `ā` of `grating` (`ĕ`+`ē`). Same mechanism as `play head games`.
 
 > (Answer)
@@ -1017,7 +1029,7 @@ worked with the diphthong table, the rhyming dictionary, and the vowel triangle
 to find a word sharing *hidden* assonance.
 
 **Exercise 8.5. Isolating "Death."** Explore the sonic fabric of the third
-Eliot line and notice how sonically isolated — and scary — `death` is. (Worked
+Eliot line and notice how sonically isolated and scary `death` is. (Worked
 in the family assonance section above.)
 
 **Exercise 8.6. Vowel Triangle Practice.** Supply a word whose stressed vowel
@@ -1037,8 +1049,8 @@ differ from 8.2:
 10. Hold on to your ______.
 ```
 
-**Exercise 8.8. Alliteration Practice.** Identify the alliterations — initial,
-medial, and terminal:
+**Exercise 8.8. Alliteration Practice.** Identify the initial, medial, and
+terminal alliterations:
 
 ```text
 1. And the dead tree gives no shelter, the cricket no relief   (t, r, l)
@@ -1048,7 +1060,7 @@ medial, and terminal:
 
 **Exercise 8.9. Concealed Alliteration.** Supply a word sharing concealed
 alliteration with the stressed syllable of the italicized word. Note that
-item 5 is `singing` here, not `seething` as in 8.2/8.4/8.6 — Pat does not say
+item 5 is `singing` here, not `seething` as in 8.2/8.4/8.6. Pat does not say
 why, so do not substitute one for the other:
 
 ```text
@@ -1065,7 +1077,7 @@ why, so do not substitute one for the other:
 ```
 
 **Exercise 8.10. Staccato Juncture Practice.** Only five prompts, and each
-takes **two** answers — first a word creating a staccato juncture with the
+takes **two** answers: first a word creating a staccato juncture with the
 italicized word, then one creating a legato juncture:
 
 ```text
@@ -1133,10 +1145,10 @@ the question is about end-rhyme stability, and use
 [rhyme worksheets](rhyme-worksheets.md) when the user needs a broader search
 map before drafting.
 
-## Juncture — sound at word boundaries
+## Juncture: sound at word boundaries
 
 **Non-book framing.** Pat's own juncture taxonomy is the two-state one in the
-Juncture section above — rough (staccato) versus smooth (legato), given a full
+Juncture section above, rough (staccato) versus smooth (legato), given a full
 treatment in *Essential Guide to Rhyming* (2014), Chapter 8 with the
 `She can't take your rent`, "Ozymandias," and Frost demonstrations. The
 three-state table below is a linguistics import layered on top of Pat's two
@@ -1158,35 +1170,36 @@ Diagnostic:
 
 Use juncture to:
 
-- match diction to genre — close juncture and sandhi for country,
+- match diction to genre: close juncture and sandhi for country,
   hip-hop, R&B; open juncture for classical, theatrical, gospel,
   literary;
-- match juncture to character — formal speaker uses open juncture;
+- match juncture to character: formal speaker uses open juncture;
   casual speaker uses close;
-- avoid awkward consonant collisions ("the texts shipped" — three
+- avoid awkward consonant collisions ("the texts shipped", three
   consonants in a row);
 - spotlight a line with deliberate open juncture against a
   surrounding close-juncture pattern.
 
-Juncture pairs with [phrasing](phrasing.md) — phrase boundaries
+Juncture pairs with [phrasing](phrasing.md): phrase boundaries
 amplify open juncture; phrase interiors usually carry close
 juncture.
 
-## Sonic fabric — the section-wide texture
+## Sonic fabric: the section-wide texture
 
 **Sonic fabric is Pat's own term**, used four times in Chapter 8 and carried
 in the book's index at its first appearance ("sonic fabric, 78"). He
 introduces it for interior rhyme placement:
 
 > "Call it sonic fabric, created by placing rhymes internally. Great stuff."
-> — Pat Pattison, *Essential Guide to Rhyming* (2014), Chapter 8
+>
+> Pat Pattison, *Essential Guide to Rhyming* (2014), Chapter 8
 
-and returns to it for vowels — "Lots of opportunities to knit sonic fabrics
-together" — and again after the three assonance levels: "Together, they can
+and returns to it for vowels, "Lots of opportunities to knit sonic fabrics
+together", and again after the three assonance levels: "Together, they can
 help you knit a strong and euphonious sonic fabric."
 
 The section-wide diagnostic below extends that idea from the line to the
-section. That extension is this knowledge base's and is **unaudited** — only
+section. That extension is this knowledge base's and is **unaudited**. Only
 the term and the weaving metaphor are Pat's.
 
 Sonic fabric:
@@ -1194,7 +1207,7 @@ Sonic fabric:
 - repeated vowel sounds across a section create a consistent color,
 - repeated consonant sounds create a consistent surface,
 - both together create the section's audible signature,
-- the singer's voice is the loom — what you write is the thread.
+- the singer's voice is the loom, and what you write is the thread.
 
 Three diagnostic questions:
 
@@ -1214,9 +1227,9 @@ Use sonic fabric:
 - when a section sounds correct line-by-line but flat as a whole,
 - when designing a chorus that must sound singable on first
   listen,
-- when contrasting a verse and chorus — different fabrics signal
+- when contrasting a verse and chorus: different fabrics signal
   different sections sonically before the lyric registers,
-- when revising — change one stressed vowel to test whether the
+- when revising: change one stressed vowel to test whether the
   fabric tightens or loosens.
 
 Sonic fabric is the section-level companion to internal rhyme,
@@ -1225,11 +1238,11 @@ threads; the fabric is the cloth.
 
 ## Cross-references
 
-- [rhyme types](rhyme-types.md) — end-rhyme stability scale.
-- [rhyme worksheets](rhyme-worksheets.md) — search algorithm per slot.
-- [phrasing](phrasing.md) — phrase boundaries interact with juncture.
-- [hook](hook.md) — TARGETING uses sonic fabric to prepare the
+- [rhyme types](rhyme-types.md): end-rhyme stability scale.
+- [rhyme worksheets](rhyme-worksheets.md): search algorithm per slot.
+- [phrasing](phrasing.md): phrase boundaries interact with juncture.
+- [hook](hook.md): TARGETING uses sonic fabric to prepare the
   title's stressed vowel.
-- [stable / unstable](stable-unstable-meta.md) — sonic fabric is a
+- [stable / unstable](stable-unstable-meta.md): sonic fabric is a
   stability lever (consistent fabric = stable; broken fabric =
   unstable).

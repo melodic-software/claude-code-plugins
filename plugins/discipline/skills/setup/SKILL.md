@@ -1,5 +1,5 @@
 ---
-description: "Validate the discipline plugin's configuration, the posture-batch overlay and do-your-research-deep's verification depth, and explain how to change it through Claude Code's plugin configuration prompt. Use when: 'set up discipline', 'configure discipline', 'discipline setup', 'is discipline configured', 'what's in my posture batch', 'what's my deep-research depth', or you want to adjust which correctors the batch runs or how deeply the research fan-out verifies. Actions: check (read-only verification, default and only action. This plugin's entire configuration is native userConfig, so there is nothing an apply could write)."
+description: "Validate the discipline plugin's configuration, the posture-batch overlay and do-your-research-deep's verification depth, and explain how to change it through Claude Code's plugin configuration prompt. Use when: 'set up discipline', 'configure discipline', 'discipline setup', 'is discipline configured', 'what's in my posture batch', 'what's my deep-research depth', or the user wants to adjust which correctors the batch runs or how deeply the research fan-out verifies. Actions: check (read-only verification, default and only action. This plugin's entire configuration is native userConfig, so there is nothing an apply could write)."
 argument-hint: "check"
 user-invocable: true
 disable-model-invocation: true
@@ -79,7 +79,7 @@ Official contract: <https://code.claude.com/docs/en/plugins-reference#user-confi
    (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>):
    interactive `/plugin configure discipline@<marketplace>` any time; headless, rerun
    `claude plugin install discipline@<marketplace> -s user --config <key>=<value>` (repeatable
-   per key) — against an already-installed plugin it prints `already installed` and still writes
+   per key). Against an already-installed plugin it prints `already installed` and still writes
    the value. Never uninstall to reconfigure: that drops the whole stored `pluginConfigs` entry,
    resetting every option to its manifest default. `-s` defaults to `user`, the only scope whose
    `pluginConfigs` these options load from (see above). Claude Code owns persistence. Do not
