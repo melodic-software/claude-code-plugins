@@ -1,0 +1,10 @@
+# coverage.py settings for the plugin's own Python suites, read when `coverage run`
+# starts in this directory (README.md, "Testing the plugin"). `source = .` reports
+# every module under the plugin whether or not a test imported it. `patch =
+# subprocess` measures the child interpreters the suites spawn: several of them
+# drive their script at its command line (test_join.py drives join.py that way),
+# and without the patch those scripts record nothing and read 0 percent per
+# function. The patch needs coverage.py 7.10 or later.
+[run]
+source = .
+patch = subprocess

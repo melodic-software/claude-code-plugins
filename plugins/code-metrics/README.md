@@ -111,6 +111,26 @@ Auto-discovered means the output lands on one of the well-known names the run lo
 `coverage.out`, `cover.out`, at most two directory levels below the repository root); anything else
 is named explicitly or listed under `coverage.artifacts` in the configuration.
 
+## Testing the plugin
+
+The Python suites are the `test_*.py` files beside the scripts they cover, and `python3 -m pytest -q`
+from this directory runs all of them. To measure them, run the same command under coverage.py from
+this directory:
+
+```shell
+python3 -m coverage run -m pytest -q && python3 -m coverage json
+```
+
+The `.coveragerc` here sets `source = .`, so every module under the plugin is reported whether or
+not a test imported it, and `patch = subprocess` (coverage.py 7.10 or later), so the scripts the
+suites drive at their command line, `join.py` and the parsers among them, are measured in their
+child interpreters instead of reading 0 percent. The patch leaves one data file per process;
+`coverage json` combines them on its own from coverage.py 7.14, and an older release needs
+`python3 -m coverage combine` between the two commands. The run writes `.coverage` and
+`coverage.json` into this directory, both ignored by git, and `coverage.json` sits two levels
+below the repository root, where `/code-metrics:audit-coverage plugins/code-metrics` run from the
+root auto-discovers it.
+
 ## Listing budget
 
 Every skill description in a session shares one listing budget, and Claude Code drops the

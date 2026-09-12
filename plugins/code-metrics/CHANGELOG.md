@@ -38,6 +38,15 @@ All notable changes to the `code-metrics` plugin are documented here. Format fol
   reach. The coverage run row now carries an additive `missing` key in the JSON, every absent
   scope file root-relative and sorted, and its reason names the first five with a `+N more in the
   JSON` count; a row that found no artifact at all still names the paths searched instead.
+- **The plugin's own suites can measure `join.py`.** `test_join.py` drives `join.py` in a child
+  interpreter, which coverage.py leaves unmeasured unless told otherwise, so a coverage run over
+  the plugin recorded the module at 17 percent by line and every function in it at 0 percent, and
+  the coverage skill fed those numbers back as the highest-CRAP function in the tree while the
+  suite demonstrably exercised it. A `.coveragerc` in the plugin directory now turns on
+  coverage.py's `subprocess` patch (7.10 or later) and sets `source = .`, a test pins the setting
+  so it cannot be dropped silently, and the README states the invocation; under it `join.py`
+  reads above 90 percent by line and `join` itself above 95. What the coverage skill reads and
+  reports is unchanged.
 
 ## [0.1.9]
 

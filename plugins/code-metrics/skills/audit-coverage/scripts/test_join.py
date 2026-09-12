@@ -10,6 +10,7 @@ end-to-end join over the committed fixtures is the shell suite's job.
 
 from __future__ import annotations
 
+import configparser
 import importlib.util
 import json
 import subprocess
@@ -1410,6 +1411,25 @@ class OutputTests(unittest.TestCase):
 
     def test_a_missing_complexity_document_is_a_usage_error(self) -> None:
         self.assertEqual(run("--scope", "nowhere.txt").returncode, 2)
+
+
+class CoverageConfigTests(unittest.TestCase):
+    """The plugin's `.coveragerc` is what lets a coverage run see this module.
+
+    Every case above drives join.py in a child interpreter, which coverage.py
+    does not measure unless its `subprocess` patch is on; without it the whole
+    module reads 0 percent per function however much this suite exercises it,
+    and the plugin's own coverage skill reports `join` as the most complex
+    untested function in the tree. This case pins the setting so dropping it
+    cannot pass silently.
+    """
+
+    def test_the_coverage_config_measures_the_child_interpreter(self) -> None:
+        config = configparser.ConfigParser()
+        read = config.read(PLUGIN_ROOT / ".coveragerc", encoding="utf-8")
+        self.assertEqual(len(read), 1, "the plugin's .coveragerc is missing")
+        patches = config.get("run", "patch", fallback="").replace(",", " ").split()
+        self.assertIn("subprocess", patches)
 
 
 if __name__ == "__main__":
