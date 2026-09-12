@@ -1,10 +1,12 @@
 {
   "experiment_id": "claude-code-plugins-fable-5-1-20260908-15744de6",
-  "phase": "bare",
+  "phase": "observe",
   "phase_timestamps": {
     "snapshot": "2026-09-08T17:20:00Z",
-    "bare": "2026-09-11T00:00:00Z"
+    "bare": "2026-09-11T00:00:00Z",
+    "observe": "2026-09-12T01:30:00Z"
   },
+  "phase_note": "observe opens with the merge of the experiment branch into main (checkout.merged_to_main); the window runs from fresh sessions on main and closes when readd runs.",
   "decisions": {
     "method": "Three source-backed research memos (official Claude Code docs fetched live 2026-09-11, repo doctrine second-tier), then two independent decision agents (Fable 5.1 and Opus 5) blind to each other; all four verdicts agreed. Memos and verdicts are mirrored under .claude/unhobble/<experiment-id>/ on the experiment branch.",
     "D1_user_scope": "Not opted in. No plugin ablated this run: every hook-wiring plugin classified keep (policy, tooling, or ground-truth oracle; context-guard is unstripped-hybrid-hook), and the 53 skill-only plugins need a classification pass before any project-scope enabledPlugins:false overlay is applied. The overlay is the documented, CI-passing mechanism for a future plugin ablation (settings-reference: project beats user; check-plugin-catalog-enablement.sh passes an explicit false).",
@@ -21,9 +23,9 @@
     "strip_commit": "4f6180f2",
     "pull_request": "https://github.com/melodic-software/claude-code-plugins/pull/4090",
     "branch_note": "Session-designated branch used as the experiment branch; the suggested experiment/unhobble-fable-5-1 name was not created because this session may push only to its designated branch.",
-    "merged_to_main": "2026-09-12: the operator asked for the experiment branch to be merged into main so the observe window runs on main rather than on a draft branch. The bare state (every strip in this manifest, the register-hold strip of rule-pr-body-contract included) is now the state of main. The observe phase continues from fresh sessions on main; the readd phase starts from a fresh branch off main, restores rule-pr-body-contract regardless of the ledger, and restores only what stumbles.md defends with repeated same-cause rows.",
+    "merged_to_main": "Decision recorded 2026-09-12, before the merge landed: the operator asked for the experiment branch (pull request #4090) to merge into main so the observe window runs on main rather than on a draft branch. From that merge on, the bare state (every strip in this manifest, the register-hold strip of rule-pr-body-contract included) is the state of main and the observe phase runs from fresh sessions on main. The readd phase starts from a fresh branch off main, restores rule-pr-body-contract regardless of the ledger, and restores only what stumbles.md defends with repeated same-cause rows. Until #4090 is merged, main still carries every surface and this record describes the intended state.",
     "ephemeral_container": true,
-    "ephemeral_note": "The snapshot ran in an ephemeral cloud container that was reclaimed after the merge. The plugin-data copy of this manifest is gone; this mirror is the canonical record from 2026-09-12 on. Readd must restore it to the plugin data path (or re-snapshot from the pre-strip commit c41c6422) before it runs from a durable checkout.",
+    "ephemeral_note": "The snapshot ran in an ephemeral cloud container. That container is reclaimed once the session that opened #4090 ends, and the plugin-data copy of this manifest goes with it; from then on this mirror is the canonical record. Readd must rehydrate it into the plugin data path (see README, 'Restoring the canonical state before readd') or re-snapshot from the pre-strip commit c41c6422 before it runs from a durable checkout.",
     "state_dir": "<CLAUDE_PLUGIN_DATA>/unhobble/claude-code-plugins-fable-5-1-20260908-15744de6",
     "base_merges": [
       "2026-09-11: origin/main merged into the experiment branch (7 commits past c41c6422); checked with git log over CLAUDE.md, AGENTS.md, .claude/rules, .claude/settings.json and every nested AGENTS.md: no instruction surface changed, so the bare state is unaffected. Brought in the re-enabled rule-em-dash in .claude/ai-slop.json (PR #3988)."
