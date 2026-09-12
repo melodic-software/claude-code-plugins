@@ -725,7 +725,27 @@ D8G7="$TEST_TMPDIR/issue-2397-plugin-root-in-settings"
 mkdir -p "$D8G7/.claude"
 jq -n '{permissions:{allow:["Bash(${CLAUDE_PLUGIN_ROOT}/scripts/x.sh:*)"]}}' \
   >"$D8G7/.claude/settings.json"
+OUT_PR_SETTINGS=$(run "$D8G7")
 assert_eq "plugin-root token in a settings allow rule is still P4-flagged" "1" "$(run "$D8G7" --count)"
+# The remedy has to fit the scope it is offered in. ${CLAUDE_SKILL_DIR} is
+# substituted in a skill's allowed-tools, so recommending it for a SETTINGS rule
+# would swap one inert rule for another.
+assert_contains "settings-scope plugin-root remedy is the bare-PATH one" "$OUT_PR_SETTINGS" "bare command on PATH"
+assert_not_contains "settings-scope plugin-root remedy does not offer CLAUDE_SKILL_DIR" "$OUT_PR_SETTINGS" "CLAUDE_SKILL_DIR"
+
+# A non-plugin skill is the one scope where the skill-dir remedy is correct.
+D8G8="$TEST_TMPDIR/issue-2397-plugin-root-project-skill"
+mkdir -p "$D8G8/.claude/skills/demo"
+cat >"$D8G8/.claude/skills/demo/SKILL.md" <<'EOF'
+---
+name: demo
+allowed-tools: Bash(${CLAUDE_PLUGIN_DATA}/bin/x.sh:*)
+---
+body
+EOF
+OUT_PR_PROJECT=$(run "$D8G8")
+assert_eq "plugin-data token in a project skill is P4-flagged" "1" "$(run "$D8G8" --count)"
+assert_contains "project-skill remedy offers CLAUDE_SKILL_DIR" "$OUT_PR_PROJECT" "CLAUDE_SKILL_DIR"
 
 # --- Case 9: missing jq exits 2 ---------------------------------------------
 real_bash=$(command -v bash)

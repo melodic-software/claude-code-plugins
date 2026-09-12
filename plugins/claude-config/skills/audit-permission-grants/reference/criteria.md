@@ -182,10 +182,10 @@ classes, because one of them is context-dependent:
 | `%USERPROFILE%`, `$env:USERPROFILE` | everywhere — Bash rules match literally and neither Windows spelling is ever expanded |
 | `${CLAUDE_PLUGIN_ROOT}`, `${CLAUDE_PLUGIN_DATA}` | everywhere **except a plugin skill's `allowed-tools`** — a personal or project skill, an agent, a command, or any settings file |
 
-A grant naming the plugin-scoped pair from inside a plugin skill **resolves and is not flagged**. That
-is the documented behavior, and upstream fixed it in **v2.1.0** (*"Fixed `${CLAUDE_PLUGIN_ROOT}` not
-being substituted in plugin `allowed-tools` frontmatter, which caused tools to incorrectly require
-approval"*). Flagging it was this check's own defect through criteria 1.2.0.
+A grant naming the plugin-scoped pair from inside a plugin skill **resolves and is not flagged**. The
+substitution has a version floor of **v2.1.0**, recorded upstream as *"Fixed `${CLAUDE_PLUGIN_ROOT}`
+not being substituted in plugin `allowed-tools` frontmatter, which caused tools to incorrectly require
+approval"*.
 
 The settings-scope half is not an inference from the plugin-skill rule: **no page documents
 `${CLAUDE_*}` expansion in a settings `permissions.allow` array**, so a rule there is inert whatever

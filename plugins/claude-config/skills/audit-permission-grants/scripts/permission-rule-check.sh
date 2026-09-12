@@ -349,7 +349,12 @@ scan_rule() {
   if ! is_plugin_skill "$file"; then
     while IFS= read -r m; do
       [[ -z "$m" ]] && continue
-      emit error P4 "$src" "plugin-scoped substitution token in '$m' outside a plugin skill — \${CLAUDE_PLUGIN_ROOT} and \${CLAUDE_PLUGIN_DATA} are substituted only in plugin skills, so here the rule stays a literal string and never matches. Remedy: \${CLAUDE_SKILL_DIR} for this skill's own bundled script, or a bare-name command on PATH allowed narrowly."
+      # Route through the same context-sensitive remedy the always-inert tokens
+      # use. Offering ${CLAUDE_SKILL_DIR} unconditionally would swap one inert
+      # rule for another: that token is substituted in a skill's allowed-tools,
+      # so it is no remedy at all for a settings rule, an agent, or a command.
+      remedy="$(inert_grant_remedy "$file")"
+      emit error P4 "$src" "plugin-scoped substitution token in '$m' outside a plugin skill — \${CLAUDE_PLUGIN_ROOT} and \${CLAUDE_PLUGIN_DATA} are substituted only in plugin skills, so here the rule stays a literal string and never matches. Remedy: $remedy."
     done < <(rule_matches "$text" "$P4_BASH_PLUGIN_ONLY_ERE")
   fi
 }

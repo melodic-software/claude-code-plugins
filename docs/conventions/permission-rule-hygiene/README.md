@@ -138,11 +138,10 @@ personal or project skill, in an agent or command, and in any settings file's `p
 array, both tokens stay literal and the grant is inert. No page documents `${CLAUDE_*}` expansion in
 a settings allow rule at all.
 
-An earlier revision of this section said `${CLAUDE_PLUGIN_ROOT}` "does not appear anywhere on that
-page" and concluded every rule written with it is inert. Both halves were wrong: it appears twice on
-that page, and upstream fixed the substitution in **v2.1.0** (*"Fixed `${CLAUDE_PLUGIN_ROOT}` not
-being substituted in plugin `allowed-tools` frontmatter, which caused tools to incorrectly require
-approval"*). Treat a grant naming it from inside a plugin skill as correct, not as a defect.
+The substitution carries a version floor of **v2.1.0**, recorded upstream as *"Fixed
+`${CLAUDE_PLUGIN_ROOT}` not being substituted in plugin `allowed-tools` frontmatter, which caused
+tools to incorrectly require approval"*. Above that floor, treat a grant naming it from inside a
+plugin skill as correct rather than as a defect.
 
 `${CLAUDE_SKILL_DIR}` remains the right token for a rule matching a skill's **own** bundled script,
 and pairing it with the same token in the skill body is the documented way to run that script without
