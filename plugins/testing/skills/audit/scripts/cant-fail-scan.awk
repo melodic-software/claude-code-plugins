@@ -2,7 +2,12 @@
 # standalone entry point: the driver resolves the scan root, walks the tree,
 # and aggregates; this program judges ONE test file per invocation.
 #
-# Invocation: awk -v LANG_ID=<js|py|cs> -f cant-fail-scan.awk <file>
+# Invocation: awk -v LANG_ID=<js|py|cs> -f mask-js.awk -f cant-fail-scan.awk <file>
+#
+# Twin-file load: the JavaScript masker lives in mask-js.awk beside this file,
+# because runner-config-scan.awk masks the same language and one copy cannot
+# drift from itself. The driver passes both -f flags; this program calls
+# mask_js() and never defines it.
 #
 # Output, tab-separated, one record per line:
 #   F <tab> <rule-slug> <tab> <line> <tab> <detail>   a finding
@@ -86,60 +91,9 @@ BEGIN {
 # LENGTH-PRESERVING, so token matches and brace counts run over code only and
 # raw/masked column positions stay aligned. Multi-line states (block comments,
 # template literals, triple quotes, verbatim strings) are file-scoped globals.
+# mask_js is shared with runner-config-scan.awk and lives in mask-js.awk, which
+# the driver loads as the first -f program.
 # ---------------------------------------------------------------------------
-
-function mask_js(s,    out, i, c, c2, n, inclass) {
-  out = ""; n = length(s); i = 1
-  last_sig = ""  # per line: a regex literal cannot span lines, nor can the operator before it
-  while (i <= n) {
-    c = substr(s, i, 1); c2 = substr(s, i, 2)
-    if (S_bc) { if (c2 == "*/") { S_bc = 0; out = out "  "; i += 2 } else { out = out " "; i++ }; continue }
-    if (S_tpl) {
-      if (c == "\\") { out = out "  "; i += 2; continue }
-      if (c == "`") { S_tpl = 0; out = out " "; i++; last_sig = "`"; continue }
-      out = out " "; i++; continue
-    }
-    if (S_str) {
-      if (c == "\\") { out = out "  "; i += 2; continue }
-      if (c == S_q) { S_str = 0; last_sig = c }
-      out = out " "; i++; continue
-    }
-    if (c2 == "//") { while (i <= n) { out = out " "; i++ }; continue }
-    if (c2 == "/*") { S_bc = 1; out = out "  "; i += 2; continue }
-    if (c == "'" || c == "\"") { S_str = 1; S_q = c; out = out " "; i++; continue }
-    if (c == "`") { S_tpl = 1; out = out " "; i++; continue }
-    if (c == "/") {
-      # Regex literal, decided by what precedes it: after an operator or opening
-      # delimiter a '/' cannot be division. Mask through the closing '/', where
-      # '/' inside a [...] class is literal and '\' escapes; flags follow. An
-      # unterminated candidate masks to end of line — a string-ish context
-      # either way. Wrongly reading division as a regex would mask real code,
-      # so the trigger set stays narrow (no '>', no keyword heuristics).
-      if (last_sig == "" || index("(,=:[!&?;{|", last_sig) > 0) {
-        out = out " "; i++
-        inclass = 0
-        while (i <= n) {
-          c = substr(s, i, 1)
-          if (c == "\\") { out = out "  "; i += 2; continue }
-          if (c == "[") inclass = 1
-          else if (c == "]") inclass = 0
-          else if (c == "/" && !inclass) {
-            out = out " "; i++
-            while (i <= n && substr(s, i, 1) ~ /[a-z]/) { out = out " "; i++ }
-            break
-          }
-          out = out " "; i++
-        }
-        last_sig = "/"
-        continue
-      }
-    }
-    out = out c; i++
-    if (c != " " && c != "\t") last_sig = c
-  }
-  S_str = 0  # ' and " never span lines
-  return out
-}
 
 function mask_py(s,    out, i, c, c3, n) {
   out = ""; n = length(s); i = 1
