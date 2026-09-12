@@ -11,14 +11,30 @@ read, so its shape is stable within the `v1` schema string.
 | `schema` | string | `code-metrics/v1` |
 | `skill` | string | The producing skill, for example `audit-size` |
 | `generated_at` | string | UTC timestamp, `YYYY-MM-DDTHH:MM:SSZ` |
-| `status` | string | `complete` (every implied lane and measure ran; a `not-applicable` row implies nothing and never withholds it), `partial` (at least one `unavailable`, `deferred`, or `partial` row), `empty` (nothing was measured; the markdown headline reads "Measured nothing") |
+| `status` | string | `complete` (every implied lane and measure ran; a `not-applicable` row implies nothing and never withholds it), `partial` (at least one `unavailable`, `deferred`, or `partial` row; a lane that skipped every file is `partial` even with no measure row, because its run row states the skip), `empty` (nothing was measured; the markdown headline reads "Measured nothing") |
 | `scope` | object | `mode` (`change`, `paths`, `all`), `base` (the merge-base's short SHA under `change`, else `null`), `files` (count in scope), `unclassified` (how many of those belong to no lane, so `files` minus `unclassified` is the measured count; with the catch-all `other` lane enabled this is a disabled lane's files, and otherwise 0), `excluded` (count dropped by scope exclusions), `exclusions` (one `{pattern, files}` per `scope.exclude` glob that matched at least one file; a file two globs match counts under both) |
 | `run` | array | The "Coverage of this run" table, one row per lane and measure the scope implied |
 | `thresholds` | array | The references in force: `measure`, `value_key` (the `values` key the reference is applied to), `direction` (`at_or_above`, or `below` for coverage and type coverage), `reference` (number or `null`), `provenance`, `layer` (which config layer supplied it, or `bundled default`). The markdown Measures table lists rows over a reference first, furthest past it at the top, then the rest by the first entry whose `value_key` the rows carry, largest first (smallest first under `below`), and its 200-row cap names that key |
 | `measures` | array | The rows, see below |
-| `summary` | object | `files`, `functions`, `over_reference` (measure name to count); when clone-group rows are present, `duplicated_lines` (sum of each group's `values.lines`, one group counted once, after registry exclusions) and `clone_groups` |
-| `excluded` | array | Duplication only: clone groups dropped by a sanctioned-replication registry, each naming the registry path and line |
+| `summary` | object | `files`, `functions`, `over_reference` (measure name to count); when clone-group rows are present, `duplicated_lines` (sum of each group's `values.lines`, one group counted once, after registry exclusions), `clone_groups`, `by_lane`, and `by_directory` (see below) |
+| `excluded` | array | Duplication only: clone groups dropped by a sanctioned-replication registry (intentional clones the repository declares about itself), each naming the registry path and line |
 | `unavailable` | array | `lane/measure` strings for every `run` row whose status is `unavailable` |
+
+A reader ignores keys it does not know: fields are added within `v1` (the rollups and the run
+row's `hint` were), never renamed or removed.
+
+## Duplication rollups
+
+`summary.by_lane` maps each lane to `{"groups", "duplicated_lines"}` over the surviving clone
+groups, and `summary.by_directory` maps `.` and every ancestor directory of each group's first
+instance (instances are sorted by path, so that is the lowest path; paths are made relative to the
+repository root) to the same shape. A group counts once under every ancestor, so a parent includes
+its children and directory rows cannot be summed; two identities hold instead:
+`by_directory["."].duplicated_lines == summary.duplicated_lines` and the `by_lane` values sum to
+it. A duplication run that found or kept no group carries both as empty maps, beside its
+`duplicated_lines: 0`; a document without clone-group rows and without a duplication collector run
+carries neither. The markdown `## Rollup` section lists directories to `duplication.rollup_depth`
+(default 2); the JSON carries every directory.
 
 `summary.functions` counts functions, not rows: one function measured by two collectors produces two
 rows and counts once. Rows are grouped by file and name, and a group counts as many functions as it
@@ -47,17 +63,21 @@ different files whatever the registry says, and all of them stay. Clone-group ro
 `lane`, `measure`, `collector` (the tool and version that produced the rows, or `null`), `status`
 (`ok`, `partial`, `unavailable`, `not-applicable`, `deferred`), `reason` (`null` only when `ok` and
 the collector said nothing; an `ok` row whose collector wrote to stderr while succeeding carries
-that text, such as mypy's `mypy reported 386 errors (349 missing stubs)`). A
-run whose scope holds no measurable file carries one row `*/*` with status `not-applicable` and a
-reason that opens with `no measurable files in scope` and, under `change`, says why: the branch is
-at its merge-base with a clean working tree (naming the ref and the `--all` alternative), or the
+that text, such as mypy's `mypy reported 386 errors (349 missing stubs)`), `hint` (the first
+install hint a failed probe produced for the row, or `null`; it is kept apart from the prose
+reason so a renderer can print it once without parsing it back out). A run whose scope holds no
+measurable file carries one row `*/*` with status `not-applicable` and a reason that opens with
+`no measurable files in scope` and, under `change`, says why: the branch is at its merge-base with
+a clean working tree (naming the ref and the `--all` alternative), or the
 changed files belong to no lane. The lane `other` (every text file outside the language lanes)
 has `file_lines` rows only; each other measure carries a `not-applicable` row for it.
 
 `partial` means the row produced measurements for some of what it implied and not the rest, which
 `audit-coverage` emits when an artifact covers only some of a lane's scope files, and again when it
-left a function unjoined, naming those functions in the reason. It counts as having produced rows,
-so such a run is `partial` rather than `empty`, and it withholds `complete`, so a document can never
+left a function unjoined, naming those functions in the reason, and which `audit-duplication` emits
+when a `duplication.max_size` or `duplication.max_lines` cap left files out of the clone scan,
+naming the count and the largest skipped file in the reason. It counts as having produced rows, so
+such a run is `partial` rather than `empty`, and it withholds `complete`, so a document can never
 read as complete while one of its own rows says `N of M`.
 
 ## `measures[]` rows

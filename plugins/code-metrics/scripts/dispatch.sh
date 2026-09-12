@@ -501,20 +501,22 @@ ROWS="$WORK/measures.jsonl"
 COLLECT_FAILED=0
 
 run_row() {
-  # run_row <slot> <lane> <measure> <collector-or-empty> <status> <reason-or-empty>
+  # run_row <slot> <lane> <measure> <collector-or-empty> <status> <reason-or-empty> [<hint-or-empty>]
   #
   # One file per slot, concatenated in slot order once every collector has
   # finished, so the run table reads lane by lane and measure by measure
   # whatever order the parallel collectors happened to complete in.
   #
   # One interpreter call per row rather than one per field; an empty
-  # collector or reason is null.
+  # collector, reason, or hint is null. `hint` is the first install hint a
+  # failed probe produced for the row, kept apart from the prose reason so a
+  # renderer can print it once without parsing it back out.
   "${PY[@]}" -c '
 import json, sys
-lane, measure, collector, status, reason = sys.argv[1:6]
+lane, measure, collector, status, reason, hint = sys.argv[1:7]
 print(json.dumps({"lane": lane, "measure": measure, "collector": collector or None,
-                  "status": status, "reason": reason or None}))
-' "$2" "$3" "$4" "$5" "$6" >"$WORK/run.$1"
+                  "status": status, "reason": reason or None, "hint": hint or None}))
+' "$2" "$3" "$4" "$5" "$6" "${7:-}" >"$WORK/run.$1"
 }
 
 IFS=',' read -r -a MEASURE_LIST <<<"$MEASURES"
@@ -578,7 +580,12 @@ launch_collect() {
   printf '%s\n' "$@" >"$WORK/files.$slot"
   (
     started="$(date +%s)"
-    "${PY[@]}" "$adapter" collect "$lane" "$measure" --paths-from "$WORK/files.$slot" >"$WORK/out.$slot" 2>"$WORK/err.$slot"
+    # A collector that leaves some of its inputs out (a cap it applies
+    # itself) writes one line to the partial-reason file; a successful
+    # collect with a non-empty file is a `partial` row carrying that line,
+    # never a silent `ok`.
+    CODE_METRICS_PARTIAL_REASON_FILE="$WORK/partial.$slot" \
+      "${PY[@]}" "$adapter" collect "$lane" "$measure" --paths-from "$WORK/files.$slot" >"$WORK/out.$slot" 2>"$WORK/err.$slot"
     rc=$?
     printf '%s %s\n' "$rc" "$(($(date +%s) - started))" >"$WORK/rc.$slot"
   ) &
@@ -596,6 +603,7 @@ for lane in "${LANES[@]}"; do
     SLOT=$((SLOT + 1))
     resolved=0
     reasons=""
+    first_hint=""
     while IFS=$'\t' read -r tool note; do
       [[ -n "$tool" ]] || continue
       case "$tool" in
@@ -629,6 +637,7 @@ for lane in "${LANES[@]}"; do
         why="$(tr '\n' ' ' <"$probe_err" | cut -c1-200)"
         why="${why% }"
         reasons+="${reasons:+; }$tool: ${why:-not found}${hint:+ ($hint)}"
+        [[ -n "$first_hint" || -z "$hint" ]] || first_hint="$hint"
         continue
       fi
       S_LANE[slot]="$lane"
@@ -642,7 +651,7 @@ for lane in "${LANES[@]}"; do
       break
     done < <(ladder_tools "$lane" "$measure")
     if [[ $resolved -eq 0 ]]; then
-      run_row "$slot" "$lane" "$measure" '' unavailable "${reasons:-no ladder entry for $lane/$measure}"
+      run_row "$slot" "$lane" "$measure" '' unavailable "${reasons:-no ladder entry for $lane/$measure}" "$first_hint"
     fi
   done
 done
@@ -658,11 +667,15 @@ for slot in "${COLLECT_SLOTS[@]}"; do
   version="${S_VERSION[slot]}"
   if [[ "${rc:-1}" -eq 0 ]]; then
     cat "$WORK/out.$slot" >>"$ROWS"
-    # What an adapter said on stderr while succeeding (mypy's error count,
-    # a module the scope did not cover) is the ok row's reason; an adapter
-    # that said nothing leaves it null.
-    note="$(tr '\n' ' ' <"$WORK/err.$slot" | cut -c1-500)"
-    run_row "$slot" "$lane" "$measure" "$tool $version" ok "${note% }"
+    if [[ -s "$WORK/partial.$slot" ]]; then
+      run_row "$slot" "$lane" "$measure" "$tool $version" partial "$(head -n 1 "$WORK/partial.$slot")"
+    else
+      # What an adapter said on stderr while succeeding (mypy's error count,
+      # a module the scope did not cover) is the ok row's reason; an adapter
+      # that said nothing leaves it null.
+      note="$(tr '\n' ' ' <"$WORK/err.$slot" | cut -c1-500)"
+      run_row "$slot" "$lane" "$measure" "$tool $version" ok "${note% }"
+    fi
     progress "$lane/$measure: $tool finished in ${elapsed:-?}s, $(wc -l <"$WORK/out.$slot" | tr -d ' ') row(s)"
   elif [[ "${rc:-1}" -eq 4 ]]; then
     run_row "$slot" "$lane" "$measure" "$tool $version" unavailable "$(tr '\n' ' ' <"$WORK/err.$slot" | cut -c1-500)"
