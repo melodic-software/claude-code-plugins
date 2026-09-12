@@ -3,6 +3,16 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.4]
+
+### Changed
+
+- **Bump `vitest` and `@vitest/coverage-v8` 4.1.11→5.0.0** (#4104, absorbing #4103). Development dependencies only; the tracked bundle is unaffected and `verify-bundle` confirms `dist/index.min.js` still matches source.
+
+  The two packages had to move in one commit. `@vitest/coverage-v8` declares an exact `peerDependencies` pin on its matching `vitest`, so each half alone fails `npm ci` with `ERESOLVE`: Dependabot split the group across #4104 and #4103, and both were red on that error rather than on anything in this repository. #4104 now carries both range moves and one regenerated lockfile, and #4103 is closed as absorbed.
+
+  Nothing in `server/` needed adapting for the major. vitest 5's breaking changes that could have reached this suite are the default `clearMocks`, the removal of the `sequential` test option, the stricter unawaited-assertion failure, and the `loupe.inspect`-to-pretty-format swap in assertion output; none appear in the four test files. Verified on Node 24.20.0 and npm 11.19.0, matching `.node-version` and the CI lane: clean `npm ci`, `tsc --noEmit` clean, biome clean, 4 test files and 32 tests passing with no type errors, and coverage unchanged at 16.12% of statements.
+
 ## [0.4.3]
 
 ### Changed
