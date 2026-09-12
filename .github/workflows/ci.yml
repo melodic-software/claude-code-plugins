@@ -142,7 +142,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Fetch base
-        uses: ./.github/actions/checkout-with-base
+        uses: ./.github/actions/checkout-with-base # zizmor: ignore[self-repository]
       - name: Test the docs-only detector
         run: bash scripts/check-docs-only.test.sh
       - name: Detect a docs-only diff
@@ -304,7 +304,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Fetch base
-        uses: ./.github/actions/checkout-with-base
+        uses: ./.github/actions/checkout-with-base # zizmor: ignore[self-repository]
 
       # PyYAML reads the frontmatter surface (YAML has no jq) for the
       # hook-exec-form and summary-reader-parity gates, and the same pinned,
@@ -563,6 +563,18 @@ jobs:
       # github format exits non-zero on any finding, which is the same
       # threshold. GH_TOKEN comes from the job's read-only workflow token, for
       # the online audits.
+      #
+      # Every `uses: ./.github/actions/checkout-with-base` in this repository
+      # carries `# zizmor: ignore[self-repository]`. zizmor 1.30 added that
+      # audit to recommend GitHub's `$/...` form over the workspace-relative
+      # `./...` form, and its auto-fix rewrites all seven call sites. The
+      # rewrite cannot be taken yet: actionlint (pinned by SHA in the
+      # melodic-software/ci-workflows action this lane also runs) rejects
+      # `$/.github/actions/checkout-with-base` as "invalid format because ref
+      # is missing", so adopting the audit's advice turns the zizmor finding
+      # into an actionlint error and the lane stays red either way. Drop the
+      # ignore comments and take the auto-fix once that actionlint pin
+      # understands the syntax.
       - name: Run zizmor
         id: zizmor
         if: needs.changes.outputs.run_workflows == 'true'
@@ -1368,7 +1380,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Fetch base
-        uses: ./.github/actions/checkout-with-base
+        uses: ./.github/actions/checkout-with-base # zizmor: ignore[self-repository]
       # One setup-node for the root package and all four sub-projects, keyed on
       # every lockfile any of them installs from, so a change to any one of
       # them invalidates the cache the others share.
@@ -1994,7 +2006,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Fetch base
-        uses: ./.github/actions/checkout-with-base
+        uses: ./.github/actions/checkout-with-base # zizmor: ignore[self-repository]
       - name: Verify plugin copies match the shared lib
         if: needs.changes.outputs.run_tests == 'true'
         run: scripts/sync-hook-utils.sh --check

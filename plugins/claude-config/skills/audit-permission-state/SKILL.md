@@ -1,6 +1,6 @@
 ---
 description: "Report the Claude Code permission state actually in effect. Discovers every settings scope (managed policy, user-global, project, local, and the pre-v2.1.211 start-directory copy), merges them into the effective allow/ask/deny set with each rule's source and precedence mechanic named, and classifies which allow rules auto mode drops on entry. Use when: 'what permissions are actually in effect' or 'show me my effective permissions' (including which settings file a rule comes from and what scopes were checked); 'which of my rules survive auto mode' (the entry diff); 'is my managed policy being read'; or before changing a permission rule whose source is unknown. An allow rule ignored because of its shape is `audit-permission-grants`. Report-only, never writes any settings file."
-argument-hint: "[--scopes] surfaces only | [--entry-diff] what auto mode drops"
+argument-hint: "(none) every read-only stage | [--scopes] [--entry-diff] [--lint] [--managed] [--block] narrow | [--oracle] [--critique] priced"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -13,9 +13,15 @@ metadata:
 `/permissions` lists your rules and the settings file each one came from, and for "where is this rule
 written" that is the answer, so use it. What it does not do is resolve the outcome: it will show you an
 allow and a deny for the same tool without saying which wins, it cannot tell a scope that was empty
-from one it could not read, there is no `claude permissions` subcommand or machine-readable export,
-and none of it exists outside a live session. This skill computes that locally, in a form another
-tool can consume.
+from one it could not read, there is no `claude permissions` subcommand or machine-readable export of
+the merged allow/ask/deny set, and none of it exists outside a live session. This skill computes that
+locally, off a live session, as line records a script can read.
+
+> **Verification.** Claim: no CLI surface exports the merged allow/ask/deny set. Basis:
+> [CLI reference](https://code.claude.com/docs/en/cli-reference) lists no `permissions` subcommand and
+> no standalone `config` subcommand; the two JSON surfaces it documents, `claude auto-mode defaults`
+> and `claude auto-mode config`, print classifier rules, not permission rules. As of 2026-09-12.
+> Recheck when a release note mentions a permissions export or a `/permissions` export action.
 
 It answers a question the siblings do not. `audit-permission-grants` asks whether the grants you
 **wrote** are durable and portable; `audit` asks whether your config files are **correct**. This
@@ -25,7 +31,11 @@ could actually open, and what each one holds.
 ## Scope boundary (route out)
 
 - Grant portability and auto-mode durability (P1/P2/P3) → `claude-config:audit-permission-grants`.
-- Settings-file correctness, baseline deny/ask presence, plugin drift → `claude-config:audit`.
+- Settings-file correctness **outside the permission plane** (schema and unknown keys, baseline
+  deny/ask presence, deny-rule placement, MCP, hooks, plugin drift) → `claude-config:audit`. The
+  permission plane's own dead config, the `disableAutoMode` type trap, and rules that cannot match
+  stay here, in Phase 4: they are read across all five scopes at once, which is this skill's asset
+  and not something a project-scope reader can do.
 - The instruction layer (CLAUDE.md, rules, auto-memory) → the `claude-memory` plugin.
 
 ## Report-only, permanently
@@ -40,25 +50,42 @@ author them even if it wanted to.
 
 ## Arguments
 
-Parse `$ARGUMENTS`:
+Parse `$ARGUMENTS`. **Flags narrow; they never widen.**
 
-- `--scopes`: surface records only, no rule inventory. Use when the question is "which scopes exist
-  and which could you read", not "what is in them".
-- `--entry-diff`: run the full pipeline through to the auto-mode entry diff (Phase 3 below).
+- (no argument): every read-only stage, in order, through one entry point. See "Run it" below.
+- `--scopes`: surface records only, no rule inventory and no downstream stage. Use when the question
+  is "which scopes exist and which could you read", not "what is in them".
+- `--entry-diff`: inventory, merge, and the auto-mode entry diff (Phase 3).
+- `--lint`: inventory and the permission-plane lint (Phase 4).
+- `--managed`: inventory and the managed-conformance report (Phase 6).
+- `--block`: the `autoMode` block lint (Phase 5). Reads the CLI, not the inventory, so it runs alone.
 - `--oracle`: with `--entry-diff`, cross-check the prediction against the harness's own drop
   narration. **Spawns a real `claude -p` session**; never fires without this flag. See its cost
   notice, which the run prints before anything is spawned.
-- (no argument): surfaces plus one record per allow/ask/deny rule, then the merge.
+- `--critique`: with `--block`, add `claude auto-mode critique`. Slow, and it truncates or returns
+  nothing while still exiting 0, so its result is reported as unavailable rather than as clean.
+
+## Run it
+
+One entry point runs each stage once and fans the inventory out, instead of walking every scope once
+per pipeline:
+
+```shell
+bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-permission-state/scripts/audit.sh" $ARGUMENTS
+```
+
+The phases below document what each stage decides and how to read it. Every stage script stays
+independently invocable and composes on its own, which is what `draft-auto-mode-rules` and
+`audit-pass` rely on; `audit.sh` is a convenience caller, never a gateway.
+
+**Read the `status=` token on every summary line before the counts above it.** `status=read` means
+the stage saw every scope; `status=incomplete` means at least one could not be opened and the counts
+cover only what was read. A finding count of zero under `status=incomplete` is not a clean bill.
 
 ## Phase 1: Discover and inventory
 
-Run the deterministic spine:
-
-```shell
-bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-permission-state/scripts/permission-state.sh"
-```
-
-It emits one record per line:
+Stage: `permission-state.sh`, the deterministic spine every other stage consumes. It emits one record
+per line:
 
 ```text
 <scope> <surface> <status> <path>          one per settings surface
@@ -75,15 +102,8 @@ NOTE: <text>                               anything the operator must know
 
 ## Phase 2: Merge into the effective set
 
-Pipe the inventory through the merge to get what is actually in force, each rule carrying its
-provenance:
-
-```shell
-bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-permission-state/scripts/permission-state.sh" |
-  bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-permission-state/scripts/permission-merge.sh"
-```
-
-It passes the records above through, then appends:
+Stage: `permission-merge.sh`, fed the inventory. It reports what is actually in force, each rule
+carrying its provenance. It passes the records above through, then appends:
 
 ```text
 CAVEAT: <text>                                                 what bounds the claim
@@ -110,14 +130,17 @@ states the two standing bounds the run prints.
 
 ## Phase 3: What entering auto mode drops
 
-Auto mode became the default permission mode for new sessions on 2026-08-14, and on entry it
-**silently drops** broad allow rules. This stage says which of yours survive:
+On entering auto mode, broad allow rules that grant arbitrary code execution are **silently dropped**,
+and restored when the session leaves auto mode again. This stage says which of yours survive.
 
-```shell
-bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-permission-state/scripts/permission-state.sh" |
-  bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-permission-state/scripts/permission-merge.sh" |
-  bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-permission-state/scripts/automode-entry-diff.sh"
-```
+**It describes a transition most run shapes never make, so state the precondition when you report
+it.** Auto mode is the built-in starting mode in one of the seven documented run shapes: a Pro, Max,
+or Team plan in a terminal or the VS Code extension. Every other shape, `claude -p` and the Agent SDK
+among them, starts in Manual and never makes this transition. The run prints the full list as a
+`DIFF-NOTE`; carry it rather than presenting the diff as unconditional.
+`reference/criteria.md` §"The auto-mode entry diff" holds the dated record.
+
+Stage: `automode-entry-diff.sh`, fed the merge.
 
 ```text
 DIFF-NOTE: <text>                                     classifyAllShell state, bounds
@@ -129,6 +152,10 @@ entry-diff summary allow_before=<n> dropped=<n> suspended=<n> kept=<n>
 
 - **Only allow rules change on entry.** Deny and ask are evaluated before the classifier in every
   mode, so they are not part of this diff. Do not report them as "surviving".
+- **Neither label is permanent.** `dropped` and `suspended` both describe what is in force while auto
+  mode is active; the rules are restored when the session leaves it, and nothing edits a settings
+  file. The two labels are kept apart because the remedies differ: a `dropped` rule is fixable by
+  narrowing that rule, while `suspended` is a global switch no rule edit reaches.
 - **`class` names the documented reason**: `blanket`, `interpreter-wildcard`, `package-manager-run`,
   `agent`, or `monitor`. The three shell shapes come from `lib/permission-patterns.sh`, the
   vocabulary `audit-permission-grants` check P1 also scans with; `agent` and `monitor` are
@@ -147,14 +174,11 @@ entry-diff summary allow_before=<n> dropped=<n> suspended=<n> kept=<n>
 The permission plane accepts things it silently ignores. This finds them across every scope at once,
 before a session starts:
 
-```shell
-bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-permission-state/scripts/permission-state.sh" |
-  bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-permission-state/scripts/permission-plane-lint.sh"
-```
+Stage: `permission-plane-lint.sh`, fed the inventory.
 
 ```text
 finding <severity> [<check>] <scope> <detail>
-lint summary findings=<n> checks_run=<n>
+lint summary findings=<n> checks_run=<n> status=<read|incomplete>
 ```
 
 Nine checks: three `C2-*` dead-config gates, `C5-disableType`, and five `C6-*` rules-that-cannot-match.
@@ -166,8 +190,8 @@ the checks are written NOT to flag.
   locked out when it is not.
 - **The three `C2` gates stay separate findings.** Different scope sets, different version histories:
   an operator who fixed one and saw the count drop would reasonably believe they had fixed all three.
-- **Several of these also produce a startup warning.** The added value here is reading every scope at
-  once, before a session, and naming the file, not that the harness is silent.
+- **`findings=0` is a clean bill only under `status=read`.** Under `status=incomplete` a scope could
+  not be opened and was never linted; the accompanying `LINT-NOTE` names which.
 - **Advisory: the lint always exits 0 when it ran.** Exit 2 means it could not run at all, never
   "nothing found".
 
@@ -203,12 +227,7 @@ is clean" and "the block was never read" is the whole point.
 ## Phase 6: What managed policy actually enforces
 
 An administrator deploys managed policy believing it is policy. Some of it is; some is not, and
-nothing surfaces which:
-
-```shell
-bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-permission-state/scripts/permission-state.sh" |
-  bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-permission-state/scripts/managed-conformance.sh"
-```
+nothing surfaces which. Stage: `managed-conformance.sh`, fed the inventory.
 
 - **`managed enforced deny <rule>`**: the strongest thing an administrator can write. No level,
   command line included, can override a managed permission rule, and a tool denied at any level
@@ -264,6 +283,17 @@ pre-v2.1.211 copy that is **not** a fallback, since permission rules from both f
 `managed` is four surfaces per OS, not one file. `reference/criteria.md` §Scopes has the full table
 and the dated record for the `pre-v2.1.211` boundary.
 
+**Four documented conditions keep the local file beside `.claude/settings.json` instead**, and the
+reader resolves all four: outside a git repository, repository root is the home directory, on Windows,
+and repository root or its `.git`/`.claude` not owned by the current user. The basis line names which
+applied. A fifth case is stated rather than detected, because it is a helper's behavior and not a
+session property: the Agent SDK's `resolveSettings()` always reads from the starting directory.
+
+**A cloud session reads a different scope set, and the run says so.** The operator's own user and
+local settings are not read there, and only server-managed settings arrive, so a user-scope record in
+a cloud session describes the container. `CLAUDE_CODE_REMOTE` is the documented detection and the only
+entrypoint variable this reader branches on. `reference/criteria.md` §Scopes holds both dated records.
+
 ## Prerequisites
 
 - **`jq`, required for correctness.** Absent, the script stops at the entry point with
@@ -271,35 +301,8 @@ and the dated record for the `pre-v2.1.211` boundary.
 - **`reg` (Windows) and `defaults` (macOS), required for an optional feature.** Absent, that one
   managed surface is `skipped` with a visible notice and everything else still runs.
 
-## Verification status
-
-The Windows registry surface was verified end to end against a real registry key. The macOS
-preferences domain and the Linux managed paths are **not** verified on real hardware. They are an
-honest manual-verification gap, not a claim. Treat a macOS `plist` record as reporting the surface,
-not its contents: the reader names the domain and does not yet inventory its rules.
-
 ## Gotchas
 
-Failure modes that produce a confidently wrong answer:
-
-- **A registry read that silently reports "no policy."** On Git Bash, MSYS rewrites any argument
-  containing backslashes as though it were a POSIX path, so a registry key reaches `reg.exe` mangled
-  and the query dies with `ERROR: Invalid syntax`. A caller that only checks the exit status reads
-  that as "no managed policy deployed" on a machine that has one. The reader disables the rewrite for
-  those calls; if you invoke `reg` yourself while debugging, do the same or you will reproduce the
-  wrong answer by hand.
-- **A missing shared library must not look like a clean machine.** If the plugin's
-  `lib/managed-scope.sh` cannot be sourced, the reader exits 2 rather than reporting every managed
-  surface `absent`. A reader that cannot load its own location list must not answer the question.
-- **The local file is not under the worktree you are standing in.** `settings.local.json` resolves
-  through worktrees to the main checkout, so a reader anchored on `git rev-parse --show-toplevel`
-  looks where the file is not and reports `absent`. Three documented exceptions keep it in the start
-  directory: outside a git repository, when the repository root is the home directory, and in Agent
-  SDK sessions. The reader detects the first two and states that it cannot detect the third.
-- **An empty merge is not an empty machine.** The merge exits 2 when the input carries no scope
-  records at all, so a reader that died cannot feed it a clean "nothing in effect"; if you build your
-  own pipeline around these scripts, check the status rather than the output.
-- **Two live copies of `settings.local.json` are normal, not a bug.** When a pre-v2.1.211 copy sits in
-  the start directory, the repository-root copy wins on a shared key but permission rules from both
-  stay in effect. Reporting only one of them under-reports what is live. The dated record for the
-  boundary is `reference/criteria.md` §Scopes.
+Failure modes that produce a confidently wrong answer, and the honest limits of what has been
+verified on real hardware, are in [reference/gotchas.md](reference/gotchas.md). Read it when a result
+looks wrong, when debugging a stage by hand, or before trusting a managed surface on macOS or Linux.

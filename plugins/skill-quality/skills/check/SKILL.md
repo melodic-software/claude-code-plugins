@@ -1,5 +1,5 @@
 ---
-description: "Skill-authoring QA for Claude Code skills. Use when: 'check this skill', 'skill quality', 'lint my skill', 'is this SKILL.md valid', 'validate skill frontmatter', 'check skill before publishing', 'validate evals.json', 'shared listing budget', 'is the skill listing overflowing', or before shipping a skill or plugin. Actions: `check [<skill-name>]` runs a twenty-seven-check static contract gate and reports PASS/FAIL with warnings; `validate-evals [<skill-name>]` checks a skill's evals/evals.json against the bundled schema, then runs a deterministic eval-quality lint; `listing-budget [<root> ...]` reports the SHARED aggregate listing-budget estimate across every listing-eligible skill under the resolved root(s). Advisory only, never blocks. Not for: writing new skills, or running model-graded evals."
+description: "Skill-authoring QA for Claude Code skills. Use when: 'check this skill', 'skill quality', 'lint my skill', 'is this SKILL.md valid', 'validate skill frontmatter', 'check skill before publishing', 'validate evals.json', 'shared listing budget', 'is the skill listing overflowing', or before shipping a skill or plugin. Actions: `check [<skill-name>]` runs a twenty-six-check static contract gate and reports PASS/FAIL with warnings; `validate-evals [<skill-name>]` checks a skill's evals/evals.json against the bundled schema, then runs a deterministic eval-quality lint; `listing-budget [<root> ...]` reports the SHARED aggregate listing-budget estimate across every listing-eligible skill under the resolved root(s). Advisory only, never blocks. Not for: writing new skills, or running model-graded evals."
 argument-hint: "[check|validate-evals|listing-budget] [<skill-name-or-root> ...]. Omit the action for check; omit the name/root to run over every skill under the resolved root"
 user-invocable: true
 disable-model-invocation: false
@@ -89,7 +89,7 @@ Parse `$ARGUMENTS`:
    - **PASS / FAIL** from the script's exit code (0 = pass, 1 = one or more `FAIL:` lines).
    - The `FAIL:` lines verbatim (each is an actionable defect).
    - `WARN:` lines grouped after failures (advisory: a trigger phrase dropped or moved vs the
-     base ref, soft line target, missing gotchas surface, action-router without evals, orphan
+     base ref, missing gotchas surface, action-router without evals, orphan
      spokes, an injection with no `shell:` whose commands only *look* portable, an injected
      command carrying no `|| <fallback>`, same-context judgment language with no fresh-eyes
      declaration or a stale exemption directive, and a description/verb-contract polarity

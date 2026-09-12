@@ -1,0 +1,14 @@
+Marketplace: market1: current (autoUpdate: on)
+In-repo: 0: <case> has no project/local installs
+Divergences: 0 actionable
+Timing: <elided>
+Marketplace: market2: needs update (autoUpdate: on)
+  refresh failed (exit 1): Failed to clone marketplace repository
+In-repo: 0: <case> has no project/local installs
+Divergences: 0 actionable
+Timing: <elided>
+Action needed:
+  - error: marketplace refresh failed (exit 1); catalog may be stale, install/enable maintenance deferred
+
+Run journal: <run_dir>
+Timing: <elided>

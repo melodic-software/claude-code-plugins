@@ -3,6 +3,128 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.56.1]
+
+### Changed
+
+- **`plugins`: three conditional blocks leave the hub for spokes.** The hub `SKILL.md` is loaded
+  in full on every invocation, and three of its blocks mattered only on uncommon paths. The stale
+  project records and cache content sections now live in `context/stale-records-cache-content.md`
+  (read when `stale_project_records.total` or `cache_content.stale_content` is above 0); the
+  `fleet-state.sh`, `cache-content-check.sh`, and `normalize-enabled-plugins.sh` invocation
+  contracts live in `context/script-contracts.md` (read when a step misbehaves or a caller other
+  than `sync-run.sh` invokes one); and the dated `userConfig` unset-key probe record, with the
+  `pluginConfigs` payload shape and the probe recipe, lives in `context/scope-semantics.md`. Each
+  block is replaced in the hub by a pointer naming its read condition, and both new spokes are in
+  the reference index. The `Configured value` line and its reading rule stay in the hub, because a
+  `userConfig` value substitutes only into content Claude Code renders and never into a file a
+  spoke read returns; the hub now states that surface in the plugins reference's own words
+  (`default` is "Value used when the user provides nothing"; values substitute in MCP and LSP
+  server configs and hook commands, and non-sensitive values also in skill and agent content)
+  instead of attributing an "is used if specified" sentence to the page. The Scope section is
+  unchanged. `context/gotchas.md` and `context/scope-semantics.md` gain a Contents block, and no
+  `context/*.md` file carries the dollar-brace `user_config` placeholder any more, so the
+  spoke-substitution rule is grep-checkable. The hub goes from 450 lines and 31,215 bytes (about
+  7,800 tokens at four characters a token) to 309 lines and 22,121 bytes (about 5,530 tokens),
+  under the 500-line guidance either way and now under the 5,000-token companion figure too.
+
+## [0.56.0]
+
+### Added
+
+- **`plugins`: `sync-run.sh` renders the Step 6 report itself; the model appends only the reload
+  guidance.** Every run writes `<run_dir>/report.txt`, and `--render` prints it after the digest
+  line, from a jq program (`scripts/render-report.jq`) over the digest, so `jq -r -f` reproduces
+  the report from a run directory later. Every fixed section, conditional row, annotation and
+  `Action needed` bullet is a function of digest fields: the three-way `autoUpdate` slot, the
+  fixed `In-repo:` row in its three variants, `Updated:` with `(direction unknown)`,
+  `Downgraded:`, `Catalog regression:`, `Installed:` with the policy-`all` recurrence clause,
+  `Normalized:`, `Enabled:`, the `Divergences:` split led by this project's count when a root
+  resolved, the self-update note, the stale project records and cache content sections, a
+  `Timing:` row naming the marketplace total, its slowest step and the clock's resolution (a
+  measurement with no threshold), and the bullets for install and enable gaps, failed CLI calls,
+  user-scope orphans, reorder refusals, an unsorted project-scope map, withheld downgrades with
+  both versions and the marketplace source as the likely cause, and every error. In `audit` mode
+  every mutating line carries `would run:` and `Would withhold:` sits beside `Would update:`
+  whether or not a downgrade was found, with `--allow-downgrade` named as ignored. Golden files
+  under `scripts/fixtures/render/` pin eight shapes: a clean current fleet, a withheld downgrade,
+  stale project records with a cache-content finding, an `ask` run stopped before install and its
+  `--only-install` re-entry, an install that left userConfig options unset, an audit, and an
+  `--all` run with a per-marketplace refresh failure (exit status still 0).
+- **`plugins`: two `Action needed` sources become digest fields.** `installed_with_unset_user_config[]`
+  (`{id, options_unset, required}`) is parsed at capture time from each install's own
+  "userConfig option(s) not yet set" line, and `updated_with_monitors[]` (`{id, scope, monitors}`)
+  counts the monitors each moved plugin's installed build declares, read from the record's cache
+  directory in the post-sweep snapshot: inline under the manifest's `experimental.monitors` key,
+  in the manifest file that key names, or in `monitors/monitors.json` at the plugin root. The
+  render lists both under `Action needed`, the monitor bullet attributing "monitors require a
+  session restart" to the plugins reference. The digest also carries top-level `cwd` (what the
+  `In-repo:` row names when no project root resolved) and per-marketplace `catalog_source`.
+- **`fleet-state.sh`: `installed[]` records carry `installPath` and the marketplace block carries
+  `source`** (a string source as-is, an object source flattened to `<kind>:<locator>`), so a
+  consumer can read an installed build's own manifest and name a marketplace's source without a
+  second reader over the internal files.
+
+### Changed
+
+- **`plugins`: the hub's Scope section states two invariants.** For `sync` and `audit` the script
+  computes every number and the model reports it (`converge` stays model-driven until it gains a
+  script), and the skill never branches on the host to change its algorithm or its report, with
+  `converge`'s destructive-tier autonomy abort and `fleet-state.sh`'s `$OSTYPE` path-form
+  detection named as the two things that invariant does not cover. The hub's Report section is now
+  a pointer to the render plus the one model-owned reload line, and the eval suite gains a case
+  whose expected behaviour is that the model pastes the render and restates none of its numbers.
+
+## [0.55.0]
+
+### Added
+
+- **`plugins`: the sync digest carries per-step timings.** Every marketplace block gains a
+  `timings` object: `pre_refresh_read`, `marketplace_update`, `in_repo_update`, `user_sweep`,
+  `install_enable`, `cache_content_check`, `post_read`, and the marketplace's `total`, each seconds
+  to three decimals, plus `resolution` naming the clock that produced them; the digest's top-level
+  `timings.total` times the whole invocation. A step this invocation did not run (a predicted
+  `audit` mutation, a policy stop before Step 4, an `--only-install` re-entry reusing the first
+  pass's cache finding) reads `null`, never 0. The clock is a ladder resolved once per run:
+  bash's `EPOCHREALTIME` (`microseconds`; bash 5.0 and later, per the GNU bash manual), else
+  `date +%s.%N` accepted only when it prints digits, a dot, and digits (`nanoseconds`; `%N` is a
+  GNU extension and an older `date` prints a literal `N`), else `date +%s` (`seconds`, the one
+  form every `date` documents, and the real rung on macOS's bash 3.2). Stamps are kept as
+  strings and subtracted in jq, with a `,` radix rewritten to `.` first, so every field is a
+  JSON number; steps round down and totals round up so a total is never below the sum of its
+  steps. Timings are a diagnostic measurement with no gate; the rendered report's `Timing:`
+  row lands with the script-rendered report. `SYNC_RUN_NO_EPOCHREALTIME=1` is the test seam
+  that forces the `date` rungs, since a child bash recreates the variable at startup.
+
+## [0.54.4]
+
+### Fixed
+
+- **`plugins`: the sync digest carries a marketplace's `autoUpdate: false` as `false`, not
+  `null`.** `sync-run.sh` built the digest's `auto_update` field with jq's alternative operator,
+  which treats `false` the same as absent, so a marketplace with autoUpdate off reached the
+  digest as `null`, the value reserved for "no fleet-state snapshot existed". The field is now
+  read directly (`fleet-state.sh` already normalizes it to a JSON boolean), and the Report
+  template renders the slot three ways: `on`, `off`, and `unreadable` for `null`, so a missing
+  snapshot is never reported as off.
+
+## [0.54.3]
+
+### Fixed
+
+- **`plugins`: the process-budget probes in `cache-content-check.test.sh` and
+  `fleet-state.test.sh` measure a real count as root.** Both suites traced the script under
+  test with `bash -x` and a pid-stamped `PS4` passed through the environment. Bash 4.4 and
+  later rebind an euid-0 shell's `PS4` to a bare plus sign at startup, before any startup file runs
+  (CVE-2016-7543), so in a root container such as Claude Code on the web the stamp never
+  reached the traced shell and `count_creations` returned -1: `cache-content-check.test.sh`
+  failed its fail-closed floor (2 of 26 cases), and `fleet-state.test.sh`, which had no floor,
+  passed every ceiling vacuously. The stamp now travels through a `BASH_ENV` startup file
+  the case directory holds, which lands after the rebind, and `fleet-state.test.sh` gains the
+  same floor its sibling has, so a probe that counts nothing fails naming the probe. The
+  ceilings themselves are unchanged. Measured in the web container as uid 0: 12 creations for
+  a one-install cache check, 11 for a `--marketplace` fleet report.
+
 ## [0.54.2]
 
 ### Changed

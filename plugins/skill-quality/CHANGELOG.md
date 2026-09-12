@@ -3,6 +3,17 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.0]
+
+### Removed
+
+- **`check`: the 200-line `SKILL.md` soft target is gone.** The only size guidance the official
+  skill-authoring docs give is the 500-line cap, which the hard-cap check already enforces. The
+  200 arrived as a bare tunable with no cited source, so the warning it produced asked authors to
+  meet a bar nothing documents. Check slot 10 is retired and the remaining checks keep their
+  numbers, so a test or a tracker item that names a check by number still points at the same one.
+  The gate now runs twenty-six checks.
+
 ## [0.22.4]
 
 ### Changed

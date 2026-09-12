@@ -3,6 +3,12 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.30]
+
+### Changed
+
+- **Bump `js-yaml` 4.3.1→4.3.2 in the generate output build package** (#4085): a transitive dependency, so the bump lands in `output/build/package-lock.json` and no manifest range moves. The native `node --test` suite, including the `test/url-policy.test.js` SSRF-gate assertions, passes on the new resolution.
+
 ## [0.7.29]
 
 ### Changed
