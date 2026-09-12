@@ -3,6 +3,73 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.43.1]
+
+### Fixed
+
+- **`audit-permission-state`**: the plane lint keyed unreadness by scope, so it kept only the LAST
+  surface record per scope. `managed` emits four (file, drop-in directory, registry, plist), so a
+  skipped registry followed by a not-applicable plist reported `status=read`. Unreadness is now per
+  surface and sticky, and the note names the surface rather than only the scope. This was the same
+  false-clean summary the status token was added to prevent, one level down.
+- **`audit-permission-state`**: `audit.sh` captured the inventory's exit status inside an `if ! cmd`
+  branch, where the negation has already resolved it to 0. A failed inventory, such as a machine
+  without `jq`, printed "failed (exit 0)" and exited successfully, handing automation a completely
+  failed audit as a passing one. The status is captured with `|| rc=$?` instead.
+- **`audit-permission-state`**: the merge counted only the cross-kind losers, so a whole-tool deny or
+  ask that beat a scoped rule printed one `inert` record beside `beaten=0`. All three emission sites
+  now increment the count, so the summary reconciles with the records above it.
+- **`audit-permission-state`**: the `autoMode` block lint derived "customized" from added entries
+  only, so a section holding a strict subset of the built-in list was reported as the unmodified
+  built-in list directly above `C4-defaults` reporting that built-in entries were discarded. Removals
+  count as customization too.
+
+## [0.43.0]
+
+### Added
+
+- **`audit-permission-state`**: `scripts/audit.sh`, one entry point that runs each stage once and
+  fans the inventory out. Bare invocation now runs every read-only stage; flags narrow rather than
+  widen, and the two priced lanes (`--oracle`, `--critique`) stay opt-in. The stage scripts remain
+  independently invocable, which `draft-auto-mode-rules` and `audit-pass` rely on.
+- **`audit-permission-state`**: the local-scope reader resolves all four documented conditions that
+  keep `settings.local.json` beside `settings.json`. The two that were missing, a Windows host and a
+  repository root whose `.git` or `.claude` entry is not owned by the current user, previously left
+  the reader anchored on the repository root against the documented rule, so a live file was reported
+  `absent`.
+- **`audit-permission-state`**: a cloud session is detected through `CLAUDE_CODE_REMOTE` and reported.
+  There the operator's own user and local settings are not read and only server-managed settings
+  arrive, so a user-scope record describes the container rather than the operator.
+- **`audit-permission-state`**: `reference/gotchas.md`, holding the failure modes and the
+  verification status the skill body used to carry inline.
+
+### Fixed
+
+- **`audit-permission-state`**: the plane lint and the entry diff could not say they had been unable
+  to look. Both summaries now carry `status=read|incomplete`, matching the token the managed
+  conformance report already emitted, and name the scopes they could not read. A plane where every
+  scope was unreadable previously summarized byte-for-byte identically to a fully read clean one.
+- **`audit-permission-state`**: `--diff-only` no longer suppresses `CAVEAT` and `NOTE` records. It
+  withholds the per-rule inventory, which is its purpose; withholding the readability records left an
+  all-zero summary as the only thing on screen for a machine nothing was read from.
+- **`audit-permission-state`**: the merge ends in a `merge summary` line, so a machine with no rules
+  states that result instead of emitting two caveats and stopping.
+- **`audit-permission-state`**: the entry diff states its precondition. Auto mode is the starting mode
+  in one of the seven documented run shapes, so sessions under `claude -p`, the Agent SDK, an
+  Enterprise plan and the rest were being handed a diff for a transition they never make. It also
+  states that dropped and suspended rules alike are restored on leaving auto mode.
+
+### Changed
+
+- **`audit-permission-state`**: the Agent SDK caveat names the SDK's `resolveSettings()` helper, which
+  is what the documentation describes, rather than claiming a session class the reader cannot detect.
+- **`audit-permission-state`**: the scope-boundary line narrows to settings-file correctness *outside*
+  the permission plane. The plane's own dead-config, `disableAutoMode` type, and unmatchable-rule
+  checks stay here, where all five scopes are read at once; `claude-config:audit` does not implement
+  them.
+- **`audit-permission-state`**: the `autoMode` block lint says whether each present section is a
+  built-in list or one the operator customized, which is the question a section count leaves open.
+
 ## [0.42.5]
 
 ### Changed

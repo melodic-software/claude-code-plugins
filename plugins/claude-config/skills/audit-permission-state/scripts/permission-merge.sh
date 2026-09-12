@@ -190,15 +190,20 @@ END {
         if (win == "") win = kinds[i]
       }
     }
+    # Every `inert` emission increments the count, here as well as in the
+    # cross-kind loop below. A summary that counted only one of the three sites
+    # reported beaten=0 beside an inert record on screen, which is a reader
+    # unable to reconcile the summary with the records it summarizes.
     if (scoped && (tk in bare_deny)) {
       for (i = 1; i <= 3; i++) {
         k = text SUBSEP kinds[i]
-        if (k in kind_seen) print "inert " kinds[i] " scopes=" scopes[k] " removed_by=deny@" tk " " text
+        if (k in kind_seen) { print "inert " kinds[i] " scopes=" scopes[k] " removed_by=deny@" tk " " text; n_inert++ }
       }
       continue
     }
     if (scoped && win == "allow" && (tk in bare_ask)) {
       print "inert allow scopes=" scopes[text SUBSEP "allow"] " outranked_by=ask@" tk " " text
+      n_inert++
       continue
     }
 
@@ -208,12 +213,24 @@ END {
     if (n_scopes[wk] > 1) basis = (basis == "") ? "merged-across-scopes" : basis "+merged-across-scopes"
     if (basis == "") basis = "uncontested"
     print "effective " win " scopes=" scopes[wk] " precedence_basis=" basis " " text
+    n_effective[win]++
     for (i = 1; i <= 3; i++) {
       if (kinds[i] == win) continue
       k = text SUBSEP kinds[i]
-      if (k in kind_seen) print "inert " kinds[i] " scopes=" scopes[k] " outranked_by=" win " " text
+      if (k in kind_seen) { print "inert " kinds[i] " scopes=" scopes[k] " outranked_by=" win " " text; n_inert++ }
     }
   }
+
+  # Every other stage ends in a summary. Without one, a machine with no rules
+  # emits two caveats and then nothing, and absence of output has to be read as a
+  # result rather than stated as one.
+  # "merge summary", not "effective summary": `effective ` is an established
+  # record prefix that consumers count, and a summary sharing it would be read as
+  # a rule with no precedence_basis. Every sibling stage uses `<stage> summary`.
+  # The beaten-rule count is deliberately NOT named `inert=`: `inert` is a record
+  # prefix consumers match on, and a summary field carrying that substring turns
+  # "no rule was beaten" into a false positive for "an inert record exists".
+  print "merge summary allow=" n_effective["allow"] + 0 " ask=" n_effective["ask"] + 0 " deny=" n_effective["deny"] + 0 " beaten=" n_inert + 0 " status=" (n_unread > 0 ? "incomplete" : "read")
 }
 ')" || {
   echo "ERROR: no scope records on input — permission-merge.sh will not report an effective set it never read" >&2
