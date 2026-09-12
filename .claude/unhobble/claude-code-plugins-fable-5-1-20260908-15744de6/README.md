@@ -18,6 +18,14 @@ Observe phase: the bare state is the state of main from 2026-09-12. Work normall
 from fresh sessions on main and append a row here whenever the model stumbles or does something
 better without an instruction.
 
+Restoring the canonical state before readd: the skill compares `checkout.worktree_path` with the
+resolved absolute checkout before every phase command and aborts on a mismatch, so the mirror
+cannot be copied back verbatim. Copy `manifest-mirror.json` to
+`${CLAUDE_PLUGIN_DATA}/unhobble/<experiment-id>/manifest.json` with the `<worktree>` token
+replaced by the output of `git rev-parse --show-toplevel` and the `<CLAUDE_PLUGIN_DATA>` token
+replaced by the resolved plugin data directory, copy `stumbles.md` alongside it, and create an
+empty `backups/` directory next to them. Keep the tokenized copy here unchanged.
+
 Readd phase: start a fresh branch off main, restore `.claude/rules/pr-body-contract.md` from
 `git show c41c6422:.claude/rules/pr-body-contract.md` regardless of the ledger (register hold,
 contested external-publication), restore only what the ledger defends with repeated same-cause
