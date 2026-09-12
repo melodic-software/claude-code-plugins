@@ -1675,7 +1675,7 @@ fi
 #
 # The exception class a `true` claims is NOT machine-checkable: a static scan
 # cannot tell class (i) manual-timing from an unjustified hide. Only class (ii)
-# is deterministic — the PLUGIN-PHILOSOPHY setup contract names `setup` skills —
+# is deterministic — the plugin-philosophy setup contract names `setup` skills —
 # so every other `true` emits a note for hand-verification against the rubric
 # rather than a warning nothing can clear.
 
@@ -1714,7 +1714,7 @@ else
 fi
 
 # --- Check 25: description/verb-contract polarity (WARN; advisory) ----------
-# PLUGIN-PHILOSOPHY Naming fixes verb meanings: audit/scan are read-only
+# plugin-philosophy Naming fixes verb meanings: audit/scan are read-only
 # findings reports (mutation only behind an explicit override such as --fix);
 # clean/tidy/fix mutate the target. This check flags a description that tells
 # a different story than that verb contract, or than the body — the two
@@ -1808,10 +1808,10 @@ VC_ALL_LC="$(printf '%s %s' "$CUR_DESC" "$CUR_WTU" | tr '[:upper:]' '[:lower:]')
 VC_HIT=""
 if [[ "$VC_LEAF" == "audit" || "$VC_LEAF" == "scan" ]] &&
   vc_lead_mutate "$VC_LEAD_LC" && ! vc_has_override "$VC_ALL_LC"; then
-  VC_HIT="leaf verb '$VC_LEAF' is a read-only findings report (PLUGIN-PHILOSOPHY Naming) but the description lead advertises mutation without an explicit override"
+  VC_HIT="leaf verb '$VC_LEAF' is a read-only findings report (plugin-philosophy Naming) but the description lead advertises mutation without an explicit override"
 elif [[ "$VC_LEAF" == "clean" || "$VC_LEAF" == "tidy" || "$VC_LEAF" == "fix" ]] &&
   vc_lead_readonly "$VC_LEAD_LC"; then
-  VC_HIT="leaf verb '$VC_LEAF' mutates the target (PLUGIN-PHILOSOPHY Naming) but the description lead claims the skill is read-only/report-only"
+  VC_HIT="leaf verb '$VC_LEAF' mutates the target (plugin-philosophy Naming) but the description lead claims the skill is read-only/report-only"
 elif vc_lead_readonly "$VC_LEAD_LC" && vc_body_bare_mutate "$VC_BODY"; then
   VC_HIT="description lead claims read-only but the body mutates on bare invocation (or hides an unadvertised mutation path)"
 elif vc_lead_mutate "$VC_LEAD_LC" && ! vc_has_override "$VC_ALL_LC" &&

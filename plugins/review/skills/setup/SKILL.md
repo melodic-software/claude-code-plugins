@@ -19,7 +19,7 @@ Idempotent: re-running reads the current state and offers an update rather than 
 a re-run against a conforming, current-version index proposes no changes.
 
 Action routing per the uniform setup contract
-([`docs/PLUGIN-PHILOSOPHY.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/PLUGIN-PHILOSOPHY.md)
+([`docs/plugin-philosophy.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/plugin-philosophy.md)
 "Setup is explicit and repeatable"): no argument or `check` runs
 the binding's state-reading procedure read-only and reports index presence and resolved
 standards root, per-row path validation, and the DIRECTIONAL version delta as a PASS/FAIL/INFO

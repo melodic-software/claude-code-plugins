@@ -36,7 +36,7 @@ on any new model release. Tier *definitions* stay abstract; only this seam binds
 
 Frontmatter binds a floor-shaped default; it cannot express session-relative raising. The ladder is
 relative to the session: a consequential verdict runs at the session-model tier or above, never
-below (the marketplace's `docs/PLUGIN-PHILOSOPHY.md` "Model tiers"). So when the dispatching
+below (the marketplace's `docs/plugin-philosophy.md` "Model tiers"). So when the dispatching
 session's model resolves above this binding, the orchestrator passes a per-invocation `model` at or
 above the session tier; that override routes upward only.
 

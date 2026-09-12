@@ -96,7 +96,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   row lands with the script-rendered report. `SYNC_RUN_NO_EPOCHREALTIME=1` is the test seam
   that forces the `date` rungs, since a child bash recreates the variable at startup.
 
-## [0.54.3]
+## [0.54.4]
 
 ### Fixed
 
@@ -108,7 +108,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   template renders the slot three ways: `on`, `off`, and `unreadable` for `null`, so a missing
   snapshot is never reported as off.
 
-## [0.54.2]
+## [0.54.3]
 
 ### Fixed
 
@@ -124,6 +124,12 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   same floor its sibling has, so a probe that counts nothing fails naming the probe. The
   ceilings themselves are unchanged. Measured in the web container as uid 0: 12 creations for
   a one-install cache check, 11 for a `--marketplace` fleet report.
+
+## [0.54.2]
+
+### Changed
+
+- Cite the marketplace `docs/` doctrine files by their lower-kebab names (`docs/plugin-philosophy.md`, `docs/migration-playbook.md`, and siblings); the files were renamed and the old uppercase paths no longer resolve.
 
 ## [0.54.1]
 

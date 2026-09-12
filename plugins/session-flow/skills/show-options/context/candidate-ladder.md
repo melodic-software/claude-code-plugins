@@ -58,7 +58,7 @@ silently listed as runnable and never silently dropped, the same annotate-don't-
 
 **Rung 2's shape.** The consuming project publishes a catalog at a documented path it declares; a
 marketplace that generates one already has the right artifact shape. In the source marketplace here,
-`docs/SKILL-CHEAT-SHEET.md` is generated from skill frontmatter by `scripts/generate-cheatsheet.mjs`
+`docs/skill-cheat-sheet.md` is generated from skill frontmatter by `scripts/generate-cheatsheet.mjs`
 and CI-enforced against drift. That is the shape to accept, since it already carries per-skill
 stage grouping and a one-line summary. Do **not** hardcode that path: the file lives outside any
 plugin directory, so a plugin copied into a cache cannot reach it, and a consuming repo will not

@@ -106,7 +106,7 @@ supported keychain is available. Never read or reveal either location's contents
 
 - Do not read, echo, log, copy, or persist the token.
 - Do not write the plugin cache, Claude Code user settings, or `pluginConfigs`, per the uniform
-  setup contract (`docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit and repeatable" in the
+  setup contract (`docs/plugin-philosophy.md` "Setup is explicit and repeatable" in the
   marketplace repository).
 - Do not make a Miro API request without explicit confirmation.
 - Do not invoke a mutating Miro tool during setup.

@@ -14,6 +14,12 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
   numbers, so a test or a tracker item that names a check by number still points at the same one.
   The gate now runs twenty-six checks.
 
+## [0.22.4]
+
+### Changed
+
+- Cite the marketplace `docs/` doctrine files by their lower-kebab names (`docs/plugin-philosophy.md`, `docs/migration-playbook.md`, and siblings); the files were renamed and the old uppercase paths no longer resolve.
+
 ## [0.22.3]
 
 ### Added

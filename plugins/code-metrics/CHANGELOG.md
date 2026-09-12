@@ -3,6 +3,56 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.1]
+
+### Added
+
+- **`audit-duplication` merges detector pairs into clone classes.** `jscpd` and PMD CPD report a
+  clone as a pair, so N copies of one fragment arrived as N-1 rows and the summary counted the
+  fragment's lines N-1 times. A post-pass (`cluster-clones.py`) now joins rows that share an
+  instance with an identical file and line range into one row per class, the instances sorted by
+  path and the row labelled `clustered`; the lines count once. The merge joins on identity, not
+  overlap: a copy that shares only part of a fragment stays its own group.
+- **Explicit size and line caps, reported instead of hidden.** `duplication.max_size` (default
+  `1mb`, binary units) and `duplication.max_lines` (default `null`) are applied by the jscpd
+  adapter before the tool runs, because jscpd 4 and 5 disagree on their own `--max-size` and
+  `--max-lines` defaults and on what `0` means, and neither names a skipped file. A skipped file
+  makes the lane's run row `partial` with the count and the largest file, the document `partial`,
+  and the markdown summary carries a `Partial:` line. `0` or `null` means no cap.
+- **Registry cluster lines.** A sanctioned-replication registry line `<canonical> -> <member>...`
+  names a root-relative canonical copy and the plugin paths or gitignore-style globs that carry
+  it, so a canonical file outside any plugin (this repository's `lib/hook-utils.sh`) can declare
+  its copies; instance paths are compared root-relative and the first matching line wins. A plain
+  line is still one path-within-plugin taken whole.
+- **Per-lane and per-directory rollups.** `summary.by_lane` and `summary.by_directory` (every
+  ancestor of each class's first instance, cumulative) are additive `code-metrics/v1` fields,
+  computed after registry exclusion; `duplication.rollup_depth` (default 2) decides how deep the
+  markdown `## Rollup` section lists. A class is attributed by its first instance after a
+  root-relative sort, so the rollup reads the same from the repository root and from a
+  subdirectory. The schema reference states that readers ignore unknown keys.
+- **Run rows carry the install hint as a field.** `run[].hint` holds the first install hint a
+  failed probe produced, apart from the prose reason, so a renderer can print it once.
+
+### Changed
+
+- **The duplication markdown reads as a duplication report.** Clone rows are listed largest
+  first; the summary line is `Files with clones: N.` instead of the size-shaped `Files. Functions.
+  Over reference.`; an empty exclusion list is stated with its reason; and a run in which no clone
+  detector resolved for any lane opens with one headline carrying the install hint and
+  `/code-metrics:setup`. The skill offers that install to the user and never performs it
+  unprompted. Every other skill's document renders as before.
+- **`reference/collectors.md` pins jscpd 5.2.0** and records the 4.x maintenance line (4.3.0),
+  which the adapter also translates, the binary size grammar, and the token-count difference
+  between the majors.
+
+### Fixed
+
+- **A lane that skipped every file is `partial`, not `empty`**, and the zero floor counts a
+  `partial` duplication row as measured, so an all-excluded or clone-free lane that skipped a file
+  still states `duplicated_lines: 0`.
+- **A run from a subdirectory matches the same registry lines as a run from the root**, because
+  instance paths are normalized against the repository root before matching.
+
 ## [0.3.0]
 
 ### Added

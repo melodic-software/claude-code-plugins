@@ -7,7 +7,7 @@ disable-model-invocation: true
 
 ## Purpose
 
-Thin check-centric setup per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
+Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy.md`
 "Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
 reports, `apply` resolves. This plugin owns no consumer-project configuration. Rules come
 from the repository's own Ruff config, and the only tunable is the native `userConfig`
