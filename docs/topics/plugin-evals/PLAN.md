@@ -331,7 +331,40 @@ Review: code-design
   -i 'recheck'` prints 0; `check-skill.sh plugins/evals/skills/plugin-eval` reports no FAIL. The live
   preflight check moves to Phase 6, after the manifest keys exist.
 
-### Phase 5: Reopen the recorded decisions and sweep [TODO]
+### Phase 5: Reopen the recorded decisions and sweep [DONE]
+
+Landed 2026-09-12 by a scope-fenced worker (source checkpoint), then brought current with `main`
+in a merge commit, then verified by a fresh-context verifier over the merged surface (17 of 18
+criteria pass; the one failure was a path set that swept in text `main` itself carries in files this
+branch never touched). Deviations, each plan said / found / chose / revisit:
+
+- Plan said the branch base was current. Found `main` 33 commits ahead: the docs root renamed to
+  lower-kebab-case (`docs/catalog.md`, `docs/migration-playbook.md`, `docs/native-surfaces.md`), a
+  corpus-wide em-dash purge with the rule re-enabled, a description-voice rule (no first or second
+  person), `evals` at 0.2.4, `playbooks` at 0.11.3, and the native-references convention amended to
+  1.1.0. Chose a merge (a rebase would invalidate every SHA this plan and the handoff chain cite),
+  resolved twelve conflicts compose-first, ported every edit into the renamed files, and repointed
+  the five adoption notes at the new file and its colon-form anchor. Revisit never.
+- Plan said `playbooks` gets a patch bump. Found the branch's 0.10.1 below `main`'s 0.11.3. Chose
+  0.11.4 with the CHANGELOG entry stacked above `main`'s. Revisit never.
+- Plan said the store row stays registry-only with both `baked` flags false. Found `main`'s
+  convention 1.1.0 fails the self-check on a non-defer extraction row with no baked Boundary
+  section. Chose to bake the Boundary section only (the runner's `## Boundary` heading and text name
+  `plugin eval` as a code span; `boundary_section` true; the listing phrase stays unbaked because a
+  CLI subcommand never enters the listing). Revisit if the convention changes the listing gate.
+- Plan said the two grep arms print nothing. Found three quotation-class hits: an upstream digest
+  (`docs/upstream/aihero-shipping-course.md`) quoting the old README line, and the Phase 1 store row
+  describing the gate strings on lines whose `shipped` sits on an adjacent JSON line. Chose a fifth
+  dated adoption note in the digest, `--exclude-dir=upstream` on arm 1, and `refusal|gate string`
+  added to arm 2's alternation; a quoted string is not an assertion. Revisit never.
+- Found, not planned: `main`'s `claude-api → evals:methodology` store row quoted the retired
+  methodology description as evidence; the quote now carries the current description tail. And
+  `main`'s unhobble experiment stripped `.claude/rules/pr-body-contract.md` and
+  `vendor-docs-are-not-style.md`; the PR body contract now lives in `.claude/source-control.md`
+  plus `.github/pull_request_template.md`, whose no-issue line is `No linked issue`, and the em-dash
+  rule is the `ai-slop` audit's. Phase 6 reads those.
+- Both new skills drop the frontmatter `name:` key (this plugin removed it on purpose in 0.2.0), and
+  the runner description says "the configured ceiling" rather than "your ceiling".
 
 - `plugins/evals/.claude-plugin/plugin.json`: description names the runner and the validator, drops "no
   command executes"; `userConfig` gains `max_cost_usd` (number, default 5, min 0) and `unlimited_cost`
@@ -397,13 +430,14 @@ Review: code-design
 - Pre-PR order per `docs/conventions/pre-pr-ordering/README.md`: test, review, stage, simplify, review the
   simplify diff, re-test, verify, open. `/review:quality-gate` then `/verification:confirm` against the
   Brief's acceptance criteria, then `/source-control:pull-request create` as a draft with the body
-  contract: `No related issue: adoption of a shipped CLI surface; medley#1418 carried the deferral`,
+  contract (`.claude/source-control.md` and `.github/pull_request_template.md` on `main`): the
+  no-issue line `No linked issue` (the deferral's tracker `medley#1418` is referenced, not closed),
   Summary, Fix, Verification (the pilot table), Related (`melodic-software/medley#1418`, the Q12 cloud
   follow-up, the untested Bash-granting cases). Ask whether to open the Q12 issue; file nothing without a
   yes.
 - **Sanity Check:** every gate above exit 0; the confirming JSON has `partial == false` and at least one
   `cases[].aggregates.delta > 0`; the three preflight transcripts contain the expected `target_type`
-  lines; the pilot cost total in `pilot.md` is at most 8 USD; `gh pr view --json isDraft` prints `true`; the PR body contains `No related issue:`
+  lines; the pilot cost total in `pilot.md` is at most 8 USD; `gh pr view --json isDraft` prints `true`; the PR body contains `No linked issue`
   and the four section headings.
 
 ### Alternatives considered
