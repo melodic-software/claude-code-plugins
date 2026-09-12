@@ -3,6 +3,12 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.1]
+
+### Changed
+
+- **Bump `hono` 4.13.0→4.13.7** (#4101): a transitive runtime dependency that `@modelcontextprotocol/sdk` pulls in, so the bump lands in `server/package-lock.json` and no manifest range moves. `verify-bundle` reports `dist/index.min.js` still matches source, so the shipped artifact is byte-identical.
+
 ## [0.4.0]
 
 ### Changed
