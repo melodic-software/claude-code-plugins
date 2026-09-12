@@ -61,7 +61,7 @@ read again even if that session rarely looks at the file itself.
 |---|---|---|---|
 | Ephemeral | An OS-API-created temp file or directory, one per run | Never in the repo | Files nothing downstream reads: a rendered HTML view, a spill file, a throwaway |
 | Memory | `.work/<slug>/` | Never committed (self-ignoring) | `INDEX.md`, `EXPLORE.md`, `RESEARCH.md`, `INTENT.md`, `<stage>-checklist.md`, `baselines/`, raw captures and scratch, and child slices, recursively (see [The slice tree](#the-slice-tree)) |
-| Memory, concern-scoped | `.work/handoffs/`, `.work/reviews/<branch-slug>/`, `.work/running-retros/`, `.work/overengineering/<branch-slug>/`, `.work/enforceability/<branch-slug>/`, `.work/exports/`, `.work/lanes/` | Never committed | session handoffs; review reports; running-retro ledgers; overengineering findings; enforcement-rung proposal stubs; user-run `/export` conversation snapshots; claude-ops lane state (`lanes.json` + lane prompts). Their axes are session, branch, or machine, so they sit outside topic slices and stay flat unless their own contract says otherwise |
+| Memory, concern-scoped | `.work/handoffs/`, `.work/reviews/<branch-slug>/`, `.work/running-retros/`, `.work/overengineering/<branch-slug>/`, `.work/enforceability/<branch-slug>/`, `.work/exports/`, `.work/lanes/`, `.work/docs-hygiene/<branch-slug>/` | Never committed | session handoffs; review reports; running-retro ledgers; overengineering findings; enforcement-rung proposal stubs; user-run `/export` conversation snapshots; claude-ops lane state (`lanes.json` + lane prompts); the file-name rename plan. Their axes are session, branch, or machine, so they sit outside topic slices and stay flat unless their own contract says otherwise |
 | Contract | `docs/topics/<slug>/` | Committed **on the task branch only**; pruned before merge | `PLAN.md` (Brief + Plan), `PRD.md`, `design/` (incl. the `design-threads.md` / `design-resolution.md` gate files), `verification/` (the distilled manifest) |
 | Durable | knowledge-vault seam, default backend `docs/adr/`, `docs/specs/` | Committed, permanent | promotion targets |
 | Machine state | `${CLAUDE_PLUGIN_DATA}`; `.claude/observability/` | Never committed | telemetry; caches; durable machine-scoped state a later session reopens across projects |
@@ -635,7 +635,9 @@ cite it rather than redefining it.
   `exports`, `lanes`
   (the claude-ops lanes skill's state home, `lanes.json` plus lane
   prompt files, which resolves a literal `.work` root by its own
-  stated carve-out, not `memory_dir`). A topic slug that collides with
+  stated carve-out, not `memory_dir`), and `docs-hygiene`
+  (the file-name rename plan, one branch-slug child per branch).
+  A topic slug that collides with
   a reserved name takes the `-x` suffix. These names stay flat: the
   slice-tree recursion does not apply to them unless their own contract
   says otherwise.

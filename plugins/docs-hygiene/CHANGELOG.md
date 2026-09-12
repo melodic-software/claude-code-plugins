@@ -81,6 +81,12 @@
 - **`rename-references` points at the tree-wide siblings.** Its `## Next` and a
   description clause name `audit-file-names` for a whole tree audited against a
   casing rule, which is the case its own per-rename sweep does not cover.
+- **`audit-noise` recognizes `docs-hygiene` as a reserved concern root.** The
+  rename plan lives at `<memory_dir>/docs-hygiene/<branch-slug>/file-names.md`,
+  so a document naming that home in bare form was being reported as a ghost ref
+  to an ephemeral path. The bare root is exempt now; a concrete child under it
+  still flags, exactly like every other reserved name. The topic-docs convention
+  carries the matching reservation at 3.3.0.
 
 ## [0.21.47]
 
