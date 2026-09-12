@@ -29,8 +29,9 @@ All notable changes to the `code-metrics` plugin are documented here. Format fol
   searched and stopped, which told the reader what was missing and nothing about how to produce it,
   and the skill will not run a test or install a tool on its own. The skill body and the README now
   carry a "Getting a first artifact" table, one row per lane naming the producer, the command
-  shape, and the file it writes, with whether that file lands on an auto-discovered name; the
-  markdown rendering of a no-artifact run ends with a line pointing at that table. The JSON
+  shape, the file it writes, with whether that file lands on an auto-discovered name, and the
+  producer's documentation page the row was verified against, dated, under a stated recheck
+  trigger; the markdown rendering of a no-artifact run ends with a line pointing at that table. The JSON
   document is unchanged and the script still runs nothing.
 - **A partial coverage row says which scope files the artifacts left out.** The row reported
   `partial, N of M scope files present in the artifacts` and nothing else, so a reader could not

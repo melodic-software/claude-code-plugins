@@ -102,20 +102,23 @@ Field reference: `reference/report-schema.md`. Tool provenance stamps: `referenc
 
 `audit-coverage` reads what a test run already wrote and never runs one. When it finds no
 artifact, every lane is `unavailable`, the report lists the paths searched, and its last line
-points at this table. One command per lane produces an artifact the next run can read; the
-command shapes are each producer's documented defaults as of 2026-09-11, and the producer's own
-documentation wins when a release has moved a flag or an output name.
+points at this table. One command per lane produces an artifact the next run can read. Each row
+restates a producer's documented default, verified against the page in its Basis column on
+2026-09-12; the producer's page wins over the row. Recheck trigger: a release note or changelog
+entry of that producer naming the flag or the output path in its row, or a read-time fetch of the
+Basis page that no longer states what the row does; either re-derives the row from the page and
+refreshes the date.
 
-| Lane | Producer | Command shape | Writes |
-|---|---|---|---|
-| TypeScript/JavaScript | vitest | `npx vitest run --coverage --coverage.reporter=lcov` | lcov `.info` at `coverage/lcov.info`, auto-discovered |
-| TypeScript/JavaScript | jest | `npx jest --coverage --coverageReporters=lcov` | lcov `.info` at `coverage/lcov.info`, auto-discovered |
-| TypeScript/JavaScript | c8 or nyc, over any test runner | `npx c8 --reporter=lcov <test command>` | lcov `.info` at `coverage/lcov.info`, auto-discovered |
-| Python | coverage.py | `python -m coverage run -m pytest && python -m coverage json` | coverage.py JSON at `coverage.json`, auto-discovered; `coverage xml` writes `coverage.xml`, also auto-discovered; `coverage lcov` writes `coverage.lcov`, which needs `--artifacts` |
-| Python | pytest-cov | `pytest --cov=<package> --cov-report=json` | coverage.py JSON at `coverage.json`, auto-discovered |
-| Bash | kcov | `kcov <outdir> bash <test script>` | Cobertura XML under `<outdir>/kcov-merged/cobertura.xml`; pass it with `--artifacts` |
-| Go | `go test` | `go test ./... -coverprofile=coverage.out` | Go cover profile at `coverage.out`, auto-discovered; file rows carry the statement ratio, function rows need a line artifact too |
-| C# | coverlet, as the `dotnet test` collector | `dotnet test --collect:"XPlat Code Coverage"` | Cobertura XML at `TestResults/<run id>/coverage.cobertura.xml`; pass it with `--artifacts`. The C# complexity lane is deferred, so the lane reports file rows and no CRAP |
+| Lane | Producer | Command shape | Writes | Basis |
+|---|---|---|---|---|
+| TypeScript/JavaScript | vitest | `npx vitest run --coverage --coverage.reporter=lcov` | lcov `.info` at `coverage/lcov.info`, auto-discovered | [Vitest coverage guide](https://vitest.dev/guide/coverage.html), `coverage.reporter` |
+| TypeScript/JavaScript | jest | `npx jest --coverage` | lcov `.info` at `coverage/lcov.info`, auto-discovered; the default `coverageReporters` list carries `lcov` | [Jest CLI](https://jestjs.io/docs/cli), `--coverage`; [Jest configuration](https://jestjs.io/docs/configuration), `coverageReporters` default `["clover", "json", "lcov", "text"]` |
+| TypeScript/JavaScript | c8 or nyc, over any test runner | `npx c8 --reporter=lcov <test command>` | lcov `.info` at `coverage/lcov.info`, auto-discovered | [c8 README](https://github.com/bcoe/c8#readme), `--reporter`, which takes any [Istanbul reporter](https://istanbul.js.org/docs/advanced/alternative-reporters/), `lcov` among them |
+| Python | coverage.py | `python -m coverage run -m pytest && python -m coverage json` | coverage.py JSON at `coverage.json`, auto-discovered; `coverage xml` writes `coverage.xml`, also auto-discovered; `coverage lcov` writes `coverage.lcov`, which needs `--artifacts` | coverage.py command pages [`run`](https://coverage.readthedocs.io/en/latest/commands/cmd_run.html), [`json`](https://coverage.readthedocs.io/en/latest/commands/cmd_json.html), [`xml`](https://coverage.readthedocs.io/en/latest/commands/cmd_xml.html), [`lcov`](https://coverage.readthedocs.io/en/latest/commands/cmd_lcov.html) |
+| Python | pytest-cov | `pytest --cov=<package> --cov-report=json` | coverage.py JSON at `coverage.json`, coverage.py's default name for the `json` report, auto-discovered; `--cov-report=json:<path>` moves it | [pytest-cov reporting](https://pytest-cov.readthedocs.io/en/latest/reporting.html), `--cov-report`; the default file name is coverage.py's, per its [`json`](https://coverage.readthedocs.io/en/latest/commands/cmd_json.html) page |
+| Bash | kcov | `kcov <outdir> bash <test script>` | Cobertura-compatible XML under `<outdir>`; pass the `cobertura.xml` it writes with `--artifacts` | [kcov README](https://github.com/SimonKagstrom/kcov#readme), "Kcov will also write cobertura-compatible XML output" |
+| Go | `go test` | `go test ./... -coverprofile=coverage.out` | Go cover profile at the path `-coverprofile` names; `coverage.out` and `cover.out` are auto-discovered; file rows carry the statement ratio, function rows need a line artifact too | [`go` command, testing flags](https://pkg.go.dev/cmd/go#hdr-Testing_flags), `-coverprofile` |
+| C# | coverlet, as the `dotnet test` collector | `dotnet test --collect:"XPlat Code Coverage"` | Cobertura XML at `TestResults/<run id>/coverage.cobertura.xml`; pass it with `--artifacts`. The C# complexity lane is deferred, so the lane reports file rows and no CRAP | [coverlet VSTest integration](https://github.com/coverlet-coverage/coverlet/blob/master/Documentation/VSTestIntegration.md), `--collect:"XPlat Code Coverage"` |
 
 Auto-discovered means the output lands on one of the well-known names the run looks for with no
 `--artifacts` (`coverage/lcov.info`, `lcov.info`, `coverage.xml`, `cobertura.xml`, `coverage.json`,
