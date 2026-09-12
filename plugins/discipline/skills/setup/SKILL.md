@@ -1,5 +1,5 @@
 ---
-description: "Validate the discipline plugin's configuration, the posture-batch overlay and do-your-research-deep's verification depth, and explain how to change it through Claude Code's plugin configuration prompt. Use when: 'set up discipline', 'configure discipline', 'discipline setup', 'is discipline configured', 'what's in my posture batch', 'what's my deep-research depth', or you want to adjust which correctors the batch runs or how deeply the research fan-out verifies. Actions: check (read-only verification, default and only action. This plugin's entire configuration is native userConfig, so there is nothing an apply could write)."
+description: "Validate the discipline plugin's configuration, the posture-batch overlay and do-your-research-deep's verification depth, and explain how to change it through Claude Code's plugin configuration prompt. Use when: 'set up discipline', 'configure discipline', 'discipline setup', 'is discipline configured', 'what's in my posture batch', 'what's my deep-research depth', or the user wants to adjust which correctors the batch runs or how deeply the research fan-out verifies. Actions: check (read-only verification, default and only action. This plugin's entire configuration is native userConfig, so there is nothing an apply could write)."
 argument-hint: "check"
 user-invocable: true
 disable-model-invocation: true
@@ -92,7 +92,7 @@ Official contract: <https://code.claude.com/docs/en/plugins-reference#user-confi
 
 - **No `apply`.**
   Do not write the plugin cache, Claude Code user settings, or `pluginConfigs`,
-  per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
+  per the uniform setup contract (`docs/plugin-philosophy.md`
   "Setup is explicit and repeatable" in the marketplace repository). And
   `pluginConfigs` is the only thing an apply here could write, so there is no
   conforming apply to offer: reconfiguration is the native

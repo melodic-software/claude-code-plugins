@@ -41,7 +41,12 @@ cat >"$WORK/root/settings.json" <<'JSON'
   "statusLine": {"type": "command", "command": "bash line.sh", "refreshInterval": 2},
   "hooks": {
     "Stop": [{"hooks": [{"type": "command", "command": "stop.sh"}]}],
-    "PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "command": "pre.sh"}]}]
+    "PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "command": "pre.sh"}]}],
+    "PostToolUse": [{"matcher": "Write|Edit", "hooks": [
+      {"type": "command", "command": "fmt.sh", "if": "Edit(*.md)"},
+      {"type": "command", "command": "wide.sh", "if": "Edit(*.{md,mdc})"}
+    ]}],
+    "PermissionDenied": [{"hooks": [{"type": "command", "command": "deny.sh"}]}]
   }
 }
 JSON
@@ -59,7 +64,38 @@ assert fan_out, "the report ships no fan_out section; the fourth suspect is invi
 
 hooks = fan_out["hooks"]
 assert hooks["per_turn"]["count"] == 1, hooks["per_turn"]
-assert hooks["per_tool_call"]["count"] == 1, hooks["per_tool_call"]
+assert hooks["per_tool_call"]["count"] == 4, hooks["per_tool_call"]
+assert hooks["per_tool_call"]["if_gated_rows"] == 2, hooks["per_tool_call"]
+assert hooks["per_tool_call"]["distinct_commands"] == 4, hooks["per_tool_call"]
+
+# PermissionDenied is one of the five events that accept `if`, so it is per tool call.
+assert hooks["by_event"]["PermissionDenied"] == 1, hooks["by_event"]
+assert hooks["other"]["count"] == 0, hooks["other"]
+
+gated = next(
+    r for r in hooks["by_matcher"]
+    if r["event"] == "PostToolUse" and r["matcher"] == "Write|Edit"
+)
+assert gated["rows"] == 2 and gated["if_gated_rows"] == 2, gated
+assert gated["distinct_commands"] == 2, gated
+
+projected = {
+    (r["event"], r["tool"], r["file_kind"]): r for r in hooks["projection"]["rows"]
+}
+markdown = projected[("PostToolUse", "Edit", ".md")]
+assert markdown["fires"] == 2, markdown
+assert markdown["fire_always_unclassified"] == 1, markdown
+assert projected[("PostToolUse", "Edit", ".json")]["fires"] == 1, projected
+
+unclassified = hooks["unclassified_rows"]
+assert [r["if"] for r in unclassified] == ["Edit(*.{md,mdc})"], unclassified
+assert unclassified[0]["reason"], unclassified
+
+joined = " ".join(hooks["notes"])
+assert "outside the project directory" in joined, hooks["notes"]
+assert "it runs once" in joined, hooks["notes"]
+assert "parallel" in joined, hooks["notes"]
+print("OK: the hook block ships by_matcher, the projection, and unclassified rows")
 
 depth = fan_out["concurrency_ceilings"]["variables"]["CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH"]
 assert depth["above_documented_default"] is True, depth

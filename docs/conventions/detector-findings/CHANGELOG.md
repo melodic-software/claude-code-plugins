@@ -482,7 +482,7 @@ what a reader could not yet rely on.
 
 Initial published contract, a deliberate stub, per
 [#2679](https://github.com/melodic-software/claude-code-plugins/issues/2679). It lands before the
-first detector pilot because `PLUGIN-PHILOSOPHY.md`'s registry rule sets a deadline ("before a second
+first detector pilot because `plugin-philosophy.md`'s registry rule sets a deadline ("before a second
 plugin adopts it"), and the pilot is that second adopter. Depth trails the pilot, which is what
 produces the evidence to harden against.
 
@@ -517,5 +517,5 @@ produces the evidence to harden against.
 - Enforceability classified; all mechanical enforcement deferred with event triggers (first detector
   on `main`; pilot completion or a second adopter). Adopters table ships **empty**: `review:fanout`
   is the reference writer, not an adopter, and sits on the other side of this doc's boundary.
-- Convention registry row added in `PLUGIN-PHILOSOPHY.md`; `review:fanout`'s writer contract gains a
+- Convention registry row added in `plugin-philosophy.md`; `review:fanout`'s writer contract gains a
   pointer to this doc.

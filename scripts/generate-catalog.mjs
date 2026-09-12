@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-// Generates the grouped plugin catalog in docs/CATALOG.md from the manifests,
-// per the generation contract in docs/CATALOG-TAXONOMY.md: marketplace.json owns
+// Generates the grouped plugin catalog in docs/catalog.md from the manifests,
+// per the generation contract in docs/catalog-taxonomy.md: marketplace.json owns
 // each plugin's category and ordering; plugin.json owns each description. The
 // block between the catalog markers is generated, never hand-edited. Run with no
 // argument to rewrite the block; run with --check to fail on drift (CI gate).
@@ -15,17 +15,17 @@ import process from "node:process";
 import { reportFirstDifference } from "./lib/report-first-difference.mjs";
 
 const root = join(import.meta.dirname, "..");
-const outputPath = join(root, "docs", "CATALOG.md");
+const outputPath = join(root, "docs", "catalog.md");
 const outputLabel = relative(root, outputPath).split(sep).join("/");
 const marketplacePath = join(root, ".claude-plugin", "marketplace.json");
-const taxonomyPath = join(root, "docs", "CATALOG-TAXONOMY.md");
+const taxonomyPath = join(root, "docs", "catalog-taxonomy.md");
 const taxonomyLabel = relative(root, taxonomyPath).split(sep).join("/");
 
 const START = "<!-- catalog:start -->";
 const END = "<!-- catalog:end -->";
 
 // Category render order, conforming to the vocabulary tiers owned by
-// docs/CATALOG-TAXONOMY.md (lifecycle spine, then domain-and-cross-cutting).
+// docs/catalog-taxonomy.md (lifecycle spine, then domain-and-cross-cutting).
 // The generator conforms to that document; it does not redefine the vocabulary
 // — and taxonomyCategories() below holds it to that: the list here is asserted
 // equal, in order, to the document's own tables on every run, so editing one
@@ -109,7 +109,7 @@ function buildBlock() {
     if (!byCategory.has(plugin.category)) {
       throw new Error(
         `${plugin.name}: category "${plugin.category}" is not in the taxonomy ` +
-          "vocabulary (docs/CATALOG-TAXONOMY.md). Add it there and to CATEGORY_ORDER first.",
+          "vocabulary (docs/catalog-taxonomy.md). Add it there and to CATEGORY_ORDER first.",
       );
     }
     const path = plugin.source.replace(/^\.\//, "");

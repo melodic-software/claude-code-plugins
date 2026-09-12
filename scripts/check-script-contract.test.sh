@@ -70,6 +70,7 @@ REGISTRY=(
   "check-cross-plugin-source-drift.sh|-|-|-"
   "check-detector-findings-crosswalk.sh|-|-|-"
   "check-discriminating-test-skips.sh|-|-|-"
+  "check-docs-naming.sh|git|-|docs_naming"
   "check-docs-only-gate.sh|-|-|-"
   "check-docs-only.sh|-|-|-"
   "check-drive-root-litter.sh|-|-|-"
@@ -274,6 +275,17 @@ exit 0'
   capture run_in "$f" bash scripts/check-killswitch-hoist.sh
 }
 
+recipe::docs_naming() { # <clean|violation>
+  local name=plugin-philosophy.md
+  [[ "$1" == violation ]] && name=PLUGIN-Philosophy.md
+  fixture_tree::build f --sut "$SELF_DIR/check-docs-naming.sh" --git --label docs-naming || return 2
+  mkdir -p "$f/docs"
+  printf 'seed\n' >"$f/docs/$name"
+  git_test_config "$f" add -A >/dev/null || return 2
+  git_test_config "$f" commit -qm seed >/dev/null || return 2
+  capture run_in "$f" bash scripts/check-docs-naming.sh --check
+}
+
 recipe::queue_front_matter() { # <clean|violation>
   local status=unclaimed
   [[ "$1" == violation ]] && status=open
@@ -330,6 +342,7 @@ declare -A VIOLATION_NEEDLE=(
   [queue_front_matter]='VIOLATION:'
   [html_assets]='MISSING:'
   [changelog_parity]='MISSING CHANGELOG:'
+  [docs_naming]='is not lower-kebab-case'
 )
 
 # --- 1. every member is registered, and every row names a member -------------

@@ -116,7 +116,7 @@ Neither vendor identifies its operating entity or publishes a retention policy, 
 submitted URL is logged indefinitely. A consumer who does not accept that egress disables the
 plugin. The recorded trust decision, including the retracted claims from the first review draft,
 lives in the marketplace's
-[plugin-acceptance security review](../../docs/MIGRATION-PLAYBOOK.md).
+[plugin-acceptance security review](../../docs/migration-playbook.md).
 
 ## Known limits
 

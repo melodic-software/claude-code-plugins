@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.11]
+
+### Changed
+
+- Cite the marketplace `docs/` doctrine files by their lower-kebab names (`docs/plugin-philosophy.md`, `docs/migration-playbook.md`, and siblings); the files were renamed and the old uppercase paths no longer resolve.
+
 ## [0.5.10]
 
 ### Changed

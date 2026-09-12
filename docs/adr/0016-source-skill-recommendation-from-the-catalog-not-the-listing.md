@@ -128,7 +128,7 @@ boundary events if that graduation is ever taken — never `UserPromptSubmit`, w
 > description-matched, not hook-driven, so no `Stop`/`TaskCompleted` hook is implied by this
 > revision.
 
-**Placement.** `docs/CATALOG-TAXONOMY.md`'s assignment principle says subject wins when the subject
+**Placement.** `docs/catalog-taxonomy.md`'s assignment principle says subject wins when the subject
 is the salient reason a plugin exists, which argues for filing this under `claude-code`/`claude-ops`
 beside `inventory`. It lands in `session-flow` instead: the skill's subject is the **session** — what
 to do next given where this session stands — and its inputs are session state (durable artifacts,

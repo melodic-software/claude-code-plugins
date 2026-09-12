@@ -3,6 +3,28 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.4]
+
+### Changed
+
+- Cite the marketplace `docs/` doctrine files by their lower-kebab names (`docs/plugin-philosophy.md`, `docs/migration-playbook.md`, and siblings); the files were renamed and the old uppercase paths no longer resolve.
+
+## [0.22.3]
+
+### Added
+
+- **`check`: check 27 reads the `## Next` successor section.** The skill-bodies rule places a
+  skill's successor in a `## Next` section before `## Gotchas`, as one `/plugin:skill` invocation
+  line or two to four `<outcome>: /plugin:skill` bullets, and the gate had no check for it: a skill
+  missing the section passed with 0 warnings while six sibling skills in the same plugin carried
+  one. Absence is an INFO note rather than a WARN, because whether a skill has a natural successor
+  is the author's call and most skills in a large fleet have none wired yet; a section that is
+  present but placed after `## Gotchas`, last in the file, or in neither shape is a WARN. The
+  single shape has to open with the invocation, not with prose that mentions one, and either
+  shape is read whole for the phrasing the rule excludes (Skill tool, installed, fallback,
+  otherwise), so an operative chain dressed as a successor also warns. The check stays advisory,
+  so the gate's PASS/FAIL verdict is unchanged.
+
 ## [0.22.2]
 
 ### Changed

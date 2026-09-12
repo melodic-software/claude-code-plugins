@@ -158,6 +158,19 @@ if [[ -f "$registry" ]]; then
   # owns the two comment families and why they must stay distinct).
   # shellcheck disable=SC2310  # the non-zero return IS the handled case; the library reports it
   read_list::into registry_entries "$registry" --comments inline || exit 2
+  # A line containing ` -> ` is a cluster line (`<canonical> -> <member>...`,
+  # a root-relative canonical copy and the plugin paths or globs that carry
+  # it). It belongs to the duplication audit's reader
+  # (plugins/code-metrics/skills/audit-duplication/scripts/registry-filter.py),
+  # which excludes the whole class from its clone count; this check keys
+  # clusters by path-within-plugin, so the line is dropped from the entry list
+  # here and is neither registered nor reported stale.
+  path_entries=()
+  for line in ${registry_entries[@]+"${registry_entries[@]}"}; do
+    [[ "$line" == *" -> "* ]] && continue
+    path_entries+=("$line")
+  done
+  registry_entries=(${path_entries[@]+"${path_entries[@]}"})
   for line in ${registry_entries[@]+"${registry_entries[@]}"}; do
     registered["$line"]=1
   done

@@ -1,5 +1,5 @@
 ---
-description: "Map native Claude Code surfaces (built-in CLI commands, bundled skills, plugin-backed built-ins, session-provided skills) against the current repo's plugin skills and agents, so a custom component never silently duplicates what Claude Code itself now ships. Bare invocation is a READ-ONLY report: overlap candidates with evidence, detection integrity floors, and a listing-budget exposure section. Verdicts are human-gated and recorded in a committed store rendered into a generated registry; only an explicit `apply` argument edits a component, baking presence-gated native references into descriptions and Boundary sections. Use when: 'does this skill duplicate a built-in', 'what does Claude Code already ship for this', 'audit native overlap', 'is our install-state audit the same as /doctor', 'refresh the native-surfaces registry', 'bake the native reference into this skill', 'which of our skills overlap bundled skills'. Not for: enumerating what this machine can invoke (use /claude-ops:inventory), MCP tool overlap (use /mcp-tools:audit), plugin fleet currency (use /claude-ops:plugins), or ingesting a CLI release (use /claude-ops:changelog)."
+description: "Map native Claude Code surfaces (built-in commands, bundled skills, plugin-backed built-ins, session skills) against this repo's skills and agents, so no component silently duplicates what Claude Code ships. Bare invocation is READ-ONLY: overlap candidates with evidence, per-lane integrity floors, and listing-budget exposure. Verdicts are human-gated in a committed store rendered to a generated registry; only an explicit `apply` argument edits a component, baking presence-gated native references into it. Use when: 'does this skill duplicate a built-in', 'what does Claude Code already ship for this', 'audit native overlap', 'is our install-state audit the same as /doctor', 'refresh the native-surfaces registry', 'bake the native reference into this skill', 'which of our skills overlap bundled skills'. Not for: enumerating what this machine can invoke (/claude-ops:inventory), MCP tool overlap (/mcp-tools:audit), plugin fleet currency (/claude-ops:plugins), or ingesting a CLI release (/claude-ops:changelog)."
 argument-hint: "[report|apply <plugin>] [--store <path>] [--inventory <path>]. Bare runs the read-only report"
 user-invocable: true
 disable-model-invocation: false
@@ -96,9 +96,13 @@ for the repo's test discovery.
 
 Under-recall stated honestly beats confident completeness. Three rules:
 
-- **Carry the integrity floor through.** If the inventory reports `degraded`, every native-side
-  count in the report is a floor and the report says so in the same sentence as the number. If it
-  reports `broken`, the report carries no native-side counts at all.
+- **Carry the integrity floor through, per lane.** The inventory reports integrity per lane
+  (`builtin_commands`, `bundled_skills`, `plugin_backed`). A `degraded` lane makes every count from
+  that lane a floor, and the report says so in the same sentence as the number. A `broken` lane's
+  counts are omitted, the report names the lane and its cause, and every candidate whose lane is
+  broken is marked `re_derivable: false` (its presence or absence in that lane proves nothing
+  this run); the other lanes' counts stand. Only when every lane is broken does the report omit
+  every native-side count.
 - **Never auto-verdict.** Detection emits candidates with evidence. The verdict column is empty
   until a human fills it.
 - **Accept human-added candidates.** A pair nobody's heuristic found is a first-class row; add it
@@ -110,8 +114,8 @@ Under-recall stated honestly beats confident completeness. Three rules:
 # Native overlap — <repo>, <date>
 
 ## Detection integrity
-Inventory status (ok | degraded | broken), cli_version vs validated_against, and what that
-means for every count below.
+Inventory status per lane (ok | degraded | broken), cli_version vs validated_against, and what
+that means for every count below; a broken lane is named with its cause.
 
 ## Overlap candidates
 One row per (native surface, our component): native name + provenance class + hidden/gated
@@ -184,7 +188,7 @@ Three artifacts, one direction of flow:
    provenance class and hidden/gated markers, our component, the verdict and its reason, evidence, a
    class-tagged observation record, a recheck trigger with its verified date, `baked` flags, and the
    budget caveat.
-2. **The generated view**. `docs/NATIVE-SURFACES.md`, rendered from the store between HTML
+2. **The generated view**. `docs/native-surfaces.md`, rendered from the store between HTML
    markers, per provenance lane. Never hand-edited; a `--check` mode regenerates and diffs.
 3. **The self-check**, a deterministic script over what is locally decidable: store parses and
    declares its schema, every row carries a trigger, records are well-formed including their

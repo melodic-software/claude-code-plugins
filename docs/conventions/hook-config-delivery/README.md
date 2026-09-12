@@ -20,7 +20,7 @@ of **harness-prompted `userConfig` values**, the options a plugin declares in `p
 Claude Code prompts for at enable time. They are different inputs with different trust properties: a
 cascade layer is repo- or user-authored file content; a `userConfig` value is harness-mediated and
 stored in scopes a repo cannot write. Whether a given knob should be `userConfig` or a tracked
-cascade surface is a design call owned by the [plugin philosophy](../../PLUGIN-PHILOSOPHY.md); once
+cascade surface is a design call owned by the [plugin philosophy](../../plugin-philosophy.md); once
 it is `userConfig`, this doc owns its route to hook logic. Which keys exist and what they mean stay
 with each plugin's own docs.
 
@@ -141,7 +141,7 @@ unproven. A ratified D adoption (after the Open-gaps probe) is recorded in
 ## Adopters
 
 Conformance is tracked as it exists on `main`, per the
-[convention registry](../../PLUGIN-PHILOSOPHY.md#convention-registry) discipline.
+[convention registry](../../plugin-philosophy.md#convention-registry) discipline.
 
 | Surface | Channel | Status |
 |---|---|---|
