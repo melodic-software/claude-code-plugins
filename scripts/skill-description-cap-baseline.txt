@@ -28,7 +28,6 @@ plugins/claude-config/skills/audit-prompting-postures     # 1228
 plugins/claude-ops/skills/audit-performance               # 1528
 plugins/claude-ops/skills/audit-skill-visibility          # 1467
 plugins/code-tidying/skills/audit-dead-code               # 1094
-plugins/docs-hygiene/skills/audit-progressive-disclosure  # 1145
 plugins/improvement/skills/find                           # 1212
 plugins/mutation-testing/skills/audit                     # 1150
 plugins/overengineering/skills/audit                      # 1202
