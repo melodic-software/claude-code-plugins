@@ -12,7 +12,7 @@ shell: bash
 
 ## Purpose
 
-Thin check-centric setup per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`, "Setup is
+Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy.md`, "Setup is
 explicit and repeatable"): `check` inspects and reports, `apply` points at what it found.
 
 The warrant is all three criteria, but one carries the weight. **The index target is an external

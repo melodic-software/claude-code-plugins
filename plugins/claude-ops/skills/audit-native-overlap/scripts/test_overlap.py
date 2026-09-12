@@ -88,7 +88,7 @@ class TempRepo:
         self._tmp = tempfile.TemporaryDirectory()
         self.root = Path(self._tmp.name)
         self.store_path = self.root / "docs" / "native-surfaces" / "records.json"
-        self.view_path = self.root / "docs" / "NATIVE-SURFACES.md"
+        self.view_path = self.root / "docs" / "native-surfaces.md"
         self.store_path.parent.mkdir(parents=True, exist_ok=True)
         self.write_store(make_store(rows if rows is not None else [BASE_ROW]))
         # BASE_ROW claims a Boundary section, so the component it names exists

@@ -53,7 +53,7 @@ Run these in order. Skip a step only when its input is genuinely absent
    One example is the OpenAI Codex plugin, when its documented surface can take this artifact,
    invoked per its own docs. Keep the fresh-context same-vendor subagent as the stated fallback,
    never a route to a command that may not resolve
-   (per `docs/PLUGIN-PHILOSOPHY.md` "Fresh-eyes checkpoints" in the marketplace repository).
+   (per `docs/plugin-philosophy.md` "Fresh-eyes checkpoints" in the marketplace repository).
    Surface anything that cannot be corrected here rather than
    papering over it. **Outward
    artifacts are the one carve-out:** correcting forward never *files* an

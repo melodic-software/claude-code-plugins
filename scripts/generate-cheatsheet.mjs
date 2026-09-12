@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 // Generates the stage-grouped skill cheat sheet block in
-// docs/SKILL-CHEAT-SHEET.md from each in-scope SKILL.md's `metadata:`
+// docs/skill-cheat-sheet.md from each in-scope SKILL.md's `metadata:`
 // frontmatter (`workflow-stage`, `summary`, `cadence`) plus the hand-curated
 // grouping layer in scripts/cheatsheet-config.mjs.
 // Sibling of generate-catalog.mjs: the block between the markers is
@@ -40,7 +40,7 @@ if (rootFlag !== -1 && (!root || root.startsWith("--"))) {
   fail(["--root requires a directory argument"]);
 }
 
-const OUTPUT_PATH = join(root, "docs", "SKILL-CHEAT-SHEET.md");
+const OUTPUT_PATH = join(root, "docs", "skill-cheat-sheet.md");
 const START = "<!-- cheatsheet:start -->";
 const END = "<!-- cheatsheet:end -->";
 
@@ -299,7 +299,7 @@ if (check) {
     console.log("Cheat sheet is in sync with skill frontmatter.");
     process.exit(0);
   }
-  console.error("Cheat sheet drift: docs/SKILL-CHEAT-SHEET.md block is stale.");
+  console.error("Cheat sheet drift: docs/skill-cheat-sheet.md block is stale.");
   console.error("Run `node scripts/generate-cheatsheet.mjs` and commit the sheet.");
   reportFirstDifference(block, existing);
   process.exit(1);

@@ -42,7 +42,7 @@ question-bounded per ADR 0005.
 
 - [x] Rubric doc exists at `docs/conventions/invocation-mode/README.md`: default posture,
       exception classes, evidence axes, router verdict, 10-row grade table.
-- [x] Convention-registry row added in `docs/PLUGIN-PHILOSOPHY.md`; one-line cross-references
+- [x] Convention-registry row added in `docs/plugin-philosophy.md`; one-line cross-references
       from its setup contract and Instruction economy sections.
 - [x] Lane 8 decision rows (8 rows, lessons 3/4/5) recorded in STEERING.md with lane status.
 - [x] SSOT (`docs/upstream/mattpocock-skills.md`) gap-3 verdict cells dispositioned; the
@@ -78,7 +78,7 @@ question-bounded per ADR 0005.
   cross-skill-reach axis.
 - **Q6, router pattern:** REJECT the model-side router with reason (under the model-invoked
   default the always-present listing is the router; the `true` set is deliberately
-  model-invisible). Human-side answer: `docs/SKILL-CHEAT-SHEET.md` + `claude-ops:inventory`.
+  model-invisible). Human-side answer: `docs/skill-cheat-sheet.md` + `claude-ops:inventory`.
   Domain-scoped composition routers (`discipline:sweep-all` precedent) remain an admitted,
   distinct pattern.
 - **Q7, re-grade bounding:** one question. Do the 10 non-setup `true` skills fall into a

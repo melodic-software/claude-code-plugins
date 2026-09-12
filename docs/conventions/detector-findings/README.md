@@ -33,8 +33,8 @@ The shape is owned by
 What this doc owns is everything the shape alone does not settle: which fields a non-fanout producer
 must compute for itself, what coexistence between producers means, and where the boundary sits.
 
-It was published as a stub ahead of its depth, on `PLUGIN-PHILOSOPHY.md`
-[Convention registry](../../PLUGIN-PHILOSOPHY.md#convention-registry): "A new cross-plugin
+It was published as a stub ahead of its depth, on `plugin-philosophy.md`
+[Convention registry](../../plugin-philosophy.md#convention-registry): "A new cross-plugin
 convention lands in an owner doc **before a second plugin adopts it**". That is a deadline rather
 than a licence to author late. The depth below is the first detector pilot's evidence, and the
 crosswalk is written from it: a rule whose tier cannot be argued from `severity.md`'s test is not
@@ -661,4 +661,4 @@ adopter row is a minor bump; docs-only clarification is a patch.
 - [`scripts/check-cross-plugin-source-drift.sh`](../../../scripts/check-cross-plugin-source-drift.sh): the shared-source cluster mechanism the emitter decision is measured against, and the gate its revisit trigger fires at.
 - `melodic-software/standards` `conventions/engineering/enforceability-tiers.md`: tier vocabulary and routing rule.
 - [`liveness-assertion`](../liveness-assertion/README.md): the fail-loud-or-agent-readable contract a detector satisfies by persisting.
-- [`PLUGIN-PHILOSOPHY` Convention registry](../../PLUGIN-PHILOSOPHY.md#convention-registry): one owner doc per shared concern, and the before-a-second-adopter deadline this stub answers.
+- [`plugin-philosophy` Convention registry](../../plugin-philosophy.md#convention-registry): one owner doc per shared concern, and the before-a-second-adopter deadline this stub answers.

@@ -1,6 +1,6 @@
 # Cloud fleet setup: one shared environment for every melodic-software repo
 
-The goal-oriented companion to [CLOUD-SESSIONS.md](CLOUD-SESSIONS.md): that doc explains the
+The goal-oriented companion to [cloud-sessions.md](cloud-sessions.md): that doc explains the
 mechanics and this repo's own setup; this one gets **the whole fleet** runnable in Claude Code
 cloud sessions (web, `claude --cloud`, mobile, desktop, and routines) with warm-boot startup.
 Account context this plan is built for: a personal (Max) claude.ai account. Organization-shared
@@ -10,7 +10,7 @@ Basis and freshness: the toolchain inventory below was derived from shallow clon
 fleet repo's default branch on 2026-08-13; bootstrap adoption was re-verified on 2026-08-16 by
 reading each repo's `.claude/` contents and `settings.json` at `origin/main` (`gh api
 repos/melodic-software/<repo>/contents/.claude`); platform claims rest on the rung-1 doc fetches
-recorded in [CLOUD-SESSIONS.md](CLOUD-SESSIONS.md); the environment itself was verified live on
+recorded in [cloud-sessions.md](cloud-sessions.md); the environment itself was verified live on
 2026-08-14 from a cloud session inside it. Results are in
 [#2654](https://github.com/melodic-software/claude-code-plugins/issues/2654), folded in below.
 Recheck trigger, per the [upstream-drift convention](conventions/upstream-drift/README.md): a
@@ -92,7 +92,7 @@ from a session started on a `kyle-sexton` repo if they ever matter).
 > (`.claude/cloud-bootstrap.sh`) and two callers: the environment's cache build pre-launch, and
 > the SessionStart hook per session. The standards `cloud-environment` component invokes only
 > that path, with no legacy fallback by decision, and pre-launch execution is what makes
-> marketplace plugins load at turn one (see [CLOUD-SESSIONS.md](CLOUD-SESSIONS.md)).
+> marketplace plugins load at turn one (see [cloud-sessions.md](cloud-sessions.md)).
 
 Environments are created only from the environment selector at
 [claude.ai/code](https://claude.ai/code) (cloud icon above the message box). There is no API.
@@ -235,7 +235,7 @@ webhooks). Create via `/schedule` in a local CLI session or at
 Starters matched to this fleet, cheapest first:
 
 1. **Weekly upstream-drift re-verification** (this repo; schedule, weekly): re-fetch the pages
-   behind `docs/OFFICIAL-DOCS.md` and `docs/CLOUD-SESSIONS.md` per the upstream-drift
+   behind `docs/official-docs.md` and `docs/cloud-sessions.md` per the upstream-drift
    convention's fetch route, and open a PR when a stamp no longer matches. Connectors: none.
 2. **Nightly backlog groom** (this repo; schedule, weeknights): triage new issues, label, link
    PRs per the repo's conventions. Connectors: none (built-in GitHub tools suffice).
@@ -284,7 +284,7 @@ session on this repo in the new environment and ask Claude to verify:
    medley): make the session's *first* message a plugin slash command and confirm it resolves.
    `/plugin` is not available in cloud sessions, and a Bash-side
    `claude plugin list` proves only disk state, not that the session loaded anything (see the
-   same-session limit in [CLOUD-SESSIONS.md](CLOUD-SESSIONS.md)).
+   same-session limit in [cloud-sessions.md](cloud-sessions.md)).
 5. If the .NET setup-script step failed (`dotnet` missing), confirm the environment's network
    access is **All** per [Step 1](#step-1-the-shared-environment-claudeai-ui-one-time), since a
    narrower level can `403`-block the installer's redirect chain (#2654 Blocker 1), which All
@@ -308,7 +308,7 @@ session on this repo in the new environment and ask Claude to verify:
   failed deterministically; verified against PyPI's published digests, a coverage gap rather
   than tampering). A 2026-08-15 session then confirmed the wiring end to end, with the hook
   running at startup and installing all 65 plugins, and established the follow-on limit now recorded in
-  `docs/CLOUD-SESSIONS.md` §"Plugins in sessions on this repo": hook-time installs land on disk
+  `docs/cloud-sessions.md` §"Plugins in sessions on this repo": hook-time installs land on disk
   but are never loaded by the session that ran them (the registry is read before the hook), so
   plugins go live at turn one only when the cache build runs the bootstrap pre-launch, which the
   standards `cloud-environment` component does. Remaining #2654 actions are environment-side,

@@ -273,7 +273,7 @@ high-stakes and correlated blind spots are the risk, prefer a cross-vendor advis
 installed and set up**, e.g. the OpenAI Codex plugin, when its documented surface can take this
 artifact, invoked per its own docs, with the fresh-context same-vendor subagent as the stated
 fallback, never a route to a command that may not resolve
-(per `docs/PLUGIN-PHILOSOPHY.md` "Fresh-eyes checkpoints" in the marketplace repository).
+(per `docs/plugin-philosophy.md` "Fresh-eyes checkpoints" in the marketplace repository).
 Batch one verifier per surface
 (not one per finding), counted under the same ~20-dispatch gate. A proposal the verifier defends is
 demoted to `info` or dropped, never surfaced as a confident removal.
