@@ -201,6 +201,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/docs-hygiene:audit-progressive-disclosure`](../plugins/docs-hygiene/skills/audit-progressive-disclosure/SKILL.md) | `docs-hygiene` | Grade instruction files for split opportunities and hub/spoke disclosure defects |
 | [`/docs-hygiene:compress`](../plugins/docs-hygiene/skills/compress/SKILL.md) | `docs-hygiene` | Tighten markdown by dropping flavor while preserving every directive |
 | [`/docs-hygiene:extract-ssot`](../plugins/docs-hygiene/skills/extract-ssot/SKILL.md) | `docs-hygiene` | Deduplicate repeated prose into one named source of truth |
+| [`/docs-hygiene:realign-file-names`](../plugins/docs-hygiene/skills/realign-file-names/SKILL.md) | `docs-hygiene` | Apply a file-name rename plan, one acceptance per file |
 | [`/docs-hygiene:rename-references`](../plugins/docs-hygiene/skills/rename-references/SKILL.md) | `docs-hygiene` | Sweep stale references after renames, including forms grep misses |
 | [`/docs-hygiene:write-for-agents`](../plugins/docs-hygiene/skills/write-for-agents/SKILL.md) | `docs-hygiene` | Authoring-time doctrine for agent-consumed markdown |
 | [`/docs-hygiene:write-for-humans`](../plugins/docs-hygiene/skills/write-for-humans/SKILL.md) | `docs-hygiene` | Authoring-time doctrine for human-read documentation |

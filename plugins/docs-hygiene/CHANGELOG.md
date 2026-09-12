@@ -43,14 +43,44 @@
   or declined decision forward. The artifact's shape, status arcs, and decline
   durability are documented in `context/file-name-findings.md`, and its home
   resolves through `reference/topic-docs.md`.
+- **`realign-file-names`: the executor, gated one file at a time.** Each explicit
+  `FN-xxxxxxxx` is one acceptance and nothing else is: a range, a glob, a count,
+  `all`, or a blanket yes is refused out loud and the current finding
+  re-presented. Per finding it moves the file with `git mv`, rewrites only the
+  reference shapes each citing file's tier allows, leaves frozen and ambiguous
+  sites listed and untouched, and rebuilds any generated record by the command
+  the configuration declares. It never commits and never bumps a version.
+- **The drift guard is per site, not per file.** In a real doc tree the renamed
+  files cite each other, so applying the first finding edits a file the second
+  names and a whole-file hash would block every rename after the first. The old
+  path must still be in the index and each site's recorded line must still carry
+  the old name; anything else is reported and skipped. `applying` is written
+  before the move and cleared after the last edit, so an interrupted run resumes
+  rather than blocking, and edits go back through the same inode so a sweep
+  across executable scripts does not strip their mode bits.
+- **`generate-file-name-gate`: the check that actually enforces the rule.** A
+  path-scoped rule file loads when a covered file is READ, never when one is
+  created, so it cannot catch the new name that breaks the convention. This
+  skill emits a standalone bash checker and its own suite, with the rule, the
+  roots, and every exemption inlined from the resolved configuration, carrying
+  no run-time dependency on this plugin. `--rule` additionally writes the
+  path-scoped rule, opt-in because a repository may deliberately carry no
+  pointer rule where a deterministic oracle already exists. Rendering goes
+  through `awk -v` and a literal splice rather than a `sed` substitution, so a
+  consumer's regex cannot corrupt the emitted script.
 
 ### Changed
 
-- **Four descriptions trimmed for the shared listing budget.** `compress`,
-  `audit-progressive-disclosure`, `write-for-humans`, and the wording around
-  them lose prose only; every quoted trigger phrase is unchanged. `compress` and
-  `write-for-humans` now fit the per-field cap and leave the marketplace's
+- **Eight descriptions trimmed for the shared listing budget.** `compress`,
+  `audit-progressive-disclosure`, `audit-noise`, `audit-derivability`,
+  `write-for-agents`, `write-for-humans`, `extract-ssot`, and `audit-file-names`
+  lose prose only; every quoted trigger phrase is unchanged. The plugin's eleven
+  listing-eligible skills now fit the 8,000-char budget with the two new ones
+  included, and no docs-hygiene row remains on the marketplace's
   description-cap baseline.
+- **`rename-references` points at the tree-wide siblings.** Its `## Next` and a
+  description clause name `audit-file-names` for a whole tree audited against a
+  casing rule, which is the case its own per-rename sweep does not cover.
 
 ## [0.21.47]
 

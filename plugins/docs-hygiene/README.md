@@ -19,6 +19,9 @@ and authoring axes of doc upkeep.
 | `/docs-hygiene:audit-progressive-disclosure` | Read-only progressive-disclosure classifier: grades agent-facing instruction markdown against a three-tier load-cost model (always-loaded / invocation-loaded / on-demand) and emits seven finding shapes in two lanes. Split opportunities (oversize, mixed-concerns, tier-mismatch) and hub/spoke structure defects (blind-pointer, orphan-spoke, deep-nesting, missing-toc), with tiered treatment guidance. Thresholds are advisory and Anthropic-prescribed; a deterministic `detect.sh` emits the facts, the judgment layer adjudicates. |
 | `/docs-hygiene:write-for-agents` | The write-side complement to the audit skills: authoring-time doctrine that fires while agent-consumed markdown is being written (CLAUDE.md/AGENTS.md content, rules files, agent-loaded reference docs, pointer lines, doc-plus-pointer extractions). Two-loads budgeting, branch-covering pointers, steps-vs-reference separation, observable completion criteria, split-by-sequence, positive-form prompting, with a verified auto-read surface reference and a trigger-reliability eval suite. |
 | `/docs-hygiene:setup` | Check-centric setup for the plugin's one consumer surface, `.claude/docs-hygiene.json`, which the file-name skills read: `check` resolves all three layers, names the layer behind every key, and verifies that the casing regex compiles, each tier names a known form, each generated file's regenerator resolves, the team layer is tracked, and the overlay is ignored; `apply` writes the team layer per key, idempotently. |
+| `/docs-hygiene:audit-file-names` | Read-only inventory of a tree's file names against the configured casing rule: proposes a legal name per offender, finds every reference to each one, classifies each site by shape and by the tier its file belongs to, refuses any plan that would create a case-only path collision, and writes the rename plan the realign stage consumes. Renames nothing and edits nothing. |
+| `/docs-hygiene:realign-file-names` | Executes that plan one file at a time, behind one human acceptance each: `git mv`, then only the reference shapes the citing file's tier allows, then the declared regenerator for any generated record. Refuses a blanket yes, a range, a glob, and `all`. Frozen and ambiguous sites are listed and left alone. Never commits and never bumps a version. |
+| `/docs-hygiene:generate-file-name-gate` | Emits the check that enforces the rule: a standalone bash checker plus its own suite, with the rule, roots, and exemptions inlined from the resolved configuration, carrying no run-time dependency on this plugin. `--rule` also writes the path-scoped rule file. A rule alone cannot enforce a naming convention, because it loads when a covered file is read, never when one is created. |
 | `/docs-hygiene:write-for-humans` | The other half of the write-side pair: authoring-time doctrine for prose a **person** reads. End-user READMEs, RFCs, design docs, release notes, tutorials, how-to guides, reference pages, explanations. Resolves the consuming project's own declared style guide first and reaches for a bundled default set only as the fallback: Diátaxis document modes, Google developer style, ASD-STE100 instruction rules, and Global English disambiguation. The plugin therefore never silently imposes a house style. Ships the mode picker, a rhythm section against machine-cadence prose, one sentence-rules spoke, drift-stamped source records, and a seven-item self-check. |
 
 ## Requirements
@@ -74,6 +77,28 @@ resolved document and names the layer that supplied each key, and
 consumer's `.gitignore`. Keys, defaults, merge classes, and the policy floor are
 documented in [`reference/config.md`](reference/config.md). Every other skill
 here is zero-config and reads nothing from that file.
+
+## Renaming files: what the plugin does not do for you
+
+`audit-file-names` plans, `realign-file-names` applies one acceptance at a time,
+and `generate-file-name-gate` emits the check that keeps the tree from drifting
+back. Three things stay with the operator on purpose:
+
+- **The version bump and the changelog entry.** A renamed file inside a
+  versioned unit usually needs both, and the shape of each is the consuming
+  project's release convention. The realign never edits either.
+- **The commit.** The realign leaves the working tree uncommitted so the diff
+  gets read before it is recorded. A rename sweep is exactly the change that
+  deserves that.
+- **Wiring the emitted gate.** The emitter names the CI step, the registry row,
+  and the decision record it does not write, and writes none of them.
+
+**Cross-platform verification.** The case-only `git mv` path cannot be observed
+on a case-sensitive filesystem, so it is exercised on Windows by this
+repository's `test-windows` CI lane, which runs the bundled suites. macOS is
+unverified; the scripts avoid the constructs that differ there (no `${x,,}`, no
+`sed -i`, existence asked of the git index rather than the filesystem), but no
+runner covers it.
 
 ## License
 
