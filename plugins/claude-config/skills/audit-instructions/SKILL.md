@@ -218,7 +218,23 @@ which model a row targets, so the lane refines every candidate against the catal
 run's resolved target model.
 
 Bound concurrency to 3–5 lanes at a time; the skills surface fans out one lane per skill. Before the
-total dispatch count (lanes plus Phase C verifiers) would exceed ~20, confirm with the user.
+total dispatch count (lanes plus Phase C verifiers) would exceed ~20, confirm with the user. When the
+caller has declared the run unattended (a routine, a dispatched worker, any session with nobody to
+answer), a question stalls the run, so proceed and let the Phase D cost line disclose the planned and
+actual dispatch counts in place of the confirmation. The declaration comes from the caller, in the
+invocation text; a run never infers it from its own session, and an invocation that carries no
+declaration is attended.
+
+A lane that persists its report to disk writes it with the Write tool, which the `guardrails`
+plugin's `block-hook-bypass` guard exempts by design, never through a shell redirect whose target is
+carried in a variable or through inline Python, which that guard blocks because it cannot resolve
+the target. A shell redirect to a literal absolute path under the host temp tree is exempt only when
+`CLAUDE_PROJECT_DIR` names a project root that is not itself under a temp tree; a temp-rooted
+checkout (a CI clone, a test fixture) has no such exemption, so there the Write tool is the only
+route. Verified 2026-09-12 against `plugins/guardrails/hooks/block-hook-bypass.sh`
+(`_bbh_temp_default_applies` and the scope note in `block_bypass`) and `plugins/guardrails/README.md`
+("`block-hook-bypass` ships two scratch roots exempt"); recheck when the guardrails plugin changes
+that guard's exemption set or its block message.
 
 ## Phase B2: Cross-surface conflict pass
 
@@ -292,10 +308,12 @@ the two absent-prior cases.
 
 Then summarize in chat. The report header carries a **cost line**: how many checks ran per surface
 (naming any added by a catalog version bump), the model-scoped rows skipped for the resolved target,
-and the estimated per-surface token delta versus the previous catalog version **for this project**,
-and it confirms the run added zero new interactive gates (report-only contract unchanged; the
-target-model fail-loud stop is an invocation-time validation abort, not an interactive gate, since it
-prompts nobody and blocks nothing mid-run). Present findings as a table:
+the estimated per-surface token delta versus the previous catalog version **for this project**, and
+the dispatch count, planned and actual (lanes plus Phase C verifiers), stating whether the
+~20-dispatch confirmation was asked or, because the caller declared the run unattended, disclosed
+here in its place. It also confirms the run added zero new interactive gates (report-only contract
+unchanged; the target-model fail-loud stop is an invocation-time validation abort, not an
+interactive gate, since it prompts nobody and blocks nothing mid-run). Present findings as a table:
 
 | # | Check | Surface:Line | Severity | Tier | Authority | Finding | Proposed change |
 |---|-------|--------------|----------|------|-----------|---------|-----------------|
