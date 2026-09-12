@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [0.22.1]
+
+### Changed
+
+- The `allowed-tools` pairing gate's header and fail message no longer give "never substituted there, inert grant" as their reason. `${CLAUDE_PLUGIN_ROOT}` does substitute in a plugin skill's `allowed-tools`, with a v2.1.0 floor. The gate is unchanged and still requires the skill-local path, because the docs establish substitution rather than runtime matching on every host.
+
 ## [0.22.0]
 
 ### Added

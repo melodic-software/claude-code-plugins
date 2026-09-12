@@ -4,6 +4,27 @@ Notable changes to the permission-rule-hygiene convention. The convention states
 anti-patterns; it is enforced by `/claude-config:audit-permission-grants` (checks
 P1/P2/P3), whose detector and criteria version independently of this document.
 
+## [1.4.0] - 2026-09-12
+
+Substantive correction to anti-pattern 2. The convention asserted that `${CLAUDE_PLUGIN_ROOT}` is not
+substituted in `allowed-tools`, on the stated evidence that the token "does not appear anywhere on
+that page". Both halves were false against a live raw-markdown fetch (2026-09-12): the token appears
+twice on the skills page, and that page states *"In a plugin skill, Claude Code substitutes
+`${CLAUDE_PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_DATA}` in the same two places"* as `${CLAUDE_SKILL_DIR}`
+and `${CLAUDE_PROJECT_DIR}`. The upstream changelog corroborates independently: the substitution was
+a bug fixed in **v2.1.0**, so the claim was wrong for the convention's whole life.
+
+The corrected rule keeps the boundary the docs draw rather than inverting the claim wholesale. The
+plugin-scoped pair is *"Substituted only in plugin skills"*, so it stays inert in a personal or
+project skill, in an agent or command, and in any settings file's `permissions.allow` array, which no
+page documents as a substitution site at all.
+
+Also corrected: the anti-pattern-1 drop-list enumeration in the leading-wildcard bullet omitted
+`Monitor` allow rules, a sixth documented class added upstream in v2.1.236.
+
+Consumers must re-sync. The `audit-permission-grants` detector's P4 check was the executable form of
+the false claim and emitted 17 false positives in this repository alone.
+
 ## [1.3.2] - 2026-08-31
 
 Docs-only patch. The anti-pattern-3 bullet quoting the skills page's `allowed-tools` semantics now

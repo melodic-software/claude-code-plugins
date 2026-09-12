@@ -11,9 +11,17 @@
 # non-interpreter-led AND live. Quoting counts too: an unquoted rule does not
 # match a quoted body path, which is how one grant in this repo shipped dead.
 #
-# `${CLAUDE_SKILL_DIR}` is the only skill-relative token substituted in
-# `allowed-tools`; `${CLAUDE_PLUGIN_ROOT}` stays a literal string there and the
-# grant is inert.
+# This gate requires `${CLAUDE_SKILL_DIR}` in a grant, and that is a repo
+# convention rather than a platform limit. `${CLAUDE_PLUGIN_ROOT}` DOES
+# substitute in a plugin skill's `allowed-tools` Bash rules
+# (<https://code.claude.com/docs/en/skills>, fetched 2026-09-12: "In a plugin
+# skill, Claude Code substitutes `${CLAUDE_PLUGIN_ROOT}` and
+# `${CLAUDE_PLUGIN_DATA}` in the same two places"; upstream fixed it in
+# v2.1.0), so the older "the token is inert there" reason is stale and is not
+# why this rule exists. The reason it still holds: the docs establish
+# substitution, not that such a rule matches at runtime on every host, and this
+# repo does not ship a grant on docs alone
+# (`plugins/discovery/reference/parent-contract.md`).
 #
 # Two-form split (decide-lane #2237, DEFER): `SKILL.md` uses the paired
 # `${CLAUDE_SKILL_DIR}/scripts/…` form that matches its grants; bundled
@@ -52,14 +60,17 @@ SKILLS=(clean)
 # satisfy every other check here and land silently.
 expected_granted() {
   case "$1" in
-    clean) echo "git-branch-audit.sh git-stash-audit.sh preflight.sh resolve-clean-action.sh scan.sh" ;;
-    *) echo "" ;;
+  clean) echo "git-branch-audit.sh git-stash-audit.sh preflight.sh resolve-clean-action.sh scan.sh" ;;
+  *) echo "" ;;
   esac
 }
 
 fails=0
 pass() { echo "PASS: $1"; }
-fail() { echo "FAIL: $1" >&2; fails=1; }
+fail() {
+  echo "FAIL: $1" >&2
+  fails=1
+}
 
 # Frontmatter is the leading `---`-delimited block; the allowed-tools value runs
 # to the next top-level key so a YAML list is captured whole.
@@ -70,7 +81,10 @@ allowed_tools() {
 
 for skill in "${SKILLS[@]}"; do
   md="skills/$skill/SKILL.md"
-  [[ -f "$md" ]] || { fail "$skill: SKILL.md missing"; continue; }
+  [[ -f "$md" ]] || {
+    fail "$skill: SKILL.md missing"
+    continue
+  }
   at="$(allowed_tools "$md")"
 
   if grep -qF 'Bash(bash ' <<<"$at"; then
@@ -80,7 +94,7 @@ for skill in "${SKILLS[@]}"; do
   fi
 
   if grep -qF 'CLAUDE_PLUGIN_ROOT' <<<"$at"; then
-    fail "$skill: allowed-tools uses \${CLAUDE_PLUGIN_ROOT} (never substituted there — inert grant)"
+    fail "$skill: allowed-tools uses \${CLAUDE_PLUGIN_ROOT} (repo convention: the skill-local path is the exercised shape. The token DOES substitute in a plugin skill; runtime matching is what is unverified)"
   else
     pass "$skill: allowed-tools free of \${CLAUDE_PLUGIN_ROOT}"
   fi

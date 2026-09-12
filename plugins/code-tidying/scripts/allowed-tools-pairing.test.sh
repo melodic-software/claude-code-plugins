@@ -79,7 +79,7 @@ for skill in "${SKILLS[@]}"; do
   fi
 
   if grep -qF 'CLAUDE_PLUGIN_ROOT' <<<"$at"; then
-    fail "$skill: allowed-tools uses \${CLAUDE_PLUGIN_ROOT} (never substituted there — inert grant)"
+    fail "$skill: allowed-tools uses \${CLAUDE_PLUGIN_ROOT} (repo convention: the skill-local path is the exercised shape. The token DOES substitute in a plugin skill; runtime matching is what is unverified)"
   else
     pass "$skill: allowed-tools free of \${CLAUDE_PLUGIN_ROOT}"
   fi
