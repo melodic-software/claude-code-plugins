@@ -14,6 +14,27 @@
 # settings, managed policy, every enabled plugin's hooks/hooks.json, and skill and
 # subagent frontmatter; the script was behind its own skill's spec.
 #
+# THE SAME ZERO, THROUGH FIVE OTHER DOORS. A review of that rewrite found it
+# reproducing the defect it existed to remove, so every walk and every count in
+# this file now goes through one of four helpers, and none of them can answer 0
+# for a scope it did not actually read:
+#   find0        the only tree walk. Passes -H so a SYMLINKED .claude/skills,
+#                .claude/agents or .claude/hooks is descended instead of silently
+#                yielding nothing; prunes .git and node_modules so .git/hooks/*
+#                sample scripts cannot be counted as a plugin's hook scripts; and
+#                emits NUL-delimited paths so a newline inside a path cannot split
+#                one file into two.
+#   dir_status   classifies a directory scope before it is walked. A path that
+#                exists but cannot be traversed, a dangling symlink included, is
+#                unreadable, never absent and never 0.
+#   jq_num       FAILS instead of printing 0 when jq fails. A hooks or
+#                enabledPlugins key holding a string, a number or an array is
+#                reported invalid-json, because the wrong type is not "no hooks".
+#   count0       counts a NUL stream rather than lines.
+# An unusable project root is likewise fatal: printing another directory's counts
+# under the requested root's name was the worst shape of all, since the header
+# named a directory the numbers did not come from.
+#
 # TWO MECHANICS THIS OUTPUT KEEPS APART. Hook entries MERGE across settings
 # levels: user, project, local and managed each contribute, and none replaces
 # another, so a per-scope additive count table is the honest shape for them.
@@ -64,6 +85,10 @@ inventory.sh - per-scope automation counts for the audit-automation-gaps skill.
 Usage:
   inventory.sh [--help]
 
+It takes no other argument. An unrecognised argument is a usage error rather
+than a silently ignored one, because a run that ignored its arguments would
+report a full audit under a scope nobody asked for.
+
 Sections, in a stable order:
   Hook locations  one row per documented hook location, each with a status, a
                   standing-versus-conditional kind, and three counts: PROBED,
@@ -78,7 +103,11 @@ Sections, in a stable order:
   Notes           what a reader must know to not over-read the numbers
 
 A location this script could not read reports unreadable, invalid-json, skipped
-or not-probed. It never reports that location as 0.
+or not-probed. It never reports that location as 0. A directory reached through
+a symlink is walked, not skipped; a JSON file whose hooks or enabledPlugins key
+holds the wrong type is invalid-json, not zero hooks; and .git and node_modules
+are pruned from every walk so a sample hook or a vendored tree cannot inflate a
+component count.
 
 Test seams, unset in normal use:
   INVENTORY_PROJECT_DIR    project root, instead of the git toplevel
@@ -86,17 +115,36 @@ Test seams, unset in normal use:
   INVENTORY_MANAGED_PATH   managed-settings.json, instead of the per-OS path
   INVENTORY_JQ             the jq command name, so a test can take jq away
 
-Exit: always 0. The output is a skill's pre-computed context, so a nonzero exit
-would cost the audit its inventory rather than tell it anything.
+Exit: 0 once a table is printed; 2 for a usage error or a project root that
+could not be entered. The output is a skill's pre-computed context, so a
+partial read still exits 0 and says per row what it could not reach; only a run
+that can produce no honest table at all exits nonzero.
 EOF
 }
 
-case "${1:-}" in
--h | --help)
-  usage
-  exit 0
+usage_error() {
+  printf 'inventory.sh: unrecognised argument: %s\n' "$1" >&2
+  usage >&2
+  exit 2
+}
+
+case "$#" in
+0) ;;
+1)
+  case "$1" in
+  -h | --help)
+    usage
+    exit 0
+    ;;
+  *) usage_error "$1" ;;
+  esac
   ;;
-*) ;;
+*)
+  case "$1" in
+  -h | --help) usage_error "$2" ;;
+  *) usage_error "$1" ;;
+  esac
+  ;;
 esac
 
 jq_bin="${INVENTORY_JQ:-jq}"
@@ -121,7 +169,17 @@ else
   project_root="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
   [[ -n "$project_root" ]] || project_root="${CLAUDE_PROJECT_DIR:-$PWD}"
 fi
-cd "$project_root" 2>/dev/null || true
+
+# A cd that fails is FATAL. The header prints the requested root, so a run that
+# stayed in the invoking directory would attribute that directory's plugins,
+# skills and handlers to a root they have nothing to do with. The `--` lets a
+# relative root beginning with a dash be entered rather than parsed as an option.
+if [[ ! -d "$project_root" ]] || ! cd -- "$project_root" 2>/dev/null; then
+  printf 'inventory.sh: project root %s is not a directory this run could enter; no counts were produced.\n' \
+    "$project_root" >&2
+  exit 2
+fi
+project_root="$PWD"
 
 user_settings="${INVENTORY_USER_SETTINGS:-${CLAUDE_CONFIG_DIR:-${HOME:-}/.claude}/settings.json}"
 project_settings=".claude/settings.json"
@@ -165,6 +223,61 @@ json_status() {
   printf 'present'
 }
 
+# Classify one directory scope before anything walks it. A symlink to a
+# directory IS a directory here and is walked; a dangling symlink, a plain file
+# in a directory's place, or a directory this uid cannot open is unreadable, so
+# the count next to it is a status word instead of the 0 that would read as a
+# real absence.
+dir_status() {
+  local d="$1"
+  [[ -n "$d" ]] || {
+    printf 'not-probed'
+    return
+  }
+  if [[ -d "$d" ]]; then
+    if [[ -r "$d" && -x "$d" ]]; then
+      printf 'present'
+    else
+      printf 'unreadable'
+    fi
+    return
+  fi
+  if [[ -e "$d" || -L "$d" ]]; then
+    printf 'unreadable'
+    return
+  fi
+  printf 'absent'
+}
+
+# The only tree walk in this script. Start points come first, then a literal --,
+# then the find expression.
+#
+#   -H            follows a symlinked START POINT, so a .claude/skills that is a
+#                 symlink to the real tree is descended. Without it find refuses
+#                 to descend the start point and reports nothing, which is the
+#                 "0 produced by not looking" this file exists to prevent. Only
+#                 the start point is followed, so a symlink loop inside the tree
+#                 still cannot trap the walk.
+#   prune         .git carries a hooks/ directory whose *.sample files are not
+#                 anybody's hook scripts, and a vendored node_modules tree can
+#                 carry any layout at all. Both are pruned from every walk.
+#   -print0       a path may contain a newline. Line-delimited output would turn
+#                 one such file into two records and lose the real one.
+find0() {
+  local dirs=()
+  while [[ "$#" -gt 0 && "$1" != "--" ]]; do
+    dirs+=("$1")
+    shift
+  done
+  [[ "$#" -gt 0 ]] && shift
+  [[ "${#dirs[@]}" -gt 0 && "$#" -gt 0 ]] || return 0
+  find -H "${dirs[@]}" \( -name .git -o -name node_modules \) -prune -o \( "$@" \) -print0 2>/dev/null
+}
+
+# Counts a NUL-delimited stream on stdin. wc -l would count newlines, which are
+# legal inside a path and would therefore over-count.
+count0() { tr -cd '\000' | wc -c | tr -d ' '; }
+
 # A settings file names its hook block under the `hooks` key; a plugin manifest
 # may wrap the same block or carry the events at its top level, so the two get
 # their own programs rather than one guessing filter over both.
@@ -173,60 +286,81 @@ SETTINGS_HANDLERS_JQ='[(.hooks // {}) | to_entries[] | .value[]? | (.hooks // []
 PLUGIN_EVENTS_JQ='def hk: if has("hooks") then .hooks else . end; [hk | to_entries[] | select((.value | type) == "array" and (.value | length) > 0) | .key] | length'
 PLUGIN_HANDLERS_JQ='def hk: if has("hooks") then .hooks else . end; [hk | to_entries[] | .value[]? | (.hooks // []) | length] | add // 0'
 
+# Runs one jq program over one file and prints its number. A jq that could not
+# run, or a program whose result is not a plain non-negative integer, prints
+# NOTHING and returns 1. Printing 0 there was the defect: a hooks key holding a
+# string, a number, a boolean or an array made every query fail or return
+# nothing, and the row then said "present, no hooks" about a file whose hook
+# block is malformed.
 jq_num() {
   local program="$1" file="$2" out
-  out="$("$jq_bin" -r "$program" "$file" 2>/dev/null)"
+  out="$("$jq_bin" -r "$program" "$file" 2>/dev/null)" || return 1
   case "$out" in
-  '' | *[!0-9]*) printf '0' ;;
+  '' | *[!0-9]*) return 1 ;;
   *) printf '%s' "$out" ;;
   esac
 }
 
+# The jq type of one expression, or the empty string when jq could not run. An
+# array answers most of the count programs without erroring, so the type has to
+# be asked directly rather than inferred from a query that happened to succeed.
+jq_type() { "$jq_bin" -r "$1 | type" "$2" 2>/dev/null; }
+
 # Discovered plugin roots. `.claude-plugin/plugin.json` is the documented marker,
 # and the depth bound keeps the walk off vendored trees.
 plugin_roots=()
-while IFS= read -r manifest; do
+while IFS= read -r -d '' manifest; do
   [[ -n "$manifest" ]] || continue
   plugin_roots+=("${manifest%/.claude-plugin/plugin.json}")
-done < <(find . -maxdepth 4 -type f -path '*/.claude-plugin/plugin.json' 2>/dev/null | sort)
+done < <(find -H . -maxdepth 4 \( -name .git -o -name node_modules \) -prune -o \
+  -type f -path '*/.claude-plugin/plugin.json' -print0 2>/dev/null)
 
-# Counts files matching the trailing find expression under every discovered
-# plugin root, or 0 when this repository ships no plugins.
+# Walks every discovered plugin root, or emits nothing when this repository ships
+# no plugins.
+find0_plugin_roots() {
+  [[ "${#plugin_roots[@]}" -gt 0 ]] || return 0
+  find0 "${plugin_roots[@]}" -- "$@"
+}
+
 count_in_plugin_roots() {
   [[ "${#plugin_roots[@]}" -gt 0 ]] || {
     printf '0'
     return
   }
-  find "${plugin_roots[@]}" "$@" 2>/dev/null | wc -l | tr -d ' '
+  find0_plugin_roots "$@" | count0
 }
 
-count_path() {
-  local dir="$1"
-  shift
-  [[ -d "$dir" ]] || {
-    printf '0'
-    return
-  }
-  find "$dir" "$@" 2>/dev/null | wc -l | tr -d ' '
+# Counts files under one directory scope whose status was classified first. Only
+# a scope that was actually walked gets a number; anything else gets its status
+# word, so a count in this output is always a measurement.
+count_dir() {
+  local status="$1" dir="$2"
+  shift 2
+  case "$status" in
+  present) find0 "$dir" -- "$@" | count0 ;;
+  absent) printf '0' ;;
+  *) printf '%s' "$status" ;;
+  esac
 }
 
-# Files whose YAML frontmatter opens a top-level `hooks:` block, one path per
-# matching file. The walk is frontmatter-only: a `hooks:` line in a skill body is
-# prose about hooks, not a hook registration.
-frontmatter_hook_files() {
-  [[ "$#" -gt 0 ]] || return 0
-  awk '
-    FNR == 1 { in_fm = 0; opened = 0; seen = 0 }
-    FNR == 1 && $0 ~ /^---[[:space:]]*$/ { in_fm = 1; opened = 1; next }
-    opened && in_fm && $0 ~ /^---[[:space:]]*$/ { in_fm = 0; next }
-    opened && in_fm && seen == 0 && $0 ~ /^hooks:[[:space:]]*$/ { print FILENAME; seen = 1 }
-  ' "$@" 2>/dev/null
+# Adds two figures either of which may be a status word rather than a number.
+# A status word on either side makes the sum a floor, and it is printed as the
+# two parts rather than collapsed into a number that was never measured.
+add_counts() {
+  case "$1$2" in
+  *[!0-9]*) printf '%s+%s' "$1" "$2" ;;
+  *) printf '%s' "$(($1 + $2))" ;;
+  esac
 }
 
+# Counts files whose YAML frontmatter opens a top-level `hooks:` block. The walk
+# is frontmatter-only: a `hooks:` line in a skill body is prose about hooks, not
+# a hook registration. awk prints only the tally and never a path, so a newline
+# inside a path cannot be mistaken for a record separator on the way out either.
 count_frontmatter_hooks() {
   local list="$1" f
   local files=()
-  while IFS= read -r f; do
+  while IFS= read -r -d '' f; do
     [[ -n "$f" ]] || continue
     files+=("$f")
   done <"$list"
@@ -234,7 +368,13 @@ count_frontmatter_hooks() {
     printf '0'
     return
   }
-  frontmatter_hook_files "${files[@]}" | wc -l | tr -d ' '
+  awk '
+    FNR == 1 { in_fm = 0; opened = 0; seen = 0 }
+    FNR == 1 && $0 ~ /^---[[:space:]]*$/ { in_fm = 1; opened = 1; next }
+    opened && in_fm && $0 ~ /^---[[:space:]]*$/ { in_fm = 0; next }
+    opened && in_fm && seen == 0 && $0 ~ /^hooks:[[:space:]]*$/ { n += 1; seen = 1 }
+    END { printf "%d", n + 0 }
+  ' "${files[@]}" 2>/dev/null
 }
 
 row() {
@@ -244,29 +384,35 @@ row() {
 # --- Hook locations -----------------------------------------------------------
 
 settings_row() {
-  local label="$1" file="$2" status events handlers declaring
+  local label="$1" file="$2" status events handlers declaring hooks_type
   status="$(json_status "$file")"
-  if [[ "$status" == "present" ]]; then
-    events="$(jq_num "$SETTINGS_EVENTS_JQ" "$file")"
-    handlers="$(jq_num "$SETTINGS_HANDLERS_JQ" "$file")"
-    declaring=0
-    [[ "$events" -gt 0 ]] && declaring=1
-    row "$label" "$status" standing 1 "$declaring" "$handlers" "$file"
-  else
+  if [[ "$status" != "present" ]]; then
     row "$label" "$status" standing 1 - - "$file"
+    return
   fi
+  hooks_type="$(jq_type '(.hooks // {})' "$file")"
+  if [[ "$hooks_type" != "object" ]]; then
+    note "$file is valid JSON, but its hooks key holds ${hooks_type:-a value jq could not type} rather than an object, so no hook entry could be read from it. A malformed hooks block is not an absence of hooks."
+    row "$label" invalid-json standing 1 - - "$file"
+    return
+  fi
+  if ! events="$(jq_num "$SETTINGS_EVENTS_JQ" "$file")" ||
+    ! handlers="$(jq_num "$SETTINGS_HANDLERS_JQ" "$file")"; then
+    note "$file parses as JSON, but the hook query over it failed, so its hook entries are counted nowhere in this table."
+    row "$label" unreadable standing 1 - - "$file"
+    return
+  fi
+  declaring=0
+  [[ "$events" -gt 0 ]] && declaring=1
+  row "$label" "$status" standing 1 "$declaring" "$handlers" "$file"
 }
 
 plugin_hook_row() {
   local manifests=() m status total_events=0 total_handlers=0 declaring=0 scanned=0
-  while IFS= read -r m; do
+  while IFS= read -r -d '' m; do
     [[ -n "$m" ]] || continue
     manifests+=("$m")
-  done < <(
-    if [[ "${#plugin_roots[@]}" -gt 0 ]]; then
-      find "${plugin_roots[@]}" -type f -path '*/hooks/hooks.json' 2>/dev/null | sort
-    fi
-  )
+  done < <(find0_plugin_roots -type f -path '*/hooks/hooks.json')
   scanned="${#manifests[@]}"
   if [[ "${#plugin_roots[@]}" -eq 0 ]]; then
     row plugin-hooks-json absent standing 0 - - "no plugin root in this repository"
@@ -283,8 +429,10 @@ plugin_hook_row() {
       continue
     fi
     local e h
-    e="$(jq_num "$PLUGIN_EVENTS_JQ" "$m")"
-    h="$(jq_num "$PLUGIN_HANDLERS_JQ" "$m")"
+    if ! e="$(jq_num "$PLUGIN_EVENTS_JQ" "$m")" || ! h="$(jq_num "$PLUGIN_HANDLERS_JQ" "$m")"; then
+      note "plugin hooks manifest $m parses as JSON, but its hooks block is the wrong shape to read; its handlers are missing from the plugin-hooks-json row, which is therefore a floor rather than a total."
+      continue
+    fi
     total_events=$((total_events + e))
     total_handlers=$((total_handlers + h))
     [[ "$e" -gt 0 ]] && declaring=$((declaring + 1))
@@ -295,7 +443,7 @@ plugin_hook_row() {
 
 frontmatter_row() {
   local label="$1" listfile="$2" source_label="$3" scanned declaring
-  scanned="$(wc -l <"$listfile" | tr -d ' ')"
+  scanned="$(count0 <"$listfile")"
   if [[ "$scanned" -eq 0 ]]; then
     row "$label" absent conditional 0 - - "$source_label"
     return
@@ -307,23 +455,33 @@ frontmatter_row() {
 tmpdir="$(mktemp -d 2>/dev/null)"
 if [[ -z "$tmpdir" || ! -d "$tmpdir" ]]; then
   echo "inventory.sh: could not create a work directory; no counts were produced." >&2
-  exit 0
+  exit 2
 fi
 trap 'rm -rf "$tmpdir"' EXIT
+
+skills_dir_status="$(dir_status .claude/skills)"
+agents_dir_status="$(dir_status .claude/agents)"
+hooks_dir_status="$(dir_status .claude/hooks)"
+for scope_pair in "skills:$skills_dir_status" "agents:$agents_dir_status" "hooks:$hooks_dir_status"; do
+  case "${scope_pair#*:}" in
+  present | absent) ;;
+  *) note ".claude/${scope_pair%%:*} exists but could not be traversed (${scope_pair#*:}); whatever it holds is missing from the counts below, which are floors rather than totals for that scope." ;;
+  esac
+done
 
 skill_list="$tmpdir/skills"
 agent_list="$tmpdir/agents"
 : >"$skill_list"
 : >"$agent_list"
-if [[ "${#plugin_roots[@]}" -gt 0 ]]; then
-  find "${plugin_roots[@]}" -type f -name 'SKILL.md' 2>/dev/null >>"$skill_list"
-  find "${plugin_roots[@]}" -type f -path '*/agents/*.md' 2>/dev/null >>"$agent_list"
-fi
-[[ -d .claude/skills ]] && find .claude/skills -type f -name 'SKILL.md' 2>/dev/null >>"$skill_list"
-[[ -d .claude/agents ]] && find .claude/agents -type f -name '*.md' 2>/dev/null >>"$agent_list"
+find0_plugin_roots -type f -name 'SKILL.md' >>"$skill_list"
+find0_plugin_roots -type f -path '*/agents/*.md' >>"$agent_list"
+[[ "$skills_dir_status" == "present" ]] &&
+  find0 .claude/skills -- -type f -name 'SKILL.md' >>"$skill_list"
+[[ "$agents_dir_status" == "present" ]] &&
+  find0 .claude/agents -- -type f -name '*.md' >>"$agent_list"
 
-skills_total="$(wc -l <"$skill_list" | tr -d ' ')"
-agents_total="$(wc -l <"$agent_list" | tr -d ' ')"
+skills_total="$(count0 <"$skill_list")"
+agents_total="$(count0 <"$agent_list")"
 
 printf 'Claude Code automation inventory for %s\n' "$project_root"
 printf '\nHook locations (7 documented; entries MERGE across settings levels)\n'
@@ -333,8 +491,9 @@ settings_row project-settings "$project_settings"
 settings_row local-settings "$local_settings"
 if [[ "$have_managed_lib" -eq 1 ]]; then
   settings_row managed-policy "$managed_file"
-  if [[ -d "$managed_dropin" ]]; then
-    dropin_n="$(count_path "$managed_dropin" -maxdepth 1 -type f -name '*.json')"
+  dropin_status="$(dir_status "$managed_dropin")"
+  if [[ "$dropin_status" != "absent" && "$dropin_status" != "not-probed" ]]; then
+    dropin_n="$(count_dir "$dropin_status" "$managed_dropin" -maxdepth 1 -type f -name '*.json')"
     note "managed-settings.d exists at $managed_dropin with $dropin_n drop-in file(s); they merge on top of managed-settings.json and are not counted in the managed-policy row."
   fi
 else
@@ -348,21 +507,29 @@ frontmatter_row subagent-frontmatter "$agent_list" "$agents_total agent definiti
 # --- Components ---------------------------------------------------------------
 
 hook_scripts="$(count_in_plugin_roots -type f -path '*/hooks/*' ! -name '*.json' ! -name '*.test.sh')"
-project_hook_scripts="$(count_path .claude/hooks -type f ! -name '*.json' ! -name '*.test.sh')"
-hook_tests=$(($(count_in_plugin_roots -type f -path '*/hooks/*' -name '*.test.sh') + $(count_path .claude/hooks -type f -name '*.test.sh')))
+project_hook_scripts="$(count_dir "$hooks_dir_status" .claude/hooks -type f ! -name '*.json' ! -name '*.test.sh')"
+hook_tests="$(add_counts \
+  "$(count_in_plugin_roots -type f -path '*/hooks/*' -name '*.test.sh')" \
+  "$(count_dir "$hooks_dir_status" .claude/hooks -type f -name '*.test.sh')")"
 mcp_servers=0
 mcp_files=0
 if [[ "$have_jq" -eq 1 ]]; then
-  while IFS= read -r f; do
+  while IFS= read -r -d '' f; do
     [[ -n "$f" ]] || continue
     [[ "$(json_status "$f")" == "present" ]] || continue
-    mcp_files=$((mcp_files + 1))
-    mcp_servers=$((mcp_servers + $(jq_num '(.mcpServers // {}) | length' "$f")))
-  done < <(
-    [[ -f .mcp.json ]] && printf '%s\n' .mcp.json
-    if [[ "${#plugin_roots[@]}" -gt 0 ]]; then
-      find "${plugin_roots[@]}" -maxdepth 1 -type f -name '.mcp.json' 2>/dev/null | sort
+    if [[ "$(jq_type '(.mcpServers // {})' "$f")" != "object" ]]; then
+      note "$f is valid JSON, but its mcpServers key is not an object, so its servers could not be counted; the mcp server figure is a floor."
+      continue
     fi
+    if ! n="$(jq_num '(.mcpServers // {}) | length' "$f")"; then
+      note "$f parses as JSON, but its mcpServers count could not be read; the mcp server figure is a floor."
+      continue
+    fi
+    mcp_files=$((mcp_files + 1))
+    mcp_servers=$((mcp_servers + n))
+  done < <(
+    [[ -f .mcp.json ]] && printf '%s\0' .mcp.json
+    find0_plugin_roots -maxdepth 1 -type f -name '.mcp.json'
   )
 else
   note "MCP server counts were skipped: jq is not on PATH. The count below is not a measurement."
@@ -378,15 +545,26 @@ printf '  hook scripts on disk %s in plugin hooks/ dirs, %s in .claude/hooks (+%
 
 # --- Enablement inputs --------------------------------------------------------
 
+ENABLED_ON_JQ='[(.enabledPlugins // {}) | to_entries[] | select(.value == true)] | length'
+ENABLED_OFF_JQ='[(.enabledPlugins // {}) | to_entries[] | select(.value == false)] | length'
+
 enablement_row() {
-  local label="$1" file="$2" status on off
+  local label="$1" file="$2" status on off ep_type
   status="$(json_status "$file")"
   if [[ "$status" != "present" ]]; then
     printf '  %-10s %-12s %s\n' "$label" "$status" "$file"
     return
   fi
-  on="$(jq_num '[(.enabledPlugins // {}) | to_entries[] | select(.value == true)] | length' "$file")"
-  off="$(jq_num '[(.enabledPlugins // {}) | to_entries[] | select(.value == false)] | length' "$file")"
+  ep_type="$(jq_type '(.enabledPlugins // {})' "$file")"
+  if [[ "$ep_type" != "object" ]]; then
+    printf '  %-10s %-12s %s\n' "$label" invalid-json \
+      "$file (enabledPlugins holds ${ep_type:-a value jq could not type}, not an object)"
+    return
+  fi
+  if ! on="$(jq_num "$ENABLED_ON_JQ" "$file")" || ! off="$(jq_num "$ENABLED_OFF_JQ" "$file")"; then
+    printf '  %-10s %-12s %s\n' "$label" unreadable "$file"
+    return
+  fi
   printf '  %-10s %-12s %s true, %s false\n' "$label" "$status" "$on" "$off"
 }
 
@@ -400,9 +578,17 @@ else
   printf '  %-10s %-12s %s\n' managed not-probed "managed-scope library unavailable"
 fi
 if [[ -f .claude-plugin/marketplace.json && "$have_jq" -eq 1 ]]; then
-  cat_total="$(jq_num '(.plugins // []) | length' .claude-plugin/marketplace.json)"
-  cat_off="$(jq_num '[(.plugins // [])[] | select(.defaultEnabled == false)] | length' .claude-plugin/marketplace.json)"
-  printf '  %-10s %-12s %s entries, %s with defaultEnabled false\n' catalog present "$cat_total" "$cat_off"
+  # `length` answers on a string as well as on an array, so a plugins key of the
+  # wrong type would otherwise publish a character count as an entry count.
+  if [[ "$(jq_type '(.plugins // [])' .claude-plugin/marketplace.json)" != "array" ]]; then
+    printf '  %-10s %-12s %s\n' catalog invalid-json \
+      ".claude-plugin/marketplace.json (plugins is not an array)"
+  elif cat_total="$(jq_num '(.plugins // []) | length' .claude-plugin/marketplace.json)" &&
+    cat_off="$(jq_num '[(.plugins // [])[] | select(.defaultEnabled == false)] | length' .claude-plugin/marketplace.json)"; then
+    printf '  %-10s %-12s %s entries, %s with defaultEnabled false\n' catalog present "$cat_total" "$cat_off"
+  else
+    printf '  %-10s %-12s %s\n' catalog invalid-json .claude-plugin/marketplace.json
+  fi
 fi
 printf '  No effective enablement is computed here. Run /claude-ops:plugins audit for the verdict.\n'
 
@@ -412,6 +598,7 @@ note "A hook script on disk is not a wired hook: the Components counts are files
 note "skill-frontmatter and subagent-frontmatter rows are conditional, so they are not part of the standing set: a skill's hooks register only once that skill is invoked, and a subagent's only while that subagent runs. Do not fold them into the always-on set."
 note "The frontmatter rows count files that open a hooks: block; the YAML inside those blocks is not parsed, so they carry no HANDLERS figure."
 note "plugin-hooks-json covers plugin roots inside this repository. Plugins installed on this machine from elsewhere also contribute hooks; run /claude-ops:inventory for the machine-scope picture."
+note "Every walk prunes .git and node_modules, so .git/hooks sample scripts and vendored trees are outside these counts."
 if [[ "${CLAUDE_CODE_REMOTE:-}" == "true" ]]; then
   note "CLAUDE_CODE_REMOTE=true: this is a cloud session, which does not read your own machine's ~/.claude/settings.json or .claude/settings.local.json, and reaches only server-managed settings. The user-settings row above is this container's file, so the effective set here differs from a desktop session's."
 else
