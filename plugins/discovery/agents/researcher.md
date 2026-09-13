@@ -106,7 +106,9 @@ only by the harness's own filters and by the short `disallowedTools:` denylist i
 above. Say that plainly rather than describing a grant this file never made. Those filters, and the
 background execution mode that applies the second of them, carry a dated record at
 [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
-"Harness facts the dispatch design rests on"; never copy the tool list out of it.
+"Harness facts the dispatch design rests on". Read it at the moment you need it rather than copying
+the tool list out of it: that record is a dated snapshot of a harness surface that moves, and a copy
+carried here would be a second restatement with no date of its own to age against.
 
 The allowlist is omitted on purpose. An allowlist removes all MCP tools, and this skill's third
 mandatory discipline requires mixing doc-MCP servers into the tool spread, so an allowlist would

@@ -3,6 +3,18 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.8]
+
+### Fixed
+
+- **`implementer`: the spawn-depth claim carries the recheck trigger it was missing.** The body
+  restates that Claude Code withholds `Agent` from a subagent already at the nesting-depth limit,
+  with the sub-agents page as its basis and a 2026-08-10 as-of date, but named no re-derivation
+  event, so the record was three of the four parts the upstream-drift convention requires. The
+  trigger is now stated: a release note moving the nesting-depth default or changing what
+  `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` controls, or that page no longer stating the tool is
+  withheld at the limit. The claim, the basis, and the date are unchanged.
+
 ## [0.16.7]
 
 ### Changed

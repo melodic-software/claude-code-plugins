@@ -61,12 +61,28 @@ asked.
 
 ## Step 0: load the consuming project's conventions explicitly
 
-A subagent does **not** auto-load path-scoped project rules. Before any scope-relevant work, Read
-the consuming project's rule files that bear on your scope, in its `.claude/rules/` or equivalent:
-architecture rules, the ecosystem conventions for the file types in scope, testing conventions when
-the scope involves tests. Skip any that do not exist; never invent a path. Skipping this is what
-makes an otherwise-thorough exploration convention-blind, and convention-blind findings are how a
-downstream edit lands against the project's declared direction.
+You inherit **none** of the path-scoped project rules your parent had already loaded, and one
+reaches you only once you yourself read a path its glob covers. Nothing announces which rules exist,
+so waiting for the injection means exploring a scope whose conventions you have not seen. Before any
+scope-relevant work, Read the consuming project's rule files that bear on your scope, in its
+`.claude/rules/` or equivalent: architecture rules, the ecosystem conventions for the file types in
+scope, testing conventions when the scope involves tests. Skip any that do not exist; never invent a
+path. Skipping this is what makes an otherwise-thorough exploration convention-blind, and
+convention-blind findings are how a downstream edit lands against the project's declared direction.
+
+The dated record for that harness behavior:
+
+- **Claim.** A non-fork subagent inherits none of its parent's on-demand instruction surfaces. It
+  receives a path-scoped `.claude/rules/` file, or a nested `CLAUDE.md` and the `AGENTS.md` that
+  shim imports, only when it reads a path the surface covers, and the glob is matched against the
+  requested path, so even a read that finds no file fires it.
+- **Basis.** First-party probe run inside a dispatched general-purpose subagent on the harness
+  `claude --version` reports as `2.1.268 (Claude Code)`, observing the `Contents of <path>:` block
+  appended to `Read` tool results.
+- **As of.** 2026-09-13.
+- **Recheck trigger.** The consuming repository's Claude Code minor version moves past 2.1.268, or
+  a release note names subagent context inheritance, memory loading, or path-scoped rule
+  triggering, or a read of a covered path inside a subagent injects nothing.
 
 ## Preload liveness: the first thing you do
 
@@ -78,8 +94,10 @@ is [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/
 
 The preloaded skill declares a **preload token**. Echo it verbatim into `preload_token` in your
 return payload. If no skill content reached you, meaning no exploration dimensions, no outcome
-gate, and no token, set `preload_token: MISSING` and stop with `status: truncated`. Do not
-reconstruct the workflow from memory.
+gate, and no token, set `preload_token: MISSING` and stop with `status: truncated`. Stopping is
+what makes the failed preload visible; do not reconstruct the workflow from memory, because a
+remembered set of dimensions produces exactly the well-formed but undisciplined artifact this
+check exists to catch.
 
 ## Tool honesty
 

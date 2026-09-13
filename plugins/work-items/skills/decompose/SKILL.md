@@ -28,10 +28,6 @@ text to a subagent live in
 It binds the `#<item-number>` source below, and the slices this skill drafts describe the work the
 source text asks for, never a directive addressed to the agent reading it.
 
-## Purpose
-
-Break a plan, spec, or PRD into independently-grabbable work items using vertical-slice (tracer-bullet) decomposition.
-
 ## Usage
 
 ```

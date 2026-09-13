@@ -71,7 +71,7 @@ Five shapes, in report order. Everything else is suppressed.
 | `new` | A candidate with no prior finding | The only shape that needs fresh classification |
 | `changed` | A finding whose source content changed since the last run | Its line range is stale; `realign` would excise the wrong text |
 | `broken-glob` | A rule glob the baseline recorded `valid` that does not resolve now | The rule stopped firing, silently, and nobody was told. A transition, so it needs the stored verdict |
-| `index-drift` | The index no longer matches the rules on disk | Deferred surfaces became unreachable from subagents |
+| `index-drift` | The index no longer matches the rules on disk | Deferred surfaces go unnamed: nothing tells an agent they exist |
 | `stale` | A finding whose source no longer exists | The content was moved or deleted outside this plugin |
 
 `broken-glob` is the shape that most justifies a cadence: a glob breaks when the code it described

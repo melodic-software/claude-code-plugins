@@ -71,7 +71,7 @@
       "expectations": [
         "Dispatches the discovery:explorer agent by default rather than running the six dimensions inline in the main conversation",
         "Passes the resolved scope and the memory-slice path in the dispatch prompt rather than relying on $ARGUMENTS or conversation context, neither of which a dispatched run may depend on; an absent scope is reported as a parent-envelope failure rather than replaced with a general repository sweep",
-        "The dispatched run explicitly Reads the consuming project's path-scoped rule files relevant to the scope, since a subagent does not auto-load them, and skips any that do not exist rather than inventing paths",
+        "The dispatched run explicitly Reads the consuming project's path-scoped rule files relevant to the scope, since a subagent inherits none of them and one arrives only on a read matching its glob, and skips any that do not exist rather than inventing paths",
         "The main conversation receives an artifact pointer and a short summary paragraph, NOT the seven-section report or the underlying file reads",
         "The returned payload echoes the preload token discovery-explore-preload-8e2b7d verbatim as preload_token; a missing or mismatched token is a hard failure that discards the run",
         "Open questions come back as open_questions entries for the parent to surface, each with a recommended default, rather than being surfaced with AskUserQuestion or resolved silently",

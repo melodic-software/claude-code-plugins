@@ -91,7 +91,10 @@ zone bands, zones.json shape) are owned by
      session with no terminal interface does not run a statusline even when one is wired.
      Measured 2026-08-21 for Claude Code on the web and for a `claude -p` run, a configured
      `statusLine` was never invoked in either, and expected on the same reasoning, though not
-     measured, for other non-terminal environments such as a self-hosted cloud runner. Where
+     measured, for other non-terminal environments such as a self-hosted cloud runner. Recheck
+     when a release note or the statusline docs describe a statusline running without a terminal
+     interface, or when a re-measurement on the web or under `claude -p` observes a configured
+     `statusLine` being invoked. Where
      you can tell you are in such a session, report this as **INFO: no capture channel in this
      environment** regardless of which of the four wiring states applies, say that `unknown` is
      the correct and permanent zone here, and do not print wiring the operator cannot make run.

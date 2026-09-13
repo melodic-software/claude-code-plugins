@@ -28,10 +28,6 @@ live in
 [`${CLAUDE_PLUGIN_ROOT}/reference/item-content-trust.md`](${CLAUDE_PLUGIN_ROOT}/reference/item-content-trust.md).
 It binds every step below, and hardest at step 1, which reads the rawest text this plugin handles.
 
-## Purpose
-
-Evaluate **raw intake**, any untriaged item carrying the raw marker, whoever authored it (external bug reports, incoming feature requests, unsolicited PRs, and team-authored self-observation/dogfood issues), through a small state machine: raw → verified → briefed → autonomous-eligible, with side exits to needs-info, human-gated, and close.
-
 ## Usage
 
 ```text

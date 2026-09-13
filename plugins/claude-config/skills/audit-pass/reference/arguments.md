@@ -64,17 +64,90 @@ Parse `$ARGUMENTS`:
 - **`--fix`**: the explicit mutation override. Absent, the pass writes nothing into the target.
 - **`--opinion`**: run the `OPINION`-tier checks the delegated catalogs declare default-off.
 - **`--resume`**: resume the most recent incomplete run for this target's state key.
-- **`--report-to <path>`**: redirect the report into the target tree. The destination is accepted only
-  if it is an `audit-pass`-owned report or a new path that is **not a recognized instruction surface**;
-  anything else is refused non-zero, naming the file. Refused on name rather than on existence,
-  because `--report-to CLAUDE.md` against a repo that has none would *create* a live instruction
-  surface out of a JSON report and then hide it from every later scan.
+- **`--lanes <list>`**: run only the named lanes, comma-separated, with the lane ids the dispatch
+  list in [`../SKILL.md`](../SKILL.md) assigns. Full semantics below.
+- **`--postures`**: dispatch the opt-in posture lane. Full semantics below.
+- **`--report-to <dir>`**: redirect **both** report artifacts into that directory. It takes a
+  directory, not a file path, because a run writes two artifacts and a file path names one of them;
+  the reasoning is in [report-location-and-schema.md](report-location-and-schema.md) §2, which also
+  carries the destination gate. Each resolved path inside the directory is accepted only if it is an
+  `audit-pass`-owned artifact or does not exist, and neither may be a recognized instruction
+  surface; anything else is refused non-zero, naming the file. Refused on name rather than on
+  existence, because a destination inside a directory Claude loads from would *create* a live
+  instruction surface out of a report and then hide it from every later scan.
 
   **The self-exclusion obligation is not this flag's.** It belongs to the predicate
-  `report_path ⊆ target_root`: **any** run whose resolved report path is contained in the target adds
-  that path to its own exclusion set before writing, not only for later runs, since otherwise the two
-  runs' derived sets could not be equal, and says so in its output. `--report-to` is one way containment arises. The
-  **default** path is another, because `${CLAUDE_PLUGIN_DATA}` resolves under `~` and is inside any
+  `report_path ⊆ target_root`, evaluated over **each** resolved artifact path: **any** run whose
+  resolved report paths are contained in the target adds them to its own exclusion set before
+  writing, not only for later runs, since otherwise the two runs' derived sets could not be equal,
+  and says so in its output. `--report-to` is one way containment arises. The
+  **default** location is another, because `${CLAUDE_PLUGIN_DATA}` resolves under `~` and is inside any
   target at or above it. Full statement in
-  [reference/report-location-and-schema.md](report-location-and-schema.md) §2 and
-  [reference/exclusion-set.md](exclusion-set.md) Class 4.
+  [report-location-and-schema.md](report-location-and-schema.md) §2 and
+  [exclusion-set.md](exclusion-set.md) Class 4.
+
+## `--lanes <list>`
+
+**What it narrows is dispatch, never the inventory.** Phase 1 inventories all three scopes on every
+run, `--lanes` included. A flag that narrowed the inventory would reintroduce the half-picture the
+inventory-before-checks ordering exists to prevent, and the inventory is cheap next to a lane.
+
+- The value is a comma-separated list of lane ids. An id the dispatch list does not assign is
+  **refused non-zero, naming the unknown id and listing the ids this run would accept**, rather than
+  silently running a smaller set: a typo that quietly drops a lane produces a report that reads clean
+  because nothing looked.
+- A lane not selected appears in `skipped` with the reason `not selected by --lanes`, on the same
+  terms as an absent plugin. The `skipped` section is what keeps "clean" and "not read" apart, and a
+  deliberately narrowed run is exactly the case where the two are easiest to confuse.
+- **A narrowed run cannot satisfy the determinism gate against a full run.** `--lanes` is a
+  behavior-affecting argument, so the two runs are non-comparable and P1-P3 report as not evaluated
+  naming it. Two runs naming the same lane set stay comparable with each other, which is what makes
+  the flag useful for iterating on one lane. The report header marks a narrowed run
+  **partial-scope**. Stated in
+  [determinism-tiers.md](determinism-tiers.md) §6 alongside the other comparability inputs.
+- It composes with `--resume`: the resumed invocation's argument set enters every lane's input
+  digest, so resuming with a different `--lanes` re-runs the affected lanes rather than blending two
+  scopes into one report.
+
+## `--postures`
+
+**Opt-in, and off by default for a cost reason rather than a quality one.**
+`claude-config:audit-prompting-postures` is the additive lane: it proposes posture text a component
+does **not** carry, so its output is a set of proposals rather than defects, and it fans its catalog
+out over every instruction component in the target. Default-on would make the commonest invocation
+pay for the largest fan-out in the pass to produce the section an operator is least likely to act on
+in the same sitting. Default-off with an explicit flag puts that choice where the operator can price
+it, which is the same reason `--opinion` exists.
+
+**The flag also settles a live cross-plugin contradiction.** That skill's own body states that the
+coordinated pass composes it. This pass names it once, where it derives its report path, and never in
+its dispatch list, so the composition it claims had no invocation behind it. The lane is what makes
+the claim true.
+
+Its findings are judged tier, like every other delegated catalog's.
+
+## `--paths`: specified as not shipped
+
+**A path-narrowing argument is deliberately absent, and this section is why, so the absence reads as
+a decision rather than an oversight.** The delegated interfaces state that a scope *filters findings
+and never narrows reads*, and that their own first phase inventories the full comparison set
+regardless. A `--paths` matching that behavior would save nothing at all: every shard would pay the
+full inventory, and a sharded pass would multiply that cost by the shard count.
+
+Three questions bind it, and it ships when they are answered, not before:
+
+1. **Does `--paths` narrow reads, or only findings?** Read-narrowing is the only version that saves
+   anything. It is a deliberate exception to the delegates' filter rule, and it is safe only while
+   the whole-repository conflict lane stays unsharded, since a conflict pair spanning two shards is
+   invisible to both.
+2. **What replaces the claim that a per-run dispatch ceiling "would never bind"?** It is false once a
+   pass shards, and the delegated catalogs' own confirmation gate on a large dispatch count would
+   fire on every sharded run. Both the sentence and the gate's interaction with sharding need
+   restating before a shard count can be chosen.
+3. **What does a sharded run claim?** The same non-comparability `--lanes` carries, stated over paths
+   rather than lanes.
+
+**The measured cost of a full run does not point at sharding anyway.** What a full pass loses is not
+the files it leaves unread; it is the whole check families that decline for lack of a deterministic
+seed. If per-shard cost does not fall with shard size, the remedy is a cheaper seeded pre-scan, and
+sharding would buy nothing while adding a scope no property can compare.
