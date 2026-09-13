@@ -1,5 +1,5 @@
 ---
-description: "Statically validate a `claude plugin eval` suite (`prompt.md`, `case.yaml`, `graders/*.md`) before any run spends money. A standard-library Python script reports FAIL for what the binary rejects at load (unknown frontmatter key, unknown grader option, no grader, duplicate grader name, non-positive weight, out-of-range runs / max_turns / timeout_seconds, an env key outside EVAL_[A-Z0-9_]*) and WARN for the documented authoring mistakes (target: files, inline (?i), judge-only graders, a gated tool in allowed_tools, file_exists in a read-only suite). Use when: 'validate my eval cases', 'check my eval suite', 'will this suite load', 'lint case.yaml', 'check my graders', 'why did my case fail to load', or before paying for a run. Not for the skill-creator `evals/evals.json` format."
+description: "Statically validate a `claude plugin eval` suite (`prompt.md`, `case.yaml`, `graders/*.md`) before any run spends money. A standard-library Python script reports FAIL for what the binary rejects at load (unknown frontmatter key, unknown grader option, no grader, duplicate grader name, non-positive weight, out-of-range runs / max_turns / timeout_seconds, an env key outside EVAL_[A-Z0-9_]*, an unsupported schema_version major) and WARN for the documented authoring mistakes (target: files, inline (?i), judge-only graders, a gated tool in allowed_tools, file_exists in a read-only case). Use when: 'validate my eval cases', 'check my eval suite', 'will this suite load', 'lint case.yaml', 'check my graders', 'why did my case fail to load', or before paying for a run. Not for the skill-creator `evals/evals.json` format."
 argument-hint: "[eval-dir (default: evals/ under the plugin root)]"
 user-invocable: true
 disable-model-invocation: false
@@ -38,7 +38,9 @@ finding about the suite as a whole carries the eval dir in place of `<case>/<fil
 **FAIL is what the binary itself rejects**: an unknown `prompt.md` frontmatter key, a grader with no
 usable `type`, an unknown option for the declared grader type, a case with no grader at all, two
 graders sharing a name, a non-positive `weight`, `runs` / `max_turns` / `timeout_seconds` outside
-their bounds, and an `env` key that does not match `EVAL_[A-Z0-9_]*`. The exact key sets and bounds
+their bounds, an `env` key that does not match `EVAL_[A-Z0-9_]*`, a `case.yaml` with no companion
+`prompt.md` and no `schema_version` or `name`, and a `schema_version` whose major is newer than the
+binary supports. The exact key sets and bounds
 live in the script's own constants, under the drift record its header carries, so there is one place
 to correct when the schema moves.
 
@@ -46,7 +48,8 @@ to correct when the schema moves.
 (which reads the list of paths created, not their contents), an inline `(?i)` the grader's regex
 engine does not honor, a case whose graders are all judges (the two types that cost money, with no
 deterministic grader beside them), a tool in `allowed_tools` that the operator must grant with
-`--allow-tools`, and `file_exists` in a suite where no case can create a file. The judge-only rule
+`--allow-tools`, and `file_exists` in a case that requests no write tool, so nothing it could match
+is ever created. The judge-only rule
 is this skill's own pairing heuristic, not a rejection the binary makes.
 
 A WARN never sets exit 1, so a suite can ship with warnings on purpose. Read them once and decide.
@@ -55,7 +58,8 @@ A WARN never sets exit 1, so a suite can ship with warnings on purpose. Read the
 
 The script reads a bounded YAML subset: scalars, quoted scalars, flow lists and mappings, block
 lists including lists of mappings, and block mappings three levels deep. An anchor, an alias, a tag,
-a block scalar, a merge key, tab indentation, or nesting past three levels is reported as
+a block scalar, a merge key, tab indentation, a nested sequence in either spelling, a backslash
+escape outside `\\`, `\"`, `\/`, `\n`, `\t`, `\r`, or nesting past three levels is reported as
 `frontmatter not parsed (<construct>)` at FAIL, never waved through at exit 0. A validator that
 green-lights input it could not read is worse than no validator. Simplify the file, or run the CLI,
 which carries the full parser.

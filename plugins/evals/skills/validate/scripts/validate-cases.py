@@ -29,8 +29,10 @@ carries the full parser.
 
 Drift record. CLAIM: the FAIL tier mirrors what the binary rejects - the
 thirteen `prompt.md` frontmatter keys, the six grader types whose option sets are
-strict, and the bounds on `runs`, `max_turns`, `timeout_seconds`, `weight`, and
-`env` key names. BASIS: the case schema read out of Claude Code 2.1.269 together
+strict, the bounds on `runs`, `max_turns`, `timeout_seconds`, `weight`, and
+`env` key names, the two fields a `case.yaml` without a `prompt.md` must carry
+(`schema_version` and `name`), and the supported `schema_version` major (1).
+BASIS: the case schema read out of Claude Code 2.1.269 together
 with the eval-suite reference page; recheck on the next Claude Code release,
 which can add a key or move a bound, and re-derive both lists from the schema
 rather than patching one value. AS OF: 2026-09-12. Page:
@@ -116,6 +118,17 @@ READ_ONLY_TOOLS = frozenset(
 # (field, minimum, maximum) for the run fields the schema bounds.
 BOUNDS = (("runs", 1, 50), ("max_turns", 1, 200), ("timeout_seconds", 1, 3600))
 
+# The `schema_version` major the binary supports; a newer major is refused. A
+# `case.yaml` with no companion `prompt.md` carries the case's identity itself.
+SCHEMA_MAJOR = 1
+SCHEMA_MAJOR_PREFIX = re.compile(r"^\s*([0-9]+)")
+CASE_YAML_REQUIRED = ("schema_version", "name")
+
+# The double-quoted escapes this subset translates. Anything else is a ParseError
+# rather than a silent drop: YAML rejects an unknown escape too, so translating
+# `\d` to `d` would green-light input the binary refuses.
+ESCAPES = {"\\": "\\", '"': '"', "/": "/", "n": "\n", "t": "\t", "r": "\r"}
+
 ENV_KEY = re.compile(r"^EVAL_[A-Z0-9_]*$")
 KEY_LINE = re.compile(r"^([A-Za-z_][A-Za-z0-9_.\-]*)[ \t]*:(?:[ \t]+(.*))?$")
 INT_SCALAR = re.compile(r"^[-+]?[0-9]+$")
@@ -183,7 +196,9 @@ def _read_quoted(text, start):
             if index + 1 >= len(text):
                 break
             following = text[index + 1]
-            chars.append({"n": "\n", "t": "\t", "r": "\r"}.get(following, following))
+            if following not in ESCAPES:
+                raise ParseError("unsupported escape")
+            chars.append(ESCAPES[following])
             index += 2
             continue
         if char == quote:
@@ -196,6 +211,16 @@ def _read_quoted(text, start):
         chars.append(char)
         index += 1
     raise ParseError("quoted scalar spanning lines")
+
+
+def _is_key_separator(text, index):
+    """True when the colon at `index` ends a flow-mapping key.
+
+    A colon inside a plain scalar is content, not a delimiter: YAML makes it a
+    separator only where what follows ends the scalar, which is what keeps
+    `{ EVAL_URL: https://example.com }` and `{ EVAL_AT: 12:30 }` intact.
+    """
+    return text[index + 1 : index + 2] in ("", " ", "\t", ",", "]", "}")
 
 
 def _read_flow(text, start):
@@ -234,7 +259,9 @@ def _read_flow(text, start):
             pending_key = None
             buffer[:] = []
             continue
-        if char == ":" and opener == "{":
+        if char == ":" and opener == "{" and _is_key_separator(text, index):
+            if pending_key is not None:
+                raise ParseError("flow mapping entry with two key separators")
             pending_key = _unmark(flush())
             index += 1
             continue
@@ -359,6 +386,8 @@ def _parse_sequence(lines, index, indent, depth):
         index += 1
         if body == "":
             if index < len(lines) and lines[index][0] > line_indent:
+                if lines[index][1].startswith("-"):
+                    raise ParseError("nested sequence")
                 item, index = _parse_block(lines, index, lines[index][0], depth)
                 items.append(item)
                 continue
@@ -502,6 +531,25 @@ def check_bounds(fields, case, findings):
                     "runs fail" % key,
                 )
             )
+
+
+def check_schema_version(value, case, path, findings):
+    """FAIL a schema_version whose major is newer than the binary supports.
+
+    A value with no leading integer is left alone: no source records the binary
+    rejecting it, and the FAIL tier invents no rejection of its own.
+    """
+    match = SCHEMA_MAJOR_PREFIX.match(str(value))
+    if match and int(match.group(1)) > SCHEMA_MAJOR:
+        findings.append(
+            Finding(
+                "FAIL",
+                case,
+                path,
+                'schema_version "%s" is a major newer than %d, which the binary '
+                "refuses" % (value, SCHEMA_MAJOR),
+            )
+        )
 
 
 def check_tools(fields, case, findings):
@@ -649,7 +697,7 @@ def collect_graders(case_dir, case, yaml_data, findings):
 
 
 def analyze_case(case_dir, case, findings):
-    """Validate one case; returns (suite_can_write, file_exists grader sites)."""
+    """Validate one case, appending its findings."""
     fields = {}
     yaml_data = None
     yaml_path = os.path.join(case_dir, "case.yaml")
@@ -668,6 +716,21 @@ def analyze_case(case_dir, case, findings):
                 Finding("FAIL", case, "case.yaml", "could not read (%s)" % error)
             )
         if isinstance(yaml_data, dict):
+            if not os.path.isfile(prompt_path):
+                for key in CASE_YAML_REQUIRED:
+                    if not yaml_data.get(key):
+                        findings.append(
+                            Finding(
+                                "FAIL",
+                                case,
+                                "case.yaml",
+                                'case.yaml without a prompt.md requires "%s"' % key,
+                            )
+                        )
+            if "schema_version" in yaml_data:
+                check_schema_version(
+                    yaml_data["schema_version"], case, "case.yaml", findings
+                )
             if "runs" in yaml_data:
                 fields["runs"] = (yaml_data["runs"], "case.yaml")
             execution = yaml_data.get("execution")
@@ -703,6 +766,10 @@ def analyze_case(case_dir, case, findings):
                                 'unknown frontmatter key "%s"' % key,
                             )
                         )
+                if "schema_version" in prompt_fm:
+                    check_schema_version(
+                        prompt_fm["schema_version"], case, "prompt.md", findings
+                    )
                 # prompt.md frontmatter overrides the matching case.yaml field,
                 # so the bounds check reads the effective value and reports the
                 # file the value actually came from.
@@ -738,7 +805,23 @@ def analyze_case(case_dir, case, findings):
         check_grader(case, path, options, findings)
         kinds.append(options.get("type"))
         if options.get("type") == "file_exists":
-            file_exists_sites.append((case, path))
+            file_exists_sites.append(path)
+
+    # A file_exists grader passes only on a file Claude CREATED during the run,
+    # and every case runs in its own throwaway workspace, so it is this case's
+    # own tool grant that decides whether anything can be created. Another
+    # case's write tool cannot make this assertion satisfiable.
+    if not can_write:
+        for path in file_exists_sites:
+            findings.append(
+                Finding(
+                    "WARN",
+                    case,
+                    path,
+                    "file_exists in a read-only case: only files created during "
+                    "the run count, and this case requests no write tool",
+                )
+            )
 
     if kinds and all(kind in JUDGE_TYPES for kind in kinds):
         findings.append(
@@ -751,7 +834,6 @@ def analyze_case(case_dir, case, findings):
                 "file_exists) with it",
             )
         )
-    return can_write, file_exists_sites
 
 
 def validate(eval_dir):
@@ -770,28 +852,9 @@ def validate(eval_dir):
         )
         return findings
 
-    suite_can_write = False
-    file_exists_sites = []
     for case_dir in cases:
         case = os.path.relpath(case_dir, eval_dir).replace(os.sep, "/")
-        can_write, sites = analyze_case(case_dir, case, findings)
-        suite_can_write = suite_can_write or can_write
-        file_exists_sites.extend(sites)
-
-    # A file_exists grader passes only on a file Claude CREATED during the run.
-    # In a suite where no case asks for a write-capable tool, nothing is ever
-    # created, so every such grader is unsatisfiable.
-    if not suite_can_write:
-        for case, path in file_exists_sites:
-            findings.append(
-                Finding(
-                    "WARN",
-                    case,
-                    path,
-                    "file_exists in a read-only suite: only files created during "
-                    "the run count, and no case here requests a write tool",
-                )
-            )
+        analyze_case(case_dir, case, findings)
 
     findings.sort(key=Finding.sort_key)
     return findings

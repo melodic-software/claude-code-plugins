@@ -29,7 +29,8 @@ PILOT_SUITE = REPO_ROOT / "plugins" / "evals" / "evals"
 # into a WARN at exit 0. Each test also asserts its own message below, which is
 # what keeps the fixtures discriminating: this pattern alone does not.
 FAIL_LINE = re.compile(
-    r"^FAIL .*(unknown frontmatter key|duplicate grader|no grader|runs|not parsed)",
+    r"^FAIL .*(unknown frontmatter key|duplicate grader|no grader|runs|not parsed"
+    r"|schema_version|without a prompt.md)",
     re.MULTILINE,
 )
 
@@ -314,6 +315,45 @@ class UnparsedFixture(ValidatorTestCase):
         result = self.validate()
         self.assert_fail(result, "not parsed (anchor)")
 
+    def test_unsupported_double_quoted_escape_fails_closed(self):
+        # "\d+" is not a valid YAML escape, so translating it to "d+" would
+        # green-light a pattern the binary refuses and run a grader nobody wrote.
+        self.case(
+            "unparsed-escape",
+            prompt=CLEAN_PROMPT,
+            graders={
+                "criteria": """\
+                ---
+                type: regex
+                pattern: "\\d+"
+                ---
+                """
+            },
+        )
+        result = self.validate()
+        self.assert_fail(result, "not parsed (unsupported escape)")
+
+    def test_indented_nested_sequence_fails_closed(self):
+        # The compact `- - x` spelling is already rejected; the indented one is
+        # the same construct and must fail the same way.
+        self.case(
+            "unparsed-nested-sequence",
+            case_yaml="""\
+            schema_version: "1.1"
+            name: unparsed-nested-sequence
+            tags:
+              -
+                - smoke
+                - slow
+            graders:
+              - name: criteria
+                type: regex
+                pattern: "thing"
+            """,
+        )
+        result = self.validate()
+        self.assert_fail(result, "not parsed (nested sequence)")
+
     def test_unterminated_frontmatter_fails_closed(self):
         self.case(
             "unparsed-open",
@@ -327,6 +367,88 @@ class UnparsedFixture(ValidatorTestCase):
         )
         result = self.validate()
         self.assert_fail(result, "not parsed (unterminated frontmatter)")
+
+
+class SchemaFixture(ValidatorTestCase):
+    def test_case_yaml_alone_requires_schema_version_and_name(self):
+        self.case(
+            "yaml-only",
+            case_yaml="""\
+            execution:
+              prompt: Do the thing.
+            graders:
+              - name: criteria
+                type: regex
+                pattern: "thing"
+            """,
+        )
+        result = self.validate()
+        self.assert_fail(
+            result,
+            'case.yaml without a prompt.md requires "schema_version"',
+            'case.yaml without a prompt.md requires "name"',
+        )
+
+    def test_a_companion_prompt_md_supplies_the_case_identity(self):
+        self.case(
+            "yaml-with-prompt",
+            prompt=CLEAN_PROMPT,
+            case_yaml="""\
+            execution:
+              max_turns: 10
+            """,
+            graders={"names-conftest": REGEX_GRADER, "skill-fired": SKILL_GRADER},
+        )
+        self.assert_clean(self.validate())
+
+    def test_unsupported_schema_version_major_fails(self):
+        self.case(
+            "future-major",
+            prompt="""\
+            ---
+            schema_version: "99.0"
+            ---
+
+            Do the thing.
+            """,
+            graders={"criteria": REGEX_GRADER},
+        )
+        result = self.validate()
+        self.assert_fail(result, 'schema_version "99.0" is a major newer than 1')
+        self.assertIn("future-major/prompt.md", result.stdout)
+
+    def test_unsupported_schema_version_major_in_case_yaml_fails(self):
+        self.case(
+            "future-major-yaml",
+            case_yaml="""\
+            schema_version: "2.0"
+            name: future-major-yaml
+            execution:
+              prompt: Do the thing.
+            graders:
+              - name: criteria
+                type: regex
+                pattern: "thing"
+            """,
+        )
+        result = self.validate()
+        self.assert_fail(result, 'schema_version "2.0" is a major newer than 1')
+
+    def test_a_schema_version_with_no_leading_major_is_left_alone(self):
+        # No source records the binary rejecting this shape, so the FAIL tier
+        # does not invent a rejection of its own.
+        self.case(
+            "odd-version",
+            prompt="""\
+            ---
+            schema_version: "next"
+            ---
+
+            Do the thing.
+            """,
+            graders={"names-conftest": REGEX_GRADER, "skill-fired": SKILL_GRADER},
+        )
+        self.assert_clean(self.validate())
 
 
 class UnknownGraderOptionFixture(ValidatorTestCase):
@@ -394,6 +516,22 @@ class CleanFixture(ValidatorTestCase):
             },
         )
         self.assert_clean(self.validate())
+
+    def test_a_colon_inside_a_flow_mapping_value_is_not_a_key_separator(self):
+        self.case(
+            "flow-colons",
+            prompt="""\
+            ---
+            env: { EVAL_URL: https://example.com, EVAL_AT: 12:30 }
+            ---
+
+            Do the thing.
+            """,
+            graders={"names-conftest": REGEX_GRADER, "skill-fired": SKILL_GRADER},
+        )
+        result = self.validate()
+        self.assert_clean(result)
+        self.assertNotIn("https", result.stdout)
 
     def test_grader_list_item_may_carry_a_block_mapping(self):
         # Three mapping levels: the document, the grader item, and target. The
@@ -514,7 +652,38 @@ class WarnTier(ValidatorTestCase):
         self.assertIn("WARN", result.stdout)
         self.assertIn("judge grader", result.stdout)
 
-    def test_file_exists_does_not_warn_when_the_suite_can_write(self):
+    def test_a_sibling_write_case_does_not_silence_a_read_only_case(self):
+        # Each case runs in its own throwaway workspace, so the write tool one
+        # case asks for cannot make another case's file_exists satisfiable.
+        self.case(
+            "writes",
+            prompt="""\
+            ---
+            allowed_tools: [Read, Write]
+            ---
+
+            Write out/report.txt.
+            """,
+            graders={"names-conftest": REGEX_GRADER},
+        )
+        self.case(
+            "reads-only",
+            prompt=CLEAN_PROMPT,
+            graders={
+                "created": """\
+                ---
+                type: file_exists
+                path: "out/*.txt"
+                ---
+                """
+            },
+        )
+        result = self.validate()
+        self.assertEqual(0, result.returncode, result.stdout)
+        self.assertIn("WARN reads-only/graders/created.md", result.stdout)
+        self.assertEqual(1, result.stdout.count("file_exists in a read-only case"))
+
+    def test_file_exists_does_not_warn_when_the_case_can_write(self):
         self.case(
             "writes",
             prompt="""\

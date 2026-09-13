@@ -291,8 +291,9 @@ is what tells a reader which one happened and whether the arms were comparable a
 - A headless `-p` session tends to go from the reads straight to the CLI call and print the
   estimate in its final answer. The estimate step above says before; when the transcript is the
   evidence, read it for the order, not only for the number.
-- A typo in `--case` exits 1 with `No eval cases found matching --case "<glob>"`, which is
-  indistinguishable by exit code from a real failure.
+- A typo in `--case` exits 1 and no exit code separates it from a real failure. The message and its
+  record live in [reference/ci.md](reference/ci.md#exit-codes); read it there rather than trusting a
+  restatement here.
 - A usage or rate limit mid-suite is **not** marked partial. Later runs end with the error, are
   graded on what they produced, and usually score 0, so the suite reads as a regression. Check
   `cases[].arms.with[].error` before believing a drop.
@@ -303,3 +304,8 @@ is what tells a reader which one happened and whether the arms were comparable a
   access. A passing suite is a behavior measurement, never a security vetting.
 - `claude plugin eval init` needs a terminal. Use `init --bare <name>` anywhere there is none; it
   reaches no model call.
+
+| Fact | Basis and as-of | Recheck trigger, and what to do when it fires |
+|---|---|---|
+| The ceiling's two shapes (`partial: false` with exit 0 and a missing `delta` when it is crossed late, `partial: true` with exit 2 when it is crossed early), `--trust-plugin` persisting across later runs in the same repository, and `--json <file>` suppressing the terminal summary table | Reproduced across this pilot's five passes at Claude Code 2.1.269 and 2.1.270 and recorded in [`docs/specs/plugin-evals-pilot-measurement.md`](../../../../docs/specs/plugin-evals-pilot-measurement.md), "Observations for the runner skill", verified 2026-09-12, against the `--max-cost-usd` and exit-code rows of <https://code.claude.com/docs/en/plugin-evals> | Recheck trigger: a release note touches `plugin eval`, or a pass reports a ceiling shape this row does not name. Then re-read the page, re-run one ceilinged pass, refresh this row with the outcome, and record a drift outcome in this plugin's CHANGELOG |
+| A usage or rate limit mid-suite is not marked partial; a run a Claude Code session started keeps its report local and says `kept local`, while a terminal run publishes unless `--no-publish` is passed; `init` needs a terminal and `init --bare <name>` runs nothing | <https://code.claude.com/docs/en/plugin-evals>, its troubleshooting entry for a usage or rate limit, its HTML-report section, and its "Write a case manually" and CI sections, verified 2026-09-13 | Recheck trigger: a release note touches report publishing, `init`, or limit handling, or one of these sections no longer reads this way. Then re-read the page, re-derive this row, and refresh this record with the outcome |
