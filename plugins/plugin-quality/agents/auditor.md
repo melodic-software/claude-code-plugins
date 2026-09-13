@@ -1,6 +1,8 @@
 ---
 name: auditor
 description: "Fresh-context deep-audit specialist for the plugin-quality audit workflow (steps 2–3): maps what an installed Claude Code plugin component actually does versus what it claims, verifies every load-bearing harness-behavior claim against current official docs, and returns grounded findings, blindspots, candidate remediations, and doc-worthy gotchas harvested from the usage evidence. Dispatched by /plugin-quality:audit with an evidence-packet path; not intended for direct ad-hoc use."
+skills:
+  - plugin-quality:report
 tools: "Read, Grep, Glob, WebFetch, Bash, Write"
 effort: high
 ---

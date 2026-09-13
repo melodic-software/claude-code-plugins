@@ -3,6 +3,7 @@ name: intent-tracer
 description: "Runs the full /discovery:trace-intent discipline in a fresh context and persists the INTENT.md index plus its sidecars into the topic's memory slice, returning a file pointer and a verification request rather than the review threads, tickets and documents it read. Dispatched by /discovery:trace-intent; not intended for direct ad-hoc use."
 skills:
   - discovery:trace-intent
+  - discovery:report
 disallowedTools: "NotebookEdit, EnterWorktree, ExitWorktree"
 model: inherit
 effort: high

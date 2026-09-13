@@ -3,7 +3,7 @@
 A Claude Code plugin for the **implementation stage** of a disciplined dev
 workflow: execute an approved plan with incremental validation, inline or via
 orchestrated worker subagents, abandoning a broken approach early instead of
-pushing it to PR review. Two skills, one concern: turning approved plans into
+pushing it to PR review. Three skills, one concern: turning approved plans into
 verified code.
 
 | Skill | What it does |

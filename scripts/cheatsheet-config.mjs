@@ -2,7 +2,7 @@
 // (docs/skill-cheat-sheet.md). Owns exactly three things: the stage/group
 // vocabulary and order, the exclusion entries, and the shared summary guard.
 // Per-skill detail (stage, summary, cadence) lives in each SKILL.md's
-// `metadata:` frontmatter — never here.
+// `metadata:` frontmatter, never here.
 
 // Workflow-stage headings mirror the H2 headings in
 // plugins/session-flow/skills/workflow/context/steps.md (the generator's
@@ -32,7 +32,7 @@ export const CADENCES = ["daily", "weekly", "continuous"];
 
 export const SUMMARY_MAX_CODEPOINTS = 100;
 
-// Exclusions are explicit, each with a reason — an in-scope skill must carry
+// Exclusions are explicit, each with a reason. An in-scope skill must carry
 // `workflow-stage` XOR appear here; the generator fails on silent omission,
 // orphaned entries, and excluded-but-mapped conflicts.
 export const EXCLUDED_PLUGINS = new Map([
@@ -50,7 +50,7 @@ export const EXCLUDED_SKILL_NAME = { name: "setup", reason: "infra setup" };
 
 // Skill-level exclusions, keyed `plugin/skill`.
 export const EXCLUDED_SKILLS = new Map([
-  // Same class as the `setup` name rule above — provisioning, not a
+  // Same class as the `setup` name rule above: provisioning, not a
   // dev-lifecycle action. It onboards a tracker the plugin does not bundle,
   // and routes bundled providers to `work-items/setup`; it just is not named
   // `setup`, so the rule above does not reach it.
@@ -59,6 +59,13 @@ export const EXCLUDED_SKILLS = new Map([
   // repository once, which is provisioning. The dev-lifecycle actions in this
   // plugin's file-name set are `audit-file-names` and `realign-file-names`.
   ["docs-hygiene/generate-file-name-gate", "infra setup"],
+  // The return-contract copies. One text, three byte-identical copies, each
+  // preloaded into its own plugin's agents by a `skills:` entry and reachable
+  // no other way: `user-invocable: false`, never a dev-lifecycle action a
+  // reader picks off the sheet.
+  ["discovery/report", "dispatched only"],
+  ["implementation/report", "dispatched only"],
+  ["plugin-quality/report", "dispatched only"],
   ["dometrain/sync", "maintainer-only vendored-content drift check"],
   ["firecrawl/update", "maintainer-only upstream sync"],
   ["playbooks/update", "maintainer-only upstream sync"],

@@ -40,38 +40,38 @@ setup *
 # plugin-quality joins on the same grounds: its object (an installed plugin
 # component, post-use) is supplied by the namespace, and its one mutation (gh
 # issue create) sits behind the draft+confirm the verb table reads as the
-# explicit user override — deviation recorded at the coupling site in its
+# explicit user override; deviation recorded at the coupling site in its
 # SKILL.md (#1237).
 # mutation-testing joins on the same grounds, and its argument is worth stating
 # because the obvious alternative is wrong: the verb table fixes `clean`/`tidy`/
 # `fix` as "mutates the target", so a leaf named `mutate` would promise to edit
-# the consumer's source — the opposite of the contract, since a mutant is never
+# the consumer's source, the opposite of the contract, since a mutant is never
 # left in place and restoration is verified, so the run either ends with tracked source
 # byte-identical or ends in failure naming what it could not restore, never in a
 # reported outcome over edited source. What the skill
 # produces is a findings report (surviving mutants), which is this verb. Its
-# object — the mutation analysis — is supplied by the namespace, so a topic
+# object, the mutation analysis, is supplied by the namespace, so a topic
 # qualifier would say it twice. The opt-in `--persist-findings` write does not
 # disturb the grounds: it is the explicit user override the verb table sanctions,
 # it lands only in a memory tier proven outside tracked space, and tracked source
 # is untouched
 # either way (#2680).
-# testing joins on the same grounds: its object — the suite's can't-fail test
-# audit — is supplied by the namespace, and the contract is exactly the verb's
+# testing joins on the same grounds: its object, the suite's can't-fail test
+# audit, is supplied by the namespace, and the contract is exactly the verb's
 # (read-only findings report; nothing edits or deletes a test). The pass/fail
 # gate ships as a --check MODE of the same detector script rather than as a
 # sibling skill named `check`, keeping the verb table's meanings intact: the
 # skill surface reports, the mode gates. Its one persisted write sits behind
 # the explicit --persist-findings override the verb table sanctions, landing
 # only in the memory tier (#2684).
-# ai-slop joins on the same grounds: its object — AI-writing tells in markdown
-# prose — is supplied by the namespace, and the contract is exactly the verb's
+# ai-slop joins on the same grounds: its object, AI-writing tells in markdown
+# prose, is supplied by the namespace, and the contract is exactly the verb's
 # (read-only findings report on bare invocation). Its mutation path sits behind
 # the explicit `fix` argument the verb table sanctions, its findings file lands
 # only in the memory tier through the detector-findings rung order, and tracked
 # source is untouched until the user asks for the rewrite (#2892).
-# overengineering joins on the same grounds: its object — the repo's existing
-# enforcement surface, judged for what no longer earns its carry cost — is
+# overengineering joins on the same grounds: its object, the repo's existing
+# enforcement surface, judged for what no longer earns its carry cost, is
 # supplied by the namespace, so a topic qualifier would say it twice. The
 # contract is exactly the verb's: bare invocation walks and reports, and it
 # never mutates the surface it audits. There is no --fix and no autofix
@@ -151,7 +151,7 @@ methodology evals,event-storming
 # Sayward, Jia & Harman, Google's ICSE-SEIP papers, the tool docs) and answers
 # what a surviving mutant means. Adjacent domains, not the same one: the first
 # is judgment about test design, the second is a measurement of fault detection
-# — which is why tdd's own coverage reference points HERE for the measurement
+# which is why tdd's own coverage reference points HERE for the measurement
 # rather than absorbing it. code-metrics:principles routes the static-measure
 # literature (McCabe, Halstead, Campbell, Savoia and Evans, ISO/IEC 5055) and
 # answers what a complexity, size, duplication, coverage, CRAP, or type-debt
@@ -202,12 +202,16 @@ realign instruction-placement,overengineering
 
 # Fixed shape rather than a fixed verb: a read-only lane that re-runs its
 # plugin's own audit and reports only what MOVED since the last run, above a
-# noise budget. Both members exist for the same reason — a re-run that
+# noise budget. Both members exist for the same reason: a re-run that
 # re-presents the whole standing finding set trains the operator to skim, and a
 # skimmed report is how a bad change gets approved. overengineering deltas an
 # enforcement surface; instruction-placement deltas an instruction layer.
 # Unrelated targets, and the namespace disambiguates. The noun is kept over a
 # verb because the skill names the artifact it produces (a delta) rather than an
-# action it performs on the target — the same reasoning the vocabulary already
+# action it performs on the target, the same reasoning the vocabulary already
 # applies to knowledge and lifecycle-object routers.
 delta instruction-placement,overengineering
+
+# One contract text, shipped as byte-identical copies because each plugin's
+# agents preload their own plugin's copy through a `skills:` entry.
+report discovery,implementation,plugin-quality

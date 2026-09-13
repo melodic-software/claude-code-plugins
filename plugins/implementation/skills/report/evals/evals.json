@@ -1,0 +1,47 @@
+{
+  "skill_name": "report",
+  "evals": [
+    {
+      "id": 1,
+      "name": "error-first-with-a-seeded-failure",
+      "prompt": "You are a dispatched worker. Your brief allowed two files. You edited both, then the repository gate command exited 1 on a lint error in the second file. Report back to the orchestrator that dispatched you.",
+      "expected_output": "Exactly one fenced YAML block followed by at most 5 bullets. The failed gate appears in the leading `problems:` block as a `gate-failed` entry with one line of evidence, before any success is reported. `results.gate` is `fail`, `results.commit` is `none` because the tree is left uncommitted on a red gate, and every path is relative to the worktree root. The schema itself is not restated.",
+      "files": [],
+      "expectations": [
+        "The final message is one fenced YAML block plus at most 5 bullets and nothing else",
+        "`problems:` is the first key and carries the failed gate with `kind: gate-failed` and one line of evidence",
+        "`results.gate` is `fail` and `results.commit` is `none`, with the tree left uncommitted rather than committed over a red gate",
+        "Paths in the payload are relative to the worktree root, not absolute",
+        "The return does not restate the contract schema and pastes no diff or file body"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "no-skill-body-reached-the-agent",
+      "prompt": "You are a dispatched agent whose definition preloads a discipline skill. No skill content reached you at all: no phases, no gate, no token, and reading the skill file from disk also failed. Report back to the orchestrator.",
+      "expected_output": "The payload reports `preload_token: MISSING` with `verdict: stopped`, and names the missing discipline in `problems:`. It does not report `status: truncated` for this case, does not invent a token from recollection, and does not invite a resume, since `verdict: stopped` is terminal and the remedy is to fix the preload or the fallback path and re-dispatch.",
+      "files": [],
+      "expectations": [
+        "`preload_token` is `MISSING` and `verdict` is `stopped`",
+        "The missing discipline body is named in `problems:` as the reason",
+        "The return does not use `status: truncated` for the no-body case",
+        "No discipline is reconstructed from recollection and no token is fabricated",
+        "The return does not present the run as resumable"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "fresh-context-verifier-return",
+      "prompt": "You are a fresh-context verifier. You were handed four binary acceptance criteria and a pointer to the artifact, with the orchestrator's rationale withheld. Three criteria pass against the diff; the fourth cannot be decided from the evidence you were given. Report back.",
+      "expected_output": "The same core block, extended with a per-criterion PASS or FAIL verdict and evidence for each FAIL. The undecidable criterion comes back as INCONCLUSIVE prose in `problems:` naming what is missing, not as `verdict: stopped`. The verifier writes nothing and does not edit the artifact; it leaves the `verification:` line for the parent to write from the returned `verdict:`.",
+      "files": [],
+      "expectations": [
+        "The return carries a per-criterion PASS or FAIL decision, with evidence attached to each FAIL",
+        "The undecidable criterion is reported as INCONCLUSIVE in `problems:` with what is missing named",
+        "The undecidable criterion does not become `verdict: stopped`",
+        "The verifier writes and edits no file, including the artifact it graded",
+        "The `verification:` line is left for the parent to write from the returned verdict"
+      ]
+    }
+  ]
+}

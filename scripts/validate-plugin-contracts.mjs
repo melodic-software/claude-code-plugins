@@ -8,7 +8,7 @@ import process from "node:process";
 const root = process.cwd();
 const failures = [];
 
-// Org-agnosticism tokens live in scripts/org-agnosticism-tokens.txt — one
+// Org-agnosticism tokens live in scripts/org-agnosticism-tokens.txt: one
 // data file, every site either reads it or is a documented extension (#3136).
 // The class set is closed: a typo (`fleet-keey`) must fail, not drop tokens.
 const ORG_AGNOSTICISM_CLASSES = Object.freeze([
@@ -88,7 +88,7 @@ const pluginRoot = join(root, "plugins");
 const pluginFiles = filesUnder(pluginRoot);
 
 // Every plugin file under `directory`, taken from the single plugins/ walk
-// above rather than walking the subtree again — same set, same order, one
+// above rather than walking the subtree again: same set, same order, one
 // traversal instead of one per checked subtree.
 function filesIn(directory) {
   return pluginFiles.filter((path) => path.startsWith(directory + sep));
@@ -102,7 +102,7 @@ const setupSkills = pluginFiles.filter((path) =>
 // surface, not a claim it may assert: "A plugin with even one writable owned
 // artifact takes the narrow-write shape instead." Tracked consumer config is
 // the writable artifact class this repo already registers, in the Implementers
-// table of docs/conventions/config-cascade/README.md — a signal that lives
+// table of docs/conventions/config-cascade/README.md, a signal that lives
 // OUTSIDE the setup skill whose claim is being checked, which is the whole
 // point. Reading ownership out of the declaring skill's own prose would let a
 // plugin certify itself, and would misread the carve-out's own second surface,
@@ -227,8 +227,8 @@ for (const path of setupSkills) {
       );
     }
     // The one carve-out surface with a manifest-side counterpart. Any claim
-    // that names that surface — the doctrine's "native userConfig surface"
-    // wording included — requires the manifest to declare it. Matching only
+    // that names that surface, the doctrine's "native userConfig surface"
+    // wording included, requires the manifest to declare it. Matching only
     // the phrase "userConfig-only carve-out" would let a different spelling
     // of the same claim pass.
     if (claimsUserConfigSurface(body) && !declaresUserConfig(plugin)) {
@@ -416,7 +416,7 @@ if (existsSync(aiBriefingBrandOverlay)) {
 // The autonomy plugin's contract text is tool- and fleet-agnostic: the org
 // token and bare fleet repo names may not appear anywhere under it. Author
 // metadata in plugin.json is the single allowed occurrence. The normative
-// reference/ docs additionally ban vendor names outright — surface classes
+// reference/ docs additionally ban vendor names outright: surface classes
 // replace them; tool-specific detail lives in SKILL.md/README.
 const autonomyRoot = join(pluginRoot, "autonomy");
 if (existsSync(autonomyRoot)) {
@@ -426,7 +426,7 @@ if (existsSync(autonomyRoot)) {
   for (const path of filesIn(autonomyRoot)) {
     let content = read(path);
     if (path.endsWith(`${sep}.claude-plugin${sep}plugin.json`)) {
-      // Only the author block is exempt — description/keywords/etc. stay gated.
+      // Only the author block is exempt; description/keywords/etc. stay gated.
       const manifest = JSON.parse(content);
       delete manifest.author;
       content = JSON.stringify(manifest);
@@ -470,8 +470,8 @@ for (const path of pluginFiles) {
 }
 
 // An `archive` catalog entry installs a plugin from a zip fetched over HTTPS
-// (Claude Code v2.1.224+). The platform's floor is transport-level only — HTTPS,
-// no loopback/link-local/cloud-metadata hosts, same rules on every redirect hop —
+// (Claude Code v2.1.224+). The platform's floor is transport-level only: HTTPS,
+// no loopback/link-local/cloud-metadata hosts, same rules on every redirect hop,
 // and the `sha256` digest that pins the bytes is documented as optional. Unpinned,
 // the same URL can serve different content on every install with nothing to detect
 // it, which is the mutable-remote-artifact surface the plugin-acceptance security
@@ -496,9 +496,9 @@ if (existsSync(marketplacePath)) {
 }
 
 // github.test.sh's agnostic-conformance regex is a documented extension of
-// this file's `github` class — same tokens, plugin-local reach. Drift here
+// this file's `github` class: same tokens, plugin-local reach. Drift here
 // would recreate the two-set problem #3136 closed. If the plugin exists, the
-// test file is required — a missing file must not skip the alignment check.
+// test file is required; a missing file must not skip the alignment check.
 {
   const githubPlugin = join(pluginRoot, "github");
   const githubTest = join(pluginRoot, "github", "github.test.sh");
@@ -971,6 +971,97 @@ for (const path of pluginFiles) {
     fail(path, "lib/check-retirements.sh is carried but the plugin ships no retirements.yaml");
   } else if (rest === "skills/setup/SKILL.md" && read(path).includes(RETIREMENTS_HELPER)) {
     fail(path, "references check-retirements.sh but the plugin ships no retirements.yaml");
+  }
+}
+
+// An agent's `skills:` entry that does not resolve is skipped SILENTLY: the
+// harness logs a debug-line warning and starts the agent anyway, so an agent
+// that was supposed to carry a discipline runs without it and still returns a
+// well-formed artifact. Nothing downstream can tell that run from a good one,
+// which is why a typo here needs a gate rather than a reviewer.
+//
+// What this check does NOT cover: a skill that is missing or disabled at
+// RUNTIME, for example by an organization's policy (sub-agents.md:585). This
+// resolves names against the tree as committed only. The runtime case is
+// covered by each agent's disk-fallback rung and the parent-side warning on
+// `preload: fallback`, not here.
+//
+// Entry forms: the namespaced `<plugin>:<skill>` resolves to that plugin's
+// skills dir; a bare `<skill>` resolves inside the agent's own plugin.
+const SKILLS_ENTRY_MALFORMED = "`skills:` must be a YAML list of skill names";
+for (const path of pluginFiles) {
+  const parts = relative(pluginRoot, path).split(sep);
+  if (parts.length !== 3 || parts[1] !== "agents" || !parts[2].endsWith(".md")) continue;
+  const ownPlugin = parts[0];
+  const frontmatter = read(path).match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  if (!frontmatter) continue;
+  const body = frontmatter[1];
+  const blockList = body.match(/^skills:[ \t]*\r?\n((?:[ \t]+-[ \t]*\S.*\r?\n?)+)/m);
+  const flowList = body.match(/^skills:[ \t]*\[([^\]]*)\]/m);
+  let entries = null;
+  if (blockList) {
+    entries = blockList[1]
+      .split(/\r?\n/)
+      .map((line) => line.replace(/^[ \t]+-[ \t]*/, "").trim())
+      .filter((value) => value.length > 0);
+  } else if (flowList) {
+    entries = flowList[1]
+      .split(",")
+      .map((value) => value.trim())
+      .filter((value) => value.length > 0);
+  } else if (/^skills:/m.test(body)) {
+    // A `skills:` key in any other shape is a failure, never a skip: a check
+    // that degrades to a no-op when its input moves is worse than no check.
+    fail(path, SKILLS_ENTRY_MALFORMED);
+    continue;
+  }
+  for (const raw of entries ?? []) {
+    const entry = raw.replace(/^["']|["']$/g, "");
+    const colon = entry.indexOf(":");
+    const targetPlugin = colon === -1 ? ownPlugin : entry.slice(0, colon);
+    const targetSkill = colon === -1 ? entry : entry.slice(colon + 1);
+    const target = join(pluginRoot, targetPlugin, "skills", targetSkill, "SKILL.md");
+    if (!targetSkill || !existsSync(target)) {
+      fail(
+        path,
+        `\`skills:\` entry ${entry} resolves to no SKILL.md (looked for plugins/${targetPlugin}/skills/${targetSkill}/SKILL.md)`,
+      );
+      continue;
+    }
+    const targetFrontmatter = read(target).match(/^---\r?\n([\s\S]*?)\r?\n---/);
+    if (targetFrontmatter && /^disable-model-invocation:[ \t]*true[ \t]*$/m.test(targetFrontmatter[1])) {
+      fail(
+        path,
+        `\`skills:\` entry ${entry} targets a \`disable-model-invocation: true\` skill, which cannot be preloaded`,
+      );
+    }
+  }
+}
+
+// The return contract is authored once and shipped as a byte-identical copy in
+// every plugin whose agents preload it. Same idiom as lifecycleProtocolCopies
+// above: one canonical file, the rest compared to it, drift is a failure rather
+// than something a reviewer has to diff by eye.
+const RETURN_CONTRACT_LEAF = "report";
+const returnContractFiles = ["SKILL.md", join("evals", "evals.json")];
+const returnContractCopies = ["implementation", "plugin-quality"];
+for (const file of returnContractFiles) {
+  const canonicalPath = join(pluginRoot, "discovery", "skills", RETURN_CONTRACT_LEAF, file);
+  const canonicalRel = `plugins/discovery/skills/${RETURN_CONTRACT_LEAF}/${file.replace(/\\/g, "/")}`;
+  if (!existsSync(canonicalPath)) {
+    fail(canonicalPath, "the canonical return contract is required");
+    continue;
+  }
+  const canonical = read(canonicalPath);
+  for (const plugin of returnContractCopies) {
+    const copyPath = join(pluginRoot, plugin, "skills", RETURN_CONTRACT_LEAF, file);
+    if (!existsSync(copyPath)) {
+      fail(copyPath, `every preloading plugin must ship the return contract (${canonicalRel})`);
+      continue;
+    }
+    if (read(copyPath) !== canonical) {
+      fail(copyPath, `must remain byte-identical to ${canonicalRel}`);
+    }
   }
 }
 

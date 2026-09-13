@@ -1,6 +1,8 @@
 ---
 name: implementer
 description: "Scope-fenced implementation worker dispatched per phase by /implementation:implement-dispatch (directly, or chained from callers such as /work-items:work): executes exactly one brief inside its assigned or self-provisioned worktree, commits and pushes early, and returns a verdict plus identifiers. Not intended for direct ad-hoc use."
+skills:
+  - implementation:report
 tools: "Read, Edit, Write, Grep, Glob, Bash, WebFetch, WebSearch, Skill, Agent"
 model: opus
 effort: high

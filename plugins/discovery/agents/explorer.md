@@ -4,6 +4,7 @@ description: "Runs the full /discovery:explore workflow in a fresh context and p
 tools: "Read, Grep, Glob, Bash, Write, Skill, Agent"
 skills:
   - discovery:explore
+  - discovery:report
 model: inherit
 effort: high
 maxTurns: 40
