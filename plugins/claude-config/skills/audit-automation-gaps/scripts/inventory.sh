@@ -26,7 +26,11 @@
 #                one file into two.
 #   dir_status   classifies a directory scope before it is walked. A path that
 #                exists but cannot be traversed, a dangling symlink included, is
-#                unreadable, never absent and never 0.
+#                unreadable, never absent and never 0. All four directory scopes
+#                go through it, .claude/skills, .claude/agents, .claude/hooks and
+#                managed-settings.d, and each carries the status word the whole
+#                way out through count_dir or scope_count. Wiring one scope and
+#                not its siblings is how this class survived the first pass.
 #   jq_num       FAILS instead of printing 0 when jq fails. A hooks or
 #                enabledPlugins key holding a string, a number or an array is
 #                reported invalid-json, because the wrong type is not "no hooks".
@@ -353,6 +357,18 @@ add_counts() {
   esac
 }
 
+# One scope's contribution to a total: the number of files read from it, or its
+# status word when the scope exists and could not be walked. Every scope that
+# feeds a Components figure goes through this, so no scope can reach a total as
+# a 0 it did not earn. count_dir applies the same rule to a scope it walks
+# itself; this one is for a scope whose files were already gathered into a list.
+scope_count() {
+  case "$1" in
+  present | absent) printf '%s' "$2" ;;
+  *) printf '%s' "$1" ;;
+  esac
+}
+
 # Counts files whose YAML frontmatter opens a top-level `hooks:` block. The walk
 # is frontmatter-only: a `hooks:` line in a skill body is prose about hooks, not
 # a hook registration. awk prints only the tally and never a path, so a newline
@@ -441,11 +457,19 @@ plugin_hook_row() {
     "${#plugin_roots[@]} plugin roots, $total_events event slots"
 }
 
+# scope_status is the project-scope directory that feeds this list alongside the
+# plugin roots. An empty list is only an ABSENCE when that scope was actually
+# walked; when the scope exists and could not be walked, the row carries its
+# status word and no counts at all, because 0 there would be the same claim the
+# whole file exists to stop making.
 frontmatter_row() {
-  local label="$1" listfile="$2" source_label="$3" scanned declaring
+  local label="$1" listfile="$2" source_label="$3" scope_status="$4" scanned declaring
   scanned="$(count0 <"$listfile")"
   if [[ "$scanned" -eq 0 ]]; then
-    row "$label" absent conditional 0 - - "$source_label"
+    case "$scope_status" in
+    present | absent) row "$label" absent conditional 0 - - "$source_label" ;;
+    *) row "$label" "$scope_status" conditional - - - "$source_label" ;;
+    esac
     return
   fi
   declaring="$(count_frontmatter_hooks "$listfile")"
@@ -469,19 +493,30 @@ for scope_pair in "skills:$skills_dir_status" "agents:$agents_dir_status" "hooks
   esac
 done
 
+# Each list is filled in two passes, plugin roots first and the project scope
+# second, so the two contributions stay separable. The project scope's share is
+# then rendered through scope_count, which substitutes its status word when the
+# scope could not be walked. A list is therefore always what was READ, and the
+# total beside it always says when it is only a floor.
 skill_list="$tmpdir/skills"
 agent_list="$tmpdir/agents"
 : >"$skill_list"
 : >"$agent_list"
 find0_plugin_roots -type f -name 'SKILL.md' >>"$skill_list"
 find0_plugin_roots -type f -path '*/agents/*.md' >>"$agent_list"
+plugin_skills="$(count0 <"$skill_list")"
+plugin_agents="$(count0 <"$agent_list")"
 [[ "$skills_dir_status" == "present" ]] &&
   find0 .claude/skills -- -type f -name 'SKILL.md' >>"$skill_list"
 [[ "$agents_dir_status" == "present" ]] &&
   find0 .claude/agents -- -type f -name '*.md' >>"$agent_list"
 
-skills_total="$(count0 <"$skill_list")"
-agents_total="$(count0 <"$agent_list")"
+skills_read="$(count0 <"$skill_list")"
+agents_read="$(count0 <"$agent_list")"
+skills_total="$(add_counts "$plugin_skills" \
+  "$(scope_count "$skills_dir_status" "$((skills_read - plugin_skills))")")"
+agents_total="$(add_counts "$plugin_agents" \
+  "$(scope_count "$agents_dir_status" "$((agents_read - plugin_agents))")")"
 
 printf 'Claude Code automation inventory for %s\n' "$project_root"
 printf '\nHook locations (7 documented; entries MERGE across settings levels)\n'
@@ -492,17 +527,23 @@ settings_row local-settings "$local_settings"
 if [[ "$have_managed_lib" -eq 1 ]]; then
   settings_row managed-policy "$managed_file"
   dropin_status="$(dir_status "$managed_dropin")"
-  if [[ "$dropin_status" != "absent" && "$dropin_status" != "not-probed" ]]; then
-    dropin_n="$(count_dir "$dropin_status" "$managed_dropin" -maxdepth 1 -type f -name '*.json')"
+  case "$dropin_status" in
+  present)
+    dropin_n="$(count_dir present "$managed_dropin" -maxdepth 1 -type f -name '*.json')"
     note "managed-settings.d exists at $managed_dropin with $dropin_n drop-in file(s); they merge on top of managed-settings.json and are not counted in the managed-policy row."
-  fi
+    ;;
+  absent | not-probed) ;;
+  *)
+    note "managed-settings.d exists at $managed_dropin but could not be traversed ($dropin_status), so how many drop-in files it holds is unknown to this run. They merge on top of managed-settings.json, so the managed policy in force may carry hooks nothing above accounts for."
+    ;;
+  esac
 else
   row managed-policy not-probed standing - - - "managed-scope library unavailable"
   note "Managed policy was NOT probed: $managed_lib could not be read, so no per-OS path was available. This is not evidence that no policy is deployed."
 fi
 plugin_hook_row
-frontmatter_row skill-frontmatter "$skill_list" "$skills_total SKILL.md"
-frontmatter_row subagent-frontmatter "$agent_list" "$agents_total agent definitions"
+frontmatter_row skill-frontmatter "$skill_list" "$skills_total SKILL.md" "$skills_dir_status"
+frontmatter_row subagent-frontmatter "$agent_list" "$agents_total agent definitions" "$agents_dir_status"
 
 # --- Components ---------------------------------------------------------------
 

@@ -274,17 +274,74 @@ assert_line "a symlinked .claude/skills reaches the components count" "$linked_o
 assert_line "a symlinked .claude/hooks reaches the components count" "$linked_out" \
   "  hook scripts on disk 0 in plugin hooks/ dirs, 1 in .claude/hooks (+0 test scripts)"
 
-# A dangling symlink is unreadable: the scope exists and could not be read, which
-# is not the same statement as "there is nothing there".
-DANGLE="$WORK/dangle"
-mkdir -p "$DANGLE/.claude"
-ln -s "$DANGLE/gone" "$DANGLE/.claude/hooks"
-dangle_out="$(INVENTORY_PROJECT_DIR="$DANGLE" INVENTORY_USER_SETTINGS="$WORK/none.json" \
-  INVENTORY_MANAGED_PATH="$WORK/managed-absent/managed-settings.json" bash "$INVENTORY" 2>/dev/null)"
-assert_line "a dangling .claude/hooks is unreadable, not 0" "$dangle_out" \
-  "  hook scripts on disk 0 in plugin hooks/ dirs, unreadable in .claude/hooks (+0+unreadable test scripts)"
-assert_contains "the unreadable scope is explained in the notes" "$dangle_out" \
-  "exists but could not be traversed"
+# --- EVERY directory scope reports unreadable, never absent and never 0 --------
+#
+# A scope that exists and cannot be walked is not an empty scope. The first fix
+# for this wired .claude/hooks and left .claude/skills and .claude/agents on the
+# absent/0 path, which is the same defect surviving in its siblings, so these
+# cases are GENERATED from one table over every scope and both shapes rather
+# than written once by hand. Adding a scope to the table is what covers it.
+#
+# Each row: <directory under .claude> | <hook-location row it feeds, or -> |
+#   <that row's six columns when the scope is unreadable> |
+#   <the Components line it feeds>
+scope_cases=(
+  "skills|skill-frontmatter|skill-frontmatter unreadable conditional - - -|  skills               0+unreadable SKILL.md"
+  "agents|subagent-frontmatter|subagent-frontmatter unreadable conditional - - -|  subagents            0+unreadable definitions"
+  "hooks|-|-|  hook scripts on disk 0 in plugin hooks/ dirs, unreadable in .claude/hooks (+0+unreadable test scripts)"
+)
+for shape in dangling file; do
+  for scope_case in "${scope_cases[@]}"; do
+    IFS='|' read -r scope rowlabel want_row want_line <<<"$scope_case"
+    U="$WORK/unreadable-$scope-$shape"
+    mkdir -p "$U/.claude"
+    case "$shape" in
+    dangling) ln -s "$U/gone-$scope" "$U/.claude/$scope" ;;
+    file) printf 'not a directory\n' >"$U/.claude/$scope" ;;
+    *) ;;
+    esac
+    u_out="$(INVENTORY_PROJECT_DIR="$U" INVENTORY_USER_SETTINGS="$WORK/none.json" \
+      INVENTORY_MANAGED_PATH="$WORK/managed-absent/managed-settings.json" bash "$INVENTORY" 2>/dev/null)"
+    if [[ "$rowlabel" != "-" ]]; then
+      assert_eq "an unreadable .claude/$scope ($shape) row is not absent with a 0" \
+        "$want_row" "$(row6 "$rowlabel" "$u_out")"
+    fi
+    assert_line "an unreadable .claude/$scope ($shape) reaches Components as a status word" \
+      "$u_out" "$want_line"
+    assert_contains "an unreadable .claude/$scope ($shape) is explained in the notes" \
+      "$u_out" ".claude/$scope exists but could not be traversed"
+  done
+done
+
+# managed-settings.d is the fourth directory scope. It feeds no row and no
+# Components figure, only a note, so the note is the only place its status can
+# land: drop-in files merge on top of managed-settings.json, so a drop-in
+# directory this run could not read may be adding hooks to the policy in force.
+PLAINROOT="$WORK/plainroot"
+MD="$WORK/managed-dropin"
+mkdir -p "$PLAINROOT" "$MD/managed-settings.d"
+printf '%s\n' '{"hooks":{}}' >"$MD/managed-settings.json"
+printf '%s\n' '{"hooks":{}}' >"$MD/managed-settings.d/10-a.json"
+printf '%s\n' '{"hooks":{}}' >"$MD/managed-settings.d/20-b.json"
+md_ok_out="$(INVENTORY_PROJECT_DIR="$PLAINROOT" INVENTORY_USER_SETTINGS="$WORK/none.json" \
+  INVENTORY_MANAGED_PATH="$MD/managed-settings.json" bash "$INVENTORY" 2>/dev/null)"
+assert_contains "a readable managed-settings.d reports its exact file count" "$md_ok_out" \
+  "managed-settings.d exists at $MD/managed-settings.d with 2 drop-in file(s)"
+
+MDBAD="$WORK/managed-dropin-bad"
+mkdir -p "$MDBAD"
+printf '%s\n' '{"hooks":{}}' >"$MDBAD/managed-settings.json"
+ln -s "$MDBAD/gone" "$MDBAD/managed-settings.d"
+md_bad_out="$(INVENTORY_PROJECT_DIR="$PLAINROOT" INVENTORY_USER_SETTINGS="$WORK/none.json" \
+  INVENTORY_MANAGED_PATH="$MDBAD/managed-settings.json" bash "$INVENTORY" 2>/dev/null)"
+assert_contains "an unreadable managed-settings.d is named, not passed over" "$md_bad_out" \
+  "managed-settings.d exists at $MDBAD/managed-settings.d but could not be traversed (unreadable)"
+assert_not_contains "an unreadable managed-settings.d publishes no file count" "$md_bad_out" \
+  "drop-in file(s)"
+
+# A readable scope still counts: the status-word path must not swallow the
+# normal one. The golden fixture above already pins that for every scope, and
+# the linked fixture pins it through a symlink.
 
 # --- .git and vendored trees are outside the counts ----------------------------
 #
