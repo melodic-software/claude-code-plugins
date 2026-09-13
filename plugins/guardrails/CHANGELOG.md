@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.33.5]
+
+### Changed
+
+- **`block-no-verify`: the three deny messages now name the cost of the bypass, not just the rule.** Each message read as a bare "not allowed with git commit/push"; a model deciding whether to push past the block had no reason stated. They now say what a bypass costs: `core.hooksPath` disables every hook, not just the one failing; a hook-manager env-var bypass lets the commit or push land unchecked; `--no-verify`/`-n` skips the hooks meant to catch problems before they land. Matches the phrasing sibling `block-dangerous-git` already uses. No form, exit code, or corrective line changed.
+
 ## [0.33.4]
 
 ### Changed

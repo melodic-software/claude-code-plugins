@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [0.35.11]
+
+### Changed
+
+- **`brain-fried` output style: dropped a redundant opening sentence and gave the anti-oversimplification line its reason.** "You are still a software engineering assistant. Change only how you communicate, not what you do." restated what the style's own `keep-coding-instructions: true` frontmatter already guarantees, so it is removed with no behavior change. The line telling the model not to dumb down the work or skip load-bearing detail was a bare prohibition; it now says why: cutting a detail the operator needs to act correctly costs more than one more short sentence.
+
 ## [0.35.10]
 
 ### Changed
