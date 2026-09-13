@@ -46,8 +46,9 @@ conformance, which this version makes, and a transitional reading of it does not
 - **The obligation binds an outcome, not a harness**, on the reading the crosswalk's fall-through
   criterion already states of itself: any assertion form the producer runs satisfies it, a test
   case, an eval case, or a golden file. **The freedom is over the form and is not a claim that a
-  form is in place**: three of the five tabled adopters run no assertion reaching a remedy at all
-  and a fourth pins only an `Action` cell's shape. It is **per rule and per scope, never per
+  form is in place**: two of the five tabled adopters run no assertion reaching a remedy at all, a
+  third pins only an `Action` cell's shape, and a fourth pins two of its fifteen. It is **per rule
+  and per scope, never per
   finding**, which is "Auto-applicability is settled per rule, at contract time" applied rather than
   restated.
 - **One Enforceability row, with the split stated rather than blurred.** **Detect-then-judge when

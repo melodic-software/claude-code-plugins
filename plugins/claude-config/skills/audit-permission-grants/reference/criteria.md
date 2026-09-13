@@ -46,7 +46,9 @@ allow rules read per settings scope (with `absent` and `NOT VALID JSON` reported
 an unparsable rules file is skipped entirely and is the likeliest place for an unexamined grant),
 plugin manifests and plugin `settings.json` files parsed, paths the walk could not open, and files
 an exclusion rule removed. `No fragile permission grants found.` is printed only against a non-zero
-denominator; a run that parsed nothing prints `NOTHING TO AUDIT` and must not be relayed as clean.
+denominator with every input readable; a run that parsed nothing prints `NOTHING TO AUDIT`, and a run
+that found nothing but could not open or parse an input prints `INCOMPLETE SCAN, NOT A CLEAN BILL`
+with its audited and blocked counts. Neither may be relayed as clean.
 
 **The exclusion set is disclosed rather than extended by path segment, and here is why.** A
 blanket `vendor/` or `node_modules/` exclusion would make an `error`-tier check silently blind to
