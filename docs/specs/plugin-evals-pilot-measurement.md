@@ -1,9 +1,24 @@
-# Pilot: the `evals` plugin suite and its measured Δ
+# plugin-evals-pilot-measurement
 
-Evidence for acceptance criterion 3 (the pilot suite runs locally under the ceiling, writes
-`aggregate-result.json` with a delta per case, and at least one case shows a positive delta).
-Values are distilled from each pass's JSON; the JSON files and `results/` directories stay
-untracked.
+Measurement record for the `claude plugin eval` pilot on `plugins/evals`, the plugin that shipped in
+melodic-software/claude-code-plugins#4154. Five passes are recorded here with their per-case deltas,
+their cost, and the kept traces that explain both; this is the baseline that later runs of
+`/evals:plugin-eval` on this plugin compare against. Values are distilled from each pass's JSON; the
+JSON files and `results/` directories stay untracked.
+
+## Contents
+
+- [Setup](#setup)
+- [Term-uniqueness probe (before any pass)](#term-uniqueness-probe-before-any-pass)
+- [Pass 1 (full suite)](#pass-1-full-suite)
+- [Pass 2 (full suite, unchanged)](#pass-2-full-suite-unchanged)
+- [Pass 3 (`--case measurable-criterion`, ceiling 1.2)](#pass-3---case-measurable-criterion-ceiling-12)
+- [Pass 4 (Phase 6 confirming pass, full suite, no ceiling, `--keep-temp`)](#pass-4-phase-6-confirming-pass-full-suite-no-ceiling---keep-temp)
+- [What the kept traces show](#what-the-kept-traces-show)
+- [Pass 5 (through the skill's `run` action, unlimited, no `--keep-temp`)](#pass-5-through-the-skills-run-action-unlimited-no---keep-temp)
+- [Tally](#tally)
+- [Verdict against the phase's sanity check](#verdict-against-the-phases-sanity-check)
+- [Observations for the runner skill](#observations-for-the-runner-skill)
 
 ## Setup
 
@@ -133,7 +148,8 @@ line), `permissionMode: dontAsk`, in a throwaway working directory.
 
 Run 2026-09-13 by `claude -p "/evals:plugin-eval run plugins/evals …"` with the unlimited option
 supplied through `--settings`, to exercise acceptance criterion 5's "the run proceeds without a
-prompt" (transcript in `preflight.md`). The skill invoked the CLI with no `--max-cost-usd`.
+prompt" (transcript pasted in the PR body of #4154). The skill invoked the CLI with no
+`--max-cost-usd`.
 
 | Case | WITH | W/OUT | Δ | Notes |
 |---|---|---|---|---|

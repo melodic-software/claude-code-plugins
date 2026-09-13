@@ -478,7 +478,7 @@
         "gate basis: the command shipped in Claude Code 2.1.269 (anthropics/claude-code, 2026-09-11); below that floor the binary prints `plugin eval is currently in early access`, and a server-side switch prints `plugin eval is currently unavailable`, which no local setting restores",
         "the docs page: the run strips user settings, hooks, CLAUDE.md, MCP servers, other plugins, memory, and skills, so a rules or CLAUDE.md target has nothing to measure; native Windows has no sandbox backend, so a case granting Bash, Write, or Edit is refused rather than run unconfined, with WSL2 named for Windows and bubblewrap plus socat for Linux",
         "the docs page: the case format (`prompt.md` plus `graders/*.md`, or `case.yaml` with `schema_version: \"1.1\"`) is not the skill-creator `evals/evals.json` format this marketplace's skills carry, so the two coexist and `skill-quality:check validate-evals` keeps the other one",
-        "our planned description: preflight, validate without spending, price, and read the delta for a `claude plugin eval` run; the CLI runs and scores, this skill guides the practice around it (the skill lands in the phase after this row, per docs/topics/plugin-evals/PLAN.md)",
+        "our planned description: preflight, validate without spending, price, and read the delta for a `claude plugin eval` run; the CLI runs and scores, this skill guides the practice around it (shipped as `plugins/evals/skills/plugin-eval` in melodic-software/claude-code-plugins#4154)",
         "`plugin eval` is absent from the 2.1.232 and 2.1.251 extractions the sibling rows rest on; absence from an extraction is a statement about the extraction, and the command postdates both"
       ],
       "observation": {
