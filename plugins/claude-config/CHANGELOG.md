@@ -3,6 +3,39 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.45.0]
+
+### Added
+
+- **`audit-automation-gaps`**: `scripts/findings-state.sh` persists a run's verdict table, evidence
+  and implementation plans, so `--implement` has something to read in a later session. Keyed per
+  project through the shared `lib/state-key.sh`, so one checkout never reads another's verdicts,
+  and `--plugin-data` is required because `${CLAUDE_PLUGIN_DATA}` is absent from the Bash tool
+  environment.
+- **`audit-automation-gaps`**: a Gotchas surface built from observed failures, a `## Next` section,
+  and presence-gated routing to `overengineering:audit` in both directions.
+- **`audit-automation-gaps`**: eval cases covering the persisted artifact and the revised
+  `Already enforced` gate.
+
+### Changed
+
+- **`audit-automation-gaps`**: `scripts/inventory.sh` counts all seven documented hook locations
+  instead of the project `.claude` tree alone, which had it reporting 3 hook scripts and 0 skills
+  for a repository carrying 93 wired handlers and 271 skills. An unreadable scope now reports
+  `unreadable` rather than zero, conditional scopes are split from the standing set, and enablement
+  inputs are emitted with a pointer instead of a computed verdict.
+- **`audit-automation-gaps`**: a `git log --grep` count is now treated as a ceiling rather than a
+  frequency in both gates that consumed it. A frequency claim requires a sample, reported with its
+  denominator and sample size; a ceiling already under 5 percent still settles YAGNI without one.
+- **`audit-automation-gaps`**: the `Already enforced` gate takes a shift-left carve-out with three
+  falsifiable conjuncts, keeping the hook budget a hard gate, so a consumer documenting a budget
+  with no headroom left keeps the REJECT.
+- **`audit-automation-gaps`**: one batched docs fetch is mandatory for any candidate whose mechanism
+  is a Claude Code surface; conditionality survives only for non-harness facts, and a skip records
+  how the fact was settled.
+- **`audit-automation-gaps`**: the refusal gate and the implementation review both dispatch a
+  fresh-context judge, degrading to an inline review that records itself as same-context.
+
 ## [0.44.1]
 
 ### Fixed
