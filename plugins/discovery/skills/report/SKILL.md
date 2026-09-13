@@ -95,7 +95,7 @@ the write failure through its own agent's persistence field.
 ## `preload:` and `preload_token:`
 
 An agent whose definition preloads a skill echoes that skill's token verbatim as `preload_token`
-and states how the body reached it:
+and states how the body reached it in `preload: fired | fallback`:
 
 - `preload: fired` means the body was already in context at startup and you read no skill file.
 - `preload: fallback` means you read it from disk. Fallback is an accepted recovery, not a defect.
