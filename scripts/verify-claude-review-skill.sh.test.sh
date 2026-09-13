@@ -149,7 +149,6 @@ REVIEWS_JSON='[
   {"commit_id":"abc123","user":{"login":"other"},"body":"third-party review"}
 ]'
 
-set +e
 # shellcheck source=verify-claude-review-skill.sh
 source "$GUARD_SCRIPT"
 filter_out="$(printf '%s' "$REVIEWS_JSON" | filter_review_bodies abc123 'claude[bot]')"

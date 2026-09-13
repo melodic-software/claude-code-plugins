@@ -77,7 +77,7 @@ filter_review_bodies() {
 fetch_review_bodies() {
   local repo="${GITHUB_REPOSITORY:?}" pr="${PR_NUMBER:?}"
   local sha="${EVENT_HEAD_SHA:?}"
-  local allow="${REVIEWER_LOGINS:-claude[bot]}"
+  local allow="$REVIEWER_LOGINS"
   gh api --paginate "repos/${repo}/pulls/${pr}/reviews" | filter_review_bodies "$sha" "$allow"
 }
 
@@ -162,8 +162,7 @@ main() {
   # Assigned, not `cmd || fail`: an `||` / `if` around a function disables
   # `set -e` for its whole dynamic extent (SC2310; same split as
   # verify-security-review-evidence.sh).
-  local encoded body verdict
-  local records
+  local encoded body verdict records
   records="$(fetch_review_bodies)"
   while IFS= read -r encoded || [[ -n "${encoded}" ]]; do
     [[ -n "${encoded}" ]] || continue

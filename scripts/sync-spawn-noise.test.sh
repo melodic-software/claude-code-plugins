@@ -73,11 +73,8 @@ run_mode() (
 )
 
 # --- sync copies the canonical into the carrying plugin ---------------------
-new_fixture f
-canonical_v1 >"$f/$CANONICAL"
+base_fixture f
 printf 'BIMODAL_SPREAD_RATIO = 9.0\n' >"$f/$COPY"
-manifest "$f" claude-ops 0.1.0
-manifest "$f" performance 0.1.0
 if out="$(run_mode "$f" 2>&1)" && cmp -s "$f/$CANONICAL" "$f/$COPY"; then
   ok "sync makes the carrying copy byte-identical to the canonical"
 else

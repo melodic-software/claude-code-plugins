@@ -64,11 +64,8 @@ run_mode() (
   cd "$fixture" && bash scripts/sync-unwrap-before-compose.sh "$@"
 )
 
-new_fixture f
-canonical_v1 >"$f/$CANONICAL"
+base_fixture f
 printf '# drifted\n' >"$f/$COPY"
-manifest "$f" context-guard 0.1.0
-manifest "$f" rate-limit-guard 0.1.0
 if out="$(run_mode "$f" 2>&1)" && cmp -s "$f/$CANONICAL" "$f/$COPY"; then
   ok "sync makes the carrying copy byte-identical to the canonical"
 else

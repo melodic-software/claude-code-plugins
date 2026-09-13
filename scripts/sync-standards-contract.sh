@@ -15,9 +15,19 @@
 #
 # A plugin carries the contract iff plugins/<name>/reference/standards-contract.md
 # exists; a new plugin opts in by committing an initial copy of the file there.
+#
+# sync, --check and --print-manifest are the shared engine's, same as the sibling
+# sync-*.sh gates. --check-bump stays here: it also gates the contract's own
+# frontmatter semver and its CHANGELOG, which no other cluster has.
 set -euo pipefail
 
-cd "$(dirname "${BASH_SOURCE[0]}")/.."
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$script_dir/.."
+# shellcheck source=lib/sync-cluster.sh
+. "$script_dir/lib/sync-cluster.sh"
+
+sync_cluster_script="sync-standards-contract.sh"
+sync_cluster_sync_summary=0
 src="docs/conventions/standards/README.md"
 schema="docs/conventions/standards/standards.schema.json"
 changelog="docs/conventions/standards/CHANGELOG.md"
@@ -35,24 +45,10 @@ frontmatter_version() {
 mode="${1:-sync}"
 case "$mode" in
 sync)
-  for copy in "${copies[@]}"; do
-    cp "$src" "$copy"
-    echo "synced: $copy"
-  done
+  sync_cluster::sync
   ;;
 --check)
-  drifted=0
-  for copy in "${copies[@]}"; do
-    if ! cmp -s "$src" "$copy"; then
-      echo "DRIFT: $copy differs from $src" >&2
-      drifted=1
-    fi
-  done
-  if [[ "$drifted" -ne 0 ]]; then
-    echo "Run scripts/sync-standards-contract.sh and commit the result." >&2
-    exit 1
-  fi
-  echo "All ${#copies[@]} plugin copies match $src."
+  sync_cluster::check
   ;;
 --check-bump)
   base="${2:?usage: sync-standards-contract.sh --check-bump <base-ref>}"
@@ -107,13 +103,7 @@ sync)
   echo "Contract changed vs $base with frontmatter, changelog, and every carrying plugin bumped."
   ;;
 --print-manifest)
-  # Same published surface as scripts/lib/sync-cluster.sh. This script does
-  # not share the cluster engine (it also gates frontmatter + changelog), so
-  # the emit is repeated here rather than forcing it onto that engine.
-  printf 'src\t%s\n' "$src"
-  for copy in "${copies[@]}"; do
-    printf 'copy\t%s\n' "$copy"
-  done
+  sync_cluster::print_manifest
   ;;
 *)
   echo "usage: sync-standards-contract.sh [--check | --check-bump <base-ref> | --print-manifest]" >&2
