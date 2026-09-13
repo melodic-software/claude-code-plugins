@@ -7,10 +7,12 @@
 #
 # Prints the markdown report; `--json` prints the `code-metrics/v1` document
 # instead. Scope, lanes, and the collector ladder are the dispatcher's
-# (scripts/dispatch.sh in the plugin root); this script owns `--registry` and
-# the duplication tunables it exports for the collector adapters
+# (scripts/dispatch.sh in the plugin root); this script owns the merge of the
+# detector's clone pairs into clone classes (cluster-clones.py), `--registry`,
+# and the duplication tunables it exports for the collector adapters
 # (CODE_METRICS_DUP_MIN_TOKENS, CODE_METRICS_DUP_MIN_LINES,
-# CODE_METRICS_DUP_IGNORE, from `duplication.*` in the resolved config).
+# CODE_METRICS_DUP_IGNORE, CODE_METRICS_DUP_MAX_LINES, CODE_METRICS_DUP_MAX_SIZE,
+# from `duplication.*` in the resolved config; a null or 0 cap exports empty).
 # Registries come from every `--registry` plus `duplication.registries`, each
 # resolved against the repository root; a named registry that does not exist is
 # a usage error. Exit codes are the dispatcher's: 0 report produced, 2 usage
@@ -21,6 +23,7 @@ SCRIPT_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
 DISPATCH="$PLUGIN_ROOT/scripts/dispatch.sh"
 REPORT="$PLUGIN_ROOT/scripts/report.py"
+CLUSTER="$SCRIPT_DIR/cluster-clones.py"
 FILTER="$SCRIPT_DIR/registry-filter.py"
 
 JSON=0
@@ -50,7 +53,7 @@ while [[ $# -gt 0 ]]; do
     shift 2
     ;;
   --help | -h)
-    sed -n '2,17p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2
+    sed -n '2,19p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2
     exit 0
     ;;
   *)
@@ -81,7 +84,8 @@ if [[ -z "$CONFIG" ]]; then
     --home "${CODE_METRICS_HOME:-${HOME:-/}}" >"$CONFIG" || exit 2
 fi
 
-# The three tunables, then the registries from the resolver's own format
+# Six tunables (a cap of null or 0 is exported empty, which the adapter reads
+# as "no cap"), then the registries from the resolver's own format
 # (`scope.registries`, or `duplication.registries` as its older name), so this
 # script and the dispatcher read the same list the same way.
 mapfile -t DUP < <("${PY[@]}" -c '
@@ -95,18 +99,34 @@ def number(key, fallback):
     return value if isinstance(value, int) and not isinstance(value, bool) else fallback
 
 
+def cap(key):
+    value = section.get(key)
+    if value is None or isinstance(value, bool):
+        return ""
+    if isinstance(value, (int, float)):
+        return str(int(value)) if value > 0 else ""
+    text = str(value).strip()
+    return "" if text in ("", "0") else text
+
+
 print(number("min_tokens", 50))
 print(number("min_lines", 5))
 ignore = section.get("ignore")
 print(",".join(str(item) for item in ignore) if isinstance(ignore, list) else "")
+print(cap("max_lines"))
+print(cap("max_size"))
+print(number("rollup_depth", 2))
 ' "$CONFIG")
-if [[ ${#DUP[@]} -lt 3 ]]; then
+if [[ ${#DUP[@]} -lt 6 ]]; then
   echo "audit-duplication.sh: the resolved configuration could not be read" >&2
   exit 2
 fi
 export CODE_METRICS_DUP_MIN_TOKENS="${DUP[0]}"
 export CODE_METRICS_DUP_MIN_LINES="${DUP[1]}"
 export CODE_METRICS_DUP_IGNORE="${DUP[2]}"
+export CODE_METRICS_DUP_MAX_LINES="${DUP[3]}"
+export CODE_METRICS_DUP_MAX_SIZE="${DUP[4]}"
+ROLLUP_DEPTH="${DUP[5]}"
 if ! "${PY[@]}" "$PLUGIN_ROOT/scripts/resolve-config.py" --from-json "$CONFIG" --format registries >"$WORK/registries"; then
   echo "audit-duplication.sh: the configured registries could not be read (see the message above)" >&2
   exit 2
@@ -137,10 +157,12 @@ bash "$DISPATCH" audit-duplication --measures duplication --config "$CONFIG" ${P
 rc=$?
 [[ $rc -eq 0 || $rc -eq 3 ]] || exit "$rc"
 
-# Exclude the declared replication, recompute the totals from what survived,
-# then state the zero the recomputation drops when every group was excluded.
-"${PY[@]}" "$FILTER" "${FILTER_ARGS[@]}" <"$WORK/report.json" >"$WORK/filtered.json" || exit 2
-"${PY[@]}" "$REPORT" resummarize <"$WORK/filtered.json" >"$WORK/summed.json" || exit 2
+# Merge the pairs the detector reports into clone classes, exclude the declared
+# replication, recompute the totals from what survived, then state the zero the
+# recomputation drops when every group was excluded.
+"${PY[@]}" "$CLUSTER" --root "$ROOT" <"$WORK/report.json" >"$WORK/clustered.json" || exit 2
+"${PY[@]}" "$FILTER" "${FILTER_ARGS[@]}" <"$WORK/clustered.json" >"$WORK/filtered.json" || exit 2
+"${PY[@]}" "$REPORT" resummarize --root "$ROOT" <"$WORK/filtered.json" >"$WORK/summed.json" || exit 2
 "${PY[@]}" "$FILTER" --zero-floor --root "$ROOT" <"$WORK/summed.json" >"$WORK/final.json" || exit 2
 
 if [[ $JSON -eq 1 ]]; then
@@ -148,9 +170,9 @@ if [[ $JSON -eq 1 ]]; then
 else
   # shellcheck source=../../../scripts/persist-report.sh
   source "$PLUGIN_ROOT/scripts/persist-report.sh"
-  render_args=()
+  render_args=(--rollup-depth "$ROLLUP_DEPTH")
   if document="$(cm_persist_report audit-duplication "$WORK/final.json")"; then
-    render_args=(--document "$document")
+    render_args+=(--document "$document")
   fi
   "${PY[@]}" "$REPORT" render "${render_args[@]}" <"$WORK/final.json" || exit 2
 fi

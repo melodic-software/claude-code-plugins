@@ -81,7 +81,7 @@ PR lifecycle: prep → create → monitor CI → merge (runs after step 7)
 
 Stages 0-3 expand, for unfamiliar territory, into a known five-pass pre-implementation order
 (blindspot → brainstorm/prototype → interview → reference port → plan); the workflow section of
-`docs/FINDING-YOUR-UNKNOWNS.md` in the marketplace repository states it with rationale.
+`docs/finding-your-unknowns.md` in the marketplace repository states it with rationale.
 
 ### 2. Detect current position
 

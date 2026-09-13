@@ -117,7 +117,7 @@ sufficient one. Specifically:
    duplicating `check-changelog-parity --check-bump` would fire correctly; it would simply
    add no signal the required gate does not already produce, while adding a second place the
    rule can drift. That is the **one mechanism per concern** principle
-   (`PLUGIN-PHILOSOPHY.md`'s validation section, owned upstream in `standards`) — redundancy,
+   (`plugin-philosophy.md`'s validation section, owned upstream in `standards`) — redundancy,
    not a silent skip. The deletion criterion for a future guard author is "supplies no
    additional signal," which is a coverage test, not a correctness one.
 
@@ -144,6 +144,6 @@ sufficient one. Specifically:
 - #1270 (scoping, amended twice), #1284 (the two-guard PR, closed), #1319 (the shipped
   guard), #1314 (the withdrawn guard's measurement and rescope)
 - `docs/conventions/hook-precision/README.md` — over-fire discipline
-- `docs/PLUGIN-PHILOSOPHY.md` — one mechanism per concern (validation section)
+- `docs/plugin-philosophy.md` — one mechanism per concern (validation section)
 - `melodic-software/standards`, `conventions/engineering/enforceability-tiers.md` —
   classify the tier first, justify automation second

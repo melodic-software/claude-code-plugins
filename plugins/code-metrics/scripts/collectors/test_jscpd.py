@@ -6,8 +6,10 @@ generates a fake `jscpd` in a temporary directory prepended to PATH that
 copies the committed capture fixtures/tool-output/jscpd.json into the
 `--output` directory the adapter passes, the way jscpd 5 writes its own
 report (design T13; no executable is committed). The capture came from a live
-jscpd 5.1.2 run over the two-copy cluster under
-fixtures/sources/cluster/{alpha,beta}/shared/shared-utils.sh.
+jscpd 5.2.0 run over the two-copy cluster under
+fixtures/sources/cluster/{alpha,beta}/shared/shared-utils.sh, rewritten to
+repo-relative names; 4.3.0 writes the same keys the adapter reads, so one
+capture stands in for both majors and the stub only varies the version line.
 """
 
 from __future__ import annotations
@@ -33,7 +35,7 @@ REPO_ROOT = SCRIPT_DIR.parents[3]
 
 def make_stub(
     directory: Path,
-    version_line: str = "jscpd 5.1.2",
+    version_line: str = "jscpd 5.2.0",
     capture: Path = CAPTURE,
     exit_code: int = 0,
     argv_log: Path | None = None,
@@ -90,7 +92,7 @@ class JscpdAdapterTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             make_stub(Path(tmp))
             result = run("probe", path_prefix=Path(tmp))
-            self.assertEqual((result.returncode, result.stdout.strip()), (0, "5.1.2"))
+            self.assertEqual((result.returncode, result.stdout.strip()), (0, "5.2.0"))
 
     def test_collect_translates_the_capture_into_one_clone_group(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -185,7 +187,7 @@ class JscpdAdapterTests(unittest.TestCase):
             stub = Path(tmp) / "jscpd"
             stub.write_text(
                 "#!/usr/bin/env bash\n"
-                'if [[ "${1:-}" == "--version" ]]; then printf \'jscpd 5.1.2\\n\'; exit 0; fi\n'
+                'if [[ "${1:-}" == "--version" ]]; then printf \'jscpd 5.2.0\\n\'; exit 0; fi\n'
                 "printf 'jscpd: unsupported format\\n' >&2\n"
                 "exit 1\n",
                 encoding="utf-8",
@@ -203,6 +205,142 @@ class JscpdAdapterTests(unittest.TestCase):
             make_stub(Path(tmp))
             run("collect", "bash", "duplication", ALPHA, BETA, path_prefix=Path(tmp))
         self.assertEqual(set(glob.glob(pattern)) - before, set())
+
+    def test_explicit_caps_reach_the_command_line_on_both_majors(self) -> None:
+        for version in ("jscpd 4.3.0", "jscpd 5.2.0"):
+            with tempfile.TemporaryDirectory() as tmp:
+                log = Path(tmp) / "argv.log"
+                make_stub(Path(tmp), version_line=version, argv_log=log)
+                result = run(
+                    "collect",
+                    "bash",
+                    "duplication",
+                    ALPHA,
+                    BETA,
+                    path_prefix=Path(tmp),
+                    env_extra={
+                        "CODE_METRICS_DUP_MAX_SIZE": "1mb",
+                        "CODE_METRICS_DUP_MAX_LINES": "",
+                    },
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                argv = log.read_text(encoding="utf-8")
+                # One byte above the adapter's own bound, so the pre-filter is
+                # the only gate on either major.
+                self.assertIn("--max-size 1048577", argv, version)
+                self.assertIn("--max-lines 2147483647", argv, version)
+
+    def test_a_zero_cap_means_no_cap_and_is_never_passed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            log = Path(tmp) / "argv.log"
+            make_stub(Path(tmp), version_line="jscpd 4.3.0", argv_log=log)
+            result = run(
+                "collect",
+                "bash",
+                "duplication",
+                ALPHA,
+                path_prefix=Path(tmp),
+                env_extra={
+                    "CODE_METRICS_DUP_MAX_SIZE": "0",
+                    "CODE_METRICS_DUP_MAX_LINES": "0",
+                },
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            argv = log.read_text(encoding="utf-8")
+            self.assertNotIn("--max-size 0 ", argv + " ")
+            self.assertNotIn("--max-lines 0 ", argv + " ")
+            self.assertIn("--max-lines 2147483647", argv)
+            self.assertIn("--max-size 1099511627776", argv)
+
+    def test_the_size_grammar_uses_binary_multipliers(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            log = Path(tmp) / "argv.log"
+            make_stub(Path(tmp), argv_log=log)
+            result = run(
+                "collect",
+                "bash",
+                "duplication",
+                ALPHA,
+                path_prefix=Path(tmp),
+                env_extra={
+                    "CODE_METRICS_DUP_MAX_SIZE": "2kb",
+                    "CODE_METRICS_DUP_MAX_LINES": "44",
+                },
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            argv = log.read_text(encoding="utf-8")
+            self.assertIn("--max-size 2049", argv)
+            self.assertIn("--max-lines 45", argv)
+
+    def test_files_over_the_cap_are_skipped_and_the_reason_is_recorded(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            log = Path(tmp) / "argv.log"
+            note = Path(tmp) / "partial"
+            big = Path(tmp) / "big.sh"
+            big.write_text("echo line\n" * 100, encoding="utf-8")
+            make_stub(Path(tmp), argv_log=log)
+            result = run(
+                "collect",
+                "bash",
+                "duplication",
+                ALPHA,
+                str(big),
+                path_prefix=Path(tmp),
+                env_extra={
+                    "CODE_METRICS_DUP_MAX_LINES": "50",
+                    "CODE_METRICS_PARTIAL_REASON_FILE": str(note),
+                },
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            argv = log.read_text(encoding="utf-8")
+            self.assertIn(ALPHA, argv)
+            self.assertNotIn("big.sh", argv)
+            self.assertRegex(
+                note.read_text(encoding="utf-8").strip(),
+                r"^1 of 2 files skipped by duplication\.max_size 1mb / max_lines 50; "
+                r"largest: .*big\.sh \(\d+ bytes, 100 lines\)$",
+            )
+
+    def test_all_files_skipped_returns_zero_without_invoking_jscpd(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            log = Path(tmp) / "argv.log"
+            note = Path(tmp) / "partial"
+            make_stub(Path(tmp), argv_log=log)
+            result = run(
+                "collect",
+                "bash",
+                "duplication",
+                ALPHA,
+                BETA,
+                path_prefix=Path(tmp),
+                env_extra={
+                    "CODE_METRICS_DUP_MAX_SIZE": "10",
+                    "CODE_METRICS_PARTIAL_REASON_FILE": str(note),
+                },
+            )
+            self.assertEqual((result.returncode, result.stdout), (0, ""), result.stderr)
+            self.assertFalse(log.exists(), "jscpd was invoked with no files")
+            self.assertTrue(
+                note.read_text(encoding="utf-8").startswith(
+                    "2 of 2 files skipped by duplication.max_size 10 / max_lines none"
+                ),
+                note.read_text(encoding="utf-8"),
+            )
+
+    def test_the_skip_reason_goes_to_stderr_when_no_reason_file_is_set(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            make_stub(Path(tmp))
+            result = run(
+                "collect",
+                "bash",
+                "duplication",
+                ALPHA,
+                BETA,
+                path_prefix=Path(tmp),
+                env_extra={"CODE_METRICS_DUP_MAX_SIZE": "10"},
+            )
+            self.assertEqual(result.returncode, 0)
+            self.assertIn("2 of 2 files skipped", result.stderr)
 
     def test_other_verbs(self) -> None:
         self.assertEqual(run("measures").stdout.strip(), "*/duplication")

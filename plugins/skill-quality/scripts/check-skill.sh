@@ -78,7 +78,7 @@
 #   8. vendor/ byte-identical vs HEAD, unless paired with an upstream-version
 #      bump (a legitimate maintainer-run sync) (vendor-backed skills only)
 #   9. Stale-tracking metadata keys preserved vs HEAD (upstream-version/synced/upstream-sha)
-#  10. SKILL.md <= 200 lines soft target (WARN; progressive disclosure)
+#  10. (retired slot; numbering kept stable so later checks keep their names)
 #  11. Gotchas surface present (WARN; inline `## Gotchas` or context|reference/gotchas.md)
 #  12. description carries "Use when" trigger phrasing, single-quoted (WARN)
 #  13. No committed cache/build artifacts (__pycache__, *.pyc, node_modules) (FAIL)
@@ -235,7 +235,7 @@ if [[ "$HAVE_GIT" == 1 ]]; then
   SKILL_REL="${SKILL_REL%/}"
 fi
 
-# Tunables (listing description cap; description field cap; SKILL.md line caps;
+# Tunables (listing description cap; description field cap; SKILL.md line cap;
 # vendor sync age).
 # DESC_CHAR_CAP restates the harness's documented per-entry listing cap, the
 # default of skillListingMaxDescChars ("truncated at 1,536 characters in the
@@ -296,7 +296,6 @@ DESC_FIELD_BASELINE="${CHECK_SKILL_DESC_FIELD_BASELINE:-}"
 NAME_MAX_LEN=64
 NAME_RESERVED_WORDS='anthropic claude'
 LINE_HARD_CAP=500
-LINE_SOFT_CAP=200
 SYNCED_MAX_AGE_DAYS=180
 # Check 26: a spoke file this long gets a table of contents. Two upstream
 # statements of the threshold: the bundled skill-creator says a TOC for
@@ -899,12 +898,6 @@ elif [[ "$HAVE_BASE_FM" == 1 ]]; then
         err "metadata key '$key' present at $BASE_REF but dropped (stale-tracking metadata for a vendored skill)"
     fi
   done
-fi
-
-# --- Check 10: SKILL.md soft line target (progressive disclosure) ----------
-
-if ((LINE_COUNT > LINE_SOFT_CAP && LINE_COUNT < LINE_HARD_CAP)); then
-  warn "SKILL.md is $LINE_COUNT lines (soft target $LINE_SOFT_CAP — consider pushing detail to progressive-disclosure spokes)"
 fi
 
 # --- Check 11: Gotchas surface present --------------------------------------
@@ -1682,7 +1675,7 @@ fi
 #
 # The exception class a `true` claims is NOT machine-checkable: a static scan
 # cannot tell class (i) manual-timing from an unjustified hide. Only class (ii)
-# is deterministic — the PLUGIN-PHILOSOPHY setup contract names `setup` skills —
+# is deterministic — the plugin-philosophy setup contract names `setup` skills —
 # so every other `true` emits a note for hand-verification against the rubric
 # rather than a warning nothing can clear.
 
@@ -1721,7 +1714,7 @@ else
 fi
 
 # --- Check 25: description/verb-contract polarity (WARN; advisory) ----------
-# PLUGIN-PHILOSOPHY Naming fixes verb meanings: audit/scan are read-only
+# plugin-philosophy Naming fixes verb meanings: audit/scan are read-only
 # findings reports (mutation only behind an explicit override such as --fix);
 # clean/tidy/fix mutate the target. This check flags a description that tells
 # a different story than that verb contract, or than the body — the two
@@ -1815,10 +1808,10 @@ VC_ALL_LC="$(printf '%s %s' "$CUR_DESC" "$CUR_WTU" | tr '[:upper:]' '[:lower:]')
 VC_HIT=""
 if [[ "$VC_LEAF" == "audit" || "$VC_LEAF" == "scan" ]] &&
   vc_lead_mutate "$VC_LEAD_LC" && ! vc_has_override "$VC_ALL_LC"; then
-  VC_HIT="leaf verb '$VC_LEAF' is a read-only findings report (PLUGIN-PHILOSOPHY Naming) but the description lead advertises mutation without an explicit override"
+  VC_HIT="leaf verb '$VC_LEAF' is a read-only findings report (plugin-philosophy Naming) but the description lead advertises mutation without an explicit override"
 elif [[ "$VC_LEAF" == "clean" || "$VC_LEAF" == "tidy" || "$VC_LEAF" == "fix" ]] &&
   vc_lead_readonly "$VC_LEAD_LC"; then
-  VC_HIT="leaf verb '$VC_LEAF' mutates the target (PLUGIN-PHILOSOPHY Naming) but the description lead claims the skill is read-only/report-only"
+  VC_HIT="leaf verb '$VC_LEAF' mutates the target (plugin-philosophy Naming) but the description lead claims the skill is read-only/report-only"
 elif vc_lead_readonly "$VC_LEAD_LC" && vc_body_bare_mutate "$VC_BODY"; then
   VC_HIT="description lead claims read-only but the body mutates on bare invocation (or hides an unadvertised mutation path)"
 elif vc_lead_mutate "$VC_LEAD_LC" && ! vc_has_override "$VC_ALL_LC" &&

@@ -3,7 +3,7 @@
 Spec for the `knowledge` plugin's first-class value step: a session opens against the consolidated
 `knowledge-corpus` corpus and fits relevant findings into **any** target repo. Capability and shape
 (a skill, not a manual workflow) are already locked by the decision record for the knowledge-corpus
-consuming repo and integration flow (2026-07-13), listed under `MIGRATION-PLAYBOOK.md`
+consuming repo and integration flow (2026-07-13), listed under `migration-playbook.md`
 "Decision records". This record
 specs the skill; it does not re-open the mechanism. **No build here**. The implement follow-up is
 emitted below.

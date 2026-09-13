@@ -92,7 +92,7 @@ Official contract: <https://code.claude.com/docs/en/plugins-reference#user-confi
 
 - **No `apply`.**
   Do not write the plugin cache, Claude Code user settings, or `pluginConfigs`,
-  per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
+  per the uniform setup contract (`docs/plugin-philosophy.md`
   "Setup is explicit and repeatable" in the marketplace repository). And
   `pluginConfigs` is the only thing an apply here could write, so there is no
   conforming apply to offer: reconfiguration is the native

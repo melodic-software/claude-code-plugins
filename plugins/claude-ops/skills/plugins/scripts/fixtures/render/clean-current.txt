@@ -1,0 +1,7 @@
+Marketplace: market1: current (autoUpdate: on)
+In-repo: 0: <case> has no project/local installs
+Divergences: 0 actionable
+Timing: <elided>
+
+Run journal: <run_dir>
+Timing: <elided>

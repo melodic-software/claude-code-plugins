@@ -221,7 +221,12 @@ OUT=$(printf '%s\n' "$PASS_IN" | bash "$SCRIPT")
 assert_contains "input records pass through by default" "$OUT" "NOTE: something the operator must know"
 assert_contains "the diff section follows" "$OUT" "entry-diff kept scopes=user Bash(git status)"
 OUT=$(diff_only "$PASS_IN")
-assert_not_contains "--diff-only drops the input records" "$OUT" "NOTE: something the operator"
+assert_not_contains "--diff-only drops the per-rule input records" "$OUT" "effective allow scopes=user"
+# --diff-only withholds the rule inventory, never the readability record. A NOTE
+# or CAVEAT is how the input says a scope could not be read, and suppressing it
+# leaves an all-zero summary as the only thing on screen — a clean-looking report
+# for a machine nothing was read from.
+assert_contains "--diff-only keeps the NOTE records" "$OUT" "NOTE: something the operator"
 
 # --- Case 4: no records is an error, never an empty diff ----------------------
 rc=0
@@ -434,6 +439,36 @@ if command -v jq >/dev/null 2>&1; then
 else
   pass "end-to-end conf record flow (skipped — jq not installed)"
 fi
+
+# --- The diff states its precondition and its reversibility -------------------
+# Auto mode is the starting mode in one of the seven documented run shapes, so a
+# headless or Agent SDK session gets a diff for a transition it never makes
+# unless the precondition is stated. And the docs say dropped rules are restored
+# on leaving auto mode, which "dropped" alone does not convey.
+BASE_IN=$(
+  cat <<'EOF'
+user settings present <userhome>/.claude/settings.json
+effective allow scopes=user precedence_basis=uncontested Bash(*)
+EOF
+)
+OUT_BASE=$(printf '%s\n' "$BASE_IN" | bash "$SCRIPT" --diff-only)
+assert_contains "the diff names the transition it describes" "$OUT_BASE" "applies only to a session that ENTERS auto mode"
+assert_contains "and names a run shape that never makes it" "$OUT_BASE" "claude -p"
+assert_contains "the diff says both classes are restored on leaving" "$OUT_BASE" "RESTORED"
+assert_contains "the broad rule is still classified" "$OUT_BASE" "entry-diff dropped class=blanket"
+
+# An unread scope contributes no allow rules, so an all-zero diff has two very
+# different meanings. status= separates them.
+assert_contains "a fully-read diff reports status=read" "$OUT_BASE" "status=read"
+UNREAD_DIFF=$(
+  cat <<'EOF'
+managed file unreadable <managed>/managed-settings.json
+user settings present <userhome>/.claude/settings.json
+EOF
+)
+OUT_UNREAD_DIFF=$(printf '%s\n' "$UNREAD_DIFF" | bash "$SCRIPT" --diff-only)
+assert_contains "an unread scope makes the diff incomplete" "$OUT_UNREAD_DIFF" "status=incomplete"
+assert_contains "and says which scope was not classified" "$OUT_UNREAD_DIFF" "managed scope(s) could not be read"
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"

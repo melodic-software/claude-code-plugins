@@ -314,7 +314,7 @@ scheduling surface recorded in two `surfaces` maps resolving as ambiguous, are c
   extends this skill.
 - Estimate, impute, or backfill the two human-attested return fields. Ever.
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`, per the uniform setup
-  contract (`docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit and repeatable" in the marketplace
+  contract (`docs/plugin-philosophy.md` "Setup is explicit and repeatable" in the marketplace
   repository). Nor platform settings.
 - Assume the shape of any particular org or fleet, a run against an unknown repo asks or
   defaults; it never guesses silently.

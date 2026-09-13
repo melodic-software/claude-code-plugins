@@ -15,8 +15,10 @@ dedicated script. Editing one copy breaks the sync path; a fix-capable pass that
 corrupt the cluster.
 
 **Derivation.** Ask the target whether it documents a shared-source registry. In this marketplace
-that is `scripts/cross-plugin-source-registry.txt`, whose entries are paths *within* each plugin;
-resolve each entry against every plugin root to get the live copy set. When the target documents no
+that is `scripts/cross-plugin-source-registry.txt`, whose plain entries are paths *within* each
+plugin (resolve each against every plugin root to get the live copy set) and whose cluster lines,
+`<canonical> -> <member>...`, name a root-relative canonical copy and the plugin paths or globs that
+carry it (the canonical and every match are the copy set). When the target documents no
 such registry, **this class is empty**. Say so in `skipped` rather than inferring one from
 similarity, which would exclude files nobody registered.
 
@@ -57,10 +59,13 @@ inherits the rule by satisfying the predicate, and no list has to be remembered 
 - **The suppression record** (`.claude/audit-pass.md` and its cascade layers). Excluded from the scan
   set: otherwise suppressing a finding changes the tree and perturbs the next run, which would make
   the idempotence property unfalsifiable.
-- **The run's own report, wherever it lands inside the target.** A run whose resolved report path is
-  contained in the target root records that path in **its own** exclusion list before it writes, and
-  every subsequent run keeps it there; the run states this in its output. `--report-to <path>` is one
-  way the path becomes contained. **The default path is another**, because `${CLAUDE_PLUGIN_DATA}`
+- **The run's own report artifacts, wherever they land inside the target.** A run writes two,
+  `findings.json` and `report.md`, and the predicate is evaluated over **each**: excluding one and
+  scanning the other would leave the pass auditing its own rendering, which is the same
+  unfalsifiable-idempotence defect in half. A run whose resolved report paths are
+  contained in the target root records them in **its own** exclusion list before it writes, and
+  every subsequent run keeps them there; the run states this in its output. `--report-to <dir>` is one
+  way the paths become contained. **The default location is another**, because `${CLAUDE_PLUGIN_DATA}`
   resolves under `~` and is therefore inside any target at or above it. Keyed on the flag instead of
   on containment, a run against a dotfiles repository, or against `~` itself, would write into its own
   scan set with no exclusion entry and then fail its own determinism gate.

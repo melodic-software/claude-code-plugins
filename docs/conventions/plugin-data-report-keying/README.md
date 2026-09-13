@@ -5,7 +5,7 @@ Last updated: 2026-09-07
 
 A marketplace-wide contract for **how a plugin names what it writes under `${CLAUDE_PLUGIN_DATA}`**:
 the key, the retention shape, and whether a write may overwrite. It does not govern *what* may live
-there; that is `docs/MIGRATION-PLAYBOOK.md`'s seam 4 (`${CLAUDE_PLUGIN_DATA}` for machine state
+there; that is `docs/migration-playbook.md`'s seam 4 (`${CLAUDE_PLUGIN_DATA}` for machine state
 only), and this convention sits underneath it.
 
 ## The harness fact this exists for
@@ -178,7 +178,7 @@ holds every project's artifact under the same deletable root.
 
 ## Related
 
-- `docs/MIGRATION-PLAYBOOK.md` seam 4: what may live under `${CLAUDE_PLUGIN_DATA}` at all. This
+- `docs/migration-playbook.md` seam 4: what may live under `${CLAUDE_PLUGIN_DATA}` at all. This
   convention governs naming beneath that.
 - `docs/conventions/topic-docs/`: tier placement, including the `${CLAUDE_PLUGIN_DATA}` machine-state
   tier.

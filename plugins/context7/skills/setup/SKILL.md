@@ -23,7 +23,7 @@ Bring the local environment to a working state for `/context7:lookup`. Two indep
 either alone sufficient: the **CLI** (`ctx7` via npm) and the **Context7 MCP server** (configured
 by the consuming project). An optional `CONTEXT7_API_KEY` raises rate limits for both.
 
-Check-centric per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
+Check-centric per the uniform setup contract (`docs/plugin-philosophy.md`
 "Setup is explicit and repeatable" in the marketplace repository): `check` inspects and reports,
 `apply` resolves what `check` found, and the CLI install is a distinct opt-in subaction.
 Idempotent and transparent: safe to rerun.

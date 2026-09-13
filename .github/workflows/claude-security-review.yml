@@ -71,7 +71,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Fetch base
-        uses: ./.github/actions/checkout-with-base
+        uses: ./.github/actions/checkout-with-base # zizmor: ignore[self-repository]
       # Each fallback is its own announced branch, never a silent 2>/dev/null
       # catch-all: an unresolvable base ref is a hard failure (on pull_request
       # the composite above fetched it, so its absence means something is

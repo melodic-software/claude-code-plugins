@@ -3,11 +3,17 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.8.12]
+## [0.8.13]
 
 ### Changed
 
 - Refreshes this plugin's vendored copy of the shared shell library from the marketplace's canonical lib/ source after a behavior-preserving simplification: hook-utils.sh folds two identical path-probe guards into one and shares the orphaned-redirect handling across the bash segment parser; index-regen.sh folds two identical frontmatter skip guards; resolve-convention-pattern.sh drops a redundant quote-match clause. Parser output, hook JSON, and every resolver result are byte-identical before and after.
+
+## [0.8.12]
+
+### Changed
+
+- Cite the marketplace `docs/` doctrine files by their lower-kebab names (`docs/plugin-philosophy.md`, `docs/migration-playbook.md`, and siblings); the files were renamed and the old uppercase paths no longer resolve.
 
 ## [0.8.11]
 

@@ -74,7 +74,7 @@ or `.claude/<plugin>/**`). This contract intentionally names the folder by **con
 
 General rule this instance establishes: **when a tracked-config concern is consumed by more than one
 plugin, name the folder by concern and record the contract in `docs/conventions/`**, per
-`docs/MIGRATION-PLAYBOOK.md` "Extensibility contract v2.1".
+`docs/migration-playbook.md` "Extensibility contract v2.1".
 
 The directory is `.claude/`-scoped but not Claude-walled: it is ordinary tracked YAML any agent or
 script can read. Agent-agnostic discovery is satisfied by the consuming repo citing the path from its
@@ -84,7 +84,7 @@ by reference.
 ## Resolution ladder (plugin behavior)
 
 Plugins resolve the command surface per the convention-resolution ladder
-(`docs/MIGRATION-PLAYBOOK.md` "Convention-resolution ladder"):
+(`docs/migration-playbook.md` "Convention-resolution ladder"):
 
 1. `.claude/ecosystems/<ecosystem>.yaml` present → use it. It is authoritative.
 2. Absent → infer from the repo's build files (solution files, `pyproject.toml`, `package.json`, …)
@@ -171,4 +171,4 @@ change. The demotion path is designed in.
 The schema carries the contract version (`CHANGELOG.md`). Additive schema changes bump minor;
 breaking changes bump major, get a changelog entry with a migration note, and re-trigger the
 consuming plugins' version bumps (the plugin `version` is the only update-delivery vehicle, per
-`docs/MIGRATION-PLAYBOOK.md` "Version pinning and update delivery").
+`docs/migration-playbook.md` "Version pinning and update delivery").

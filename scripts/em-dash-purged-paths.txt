@@ -229,6 +229,7 @@ plugins/discovery/skills/*/reference/*.md
 # bold-roster fixture whose matcher keys on the character itself.
 plugins/docs-hygiene/*.md
 plugins/docs-hygiene/context/*.md
+plugins/docs-hygiene/reference/*.md
 plugins/docs-hygiene/skills/*/SKILL.md
 plugins/docs-hygiene/skills/*/actions/*.md
 plugins/docs-hygiene/skills/*/context/*.md
@@ -236,6 +237,7 @@ plugins/docs-hygiene/skills/*/reference/*.md
 plugins/docs-hygiene/skills/*/evals/fixtures/*.md
 plugins/docs-hygiene/skills/*/evals/fixtures/*/*.md
 plugins/docs-hygiene/skills/*/evals/fixtures/*/*/*.md
+plugins/docs-hygiene/skills/*/templates/*
 plugins/domain-driven-design/README.md
 plugins/domain-driven-design/CHANGELOG.md
 plugins/domain-driven-design/skills/*/SKILL.md

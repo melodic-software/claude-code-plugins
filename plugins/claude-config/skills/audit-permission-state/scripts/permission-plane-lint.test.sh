@@ -469,6 +469,79 @@ else
   pass "end-to-end reader lint (skipped — jq not installed)"
 fi
 
+# --- An unread scope must not summarize as a clean plane ----------------------
+# `findings=0` on a plane where nothing could be opened used to be byte-identical
+# to `findings=0` on a fully-read clean one. status= carries the difference, and
+# LINT-NOTE names the scopes so the operator knows what was not linted.
+UNREAD_IN=$(
+  cat <<'EOF'
+managed file unreadable <managed>/managed-settings.json
+user settings unreadable <userhome>/.claude/settings.json
+project settings invalid-json <proj>/.claude/settings.json
+local settings skipped <proj>/.claude/settings.local.json
+EOF
+)
+OUT_UNREAD=$(printf '%s\n' "$UNREAD_IN" | bash "$SCRIPT")
+assert_contains "an all-unread plane reports status=incomplete" "$OUT_UNREAD" "status=incomplete"
+assert_contains "and names the scopes it could not lint" "$OUT_UNREAD" "LINT-NOTE:"
+assert_contains "and says the count is not a clean bill" "$OUT_UNREAD" "not a clean bill"
+
+READ_IN=$(
+  cat <<'EOF'
+managed file absent <managed>/managed-settings.json
+user settings present <userhome>/.claude/settings.json
+project settings present <proj>/.claude/settings.json
+local settings absent <proj>/.claude/settings.local.json
+EOF
+)
+OUT_READ=$(printf '%s\n' "$READ_IN" | bash "$SCRIPT")
+assert_contains "a fully-read plane reports status=read" "$OUT_READ" "status=read"
+assert_not_contains "and emits no unread note" "$OUT_READ" "LINT-NOTE:"
+# `absent` is a real answer; only skipped/unreadable/invalid-json are not.
+assert_not_contains "an absent surface is not treated as unread" "$OUT_READ" "status=incomplete"
+
+# --- Unreadness is per surface, and sticky ------------------------------------
+# `managed` emits four surface records. A scope-keyed status keeps only the last,
+# so a skipped registry followed by a not-applicable plist read as fully-read --
+# the same false-clean summary the status token was added to prevent.
+MULTI_SURFACE=$(
+  cat <<'EOF'
+managed file absent <managed>/managed-settings.json
+managed dropin-dir absent <managed>/managed-settings.d
+managed registry skipped -
+managed plist not-applicable -
+user settings present <userhome>/.claude/settings.json
+EOF
+)
+OUT_MULTI=$(printf '%s\n' "$MULTI_SURFACE" | bash "$SCRIPT")
+assert_contains "a skipped surface is not erased by a later surface in the same scope" "$OUT_MULTI" "status=incomplete"
+assert_contains "and the note names the surface, not just the scope" "$OUT_MULTI" "registry:skipped"
+
+# The reverse order must behave identically: the unread record is sticky whether
+# it arrives first or last.
+REVERSED=$(
+  cat <<'EOF'
+managed plist not-applicable -
+managed registry skipped -
+user settings present <userhome>/.claude/settings.json
+EOF
+)
+OUT_REV=$(printf '%s\n' "$REVERSED" | bash "$SCRIPT")
+assert_contains "order does not change the verdict" "$OUT_REV" "status=incomplete"
+
+# not-applicable and absent are answers, so a scope made only of them is read.
+ALL_ANSWERED=$(
+  cat <<'EOF'
+managed file absent <managed>/managed-settings.json
+managed registry not-applicable -
+managed plist not-applicable -
+user settings present <userhome>/.claude/settings.json
+EOF
+)
+OUT_ANSWERED=$(printf '%s\n' "$ALL_ANSWERED" | bash "$SCRIPT")
+assert_contains "absent and not-applicable surfaces keep the plane read" "$OUT_ANSWERED" "status=read"
+assert_not_contains "and emit no unread note" "$OUT_ANSWERED" "LINT-NOTE:"
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
   exit 0

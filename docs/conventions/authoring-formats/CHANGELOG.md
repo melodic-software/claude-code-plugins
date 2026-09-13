@@ -48,11 +48,11 @@ consuming skills restate.
 - **Consumer surface in convention-doc expression**: `<home>/authoring-formats/README.md`, one
   layer (team, via the pointer line), no overlay channel, unknown keys inert. Neither key is a
   plugin-manifest option: a team-shared format choice has no per-operator axis, per
-  `docs/PLUGIN-PHILOSOPHY.md` § Configuration ownership and scope.
+  `docs/plugin-philosophy.md` § Configuration ownership and scope.
 - **Resolution ladder** stated in a copyable block: anchor, home resolution, read, layer order,
   defaults, soft degrade, provenance reporting. A consuming skill restates it rather than citing
   this file, because an installed plugin never sees this repository's `docs/conventions/`.
-- **Registered** in the convention registry in `docs/PLUGIN-PHILOSOPHY.md` and in the
+- **Registered** in the convention registry in `docs/plugin-philosophy.md` and in the
   [config-cascade](../config-cascade/README.md) Implementers table.
 
 No skill reads either key on `main` at this release. The consuming changes are separate slices,

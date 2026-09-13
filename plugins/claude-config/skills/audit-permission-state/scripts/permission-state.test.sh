@@ -63,7 +63,13 @@ jq -n '{permissions:{allow:["Bash(ls)"]}}' >"$FX/policy/managed-settings.d/.hidd
 jq -n '{permissions:{allow:["Bash(ls)"]}}' >"$FX/startdir/.claude/settings.local.json"
 
 run() {
-  env -u CLAUDE_CONFIG_DIR \
+  # CLAUDE_CODE_REMOTE is unset here rather than inherited: the suite is fully
+  # fixtured, and a run inside a real cloud session would otherwise emit the
+  # cloud note in every case and make the local-session assertion unrunnable
+  # exactly where it matters. TEST_CLOUD_REMOTE puts it back for the one case
+  # that is about it.
+  env -u CLAUDE_CONFIG_DIR -u CLAUDE_CODE_REMOTE \
+    ${TEST_CLOUD_REMOTE:+CLAUDE_CODE_REMOTE="$TEST_CLOUD_REMOTE"} \
     HOME="$FX/home" \
     PERMISSION_STATE_FIXTURE_DIR="$FX/proj" \
     PERMISSION_STATE_STARTDIR="$FX/startdir" \
@@ -328,6 +334,43 @@ rc=0
 err_out=$(PATH="$empty_path_dir" "$real_bash" "$SCRIPT" 2>&1) || rc=$?
 assert_exit "exit 2 when jq missing" 2 "$rc"
 assert_contains "jq required message" "$err_out" "jq required"
+
+# --- Case 14: all four documented local-file exceptions -----------------------
+# The documented list is "outside a git repository, when the repository root is
+# your home directory, on Windows, or when the repository root or its .git or
+# .claude entry isn't owned by your user". Two of the four used to be resolved;
+# a native-Windows machine therefore had its local file reported absent while it
+# was live beside settings.json.
+OUT_DEFAULT=$(run)
+assert_contains "the default anchor is the repository root" "$OUT_DEFAULT" "anchored on the repository root"
+
+OUT_WIN=$(PERMISSION_STATE_OSTYPE=msys run)
+assert_contains "on Windows the file stays in the start directory" "$OUT_WIN" "start directory (on Windows)"
+OUT_CYG=$(PERMISSION_STATE_OSTYPE=cygwin run)
+assert_contains "the cygwin OSTYPE takes the same branch" "$OUT_CYG" "start directory (on Windows)"
+OUT_LINUX=$(PERMISSION_STATE_OSTYPE=linux-gnu run)
+assert_contains "a non-Windows OSTYPE keeps the repository-root anchor" "$OUT_LINUX" "anchored on the repository root"
+
+OUT_OWNED=$(PERMISSION_STATE_OWNER_OVERRIDE=foreign run)
+assert_contains "a foreign-owned repository root moves the anchor" "$OUT_OWNED" "not owned by this user"
+OUT_SELF=$(PERMISSION_STATE_OWNER_OVERRIDE=self run)
+assert_contains "a self-owned root keeps the repository-root anchor" "$OUT_SELF" "anchored on the repository root"
+
+# The SDK caveat names the helper the docs actually describe. Claiming a whole
+# session class overstates the source, and there is no documented variable that
+# would let this reader detect such a session anyway.
+assert_contains "the SDK caveat names resolveSettings()" "$OUT_DEFAULT" "resolveSettings()"
+assert_not_contains "it does not claim to describe a session class" "$OUT_DEFAULT" "In an Agent SDK session"
+
+# --- Case 15: the cloud-session scope note -----------------------------------
+# A cloud session does not read the operator's own user or local settings, so a
+# user scope reported there is the container's file. CLAUDE_CODE_REMOTE is the
+# documented signal for that detection.
+OUT_CLOUD=$(TEST_CLOUD_REMOTE=true run)
+assert_contains "a cloud session says which scopes it does not read" "$OUT_CLOUD" "CLAUDE_CODE_REMOTE=true"
+assert_contains "and that the user scope shown is not the operator's" "$OUT_CLOUD" "not yours"
+OUT_LOCAL_SESSION=$(run)
+assert_not_contains "a local session emits no cloud note" "$OUT_LOCAL_SESSION" "CLAUDE_CODE_REMOTE=true"
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"

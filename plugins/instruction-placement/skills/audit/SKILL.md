@@ -1,5 +1,5 @@
 ---
-description: "Read-only sweep for instruction content on the wrong surface. Conventions in an always-loaded CLAUDE.md/AGENTS.md really scoped to one file type or subtree (demote), and normative conventions stranded in ordinary docs Claude never loads (promote). Proposes a destination per candidate: a path-scoped `.claude/rules/` file whose `paths:` glob is machine-checked first, a nested AGENTS.md plus its CLAUDE.md shim, a skill, a linter, or deletion. Safety rails covering irreversible actions, secrets, data, publication, compliance, and agent authority are hard-denied from demotion and held back. Every proposal is priced: deferred content is invisible to subagents and absent after compaction until re-triggered. Use when: 'my CLAUDE.md is too long', 'convert this to rules', 'what should be a path-scoped rule', 'move conventions to .claude/rules', 'find conventions in our docs', 'nested CLAUDE.md candidates', 'audit instruction placement'. Emits a findings artifact; the sibling realign skill applies accepted findings."
+description: "Read-only sweep for instruction content on the wrong surface. Conventions in an always-loaded CLAUDE.md/AGENTS.md really scoped to one file type or subtree (demote), and normative conventions stranded in ordinary docs Claude never loads (promote). Proposes a destination per candidate: a path-scoped `.claude/rules/` file whose `paths:` glob is machine-checked first, a nested AGENTS.md plus its CLAUDE.md shim, a skill, a linter, or deletion. Safety rails covering irreversible actions, secrets, data, publication, compliance, and agent authority are hard-denied from demotion and held back. Every proposal is priced: deferred content loads only on a matching read, is never inherited, never announced. Use when: 'my CLAUDE.md is too long', 'convert this to rules', 'what should be a path-scoped rule', 'move conventions to .claude/rules', 'find conventions in our docs', 'nested CLAUDE.md candidates', 'audit instruction placement'. Emits a findings artifact; the sibling realign skill applies accepted findings."
 argument-hint: "[core|expanded] [path ...]. Default: core+expanded over the whole repository"
 user-invocable: true
 disable-model-invocation: false
@@ -62,8 +62,9 @@ what it cost before.
 ## The two lanes
 
 **Demote**. Content already in the instruction layer, sitting higher than its scope warrants. The
-saving is real but so is the trade: what defers is invisible to subagents and absent after
-compaction until re-triggered. Price it, every time.
+saving is real but so is the trade: what defers is absent until a read matches it, absent again
+after a compaction until that trigger recurs, never inherited by a subagent, and never announced,
+so nothing tells an agent it exists. Price it, every time.
 
 **Promote**. Normative content in ordinary documentation that Claude loads *never*. There is no
 presence to lose, so the gaps do not apply and any working destination is a strict improvement. The
@@ -117,8 +118,9 @@ validate it. An unvalidated hint is not a proposal.
    Re-derive, or drop the candidate to the subtree destination, or leave it where it is. Record the
    validation facts, match count and breadth, in the finding, because that is the evidence the
    operator gates on. An `over-broad` result is proposable but must be surfaced as such.
-6. **Price each proposal**: what leaves the always-loaded budget, subagent invisibility, and
-   post-compaction behavior for that specific destination.
+6. **Price each proposal**: what leaves the always-loaded budget, that the content is not inherited
+   by a subagent and announces itself nowhere, and post-compaction behavior for that specific
+   destination.
 7. **Rank**, highest value first: always-loaded lines released × confidence, with promote-lane
    findings ranked on value alone since they carry no downside.
 8. **Write the artifact**, then summarize inline. The artifact is the record; the summary is a view

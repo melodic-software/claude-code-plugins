@@ -5,7 +5,7 @@
 #
 #   scripts/check-plugin-catalog-enablement.sh   run the gate (no flags)
 #
-# WHY. docs/CLOUD-SESSIONS.md states the property this repo depends on: this
+# WHY. docs/cloud-sessions.md states the property this repo depends on: this
 # repo dogfoods everything it publishes, so a regression in any plugin
 # surfaces here first. Nothing enforced it. Three plugins reached main with a
 # catalog entry and no `enabledPlugins` key -- ai-slop (#2892), context-budget
@@ -203,7 +203,7 @@ done < <(comm -13 <(printf '%s\n' "$catalog") <(printf '%s\n' "$enabled"))
 if [[ -n "$declared_keys" ]]; then
   if ! diff <(printf '%s\n' "$declared_keys") <(printf '%s\n' "$declared_keys" | LC_ALL=C sort) >/dev/null; then
     printf 'UNSORTED enabledPlugins: keys in %s are not in byte order.\n' "$SETTINGS" >&2
-    printf '  docs/CLOUD-SESSIONS.md documents the alphabetical one-per-line layout as what lets a single\n' >&2
+    printf '  docs/cloud-sessions.md documents the alphabetical one-per-line layout as what lets a single\n' >&2
     printf '  plugin be flipped to false without disturbing the rest. First keys out of order:\n' >&2
     diff <(printf '%s\n' "$declared_keys") <(printf '%s\n' "$declared_keys" | LC_ALL=C sort) |
       sed -n '1,10p' | sed 's/^/    /' >&2

@@ -8,7 +8,7 @@
 Two documents in this repository gave skill authors opposite instructions about citing a path
 inside another skill, and both were being followed.
 
-`docs/PLUGIN-PHILOSOPHY.md:337-342` prescribes the citation and regulates only its path form:
+`docs/plugin-philosophy.md:337-342` prescribes the citation and regulates only its path form:
 
 ```text
 Apply the same anchoring rule to bundled assets: one skill citing another skill's supporting file
@@ -84,7 +84,7 @@ sees only the conclusion will re-make them.
 
 The draft ruling kept 49 findings alive on the grounds that a bare relative cross-skill path "stays
 a defect on the philosophy doc's own reasoning". It does not. The doctrine condemns one specific
-shape, at `docs/PLUGIN-PHILOSOPHY.md:341-342`:
+shape, at `docs/plugin-philosophy.md:341-342`:
 
 ```text
 A bare `context/…`-style path is reserved for a skill's OWN supporting files; it resolves against
@@ -167,7 +167,7 @@ Same plugin, same targets, one anchored and correct, one bare and unresolvable. 
 is binding rather than advisory: legalising the intra-plugin case without also requiring a
 resolvable form produces drift inside a single plugin, and already has.
 
-Two of the ten sit in the doctrine document itself, at `docs/PLUGIN-PHILOSOPHY.md:596` and `:1071`,
+Two of the ten sit in the doctrine document itself, at `docs/plugin-philosophy.md:596` and `:1071`,
 writing a path with no resolvable base in the same file whose lines 341-342 forbid exactly that. The
 first is a live Convention-registry row other plugins consult:
 
@@ -189,7 +189,7 @@ everyone who installs `docs-hygiene`.
 That recommendation was **not** taken literally, and the departure is recorded here so it is chosen
 rather than inherited. The relaxation was written into both documents instead:
 
-- `docs/PLUGIN-PHILOSOPHY.md` states the cross-plugin limit it previously omitted, which is how 30
+- `docs/plugin-philosophy.md` states the cross-plugin limit it previously omitted, which is how 30
   call sites came to read blanket permission into it, and states the anchor limit.
 - `public-surface-contract.md` gained a conditional carve-out rather than a relaxation. It is gated
   on the consuming repo actually being built that way (one manifest and one version per plugin, no

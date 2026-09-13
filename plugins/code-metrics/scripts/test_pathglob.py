@@ -29,6 +29,32 @@ def run(*args: str) -> subprocess.CompletedProcess:
     )
 
 
+class RootRelativeTests(unittest.TestCase):
+    def test_a_cwd_relative_path_is_rebased_onto_the_root(self) -> None:
+        import os
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = os.path.realpath(tmp)
+            lib = os.path.join(root, "lib")
+            os.mkdir(lib)
+            before = os.getcwd()
+            os.chdir(lib)
+            try:
+                self.assertEqual(
+                    pathglob.root_relative("../plugins/a/x.sh", root), "plugins/a/x.sh"
+                )
+                self.assertEqual(pathglob.root_relative("x.sh", root), "lib/x.sh")
+                self.assertEqual(
+                    pathglob.root_relative(os.path.join(root, "y.sh"), root), "y.sh"
+                )
+            finally:
+                os.chdir(before)
+
+    def test_without_a_root_the_path_is_only_normalized(self) -> None:
+        self.assertEqual(pathglob.root_relative("./a\\b.sh", ""), "a/b.sh")
+
+
 class TranslateTests(unittest.TestCase):
     def test_bare_extension_matches_at_any_depth(self) -> None:
         self.assertTrue(pathglob.matches("*.sh", "a/b/c.sh"))

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Portability-lint gate: skills declared ecosystem/forge/tracker-agnostic must
 # not ship bare hardcoded stack/forge/branch/tracker defaults. The agnosticism
-# contract lives in docs/PLUGIN-PHILOSOPHY.md (Design boundary,
+# contract lives in docs/plugin-philosophy.md (Design boundary,
 # Two-lane convention posture, Cross-platform contract's declared-narrower-scope
 # allowance); prose states it but cannot self-verify, so this gate turns the
 # assertion into a mechanical check.

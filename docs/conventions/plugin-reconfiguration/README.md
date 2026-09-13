@@ -10,7 +10,7 @@ a re-verification against a newer Claude Code release is a one-file edit.
 This doc owns the **reconfiguration routes and their caveats** for options stored in Claude Code's
 native plugin-configuration surface (`pluginConfigs`). Which options a plugin has, and what they
 mean, belong to that plugin's own README Options reference. The rule that no setup skill ever
-writes `pluginConfigs`, user settings, or the plugin cache is PLUGIN-PHILOSOPHY's (Setup is
+writes `pluginConfigs`, user settings, or the plugin cache is plugin-philosophy's (Setup is
 explicit and repeatable); this doc restates it only as the reason both routes below are
 consumer-run.
 

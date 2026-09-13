@@ -73,7 +73,7 @@ and review criteria, or delegate to a fresh-context reviewer.
   reasoning that produced the change; prefer that over pure self-audit for non-trivial diffs
 - For a high-stakes diff, prefer a cross-vendor advisor **when one is installed and set up**, for example the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs, with the fresh-context same-vendor subagent as the stated fallback,
   never a route to a command that may not resolve
-  (per `docs/PLUGIN-PHILOSOPHY.md` "Fresh-eyes checkpoints" in the marketplace repository)
+  (per `docs/plugin-philosophy.md` "Fresh-eyes checkpoints" in the marketplace repository)
 
 ## 7. Verify outcome
 

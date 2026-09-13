@@ -20,7 +20,7 @@ empty skeleton and stops there, because that bind is usually reached as a detour
 reporting "no binding", the operator came to do something else, and should not be walked through a
 per-item interview to get there.
 
-Check-centric per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
+Check-centric per the uniform setup contract (`docs/plugin-philosophy.md`
 "Setup is explicit and repeatable" in the marketplace repository): `check` inspects read-only and
 reports a PASS/FAIL/INFO table; `apply` binds the provider, writes or reshapes the schedule, and
 offers the role remap, then re-runs `check`. No argument or `check` runs the check; `apply` runs the

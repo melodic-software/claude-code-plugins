@@ -226,7 +226,7 @@ The marketplace's `renames` map still carries a historical `claude-config-audit`
 session. No action is needed for `audit`, `audit-automation-gaps`, and `audit-permission-grants`.
 That entry is a migration aid for consumers who predate the rename, not the marketplace's
 go-forward mechanism: the map is frozen-historical and later renames ship as clean breaking
-changes (see the [migration playbook](../../docs/MIGRATION-PLAYBOOK.md#version-pinning-and-update-delivery)).
+changes (see the [migration playbook](../../docs/migration-playbook.md#version-pinning-and-update-delivery)).
 
 The `memory-health` skill did **not** move to `claude-config`. It was extracted into the new,
 separate `claude-memory` plugin (now its `audit` skill). The rename only rewrites the `claude-config-audit`

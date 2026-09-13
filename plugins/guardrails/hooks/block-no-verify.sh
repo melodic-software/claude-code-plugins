@@ -210,7 +210,7 @@ check_segment() {
   for cv in ${HOOK_GITINV_CONFIG_VALUES[@]+"${HOOK_GITINV_CONFIG_VALUES[@]}"}; do
     lc="${cv,,}"
     [[ "$lc" == *core.hookspath=* ]] && block "hooksPath" \
-      "BLOCKED: core.hooksPath assignment is not allowed with git commit/push." \
+      "BLOCKED: core.hooksPath assignment silently disables every git hook, not just the one failing." \
       "Fix the hook failure instead of bypassing git hooks."
   done
 
@@ -219,7 +219,7 @@ check_segment() {
   for ((k = 0; k < gi; k++)); do
     lc="${w[k],,}"
     [[ "$lc" =~ ^(${HM_ALT})[_a-z0-9]*=(0|false)$ ]] && block "hook-manager-env" \
-      "BLOCKED: hook-manager env-var bypass is not allowed with git commit/push." \
+      "BLOCKED: a hook-manager env-var bypass disables the hook manager, letting this commit/push land unchecked." \
       "Fix the hook lane failure instead of bypassing."
   done
 
@@ -243,14 +243,14 @@ check_segment() {
     *) ;;
     esac
     [[ "$x" == "--no-verify" ]] && block "no-verify" \
-      "BLOCKED: --no-verify / -n flags are not allowed with git $sub." \
+      "BLOCKED: --no-verify / -n skips the hooks meant to catch problems in this git $sub before they land." \
       "Fix the issues that caused the hook failure instead of bypassing."
     if [[ "$sub" == "commit" && "$x" =~ ^-[A-Za-z]+$ ]]; then
       rest="${x#-}"
       for ((ch = 0; ch < ${#rest}; ch++)); do
         case "${rest:ch:1}" in
         n) block "no-verify" \
-          "BLOCKED: --no-verify / -n flags are not allowed with git commit." \
+          "BLOCKED: --no-verify / -n skips the hooks meant to catch problems in this git commit before they land." \
           "Fix the issues that caused the hook failure instead of bypassing." ;;
         m | F | c | C | t | u | S | G)
           if ((ch + 1 < ${#rest})); then

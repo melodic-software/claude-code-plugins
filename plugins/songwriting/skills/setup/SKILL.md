@@ -7,7 +7,7 @@ disable-model-invocation: true
 
 ## Purpose
 
-Thin check-centric setup per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
+Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy.md`
 "Setup is explicit and repeatable" in the marketplace repository): `check` inventories the consuming
 repo's tracked prompt-template overrides and reports the effective artifact layout; `apply` scaffolds
 an override from a bundled default (or removes a byte-identical one). The override seam and the output

@@ -42,7 +42,7 @@ file puts them, and it removes the retyping error that a per-step transcript inv
 
 What the model still owns, because the script cannot:
 
-- **The `install_new` policy.** `${user_config.install_new}` substitutes only when Claude Code
+- **The `install_new` policy.** The `user_config.install_new` placeholder substitutes only when Claude Code
   renders SKILL.md; a `context/*.md` spoke is read raw. SKILL.md's "Configured value" line is the
   rendered value, and the model passes it as `--install-new`. On `ask` with a non-empty install gap
   the script reports the gap and STOPS before Step 4, because only the model can run the batched
@@ -50,14 +50,29 @@ What the model still owns, because the script cannot:
   performs Step 4 and Step 5 against the same run journal and re-emits the digest.
 - **The journal root.** `${CLAUDE_PLUGIN_DATA}` substitutes in SKILL.md and not here, so SKILL.md
   passes the substituted path as `--journal-root`.
-- **Step 6.** The report is prose over the digest.
+- **The reload guidance.** Step 6's report is rendered by the script too (`render-report.jq`
+  over the digest, printed under `--render` and written to `<run_dir>/report.txt`); the model
+  appends the reload guidance SKILL.md's Report section fixes and answers questions.
 
-The digest carries, per marketplace: the refresh result, `project_root`, the in-repo and user-scope
-sweep outcomes with each pair's direction, withheld downgrades, the install and enable gaps, what
-was installed and enabled, the project-scope enable rows, the normalizer result, the cache-content
-counts and stale ids, the catalog regression interval, the three-snapshot divergence split, and
-whether the sweep updated this plugin itself. Ids and counts only: the per-file cache detail and
-every snapshot stay in the run directory, which the digest names.
+The digest carries, per marketplace: the refresh result, `project_root`, the marketplace's
+`auto_update` and `catalog_source`, the in-repo and user-scope sweep outcomes with each pair's
+direction, withheld downgrades, the install and enable gaps, what was installed and enabled, the
+installs whose CLI output named userConfig options left unset
+(`installed_with_unset_user_config[]`, one `{id, options_unset, required}` each), the project-scope
+enable rows, the normalizer result, the cache-content counts and stale ids, the catalog regression
+interval, the three-snapshot divergence split, whether the sweep updated this plugin itself, the
+moved plugins whose installed build declares a monitor (`updated_with_monitors[]`, one
+`{id, scope, monitors}` each, read from the record's own cache directory in the post-sweep
+snapshot), and `timings`: seconds to three decimals for
+`pre_refresh_read`, `marketplace_update`, `in_repo_update`, `user_sweep`, `install_enable`,
+`cache_content_check`, `post_read`, and the marketplace's `total`, with `resolution` naming the
+clock that produced them (`microseconds` from bash's `EPOCHREALTIME`, `nanoseconds` from a
+validated `date +%s.%N`, else `seconds`). A step this invocation did not run, because `audit`
+predicted it, the policy stopped before Step 4, or an `--only-install` re-entry reuses the first
+pass's result, reads `null`, never 0. The digest's top-level `timings.total` times the whole
+invocation, and its `cwd` is what the `In-repo:` row names when no project root resolved. Ids and
+counts only: the per-file cache detail and every snapshot stay in the run directory, which the
+digest names.
 
 ## Concurrency
 
@@ -658,10 +673,12 @@ rather than leading with the match count.
 
 ## Step 6: Report
 
-Emit the report per SKILL.md's "Report" section, filling each updated plugin's `<old> → <new>` from
-the sources the "Version capture for the report" section above fixes. The digest carries them,
-resolved from the run journal rather than from memory of the run, and the run directory it names
-holds every snapshot behind them.
+The script renders the report from the digest (`render-report.jq`), filling each updated plugin's
+`<old> → <new>` from the sources the "Version capture for the report" section above fixes. The
+digest carries them, resolved from the run journal rather than from memory of the run, and the run
+directory it names holds every snapshot behind them. The paragraphs below state what the render
+does with each field and why, so a reader can check a rendered row against the field it came from;
+the model's one addition is the reload guidance at the end.
 
 **Every `<old> -> <new>` pair reaches the report already classified by direction.** Apply the same triple
 compare the guard uses: a pair whose new version is higher, or whose direction the compare cannot
@@ -719,9 +736,16 @@ describes work done by a version the user no longer has installed. Current docs,
 (fetched 2026-08-22): "When a plugin updates mid-session, hook commands, monitors, MCP servers, and
 LSP servers keep using the previous version's path." This is not a crash risk, since the previous
 version directory is retained on a grace period and the running script does not vanish mid-run. It
-is a reporting obligation. Emit SKILL.md's self-update row.
+is a reporting obligation. The render emits the self-update note when the digest's `self_updated`
+is true.
 
-End with reload guidance per SKILL.md's Report section: recommend bare `/reload-plugins`, and state
-the recovery step rather than pre-judging which case will trigger it. Call out a session restart
-separately only when an updated component ships a monitor (monitors aren't covered by
-`/reload-plugins`).
+**Name the monitors.** A monitor is not covered by `/reload-plugins`, so a moved plugin whose
+installed build declares one needs a session restart. The script reads each moved record's own
+cache directory from the post-sweep snapshot (`installPath`) and counts monitors declared inline
+under the manifest's `experimental.monitors` key, in the manifest file that key names, or in
+`monitors/monitors.json` at the plugin root; the render lists the ids under `Action needed` and
+attributes the restart requirement to the plugins reference.
+
+End with the reload guidance per SKILL.md's Report section: recommend bare `/reload-plugins`, and
+state the recovery step rather than pre-judging which case will trigger it. That line is the
+model's; everything above it is the render's.

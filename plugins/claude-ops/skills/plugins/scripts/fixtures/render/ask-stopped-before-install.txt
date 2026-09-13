@@ -1,0 +1,11 @@
+Marketplace: market1: needs update (autoUpdate: on)
+In-repo: 0: <case> has no project/local installs
+Updated: 1 plugin(s)
+  - alpha@market1 (user): 0.1.0 → 0.3.0
+Divergences: 0 actionable
+Timing: <elided>
+Action needed:
+  - 1 catalog plugin(s) not installed at user scope (policy ask; stopped before Step 4 pending the batched prompt): beta@market1
+
+Run journal: <run_dir>
+Timing: <elided>

@@ -16,7 +16,7 @@ per-section with the bundled lane; a lane without it resolves project-only.
 
 Project lanes are optional: with none, `/code-tidying:tidy` uses the bundled lanes, so their absence is
 a reported INFO, never a FAIL. Check-centric per the uniform setup contract
-(`docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit and repeatable" in the marketplace repository):
+(`docs/plugin-philosophy.md` "Setup is explicit and repeatable" in the marketplace repository):
 `check` inspects read-only; `apply` scaffolds or retunes lanes, then re-runs `check`. No argument or
 `check` runs the check; `apply` runs the check first, then the scaffold flow. `apply <lane>` targets a
 single lane. Idempotent: re-running reads the existing lane files and proposes additions or edits

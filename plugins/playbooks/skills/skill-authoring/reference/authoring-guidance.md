@@ -255,9 +255,11 @@ never followed, one file read repeatedly (promote it into the body), a bundled f
 it or signal it better). Where the bundled skill-creator plugin is installed, its eval modes run
 this loop with a subagent per case. Where `/skill-doctor` is available (Claude Code v2.1.252 or
 later, in a session that fetches feature flags, run in the terminal rather than over Remote
-Control), it answers "does it activate" from usage data, not "is the output right". A
-`claude plugin eval` subcommand exists in the binary but is undocumented, so nothing here depends
-on it.
+Control), it answers "does it activate" from usage data, not "is the output right".
+`claude plugin eval` is a documented command with its own page, but it evaluates a whole plugin
+against a no-plugin baseline from a case format of its own, which that page states is separate from
+the `evals/evals.json` this section describes. The loop above is the one to run for a skill's eval
+file; a plugin measured as a plugin routes to that command instead.
 
 When a rule is being missed, two fixes are on the table: directive wording ("MUST filter test
 accounts") and reasoning-based wording ("filter test accounts because they inflate every metric").
@@ -270,8 +272,14 @@ version floor and feature-flag gate: <https://code.claude.com/docs/en/skills#fin
 file shape: <https://agentskills.io/skill-creation/evaluating-skills> and
 `plugins/skill-quality/reference/evals.schema.json`. The loop and the four signals:
 <https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#evaluation-and-iteration>.
-Verified 2026-09-10. Recheck: the Claude Code page documents `claude plugin eval`, changes the
-`/skill-doctor` gate, or the runner changes its record shape.
+Verified 2026-09-10. `claude plugin eval` and the format separation:
+<https://code.claude.com/docs/en/plugin-evals> ("Test plugins with evals"), read as raw markdown,
+which requires Claude Code v2.1.269 or later and says its case format "is separate from the
+`evals/evals.json` file the skill-creator plugin uses"; verified 2026-09-12, the command is
+documented and does not read this format, which is why the loop above is unaffected by it. Recheck:
+that page drops the format-separation statement or its runner starts reading `evals/evals.json`, the
+Claude Code page changes the `/skill-doctor` gate, the skills page changes the loop, the four
+signals, or the skill-creator modes, or the runner changes its record shape.
 
 ## Model coverage
 

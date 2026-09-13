@@ -11,6 +11,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Refreshes this plugin's vendored copy of the shared check-retirements.sh helper from the canonical claude-config source after a behavior-preserving simplification: the dead top-level record field pre-initialization is gone (reset_record assigns every field before the first read), the unreachable length guards in strip_quotes are gone, and its test suite gained a shared fixture helper. Output, exit codes, and all 194 suite checks are unchanged.
 
+## [0.7.15]
+
+### Changed
+
+- Cite the marketplace `docs/` doctrine files by their lower-kebab names (`docs/plugin-philosophy.md`, `docs/migration-playbook.md`, and siblings); the files were renamed and the old uppercase paths no longer resolve.
+
 ## [0.7.14]
 
 ### Changed

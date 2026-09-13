@@ -3,6 +3,15 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.2]
+
+### Changed
+
+- Cite the marketplace `docs/` doctrine files by their lower-kebab names (`docs/plugin-philosophy.md`, `docs/migration-playbook.md`, and siblings); the files were renamed and the old uppercase paths no longer resolve.
+- **Released-entry correction, declared here per the changelog-parity discipline:** the
+  `plugin-philosophy` link inside the 0.3.2 entry now points at `docs/plugin-philosophy.md`; the
+  old uppercase path no longer exists.
+
 ## [0.6.1]
 
 ### Changed
@@ -233,7 +242,7 @@ All notable changes to the `visualization` plugin are documented here. Format fo
 ### Unchanged, deliberately
 
 - **No `setup` skill.** One was written and then dropped: `medium` is **trivial** by
-  [PLUGINPHILOSOPHY](../../docs/PLUGIN-PHILOSOPHY.md)'s own test, a self-contained scalar with
+  [PLUGINPHILOSOPHY](../../docs/plugin-philosophy.md)'s own test, a self-contained scalar with
   a default preserving zero-config behavior, whose out-of-set values are documented as falling
   back to that default. This plugin also has no external prerequisite and no consumer-project
   configuration surface. None of the three criteria that require a `setup` skill holds, so

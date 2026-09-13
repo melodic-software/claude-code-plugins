@@ -321,6 +321,24 @@ EOF
 lanes_child_out="$(bash "$DETECT" "$LANES_CHILD")"
 assert_contains "concrete child under .work/lanes/ is a ghost ref" "$lanes_child_out" "Finding shape: ghost-ref"
 
+DH_BARE="$TEST_TMPDIR/docs-hygiene-bare.md"
+cat >"$DH_BARE" <<'EOF'
+# docs-hygiene bare-root fixture
+
+The file-name rename plan lives under .work/docs-hygiene/ and is never committed.
+EOF
+dh_out="$(bash "$DETECT" "$DH_BARE")"
+assert_not_contains "bare .work/docs-hygiene/ root stays exempt" "$dh_out" "Finding shape: ghost-ref"
+
+DH_CHILD="$TEST_TMPDIR/docs-hygiene-child.md"
+cat >"$DH_CHILD" <<'EOF'
+# docs-hygiene child fixture
+
+The plan is at .work/docs-hygiene/some-branch/file-names.md right now.
+EOF
+dh_child_out="$(bash "$DETECT" "$DH_CHILD")"
+assert_contains "concrete child under .work/docs-hygiene/ is a ghost ref" "$dh_child_out" "Finding shape: ghost-ref"
+
 OVERENG_BARE="$TEST_TMPDIR/overengineering-bare.md"
 cat >"$OVERENG_BARE" <<'EOF'
 # Overengineering bare-root fixture

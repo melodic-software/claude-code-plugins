@@ -235,6 +235,27 @@ assert_contains "--help states the optional-runtime contract" "$help" "exits 0 s
 assert_contains "--help states that reset is never run" "$help" "it never
 runs 'claude auto-mode reset'"
 
+# --- Customization is additions OR removals ----------------------------------
+# A section holding a strict SUBSET of the built-in list has no entry the
+# defaults lack. An additions-only test called that unmodified, printing "the
+# built-in lists, unmodified" directly above C4 reporting that built-in entries
+# were discarded. Dropping "$defaults" to prune the shipped list is
+# customization, and the loudest kind.
+SUBSET_CONFIG="$TEST_TMPDIR/subset-config.json"
+jq '.allow = [.allow[0]]' "$DEFAULTS" >"$SUBSET_CONFIG"
+OUT_SUBSET=$(env AUTOMODE_CONFIG_FIXTURE="$SUBSET_CONFIG" AUTOMODE_DEFAULTS_FIXTURE="$DEFAULTS" bash "$SCRIPT")
+assert_contains "a removal-only section is reported customized" "$OUT_SUBSET" "customized section(s): allow"
+assert_not_contains "and is not called unmodified" "$OUT_SUBSET" "are the built-in lists, unmodified"
+assert_contains "C4 still reports the discarded entries" "$OUT_SUBSET" "C4-defaults"
+
+# The untouched case must still read as untouched: the CLI expands "$defaults" in
+# its own output, so an unmodified section arrives identical to the built-in one.
+IDENTICAL_CONFIG="$TEST_TMPDIR/identical-config.json"
+cp "$DEFAULTS" "$IDENTICAL_CONFIG"
+OUT_IDENTICAL=$(env AUTOMODE_CONFIG_FIXTURE="$IDENTICAL_CONFIG" AUTOMODE_DEFAULTS_FIXTURE="$DEFAULTS" bash "$SCRIPT")
+assert_contains "an identical block is reported unmodified" "$OUT_IDENTICAL" "are the built-in lists, unmodified"
+assert_contains "and finds nothing" "$OUT_IDENTICAL" "findings=0"
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
   exit 0

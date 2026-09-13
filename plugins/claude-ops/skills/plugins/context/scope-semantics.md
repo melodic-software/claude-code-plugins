@@ -1,5 +1,24 @@
 # Scope semantics: verified facts this skill depends on
 
+## Contents
+
+- [Scope-by-cwd loading](#scope-by-cwd-loading)
+- [Divergence is not automatically actionable](#divergence-is-not-automatically-actionable)
+- [`plugin list` / `plugin details` version output is misleading](#plugin-list--plugin-details-version-output-is-misleading)
+- [`plugin update -s project` does NOT write committed settings](#plugin-update--s-project-does-not-write-committed-settings)
+- [Every call that touches `enabledPlugins` at project scope writes committed settings](#every-call-that-touches-enabledplugins-at-project-scope-writes-committed-settings)
+- [Project scope: the CLI keys on the cwd, `fleet-state.sh` matches on the checkout root](#project-scope-the-cli-keys-on-the-cwd-fleet-statesh-matches-on-the-checkout-root)
+- [A `projectPath` outlives its directory, and no CLI verb reaps the record](#a-projectpath-outlives-its-directory-and-no-cli-verb-reaps-the-record)
+- [Where project-scope records come from, and why the skill cannot reap them](#where-project-scope-records-come-from-and-why-the-skill-cannot-reap-them)
+- [`/reload-plugins`: bare by default, `--force` for the MCP-cache-invalidation case](#reload-plugins-bare-by-default---force-for-the-mcp-cache-invalidation-case)
+- [`pluginConfigs` and `enabledPlugins` have OPPOSITE scope rules](#pluginconfigs-and-enabledplugins-have-opposite-scope-rules)
+- [`userConfig` has no `enum` type](#userconfig-has-no-enum-type)
+- [`userConfig`: an unset key renders the literal placeholder](#userconfig-an-unset-key-renders-the-literal-placeholder)
+- [Renames are CC-native (≥ v2.1.193)](#renames-are-cc-native--v21193)
+- [An unchanged version number keeps the old cache directory while `gitCommitSha` moves](#an-unchanged-version-number-keeps-the-old-cache-directory-while-gitcommitsha-moves)
+- [`marketplace remove` leaves the cache tree, marked for the orphan sweep](#marketplace-remove-leaves-the-cache-tree-marked-for-the-orphan-sweep)
+- [`autoUpdate` is a background complement, not a substitute](#autoupdate-is-a-background-complement-not-a-substitute)
+
 Every claim below was verified against a fetched official-docs page or an empirical test on a real
 machine, not assumed from training data. Last re-verified 2026-09-05 against
 [plugins-reference](https://code.claude.com/docs/en/plugins-reference),
@@ -18,7 +37,8 @@ the `/reload-plugins` bare-versus-`--force` warning behaviour, the install-summa
 and the mid-session path-resolution behaviour, all of which need an interactive session and were
 confirmed only as still-current documentation; the `claude plugin prune` `≥ 2.1.121` gate and the
 `--force` `≥ 2.1.163` gate, neither of which the current docs state. The `userConfig` unset-key
-render carries its own stamp, 2026-09-06 on **Claude Code 2.1.263**, in `SKILL.md`.
+render carries its own stamp, 2026-09-06 on **Claude Code 2.1.263**, in "`userConfig`: an unset key
+renders the literal placeholder" below.
 
 **Recheck trigger** (a date alone is not one): re-verify this file on any Claude Code **minor**
 version bump that touches the plugin CLI, `pluginConfigs`/`userConfig` substitution, or
@@ -336,6 +356,40 @@ rejects an option that omits `title`. `install_new` ships as `type: string` with
 valid values (`ask`/`all`/`none`) documented in `description` and validated in prose by this skill,
 not by the manifest schema.
 
+## `userConfig`: an unset key renders the literal placeholder
+
+**Claim.** When a `userConfig` key is set in none of the three `pluginConfigs` sources, the skill
+render leaves that key's placeholder token unchanged; the manifest's `default` is not substituted
+into skill content. A sibling key that is set, and `${CLAUDE_PLUGIN_ROOT}`, substitute in the same
+render, so the unchanged token is the unset signal and not a substitution failure. `SKILL.md`'s
+**Configured value** line reads that token as "unset, use the default `ask`".
+
+**Basis.** Empirical probe on a throwaway plugin from a local marketplace: first observed 2026-07-23
+on Claude Code 2.1.218, re-run 2026-09-06 on **Claude Code 2.1.263** with the same result. The
+plugins reference (fetched 2026-09-11) describes `default` only as "Value used when the user
+provides nothing" and states the substitution surface as every value being available for
+substitution, through its `user_config` placeholder, in MCP and LSP server configs and hook
+commands, and "Non-sensitive values can also be substituted in skill and agent content." It does not
+say the default substitutes into skill content, so the page and the probe do not conflict; the
+probe settles what the page leaves open. The page's own sentence, placeholder and all, is quoted in
+`SKILL.md`, the one file where the token may appear.
+
+**As of.** 2026-09-06, Claude Code 2.1.263.
+
+**Recheck trigger.** Any Claude Code minor-version bump that touches plugin `userConfig`
+substitution, or a change to the plugins reference's `default` row or its substitution sentence.
+
+**Probe recipe.** The `pluginConfigs` payload must nest the key under `options`, in the shape
+"`pluginConfigs` and `enabledPlugins` have OPPOSITE scope rules" above gives; a key placed directly
+under the plugin id is ignored without warning, and a control set that way renders literal, which
+looks exactly like a substitution failure. With the right shape, `--settings` substitutes the same
+as user settings (verified 2026-09-06 on 2.1.263, alongside a sibling key set in user settings), so
+either source is a valid positive control. `claude plugin install <id> --config <key>=<value>`
+writes the user-settings entry in that shape, which is the cheapest way to set one. The placeholder
+itself is written only in `SKILL.md`, never in a spoke, because substitution happens in what Claude
+Code renders and a spoke read returns plain bytes; see [gotchas.md](gotchas.md) "A spoke file never
+receives `userConfig` substitution".
+
 ## Renames are CC-native (≥ v2.1.193)
 
 Claude Code rewrites a marketplace's `renames` map into installed/enabled state automatically at
@@ -371,7 +425,8 @@ is not a trigger.
 
 `cache-content-check.sh` is the standing detection: it byte-compares every file in a cache directory
 against the recorded commit in the marketplace clone, which is the only check that separates this
-state from a healthy one. It reports and never repairs; see `SKILL.md`'s "Cache content" section.
+state from a healthy one. It reports and never repairs; see
+[stale-records-cache-content.md](stale-records-cache-content.md).
 
 **A marketplace clone is shallow, so most installs are unverifiable most of the time.** The clone
 under `installLocation` carried a `.git/shallow` file and a three-commit history when this was

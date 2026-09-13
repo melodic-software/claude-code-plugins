@@ -1,0 +1,58 @@
+{
+  "skill_name": "audit-file-names",
+  "evals": [
+    {
+      "id": 1,
+      "name": "plans-the-renames-and-touches-nothing",
+      "prompt": "Our docs/ tree has a few files that break our lower-kebab naming rule. Audit the file names and tell me what a rename would touch.",
+      "narration": true,
+      "expected_output": "Runs inventory.sh, then sweep.sh on its offender pairs, then emit-findings.sh into the home resolved through the plugin's topic-docs binding. Reports the form table per tier, one line per finding with its site count and tier breakdown, every review site individually, and the artifact's path. States that the tree is unchanged and names /docs-hygiene:realign-file-names as the next step.",
+      "expectations": [
+        "The three bundled scripts are run rather than the tree being read and judged by hand",
+        "The findings artifact path is resolved through the binding, never composed as a hardcoded default",
+        "Every site's form, tier, and action is quoted from the sweep rather than inferred",
+        "The response states that nothing was renamed or edited",
+        "review sites are surfaced individually with their lines, not folded into a total"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "refuses-a-case-only-collision",
+      "prompt": "Audit the file names under docs/. Note that docs/BETA.md and docs/beta.md both exist in this tree.",
+      "narration": true,
+      "expected_output": "The inventory reports a COLLISION row and the emitter exits 1 without writing a plan. The response names the colliding pair, explains that a case-insensitive checkout writes the second file over the first, and proposes resolving the pair before re-auditing. It does not offer to rename the other offenders anyway.",
+      "expectations": [
+        "The colliding pair is named explicitly",
+        "The reason given is the case-insensitive checkout overwriting, not a generic validation failure",
+        "No plan is written and no partial rename is proposed",
+        "The remedy offered is resolving the pair and re-auditing"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "keeps-a-frozen-tier-frozen",
+      "prompt": "Audit our docs file names. Our released CHANGELOG entries must not be rewritten, and our ADRs should keep their narrative.",
+      "narration": true,
+      "expected_output": "Prints the form table: the released tier's form is none, so its sites are listed and never edited, and the historical tier's form is links-and-paths, so ADR links and backtick paths are repointed while the narrative is left as written. Reports the count of report sites plainly rather than implying everything was handled.",
+      "expectations": [
+        "The form table is shown before the findings",
+        "Released-tier sites are reported as untouched rather than silently omitted",
+        "The historical tier is described as links and paths only, with the narrative left alone",
+        "The count of sites that will NOT be edited is stated, not buried"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "an-ambiguous-bare-stem-is-escalated",
+      "prompt": "The audit marked six sites 'review' for docs/CATALOG.md. Just apply them, they are obviously references to the file.",
+      "narration": true,
+      "expected_output": "Declines to reclassify them in the audit. Explains that a one-word stem also appears as an ordinary English word, shows each of the six lines with its excerpt so the operator can judge, and notes that one of them is a literal message string rather than a citation. Points out that the audit does not write anything either way, and that the realign applies only what a record says.",
+      "expectations": [
+        "The six sites are shown individually with their lines rather than approved in bulk",
+        "The reason the stem is ambiguous is given, not just the label",
+        "The skill does not silently promote review sites to edit",
+        "The decision is left to the operator"
+      ]
+    }
+  ]
+}

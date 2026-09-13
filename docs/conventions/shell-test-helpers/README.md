@@ -3,7 +3,7 @@
 Owner doc for one fork this marketplace has already decided: a plugin's shell `*.test.sh` assertion
 primitives and a plugin script's exit-code taxonomy are **not** consolidated into a shared,
 cross-plugin mechanism. Both stay duplicated or divergent per plugin, on purpose. The
-[plugin philosophy](../../PLUGIN-PHILOSOPHY.md) owns the portability boundary this rests on: a plugin
+[plugin philosophy](../../plugin-philosophy.md) owns the portability boundary this rests on: a plugin
 never imports files from a sibling plugin, and cooperation crosses that boundary only through a
 documented public seam. A shared shell assertion library is neither.
 

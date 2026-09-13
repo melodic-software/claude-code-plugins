@@ -3,17 +3,29 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.55.79]
+## [0.55.80]
 
 ### Changed
 
 - Refreshes this plugin's vendored copy of the shared check-retirements.sh helper from the canonical claude-config source after a behavior-preserving simplification: the dead top-level record field pre-initialization is gone (reset_record assigns every field before the first read), the unreachable length guards in strip_quotes are gone, and its test suite gained a shared fixture helper. Output, exit codes, and all 194 suite checks are unchanged.
 
-## [0.55.77]
+## [0.55.79]
 
 ### Changed
 
 - Refreshes this plugin's vendored copy of the shared shell library from the marketplace's canonical lib/ source after a behavior-preserving simplification: hook-utils.sh folds two identical path-probe guards into one and shares the orphaned-redirect handling across the bash segment parser; index-regen.sh folds two identical frontmatter skip guards; resolve-convention-pattern.sh drops a redundant quote-match clause. Parser output, hook JSON, and every resolver result are byte-identical before and after.
+
+## [0.55.78]
+
+### Changed
+
+- **`pull-request`'s C4 review-comment step states the subagent-dispatch requirement instead of shouting it.** "For >=3 findings, MANDATORY subagent dispatch" now reads "For >=3 findings, dispatch a subagent", followed by the same two reasons it already gave: it preserves main session context and structurally enforces the per-finding ledger shape. The threshold, the requirement, and the review-discipline reference are unchanged.
+
+## [0.55.77]
+
+### Changed
+
+- Cite the marketplace `docs/` doctrine files by their lower-kebab names (`docs/plugin-philosophy.md`, `docs/migration-playbook.md`, and siblings); the files were renamed and the old uppercase paths no longer resolve.
 
 ## [0.55.76]
 

@@ -270,9 +270,10 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
   does not reach plugin skills at all. State the entry as a cost, not a threshold. Whether a corpus
   is over its listing budget is a different question and not this check's.
   **Content taken out of an agent definition needs an agent-reachable destination.** A subagent runs
-  in its own context, and path-scoped rules are invisible there
-  (<https://code.claude.com/docs/en/sub-agents>), so proposing one for instructions the agent needs
-  removes them from every dispatch rather than deferring them. Name a destination the agent itself
+  in its own context, inheriting no path-scoped rule and being told of none
+  (<https://code.claude.com/docs/en/sub-agents>), so such a rule reaches a dispatch only if that
+  dispatch happens to read a path its glob covers. Proposing one for instructions the agent needs
+  trades guaranteed presence for a deferral the agent cannot rely on. Name a destination the agent itself
   reaches, meaning a skill the agent's definition **invokes at runtime** or text kept in the
   definition, and never a `paths:`-scoped rule. **A `skills:` preload is not such a destination**:
   the full content of each listed skill is injected into every dispatch of that agent, so the

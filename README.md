@@ -16,7 +16,7 @@ Browse and manage with `/plugin`. To refresh after updates: `/plugin marketplace
 When you consume this repo from a local `directory` source, the install cache keys on semver
 `version`, not commit, so several commits under one version leave early installs on a stale
 snapshot and `plugin update` can report "already at the latest version" while SHA lags. See
-[`docs/MIGRATION-PLAYBOOK.md`](docs/MIGRATION-PLAYBOOK.md) ("Same-version commit drift") and
+[`docs/migration-playbook.md`](docs/migration-playbook.md) ("Same-version commit drift") and
 [#2061](https://github.com/melodic-software/claude-code-plugins/issues/2061).
 
 ### Enable plugin suggestions for an organization
@@ -51,12 +51,12 @@ user opts in with `/plugin enable`; an existing install is never flipped by cata
 
 ## Finding your way
 
-- Not sure which skill to invoke? Start at the [skill cheat sheet](docs/SKILL-CHEAT-SHEET.md). A
+- Not sure which skill to invoke? Start at the [skill cheat sheet](docs/skill-cheat-sheet.md). A
   scan-and-go map from what you are doing to the skill that does it.
-- [Plugin catalog](docs/CATALOG.md). Every plugin by category, generated from the manifests and
+- [Plugin catalog](docs/catalog.md). Every plugin by category, generated from the manifests and
   kept in sync by CI. New plugins clear the per-plugin migration gate in
-  [`docs/MIGRATION-PLAYBOOK.md`](docs/MIGRATION-PLAYBOOK.md).
-- [Catalog taxonomy](docs/CATALOG-TAXONOMY.md). The category vocabulary the catalog is grouped by.
+  [`docs/migration-playbook.md`](docs/migration-playbook.md).
+- [Catalog taxonomy](docs/catalog-taxonomy.md). The category vocabulary the catalog is grouped by.
 
 ## What's here
 
@@ -73,13 +73,13 @@ user opts in with `/plugin enable`; an existing install is never flipped by cata
   source-control convention). It governs work done here and ships to no one.
 - `.github/`, workflows plus the policy files they read (runner policy, security paths, recurring
   schedule, PR template).
-- `docs/MIGRATION-PLAYBOOK.md`, design charter, extensibility model, the per-plugin migration
+- `docs/migration-playbook.md`, design charter, extensibility model, the per-plugin migration
   gate, and the local development loop.
 - `docs/`, further design records and audits (CI runner routing, extensibility-contract smoke
   tests, migration audits).
 - `CLAUDE.md`, operating rules for AI agents working in this repo (fresh-docs mandate + plugin
   design rules).
-- `docs/OFFICIAL-DOCS.md`, canonical index of the official Claude Code doc pages the mandate
+- `docs/official-docs.md`, canonical index of the official Claude Code doc pages the mandate
   sends you to.
 
 ## Validate a change

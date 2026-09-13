@@ -96,7 +96,7 @@ If during a self-update run you find drift in any of the following, **clean exit
 
 Everything **path-based** in section 1 is overridable. A path exclusion is a default, not a law: it exists because an autonomous hunt has no reason to be in that file, which is a different claim from "the user may not ask for it". `/code-tidying:dissolve-comments override ruff.toml` is a legitimate request, and a list that cannot express it forces the user to edit by hand what the skill exists to do.
 
-Three channels lift it, each owning one row of the config-ownership table in `docs/PLUGIN-PHILOSOPHY.md` "Configuration ownership and scope".
+Three channels lift it, each owning one row of the config-ownership table in `docs/plugin-philosophy.md` "Configuration ownership and scope".
 
 | Channel | Table row | Form | Reach |
 |---|---|---|---|

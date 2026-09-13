@@ -1,0 +1,22 @@
+Marketplace: market1: needs update (autoUpdate: on)
+In-repo: 1 project/local install(s) updated in <case>
+Updated: 1 plugin(s)
+  - delta@market1 (project): 0.1.0 → 0.2.0
+Divergences: 0 actionable
+Stale project records: 3 record(s) across 2 path(s) not present on this machine
+  - <case>/gone-a: 2 record(s)
+  - <case>/gone-b: 1 record(s)
+  (not counted as divergences: converge cannot cd into a path that is not present. A path can also
+   be absent because a volume is unmounted or a share is offline, so this is an observation, not a
+   verdict that the directory is gone for good.)
+Cache content: 1 install(s) whose cache files disagree with their recorded gitCommitSha
+  - alpha@market1 0.1.0: 4 file(s) differ
+  Remediation: remove that version's directory under the plugin cache, then re-run
+  `claude plugin update <id>@<marketplace>`, which recreates it from the clone.
+Timing: <elided>
+Action needed:
+  - 1 catalog plugin(s) not installed at user scope (policy none): delta@market1
+  - user-scope orphan(s), a project/local record with no user-scope install: delta@market1
+
+Run journal: <run_dir>
+Timing: <elided>

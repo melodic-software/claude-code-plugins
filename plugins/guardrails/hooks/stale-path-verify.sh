@@ -201,7 +201,7 @@ normalize_candidate() {
   [[ "$t" =~ [[:space:]] ]] && return 0
 
   # Strip a trailing line/range citation suffix — this repo cites
-  # `docs/MIGRATION-PLAYBOOK.md:576-580` and `SKILL.md:24` pervasively.
+  # `docs/migration-playbook.md:576-580` and `SKILL.md:24` pervasively.
   t="${t%%:[0-9]*}"
 
   # Strip a trailing markdown-anchor fragment.

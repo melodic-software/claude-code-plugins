@@ -14,7 +14,7 @@ value to count against, not a bar.
 |---|---|
 | `/code-metrics:audit-complexity` | Per-function cyclomatic and cognitive complexity and Halstead difficulty from whichever collector resolves (`lizard`, `radon`, ESLint rules, `gocyclo`, `gocognit`, `shellmetrics`, `multimetric`), beside the ISO/IEC 5055 §8.2.117 reference of 20 with 10 and 15 selectable; cognitive and Halstead carry no standard threshold. |
 | `/code-metrics:audit-size` | Lines per file (total, blank, comment, code through `scc`; total and non-blank from a bundled counter otherwise) beside a cited reference; `size.mode: iso-8.2.115` adds the ISO function-percentage form. |
-| `/code-metrics:audit-duplication` | Clone groups (duplicated lines and tokens, every instance's range) from `jscpd`, `dupl`, or PMD CPD, minus the replication the repository declares in a sanctioned-replication registry, which is an exclusion, not a suppression. |
+| `/code-metrics:audit-duplication` | Clone classes (the detector's pairs merged; duplicated lines and tokens, every instance's range) from `jscpd`, `dupl`, or PMD CPD, rolled up per lane and per directory, minus the replication the repository declares in a sanctioned-replication registry (a path-within-plugin, or a `canonical -> copies` cluster line), which is an exclusion, not a suppression. A file over the size cap is reported as skipped, never silently dropped. |
 | `/code-metrics:audit-coverage` | Line coverage per file and per function read from the artifacts a build already produced (lcov 1.x and 2.2, Cobertura, coverage.py JSON, Go cover profile), plus CRAP per function from the complexity rows; it never runs a test, a missing artifact is a visible warning, and a function with no executable lines reports `null`, never zero. |
 | `/code-metrics:audit-type-debt` | The typed-code percentage per file and per lane: `type-coverage` for TypeScript, mypy's `--any-exprs-report` for Python; no standard or CWE anchors the measure, so the reference is `null` by design. C# is reported as not applicable. |
 | `/code-metrics:principles` | Metric literacy: what each measure can and cannot tell you, where every reference value came from, CRAP's corrected provenance, the cross-metric caveats (carried once, here), and gated pointers to the plugins that own mutation score, tautological tests, dead code, coupling, and lint. |
@@ -98,6 +98,53 @@ second run. A repository that declares its deliberate replication in a registry
 (`scope.registries`) sees each replicated function once, with the copy count beside the path.
 Field reference: `reference/report-schema.md`. Tool provenance stamps: `reference/collectors.md`.
 
+## Getting a first artifact
+
+`audit-coverage` reads what a test run already wrote and never runs one. When it finds no
+artifact, every lane is `unavailable`, the report lists the paths searched, and its last line
+points at this table. One command per lane produces an artifact the next run can read. Each row
+restates a producer's documented default, verified against the page in its Basis column on
+2026-09-12; the producer's page wins over the row. Recheck trigger: a release note or changelog
+entry of that producer naming the flag or the output path in its row, or a read-time fetch of the
+Basis page that no longer states what the row does; either re-derives the row from the page and
+refreshes the date.
+
+| Lane | Producer | Command shape | Writes | Basis |
+|---|---|---|---|---|
+| TypeScript/JavaScript | vitest | `npx vitest run --coverage --coverage.reporter=lcov` | lcov `.info` at `coverage/lcov.info`, auto-discovered | [Vitest coverage guide](https://vitest.dev/guide/coverage.html), `coverage.reporter` |
+| TypeScript/JavaScript | jest | `npx jest --coverage` | lcov `.info` at `coverage/lcov.info`, auto-discovered; the default `coverageReporters` list carries `lcov` | [Jest CLI](https://jestjs.io/docs/cli), `--coverage`; [Jest configuration](https://jestjs.io/docs/configuration), `coverageReporters` default `["clover", "json", "lcov", "text"]` |
+| TypeScript/JavaScript | c8 or nyc, over any test runner | `npx c8 --reporter=lcov <test command>` | lcov `.info` at `coverage/lcov.info`, auto-discovered | [c8 README](https://github.com/bcoe/c8#readme), `--reporter`, which takes any [Istanbul reporter](https://istanbul.js.org/docs/advanced/alternative-reporters/), `lcov` among them |
+| Python | coverage.py | `python -m coverage run -m pytest && python -m coverage json` | coverage.py JSON at `coverage.json`, auto-discovered; `coverage xml` writes `coverage.xml`, also auto-discovered; `coverage lcov` writes `coverage.lcov`, which needs `--artifacts` | coverage.py command pages [`run`](https://coverage.readthedocs.io/en/latest/commands/cmd_run.html), [`json`](https://coverage.readthedocs.io/en/latest/commands/cmd_json.html), [`xml`](https://coverage.readthedocs.io/en/latest/commands/cmd_xml.html), [`lcov`](https://coverage.readthedocs.io/en/latest/commands/cmd_lcov.html) |
+| Python | pytest-cov | `pytest --cov=<package> --cov-report=json` | coverage.py JSON at `coverage.json`, coverage.py's default name for the `json` report, auto-discovered; `--cov-report=json:<path>` moves it | [pytest-cov reporting](https://pytest-cov.readthedocs.io/en/latest/reporting.html), `--cov-report`; the default file name is coverage.py's, per its [`json`](https://coverage.readthedocs.io/en/latest/commands/cmd_json.html) page |
+| Bash | kcov | `kcov <outdir> bash <test script>` | Cobertura-compatible XML under `<outdir>`; pass the `cobertura.xml` it writes with `--artifacts` | [kcov README](https://github.com/SimonKagstrom/kcov#readme), "Kcov will also write cobertura-compatible XML output" |
+| Go | `go test` | `go test ./... -coverprofile=coverage.out` | Go cover profile at the path `-coverprofile` names; `coverage.out` and `cover.out` are auto-discovered; file rows carry the statement ratio, function rows need a line artifact too | [`go` command, testing flags](https://pkg.go.dev/cmd/go#hdr-Testing_flags), `-coverprofile` |
+| C# | coverlet, as the `dotnet test` collector | `dotnet test --collect:"XPlat Code Coverage"` | Cobertura XML at `TestResults/<run id>/coverage.cobertura.xml`; pass it with `--artifacts`. The C# complexity lane is deferred, so the lane reports file rows and no CRAP | [coverlet VSTest integration](https://github.com/coverlet-coverage/coverlet/blob/master/Documentation/VSTestIntegration.md), `--collect:"XPlat Code Coverage"` |
+
+Auto-discovered means the output lands on one of the well-known names the run looks for with no
+`--artifacts` (`coverage/lcov.info`, `lcov.info`, `coverage.xml`, `cobertura.xml`, `coverage.json`,
+`coverage.out`, `cover.out`, at most two directory levels below the repository root); anything else
+is named explicitly or listed under `coverage.artifacts` in the configuration.
+
+## Testing the plugin
+
+The Python suites are the `test_*.py` files beside the scripts they cover, and `python3 -m pytest -q`
+from this directory runs all of them. To measure them, run the same command under coverage.py from
+this directory:
+
+```shell
+python3 -m coverage run -m pytest -q && python3 -m coverage json
+```
+
+The `.coveragerc` here sets `source = .`, so every module under the plugin is reported whether or
+not a test imported it, and `patch = subprocess` (coverage.py 7.10 or later), so the scripts the
+suites drive at their command line, `join.py` and the parsers among them, are measured in their
+child interpreters instead of reading 0 percent. The patch leaves one data file per process;
+`coverage json` combines them on its own from coverage.py 7.14, and an older release needs
+`python3 -m coverage combine` between the two commands. The run writes `.coverage` and
+`coverage.json` into this directory, both ignored by git, and `coverage.json` sits two levels
+below the repository root, where `/code-metrics:audit-coverage plugins/code-metrics` run from the
+root auto-discovers it.
+
 ## Listing budget
 
 Every skill description in a session shares one listing budget, and Claude Code drops the
@@ -129,7 +176,8 @@ figure for a live session.
   `scripts/config-defaults.json`. The setup template and the `reference/config.md` key table both
   are, by a test and by `scripts/check-code-metrics-config-reference.py`; what remains unbound is
   the number written into a sentence or a small illustrative table, currently `coverage.reference`
-  in `audit-coverage`, `duplication.min_tokens` and `duplication.min_lines` in `audit-duplication`,
+  in `audit-coverage`, `duplication.min_tokens`, `duplication.min_lines`, `duplication.max_size`,
+  `duplication.max_lines`, and `duplication.rollup_depth` in `audit-duplication`,
   `type_debt.reference` in `audit-type-debt`, and the cyclomatic reference in `setup`. Those drift
   silently until someone reads them.
 

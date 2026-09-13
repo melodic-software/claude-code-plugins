@@ -75,7 +75,7 @@ Three properties, stated first because everything below depends on them:
    later phase runs and nothing is persisted ([Phase 3](#phase-3-execute)). Per the
    naming doctrine's verb contract, `audit` reports and stops, and bare invocation does exactly
    that. `--persist-findings` is the explicit user override that verb contract sanctions
-   (the marketplace's `docs/PLUGIN-PHILOSOPHY.md` verb table). Its writes, the findings file and
+   (the marketplace's `docs/plugin-philosophy.md` verb table). Its writes, the findings file and
    the self-ignore guard's own `.gitignore` when a governing checkout was found and the guard heals
    that root, are each **proven outside tracked space before that write is made**, never in tracked
    source and never in a file another producer owns.

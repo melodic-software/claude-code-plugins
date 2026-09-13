@@ -5,7 +5,7 @@ sections a pull-request body must carry. This concern is designed for **more tha
 `source-control` drafts and pre-checks against it today, and a future CI or `guardrails`-style
 enforcement consumer validates an already-created PR body against the same key later. Its
 ownership lives here at marketplace level, not inside `source-control`, per
-[`docs/MIGRATION-PLAYBOOK.md`](../../MIGRATION-PLAYBOOK.md) "concern-named config consumed by >1
+[`docs/migration-playbook.md`](../../migration-playbook.md) "concern-named config consumed by >1
 plugin". An owner doc lands before the second consumer adopts the key, not after.
 
 ## The key, and where it lives
@@ -39,7 +39,7 @@ the per-key (whole-list) override semantics. This doc never restates them. It ow
 
 When no layer sets `pr_body_required_sections`, the plugin's built-in scaffold requires exactly two
 sections: `Summary` and `Test plan`. This is a deliberate **lane-1 default**
-([`docs/PLUGIN-PHILOSOPHY.md`](../../PLUGIN-PHILOSOPHY.md) "Two-lane convention posture"), a
+([`docs/plugin-philosophy.md`](../../plugin-philosophy.md) "Two-lane convention posture"), a
 good-practice value that cannot conflict in any repo the plugin drops into, because it presumes
 nothing about the consumer.
 

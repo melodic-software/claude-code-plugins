@@ -34,7 +34,7 @@ Sources, both fetched 2026-08-11: <https://code.claude.com/docs/en/settings> §H
 | `managed` | Highest precedence. Four surfaces per OS, not one file. See below |
 | `user` | `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json`. Where Claude Code's own "Always allow" path writes, so it accumulates the most rules |
 | `project` | `.claude/settings.json` at the repository root |
-| `local` | `.claude/settings.local.json`, resolved **through worktrees to the main checkout**, so anchoring on the worktree root looks where the file is not. Three documented exceptions keep it in the start directory: outside a git repository, when the repository root is the home directory, and in Agent SDK sessions |
+| `local` | `.claude/settings.local.json`, resolved **through worktrees to the main checkout**, so anchoring on the worktree root looks where the file is not. Four documented conditions keep it beside `settings.json` instead, and the reader resolves all four: outside a git repository, when the repository root is the home directory, on Windows, and when the repository root or its `.git` or `.claude` entry is not owned by the current user |
 | `startdir-local` | A pre-v2.1.211 copy left in the session's start directory. Not a fallback: when both exist the repository root wins on a shared key, **but permission rules from both stay in effect**, so both are live |
 
 This table is the dated owner record for the `pre-v2.1.211` boundary. Every other site in this
@@ -46,6 +46,36 @@ helper always reads the file from the starting directory." Basis:
 <https://code.claude.com/docs/en/settings>. Verified 2026-09-06 against Claude Code 2.1.263 and
 that page as fetched that day. Recheck when the settings page names a different version, drops the
 sentence, or a release note names where `settings.local.json` is read from.
+
+### The four start-directory conditions, and the one that is not detectable
+
+The settings page states them in one sentence: the file stays with `.claude/settings.json` "outside a
+git repository, when the repository root is your home directory, on Windows, or when the repository
+root or its `.git` or `.claude` entry isn't owned by your user". All four are deterministic and the
+reader resolves all four, naming which applied in the local-scope basis line.
+
+The Agent SDK sentence quoted above is **not** a fifth condition of the same kind. It describes the
+`resolveSettings()` helper, a standalone inspection function, not a class of running session. Nothing
+observable inside a session distinguishes one that used the helper, and no documented environment
+variable identifies an Agent SDK or headless run, so the reader states the limit rather than guessing
+at it. Basis: <https://code.claude.com/docs/en/settings> and
+<https://code.claude.com/docs/en/env-vars>. Verified 2026-09-12. Recheck when either page documents an
+entrypoint variable or changes the condition list.
+
+### Cloud sessions read a different scope set
+
+"User and project local settings (`~/.claude/settings.json` and `.claude/settings.local.json`): not
+read. Both stay on your machine, and the local file isn't in the clone." Only server-managed settings
+reach a cloud session; a `managed-settings.json` file or MDM profile on the operator's device does
+not. So a user-scope record in a cloud session describes the container's file, never the operator's,
+and reporting it without that framing invites the wrong conclusion.
+
+`CLAUDE_CODE_REMOTE` is the documented detection and the only entrypoint variable this reader branches
+on: "Set automatically to `true` when Claude Code is running as a cloud session. Read this from a hook
+or setup script to detect whether you are in a cloud session." `CLAUDE_CODE_ENTRYPOINT` is not
+documented and is never read. Basis: <https://code.claude.com/docs/en/settings> ("Settings in cloud
+sessions") and <https://code.claude.com/docs/en/env-vars>. Verified 2026-09-12. Recheck when the
+cloud-session scope set changes or the variable is documented differently.
 
 The managed scope is four surfaces. Two are the **portable core**, read on every OS: the per-OS
 `managed-settings.json` and its `managed-settings.d/` drop-in directory. Their merge order is
@@ -166,6 +196,30 @@ Neither is a limitation to apologise for; both change what a finding means.
 > Source: [permission-modes](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode),
 > "How the classifier evaluates actions", re-fetched 2026-08-26. The `Monitor` category was added
 > upstream in v2.1.236; before that version Monitor allow rules stayed in effect in auto mode.
+
+### The precondition: which sessions enter auto mode at all
+
+The starting-mode table lists seven run shapes and `auto` is the outcome in exactly one of them, so
+the diff describes a transition the other six never make. Reporting it unconditionally hands a
+headless run a verdict for a mode it never enters.
+
+| How Claude Code runs | Starting mode |
+| --- | --- |
+| A Pro, Max, or Team plan, in a terminal or the VS Code extension | **`auto`** |
+| `claude -p` or the Agent SDK | `default` |
+| An Enterprise plan or a Claude Console API key | `default` |
+| Bedrock, Google Cloud's Agent Platform, Microsoft Foundry, Claude Platform on AWS, apps gateway | `default` |
+| Any settings file sets `disableAutoMode` to `"disable"` | `default` |
+| Feature-flag fetching is off | `default` |
+| First session after an install or upgrade | `default` |
+
+Basis: the starting-mode table in
+<https://code.claude.com/docs/en/permission-modes>. Verified 2026-09-12. Recheck when a release note
+changes the starting mode, adds a run shape, or the table's plan conditions change.
+
+The vendor announcement that made auto mode the starting mode on those plans is dated 2026-08-14
+(<https://claude.com/blog/auto-mode-default-in-claude-code>); the reference documentation states the
+standing condition rather than the date, and the condition is what the report needs.
 
 Five documented classes, and every dropped rule is reported as exactly one of them: `blanket`,
 `interpreter-wildcard`, `package-manager-run`, `agent`, `monitor`. The shell-shape patterns are not

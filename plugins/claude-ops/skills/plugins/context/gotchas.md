@@ -1,5 +1,21 @@
 # Gotchas
 
+## Contents
+
+- [Always pass the full id to `claude plugin update`: bare-name resolution is version-dependent](#always-pass-the-full-id-to-claude-plugin-update-bare-name-resolution-is-version-dependent)
+- [Trusting `plugin list` / `plugin details` for "what's loaded here"](#trusting-plugin-list--plugin-details-for-whats-loaded-here)
+- [Native-Windows `projectPath` vs Git Bash `$PWD`](#native-windows-projectpath-vs-git-bash-pwd)
+- [A subdirectory install is invisible to this skill: `currentProject` cannot see it](#a-subdirectory-install-is-invisible-to-this-skill-currentproject-cannot-see-it)
+- [Concurrency / TOCTOU](#concurrency--toctou)
+- [Dual-scope divergence is normal, not a defect](#dual-scope-divergence-is-normal-not-a-defect)
+- [A `projectPath` can outlive its directory](#a-projectpath-can-outlive-its-directory)
+- [A large absent-path count is not evidence of careless installs](#a-large-absent-path-count-is-not-evidence-of-careless-installs)
+- [A spoke file never receives `userConfig` substitution](#a-spoke-file-never-receives-userconfig-substitution)
+- [`sync` updates the plugin that provides `sync`](#sync-updates-the-plugin-that-provides-sync)
+- [`marketplace remove` is a bulk uninstall, not a declaration removal, and it deletes this skill's own run journal](#marketplace-remove-is-a-bulk-uninstall-not-a-declaration-removal-and-it-deletes-this-skills-own-run-journal)
+- [Internal-schema drift: fail loud, never guess](#internal-schema-drift-fail-loud-never-guess)
+- [Captured values on Windows carry `\r`: strip it before embedding in any command or JSON](#captured-values-on-windows-carry-r-strip-it-before-embedding-in-any-command-or-json)
+
 Failure modes this skill is specifically built to avoid, and what breaks if the safeguard is
 bypassed. Underlying facts are in [scope-semantics.md](scope-semantics.md). This file is the
 "here's what goes wrong" companion, not a restatement.
@@ -7,7 +23,7 @@ bypassed. Underlying facts are in [scope-semantics.md](scope-semantics.md). This
 Every claim here about Claude Code's or the `claude` CLI's own behaviour names the version it was
 observed on. Where a section carries no version of its own, it was last checked against **Claude
 Code 2.1.240**. **Recheck trigger:** any minor-version bump touching the plugin CLI, plugin
-loading/caching, or `userConfig` substitution. A date alone is not a trigger.
+loading/caching, or `userConfig` substitution. A date, on its own, is not a trigger.
 
 A re-verification pass ran 2026-09-05 against **Claude Code 2.1.261**. Read the per-section stamps
 rather than the pass date, because the pass was partial. Re-run and now carrying 2.1.261: the
@@ -128,7 +144,8 @@ cannot execute. Routing such rows into the actionable Divergences count hands th
 guaranteed failures.
 
 `fleet-state.sh` annotates each project/local record with `projectPathPresent` so the condition is
-visible, and `SKILL.md` reports those rows in their own section, out of the Divergences count.
+visible, and the render reports those rows in their own section, out of the Divergences count (see
+[stale-records-cache-content.md](stale-records-cache-content.md)).
 
 **Do not turn that annotation into a filter, and do not call an absent path dead.** `[ -d ]` returns
 false for an unmounted volume, an offline network share, and an unplugged external drive just as
@@ -153,25 +170,28 @@ Sourcing, precedence, and the verified local write path are in
 [scope-semantics.md](scope-semantics.md) "Where project-scope records come from, and why the skill
 cannot reap them". Do not restate them here.
 
-## A spoke file never receives `${user_config.*}` substitution
+## A spoke file never receives `userConfig` substitution
 
 Claude Code substitutes `userConfig` values when it renders the **skill**. A context file under
-`context/` reaches the model as a later file read, plain bytes, no substitution pass. Write
-`${user_config.install_new}` in a spoke and it arrives as that literal token, with **no error and no
-warning**; the value simply never appears, and a step branching on it branches on a placeholder.
+`context/` reaches the model as a later file read, plain bytes, no substitution pass. Write the
+`user_config.install_new` placeholder, in its dollar-brace form, in a spoke and it arrives as that
+literal token, with **no error and no warning**; the value simply never appears, and a step
+branching on it branches on a placeholder.
 
-This is why `SKILL.md` holds the `install_new` render and `sync-install-enable.md` Step 4 branches on *that* line
-rather than on its own prose. Verified empirically: `context/sync-install-enable.md` on disk shows the raw
-`${user_config.install_new}` token in the same session where `SKILL.md`'s render shows the
-configured value. Nothing enforces this: a future spoke that inlines such a token fails silently,
-so it is a review-time rule, not a checkable one.
+This is why `SKILL.md` holds the `install_new` render and `sync-install-enable.md` Step 4 branches
+on *that* line rather than on its own prose. Verified empirically (2026-09-06, Claude Code
+2.1.263): a spoke that carried the placeholder on disk showed it raw in the same session where
+`SKILL.md`'s render showed the configured value. Claude Code enforces nothing here, so the rule is
+kept grep-checkable instead: no `context/*.md` file carries the dollar-brace form of the
+placeholder, and a spoke that inlines one fails silently until that grep catches it at review.
 
 **The skill-body half of the contrast is verified on Claude Code 2.1.263** (2026-09-06, throwaway
 plugin from a local marketplace): a `userConfig` key set in user settings or through `--settings`
 `pluginConfigs` substitutes into the rendered `SKILL.md` body alongside `${CLAUDE_PLUGIN_ROOT}`,
 provided the `pluginConfigs` payload nests the key under `options`; the spoke half rests on the
-on-disk observation above. Keep the render in `SKILL.md` and branch on that line. `SKILL.md`'s
-`install_new` section holds the payload shape and the probe recipe.
+on-disk observation above. Keep the render in `SKILL.md` and branch on that line.
+[scope-semantics.md](scope-semantics.md) "`userConfig`: an unset key renders the literal
+placeholder" holds the payload shape and the probe recipe.
 
 ## `sync` updates the plugin that provides `sync`
 

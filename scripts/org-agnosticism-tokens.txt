@@ -1,7 +1,7 @@
 # Org-agnosticism token set — the single data file every enforcement site
 # reads or is a documented narrowing/extension of.
 #
-# Doctrine: docs/PLUGIN-PHILOSOPHY.md § "Design boundary".
+# Doctrine: docs/plugin-philosophy.md § "Design boundary".
 # Idiom: same as scripts/skill-portability-tokens.txt (data, not gate logic).
 #
 # Format: blank lines and lines beginning with `#` are ignored. Every other

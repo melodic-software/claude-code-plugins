@@ -1,7 +1,7 @@
 # Hook precision: false-positive discipline for plugin hooks
 
 Owner doc for the precision discipline every plugin hook follows so it fires on what it targets and stays
-quiet on everything else. The [plugin philosophy](../../PLUGIN-PHILOSOPHY.md) owns the posture rule: an
+quiet on everything else. The [plugin philosophy](../../plugin-philosophy.md) owns the posture rule: an
 advisory hook is a nudge, a guard must not block legitimate work. This doc owns the *precision shape* that
 keeps both true: the recurring ways a hook over-fires, and the discipline that turns each production false
 positive into a regression test instead of a re-filed issue.

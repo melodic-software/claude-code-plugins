@@ -42,7 +42,7 @@ The relaxation is intra-plugin only. Cross-plugin path citation stays a violatio
 install independently and the cited path can be genuinely absent. Heading anchors stay private in
 both cases, because a heading is body structure whatever ships alongside it.
 
-This repository layers exactly that convention; `docs/PLUGIN-PHILOSOPHY.md` states it and bounds it.
+This repository layers exactly that convention; `docs/plugin-philosophy.md` states it and bounds it.
 A repo that has not declared such a convention gets the unrelaxed contract above.
 
 A skill MAY expose a `scripts/<name>.sh` entry as a declared public facade (delegating to a private backend directory) that hooks/CI invoke directly. That is the encapsulation-respecting alternative to vendoring a copy of the logic. A meta-tooling consumer that only READS a skill-internal path as data, such as a version-drift gate reading a pinned-version file or a path-scoped trigger naming the file it watches, cites that path under the KIND-2 forced-cite exemption (see the filter taxonomy in SKILL.md): it names a path structurally, it does not invoke skill logic. Logic invocation goes through the facade; data/path reference is KIND-2.

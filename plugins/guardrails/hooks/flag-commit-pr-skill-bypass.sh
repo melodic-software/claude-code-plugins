@@ -45,7 +45,7 @@
 # Opt-in switch: flag_commit_pr_skill_bypass_enabled userConfig option.
 # DEFAULT OFF since 0.20.0: the #2021 hook-surface classification found this
 # is a behavioral-class context injector — a fixed prose nudge that consults no
-# external ground truth — and PLUGIN-PHILOSOPHY.md's instruction-economy
+# external ground truth — and plugin-philosophy.md's instruction-economy
 # evidence gate ablates that class config-off first (the script stays; a
 # consumer opts back in by setting the option to true).
 

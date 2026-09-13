@@ -1325,7 +1325,7 @@ def build_parser(default_repo: Path, default_pairs: Path) -> argparse.ArgumentPa
         sub.add_argument(
             "--view",
             default=None,
-            help="generated registry view (default: <repo>/docs/NATIVE-SURFACES.md)",
+            help="generated registry view (default: <repo>/docs/native-surfaces.md)",
         )
 
     detect = subparsers.add_parser(
@@ -1394,7 +1394,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.store is None:
         args.store = str(repo / "docs" / "native-surfaces" / "records.json")
     if args.view is None:
-        args.view = str(repo / "docs" / "NATIVE-SURFACES.md")
+        args.view = str(repo / "docs" / "native-surfaces.md")
 
     if args.command == "detect":
         return cmd_detect(args)

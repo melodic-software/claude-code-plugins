@@ -3,11 +3,23 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.8.47]
+## [0.8.49]
 
 ### Changed
 
 - Refreshes this plugin's vendored copy of the shared shell library from the marketplace's canonical lib/ source after a behavior-preserving simplification: hook-utils.sh folds two identical path-probe guards into one and shares the orphaned-redirect handling across the bash segment parser; index-regen.sh folds two identical frontmatter skip guards; resolve-convention-pattern.sh drops a redundant quote-match clause. Parser output, hook JSON, and every resolver result are byte-identical before and after.
+
+## [0.8.48]
+
+### Fixed
+
+- **The dated tracker claim in `skills/setup/SKILL.md` now carries a recheck trigger.** The note recording that no matching rhysd/actionlint issue existed as of 2026-07-23 stated a claim, a basis, and a date but no event that obliges re-deriving it. It now names one: an upstream issue or release note reporting ShellCheck hanging or deadlocking under the Windows subprocess path, which would replace the hook author's local reproduction with an upstream-confirmed cause and a version to pin against. That completes the four-part record the upstream-drift convention requires. The claim, its basis, and its date are unchanged, and no flag, hook, or default moved.
+
+## [0.8.47]
+
+### Changed
+
+- Cite the marketplace `docs/` doctrine files by their lower-kebab names (`docs/plugin-philosophy.md`, `docs/migration-playbook.md`, and siblings); the files were renamed and the old uppercase paths no longer resolve.
 
 ## [0.8.46]
 

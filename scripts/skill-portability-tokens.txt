@@ -208,7 +208,7 @@ origin/(main|master)
 
 # Branch-grammar hardcode: Conventional-Commits branch types shipped as the
 # grammar rather than read from the consuming repo (#415). This is a lane-1
-# violation under PLUGIN-PHILOSOPHY's Two-lane convention posture — a repo on
+# violation under plugin-philosophy's Two-lane convention posture — a repo on
 # Jira-key branches (`SW2-12345-desc`) gets wrong suggestions — and the same
 # plugin already defers commit policy correctly, so the inconsistency is
 # internal, not inherent.

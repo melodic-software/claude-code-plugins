@@ -1,5 +1,5 @@
 ---
-description: "Sweep stale references after renames, the syntactic forms token-only grep misses (slash-tokens, paths, chain prose, numbered table rows, frontmatter chains and globs). Use when: 'rename X to Y', 'I renamed X', 'audit rename', 'find stale refs', 'check for stragglers', 'after git mv', 'sweep references', 'rename impact preview', 'find half-renamed state', 'broken refs after rename', 'pre-PR rename check'. Actions: audit, audit blast, audit half-rename, audit orphans, apply, preview, blocklist; not for framework migrations or repo-wide dead-reference audits."
+description: "Sweep stale references after renames, the forms token-only grep misses (slash-tokens, paths, chain prose, numbered table rows, frontmatter chains and globs). Use when: 'rename X to Y', 'I renamed X', 'audit rename', 'find stale refs', 'check for stragglers', 'after git mv', 'sweep references', 'rename impact preview', 'find half-renamed state', 'broken refs after rename', 'pre-PR rename check'. Actions: audit, audit blast, audit half-rename, audit orphans, apply, preview, blocklist; not for framework migrations or repo-wide dead-reference audits; for a whole tree against a casing rule, docs-hygiene:audit-file-names."
 argument-hint: "[action] [<old> [to <new>]] [--include-historical|--include-memory|--include-plan-docs|--include-bare-token|--container|--identifier] (e.g., /rename-references audit, /rename-references audit blast /verify to /verify-changes, /rename-references audit half-rename /a to /b, /rename-references audit orphans /a to /b, /rename-references blocklist)"
 user-invocable: true
 disable-model-invocation: false
@@ -160,6 +160,13 @@ Paths skipped from sweeps automatically:
 - **Does not auto-fix conversation history or memory entries**. Past mentions of the old name in conversation/memory are deliberately preserved as historical record. Future renames are the user's responsibility to invoke this skill for.
 - **Does not run builds or tests**. Hand off to the consuming repository's build/test/verification workflow after the rename completes.
 - **Does not perform general dead-reference scanning**. `audit orphans` is STRICTLY pair-driven (post-rename hygiene only). For repo-wide dead-link / dead-reference checks unrelated to a specific rename, use a codebase-audit workflow or documentation link checker if your environment provides one. Charter boundary preserves single responsibility.
+
+## Next
+
+`/docs-hygiene:audit-file-names`
+
+For a whole tree measured against a casing rule rather than one pair swept after
+a rename someone already made.
 
 ## Gotchas
 

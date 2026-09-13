@@ -7,7 +7,7 @@ disable-model-invocation: true
 
 ## Purpose
 
-Setup under the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit and
+Setup under the uniform setup contract (`docs/plugin-philosophy.md` "Setup is explicit and
 repeatable" in the marketplace repository). This plugin's configuration surface is native
 `userConfig` scalars that Claude Code owns (`registry_dir`, `skill_usage_dir`, `skill_usage_scope`,
 and the six `session_*` hook-logging options): Claude Code prompts for them when the plugin is
@@ -24,7 +24,10 @@ consumer's `.gitignore`"; the guard lives in a tree the plugin owns, the same sh
 memory tier uses for its own root).
 
 Official contract (verified 2026-07-18):
-<https://code.claude.com/docs/en/plugins-reference#user-configuration>.
+<https://code.claude.com/docs/en/plugins-reference#user-configuration>. Recheck when a fetch of that
+section no longer states that Claude Code prompts for `userConfig` values and stores non-sensitive
+ones in user settings, when the `#user-configuration` anchor stops resolving, or when a release note
+changes how `pluginConfigs` entries in project and local settings are treated.
 
 Action routing: no argument or `check` runs the check; `apply` runs the check first, then the two
 bounded writes below. Non-interactive, never prompts.
