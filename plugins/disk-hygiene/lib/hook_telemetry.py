@@ -21,9 +21,8 @@ _PROJECT_DIR_ENV = "CLAUDE_PROJECT_DIR"
 
 
 def _is_absolute_sink_path(sink: str) -> bool:
-    if sink.startswith("/"):
-        return True
-    return len(sink) >= 2 and sink[1] == ":"
+    """A POSIX absolute path, or a Windows drive-qualified one."""
+    return sink.startswith("/") or (len(sink) >= 2 and sink[1] == ":")
 
 
 def _resolve_sink(sink: str, repo_root: str | None) -> str | None:

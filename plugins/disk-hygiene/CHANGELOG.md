@@ -3,6 +3,12 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.8]
+
+### Changed
+
+- killswitch_config.py builds its kill-switch probe reports through two shared wrappers and two sentence constants instead of nine hand-repeated strings; hook_telemetry.py's absolute-sink predicate returns its comparison directly; test_guard_decision_log.py shares its owner-only permission assertion. No behavior change.
+
 ## [0.23.7]
 
 ### Changed
