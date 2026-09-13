@@ -357,6 +357,18 @@ else
   OUT=$(AUDIT_PASS_APPENDER="$STUB" run guarded-append --run-dir "$GA_RUN" \
     --record "$GA_BAD" --epoch 2 2>&1) || rc=$?
   assert_exit "guarded-append refuses an invalid record with the record verdict" 4 "$rc"
+
+  # The guard runs before the APPENDER'S OWN precondition, not merely before the
+  # write. Checked the other way round, an unreadable appender turns a bad record
+  # into exit 2, reporting the operator's environment for a fault that is in the
+  # lane's output. Nothing is written on either ordering, so only the exit code
+  # distinguishes them.
+  rc=0
+  OUT=$(AUDIT_PASS_APPENDER=/nonexistent/appender run guarded-append \
+    --run-dir "$GA_RUN" --record "$GA_BAD" --epoch 2 2>&1) || rc=$?
+  assert_exit "an invalid record exits 4 even when the appender is unreadable" 4 "$rc"
+  assert_contains "and the message is the record's fault, not the appender's" \
+    "$OUT" "identity was absent or null"
   assert_contains "and names what was wrong" "$OUT" "identity was absent or null"
   assert_eq "and the appender was never reached" "0" \
     "$(if [[ -f "$STUB_LOG" ]]; then wc -l <"$STUB_LOG" | tr -d ' '; else printf '0'; fi)"

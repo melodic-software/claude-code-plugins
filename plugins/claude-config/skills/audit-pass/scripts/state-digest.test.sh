@@ -270,6 +270,37 @@ BAD="$TEST_TMPDIR/bad.tsv"
 printf 'no-tab-here\n' >"$BAD"
 run digest --list "$BAD" >/dev/null 2>&1 || rc=$?
 assert_exit "a list entry with no tab exits 2" 2 "$rc"
+# --- Temp files survive no failure -----------------------------------------
+#
+# Every `die` in this script can fire while a temp file is live, and the script
+# is long-lived enough per run that litter accumulates in the operator's TMPDIR
+# rather than in a sandbox. Each case below is a DIFFERENT failing path holding a
+# different temp file, run against a TMPDIR of its own so the count is exact:
+# asserting on the whole directory rather than on a known name is what catches a
+# leak from a path this test did not anticipate.
+# The first case is deliberately NOT a leak case today: `cmd_digest` validates
+# readability before it calls `read_list_to_temp`, so no temp exists to leak. It
+# is here to pin that pre-check, because removing it would move the refusal into
+# a command substitution where the temp IS live and the exit reaches only the
+# subshell. The remaining three hold a live temp file at the refusal and fail
+# without the cleanup trap.
+LEAK_CASES=(
+  "an unreadable --list:digest|--list|$TEST_TMPDIR/nope.tsv"
+  "a --config with no equals:digest|--list|-|--config|badformat"
+  "a --config token missing the cfg prefix:digest|--list|-|--config|notcfg=v"
+  "a list entry with no tab:digest|--list|$BAD"
+)
+for LEAK_CASE in "${LEAK_CASES[@]}"; do
+  LEAK_LABEL="${LEAK_CASE%%:*}"
+  LEAK_ARGS="${LEAK_CASE#*:}"
+  IFS='|' read -r -a LEAK_ARGV <<<"$LEAK_ARGS"
+  LEAK_TMP="$TEST_TMPDIR/leak-$CASE_NUM"
+  mkdir -p "$LEAK_TMP"
+  TMPDIR="$LEAK_TMP" bash "$SCRIPT" "${LEAK_ARGV[@]}" </dev/null >/dev/null 2>&1
+  assert_eq "$LEAK_LABEL leaves no temp file behind" \
+    "0" "$(find "$LEAK_TMP" -mindepth 1 | wc -l | tr -d ' ')"
+done
+
 rc=0
 run --help >/dev/null 2>&1 || rc=$?
 assert_exit "--help exits 0" 0 "$rc"

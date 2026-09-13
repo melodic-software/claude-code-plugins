@@ -86,6 +86,29 @@ SENTINEL_UNREADABLE="unreadable"
 US=$'\x1f'
 RS=$'\x1e'
 
+# Every temp file this script creates is registered here and removed on exit,
+# however the script leaves. `die` is the reason: it is called from eight places
+# that hold a live temp file, and a per-site `rm` before each one is a rule that
+# has to be re-obeyed every time a `die` is added. One trap is obeyed by
+# construction. Explicit removals elsewhere stay, because freeing a large entry
+# file at the end of a long run beats holding it until exit; `rm -f` twice on one
+# path is harmless.
+TEMP_FILES=()
+cleanup_temps() {
+  [[ "${#TEMP_FILES[@]}" -gt 0 ]] && rm -f "${TEMP_FILES[@]}"
+  return 0
+}
+trap cleanup_temps EXIT
+
+# Sets MK_TEMP rather than printing it. A command substitution would put both the
+# registration and the `die` inside a subshell, where the registry never reaches
+# this shell and the exit never reaches this script.
+MK_TEMP=""
+mk_temp() {
+  MK_TEMP=$(mktemp) || die "could not create a temporary file"
+  TEMP_FILES+=("$MK_TEMP")
+}
+
 die() {
   printf '%s: %s\n' "$PROG" "$1" >&2
   exit 2
@@ -157,7 +180,8 @@ collect_entries() {
   local excludes=("$@")
   local line surface path seen_file hashed ex skip
 
-  seen_file=$(mktemp) || die "could not create a temporary file"
+  mk_temp
+  seen_file="$MK_TEMP"
 
   while IFS= read -r line || [[ -n "$line" ]]; do
     [[ -z "$line" ]] && continue
@@ -214,11 +238,17 @@ digest_from_entries() {
 
 read_list_to_temp() {
   local list="$1" tmp
+  # This function runs inside a command substitution, so the caller's registry
+  # and trap are in a different shell: the temp is removed here, by hand, on the
+  # one path that abandons it. The caller registers the path it receives.
   tmp=$(mktemp) || die "could not create a temporary file"
   if [[ "$list" == "-" ]]; then
     cat >"$tmp"
   else
-    [[ -r "$list" ]] || die "--list is not readable: $list"
+    [[ -r "$list" ]] || {
+      rm -f "$tmp"
+      die "--list is not readable: $list"
+    }
     cat "$list" >"$tmp"
   fi
   printf '%s' "$tmp"
@@ -257,7 +287,9 @@ cmd_digest() {
 
   local src entries
   src=$(read_list_to_temp "$list")
-  entries=$(mktemp) || die "could not create a temporary file"
+  TEMP_FILES+=("$src")
+  mk_temp
+  entries="$MK_TEMP"
 
   collect_entries "$src" ${excludes[0]+"${excludes[@]}"} >"$entries"
 

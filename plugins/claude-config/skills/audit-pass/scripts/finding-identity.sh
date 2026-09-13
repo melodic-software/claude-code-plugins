@@ -542,9 +542,14 @@ cmd_guarded_append() {
     esac
   done
   [[ "$have" -eq 1 ]] || die "--record is required"
-  [[ -r "$APPENDER" ]] || die "the appender is not readable: $APPENDER"
 
+  # The guard runs BEFORE the appender's own precondition, so that claim is
+  # literally true of every path and not merely of the write. Checked the other
+  # way round, an invalid record plus an unreadable appender exits 2 for the
+  # appender rather than 4 for the record, which reports the operator's
+  # environment where the lane's output is what is wrong.
   cmd_validate_record --record "$record" >/dev/null
+  [[ -r "$APPENDER" ]] || die "the appender is not readable: $APPENDER"
 
   # Its exit code is this command's: 0 appended, 2 refused by the appender,
   # 3 FENCED. Collapsing 3 to 0 would let a superseded run keep dispatching.
