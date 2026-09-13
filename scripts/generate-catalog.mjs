@@ -14,12 +14,18 @@ import process from "node:process";
 // scripts/generate-cheatsheet.mjs, whose suite exercises it.
 import { reportFirstDifference } from "./lib/report-first-difference.mjs";
 
+// Paths render with forward slashes on every platform, in messages and in
+// generated links alike.
+function toPosix(path) {
+  return path.split(sep).join("/");
+}
+
 const root = join(import.meta.dirname, "..");
 const outputPath = join(root, "docs", "CATALOG.md");
-const outputLabel = relative(root, outputPath).split(sep).join("/");
+const outputLabel = toPosix(relative(root, outputPath));
 const marketplacePath = join(root, ".claude-plugin", "marketplace.json");
 const taxonomyPath = join(root, "docs", "CATALOG-TAXONOMY.md");
-const taxonomyLabel = relative(root, taxonomyPath).split(sep).join("/");
+const taxonomyLabel = toPosix(relative(root, taxonomyPath));
 
 const START = "<!-- catalog:start -->";
 const END = "<!-- catalog:end -->";
@@ -118,7 +124,7 @@ function buildBlock() {
     if (!description) throw new Error(`${plugin.name}: plugin.json has no description`);
     // Link relative to the output file's directory, so the rendered links
     // resolve wherever outputPath points.
-    const link = relative(dirname(outputPath), join(root, path)).split(sep).join("/");
+    const link = toPosix(relative(dirname(outputPath), join(root, path)));
     byCategory.get(plugin.category).push(`- [\`${plugin.name}\`](${link}): ${description}`);
   }
 

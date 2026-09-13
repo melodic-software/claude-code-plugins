@@ -51,7 +51,7 @@ function loadOrgAgnosticismTokens() {
 }
 
 function orgAgnosticismRegex(pats) {
-  if (!pats || pats.length === 0) return null;
+  if (pats.length === 0) return null;
   return new RegExp(pats.join("|"), "i");
 }
 
@@ -92,6 +92,11 @@ const pluginFiles = filesUnder(pluginRoot);
 // traversal instead of one per checked subtree.
 function filesIn(directory) {
   return pluginFiles.filter((path) => path.startsWith(directory + sep));
+}
+
+// A plugin file's path segments below plugins/: [0] is the plugin directory.
+function pluginPathParts(path) {
+  return relative(pluginRoot, path).split(sep);
 }
 
 const setupSkills = pluginFiles.filter((path) =>
@@ -216,7 +221,7 @@ for (const path of setupSkills) {
     );
   }
   if (!offersApply) {
-    const plugin = relative(pluginRoot, path).split(sep)[0];
+    const plugin = pluginPathParts(path)[0];
     if (!/check-only/i.test(body)) {
       fail(path, "a setup skill offering no apply must declare the check-only carve-out it relies on");
     }
@@ -595,7 +600,6 @@ function parseRetirementsManifest(text) {
   const records = [];
   const errors = [];
   let current = null;
-  let currentLine = 0;
   const flush = () => {
     if (current && Object.keys(current.fields).length > 0) records.push(current);
     current = null;
@@ -609,7 +613,6 @@ function parseRetirementsManifest(text) {
     if (/^\s*$/.test(raw) || /^\s*#/.test(raw)) return;
     if (!current) {
       current = { line: lineNo, fields: {} };
-      currentLine = lineNo;
     }
     if (/^\s/.test(raw)) {
       errors.push(`line ${lineNo}: indented lines are not allowed (flat key: value records only)`);
@@ -644,7 +647,7 @@ function parseRetirementsManifest(text) {
       value = value.slice(1, -1);
     }
     if (Object.hasOwn(current.fields, key)) {
-      errors.push(`line ${lineNo}: duplicate key "${key}" in the record starting at line ${currentLine}`);
+      errors.push(`line ${lineNo}: duplicate key "${key}" in the record starting at line ${current.line}`);
       return;
     }
     current.fields[key] = value;
@@ -721,9 +724,12 @@ function badRepoRelativePath(value) {
   );
 }
 
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function textCoversRetirementId(text, id) {
-  const escaped = id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`(?:^|[^A-Za-z0-9-])${escaped}(?:[^A-Za-z0-9-]|$)`).test(text);
+  return new RegExp(`(?:^|[^A-Za-z0-9-])${escapeRegExp(id)}(?:[^A-Za-z0-9-]|$)`).test(text);
 }
 
 // Validates one manifest's records; returns the ids it found so the
@@ -731,7 +737,7 @@ function textCoversRetirementId(text, id) {
 function validateRetirementRecords(manifestPath, plugin, records) {
   const ids = [];
   const seen = new Set();
-  const idPattern = new RegExp(`^${plugin.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}-r\\d{3,}$`);
+  const idPattern = new RegExp(`^${escapeRegExp(plugin)}-r\\d{3,}$`);
   records.forEach((record, index) => {
     const { fields } = record;
     const label = `record ${fields.id ? `"${fields.id}"` : `#${index + 1} (line ${record.line})`}`;
@@ -856,7 +862,7 @@ if (retirementsBaseRef === null) {
 }
 
 const retirementManifests = pluginFiles.filter((path) => {
-  const parts = relative(pluginRoot, path).split(sep);
+  const parts = pluginPathParts(path);
   return parts.length === 2 && parts[1] === RETIREMENTS_FILE;
 });
 const canonicalHelperContent = existsSync(canonicalRetirementsHelper)
@@ -871,7 +877,7 @@ if (retirementManifests.length > 0 && canonicalHelperContent === null) {
 
 const pluginsWithRetirements = new Set();
 for (const manifestPath of retirementManifests) {
-  const plugin = relative(pluginRoot, manifestPath).split(sep)[0];
+  const plugin = pluginPathParts(manifestPath)[0];
   pluginsWithRetirements.add(plugin);
   const { records, errors } = parseRetirementsManifest(read(manifestPath));
   for (const error of errors) fail(manifestPath, error);
@@ -963,7 +969,7 @@ if (retirementsAtBase !== null) {
 // manifest behind it is dead surface. claude-config is the canonical home of
 // the helper, so its copy and its setup reference stand without a manifest.
 for (const path of pluginFiles) {
-  const parts = relative(pluginRoot, path).split(sep);
+  const parts = pluginPathParts(path);
   const plugin = parts[0];
   if (plugin === "claude-config" || pluginsWithRetirements.has(plugin)) continue;
   const rest = parts.slice(1).join("/");

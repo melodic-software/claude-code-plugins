@@ -51,7 +51,7 @@ const {
   STAGES, CADENCES, EXCLUDED_PLUGINS, EXCLUDED_SKILL_NAME, EXCLUDED_SKILLS,
   summaryError,
 } = config;
-const stageBySlug = new Map(STAGES.map((s) => [s.slug, s]));
+const stageSlugs = new Set(STAGES.map((s) => s.slug));
 
 function fail(messages) {
   for (const m of messages) console.error(`generate-cheatsheet: ${m}`);
@@ -175,7 +175,7 @@ for (const s of skills) {
     errors.push(`${key}: no workflow-stage and no exclusion entry`);
     continue;
   }
-  if (!stageBySlug.has(stage)) {
+  if (!stageSlugs.has(stage)) {
     errors.push(`${key}: unknown workflow-stage "${stage}"`);
     continue;
   }
