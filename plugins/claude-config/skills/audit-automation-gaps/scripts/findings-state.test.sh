@@ -31,10 +31,33 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
 FAILED=0
 CASE_NUM=0
+SKIPPED=0
 
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
   printf 'PASS: %s\n' "$1"
+}
+# A host-capability skip is reported as itself and never through pass(), so a
+# proof this host could not run can never be read off the summary as one that
+# did.
+skip() {
+  SKIPPED=$((SKIPPED + 1))
+  printf 'SKIP (host: %s): %s\n' "$2" "$1"
+}
+# Under MSYS without winsymlinks, `ln -s` COPIES the target instead of linking
+# it. Two cases below need a real symlink: one plants a dangling link to make an
+# append fail, the other plants a link to prove the pointer is replaced rather
+# than written through. Probe the round trip rather than the OS name.
+host_makes_symlinks() {
+  local d rc=1
+  d="$(mktemp -d)"
+  printf 'x\n' >"$d/target"
+  if ln -s target "$d/link" 2>/dev/null &&
+    [[ -L "$d/link" ]] && [[ "$(readlink "$d/link" 2>/dev/null)" == "target" ]]; then
+    rc=0
+  fi
+  rm -rf "$d"
+  return "$rc"
 }
 fail() {
   CASE_NUM=$((CASE_NUM + 1))
@@ -206,7 +229,28 @@ rc=0
 OUT=$(run read --plugin-data "$DATA" --root "$REPO_A" --run-id "" 2>&1) || rc=$?
 assert_exit "an empty run id is refused" 2 "$rc"
 
-# 4a: NEGATIVE. Delete the '..' arm and the traversal must get through.
+# A DIRECTORY may legitimately be named `a..b`; a run id may not. The two rules
+# differ on purpose, and each message says which rule it is enforcing.
+mkdir -p "$TEST_TMPDIR/a..b/data"
+rc=0
+OUT=$(run paths --plugin-data "$TEST_TMPDIR/a..b/data" --root "$REPO_A" 2>&1) || rc=$?
+assert_exit "a real directory named a..b keys like any other" 0 "$rc"
+assert_contains "the a..b directory is the one used" "$OUT" "plugin_data=$TEST_TMPDIR/a..b/data"
+
+rc=0
+OUT=$(run paths --plugin-data "$TEST_TMPDIR/../etc" --root "$REPO_A" 2>&1) || rc=$?
+assert_exit "a real '..' path component is still refused" 2 "$rc"
+assert_contains "the refusal names the component, not a substring" "$OUT" \
+  "must not contain a '..' path component"
+
+# 4a: NEGATIVE. Delete the '..' arm and the dot-run id must reach the filename it
+# would become. Asserting only that a message disappears would also pass if the
+# id were refused a line later for some unrelated reason; the constructed path in
+# the output is what shows the id actually got through to path construction.
+DOTS_DATA="$TEST_TMPDIR/dots-data"
+mkdir -p "$DOTS_DATA"
+DOTS_KEY=$(run paths --plugin-data "$DOTS_DATA" --root "$REPO_A" | sed -n 's/^state_key=//p')
+mkdir -p "$DOTS_DATA/audit-automation-gaps/$DOTS_KEY"
 BROKEN_DOTS="$TEST_TMPDIR/broken-dots.sh"
 sed "/must not contain '\.\.': \$id/s/.*/  *) : ;;/" "$SCRIPT" >"$BROKEN_DOTS"
 if grep -qF "must not contain '..': \$id" "$BROKEN_DOTS"; then
@@ -214,10 +258,13 @@ if grep -qF "must not contain '..': \$id" "$BROKEN_DOTS"; then
     "the sed target no longer matches findings-state.sh, so the '..' rejection is UNVERIFIED by this run"
 else
   rc=0
-  broken_out=$(run_copy "$BROKEN_DOTS" read --plugin-data "$DATA" --root "$REPO_A" \
+  broken_out=$(run_copy "$BROKEN_DOTS" read --plugin-data "$DOTS_DATA" --root "$REPO_A" \
     --run-id "a..b" 2>&1) || rc=$?
-  assert_not_contains "with the '..' arm deleted the traversal is no longer refused" \
+  assert_not_contains "with the '..' arm deleted the dot run is no longer refused" \
     "$broken_out" "must not contain"
+  assert_exit "with the arm deleted the id reaches the artifact lookup instead" 4 "$rc"
+  assert_contains "and it reaches it as a FILENAME built from the dot run" \
+    "$broken_out" "findings-a..b.json"
 fi
 
 # --- Case 5: read and list before anything is written -----------------------
@@ -462,9 +509,274 @@ rc=0
 OUT=$(run paths --plugin-data "$DATA" --root "$TEST_TMPDIR/not-there" 2>&1) || rc=$?
 assert_exit "a --root that is not a directory exits 2" 2 "$rc"
 
+# --- Case 11: CONCURRENCY, the never-overwritten promise under a real race ----
+#
+# Five writers, ONE run id, five DISTINCT payloads, all in flight at once. A
+# check-then-publish implementation passes every earlier case in this file and
+# still loses four verdict sets here while reporting success five times, which is
+# the worst thing a persistence layer can do. The claim under test is not "it
+# does not crash": it is that every payload that was reported written is on disk
+# under the id that was reported back.
+
+CDATA="$TEST_TMPDIR/concurrent-data"
+mkdir -p "$CDATA"
+for i in 1 2 3 4 5; do
+  printf '{"candidates":[{"id":"%s","candidate":"c%s","category":"hooks","verdict":"REJECT","evidence":["e%s"]}]}\n' \
+    "$i" "$i" "$i" >"$TEST_TMPDIR/conc-$i.json"
+done
+for i in 1 2 3 4 5; do
+  run write --plugin-data "$CDATA" --root "$REPO_A" --run-id shared \
+    --findings "$TEST_TMPDIR/conc-$i.json" >"$TEST_TMPDIR/conc-out-$i" 2>&1 &
+done
+wait
+CONC_DIR="$CDATA/audit-automation-gaps/$A_KEY"
+assert_eq "five concurrent writes leave five findings files" "5" \
+  "$(find "$CONC_DIR" -name 'findings-shared*.json' | wc -l | tr -d ' ')"
+CONC_IDS=$(cat "$TEST_TMPDIR"/conc-out-* | sed -n 's/^run_id=//p' | sort)
+assert_eq "each concurrent write reports a DISTINCT run id" "5" \
+  "$(printf '%s\n' "$CONC_IDS" | sort -u | wc -l | tr -d ' ')"
+assert_eq "the suffixes are the documented ones" "shared shared-2 shared-3 shared-4 shared-5" \
+  "$(printf '%s\n' "$CONC_IDS" | tr '\n' ' ' | sed 's/ *$//')"
+conc_missing=""
+for id in $CONC_IDS; do
+  if [[ ! -f "$CONC_DIR/findings-$id.json" ]]; then
+    conc_missing="$conc_missing $id"
+  fi
+done
+assert_eq "every run id reported back names a file that exists" "" "$conc_missing"
+assert_eq "every payload survives, none overwritten by another writer" "1 2 3 4 5" \
+  "$(cat "$CONC_DIR"/findings-shared*.json | jq -r '.findings.candidates[0].id' | sort | tr '\n' ' ' | sed 's/ *$//')"
+assert_eq "the history carries one row per surviving run, not five claiming one id" "5" \
+  "$(jq -r '.run_id' <"$CONC_DIR/history.jsonl" | sort -u | wc -l | tr -d ' ')"
+assert_eq "read serves a real per-run file after the race" "1" \
+  "$(run read --plugin-data "$CDATA" --root "$REPO_A" | jq -r '.findings.candidates | length')"
+
+# --- Case 12: one payload document, because only one can be persisted ---------
+#
+# jq accepts a stream of concatenated documents, so a two-document payload used
+# to validate in full and persist only the first. A stream whose second half
+# holds the real verdicts then reported success with counts of zero.
+
+MULTI="$TEST_TMPDIR/multi.json"
+cat >"$MULTI" <<'EOF'
+{"candidates": [], "maturity": "a clean bill of health"}
+{"candidates": [{"id":"9","candidate":"real gap","category":"hooks","verdict":"REJECT","evidence":["real evidence"]}]}
+EOF
+rc=0
+OUT=$(run write --plugin-data "$DATA" --root "$REPO_A" --run-id multi --findings "$MULTI" 2>&1) || rc=$?
+assert_exit "a multi-document payload exits 3" 3 "$rc"
+assert_contains "the refusal names the one-document rule" "$OUT" "exactly one JSON document"
+assert_contains "the refusal says which half would have been kept" "$OUT" \
+  "only the first document would be persisted"
+assert_eq "a multi-document payload writes no findings file" "" \
+  "$(find "$A_DIR" -name 'findings-multi*.json')"
+
+# --- Case 13: a publish is all or nothing, and an orphan is not an absence ----
+
+ODATA="$TEST_TMPDIR/orphan-data"
+ODIR="$ODATA/audit-automation-gaps/$A_KEY"
+mkdir -p "$ODIR/history.jsonl"
+rc=0
+OUT=$(run write --plugin-data "$ODATA" --root "$REPO_A" --run-id h1 --findings "$GOOD" 2>&1) || rc=$?
+assert_exit "write refuses up front when the history file cannot be appended to" 5 "$rc"
+assert_contains "the refusal says nothing was written" "$OUT" "nothing was written"
+assert_eq "and nothing was: no orphan findings file is left on disk" "" \
+  "$(find "$ODIR" -name 'findings-*.json')"
+
+# A findings file whose pointers are gone is an INCOMPLETE PUBLISH. Reporting it
+# as "no findings are persisted" denies a verdict set that is sitting on disk.
+PDATA="$TEST_TMPDIR/partial-data"
+mkdir -p "$PDATA"
+run write --plugin-data "$PDATA" --root "$REPO_A" --run-id partial --findings "$GOOD" >/dev/null 2>&1
+PDIR="$PDATA/audit-automation-gaps/$A_KEY"
+rm -f "$PDIR/latest" "$PDIR/history.jsonl"
+rc=0
+OUT=$(run read --plugin-data "$PDATA" --root "$REPO_A" 2>&1) || rc=$?
+assert_exit "read reports an orphaned findings file rather than absence" 5 "$rc"
+assert_contains "the report names the incomplete publish" "$OUT" "INCOMPLETE PUBLISH"
+assert_contains "the report names the file the operator can still read" "$OUT" "findings-partial.json"
+assert_not_contains "and does not claim nothing is persisted" "$OUT" "no findings are persisted"
+rc=0
+OUT=$(run list --plugin-data "$PDATA" --root "$REPO_A" 2>&1) || rc=$?
+assert_exit "list reports the orphan rather than an empty listing" 5 "$rc"
+assert_not_contains "list does not call an incomplete publish 'no persisted runs'" "$OUT" \
+  "no persisted runs"
+rc=0
+OUT=$(run read --plugin-data "$PDATA" --root "$REPO_A" --run-id partial 2>&1) || rc=$?
+assert_exit "the orphaned run is still readable by its id" 0 "$rc"
+
+# The pre-flight cannot see every failure, so the publish is also rolled back
+# when the append fails anyway. A DANGLING symlink is the reproduction: `-e` is
+# false for one, so it passes the pre-flight, and the append into a directory
+# that does not exist then fails with the findings file already published.
+if host_makes_symlinks; then
+  RBDATA="$TEST_TMPDIR/rollback-data"
+  RBDIR="$RBDATA/audit-automation-gaps/$A_KEY"
+  mkdir -p "$RBDIR"
+  ln -s "$RBDIR/no-such-dir/history.jsonl" "$RBDIR/history.jsonl"
+  rc=0
+  OUT=$(run write --plugin-data "$RBDATA" --root "$REPO_A" --run-id rb --findings "$GOOD" 2>&1) || rc=$?
+  assert_exit "a failed history append is reported as unusable state, not a usage error" 5 "$rc"
+  assert_contains "the report says the findings file was rolled back" "$OUT" "rolled back"
+  assert_eq "the published findings file is rolled back rather than orphaned" "" \
+    "$(find "$RBDIR" -name 'findings-rb*.json')"
+  rc=0
+  OUT=$(run read --plugin-data "$RBDATA" --root "$REPO_A" 2>&1) || rc=$?
+  assert_exit "and the rolled-back run leaves no orphan for read to report" 4 "$rc"
+else
+  skip "a failed history append rolls the findings file back" "ln -s copies here"
+fi
+
+# --- Case 14: UNREADABLE IS NOT ABSENT ---------------------------------------
+#
+# Directories stand in for the unreadable file here because the suite may run as
+# root, where a chmod 000 file is still readable and the case would pass without
+# testing anything.
+
+BDATA="$TEST_TMPDIR/broken-state-data"
+BDIR="$BDATA/audit-automation-gaps/$A_KEY"
+mkdir -p "$BDIR/history.jsonl" "$BDIR/findings-d8.json"
+printf 'd8\n' >"$BDIR/latest"
+rc=0
+OUT=$(run list --plugin-data "$BDATA" --root "$REPO_A" 2>&1) || rc=$?
+assert_exit "list exits 5 when the history file is not a regular file" 5 "$rc"
+assert_contains "the report distinguishes unreadable from absent" "$OUT" \
+  "that is not the same as having none"
+assert_not_contains "list does not report unreadable state as no runs" "$OUT" "no persisted runs"
+
+rc=0
+OUT=$(run read --plugin-data "$BDATA" --root "$REPO_A" 2>&1) || rc=$?
+assert_exit "read exits 5 when the findings file is not a regular file" 5 "$rc"
+assert_contains "read names the findings file it could not read" "$OUT" "findings-d8.json"
+
+LDATA="$TEST_TMPDIR/broken-latest-data"
+LDIR="$LDATA/audit-automation-gaps/$A_KEY"
+mkdir -p "$LDIR/latest"
+rc=0
+OUT=$(run read --plugin-data "$LDATA" --root "$REPO_A" 2>&1) || rc=$?
+assert_exit "read exits 5 when the latest pointer is not a regular file" 5 "$rc"
+assert_contains "the report names the pointer" "$OUT" "the latest pointer exists"
+
+EDATA="$TEST_TMPDIR/empty-latest-data"
+EDIR="$EDATA/audit-automation-gaps/$A_KEY"
+mkdir -p "$EDIR"
+: >"$EDIR/latest"
+rc=0
+OUT=$(run read --plugin-data "$EDATA" --root "$REPO_A" 2>&1) || rc=$?
+assert_exit "an empty latest pointer is damaged state, not absence" 5 "$rc"
+
+FDATA="$TEST_TMPDIR/file-basedir-data"
+mkdir -p "$FDATA/audit-automation-gaps/${A_KEY%/*}"
+printf 'not a directory\n' >"$FDATA/audit-automation-gaps/$A_KEY"
+rc=0
+OUT=$(run read --plugin-data "$FDATA" --root "$REPO_A" 2>&1) || rc=$?
+assert_exit "read exits 5 when the keyed directory is a regular file" 5 "$rc"
+rc=0
+OUT=$(run list --plugin-data "$FDATA" --root "$REPO_A" 2>&1) || rc=$?
+assert_exit "list exits 5 when the keyed directory is a regular file" 5 "$rc"
+
+# --- Case 15: the suffix cap is state exhaustion, not a usage error -----------
+
+CAPDATA="$TEST_TMPDIR/cap-data"
+CAPDIR="$CAPDATA/audit-automation-gaps/$A_KEY"
+mkdir -p "$CAPDIR"
+: >"$CAPDIR/findings-cap.json"
+i=2
+while [[ "$i" -le 99 ]]; do
+  : >"$CAPDIR/findings-cap-$i.json"
+  i=$((i + 1))
+done
+rc=0
+OUT=$(run write --plugin-data "$CAPDATA" --root "$REPO_A" --run-id cap --findings "$GOOD" 2>&1) || rc=$?
+assert_exit "an exhausted suffix range exits 5, not the usage code" 5 "$rc"
+assert_contains "the refusal names the run id whose names are taken" "$OUT" "run id: cap"
+
+# --- Case 16: what the envelope records, and how the pointer is replaced ------
+#
+# repo_root and written_at are both derived per run. A constant in either place
+# is invisible to a round-trip assertion that only checks the field is present,
+# so both are compared against a value computed OUTSIDE the script.
+
+ENVELOPE=$(run read --plugin-data "$DATA" --root "$REPO_A" --run-id run-0001)
+assert_eq "the envelope records the repo root it was derived from" \
+  "$(git -C "$REPO_A" rev-parse --show-toplevel)" \
+  "$(printf '%s' "$ENVELOPE" | jq -r '.repo_root')"
+B_ENVELOPE=$(run read --plugin-data "$DATA" --root "$REPO_B" --run-id run-0001)
+assert_eq "a different repository records a different repo root" \
+  "$(git -C "$REPO_B" rev-parse --show-toplevel)" \
+  "$(printf '%s' "$B_ENVELOPE" | jq -r '.repo_root')"
+
+stamp_before=$(date -u +%Y-%m-%d)
+run write --plugin-data "$DATA" --root "$REPO_A" --run-id stamped --findings "$GOOD" >/dev/null 2>&1
+stamp_after=$(date -u +%Y-%m-%d)
+stamped=$(run read --plugin-data "$DATA" --root "$REPO_A" --run-id stamped | jq -r '.written_at')
+case "$stamped" in
+"$stamp_before"T*Z | "$stamp_after"T*Z)
+  pass "written_at is stamped when the run is written"
+  ;;
+*)
+  fail "written_at is stamped when the run is written" \
+    "expected a UTC stamp dated $stamp_before or $stamp_after, got: $stamped"
+  ;;
+esac
+
+# The `latest` pointer is a file under a directory anything with write access can
+# reach, so the run id it yields is a caller-supplied id by another route.
+POISON="$TEST_TMPDIR/poison-data"
+PODIR="$POISON/audit-automation-gaps/$A_KEY"
+mkdir -p "$PODIR"
+run write --plugin-data "$POISON" --root "$REPO_A" --run-id clean --findings "$GOOD" >/dev/null 2>&1
+printf '../../etc/passwd\n' >"$PODIR/latest"
+rc=0
+OUT=$(run read --plugin-data "$POISON" --root "$REPO_A" 2>&1) || rc=$?
+assert_exit "a poisoned latest pointer is refused" 2 "$rc"
+assert_contains "the refusal names the plain-segment rule" "$OUT" "plain path segment"
+
+# 16a: NEGATIVE. Delete the validation on the pointer path and the poisoned id
+# reaches path construction.
+BROKEN_PTR="$TEST_TMPDIR/broken-pointer.sh"
+# shellcheck disable=SC2016 # sed program text: the $ is a literal character in the script being mutated
+sed 's@validate_run_id "$run_id"@:@' "$SCRIPT" >"$BROKEN_PTR"
+# shellcheck disable=SC2016 # grep pattern text: same literal $ as the sed above
+if grep -qF 'validate_run_id "$run_id"' "$BROKEN_PTR"; then
+  fail "negative pointer-validation case could not be constructed" \
+    "the sed target no longer matches findings-state.sh, so the pointer validation is UNVERIFIED by this run"
+else
+  rc=0
+  broken_out=$(run_copy "$BROKEN_PTR" read --plugin-data "$POISON" --root "$REPO_A" 2>&1) || rc=$?
+  assert_not_contains "with the pointer validation deleted the poisoned id is no longer refused" \
+    "$broken_out" "plain path segment"
+  assert_contains "and it reaches the filesystem as a traversing path" \
+    "$broken_out" "findings-../../etc/passwd.json"
+fi
+
+# `latest` is REPLACED, never written through. A `cp` would follow whatever the
+# name already is and clobber it, and would let a reader see a half pointer.
+PTRDATA="$TEST_TMPDIR/pointer-data"
+PTRDIR="$PTRDATA/audit-automation-gaps/$A_KEY"
+mkdir -p "$PTRDIR"
+if host_makes_symlinks; then
+  DECOY="$TEST_TMPDIR/decoy-pointer"
+  printf 'decoy\n' >"$DECOY"
+  ln -s "$DECOY" "$PTRDIR/latest"
+  run write --plugin-data "$PTRDATA" --root "$REPO_A" --run-id ptr --findings "$GOOD" >/dev/null 2>&1
+  assert_eq "the write does not follow the old pointer and clobber its target" "decoy" "$(cat "$DECOY")"
+  if [[ -L "$PTRDIR/latest" ]]; then
+    fail "the latest pointer is replaced, not written through" "it is still a symlink to the decoy"
+  else
+    pass "the latest pointer is replaced, not written through"
+  fi
+  assert_eq "the replaced pointer names the run just written" "ptr" "$(cat "$PTRDIR/latest")"
+else
+  skip "the latest pointer is replaced, not written through" "ln -s copies here"
+  run write --plugin-data "$PTRDATA" --root "$REPO_A" --run-id ptr --findings "$GOOD" >/dev/null 2>&1
+fi
+assert_eq "no staged pointer temporary is left behind" "0" \
+  "$(find "$PTRDIR" -name 'latest.*' | wc -l | tr -d ' ')"
+
 if [[ "$FAILED" -eq 0 ]]; then
-  printf '\nAll %d checks passed.\n' "$CASE_NUM"
+  printf '\nAll %d checks passed (%d skipped for host capability).\n' "$CASE_NUM" "$SKIPPED"
   exit 0
 fi
-printf '\n%d/%d checks failed.\n' "$FAILED" "$CASE_NUM" >&2
+printf '\n%d/%d checks failed (%d skipped for host capability).\n' "$FAILED" "$CASE_NUM" "$SKIPPED" >&2
 exit 1

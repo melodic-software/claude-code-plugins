@@ -328,9 +328,13 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-automation-gaps/scripts/findings-state.
 
 `${CLAUDE_PLUGIN_DATA}` substitutes here in the skill text but is absent from the Bash tool's own
 environment, so it has to travel as that argument; the script exits 2 rather than guessing when it
-is missing. The payload is one object with a `candidates` array, each entry carrying `id`,
-`candidate`, `category`, `verdict`, an `evidence` array, and a `plan` object on any `PASS` or
-`CONDITIONAL`. A malformed payload exits 3 and writes nothing, listing every problem at once.
+is missing. The payload is exactly one JSON object with a `candidates` array, each entry carrying
+`id`, `candidate`, `category`, `verdict`, an `evidence` array, and a `plan` object on any `PASS` or
+`CONDITIONAL`. A malformed payload, or a stream carrying more than one document, exits 3 and writes
+nothing, listing every problem at once.
+
+Writes are all or nothing. A run id already taken is reserved under the next free suffix rather than
+overwritten, so two runs racing for one id both survive and each is told the id it actually got.
 
 Findings are keyed per project, so one checkout never reads another's verdicts. This tree is the
 only durable copy: uninstalling the plugin without `--keep-data` deletes it.
@@ -346,7 +350,10 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-automation-gaps/scripts/findings-state.
 
 That serves this project's newest run. Exit 4 means this project has no stored run, which is the
 cue to audit first rather than to implement from memory; the script never falls back to another
-project's artifact. `list` shows the earlier runs when a specific one is wanted.
+project's artifact. Exit 5 is the different answer: stored state exists but cannot be trusted,
+because a file is unreadable or a previous write half landed. Treat 5 as a state to repair or
+re-audit, never as an absence, and say which of the two you got. `list` shows the earlier runs when
+a specific one is wanted.
 
 For each user-selected item:
 
