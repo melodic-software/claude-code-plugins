@@ -34,6 +34,7 @@ for the pass. All of it is specified in [reference/run-contract.md](reference/ru
 | [reference/doctor-handoff.md](reference/doctor-handoff.md) | Reaching the `/doctor` handoff, whether it is present or absent. |
 | [reference/liveness-sources.md](reference/liveness-sources.md) | Inventorying Phase 1 liveness: which sources this run can reach, what each one establishes, and the three losses it names in `skipped`. |
 | [reference/lane-catalog.md](reference/lane-catalog.md) | Dispatching Phase 3, or resolving what a `--lanes` id covers: every lane, what each delegated skill owns, what is not dispatched, and the substrate probe. |
+| [reference/retired-conventions-sweep.md](reference/retired-conventions-sweep.md) | Running the one script lane: how installed manifests are discovered, what an undiscoverable manifest set reports, and how a helper exit maps to a finding. |
 
 ## Read-only contract, and where mutation can reach
 
