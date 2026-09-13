@@ -464,8 +464,9 @@ chose / revisit:
   Files affected table omits `docs/upstream/aihero-shipping-course.md` (the fifth adoption note,
   recorded under Phase 5), `design/design-resolution.md`, and the regenerated
   `docs/skill-cheat-sheet.md`; left for close-out.
-- The draft-PR clause of the sanity check is discharged by the PR that carries this commit; the
-  PR number is recorded at close-out. `scripts/affected-tests.sh --run` is CI's on that PR.
+- The draft-PR clause of the sanity check is discharged by melodic-software/claude-code-plugins#4154
+  (`isDraft: true`, body carries `No linked issue` and the four sections). `scripts/affected-tests.sh
+  --run` runs in CI once it flips to ready.
 
 - Confirming pilot pass against the changed plugin (new skills, rewritten descriptions can flip the
   control case): one full pass under `--max-cost-usd 2`, recorded as a second row set in `pilot.md`;
