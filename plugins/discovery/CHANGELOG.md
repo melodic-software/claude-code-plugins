@@ -5,6 +5,7 @@
 ### Changed
 
 - **`explore`'s convention-files dimension no longer instructs a re-read of always-loaded instructions.** The root `CLAUDE.md` and the files it imports reach the exploration at startup, a dispatched run included, so re-reading them buys nothing. The bullet now points at the path-scoped `.claude/rules/` files and any nested `AGENTS.md` covering the target area, which reach a context only when a file they cover is read, something an exploration may never do for the area a rule governs. The conventions the dimension is meant to surface are the same.
+- **`explore`'s eval stops contradicting the agent body it grades.** The expectation justified reading the rule files "since a subagent does not auto-load them", which stopped matching once `explorer`'s own step was corrected. It now gives the reason that holds, that a subagent inherits none of them and one arrives only on a read matching its glob. The graded behavior is identical: the dispatched run still Reads the scope-relevant rule files explicitly and still skips any that do not exist.
 
 ## [0.19.13]
 

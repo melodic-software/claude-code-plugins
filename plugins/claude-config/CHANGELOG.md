@@ -12,6 +12,7 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 ### Fixed
 
 - **`audit-instructions`'s split-destination eval stops grading a rationale that is no longer true.** Case 13's expected output and its third expectation rejected a `paths:`-scoped destination for agent-originated content "because path-scoped rules are invisible inside a subagent context". A first-party probe on Claude Code **2.1.268** shows a non-fork subagent does receive a path-scoped rule once it reads a path the glob covers, with the glob matched against the requested path so even a read that finds no file fires it. Both now give the reason that holds: a path-scoped rule is not inherited by a dispatched agent and announces itself nowhere, so it reaches a dispatch only if that dispatch happens to read a covered path, which trades guaranteed presence for a deferral the agent cannot rely on. The graded behavior is unchanged: the `@path` import is still refused, a `paths:`-scoped rule is still rejected, and an agent-reachable deferring destination is still what the case expects.
+- **The criterion that eval grades stops carrying the same superseded reason.** `reference/criteria.md`'s agent-reachable-destination rule stated that path-scoped rules "are invisible there" for a subagent, which left the body and its eval disagreeing once the eval was corrected. It now states the inheritance and announcement halves that hold, and the verdict is unchanged: an agent-reachable destination is still required and a `paths:`-scoped rule is still never one.
 
 ## [0.45.1]
 
