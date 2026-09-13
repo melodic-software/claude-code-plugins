@@ -199,7 +199,7 @@ The body sections, the TaskList reconstitute format, and the frontmatter shape (
 Walk it while writing the file; never write the section list from memory.
 
 **The file is shape 2, and a script owns its deterministic tier.**
-`${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py` has three subcommands, run through the interpreter
+`${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py` has four subcommands, run through the interpreter
 ladder the structure doc's write procedure shows (`"$PY" -X utf8 …`, Python 3.10+, stdlib only):
 
 - `save_point.py new --topic <slug> --memory-dir <root> (--previous <file> | --no-previous)`
@@ -208,9 +208,22 @@ ladder the structure doc's write procedure shows (`"$PY" -X utf8 …`, Python 3.
   17 headings in order, the goal and amendments and the five cumulative sections copied off the
   predecessor with their `[hN]` tags, the `## Prior sessions` table, and the whole
   `## Resume prompt` block except its `Next:` headlines) and prints the file's absolute
-  forward-slash path. Only the `<!-- FILL: <name> — <instruction> -->` slots are the model's;
-  every optional slot (`goal-rearm`, `below-rail`, `<section>-new`) is deleted when it does not
-  apply. It never overwrites an existing file.
+  forward-slash path. Only the `<!-- FILL: <name> — <instruction> -->` slots are the model's, and
+  `fill` is what applies them. It never overwrites an existing file.
+- `save_point.py fill <file> --slots <json>` replaces every slot in the file from one JSON object
+  keyed by slot name, in a single write, and prints nothing on success. An inline prefix on a
+  slot's line (`**Amended:**`, `**Next action serves it by:**`, `did:`, the `left:` separator) is
+  preserved; a multi-line value is one JSON string with escaped newlines and lands as those lines
+  in place, each taking the file's own line terminator; an optional slot (`goal-rearm`,
+  `below-rail`, `<section>-new`) left out of the object has its line deleted. It exits 1 on a
+  required slot absent from the object, a key naming no slot in this file, a slot name occurring
+  twice in the file, a value that itself carries a `FILL` slot marker, a file with no slot left to
+  fill, and a closing `next` value whose line above is not exactly `Next:`; 2 on a missing or unreadable
+  target and on a slots file that is missing, unreadable, not valid JSON, not a JSON object, or
+  holding a non-string value. Every refusal names the slot or key and leaves the file
+  byte-identical, so nothing is ever half-applied. The slots JSON lives beside the handoff as
+  `<same stem>.slots.json` and is left in place. `fill` never judges a value against its slot's
+  instruction; `validate` is the gate.
 - `save_point.py validate <file>` prints PASS/WARN/FAIL lines and exits 0 on pass (shape 1: one
   WARN, exit 0), 1 on a validation failure, 2 on usage, 3 on a `handoff_shape` newer than it
   knows ("read it, do not rewrite it"). A leftover `FILL` slot, a prefixed `previous_handoff`, a
@@ -509,9 +522,10 @@ are untouched: prompt-only writes no file, so nothing here has a file to validat
   `Remaining actions, in order`. Headlines yes, detail no: the file `@`-referenced on line 1 holds
   the sequence, and the between-rails text is what a resuming session or a background agent sees
   first. The last headline may be `Then: /<one skill>`, the fully-qualified skill the next stage
-  starts with, at a stage boundary only, never mid-stage. A closing handoff writes
-  `Next: none (closed)` and no headlines. The validator refuses a sixth line, a bullet, and a
-  `Then:` that is not last.
+  starts with, at a stage boundary only, never mid-stage. A closing handoff is written by giving
+  `fill` the `next` value `Next: none (closed)` exactly: `fill` puts that text on the `Next:` line
+  and deletes the slot line, so the closed form carries no headlines. The validator refuses a
+  sixth line, a bullet, and a `Then:` that is not last.
 - **Below the bottom rail, first line:** the sentence `Or reopen the producing session in place:`
   followed by `claude --resume <UUID>` in a code span and a period, the alternative to
   `/clear`-and-paste when the producing session is still worth reopening. The `/goal` and `/loop` re-arm notes the rules above prescribe follow
