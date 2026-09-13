@@ -1,7 +1,7 @@
 # Permission Hygiene Criteria
 
-Version: 1.3.0
-Last updated: 2026-09-12
+Version: 1.4.0
+Last updated: 2026-09-13
 Synced from: permission-rule-hygiene convention 1.4.0 (`0a9bae33`)
 
 This file defines the checks the `audit-permission-grants` audit runs. The **principle, the three
@@ -24,10 +24,14 @@ scan could not see any of them. A user-global finding names the resolved absolut
 reporting `~/.claude/settings.json` would name the wrong file whenever `CLAUDE_CONFIG_DIR` has moved
 the config root. Frontmatter files under a `vendor/` path segment are skipped: they are
 vendored upstream references, not loadable skills/agents/commands, so their `allowed-tools` never take
-effect and a finding on them would be a false positive. Findings are advisory and never fail the run,
-so a completed scan exits 0 in either mode; `--count` prints the finding count. **An environment gap
-exits 2 instead of reporting a clean bill**: a missing `jq`, or a scan root that resolves to neither a
-git toplevel nor `$CLAUDE_PROJECT_DIR`. There is no fallback to the current directory, because outside
+effect and a finding on them would be a false positive. Findings are advisory in the default report
+mode and under `--count`, which always exit 0 however many findings they print. They are gating under
+`--check`, which exits 1 on an error-tier finding (P2, P2b, P4), and under `--strict`, which adds the
+warning tier (P1, P3); combining the flags applies the strictest. **An environment gap exits 2 instead
+of reporting a clean bill**: a missing `jq`, a missing shared pattern library, a scan root that
+resolves to neither a git toplevel nor `$CLAUDE_PROJECT_DIR`, and any argument the script does not
+recognise. Under a gate flag, exit 2 also covers the two results a gate must never read as a pass: a
+`NOTHING TO AUDIT` run, and one that saw no gate-firing finding but could not read an input. There is no fallback to the current directory, because outside
 a repository that is usually the user profile and scanning it would walk the whole home tree and still
 exit 0. To scan an explicit directory, set **`$PERMISSION_HYGIENE_SCAN_ROOT`**, a sanctioned
 operator lever and the documented remedy for that exit 2, not a test-only override. Its predecessor
