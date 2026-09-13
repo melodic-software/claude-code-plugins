@@ -117,13 +117,16 @@ compared. `--run-dir` is canonicalized through its deepest *existing* ancestor, 
 does not exist yet and that is the only part a symlink can be in.
 
 **What is executable here, and what is not.** Everything below through the two-sided liveness test is
-enforced by that script and covered by `run-state.test.sh`, negative tests included. Two clauses are
-**not**: stale-lease **adoption** (the `owner_epoch` compare-and-set) and §7 **assembly**
-(highest-epoch, highest-terminated-attempt selection). The script writes `owner_epoch` into the lease
-and names the partial after it, so the epoch is a value on disk rather than a notion. But nothing
-increments it or fences a previous holder, and a run performing an adoption is performing it itself.
-Stated here because the rest of this section reads as machinery, and a contract that reads as
-enforced while nothing enforces it misleads.
+enforced by that script and covered by `run-state.test.sh`, negative tests included. §7 **assembly**
+(highest-epoch, highest-terminated-attempt selection) is enforced by `scripts/assemble.sh`, the
+state digest and the input digest below by `scripts/state-digest.sh`, and §1's identity derivation
+and emitter guard by `scripts/finding-identity.sh`, each with tests beside it.
+
+One clause is enforced by nothing: stale-lease **adoption**, the `owner_epoch` compare-and-set.
+`run-state.sh` writes `owner_epoch` into the lease and names the partial after it, so the epoch is a
+value on disk rather than a notion. But nothing increments it or fences a previous holder, and a run
+performing an adoption is performing it itself. Stated here because the rest of this section reads as
+machinery, and a contract that reads as enforced while nothing enforces it misleads.
 
 **An applying run writes its lease before it takes the lock**, and the order is normative rather
 than incidental: reclamation reads the holder's lease as its second conjunct, so a lock whose lease
@@ -268,10 +271,22 @@ crash. Restarting from zero wastes the run and tempts an operator to narrow the 
   artifact rather than tracked beside it and able to disagree with it". A manifest written beside the
   partial is exactly the thing that can disagree with it, so there is one artifact and the manifest is
   a view over it.
-- **Input digest** = `sha256` over the lane's ordered file list paired with each file's content hash,
-  **plus its detection configuration**: the lane's detection version (catalog version and the
-  check's prompt digest), the harness version, and every behavior-affecting argument the resumed
-  invocation carries, `--opinion` among them.
+- **Input digest** = `input-digest/v1`, the **same construction as §6's `state-digest/v1`**, over the
+  lane's file list **plus its detection configuration**. Same entry shape, same `LC_ALL=C` byte
+  ordering, same `0x1F` and `0x1E` separators, same full 64-character lowercase hex `sha256`, same
+  two sentinels, computed by the same
+  [`scripts/state-digest.sh`](../scripts/state-digest.sh). Reusing the construction rather than
+  restating one is deliberate: two digests whose derivations were specified separately would drift
+  apart on the next edit to either, and a resume comparing a digest computed one way against one
+  computed another re-runs every lane forever or carries every lane forward wrongly.
+
+  The detection configuration enters as **reserved pseudo-surface entries** sorted in with the file
+  entries rather than appended after them, since the ordering rule admits no exceptions: the token
+  `cfg:detection-version` paired with the lane's catalog version and prompt digest,
+  `cfg:harness-version` with the harness version, and `cfg:args` with every behavior-affecting
+  argument the resumed invocation carries in canonical form, `--opinion`, `--lanes`, and `--postures`
+  among them. The `cfg:` prefix cannot collide with a surface token, whose forms are a repo-relative
+  POSIX path or one of the two scope prefixes.
 - **A file-only digest is what makes a resume mix configurations.** Update a delegated plugin or
   catalog between the interruption and the `--resume`, or resume with a different `--opinion`, and the
   audited files stay byte-identical, so completed lanes are carried forward from the old detection

@@ -1,6 +1,6 @@
 ---
 description: "Run ONE coordinated, ordered, resumable pass over a named target repository: a three-scope inventory first (managed policy read-only, user scope routed as recommendations, project scope), then delegated checks lane by lane, findings persisted per lane so an interrupted run resumes instead of restarting, and one human gate for the whole pass instead of one per skill. Adds run semantics, not checks: every check belongs to the plugin that owns it and is invoked presence-gated. Read-only on bare invocation; edits only behind an explicit --fix override, and never to managed policy or user-scope files. Use when: 'audit pass', 'run one pass over this repo', 'coordinate the audit skills', 'audit this repo end to end', 'resume the audit', 'one reconciled findings report', 'sweep all three scopes', or before a release that needs a single diffable findings artifact."
-argument-hint: "[target] [--fix] [--opinion] [--resume] [--report-to <path>]"
+argument-hint: "[target] [--fix] [--opinion] [--postures] [--lanes <list>] [--resume] [--report-to <dir>]"
 user-invocable: true
 disable-model-invocation: false
 disallowed-tools: Edit, NotebookEdit
@@ -54,15 +54,33 @@ and validates both path segments it contributes: `lib/state-key.sh` refuses a re
 become traversing directory components, and a `--run-id` outside `[A-Za-z0-9][A-Za-z0-9_.-]*` is
 refused here.
 
+**The run mechanics are scripts, not prose to re-derive per run.** Four of them, each with tests
+beside it, and each is the *only* correct source for what it computes: a mechanic described in prose
+and performed by the model is a different mechanic per run, which is precisely what makes a
+determinism property unfalsifiable.
+
+| Script | Owns |
+|---|---|
+| `scripts/run-state.sh` | The run directory, the lease and its verdict, and the append-only partial. |
+| `scripts/state-digest.sh` | `state-digest/v1` and `input-digest/v1`: the comparability input and every lane's resume digest. |
+| `scripts/finding-identity.sh` | `anchor/v1` normalization, `finding_id/v1`, `group/v1`, and the emitter guard every record passes before it is appended. |
+| `scripts/assemble.sh` | Partial-to-report assembly, and the `report.md` rendering of the assembled document. |
+
+They read and write nothing inside the target: the digest scripts hash files the run names and print
+a hex string, and the rest write only under the run directory.
+
 ## Scope boundary (route out)
 
 - **One instruction surface against the model-capability catalog** → `/claude-config:audit-instructions`
   directly. This pass dispatches that skill by invoking it via the Skill tool; it does not
   re-answer it.
 - **Config-file correctness** is a delegated lane, not a route-out: this pass invokes
-  `/claude-config:audit` and appends the findings rows it persists (Phase 3). Grant portability →
-  `/claude-config:audit-permission-grants`; automation landscape → `/claude-config:audit-automation-gaps`.
-  Neither of those two is in this pass's surface set.
+  `/claude-config:audit` and appends the findings rows it persists (Phase 3).
+- **Grant portability** is a delegated lane at its `frontmatter` scope only (Phase 3). Its
+  settings-file scope routes out to `/claude-config:audit-permission-grants` directly, because the
+  permission plane as it is in effect is `audit-permission-state`'s lane here.
+- **Automation landscape** → `/claude-config:audit-automation-gaps`. Not in this pass's surface set:
+  it proposes automation that does not exist, so it reports over no inventoried surface.
 
 ## Arguments
 
@@ -73,8 +91,10 @@ Parse `$ARGUMENTS`. The names and their one-line meanings:
 | `target` | The git repository to audit. Defaults to the active project root; a `target` resolving anywhere else is refused non-zero. |
 | `--fix` | The explicit mutation override. Absent, the pass writes nothing into the target. |
 | `--opinion` | Run the `OPINION`-tier checks the delegated catalogs declare default-off. |
+| `--postures` | Dispatch the opt-in posture lane. Off by default: it is the additive catalog and the largest fan-out in the pass. |
+| `--lanes <list>` | Run only the named lanes, comma-separated. Narrows dispatch, never the inventory; an unknown lane id is refused non-zero. |
 | `--resume` | Resume the most recent incomplete run for this target's state key. |
-| `--report-to <path>` | Redirect the report into the target tree, subject to the destination gate. |
+| `--report-to <dir>` | Redirect **both** report artifacts into that directory, subject to the destination gate. A directory, never a file path. |
 
 Flag semantics, precedence between them, and what `--fix` and `--resume` change about the phases
 below are in [reference/arguments.md](reference/arguments.md). Read it when a run is invoked with
@@ -147,37 +167,79 @@ file's contents change underneath the run.
 project-versus-user conflict, so a fix from one would be applied against half the picture.
 Native-first: the filesystem walk produces a **candidate** set, never the answer.
 
-**Liveness has two ground-truth sources, and neither alone covers the surface set.**
-`InstructionsLoaded` payloads name exactly which instruction files loaded and through which parent,
-but only for the memory layer (`CLAUDE.md`, `.claude/rules/*.md`); `/context` covers what that misses,
-namely Skills, Custom Agents and MCP Tools, and is where launch-directory dependence becomes visible. Take
-**both** and report a disagreement rather than picking a winner; a single-source design under-covers
-silently, and under-coverage reads as a clean report. **Neither observes `managed-settings.json`'s
-`claudeMd` key**, a limitation of these two sources rather than a claim about the harness: probe for it and
-name it in `skipped`. Then `/memory`, `/skills`, `/hooks`, `/mcp`, `/permissions`, `/status`, and
-`claude --safe-mode` with a relocated `CLAUDE_CONFIG_DIR` for a clean-room comparison.
+**Liveness sources are the ones this run can actually reach, and a source it cannot reach is named
+rather than required.** The decisive constraint is that `/context`, `/memory`, `/skills`, `/hooks`,
+`/permissions`, and `/status` are **built-in interactive commands, not Skills**, so a model-driven
+run has no way to invoke one and no channel to read its output. Requiring them made the inventory's
+two-source rule ceremonial: every one of them resolves to unavailable, so every memory-layer claim
+was single-sourced anyway while the report presented a two-source design.
 
-**`InstructionsLoaded` is normally UNAVAILABLE, and the run says so rather than requiring it.** This
-plugin wires no `InstructionsLoaded` hook, the only producer in this marketplace
-(the InstructionsLoaded row of `claude-ops/hooks/audit-event-emitter.sh`) is optional, is a no-op without a telemetry sink,
-and drops `session_start` events by default, and the startup events this skill would need have
-already fired before it is invoked, so there is nothing to subscribe to at dispatch time even where a
-producer exists. Requiring data the plugin never records would make the memory-layer liveness
-inventory unbuildable in the ordinary installation, which is the one every first operator has.
+> **Verified 2026-09-13**, Claude Code 2.1.268. **Claim:** those six are built-in commands with no
+> model-invocable form; model invocation of built-ins has been *removed* upstream rather than added
+> to, `/verify` and `/deep-research` being the worked cases. **Basis:**
+> [slash commands](https://code.claude.com/docs/en/slash-commands) plus the installed binary's own
+> command surface. **Recheck trigger:** a release note or the slash-commands page granting any of
+> those six a model-invocable or non-interactive form, at which point it returns as a source.
 
-So the source is **probed, not assumed**, and its absence is a reported state rather than a failure:
+So Phase 1 takes the sources it can hold:
 
-- **Present**, meaning a recorded payload set for this session exists and is fresh: take it as ground truth
-  for the memory layer, as specified above.
-- **Absent**, the ordinary case: report `InstructionsLoaded: unavailable` in `skipped`, naming the
-  capture prerequisite that would supply it. `/context` alone then carries the memory layer, and
-  every memory-layer liveness claim in the report is marked **single-sourced**, because the whole
-  reason for two sources is that neither covers the set alone.
+- **The harness-injected instruction block itself.** For the memory layer this is better than a
+  summary of it, because it is the loaded **text**: what a `/memory` listing would have summarized is
+  present verbatim in the session, so the memory-layer liveness question is answered from the
+  content rather than from a report about it.
+- **The settings cascade, read directly.** Every scope's settings file, on the precedence order
+  `audit-permission-state` owns. It derives what is configured; it does not observe what loaded, and
+  the inventory says which of the two a row is.
+- **MCP server status, non-interactively.** `/mcp` is **not** swept in with the interactive six. The
+  `claude mcp` subcommand group is non-interactive and prints configured servers with their
+  connection state, so the MCP half of the inventory keeps a real source.
 
-Marking is what keeps this honest. A single-sourced inventory is usable, and silently presenting it
-as the two-source result would be the same under-coverage-reads-as-clean failure the two-source rule
-exists to prevent. The liveness basis records which sources were live, so a run with the hook and a
-run without are **not comparable** and cannot fail P1 against each other.
+  > **Verified 2026-09-13**, Claude Code 2.1.268. **Claim:** `claude mcp list` lists configured MCP
+  > servers, health-checking approved ones and marking unapproved `.mcp.json` servers as pending
+  > approval; `claude mcp get <name>` prints one server's detail. **Basis:** `claude mcp --help` on
+  > the installed 2.1.268 binary, plus
+  > [the MCP page](https://code.claude.com/docs/en/mcp). **Recheck trigger:** the `claude mcp`
+  > subcommand list changes, or `list` stops reporting connection state.
+- **`InstructionsLoaded`, probed.** It is more available than an "events already fired" reading
+  suggests, and the distinction is per `load_reason` rather than per event.
+
+  > **Verified 2026-09-13**, Claude Code 2.1.268. **Claim:** `InstructionsLoaded` fires on lazy
+  > loads as well as at startup, carrying `load_reason` values including `session_start`,
+  > `nested_traversal`, `path_glob_match`, `include`, and `compact`, with `file_path` alongside
+  > `parent_file_path`. **Basis:** [hooks reference](https://code.claude.com/docs/en/hooks), plus
+  > first-party measurement in this marketplace. **Recheck trigger:** the hooks reference changes
+  > the event's payload fields or its `load_reason` set.
+
+  Only the `session_start` half is out of reach at dispatch time, because those events fired before
+  this skill was invoked. A **wired** hook still observes every lazy load for the rest of the
+  session, and observes them inside subagents too. So the probe has three outcomes, not two:
+  **present and covering startup** (a recorded payload set for this session exists and is fresh:
+  ground truth for the memory layer); **present for lazy loads only** (a producer is wired but the
+  startup events are gone: mid-run loads are ground truth and the startup set is marked
+  single-sourced); and **absent**, the ordinary case, since this plugin wires no such hook and the
+  one optional producer in this marketplace is a no-op without a telemetry sink.
+
+**What is genuinely lost is named in `skipped`, never absorbed.** Three losses, each stated as what
+the run could not observe rather than left to read as coverage:
+
+- **Per-skill listing-budget drops.** They come from a decay-weighted usage score no reachable source
+  exposes, so the pass cannot say which skill descriptions were dropped from the listing.
+- **Custom-agent registration liveness**, which degrades from observed to **configured-not-observed**:
+  the inventory can say an agent is defined and cannot say the session registered it.
+- **The clean-room comparison.** Relocating `CLAUDE_CONFIG_DIR` and diffing a bare session is what
+  attributed an observed behavior to local configuration rather than to a harness default. Without
+  it the precedence order still *derives* which surface should win, and derivation is not
+  observation. The report says which it did.
+
+**Neither the injected block nor the settings cascade observes `managed-settings.json`'s `claudeMd`
+key**, a limitation of these sources rather than a claim about the harness: probe for it and name it
+in `skipped`.
+
+**A liveness claim carries its basis, and the report marks a single-sourced one.** A single-sourced
+inventory is usable; silently presenting it as a multi-source result is the under-coverage-reads-as-
+clean failure the rule exists to prevent. The liveness basis records which sources were live, so a
+run with an `InstructionsLoaded` producer and a run without are **not comparable** and cannot fail
+P1 against each other.
 
 Record, per scope, every surface found **and every surface skipped with its reason**. The inventory
 is a reported derived-tier artifact, so a surface that silently drops out of scope between two runs
@@ -218,6 +280,18 @@ only an action verb yields **one lane** covering everything it audits. Where a s
 catalog per invocation, the lane carries that whole catalog; the pass never splits a catalog it
 cannot address. Extending a delegated interface to accept a finer filter is a change to that skill,
 and until it lands the lane stays at the coarser grain.
+
+**What earns a lane, stated as a criterion rather than a list.** A skill is dispatched when it
+produces findings **over surfaces the Phase 1 inventory already enumerates**, keyed to a site this
+pass can anchor. That is what makes its rows joinable with the inventory, suppressible under this
+pass's identity, and comparable across runs. `claude-config:audit-automation-gaps` fails the
+criterion in both halves and is routed out: it is forward-looking, proposing automation that does not
+exist, so it has no inventoried surface to report over and no site to anchor a finding at.
+
+**Lane ids are what `--lanes` names**, one per bullet below, plus one per surface-class value for the
+instruction catalog: `instructions:<class>`, `conflicts`, `permission-state`, `permission-grants`,
+`config`, `memory`, `retirements`, and `postures`. A `--lanes` value naming an id outside that set is
+refused non-zero.
 
 Dispatch, in inventory order, with every skill below invoked via the Skill tool, each invocation
 presence-gated with its fallback stated:
@@ -272,9 +346,32 @@ presence-gated with its fallback stated:
   no surface filter**, so it is **exactly one lane** covering the whole memory layer. Not installed:
   the pass reports both as **unchecked**, names that skill as their owner, and emits the one-line
   pointer to the official memory guidance, never a silent skip and never a re-implementation here.
+- **`/claude-config:audit-permission-grants`**, `frontmatter` scope: sibling in this plugin, always
+  available. It takes a **scope filter**, and only the `frontmatter` value is dispatched here, which
+  makes it **exactly one lane**. That scope audits `allowed-tools` blocks in skill, command, and
+  agent frontmatter, which the Phase 1 inventory already enumerates as instruction surfaces, so it
+  meets the criterion above. Its settings-file scope is **not** dispatched: the permission plane as
+  it is in effect belongs to `audit-permission-state`, and running both over settings would report
+  one plane twice under two identities.
+
+  **It is admitted for what its output is, not for how many findings it happens to return today.**
+  The lane is a deterministic script over frontmatter the pass already inventories, so it is cheap,
+  its rows are **derived tier**, and it is the first lane that adds derived-tier volume. That last
+  point is the structural one: P1 is defined over the derived tier, so a pass whose derived tier is
+  near-empty gives the determinism gate nothing to bite on, and a gate with no subject is a gate
+  that cannot fail. A lane's worth here is its contribution to what the gate can compare, which does
+  not move with the current defect count in any one repository. Read-only, and never dispatched with
+  a fixing argument.
 - **Retired-conventions fleet sweep**: the one script lane, **exactly one lane** running this
   plugin's canonical `lib/check-retirements.sh` over every installed plugin's `retirements.yaml`. One finding per active TSV row keyed by record id; `report-only` = `info`; helper exit 2 = FAIL finding, never a skip.
   Derived-tier, **read-only** (never `--clean`); rest: [reference/retired-conventions-sweep.md](reference/retired-conventions-sweep.md).
+- **`/claude-config:audit-prompting-postures`**, dispatched **only under `--postures`**: sibling in
+  this plugin, always available. It takes an action and no surface filter, so it is **exactly one
+  lane** covering its whole posture catalog. It is the additive lane, proposing guidance a component
+  does not carry rather than reporting defects in what it does, and it fans out over every
+  instruction component in the target, which is why it is opt-in rather than default. Its findings
+  are judged tier. Without the flag the lane is reported in `skipped` with `--postures` named as what
+  would run it, never omitted, because an absent section reads as a clean one.
 
 Structural skill lint is deliberately **not** dispatched: it answers shape rather than content, and
 its fan-out over a large corpus would consume the dispatch budget reserved for instruction-content
@@ -295,8 +392,39 @@ lease has moved on and another run has adopted the artifact, so continuing dispa
 output nothing will assemble. Stop and report the run as superseded. Never retry the append, and never
 read that exit as transient.
 
+### The dispatch substrate is probed, never asserted
+
+**Whether a lane can spawn its own verifier is a property of this host's depth budget, not of Claude
+Code.** Subagent nesting is available by default to a documented depth, and a host lowers or removes
+it through `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`. Writing either shape into this body as though it
+were harness behavior would be the same defect class this plugin's own catalog flags: an instruction
+surface misstating what the harness does, which then outlives the configuration it described.
+
+> **Verified 2026-09-13**, Claude Code 2.1.268. **Claim:** subagents may spawn subagents by default
+> to a bounded depth, and `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` is the environment variable that
+> lowers that budget, a value of 1 disabling nesting. **Basis:**
+> [subagents](https://code.claude.com/docs/en/sub-agents) and
+> [settings](https://code.claude.com/docs/en/settings) (environment variables). **Recheck trigger:**
+> the documented default depth changes, the variable is renamed or retired, or nesting stops being
+> on by default.
+
+So the run **probes** rather than assumes, and records what it found:
+
+- **Depth budget allows nesting.** Per-lane verification runs inside the lane, which is where it
+  belongs, since the lane's own findings are what it judges. The lane's terminating record says
+  `verified`.
+- **Depth budget does not allow nesting.** The lane cannot verify itself and records `inline`. It
+  does not fail, and its findings are not suppressed; they carry the `(unverified)` marker and the
+  main-session pass below picks up what it can.
+- **Probe inconclusive.** Treated as the second case. A verification recorded on an unestablished
+  capability is worse than one honestly marked `inline`.
+
+The probe is cheap and its result is a run-level fact, so it is taken once before the first dispatch
+rather than per lane, and recorded in the report beside the per-lane modes.
+
 **The lane count is bounded by the delegated interfaces, not chosen here**, at one per scope value the
-instruction catalog accepts plus one for the memory layer, so it is a handful, and a per-run
+instruction catalog accepts plus one each for the permission plane, grants, config, the memory layer,
+the retirements sweep, and the opt-in posture lane, so it is a handful, and a per-run
 dispatch ceiling would never bind. What is *not* bounded here is the fan-out inside a lane: the
 delegated catalogs spawn their own subagents, and this pass cannot reach inside one to cap it. So cap
 concurrency at 3–5 lanes and let incremental persistence carry the rest. It is what degrades a blown
@@ -353,27 +481,70 @@ with a **fresh-context (non-fork) subagent** as the stated fallback.
 ### When dispatch is unavailable
 
 The apply-verify step and delegated lanes that mandate subagent dispatch **require** that dispatch.
-When the Agent tool is blocked, unavailable, or the session cannot spawn subagents:
+When the Agent tool is blocked, unavailable, or the probed depth budget does not permit the spawn a
+step needs:
 
 1. **Record per-lane verification mode** in the lane's terminating record and the assembled report (`verified` |
    `inline` | `skipped`) for every lane that mandates independent verification.
 2. **Mark unverified findings.** Proposals or applied fixes that did not receive an independent
    verifier carry an `(unverified)` marker and are never presented as resolved.
 3. **Do not silently complete.** The `skipped` section and report header name dispatch
-   unavailability when it prevented a mandated verification phase.
+   unavailability, and the probed depth budget, when either prevented a mandated verification phase.
+4. **The main-session pass is the one that survives a lowered depth budget**, because it spawns from
+   the top of the session rather than from inside a lane. A run that could verify no lane inline can
+   usually still verify the assembled set, so `inline` per lane and a completed Phase 6 verification
+   is the ordinary shape on a depth-1 host, not a degraded one.
 
-## Phase 6: Report
+## Phase 6: Assemble, verify the assembled set, report
 
-Two artifacts, because incremental persistence and a sectioned report want different shapes: an
-append-only `findings.partial.<owner_epoch>.jsonl` during the run, assembled into `findings.json` at
-the end, epoch-scoped so a fenced writer cannot interleave into its adopter's file, with assembly
-reading only the highest epoch present. Both schemas, the identity-versus-presentation field split,
-and the sections are in
+**Assemble first.** An append-only `findings.partial.<owner_epoch>.jsonl` during the run becomes
+`findings.json` here, epoch-scoped so a fenced writer cannot interleave into its adopter's file, with
+assembly reading only the highest epoch present and, per lane, the highest-ordinal attempt carrying a
+terminating record. `scripts/assemble.sh` performs it. Both schemas, the identity-versus-presentation
+field split, and the sections are in
 [reference/report-location-and-schema.md](reference/report-location-and-schema.md); the tier
 memberships are in [reference/determinism-tiers.md](reference/determinism-tiers.md). Tiers stay in
-separate sections because their guarantees differ. Every run also emits, in **one line**, how many `OPINION`-tier checks were
+separate sections because their guarantees differ.
+
+### Main-session verification, after assembly
+
+**A verification pass runs here, in the main session, on the assembled set, and its justification is
+scope rather than inability.** A lane can only ever verify its own findings; several relations exist
+only once every lane's output is in one document, and nothing inside a lane can see them:
+
+- a finding two catalogs both raised at one site, which is the overlap note's whole subject;
+- a finding contradicting a suppression the record carries for a different lane;
+- a lane reporting clean over a surface another lane reported unreadable;
+- a split group whose sites landed in two lanes, where the `group` value is the only thing tying
+  them together.
+
+So this pass runs even where every lane already verified itself. It records `verified`, `inline`, or
+`skipped` **per lane** in the `verification` section, which is what keeps a lane that could not
+verify itself distinguishable from one that did.
+
+**Tell the verifier to flag only gaps affecting correctness or a stated requirement.** A reviewer
+asked for gaps will find some, and a verification pass that returns stylistic observations on every
+run adds noise the operator has to re-triage each time while burying the class of gap it exists to
+catch. The instruction is part of the dispatch, not an afterthought in the report.
+
+### Report
+
+**Two artifacts, `findings.json` and `report.md`**, written side by side in the run directory and
+redirected together by `--report-to <dir>`. The run prints `report.md`'s headline inline and offers
+the file; it does not print the report, which is the cost the second artifact exists to avoid.
+
+Every run also emits, in **one line**, how many `OPINION`-tier checks were
 available, how many were not run, and the argument that enables them (`--opinion`). Without it the
 tier ships unreachable.
+
+**Overlap notes are emitted here and never merge the findings they name.** Where two catalogs
+independently flag the same site, the note names **both** `finding_id`s and leaves both findings
+standing. Merging them would cross a plugin boundary the identity tuple keeps explicit: `check` is
+plugin-qualified, the two lanes persist independently, and an operator suppressing a merged finding
+would be suppressing a catalog they never saw judged. The note sits in its own **note tier**,
+excluded from the derived identity set and from P1-P3, because its inputs are judged findings held
+only to P4's tolerance and a legitimate judged wobble must not fail a determinism property for
+behavior P4 already licenses.
 
 ## The suppression record
 
@@ -457,7 +628,8 @@ splitting into imports does not defer or reduce context).
 - Never reads another plugin's files. Invocation-only cooperation, with one declared exception:
   `retirements.yaml` is a published data file, read by the sweep lane via this plugin's own helper.
 - Never edits managed policy or a user-scope file, in any mode.
-- Never scans what it wrote. Where its resolved report path is contained in the target, by
-  `--report-to` or by `${CLAUDE_PLUGIN_DATA}` resolving under `~` for a target at or above it, the
-  path is excluded before the write and the containment is disclosed. Never silently.
+- Never scans what it wrote. Where either resolved report path, `findings.json` or `report.md`, is
+  contained in the target, by `--report-to` or by `${CLAUDE_PLUGIN_DATA}` resolving under `~` for a
+  target at or above it, **both** paths are excluded before the write and the containment is
+  disclosed. Never silently, and never one of the two.
 - Never audits a target that is not a git repository. It refuses, and says what the refusal costs.

@@ -1,7 +1,8 @@
 # audit-pass: where the report lives, and its schema
 
-This file owns §2 and §7: where a run writes its report, what `--report-to` may and may not target,
-and the shape of both the incremental partial and the assembled `findings.json`.
+This file owns §2 and §7: where a run writes its two report artifacts, what `--report-to` may and
+may not target, and the shape of the incremental partial, the assembled `findings.json`, and the
+human-readable `report.md`.
 
 Terms: [terms.md](terms.md). Full index: [run-contract.md](run-contract.md).
 
@@ -15,7 +16,22 @@ report is decided by the predicate `report_path ⊆ target_root`, evaluated agai
 path on every run. `--report-to` is one way that condition becomes true, not the definition of it;
 gating on the flag would leave the default path unprotected wherever the same condition holds.
 
-- The report goes under `${CLAUDE_PLUGIN_DATA}` at `runs/<state-key>/<run-id>/findings.json`, which
+**A run writes two report artifacts, and "the report path" means both of them.** `findings.json` is
+the diffable machine artifact every property in this contract is stated over; `report.md` is the
+human-readable rendering of the same assembled document, written beside it in the same directory. The
+pair exists because the JSON artifact is unreadable in the place an operator actually meets it: it is
+a large single-line-per-section document at a deep key-derived path under the plugin data directory,
+which a remote session cannot open and a terminal cannot usefully print. A pass whose only output is
+that file has done the work and delivered none of it. **`report.md` is a rendering and never a
+source**: it carries no fact the assembled document does not, nothing reads it back, and `--resume`
+still reads the partial.
+
+Every containment rule, exclusion rule, and destination refusal below is stated over **both**
+resolved paths. Protecting one and not the other would leave the pass auditing its own `report.md`
+while excluding its `findings.json`, which is the same unfalsifiable-idempotence defect in half.
+
+- The two artifacts go under `${CLAUDE_PLUGIN_DATA}` at `runs/<state-key>/<run-id>/findings.json`
+  and `runs/<state-key>/<run-id>/report.md`, which
   survives plugin updates. **State its location precisely, because a whole target class turns on it:**
   that directory resolves to `~/.claude/plugins/data/{id}/`
   ([plugins reference](https://code.claude.com/docs/en/plugins-reference), verified 2026-08-12), and no
@@ -39,8 +55,23 @@ gating on the flag would leave the default path unprotected wherever the same co
   target at or above it. The default path is *usually* outside the scan set and is **not
   unconditionally** outside it. A dotfiles repository, or `~` itself, is a target where containment
   holds by construction.
-- `--report-to <path>` redirects the report, which makes containment hold whenever the destination lies
-  inside the target.
+- **`--report-to <dir>` takes a DIRECTORY, and redirects BOTH artifacts into it.** The flag was
+  specified over "the report" singular, and with two artifacts that reading has to be settled rather
+  than left to the caller. A directory is the answer, and a file path is refused:
+
+  - A file path names **one** artifact, so the flag would have to invent the other's destination out
+    of it, by appending a second extension or by writing the sibling next to a path the operator
+    chose for something else. Both are the pass writing where nobody asked it to.
+  - Redirecting **one** artifact is worse than redirecting neither. An operator who redirects into a
+    reviewable location and gets only the JSON there, with the rendering still at the unreadable
+    default path, has been given exactly the artifact the flag exists to rescue them from.
+  - A directory makes the destination gate below decidable once, over the two resolved paths inside
+    it, rather than once per artifact with a different rule for each.
+
+  The artifacts keep their names inside that directory: `<dir>/findings.json` and `<dir>/report.md`.
+  The directory is created if absent. A `--report-to` naming an existing path that is **not** a
+  directory is refused non-zero, naming the path, and writes nothing. Redirection makes containment
+  hold whenever the destination lies inside the target, exactly as before.
 - **Whenever containment holds, by either route, the run records that path in its own exclusion set
   before it writes**, and says so in its output. Not only for subsequent runs: deferring the record to
   run 2 would put the path in one run's derived-tier exclusion artifact and not the other's, and 2.2
@@ -48,29 +79,34 @@ gating on the flag would leave the default path unprotected wherever the same co
   yet. The exclusion is about the path this run is about to write, not about what it found there.
 - **Where containment does not hold, none of this is owed** and the run writes its report without an
   exclusion entry, because there is nothing to exclude from a tree the path is not in.
-- **A redirect destination is accepted only if it is an `audit-pass`-owned report, or a new path that
-  is not a recognized instruction surface.** Recording the path unconditionally is right for the
-  *exclusion* and no licence to *write*: `--report-to CLAUDE.md` would overwrite an audited
-  instruction surface with a JSON report, with no `--fix` and no confirmation, a read-only
-  invocation destroying target content. It would then exclude the corrupted path from every later run, so
-  the damage hides itself.
+- **The destination gate is evaluated over the two resolved paths inside the directory, and each is
+  accepted only if it is an `audit-pass`-owned artifact or does not exist.** Recording a path
+  unconditionally is right for the *exclusion* and no licence to *write*: a destination directory
+  whose `report.md` is somebody's hand-written document would have that document overwritten by a
+  rendering, with no `--fix` and no confirmation, a read-only invocation destroying target content.
+  It would then exclude the corrupted path from every later run, so the damage hides itself.
 
-  **Non-existence does not make an instruction path safe, and testing only for existence would miss
-  that.** `--report-to CLAUDE.md` where no `CLAUDE.md` exists yet *creates* one: Claude then loads
-  the JSON report as instructions, and the same rule that keeps the run from auditing its own
-  artifact hides it from every later scan. The pass would have manufactured a live, behavior-
-  affecting instruction surface and then made itself blind to it. That is worse than the overwrite case,
-  because there is no prior content whose loss would signal what happened. So a destination matching
-  a recognized instruction path is refused **whether or not it exists**, on name rather than on
-  content, since at creation time there is no content to judge. Anything else already at the path is
-  refused too, non-zero, naming the file; the run does not offer to overwrite, because
-  the only surfaces this pass may write are its own. Ownership is decided by the artifact's own
-  identifying header, never by filename or location, so a hand-placed file cannot claim it.
+  **A directory destination is refused outright when either resolved path is a recognized
+  instruction surface, and non-existence does not make one safe.** `--report-to .claude/rules`
+  resolves `report.md` inside a directory Claude loads from: the pass would write a rendering where
+  nothing yet exists, Claude would load it as instructions, and the same rule that keeps the run from
+  auditing its own artifact would hide it from every later scan. The pass would have manufactured a
+  live, behavior-affecting instruction surface and then made itself blind to it. That is worse than
+  the overwrite case, because there is no prior content whose loss would signal what happened. So a
+  resolved path matching a recognized instruction path is refused **whether or not it exists**, on
+  name rather than on content, since at creation time there is no content to judge. Anything else
+  already at either path is refused too, non-zero, naming the file; the run does not offer to
+  overwrite, because the only surfaces this pass may write are its own. Ownership is decided by the
+  artifact's own identifying header, never by filename or location, so a hand-placed file cannot
+  claim it, and **both artifacts carry that header**: `findings.json` in a top-level field,
+  `report.md` in its first line.
 
 | # | Assertion |
 |---|---|
 | 2.1 | After a run against a clean git worktree whose **resolved report path is not contained in the target root**, `git status --porcelain` is empty. Scoped on containment rather than on "no redirect", because the default path is contained too whenever the target is at or above `~`. |
-| 2.5 | `--report-to <existing-non-report-path>` exits non-zero naming the file, writes nothing, and leaves the file byte-identical, including when the path is an audited instruction surface. |
+| 2.5 | `--report-to <dir>` where `<dir>/findings.json` or `<dir>/report.md` already exists and is not an `audit-pass`-owned artifact exits non-zero naming that file, writes nothing, and leaves it byte-identical. The same holds when the resolved path is a recognized instruction surface, whether or not it exists. |
+| 2.5a | `--report-to <path>` where `<path>` exists and is not a directory exits non-zero naming the path and writes nothing. |
+| 2.7 | A run writes `findings.json` and `report.md` into the same directory, both carrying the ownership header, and redirects **both** under `--report-to`. `report.md` states no finding the assembled document does not carry, and `--resume` reads neither. |
 | 2.2 | Where the report path is contained, a second run's scan set excludes it, and the two runs' derived identity sets are still equal. |
 | 2.3 | The first run whose report path is contained records that path in its own exclusion artifact before writing the report, whether or not that path already exists, and whether it became contained by `--report-to` or by default resolution. |
 | 2.4 | A run whose report path is contained in the target, against an otherwise-unchanging tree, reports the determinism gate as satisfied, not `indeterminate`, because writing its own report does not move its own state digest. Holds for the default path under a target at or above `~` exactly as it holds under `--report-to`. |
@@ -100,9 +136,14 @@ the writer's own file, says `FENCED`, and **exits 3**: the record is safe, and t
 is superseded and must stop. A lease must exist either way, so the partial cannot outlive the thing
 that classifies it, and a record that is not a well-formed single-line JSON object is refused.
 
-§5 also states which clauses of the run-state contract that script enforces and which remain the run's
-own discipline; **assembly is among the latter**, so the selection rules below are performed by the
-run, not by an executable.
+**Assembly is executable, and the selection rules below are what it implements.**
+[`scripts/assemble.sh`](../scripts/assemble.sh) reads the highest-epoch partial, applies the
+highest-terminated-attempt selection, writes `findings.json`, and renders `report.md` from it. It was
+prose before, which put the one step that decides *which rows reach the report* in the same class as
+the steps a run improvises; a selection rule performed differently on two runs is a P1 failure the
+gate cannot attribute. The script needs `python3`, and where that is absent it exits non-zero naming
+the prerequisite and the run performs the selection itself against the rules below, which is why they
+stay stated here in full rather than deferring to the implementation.
 
 **Completion is read from the terminator's state, not from its presence.** A terminator lets
 assembly render the lane; whether the lane is *done* is a separate question, and conflating them
@@ -137,8 +178,14 @@ apart cannot tell which fields a change would rename the finding through:
 | Block | Fields | Rule |
 |---|---|---|
 | `identity` | `check`, `claim`, `sites` (each `surface` + versioned `anchor`, canonically sorted) | Hashed into `finding_id`. Nothing else is. |
-| Presentation | `primary_site`, `related_site`, `load_path`, the *rendered* heading path, rendered prose | Carried for reading and remediation. Changing any of them leaves `finding_id` untouched. **The rendered path only.** The normalized heading path is hashed into the excerpt anchor's duplicate discriminator per §1, so restructuring the headings around an excerpt does rename the finding. |
-| Run metadata | `lane`, `attempt`, `tier` | Where the record came from, and which attempt of that lane produced it. |
+| Presentation | `group`, `primary_site`, `related_site`, `load_path`, the *rendered* heading path, rendered prose | Carried for reading and remediation. Changing any of them leaves `finding_id` untouched. **The rendered path only.** The normalized heading path is hashed into the excerpt anchor's duplicate discriminator per §1, so restructuring the headings around an excerpt does rename the finding. `group` is §1's `group/v1`, which ties one claim's split sites together without entering identity. |
+| Run metadata | `lane`, `attempt`, `tier` | Where the record came from, and which attempt of that lane produced it. `tier` is `derived`, `judged`, `delegated`, or `note`. |
+
+**A note record is not a finding record.** An overlap note carries a `note_id`, the two `finding_id`s
+it names, and its rendered prose, and carries no `identity` block at all. Giving it one would put a
+tier §6 excludes from `D(R)` into the same shape identity sets are built from, which is exactly the
+confusion the separate id prevents. The emitter guard validates a note against this shape rather than
+against the finding shape.
 
 **At the end: `findings.json`.** One document assembled from the partial, carrying `schemaVersion`,
 the run and target identity, the resolved version of every catalog consulted, and then the sections:
@@ -149,9 +196,32 @@ the run and target identity, the resolved version of every catalog consulted, an
 | `mechanical` | derived-tier findings, including shadowed definitions |
 | `behavioral` | judged-tier findings |
 | `suppressed` | every entry with its reason, date, contributing cascade layer, and its disposition, including each `needs-reconfirmation` entry with the changed side named, each stale entry, each malformed entry, each **`personal-only, not applied`** entry, and every UNEXPLAINED DISAPPEARANCE |
+| `notes` | note-tier cross-catalog overlap notes, each naming both `finding_id`s and neither merging them nor replacing either |
 | `delegated` | `/doctor`'s output, diffed by nobody |
 | `skipped` | every surface excluded, **with its reason**. A silent exclusion reads as coverage, and this section is what stops it |
 | `verification` | per-lane verification mode (`verified` \| `inline` \| `skipped`) for lanes that mandate independent subagent dispatch; omitted only when every such lane verified |
+
+**Beside it: `report.md`.** Rendered from the assembled document, never from the partial, so the two
+artifacts cannot disagree about which attempt won. Its shape, in order:
+
+| Block | Contents |
+|---|---|
+| Ownership line | The first line, the identifying header that makes the file `audit-pass`-owned |
+| Header | Run id, target, resolved report directory, HEAD at both captures, harness version, the lane set and whether the run was partial-scope, and the arguments that affect behavior |
+| Verdict | The determinism gate (`passed`, `failed`, `indeterminate`), the comparability verdict naming any input that moved, and P1-P6 each as satisfied, failed, or **not evaluated with the reason** |
+| Headline | One line: counts per tier and per severity, and the count of surfaces skipped. This is the line the run prints inline |
+| Findings | Derived tier then judged tier, grouped by lane, each finding with its severity, its site, its `finding_id`, and its `group` where one groups more than a single finding |
+| Notes, suppressed, delegated, skipped, verification | One section each, mirroring the assembled document's sections of the same names |
+
+**Every section of the assembled document appears, including the empty ones.** A rendering that
+omits a section when it has no rows is one an operator reads as coverage: an absent `skipped`
+section and an empty `skipped` section look identical on the page and mean opposite things. An empty
+section renders its heading and the word `none`.
+
+**The run prints the headline inline and offers the file; it never prints the report.** The whole
+reason for the second artifact is that the full document does not fit where the operator is
+standing, and pasting it into the transcript reintroduces that cost in the one place the pass
+controls.
 
 **Resume reads the partial, not the report**, so completion state is derivable from the artifact
 rather than tracked beside it and able to disagree with it. §5 makes the same point from the other
