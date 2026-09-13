@@ -75,15 +75,15 @@ Every pull request that is flipped to ready-for-review or merged carries visible
 
 **What**: retire the two OAuth-token review lanes and replace them with evidence that the mandatory
 pre-PR skills ran on the operator's seat: a head-SHA-stamped ledger row, a fenced block under the PR
-body's Verification section, an advisory validator inside `ci-status`, an advisory PreToolUse gate
-on the ready-for-review flip, a label the babysit merge gate honors, and the two prose detectors
-running as an advisory step of the lint job.
+body's Verification section rendered by a new `ready` step, an advisory validator inside
+`ci-status`, an advisory PreToolUse gate on the ready-for-review flip, a block read in the babysit
+merge gate, and the ai-slop detector running as an advisory step of the lint job.
 
 **Why**: of the last 40 merged PRs, 14 got no review-lane run at all and 1 was reviewed on the
 commit that merged (baseline captured 2026-09-12, distilled in the Brief). The lanes trigger once
 per PR and GitHub skips their runs while the PR conflicts with main, so the review surface is mostly
-decorative while it bills the largest single line of the Actions spend and the review-count comment
-on every PR.
+decorative while it bills the largest single line of the Actions spend and posts the review-count
+comment on every PR.
 
 ### Standards grounding
 
@@ -95,12 +95,14 @@ No `docs/standards/README.md` index and no `.claude/standards.yaml` exist (resol
 | `REVIEW.md` | Code-review lane scope (the "security lane exists" clause adapts by workflow presence) | team |
 | `docs/conventions/pre-pr-ordering/README.md` | The order; Who is bound; What is not configurable | team |
 | `docs/conventions/hook-budget/README.md` | Rules 1 to 3 (measured share in the plugin README, budget never relaxes) | team (rule `.claude/rules/hook-budget.md`) |
-| `.claude/rules/pr-body-contract.md` | body contract; `ci-status` advisory linkage pattern the validator copies | team |
+| `docs/conventions/hook-precision/README.md` | Rules 2 and 5: match parsed argv, never a token co-occurrence | team |
+| `.claude/rules/pr-body-contract.md` | body contract; the `ci-status` advisory linkage pattern the validator copies | team |
 | `docs/conventions/pr-body-convention/README.md` | the reserved second consumer of the body key | team |
+| `docs/conventions/loop-lane/README.md` | `do-not-merge` is the only cross-lane hold; no lane creates labels, the label set is IaC-owned | team |
 | `docs/adr/0002`, `0003`, `0024` | check run canonical; measure before default-on; forgeability limit | team |
 | `.claude/rules/skill-bodies-state-current-rules.md` | skill bodies state the rule, not the incident | team |
 | `.claude/rules/vendor-docs-are-not-style.md` | house prose style for every instruction surface | team |
-| `plugins/source-control/reference/config-resolution.md` | one H2 per key; per-key override; lane-1 portable default | team |
+| `plugins/source-control/reference/config-resolution.md` | one H2 per key; per-key override; lane-1 portable default; drafting versus enforcement | team |
 
 No personal overlay was found (`docs/standards/*.local.md`, `~/.claude/standards/` absent). Offer
 recorded for the presentation: bootstrap the standards index from these surfaces via
@@ -114,26 +116,30 @@ recorded for the presentation: bootstrap the standards index from these surfaces
 | Review lane succeeded on the commit that merged | 1 |
 
 Target after the promotion window (40 merged PRs or 30 days, whichever is later): every merged PR
-whose diff touches a class in the mandatory map carries a fresh block for its merged head, read
-from the PR body over REST by the `report` subcommand. Re-measure through that route and record the
-comparison here.
+whose diff touches a class in the mandatory map carried, at merge time, a block whose terminal row
+equals the PR's `head.sha` (the squash commit on main never appears in a row, so the measurement
+keys on the PR head, read over REST). `skill-evidence.sh report --repo` re-measures through that
+route; record the comparison here.
 
 ### Deferred questions resolved (arbiter: this plan)
 
 - **Q14, block schema**: a fenced block with info string `skill-evidence`, one `<skill> <sha>
-  <utc-timestamp>` row per skill, latest row per skill wins, freshness by the ancestry rule.
-  Recorded in `design/design-resolution.md`. Basis: the body already passes through the pr-contract
-  composite, which strips HTML comments before counting section content, so a comment-borne block
-  would not count as Verification content and would be invisible to humans; a table is fragile under
-  markdownlint's table rules; a fenced block is visible, survives the composite untouched, and parses
-  with one `awk` range.
-- **Q15, first detector slice**: `ai-slop` `detect.sh` and `docs-hygiene` `audit-noise`
-  `detect.sh` on changed markdown, as one advisory lint-job step that emits `::warning` annotations
-  and exits 0. Basis: both accept a path list and never fail their caller; the ai-slop corpus was
-  purged in #3988 so a zero finding baseline exists (probe this session: 0 findings on two tracked
-  files); audit-noise has no zero baseline (40 findings on the same two files), so it can only be
-  advisory. `skill-quality:check` already runs in the lint job as the `changed-skills` step, so it
-  needs nothing. `instruction-placement` `detect.sh` emits facts and adjudicates nothing, so it waits
+  <utc-timestamp>` row per skill, latest row per skill wins; two-tier freshness (terminal skill at
+  HEAD exactly, every other skill on HEAD's history). Recorded in `design/design-resolution.md`.
+  Basis: the body already passes through the pr-contract composite, which strips HTML comments
+  before counting section content, so a comment-borne block would not count as Verification content
+  and would be invisible to humans; a table is fragile under markdownlint's table rules; a fenced
+  block is visible, survives the composite untouched, and parses with one `awk` range. Rows are
+  stamped at skill invocation, so a rule that demanded every row at HEAD would mark every mutating
+  skill stale by construction; the terminal-seal rule is what the pre-PR order already says.
+- **Q15, first detector slice**: `ai-slop` `detect.sh` on changed markdown, as one advisory
+  lint-job step that emits `::warning` annotations and exits 0. Basis: it accepts a path list,
+  never fails its caller, prints one `Finding:` line per finding, and the corpus was purged in
+  #3988 so a zero baseline exists (probe this session: 0 findings on two tracked files).
+  `docs-hygiene` `audit-noise` waits: it has no zero baseline (40 findings on the same two files)
+  and prints four-line records, so it would only flood annotations (ADR 0003 rule 3).
+  `skill-quality:check` already runs in the lint job as the `changed-skills` step, so it needs
+  nothing. `instruction-placement` `detect.sh` emits facts and adjudicates nothing, so it waits
   until it grows a verdict.
 
 ### Approach
@@ -141,6 +147,11 @@ comparison here.
 Integration-first: Phase 2 is the tracer bullet. It ships the one script every other reader uses,
 and its sanity check proves ledger row to rendered block to validator verdict end to end on a git
 fixture before any skill prose, hook, or workflow is touched.
+
+The evidence-bearing run is the new `ready` step, on a committed, base-merged HEAD. Prep before
+`create` stays the developer loop and may leave rows behind; create's own rebase before the first
+push (create.md §2.2) may invalidate them, and that is fine, because no PR exists yet and no
+evidence is owed. Once a PR exists, every base refresh is a merge, never a rebase.
 
 Build technique: kept tracer bullet (Phase 2), then horizontal wiring. No throwaway spike: the
 feasibility questions (forgeability, trigger behaviour, hook events) were settled by research.
@@ -150,18 +161,19 @@ feasibility questions (forgeability, trigger behaviour, hook events) were settle
 Plugin: claude-ops (0.49.0 to 0.50.0).
 
 1. **Pre-flight, identify consumers** (first work item): the readers of `skill-usage.jsonl` are
-   `skills/audit-skill-visibility/scripts/audit_skill_visibility.py`,
-   `skills/audit-skill-visibility/scripts/skill-pair-cooccurrence.sh` (filters on
-   `event == "SkillUse"`), and `skills/observability/scripts/clean.sh`. Confirm each tolerates
-   unknown fields and non-`SkillUse` events (the gate row of Phase 4 lands in the same file).
+   `skills/audit-skill-visibility/scripts/audit_skill_visibility.py` (skips rows without `skill`
+   and `ts`), `skills/audit-skill-visibility/scripts/skill-pair-cooccurrence.sh` (filters on
+   `event == "SkillUse"`), and `skills/observability/scripts/clean.sh` (prunes by age). Confirm
+   each tolerates the two new fields.
 2. In `hooks/claude-ops-paths.sh` `claude_ops::record_skill_use`, replace the
-   `git rev-parse --abbrev-ref HEAD` call with `git rev-parse --abbrev-ref HEAD HEAD` (two lines,
-   same one spawn) and add `sha`; add `pr` from `git config --get branch.<branch>.pr-number` when
-   set (one added spawn, stated in the README budget line for `skill-usage-audit`).
+   `git rev-parse --abbrev-ref HEAD` call with `git rev-parse HEAD --abbrev-ref HEAD` (SHA first,
+   then the branch; the option applies to the arguments after it; one spawn as before) and add
+   `sha`; add `pr` from `git config --get branch.<branch>.pr-number` when set (one added spawn,
+   stated in the README budget line for `skill-usage-audit`).
 3. Extend `hooks/claude-ops-paths.test.sh` and `hooks/skill-usage-audit.test.sh`: a row inside a
    git fixture carries `sha` (40 hex matching `git rev-parse HEAD`); `pr` present only when the
    config key is set; outside a repository neither field breaks the row.
-4. README row-field table, options table unchanged, CHANGELOG entry, `plugin.json` version bump.
+4. README row-field table and budget line, CHANGELOG entry, `plugin.json` version bump.
 
 | File | Action | What changes |
 |---|---|---|
@@ -170,7 +182,7 @@ Plugin: claude-ops (0.49.0 to 0.50.0).
 | `plugins/claude-ops/hooks/skill-usage-audit.test.sh` | Modify | end-to-end row shape |
 | `plugins/claude-ops/README.md` | Modify | field table, budget line |
 | `plugins/claude-ops/CHANGELOG.md`, `.claude-plugin/plugin.json` | Modify | 0.50.0 |
-| `plugins/claude-ops/skills/audit-skill-visibility/scripts/*` | KEEP | audited tolerant readers |
+| `plugins/claude-ops/skills/audit-skill-visibility/scripts/*`, `skills/observability/scripts/clean.sh` | KEEP | audited tolerant readers |
 
 **Sanity Check:**
 
@@ -186,25 +198,29 @@ Plugin: source-control (0.55.74 to 0.56.0). This is the integration slice.
 
 1. Create `plugins/source-control/scripts/skill-evidence.sh` with the four subcommands of
    `design/design-resolution.md` (`classes`, `check`, `render`, `report`), `--help`, exit 0 on
-   audit paths and 2 on usage error, `LC_ALL=C`, no GNU-only constructs (shell-portability lint).
-   Pattern matching through `git -c core.excludesFile=<tmp> check-ignore --no-index --stdin`, the
-   same mechanism the security lane used for `.github/claude-security-paths`. `@renamed` reads
-   `git diff --name-status -M --diff-filter=R`.
+   audit paths and 2 on usage error, `LC_ALL=C`, CR-tolerant line reads, no GNU-only constructs
+   (shell-portability lint). Pattern matching through
+   `git -c core.excludesFile=<patterns file> check-ignore --no-index -v`, keeping only matches whose
+   source is the patterns file (with `--no-index` the repository's own ignore rules still apply,
+   verified this session). `@renamed` reads `git diff --name-status -M --diff-filter=R`.
+   `check` takes `--base <ref>` (git ancestry) or `--compare <json>` (a REST compare result) so CI
+   and the babysit gate never need history on disk; the terminal row is string-compared to
+   `--head`.
 2. Config key `pr_skill_evidence` in `reference/config-resolution.md` (grammar from the design
-   resolution; closed list; `none` and absent both mean inert), and `pr_skill_evidence` in the
+   resolution; closed list; `none` and absent both mean inert; the local-overlay note), and in the
    `/source-control:setup` key inventory if that skill enumerates keys (pre-flight: grep
    `pr_body_required_sections` under `skills/setup/`).
-3. Ledger location for the source-control readers: new plugin option `skill_evidence_store`
-   (default `.claude/observability/skill-usage.jsonl`, repo-relative; a leading `~/` resolves under
-   `$HOME`), documented beside the claude-ops `skill_usage_scope` pairing. `[EXEC-SHAPE]`: plugin
-   options are per plugin, so source-control cannot read claude-ops' option; a paired default is
-   the cheapest honest resolution.
+3. New plugin option `skill_evidence_store` (`repo` default, `user`, or a path; `data-dir`
+   documented as unsupported), resolved against the checkout the skill runs in, which in
+   `create --pushed --worktree` mode is the target worktree. `[EXEC-SHAPE]`: plugin options are per
+   plugin, so source-control cannot read claude-ops' scope option; a paired default is the cheapest
+   honest resolution, and the README states the pairing.
 4. This repo's map in `.claude/source-control.md`:
 
    ```text
    ## pr_skill_evidence
 
-   - code | **/*.sh **/*.bash **/*.py **/*.mjs **/*.js **/*.cjs **/*.ts **/*.ps1 | verification:confirm review:quality-gate,review:fanout simplify
+   - code | **/*.sh **/*.bash **/*.py **/*.mjs **/*.js **/*.cjs **/*.ts **/*.ps1 | verification:confirm! review:quality-gate,review:fanout simplify
    - markdown | **/*.md | ai-slop:audit docs-hygiene:audit-noise
    - renames | @renamed | docs-hygiene:rename-references
    - skills | plugins/*/skills/** plugins/*/agents/** | skill-quality:check
@@ -212,14 +228,21 @@ Plugin: source-control (0.55.74 to 0.56.0). This is the integration slice.
    - security | @file:.github/claude-security-paths | review:security-review
    ```
 
-   The header comment of `.github/claude-security-paths` is rewritten: it is now read by the
-   local security review through this key, not by a CI lane.
+   Stated plainly: `.github/claude-security-paths` lists `scripts/**`, `.claude/**`, every
+   `plugins/*/skills/**` and every `**/*.sh`, so the `security` class fires on nearly every
+   non-docs PR, exactly as the retired lane did; the local review replaces the lane at the same
+   breadth. The `markdown` class matches `docs/topics/**` too, so a docs-only PR is not inert: it
+   owes the two prose audits. The file's header comment is rewritten: it is now read by the local
+   security review through this key, not by a CI lane.
 5. `plugins/source-control/scripts/skill-evidence.test.sh` on real git fixtures: class
-   detection per pattern kind; `check --ledger` reports `missing=` per class; freshness passes on
-   exact head and on merge-only ancestry, fails on a non-merge commit after the row; `check --body`
-   parses the fenced block and ignores HTML comments and prose; `render` emits sorted rows, latest
-   per skill; `report` counts gate rows and later same-SHA skill rows; no config means every
-   subcommand is inert and exit 0.
+   detection per pattern kind, including a tracked path the repository's own `.gitignore` would
+   match (must not count); `check --ledger` reports `missing=` per class; the terminal row passes
+   only at HEAD exactly; a non-terminal row passes at HEAD and at an ancestor and reports
+   `commits-since`; a row on a rebased-away commit is stale; `check --body` parses the fenced block,
+   ignores HTML comments and prose, and warns on a second block; `check --compare` on a saved REST
+   payload gives the same verdicts; `render` emits sorted rows, latest per skill; `report` with a
+   stubbed `gh` counts a flagged flip and a later cleared head; no config means every subcommand is
+   inert and exit 0.
 
 | File | Action | What changes |
 |---|---|---|
@@ -235,59 +258,70 @@ Plugin: source-control (0.55.74 to 0.56.0). This is the integration slice.
 
 - `bash plugins/source-control/scripts/skill-evidence.test.sh` exit 0.
 - End to end in a fixture: a ledger with rows for every class at HEAD makes `render` emit a block
-  that `check --body` accepts (`missing=` empty); dropping one row makes `check --ledger` and
-  `check --body` both name that skill.
+  that `check --body` accepts (`missing=` and `stale=` empty); dropping one row makes
+  `check --ledger` and `check --body` both name that skill; a base merge after the rows keeps every
+  non-terminal row fresh and reports the terminal row stale.
 - `plugins/source-control/scripts/skill-evidence.sh classes --base origin/main` on this branch lists
-  `markdown` (this plan) and exits 0.
-- `scripts/check-plugin-options-docs.sh` (or the lint job's `plugin-options-docs` step script)
-  exit 0.
+  `markdown` and exits 0.
+- `python3 scripts/sync-plugin-options-docs.py --check` exit 0.
 
-#### Phase 3: The pull-request skill routes prep by class, creates drafts, and renders the block [TODO]
+#### Phase 3: The pull-request skill routes prep by class, creates drafts, and owns the ready step [TODO]
 
 Plugin: source-control (same version bump as Phase 2).
 
 1. `reference/prep.md` §1.1: classify with `skill-evidence.sh classes`; §1.2 to §1.5 become the
    implementing skills of the pre-PR order per class, each presence-gated with the inline fallback
-   (seam-phrasing): code runs `verification:confirm`, one fresh-context review
-   (`review:quality-gate` under 50 changed lines, `review:fanout` above), then `simplify`; markdown
-   runs `ai-slop:audit` and `docs-hygiene:audit-noise` on the changed files, and
+   (seam-phrasing): code runs one fresh-context review (`review:quality-gate` under 50 changed
+   lines, `review:fanout` above), then `simplify`, then `verification:confirm` last; markdown runs
+   `ai-slop:audit` and `docs-hygiene:audit-noise` on the changed files, and
    `docs-hygiene:rename-references` when `renames` is listed; skills run `skill-quality:check`;
-   rules run `instruction-placement:check`; security runs `review:security-review` locally.
-   Audits that persist findings feed one `review:fanout fix` pass. The order stays the convention's
-   order; the doc cites `docs/conventions/pre-pr-ordering/README.md` and does not restate it.
+   rules run `instruction-placement:check`; security runs `review:security-review` over the draft
+   PR's diff (`gh pr diff`), so that class runs in the ready step, where a PR exists. Audits that
+   persist findings feed one `review:fanout fix` pass. The order stays the convention's order; the
+   doc cites `docs/conventions/pre-pr-ordering/README.md` and does not restate it. Prep before
+   create is the developer loop; the section says which rows it leaves and that create's rebase may
+   invalidate them.
 2. `reference/create.md` §2.4.3: `gh pr create --draft`, then
    `git config branch.<branch>.pr-number <N>`; §2.4.1 renders the block from
    `skill-evidence.sh render` under `## Verification` when the ledger has rows; the REST path (cloud
-   sessions) passes `"draft": true` and renders the same block.
-3. New `reference/ready.md` and a `ready` action row in `SKILL.md`: merge the base branch (or
-   `gh pr update-branch`), run `skill-evidence.sh check --ledger` for HEAD, run the missing skills
-   through prep, re-render the block into the body (`gh pr edit --body-file`, the MCP update call,
-   or the REST patch), then flip (`gh pr ready`, or the MCP update with `draft: false`).
-4. `templates/checklist.md` gains the ready step; `reference/full-lifecycle.md` places `ready`
-   between create and monitor; `reference/monitor.md` smart default treats a draft as "not yet
-   ready" rather than "monitor".
+   sessions) passes `"draft": true` and renders the same block; §2.7 (`--pushed --worktree`) reads
+   the store under the target worktree. §2.2 keeps its rebase: it runs before the first push.
+3. New `reference/ready-for-review.md` (named for the flip; `readiness.md` is the merge checklist)
+   and a `ready` action row in `SKILL.md`: refuse on a branch with no PR; merge the base branch
+   (`gh pr update-branch` or `git merge origin/<base>`, never a rebase); run
+   `skill-evidence.sh check --ledger` for HEAD; run the missing or stale skills in the convention's
+   order, committing any edits a mutating skill makes, with `verification:confirm` last so the
+   terminal row lands on the final HEAD; re-render the block into the body (`gh pr edit --body-file`,
+   the MCP update call, or the REST patch); then flip: `gh pr ready` locally, the MCP
+   `update_pull_request` call with `draft: false` in cloud sessions (the flip is a GraphQL mutation,
+   which the REST patch cannot perform and the cloud proxy serves only through its pinned set;
+   pre-flight confirms whether a proxy route exists and documents it if so).
+4. `SKILL.md` Phase 0 smart default: an open draft routes to `ready`, not to monitor;
+   `templates/checklist.md` gains the ready tick; `reference/full-lifecycle.md` places `ready`
+   between create and monitor.
 5. `evals/evals.json` gains one case for the ready action and one for a docs-only branch (markdown
    class only).
 
 | File | Action | What changes |
 |---|---|---|
-| `plugins/source-control/skills/pull-request/SKILL.md` | Modify | `ready` action, draft default |
+| `plugins/source-control/skills/pull-request/SKILL.md` | Modify | `ready` action, draft default, Phase 0 |
 | `plugins/source-control/skills/pull-request/reference/prep.md` | Modify | class routing |
-| `plugins/source-control/skills/pull-request/reference/create.md` | Modify | `--draft`, pr-number, block |
-| `plugins/source-control/skills/pull-request/reference/ready.md` | Create | the ready step |
+| `plugins/source-control/skills/pull-request/reference/create.md` | Modify | `--draft`, pr-number, block, §2.7 store |
+| `plugins/source-control/skills/pull-request/reference/ready-for-review.md` | Create | the ready step |
 | `plugins/source-control/skills/pull-request/reference/full-lifecycle.md` | Modify | sequence |
-| `plugins/source-control/skills/pull-request/reference/monitor.md` | Modify | draft handling |
 | `plugins/source-control/skills/pull-request/templates/checklist.md` | Modify | ready tick |
 | `plugins/source-control/skills/pull-request/evals/evals.json` | Modify | two cases |
+| `.github/pull_request_template.md` | Modify | the Verification guidance names the block |
 
 **Sanity Check:**
 
 - `grep -n 'gh pr create --draft' plugins/source-control/skills/pull-request/reference/create.md`
-  returns at least one line and `grep -c 'ready.md' plugins/source-control/skills/pull-request/SKILL.md`
+  returns at least one line and `grep -c 'ready-for-review.md' plugins/source-control/skills/pull-request/SKILL.md`
   is at least 1.
-- `bash plugins/skill-quality/scripts/check-skill.sh pull-request` (with
-  `CHECK_SKILL_SKILLS_ROOT=plugins/source-control/skills`) exit 0.
-- `scripts/check-changed-skills.sh origin/main` exit 0.
+- `grep -c 'rebase' plugins/source-control/skills/pull-request/reference/ready-for-review.md` is 0
+  outside the sentence that forbids it (read assertion).
+- `CHECK_SKILL_SKILLS_ROOT=plugins/source-control/skills bash plugins/skill-quality/scripts/check-skill.sh pull-request`
+  exit 0; `scripts/check-changed-skills.sh origin/main` exit 0.
 
 #### Phase 4: Advisory PreToolUse gate on the ready flip [TODO]
 
@@ -297,30 +331,39 @@ Plugin: source-control (the PR-body gates already live here under the `Bash(*gh 
 no new guardrails budget line). `[EXEC-SHAPE]`: the Brief left guardrails or source-control open;
 co-location with the sibling PR-body gates wins on budget and on one hooks.json to read.
 
+Briefed as default-on (Q5). The stress test recommends cutting this phase: the `ready` step runs
+the same check in-process, the validator catches every flip regardless, and ADR 0003 asks for a
+measured firing rate before default-on. Kept as briefed; the flip line at presentation removes it.
+
 1. Create `hooks/pr-ready-evidence-gate.sh`: kill switch first
-   (`CLAUDE_PLUGIN_OPTION_PR_READY_EVIDENCE_GATE_ENABLED`, default true), then match on the
-   command: `gh pr ready`, or `gh api` whose path ends in `/ready_for_review` or whose body carries
-   `markPullRequestReadyForReview` (the cloud proxy and GraphQL routes). Resolve HEAD and the base
-   (`refs/remotes/origin/HEAD`, fallback `main`), run `skill-evidence.sh check --ledger`, and on any
-   `missing=` or `stale=` emit `additionalContext` naming the skills and the command to run; never
-   block. Append one `SkillEvidenceGate` row (`missing`, `sha`) to the store so `report` can count.
-   Ledger absent: one-time notice, then silent.
+   (`CLAUDE_PLUGIN_OPTION_PR_READY_EVIDENCE_GATE_ENABLED`, default true), then match on parsed
+   argv (`hook::bash_parse_segments`, the linkage gate's pattern, per hook-precision rules 2 and
+   5): `gh pr ready`, or `gh api graphql` whose `-f query=` operand names
+   `markPullRequestReadyForReview`, or a `gh api` path whose last segment is `ready_for_review`
+   (kept only if Phase 3's pre-flight finds such a proxy route; deleted otherwise). Out of scope
+   when a `cd` precedes the segment or `--repo` targets another repository. Resolve HEAD and the
+   base (`refs/remotes/origin/HEAD`, fallback `main`), run `skill-evidence.sh check --ledger`, and on
+   any `missing=` or `stale=` emit `additionalContext` naming the skills and
+   `/source-control:pull-request ready`; never block; record nothing (the validator's marker is
+   the count of record). Ledger absent: one-time notice, then silent.
 2. Create `hooks/pr-ready-evidence-mcp-gate.sh` for `mcp__github__update_pull_request` with
-   `draft: false` in `tool_input`, same verdict path (the MCP payload carries owner and repo; out of
-   scope when they do not match the origin remote, as the linkage MCP gate does).
+   `draft: false` in `tool_input`, same verdict path (out of scope when owner and repo do not match
+   the origin remote, as the linkage MCP gate does).
 3. Register both in `hooks/hooks.json`: the Bash hook inside the existing `Bash` matcher block
    with `"if": "Bash(*gh *)"`, the MCP hook under a matcher for `update_pull_request`.
 4. Tests: `hooks/pr-ready-evidence-gate.test.sh` and `hooks/pr-ready-evidence-mcp-gate.test.sh`
-   on a git fixture with a fake ledger: fires on missing, silent on complete, silent on a draft
-   flip that is not a ready flip, silent with the kill switch off, silent and noticed once with no
-   ledger; `hooks/pr-linkage-spawn-budget.test.sh` extended with the new hook's ceiling.
-5. README hook table row and budget share; `plugin.json` option `pr_ready_evidence_gate_enabled`.
+   on a git fixture with a fake ledger: fires on missing, fires on a stale terminal row, silent on
+   complete, silent on a draft conversion that is not a ready flip, silent with the kill switch
+   off, silent and noticed once with no ledger, silent under a `cd` prefix;
+   `hooks/pr-linkage-spawn-budget.test.sh` extended with the new hooks' ceilings.
+5. README hook table rows and budget share; `plugin.json` option `pr_ready_evidence_gate_enabled`.
 
 **Sanity Check:**
 
 - Both new test suites exit 0; `bash plugins/source-control/hooks/pr-linkage-spawn-budget.test.sh`
   exit 0.
-- `scripts/check-killswitch-hoist.sh` and `scripts/check-hook-wiring-liveness.sh` exit 0.
+- `scripts/check-killswitch-hoist.sh`, `scripts/check-hook-exec-form.sh`,
+  `scripts/check-hooks-description.sh`, and `scripts/check-hook-userconfig-argv.sh` exit 0.
 - A hook payload for `gh pr ready 1` against a fixture with an empty ledger prints JSON containing
   `additionalContext` and exits 0.
 
@@ -328,40 +371,50 @@ co-location with the sibling PR-body gates wins on budget and on one hooks.json 
 
 Review: security
 
-1. `ci-status` job in `.github/workflows/ci.yml` gains, before the pr-contract step: a checkout
-   with `fetch-depth: 0` and `persist-credentials: false` `[EXEC-SHAPE]` (the ancestry rule needs
-   history; switch to a REST commit walk if the checkout adds more than 30 seconds to the job), then
-   a step `Check the PR skill-evidence block` (id `skill_evidence`) that runs only on
-   `pull_request` events with `draft == false`, fetches the body over REST, runs
-   `plugins/source-control/scripts/skill-evidence.sh check --body`, and on a gap upserts one
-   comment (marker `<!-- pr-skill-evidence -->`) and adds the `needs-skill-evidence` label;
-   on a clean verdict it removes the label and resolves the comment text. Exit 0 always. The step
-   carries no `continue-on-error` and is not fed to the aggregate, so `check-lane-coverage.sh`
-   needs no opt-out entry; a docs-only diff reports no class, so the step is inert there.
-2. Create the label `needs-skill-evidence` in the repository (REST `labels` endpoint) and record it
-   in `docs/conventions/loop-lane/README.md`'s label table beside `needs-issue-linkage`.
-3. Lint job step `Report prose-detector findings on changed markdown` (id `prose_detectors`):
-   after the docs-only resolver, list changed `.md` files against `origin/$BASE_REF`, write them to
-   a paths file, run both detectors with `--paths-file`, turn each `Finding` line into a
-   `::warning file=,line=::` annotation, exit 0. No `continue-on-error`, no feed row.
+1. `ci-status` job in `.github/workflows/ci.yml` gains, **after** the aggregate step (so it never
+   eats the 60-second margin the 540-second carry-forward wait leaves): a sparse, depth-1 checkout
+   of `scripts/pr-skill-evidence-ci.sh`, `scripts/lib/`, and
+   `plugins/source-control/scripts/skill-evidence.sh` (`persist-credentials: false`), then a step
+   `Report the PR skill-evidence block` (id `skill_evidence`, `if: always()`,
+   `continue-on-error: true`, with a reasoned entry in `scripts/lane-coverage-step-opt-outs.txt`:
+   this is a fall-through step by design, the exact shape that list exists for). The script exits 0
+   on every path (`trap` plus a test with a failing stubbed `gh`), returns early on a push event, a
+   draft, or a fork head (read-only token), fetches the body and the PR files over REST, evaluates
+   `--head ${{ github.event.pull_request.head.sha }}` (never the checkout's `refs/pull/N/merge`
+   commit) with `--compare` payloads from REST, and on a gap upserts one comment (marker
+   `<!-- pr-skill-evidence head=<sha> verdict=<gap|clean> -->`) and adds the `needs-skill-evidence`
+   label; on a clean verdict it removes the label and rewrites the comment to the clean form. Label
+   calls are state-diffed (no API call when already in the target state), because `labeled` and
+   `unlabeled` re-run `ci-status`. A missing label (not yet provisioned) is a notice, not an error.
+2. The label is IaC-owned (loop-lane README: no lane creates labels): file the request in
+   github-iac as a work item (`/work-items:track`) and record the label beside
+   `needs-issue-linkage` in `.github/pull_request_template.md` and ADR 0033. `[FALLBACK, confirm
+   or override]`: until github-iac provisions it, the validator comments only.
+3. Lint job step `Report ai-slop findings on changed markdown` (id `ai_slop_report`): after the
+   docs-only resolver, list changed `.md` files against `origin/$BASE_REF`, write them to a paths
+   file, run `plugins/ai-slop/skills/audit/scripts/detect.sh --paths-file`, turn each `Finding:`
+   line into a `::warning file=,line=::` annotation (capped at 50 with a summary line), exit 0. No
+   `continue-on-error`, no feed row, returns early on a push event.
 4. `scripts/check-docs-only-gate.sh --check` and `scripts/check-lane-coverage.sh --check` keep
-   passing (both new steps are ungated shell steps that branch on the event inside the script).
+   passing.
 5. `.github/workflows/ci.yml` `workflow_schema` file list drops the two retired callers (also done
    in Phase 6; whichever lands first carries it).
 
 | File | Action | What changes |
 |---|---|---|
-| `.github/workflows/ci.yml` | Modify | two steps, one checkout |
-| `scripts/pr-skill-evidence-ci.sh` | Create | REST body fetch, comment upsert, label move around the plugin script |
-| `scripts/pr-skill-evidence-ci.test.sh` | Create | stubbed `gh`; comment and label transitions |
-| `docs/conventions/loop-lane/README.md` | Modify | label row |
+| `.github/workflows/ci.yml` | Modify | two steps, one sparse checkout |
+| `scripts/pr-skill-evidence-ci.sh` | Create | REST body and files fetch, compare calls, comment upsert, label move |
+| `scripts/pr-skill-evidence-ci.test.sh` | Create | stubbed `gh`; comment and label transitions; exit 0 on a failing `gh`; idempotent label calls |
+| `scripts/lane-coverage-step-opt-outs.txt` | Modify | `ci-status/skill_evidence` entry with its reason |
+| `.github/pull_request_template.md` | Modify | label mention (with Phase 3's block guidance) |
 
 **Sanity Check:**
 
 - `bash scripts/pr-skill-evidence-ci.test.sh` exit 0; `scripts/check-lane-coverage.sh --check`
-  exit 0; `scripts/check-docs-only-gate.sh --check` exit 0; `actionlint` on `ci.yml` exit 0.
-- On the PR that ships this change, the `ci-status` run log shows the step and the PR carries
-  either a fresh block and no label, or the label and one comment.
+  exit 0; `scripts/check-docs-only-gate.sh --check` exit 0; `actionlint` on `ci.yml` exit 0;
+  `zizmor` on `ci.yml` reports nothing new.
+- On the PR that ships this change, the `ci-status` run log shows the step after the aggregate,
+  and the PR carries either a fresh block and no label, or one marker comment.
 
 #### Phase 6: Retire both lanes and sweep every citation [TODO]
 
@@ -381,53 +434,64 @@ Structural commit (Tidy First: deletions and citation updates only, no behaviour
 | [ ] `scripts/read-skip-actors.test.sh` | DELETE | its suite |
 | [ ] `.github/claude-skip-actors` | DELETE | list of a deleted lane |
 | [ ] `.github/workflows/ci.yml` | MODIFY | drop both callers from the `workflow_schema` list |
-| [ ] `.github/standards/runner-policy/policy.json` | MODIFY | prune every pinned `claude-review.yml` and `claude-security-review.yml` entry the analyzer reports unused after the callers are gone; first item: run `node .github/standards/runner-policy/runner-policy.mjs --root .` and act on its output |
+| [ ] `.github/standards/runner-policy/policy.json` | KEEP | upstream-managed for this repo (ADR 0002, 2026-08-03 addendum); first item: run `node .github/standards/runner-policy/runner-policy.mjs --root .` after the deletions; if it rejects the now-unused pinned entries, file the upstream sync as a work item and record it in the ADR rather than editing the file here |
 | [ ] `.github/standards/runner-policy/runner-policy.mjs` | KEEP | the visibility-scoped set stays valid for a future caller; audited |
 | [ ] `REVIEW.md` | MODIFY | the code-review lane scope clause: no security workflow exists here, so the general review reports security findings too |
 | [ ] `docs/SKILL-CHEAT-SHEET.md` | MODIFY | rows 115 and 118 no longer name the workflows |
 | [ ] `plugins/review/README.md` | MODIFY | lines 49 to 52 |
-| [ ] `plugins/review/skills/code-review/SKILL.md` | MODIFY | metadata summary |
-| [ ] `plugins/review/skills/security-review/SKILL.md` | MODIFY | metadata summary; the body's "how to run this locally" stays |
+| [ ] `plugins/review/skills/code-review/SKILL.md` | MODIFY | metadata summary and the body clauses at lines 56 and 75 that key on the workflow's presence |
+| [ ] `plugins/review/skills/security-review/SKILL.md` | MODIFY | metadata summary; the body's local-run path stays |
 | [ ] `plugins/review/skills/code-review/evals/evals.json` | KEEP | the fixture repo `acme/app` may carry any workflow |
 | [ ] `plugins/review/CHANGELOG.md`, `.claude-plugin/plugin.json` | MODIFY | patch bump for the wording |
 | [ ] `docs/architecture/landscape.json` | MODIFY | regenerate with `plugins/architecture/skills/map-landscape/scripts/render-landscape.sh`, never by hand |
-| [ ] `docs/adr/0002-default-on-ai-review-advisory-with-earned-promotion.md` | MODIFY | one-line pointer at the top of Decision to the new ADR (Phase 8 writes the ADR; this phase adds the pointer once its number is fixed) |
+| [ ] `docs/adr/0002-default-on-ai-review-advisory-with-earned-promotion.md` | MODIFY | one-line pointer under Status to the new ADR (Phase 8 writes the ADR; this phase adds the pointer once its number is fixed) |
 | [ ] `scripts/affected-tests.sh` mapping rules | KEEP | audited: deleted suites need no rule; a changed `ci.yml` maps to `check-lane-coverage.test.sh` and `check-docs-only-gate.test.sh` |
 
 **Sanity Check:**
 
-- `grep -rn 'claude-review\.yml\|claude-security-review\.yml\|verify-claude-review-skill\|verify-security-review-evidence\|read-skip-actors\|claude-skip-actors' --exclude-dir=.git --exclude-dir=.work --exclude-dir=node_modules .`
-  returns only `docs/adr/` lines and `docs/topics/pr-skill-evidence-gate/`.
-- `node .github/standards/runner-policy/runner-policy.mjs --root .` exit 0.
+- `grep -rln 'claude-review\.yml\|claude-security-review\.yml\|verify-claude-review-skill\|verify-security-review-evidence\|read-skip-actors\|claude-skip-actors' --exclude-dir=.git --exclude-dir=.work --exclude-dir=node_modules .`
+  lists only files under `docs/adr/`, `docs/topics/pr-skill-evidence-gate/`,
+  `plugins/review/skills/code-review/evals/evals.json`, and
+  `.github/standards/runner-policy/` (the two KEEP rows).
+- `node .github/standards/runner-policy/runner-policy.mjs --root .` exit 0, or the work item
+  number for the upstream sync recorded in this phase's notes.
 - `bash plugins/architecture/skills/map-landscape/scripts/render-landscape.sh` reproduces
   `docs/architecture/landscape.json` byte for byte (`git diff --exit-code docs/architecture/landscape.json`
   after a second run).
 - `/docs-hygiene:rename-references` audit over the deleted paths reports zero dangling references.
 
-#### Phase 7: The babysit merge gate honors the evidence label [TODO]
+#### Phase 7: The babysit merge gate reads the block [TODO]
 
-`[EXEC-SHAPE]` (flagged close call): the gate reads the `needs-skill-evidence` label the
-`ci-status` validator maintains, not the block itself. One judge (the validator) and zero new
-parsing in Python; the label is a rendering of the validator's verdict, the same shape as
-`needs-issue-linkage`. The flip line at presentation switches this to an in-process block parser
-with a REST commit walk.
+`[FALLBACK, confirm or override]` (flagged close call, both reviews raised it): the Brief's
+constraint "advisory before blocking" and its acceptance criterion "hold a merge" pull against each
+other, and this repo's tracked config already selects the `worker` tier with `c3-autonomous` merge
+(effective-unpromoted today through the promotion-evidence seam). Recommended shape, below: the
+deterministic gate reads the block and **routes**, it does not hold, during the promotion window.
+The flip line at presentation turns the route into a hold.
 
 1. Pre-flight: `babysit_merge.py` `evaluate()` surfaces `labels` for agent reasoning with no
-   hard-coded hold list, and `--block-labels` is confined to the autopilot tier
-   (`reference/cycle-shape.md` line 56). Read both before changing.
-2. Worker tier: `babysit-prs/SKILL.md` and `reference/safety.md` state that a PR carrying
-   `needs-skill-evidence` is not merge-ready in the worker tier and routes to a worker whose brief
-   is "run `/source-control:pull-request ready`". Autopilot tier: `babysit_merge_block_labels`
-   default gains `needs-skill-evidence` (plugin.json option default, README, `bin` wrapper).
-   Safe tier reports the label as a blocker and takes no action (already its posture).
-3. `scripts/tests/test_skill_contract.py` gains the paragraph assertion; `test_guards.py` gains
-   the autopilot default; `babysit_delta.py` treats a label change on this label as material
-   feedback if its label rules enumerate labels (pre-flight decides).
+   hold list, and `--block-labels` is confined to the autopilot tier
+   (`plugins/source-control/skills/babysit-loop/reference/cycle-shape.md` line 56). Read both,
+   and `reference/safety.md`'s merge-gate sections, before changing.
+2. `babysit_merge.py` gains a `skillEvidence` criterion in `evaluate()` for every tier: parse the
+   fenced block from the PR body (already fetched), compare the terminal row to `headRefOid`, and
+   check non-terminal rows with one REST `compare` call each (paginated helpers already in
+   `babysit_gh.py`). The result is a self-documenting record (`missing`, `stale`, `commits-since`)
+   in the gate's JSON, and a `needs_worker` reason `skill_evidence_gap` in `babysit_delta.py`,
+   so the worker tier dispatches a worker whose brief is `/source-control:pull-request ready`.
+   No blocker is raised until promotion; the safe tier reports the record only.
+3. Autopilot's own draft flip (`SKILL.md` lines 131 to 133) routes through
+   `/source-control:pull-request ready` instead of a bare `gh pr ready`.
+4. Tests: `scripts/tests/test_guards.py` covers a clean block, a missing block, a stale terminal
+   row, and an unparsable block (reported, never fatal); `test_babysit_delta.py` covers the new
+   reason; `test_skill_contract.py` asserts the routing paragraph.
 
 **Sanity Check:**
 
 - `python -m pytest plugins/source-control/skills/babysit-prs/scripts/tests -q` exit 0.
-- `grep -c 'needs-skill-evidence' plugins/source-control/skills/babysit-prs/SKILL.md` is at least 1.
+- `grep -c 'skill_evidence_gap' plugins/source-control/skills/babysit-prs/scripts/babysit_delta.py`
+  is at least 1; `grep -c 'pull-request ready' plugins/source-control/skills/babysit-prs/SKILL.md`
+  is at least 1.
 
 #### Phase 8: ADR 0033, ADR 0002 pointer, and the promotion record [TODO]
 
@@ -435,15 +499,21 @@ with a REST commit walk.
    in the house ADR shape (`- Status: accepted`, `- Date:`, Context, Decision, Consequences,
    Revisit triggers). Decision records: the seat-based posture; the retirement of both lanes,
    their evidence guards, the skip-actors read, and the count and last-head comments; the evidence
-   carrier (ledger row, block, validator, hook, label); the 40-PR measurement; the promotion
-   window and the two counts; the accepted forgeability (ADR 0024); which sections of ADR 0002
-   are superseded for this repository (the lane wiring, the skip-actor exception, the 2026-09-07
-   trigger set) and which stand (advisory before blocking, earned promotion).
+   carrier (ledger row, block, two-tier freshness, validator, hook, babysit route); the 40-PR
+   measurement and the `head.sha` measurement key; the promotion window and the two counts read from
+   the validator's markers; which sections of ADR 0002 are superseded for this repository (the lane
+   wiring, the skip-actor exception, the 2026-09-07 trigger set) and which stand (advisory before
+   blocking, earned promotion). Consequences state plainly: the evidence is self-reported and a
+   plain Write can forge it (accepted per ADR 0024; the Brief's "fenced by the write-bypass hook"
+   assumption does not hold and is corrected here); PRs opened outside the skill (the UI, a bare
+   REST call, a bot) receive no review and only the advisory label; the security review now runs on
+   the seat at the lane's former breadth.
 2. ADR 0002: one line under its Status line pointing at 0033 for the superseded sections.
+   Re-check `ls docs/adr/0033-*` at merge time (two numbers are already duplicated in that
+   directory).
 3. `AGENTS.md` "Open a pull request as a draft" gains the sentence that the ready flip runs
    `/source-control:pull-request ready`, which renders the evidence block.
-4. `docs/CLOUD-FLEET-SETUP.md`: if it names the review lanes or the ready flip (pre-flight grep),
-   align the wording; otherwise KEEP.
+4. `docs/CLOUD-FLEET-SETUP.md`: KEEP (grep this session: it names neither lane nor the flip).
 
 **Sanity Check:**
 
@@ -456,17 +526,20 @@ with a REST commit walk.
 1. `scripts/affected-tests.sh --run --explain` exit 0 (every new script maps to a suite: the new
    `*.test.sh` files sit beside their scripts, so the co-location rule maps them).
 2. `scripts/check-changelog-parity.sh --check`, `--check-bump origin/main` exit 0.
-3. Run this repository's own mandatory map on this branch: `skill-evidence.sh classes` lists
-   `code`, `markdown`, `skills`, `rules` (if any rule changed), `security` (hooks and workflows);
-   run each mandatory skill; confirm the ledger carries rows at HEAD.
+3. Run this repository's own mandatory map on this branch through the new `ready` step:
+   `skill-evidence.sh classes` lists `code`, `markdown`, `skills`, `security` (and `rules` if a
+   rule changed); the step runs each mandatory skill and the ledger carries the terminal row at HEAD.
 4. Open the PR as a draft with the body contract (`Closes #<issue>` or `No related issue:`,
    Summary, Fix, Verification with the rendered block, Related), then `pull-request ready`.
+5. After merge: on the first PR opened afterwards, `gh api --paginate
+   repos/{owner}/{repo}/issues/<n>/comments?per_page=100` filtered on `claude-review-count` and
+   `claude-security-review-last-head` returns nothing (the captured assumption gets its check).
 
 **Sanity Check:**
 
 - `scripts/affected-tests.sh --run` exit 0.
-- The PR body's Verification section contains a ```` ```skill-evidence ```` block whose rows carry
-  the PR head SHA; the `ci-status` run on that head adds no `needs-skill-evidence` label.
+- The PR body's Verification section contains a ```` ```skill-evidence ```` block whose terminal
+  row carries the PR head SHA; the `ci-status` run on that head posts no gap comment.
 
 ### Alternatives considered
 
@@ -476,9 +549,13 @@ with a REST commit walk.
 | Managed Claude Code Review app | Bills usage credits; its check is always neutral; no evidence the skill set ran | Usage credits become available and an App-authored check becomes load-bearing (autonomous merge on) |
 | Mergify Merge Protections as an App-authored required check | Unforgeable, but a third-party App for a gate that is advisory today | Autonomous merge is switched on and same-name forgeability stops being acceptable |
 | HTML-comment evidence block | Invisible to humans; stripped by the pr-contract composite before section counting | Never, while the block is meant to be read by people |
-| Block parser in `babysit_merge.py` reading the body and walking commits over REST | Two parsers of one format in two languages; the validator already renders the verdict as a label | The label is observed removed by hand to force a merge, or the validator is promoted to blocking and the gate must judge independently |
-| Validator step in the lint job instead of `ci-status` | The lint job does not run on contract-only events (a body edit), which is exactly when the block changes | `ci-status` stops being the only job on contract-only events |
-| REST commit walk in CI instead of `fetch-depth: 0` | Second freshness implementation | The full-history checkout adds more than 30 s to the `ci-status` job |
+| Every mandatory row at HEAD exactly | Rows are stamped at invocation, so every mutating skill would read stale by construction and the set would run twice per PR | A row can be stamped after the skill's edits land (a hook event at skill completion) |
+| Merge-only ancestry as the freshness rule | Admits conflict-resolution merges with arbitrary content; needs history on disk in CI | Never; the two-tier rule dominates it |
+| A `needs-skill-evidence` label as the babysit merge input | A second cross-lane hold the loop-lane convention forbids; unenforced in the worker gate; removable by the same agent | Never; the gate reads the block |
+| Validator as its own informational job | Cleaner isolation, but the Brief constrains new CI steps to `ci-status` or the lint job | The step after the aggregate is measured to threaten the job timeout, or the Brief constraint is lifted |
+| Validator step in the lint job | The lint job does not run on contract-only events (a body edit), which is exactly when the block changes | `ci-status` stops being the only job on contract-only events |
+| Full-history checkout in CI for ancestry | Eats the carry-forward margin of the required job | Never; REST `compare` answers ancestry in one call |
+| audit-noise in the first lint slice | No zero baseline (40 findings on two tracked files); four-line records | The audit-noise corpus reaches zero findings on main |
 
 ### Test strategy
 
@@ -487,32 +564,37 @@ TDD, red then green, per phase. Test boundaries (each is the public interface a 
 | Boundary | Exists | Driven by |
 |---|---|---|
 | `claude_ops::record_skill_use` row shape via the hook CLI | existing | `skill-usage-audit.test.sh` |
-| `skill-evidence.sh` CLI (classes, check, render, report) | new | `skill-evidence.test.sh` on git fixtures |
+| `skill-evidence.sh` CLI (classes, check, render, report) | new | `skill-evidence.test.sh` on git fixtures and saved REST payloads |
 | `pr-ready-evidence-gate.sh` and the MCP twin via hook stdin JSON | new | their `*.test.sh` |
 | `scripts/pr-skill-evidence-ci.sh` via a stubbed `gh` on PATH | new | `pr-skill-evidence-ci.test.sh` |
-| `babysit_merge.py` `evaluate()` and the skill contract paragraphs | existing | `scripts/tests/*.py` |
+| `babysit_merge.py` `evaluate()` JSON record and the skill contract paragraphs | existing | `scripts/tests/*.py` |
 | `ci.yml` invariants | existing | `check-lane-coverage.test.sh`, `check-docs-only-gate.test.sh` |
 | pull-request skill body | existing | `check-skill.sh`, `evals.json` |
 
-Edge cases the suites name: a ledger row whose SHA is unreachable from HEAD (stale); a body with two
-blocks (first wins, warning); a `gh pr ready` inside a `cd` chain (out of scope, silent); a PR
-whose diff touches no class (validator inert, no label); a ledger with rows from another branch at
-the same SHA (accepted, evidence is per commit); Windows Git Bash path for the store option.
+Edge cases the suites name: a row on a rebased-away commit (stale); a terminal row one commit
+behind HEAD (stale) beside a non-terminal row at the same commit (fresh, `commits-since=1`); a body
+with two blocks (first read, warning); a `gh pr ready` inside a `cd` chain (out of scope, silent); a
+PR whose diff touches no class (validator inert, no comment); a tracked path the repository's own
+`.gitignore` matches (not a class match); a failing stubbed `gh` (validator still exits 0); a
+label already in its target state (no API call); Windows Git Bash path for the store option and
+CRLF ledger rows.
 
-Existing tests to update: `pr-linkage-spawn-budget.test.sh` (new hook ceiling),
-`test_skill_contract.py`, `check-lane-coverage.test.sh` only if a fixture enumerates ci.yml steps.
+Existing tests to update: `pr-linkage-spawn-budget.test.sh` (new hook ceilings),
+`test_skill_contract.py`, `test_guards.py`, `test_babysit_delta.py`.
 
 ### Risks and mitigations
 
 | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|
-| The ledger is written by claude-ops and read by source-control; a consumer with one plugin and not the other sees a silent gate | Med | Low | Ledger absent: one-time notice naming the pairing, then silent; README states the pairing |
-| Full-history checkout slows `ci-status` past its carry-forward budget | Low | Med | Measure on the first run; switch condition recorded (REST commit walk) |
-| The label is removed by hand to force a merge | Low | Low (advisory phase) | Accepted per ADR 0024; the promotion review counts label removals without a later fresh block |
-| Cloud sessions flip ready through a route the hook does not match | Med | Low | The MCP twin covers `update_pull_request`; `gh api` forms match on path suffix and mutation name; the validator catches every flip regardless |
-| The prose-detector step floods annotations on a large docs PR | Med | Low | Cap at 50 annotations per detector with a summary line; advisory only |
-| Removing the callers leaves unused runner-policy entries that the analyzer rejects | High | Low | Phase 6 runs the analyzer first and prunes on its report |
-| Skill prose grows past `check-skill.sh` line caps | Med | Low | `ready.md` is a new reference file; SKILL.md gains one table row |
+| The ledger is written by claude-ops and read by source-control; a consumer with one plugin and not the other sees a silent gate | Med | Low | Ledger absent: one-time notice naming the pairing, then "no rows"; README states the pairing; `data-dir` scope documented unsupported |
+| The validator step lengthens the required job | Low | Med | Sparse depth-1 checkout after the aggregate; measured on the first run; separate-job switch condition recorded |
+| A wrapper failure reds the required check | Low | High | `continue-on-error: true` with a reasoned opt-out entry, `trap` exit 0, and a suite case with a failing `gh` |
+| The block is edited by hand to force a clean verdict | Low | Low (advisory phase) | Accepted per ADR 0024 and stated in ADR 0033; the promotion review samples blocks against ledger rows |
+| Cloud sessions flip ready through a route the hook does not match | Med | Low | The MCP twin covers `update_pull_request`; the validator catches every flip regardless |
+| Every base refresh re-runs `verification:confirm` | High | Low | That is the honest cost of refreshing; non-terminal rows survive a merge; the ready step merges, never rebases |
+| The security class fires on nearly every non-docs PR | High | Med | Same breadth as the retired lane; stated in the map's comment and the ADR; the operator can narrow the patterns file |
+| Removing the callers leaves unused runner-policy entries the analyzer rejects | Med | Low | Phase 6 runs the analyzer first; the file is upstream-managed, so a rejection becomes a work item, not a local edit |
+| Skill prose grows past `check-skill.sh` line caps | Med | Low | `ready-for-review.md` is a new reference file; SKILL.md gains one table row |
 
 ## Blast radius
 
@@ -527,8 +609,46 @@ Stress-test needed: yes, `/planning:devils-advocate` dispatched to a fresh-conte
 
 ## Stress-test summary
 
-Pending: the plan-reviewer and devils-advocate reports are being verified against the files; this
-section is rewritten with the confirmed findings and the fixes applied before presentation.
+Two fresh-context reviews ran on the first draft (a plan reviewer per `context/plan-reviewer.md`
+and `/planning:devils-advocate`). Findings verified against the files and applied:
+
+- **Confirmed critical, fixed**: rows are stamped at skill invocation and prep precedes the commit
+  (`prep.md` §1.2 to §1.5, `create.md` §2.3.2), so the draft's "merge-only ancestry" rule marked
+  every row stale by construction; create §2.2 rebases before the first push and would have
+  invalidated every row too. Replaced by the two-tier rule (terminal skill at HEAD, others on
+  HEAD's history), the `ready` step as the evidence-bearing run, and merge-never-rebase once a PR
+  exists.
+- **Confirmed high, fixed**: a full-history checkout before the pr-contract step would have eaten
+  the 60-second margin the 540-second carry-forward wait leaves (`ci.yml` `ci-status`); a step with
+  no `continue-on-error` in the required job can go red on a fork's read-only token or any bash slip;
+  `actions/checkout` on `pull_request` yields `refs/pull/N/merge`, not the head. Replaced by a
+  sparse depth-1 checkout after the aggregate, `continue-on-error` with an opt-out entry, `trap`
+  exit 0, `--head` from the event payload, and REST `compare` for ancestry.
+- **Confirmed high, fixed**: the label as a babysit merge input contradicted the loop-lane
+  single-hold rule and the admission policy, and the worker gate has no label veto. Replaced by a
+  block read in the deterministic gate that routes to a worker during the window.
+- **Confirmed high, fixed**: claude-ops' `user` and `data-dir` scopes and per-worktree stores
+  diverge from a fixed reader path. The option now mirrors the scope words, `data-dir` is
+  documented unsupported, and `--pushed --worktree` reads under the target worktree.
+- **Confirmed medium, fixed**: two promotion counts had no single home (per-checkout ledgers,
+  cloud containers); they now read from the validator's comment markers over REST through
+  `report --repo`, and the hook records nothing. `git rev-parse --abbrev-ref HEAD HEAD` prints the
+  branch twice (probe); corrected. `--no-index` still applies the repository's own ignore rules
+  (probe); matches are filtered by source. audit-noise dropped from the first lint slice. The
+  security class breadth, the squash-merge measurement key, the forgery wording, and the
+  coverage loss for non-skill PRs are stated in the plan and routed to the ADR. Divergent paths
+  corrected: `babysit-loop/reference/cycle-shape.md`, `scripts/sync-plugin-options-docs.py
+  --check`, the plugin-hook gate scripts, the PR template as the label's documentation home, the
+  smart default in `SKILL.md` Phase 0, `ready-for-review.md` beside `readiness.md`,
+  `runner-policy/policy.json` as upstream-managed.
+- **Raised, kept as briefed, flagged for the operator**: the default-on PreToolUse hook (ADR
+  0003 asks for a measured firing rate; the `ready` step and the validator already cover the flip).
+- **Not applied**: one review suggested excluding `docs/topics/**` from the markdown class; a
+  docs-only PR owing the two prose audits is the intended behaviour, so the plan states it instead.
+
+Confidence after the round: HIGH on every mechanism claim (each verified by a probe or a file
+read this session); MEDIUM on cost (the security class breadth and the terminal re-run after each
+base refresh are stated, not measured; the promotion window measures them).
 
 ## Execution shape
 
@@ -537,13 +657,13 @@ section is rewritten with the confirmed findings and the fixes applied before pr
 | Phase | Files | Overlaps with |
 |---|---|---|
 | 1 | `plugins/claude-ops/**` | none |
-| 2 | `plugins/source-control/scripts/skill-evidence*`, `reference/config-resolution.md`, `plugin.json`, `README.md`, `CHANGELOG.md`, `.claude/source-control.md`, `.github/claude-security-paths` | 3, 4 (plugin.json, README, CHANGELOG) |
-| 3 | `plugins/source-control/skills/pull-request/**` | 2 (version files) |
+| 2 | `plugins/source-control/scripts/skill-evidence*`, `reference/config-resolution.md`, `plugin.json`, `README.md`, `CHANGELOG.md`, `.claude/source-control.md`, `.github/claude-security-paths` | 3, 4 (version files) |
+| 3 | `plugins/source-control/skills/pull-request/**`, `.github/pull_request_template.md` | 2 (version files), 5 (template) |
 | 4 | `plugins/source-control/hooks/pr-ready-evidence*`, `hooks/hooks.json`, `hooks/pr-linkage-spawn-budget.test.sh` | 2 (version files) |
-| 5 | `.github/workflows/ci.yml`, `scripts/pr-skill-evidence-ci*`, `docs/conventions/loop-lane/README.md` | 6 (ci.yml) |
-| 6 | the deletions, `ci.yml` schema list, runner-policy `policy.json`, `REVIEW.md`, cheat sheet, review plugin, `landscape.json`, ADR 0002 pointer | 5 (ci.yml), 8 (ADR 0002) |
+| 5 | `.github/workflows/ci.yml`, `scripts/pr-skill-evidence-ci*`, `scripts/lane-coverage-step-opt-outs.txt`, `.github/pull_request_template.md` | 6 (ci.yml), 3 (template) |
+| 6 | the deletions, `ci.yml` schema list, `REVIEW.md`, cheat sheet, review plugin, `landscape.json`, ADR 0002 pointer | 5 (ci.yml), 8 (ADR 0002) |
 | 7 | `plugins/source-control/skills/babysit-prs/**` | none |
-| 8 | `docs/adr/0033-*.md`, `docs/adr/0002-*.md`, `AGENTS.md`, `docs/CLOUD-FLEET-SETUP.md` | 6 (ADR 0002) |
+| 8 | `docs/adr/0033-*.md`, `docs/adr/0002-*.md`, `AGENTS.md` | 6 (ADR 0002) |
 | 9 | none (verification, PR) | all (reads) |
 
 ### Dependency graph
@@ -552,6 +672,7 @@ section is rewritten with the confirmed findings and the fixes applied before pr
 - 1 → 9 only: Phase 2 develops against fixture rows that already carry `sha`; the live ledger
   needs Phase 1 before the end-to-end check on this branch.
 - 6 → 5 on `ci.yml` (the schema-list edit lands in 6; 5 adds steps to the same file after).
+- 3 → 5 on the PR template (3 writes the block guidance; 5 appends the label sentence).
 - 6 → 8 on the ADR 0002 pointer line (8 fixes the ADR number; 6 writes the pointer after).
 - Integration-first: Phase 2 opens Wave A.
 
@@ -560,10 +681,10 @@ section is rewritten with the confirmed findings and the fixes applied before pr
 Parallel, three waves:
 
 > Wave A (three sub-agent workers, one message): Phase 1, Phase 2, Phase 6.
-> Wave B (after Wave A returns): Phase 3, Phase 4, Phase 5, Phase 7 as sub-agent workers in one
-> message; the version-file overlap between 3 and 4 is resolved by giving the `plugin.json`,
-> `README.md`, and `CHANGELOG.md` edits to Phase 2's worker in Wave A, with 3 and 4 appending
-> CHANGELOG lines only under their own headings.
+> Wave B (after Wave A returns): Phase 3, Phase 4, Phase 7 as sub-agent workers in one message;
+> Phase 5 follows 3 in the same wave once 3 reports (template ordering). The version-file overlap
+> between 3 and 4 is resolved by giving the `plugin.json`, `README.md`, and `CHANGELOG.md` edits to
+> Phase 2's worker in Wave A, with 3 and 4 appending CHANGELOG lines only under their own headings.
 > Wave C (main session): Phase 8, then Phase 9.
 > Cost note: 3 + 4 parallel agents versus sequential; the independent work in Wave A is well
 > above 100 LOC (the script and suite, the sweep), so the saving is material.
@@ -573,12 +694,12 @@ Parallel, three waves:
 | Agent | Phase | ALLOWED files | LOC |
 |---|---|---|---|
 | A1 | 1 | `plugins/claude-ops/hooks/claude-ops-paths.sh`, its test, `hooks/skill-usage-audit.test.sh`, `plugins/claude-ops/README.md`, `CHANGELOG.md`, `.claude-plugin/plugin.json` | ~80 |
-| A2 | 2 | `plugins/source-control/scripts/skill-evidence.sh`, its test, `reference/config-resolution.md`, `.claude-plugin/plugin.json`, `README.md`, `CHANGELOG.md`, `.claude/source-control.md`, `.github/claude-security-paths` | ~450 |
-| A3 | 6 | the Phase 6 inventory (deletions, `ci.yml` schema list only, `policy.json`, `REVIEW.md`, `docs/SKILL-CHEAT-SHEET.md`, `plugins/review/**`, `docs/architecture/landscape.json`) | ~-900 |
-| B1 | 3 | `plugins/source-control/skills/pull-request/**`, `plugins/source-control/CHANGELOG.md` (append only) | ~250 |
+| A2 | 2 | `plugins/source-control/scripts/skill-evidence.sh`, its test, `reference/config-resolution.md`, `.claude-plugin/plugin.json`, `README.md`, `CHANGELOG.md`, `.claude/source-control.md`, `.github/claude-security-paths` | ~500 |
+| A3 | 6 | the Phase 6 inventory (deletions, `ci.yml` schema list only, `REVIEW.md`, `docs/SKILL-CHEAT-SHEET.md`, `plugins/review/**`, `docs/architecture/landscape.json`) | ~-900 |
+| B1 | 3 | `plugins/source-control/skills/pull-request/**`, `.github/pull_request_template.md`, `plugins/source-control/CHANGELOG.md` (append only) | ~280 |
 | B2 | 4 | `plugins/source-control/hooks/pr-ready-evidence-gate.sh`, `pr-ready-evidence-mcp-gate.sh`, both tests, `hooks/hooks.json`, `hooks/pr-linkage-spawn-budget.test.sh`, `plugins/source-control/README.md` (hook table rows), `.claude-plugin/plugin.json` (one option), `CHANGELOG.md` (append only) | ~300 |
-| B3 | 5 | `.github/workflows/ci.yml` (steps only), `scripts/pr-skill-evidence-ci.sh`, its test, `docs/conventions/loop-lane/README.md` | ~250 |
-| B4 | 7 | `plugins/source-control/skills/babysit-prs/**` | ~60 |
+| B3 | 5 | `.github/workflows/ci.yml` (steps only), `scripts/pr-skill-evidence-ci.sh`, its test, `scripts/lane-coverage-step-opt-outs.txt`, `.github/pull_request_template.md` (one sentence) | ~280 |
+| B4 | 7 | `plugins/source-control/skills/babysit-prs/**` | ~150 |
 
 **Each agent FORBIDDEN:** any file outside its ALLOWED list; `docs/topics/**` (main session
 edits status only); other agents' territory; commit and push (the main session commits per phase).
@@ -613,22 +734,24 @@ what you found, what the brief expected, and the exact state of your work
 | 4 | sub-agent worker | two hooks modelled on the sibling PR-body gates |
 | 5 | sub-agent worker | one CI script and two workflow steps; invariant scripts verify the result |
 | 6 | sub-agent worker | inventory-driven sweep with grep-verified completion |
-| 7 | sub-agent worker | small, self-contained, own test suite |
+| 7 | sub-agent worker | self-contained, own test suite |
 | 8 | main session | the ADR is judgment-heavy and cites the session's measurements |
 | 9 | main session | verification, the PR, user interaction |
 
 ## Open questions
 
-None at approval time beyond the flagged close calls in the decisions table.
+None at approval time beyond the flagged decisions in the handoff section.
 
 ## Handoff to implementation
 
 ### User-approval gates
 
-- Phase 7's label-based merge input (flagged `[EXEC-SHAPE]` close call): confirm or flip to an
-  in-process block parser before Wave B dispatches.
-- Phase 5's full-history checkout in `ci-status` (`[EXEC-SHAPE]`): confirm; the switch condition
-  is a measured 30 s.
+- Phase 7 routes instead of holding during the window (`[FALLBACK, confirm or override]`,
+  deviates from the Brief's "hold a merge" criterion in favour of its "advisory before blocking"
+  constraint). Confirm, or flip to a hold.
+- Phase 5's label provisioning goes through github-iac (`[FALLBACK, confirm or override]`); the
+  validator comments only until the label exists.
+- Phase 4 is kept as briefed although both reviews recommend cutting it; confirm, or cut.
 - Any mid-flight change to the mandatory map in `.claude/source-control.md` (it is the contract
   the Brief's first acceptance criterion states).
 
@@ -636,8 +759,10 @@ None at approval time beyond the flagged close calls in the decisions table.
 
 - Three waves as above; sub-agent workers for Phases 1 to 7; main session for 8 and 9.
 - Phase 4 lives in source-control, not guardrails.
-- Phase 2's `skill_evidence_store` option pairs with claude-ops' scope option by documented
+- Phase 2's `skill_evidence_store` option pairs with claude-ops' scope words by documented
   default rather than shared configuration.
+- The security class runs in the `ready` step over the draft PR's diff, at the retired lane's
+  breadth.
 - One PR on this branch, one commit per phase, Phase 6 as the structural commit (Tidy First).
   Flip line: split into three PRs (claude-ops; retirement and ADR; source-control and CI).
 
