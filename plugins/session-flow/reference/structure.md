@@ -9,10 +9,11 @@ costs the next session a re-investigation, which is the cost this document exist
 
 **Shape 2.** A handoff file written by this procedure carries `handoff_shape: 2` in its
 frontmatter. Every deterministic field of a shape-2 file is written by the engine script
-`${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py` (`new` writes the skeleton, `validate` gates it,
-`emit` prints its resume prompt); the model fills only the reasoning slots the skeleton leaves as
-`<!-- FILL: <name> — <instruction> -->`. The write procedure below is the one path that produces a
-shape-2 file. Files written before shape 2 (no `handoff_shape` key) are shape 1: read normally,
+`${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py` (`new` writes the skeleton, `fill` replaces its
+slots from one JSON object, `validate` gates it, `emit` prints its resume prompt); the model
+supplies only the reasoning slots the skeleton leaves as
+`<!-- FILL: <name> — <instruction> -->`, as the values in that object. The write procedure below
+is the one path that produces a shape-2 file. Files written before shape 2 (no `handoff_shape` key) are shape 1: read normally,
 tolerated by the validator with one WARN, and never rewritten.
 
 ## Contents
@@ -465,9 +466,11 @@ drifts silently, and it has before.
 ## Full-path write procedure
 
 Write the file into the handoff location (`save-point.md` "Where save-points live"). The
-procedure is: resolve the memory root, run the existing guards, run `new`, fill the slots, run
-`validate`, then `emit`. Every step that needs no judgment is the script's; the model touches only
-the `<!-- FILL: … -->` slots.
+procedure is: resolve the memory root, run the existing guards, run `new`, write the slots JSON,
+run `fill`, run `validate`, then `emit`. Every step that needs no judgment is the script's; the
+model supplies only the values for the `<!-- FILL: … -->` slots, and `fill` applies all of them in
+one write, so an interrupt mid-batch cannot leave a partly filled skeleton. The Edit tool is the
+repair path after a failed `validate`, not a step of the procedure.
 
 ```bash
 TOPIC=<short-kebab-topic>                  # e.g. plan-rev2, retry-loop, post-merge
@@ -529,7 +532,7 @@ done
 
 # 5. Skeleton. Exactly one of --previous / --no-previous (see "Chain continuity").
 #    `new` reads CLAUDE_CODE_SESSION_ID itself and prints the file's absolute
-#    forward-slash path: reuse THAT string for every later step (Edit, validate,
+#    forward-slash path: reuse THAT string for every later step (fill, validate,
 #    emit, the directive); never recompute the path in bash.
 SAVE_POINT="${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py"
 FILE=$("$PY" -X utf8 "$SAVE_POINT" new --topic "$TOPIC" --memory-dir "$MEMORY_ROOT" --no-previous)
@@ -537,8 +540,19 @@ FILE=$("$PY" -X utf8 "$SAVE_POINT" new --topic "$TOPIC" --memory-dir "$MEMORY_RO
 # FILE=$("$PY" -X utf8 "$SAVE_POINT" new --topic "$TOPIC" --memory-dir "$MEMORY_ROOT" \
 #          --previous "$DIR/<prior>-handoff-<topic>.md")
 
-# 6. Fill every `<!-- FILL: … -->` slot in $FILE with the Edit tool (delete the
-#    optional ones: goal-rearm, below-rail, <section>-new). Touch nothing else.
+# 6. Slot values, then one fill. Read the slot names out of $FILE itself: the set
+#    is branch-dependent (goal, amended, opening-ask and the bare cumulative
+#    slots only on a first hop; the <section>-new slots only on a continuation),
+#    so a remembered template hits fill's unknown-key refusal. Write ONE JSON
+#    object keyed by those names, every value a string; a multi-line value is one
+#    string with escaped newlines ("First headline\nSecond headline"), which the
+#    next slot and the cumulative slots need. Leave an optional slot out
+#    (goal-rearm, below-rail, <section>-new) and fill deletes its line. For a
+#    closing handoff the next value is exactly "Next: none (closed)", which fill
+#    puts on the line above before deleting the slot line.
+SLOTS="${FILE%.md}.slots.json"             # beside the handoff, same stem
+#    Write $SLOTS with the Write tool, then apply every slot in a single write:
+"$PY" -X utf8 "$SAVE_POINT" fill "$FILE" --slots "$SLOTS"
 # 7. Validate; exit 0 gates the rails (save-point.md "Emit the copy/paste resume prompt").
 "$PY" -X utf8 "$SAVE_POINT" validate "$FILE"
 # 8. Print the stored resume prompt; paste its output on screen verbatim.
@@ -552,12 +566,22 @@ predecessor flags). It never overwrites. A refusal for a missing or non-UUID ses
 save-point to the prompt-only path with that reason stated (`save-point.md` "Choosing the path");
 every other refusal names its fix.
 
+`fill` prints nothing and exits 0 once every required slot is keyed and no key names a slot the
+file does not carry. It exits 1 when it refuses: a required slot absent from the JSON, a key
+naming no slot in the file, a slot name occurring twice in the file, a value that itself carries a
+`FILL` slot marker, no slot in the file at all, or a closing `next` value whose line above is not
+exactly `Next:`. It exits 2 on usage, on a missing or unreadable target, and on a slots file that is
+missing, unreadable, not valid JSON, not a JSON object, or holds a non-string value. Every refusal
+names the offending slot or key and leaves the target byte-identical, so a corrected JSON re-runs
+cleanly; nothing is half-applied.
+
 **Python-absent fallback.** When the ladder finds no Python 3.10+, say so in one line
 (`validator unavailable: no python3/python on PATH`), write the shape-2 file by hand from this
 document (frontmatter below, the 17 headings in order, the `## Resume prompt` section in the
 engine doc's full-path form), mark the checklist box `validate: SKIPPED (no interpreter)`, and
 still emit the rails from the file's `## Resume prompt` section. Never a shape-1 file, never a
-silent skip.
+silent skip. This path is unchanged by `fill`: with no interpreter there is no `fill` either, so
+the hand-written file needs no slots JSON.
 
 ### Frontmatter shape 2
 
