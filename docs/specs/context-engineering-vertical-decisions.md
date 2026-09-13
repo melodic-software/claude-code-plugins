@@ -26,9 +26,10 @@ target is the smallest set of high-signal tokens rather than the shortest docume
 recorded in [`context-engineering-corpus-knowledge.md`](context-engineering-corpus-knowledge.md) with their sources.
 
 One caveat the sources do not supply and this repo already knows: its own rules table documents that
-the path trigger does not fire inside subagents and can lapse after a compaction. Progressive
-disclosure is therefore a budget mechanism here, never a guarantee of delivery, and the corpus's
-enthusiasm does not change that.
+a surface arrives only when a read matches a path it covers, and that the trigger has to recur after
+a compaction. The injection does reach subagents, but no deferred surface announces that it exists to
+a context that has never touched a covered path. Progressive disclosure is therefore a budget
+mechanism here, never a guarantee of delivery, and the corpus's enthusiasm does not change that.
 
 **Changes: none to any skill.** The rationale lands in the graduated corpus docs.
 

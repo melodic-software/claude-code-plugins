@@ -3,6 +3,14 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.6]
+
+### Fixed
+
+- **The drift hook and the check skill no longer price a stale index as unreachability.** `hooks/index-drift.sh` told the operator that "an un-indexed rule is unreachable from subagents", and `skills/check/SKILL.md`'s What-it-checks table gave the same consequence for a failed sync check. A first-party probe on Claude Code **2.1.268** shows the injection does fire inside a subagent that reads a covered path, so the index was never what made a rule reachable. Both surfaces now state the consequence that actually holds: an un-indexed rule goes unnamed, and nothing tells any agent that it exists until a read happens to match its glob. The check's verdict, exit codes, and mechanisms are unchanged; only the stated failure meaning moves. `hooks/index-drift.test.sh` still asserts that the notice says why drift matters, now against the wording the notice actually carries.
+
+- **A renderer assertion description no longer names a gap the rendered block stops describing.** `scripts/render-index.test.sh` labelled its `subagents` substring check "the block explains the subagent gap" while the block it guards now explains that the trigger fires in subagents as well as in the main session. The assertion itself is untouched, so the coverage is identical; the description now says what it is checking.
+
 ## [0.13.5]
 
 ### Fixed

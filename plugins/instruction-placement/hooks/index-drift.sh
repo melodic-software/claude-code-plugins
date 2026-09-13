@@ -88,7 +88,7 @@ verdict="$("$renderer" check --file "$target" --root "$repo_root" 2>/dev/null ||
 # nagged.
 if [[ "$verdict" == DRIFTED* ]]; then
   hook::emit_system_message \
-    "instruction-placement: ${file_path##*/} changed and the generated rules index in ${target##*/} is now stale. Regenerate it (render-index.sh write --file ${target##*/}) — an un-indexed rule is unreachable from subagents." \
+    "instruction-placement: ${file_path##*/} changed and the generated rules index in ${target##*/} is now stale. Regenerate it (render-index.sh write --file ${target##*/}); an un-indexed rule goes unnamed, so nothing tells an agent it exists until a read happens to match its glob." \
     2>/dev/null || true
 fi
 

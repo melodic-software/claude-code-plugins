@@ -1,6 +1,10 @@
 # Changelog: discovery plugin
 
-## [0.19.12]
+## [0.19.13]
+
+### Fixed
+
+- **`explorer`'s Step 0 no longer says path-scoped rules cannot reach a dispatched run.** The step opened with "A subagent does **not** auto-load path-scoped project rules", and a first-party probe on Claude Code **2.1.268** shows a non-fork subagent does receive a path-scoped `.claude/rules/` file, or a nested `CLAUDE.md` and the `AGENTS.md` its shim imports, when it reads a path that surface covers, with the glob matched against the requested path so even a read that finds no file fires it. What holds is the narrower claim: nothing is inherited, and no deferred surface announces that it exists. The step now says that, which keeps the same instruction (Read the scope-relevant rule files first) resting on a reason that is true, and it carries the four-part verification record the upstream-drift convention requires for a restated harness specific. No dimension, payload field, write boundary, or tool grant changed.
 
 ### Changed
 
