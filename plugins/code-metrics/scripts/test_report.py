@@ -866,6 +866,255 @@ class RenderTests(unittest.TestCase):
         self.assertIn("never a bar", result.stdout)
         self.assertIn("Over reference: file_lines 1.", result.stdout)
 
+    def test_capped_coverage_table_leads_with_the_highest_crap_function(self) -> None:
+        """Under the 200-row cap the first function row is the highest CRAP in scope,
+        function rows with a null CRAP follow, and file rows come after them, least
+        covered first with a null percentage last, whatever the file names sort to."""
+
+        def function_row(file: str, name: str, crap, cov, line: int = 1) -> dict:
+            return {
+                "file": file,
+                "function": name,
+                "lane": "python",
+                "start_line": line,
+                "values": {"coverage_pct": cov, "cyclomatic": 3, "crap": crap},
+                "over_reference": [],
+            }
+
+        def file_row(file: str, cov) -> dict:
+            return {
+                "file": file,
+                "function": None,
+                "lane": "python",
+                "start_line": None,
+                "values": {"coverage_pct": cov, "lines_executable": 10, "lines_hit": 5},
+                "over_reference": [],
+            }
+
+        # 250 alphabetically-early filler functions would fill the cap on their own.
+        filler = [
+            function_row(f"a/{i:03d}.py", f"f{i}", crap=3.0 + (i % 7), cov=50.0)
+            for i in range(250)
+        ]
+        top = function_row("zzz/join.py", "join", crap=3192.0, cov=0.0)
+        null_crap = function_row("zzz/join.py", "empty", crap=None, cov=None, line=90)
+        files = [
+            file_row("zzz/a.py", 100.0),
+            file_row("zzz/b.py", None),
+            file_row("zzz/c.py", 12.5),
+        ]
+        measures = filler + files + [null_crap, top]
+        doc = {
+            "schema": "code-metrics/v1",
+            "skill": "audit-coverage",
+            "status": "complete",
+            "scope": {"mode": "paths", "base": None, "files": 253, "excluded": 0},
+            "run": [
+                {
+                    "lane": "python",
+                    "measure": "coverage",
+                    "collector": "coverage-json",
+                    "status": "ok",
+                    "reason": None,
+                }
+            ],
+            "thresholds": [],
+            "measures": measures,
+            "summary": {"files": 253, "functions": 252, "over_reference": {}},
+            "excluded": [],
+            "unavailable": [],
+        }
+        result = run("render", stdin=json.dumps(doc))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        table = [
+            line
+            for line in result.stdout.splitlines()
+            if line.startswith("| ") and not line.startswith("| File |")
+        ]
+        measure_rows = [
+            line
+            for line in table
+            if line.startswith("| zzz/") or line.startswith("| a/")
+        ]
+        self.assertEqual(len(measure_rows), 200)
+        self.assertTrue(
+            measure_rows[0].startswith(
+                "| zzz/join.py | join | python |  | 0 | 3 | 3192 |"
+            ),
+            measure_rows[0],
+        )
+        self.assertIn(
+            "| 55 more rows; re-run with --json for the full document |", result.stdout
+        )
+        # The filler outranks nothing above it: its rows follow the top function by
+        # CRAP descending, so the second row is the highest filler CRAP (3 + 6).
+        self.assertIn("| 9 |", measure_rows[1])
+        self.assertNotIn("| zzz/join.py | empty |", result.stdout)
+        self.assertNotIn("| zzz/c.py |", result.stdout)
+
+        # With the cap lifted, the null-CRAP function precedes every file row and the
+        # file rows read least covered first with the null percentage last.
+        doc["measures"] = files + [null_crap, top]
+        result = run("render", stdin=json.dumps(doc))
+        rows = [
+            line for line in result.stdout.splitlines() if line.startswith("| zzz/")
+        ]
+        self.assertEqual(
+            [row.split(" | ")[0] + " | " + row.split(" | ")[1] for row in rows],
+            [
+                "| zzz/join.py | join",
+                "| zzz/join.py | empty",
+                "| zzz/c.py | ",
+                "| zzz/a.py | ",
+                "| zzz/b.py | ",
+            ],
+        )
+
+    def test_a_collect_failed_row_puts_an_exit_3_line_in_the_summary(self) -> None:
+        # The dispatcher writes `collect failed (exit 3)` on the run row of a
+        # collector that ran and produced nothing parseable, and the entry script
+        # exits 3 on it; the summary names that row so the exit has a visible
+        # cause. A coverage document carries the reason forward on its crap row
+        # with no collector column, so the label comes from the reason instead.
+        base = {
+            "schema": "code-metrics/v1",
+            "scope": {"mode": "paths", "base": None, "files": 2, "excluded": 0},
+            "thresholds": [],
+            "measures": [],
+            "summary": {"files": 0, "functions": 0, "over_reference": {}},
+            "excluded": [],
+        }
+        complexity = dict(
+            base,
+            skill="audit-complexity",
+            status="empty",
+            run=[
+                {
+                    "lane": "typescript",
+                    "measure": "cyclomatic",
+                    "collector": "eslint-complexity 10.1.0",
+                    "status": "unavailable",
+                    "reason": "collect failed (exit 3): eslint-complexity.py: no "
+                    "parseable eslint output",
+                }
+            ],
+            unavailable=["typescript/cyclomatic"],
+        )
+        result = run("render", stdin=json.dumps(complexity))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "Exit 3: a collector ran and produced nothing parseable: "
+            "typescript/cyclomatic (eslint-complexity 10.1.0).",
+            result.stdout,
+        )
+        coverage = dict(
+            base,
+            skill="audit-coverage",
+            status="partial",
+            run=[
+                {
+                    "lane": "typescript",
+                    "measure": "coverage",
+                    "collector": "lcov",
+                    "status": "partial",
+                    "reason": "partial, 1 of 2 scope files present in the artifacts",
+                },
+                {
+                    "lane": "typescript",
+                    "measure": "crap",
+                    "collector": None,
+                    "status": "unavailable",
+                    "reason": "cyclomatic collector eslint-complexity 10.1.0 "
+                    "unavailable: collect failed (exit 3): eslint-complexity.py: "
+                    "no parseable eslint output",
+                },
+            ],
+            unavailable=["typescript/crap"],
+        )
+        result = run("render", stdin=json.dumps(coverage))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "Exit 3: a collector ran and produced nothing parseable: "
+            "typescript/crap (cyclomatic collector eslint-complexity 10.1.0 "
+            "unavailable).",
+            result.stdout,
+        )
+        clean = dict(base, skill="audit-size", status="empty", run=[], unavailable=[])
+        result = run("render", stdin=json.dumps(clean))
+        self.assertNotIn("Exit 3", result.stdout)
+
+    def test_a_no_artifact_run_ends_with_the_first_artifact_pointer(self) -> None:
+        # The coverage join writes `no coverage artifact found` on every run row
+        # when nothing was named and nothing was discovered. The markdown's last
+        # line then points at the per-lane table that says how to produce one,
+        # because the skill will not run a test or install a tool on its own.
+        # The JSON document is untouched, and a run that read an artifact, even
+        # a partial one, carries no such line.
+        base = {
+            "schema": "code-metrics/v1",
+            "skill": "audit-coverage",
+            "scope": {"mode": "all", "base": None, "files": 3, "excluded": 0},
+            "thresholds": [],
+            "measures": [],
+            "summary": {"files": 0, "functions": 0, "over_reference": {}},
+            "excluded": [],
+        }
+        searched = (
+            "no coverage artifact found; searched: coverage/lcov.info, lcov.info, "
+            "coverage.xml, cobertura.xml, coverage.json, coverage.out, cover.out"
+        )
+        missing = dict(
+            base,
+            status="empty",
+            run=[
+                {
+                    "lane": "python",
+                    "measure": "coverage",
+                    "collector": None,
+                    "status": "unavailable",
+                    "reason": searched,
+                },
+                {
+                    "lane": "python",
+                    "measure": "crap",
+                    "collector": None,
+                    "status": "unavailable",
+                    "reason": searched,
+                },
+            ],
+            unavailable=["python/coverage", "python/crap"],
+        )
+        result = run("render", stdin=json.dumps(missing))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        last = result.stdout.rstrip("\n").splitlines()[-1]
+        self.assertIn("No coverage artifact was found", last)
+        self.assertIn('"Getting a first artifact" table', last)
+        self.assertIn("this skill runs none of them", last)
+        partial = dict(
+            base,
+            status="partial",
+            run=[
+                {
+                    "lane": "python",
+                    "measure": "coverage",
+                    "collector": "coverage.py",
+                    "status": "partial",
+                    "reason": "partial, 1 of 3 scope files present in the artifacts",
+                },
+                {
+                    "lane": "python",
+                    "measure": "crap",
+                    "collector": "coverage.py",
+                    "status": "partial",
+                    "reason": "partial, 1 of 3 scope files present in the artifacts",
+                },
+            ],
+            unavailable=["python/coverage", "python/crap"],
+        )
+        result = run("render", stdin=json.dumps(partial))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("Getting a first artifact", result.stdout)
+
 
 CLONE_ROW = {
     "file": None,

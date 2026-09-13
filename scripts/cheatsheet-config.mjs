@@ -55,6 +55,10 @@ export const EXCLUDED_SKILLS = new Map([
   // and routes bundled providers to `work-items/setup`; it just is not named
   // `setup`, so the rule above does not reach it.
   ["work-items/onboard-adapter", "infra setup"],
+  // Same class again: it emits a gate and its suite into the consuming
+  // repository once, which is provisioning. The dev-lifecycle actions in this
+  // plugin's file-name set are `audit-file-names` and `realign-file-names`.
+  ["docs-hygiene/generate-file-name-gate", "infra setup"],
   ["dometrain/sync", "maintainer-only vendored-content drift check"],
   ["firecrawl/update", "maintainer-only upstream sync"],
   ["playbooks/update", "maintainer-only upstream sync"],

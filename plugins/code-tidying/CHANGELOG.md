@@ -3,6 +3,13 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.3]
+
+### Changed
+
+- The `allowed-tools` pairing gate's fail message no longer gives "never substituted there, inert grant" as its reason. `${CLAUDE_PLUGIN_ROOT}` does substitute in a plugin skill's `allowed-tools`. The gate is unchanged and still requires the skill-local path, on the rationale its header already carried: the docs establish substitution, not runtime matching on every host.
+- The comment-residue parity check's rationale comment states the same corrected reason.
+
 ## [0.19.2]
 
 ### Changed

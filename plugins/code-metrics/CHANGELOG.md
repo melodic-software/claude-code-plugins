@@ -3,6 +3,52 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.2]
+
+### Fixed
+
+- **`audit-coverage` names a failed cyclomatic collector on the crap row whatever the coverage
+  row says, and the summary names the exit-3 cause.** The branch that reported a collector which
+  did not resolve, or ran and produced nothing parseable, sat behind the coverage-status check,
+  so any lane whose coverage was `partial` (the normal case, since test files and excluded
+  sources rarely all appear in one artifact) reported the partial count on its `<lane>/crap` row
+  instead, and the run exited 3 with an empty stderr, `Functions: 0`, and no visible reason. The
+  crap row now reads `cyclomatic collector <name> <status>: <reason>` ahead of the coverage
+  status, and the shared renderer adds an `Exit 3:` summary line naming every run row whose
+  reason carries the dispatcher's `collect failed (exit 3)` prefix, in this skill and in
+  `audit-complexity`.
+- **The markdown table keeps the highest-CRAP functions under its 200-row cap.** The shared
+  renderer sorted every row by file and line after the over-reference count, and the coverage
+  skill's default reference is null, so a tree with more than 200 rows rendered its
+  alphabetically-first files and dropped the rest, including the most complex untested
+  functions, which is the one thing the CRAP column is for. Rows over a reference still come
+  first; after them function rows sort by CRAP descending with a null CRAP last, file rows by
+  coverage ascending with a null percentage last, and file and line only break ties. Rows without
+  those values, every other skill's table, are ordered as before, by their primary value.
+- **A run that finds no coverage artifact says how to get one.** The report listed the paths it
+  searched and stopped, which told the reader what was missing and nothing about how to produce it,
+  and the skill will not run a test or install a tool on its own. The skill body and the README now
+  carry a "Getting a first artifact" table, one row per lane naming the producer, the command
+  shape, the file it writes, with whether that file lands on an auto-discovered name, and the
+  producer's documentation page the row was verified against, dated, under a stated recheck
+  trigger; the markdown rendering of a no-artifact run ends with a line pointing at that table. The JSON
+  document is unchanged and the script still runs nothing.
+- **A partial coverage row says which scope files the artifacts left out.** The row reported
+  `partial, N of M scope files present in the artifacts` and nothing else, so a reader could not
+  tell whether the M minus N were test files no artifact records or source files the suites never
+  reach. The coverage run row now carries an additive `missing` key in the JSON, every absent
+  scope file root-relative and sorted, and its reason names the first five with a `+N more in the
+  JSON` count; a row that found no artifact at all still names the paths searched instead.
+- **The plugin's own suites can measure `join.py`.** `test_join.py` drives `join.py` in a child
+  interpreter, which coverage.py leaves unmeasured unless told otherwise, so a coverage run over
+  the plugin recorded the module at 17 percent by line and every function in it at 0 percent, and
+  the coverage skill fed those numbers back as the highest-CRAP function in the tree while the
+  suite demonstrably exercised it. A `.coveragerc` in the plugin directory now turns on
+  coverage.py's `subprocess` patch (7.10 or later) and sets `source = .`, a test pins the setting
+  so it cannot be dropped silently, and the README states the invocation; under it `join.py`
+  reads above 90 percent by line and `join` itself above 95. What the coverage skill reads and
+  reports is unchanged.
+
 ## [0.3.1]
 
 ### Added

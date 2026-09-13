@@ -3,6 +3,26 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.44.0]
+
+### Fixed
+
+- `audit-permission-grants` P4 no longer flags `${CLAUDE_PLUGIN_ROOT}` or `${CLAUDE_PLUGIN_DATA}` inside a plugin skill's `allowed-tools`. Claude Code substitutes both there, so the check was reporting working grants as inert and emitted 17 error-tier false positives in this marketplace. The substitution has a version floor of v2.1.0.
+- The P4 remedy is now context-sensitive for the plugin-scoped tokens. It previously offered `${CLAUDE_SKILL_DIR}` for every non-plugin-skill scope, which is not substituted in a settings allow rule, an agent, or a command, so the advice swapped one inert rule for another. Settings and other scopes now get the bare-PATH remedy.
+- The P4 recommendation no longer tells a plugin skill to rewrite a plugin-root grant to `${CLAUDE_SKILL_DIR}`. That token cannot name a script shared between a plugin's skills, so following it broke working grants.
+
+### Changed
+
+- P4 is split into two token classes. `%USERPROFILE%` and `$env:USERPROFILE` stay flagged in every scope; the plugin-scoped pair is flagged everywhere except a plugin skill's `allowed-tools`. Plugin-skill context resolves from a `.claude-plugin/plugin.json` at the plugin root, falling back to the marketplace-monorepo layout.
+- The severity guide now lists P4, which is error-tier and was previously absent from the table.
+- The P1 criteria name `Monitor` as the sixth documented auto-mode drop class (upstream v2.1.236) and state that this detector does not scan it, so a clean P1 result is not evidence about a repo's Monitor grants.
+
+## [0.43.2]
+
+### Changed
+
+- **`audit-instructions`: Phase B states the lane report write rule and the unattended dispatch gate.** A lane that persists its report writes it with the Write tool, or to a literal absolute path under the host temp tree only when `CLAUDE_PROJECT_DIR` names a project root outside a temp tree, never through a variable-carried shell redirect or inline Python, because the guardrails `block-hook-bypass` guard blocks the forms it cannot resolve; the paragraph carries a dated verification record against the guard source. When the caller has declared the run unattended in the invocation text, the ~20-dispatch confirmation becomes a Phase D cost-line disclosure of planned and actual dispatch counts; the declaration comes from the caller and is never inferred by the run. The Phase D cost-line definition now lists the dispatch count and whether the confirmation was asked or disclosed, so the Phase B reference has a place in the report that satisfies it.
+
 ## [0.43.1]
 
 ### Fixed

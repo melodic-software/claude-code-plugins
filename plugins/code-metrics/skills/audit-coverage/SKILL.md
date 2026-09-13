@@ -56,6 +56,32 @@ document when the numbers feed a comparison: pass it to `/verification:measure m
 `verification` plugin is installed, treating `status: empty` on either side as INCONCLUSIVE;
 otherwise keep the JSON beside your notes and compare by hand.
 
+## Getting a first artifact
+
+A run that finds no artifact reports every lane `unavailable`, lists the paths it searched, and
+ends its markdown with a line pointing here, because the remedy is the project's to apply: this
+skill runs no test and installs nothing. One command per lane produces an artifact the next run
+can read. Each row restates a producer's documented default, verified against the page in its
+Basis column on 2026-09-12; the producer's page wins over the row. Recheck trigger: a release note
+or changelog entry of that producer naming the flag or the output path in its row, or a read-time
+fetch of the Basis page that no longer states what the row does; either re-derives the row from the
+page and refreshes the date.
+
+| Lane | Producer | Command shape | Writes | Basis |
+|---|---|---|---|---|
+| TypeScript/JavaScript | vitest | `npx vitest run --coverage --coverage.reporter=lcov` | lcov `.info` at `coverage/lcov.info`, auto-discovered | [Vitest coverage guide](https://vitest.dev/guide/coverage.html), `coverage.reporter` |
+| TypeScript/JavaScript | jest | `npx jest --coverage` | lcov `.info` at `coverage/lcov.info`, auto-discovered; the default `coverageReporters` list carries `lcov` | [Jest CLI](https://jestjs.io/docs/cli), `--coverage`; [Jest configuration](https://jestjs.io/docs/configuration), `coverageReporters` default `["clover", "json", "lcov", "text"]` |
+| TypeScript/JavaScript | c8 or nyc, over any test runner | `npx c8 --reporter=lcov <test command>` | lcov `.info` at `coverage/lcov.info`, auto-discovered | [c8 README](https://github.com/bcoe/c8#readme), `--reporter`, which takes any [Istanbul reporter](https://istanbul.js.org/docs/advanced/alternative-reporters/), `lcov` among them |
+| Python | coverage.py | `python -m coverage run -m pytest && python -m coverage json` | coverage.py JSON at `coverage.json`, auto-discovered; `coverage xml` writes `coverage.xml`, also auto-discovered; `coverage lcov` writes `coverage.lcov`, which needs `--artifacts` | coverage.py command pages [`run`](https://coverage.readthedocs.io/en/latest/commands/cmd_run.html), [`json`](https://coverage.readthedocs.io/en/latest/commands/cmd_json.html), [`xml`](https://coverage.readthedocs.io/en/latest/commands/cmd_xml.html), [`lcov`](https://coverage.readthedocs.io/en/latest/commands/cmd_lcov.html) |
+| Python | pytest-cov | `pytest --cov=<package> --cov-report=json` | coverage.py JSON at `coverage.json`, coverage.py's default name for the `json` report, auto-discovered; `--cov-report=json:<path>` moves it | [pytest-cov reporting](https://pytest-cov.readthedocs.io/en/latest/reporting.html), `--cov-report`; the default file name is coverage.py's, per its [`json`](https://coverage.readthedocs.io/en/latest/commands/cmd_json.html) page |
+| Bash | kcov | `kcov <outdir> bash <test script>` | Cobertura-compatible XML under `<outdir>`; pass the `cobertura.xml` it writes with `--artifacts` | [kcov README](https://github.com/SimonKagstrom/kcov#readme), "Kcov will also write cobertura-compatible XML output" |
+| Go | `go test` | `go test ./... -coverprofile=coverage.out` | Go cover profile at the path `-coverprofile` names; `coverage.out` and `cover.out` are auto-discovered; file rows carry the statement ratio, function rows need a line artifact too | [`go` command, testing flags](https://pkg.go.dev/cmd/go#hdr-Testing_flags), `-coverprofile` |
+| C# | coverlet, as the `dotnet test` collector | `dotnet test --collect:"XPlat Code Coverage"` | Cobertura XML at `TestResults/<run id>/coverage.cobertura.xml`; pass it with `--artifacts`. The C# complexity lane is deferred, so the lane reports file rows and no CRAP | [coverlet VSTest integration](https://github.com/coverlet-coverage/coverlet/blob/master/Documentation/VSTestIntegration.md), `--collect:"XPlat Code Coverage"` |
+
+Auto-discovered means the output lands on one of the well-known names the run looks for with no
+`--artifacts`; anything else is named explicitly or listed under `coverage.artifacts` in the
+configuration.
+
 ## Reading the numbers
 
 - A file row is the artifact's own line table: `coverage_pct`, `lines_executable`, `lines_hit`.
@@ -64,6 +90,12 @@ otherwise keep the JSON beside your notes and compare by hand.
   are null.
 - A function row exists for every function whose complexity collector reported a real end line.
   It carries `coverage_pct`, `cyclomatic`, `crap`, and, in the JSON, `cov_source` and `hit`.
+- The markdown table is ordered so the rows worth reading survive its 200-row cap: rows over a
+  reference first, then function rows by CRAP descending with a null CRAP last, then file rows by
+  coverage ascending with a null percentage last, and file and line only as the tie-break. The
+  first function row is the highest-CRAP function in scope, however its file name sorts; the rows
+  the cap drops are counted on the table's last row and are all in the `--json` document, which is not
+  capped.
 - `cov_source` says where the coverage came from: `artifact-region` when the artifact carried the
   function's own region (coverage.py `functions`, a Cobertura `<method>`, an lcov 2.2 `FNL` end
   line), `line-range` when the range came from the complexity collector, in which case nested
@@ -95,19 +127,31 @@ otherwise keep the JSON beside your notes and compare by hand.
 - A lane whose resolved complexity collector reports no function end lines gets a `<lane>/crap`
   row with `status: not-applicable` and that reason. Bash is that lane in this version: no
   maintained Bash collector reports an end line, so Bash CRAP is a stated gap, not a null.
+- A lane whose cyclomatic collector did not resolve, or ran and produced nothing parseable, gets a
+  `<lane>/crap` row with `status: unavailable` naming that collector and its reason, whatever the
+  lane's coverage row says. CRAP needs both numbers, and the missing one is the cause worth
+  reading; when the coverage row is not `ok` either, its reason follows the collector's on the
+  same row, so a partial count or a no-artifact search never hides a collector failure and the
+  collector never hides them. `Functions: 0` in the summary reads with that row.
 - A lane matched by fewer than all of its scope files carries `status: partial` and the reason
   `partial, N of M scope files present in the artifacts`, so a total miss never reads as "no
   executable lines" and the document cannot settle as `complete` while a row says `N of M`. A lane
   no artifact covers is `unavailable` with that count; when no artifact was found at all, the
   reason lists every path searched. A lane that left a function unjoined is `partial` for that
   reason too.
+- A row carrying that `N of M` count also says which files: its reason names the first five scope
+  files no artifact mentions (`; missing: a, b, c, d, e, +N more in the JSON`) and the JSON row's
+  `missing` key lists all of them, root-relative and sorted. The count alone cannot tell a test
+  file an artifact never records from a source file the suites never reach; the paths can.
 - Whether the covered code is actually checked by its tests is a different question, and coverage
   alone cannot answer it: a line can execute under a test that asserts nothing.
   `/mutation-testing:audit` owns that question when the `mutation-testing` plugin is installed;
   without it, say that the coverage number is an execution count and stop there.
 - Exit 0 whenever a report was produced, including an empty one; exit 2 for a usage error, which
   includes a named artifact or scope path that does not exist; exit 3 when a complexity collector
-  ran and produced nothing parseable, with its stderr in the run table.
+  ran and produced nothing parseable. On exit 3 the collector's stderr is on the `<lane>/crap`
+  row, and the summary carries an `Exit 3:` line naming the lane and collector, so the markdown
+  alone says why the run has no function rows.
 
 ## Configuration
 
