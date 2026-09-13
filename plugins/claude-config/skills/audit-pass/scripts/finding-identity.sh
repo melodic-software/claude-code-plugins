@@ -82,7 +82,8 @@ set -uo pipefail
 PROG="finding-identity.sh"
 EXIT_INVALID_RECORD=4
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-APPENDER="$SCRIPT_DIR/run-state.sh"
+# The sibling, unless a test redirects it. Env-only: see `guarded-append`.
+APPENDER="${AUDIT_PASS_APPENDER:-$SCRIPT_DIR/run-state.sh}"
 
 US=$'\x1f'
 
@@ -530,14 +531,13 @@ cmd_guarded_append() {
       forward+=("$arg" "$2")
       shift 2
       ;;
-    --appender)
-      # The sibling by default. Overridable only so a test can prove the guard
-      # refuses BEFORE the appender is reached, which needs an appender that
-      # reports being reached.
-      [[ $# -ge 2 ]] || die "--appender needs a value"
-      APPENDER="$2"
-      shift 2
-      ;;
+    # There is deliberately no `--appender` flag. The appender is a path this
+    # script hands to `bash`, and the arguments to this subcommand are composed
+    # by a model from lane output, so it does not belong on the public argument
+    # surface even though the guard runs first and an override cannot smuggle an
+    # invalid record past it. The one caller that needs to redirect the write is
+    # the test proving the guard refuses BEFORE the appender is reached, and it
+    # sets AUDIT_PASS_APPENDER in its own environment instead.
     *) die "unknown argument: $arg" ;;
     esac
   done

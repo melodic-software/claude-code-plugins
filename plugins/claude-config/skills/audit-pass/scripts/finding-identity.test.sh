@@ -287,8 +287,16 @@ else
   # --- The anchor grammar, in full --------------------------------------------
   # A prefix test on `e:` accepts any non-empty string starting with it, so
   # `e:garbage` reaches an id derived from a string no anchor version produces.
+  # The id is DERIVED for each anchor rather than hardcoded. A fixed placeholder
+  # id disagrees with its own constituents, so the consistency check refuses the
+  # record before the anchor is ever examined: every assertion below would then
+  # pass with the grammar bug present, testing the wrong refusal. Deriving it
+  # leaves the anchor as the only thing that can refuse these records.
   mk_anchor_record() {
-    printf '{"record":"finding","identity":{"check":"p/s/c","claim":"claim.one","pairwise":false,"sites":[{"surface":"a.md","anchor":"%s"}]},"finding_id/v1":"0000000000000000"}' "$1"
+    local anchor="$1" id
+    id="$(run finding-id --check 'p/s/c' --claim 'claim.one' --site "a.md=$anchor")"
+    printf '{"record":"finding","identity":{"check":"p/s/c","claim":"claim.one","pairwise":false,"sites":[{"surface":"a.md","anchor":"%s"}]},"finding_id/v1":"%s"}' \
+      "$anchor" "$id"
   }
   for BAD_ANCHOR in 'e:garbage' 'e:' 'e:aaaaaaaaaaaa' 'e:aaaaaaaaaaaa:bbbbbbb' \
     'e:aaaaaaaaaaaa:bbbbbbbbb' 'e:AAAAAAAAAAAA:bbbbbbbb' 'e:zzzzzzzzzzzz:bbbbbbbb' \
@@ -346,8 +354,8 @@ else
 
   GA_BAD='{"record":"finding","identity":null,"lane":"skills"}'
   rc=0
-  OUT=$(run guarded-append --run-dir "$GA_RUN" --record "$GA_BAD" --epoch 2 \
-    --appender "$STUB" 2>&1) || rc=$?
+  OUT=$(AUDIT_PASS_APPENDER="$STUB" run guarded-append --run-dir "$GA_RUN" \
+    --record "$GA_BAD" --epoch 2 2>&1) || rc=$?
   assert_exit "guarded-append refuses an invalid record with the record verdict" 4 "$rc"
   assert_contains "and names what was wrong" "$OUT" "identity was absent or null"
   assert_eq "and the appender was never reached" "0" \

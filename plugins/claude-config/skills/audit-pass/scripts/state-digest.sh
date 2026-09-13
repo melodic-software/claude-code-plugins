@@ -314,7 +314,12 @@ cmd_dirty() {
   # instead of failing. A bare repo and an unreadable index both take that path.
   local raw err rc=0
   raw=$(mktemp) || die "could not create a temporary file"
-  err=$(mktemp) || die "could not create a temporary file"
+  # `$raw` already exists, so a failure here has to clean it up: a `die` that
+  # leaves its own temp file behind turns one failure into litter in TMPDIR.
+  err=$(mktemp) || {
+    rm -f "$raw"
+    die "could not create a temporary file"
+  }
   git -C "$target" status --porcelain -z --untracked-files=all >"$raw" 2>"$err" || rc=$?
   if [[ "$rc" -ne 0 ]]; then
     local detail

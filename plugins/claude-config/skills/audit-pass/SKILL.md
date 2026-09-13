@@ -311,8 +311,11 @@ not.
 **That instruction to the operator is only true if the terminating record is actually written.**
 `--resume` reads the partial, not the report, so a report telling the operator to come back with
 `--resume` against a partial nothing wrote is a false instruction in the one artifact they act on. So
-the `open` terminator goes through `partial append` at the moment Phase 4 records the handoff, never
-deferred to Phase 6 assembly, which is exactly where a run that does not reach Phase 6 loses it.
+the `open` terminator is written at the moment Phase 4 records the handoff, never deferred to Phase 6
+assembly, which is exactly where a run that does not reach Phase 6 loses it. It goes through
+`guarded-append` like every other record: the guard short-circuits on anything that is not a
+`finding`, so guarding a terminator costs nothing, and **one write command for the whole skill** is
+what keeps Phase 3's rule from reading as advice a coordinator may opt out of.
 
 ## Phase 5: Apply, only under `--fix`
 
