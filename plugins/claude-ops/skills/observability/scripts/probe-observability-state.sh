@@ -20,15 +20,19 @@
 #   probe-observability-state.sh --otel-store
 #   probe-observability-state.sh --pipeline [--root <rel-dir>] [--enabled <v>]
 #       [--categories <v>] [--keep-sessions <n>] [--keep-days <n>]
-#       [--pre-prune-command <v>]
+#       [--pre-prune-command <v>] [--observed]
 #
 # --root is the hook log root, project-relative: the plugin's
 # session_event_log_dir option. Absent, empty, or still an unexpanded
-# `${user_config...}` placeholder → `.observability/claude`. The skill passes the
-# rendered option through this flag because a skill subprocess inherits no
-# CLAUDE_PLUGIN_OPTION_* (the hooks read theirs from the session environment).
-# The same holds for every --pipeline value: an unexpanded placeholder reads as
-# the option's manifest default.
+# `${user_config...}` placeholder → `.observability/claude`. The same holds for
+# every --pipeline value: an unexpanded placeholder reads as the option's
+# manifest default. The skill's pre-compute lines pass no option at all (a
+# `${user_config.*}` value belongs in no shell-executing content: the shell
+# would re-parse whatever it holds) and run --pipeline with --observed, which
+# prints no option tier; the skill body re-runs the probe with the options it
+# rendered as plain content, the one call that prints the option tier, and a
+# skill subprocess inherits no CLAUDE_PLUGIN_OPTION_* to read instead (the
+# hooks read theirs from the session environment).
 #
 # --hook-events output (stdout, exactly one line) over the root's
 # sessions/*.jsonl files plus its hook-events.jsonl:
@@ -49,7 +53,14 @@
 #   sessions: <S> file(s), newest <id> | none
 #   shared: <L> event(s) in hook-events.jsonl | absent
 #   prune-pending: none | <D> dir(s), <O> older than 24 h[ WARN: an archiver is not finishing]
-#   logging: on|off; categories: all|<v>; keep: <n> sessions or <n> days; pre-prune: none|set
+#   envelope: <E> row(s) from the audit hooks, outside the switch | none;
+#        event log: on|off; categories: all|<v>; keep: <n> sessions or <n> days;
+#        pre-prune: none|set
+# With --observed the sixth line stops at the observed count and names the
+# call that renders the option tier; any option flag passed alongside is
+# ignored:
+#   envelope: <E> row(s) from the audit hooks, outside the switch | none;
+#        options: rendered by the section 2.6 re-run, not here
 #
 # Store resolution:
 #   --hook-events  <git toplevel, or the working directory when not inside a
@@ -83,6 +94,7 @@ usage() { awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "${BASH_SOU
 unset_value() { [[ -z "$1" || "$1" == '${user_config.'* ]]; }
 
 MODE=""
+OBSERVED=0
 ROOT_ARG=""
 ENABLED_ARG=""
 CATEGORIES_ARG=""
@@ -97,6 +109,10 @@ while (($#)); do
       exit 3
     fi
     MODE="$1"
+    shift
+    ;;
+  --observed)
+    OBSERVED=1
     shift
     ;;
   --root | --enabled | --categories | --keep-sessions | --keep-days | --pre-prune-command)
@@ -263,6 +279,33 @@ case "$MODE" in
     printf 'prune-pending: %s dir(s), %s older than 24 h\n' "$pending_total" "$pending_old"
   fi
 
+  # Two tiers share the root. The telemetry sink writes envelope rows for the
+  # audit hooks whenever it is wired, so they exist while the event-log switch
+  # is off; naming them apart keeps "off" beside a populated sessions/ from
+  # reading as a contradiction. The count is observed, never a toggle.
+  # Per-session files mix the sink's envelope rows (`source: "envelope"`) with
+  # the event log's, so those are matched by marker; every line of the shared
+  # hook-events.jsonl is a sink envelope in the legacy shape (an audit hook whose
+  # payload carried no session id), so that file counts whole.
+  envelope="none"
+  envelope_rows=0
+  if ((ROOT_VALID)) && [[ -d "$ABS_ROOT/sessions" ]]; then
+    envelope_rows="$(cat "$ABS_ROOT"/sessions/*.jsonl 2>/dev/null | grep -c '"source":"envelope"')"
+  fi
+  if ((ROOT_VALID)) && [[ -f "$ABS_ROOT/hook-events.jsonl" ]]; then
+    envelope_rows=$((envelope_rows + $(wc -l <"$ABS_ROOT/hook-events.jsonl" | tr -d ' ')))
+  fi
+  ((envelope_rows)) && envelope="$envelope_rows row(s) from the audit hooks, outside the switch"
+
+  # --observed: the caller has no option values (the skill's pre-compute line,
+  # which can carry no ${user_config.*}), so the sixth line stops at what the
+  # filesystem shows and names the call that renders the option tier, rather
+  # than printing manifest defaults a reader could take for the effective state.
+  if ((OBSERVED)); then
+    printf 'envelope: %s; options: rendered by the section 2.6 re-run, not here\n' "$envelope"
+    exit 0
+  fi
+
   # The six options as rendered, defaults applied where unset.
   logging="off"
   ! unset_value "$ENABLED_ARG" && [[ "$ENABLED_ARG" == "true" ]] && logging="on"
@@ -274,8 +317,8 @@ case "$MODE" in
   unset_value "$KEEP_DAYS_ARG" || keep_days="$KEEP_DAYS_ARG"
   pre_prune="none"
   unset_value "$PRE_PRUNE_ARG" || pre_prune="set (runs detached at SessionEnd)"
-  printf 'logging: %s; categories: %s; keep: %s sessions or %s days; pre-prune: %s\n' \
-    "$logging" "$categories" "$keep_sessions" "$keep_days" "$pre_prune"
+  printf 'envelope: %s; event log: %s; categories: %s; keep: %s sessions or %s days; pre-prune: %s\n' \
+    "$envelope" "$logging" "$categories" "$keep_sessions" "$keep_days" "$pre_prune"
   ;;
 *)
   err "unhandled mode: $MODE"

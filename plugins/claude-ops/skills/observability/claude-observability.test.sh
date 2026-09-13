@@ -29,28 +29,25 @@ assert_contains() { if [[ "$2" == *"$3"* ]]; then pass "$1"; else fail "$1" "con
 assert_not_contains() { if [[ "$2" != *"$3"* ]]; then pass "$1"; else fail "$1" "absent: $3" "$2"; fi; }
 
 # --- Fixture: a hook log root ---
-# The shared file (legacy rows, `event` key) plus one per-session file whose
-# envelope rows carry `hook_event_name` and `source: "envelope"`. Every
-# whole-root query reads both through the HOOK_NORM prelude in data-sources.md.
+# The shared file plus one per-session file. Every row is one hook event record
+# in the single key set session-log-lib.sh formats, so `hook_event_name` names
+# the event wherever the row came from and no query normalizes an event key.
 HOOK_ROOT="$TEST_TMPDIR/root"
 mkdir -p "$HOOK_ROOT/sessions"
 HOOK_LOG="$HOOK_ROOT/hook-events.jsonl"
 SESSION_LOG="$HOOK_ROOT/sessions/s-a.jsonl"
 SINCE_ISO="2026-01-01T00:00:00Z"
-HOOK_NORM='map(. + {event: (.event // .hook_event_name)})'
 
-# Append a single legacy event to the shared file. Schema mirrors observability/conventions.md fields;
-# session_id/branch/cwd are constant across the fixture (no test asserts on them).
+# Append one shared-file envelope row (the sink's session-less route).
 # Args: <ts> <hook> <tool> <duration_ms> <exit_code> <subject> <status>
 emit_event() {
   jq -nc \
     --arg ts "$1" --arg hook "$2" --arg tool "$3" \
     --argjson duration_ms "$4" --argjson exit_code "$5" \
     --arg subject "$6" --arg status "$7" \
-    '{ts:$ts, event:"PostToolUse", hook:$hook, tool:$tool,
-      duration_ms:$duration_ms, exit_code:$exit_code,
-      subject:$subject, status:$status,
-      session_id:"s1", branch:"main", cwd:"/repo"}' \
+    '{ts:$ts, hook_event_name:"PostToolUse", status:$status,
+      duration_ms:$duration_ms, source:"envelope", hook:$hook,
+      exit_code:$exit_code, subject:$subject, tool:$tool}' \
     >>"$HOOK_LOG"
 }
 # Append one per-session envelope row (the reference sink's per-session shape).
@@ -115,10 +112,10 @@ shopt -u nullglob
 assert_eq "file set: one session file plus the shared file" "2" "${#HOOK_FILES[@]}"
 
 # --- Test 1: latency p50/p95 per (hook,event) across the root ---
-LAT_OUT=$(jq -s --arg since "$SINCE_ISO" "$HOOK_NORM"' | map(select(.ts >= $since and .hook != null))
-  | group_by(.hook + "|" + .event)
+LAT_OUT=$(jq -s --arg since "$SINCE_ISO" 'map(select(.ts >= $since and .hook != null))
+  | group_by(.hook + "|" + .hook_event_name)
   | map({
-      key: (.[0].hook + " " + .[0].event),
+      key: (.[0].hook + " " + .[0].hook_event_name),
       n: length,
       p50: (sort_by(.duration_ms) | .[length/2|floor].duration_ms),
       p95: (sort_by(.duration_ms) | .[(length*0.95)|floor].duration_ms),
@@ -136,7 +133,7 @@ bash_format_max=$(echo "$LAT_OUT" | jq -r '.[] | select(.key=="bash-format PostT
 assert_eq "bash-format max = 6000" "6000" "$bash_format_max"
 
 # --- Test 2: error rate per hook ---
-ERR_OUT=$(jq -s --arg since "$SINCE_ISO" "$HOOK_NORM"' | map(select(.ts >= $since and .hook != null))
+ERR_OUT=$(jq -s --arg since "$SINCE_ISO" 'map(select(.ts >= $since and .hook != null))
   | group_by(.hook)
   | map({
       hook: .[0].hook,
@@ -151,17 +148,17 @@ assert_eq "sarif error count = 1" "1" "$sarif_err"
 assert_contains "a blocked per-session row counts as an error" "$ERR_OUT" "block-dangerous-git"
 
 # --- Test 3: window filter excludes 2025 event; event-log rows never count as hooks ---
-filtered_count=$(jq -s --arg since "$SINCE_ISO" "$HOOK_NORM"' | map(select(.ts >= $since and .hook != null)) | length' "${HOOK_FILES[@]}")
+filtered_count=$(jq -s --arg since "$SINCE_ISO" 'map(select(.ts >= $since and .hook != null)) | length' "${HOOK_FILES[@]}")
 assert_eq "window filter applied" "20" "$filtered_count" # 12 + 5 + 3 (excludes old-hook and the 3 event-log rows)
 
 assert_not_contains "out-of-window event excluded" "$LAT_OUT" "old-hook"
 
 # --- Test 3.5: the per-session report (data-sources.md §2.5) ---
 SESSION_FILES=("$SESSION_LOG")
-FIRED=$(jq -s "$HOOK_NORM"' | map(select(.source == "envelope"))
+FIRED=$(jq -s 'map(select(.source == "envelope"))
   | group_by(.hook)
   | map({hook: .[0].hook, n: length,
-         events: (map(.event) | unique),
+         events: (map(.hook_event_name) | unique),
          errors: (map(select(.exit_code != 0)) | length),
          p50_ms: (sort_by(.duration_ms) | .[length/2|floor].duration_ms),
          max_ms: (max_by(.duration_ms).duration_ms)})
@@ -170,16 +167,16 @@ assert_eq "per-session: two hooks fired" "2" "$(echo "$FIRED" | jq 'length')"
 assert_eq "per-session: bash-format fired twice" "2" "$(echo "$FIRED" | jq -r '.[] | select(.hook=="bash-format") | .n')"
 assert_eq "per-session: event-log rows are not hook fires" "0" "$(echo "$FIRED" | jq '[.[] | select(.hook == null)] | length')"
 
-BLOCKED=$(jq -sc "$HOOK_NORM"' | .[] | select(.status == "blocked") | {ts, hook, event, subject}' "${SESSION_FILES[0]}")
+BLOCKED=$(jq -sc '.[] | select(.status == "blocked") | {ts, hook, hook_event_name, subject}' "${SESSION_FILES[0]}")
 assert_eq "per-session: one blocked row" "1" "$(printf '%s\n' "$BLOCKED" | grep -c .)"
 assert_contains "per-session: blocked row names the hook" "$BLOCKED" "block-dangerous-git"
 
-REWROTE=$(jq -sc "$HOOK_NORM"' | .[] | select(.changed == true) | {ts, hook, subject}' "${SESSION_FILES[0]}")
+REWROTE=$(jq -sc '.[] | select(.changed == true) | {ts, hook, subject}' "${SESSION_FILES[0]}")
 assert_eq "per-session: one rewrote row, the run whose producer sent changed=true" "1" "$(printf '%s\n' "$REWROTE" | grep -c .)"
 assert_contains "per-session: rewrote row names the rewritten file" "$REWROTE" "t.sh"
 assert_not_contains "per-session: a changed=false run is not a rewrite" "$REWROTE" "s.sh"
 assert_eq "per-session: rows carrying the key are distinguishable from rows without it" "2" \
-  "$(jq -s "$HOOK_NORM"' | map(select(has("changed"))) | length' "${SESSION_FILES[0]}")"
+  "$(jq -s 'map(select(has("changed"))) | length' "${SESSION_FILES[0]}")"
 
 TIMELINE=$(jq -sr '.[] | select(.source == "event-log")
   | [.ts, .hook_event_name, .category, (.tool_name // ""), (.file_path // ""), (.agent_id // "")]
@@ -432,7 +429,7 @@ printf '%s\n' \
   '{"ts":"2026-01-01T10:01:00Z","hook":"biome","exit_code":0}' \
   '{"ts":"2026-01-01T10:02:00Z","hook":"bash-format","exit_code":1}' \
   '{"ts":"2026-01-01T10:02:05Z","hook":"bash-format","exit_code":0}' >"$retry_log"
-retry_out=$(jq -s "$HOOK_NORM"' | map(select(.hook != null)) | sort_by(.ts) as $e
+retry_out=$(jq -s 'map(select(.hook != null)) | sort_by(.ts) as $e
   | [range(1; $e | length)
      | select($e[. - 1].hook == $e[.].hook and $e[. - 1].exit_code != 0 and $e[.].exit_code == 0)
      | $e[. - 1].hook]

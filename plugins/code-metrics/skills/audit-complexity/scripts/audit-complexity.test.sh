@@ -53,6 +53,9 @@ assert_doc() {
 STUBS="$(mktemp -d)"
 EMPTY_PATH="$(mktemp -d)"
 trap 'rm -rf "$STUBS" "$EMPTY_PATH"' EXIT
+# The markdown path persists the document; keep it out of the real data
+# directory.
+export CODE_METRICS_REPORT_DIR="$STUBS/reports"
 
 cat >"$STUBS/lizard" <<EOF
 #!/usr/bin/env bash
@@ -84,20 +87,20 @@ EOF
 chmod +x "$STUBS"/*
 
 # EMPTY_PATH is the caller's PATH with every collector removed: a directory of
-# symlinks to each executable on PATH except the tools the ladder names, so the
-# coreutils, git and the interpreter stay reachable while a real lizard, radon,
-# eslint or gocyclo on this machine cannot shadow the stubs or the assertions.
-COLLECTOR_NAMES=" scc lizard radon multimetric jscpd gocyclo gocognit dupl shellmetrics eslint type-coverage mypy pmd "
-IFS=':' read -r -a path_dirs <<<"$PATH"
-for dir in "${path_dirs[@]}"; do
-  [[ -d "$dir" ]] || continue
-  for exe in "$dir"/*; do
-    [[ -f "$exe" && -x "$exe" ]] || continue
-    name="${exe##*/}"
-    [[ "$COLLECTOR_NAMES" == *" $name "* ]] && continue
-    [[ -e "$EMPTY_PATH/$name" ]] || ln -s "$exe" "$EMPTY_PATH/$name"
-  done
-done
+# symlinks to each executable on PATH except the tools the ladder names (and
+# the binaries those adapters look up), so the coreutils, git and the
+# interpreter stay reachable while a real lizard, radon, eslint or gocyclo on
+# this machine cannot shadow the stubs or the assertions.
+# shellcheck source=../../../scripts/tool-free-path.sh
+source "$PLUGIN_ROOT/scripts/tool-free-path.sh"
+cm_fill_tool_free_path "$EMPTY_PATH"
+leftover="$(cm_resolvable_ladder_collectors "$EMPTY_PATH" | sort -u | tr '\n' ' ')"
+leftover="${leftover% }"
+if [[ -z "$leftover" ]]; then
+  pass "no ladder collector is resolvable on the tool-free PATH"
+else
+  fail "no ladder collector is resolvable on the tool-free PATH" "none" "$leftover"
+fi
 unset CODE_METRICS_DISABLE_BUNDLED
 
 # 1. Every stub resolves: the document, its references, and its run table.
@@ -134,6 +137,20 @@ assert_eq "markdown exits 0" 0 "$rc"
 assert_contains "markdown carries the run table" "$out" "Coverage of this run"
 assert_contains "markdown carries the cited cyclomatic reference" "$out" "8.2.117"
 assert_contains "markdown states that a reference is not a bar" "$out" "never a bar"
+assert_contains "markdown carries the Labels column" "$out" "| File | Function | Lane | Labels |"
+assert_contains "markdown names the persisted document" "$out" "Full document: $CODE_METRICS_REPORT_DIR/audit-complexity-"
+doc_path="$(printf '%s\n' "$out" | sed -n 's/^Full document: //p')"
+"$PY" -c 'import json,sys; d=json.load(open(sys.argv[1])); raise SystemExit(0 if d["schema"]=="code-metrics/v1" and d["skill"]=="audit-complexity" else 1)' "$doc_path"
+assert_eq "the persisted document is the code-metrics/v1 JSON the markdown was rendered from" 0 "$?"
+err="$(PATH="$STUBS:$EMPTY_PATH" CODE_METRICS_REPORT_DIR=/proc/code-metrics-cannot-write bash "$SCRIPT" --all "$SOURCES" 2>&1 >/dev/null)"
+rc=$?
+assert_eq "an unwritable report directory does not fail the run" 0 "$rc"
+assert_contains "an unwritable report directory is named on stderr with the --json remedy" "$err" "not writable"
+out="$(PATH="$STUBS:$EMPTY_PATH" CODE_METRICS_REPORT_DIR=/proc/code-metrics-cannot-write bash "$SCRIPT" --all "$SOURCES" 2>/dev/null)"
+case "$out" in
+*"Full document:"*) fail "no document line when nothing was persisted" "no Full document line" "$(printf '%s' "$out" | tail -3)" ;;
+*) pass "no document line when nothing was persisted" ;;
+esac
 
 # 3. Every collector absent: exit 0, status empty, nothing measured silently.
 out="$(PATH="$EMPTY_PATH" bash "$SCRIPT" --json --all "$SOURCES")"

@@ -1,6 +1,6 @@
 name: dependabot-miro-bundle
 
-# Dependabot bumps plugins/miro/package*.json but cannot regenerate the committed
+# Dependabot bumps plugins/miro/server/package*.json but cannot regenerate the committed
 # dist/index.min.js artifact. This workflow runs on Dependabot PRs, rebuilds when
 # the miro manifest changed, and pushes the bundle back to the PR branch (#2083).
 #
@@ -14,8 +14,8 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
     paths:
-      - plugins/miro/package.json
-      - plugins/miro/package-lock.json
+      - plugins/miro/server/package.json
+      - plugins/miro/server/package-lock.json
 
 permissions:
   contents: read
@@ -48,7 +48,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Fetch base
-        uses: ./.github/actions/checkout-with-base
+        uses: ./.github/actions/checkout-with-base # zizmor: ignore[self-repository]
       - name: Switch to PR head
         env:
           HEAD_REF: ${{ github.head_ref }}
@@ -60,7 +60,7 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          if git diff --name-only "origin/$BASE_REF"...HEAD | grep -qE '^plugins/miro/package(-lock)?\.json$'; then
+          if git diff --name-only "origin/$BASE_REF"...HEAD | grep -qE '^plugins/miro/server/package(-lock)?\.json$'; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -71,10 +71,10 @@ jobs:
         with:
           node-version-file: .node-version
           cache: npm
-          cache-dependency-path: plugins/miro/package-lock.json
+          cache-dependency-path: plugins/miro/server/package-lock.json
       - name: Install and regenerate bundle
         if: steps.scope.outputs.changed == 'true'
-        working-directory: plugins/miro
+        working-directory: plugins/miro/server
         run: |
           npm ci
           npm run bundle
@@ -84,13 +84,13 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if git diff --quiet -- plugins/miro/dist/index.min.js; then
+          if git diff --quiet -- plugins/miro/server/dist/index.min.js; then
             echo "dist already matches source — nothing to commit"
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add plugins/miro/dist/index.min.js
+          git add plugins/miro/server/dist/index.min.js
           git commit -m "chore(miro): regenerate dist for dependabot manifest bump"
           git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git push

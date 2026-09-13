@@ -45,6 +45,56 @@
 # Root README, purged in #3265.
 README.md
 
+# Convention documents. Every directory under docs/conventions/ is declared by
+# name rather than by one `*/` glob, because docs/conventions/standards/README.md
+# is deliberately NOT purged: it carries a `standards-contract` semver, and
+# changing a single character of it forces a version bump that makes every
+# consuming repository's index mismatch, degrading skills to best-effort routing
+# until each one re-runs setup. That price is not worth a punctuation pass, so the
+# contract keeps its em dashes and stays off this list. Its worked example, which
+# carries no contract version, is purged and declared.
+docs/conventions/authoring-formats/*.md
+docs/conventions/commit-convention/*.md
+docs/conventions/config-cascade/*.md
+docs/conventions/consumer-config-layering/*.md
+docs/conventions/detector-findings/*.md
+docs/conventions/ecosystem-commands/*.md
+docs/conventions/finding-suppression/*.md
+docs/conventions/hook-budget/*.md
+docs/conventions/hook-config-delivery/*.md
+docs/conventions/hook-input-rewriting/*.md
+docs/conventions/hook-observability/*.md
+docs/conventions/hook-precision/*.md
+docs/conventions/hook-telemetry/*.md
+docs/conventions/instruction-exception-register/*.md
+docs/conventions/invocation-mode/*.md
+docs/conventions/liveness-assertion/*.md
+docs/conventions/loop-lane/*.md
+docs/conventions/native-references/*.md
+docs/conventions/permission-rule-hygiene/*.md
+docs/conventions/plugin-data-report-keying/*.md
+docs/conventions/plugin-reconfiguration/*.md
+docs/conventions/pr-body-convention/*.md
+docs/conventions/pre-pr-ordering/*.md
+docs/conventions/rendered-views/*.md
+docs/conventions/retired-conventions/*.md
+docs/conventions/seam-phrasing/*.md
+docs/conventions/shell-test-helpers/*.md
+docs/conventions/standards/CHANGELOG.md
+docs/conventions/standards/examples/*.md
+docs/conventions/topic-docs/*.md
+docs/conventions/topic-docs/examples/*.md
+docs/conventions/tracker-reference-form/*.md
+docs/conventions/untrusted-content/*.md
+docs/conventions/upstream-drift/*.md
+docs/conventions/windows-path-emit/*.md
+# The design specs under docs/specs were purged whole. Five regions keep their em dashes inside
+# markers: quotations of the #3118 detector table, the #3124 brief, and three spans of the measured
+# corpus at revision dff09429, which the committed harness reproduces byte for byte. Rewriting
+# those would desync the record from what it measured.
+docs/specs/*.md
+docs/specs/*/*.md
+
 # Plugin instruction surfaces, purged in the campaign's per-plugin shards. The
 # skills glob is intentionally open: a NEW skill added to one of these plugins
 # is covered from the moment it lands, which is the cheapest possible time to
@@ -52,42 +102,171 @@ README.md
 # SKILL.md (frontmatter description:, or a body dash the detector's per-line
 # inline-code strip misses across a wrapped code span).
 plugins/actionlint/README.md
+plugins/actionlint/CHANGELOG.md
+plugins/actionlint/skills/*/SKILL.md
 plugins/adhd/README.md
+plugins/adhd/CHANGELOG.md
 plugins/adhd/skills/*/SKILL.md
 plugins/ai-briefing/README.md
+plugins/ai-briefing/CHANGELOG.md
+plugins/ai-briefing/skills/*/SKILL.md
+plugins/ai-briefing/skills/generate/reference/*.md
+plugins/ai-briefing/skills/generate/evals/fixtures/*.md
+plugins/ai-slop/CHANGELOG.md
+plugins/ai-slop/README.md
+plugins/ai-slop/skills/*/SKILL.md
+plugins/ai-slop/skills/audit/context/*.md
+plugins/ai-slop/skills/audit/reference/*.md
 plugins/architecture/README.md
-plugins/autonomy/README.md
+# The autonomy plugin was purged whole. Its two setup fixture trees hold
+# markdown a script parses as input, so they are declared by directory rather
+# than by one recursive glob.
+plugins/autonomy/*.md
+plugins/autonomy/reference/*.md
+plugins/autonomy/reference/guardrails/*.md
+plugins/autonomy/reference/routines/*.md
+plugins/autonomy/reference/runner/*.md
+plugins/autonomy/skills/*/SKILL.md
+plugins/autonomy/skills/setup/context/*.md
+plugins/autonomy/skills/setup/templates/*.md
 plugins/bash-format/README.md
+plugins/bash-format/CHANGELOG.md
+plugins/bash-format/skills/*/SKILL.md
 plugins/biome-format/README.md
+plugins/biome-format/CHANGELOG.md
+plugins/biome-format/skills/*/SKILL.md
 plugins/bugs/README.md
-plugins/claude-config/README.md
-plugins/claude-memory/README.md
-plugins/claude-ops/README.md
+plugins/bugs/CHANGELOG.md
+plugins/bugs/reference/*.md
+plugins/bugs/skills/*/SKILL.md
+plugins/bugs/skills/*/context/*.md
+# The claude-config plugin was purged whole. The glob stops short of the
+# audit-instructions eval fixtures, which carry the tells those evals test.
+plugins/claude-config/*.md
+plugins/claude-config/skills/*/SKILL.md
+plugins/claude-config/skills/*/context/*.md
+plugins/claude-config/skills/*/reference/*.md
+plugins/claude-config/skills/*/templates/*.md
+# The claude-memory plugin was purged whole, its audit eval fixture included.
+plugins/claude-memory/*.md
+plugins/claude-memory/skills/*/SKILL.md
+plugins/claude-memory/skills/*/context/*.md
+plugins/claude-memory/skills/*/reference/*.md
+plugins/claude-memory/skills/audit/evals/fixtures/*.md
+# The claude-ops plugin was purged whole, its changelog eval fixtures included.
+plugins/claude-ops/*.md
+plugins/claude-ops/skills/*/SKILL.md
+plugins/claude-ops/skills/*/context/*.md
+plugins/claude-ops/skills/*/reference/*.md
+plugins/claude-ops/skills/changelog/evals/fixtures/*.md
 plugins/code-metrics/CHANGELOG.md
 plugins/code-metrics/README.md
 plugins/code-metrics/reference/*.md
 plugins/code-metrics/skills/*/SKILL.md
 plugins/code-metrics/skills/principles/reference/*.md
-plugins/code-tidying/README.md
+# The code-tidying plugin was purged whole.
+plugins/code-tidying/*.md
+plugins/code-tidying/skills/*/SKILL.md
+plugins/code-tidying/skills/*/context/*.md
+plugins/code-tidying/skills/*/reference/*.md
+plugins/code-tidying/skills/*/templates/*.md
+plugins/code-tidying/skills/tidy/lanes/*.md
 plugins/codebase-health/README.md
+plugins/codebase-health/CHANGELOG.md
 plugins/codebase-health/skills/*/SKILL.md
+plugins/codebase-health/skills/audit/context/*.md
+plugins/codebase-health/skills/audit/reference/*.md
+plugins/codebase-health/skills/audit/templates/*.md
+plugins/codebase-health/skills/setup/templates/*.md
 plugins/computer-use/README.md
+plugins/computer-use/CHANGELOG.md
+plugins/computer-use/skills/*/SKILL.md
+plugins/computer-use/skills/diagnose/reference/*.md
 plugins/context-budget/README.md
-plugins/context-guard/README.md
+plugins/context-budget/CHANGELOG.md
+plugins/context-budget/skills/*/SKILL.md
+plugins/context-budget/skills/audit/reference/*.md
+# The context-guard plugin was purged whole. Its legacy-statusline reference is the canonical copy
+# of a synced cluster; the rate-limit-guard carrier is kept in step by
+# scripts/sync-legacy-statusline-detect.sh, so both are declared.
+plugins/context-guard/*.md
+plugins/context-guard/reference/*.md
+plugins/context-guard/skills/*/SKILL.md
+plugins/context-guard/skills/*/reference/*.md
+plugins/rate-limit-guard/skills/setup/reference/legacy-statusline-detect.md
 plugins/context7/README.md
+plugins/context7/CHANGELOG.md
+plugins/context7/skills/*/SKILL.md
+plugins/context7/skills/lookup/context/*.md
 plugins/coupling/README.md
+plugins/coupling/CHANGELOG.md
+plugins/coupling/reference/topic-docs.md
+plugins/coupling/skills/*/SKILL.md
+plugins/coupling/skills/reduce/reference/*.md
 plugins/debugging/README.md
+plugins/debugging/CHANGELOG.md
 plugins/debugging/skills/*/SKILL.md
 plugins/desktop-notification/README.md
+plugins/desktop-notification/CHANGELOG.md
+plugins/desktop-notification/skills/*/SKILL.md
 plugins/discipline/README.md
-plugins/discovery/README.md
-plugins/docs-hygiene/README.md
+# The discovery plugin was purged whole.
+# The disk-hygiene plugin was purged whole. Its README's generated options block keeps its own
+# pre-existing ignore marker, since that prose belongs to the generator rather than the output.
+plugins/disk-hygiene/*.md
+plugins/disk-hygiene/skills/*/SKILL.md
+plugins/disk-hygiene/skills/*/reference/*.md
+plugins/discovery/*.md
+plugins/discovery/agents/*.md
+plugins/discovery/reference/*.md
+plugins/discovery/skills/*/SKILL.md
+plugins/discovery/skills/*/context/*.md
+plugins/discovery/skills/*/reference/*.md
+# The docs-hygiene plugin was purged whole, its eval fixtures included: those
+# fixtures specimen the plugin's OWN noise shapes, which are not em dashes, so
+# declaring them costs nothing. Two marked em dashes survive under these globs and
+# the gate honours both: a verbatim Microsoft quotation, and the audit-noise
+# bold-roster fixture whose matcher keys on the character itself.
+plugins/docs-hygiene/*.md
+plugins/docs-hygiene/context/*.md
+plugins/docs-hygiene/reference/*.md
+plugins/docs-hygiene/skills/*/SKILL.md
+plugins/docs-hygiene/skills/*/actions/*.md
+plugins/docs-hygiene/skills/*/context/*.md
+plugins/docs-hygiene/skills/*/reference/*.md
+plugins/docs-hygiene/skills/*/evals/fixtures/*.md
+plugins/docs-hygiene/skills/*/evals/fixtures/*/*.md
+plugins/docs-hygiene/skills/*/evals/fixtures/*/*/*.md
+plugins/docs-hygiene/skills/*/templates/*
 plugins/domain-driven-design/README.md
+plugins/domain-driven-design/CHANGELOG.md
+plugins/domain-driven-design/skills/*/SKILL.md
 plugins/dometrain/README.md
+plugins/dometrain/CHANGELOG.md
+plugins/dometrain/skills/*/SKILL.md
+plugins/dometrain/skills/sync/context/*.md
 plugins/education/README.md
+plugins/education/CHANGELOG.md
+plugins/education/skills/*/SKILL.md
+plugins/education/skills/teach/context/*.md
 plugins/eol-normalizer/README.md
-plugins/event-storming/README.md
+plugins/eol-normalizer/CHANGELOG.md
+plugins/eol-normalizer/skills/*/SKILL.md
+# The event-storming plugin was purged whole, its simulation eval fixtures included.
+plugins/evals/README.md
+plugins/evals/CHANGELOG.md
+plugins/evals/skills/*/SKILL.md
+plugins/evals/skills/methodology/reference/*.md
+plugins/event-storming/*.md
+plugins/event-storming/skills/*/SKILL.md
+plugins/event-storming/skills/*/reference/*.md
+plugins/event-storming/skills/simulation/evals/fixtures/*.md
 plugins/firecrawl/README.md
+plugins/firecrawl/CHANGELOG.md
+plugins/firecrawl/skills/*/SKILL.md
+plugins/firecrawl/skills/update/UPSTREAM.md
+plugins/firecrawl/skills/firecrawl/context/*.md
+plugins/firecrawl/skills/update/context/*.md
 # The fleet plugin was authored purged rather than purged later, so its changelog
 # and reference spoke are declared alongside the README and the skill body. The
 # reference glob stops short of evals/, which is JSON and not prose.
@@ -98,55 +277,225 @@ plugins/fleet/skills/*/reference/*.md
 plugins/github/README.md
 plugins/github/skills/*/SKILL.md
 plugins/go-format/README.md
+plugins/go-format/CHANGELOG.md
+plugins/go-format/skills/*/SKILL.md
+# The guardrails plugin was purged whole. Two marked spans keep their em dashes, both because live
+# code emits or cites the exact text: the changelog's verbatim reproduction of
+# _BYPASS_SCOPE_NOTE_BASH, which block-hook-bypass.sh still emits and its own suite pins, and a
+# quoted retired advisory notice. The README's generated options block keeps its existing marker.
+plugins/guardrails/*.md
+plugins/guardrails/skills/*/SKILL.md
+plugins/guardrails/skills/*/context/*.md
 plugins/implementation/README.md
 plugins/implementation/skills/*/SKILL.md
 plugins/improvement/README.md
+plugins/improvement/CHANGELOG.md
+plugins/improvement/reference/*.md
 plugins/improvement/skills/*/SKILL.md
+plugins/improvement/skills/find/context/*.md
 plugins/instruction-placement/README.md
 plugins/instruction-placement/skills/*/SKILL.md
 plugins/kindle-dedrm/README.md
-plugins/knowledge/README.md
-plugins/machine-health/README.md
+plugins/kindle-dedrm/CHANGELOG.md
+plugins/kindle-dedrm/skills/*/SKILL.md
+plugins/kindle-dedrm/skills/manage/reference/*.md
+# The knowledge plugin was purged whole. The globs stop short of
+# plugins/knowledge/vendor/**: that tree is vendored third-party material, and a
+# re-vendor from upstream would reintroduce the character and break this gate
+# through no fault of the campaign.
+plugins/knowledge/*.md
+plugins/knowledge/reference/*.md
+plugins/knowledge/skills/*/SKILL.md
+plugins/knowledge/skills/*/context/*.md
+plugins/knowledge/skills/*/reference/*.md
+plugins/knowledge/skills/*/reference/*/*.md
+plugins/knowledge/skills/*/templates/*.md
+plugins/knowledge/skills/*/templates/*/*.md
+plugins/knowledge/skills/map-corpus/discovery/*.md
+plugins/knowledge/skills/map-corpus/extraction/*.md
+plugins/knowledge/skills/map-corpus/verification/*.md
+plugins/knowledge/skills/video-digest/extraction/liveness/*.md
+# The machine-health plugin was purged whole, including the report template the audit
+# orchestrator extracts by regex and the Windows fixture README.
+plugins/mcp-tools/README.md
+plugins/mcp-tools/CHANGELOG.md
+plugins/mcp-tools/skills/*/SKILL.md
+plugins/mcp-tools/skills/audit/reference/*.md
+plugins/mcp-tools/skills/audit/evals/fixtures/*.md
+plugins/machine-health/*.md
+plugins/machine-health/skills/*/SKILL.md
+plugins/machine-health/skills/audit/*.md
+plugins/machine-health/skills/audit/reference/*/*.md
+plugins/machine-health/skills/audit/scripts/*/*.md
+plugins/machine-health/skills/audit/tests/fixtures/windows/*.md
 plugins/markdown-format/README.md
+plugins/markdown-format/CHANGELOG.md
+plugins/markdown-format/skills/*/SKILL.md
 plugins/miro/README.md
+plugins/miro/CHANGELOG.md
+plugins/miro/skills/*/SKILL.md
 plugins/mutation-testing/README.md
 plugins/naming/README.md
+plugins/naming/CHANGELOG.md
 plugins/naming/skills/*/SKILL.md
-plugins/overengineering/README.md
+plugins/naming/skills/name-it-better/context/*.md
+# The overengineering plugin was purged whole. The findings-artifact member-entry template keeps
+# its em dashes: there they are field delimiters, and the prose below the fence defines the parse
+# by counting them. Fenced blocks are detector-exempt, so the gate honours that.
+plugins/overengineering/*.md
+plugins/overengineering/context/*.md
+plugins/overengineering/reference/*.md
 plugins/overengineering/skills/*/SKILL.md
+plugins/overengineering/skills/*/context/*.md
 plugins/performance/README.md
 plugins/performance/skills/*/SKILL.md
-plugins/planning/README.md
-plugins/playbooks/README.md
+# The planning plugin was purged whole. `reference/` is declared file by file rather than by a
+# glob because plugins/planning/reference/standards-contract.md is a byte-for-byte generated copy
+# of docs/conventions/standards/README.md, which this campaign deliberately leaves unpurged; the
+# sync gate holds the copy identical to it, so the copy cannot be purged either.
+plugins/planning/*.md
+plugins/planning/reference/artifact-protocol.md
+plugins/planning/reference/topic-docs.md
+plugins/planning/skills/*/SKILL.md
+plugins/planning/skills/*/context/*.md
+plugins/planning/skills/*/templates/*.md
+plugins/planning/skills/design-handoff/evals/fixtures/*.md
+plugins/planning/skills/interview/evals/fixtures/*/*.md
+# The playbooks plugin was purged whole; the Boris and model-adaptation chapters
+# keep their quoted upstream text inside the quotation exemption or a marker.
+plugins/playbooks/*.md
+plugins/playbooks/reference/model-adaptation/*.md
+plugins/playbooks/skills/*/SKILL.md
+plugins/playbooks/skills/boris/reference/*.md
+plugins/playbooks/skills/fable-5/context/*.md
+plugins/playbooks/skills/skill-authoring/reference/*.md
 plugins/playgrounds/README.md
 plugins/playgrounds/skills/*/SKILL.md
 plugins/playwright/README.md
+plugins/playwright/CHANGELOG.md
 plugins/playwright/skills/*/SKILL.md
+plugins/playwright/skills/playwright/actions/*.md
+plugins/playwright/skills/playwright/reference/*.md
 plugins/plugin-quality/README.md
 plugins/powershell-format/README.md
+plugins/powershell-format/CHANGELOG.md
+plugins/powershell-format/skills/*/SKILL.md
 plugins/prototype/README.md
+plugins/prototype/CHANGELOG.md
+plugins/prototype/context/*.md
 plugins/prototype/skills/*/SKILL.md
 plugins/provenance/README.md
 plugins/rate-limit-guard/README.md
+plugins/rate-limit-guard/CHANGELOG.md
+plugins/rate-limit-guard/bench/README.md
+plugins/rate-limit-guard/reference/*.md
+plugins/rate-limit-guard/skills/*/SKILL.md
 plugins/repo-fleet-hygiene/README.md
+plugins/repo-fleet-hygiene/CHANGELOG.md
+plugins/repo-fleet-hygiene/skills/*/SKILL.md
+plugins/repo-fleet-hygiene/skills/audit/reference/*.md
 plugins/repo-hygiene/README.md
-plugins/review/README.md
+plugins/repo-hygiene/CHANGELOG.md
+plugins/repo-hygiene/skills/*/SKILL.md
+plugins/repo-hygiene/skills/clean/context/*.md
+plugins/repo-hygiene/skills/clean/reference/*.md
+# The review plugin was purged whole. `reference/` is declared file by file for the same reason as
+# planning's: plugins/review/reference/standards-contract.md is a generated copy of the deliberately
+# unpurged standards contract, held identical to it by the sync gate.
+plugins/review/*.md
+plugins/review/agents/*.md
+plugins/review/context/*.md
+plugins/review/reference/findings-file-shape.md
+plugins/review/reference/topic-docs.md
+plugins/review/skills/*/SKILL.md
+plugins/review/skills/*/context/*.md
+plugins/review/skills/audit-enforceability/evals/fixtures/*.md
 plugins/ruff-format/README.md
-plugins/session-flow/README.md
+plugins/ruff-format/CHANGELOG.md
+plugins/ruff-format/skills/*/SKILL.md
+# The session-flow plugin was purged whole. The globs stop short of
+# plugins/session-flow/scripts/tests/fixtures/**, whose handoff files are parsed
+# test input rather than prose, and of the keep-going vendor tree.
+plugins/session-flow/*.md
+plugins/session-flow/output-styles/*.md
+plugins/session-flow/reference/*.md
+plugins/session-flow/skills/*/SKILL.md
+plugins/session-flow/skills/*/context/*.md
+plugins/session-flow/skills/*/reference/*.md
+plugins/session-flow/skills/*/templates/*.md
 plugins/skill-quality/README.md
-plugins/songwriting/README.md
-plugins/source-control/README.md
-plugins/tdd/README.md
+plugins/skill-quality/CHANGELOG.md
+plugins/skill-quality/skills/*/SKILL.md
+plugins/skill-quality/skills/check/reference/*.md
+# The songwriting plugin was purged whole. The research and template trees carry
+# verbatim Pattison quotations inside ignore markers, which the gate honours.
+plugins/songwriting/*.md
+plugins/songwriting/agents/*.md
+plugins/songwriting/context/pat-pattison/research/*.md
+plugins/songwriting/context/pat-pattison/templates/*.md
+plugins/songwriting/skills/*/SKILL.md
+plugins/songwriting/skills/suno/context/*.md
+plugins/songwriting/skills/suno/reference/*.md
+plugins/songwriting/skills/suno/templates/*.md
+# The source-control plugin was purged whole. Fixture and eval directories are
+# declared only where their markdown is the plugin's own prose.
+plugins/source-control/*.md
+plugins/source-control/reference/*.md
+plugins/source-control/skills/*/SKILL.md
+plugins/source-control/skills/babysit-loop/reference/*.md
+plugins/source-control/skills/babysit-prs/reference/*.md
+plugins/source-control/skills/commit/.claude/*.md
+plugins/source-control/skills/commit/reference/*.md
+plugins/source-control/skills/pull-request/.claude/*.md
+plugins/source-control/skills/pull-request/reference/*.md
+plugins/source-control/skills/pull-request/templates/*.md
+plugins/source-control/skills/setup/.claude/*.md
+plugins/source-control/skills/setup/reference/*.md
+plugins/source-control/skills/worktree/context/*.md
+plugins/source-control/skills/worktree/fixtures/*.md
+plugins/source-control/skills/worktree/reference/*.md
+# The tdd plugin was purged whole. Five verbatim Beck and Khorikov quotations keep their em dashes
+# inside markers naming the source; the gate honours those.
+plugins/tdd/*.md
+plugins/tdd/skills/*/SKILL.md
+plugins/tdd/skills/*/reference/*.md
 plugins/testing/README.md
 plugins/toolchain/README.md
+plugins/toolchain/CHANGELOG.md
+plugins/toolchain/reference/*.md
+plugins/toolchain/skills/*/SKILL.md
+plugins/toolchain/skills/check/context/*.md
 plugins/typos-format/README.md
+plugins/typos-format/CHANGELOG.md
+plugins/typos-format/skills/*/SKILL.md
 plugins/verification/README.md
+plugins/verification/CHANGELOG.md
+plugins/verification/reference/topic-docs.md
 plugins/verification/skills/*/SKILL.md
+plugins/verification/skills/*/context/*.md
 plugins/visualization/README.md
+plugins/visualization/CHANGELOG.md
+plugins/visualization/skills/visualize/context/*.md
 plugins/visualization/skills/*/SKILL.md
 plugins/wizard/README.md
+plugins/wizard/CHANGELOG.md
 plugins/wizard/skills/*/SKILL.md
-plugins/work-items/README.md
+# The work-items plugin was purged whole, adapters and tracker contract included.
+plugins/work-items/*.md
+plugins/work-items/reference/*.md
+plugins/work-items/skills/*/SKILL.md
+plugins/work-items/skills/attend-queue/reference/*.md
+plugins/work-items/skills/decompose/context/*.md
+plugins/work-items/skills/onboard-adapter/reference/*.md
+plugins/work-items/skills/setup/reference/*.md
+plugins/work-items/skills/track/actions/*.md
+plugins/work-items/skills/triage/context/*.md
+plugins/work-items/skills/work/context/*.md
+plugins/work-items/skills/work-loop/reference/*.md
+plugins/work-items/templates/*.md
+plugins/work-items/tools/work-item-tracker/*.md
+plugins/work-items/tools/work-item-tracker/adapters/*/*.md
+plugins/work-items/tools/work-item-tracker/adapters/linear/schema-check/*.md
 # The writing plugin was authored purged rather than purged later, so its
 # doctrine and source records are declared here alongside the README and the
 # skill body. The reference glob stops short of evals/, whose fixtures carry
@@ -155,3 +504,6 @@ plugins/writing/README.md
 plugins/writing/skills/*/SKILL.md
 plugins/writing/skills/*/reference/*.md
 plugins/x/README.md
+plugins/x/CHANGELOG.md
+plugins/x/skills/*/SKILL.md
+plugins/x/skills/read/context/*.md

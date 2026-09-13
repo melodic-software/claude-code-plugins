@@ -1702,7 +1702,7 @@ fi
 
 # --- Symlinked repo root: the scan target must stay the edited file ----------
 # The hook passes typos a repo-relative path so diagnostics read cleanly, and it
-# computes that path with hook::repo_relative_path, which REDACTS to a bare
+# computes that path with hook::repo_relative_path_to, which REDACTS to a bare
 # basename when the repo-root prefix strip does not match. Reaching one repo
 # through a symlink produces exactly that mismatch: file_path keeps the
 # symlinked spelling while `git rev-parse --show-toplevel` answers with the
@@ -1860,7 +1860,7 @@ fi
 
 # One external, the typos binary, which is the point of the hook. The two
 # cygpath calls that build its repository-relative argument are inside
-# hook::repo_relative_path, which is shared library code.
+# hook::repo_relative_path_to, which is shared library code.
 OWN_LIST="$(own_externals "$TRACE" | tr '\n' ' ')"
 OWN_LIST="${OWN_LIST% }"
 OWN_N="$(own_externals "$TRACE" | grep -c .)"
@@ -1886,14 +1886,14 @@ fi
 # A file directly under the filesystem root (`/README.md`) cannot be created
 # without privileges on any CI host, and hook::read_file_path's `-f` test runs
 # before FILE_DIR is computed, so no black-box input reaches that block. The
-# hook's own FILE_DIR lines are lifted from its source and run here instead.
-# The parameter-expansion strip leaves an empty string for such a path, and
-# hook::repo_root reads an empty hint as `.`, the hook process CWD, where the
-# `dirname` it replaced answered `/`. An empty extraction fails loudly so a
-# refactor that moves the block cannot pass by testing nothing.
-FILE_DIR_LINES="$(awk 'index($0, "FILE_DIR=\"${FILE%/*}\"") == 1 { p = 1 } /^REPO_ROOT=/ { p = 0 } p' "$HOOK")"
+# FILE_DIR lines of hook::begin are lifted from the copy this plugin ships and
+# run here instead. The parameter-expansion strip leaves an empty string for
+# such a path, and hook::repo_root reads an empty hint as `.`, the hook process
+# CWD, where the `dirname` it replaced answered `/`. An empty extraction fails
+# loudly so a refactor that moves the block cannot pass by testing nothing.
+FILE_DIR_LINES="$(awk 'index($0, "FILE_DIR=\"${FILE%/*}\"") { p = 1 } index($0, "REPO_ROOT=") { p = 0 } p' "$HOOK_DIR/hook-utils.sh")"
 if [[ -z "$FILE_DIR_LINES" ]]; then
-  fail "root-level: FILE_DIR block not found in $(basename "$HOOK")"
+  fail "root-level: FILE_DIR block not found in hook-utils.sh"
 else
   for pair in "/README.md=/" "README.md=." "/a/b.md=/a" "/a/b/c.md=/a/b"; do
     IN="${pair%%=*}"

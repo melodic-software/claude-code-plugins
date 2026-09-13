@@ -870,11 +870,17 @@ seed_budget_case() {
 
 run_traced() {
   local case_dir="$1" trace="$2"
+  # PS4 travels through a BASH_ENV startup file, never the environment: bash
+  # 4.4 and later rebind an euid-0 shell's PS4 to '+ ' at startup, before any
+  # startup file runs (CVE-2016-7543), so an exported PS4 never reaches a root
+  # shell and the probe counts nothing. A BASH_ENV assignment lands after that
+  # rebind, and its own unstamped `+ PS4=` trace line matches no pid pattern.
   # shellcheck disable=SC2016  # PS4 must reach bash unexpanded: bash expands it per traced line
+  write "$case_dir/ps4.env" 'PS4='\''+${BASHPID}+ '\'''
   env \
     CACHE_CONTENT_INSTALLED_JSON="$case_dir/installed_plugins.json" \
     CACHE_CONTENT_MARKETPLACES_JSON="$case_dir/known_marketplaces.json" \
-    PS4='+${BASHPID}+ ' \
+    BASH_ENV="$case_dir/ps4.env" \
     bash -x "$SCRIPT" --marketplace market1 2>"$trace"
 }
 

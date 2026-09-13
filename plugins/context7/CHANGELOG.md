@@ -3,6 +3,20 @@
 All notable changes to the `context7` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.6]
+
+### Changed
+
+- Cite the marketplace `docs/` doctrine files by their lower-kebab names (`docs/plugin-philosophy.md`, `docs/migration-playbook.md`, and siblings); the files were renamed and the old uppercase paths no longer resolve.
+
+## [0.5.5]
+
+### Changed
+
+- **The plugin's prose drops its em dashes.** Five surfaces were rewritten: this changelog and the four `skills/lookup/context/` documents. Wording only, with no change to any command, flag, transport, or quota rule. Two em dashes inside fenced bash examples are left alone, because there they sit in a command a reader copies. No heading changed, so no anchor moved. The released sections corrected in place are 0.5.0, 0.4.3, 0.4.2, and 0.3.1: their wording changed, their facts did not.
+- **The vendored upstream tree under `skills/lookup/vendor/` is untouched.** It is reference material from the Context7 project, not this repository's writing, and the repository's own rule keeps its formatting out of the house style.
+- **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md`, every `skills/*/SKILL.md`, and the `skills/lookup/context/` tree. The vendor tree stays excluded.
+
 ## [0.5.4]
 
 ### Changed
@@ -57,7 +71,7 @@ All notable changes to the `context7` plugin are documented here. Format follows
 
 - **The bare `/<skill>` alias for this plugin's skills.** Their `SKILL.md` files no longer
   declare a frontmatter `name`. The field is optional and defaults to the directory name, so
-  declaring it only restated the path while registering a second, unnamespaced command — which
+  declaring it only restated the path while registering a second, unnamespaced command, which
   the slash-command picker then echoed back as `/plugin:skill (skill)`. Invoke a skill by its
   namespaced command; the command itself is unchanged.
 
@@ -79,7 +93,7 @@ All notable changes to the `context7` plugin are documented here. Format follows
   conforming the illustrative CLI composability example to the topic-docs
   ephemeral tier. The temp root rides in the positional template
   (`mktemp "${TMPDIR:-/tmp}/ctx7-XXXXXX"`) so the form works on both GNU and
-  BSD/macOS, and the example echoes the generated path in the same call — the
+  BSD/macOS, and the example echoes the generated path in the same call. The
   docs output is redirected, so without the echo a following `Read` has no way
   to locate the randomly named file.
 
@@ -88,7 +102,7 @@ All notable changes to the `context7` plugin are documented here. Format follows
 ### Changed
 
 - Skills with `!` dynamic-context injections now declare `shell: bash` explicitly, per
-  the pinned precompute convention — bash-only pipelines must not fall through to a
+  the pinned precompute convention. Bash-only pipelines must not fall through to a
   PowerShell host.
 
 ## [0.4.1]
@@ -124,7 +138,7 @@ All notable changes to the `context7` plugin are documented here. Format follows
   `remove`/`uninstall` + `upgrade` commands are listed.
 - **Claude Code unset-env-var MCP behavior corrected**: the config loads with
   a missing-variable warning and the literal `${VAR}` text is sent as-is
-  (silently broken auth) — it is not a parse failure. Both context docs now
+  (silently broken auth). It is not a parse failure. Both context docs now
   carry verified-date + official-link riders.
 
 ## [0.3.0]

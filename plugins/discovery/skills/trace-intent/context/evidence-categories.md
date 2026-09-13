@@ -1,7 +1,7 @@
 # Evidence categories, and the seam for adding one
 
 Categories are stable; the tools that serve them are not. That is the point of naming a category
-rather than a vendor — a category survives a team switching trackers, and a vendor name in a skill
+rather than a vendor. A category survives a team switching trackers, and a vendor name in a skill
 body is a hardcoded assumption about a consumer that will not hold.
 
 ## The three shipped categories
@@ -10,7 +10,7 @@ body is a hardcoded assumption about a consumer that will not hold.
 |---|---|---|
 | Source control | `/discovery:explore git` when installed; otherwise the session's own history access | No repository resolves |
 | Long-form documents | The consuming repo's own documentation tree, wherever it keeps one | No documentation surface is discoverable |
-| Issue tracker | `/work-items:track` when the `work-items` plugin is installed — it owns the provider-neutral seam; otherwise whatever tracker interface the session has | No tracker resolves |
+| Issue tracker | `/work-items:track` when the `work-items` plugin is installed, which owns the provider-neutral seam; otherwise whatever tracker interface the session has | No tracker resolves |
 
 Vendors named anywhere in this file are illustrations of what a category can contain. None is a
 requirement, a default, or a supported integration.
@@ -31,7 +31,7 @@ declares four things:
 
 | Field | Meaning |
 |---|---|
-| `category` | Which kind of evidence this serves — one of the stable category names, or a new one |
+| `category` | Which kind of evidence this serves, either one of the stable category names or a new one |
 | `resolves` | How the skill detects the tool is present this session |
 | `query` | How to search it, in the vocabulary that tool actually uses |
 | `cite` | How to form a citation a reader can follow back in under a minute |

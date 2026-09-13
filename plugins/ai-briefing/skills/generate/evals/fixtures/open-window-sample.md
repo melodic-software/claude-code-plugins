@@ -1,4 +1,4 @@
-# AI Briefing — Meeting 6 (open window)
+# AI Briefing: Meeting 6 (open window)
 
 Window: 2026-06-19 to present · Runs: 1 · Status: open (not yet closed out)
 
@@ -6,7 +6,7 @@ Window: 2026-06-19 to present · Runs: 1 · Status: open (not yet closed out)
 
 ### HIGH
 
-- **Solstice Code v3.5 ships background tasks** — long-running agents survive session end. Source: Solstice AI Engineering Blog, <https://blog.solstice.example/code-3-5-background-tasks> (2026-06-20).
+- **Solstice Code v3.5 ships background tasks**: long-running agents survive session end. Source: Solstice AI Engineering Blog, <https://blog.solstice.example/code-3-5-background-tasks> (2026-06-20).
 
 ### MED
 
@@ -24,7 +24,7 @@ Window: 2026-06-19 to present · Runs: 1 · Status: open (not yet closed out)
 
 ---
 
-## New items collected today (uncategorized — fold these in)
+## New items collected today (uncategorized, fold these in)
 
 - Solstice Code v3.6 adds native subagent checkpointing (HIGH, tooling). Source: Solstice AI Engineering Blog, <https://blog.solstice.example/code-3-6-subagent-checkpointing> (2026-06-23).
 - Northwind IDE 4.1 ships inline Cloud Agent handoff (HIGH, tooling). Source: Northwind Systems Blog, <https://blog.northwind.example/ide-4-1-handoff> (2026-06-23).

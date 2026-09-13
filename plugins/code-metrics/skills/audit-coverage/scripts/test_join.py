@@ -10,6 +10,7 @@ end-to-end join over the committed fixtures is the shell suite's job.
 
 from __future__ import annotations
 
+import configparser
 import importlib.util
 import json
 import subprocess
@@ -902,6 +903,56 @@ class RunRowTests(unittest.TestCase):
             "partial, 1 of 2 scope files present in the artifacts", row["reason"]
         )
 
+    def test_a_partial_row_lists_the_missing_scope_files(self) -> None:
+        names = ["g", "b", "e", "a", "d", "c", "f"]
+        with tempfile.TemporaryDirectory() as tmp:
+            case = JoinCase(tmp).complexity(
+                [
+                    complexity_row(f"src/{n}.ts", "fn", 1, 3, "typescript", 2)
+                    for n in names
+                ]
+            )
+            document = case.artifact(
+                "lcov", {"src/a.ts": {"lines": {"1": 1}, "functions": None}}
+            ).join()
+        rows = {r["measure"]: r for r in document["run"]}
+        coverage, crap = rows["coverage"], rows["crap"]
+        # The count says how much of the lane went unmeasured; the paths say
+        # which files, so the JSON carries every one, sorted, and the markdown
+        # reason names the first five and counts the rest.
+        self.assertEqual(
+            coverage["missing"],
+            [f"src/{n}.ts" for n in ("b", "c", "d", "e", "f", "g")],
+        )
+        self.assertIn(
+            "partial, 1 of 7 scope files present in the artifacts; "
+            "missing: src/b.ts, src/c.ts, src/d.ts, src/e.ts, src/f.ts, "
+            "+1 more in the JSON",
+            coverage["reason"],
+        )
+        # The crap row repeats the coverage reason when coverage is what it
+        # lacks, and leaves the list itself to the coverage row.
+        self.assertEqual(crap["reason"], coverage["reason"])
+        self.assertNotIn("missing", crap)
+
+    def test_an_ok_row_and_a_no_artifact_row_carry_no_missing_key(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ok = (
+                JoinCase(tmp)
+                .complexity([complexity_row("src/a.ts", "fn", 1, 3, "typescript", 2)])
+                .artifact("lcov", {"src/a.ts": {"lines": {"1": 1}, "functions": None}})
+                .join()
+            )
+        with tempfile.TemporaryDirectory() as tmp:
+            none = (
+                JoinCase(tmp)
+                .complexity([complexity_row("src/a.ts", "fn", 1, 3, "typescript", 2)])
+                .join("--searched", "coverage/lcov.info")
+            )
+        for document in (ok, none):
+            row = [r for r in document["run"] if r["measure"] == "coverage"][0]
+            self.assertNotIn("missing", row)
+
     def test_a_lane_matched_by_nothing_is_unavailable_with_its_count(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             document = (
@@ -918,6 +969,33 @@ class RunRowTests(unittest.TestCase):
         self.assertEqual(row["status"], "unavailable")
         self.assertIn(
             "partial, 0 of 1 scope files present in the artifacts", row["reason"]
+        )
+
+    def test_the_other_lane_is_not_applicable_rather_than_unmatched(self) -> None:
+        # The dispatcher's scope listing names the lane per file; the catch-all
+        # lane holds text files no coverage format measures, so it is not a
+        # "0 of N present" gap and must not withhold complete from the run.
+        with tempfile.TemporaryDirectory() as tmp:
+            case = JoinCase(tmp).complexity(
+                [complexity_row("src/a.ts", "classify", 1, 3, "typescript", 2)]
+            )
+            (case.dir / "scope.txt").write_text(
+                "typescript\tsrc/a.ts\nother\tdocs/a.md\nother\tconfig.json\n",
+                encoding="utf-8",
+            )
+            document = case.artifact(
+                "lcov", {"src/a.ts": {"lines": {"1": 1}, "functions": None}}
+            ).join()
+        other = [r for r in document["run"] if r["lane"] == "other"]
+        self.assertEqual(
+            sorted((r["measure"], r["status"]) for r in other),
+            [("coverage", "not-applicable"), ("crap", "not-applicable")],
+        )
+        self.assertTrue(all(r["reason"] for r in other))
+        typescript = [r for r in document["run"] if r["lane"] == "typescript"]
+        self.assertEqual(typescript[0]["status"], "ok")
+        self.assertFalse(
+            any(r["file"].startswith("docs/") for r in document["measures"])
         )
 
     def test_no_artifact_at_all_lists_the_paths_searched(self) -> None:
@@ -953,6 +1031,82 @@ class RunRowTests(unittest.TestCase):
         self.assertEqual(rows["crap"]["status"], "not-applicable")
         self.assertIn("no function end lines", rows["crap"]["reason"])
         self.assertEqual([r for r in document["measures"] if r["function"]], [])
+
+    def test_a_failed_collector_is_named_on_the_crap_row_whatever_coverage_says(
+        self,
+    ) -> None:
+        # The complexity document carries no cyclomatic rows for the lane and a
+        # run row saying its collector ran and produced nothing parseable. The
+        # artifact covers one of the two scope files, so the coverage row is
+        # partial; the crap row must still name the collector, because that is
+        # the number CRAP is missing and the only trace of the exit 3.
+        failed = {
+            "lane": "typescript",
+            "measure": "cyclomatic",
+            "collector": "eslint-complexity 10.1.0",
+            "status": "unavailable",
+            "reason": "collect failed (exit 3): eslint-complexity.py: no parseable "
+            "eslint output",
+        }
+        for coverage_files in (
+            {"src/a.ts": {"lines": {"1": 1}, "functions": None}},
+            {"other/z.ts": {"lines": {"1": 1}, "functions": None}},
+        ):
+            with self.subTest(coverage_files=list(coverage_files)):
+                with tempfile.TemporaryDirectory() as tmp:
+                    case = JoinCase(tmp).scope(["src/a.ts", "src/b.ts"])
+                    (case.dir / "complexity.json").write_text(
+                        json.dumps({"measures": [], "run": [failed]}),
+                        encoding="utf-8",
+                    )
+                    (case.dir / "scope.txt").write_text(
+                        "typescript\tsrc/a.ts\ntypescript\tsrc/b.ts\n",
+                        encoding="utf-8",
+                    )
+                    document = case.artifact("lcov", coverage_files).join()
+                rows = {
+                    row["measure"]: row
+                    for row in document["run"]
+                    if row["lane"] == "typescript"
+                }
+                self.assertIn(rows["coverage"]["status"], ("partial", "unavailable"))
+                self.assertIn("scope files present", rows["coverage"]["reason"])
+                self.assertEqual(rows["crap"]["status"], "unavailable")
+                self.assertIn(
+                    "cyclomatic collector eslint-complexity 10.1.0 unavailable: "
+                    "collect failed (exit 3)",
+                    rows["crap"]["reason"],
+                )
+                # Both inputs are missing, so the coverage row's own reason
+                # follows the collector's rather than being replaced by it.
+                self.assertIn(
+                    f"; coverage {rows['coverage']['status']}: "
+                    f"{rows['coverage']['reason']}",
+                    rows["crap"]["reason"],
+                )
+                self.assertIsNone(rows["crap"]["collector"])
+
+    def test_a_resolved_collector_with_partial_coverage_keeps_the_partial_reason(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            case = JoinCase(tmp).complexity(
+                [
+                    complexity_row("src/a.ts", "classify", 1, 3, "typescript", 2),
+                    complexity_row("src/b.ts", "other", 1, 3, "typescript", 2),
+                ]
+            )
+            document = case.artifact(
+                "lcov", {"src/a.ts": {"lines": {"1": 1}, "functions": None}}
+            ).join()
+        rows = {
+            row["measure"]: row
+            for row in document["run"]
+            if row["lane"] == "typescript"
+        }
+        self.assertEqual(rows["crap"]["status"], "partial")
+        self.assertIn("partial, 1 of 2 scope files", rows["crap"]["reason"])
+        self.assertNotIn("cyclomatic collector", rows["crap"]["reason"])
 
 
 class FunctionRowTests(unittest.TestCase):
@@ -1284,6 +1438,25 @@ class OutputTests(unittest.TestCase):
 
     def test_a_missing_complexity_document_is_a_usage_error(self) -> None:
         self.assertEqual(run("--scope", "nowhere.txt").returncode, 2)
+
+
+class CoverageConfigTests(unittest.TestCase):
+    """The plugin's `.coveragerc` is what lets a coverage run see this module.
+
+    Every case above drives join.py in a child interpreter, which coverage.py
+    does not measure unless its `subprocess` patch is on; without it the whole
+    module reads 0 percent per function however much this suite exercises it,
+    and the plugin's own coverage skill reports `join` as the most complex
+    untested function in the tree. This case pins the setting so dropping it
+    cannot pass silently.
+    """
+
+    def test_the_coverage_config_measures_the_child_interpreter(self) -> None:
+        config = configparser.ConfigParser()
+        read = config.read(PLUGIN_ROOT / ".coveragerc", encoding="utf-8")
+        self.assertEqual(len(read), 1, "the plugin's .coveragerc is missing")
+        patches = config.get("run", "patch", fallback="").replace(",", " ").split()
+        self.assertIn("subprocess", patches)
 
 
 if __name__ == "__main__":

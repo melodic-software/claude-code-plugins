@@ -30,11 +30,15 @@ DETECT="$(cd "$(dirname "$DETECT")" && pwd)/$(basename "$DETECT")"
 # scripts/check-fixture-git-isolation.sh for why -C alone does not isolate.
 # shellcheck source=test-git-helpers.sh
 . "$SCRIPT_DIR/test-git-helpers.sh"
+# shellcheck source=lib/fixture-tree.sh
+. "$SCRIPT_DIR/lib/fixture-tree.sh"
 
 EM="$(printf '\xe2\x80\x94')"
 
-TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT
+# The builder assigns through a nameref, which shellcheck cannot follow;
+# declaring the out-var here is what tells it (SC2154) the name is written.
+TMP=""
+fixture_tree::build TMP --label purged-em-dashes
 
 # run_cfg <detector-config> <fixture-root> <allowlist-relative-path> [args...]:
 # sets OUT and RC. The config is a parameter because three of the cases below

@@ -83,6 +83,39 @@ repo's distribution seam names (a `managed` versus `locally-owned` split in the 
 repo documents, when it does). Findings on these become routing recommendations to the owning
 repository's tracker, never in-place edits; absent such a declaration, no exclusion applies.
 
+## Boundary, the bundled `claude-api` skill
+
+One native surface audits prompts for the same anti-pattern families this catalog names, and the
+two are routinely conflated:
+
+- **`claude-api` (bundled skill), `prompt-audit` subcommand.** Ships with Claude Code rather than
+  as a marketplace plugin. It audits the whole prompt surface of the working directory, application
+  code that calls the Claude API included, against the current model's documented anti-patterns,
+  and produces a report with a proposed diff that it applies when asked. Its catalog is the
+  vendor's own migration guidance, refreshed with the model.
+- **This skill (marketplace plugin).** A standing, report-only audit of locally-owned Claude Code
+  instruction surfaces against the versioned I-catalog in [reference/criteria.md](reference/criteria.md):
+  target-model scoping, deterministic pre-scans, the cross-surface conflict pass, and harness-claim
+  staleness the vendor sweep does not look for. Prompts embedded in application source are outside
+  this skill's scope by design; that surface stays with the bundled subcommand.
+
+**Routing.** The two compose rather than compete. When the bundled `claude-api` skill resolves in
+your session, prefer its `prompt-audit` for a model migration or any pass over application-code
+prompts, and run it as the vendor procedure whenever the target model changes. Prefer this skill for
+the standing catalog audit of Claude Code surfaces, for cross-surface conflicts, and for harness
+claims that misstate Claude Code's own behavior. Where a sweep wants both, run both: recurring gap
+shapes the vendor sweep surfaces feed this catalog as new rows, and this skill's findings never
+substitute for the vendor procedure on a model change.
+
+**Mutation gate.** `prompt-audit` edits files when the request asks for edits. This skill's contract
+is report-only, so never chain into a `prompt-audit` apply on this skill's behalf; surface the
+finding and let the user invoke the sweep themselves.
+
+**Availability is never assumed.** Bundled surfaces are gated by settings, environment, plan, and
+host; this section states what to do when the surface resolves, never that it is present. The
+subcommand set, the distribution facts behind it, and their recheck triggers are recorded in
+[reference/bundled-claude-api.md](reference/bundled-claude-api.md).
+
 ## Arguments
 
 Parse `$ARGUMENTS` for an optional scope filter. It narrows which surfaces may **produce** findings,
@@ -185,7 +218,23 @@ which model a row targets, so the lane refines every candidate against the catal
 run's resolved target model.
 
 Bound concurrency to 3–5 lanes at a time; the skills surface fans out one lane per skill. Before the
-total dispatch count (lanes plus Phase C verifiers) would exceed ~20, confirm with the user.
+total dispatch count (lanes plus Phase C verifiers) would exceed ~20, confirm with the user. When the
+caller has declared the run unattended (a routine, a dispatched worker, any session with nobody to
+answer), a question stalls the run, so proceed and let the Phase D cost line disclose the planned and
+actual dispatch counts in place of the confirmation. The declaration comes from the caller, in the
+invocation text; a run never infers it from its own session, and an invocation that carries no
+declaration is attended.
+
+A lane that persists its report to disk writes it with the Write tool, which the `guardrails`
+plugin's `block-hook-bypass` guard exempts by design, never through a shell redirect whose target is
+carried in a variable or through inline Python, which that guard blocks because it cannot resolve
+the target. A shell redirect to a literal absolute path under the host temp tree is exempt only when
+`CLAUDE_PROJECT_DIR` names a project root that is not itself under a temp tree; a temp-rooted
+checkout (a CI clone, a test fixture) has no such exemption, so there the Write tool is the only
+route. Verified 2026-09-12 against `plugins/guardrails/hooks/block-hook-bypass.sh`
+(`_bbh_temp_default_applies` and the scope note in `block_bypass`) and `plugins/guardrails/README.md`
+("`block-hook-bypass` ships two scratch roots exempt"); recheck when the guardrails plugin changes
+that guard's exemption set or its block message.
 
 ## Phase B2: Cross-surface conflict pass
 
@@ -224,7 +273,7 @@ high-stakes and correlated blind spots are the risk, prefer a cross-vendor advis
 installed and set up**, e.g. the OpenAI Codex plugin, when its documented surface can take this
 artifact, invoked per its own docs, with the fresh-context same-vendor subagent as the stated
 fallback, never a route to a command that may not resolve
-(per `docs/PLUGIN-PHILOSOPHY.md` "Fresh-eyes checkpoints" in the marketplace repository).
+(per `docs/plugin-philosophy.md` "Fresh-eyes checkpoints" in the marketplace repository).
 Batch one verifier per surface
 (not one per finding), counted under the same ~20-dispatch gate. A proposal the verifier defends is
 demoted to `info` or dropped, never surfaced as a confident removal.
@@ -259,10 +308,12 @@ the two absent-prior cases.
 
 Then summarize in chat. The report header carries a **cost line**: how many checks ran per surface
 (naming any added by a catalog version bump), the model-scoped rows skipped for the resolved target,
-and the estimated per-surface token delta versus the previous catalog version **for this project**,
-and it confirms the run added zero new interactive gates (report-only contract unchanged; the
-target-model fail-loud stop is an invocation-time validation abort, not an interactive gate, since it
-prompts nobody and blocks nothing mid-run). Present findings as a table:
+the estimated per-surface token delta versus the previous catalog version **for this project**, and
+the dispatch count, planned and actual (lanes plus Phase C verifiers), stating whether the
+~20-dispatch confirmation was asked or, because the caller declared the run unattended, disclosed
+here in its place. It also confirms the run added zero new interactive gates (report-only contract
+unchanged; the target-model fail-loud stop is an invocation-time validation abort, not an
+interactive gate, since it prompts nobody and blocks nothing mid-run). Present findings as a table:
 
 | # | Check | Surface:Line | Severity | Tier | Authority | Finding | Proposed change |
 |---|-------|--------------|----------|------|-----------|---------|-----------------|

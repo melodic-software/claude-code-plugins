@@ -8,7 +8,8 @@
 scope:
   default: change          # change | all
   base: auto               # auto (merge-base with the default branch) | <ref>
-  exclude: []              # path globs dropped from every measure, e.g. ["vendor/**"]
+  exclude: ["**/node_modules/**", "**/vendor/**", "**/dist/**", "**/build/**"]  # path globs dropped from every measure; a closed list, replaced whole
+  registries: []           # sanctioned-replication registries, one relative path per line; replicas collapse to one row in every audit
 
 complexity:
   cyclomatic:
@@ -27,7 +28,10 @@ duplication:
   min_tokens: 50
   min_lines: 5
   ignore: []
-  registries: []           # sanctioned-replication registries, one relative path per line
+  registries: []           # older name for scope.registries; read only when the scope-level list is empty
+  max_lines: null          # files with more lines are skipped and reported; null (or 0) means no line cap
+  max_size: 1mb            # files larger than this are skipped and reported; jscpd 5's own guard, SonarJS uses 1000kb
+  rollup_depth: 2          # per-directory rollup rows listed to this depth in the markdown report
 
 coverage:
   artifacts: []            # explicit artifact paths; empty means auto-discover
@@ -50,3 +54,5 @@ lanes:
     enabled: true
   dotnet:
     enabled: true          # detected; complexity deferred in this version
+  other:
+    enabled: true          # every text file outside the language lanes; line count only

@@ -1,5 +1,5 @@
 ---
-description: "Verify the Dometrain plugin without reading or exposing its API key. Use when: 'set up Dometrain', 'configure Dometrain', 'Dometrain setup', the Dometrain MCP server is unavailable, or a Dometrain tool reports an authentication error. Actions: check (read-only verification, default and only action — this plugin's entire configuration is native userConfig, so there is nothing an apply could write)."
+description: "Verify the Dometrain plugin without reading or exposing its API key. Use when: 'set up Dometrain', 'configure Dometrain', 'Dometrain setup', the Dometrain MCP server is unavailable, or a Dometrain tool reports an authentication error. Actions: check (read-only verification, default and only action). This plugin's entire configuration is native userConfig, so there is nothing an apply could write."
 argument-hint: "check"
 user-invocable: true
 disable-model-invocation: true
@@ -122,7 +122,7 @@ to detect the collision by comparing MCP tool-name prefixes. A true collision pr
 
 - Do not read, echo, log, copy, or persist the API key.
 - Do not write the plugin cache, Claude Code user settings, or `pluginConfigs`, per the uniform
-  setup contract (`docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit and repeatable" in the
+  setup contract (`docs/plugin-philosophy.md` "Setup is explicit and repeatable" in the
   marketplace repository).
 - Do not call a Dometrain tool during setup. Resolution via tool inventory / `ToolSearch` is
   sufficient and spends no quota.

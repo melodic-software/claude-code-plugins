@@ -1,5 +1,5 @@
 ---
-description: "Sweep stale references after renames, the syntactic forms token-only grep misses (slash-tokens, paths, chain prose, numbered table rows, frontmatter chains and globs). Use when: 'rename X to Y', 'I renamed X', 'audit rename', 'find stale refs', 'check for stragglers', 'after git mv', 'sweep references', 'rename impact preview', 'find half-renamed state', 'broken refs after rename', 'pre-PR rename check'. Actions: audit, audit blast, audit half-rename, audit orphans, apply, preview, blocklist; not for framework migrations or repo-wide dead-reference audits."
+description: "Sweep stale references after renames, the forms token-only grep misses (slash-tokens, paths, chain prose, numbered table rows, frontmatter chains and globs). Use when: 'rename X to Y', 'I renamed X', 'audit rename', 'find stale refs', 'check for stragglers', 'after git mv', 'sweep references', 'rename impact preview', 'find half-renamed state', 'broken refs after rename', 'pre-PR rename check'. Actions: audit, audit blast, audit half-rename, audit orphans, apply, preview, blocklist; not for framework migrations or repo-wide dead-reference audits; for a whole tree against a casing rule, docs-hygiene:audit-file-names."
 argument-hint: "[action] [<old> [to <new>]] [--include-historical|--include-memory|--include-plan-docs|--include-bare-token|--container|--identifier] (e.g., /rename-references audit, /rename-references audit blast /verify to /verify-changes, /rename-references audit half-rename /a to /b, /rename-references audit orphans /a to /b, /rename-references blocklist)"
 user-invocable: true
 disable-model-invocation: false
@@ -31,7 +31,7 @@ contains git. The dated record for that composition claim is the `source-control
 
 ## Purpose
 
-Renames are deceptively hard. After renaming a skill, file, or identifier, references survive in 7+ syntactic forms beyond the obvious token. Token-only grep (`/old`) catches 50–70%; the rest hide in chain prose (`→ old →`), comma-lists (`Test, Old, Retro`), numbered table rows (`| 7. Old |`), frontmatter chain strings (`description: "...→ old → retro process."`), frontmatter globs (`{a,b,old,c}`), cross-skill mode references, and content-file paths (context/old.md style).
+Renames are deceptively hard. After renaming a skill, file, or identifier, references survive in 7+ syntactic forms beyond the obvious token. Token-only grep (`/old`) catches the obvious ones; the rest hide in chain prose (`→ old →`), comma-lists (`Test, Old, Retro`), numbered table rows (`| 7. Old |`), frontmatter chain strings (`description: "...→ old → retro process."`), frontmatter globs (`{a,b,old,c}`), cross-skill mode references, and content-file paths (context/old.md style).
 
 This skill makes "find every reference" one invocation instead of 4 manual sweep passes. It runs the full pattern library, triages matches into 3 buckets, and surfaces ambiguity (English-verb collisions like `confirm`/`test`/`review`) for user confirmation rather than auto-applying blindly.
 
@@ -56,7 +56,7 @@ Parse `$ARGUMENTS` first token to determine action. Subsequent tokens are the re
 | `<old>` (single token, no separator) | **Reverse**. Find refs, ask what to replace with | [context/audit.md](context/audit.md) |
 | `blocklist` | **Print English-verb blocklist** (read-only introspection of triage-bucket safety mechanism) | inline below |
 
-**Pattern library is the load-bearing component**, the full form registry lives in [context/patterns.md](context/patterns.md); execute sweeps with the Grep tool. Read it before any sweep. Triage logic is in [context/triage.md](context/triage.md). Audit sub-mode detail (Blast / Half-rename / Orphans) is in [context/audit-modes.md](context/audit-modes.md).
+**Every sweep runs off the pattern library**, the full form registry lives in [context/patterns.md](context/patterns.md); execute sweeps with the Grep tool. Read it before any sweep. Triage logic is in [context/triage.md](context/triage.md). Audit sub-mode detail (Blast / Half-rename / Orphans) is in [context/audit-modes.md](context/audit-modes.md).
 
 ## Override flags (audit modes)
 
@@ -161,6 +161,13 @@ Paths skipped from sweeps automatically:
 - **Does not run builds or tests**. Hand off to the consuming repository's build/test/verification workflow after the rename completes.
 - **Does not perform general dead-reference scanning**. `audit orphans` is STRICTLY pair-driven (post-rename hygiene only). For repo-wide dead-link / dead-reference checks unrelated to a specific rename, use a codebase-audit workflow or documentation link checker if your environment provides one. Charter boundary preserves single responsibility.
 
+## Next
+
+`/docs-hygiene:audit-file-names`
+
+For a whole tree measured against a casing rule rather than one pair swept after
+a rename someone already made.
+
 ## Gotchas
 
 - **A single-pattern grep is never evidence of a clean sweep.** Token-only grep reaches Forms 1 and
@@ -168,11 +175,11 @@ Paths skipped from sweeps automatically:
   own pattern, and each surfaces only when that pattern runs. Run the whole library, or invoke
   `/docs-hygiene:rename-references audit`.
 - **Ambiguous bucket is mandatory triage, not optional.** English-verb collisions are the highest false-positive vector. If a token is in the blocklist, force into ambiguous regardless of position. Cost of one extra confirmation prompt is far lower than silently mangling prose.
-- **Re-sweep until the ACTIONABLE count is 0.** Don't trust Phase 5 ended cleanly without verification. Phase 6 is the gate. "Actionable" is load-bearing, and it excludes TWO categories the sweep leaves matching forever: the bare-token residue container-rename mode deliberately leaves unrenamed, and any match the user confirmed skipping in Phase 4. Gating on the RAW count means the loop never terminates; gating on residue alone means it never terminates whenever the user declines a match, which container mode makes routine by demoting Forms 4–12 to per-match prompts. Skips are keyed by occurrence span, REMAPPED as Phase 5's edits shift later columns on the same line (a pre-edit span does not survive an edit when `<old>` and `<new>` differ in length), and reported separately from residue in the hand-off. One was declined, the other was never proposed.
+- **Re-sweep until the ACTIONABLE count is 0.** Don't trust Phase 5 ended cleanly without verification. Phase 6 is the gate. "Actionable" is precise, and it excludes TWO categories the sweep leaves matching forever: the bare-token residue container-rename mode deliberately leaves unrenamed, and any match the user confirmed skipping in Phase 4. Gating on the RAW count means the loop never terminates; gating on residue alone means it never terminates whenever the user declines a match, which container mode makes routine by demoting Forms 4–12 to per-match prompts. Skips are keyed by occurrence span, REMAPPED as Phase 5's edits shift later columns on the same line (a pre-edit span does not survive an edit when `<old>` and `<new>` differ in length), and reported separately from residue in the hand-off. One was declined, the other was never proposed.
 - **Plan-doc exclusion is mandatory.** The active plan/work-notes document *documents the rename* and contains both old and new names by design. Editing it would break the documentation narrative.
 - **Pattern library evolves.** When Phase 6 finds a NEW form, treat as a learning event: extend `context/patterns.md`, add an eval case. Future renames benefit immediately.
 - **A file MOVE breaks the moved files' own relative paths. Sweep INSIDE the moved set, not just refs TO it.** When `git mv` changes directory depth, relative refs *inside* the moved files (`source ../../lib.sh`, `# shellcheck source=../../../../tests/...`, relative markdown links) silently break. They carry no renamed token, so every token-keyed pattern returns clean while the moved file itself is broken. After any depth-changing move: `grep -nE '\.\./' <moved-files>` + re-run the moved code from its new location (tests, `--help`). Real example: a directory promotion left a `# shellcheck source=` directive pointing four levels up when the new home was two.
-- **A rename couples sibling renames — the coupled-rename case. Sweep each as its own pair.** Renaming a skill or identifier usually drags coupled siblings that do NOT contain the primary token: dot-form action/mode IDs (`verify.runtime-affecting-paths`, Form 12), internal mode names (`quality` mode), content-file basenames (context/quality.md style paths). A phase-scoped, skill-only grep on the primary token (`/verify`) leaves these EXTERNAL refs, in skill bodies, config files, and other skills' dispatch tables, unverified. A slash-anchored token sweep can return "clean" while `<old>.id` / `<old-mode>` / `<old>.md`-path refs survive elsewhere. Before declaring a rename complete: enumerate the coupled identifiers (Survey phase) and run a sweep per pair.
+- **A rename couples sibling renames. That is the coupled-rename case. Sweep each as its own pair.** Renaming a skill or identifier usually drags coupled siblings that do NOT contain the primary token: dot-form action/mode IDs (`verify.runtime-affecting-paths`, Form 12), internal mode names (`quality` mode), content-file basenames (context/quality.md style paths). A phase-scoped, skill-only grep on the primary token (`/verify`) leaves these EXTERNAL refs, in skill bodies, config files, and other skills' dispatch tables, unverified. A slash-anchored token sweep can return "clean" while `<old>.id` / `<old-mode>` / `<old>.md`-path refs survive elsewhere. Before declaring a rename complete: enumerate the coupled identifiers (Survey phase) and run a sweep per pair.
 
 ## Integration with workflow
 

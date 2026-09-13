@@ -7,7 +7,7 @@ Pat Pattison - *Writing Better Lyrics* (2009), Chapter 24.
 - *Writing Better Lyrics* (2009), Chapter 24: `image_rsrcAUH.jpg` is a small dotted placeholder/omission
   marker in the unfinished draft.
 - *Writing Better Lyrics* (2009), Chapter 24: `image_rsrcAUJ.jpg` shows the abbreviated worksheet for
-  `sea`, `shells`, `shore`, `sand`, and `tide`. **Load-bearing** — the prose
+  `sea`, `shells`, `shore`, `sand`, and `tide`. **Essential.** The prose
   lists the five column headings and nothing under them; the columns themselves
   exist only in this figure. It confirms the one-undifferentiated-column-per-
   core-word layout recorded in [worksheets](worksheets.md): each column mixes
@@ -56,7 +56,7 @@ Use the worksheet to search for:
 - Subtractive rhymes when a consonant cluster can be loosened.
 - Words that open useful scenes, not merely words that rhyme.
 
-The worksheet is a brainstorming device first, **not a rhyme-finding device** —
+The worksheet is a brainstorming device first, **not a rhyme-finding device**.
 Chapter 24 states that distinction outright and points at Sondheim as a working
 songwriter who keeps worksheets. If a rhyme word does not take the song
 anywhere useful, reject it even when it is technically available.
@@ -70,7 +70,7 @@ named rejection criteria:
 | The writer would never say it outside a rhyme hunt | reaching for a word only to close a rhyme shows |
 | The word drags in a frame the song does not want | technically fine, but it relocates the scene |
 | The idea is already shown elsewhere | the lyric has staged it; saying it again is redundant |
-| The word **seems to mean more than it conveys** | grand-sounding abstractions that do not pay out — the chapter calls these clunkers |
+| The word **seems to mean more than it conveys** | grand-sounding abstractions that do not pay out. The chapter calls these clunkers |
 
 **Rhyme the primary accent.** Chapter 24 passes on three-syllable words whose
 rhyming syllable carries only secondary stress, because rhyming a secondary
@@ -184,19 +184,19 @@ because it lets the second verse set up the chorus as both the child's song and
 commentary, while letting the bridge word carry double meaning.
 
 Note which option won and which lost. The chapter tests dumping a verse first
-and **rejects it on cause** — with either verse removed, the remaining one
+and **rejects it on cause**. With either verse removed, the remaining one
 loses its motivation or its lead-in to the chorus. Form repairs are subject to
 the scene logic established earlier in this file; a leaner form that breaks
 cause is not an improvement. The combine-two-verses option won partly because
 the bridge could absorb what the deleted lines had carried, which is a
 whole-song trade, not a section-level one.
 
-### The bridge must contrast — including against the writer's own defaults
+### The bridge must contrast, including against the writer's own defaults
 
 The chapter's sharpest self-catch: the first bridge draft came out in the same
 common meter as the verses, written on autopilot because the pattern was
 already in the writer's ear. A bridge is a contrasting section and **the
-difference has to arrive at its first line** — the same "if you don't make a
+difference has to arrive at its first line**, the same "if you don't make a
 difference there, don't bother" rule [form](form.md) draws from Chapter 20.
 
 Two lessons worth keeping separate:

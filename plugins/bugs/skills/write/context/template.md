@@ -4,7 +4,7 @@ Loaded on demand by `/bugs:write`. Contains: the full Markdown template (5 field
 
 ## Full template
 
-Default emission (stdout) — no frontmatter:
+Default emission (stdout), no frontmatter:
 
 ```markdown
 # Bug: <title in present tense, one line>

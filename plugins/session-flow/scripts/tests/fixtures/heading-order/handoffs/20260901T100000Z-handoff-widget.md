@@ -47,7 +47,7 @@ Written 2026-09-01T10:00Z on `feat/widget-importer`; next: the re-run test
 
 ## File roles in this work
 
-- `tests/test_importer.py` — still to modify; the re-run case is missing.
+- `tests/test_importer.py`: still to modify; the re-run case is missing.
 
 ## Decisions already settled
 

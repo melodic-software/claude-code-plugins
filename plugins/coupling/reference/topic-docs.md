@@ -1,34 +1,34 @@
-# Topic-docs placement — where coupling artifacts land
+# Topic-docs placement: where this plugin's artifacts land
 
 How the `reduce` skill resolves the destination for its coupling ledger.
 
 Implements the topic-docs convention:
 <https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md>.
-The contract owns every general rule — tiers, schema, resolution order, slug spec, runtime
-guards, no-project-root fallback, non-interactive/forked mode. This document records only
-this plugin's deltas.
+The contract owns every general rule: tiers, schema, resolution order, slug spec, runtime guards,
+no-project-root fallback, non-interactive/forked mode. This document records only this plugin's
+deltas.
 
 ## What this plugin writes, per tier
 
 | Artifact (writer) | Tier | Location (default) |
 |---|---|---|
-| `coupling-ledger.md` (`/coupling:reduce`) | Memory | `.work/<topic-slug>/` — never committed |
+| `coupling-ledger.md` (`/coupling:reduce`) | Memory | `.work/<topic-slug>/`, never committed |
 
 Memory tier because the placement questions resolve there: nothing downstream enforces
-against the ledger, and it is read again — by the producer itself on the next run (resume is
-the skill's whole iteration model) and by the user checking `status` — with that reader
-scoped to this checkout. The ledger is a single file updated in place, not a timestamped
+against the ledger, and both of its readers are scoped to this checkout. The producer itself
+reads it again on the next run (resume is the skill's whole iteration model), and the user
+reads it when checking `status`. The ledger is a single file updated in place, not a timestamped
 file per run: statuses inside it, not filenames, carry run-to-run history.
 
 ## Slug derivation
 
-Delta from the contract's precedence: the slug is the constant `coupling`, always — scoped
+Delta from the contract's precedence: the slug is the constant `coupling`, always. Scoped
 and unscoped runs, and the `status` action, all resolve the same slice. Neither the
 explicit-argument rung nor the branch-name rung is used: coupling reduction is repo-scoped
 and spans many scopes and short-lived branches, and a scope- or branch-derived slug would
 fragment the one ledger successive runs must resume (a `status` call could then never find a
-scoped run's backlog). A run's scope is recorded inside the ledger — in the file header and
-per entry — not in the path. Form and collision rules are the contract's.
+scoped run's backlog). A run's scope is recorded inside the ledger, in the file header and
+per entry, not in the path. Form and collision rules are the contract's.
 
 ## Guards
 

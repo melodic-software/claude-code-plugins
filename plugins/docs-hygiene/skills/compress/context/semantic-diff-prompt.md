@@ -1,6 +1,6 @@
 # Semantic-diff subagent dispatch template
 
-Agent tool prompt body + return-format contract for the default action. Loaded by `/docs-hygiene:compress` when dispatching the comparison pass; private implementation surface — do NOT cite this file from outside the skill (external consumers invoke `/docs-hygiene:compress`).
+Agent tool prompt body + return-format contract for the default action. Loaded by `/docs-hygiene:compress` when dispatching the comparison pass; private implementation surface. Do NOT cite this file from outside the skill (external consumers invoke `/docs-hygiene:compress`).
 
 ## Dispatch shape
 
@@ -16,11 +16,11 @@ CONDENSED: {COND}
 
 For every difference, classify as exactly one of:
 
-  SEMANTIC LOSS    — content removed/altered that changes what a reader must do, infer, or rely on. Includes: dropped directive ("must" → silence), narrowed qualifier ("ONLY X" → "X"), removed anti-example, removed threshold, removed exception clause, removed identifier, removed cross-reference, removed inline-code token.
+  SEMANTIC LOSS: content removed/altered that changes what a reader must do, infer, or rely on. Includes: dropped directive ("must" → silence), narrowed qualifier ("ONLY X" → "X"), removed anti-example, removed threshold, removed exception clause, removed identifier, removed cross-reference, removed inline-code token.
 
-  AMBIGUITY        — content removed/altered such that two readers could now infer different applicability. Includes: collapsed rule-unique rationale, dropped "why" that constrained scope, removed enumeration item where order mattered, merged distinct clauses that had different scopes.
+  AMBIGUITY: content removed/altered such that two readers could now infer different applicability. Includes: collapsed rule-unique rationale, dropped "why" that constrained scope, removed enumeration item where order mattered, merged distinct clauses that had different scopes.
 
-  FALSE POSITIVE   — pure flavor cut, no content delta. Includes: article drop ("the X" → "X"), filler drop ("just", "really", "basically"), hedging drop ("perhaps", "might"), pleasantry drop, verbose-verb collapse ("make use of" → "use"), restatement removed.
+  FALSE POSITIVE: pure flavor cut, no content delta. Includes: article drop ("the X" → "X"), filler drop ("just", "really", "basically"), hedging drop ("perhaps", "might"), pleasantry drop, verbose-verb collapse ("make use of" → "use"), restatement removed.
 
 Output schema (one block per finding, in CONDENSED line order):
 
@@ -28,7 +28,7 @@ Output schema (one block per finding, in CONDENSED line order):
   ORIGINAL: "<verbatim quote from ORIGINAL, with surrounding sentence for context>"
   CONDENSED: "<verbatim quote from CONDENSED, OR (removed) when fully cut>"
   RATIONALE: <one sentence naming what changed AND why this classification>
-  CITATION: <one of the four allowed tokens — see below>
+  CITATION: <one of the four allowed tokens, see below>
 
 Allowed CITATION tokens (verify primary source THIS turn before quoting):
 
@@ -64,15 +64,15 @@ All four MUST match.
 
 ## Return-format contract
 
-Main session parses the subagent return for the `TOTAL:` summary line; counts feed the output schema (`compression_pct`, `semantic_loss`, `ambiguity`, `false_positive`). Per-finding blocks drive the revert pass — every SEMANTIC LOSS + AMBIGUITY (+ UNCERTAIN) finding's CONDENSED quote reverts to its ORIGINAL form.
+Main session parses the subagent return for the `TOTAL:` summary line; counts feed the output schema (`compression_pct`, `semantic_loss`, `ambiguity`, `false_positive`). Per-finding blocks drive the revert pass. Every SEMANTIC LOSS + AMBIGUITY (+ UNCERTAIN) finding's CONDENSED quote reverts to its ORIGINAL form.
 
 ## Failure modes
 
-- **Subagent returns prose without the FINDING N: blocks** — treat as dispatch failure; surface error + revert entire candidate. Do NOT ship a partially-classified diff.
-- **Subagent uses forbidden citation token** — treat ALL findings from that dispatch as unverified training recall; revert the entire candidate.
-- **Subagent returns 0 findings** — verify with `diff -u {ORIG} {COND}` that files actually differ; 0 findings on a non-zero diff = dispatch failure (revert).
+- **Subagent returns prose without the FINDING N: blocks**. Treat as dispatch failure; surface error + revert entire candidate. Do NOT ship a partially-classified diff.
+- **Subagent uses forbidden citation token**. Treat ALL findings from that dispatch as unverified training recall; revert the entire candidate.
+- **Subagent returns 0 findings**. Verify with `diff -u {ORIG} {COND}` that files actually differ; 0 findings on a non-zero diff = dispatch failure (revert).
 
 ## Cross-references
 
-- `../SKILL.md` "Hard rules" — semantic-diff dispatch mandatory for default action; forbidden-token list restated there as a hard rule
-- `context/flavor-vs-content-matrix.md` — the FLAVOR / CONTENT taxonomy this template operationalizes
+- `../SKILL.md` "Hard rules": semantic-diff dispatch mandatory for default action; forbidden-token list restated there as a hard rule
+- `context/flavor-vs-content-matrix.md`: the FLAVOR / CONTENT taxonomy this template operationalizes

@@ -1,8 +1,8 @@
 # Binding seam
 
 Normative contract for how an adopting org maps the roles in `role-topology.md` (and every
-per-capability contract that follows) to its real instances — repositories, trackers, tools,
-policies. The contract defines the SHAPE of a binding; every concrete value is org-supplied.
+per-capability contract that follows) to its real instances: repositories, trackers, tools,
+and policies. The contract defines the SHAPE of a binding; every concrete value is org-supplied.
 
 ## Binding shape
 
@@ -11,8 +11,8 @@ each topology role to a repository, each capability's seam to the org's chosen i
 the org's declared postures (budget, substrate availability). Bindings carry a
 `schema_version` field; consumers read the version before the body, and schema
 changes are reviewed migrations. A role MAY be bound to null: an unborn role (one whose birth
-trigger has not fired) or a role the org has no instance for stays explicitly unbound —
-consumers treat null as absent capability and never invent an instance.
+trigger has not fired) or a role the org has no instance for stays explicitly unbound.
+Consumers treat null as absent capability and never invent an instance.
 
 The org-policy-home pointer is a repository locator that MAY carry an explicit document path
 (`<repo-locator>#<path>`). Absent a path, the consumer discovers the binding instance
@@ -21,24 +21,24 @@ and PERSISTS the resolved path alongside the pointer so later fetches are determ
 
 ## Resolution ladder
 
-A consumer resolves the effective binding as an ADDITIVE layer merge — a later layer adds to
-or refines earlier layers per value, never wholesale replacement:
+A consumer resolves the effective binding as an ADDITIVE layer merge, where a later layer adds
+to or refines earlier layers per value, never wholesale replacement:
 
-1. **User-global base** — the consumer's own machine-level binding config.
-2. **Org binding at the org-policy home** — the org's binding instance document. Reaching this
+1. **User-global base.** The consumer's own machine-level binding config.
+2. **Org binding at the org-policy home.** The org's binding instance document. Reaching this
    layer requires an org-policy-home pointer, which persists in repo-local or user-global
    config; the fetch mechanism is the hosting platform's own CLI with the consumer's own
    authentication (the contract grants no credentials).
-3. **Repo-local binding** — tracked config in the consuming repository (the concrete location
+3. **Repo-local binding.** Tracked config in the consuming repository (the concrete location
    is a tool-specific detail the setup capability documents). Per value, this layer overrides
    the org binding.
-4. **Local overlay** — the consumer's untracked personal refinement of the repo-local layer.
+4. **Local overlay.** The consumer's untracked personal refinement of the repo-local layer.
 
 A value no layer answers falls to the **setup interview**, which asks and persists the answer
 into the repo-local layer so the next resolution is deterministic.
 
 Terminal default when no org exists (solo adopter, no org-policy home): the merge degenerates
-to the local layers, populated with free-tier defaults — zero paid dependencies.
+to the local layers, populated with free-tier defaults and zero paid dependencies.
 
 ## Known limitation
 
@@ -50,4 +50,4 @@ re-records the pointer.
 ## Layout convention
 
 Each capability this plugin ships lands exactly one contract document in `reference/` with its
-owning work package. The convention states shape only — it enumerates no future filenames.
+owning work package. The convention states shape only, and it enumerates no future filenames.

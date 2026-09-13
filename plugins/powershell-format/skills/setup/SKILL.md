@@ -7,7 +7,7 @@ disable-model-invocation: true
 
 ## Purpose
 
-Thin check-centric setup per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
+Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy.md`
 "Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
 reports, `apply` resolves. This plugin owns no consumer-project configuration. Formatting
 and linting rules come from the repository's own `PSScriptAnalyzerSettings.psd1`, and the
@@ -91,13 +91,13 @@ Run `check`, then for each finding point at the resolution. This skill installs 
   which owns the verified-version record): interactive `/plugin configure powershell-format@<marketplace>`
   any time, or headless
   `claude plugin install powershell-format@<marketplace> -s <scope> --config powershell_format_enabled=true`
-  (repeatable per key) — against an already-installed plugin it prints `already installed` and
+  (repeatable per key). Against an already-installed plugin it prints `already installed` and
   still writes the value. Do **not** uninstall to reconfigure: that drops the plugin's entire
   stored `pluginConfigs` entry, resetting every option in the README's Options reference to its
   manifest default. `-s` defaults to `user`; pass the scope `claude plugin list` reports, and run
   from that project's directory for a `project`/`local` scope, or the write lands at a scope that
   does not load. This skill never writes user settings or `pluginConfigs`. Afterwards rerun
-  `check` in a **fresh session** — the rendered `${user_config.*}` and the hook's
+  `check` in a **fresh session**. The rendered `${user_config.*}` and the hook's
   `CLAUDE_PLUGIN_OPTION_*` are fixed at session start, so a same-session `check` still reports
   the OLD value; report the observed effective value, never an unobserved change.
 

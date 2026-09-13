@@ -1,5 +1,5 @@
 // Hand-curated grouping layer for the generated skill cheat sheet
-// (docs/SKILL-CHEAT-SHEET.md). Owns exactly three things: the stage/group
+// (docs/skill-cheat-sheet.md). Owns exactly three things: the stage/group
 // vocabulary and order, the exclusion entries, and the shared summary guard.
 // Per-skill detail (stage, summary, cadence) lives in each SKILL.md's
 // `metadata:` frontmatter — never here.
@@ -55,6 +55,10 @@ export const EXCLUDED_SKILLS = new Map([
   // and routes bundled providers to `work-items/setup`; it just is not named
   // `setup`, so the rule above does not reach it.
   ["work-items/onboard-adapter", "infra setup"],
+  // Same class again: it emits a gate and its suite into the consuming
+  // repository once, which is provisioning. The dev-lifecycle actions in this
+  // plugin's file-name set are `audit-file-names` and `realign-file-names`.
+  ["docs-hygiene/generate-file-name-gate", "infra setup"],
   ["dometrain/sync", "maintainer-only vendored-content drift check"],
   ["firecrawl/update", "maintainer-only upstream sync"],
   ["playbooks/update", "maintainer-only upstream sync"],

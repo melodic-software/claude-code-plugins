@@ -34,7 +34,7 @@ Arguments: `$ARGUMENTS`
 
 ## Purpose
 
-Most rework comes from acting on assumptions the user never made and the agent never surfaced, an **underspecified** task, one missing the constraints needed to act safely. `/planning:interview` is the pipeline's underspecification resolver: a structured pass driving every load-bearing unknown to a decision OR capturing it as a named, explicit assumption, before exploration, planning, or execution start.
+Rework often comes from acting on assumptions the user never made and the agent never surfaced, an **underspecified** task, one missing the constraints needed to act safely. `/planning:interview` is the pipeline's underspecification resolver: a structured pass driving every unknown the task depends on to a decision OR capturing it as a named, explicit assumption, before exploration, planning, or execution start.
 
 The **pre-clarity** stage. Upstream of exploration, research, and `/planning:plan`. `/planning:plan` presupposes a coherent task; `/planning:interview` produces one out of fuzzy intent. The contract it writes is the target every later stage aims at.
 
@@ -127,7 +127,7 @@ Alternatives to consider:
 
 **Register at ask-time; a reply that does not answer is not an answer.** The moment a round is asked, before any reply, write one `open` row per question into the ledger's open-question register. Then, after EVERY user reply and before doing anything else, check the reply against the register's `open` rows and restate any it did not address, in one line, even when the reply changed the subject entirely. Conversational drift is never consent, and the register, not the transcript, which a compaction can empty, is the authority. One exception, and only one: the acceptance-criteria coverage prompt gets no row even when it rides along in a round, because it carries no decision to track. Every real question in that same round is registered exactly as always. Row shape, statuses, and the drift-restate wording: [`context/loop.md`](context/loop.md) "The open-question register".
 
-**Out-of-band output gets the same check, keyed on relevance.** A round can be overtaken by content the user did not write — a dispatched sub-agent's return, a background task notification, a team report, a Monitor firing — which is the ordinary consequence of not blocking the round. Check it against the `open` rows: a return touching nothing gets one line and the round stands, a return that contradicts an asked question's recommendation forces a restate naming the superseded recommendation, and a return that answers an open row from the environment resolves it. Re-present narrowly (a one-line pointer for the untouched, the full shape only for the row that moved), never hold the round, and never depend on being woken — the floor is the next user reply. Outcomes, shape, and the floor: [`context/loop.md`](context/loop.md) "Out-of-band drift".
+**Out-of-band output gets the same check, keyed on relevance.** A round can be overtaken by content the user did not write: a dispatched sub-agent's return, a background task notification, a team report, a Monitor firing. That is the ordinary consequence of not blocking the round. Check it against the `open` rows: a return touching nothing gets one line and the round stands, a return that contradicts an asked question's recommendation forces a restate naming the superseded recommendation, and a return that answers an open row from the environment resolves it. Re-present narrowly (a one-line pointer for the untouched, the full shape only for the row that moved), never hold the round, and never depend on being woken. The floor is the next user reply. Outcomes, shape, and the floor: [`context/loop.md`](context/loop.md) "Out-of-band drift".
 
 **Rounds fire at phase boundaries.** When reached from inside another workflow's phase, emit the whole open set where the caller hands over, not partway through its phase; a mid-phase blocking question is the exception and states its justification in one line. Rationale: [`context/loop.md`](context/loop.md) "Where a round may fire".
 
@@ -137,7 +137,7 @@ Alternatives to consider:
 
 **Facts are yours; decisions are the user's.** A *fact*, a path, a current value, an existing pattern, what a file already does, is resolved from the environment (Grep/Read/Glob) and STATED, never asked; spending a question on what the code already answers is friction, not interview. The environment is not only the working tree: when a task NAMES an external repo or resource, a sibling checkout under a known repo root / workspace layout, or an `owner/repo` reachable through its host, that is a resolvable fact too, so check the filesystem layout and query the repo host directly (e.g. `gh` for a named `owner/repo`) before defaulting to a user question. Cue, not mandate. Resolve what's cheaply resolvable, don't turn every named mention into a research project. A *decision* with real tradeoffs and no environment answer ALWAYS goes to the user; never resolve one on their behalf, however obvious the answer looks. When a fact lookup is slow (deep exploration, external research), dispatch it to a sub-agent and DON'T block the round: a running lookup is an unsettled prerequisite, so only the questions downstream of it wait for the next round. Ask the rest of the frontier now.
 
-**Ground before recommending.** Lightweight codebase gate per question (Grep/Read/Glob). If a recommendation needs more, external best-practice, a library API, deeper exploration, dispatch or do the lookup (research/exploration capability, or inline), then recommend grounded. Never recommend a load-bearing technical choice from training recall alone. Ground it in code read this session or an official source fetched this session.
+**Ground before recommending.** Lightweight codebase gate per question (Grep/Read/Glob). If a recommendation needs more, external best-practice, a library API, deeper exploration, dispatch or do the lookup (research/exploration capability, or inline), then recommend grounded. Never recommend a consequential technical choice from training recall alone. Ground it in code read this session or an official source fetched this session.
 
 ### Recommended answers
 
@@ -181,8 +181,8 @@ exactly as a run that asked nothing does. Without this, that path would ask a qu
 forbidden to register and then trip a gate demanding the row.
 
 **The exemption covers this prompt and nothing else.** It is not a licence for a question asked
-beside it. Any OTHER question — a residue decision, a frontier round, a gap surfaced mid-synthesis,
-a `blocked` row from an unattended run — is a register question as usual: it writes its row at
+beside it. A residue decision, a frontier round, a gap surfaced mid-synthesis, a `blocked` row from
+an unattended run: any OTHER question is a register question as usual. It writes its row at
 ask-time and brings the gate into scope, whether or not the coverage prompt was asked in the same
 breath. One coverage check is exempt; a round that happens to contain one is not.
 
@@ -253,8 +253,9 @@ convention docs, so a path citation would make that publisher a runtime dependen
    `<!-- BEGIN GENERATED: convention-home -->` region of the root instruction file
    (`AGENTS.md` canonical; `CLAUDE.md` unless it is a pure `@AGENTS.md` shim). Use the
    bundled resolver where the plugin ships one; never hand-parse the root file.
-3. Read `<home>/authoring-formats/README.md` and take the key's value from its fenced
-   YAML block.
+3. The printed home is repo-relative: join it to the root resolved in step 1,
+   then read `<home>/authoring-formats/README.md` from that path and take the
+   key's value from its fenced YAML block.
 4. Layer order is one layer deep: an explicit invocation argument, where the skill has
    one, then the team convention doc, then the documented default. A convention-doc
    surface has no personal overlay, so there is no further layer to consult.
@@ -269,8 +270,10 @@ convention docs, so a path citation would make that publisher a runtime dependen
 ```
 
 This plugin ships the step-2 resolver at
-`bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh"`: exit 0 prints the home, exit 1 means
-no pointer line is bound, and exits 2 and 3 are usage and grammar failures. Every non-zero exit is a
+`bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh"`: exit 0 prints the home on stdout,
+exit 1 means no pointer line is bound, exit 2 is usage, and exit 3 is a FAIL (two pointer lines
+in one region, an unterminated or nested region, an invalid pointer path, or a pointer whose
+target directory does not exist). Every non-zero exit is a
 step-6 degrade, `free-text`, cause named in one clause, never a halt and never a prompt to go create
 the surface.
 
@@ -315,7 +318,7 @@ Full surfacing-question taxonomy + categorization heuristics in [`context/loop.m
 
 ### Step 3. Recognize the stop condition
 
-Stop when the frontier is empty. Every load-bearing unknown resolved OR captured as named assumption. The user can describe the goal in one paragraph without contradicting the constraints, and acceptance criteria are testable. The coverage prompt has been asked once and answered ("neither applies" counts), or skipped and reported unexamined per "Acceptance-criteria capture". Don't stop early on impatience; don't keep asking past the stop condition.
+Stop when the frontier is empty. Every unknown the task depends on resolved OR captured as named assumption. The user can describe the goal in one paragraph without contradicting the constraints, and acceptance criteria are testable. The coverage prompt has been asked once and answered ("neither applies" counts), or skipped and reported unexamined per "Acceptance-criteria capture". Don't stop early on impatience; don't keep asking past the stop condition.
 
 **Register gate.** Before persisting the contract or handing off, run the register through its mechanical check. An empty frontier is a judgement, and this is the part of it a script can decide. **Ledger only here**: the Brief does not exist yet (Step 4 writes it), and `--brief` names a file it requires to be present.
 
@@ -348,7 +351,7 @@ PLAN.md holds `## Brief` + `## Plan` sections. `/planning:interview` writes only
 
 If a PLAN.md Brief exists and user chose **revise**, edit the Brief in-place. If **start fresh**, append a dated scope-change note to the top of the Brief capturing why before rewriting. Never silently overwrite, and let the commit message carry the pivot rationale.
 
-Section schema: write the literal `## Brief` template (TLDR / Goal / Constraints / Acceptance criteria / Captured assumptions / Out-of-scope / Deferred questions) per [`context/loop.md`](context/loop.md) "Brief template (the literal shape)". `### Acceptance criteria` stays plain bullets in both formats, tagged or not, per "Acceptance-criteria capture" above; it is never converted to checkboxes. Each **Deferred question** leads with its **`Q<N>` id**, the tie back to its register row and what the Step 4 gate greps this section for, and carries an **arbiter tag** (`/planning:plan` default, or `USER-RESERVED` when its resolution could change acceptance criteria / out-of-scope / constraints). Both load-bearing; loop.md covers when to use which.
+Section schema: write the literal `## Brief` template (TLDR / Goal / Constraints / Acceptance criteria / Captured assumptions / Out-of-scope / Deferred questions) per [`context/loop.md`](context/loop.md) "Brief template (the literal shape)". `### Acceptance criteria` stays plain bullets in both formats, tagged or not, per "Acceptance-criteria capture" above; it is never converted to checkboxes. Each **Deferred question** leads with its **`Q<N>` id**, the tie back to its register row and what the Step 4 gate greps this section for, and carries an **arbiter tag** (`/planning:plan` default, or `USER-RESERVED` when its resolution could change acceptance criteria / out-of-scope / constraints). Both are required; loop.md covers when to use which.
 
 ### Step 5. Hand off
 

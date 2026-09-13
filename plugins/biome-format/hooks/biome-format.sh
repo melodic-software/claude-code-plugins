@@ -17,11 +17,6 @@
 
 set -uo pipefail
 
-# Read inherited fd0 directly (bare cat) — NEVER `</dev/stdin`: on Windows Git
-# Bash, CC spawns hooks with stdin = a Win32 pipe that `/dev/stdin` cannot
-# resolve (ENOENT -> silent no-op). stdin is read ONCE here and fed to both
-# hook::read_file_path (file_path) and the tool_name parse below; reading fd0
-# twice would drain the pipe on the second call.
 # Kill switch FIRST, before any library is sourced: a disabled hook must not
 # pay to parse hook-utils.sh to learn it is off. Same predicate as
 # hook::is_enabled; scripts/check-killswitch-hoist.sh pins the two together.
@@ -39,98 +34,22 @@ HOOK_DIR="${BASH_SOURCE[0]%/*}"
 source "$HOOK_DIR/hook-utils.sh"
 # shellcheck source=rewrite-guard.sh
 source "$HOOK_DIR/rewrite-guard.sh"
-# Capture $EPOCHREALTIME immediately after kill-switch so duration_ms covers the
-# work below (pre-work exits do not emit telemetry). EPOCHREALTIME is Bash 5.0+;
-# on older bash it is unset, so default to empty — referencing it bare under
-# `set -u` would abort before the advisory exit 0, failing every edit.
-start=${EPOCHREALTIME:-}
 
-# Emit this run's telemetry envelope: $1 status, $2 findings JSON array.
-# Two guards: the high-res start stamp (EPOCHREALTIME is Bash 5.0+; on older
-# bash it is empty and telemetry is skipped, so the hook still formats and
-# lints rather than aborting) and the sink opt-in. The data payload costs a jq
-# subprocess, so it is built here after both guards — never on the unwired path.
-emit_tel() {
-  [[ -n "$start" ]] || return 0
-  hook::telemetry_enabled || return 0
-  hook::emit_telemetry "biome-format" "PostToolUse" "$1" "$start" "$(build_data_json "$2")" "$REPO_ROOT"
-}
+# The whole prologue: the start stamp, the buffered payload, the jq-free
+# applicability filter, the jq gate, the parsed path with its basename and
+# directory, the file-anchored repo root (which bounds the biome-config opt-in
+# walk below), and the telemetry-only TOOL and FILE_REL behind the sink opt-in.
+# Exits 0 itself on every path this hook has nothing to do on — including a
+# Write or Edit of any other file class, which it decides before the jq gate so
+# such an edit never triggers the jq notice.
+hook::begin biome-format PostToolUse \
+  '*.ts' '*.tsx' '*.js' '*.jsx' '*.mjs' '*.cjs' '*.mts' '*.cts' '*.json' '*.jsonc'
 
-hook::buffer_stdin_to INPUT || exit 0
-
-# jq-free applicability pre-filter: never emit the jq notice for an edit this
-# hook would not process anyway (the Write|Edit matcher is broader than the
-# JS/TS/JSON filter).
-RAW_FILE=$(hook::raw_file_path "$INPUT") || exit 0
-case "$RAW_FILE" in
-*.ts | *.tsx | *.js | *.jsx | *.mjs | *.cjs | *.mts | *.cts | *.json | *.jsonc) ;;
-*) exit 0 ;;
-esac
-
-# jq is load-bearing for input parsing; absent → visible once-per-session skip
-# notice instead of a silent no-op (dim-9 doctrine).
-hook::require_jq PostToolUse biome-format "$INPUT"
-
-FILE=$(printf '%s' "$INPUT" | hook::read_file_path) || exit 0
-case "$FILE" in
-*.ts | *.tsx | *.js | *.jsx | *.mjs | *.cjs | *.mts | *.cts | *.json | *.jsonc) ;;
-*) exit 0 ;;
-esac
-# Basename via parameter expansion, not `basename(1)`: this hook fires on
-# every Write/Edit of a matching file, and GNU Bash forks a subshell for
-# `$(basename "$FILE")` even though the body is a single exec (Command
-# Substitution, Bash Reference Manual;
-# https://mywiki.wooledge.org/CommandSubstitution). Trim on either separator
-# so a mixed-form Windows path still yields the final component.
-FILE_BASE="${FILE##*/}"
-FILE_BASE="${FILE_BASE##*\\}"
-
-# Resolve repo root early — used to bound the biome-config opt-in walk and to
-# compute the schema-required repo-relative path in data.file.
-FILE_DIR="${FILE%/*}"
-[[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR=.
-[[ -n "$FILE_DIR" ]] || FILE_DIR=/
-REPO_ROOT=""
-hook::repo_root_to REPO_ROOT "$FILE_DIR"
-
-# TOOL and FILE_REL feed the telemetry data object and nothing else (Biome is
-# invoked with a CONFIG_DIR-relative path computed below), so both are resolved
-# only when a sink is wired: the unwired default path spawns zero
-# telemetry-only subprocesses (the tool_name jq parse, and 2× cygpath on
-# Windows).
-#
-# FILE_REL is the repo-relative path the schema requires ("relative to the
-# consuming repo root"), degrading to the basename when the prefix strip does
-# not match, so an absolute path never reaches telemetry.
-TOOL=""
-FILE_REL="$FILE"
-if hook::telemetry_enabled; then
-  TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
-  FILE_REL=""
-  hook::repo_relative_path_to FILE_REL "$FILE" "$REPO_ROOT"
-fi
-
-# Build the telemetry data object for the current TOOL/FILE_REL. $1 is the
-# findings JSON array. jq is authoritative. The fallback is a fixed empty-shape
-# object — NOT an interpolation of TOOL/FILE_REL, which could inject quotes or
-# backslashes from a path and corrupt the envelope. The fallback is essentially
-# unreachable in practice (it fires only if `jq -n` fails, and when jq is absent
-# hook::emit_telemetry drops the envelope anyway), so losing the values here is
-# harmless and strictly safer than emitting malformed JSON.
-build_data_json() {
-  jq -n \
-    --arg tool "$TOOL" \
-    --arg file "$FILE_REL" \
-    --argjson findings "$1" \
-    --arg changed "${HOOK_REWRITE_CHANGED:-}" \
-    '{tool:$tool,file:$file,findings:$findings}
-     + (if $changed == "" then {} else {changed: ($changed == "true")} end)' 2>/dev/null ||
-    printf '{"tool":"","file":"","findings":[]}'
-}
-
+# Every arm exits through hook::finish, which takes the rewrite disclosure
+# (settling data.changed and releasing the guard's snapshot), emits telemetry
+# with that verdict, and emits the one JSON document — in that order.
 emit_skipped() {
-  emit_tel "skipped" '[]'
-  exit 0
+  hook::finish skipped findings array '[]'
 }
 
 # Existence check is a builtin; the previous `$(cd && pwd)` forked a subshell
@@ -156,38 +75,37 @@ root=""
 # opt-in exists to prevent. Gating on the names every supported Biome discovers keeps
 # the gate in lockstep with discovery across versions. Dotted-config support is
 # deferred behind a Biome>=2.4 probe.
-CONFIG_DIR=""
-dir="$FILE_DIR_POSIX"
-while [[ -n "$dir" ]]; do
+#
+# `topmost` is what makes this the root config rather than the closest one, and
+# the walk's ceiling is the repo root: with none that resolves it fails closed
+# (hook::walk_up_to) and the file is left alone, rather than being reformatted
+# under a config from above the repository.
+# shellcheck disable=SC2329  # invoked by name, as hook::walk_up_to's predicate
+biome_config_here() {
+  local name
   for name in biome.json biome.jsonc; do
-    [[ -f "$dir/$name" ]] && CONFIG_DIR="$dir" && break
+    [[ -f "$1/$name" ]] && return 0
   done
-  [[ -n "$root" && "$dir" == "$root" ]] && break
-  parent="${dir%/*}"
-  [[ -n "$parent" ]] || parent=/
-  [[ "$parent" == "$dir" ]] && break # reached filesystem root
-  dir="$parent"
-done
-
-[[ -n "$CONFIG_DIR" ]] || emit_skipped
+  return 1
+}
+CONFIG_DIR=""
+hook::walk_up_to CONFIG_DIR "$FILE_DIR_POSIX" "$root" biome_config_here topmost ||
+  emit_skipped
 
 # Resolve the Biome binary from the repo's own install (node_modules/.bin/biome,
 # walking up from the file) or PATH — never `npx`, which would download Biome on
 # a per-edit hook. Absent -> skip (the repo opted into config but Biome is not
 # installed; nothing to run).
 BIOME_BIN=""
-dir="$FILE_DIR_POSIX"
-while [[ -n "$dir" ]]; do
-  if [[ -f "$dir/node_modules/.bin/biome" ]]; then
-    BIOME_BIN="$dir/node_modules/.bin/biome"
-    break
-  fi
-  [[ -n "$root" && "$dir" == "$root" ]] && break
-  parent="${dir%/*}"
-  [[ -n "$parent" ]] || parent=/
-  [[ "$parent" == "$dir" ]] && break
-  dir="$parent"
-done
+# shellcheck disable=SC2329  # invoked by name, as hook::walk_up_to's predicate
+biome_local_bin_here() {
+  [[ -f "$1/node_modules/.bin/biome" ]] || return 1
+  BIOME_BIN="$1/node_modules/.bin/biome"
+  return 0
+}
+# shellcheck disable=SC2034  # the caller reads BIOME_BIN, which the predicate sets
+node_modules_dir=""
+hook::walk_up_to node_modules_dir "$FILE_DIR_POSIX" "$root" biome_local_bin_here || true
 if [[ -z "$BIOME_BIN" ]]; then
   # `command -v` is a builtin; capturing it with `$( )` was a leftover subshell
   # just to learn the path. The later exec looks the name up on PATH itself.
@@ -198,8 +116,11 @@ fi
 # once-per-session skip notice, not a silent gap (dim-9 doctrine).
 if [[ -z "$BIOME_BIN" ]]; then
   if hook::notice_once "biome-format-biome" "$INPUT"; then
-    hook::emit_skip_notice PostToolUse "biome-format: a Biome config governs this repo but no 'biome' binary was found (node_modules/.bin or this hook's PATH) — format/lint skipped for this edit (probe re-runs on every matching edit; only this notice latches once per session — there is no skip latch). Hook processes inherit Claude Code's own environment, not the interactive shell's profile, so a version-manager install the Bash tool can see may be invisible here; a repo-local install (npm i -D @biomejs/biome) is the reliable route.
-PATH probed: ${PATH:-<unset>}"
+    BIOME_NOTICE=""
+    hook::tool_missing_notice_to BIOME_NOTICE \
+      "biome-format: a Biome config governs this repo but no 'biome' binary was found (node_modules/.bin or this hook's PATH) — format/lint skipped for this edit" \
+      matching "; a repo-local install (npm i -D @biomejs/biome) is the reliable route."
+    hook::emit_skip_notice PostToolUse "$BIOME_NOTICE"
   fi
   emit_skipped
 fi
@@ -240,15 +161,9 @@ BIOME_REWRITE_MESSAGE="biome-format: auto-fixed and/or reformatted $FILE_BASE vi
 hook::rewrite_guard_begin "$FILE"
 
 if OUTPUT=$(cd "$CONFIG_DIR" && env -u BIOME_CONFIG_PATH "$BIOME_BIN" check --write --error-on-warnings --reporter=github "$BIOME_ARG" 2>&1); then
-  # Take before the telemetry emit so data.changed carries the byte verdict;
-  # the disclosure itself is still one systemMessage-only document, or nothing.
-  hook::rewrite_take_disclosure "$FILE" "$BIOME_REWRITE_MESSAGE"
-  emit_tel "ok" '[]'
-  [[ -z "$HOOK_REWRITE_MESSAGE" ]] || hook::emit_channels PostToolUse "" "$HOOK_REWRITE_MESSAGE"
-  exit 0
+  # Clean: the disclosure is the whole document, or there is none.
+  hook::finish --disclose "$BIOME_REWRITE_MESSAGE" ok findings array '[]'
 fi
-
-hook::rewrite_take_disclosure "$FILE" "$BIOME_REWRITE_MESSAGE"
 
 # Non-zero exit. The github reporter emits one `::warning`/`::error`/`::notice`
 # line per diagnostic; their presence is the unambiguous signal that Biome made a
@@ -258,34 +173,13 @@ hook::rewrite_take_disclosure "$FILE" "$BIOME_REWRITE_MESSAGE"
 # reflects whether the tool ran, not whether it was clean.
 FINDINGS=$(grep -E '^::(warning|error|notice)' <<<"$OUTPUT" || true)
 if [[ -n "$FINDINGS" ]]; then
-  BIOME_CTX="biome-format: $FILE_BASE has Biome findings (advisory):"
-  findings_raw=""
-  while IFS= read -r line; do
-    [[ -n "$line" ]] || continue
-    BIOME_CTX+=$'\n'"  $line"
-    findings_raw+="$line"$'\n'
-  done <<<"$FINDINGS"
-
+  BIOME_CTX=""
   FINDINGS_JSON='[]'
-  # FINDINGS_JSON feeds the telemetry envelope and nothing else, so the encode
-  # sits behind the sink opt-in, the same rule TOOL/FILE_REL above already
-  # follow. Without the guard a findings-bearing edit paid two jq spawns on the
-  # unwired default path for a value emit_tel then discards (measured with
-  # strace -f -e trace=execve: 3 jq execs per run, 1 with the guard).
-  #
-  # The two-process `jq -R . | jq -s .` shape stays. Folding it into one
-  # `jq -R -s 'split("\n")...'` was tried and is wrong: slurp mode decodes the
-  # whole stream as a single string, so a truncated UTF-8 lead byte sitting
-  # immediately before a newline absorbs that newline into one U+FFFD and
-  # merges two Biome diagnostics into one array element. Line mode splits on
-  # the raw byte first and keeps them apart.
-  if [[ -n "$findings_raw" ]] && hook::telemetry_enabled; then
-    FINDINGS_JSON=$(printf '%s' "$findings_raw" | jq -R . | jq -s . 2>/dev/null) || FINDINGS_JSON='[]'
-  fi
-  emit_tel "ok" "$FINDINGS_JSON"
+  hook::findings_to BIOME_CTX "biome-format: $FILE_BASE has Biome findings (advisory):" \
+    "$FINDINGS" FINDINGS_JSON
   # Findings AND a rewrite disclosure compose into one document (#3406).
-  hook::emit_channels PostToolUse "$BIOME_CTX" "$HOOK_REWRITE_MESSAGE"
-  exit 0
+  hook::finish --context "$BIOME_CTX" --disclose "$BIOME_REWRITE_MESSAGE" \
+    ok findings array "$FINDINGS_JSON"
 fi
 
 # No findings, but the file was deliberately ignored by the consumer's Biome
@@ -294,11 +188,10 @@ fi
 # not a finding and not a break, so skip silently without nagging via context.
 # (Biome 2.x respects files.includes ignores even for explicitly-passed paths.)
 if grep -qE 'No files were processed|provided but ignored' <<<"$OUTPUT"; then
-  # An ignored file was not rewritten, so the taken disclosure is empty and
-  # this emits nothing; kept unconditional so a surprising rewrite would
-  # still be disclosed rather than swallowed.
-  hook::emit_channels PostToolUse "" "$HOOK_REWRITE_MESSAGE"
-  emit_skipped
+  # An ignored file was not rewritten, so the disclosure is empty and this
+  # emits nothing; the disclosure is still passed so a surprising rewrite
+  # would be disclosed rather than swallowed.
+  hook::finish --disclose "$BIOME_REWRITE_MESSAGE" skipped findings array '[]'
 fi
 
 # Biome broke for non-lint reasons (config parse error, panic, ENOENT) — no
@@ -306,13 +199,11 @@ fi
 # an advisory hook's exit-0 stderr can trip a false "Hook Error" label). Record
 # as "skipped" (the linter never ran), the same status as the no-config /
 # no-binary paths.
-BIOME_CTX="biome-format: biome failed for $FILE_BASE (no diagnostics; tool break, not a finding):"
-while IFS= read -r line; do
-  [[ -n "$line" ]] || continue
-  BIOME_CTX+=$'\n'"  $line"
-done <<<"$OUTPUT"
-emit_tel "skipped" '[]'
-# The --write pass may already have rewritten the file before Biome broke;
-# compose the taken disclosure with the tool-break context as one document.
-hook::emit_channels PostToolUse "$BIOME_CTX" "$HOOK_REWRITE_MESSAGE"
-exit 0
+BIOME_CTX=""
+hook::findings_to BIOME_CTX \
+  "biome-format: biome failed for $FILE_BASE (no diagnostics; tool break, not a finding):" \
+  "$OUTPUT"
+# The --write pass may already have rewritten the file before Biome broke, so
+# the disclosure composes with the tool-break context as one document.
+hook::finish --context "$BIOME_CTX" --disclose "$BIOME_REWRITE_MESSAGE" \
+  skipped findings array '[]'

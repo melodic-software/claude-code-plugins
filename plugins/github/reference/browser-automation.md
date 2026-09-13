@@ -1,4 +1,4 @@
-# Browser automation — the offer rung
+# Browser automation: the offer rung
 
 Mechanics for the method ladder's UI-only rung: when the fetched docs show a surface is
 settings-UI-only (no CLI, no API), a browser-automation **offer** may be extended to the user.
@@ -19,14 +19,14 @@ yes.
 
 An offer is only possible when a browser integration is actually present in the session:
 
-1. **claude-in-chrome** — probe at runtime for its MCP tools in the current session (their
+1. **claude-in-chrome**: probe at runtime for its MCP tools in the current session (their
    presence in the session's tool surface is the gate). No tools present means this
    integration is absent; do not name it in the offer.
-2. **playwright** — invoke the `playwright` plugin's browser skill (when that plugin is
+2. **playwright**: invoke the `playwright` plugin's browser skill (when that plugin is
    installed); when it is not installed, this integration is absent and the ladder falls
    through to guided manual steps with a settings deep link.
 
-When neither integration is present, no offer is made — state plainly that the surface is
+When neither integration is present, no offer is made. State plainly that the surface is
 UI-only and degrade directly to the guided-manual fallback below.
 
 ## Preference order
@@ -38,22 +38,22 @@ When the user names an integration, their choice is honored over this order.
 
 ## The routing precondition: resolved `guided-apply` only
 
-An **executable** browser offer is the guided-apply execution channel for UI-only surfaces —
-it may only be extended when the consumer's resolved change routing for the target scope/area
+An **executable** browser offer is the guided-apply execution channel for UI-only surfaces.
+It may only be extended when the consumer's resolved change routing for the target scope/area
 (per `${CLAUDE_PLUGIN_ROOT}/reference/change-routing.md`) is `guided-apply`. Under `propose`
-or `handoff` — including the unconfigured default, which resolves to `propose` — those
+or `handoff`, including the unconfigured default, which resolves to `propose`, those
 postures execute nothing: report the UI-only status and route per the declared posture
 (proposed guided-manual steps, or a handoff change request). A per-action confirm is consent
-to a step, not a substitute for the consumer's routing policy — it never overrides a
+to a step, not a substitute for the consumer's routing policy. It never overrides a
 `propose`/`handoff` posture or a team-declared floor.
 
 ## The advisory gate: `offer_browser_automation`
 
 The plugin's `offer_browser_automation` setting (boolean, default `true`) is a standing
 consumer opt-out of the offer itself: when `false`, no browser-automation offer is extended at
-all — the ladder reports the UI-only status and moves straight to the guided-manual fallback.
+all. The ladder reports the UI-only status and moves straight to the guided-manual fallback.
 
-Honest framing: this gate is **advisory** — its value is substituted into skill prose and
+Honest framing: this gate is **advisory**. Its value is substituted into skill prose and
 honored by the model, not enforced by the runtime. The hard gate is, and remains, the
 per-action user confirm above. The three layers: the routing precondition selects the channel,
 the advisory gate suppresses the *offer*, the confirm gate protects every *action*.
@@ -62,24 +62,24 @@ the advisory gate suppresses the *offer*, the confirm gate protects every *actio
 
 Every offer names, before asking for consent:
 
-- **The surface** — the exact settings page, as a URL resolved from the fetched official docs
+- **The surface**: the exact settings page, as a URL resolved from the fetched official docs
   for the area (never a from-memory URL).
-- **The action** — what would be changed, stated concretely.
-- **The provenance** — which fetched official doc supplied the mechanics being followed.
-- **The session fact** — that the automation operates over the user's own authenticated
+- **The action**: what would be changed, stated concretely.
+- **The provenance**: which fetched official doc supplied the mechanics being followed.
+- **The session fact**: that the automation operates over the user's own authenticated
   GitHub session, with whatever admin rights that session holds.
 
 Then: explicit yes required, per action. A multi-step change re-confirms at each step, same as
 the `guided-apply` routing discipline.
 
-## After a browser write — read-back verification
+## After a browser write: read-back verification
 
 Where any API read exists for the changed state, run it after the browser action and report
 the observed result. Where no read exists (the reason the surface was UI-only may be exactly
-that), state plainly that the result is **unverified** — never report an unverified browser
+that), state plainly that the result is **unverified**. Never report an unverified browser
 write as confirmed.
 
-## Fallback — always available
+## Fallback: always available
 
 Guided manual steps with a deep link to the exact settings surface (the ladder's final rung)
 are always available: when no integration is present, when the offer is suppressed or

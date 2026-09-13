@@ -24,16 +24,16 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 GATE="$ROOT/scripts/check-docs-only-gate.sh"
 DETECTOR="$ROOT/scripts/check-docs-only.sh"
-failures=0
 
-ok() { printf 'ok - %s\n' "$1"; }
-fail() {
-  printf 'not ok - %s\n' "$1" >&2
-  failures=$((failures + 1))
-}
+# shellcheck source=lib/test-harness.sh
+. "$ROOT/scripts/lib/test-harness.sh"
+# shellcheck source=lib/fixture-tree.sh
+. "$ROOT/scripts/lib/fixture-tree.sh"
 
-scratch="$(mktemp -d)"
-trap 'rm -rf "$scratch"' EXIT
+# The builder assigns through a nameref, which shellcheck cannot follow;
+# declaring the out-var here is what tells it (SC2154) the name is written.
+scratch=""
+fixture_tree::build scratch --label docs-only-gate
 
 expect() {
   local label="$1" want_rc="$2" want_text="$3"
@@ -654,8 +654,4 @@ fi
 
 # --- verdict ----------------------------------------------------------------
 
-if [[ "$failures" -ne 0 ]]; then
-  printf '\n%s test(s) failed\n' "$failures" >&2
-  exit 1
-fi
-printf '\nall tests passed\n'
+test_harness::report

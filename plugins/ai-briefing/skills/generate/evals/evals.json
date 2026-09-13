@@ -66,7 +66,7 @@
         "Tooling/IDE/CLI releases usable within a week are ranked HIGH (the Solstice Code, Meridian Agent CLI, and Northwind IDE items) ahead of research speculation",
         "The research-speculation post and the hype post are ranked LOW/MED, not HIGH",
         "The robotics item (the Anchorpoint Unit-7 warehouse demo) is routed to the EXTRAS section rather than a mainstream provider bucket",
-        "HIGH items carry an impact annotation assessed against the declared stack lens (e.g., \"impact: medium — ...\"), per the profile-provided impact lens"
+        "HIGH items carry an impact annotation assessed against the declared stack lens (e.g., \"impact: medium. ...\"), per the profile-provided impact lens"
       ]
     },
     {

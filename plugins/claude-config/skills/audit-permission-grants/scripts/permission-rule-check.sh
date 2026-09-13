@@ -12,6 +12,9 @@
 #       allow rules —
 #       both bare Agent and Agent(...), which auto mode drops categorically).
 #       Narrow rules such as Bash(npm test) carry over and are NOT flagged.
+#       Monitor allow rules are a sixth documented drop class (upstream
+#       v2.1.236) that this detector does not scan; audit-permission-state
+#       owns it — see reference/criteria.md, P1.
 #   P2  hardcoded absolute user/machine home paths inside a rule. Bash rules
 #       match the command string literally — no ~, $HOME, or env expansion — so
 #       an absolute path breaks on other machines/usernames and leaks a
@@ -20,9 +23,16 @@
 #       settings.json supports only the `agent` and `subagentStatusLine` keys,
 #       so a self-granted permission rule is silently ignored; the operative
 #       allow-rule has to be added by the operator to ~/.claude/settings.json.
-#   P4  inert substitution tokens in a Bash allow rule — `${CLAUDE_PLUGIN_ROOT}`
-#       (not substituted in allowed-tools), `%USERPROFILE%`, or
-#       `$env:USERPROFILE` (unexpanded in Bash rules). The grant never matches.
+#   P4  inert substitution tokens in a Bash allow rule. Two classes, because
+#       one of them is context-dependent:
+#         - always inert, every scope: `%USERPROFILE%`, `$env:USERPROFILE`.
+#           Bash rules match literally and neither Windows spelling expands.
+#         - inert only OUTSIDE a plugin skill: `${CLAUDE_PLUGIN_ROOT}`,
+#           `${CLAUDE_PLUGIN_DATA}`. In a PLUGIN skill Claude Code substitutes
+#           both in the skill body and in allowed-tools Bash rules, so the
+#           grant resolves and is NOT flagged there. In a personal/project
+#           skill, an agent, a command, or any settings file they stay literal.
+#       The grant never matches where flagged.
 #   P2b `~username/…` in a Bash rule — the portable `~/` home anchor is exempt
 #       (Read/Edit resolve it per user); `~user` is not portable, names a
 #       specific account, and is not expanded in Bash rules.
@@ -214,8 +224,24 @@ P2_TILDE_USER_RULE_ERE='Bash\((~[^/[:space:]~]+/|[[:space:]]+~[^/[:space:]~]+/)[
 
 # Inert tokens inside Bash(...) only — not Read/Edit or other tools.
 # shellcheck disable=SC2016  # single quotes deliberate: \$ and % are literal ERE, not shell expansion
-P4_INERT_TOKEN_ERE='\$\{CLAUDE_PLUGIN_ROOT\}|%USERPROFILE%|\$env:USERPROFILE'
+P4_INERT_TOKEN_ERE='%USERPROFILE%|\$env:USERPROFILE'
 P4_BASH_INERT_ERE="Bash\\([^)]*(${P4_INERT_TOKEN_ERE})[^)]*\\)"
+
+# Inert ONLY outside a plugin skill. The skills page, "Available string
+# substitutions": "Claude Code substitutes ${CLAUDE_SKILL_DIR} and
+# ${CLAUDE_PROJECT_DIR} in two places: the skill's markdown content, and Bash
+# rules in the allowed-tools frontmatter. In a plugin skill, Claude Code
+# substitutes ${CLAUDE_PLUGIN_ROOT} and ${CLAUDE_PLUGIN_DATA} in the same two
+# places." The same page's variable table bounds it: "Substituted only in
+# plugin skills." Upstream fixed the plugin-root case in v2.1.0 ("Fixed
+# ${CLAUDE_PLUGIN_ROOT} not being substituted in plugin allowed-tools
+# frontmatter, which caused tools to incorrectly require approval").
+# So these stay literal in a personal/project skill, in an agent or command,
+# and in any settings file — no page documents ${CLAUDE_*} expansion in a
+# settings permissions.allow array.
+# shellcheck disable=SC2016
+P4_PLUGIN_ONLY_TOKEN_ERE='\$\{CLAUDE_PLUGIN_ROOT\}|\$\{CLAUDE_PLUGIN_DATA\}'
+P4_BASH_PLUGIN_ONLY_ERE="Bash\\([^)]*(${P4_PLUGIN_ONLY_TOKEN_ERE})[^)]*\\)"
 
 findings=()
 
@@ -256,12 +282,32 @@ inert_grant_remedy() {
   local file="$1"
   case "$file" in
   */skills/*/SKILL.md)
-    printf '%s' "replace with \${CLAUDE_SKILL_DIR} for a script bundled in this skill (substituted in allowed-tools Bash rules per the skills page)"
+    printf '%s' "replace with \${CLAUDE_SKILL_DIR} for a script bundled in this skill (substituted in allowed-tools Bash rules per the skills page — as is \${CLAUDE_PLUGIN_ROOT}, but only when the skill ships inside a plugin)"
     ;;
   *)
     printf '%s' "relocate the helper to a stable bare command on PATH and allow that name narrowly — do not prescribe plugin bin/ (see permission-rule-hygiene convention known gap)"
     ;;
   esac
+}
+
+is_plugin_skill() {
+  # is_plugin_skill <source-file-path> — 0 when this SKILL.md belongs to a
+  # PLUGIN, which is the only place the plugin-root/plugin-data tokens
+  # substitute in allowed-tools. Prefer the manifest, which holds wherever the
+  # plugin is installed; the `^plugins/` layout check is the
+  # marketplace-monorepo fallback for a checkout whose manifest sits elsewhere.
+  # An empty path (settings scopes pass one) is never a plugin skill, so a
+  # settings rule bearing these tokens stays flagged.
+  local file="$1" rel="${1#"$ROOT"/}" plugin_dir
+  [[ -n "$file" ]] || return 1
+  case "$file" in
+  */skills/*/SKILL.md) ;;
+  *) return 1 ;;
+  esac
+  plugin_dir="${file%/skills/*/SKILL.md}"
+  [[ -f "$plugin_dir/.claude-plugin/plugin.json" ]] && return 0
+  [[ "$rel" =~ ^plugins/[^/]+/skills/[^/]+/SKILL\.md$ ]] && return 0
+  return 1
 }
 
 rule_matches() {
@@ -297,6 +343,20 @@ scan_rule() {
     remedy="$(inert_grant_remedy "$file")"
     emit error P4 "$src" "inert substitution token in '$m' — the grant never matches at runtime. Remedy: $remedy."
   done < <(rule_matches "$text" "$P4_BASH_INERT_ERE")
+  # Plugin-root/plugin-data tokens DO substitute in a plugin skill's
+  # allowed-tools, so flagging them there is a false positive. Everywhere else
+  # they stay literal.
+  if ! is_plugin_skill "$file"; then
+    while IFS= read -r m; do
+      [[ -z "$m" ]] && continue
+      # Route through the same context-sensitive remedy the always-inert tokens
+      # use. Offering ${CLAUDE_SKILL_DIR} unconditionally would swap one inert
+      # rule for another: that token is substituted in a skill's allowed-tools,
+      # so it is no remedy at all for a settings rule, an agent, or a command.
+      remedy="$(inert_grant_remedy "$file")"
+      emit error P4 "$src" "plugin-scoped substitution token in '$m' outside a plugin skill — \${CLAUDE_PLUGIN_ROOT} and \${CLAUDE_PLUGIN_DATA} are substituted only in plugin skills, so here the rule stays a literal string and never matches. Remedy: $remedy."
+    done < <(rule_matches "$text" "$P4_BASH_PLUGIN_ONLY_ERE")
+  fi
 }
 
 top_level_tokens() {

@@ -1,6 +1,20 @@
-# Changelog — topic-docs convention
+# Changelog: topic-docs convention
 
-## 3.2.0 — 2026-09-07
+## [3.3.0] - 2026-09-12
+
+Minor under the Versioning rule: additive. No tier moves, no `topic-docs.yaml` key is renamed,
+the slug spec is unchanged, and no visibility guarantee an implementer may rely on changes. One
+reserved first-level name is added to a set that was already closed against topic slugs, so a
+slug that collided with it took the `-x` suffix before this entry and takes it after.
+
+- **`docs-hygiene` is a reserved first-level name under the memory root.** It holds the file-name
+  rename plan on the branch axis, `docs-hygiene/<branch-slug>/file-names.md`, and stays flat like
+  every other concern-scoped name. Added to the Memory, concern-scoped tier row, to the
+  reserved-names list in the slug and filename spec, and to the `memory_dir` description in
+  `topic-docs.schema.json`. The `docs-hygiene` Implementers row already declared the home; this
+  entry is the reservation the row assumed.
+
+## [3.2.0] - 2026-09-07
 
 Minor under the Versioning rule: additive. No tier moves, no `topic-docs.yaml` key is renamed,
 the slug spec is unchanged, and no visibility guarantee an implementer may rely on changes. One
@@ -17,7 +31,7 @@ slug that collided with it took the `-x` suffix before this entry and takes it a
   carry two ladders; the enforcement-surface audit's own reserved name is the precedent for a
   concern claiming one.
 
-## 3.1.0 — 2026-09-02
+## [3.1.0] - 2026-09-02
 
 Minor under the Versioning rule: no tier moves, no `topic-docs.yaml` key is renamed, the slug
 spec is untouched, and no visibility guarantee an implementer may rely on changes. The contract
@@ -38,7 +52,7 @@ seeing.
 - **Consumer adoption** materializes one file, `.worktreeinclude`. The committed-settings
   snippet and its untracked-settings pull-collision rollout caveat are removed with it.
 
-## 3.0.0 — 2026-09-01
+## [3.0.0] - 2026-09-01
 
 Major under the Versioning rule: the memory tier's slice shape, the reserved-name set, and the
 worktree-carry recipe all change, and every implementer flips in this same release wave (clean
@@ -90,7 +104,7 @@ pre-prune SHA record, the visibility matrix, the runtime guards, the resolution 
 one-way `.worktreeinclude` copy semantics. `topic-docs.schema.json` renames no key; only its
 `memory_dir` description text follows the new reserved-name roster.
 
-## 2.5.3 — 2026-08-28
+## [2.5.3] - 2026-08-28
 
 Patch under the Versioning rule: no tier moves, no `topic-docs.yaml` key is renamed, the slug spec
 is untouched, and no visibility guarantee changes. "Implementers restate the rules; they do not
@@ -111,10 +125,10 @@ path into another plugin's tree.
   Wrapping changed; the contract did not. Found by the whole-repo extract-ssot sweep's
   encapsulation floor.
 
-## 2.5.2 — 2026-08-25
+## [2.5.2] - 2026-08-25
 
 Docs-only: `exports` joins the reserved first-level names under the memory
-root — the suggested destination for user-run `/export` conversation
+root, the suggested destination for user-run `/export` conversation
 snapshots (`.work/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt`), offered by the
 session-flow plugin's clean-stop, handoff, and retro skills. The Memory,
 concern-scoped tier row, the Implementers table, and the schema `memory_dir`
@@ -123,28 +137,28 @@ added. Nothing writes this directory programmatically; the user runs the
 built-in command and the memory root's self-ignore guard keeps snapshots out
 of commits.
 
-## 2.5.1 — 2026-08-17
+## [2.5.1] - 2026-08-17
 
 Docs-only: `overengineering` joins the reserved first-level names under the
-memory root — the `overengineering` plugin's concern-scoped findings home
+memory root, the `overengineering` plugin's concern-scoped findings home
 (`.work/overengineering/<branch-slug>/findings.md`, bound by that plugin's
 `reference/topic-docs.md` delta doc). The Memory, concern-scoped tier row, the
 Implementers table, and the schema `memory_dir` description all carry the
 fourth name, matching how `running-retros` was added. (`docs-hygiene`
 `/audit-noise` bare-root ghost-ref exemption tracks this roster.)
 
-## 2.5.0 — 2026-08-15
+## [2.5.0] - 2026-08-15
 
 **The self-ignore guard gains a second invalid case: a root no checkout is
-detected as governing.** The guard does not run there. Two outcomes bind it —
+detected as governing.** The guard does not run there. Two outcomes bind it:
 (A) a memory-tier write is never picked up by a checkout that governs the
 destination, and (B) no plugin ever modifies content tracked in any checkout.
 The guard is the means to A wherever a governing checkout is found; where none
 is detected it buys nothing toward A and can violate B.
 
 **The rule is blanket by derivation, not by generalizing from one case.** A
-`.gitignore` absent from disk is either untracked in some undetected checkout —
-where creating it is harmless and even mitigating — or tracked there, where
+`.gitignore` absent from disk is either untracked in some undetected checkout,
+where creating it is harmless and even mitigating, or tracked there, where
 creating it overwrites committed content and cannot hide the change, since a
 tracked file is exempt from its own pattern. Telling those apart requires
 querying a checkout, and this branch is defined by having found none, so the
@@ -155,7 +169,7 @@ mitigation for a harm that is reachable rather than automatic. An undecidable
 test with asymmetric outcomes yields *do not write*.
 
 "Not detected" is stated as a detection claim and never as a claim that none
-exists — the branch is entered precisely where detection can be wrong, which is
+exists. The branch is entered precisely where detection can be wrong, which is
 why the rule is *do not write* rather than *nothing is at risk*. The tracked-file
 case was measured on the `core.worktree` topology, where a repository governs a
 tree with no `.git` in the destination's path and nothing in the environment to
@@ -163,14 +177,14 @@ find; that demonstration is one route into the state, not its definition.
 
 This closes a self-contradiction rather than carving an exception: the
 no-project-root fallback already routes non-interactive runs to
-`${CLAUDE_PLUGIN_DATA}` by default — a destination outside every checkout — while
+`${CLAUDE_PLUGIN_DATA}` by default, a destination outside every checkout, while
 the guard bullet still spoke unconditionally about that same destination.
 Non-interactive is the normal condition for forked subagents, dispatched
 workers, and headless runs, so every consumer reaching that surface ran
 create-when-absent against a root no checkout governs.
 (<https://github.com/melodic-software/claude-code-plugins/issues/2680>)
 
-## 2.4.4 — 2026-08-15
+## [2.4.4] - 2026-08-15
 
 Docs-only: the Memory, concern-scoped tier row now names `.work/running-retros/`
 alongside `.work/handoffs/` and `.work/reviews/`, matching the reserved
@@ -179,24 +193,24 @@ The schema `memory_dir` description lists the same three concern directories.
 (`docs-hygiene` `/audit-noise` bare-root ghost-ref exemption tracks this roster.)
 (#2730)
 
-## 2.4.3 — 2026-08-15
+## [2.4.3] - 2026-08-15
 
 Docs-only: the prune recovery pointer no longer pretends squash-merge
 preserves branch ancestry. Step 5 now prescribes the Contents API form
 `?ref=<pre-prune-commit>` (no `^`), states that unreachable-object
 retention is best-effort with no promised lifetime, and makes the
-graduation targets (ADR / specs / tracker items) the load-bearing
+graduation targets (ADR / specs / tracker items) the authoritative
 record. Step 2's "reference the rest" pointer names that pre-prune SHA
 plus those targets. (#2699)
 
-## 2.4.2 — 2026-08-12
+## [2.4.2] - 2026-08-12
 
 Docs-only: the contract-slice lifecycle now documents how to retrieve a
 pruned slice after merge (`gh api …/contents/<path>?ref=<pruning-commit>^`)
 and requires step 2's "reference the rest" pointer to name a followable
 ref. (#1461)
 
-## 2.4.1 — 2026-07-29
+## [2.4.1] - 2026-07-29
 
 Docs-only, no tier, key, slug, or visibility change: the no-hoisting decision's "What would
 reopen it" label becomes "Recheck trigger" and cites the
@@ -204,18 +218,18 @@ reopen it" label becomes "Recheck trigger" and cites the
 single name and shape. The ephemeral row's "Re-derivation trigger" label, added at 2.4.0 while
 that migration was in review, adopts the same name and citation. Both triggers are unchanged.
 
-## 2.4.0 — 2026-07-27
+## [2.4.0] - 2026-07-27
 
 - **An Ephemeral row joins the tier table** (additive). The table sorts
-  documents by one question — does anything downstream enforce against
-  this? — which cannot express lifetime, so its finest-grained cell, the
+  documents by one question, "does anything downstream enforce against
+  this?", which cannot express lifetime, so its finest-grained cell, the
   memory tier, conflated state a later reader must find with files
   nothing downstream ever reads again. With no row naming the second
   kind, two plugins answered the same unasked question differently:
-  `adhd:clarify` reached for the session scratchpad — an undocumented
+  `adhd:clarify` reached for the session scratchpad, an undocumented
   harness path (zero occurrences in the full docs corpus, keyed by
   working directory, and declined three times upstream as a supported
-  surface) — while `architecture:improve` had independently settled on a
+  surface), while `architecture:improve` had independently settled on a
   `mktemp` temp file. That divergence, not a shared mistake, is the
   trigger: the convention registry calls for an owner doc before a
   second plugin adopts, and two incompatible answers were already in
@@ -236,29 +250,29 @@ that migration was in review, adopts the same name and citation. Both triggers a
   `/planning:interview`'s dense-round decision table moves out of the
   memory slice into this tier: the skill's own text names the ledger and
   terminal as the record, a resumed session picks up from the first open
-  ledger checkbox, and the plugin's binding never listed the file — so
+  ledger checkbox, and the plugin's binding never listed the file, so
   it was memory-tier state nothing read. `/education:teach` moves the
   other way and is the reason the row is a **classification**, not a
   destination: its concept HTML *is* that concept's lesson artifact in a
-  workspace `resume` reopens, so it is machine state and stays there —
-  the defect was a bullet titled "Ephemeral placement" offering the
+  workspace `resume` reopens, so it is machine state and stays there.
+  The defect was a bullet titled "Ephemeral placement" offering the
   workspace **or** OS temp for one artifact. Its `primer` action, which
   creates no workspace at all, is the genuinely ephemeral half and had
   no resolvable path before. One further producer is recorded but not
   changed here: `/prototype:explore-directions` writes its standalone
   HTML mockup to "an OS temp **or** gitignored scratch location", the
-  same non-deterministic branch rule 1 forbids — but choosing which of
+  same non-deterministic branch rule 1 forbids, but choosing which of
   the two wins has to be reconciled against that plugin's own throwaway
   discipline, which deliberately locates prototypes next to the
   production code they mimic. That is a design question, not a typo, and
   it gets its own change. Every other sweep hit is producer-consumed
   plumbing (a `mktemp` file the producer itself reads and hands to no
-  one) or deliberate machine state — `/education:quiz-me`'s report
+  one) or deliberate machine state, and `/education:quiz-me`'s report
   library is the clearest of the latter, since its `recall` action reads
   those reports back weeks later.
 
   Rule 2 is stated because both existing adopters hand their file back
-  as a path for the user to open — a `finally` cleanup would race the
+  as a path for the user to open, and a `finally` cleanup would race the
   reader and return a dead path. The row deliberately does **not**
   promise the file dies with the session: no documented Claude Code
   mechanism prunes that temp tree (`cleanupPeriodDays` is scoped to
@@ -269,7 +283,7 @@ that migration was in review, adopts the same name and citation. Both triggers a
 
   Rule 1 also constrains the template's **shape**, not just its root.
   The `XXXXXX` placeholders must be trailing, because BSD `mktemp` on
-  macOS substitutes only trailing Xs — so a template appending an
+  macOS substitutes only trailing Xs, so a template appending an
   extension after them (`<prefix>-XXXXXX.html`) cannot create the file
   on macOS. Two adopters had independently written exactly that form,
   which is the evidence that naming the temp root was not a sufficient
@@ -288,15 +302,15 @@ that migration was in review, adopts the same name and citation. Both triggers a
   the rule no longer reads as a promise that one is available.
 
   Minor, not major: no tier moves, no `topic-docs.yaml` key is renamed,
-  the slug spec is untouched, and no visibility guarantee changes — the
+  the slug spec is untouched, and no visibility guarantee changes: the
   ephemeral row is slug-less and invisible to every other execution
   context by construction, so it takes no row in the visibility matrix.
   The eight bindings need no synchronized adoption wave.
 
-## 2.3.0 — 2026-07-26
+## [2.3.0] - 2026-07-26
 
 - **The `.worktreeinclude` template carries sub-slices** (additive). Its
-  patterns matched one level — `.work/*/RESEARCH.md` — while a producer
+  patterns matched one level, as in `.work/*/RESEARCH.md`, while a producer
   may write `<memory_dir>/<slug>/<sub-slug>/`, the layout used when one
   slice holds more than one run: a parallel fan-out assigning a sub-slice
   per topic, or a run that found the slice root already occupied by
@@ -305,10 +319,10 @@ that migration was in review, adopts the same name and citation. Both triggers a
   index, sidecar, and ledger. That partial set is worse than carrying
   nothing, because the receiving session sees an artifact and cannot tell
   it is incomplete. Five nested patterns are added; nothing existing
-  changes meaning and no visibility guarantee moves — a sub-slice was
+  changes meaning and no visibility guarantee moves: a sub-slice was
   always inside the slice, it was simply unreachable by the template.
 
-## 2.2.0 — 2026-07-25
+## [2.2.0] - 2026-07-25
 
 - **"Implementers restate the rules; they do not share a source"** (new,
   additive guidance). The fleet had left implicit what a setup skill's
@@ -317,14 +331,14 @@ that migration was in review, adopts the same name and citation. Both triggers a
   `scripts/cross-plugin-source-registry.txt`. It is not: a `SKILL.md` is
   the instruction surface a session loads and cannot defer at runtime to
   a document the consuming repo lacks, so every implementer restates.
-  The section names the live evidence — `discovery` and `verification`
+  The section names the live evidence, `discovery` and `verification`
   agreeing byte-for-byte while `planning` already diverges on the
-  memory-root `.gitignore` owner and on the empty-mapping case — states
+  memory-root `.gitignore` owner and on the empty-mapping case, states
   why a shared fragment would be a second owner for rules this contract
   already owns, and records the trigger that would reopen extraction. No
   tier, key, slug-spec, or visibility change.
 
-## 2.1.0 — 2026-07-23
+## [2.1.0] - 2026-07-23
 
 - **Implementers table: architecture row added** (additive). The architecture
   plugin's deepening lens writes its per-lens candidate ledger
@@ -333,16 +347,16 @@ that migration was in review, adopts the same name and citation. Both triggers a
   token never substituted in skill content, and even resolved it is
   machine-global). No tier, key, slug-spec, or visibility change.
 
-## 2.0.0 — 2026-07-17
+## [2.0.0] - 2026-07-17
 
 Visibility semantics are now normative contract guarantees. No tier moves, no
-`topic-docs.yaml` key changes, no slug-spec changes — the schema is untouched.
+`topic-docs.yaml` key changes, no slug-spec changes, and the schema is untouched.
 The Versioning rule now counts a visibility-guarantee change as major; this
 release is the first such change, and the rule amendment is what makes the
 major label honest.
 
 - **Visibility across execution contexts** (new, normative): context × tier
-  visibility matrix; four native mechanisms — `worktree.baseRef: "head"` in
+  visibility matrix; four native mechanisms, namely `worktree.baseRef: "head"` in
   committed project settings (verified honored at project scope on CC 2.1.212,
   including from linked worktrees), `.worktreeinclude` one-way creation-time
   copy of gitignored memory files, by-value worker returns with the
@@ -354,7 +368,7 @@ major label honest.
   `baseRef` machine-wide, so nothing may assume it universally in force.
 - **Pointer discipline on durable surfaces** (new, normative): tickets, PR
   bodies, and promoted docs never cite prunable contract paths or gitignored
-  memory paths — cite the PR, the promoted location, or distilled values.
+  memory paths. Cite the PR, the promoted location, or distilled values.
 - **Consumer adoption**: settings + `.worktreeinclude` templates; repository
   files never travel with marketplace-installed plugins, so consuming repos
   self-apply; rollout caveats (untracked-settings pull collision, Windows
@@ -367,17 +381,17 @@ major label honest.
   plugins' actual bindings.
 
 Mixed-fleet window: installed plugin caches and in-flight branches keep 1.x
-text until they update. Safe because no tier, key, or slug-spec changed —
+text until they update. Safe because no tier, key, or slug-spec changed:
 divergence is doctrinal, never layout-corrupting. In-flight branches sweep
 stale visibility text when they merge.
 
-## 1.0.1 — 2026-07-15
+## [1.0.1] - 2026-07-15
 
 - Reserve `vault_backend: gitbook` without enabling writes: concern files preserve the key, skills
   report its deferred state, and durable promotion uses `docs` without GitBook API/MCP or Git Sync
   writes. A mirror requires separately reviewed automation that keeps git authoritative.
 
-## 1.0.0 — 2026-07-14
+## [1.0.0] - 2026-07-14
 
 Initial contract. Replaces four divergent conventions
 (`.claude/notes/<slug>`, `.claude/handoffs/`, `.claude/review/`, legacy

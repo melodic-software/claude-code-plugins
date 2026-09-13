@@ -8,7 +8,7 @@ disable-model-invocation: true
 ## Purpose
 
 Inspect and configure the consuming repo's tracked ecosystem command surface per the uniform setup
-contract (`docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit and repeatable" in the marketplace
+contract (`docs/plugin-philosophy.md` "Setup is explicit and repeatable" in the marketplace
 repository): `check` reports what is configured, `apply` writes it. The tracked files at
 `.claude/ecosystems/<ecosystem>.yaml` let `/toolchain:check` and `/toolchain:lint` resolve commands
 deterministically from rung 1 of the ladder
@@ -59,7 +59,7 @@ first**, then report a PASS/FAIL/INFO table; modify nothing.
 Run `check` first. Then write the accepted ecosystem files. After each write, re-run the `check`
 probe pair for that path rather than trusting the write: `git check-ignore -v` reports no match,
 and `git ls-files --error-unmatch` distinguishes tracked from written-but-untracked (the
-guaranteed state right after a fresh write — report "written but untracked: commit it", never
+guaranteed state right after a fresh write, so report "written but untracked: commit it", never
 success).
 
 ### 1. Read existing config first

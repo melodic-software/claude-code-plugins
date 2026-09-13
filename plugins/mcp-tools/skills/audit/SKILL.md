@@ -13,9 +13,9 @@ metadata:
 Evaluate MCP server tool definitions against design quality criteria drawn from three upstream
 authorities, cited (not recapped) so the current text always governs:
 
-- [MCP specification 2025-11-25 — Tools](https://modelcontextprotocol.io/specification/2025-11-25/server/tools). The normative protocol (MUST / SHOULD / OPTIONAL requirements for names, schemas, annotations).
-- [Anthropic — Writing effective tools for AI agents](https://www.anthropic.com/engineering/writing-tools-for-agents). Engineering guidance for descriptions, parameters, namespacing, and workflow-shaped granularity.
-- [Claude Code — Connect Claude Code to tools via MCP](https://code.claude.com/docs/en/mcp). Claude-Code-specific client behavior: `_meta` annotations and result-size limits. The dated record for the values C17 and C18 turn on is in reference/checklist.md, "Client-behavior record".
+- [MCP specification 2025-11-25: Tools](https://modelcontextprotocol.io/specification/2025-11-25/server/tools). The normative protocol (MUST / SHOULD / OPTIONAL requirements for names, schemas, annotations).
+- [Anthropic: Writing effective tools for AI agents](https://www.anthropic.com/engineering/writing-tools-for-agents). Engineering guidance for descriptions, parameters, namespacing, and workflow-shaped granularity.
+- [Claude Code: Connect Claude Code to tools via MCP](https://code.claude.com/docs/en/mcp). Claude-Code-specific client behavior: `_meta` annotations and result-size limits. The dated record for the values C17 and C18 turn on is in reference/checklist.md, "Client-behavior record".
 
 Produces a per-tool scorecard with actionable findings. Catches description gaps, missing annotations,
 and naming issues before they degrade LLM tool selection accuracy.
@@ -95,7 +95,7 @@ Output a markdown report with this structure:
 
 ### Server: <server-name> (<language>)
 
-Server-level criteria — the outcomes that belong to the server, not to any one tool:
+Server-level criteria, the outcomes that belong to the server rather than to any one tool:
 
 | Criterion | Authority | Result | Details |
 |-----------|-----------|--------|---------|
@@ -108,7 +108,7 @@ Server-level criteria — the outcomes that belong to the server, not to any one
 | C1 Description has "what" | ANTHROPIC | WARN | Missing "when to use" context |
 | C9 Name charset/length valid | SPEC-SHOULD | PASS | |
 | C12 readOnlyHint set | SPEC-OPTIONAL | WARN | Read-only tool lacks the hint |
-| C18 requiresUserInteraction is JSON `true` | OPINION | FAIL | Declared as the string `"true"` — silently ignored |
+| C18 requiresUserInteraction is JSON `true` | OPINION | FAIL | Declared as the string `"true"`, so silently ignored |
 | ... | ... | ... | ... |
 
 (repeat for each tool)

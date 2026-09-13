@@ -57,8 +57,8 @@ Superseded:
 
 ## File roles in this work
 
-- `src/importer.py` — modified; the composite key is in place and green (commit `abc1234`).
-- `tests/test_importer.py` — modified; the re-run case is green (commit `def5678`).
+- `src/importer.py`: modified; the composite key is in place and green (commit `abc1234`).
+- `tests/test_importer.py`: modified; the re-run case is green (commit `def5678`).
 
 ## Decisions already settled
 

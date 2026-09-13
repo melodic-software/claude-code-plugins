@@ -272,12 +272,15 @@ _ip_imports_of() {
 # a file reachable only past that depth is genuinely not loaded.
 _ip_reaches() {
   local from="$1" want="$2" depth="${3:-0}"
-  ((depth > 4)) && return 1
   [[ -f "$from" ]] || return 1
 
   local resolved import_real
   resolved="$(ip_realpath "$from")"
   [[ "$resolved" == "$want" ]] && return 0
+  # <from> sits at hop <depth>; its imports are hop depth + 1, and the loader
+  # follows hops one through four only. A file at hop four may be the target,
+  # but its own imports are never loaded, so they are not examined.
+  ((depth >= 4)) && return 1
 
   local imported
   while IFS= read -r imported; do

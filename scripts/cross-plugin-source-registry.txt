@@ -9,13 +9,25 @@
 # (already a required CI job) and names its canonical copy instead, so a drift
 # failure says which direction to fix.
 #
-# One path-within-plugin per line, relative to each plugin's own root.
+# One path-within-plugin per line, relative to each plugin's own root. A line
+# of the form `<canonical> -> <member>...` is a cluster line: the root-relative
+# canonical copy, then the plugin paths or globs that carry it. It is read only
+# by the code-metrics duplication audit (registry-filter.py), which excludes
+# the canonical plus every copy as one sanctioned class; this script skips it.
 
 # Dedicated check: scripts/sync-hook-utils.sh --check (CI: hook-utils-sync)
 hooks/hook-utils.sh
 
+# Dedicated check: scripts/sync-hook-utils.sh --check (CI: hook-utils-sync).
+# Cluster line for the duplication audit: the root canonical and the copies.
+lib/hook-utils.sh -> plugins/*/hooks/hook-utils.sh
+
 # Dedicated check: scripts/sync-rewrite-guard.sh --check (CI: rewrite-guard-sync)
 hooks/rewrite-guard.sh
+
+# Dedicated check: scripts/sync-rewrite-guard.sh --check (CI: rewrite-guard-sync).
+# Cluster line for the duplication audit: the root canonical and the copies.
+lib/rewrite-guard.sh -> plugins/*/hooks/rewrite-guard.sh
 
 # Dedicated check: scripts/validate-plugin-contracts.mjs (lifecycleProtocolCopies)
 reference/artifact-protocol.md
@@ -35,6 +47,19 @@ lib/state-key.sh
 # single-plugin path fails as stale), so uncomment the line below when a
 # second plugin consumes it.
 # scripts/index-regen.sh
+
+# Dedicated check: scripts/sync-index-regen.sh --check. Cluster line for the
+# duplication audit: the root canonical and its copy are one class today, so
+# the line is live even while the path-within-plugin entry above stays out.
+lib/index-regen.sh -> plugins/*/scripts/index-regen.sh
+
+# Dedicated check: scripts/sync-resolve-convention-pattern.sh --check.
+# Cluster line for the duplication audit: the root canonical and its copy.
+lib/resolve-convention-pattern.sh -> plugins/*/hooks/resolve-convention-pattern.sh
+
+# Dedicated check: scripts/sync-parse-concern-value.sh --check. Cluster line
+# for the duplication audit: the copies sit at two shapes within a plugin.
+lib/parse-concern-value.sh -> plugins/*/skills/*/scripts/parse-concern-value.sh plugins/*/skills/*/scripts/lib/parse-concern-value.sh
 
 # Dedicated check: scripts/sync-spawn-noise.sh --check (CI: spawn-noise-sync)
 lib/spawn_noise.py
@@ -60,6 +85,16 @@ scripts/compose-statusline-wiring.sh
 # copy it into plugins/rate-limit-guard/scripts/ to fix a drift failure.
 scripts/compose-statusline-wiring.test.sh
 
+# No dedicated check: worktree-root resolver. Canonical copy:
+# plugins/source-control/scripts/worktree-root-resolve.sh; copy it into
+# plugins/repo-fleet-hygiene/scripts/ to fix a drift failure.
+scripts/worktree-root-resolve.sh
+
+# No dedicated check: retired worktree-root alias peel, sourced by the
+# resolver. Delete both copies after 2026-12-31. Canonical copy:
+# plugins/source-control/scripts/worktree-root-legacy.sh.
+scripts/worktree-root-legacy.sh
+
 # Dedicated check: scripts/sync-resolve-convention-home.sh --check (CI: resolve-convention-home-sync)
 lib/resolve-convention-home.sh
 
@@ -76,3 +111,14 @@ scripts/context-zone.sh
 # Canonical copy: plugins/context-guard/scripts/context-zone.test.sh; copy it
 # into plugins/plugin-quality/scripts/ to fix a drift failure.
 scripts/context-zone.test.sh
+
+# No dedicated check: a one-line `@AGENTS.md` CLAUDE.md shim beside an `audit`
+# skill's contributor AGENTS.md, carried by every plugin whose audit skill
+# keeps one (Claude Code reads CLAUDE.md, not AGENTS.md, so the shim is what
+# makes the conventions load). The copies are identical by construction, not
+# by sync, so this script's own --check is the gate. Canonical copy:
+# plugins/machine-health/skills/audit/CLAUDE.md; copy it beside another audit
+# skill's AGENTS.md to fix a drift failure. A shim that later gains
+# Claude-specific content below its import is a legitimate divergence: remove
+# this line rather than re-align the copies.
+skills/audit/CLAUDE.md

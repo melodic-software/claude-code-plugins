@@ -1,7 +1,7 @@
 # D1 measurement harness
 
 The harness behind [`../d1-model-already-knows-measurement.md`](../d1-model-already-knows-measurement.md),
-the #3121 investigation into whether cut class D1 — *content the model already knows* — is a
+the #3121 investigation into whether cut class D1, *content the model already knows*, is a
 scanner shape.
 
 It is committed so the reported **94.1% false-positive rate** can be re-derived rather than taken
@@ -14,7 +14,7 @@ summarise.
 
 The measurement was taken against **`dff0942917e56929f6146261117a0eceeac502c8`**
 (`docs(work-items): de-slop instruction surfaces (0.39.13) (#3107)`). The corpus selectors are
-relative to a working tree, so the counts move as the fleet grows — reproducing the published
+relative to a working tree, so the counts move as the fleet grows. Reproducing the published
 numbers requires that revision, not `main`.
 
 ## Reproducing
@@ -64,7 +64,7 @@ Expected, and verified reproducing exactly at the pinned revision:
 `adjudication.py` holds verdicts, it does not derive them. Each of the 185 sampled sentences was
 read in its own file context and assigned one verdict; the sets in that file are the record of
 those readings, not a rule that recomputes them. Re-running reproduces the arithmetic, not the
-judgement — a reviewer who disagrees with a row should edit its set membership and see what the
+judgement. A reviewer who disagrees with a row should edit its set membership and see what the
 rate does, which is the point of shipping it this way.
 
 The **contested** bucket is deliberately scored twice. Those 11 sentences are model-relative:

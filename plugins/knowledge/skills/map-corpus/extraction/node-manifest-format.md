@@ -14,7 +14,7 @@ agent chose to enumerate.
    machine paths, locale-dependent text, or unordered collections enter the output. The snapshot is
    recorded by basename only.
 3. **Self-verifying spans.** `content_sha256` is SHA-256 over the raw snapshot bytes
-   `[start_byte, end_byte)`. `snapshot.sha256` is SHA-256 over the whole snapshot as fetched — the
+   `[start_byte, end_byte)`. `snapshot.sha256` is SHA-256 over the whole snapshot as fetched: the
    hash the tracked citation shape carries (`${CLAUDE_PLUGIN_ROOT}/reference/citation-shape.md`).
 4. **Document order.** `nodes` is ordered by `start_byte`; `index` is the 0-based position.
 5. **Fail loudly.** Empty snapshot, unreadable file, unknown extension, non-UTF-8 BOM, CR-only
@@ -22,7 +22,7 @@ agent chose to enumerate.
    never emits a manifest that violates invariant 1 or 3.
 6. **Encoding contract.** Snapshots are expected to be UTF-8 (or ASCII-compatible) text. A UTF-8
    BOM is tolerated: the scanners skip it and its 3 bytes land in the first node's span. UTF-16 and
-   UTF-32 BOMs are rejected loudly — the byte-level scanners would otherwise silently miss every
+   UTF-32 BOMs are rejected loudly, because the byte-level scanners would otherwise silently miss every
    heading, re-coarsening the coverage denominator to page level, which is the exact glossing
    failure this pipeline exists to prevent. Markdown snapshots with CR-only (classic Mac) line
    endings are rejected for the same reason; LF and CRLF are both supported. The fetch channel owns
@@ -63,10 +63,10 @@ Serialization: JSON, `indent=2`, keys sorted, ASCII-escaped, trailing newline, U
 
 ## Node fields
 
-- `id` — `n<index 4-digit zero-padded>-<first 8 hex of content_sha256>`. Deterministic for one
+- `id`: `n<index 4-digit zero-padded>-<first 8 hex of content_sha256>`. Deterministic for one
   snapshot; NOT stable across snapshot revisions (an upstream edit re-partitions). Cross-revision
   identity is out of scope for v1.
-- `kind` — `frontmatter` | `preamble` | `section` | `document`.
+- `kind`: `frontmatter` | `preamble` | `section` | `document`.
   - `frontmatter`: a leading `---`-fenced block (markdown only).
   - `preamble`: bytes between frontmatter (or byte 0) and the first heading.
   - `section`: a heading plus its body, running to the next heading of ANY level. Sections are
@@ -74,18 +74,18 @@ Serialization: JSON, `indent=2`, keys sorted, ASCII-escaped, trailing newline, U
     re-extraction.
   - `document`: the whole snapshot, used when the format yields no outline (opaque formats, or a
     markdown/HTML file with no headings).
-- `level` — heading level 1–6 for `section`; 0 otherwise.
-- `title` — heading text, UTF-8-decoded (`errors=replace`), whitespace-normalized, display-only.
+- `level`: heading level 1–6 for `section`; 0 otherwise.
+- `title`: heading text, UTF-8-decoded (`errors=replace`), whitespace-normalized, display-only.
   Never use `title` for identity or matching; use `id`.
-- `parent_id` — nearest preceding `section` with a lower `level`, else `null`. Encodes the outline
+- `parent_id`: nearest preceding `section` with a lower `level`, else `null`. Encodes the outline
   tree over the flat partition.
 
-## Format handlers and the extension seam
+## Format handlers and the extension point
 
-`FORMAT_HANDLERS` / `EXTENSION_FORMATS` in `extract_nodes.py` are the seam: a new format registers
-a handler returning heading boundaries as raw byte offsets, and its extensions. Unregistered
-extensions fail loudly; `--format` overrides per run. `.pdf` is deliberately mapped to an error —
-extract nodes from the fetched text extraction (`source.txt`, opaque) beside it, never the binary.
+`FORMAT_HANDLERS` / `EXTENSION_FORMATS` in `extract_nodes.py` are the extension point: a new format
+registers a handler returning heading boundaries as raw byte offsets, and its extensions. Unregistered
+extensions fail loudly; `--format` overrides per run. `.pdf` is deliberately mapped to an error.
+Extract nodes from the fetched text extraction (`source.txt`, opaque) beside it, never the binary.
 
 ### markdown (`.md`, `.markdown`, `.mdx`)
 
@@ -113,7 +113,7 @@ Documented deterministic simplifications (chosen over full CommonMark for audita
 
 Byte-regex over a length-preserving masked copy (comments, `script`, `style`, `pre`, `textarea`
 masked; unclosed masked regions mask to EOF). `<h1>`–`<h6>` open tags are boundaries; titles are
-tag-stripped inner text. Limitation: this is not a DOM parse — malformed nesting or headings
+tag-stripped inner text. Limitation: this is not a DOM parse, so malformed nesting or headings
 constructed by JS are invisible. Docs-site HTML is expected to be tame; anything worse should be
 fetched via a markdown channel instead.
 
@@ -128,6 +128,6 @@ extractions where outline structure either does not exist or is not recoverable 
 - Sub-heading granularity (paragraph/sentence nodes). The partition floor is the heading section;
   finer evidence lives in evidence-token spans INSIDE a node's byte range.
 - Format sniffing. The extension map (or `--format`) is trusted absolutely; content is never
-  sniffed beyond the BOM checks above. An unknown extension fails loudly instead of guessing —
+  sniffed beyond the BOM checks above. An unknown extension fails loudly instead of guessing,
   but a wrong extension (binary bytes named `.html`) is honored, deterministically yielding a
   whole-`document` node.

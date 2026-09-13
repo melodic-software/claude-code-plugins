@@ -70,6 +70,41 @@ make_sink() {
   printf '%s' "$s"
 }
 
+# drive_with_sink <hook-script> <payload> <capture-file> [KEY=VALUE ...] -> run
+# one hook black-box with a stub sink wired, and return as soon as the hook
+# exits (the sink is fire-and-forget, so the capture file may still be empty).
+# Trailing KEY=VALUE arguments join the hook's environment, which is where a
+# kill switch, a userConfig option or CLAUDE_PROJECT_DIR goes.
+drive_with_sink() {
+  local __hook="$1" __payload="$2" __cap="$3" __sink
+  shift 3
+  : >"$__cap"
+  __sink="$(make_sink "$__cap")"
+  env HOOK_TELEMETRY_SINK="$__sink" "$@" bash "$__hook" <<<"$__payload" >/dev/null 2>&1
+}
+
+# emit_envelope <hook-script> <payload> <capture-file> [KEY=VALUE ...] -> drive
+# the hook and block until its envelope arrives. Returns non-zero when none
+# did, so a caller writes `if emit_envelope …; then assert …; else bad …; fi`.
+emit_envelope() {
+  drive_with_sink "$@"
+  wait_for_sink "$3"
+}
+
+# expect_no_envelope <label> <hook-script> <payload> <capture-file> [KEY=VALUE ...]
+# The row is off, skipped, or has nothing to say. A bounded wait runs first so a
+# merely slow dispatch is not recorded as an absent one.
+expect_no_envelope() {
+  local __label="$1"
+  shift
+  drive_with_sink "$@"
+  if wait_for_sink "$3" 25; then
+    bad "$__label: unexpected envelope: $(cat "$3")"
+  else
+    ok "$__label"
+  fi
+}
+
 # wait_for_sink <file> [tries] -> block until <file> is non-empty (the
 # fire-and-forget sink flushed) or the bound elapses, polling in 20ms steps.
 wait_for_sink() {

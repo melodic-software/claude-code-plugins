@@ -14,10 +14,10 @@ both forms against the pages linked below at audit time, never from memory.
 
 ## Check
 
-- **Naming collisions** — a same-named skill wins over a command; flag shadowing.
-- **Frontmatter** — argument handling, tool permissions.
-- **Determinism & escape hatches** — same as any workflow: reliable steps, clean bypass.
-- **Migration** — would it be better as a skill (supporting files, progressive disclosure,
+- **Naming collisions**: a same-named skill wins over a command; flag shadowing.
+- **Frontmatter**: argument handling, tool permissions.
+- **Determinism & escape hatches**: same as any workflow, meaning reliable steps and a clean bypass.
+- **Migration**: would it be better as a skill (supporting files, progressive disclosure,
   auto-trigger)?
 
 ## Reproduce

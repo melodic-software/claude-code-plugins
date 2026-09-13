@@ -14,7 +14,7 @@ This document is the fleet checklist. Per-hook notices must:
 4. Append `PATH probed: …` so the miss is diagnosable. Prefer plausible
    directories (user/repo install locations); collapse Claude Code plugin-bin
    entries to a count so the dump stays short enough for a later re-notice.
-5. **Never** widen the probe into nvm/rbenv layout guesses — that is bootstrap work
+5. **Never** widen the probe into nvm/rbenv layout guesses. That is bootstrap work
    (#2739 / #2748), not a hook-side search expansion.
 
 | Plugin | Hook | Probe order | Filesystem / repo-local route | Notice key |
@@ -30,4 +30,4 @@ This document is the fleet checklist. Per-hook notices must:
 | `eol-normalizer` | `hooks/normalize-eol.sh` | `command -v perl` (optional fast path) | pure-shell fallback when perl missing | n/a (degrades, does not skip) |
 
 Bootstrap hardening that puts fleet tools on the **harness** process PATH (or pins them as
-repo `devDependencies`) is out of scope for the per-hook notice sweep — see #2739.
+repo `devDependencies`) is out of scope for the per-hook notice sweep. See #2739.

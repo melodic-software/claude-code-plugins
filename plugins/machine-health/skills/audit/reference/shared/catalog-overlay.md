@@ -1,4 +1,4 @@
-# Catalog overlay — machine-local check customization
+# Catalog overlay: machine-local check customization
 
 The shipped catalog (`catalog/checks.jsonc`) is read-only at runtime: it lives inside the
 installed plugin, and a plugin update replaces it. Everything machine-specific about the
@@ -10,7 +10,7 @@ catalog goes in an **overlay file** under the state base:
 
 `<StateBase>` is the state root the orchestrator resolves (explicit `-StateBase` parameter,
 then `CLAUDE_PLUGIN_DATA`, then `-OutputBase`). `/machine-health:setup` writes this file;
-hand-editing is also fine — it is re-read on every run.
+hand-editing is also fine, since it is re-read on every run.
 
 ## Shape and merge semantics
 
@@ -18,10 +18,10 @@ Same JSONC shape as the shipped catalog: `{ "checks": [ ... ] }`. Merged by `id`
 
 | Overlay entry | Effect |
 |---|---|
-| `id` matches a shipped check | The overlay's properties override that entry's (partial entries are fine — list only the fields to change) |
+| `id` matches a shipped check | The overlay's properties override that entry's (partial entries are fine, so list only the fields to change) |
 | `id` is new | Appended as a custom check (full schema-valid entry required) |
 
-Entries are never deleted by an overlay — set `"enabled": false` to turn a check off, or
+Entries are never deleted by an overlay. Set `"enabled": false` to turn a check off, or
 `"deprecated": true` + `"deprecation_reason"` to retire it with history continuity. Every
 merged entry is schema-validated; an invalid one is skipped with a log warning and the rest
 of the catalog still runs.
@@ -53,7 +53,7 @@ of the catalog still runs.
 ## Custom checks
 
 A custom check keeps the standard `scripts/<os>/checks/Name.ps1` path shape but lives under
-the state base — the orchestrator resolves a check script against the plugin first, then
+the state base. The orchestrator resolves a check script against the plugin first, then
 against `<StateBase>`:
 
 1. Write the check to `<StateBase>/scripts/windows/checks/Test-MyThing.ps1`, emitting a
@@ -69,4 +69,4 @@ shipped ones.
 
 The skill's self-improvement loop (deprecation proposals, cadence demotions) writes its
 *proposals* to `<StateBase>/TODO.md` for human approval; approved changes are then applied
-to this overlay — never to the shipped catalog.
+to this overlay, never to the shipped catalog.

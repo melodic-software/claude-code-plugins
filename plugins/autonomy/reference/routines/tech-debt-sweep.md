@@ -6,7 +6,7 @@ recipe tooling) is an org-binding outcome.
 
 ## Purpose
 
-Toil addressed: debt is noticed in passing and forgotten — nobody owns the recurring pass
+Toil addressed: debt is noticed in passing and forgotten, because nobody owns the recurring pass
 that turns "we should clean this up someday" into concrete, sized, queued work. The sweep
 periodically characterizes debt hotspots and files them as work items, so prioritization
 happens over an evidence-backed inventory instead of memory and anecdote.
@@ -15,18 +15,18 @@ happens over an evidence-backed inventory instead of memory and anecdote.
 
 Trigger-taxonomy slot: schedule, entering the queue through the
 [trigger contract](../trigger-dispatch.md)'s `temporal` surface class. Suggested cadence
-default: weekly — an org-bindable value.
+default: weekly, an org-bindable value.
 
 ## Access scope
 
-Repo — repository, CI, and tracker surfaces only. Per the catalog mapping rules' access
+Repo: repository, CI, and tracker surfaces only. Per the catalog mapping rules' access
 axis, repo scope sets the `L2` unattended floor as the class prerequisite
 ([guardrail contract](../guardrails.md)).
 
 ## Output contract
 
 Work items filed into the governed queue: each hotspot as a characterized, sized item
-with its evidence. No repository mutation, and no self-disposition — the PRIORITIZATION
+with its evidence. No repository mutation, and no self-disposition: the PRIORITIZATION
 of the filed items (what gets fixed, in what order) is human-gated always. Deterministic
 recipe-driven remediation is separate no-agent-session work, never this routine's output.
 
@@ -34,15 +34,15 @@ recipe-driven remediation is separate no-agent-session work, never this routine'
 
 The row is derived through the catalog's mapping rules, never hand-assigned:
 
-1. **Hybrid split.** The class is a hybrid: deterministic recipe execution —
-   codemod-style transformations that need no judgment — runs with no agent session and
-   zero agent tokens and is NOT the routine. The judgment portion — hotspot analysis and debt
-   characterization — IS the routine.
+1. **Hybrid split.** The class is a hybrid: deterministic recipe execution, the
+   codemod-style transformations that need no judgment, runs with no agent session and
+   zero agent tokens and is NOT the routine. The judgment portion, hotspot analysis and debt
+   characterization, IS the routine.
 2. **Judgment + output axes.** Agent judgment filing work items into the governed queue,
    no repository mutation → `C1`, with the `L2` unattended floor.
 3. **Human-decision boundary.** The prioritization DECISION is agent-prepares,
    human-decides: its disposition is human-gated always, regardless of the sweep's own
-   `C1` derivation — the routine prepares the inventory; it never ranks-and-commits the
+   `C1` derivation. The routine prepares the inventory; it never ranks-and-commits the
    campaign on its own authority.
 
 Derived row: `C1` for the sweep; human-gated disposition for the prioritization decision.
@@ -56,16 +56,16 @@ guardrail slice, never re-derived. Resolution verdicts use `supported` | `condit
 `unsupported` | `unknown`.
 
 Single-posture identity: `tech-debt-sweep` (bare class token). The human-gated prioritization
-disposition is not a second identity — it is admission disposition on the same identity's
+disposition is not a second identity. It is admission disposition on the same identity's
 output.
 
 | Axis | Value |
 |---|---|
 | Access class | `repo` |
-| Isolation floor | `L2` — cited from the [matrix](../guardrails.md#the-matrix) `C1` row and the [unattended floor](../guardrails/isolation-ladder.md#unattended-floor) |
-| Connector entitlements | none — `repo` access; the connector branch of [Access to prerequisites](../routines.md#access-to-prerequisites) does not apply |
+| Isolation floor | `L2`, cited from the [matrix](../guardrails.md#the-matrix) `C1` row and the [unattended floor](../guardrails/isolation-ladder.md#unattended-floor) |
+| Connector entitlements | none. Access is `repo`, so the connector branch of [Access to prerequisites](../routines.md#access-to-prerequisites) does not apply |
 | Connector entitlement rung | n/a (no connector). For `prod` / `product` / `org` / `ext`, entitlement binds at the [Org binding layer](../binding-seam.md#resolution-ladder) |
-| `executor_class` merge cap | cited from [executor surface classes](../trigger-dispatch.md#executor-surface-classes) — security-binding `executor_class`; `vendor-hosted` caps every class at human-gated merge; never repo-derivable. Merge policy for this identity is n/a (`C1`) |
+| `executor_class` merge cap | cited from [executor surface classes](../trigger-dispatch.md#executor-surface-classes). Security-binding `executor_class`; `vendor-hosted` caps every class at human-gated merge; never repo-derivable. Merge policy for this identity is n/a (`C1`) |
 | Repo needs | repository source tree; ecosystems via the toolchain seam when installed (fallback: inference from the repo's own build files); tracker binding when filing work items through the work-item tracker seam |
 
 ## Admission and escalation

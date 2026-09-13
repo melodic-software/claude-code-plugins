@@ -1,11 +1,11 @@
 # Permission Hygiene Criteria
 
-Version: 1.2.0
-Last updated: 2026-08-12
-Synced from: permission-rule-hygiene convention 1.2 (`2a481e9d`)
+Version: 1.3.0
+Last updated: 2026-09-12
+Synced from: permission-rule-hygiene convention 1.4.0 (`0a9bae33`)
 
 This file defines the checks the `audit-permission-grants` audit runs. The **principle, the three
-anti-patterns, and the prescribed correct pattern — with official-doc citations — live in the
+anti-patterns, and the prescribed correct pattern, with official-doc citations, live in the
 marketplace's permission-rule-hygiene convention** and are not restated here, published at
 <https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/permission-rule-hygiene/README.md>
 (pinned at the commit named in **Synced from** above).
@@ -14,11 +14,11 @@ finding. Each check's **Recommend** line below carries the fix in the form the r
 never depends on fetching the convention.
 
 The deterministic spine is
-`bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-permission-grants/scripts/permission-rule-check.sh"` — it scans
+`bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-permission-grants/scripts/permission-rule-check.sh"`. It scans
 skill/command/agent frontmatter `allowed-tools` and the `permissions.allow` arrays of
 `.claude/settings.json`, `.claude/settings.local.json`, and the user-global settings file, plus any
 plugin `settings.json`, and emits one finding per fragile grant. The user-global file resolves as
-`${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json` — that scope is where Claude Code's own "Always
+`${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json`. That scope is where Claude Code's own "Always
 allow" path writes, so it accumulates exactly the broad rules auto mode drops, and a project-only
 scan could not see any of them. A user-global finding names the resolved absolute path, because
 reporting `~/.claude/settings.json` would name the wrong file whenever `CLAUDE_CONFIG_DIR` has moved
@@ -26,15 +26,15 @@ the config root. Frontmatter files under a `vendor/` path segment are skipped: t
 vendored upstream references, not loadable skills/agents/commands, so their `allowed-tools` never take
 effect and a finding on them would be a false positive. Findings are advisory and never fail the run,
 so a completed scan exits 0 in either mode; `--count` prints the finding count. **An environment gap
-exits 2 instead of reporting a clean bill** — a missing `jq`, or a scan root that resolves to neither a
+exits 2 instead of reporting a clean bill**: a missing `jq`, or a scan root that resolves to neither a
 git toplevel nor `$CLAUDE_PROJECT_DIR`. There is no fallback to the current directory, because outside
 a repository that is usually the user profile and scanning it would walk the whole home tree and still
-exit 0. To scan an explicit directory, set **`$PERMISSION_HYGIENE_SCAN_ROOT`** — a sanctioned
-operator lever and the documented remedy for that exit 2, not a test-only seam. Its predecessor
+exit 0. To scan an explicit directory, set **`$PERMISSION_HYGIENE_SCAN_ROOT`**, a sanctioned
+operator lever and the documented remedy for that exit 2, not a test-only override. Its predecessor
 `$PERMISSION_HYGIENE_FIXTURE_DIR` still resolves as a back-compatible alias; the new name wins when
 both are set.
 
-`settings.local.json` is parsed for its `permissions.allow` array only — never read or echoed wholesale
+`settings.local.json` is parsed for its `permissions.allow` array only, never read or echoed wholesale
 (it may hold tokens).
 
 Findings are printed as `<severity> [<check>] <source>: <detail>`.
@@ -50,10 +50,10 @@ denominator; a run that parsed nothing prints `NOTHING TO AUDIT` and must not be
 
 **The exclusion set is disclosed rather than extended by path segment, and here is why.** A
 blanket `vendor/` or `node_modules/` exclusion would make an `error`-tier check silently blind to
-live grants under nested `.claude/skills/` paths — which Claude Code loads the moment it touches a
+live grants under nested `.claude/skills/` paths, which Claude Code loads the moment it touches a
 file in that subdirectory (<https://code.claude.com/docs/en/skills>, fetched 2026-08-12). The
 detector instead applies a **loadability model**: only frontmatter at documented discovery paths is
-audited — project or nested `.claude/skills/<name>/SKILL.md`, plugin `skills/<name>/SKILL.md`, and
+audited, meaning project or nested `.claude/skills/<name>/SKILL.md`, plugin `skills/<name>/SKILL.md`, and
 the parallel agents/commands paths. Everything else is excluded and counted. Filtering to *installed*
 plugin versions needs an `installed_plugins.json` oracle this detector does not consult.
 An exclusion whose count is printed cannot suppress anything silently, which is the property that
@@ -64,44 +64,52 @@ matters.
 ## P1: Interpreter-wildcard / blanket allow rule [warning]
 
 **What**: An `allowed-tools` or `permissions.allow` entry matching an action class Claude Code drops on
-entering auto mode — blanket `Bash(*)` / `PowerShell(*)` / bare `Bash` / bare `PowerShell`, a
-wildcarded interpreter (`Bash(python*)`, `Bash(node *)`, `Bash(bash <path>*)`, `Bash(sh -c*)`), a
-package-manager grant — a runner subcommand (`Bash(npx *)`, `Bash(uvx *)`, `Bash(pipx run *)`,
-`Bash(pnpm dlx *)`, …) or a bare package-manager wildcard (`Bash(npm:*)`, `Bash(npm *)`,
-`Bash(pnpm:*)`, `Bash(yarn:*)`), which grants arbitrary execution via `npm exec` / lifecycle scripts —
-**this bare form reaches past the documented "package-manager run commands" category** (broader, not
-narrower; same authoring anti-pattern and fix) —
-a script-glob command (`Bash(*.py:*)`), or an `Agent` allow rule (bare `Agent` or scoped `Agent(...)` —
-both dropped categorically, with no narrow carry-over form).
+entering auto mode. The classes:
+
+- blanket `Bash(*)` / `PowerShell(*)` / bare `Bash` / bare `PowerShell`
+- a wildcarded interpreter (`Bash(python*)`, `Bash(node *)`, `Bash(bash <path>*)`, `Bash(sh -c*)`)
+- a package-manager grant, meaning a runner subcommand (`Bash(npx *)`, `Bash(uvx *)`, `Bash(pipx run *)`,
+  `Bash(pnpm dlx *)`, …) or a bare package-manager wildcard (`Bash(npm:*)`, `Bash(npm *)`,
+  `Bash(pnpm:*)`, `Bash(yarn:*)`), which grants arbitrary execution via `npm exec` / lifecycle scripts.
+  **This bare form reaches past the documented "package-manager run commands" category** (broader, not
+  narrower; same authoring anti-pattern and fix)
+- a script-glob command (`Bash(*.py:*)`)
+- an `Agent` allow rule (bare `Agent` or scoped `Agent(...)`, both dropped categorically, with no narrow
+  carry-over form)
+
+`Monitor` allow rules are a **sixth** documented drop class, added upstream in v2.1.236 because Claude
+Code runs Monitor commands through the shell. This detector does not scan for it, and that division of
+labor is deliberate: `audit-permission-state` owns the Monitor class. Do not report a clean P1 result
+as evidence that a repo's Monitor grants are sound.
 
 **How to check**: run the detector. Each P1 alternative requires a wildcard, so an exact narrow rule
 (`Bash(npm test)`, `Bash(npm run build)`, `Bash(cargo build)`, `Bash(babysit_merge.sh:*)`) is not
-flagged — matching the official "narrow rules carry over" behavior.
+flagged, matching the official "narrow rules carry over" behavior.
 
 **Why**: every P1 shape is interpreter/runner-led rather than the portable bare-name pattern, and the
-**broad forms** — blanket rules, package-manager runners, and interpreters with a wildcarded or
-globbed script target (e.g. `Bash(python "*helper.py":*)`) — are the ones auto mode drops, after which
+**broad forms**, blanket rules, package-manager runners, and interpreters with a wildcarded or
+globbed script target (e.g. `Bash(python "*helper.py":*)`), are the ones auto mode drops, after which
 the grant does nothing and the action falls to the classifier. A grant that invokes one fixed script
 via an interpreter (`Bash(bash <fixed-path>:*)`) is flagged as the same authoring anti-pattern even
 where the doc's dropped-category wording does not clearly reach it; the fix (a bare PATH command) is
 the same. See convention anti-pattern 1.
 
-**Recommend**: where the convention's bare-name-on-PATH end state is reachable (see its **Known gap —
-step 1's plugin `bin/` delivery** section), expose the helper as a bare command on PATH and allow the
-bare name narrowly. On platforms where plugin `bin/` is not reliably on the Bash tool's PATH — the
-measured default on Windows/Git Bash today — keep the finding and prescribe the bundled-path
+**Recommend**: where the convention's bare-name-on-PATH end state is reachable (see its **Known gap**
+section on step 1's plugin `bin/` delivery), expose the helper as a bare command on PATH and allow the
+bare name narrowly. On platforms where plugin `bin/` is not reliably on the Bash tool's PATH, the
+measured default on Windows/Git Bash today, keep the finding and prescribe the bundled-path
 invocation that works now (`Bash(${CLAUDE_PLUGIN_ROOT}/bin/<helper>:*)` or `${CLAUDE_SKILL_DIR}` for a
 skill's own script), plus an operator-setup note for the bare-name rule the operator can add when
-delivery is stable. An `Agent` rule has no bare-PATH analog — remove or re-scope it, or run outside
+delivery is stable. An `Agent` rule has no bare-PATH analog: remove or re-scope it, or run outside
 auto mode.
 
 ## P2: Hardcoded absolute machine/user path [error]
 
-**What**: An entry containing a concrete user-home absolute path — `/c/Users/<name>/…` (POSIX-normalized
+**What**: An entry containing a concrete user-home absolute path: `/c/Users/<name>/…` (POSIX-normalized
 Windows), `/home/<name>/…`, `/Users/<name>/…`, or `C:\Users\<name>\…`.
 
-**How to check**: run the detector. `${CLAUDE_PROJECT_DIR}/…` and `~/…` forms are not flagged — those
-genuinely expand per machine and per user — while only concrete usernames match.
+**How to check**: run the detector. `${CLAUDE_PROJECT_DIR}/…` and `~/…` forms are not flagged, since those
+genuinely expand per machine and per user. Only concrete usernames match.
 
 **`//…` is flagged.** It is not a portable anchor like the two expanding forms: `//` is the *absolute*
 anchor.
@@ -110,13 +118,13 @@ table row `` `//path` | Absolute path from filesystem root | `Read(//Users/<name
 `/Users/<name>/secrets/**` ``, and the same page states: *"A pattern like `/Users/<name>/file` isn't an
 absolute path. The single leading slash anchors at the settings source, not the filesystem root. **Use
 `//Users/<name>/file` for absolute paths.**"* So `//Users/<name>/…` resolves to a concrete user home and
-carries the username — it is the canonical *spelling* of the defect P2 exists to catch, not an
+carries the username. It is the canonical *spelling* of the defect P2 exists to catch, not an
 exception to it. Contrast `~/…`, whose own doc row (`Read(~/Documents/*.pdf)` → `/Users/<name>/Documents/*.pdf`)
 shows the home segment being supplied per user, which is what makes it portable.
 
-**Why**: the rule names a concrete user home, so it breaks on any other machine or username — and after
-a skill migrates into a plugin, since the install path changes — and it leaks a username into version
-control. That portability break is the whole of the finding, and it holds for every rule class this
+**Why**: the rule names a concrete user home, so it breaks on any other machine or username, and it
+breaks after a skill migrates into a plugin, since the install path changes. It also leaks a username into
+version control. That portability break is the whole of the finding, and it holds for every rule class this
 check fires on.
 
 **Do not state it as "no expansion".** No such rule is documented on the permissions page, and the
@@ -124,19 +132,21 @@ blanket form is false for the file tools. Match the mechanism to the rule class:
 
 | Rule class | What actually happens |
 | --- | --- |
-| `Bash(...)` | A glob over the literal command string ([permissions](https://code.claude.com/docs/en/permissions#bash)) — with the two documented exceptions below. |
+| `Bash(...)` | A glob over the literal command string ([permissions](https://code.claude.com/docs/en/permissions#bash)), with the two documented exceptions below. |
 | `Read(...)` / `Edit(...)` | gitignore pattern syntax, which **does** resolve anchors: `~/path` from the home directory, `//path` from the filesystem root, `/path` from the settings source ([permissions](https://code.claude.com/docs/en/permissions#read-and-edit)). The page's own example: `Read(~/Documents/*.pdf)` matches `<home>/Documents/*.pdf`. |
 
 The two exceptions on Bash rules:
 
 1. **Token substitution in `allowed-tools`.** Claude Code substitutes `${CLAUDE_SKILL_DIR}` and
-   `${CLAUDE_PROJECT_DIR}` in both a skill's markdown content and Bash rules in `allowed-tools`
-   ([skills](https://code.claude.com/docs/en/skills#available-string-substitutions)) — the documented
-   way to run a bundled script without a prompt, e.g.
+   `${CLAUDE_PROJECT_DIR}` in both a skill's markdown content and Bash rules in `allowed-tools`, and
+   **in a plugin skill substitutes `${CLAUDE_PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_DATA}` in the same two
+   places** ([skills](https://code.claude.com/docs/en/skills#available-string-substitutions), fetched
+   2026-09-12). That is the documented way to run a bundled script without a prompt, e.g.
    `allowed-tools: Bash(${CLAUDE_SKILL_DIR}/scripts/render.sh *)`. Two limits the convention records:
    `${CLAUDE_PROJECT_DIR}` substitution requires Claude Code **v2.1.196 or later** (below that floor the
-   rule stays a literal string and never matches), and `${CLAUDE_PLUGIN_ROOT}` is **not** substituted at
-   all, so a rule written with it is inert.
+   rule stays a literal string and never matches), and the plugin-scoped pair is *"Substituted only in
+   plugin skills"* per the same page's variable table, so both stay literal in a personal or project
+   skill, in an agent or command, and in any settings file.
 2. **Leading env-assignment stripping**, and it is scoped: an assignment of certain known-safe variables
    is stripped, so `Bash(npm test *)` matches `NODE_ENV=test npm test`. An **allow** rule will not match
    past an assignment of any other variable; a **deny** or **ask** rule matches past any leading
@@ -146,7 +156,7 @@ Full doctrine, and the source this row syncs from: the
 [permission-rule-hygiene convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/permission-rule-hygiene/README.md)
 anti-pattern 2.
 
-**Recommend**: replace with a portable form — `${CLAUDE_SKILL_DIR}` for a skill's own bundled script, a
+**Recommend**: replace with a portable form: `${CLAUDE_SKILL_DIR}` for a skill's own bundled script, a
 bare-name command on PATH, or for `Read`/`Edit` rules the `~/` home anchor.
 
 ### P2b: Tilde-user path in a `Bash(...)` rule [error]
@@ -155,8 +165,8 @@ bare-name command on PATH, or for `Read`/`Edit` rules the `~/` home anchor.
 `~/` home anchor). Bash rules match literally and do not expand tilde-user forms.
 
 **How to check**: run the detector. `Read(~/notes.md)` and other `~/` anchors are not flagged. A URL
-user-directory segment such as `Bash(curl https://example.com/~alice/index.html)` is not flagged —
-only a tilde-user path that begins a shell word inside the `Bash(...)` payload.
+user-directory segment such as `Bash(curl https://example.com/~alice/index.html)` is not flagged.
+Only a tilde-user path that begins a shell word inside the `Bash(...)` payload is.
 
 **Why**: the rule names a specific account, leaks a username into version control, and breaks on other
 machines. The portable fixes are the same as P2 for Bash rules: `${CLAUDE_SKILL_DIR}`, a bare-name
@@ -164,20 +174,37 @@ command on PATH, or for `Read`/`Edit` rules the `~/` home anchor.
 
 ## P4: Inert substitution token in a `Bash(...)` rule [error]
 
-**What**: A `Bash(...)` allow rule containing `${CLAUDE_PLUGIN_ROOT}`, `%USERPROFILE%`, or
-`$env:USERPROFILE`. Only the two documented substitutions — `${CLAUDE_SKILL_DIR}` and
-`${CLAUDE_PROJECT_DIR}` — expand in allowed-tools Bash rules; these tokens stay literal and the grant
-never matches at runtime.
+**What**: A `Bash(...)` allow rule containing a token that stays literal in *that* rule's context. Two
+classes, because one of them is context-dependent:
 
-**How to check**: run the detector. Each offending `Bash(...)` token is reported separately. Non-Bash
-rules containing similar spellings are out of scope for this check.
+| Token | Inert where |
+| --- | --- |
+| `%USERPROFILE%`, `$env:USERPROFILE` | everywhere. Bash rules match literally and neither Windows spelling is ever expanded |
+| `${CLAUDE_PLUGIN_ROOT}`, `${CLAUDE_PLUGIN_DATA}` | everywhere **except a plugin skill's `allowed-tools`**, meaning a personal or project skill, an agent, a command, or any settings file |
+
+A grant naming the plugin-scoped pair from inside a plugin skill **resolves and is not flagged**. The
+substitution has a version floor of **v2.1.0**, recorded upstream as *"Fixed `${CLAUDE_PLUGIN_ROOT}`
+not being substituted in plugin `allowed-tools` frontmatter, which caused tools to incorrectly require
+approval"*.
+
+The settings-scope half is not an inference from the plugin-skill rule: **no page documents
+`${CLAUDE_*}` expansion in a settings `permissions.allow` array**, so a rule there is inert whatever
+the surrounding checkout looks like.
+
+**How to check**: run the detector. It resolves plugin-skill context from a `.claude-plugin/plugin.json`
+at the plugin root, falling back to the marketplace-monorepo `plugins/<name>/skills/<name>/SKILL.md`
+layout. Each offending `Bash(...)` token is reported separately. Non-Bash rules containing similar
+spellings are out of scope for this check.
 
 **Why**: the grant looks configured but is a no-op, so operators believe a helper is pre-approved when
 it is not.
 
-**Recommend**: in skill `allowed-tools`, replace with `${CLAUDE_SKILL_DIR}` for a bundled script. In
-settings or other scopes, relocate the helper to a stable bare command on PATH and allow that name
-narrowly.
+**Recommend**: in a non-plugin skill's `allowed-tools`, replace with `${CLAUDE_SKILL_DIR}` for a
+bundled script. In settings or other scopes, relocate the helper to a stable bare command on PATH and
+allow that name narrowly. **Never recommend rewriting a plugin skill's `${CLAUDE_PLUGIN_ROOT}` grant
+to `${CLAUDE_SKILL_DIR}`**: that token cannot name a script shared between a plugin's skills, so the
+rewrite breaks a working grant. A plugin skill reaching a sibling skill's script needs the plugin-root
+token and has no alternative spelling.
 
 ## P3: Plugin self-granted permissions [warning]
 
@@ -198,24 +225,24 @@ self-granted permission rule is inert; the operative rule must be added by the o
 
 The sibling `audit` skill owns config-**file correctness**: baseline deny/ask presence,
 overly broad patterns like `Bash(git *)`, and live plugin drift. This skill
-owns a different question — grant **portability and auto-mode durability**, and who adds the operative
+owns a different question: grant **portability and auto-mode durability**, and who adds the operative
 rule. When a request is about baseline security patterns, deprecated syntax, or drift, route it to
 `audit` rather than answering here.
 
 ## Output format
 
 ```text
-## Permission Hygiene Report — {date}
+## Permission Hygiene Report: {date}
 
 ### Summary
 - Scan root: {resolved root} (resolved from {rung})
 - Denominator: {N} allowed-tools block(s) from {M} candidate file(s); {R} allow rule(s) across
-  {S} settings scope(s) — {per-scope breakdown}; {P} plugin manifest(s)
+  {S} settings scope(s), {per-scope breakdown}; {P} plugin manifest(s)
 - Not read: {W} unopenable path(s); {J} settings file(s) not valid JSON; {X} file(s) excluded
 - Scopes out of this detector's reach: managed policy, enterprise, --settings file,
   pre-v2.1.211 start-directory copy (dated record: audit-permission-state/reference/criteria.md
   §Scopes)
-- Consumer declarations read: {file(s), and what each changed — or "none"}
+- Consumer declarations read: {file(s), and what each changed, or "none"}
 - error: X findings (P2)
 - warning: X findings (P1, P3)
 - exempted by consumer declaration: X (still listed below; never removed)

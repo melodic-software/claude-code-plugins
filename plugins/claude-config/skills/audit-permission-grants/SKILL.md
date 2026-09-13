@@ -111,8 +111,12 @@ yet reachable on the measured platform. Add an **Operator setup** note wherever 
 
 | Severity | Criteria |
 | --- | --- |
-| error | Non-portable grant that leaks a username / breaks on other machines (P2) |
+| error | Non-portable grant that leaks a username / breaks on other machines (P2, P2b), or a substitution token that stays literal in this rule's context so the grant never matches (P4) |
 | warning | Interpreter/runner-led grant whose broad forms auto mode drops, or an inert self-grant (P1, P3) |
+
+P4's plugin-scoped tokens are context-dependent: `${CLAUDE_PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_DATA}`
+resolve inside a **plugin skill's** `allowed-tools`, so a grant naming them there is correct and is not
+flagged. Everywhere else they stay literal. See [reference/criteria.md](reference/criteria.md), P4.
 
 A clean scan ("No fragile permission grants found.") is a valid outcome. Report it as such, with
 the denominator beside it. `NOTHING TO AUDIT` is **not** that outcome; see "Report the denominator".

@@ -85,8 +85,8 @@ means passing its phase commands from inside the same checkout its manifest name
    operator's call, default kept per the official carve-out). For hook entries specifically, the
    classification rubric, covering mechanism vs class, the hybrid trim-not-delete rule, and the
    ground-truth-oracle carve-out (behavioral purpose with a non-derivable machine oracle is a
-   keep), is owned by the marketplace's PLUGIN-PHILOSOPHY "Classifying a hook" section
-   (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/PLUGIN-PHILOSOPHY.md>);
+   keep), is owned by the marketplace's plugin-philosophy "Classifying a hook" section
+   (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/plugin-philosophy.md>);
    read it there and apply it to hooks, never re-derive it. Non-hook surfaces (rules, instruction files,
    skills, agents, plugins) classify by the class definitions above; `hybrid` applies to any unit
    whose behavioral and policy surfaces can be split in place. Classification is per unit that
@@ -164,7 +164,7 @@ rows after real work is a licensed permanent deletion.
    the restoring commit or an adjacent comment.
 3. For instructions being rewritten rather than restored verbatim, route the text-level judgment to
    `audit-instructions` (same plugin), which owns instruction-content-vs-doctrine analysis.
-4. Everything the ledger did not defend stays deleted — **except a rule matching a protected class
+4. Everything the ledger did not defend stays deleted, **except a rule matching a protected class
    in the [instruction exception
    register](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/instruction-exception-register/README.md)**,
    which is restored regardless of whether the ledger logged a stumble against it. The strip itself

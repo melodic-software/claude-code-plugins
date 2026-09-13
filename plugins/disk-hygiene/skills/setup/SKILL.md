@@ -7,7 +7,7 @@ disable-model-invocation: true
 
 ## Purpose
 
-Thin check-centric setup per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
+Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy.md`
 "Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
 reports, `apply` resolves. This plugin owns no consumer-project configuration, targets
 and modes arrive as `/disk-hygiene:clean` arguments, and the only tunable is the native
@@ -167,13 +167,13 @@ tool or an OS capability, so `apply` installs nothing and writes nothing, it onl
   (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>):
   interactive `/plugin configure disk-hygiene@<marketplace>` any time, or headless
   `claude plugin install disk-hygiene@<marketplace> -s <scope> --config disk_hygiene_enabled=true`
-  (repeatable per key) — against an already-installed plugin it prints `already installed` **and
+  (repeatable per key). Against an already-installed plugin it prints `already installed` **and
   still writes the value**. Do **not** uninstall to reconfigure: uninstalling drops this plugin's
   entire stored `pluginConfigs` entry, resetting every option in the README's Options reference
   to its manifest default. `-s` defaults to `user`; pass the scope `claude plugin list` reports
   for this plugin, and run from that project's directory for a `project`/`local` scope, or the
   write lands at a scope that does not load. This skill never writes user settings or
-  `pluginConfigs`. Afterwards rerun `check` in a **fresh session** — the rendered
+  `pluginConfigs`. Afterwards rerun `check` in a **fresh session**, because the rendered
   `${user_config.*}` is injected at skill load and each hook receives its
   `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at session start, so a same-session `check`
   still reports the OLD value; report the observed effective value, never an unobserved change.

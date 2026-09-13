@@ -27,13 +27,21 @@ user approval. `audit-permission-grants` is report-only (its correct remediation
 
 ### audit
 
-Five phases: load/parse config files, validate nine categories (schema, permissions, MCP servers,
-hooks, plugins, env vars, skill-listing budget, model and effort settings, deep-link registration),
-recheck against live official docs and known upstream
-issues, report severity-rated findings, and optionally fix. Includes live plugin-drift detection
-against each registered marketplace's upstream `marketplace.json` (ORPHAN / NEW / RENAME modes) with an
-asymmetric auto-fix policy that never removes a plugin the user explicitly enabled. `settings.local.json`
-is inspected structurally (key counts) only, never read or echoed.
+Five phases: run the engine, validate the judgment rows of nine categories (schema, permissions,
+MCP servers, hooks, plugins, env vars, skill-listing budget, model and effort settings, deep-link
+registration), recheck against live official docs and known upstream issues, report severity-rated
+findings, and optionally fix. `scripts/audit-engine.sh` decides every deterministic row in one run
+and writes a findings document whose rows carry `audit-pass`'s identity tuple, so a later run can
+diff against it and `audit-pass` can append it unchanged; the model reads that document and does
+only what needs a reading. Plugin drift is detected against each registered marketplace's
+`marketplace.json`, fetched for a `github` source and read from disk for a `directory` source
+(ORPHAN / NEW / RENAME modes, NEW computed against the merged user, project and local scopes), with
+an asymmetric auto-fix policy that never removes a plugin the user explicitly enabled. Hooks are
+inventoried from the directory the session loads, and a divergence from the registry's cache is
+reported. The skill-listing budget is read from an existing debug log before anyone is asked to
+relaunch. `settings.local.json` is inspected structurally (key counts and the four model and
+effort keys) only, never read or echoed. `scripts/check-doc-citations.sh` greps every docs page the
+checklist cites for the keys and sentences it relies on.
 
 ```shell
 /claude-config:audit              # full report-only audit
@@ -190,11 +198,19 @@ The skills read the consuming repo's own `CLAUDE.md` / `.claude/rules/` for proj
 additional required permission patterns, documented reasons for disabled MCP servers, and a custom
 enforcement hierarchy. Nothing project-specific is baked into the plugin.
 
-`audit-pass` reads one tracked consumer-project file: the suppression record at
+`audit` and `audit-pass` read one tracked consumer-project file: the suppression record at
 `.claude/audit-pass.md`, layered per the marketplace's
 [config-cascade](../../docs/conventions/config-cascade/README.md) contract, with its keys owned by
 [finding-suppression](../../docs/conventions/finding-suppression/README.md). All layers absent is a
-valid state.
+valid state. That record is also how a consumer declares session posture to `audit`: a baseline
+finding the team has judged (for example a `git push` ask-gate in a repository whose cloud sessions
+must push) is suppressed by its `finding_id` with a reason, and `audit` prints a paste-ready stanza
+for every finding it raises. The skill never infers posture from the environment.
+
+A hook plugin can ship `hooks/coverage.json`, declaring which baseline permission patterns its
+guards block and the levers that narrow or switch them off. `audit` reads every enabled plugin's
+manifest and demotes a covered pattern to `info` while the hook is live, citing the manifest. The
+first shipper is this marketplace's `guardrails` plugin.
 
 ## Install
 
@@ -210,7 +226,7 @@ The marketplace's `renames` map still carries a historical `claude-config-audit`
 session. No action is needed for `audit`, `audit-automation-gaps`, and `audit-permission-grants`.
 That entry is a migration aid for consumers who predate the rename, not the marketplace's
 go-forward mechanism: the map is frozen-historical and later renames ship as clean breaking
-changes (see the [migration playbook](../../docs/MIGRATION-PLAYBOOK.md#version-pinning-and-update-delivery)).
+changes (see the [migration playbook](../../docs/migration-playbook.md#version-pinning-and-update-delivery)).
 
 The `memory-health` skill did **not** move to `claude-config`. It was extracted into the new,
 separate `claude-memory` plugin (now its `audit` skill). The rename only rewrites the `claude-config-audit`
