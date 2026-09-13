@@ -216,13 +216,11 @@ stale=0
 # reads it, this script runs under `set -u`, and a future early return between
 # the two would turn a clean run into an unbound-variable crash.
 excluded=0
-matched=()
 for glob in "${GLOBS[@]}"; do
-  matched=()
+  count=0
   for f in "${UNION[@]}"; do
-    glob_matches_path "$glob" "$f" && matched+=("$f")
+    glob_matches_path "$glob" "$f" && count=$((count + 1))
   done
-  count=${#matched[@]}
   if ((count == 0)); then
     echo "check-purged-em-dashes: stale allowlist entry matches no tracked file: $glob" >&2
     stale=1
