@@ -3,6 +3,12 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.3]
+
+### Fixed
+
+- **`audit/reference/official-guidance.md` no longer lists subagents among the contexts path-scoped content cannot reach.** The surviving-caveats list read "Path-scoped content is invisible to subagents, teammates, and skill-forked contexts". A first-party probe on Claude Code **2.1.268** shows a non-fork subagent does receive a path-scoped `.claude/rules/` file, or a nested `CLAUDE.md` and the `AGENTS.md` its shim imports, once it reads a path that surface covers, with the glob matched against the requested path so even a read that finds no file fires it. The subagent half is narrowed to the claim that holds, non-inheritance, and a second bullet states the positive behavior with the four-part verification record the upstream-drift convention requires. The teammate and skill-forked-context halves and the issue 32906 citation, its state, and its 2026-09-06 verification are untouched, because this correction supplies no evidence about them.
+
 ## [0.12.2]
 
 ### Changed

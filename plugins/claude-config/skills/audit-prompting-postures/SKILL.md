@@ -30,7 +30,9 @@ persist and Phase B has already read every audited component, so it can overwrit
 for the state key, and a shell mutates files too. That closes the likeliest accidental path, not the
 capability, and a skill auditing assurance must not overstate its own.
 (<https://code.claude.com/docs/en/skills>, fetched 2026-08-12; the restriction clears on the human's
-next message, so whoever accepts a proposal can apply it.)
+next message, so whoever accepts a proposal can apply it. Recheck when a fetch of that page no longer
+scopes a skill's `disallowed-tools` to that skill's own invocation, or a release note changes how
+`disallowed-tools` is scoped.)
 
 ## Scope boundary (route out)
 
@@ -139,8 +141,10 @@ lives in one executable rather than being restated per skill,
 when the report should say which rung produced the key. **The key stops overwrites, not reaping.**
 "By default, uninstalling from the last remaining scope also deletes the plugin's
 `${CLAUDE_PLUGIN_DATA}` directory. Use `--keep-data` to preserve it."
-(<https://code.claude.com/docs/en/plugins-reference>, `plugin uninstall`, fetched 2026-08-12), so when
-a report must outlive the plugin the closing line says to copy it out of the data directory.
+(<https://code.claude.com/docs/en/plugins-reference>, `plugin uninstall`, fetched 2026-08-12; recheck
+when a fetch of that page's `plugin uninstall` entry no longer carries that sentence, or a release
+note changes what uninstalling does with `${CLAUDE_PLUGIN_DATA}`), so when a report must outlive the
+plugin the closing line says to copy it out of the data directory.
 
 Run it and use the result. Do **not** express the path as a condition over `${CLAUDE_PROJECT_DIR}`
 "when set": that placeholder is substituted inline before this file reaches you, so the literal token

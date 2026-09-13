@@ -56,12 +56,15 @@ The full evidence, including a first-party repro, is in
 the same priority as `.claude/CLAUDE.md`. Moving a section into `.claude/rules/` without a glob is
 bookkeeping, not a saving. The glob is the product.
 
-**Everything that defers is invisible inside subagents.** Measured on Claude Code 2.1.238: a subagent
-dispatched *after* its parent had loaded a nested `CLAUDE.md`, a nested `AGENTS.md`, and a
-path-scoped rule saw none of them. In a repository where the file editing is delegated, a naive
-demotion puts the C# conventions out of reach of the agent editing C#. This is why every accepted
-move regenerates an **always-loaded index** of deferred surfaces, the one thing that does reach a
-subagent, and that turns an invisible rule into one an ordinary `Read` can fetch.
+**Nothing that defers is inherited, and no deferred surface says it exists.** Measured on Claude
+Code 2.1.268: a subagent dispatched *after* its parent had loaded a nested `CLAUDE.md`, a nested
+`AGENTS.md`, and a path-scoped rule held none of them, and each one arrived only once the subagent
+itself read a path that surface covered. The glob is matched against the requested path, so even a
+read that finds no file fires it. Delegation therefore resets the trigger rather than closing the
+door, and what is left is that nothing tells an agent a rule exists until a read happens to match
+it: the agent editing C# who was never told to read the C# rule first acts without it. This is why
+every accepted move regenerates an **always-loaded index** of deferred surfaces, which every
+context does inherit, and that turns an unnamed rule into one an ordinary `Read` can fetch.
 
 **Path scoping triggers on read, not write.** Creating a new file is not a read, so a rule governing
 how new files are made would not fire in the case it exists for. Creation-governing content is denied
@@ -149,7 +152,7 @@ Conditions that should change this plugin, recorded so they are acted on rather 
 
 | Trigger | Action |
 |---|---|
-| Claude Code makes deferred surfaces visible to subagents | Re-run the measurements; the index's justification weakens and the hard-deny classes may narrow |
+| Claude Code announces deferred surfaces, so an agent learns a rule exists without reading a covered path | Re-run the measurements; the index's justification weakens and the hard-deny classes may narrow |
 | Path scoping gains a write trigger | Drop the structural deny on creation-governing content |
 | Rules gain an official `description:` frontmatter field | Make the index's description source explicit rather than a preferred-if-present convention |
 | A second consumer needs the findings artifact | Promote its contract to a documented cross-plugin seam **before** that consumer ships, per the convention registry. The contract's stability guarantees and the three promotion prerequisites are already written down in [`context/findings-artifact.md`](context/findings-artifact.md); the owner doc is deliberately not written yet, because an interface with one implementation is a guess |

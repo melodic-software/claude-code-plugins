@@ -3,6 +3,18 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.7]
+
+### Fixed
+
+- **The remaining surfaces that priced demotion as unreachability now price it as non-inheritance and silence.** `skills/audit/SKILL.md` (its `description` and its Demote lane), `skills/realign/SKILL.md`'s index-regeneration gotcha, `skills/delta/SKILL.md`'s `index-drift` row, `context/routing-rubric.md`'s pricing instruction, and the `Cost:` line of the worked example in `context/findings-artifact.md` all said a deferred surface is invisible to, unreachable from, or absent from subagents. A first-party probe on Claude Code **2.1.268**, recorded with its four-part verification record in `context/verified-mechanics.md`, shows a non-fork subagent does receive a path-scoped rule or a nested `CLAUDE.md`/`AGENTS.md` pair when it reads a path that surface covers, with the glob matched against the requested path so even a read that finds no file fires it. Each surface now states the two claims that do hold: nothing is inherited, and no deferred surface announces that it exists, so an un-indexed rule goes unnamed until a read happens to match its glob. No rubric rung, hard-deny class, artifact field, or gate moved; only the stated cost.
+
+- **`README.md` cites the measurement that stands rather than the one it supersedes.** The "why this is not just move things into `.claude/rules/`" section asserted "everything that defers is invisible inside subagents" on the **2.1.238** run. That run dispatched its subagent after the parent had loaded every surface and never had the subagent read a covered path, so it measured non-inheritance and was over-read as non-triggering. The paragraph now reports the **2.1.268** result, including the requested-path match, and re-states the index's value as inheritance plus naming rather than as the only route in. The full evidence pointer to `context/verified-mechanics.md` above it is unchanged, and that record carries the dated four-part verification.
+
+- **The pricing line, the index's stated value, and the revisit trigger move with it.** `skills/audit/SKILL.md` step 6 and `skills/realign/SKILL.md`'s present-before-asking rule told the operator to price "subagent invisibility"; `skills/check/SKILL.md`'s missing-index paragraph and `hooks/index-drift.sh`'s `WHY IT EXISTS AT ALL` comment called the index what makes a rule reachable; `evals/adherence-results.md` listed reachability as one of the three demonstrable justifications. Each now states naming rather than reachability, which is what the index actually supplies. `README.md`'s revisit-trigger table asked what to do if Claude Code ever makes deferred surfaces visible to subagents, a trigger that has now fired and been acted on; the row is re-aimed at the residual, Claude Code announcing a deferred surface so an agent learns it exists without reading a covered path. The hook's emitted message, its test, and every exit code are untouched.
+
+- **Three eval expected outputs stop grading the superseded rationale.** `skills/audit/evals/evals.json` case 2 and `skills/realign/evals/evals.json` case 3 justified holding back a safety rail with "deferred surfaces are invisible inside subagents"; `skills/check/evals/evals.json` case 2 explained the index as what makes deferred surfaces "reachable". All three now carry the corrected reason. The graded behavior is identical in every case: the safety rail is still held back with no destination, and a missing index is still a recommendation rather than a gate failure.
+
 ## [0.13.6]
 
 ### Fixed

@@ -86,8 +86,9 @@ checks still decide the verdict.
 
 **A repository with no index block yet is not a failure.** `render-index.sh check` exits 3 for that
 case, and 3 means "nothing to compare", not "broken". Report it as a recommendation. The index is
-what makes deferred rules reachable from subagents. Leave the gate's verdict to the glob
-checks. Only a repository that *has* an index and has let it drift fails on that check.
+what names every deferred rule, since no deferred surface announces that it exists. Leave the
+gate's verdict to the glob checks. Only a repository that *has* an index and has let it drift
+fails on that check.
 
 ### Escalating to empirical verification
 

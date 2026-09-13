@@ -235,8 +235,8 @@ the settings-specific workaround is still needed and recommend retiring it if no
 
 ### 3.3 Model configuration verification
 
-**MANDATORY** for any category H finding: fetch
-[code.claude.com/docs/en/model-config](https://code.claude.com/docs/en/model-config) and confirm the
+Any category H finding requires a fetch of
+[code.claude.com/docs/en/model-config](https://code.claude.com/docs/en/model-config) confirming the
 behavior the finding rests on. Do NOT report a category H finding from this checklist's wording
 alone: the accepted `effortLevel` values, the fallback-chain cap, and the allowlist wildcard rule
 are all upstream-owned and move with the harness.
