@@ -416,8 +416,6 @@ build_sync_map() {
     *.test.sh) continue ;;
     *) ;;
     esac
-    : >"$outfile"
-    : >"$errfile"
     rc=0
     bash "$script" --print-manifest >"$outfile" 2>"$errfile" || rc=$?
 

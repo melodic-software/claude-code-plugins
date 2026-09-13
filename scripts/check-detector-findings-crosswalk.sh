@@ -107,9 +107,6 @@ in_table {
 
   for (i = 2; i <= 6; i++) {
     gsub(/\001/, "\\|", cell[i])
-  }
-
-  for (i = 2; i <= 6; i++) {
     trimmed[i] = cell[i]
     gsub(/^[ \t]+|[ \t]+$/, "", trimmed[i])
   }
