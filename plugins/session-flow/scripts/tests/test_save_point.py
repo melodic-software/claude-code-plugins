@@ -1156,6 +1156,7 @@ def test_fill_substitutes_a_present_optional_slot(tmp_path):
         ("non-object-json", 2, "JSON object"),
         ("non-string-value", 2, "must be a string"),
         ("lone-surrogate-value", 2, "'brief'"),
+        ("both-defects", 2, "must be a string"),
     ],
 )
 def test_fill_refusals_leave_the_target_byte_identical(tmp_path, case, expected, needle):
@@ -1176,6 +1177,13 @@ def test_fill_refusals_leave_the_target_byte_identical(tmp_path, case, expected,
         slots = raw_slots_file(tmp_path, '["brief"]')
     elif case == "non-string-value":
         payload["brief"] = 7
+        slots = slots_file(tmp_path, payload)
+    elif case == "both-defects":
+        # The exit-1 defect is keyed FIRST and the exit-2 defect LAST, so a
+        # single interleaved loop would exit 1; the split loops exit 2.
+        payload["brief"] = "carries <!-- FILL: next — headlines --> verbatim"
+        del payload["did"]
+        payload["did"] = 7
         slots = slots_file(tmp_path, payload)
     else:
         payload["brief"] = "\ud800"
@@ -1225,14 +1233,30 @@ def test_fill_refuses_a_missing_target(tmp_path):
     assert "not a file" in err(result)
 
 
-def test_fill_refuses_an_unreadable_target(tmp_path):
-    directory = tmp_path / "target-is-a-directory.md"
-    directory.mkdir()
-    result = run(
-        "fill", str(directory), "--slots", slots_file(tmp_path, {"brief": "x"})
-    )
+def test_fill_refuses_an_undecodable_target(tmp_path):
+    """A directory here would only re-run the missing-target branch; invalid
+    UTF-8 is what exercises the decode refusal."""
+    target = tmp_path / "not-utf8.md"
+    target.write_bytes(b"---\ntype: handoff\n---\n\xff\xfe not utf-8\n")
+    before = target.read_bytes()
+    result = run("fill", str(target), "--slots", slots_file(tmp_path, {"brief": "x"}))
     assert result.returncode == 2, out(result) + err(result)
-    assert "not a file" in err(result)
+    assert "cannot read" in err(result)
+    assert target.read_bytes() == before
+
+
+def test_fill_refuses_a_file_that_is_not_a_handoff(tmp_path):
+    target = tmp_path / "not-a-handoff.md"
+    target.write_text(
+        "---\ntype: note\n---\n\n<!-- FILL: brief — one line -->\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    before = target.read_bytes()
+    result = run("fill", str(target), "--slots", slots_file(tmp_path, {"brief": "x"}))
+    assert result.returncode == 2, out(result) + err(result)
+    assert "not a handoff file" in err(result)
+    assert target.read_bytes() == before
 
 
 def test_fill_refuses_an_unreadable_slots_file(tmp_path):
@@ -1260,6 +1284,20 @@ def test_fill_closing_value_rewrites_next_and_deletes_the_slot(tmp_path):
     emitted = run("emit", str(target))
     assert emitted.returncode == 0, err(emitted)
     assert NEXT_CLOSED in out(emitted)
+
+
+def test_fill_closing_value_into_crlf_keeps_crlf(tmp_path):
+    target = new_skeleton(tmp_path)
+    target.write_bytes(target.read_bytes().replace(b"\n", b"\r\n"))
+    payload = required_slots(target.read_text(encoding="utf-8"))
+    payload["next"] = NEXT_CLOSED
+    run("fill", str(target), "--slots", slots_file(tmp_path, payload)).check_returncode()
+    data = target.read_bytes()
+    assert f"\r\n{NEXT_CLOSED}\r\n─".encode("utf-8") in data
+    assert b"\r\r" not in data
+    assert b"\n" not in data.replace(b"\r\n", b"")
+    validated = run("validate", str(target), "--strict-transcript")
+    assert validated.returncode == 0, out(validated) + err(validated)
 
 
 def test_fill_closing_value_works_with_goal_rearm_present(tmp_path):
@@ -1312,7 +1350,12 @@ def test_fill_an_ordinary_next_value_leaves_next_bare(tmp_path):
 def test_fill_slot_pattern_round_trips_through_the_fill_helper(tmp_path):
     """The pattern and `_fill()` are one grammar: every slot the skeleton
     carries re-renders to the exact span the pattern matched. Comparing whole
-    lines would be false for the prefixed lines and for the two-slot line."""
+    lines would be false for the prefixed lines and for the two-slot line.
+
+    The line that pins non-greediness is `len(matches) > len(carrying)`. The
+    round trip alone does not: a greedy instruction group swallows the rest of
+    the two-slot line INTO the group, so `_fill()` re-renders it identically and
+    every assertion in the loop still passes on one match instead of two."""
     module = _save_point_module()
     target = new_skeleton(tmp_path)
     text = target.read_text(encoding="utf-8")
@@ -1349,6 +1392,15 @@ def test_fill_preserves_a_file_with_no_trailing_newline(tmp_path):
     run("fill", str(target), "--slots", slots_file(tmp_path, payload)).check_returncode()
     after = target.read_bytes()
     assert after.endswith(b"the loop is retired.")
+
+
+def test_fill_leaves_no_other_file_beside_the_target(tmp_path):
+    """The write goes through a temporary file in the handoffs dir; a run that
+    leaves one behind would put a stray file where handoffs are swept for."""
+    target = new_skeleton(tmp_path)
+    payload = required_slots(target.read_text(encoding="utf-8"))
+    run("fill", str(target), "--slots", slots_file(tmp_path, payload)).check_returncode()
+    assert sorted(p.name for p in target.parent.iterdir()) == [target.name]
 
 
 def test_fill_value_with_a_lone_cr_is_not_split(tmp_path):

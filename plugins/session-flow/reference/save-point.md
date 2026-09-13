@@ -218,10 +218,13 @@ ladder the structure doc's write procedure shows (`"$PY" -X utf8 …`, Python 3.
   `below-rail`, `<section>-new`) left out of the object has its line deleted. It exits 1 on a
   required slot absent from the object, a key naming no slot in this file, a slot name occurring
   twice in the file, a value that itself carries a `FILL` slot marker, a file with no slot left to
-  fill, and a closing `next` value whose line above is not exactly `Next:`; 2 on a missing or unreadable
-  target and on a slots file that is missing, unreadable, not valid JSON, not a JSON object, or
-  holding a non-string value. Every refusal names the slot or key and leaves the file
-  byte-identical, so nothing is ever half-applied. The slots JSON lives beside the handoff as
+  fill, and a closing `next` value whose line above is not exactly `Next:`; 2 on a target that is
+  missing, unreadable, or not a handoff file (no `type: handoff` frontmatter, the same guard
+  `validate` and `emit` apply) and on a slots file that is missing, unreadable, not valid JSON, not
+  a JSON object, or holding a value that is not a string or not encodable as UTF-8. Every refusal
+  names the slot or key and leaves the file byte-identical, and the write itself goes to a
+  temporary file in the target's own directory replaced into place, so nothing is ever
+  half-applied. The slots JSON lives beside the handoff as
   `<same stem>.slots.json` and is left in place. `fill` never judges a value against its slot's
   instruction; `validate` is the gate.
 - `save_point.py validate <file>` prints PASS/WARN/FAIL lines and exits 0 on pass (shape 1: one

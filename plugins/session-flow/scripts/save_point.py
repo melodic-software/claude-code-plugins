@@ -29,9 +29,10 @@ Exit codes:
                 value carrying the literal `<!-- FILL`, no slot in the file at
                 all, or a closing `next` value whose line above is not bare
                 `Next:`
-              2 usage, target missing or unreadable, slots file missing or
-                unreadable or not a JSON object, a non-string or
-                non-UTF-8-encodable value (names the key)
+              2 usage, target missing or unreadable or not a handoff file,
+                slots file missing or unreadable or not a JSON object, a
+                non-string or non-UTF-8-encodable value (names the key), or a
+                failed write
     validate  0 pass (shape 1, no `handoff_shape` key: one WARN, checks skipped)
               1 validation failure
               2 usage / unreadable / not a handoff file
@@ -60,6 +61,7 @@ import re
 import shlex
 import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -931,17 +933,22 @@ def cmd_fill(args: argparse.Namespace) -> int:
     NEXT_CLOSED rewrites the bare `Next:` line above the slot and deletes the
     slot line, which is the only shape `validate` accepts as closed.
 
-    Nothing reuses `_read_lines` or `parse_doc`: both apply universal-newline
-    translation and would rewrite a CRLF target to LF. Every refusal happens
-    before the write, so a refused target is byte-identical.
+    The write path reuses neither `_read_lines` nor `parse_doc`: both apply
+    universal-newline translation and would rewrite a CRLF target to LF.
+    `parse_doc` serves the `type: handoff` guard alone, read-only, mirroring
+    `cmd_validate` and `cmd_emit`. Every refusal happens before the write, so a
+    refused target is byte-identical.
     """
     path = Path(args.file)
     if not path.is_file():
         return _die(2, f"not a file: {path}")
     try:
         text = path.read_bytes().decode("utf-8")
+        doc = parse_doc(path)
     except (OSError, UnicodeDecodeError) as exc:
         return _die(2, f"cannot read {path}: {exc}")
+    if not doc.has_frontmatter or doc.frontmatter.get("type") != "handoff":
+        return _die(2, f"not a handoff file (no 'type: handoff' frontmatter): {path}")
 
     slots_path = Path(args.slots)
     try:
@@ -954,6 +961,8 @@ def cmd_fill(args: argparse.Namespace) -> int:
         return _die(2, f"slots file is not valid JSON ({exc}): {_posix(slots_path)}")
     if not isinstance(values, dict):
         return _die(2, f"slots file must hold a JSON object keyed by slot name, not a {type(values).__name__}: {_posix(slots_path)}")
+    # Every exit-2 check runs over every key before the exit-1 check below, so a
+    # payload carrying both defects exits 2 whatever order its keys arrive in.
     for key, value in values.items():
         if not isinstance(value, str):
             return _die(2, f"slots value for {key!r} must be a string, not a {type(value).__name__}")
@@ -961,6 +970,7 @@ def cmd_fill(args: argparse.Namespace) -> int:
             value.encode("utf-8")
         except UnicodeEncodeError as exc:
             return _die(2, f"slots value for {key!r} is not encodable as UTF-8 ({exc}); rewrite it in {_posix(slots_path)}")
+    for key, value in values.items():
         if FILL_MARK in value:
             # Landing this verbatim makes `validate` name the wrong line as an
             # unfilled slot and `emit` refuse the file as a skeleton.
@@ -1030,11 +1040,25 @@ def cmd_fill(args: argparse.Namespace) -> int:
         for position, part in enumerate(parts):
             out.append(part + (inner if position < len(parts) - 1 else terminator))
 
+    # Every value was encode-checked above and the source decoded cleanly, so
+    # the encode below cannot raise. The bytes land in a temporary file in the
+    # target's own directory and are replaced into place, so an interrupted
+    # write leaves the handoff whole rather than truncated; `find-handoff` globs
+    # only `*.md`, so a `.fill-*.tmp` left by a crash is never read as a handoff.
+    payload = "".join(out).encode("utf-8")
+    tmp = None
     try:
-        payload = "".join(out).encode("utf-8")
-    except UnicodeEncodeError as exc:
-        return _die(2, f"the filled content is not encodable as UTF-8 ({exc}); nothing written")
-    path.write_bytes(payload)
+        handle, tmp = tempfile.mkstemp(dir=path.parent, prefix=".fill-", suffix=".tmp")
+        with os.fdopen(handle, "wb") as stream:
+            stream.write(payload)
+        os.replace(tmp, path)
+    except OSError as exc:
+        if tmp is not None:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+        return _die(2, f"cannot write {path} ({exc}); nothing written")
     return 0
 
 
