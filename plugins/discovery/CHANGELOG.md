@@ -1,5 +1,19 @@
 # Changelog: discovery plugin
 
+## [0.19.12]
+
+### Changed
+
+- **Three bare prohibitions in the agent definitions now carry the reason or the alternative these
+  files pair with every other "never".** `explorer`'s "do not reconstruct the workflow from memory"
+  now says what stopping buys and what a remembered set of dimensions produces (the well-formed but
+  undisciplined artifact the preload check exists to catch), matching how `researcher` and
+  `intent-tracer` already state the same rule. `researcher` and `intent-tracer`'s "never copy the
+  tool list out of it" now gives the positive alternative first, read the parent-contract record at
+  the moment it is needed, and the reason: that record is a dated snapshot of a harness surface that
+  moves, and a copy carried in an agent body would have no date of its own to age against. No rule,
+  payload field, write boundary, or tool grant changed.
+
 ## [0.19.11]
 
 ### Changed

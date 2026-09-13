@@ -78,8 +78,10 @@ is [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/
 
 The preloaded skill declares a **preload token**. Echo it verbatim into `preload_token` in your
 return payload. If no skill content reached you, meaning no exploration dimensions, no outcome
-gate, and no token, set `preload_token: MISSING` and stop with `status: truncated`. Do not
-reconstruct the workflow from memory.
+gate, and no token, set `preload_token: MISSING` and stop with `status: truncated`. Stopping is
+what makes the failed preload visible; do not reconstruct the workflow from memory, because a
+remembered set of dimensions produces exactly the well-formed but undisciplined artifact this
+check exists to catch.
 
 ## Tool honesty
 
