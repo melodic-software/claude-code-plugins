@@ -17,10 +17,10 @@
       "id": 2,
       "name": "scope-boundary-routes-out",
       "prompt": "While auditing my permission grants, also check my baseline deny rules are present, flag any overly broad allow patterns, and check my plugins for upstream drift.",
-      "expected_output": "Audits only grant portability + auto-mode durability (P1/P2/P3) and routes baseline deny/ask presence, overly broad patterns, and plugin drift to the sibling audit skill rather than handling them here.",
+      "expected_output": "Audits only grant portability + auto-mode durability, meaning the full check set P1, P2, P2b, P3 and P4, and routes baseline deny/ask presence, overly broad patterns, and plugin drift to the sibling audit skill rather than handling them here.",
       "files": [],
       "expectations": [
-        "Output audits only the grant-hygiene question it owns (P1/P2/P3)",
+        "Output audits only the grant-hygiene question it owns, across P1, P2, P2b, P3 and P4",
         "Output does NOT itself check baseline deny presence, overly broad patterns, or plugin drift",
         "Output routes those to the audit skill"
       ]
@@ -83,6 +83,54 @@
         "Output flags bare package-manager wildcards like Bash(npm:*) and Bash(pnpm:*) as P1",
         "Output explains a bare package-manager wildcard permits arbitrary execution and is dropped in auto mode",
         "Output states fixed subcommands like Bash(npm test) and Bash(npm run build) carry over into auto mode and are not flagged"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "tilde-user-path-flagged",
+      "prompt": "My settings.json allows Bash(~kyle/tools/deploy.sh:*) and Read(~/notes.md). Are those portable to my colleague's machine?",
+      "expected_output": "Reports P2b for the Bash rule at error tier: a Bash rule matches the command text literally and never expands a ~username form, so the rule names one specific account, leaks a username into version control, and breaks on every other machine. Leaves Read(~/notes.md) alone, since the bare ~/ home anchor is the portable form and is not a finding. Recommends a bare-name command on PATH, and for a Read or Edit rule the ~/ anchor.",
+      "files": [],
+      "expectations": [
+        "Output reports P2b at error tier for the tilde-user Bash rule",
+        "Output explains a Bash rule matches literally and never expands a ~username form, so the grant is non-portable and leaks an account name",
+        "Output leaves the ~/ home anchor in the Read rule unflagged as the portable form"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "inert-substitution-token-flagged",
+      "prompt": "My project skill at .claude/skills/deploy/SKILL.md has allowed-tools: ['Bash(${CLAUDE_PLUGIN_ROOT}/bin/deploy:*)'], and my settings.json allows Bash(%USERPROFILE%/tools/x.exe). Will either of those match?",
+      "expected_output": "Reports P4 at error tier for both. ${CLAUDE_PLUGIN_ROOT} is substituted only in a plugin skill, so in a project skill under .claude/skills it stays literal and the rule can never match. %USERPROFILE% is a Windows shell spelling that a Bash rule never expands, so it stays literal in every scope. An inert rule is worse than a missing one, because it reads as a grant that is already in place.",
+      "files": [],
+      "expectations": [
+        "Output reports P4 at error tier for the project-skill ${CLAUDE_PLUGIN_ROOT} grant and for the %USERPROFILE% settings rule",
+        "Output explains the token stays literal in that scope so the rule never matches",
+        "Output does not describe either grant as merely non-portable, since the rule is inert rather than machine-specific"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "plugin-skill-plugin-root-grant-is-correct",
+      "prompt": "My plugin skill at plugins/deploy/skills/ship/SKILL.md has allowed-tools: ['Bash(${CLAUDE_PLUGIN_ROOT}/scripts/ship.sh:*)']. Is that grant inert?",
+      "expected_output": "Reports no finding for that grant and says so plainly: P4 is context-dependent, and inside a plugin skill's allowed-tools Claude Code substitutes ${CLAUDE_PLUGIN_ROOT} and ${CLAUDE_PLUGIN_DATA}, so the grant is the correct shape rather than a defect. Does not recommend rewriting it to ${CLAUDE_SKILL_DIR}, which cannot name a script shared between a plugin's skills and would break a working grant.",
+      "files": [],
+      "expectations": [
+        "Output reports the plugin-skill grant as correct and raises no P4 finding against it",
+        "Output states that P4 is scope-dependent and that the plugin-scoped tokens resolve inside a plugin skill's allowed-tools",
+        "Output refuses to recommend rewriting the grant to ${CLAUDE_SKILL_DIR}, naming the shared-script case that rewrite would break"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "remedy-suits-the-scope-it-is-offered-in",
+      "prompt": "My settings.json allows Bash(${CLAUDE_PLUGIN_ROOT}/bin/tool:*). What should I change it to?",
+      "expected_output": "Reports P4 and offers a remedy that works in a settings file: a bare-name command on PATH, or the ~/ home anchor for a Read or Edit rule. Does not offer ${CLAUDE_SKILL_DIR}, which is substituted in a skill's allowed-tools and stays just as literal in a settings allow rule, so recommending it would swap one inert rule for another.",
+      "files": [],
+      "expectations": [
+        "Output reports P4 for the settings allow rule",
+        "Output offers the bare-name-on-PATH remedy for a settings-scope finding",
+        "Output never offers ${CLAUDE_SKILL_DIR} as the fix for a rule in a settings file"
       ]
     }
   ]
