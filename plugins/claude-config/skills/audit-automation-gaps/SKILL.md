@@ -101,8 +101,12 @@ For each candidate:
 time <tool-command> 2>&1 | tail -5
 ```
 
-PostToolUse hooks must complete in <15-30s. A slower tool fits a per-edit hook only as a
-non-blocking command hook with `async: true`.
+Judge that measurement against the **consuming repository's own documented hook budget** where one
+exists, and say which source the threshold came from. No upstream latency budget exists, so any
+fixed number this skill supplies is a house rule and is labelled as one in the verdict. Note that
+`PostToolUse` cannot block a tool call, so its cost is turn latency rather than a blocked call.
+Budget-resolution ladder, per-event costs, the documented levers, and the dated upstream-fact
+records: read [context/hook-timing.md](context/hook-timing.md).
 
 ### 2.2 Research (Targeted, Parallel)
 
@@ -132,7 +136,7 @@ A candidate **fails** if ANY gate triggers:
 | Gate | Condition | Evidence Required |
 |------|-----------|-------------------|
 | **Already enforced** | A higher enforcement hierarchy level covers it | Name the level and mechanism |
-| **Too slow** | Tool exceeds 30s AND the hook must block, where a non-blocking command hook can set `async: true` instead | Timing measurement + whether a decision is returned |
+| **Too slow** | Measured cost exceeds the resolved budget ([context/hook-timing.md](context/hook-timing.md)) for the event's actual cost: a blocked call on a blocking event, turn latency on `PostToolUse`, which never blocks | Timing measurement + the budget it was judged against and that budget's source |
 | **Not scriptable** | The mechanism can't be automated with available tools | Specific limitation cited |
 | **Zero incidents** | Git history shows the problem has never occurred | Incident count + total commit count |
 | **Already exists** | A skill, behavioral rule, or convention already handles it | File path and line |
