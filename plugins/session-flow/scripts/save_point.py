@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Save-point engine for /session-flow:handoff: new / validate / emit.
+"""Save-point engine for /session-flow:handoff: new / fill / validate / emit.
 
 Owns every deterministic field of a shape-2 handoff file so the model writes
 only the reasoning slots. Stdlib only; Python 3.10+. Read-only on the
@@ -11,6 +11,7 @@ Usage:
     save_point.py new --topic <slug> (--previous <file> | --no-previous)
                       [--memory-dir <root>] [--session-id <uuid>]
                       [--projects-root <dir>] [--repo-root <dir>] [--now <iso>]
+    save_point.py fill <file> --slots <json>
     save_point.py validate <file> [--projects-root <dir>] [--strict-transcript]
     save_point.py emit <file>
 
@@ -21,6 +22,16 @@ Exit codes:
                 id, predecessor unreadable or outside the handoffs dir, target
                 already exists
               2 usage (neither or both of --previous / --no-previous, bad slug)
+    fill      0 every slot replaced from the JSON, file written once, nothing
+                printed
+              1 refused: a required slot absent from the JSON, a key naming no
+                slot in the file, a slot name occurring twice in the file, a
+                value carrying the literal `<!-- FILL`, no slot in the file at
+                all, or a closing `next` value whose line above is not bare
+                `Next:`
+              2 usage, target missing or unreadable, slots file missing or
+                unreadable or not a JSON object, a non-string or
+                non-UTF-8-encodable value (names the key)
     validate  0 pass (shape 1, no `handoff_shape` key: one WARN, checks skipped)
               1 validation failure
               2 usage / unreadable / not a handoff file
@@ -34,14 +45,16 @@ Exit codes:
                 `<!-- FILL` slot (unfinished skeleton, never emitted)
               2 usage / unreadable
 
-Every write is UTF-8 with `\\n` newlines; stdout/stderr are reconfigured to
-UTF-8 so the U+2500 rails survive a cp1252 pipe on Windows.
+Every write `new` makes is UTF-8 with `\\n` newlines, and `fill` keeps
+the target its own line endings; stdout/stderr are reconfigured to UTF-8 so
+the U+2500 rails survive a cp1252 pipe on Windows.
 """
 
 from __future__ import annotations
 
 import argparse
 import io
+import json
 import os
 import re
 import shlex
@@ -149,6 +162,11 @@ UNVERIFIED_PRED_RE = re.compile(r"^UNVERIFIED \(predecessor failed validation\):
 BULLET_RE = re.compile(r"^(?:[-*+]|\d+[.)])\s+")
 H2_RE = re.compile(r"^## (.+?)\s*$")
 FILL_MARK = "<!-- FILL"
+# The slot grammar `_fill()` writes, and the only parse of it. Non-greedy on the
+# instruction: the `## This session` line carries two slots, and a greedy group
+# swallows the first slot's `-->` plus the whole second slot. The separator is
+# U+2014.
+FILL_SLOT_RE = re.compile(r"<!-- FILL: (\S+) — (.*?) -->")
 COPY_LINE = "`/clear`, then copy everything between the dashed lines:"
 DIRECTIVE_CLAUSE = "invoke /session-flow:handoff via the Skill tool"
 DIRECTIVE_TAIL = (
@@ -213,6 +231,16 @@ def _die(code: int, message: str) -> int:
 def _read_lines(path: Path) -> list[str]:
     text = path.read_text(encoding="utf-8")
     return [line.rstrip("\r\n") for line in text.splitlines()]
+
+
+def _line_parts(line: str) -> tuple[str, str]:
+    """One `splitlines(keepends=True)` element split into its content and its own
+    terminator, so a substitution reattaches the terminator that line had and a
+    CRLF file never goes mixed."""
+    for terminator in ("\r\n", "\n", "\r"):
+        if line.endswith(terminator):
+            return line[: -len(terminator)], terminator
+    return line, ""
 
 
 def _posix(path: Path) -> str:
@@ -894,6 +922,122 @@ def cmd_emit(args: argparse.Namespace) -> int:
     return 0
 
 
+# --- fill -------------------------------------------------------------------------
+
+
+def cmd_fill(args: argparse.Namespace) -> int:
+    """Replace every slot in one pass and one write. Substitution only, with the
+    single exception the closing handoff needs: a `next` value of exactly
+    NEXT_CLOSED rewrites the bare `Next:` line above the slot and deletes the
+    slot line, which is the only shape `validate` accepts as closed.
+
+    Nothing reuses `_read_lines` or `parse_doc`: both apply universal-newline
+    translation and would rewrite a CRLF target to LF. Every refusal happens
+    before the write, so a refused target is byte-identical.
+    """
+    path = Path(args.file)
+    if not path.is_file():
+        return _die(2, f"not a file: {path}")
+    try:
+        text = path.read_bytes().decode("utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        return _die(2, f"cannot read {path}: {exc}")
+
+    slots_path = Path(args.slots)
+    try:
+        raw = slots_path.read_bytes().decode("utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        return _die(2, f"cannot read slots file {slots_path}: {exc}")
+    try:
+        values = json.loads(raw)
+    except ValueError as exc:
+        return _die(2, f"slots file is not valid JSON ({exc}): {_posix(slots_path)}")
+    if not isinstance(values, dict):
+        return _die(2, f"slots file must hold a JSON object keyed by slot name, not a {type(values).__name__}: {_posix(slots_path)}")
+    for key, value in values.items():
+        if not isinstance(value, str):
+            return _die(2, f"slots value for {key!r} must be a string, not a {type(value).__name__}")
+        try:
+            value.encode("utf-8")
+        except UnicodeEncodeError as exc:
+            return _die(2, f"slots value for {key!r} is not encodable as UTF-8 ({exc}); rewrite it in {_posix(slots_path)}")
+        if FILL_MARK in value:
+            # Landing this verbatim makes `validate` name the wrong line as an
+            # unfilled slot and `emit` refuse the file as a skeleton.
+            return _die(1, f"slots value for {key!r} carries the literal {FILL_MARK!r}; rewrite the value without it")
+
+    lines = text.splitlines(keepends=True)
+    slot_line: dict[str, int] = {}
+    optional: set[str] = set()
+    for index, line in enumerate(lines):
+        content, _ = _line_parts(line)
+        for match in FILL_SLOT_RE.finditer(content):
+            name = match.group(1)
+            if name in slot_line:
+                return _die(1, f"slot {name!r} occurs twice in {_posix(path)}; one value cannot resolve a duplicated name, so fix the file first")
+            slot_line[name] = index
+            # Optional-ness is read off the instruction, keeping `_fill()` the
+            # single source of the slot shape.
+            if match.group(2).startswith("optional:"):
+                optional.add(name)
+    if not slot_line:
+        return _die(1, f"no {FILL_MARK} slot in {_posix(path)}; a filled file is validated, never filled again")
+
+    unknown = sorted(key for key in values if key not in slot_line)
+    if unknown:
+        return _die(1, f"key {unknown[0]!r} names no slot in {_posix(path)}; take the slot names from the skeleton `new` wrote, never from a remembered template")
+    absent = sorted(
+        name for name in slot_line if name not in values and name not in optional
+    )
+    if absent:
+        return _die(1, f"required slot {absent[0]!r} is absent from {_posix(slots_path)}; key it with its value and re-run")
+
+    closing = -1
+    if values.get("next") == NEXT_CLOSED:
+        index = slot_line["next"]
+        above = _line_parts(lines[index - 1])[0] if index else ""
+        if not index or above != "Next:":
+            return _die(1, f"a {NEXT_CLOSED!r} value rewrites the line above the `next` slot, which must be exactly 'Next:' (got {above!r}); fix the file or pass headline lines instead")
+        closing = index
+
+    out: list[str] = []
+    for index, line in enumerate(lines):
+        content, terminator = _line_parts(line)
+        if index == closing:
+            continue
+        if closing > 0 and index == closing - 1:
+            out.append(NEXT_CLOSED + terminator)
+            continue
+        matches = list(FILL_SLOT_RE.finditer(content))
+        if not matches:
+            out.append(line)
+            continue
+        # A line goes only when every slot on it is optional and unkeyed; the
+        # `did` / `left` line carries two required slots and can never go.
+        if all(m.group(1) in optional and m.group(1) not in values for m in matches):
+            continue
+        rebuilt = ""
+        cursor = 0
+        for match in matches:
+            rebuilt += content[cursor : match.start()]
+            # `\n` only, never `str.splitlines()`, which also breaks on a lone
+            # `\r`, a form feed, and U+2028 / U+2029 that a JSON string carries.
+            rebuilt += values.get(match.group(1), "").replace("\r\n", "\n")
+            cursor = match.end()
+        rebuilt += content[cursor:]
+        parts = rebuilt.split("\n")
+        inner = terminator or "\n"
+        for position, part in enumerate(parts):
+            out.append(part + (inner if position < len(parts) - 1 else terminator))
+
+    try:
+        payload = "".join(out).encode("utf-8")
+    except UnicodeEncodeError as exc:
+        return _die(2, f"the filled content is not encodable as UTF-8 ({exc}); nothing written")
+    path.write_bytes(payload)
+    return 0
+
+
 # --- new --------------------------------------------------------------------------
 
 
@@ -1289,7 +1433,7 @@ def _parse_now(raw: str | None) -> datetime | None:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="save_point.py",
-        description="Shape-2 handoff save-point engine: new / validate / emit.",
+        description="Shape-2 handoff save-point engine: new / fill / validate / emit.",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -1304,6 +1448,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_new.add_argument("--repo-root", help="repository root (default: git top level of the memory dir)")
     p_new.add_argument("--now", help="ISO-8601 UTC timestamp override (tests)")
     p_new.set_defaults(func=cmd_new)
+
+    p_fill = sub.add_parser("fill", help="replace every <!-- FILL: … --> slot from one JSON object, in one write")
+    p_fill.add_argument("file")
+    p_fill.add_argument("--slots", required=True, help="JSON object keyed by slot name; an optional slot left out has its line deleted")
+    p_fill.set_defaults(func=cmd_fill)
 
     p_val = sub.add_parser("validate", help="check a handoff file; PASS/WARN/FAIL lines on stdout")
     p_val.add_argument("file")
