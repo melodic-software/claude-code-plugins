@@ -81,7 +81,7 @@ without-run lost its judge to the ceiling: `scoreWithout` and `delta` were both 
 
 | Fact | Basis and as-of | Recheck trigger, and what to do when it fires |
 |---|---|---|
-| The field names and shapes above, including the omission of `delta` and `scoreWithout` on incomparable arms and the `"skipped: cost ceiling"` explanation string | <https://code.claude.com/docs/en/plugin-evals> plus four `aggregate-result.json` documents measured from this plugin's own suite, verified 2026-09-12 | Recheck trigger: `schemaVersion` increments, or a documented field is renamed. Then re-read the page, re-derive the tables against a freshly written document, and refresh this record with the outcome. The schema is additive, so an unknown field is not a firing |
+| The field names and shapes above, including the omission of `delta` and `scoreWithout` on incomparable arms and the `"skipped: cost ceiling"` explanation string | <https://code.claude.com/docs/en/plugin-evals> plus six `aggregate-result.json` documents measured from this plugin's own suite (the last two at 2.1.270 with every case complete), verified 2026-09-13 | Recheck trigger: `schemaVersion` increments, or a documented field is renamed. Then re-read the page, re-derive the tables against a freshly written document, and refresh this record with the outcome. The schema is additive, so an unknown field is not a firing |
 
 ## What a delta does and does not say
 

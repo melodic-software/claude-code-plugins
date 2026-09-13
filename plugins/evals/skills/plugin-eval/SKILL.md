@@ -120,11 +120,13 @@ are billed. Carry the estimate as "roughly": the reported `costUsd` is a list-pr
 arm costs are not symmetric.
 
 Sizing anchors, measured on this plugin's own read-only suite (three cases, three runs, two arms,
-default models, 2026-09-12): about 0.10 USD per with-run, 0.70 to 0.82 USD per without-run on a
-knowledge case, about 0.002 USD of judge calls per run, 2.1 to 2.7 USD for a full pass. **Estimate
-the without-arm from its own anchor, not from the with-arm**: without the plugin the model spends
-turns hunting, and here that arm cost seven times the with-arm. Absent a probe, size a without-run
-at 0.8 USD and say the figure is headroom.
+default models, five passes over 2026-09-12 and 2026-09-13): about 0.10 USD per with-run, 0.55 to
+0.82 USD per without-run on a knowledge case, about 0.002 USD of judge calls per run, 2.1 to 3.2
+USD for a full pass. **Estimate the without-arm from its own anchor, not from the with-arm**:
+without the plugin the model spends turns hunting, and here that arm cost five to seven times the
+with-arm. Absent a probe, size each without-run on a knowledge case at 0.8 USD and every other run
+at 0.1 USD, and say the figure is headroom; the 0.8 anchor applied to every without-run prices this
+suite at 8 USD against a measured 2.1 to 3.2.
 
 Ceiling: `${user_config.max_cost_usd}` USD, unlimited: `${user_config.unlimited_cost}`. If either
 renders empty or as the literal placeholder text, use 5 USD and `false`, the manifest defaults, and
@@ -165,8 +167,14 @@ committed `mocks/.replay/` so agent mocks replay without a model call.
    claude plugin eval <target> --trust-plugin --json results.json --threshold 0.8 --max-cost-usd <n> --no-publish
    ```
 
+   Run it in the foreground with a tool timeout that covers the estimate (a three-case pass took
+   about six minutes here) and wait. Never background the CLI from a headless `-p` session: the
+   session ends and takes the run with it.
+
    The run is finished when the process exits and `results.json` exists; read the exit code and the
-   JSON together, never one alone.
+   JSON together, never one alone. Write the file somewhere git ignores (the CLI's own copy lands
+   under `<eval dir>/results/<timestamp>/`, and a repo that ignores that tree can take `--json`
+   there too); a run result is evidence to distill, not a file to commit.
 
 3. Read the JSON with the `read` action below. With `--json <file>` there is no terminal table, so
    the JSON is the only record of what happened.
@@ -204,6 +212,13 @@ What the number means:
   `max: 0`) needs.
 - Hold the ablation mode fixed. Under `--ablation none` nothing is excluded, so absolute scores are
   not comparable across modes and mixing them silently breaks a trend line.
+- The with-arm measures the skill hub, not its spokes. A plugin whose value lives in `reference/`
+  files measures only what `SKILL.md` carries, so a null delta on such a plugin is a hub finding
+  before it is a plugin finding.
+
+| Fact | Basis and as-of | Recheck trigger, and what to do when it fires |
+|---|---|---|
+| In the with-arm the injected skill body names the plugin's real on-disk directory, and a `Read` of any file under it is refused with `File is in a directory that is denied by your permission settings`; only the hub `SKILL.md` text reaches the model | Kept traces (`--keep-temp`) of this plugin's own suite at Claude Code 2.1.270, six with-arm runs, every spoke `Read` denied, verified 2026-09-13 | Recheck trigger: a Claude Code release note touches `plugin eval` or sandbox permissions, or a kept trace shows a spoke `Read` succeeding. Then re-run one case with `--keep-temp`, read the with-arm trace, refresh this row with the outcome, and record a drift outcome in this plugin's CHANGELOG |
 
 ## Iterating
 
@@ -251,20 +266,31 @@ is what tells a reader which one happened and whether the arms were comparable a
 
 - Validator FAIL, or a case file that failed to load: `/evals:validate <eval-dir>`.
 - Target turns out to be `CLAUDE.md` or rules rather than a plugin: `/claude-config:unhobble`.
-- Suite ran and the delta is read: `/evals:design <target>` to sharpen the criteria a case grades.
+- Suite ran and the delta is read, and a case needs sharper criteria: `/evals:design <target>`.
 
 ## Gotchas
 
 - A pass that crosses the ceiling can still end `partial: false` with exit 0 and one case missing
   its `delta`: the ceiling skips judge calls, not runs. A pass that crosses it earlier skips whole
   cases and reports `partial: true` with exit 2. Only the JSON distinguishes them.
-- The without-arm is not the with-arm minus the plugin. On a knowledge case it cost seven times as
-  much, because the model without the plugin spends turns hunting.
+- The without-arm is not the with-arm minus the plugin. On a knowledge case it cost four to seven
+  times as much: the kept traces show the model without the plugin invoking the bundled
+  `claude-api` skill on every run, and that skill's injected body is about fourteen times the size
+  of this plugin's hub.
+- Inside the with-arm, a `Read` of the plugin's own `reference/` files is refused, so the spokes
+  never reach the model; see the record under "Reading the delta" before crediting a spoke.
 - `--trust-plugin` persists. Answering the trust prompt yes inside a git repository trusts the whole
   repository, and later non-TTY runs launch instead of being refused.
 - `--json <file>` suppresses the terminal summary table. Without `--keep-temp` the per-run
   `tracePath` points at a directory the runner has already deleted, so decide on `--keep-temp`
   before the run, not after reading a surprising score.
+- A `-p` session that backgrounds the CLI call answers "the run started" and exits, and the run
+  dies with it: one temp directory with an empty `out/`, no JSON, no results directory. Observed
+  on this plugin's own suite, verified 2026-09-13; recheck when a release note touches headless
+  tool execution.
+- A headless `-p` session tends to go from the reads straight to the CLI call and print the
+  estimate in its final answer. The estimate step above says before; when the transcript is the
+  evidence, read it for the order, not only for the number.
 - A typo in `--case` exits 1 with `No eval cases found matching --case "<glob>"`, which is
   indistinguishable by exit code from a real failure.
 - A usage or rate limit mid-suite is **not** marked partial. Later runs end with the error, are

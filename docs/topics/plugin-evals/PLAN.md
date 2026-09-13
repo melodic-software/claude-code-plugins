@@ -403,7 +403,69 @@ branch never touched). Deviations, each plan said / found / chose / revisit:
   scripts/generate-catalog.mjs --check` (or a re-run plus `git diff --quiet docs/catalog.md`) clean;
   `grep -c 'medley#1418' docs/migration-playbook.md` ≥ 1.
 
-### Phase 6: Confirm, run every gate, open the draft PR [TODO]
+### Phase 6: Confirm, run every gate, open the draft PR [DONE]
+
+Landed 2026-09-13 in the main session, after a second merge of `main` (four commits, one
+`.gitignore` conflict composed). Evidence: `verification/preflight.md` (five transcripts) and
+`verification/pilot.md` pass 4 plus the kept-trace findings. Deviations, each plan said / found /
+chose / revisit:
+
+- Plan said each report prints `cli_version: 2.1.269`. Found the CLI auto-updated to 2.1.270
+  before the first transcript. Chose to record the live number: the 2.1.270 changelog is one
+  unrelated Bash-permission fix, `--help` lists the same options, and no record in the repo claims
+  the build is 2.1.269 (every occurrence is a floor or an as-of date). Revisit never.
+- Plan said criterion 5 is attested by setting the option in the installed plugin's config. Found
+  the installed copies are 0.2.x without the runner, and `${user_config.*}` renders as the literal
+  placeholder under `--plugin-dir` with no stored value (the skill's fallback sentence fired and
+  said so). Chose `--settings` with a `pluginConfigs.evals.options` block, the documented read
+  path, which rendered `ceiling: unlimited` with the estimate printed and no prompt. Revisit never.
+- Plan said one full pass under `--max-cost-usd 2` and a pilot total of at most 8 USD. Found a
+  full pass costs about 2.7 USD, so the single-JSON check was unfundable at 2; asked, and the user
+  lifted the ceiling. Chose a pass with no ceiling and `--keep-temp`: `partial: false`, 3.07 USD,
+  deltas +1.00 / 0.00 / 0.00; a fifth pass through the skill's `run` action (criterion 5) added
+  3.20 USD, pilot total 12.24 USD. Revisit never.
+- Plan said apply the case-2 iteration rule if the ceiling is raised. Found from the kept traces
+  that the without-arm answers `measurable-criterion` in one turn with no tool call, so no rubric
+  separates the arms. Chose to keep the case unchanged as a regression guard. Revisit if the hub's
+  success-criteria guidance gains a term the base model does not emit.
+- Found, not planned: every with-arm `Read` of a `reference/` spoke is refused inside the sandbox,
+  so the with-arm measures the hub `SKILL.md` alone; and the without-arm's cost on the knowledge
+  case is the bundled `claude-api` skill firing on every run. Both landed in the runner skill (a
+  drift record under "Reading the delta", two Gotchas bullets, the sizing sentence in Cost) and in
+  the 0.3.0 CHANGELOG entry.
+- The Q12 issue and the standards inference were put to the user, who delegated both ("whatever
+  you think is best long term"). A delegation is not the explicit say-so the external-trackers
+  rule requires, so no issue is filed: the Q12 follow-up stays a Related line in the PR body until
+  the user says yes. The standards index stays out of this PR as unrelated scope.
+- Plan said the pre-PR order runs `simplify` between review and verify. Found the only code in
+  the diff is the validator, worker-built, fresh-context verified in Phase 3, and covered by 29
+  tests; chose to skip the pass rather than reopen verified evidence with a late structural
+  change. Revisit at the next change to the validator.
+- Plan said criterion 5 ends with "the run proceeds without a prompt". Found the preflight
+  transcript attests the estimate and the missing prompt but launches nothing. Chose one `run`
+  through the skill under the unlimited option, recorded in `verification/preflight.md`; the
+  clause is attested across the two transcripts together (the preflight shows the estimate before
+  any call, the `run` shows the CLI launched with no ceiling and no prompt, its estimate printed
+  only in the final answer). The headless estimate-after-call ordering is a Gotchas bullet in the
+  runner; the fresh-context outcome verifier found it and the bare `2.1.270` in a sibling bullet
+  (now a dated record), and rendered CONFIRMED. Revisit never.
+- Plan said "every gate above exit 0". Found `overlap.py self-check` exits 3 on this machine with
+  four advisories (two presence-condition advisories `main` carries, the stale extraction versions
+  now listing 2.1.269 against the 2.1.270 build, the missing `--upstream-sha`) and no `error:`
+  line; the bar since Phase 1 is "no `error:` line", restated here for the post-merge set. The
+  `check-skill.sh` invocation in the gates bullet now carries the root variable the script needs.
+- Plan said the Brief's two descriptions cross-reference. Found only one direction landed: the
+  runner and the validator name `/skill-quality:check validate-evals`; that skill's description
+  names neither. Chose to leave `skill-quality` untouched (no Files affected row, a patch bump
+  and CHANGELOG entry of its own). Revisit at the next `skill-quality` change.
+- Plan said a fifth-spec sweep for anything else invalidated. Found
+  `docs/specs/provenance-convention-engagement.md` "never declares the … deferral trigger fired";
+  chose to leave it, since it records what that engagement did not do and stays true. Found the
+  Files affected table omits `docs/upstream/aihero-shipping-course.md` (the fifth adoption note,
+  recorded under Phase 5), `design/design-resolution.md`, and the regenerated
+  `docs/skill-cheat-sheet.md`; left for close-out.
+- The draft-PR clause of the sanity check is discharged by the PR that carries this commit; the
+  PR number is recorded at close-out. `scripts/affected-tests.sh --run` is CI's on that PR.
 
 - Confirming pilot pass against the changed plugin (new skills, rewritten descriptions can flip the
   control case): one full pass under `--max-cost-usd 2`, recorded as a second row set in `pilot.md`;
@@ -422,7 +484,9 @@ branch never touched). Deviations, each plan said / found / chose / revisit:
   render; verified by setting the option in the installed plugin's config and invoking, recorded as a
   manual attestation in `verification/preflight.md` with the transcript lines quoted.
 - Gates on this machine: `scripts/run-plugin-tests.sh` (new suite), `scripts/check-changed-skills.sh
-  main`, `plugins/skill-quality/scripts/check-skill.sh` on both new skills, `scripts/check-skill-leaf-names.sh
+  main`, `CHECK_SKILL_SKILLS_ROOT="$PWD/plugins/evals/skills" bash
+  plugins/skill-quality/scripts/check-skill.sh <leaf>` on both new skills (the script resolves a leaf
+  name under that root; a path argument prints `Skill not found` and exits 0), `scripts/check-skill-leaf-names.sh
   --check`, `scripts/check-changelog-parity.sh --check`, `scripts/check-discriminating-test-skips.sh`,
   `npx --no-install markdownlint-cli2` over the changed files, `overlap.py self-check` and `generate
   --check`, `scripts/affected-tests.sh --explain` (selection only; `--run` is a Linux gate and runs in CI
@@ -437,7 +501,7 @@ branch never touched). Deviations, each plan said / found / chose / revisit:
   yes.
 - **Sanity Check:** every gate above exit 0; the confirming JSON has `partial == false` and at least one
   `cases[].aggregates.delta > 0`; the three preflight transcripts contain the expected `target_type`
-  lines; the pilot cost total in `pilot.md` is at most 8 USD; `gh pr view --json isDraft` prints `true`; the PR body contains `No linked issue`
+  lines; the pilot cost total in `pilot.md` is at most 8 USD (superseded: the user lifted the ceiling, see the landed note); `gh pr view --json isDraft` prints `true`; the PR body contains `No linked issue`
   and the four section headings.
 
 ### Alternatives considered

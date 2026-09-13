@@ -92,6 +92,8 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | --- | --- | --- |
 | [`/evals:design`](../plugins/evals/skills/design/SKILL.md) | `evals` | Interview for success criteria and scaffold an eval suite in the consumer repo |
 | [`/evals:methodology`](../plugins/evals/skills/methodology/SKILL.md) | `evals` | Answer LLM-evaluation design questions from Anthropic's official guidance |
+| [`/evals:plugin-eval`](../plugins/evals/skills/plugin-eval/SKILL.md) | `evals` | Preflight, price, run, and read a plugin eval suite around the CLI |
+| [`/evals:validate`](../plugins/evals/skills/validate/SKILL.md) | `evals` | Static FAIL/WARN check of an eval suite's cases and graders, with no model call |
 | [`/mutation-testing:audit`](../plugins/mutation-testing/skills/audit/SKILL.md) | `mutation-testing` | Report surviving mutants on the diff, restoration verified or the run fails, survivors triaged |
 | [`/mutation-testing:principles`](../plugins/mutation-testing/skills/principles/SKILL.md) | `mutation-testing` | Answer mutation-testing questions from the primary literature |
 | [`/playwright:playwright`](../plugins/playwright/skills/playwright/SKILL.md) | `playwright` | Live E2E browser automation with disk-written artifacts |

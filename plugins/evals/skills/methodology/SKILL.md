@@ -89,6 +89,11 @@ distribution facts behind it (the subcommands ship in the bundled skill and not 
 skills repository) and their recheck trigger are recorded with the effort-axis note in
 [reference/eval-design.md](reference/eval-design.md).
 
+## Next
+
+- Criteria settled and a suite is to be written: `/evals:design <target>`.
+- A plugin suite exists and the question is what it measures: `/evals:plugin-eval run <target>`.
+
 ## Gotchas
 
 - The reference files are a distillation with fetch-date stamps, not the source: for runnable
