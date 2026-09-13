@@ -319,7 +319,16 @@ If no items pass: State that clearly. A clean bill of health is a valid outcome.
 
 ### Persist the findings
 
-Write the run before the session ends, so a later `--implement` has something to read:
+Write twice, because the selection does not exist yet when the verdicts do.
+
+Write once as soon as the verdicts are presented, so an audit is never lost to a session that ends
+at the question above. Every candidate carries `approved: false` at this point, which is true: the
+human has not chosen yet.
+
+Write again once the human answers, with `approved: true` on the candidates they picked. Run ids
+are suffixed rather than overwritten and `read` serves the newest run, so the second write is what
+a later `--implement` sees, and the first survives as the record of what the audit actually found.
+Skip the second write only when nothing passed, since there is then nothing to select.
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-automation-gaps/scripts/findings-state.sh" write \
@@ -330,8 +339,9 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-automation-gaps/scripts/findings-state.
 environment, so it has to travel as that argument; the script exits 2 rather than guessing when it
 is missing. The payload is exactly one JSON object with a `candidates` array, each entry carrying
 `id`, `candidate`, `category`, `verdict`, an `evidence` array, and a `plan` object on any `PASS` or
-`CONDITIONAL`. A malformed payload, or a stream carrying more than one document, exits 3 and writes
-nothing, listing every problem at once.
+`CONDITIONAL`. Each entry also carries `approved`, the boolean that records the human's selection.
+A malformed payload, or a stream carrying more than one document, exits 3 and writes nothing,
+listing every problem at once.
 
 Writes are all or nothing. A run id already taken is reserved under the next free suffix rather than
 overwritten, so two runs racing for one id both survive and each is told the id it actually got.
@@ -348,9 +358,13 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-automation-gaps/scripts/findings-state.
   --plugin-data "${CLAUDE_PLUGIN_DATA}"
 ```
 
-That serves this project's newest run. Exit 4 means this project has no stored run, which is the
-cue to audit first rather than to implement from memory; the script never falls back to another
-project's artifact. Exit 5 is the different answer: stored state exists but cannot be trusted,
+That serves this project's newest run. Implement the candidates whose `approved` is `true`. Where
+no candidate carries `approved: true`, the stored run predates the human's selection, so ask which
+items to implement rather than treating every passing candidate as chosen: a `PASS` verdict is this
+skill's judgment, not the operator's consent.
+
+Exit 4 means this project has no stored run, which is the cue to audit first rather than to
+implement from memory; the script never falls back to another project's artifact. Exit 5 is the different answer: stored state exists but cannot be trusted,
 because a file is unreadable or a previous write half landed. Treat 5 as a state to repair or
 re-audit, never as an absence, and say which of the two you got. `list` shows the earlier runs when
 a specific one is wanted.
