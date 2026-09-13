@@ -53,21 +53,60 @@
 # grade it), `name` is a label, `files` is fixture paths (the incidental-token
 # shape above), and `id` is an ordinal.
 #
-# NEGATIVE ASSERTIONS, and the residue that stays open. A graded expectation can
+# NEGATIVE ASSERTIONS: an ADVISORY, never a failure. A graded expectation can
 # name an id in order to assert it is NOT exercised, and that is the opposite of
-# coverage. This gate screens it with a bounded heuristic: within a
-# coverage-bearing string, an id occurrence does not count as covering when a
-# negation cue (not / never / without / n't / excludes / omits / ignores /
-# neither / nor) appears in the same clause before it -- clause being the text
-# back to the previous `.`, `;` or `:`, capped at 80 characters. That closes the
-# blunt shapes ("deliberately does NOT exercise P4") and nothing more. It is a
-# heuristic over English, and it is NOT closed: a negation phrased around the
-# cue set, or one that spans a clause boundary ("P4 is out of scope. It is never
-# exercised."), still reads as coverage here. Treat a passing run as "no case
-# obviously disclaims this id", not as proof the case exercises it. The screen
-# is deliberately one-directional: a negatively-named id is still NAMED, so it
-# still has to be emittable, because disclaiming an id the detector cannot emit
-# is the same stale-scope claim in a different voice.
+# coverage. An earlier revision screened for that automatically and let the
+# screen FAIL the gate: an id stopped counting as covered whenever a negation
+# cue appeared anywhere in the 80 characters before it, back to the previous
+# `.`, `;` or `:`. Ordinary covering prose carries those cues -- "Reports P1. A
+# rule without a scope suffix must be flagged as P4.", "a rule that does not
+# name an interpreter is reported as P4" -- so a genuinely covering expectation
+# was read as a disclaimer and the gate exited 1 on a correct suite. That is the
+# worst failure available to a gate: a false FAILURE with no remedy except
+# editing this script.
+#
+# So the screen no longer decides pass or fail. Two changes:
+#
+#   1. The cue must attach to the ID'S OWN PREDICATE. The window is the two
+#      words immediately before the id, back to the previous clause break, and
+#      `,` is a break now alongside `.`, `;` and `:`. "does not exercise P4"
+#      still reads as a disclaimer; "flagged as P4" and "reported as P4" do not,
+#      whatever some earlier clause said.
+#   2. A disclaimed-only id is reported as a DISCLAIMED advisory (stdout, exit
+#      0), not as a finding. Only an id named in NO graded field at all is an
+#      UNCOVERED finding.
+#
+# Why that trade rather than a tighter screen alone. Deciding merge/no-merge
+# from a heuristic reading of English is what produced the false failure, and
+# narrowing does not remove that class -- it only makes the next sentence that
+# trips it rarer and more surprising. Meanwhile the half of this gate that
+# caught claude-code-plugins#4149, the REVERSE direction, is untouched: a
+# disclaimed id is still NAMED, so it must still be emittable, and a case
+# asserting "P4 is out of scope" beside a detector that cannot emit P4 still
+# fails. The screen stays purely one-directional and is now purely advisory.
+#
+# RESIDUE, in BOTH directions, because the revision before this one enumerated
+# only the first:
+#   - FALSE PASS (widened by this trade): a suite whose only mention of an
+#     emitted id is a blunt disclaimer ("deliberately does NOT exercise P4") now
+#     PASSES, with a DISCLAIMED advisory beside it. Nothing exercises P4 and
+#     this gate will not stop that; the advisories are the thing to read.
+#   - FALSE PASS (unchanged): a negation phrased outside the cue set, placed
+#     after the id ("P4 is never exercised"), or more than two words before it
+#     ("does not cover the P4 check") reads as ordinary coverage and prints no
+#     advisory at all.
+#   - FALSE FAILURE: not reachable THROUGH THE SCREEN any more, because the
+#     screen cannot fail the gate. What remains is the plainer kind: a case that
+#     exercises a check without naming its id in a graded field -- describing it
+#     in prose, or naming it only in `prompt`, `name` or `files` -- is an
+#     UNCOVERED finding, correct by this gate's definition of coverage and wrong
+#     by a human's. Its remedy is cheap (name the id in `expected_output` or
+#     `expectations`); the screen-driven false failure had none, which is why
+#     the screen no longer fails anything.
+#   - FALSE ADVISORY: a covering sentence that does put a cue in the two words
+#     before the id ("flags a grant with no P4 suffix") prints a DISCLAIMED
+#     advisory it does not deserve. That costs one line of stdout and no exit
+#     code, which is the whole point of moving the screen off the exit path.
 #
 # ACCOUNTING FOR EVERY EMIT CALL SITE, and why a partial loss is exit 2. The
 # emitted-id set comes from `emit <severity> <id>` call sites. An earlier
@@ -87,10 +126,52 @@
 # string contents are removed before any call site is looked for, so an
 # `emit error P9` inside the detector's own help text or prose is not a call
 # site (which the greedy sed counted, yielding a permanent false failure), and a
-# `#` comment after real code is dropped once quoting is resolved. RESIDUE: an
-# emitter renamed to something that does not begin with `emit` is invisible to
-# both the count and the extraction; a total rename still trips the zero-ids
-# guard, a partial one to such a name does not.
+# `#` comment after real code is dropped once quoting is resolved.
+#
+# ORDINARY SHELL IS NOT A PARTIAL LOSS. The first version of that scanner was
+# too literal and too loose at once, and exit 2 means "cannot determine", so
+# every shape it misread failed CLOSED on a detector that was perfectly well
+# formed. Five reproduced shapes, and what reads them now:
+#   - `emit "error" P1` and `emit error "P1"`. A quoted run whose whole content
+#     is one bare literal word is now that word, tagged as having been quoted;
+#     only a multi-word or expanding run stays the opaque `@Q@`. The tag is what
+#     keeps prose safe: an emitter NAME must be unquoted, so `echo "emit"` is
+#     still not a call site while `emit "error" P1` resolves.
+#   - `emit \` + newline + `warning P4`. Backslash-newline is joined first, so a
+#     continued call is ONE logical site rather than a truncated one plus an
+#     orphan fragment.
+#   - `emit_x() { emit error "$@"; }`. The definition header was already
+#     removed; what tripped it was the forwarding body. A call whose severity or
+#     id is `"$@"`/`$@`/`$*` carries no literal id to lose -- the ids enter at
+#     the WRAPPER's own call sites, which are counted like any other -- so a
+#     forwarder is not a call site.
+#   - `local emit_count`. An emitter token now has to stand in COMMAND POSITION
+#     (first word of a command, after `;`/`&&`/`|`/`(`/`{`, after a keyword such
+#     as `if`/`then`/`do`, or after a `VAR=value` prefix) and have at least one
+#     argument. A bare identifier that merely begins with `emit` is a variable,
+#     not a call.
+#
+# The property the accounting exists for is unchanged: a call site that DOES
+# carry a literal id this scanner cannot read is still exit 2. `emit "$sev" P4`,
+# `emit error "$id"`, `emit error P2ab` under /P[0-9]+[a-z]?/ and a half-renamed
+# `emitx` with unreadable arguments all still refuse to produce a verdict.
+#
+# RESIDUE of the scanner, both directions:
+#   - MISSED (false pass): an emitter renamed to something that does not begin
+#     with `emit` is invisible to both the count and the extraction -- a total
+#     rename still trips the zero-ids guard, a partial one to such a name does
+#     not. An emit reached only through a variable or an alias
+#     (`$emitter error P1`) is likewise invisible. A forwarder that rewrites its
+#     id rather than passing it through (`emit error "P${n}"`) is skipped as a
+#     forwarder only if its id token is literally `"$@"`/`$*`; otherwise it is
+#     unresolved and exits 2, which is the safe side.
+#   - SPURIOUS (false failure, exit 2): a call site whose severity or id is
+#     computed rather than written -- a lookup table of ids, a loop over a list
+#     -- cannot be read and stops the gate. That is deliberate (the gate must
+#     not pass on inputs it cannot see) but it IS a false failure for a detector
+#     written that way, and the remedy is a registry-row conversation, not a
+#     silent pass. A quoted literal carrying a space or an expansion
+#     (`emit "$sev" P4`) is the same answer.
 #
 # Adjacent and DIFFERENT: scripts/check-detector-findings-crosswalk.sh checks
 # that each severity-crosswalk row in docs/conventions/detector-findings/ argues
@@ -181,7 +262,18 @@ fi
 # <site>` lines, and a final `CANDIDATES <n>`.
 EMIT_SCAN_AWK=""
 read -r -d '' EMIT_SCAN_AWK <<'AWK'
-BEGIN { hd = ""; candidates = 0; anchored = "^(" idre ")$" }
+function cmd_position(p) {
+  # The first word of a command, or the first word after something that ends
+  # one. Everything else that merely BEGINS with `emit` -- `local emit_count`,
+  # `declare -i emit_total` -- is an identifier, not a call.
+  if (p == "" || p == "@SEP@") return 1
+  if (p ~ /^(if|then|else|elif|do|while|until|!|time|exec|command|builtin|eval|nohup)$/) return 1
+  if (p ~ /^[A-Za-z_][A-Za-z0-9_]*=/) return 1
+  return 0
+}
+function forwarded(t) { return (t == "@FWD@" || t == "$@" || t == "$*") }
+function unquoted_value(t) { return (substr(t, 1, 3) == "@L@") ? substr(t, 4) : t }
+BEGIN { hd = ""; candidates = 0; anchored = "^(" idre ")$"; pending = ""; startfnr = 0 }
 {
   line = $0
 
@@ -194,7 +286,23 @@ BEGIN { hd = ""; candidates = 0; anchored = "^(" idre ")$" }
     next
   }
 
-  if (line ~ /^[[:space:]]*#/) next
+  if (pending == "" && line ~ /^[[:space:]]*#/) next
+
+  # BACKSLASH-NEWLINE is joined before anything else looks at the line, so a
+  # continued call (`emit \` / `warning P4`) is one logical site rather than a
+  # truncated site plus an orphan fragment. An odd number of trailing
+  # backslashes continues; an even number is an escaped backslash.
+  tb = 0
+  j = length(line)
+  while (j >= 1 && substr(line, j, 1) == "\\") { tb++; j-- }
+  if (tb % 2 == 1) {
+    if (startfnr == 0) startfnr = FNR
+    pending = pending substr(line, 1, length(line) - 1)
+    next
+  }
+  line = pending line
+  pending = ""
+  if (startfnr == 0) startfnr = FNR
 
   # A heredoc OPENING on this line arms the skip for the lines after it. `<<<`
   # is a here-string and opens no body.
@@ -212,19 +320,25 @@ BEGIN { hd = ""; candidates = 0; anchored = "^(" idre ")$" }
     break
   }
 
-  # Quoted contents become one opaque @Q@ token, which preserves each call
-  # site's ARITY (so `emit "$sev" P4` stays three words and is seen as
-  # unresolved) while making prose inside a string unreadable as code. A `#`
-  # that survives the walk is a real comment: drop the rest of the line.
+  # Each quoted run collapses to ONE token, which preserves every call site's
+  # ARITY (so `emit "$sev" P4` stays three words and is seen as unresolved)
+  # while making prose inside a string unreadable as code. Three outcomes:
+  # `@FWD@` for pure argument forwarding, `@L@<word>` for a run that is one
+  # bare literal word (so `emit "error" "P1"` resolves), and the opaque `@Q@`
+  # for everything else -- multi-word prose, and any run carrying an expansion.
+  # The `@L@` tag survives into the token, so a quoted word can be a VALUE but
+  # never an emitter NAME: `echo "emit"` stays prose. A `#` that survives the
+  # walk is a real comment: drop the rest of the line.
   out = ""
   n = length(line)
   i = 1
   q = ""
+  qbuf = ""
   while (i <= n) {
     c = substr(line, i, 1)
     if (q == "") {
       if (c == "\\") { i += 2; continue }
-      if (c == "\"" || c == "'") { q = c; out = out "@Q@"; i++; continue }
+      if (c == "\"" || c == "'") { q = c; qbuf = ""; i++; continue }
       if (c == "#") {
         p = (out == "") ? "" : substr(out, length(out), 1)
         if (p == "" || p ~ /[[:space:]]/) break
@@ -232,44 +346,77 @@ BEGIN { hd = ""; candidates = 0; anchored = "^(" idre ")$" }
       out = out c
       i++
     } else {
-      if (q == "\"" && c == "\\") { i += 2; continue }
-      if (c == q) { q = ""; i++; continue }
+      if (q == "\"" && c == "\\") { qbuf = qbuf substr(line, i + 1, 1); i += 2; continue }
+      if (c == q) {
+        q = ""
+        if (qbuf ~ /^\$[@*]$/) out = out "@FWD@"
+        else if (qbuf ~ /^[A-Za-z0-9_][A-Za-z0-9_.:\/+-]*$/) out = out "@L@" qbuf
+        else out = out "@Q@"
+        i++
+        continue
+      }
+      qbuf = qbuf c
       i++
     }
   }
+  if (q != "") out = out "@Q@"
 
-  # A definition (`emit() {`) is not a call. Separators become whitespace so
-  # that two call sites on one line are two sites, not one.
-  gsub(/[A-Za-z_][A-Za-z0-9_]*[[:space:]]*\(\)/, " ", out)
-  gsub(/[;&|(){}`<>]/, " ", out)
+  # A definition (`emit() {`) is not a call. Separators become an explicit
+  # @SEP@ so that two call sites on one line are two sites, not one, AND so
+  # that command position is still readable after tokenizing.
+  gsub(/[A-Za-z_][A-Za-z0-9_]*[[:space:]]*\(\)/, " @SEP@ ", out)
+  gsub(/[;&|(){}`<>]/, " @SEP@ ", out)
 
   nt = split(out, tok, /[[:space:]]+/)
   for (k = 1; k <= nt; k++) {
     if (tok[k] !~ /^emit[A-Za-z0-9_]*$/) continue
+    if (!cmd_position((k > 1) ? tok[k - 1] : "")) continue
+
+    na = 0
+    a1 = ""
+    a2 = ""
+    for (m = k + 1; m <= nt; m++) {
+      if (tok[m] == "@SEP@") break
+      if (tok[m] == "") continue
+      na++
+      if (na == 1) a1 = tok[m]
+      else if (na == 2) a2 = tok[m]
+    }
+
+    # No arguments at all: a bare word, so there is no literal id to lose.
+    if (na == 0) continue
+    # A FORWARDER (`emit error "$@"`) passes its caller's arguments through. The
+    # ids enter at the wrapper's own call sites, which are counted like any
+    # other, so nothing is lost here.
+    if (forwarded(a1) || forwarded(a2)) continue
+
     candidates++
-    sev = (k + 1 <= nt) ? tok[k + 1] : ""
-    id = (k + 2 <= nt) ? tok[k + 2] : ""
+    sev = unquoted_value(a1)
+    id = unquoted_value(a2)
     if (sev ~ /^[A-Za-z][A-Za-z0-9_]*$/ && id ~ anchored) {
       print "ID " id
     } else {
       site = line
       sub(/^[[:space:]]*/, "", site)
-      print "UNRESOLVED line " FNR ": " site
+      print "UNRESOLVED line " startfnr ": " site
     }
   }
+  startfnr = 0
 }
 END { print "CANDIDATES " candidates }
 AWK
 
 # --- the coverage-bearing-string reader --------------------------------------
-# Reads one JSON-encoded string per line and prints `COVERING <id>` for each
-# whole-token id occurrence no negation cue disclaims, and `NAMED <id>` for
-# every occurrence including the disclaimed ones.
+# Reads one JSON-encoded string per line and prints, per whole-token id
+# occurrence, `NAMED <id>` always, then either `COVERING <id>` or -- when a
+# negation cue sits in the id's own predicate -- `DISCLAIMED <id>`. DISCLAIMED
+# is an advisory the caller reports and never fails on; see the header.
 COVERAGE_AWK=""
 read -r -d '' COVERAGE_AWK <<'AWK'
 BEGIN {
   apos = sprintf("%c", 39)
-  cue = "(^|[^a-z0-9_])(not|never|without|n" apos "t|excludes?|omits?|ignores?|neither|nor)([^a-z0-9_]|$)"
+  cue = "(^|[^a-z0-9])(not|never|without|excludes?|omits?|ignores?|neither|nor|no)([^a-z0-9]|$)"
+  ncue = "[a-z]n" apos "t([^a-z0-9]|$)"
 }
 {
   rest = $0
@@ -283,11 +430,24 @@ BEGIN {
     if ((before == "" || before !~ /[A-Za-z0-9_]/) && (after == "" || after !~ /[A-Za-z0-9_]/)) {
       print "NAMED " id
       clause = done substr(rest, 1, s - 1)
-      # Back to the previous clause break, then capped, so a cue far away in an
-      # unrelated sentence cannot disclaim this occurrence.
-      if (match(clause, /^.*[.;:]/)) clause = substr(clause, RSTART + RLENGTH)
-      if (length(clause) > 80) clause = substr(clause, length(clause) - 79)
-      if (tolower(clause) !~ cue) print "COVERING " id
+      # The id's OWN predicate: back to the previous clause break (`,` included,
+      # which `must be flagged as P4` needs), then the two words immediately
+      # before the id. A cue anywhere else in the sentence -- "A rule without a
+      # scope suffix must be flagged as P4" -- disclaims nothing.
+      if (match(clause, /^.*[.;:,]/)) clause = substr(clause, RSTART + RLENGTH)
+      w = clause
+      sub(/[[:space:]]+$/, "", w)
+      win = ""
+      cnt = 0
+      while (cnt < 2 && match(w, /[^[:space:]]+$/)) {
+        win = substr(w, RSTART) " " win
+        w = substr(w, 1, RSTART - 1)
+        sub(/[[:space:]]+$/, "", w)
+        cnt++
+      }
+      win = tolower(win)
+      if (win ~ cue || win ~ ncue) print "DISCLAIMED " id
+      else print "COVERING " id
     }
     done = done substr(rest, 1, s + l - 1)
     rest = substr(rest, s + l)
@@ -312,17 +472,22 @@ fi
 emitted_tmp="$(mktemp)" || exit 2
 named_tmp="$(mktemp)" || exit 2
 covering_tmp="$(mktemp)" || exit 2
+disclaimed_tmp="$(mktemp)" || exit 2
 scan_tmp="$(mktemp)" || exit 2
 strings_tmp="$(mktemp)" || exit 2
 # Discover-mode stdout is BUFFERED, not streamed: a per-row exit 2 used to leave
 # a partial report on stdout with no denominator trailer under it, and the
 # check-script contract says a run that inspected nothing says nothing there.
 report_tmp="$(mktemp)" || exit 2
-trap 'rm -f "$emitted_tmp" "$named_tmp" "$covering_tmp" "$scan_tmp" "$strings_tmp" "$report_tmp"' EXIT
+# Advisories are BUFFERED for the same reason the discover report is: a per-row
+# exit 2 must leave nothing on stdout.
+advisory_tmp="$(mktemp)" || exit 2
+trap 'rm -f "$emitted_tmp" "$named_tmp" "$covering_tmp" "$disclaimed_tmp" "$scan_tmp" "$strings_tmp" "$report_tmp" "$advisory_tmp"' EXIT
 
 errors=0
 total_emitted=0
 total_named=0
+advisories=0
 
 # qualifying_detectors -- every non-test skill script that carries a check-id
 # vocabulary next to an eval suite. The greedy `.*` keeps only the LAST call
@@ -404,6 +569,7 @@ for row in "${pairs[@]}"; do
   awk -v idre="$id_re" "$COVERAGE_AWK" "$strings_tmp" >"$scan_tmp"
   sed -n 's/^NAMED //p' "$scan_tmp" | sort -u >"$named_tmp"
   sed -n 's/^COVERING //p' "$scan_tmp" | sort -u >"$covering_tmp"
+  sed -n 's/^DISCLAIMED //p' "$scan_tmp" | sort -u >"$disclaimed_tmp"
 
   emitted_count="$(grep -c . "$emitted_tmp")"
   named_count="$(grep -c . "$named_tmp")"
@@ -429,6 +595,9 @@ for row in "${pairs[@]}"; do
       while IFS= read -r id; do
         if grep -Fxq -- "$id" "$covering_tmp"; then
           printf '    COVERED    %s\n' "$id"
+        elif grep -Fxq -- "$id" "$disclaimed_tmp"; then
+          advisories=$((advisories + 1))
+          printf '    DISCLAIMED %s\n' "$id"
         else
           printf '    UNCOVERED  %s\n' "$id"
         fi
@@ -439,10 +608,20 @@ for row in "${pairs[@]}"; do
     } >>"$report_tmp"
   else
     while IFS= read -r id; do
-      if ! grep -Fxq -- "$id" "$covering_tmp"; then
-        echo "UNCOVERED CHECK ID: $id is emitted by $detector and covered by no case in $evals" >&2
-        errors=$((errors + 1))
+      if grep -Fxq -- "$id" "$covering_tmp"; then
+        continue
       fi
+      # An id named ONLY inside a negated clause is an advisory, never a
+      # finding: see NEGATIVE ASSERTIONS in the header for why this direction
+      # gave up failing, and what it costs.
+      if grep -Fxq -- "$id" "$disclaimed_tmp"; then
+        printf 'DISCLAIMED CHECK ID: %s is emitted by %s and named in %s only inside a negated clause, so nothing there exercises it (advisory, not a finding)\n' \
+          "$id" "$detector" "$evals" >>"$advisory_tmp"
+        advisories=$((advisories + 1))
+        continue
+      fi
+      echo "UNCOVERED CHECK ID: $id is emitted by $detector and covered by no case in $evals" >&2
+      errors=$((errors + 1))
     done <"$emitted_tmp"
 
     # The direction that catches a suite asserting a scope the detector outgrew.
@@ -474,16 +653,28 @@ while IFS= read -r candidate; do
   fi
 done < <(qualifying_detectors)
 
+denominator="${#pairs[@]} pair(s), $total_emitted emitted id(s), $total_named eval-named id(s)"
+if [[ "$advisories" -gt 0 ]]; then
+  denominator+=", $advisories disclaimed-only id(s)"
+fi
+
 if [[ "$mode" == "discover" ]]; then
   cat "$report_tmp"
-  echo "check-detector-eval-coverage: ${#pairs[@]} pair(s), $total_emitted emitted id(s), $total_named eval-named id(s)"
+  echo "check-detector-eval-coverage: $denominator"
   exit 0
 fi
 
+cat "$advisory_tmp"
+
 if [[ "$errors" -gt 0 ]]; then
-  echo "check-detector-eval-coverage: FAILED — $errors gap(s) across ${#pairs[@]} pair(s), $total_emitted emitted id(s), $total_named eval-named id(s)" >&2
+  echo "check-detector-eval-coverage: FAILED — $errors gap(s) across $denominator" >&2
   exit 1
 fi
 
-echo "check-detector-eval-coverage: passed — every emitted check id is covered by an eval case and every eval-named id is emittable (${#pairs[@]} pair(s), $total_emitted emitted id(s), $total_named eval-named id(s))"
+if [[ "$advisories" -gt 0 ]]; then
+  echo "check-detector-eval-coverage: passed with advisories — every emitted check id is named by an eval case ($advisories only inside a negated clause, which exercises nothing) and every eval-named id is emittable ($denominator)"
+  exit 0
+fi
+
+echo "check-detector-eval-coverage: passed — every emitted check id is covered by an eval case and every eval-named id is emittable ($denominator)"
 exit 0

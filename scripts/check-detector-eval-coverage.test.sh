@@ -15,7 +15,16 @@
 # claude-code-plugins#4149 found already merged (an eval asserting a scope two
 # checks out of date) and the shape a coverage-only check reads as green.
 #
-# THE REGRESSION BLOCKS. Sections marked P1..P6 below are regression tests for
+# THE N BLOCKS. Sections marked N1 and N2 are regression tests for two defects
+# an independent verifier reproduced against c7f71c36, where the gate had
+# over-corrected in both of the directions a coverage check can: the negation
+# screen read ordinary covering prose as a disclaimer and FAILED a correct
+# suite, and the emit-site accounting called ordinary shell (quoted arguments,
+# a line-continued call, a wrapper definition, an `emit`-prefixed variable) a
+# partial extraction loss and exited 2 on a well-formed detector. Each N case
+# fails against c7f71c36 and passes against this revision.
+#
+# THE P BLOCKS. Sections marked P1..P6 below are regression tests for
 # defects an independent verifier reproduced against the gate as first
 # committed (0273b5b3), where it verified MENTION rather than coverage, lost
 # emit call sites silently, counted its own prose as call sites, had no
@@ -290,15 +299,19 @@ rm -rf "$root"
 # because an id counted as covered if the string appeared ANYWHERE in the file.
 
 # A NEGATIVE assertion is the opposite of coverage: the suite is grading the
-# model for NOT exercising the check.
+# model for NOT exercising the check. It is reported as a DISCLAIMED advisory
+# and does NOT fail the gate -- see N1 below and NEGATIVE ASSERTIONS in the
+# gate's header for why this direction gave up failing. The assertion this case
+# still carries is that the screen SEES it: a run that printed no advisory here
+# would mean the narrowed cue window stopped recognizing blunt disclaimers.
 mk_tree
 mk_detector det.sh 'emit warning P1 SRC "message"' 'emit error P4 SRC "message"'
 mk_evals evals.json "$(evals_json 'exercises P1 classification' 'deliberately does NOT exercise P4')"
 run_gate "$(pair det.sh evals.json)" --check
-if [[ $RC -eq 1 && "$ERR" == *"UNCOVERED CHECK ID: P4"* && "$ERR" != *"UNCOVERED CHECK ID: P1"* ]]; then
-  ok "P1: an id named only inside a negative assertion does not count as covered"
+if [[ $RC -eq 0 && "$OUT" == *"DISCLAIMED CHECK ID: P4"* && "$OUT" != *"DISCLAIMED CHECK ID: P1"* && -z "$ERR" ]]; then
+  ok "P1: an id named only inside a negative assertion is a DISCLAIMED advisory, not a finding"
 else
-  fail "P1 negative assertion counted as coverage: rc=$RC out='$OUT' err='$ERR'"
+  fail "P1 negative assertion not reported as an advisory: rc=$RC out='$OUT' err='$ERR'"
 fi
 rm -rf "$root"
 
@@ -373,6 +386,76 @@ if [[ $RC -eq 2 && "$ERR" == *"non-empty array of objects"* && -z "$OUT" ]]; the
   ok "P1: an evals array of non-objects exits 2"
 else
   fail "P1 evals[] of strings not caught: rc=$RC out='$OUT' err='$ERR'"
+fi
+rm -rf "$root"
+
+# ===== N1: the negation screen may not fail a suite on ordinary prose ======
+# Reproduced against c7f71c36: the screen scanned 80 characters back to the
+# previous `.`/`;`/`:` for a cue, so any cue ANYWHERE in that span disclaimed
+# the id. Ordinary covering prose carries cues, and the gate exited 1 on a
+# correct suite -- a false FAILURE with no remedy but editing the gate. Each
+# case below exits 1 against that revision and 0 against this one.
+
+mk_tree
+mk_detector det.sh 'emit warning P1 SRC "message"' 'emit error P4 SRC "message"'
+mk_evals evals.json "$(evals_json 'Reports P1. A rule without a scope suffix must be flagged as P4.')"
+run_gate "$(pair det.sh evals.json)" --check
+if [[ $RC -eq 0 && "$ERR" != *"P4"* && "$OUT" != *"DISCLAIMED"* ]]; then
+  ok "N1: a cue in an earlier clause ('without a scope suffix ... flagged as P4') still covers"
+else
+  fail "N1 false failure on 'without' in an earlier clause: rc=$RC out='$OUT' err='$ERR'"
+fi
+rm -rf "$root"
+
+mk_tree
+mk_detector det.sh 'emit warning P1 SRC "message"' 'emit error P4 SRC "message"'
+mk_evals evals.json "$(evals_json 'Covers P1. A rule that does not name an interpreter is reported as P4.')"
+run_gate "$(pair det.sh evals.json)" --check
+if [[ $RC -eq 0 && "$ERR" != *"P4"* && "$OUT" != *"DISCLAIMED"* ]]; then
+  ok "N1: 'does not name an interpreter ... reported as P4' still covers"
+else
+  fail "N1 false failure on a negated subject with a positive predicate: rc=$RC out='$OUT' err='$ERR'"
+fi
+rm -rf "$root"
+
+# The same shape with a COMMA rather than a sentence break between the cue and
+# the id. `,` is a clause break precisely so this reads as coverage.
+mk_tree
+mk_detector det.sh 'emit warning P1 SRC "message"' 'emit error P4 SRC "message"'
+mk_evals evals.json "$(evals_json 'exercises P1, and when a rule is not pinned, reports P4')"
+run_gate "$(pair det.sh evals.json)" --check
+if [[ $RC -eq 0 && "$ERR" != *"P4"* && "$OUT" != *"DISCLAIMED"* ]]; then
+  ok "N1: a cue before a comma does not disclaim the id after it"
+else
+  fail "N1 false failure across a comma: rc=$RC out='$OUT' err='$ERR'"
+fi
+rm -rf "$root"
+
+# The screen cannot fail the gate AT ALL now, so an id whose only mention is a
+# disclaimer passes with an advisory -- while an id named NOWHERE still fails.
+# Both directions in one fixture, which is what makes the advisory a downgrade
+# rather than a hole: P5 here is still a finding.
+mk_tree
+mk_detector det.sh 'emit warning P1 SRC "message"' 'emit error P4 SRC "message"' 'emit error P5 SRC "message"'
+mk_evals evals.json "$(evals_json 'exercises P1' 'never exercises P4')"
+run_gate "$(pair det.sh evals.json)" --check
+if [[ $RC -eq 1 && "$OUT" == *"DISCLAIMED CHECK ID: P4"* && "$ERR" == *"UNCOVERED CHECK ID: P5"* && "$ERR" != *"UNCOVERED CHECK ID: P4"* ]]; then
+  ok "N1: a disclaimed id is an advisory while an unnamed id is still a finding"
+else
+  fail "N1 advisory/finding split wrong: rc=$RC out='$OUT' err='$ERR'"
+fi
+rm -rf "$root"
+
+# Discover mode says DISCLAIMED in the per-id report rather than UNCOVERED, so
+# the two are distinguishable by eye and not only by exit code.
+mk_tree
+mk_detector det.sh 'emit warning P1 SRC "message"' 'emit error P4 SRC "message"'
+mk_evals evals.json "$(evals_json 'exercises P1' 'deliberately does NOT exercise P4')"
+run_gate "$(pair det.sh evals.json)"
+if [[ $RC -eq 0 && "$OUT" == *"DISCLAIMED P4"* && "$OUT" == *"COVERED    P1"* && "$OUT" == *"1 disclaimed-only id(s)"* ]]; then
+  ok "N1: discover reports DISCLAIMED as its own status and counts it in the denominator"
+else
+  fail "N1 discover status wrong: rc=$RC out='$OUT' err='$ERR'"
 fi
 rm -rf "$root"
 
@@ -485,6 +568,125 @@ if [[ $RC -eq 0 && "$ERR" != *"P9"* && -z "$ERR" ]]; then
   ok "P3: a trailing comment on a real call site is not a second call site"
 else
   fail "P3 trailing comment counted: rc=$RC out='$OUT' err='$ERR'"
+fi
+rm -rf "$root"
+
+# ====== N2: ordinary shell is not a partial extraction loss (exit 2) ======
+# Reproduced against c7f71c36: each shape below made a well-formed detector
+# un-gateable, because the site counter and the id extractor disagreed and any
+# disagreement is exit 2 ("cannot determine"). Where the id IS readable the
+# assertion is exit 1 naming it, which proves the site was EXTRACTED rather
+# than merely skipped; where the line is not a call site at all the assertion
+# is a clean exit 0.
+
+# A QUOTED SEVERITY. `emit "error" P1` is an ordinary call.
+mk_tree
+mk_detector det.sh 'emit "error" P1 SRC "message"' 'emit warning P2 SRC "message"'
+mk_evals evals.json "$(evals_json 'exercises P2 classification')"
+run_gate "$(pair det.sh evals.json)" --check
+if [[ $RC -eq 1 && "$ERR" == *"UNCOVERED CHECK ID: P1"* && "$ERR" != *"emit call site"* ]]; then
+  ok "N2: a quoted severity resolves normally instead of exiting 2"
+else
+  fail "N2 quoted severity: rc=$RC out='$OUT' err='$ERR'"
+fi
+rm -rf "$root"
+
+# A QUOTED ID.
+mk_tree
+mk_detector det.sh 'emit error "P1" SRC "message"' 'emit warning P2 SRC "message"'
+mk_evals evals.json "$(evals_json 'exercises P2 classification')"
+run_gate "$(pair det.sh evals.json)" --check
+if [[ $RC -eq 1 && "$ERR" == *"UNCOVERED CHECK ID: P1"* && "$ERR" != *"emit call site"* ]]; then
+  ok "N2: a quoted check id resolves normally instead of exiting 2"
+else
+  fail "N2 quoted id: rc=$RC out='$OUT' err='$ERR'"
+fi
+rm -rf "$root"
+
+# A LINE-CONTINUED CALL is ONE site, not a truncated site plus a fragment.
+mk_tree
+# shellcheck disable=SC1003  # the trailing backslash IS the fixture: it is the
+# line continuation under test, not an attempt to escape a quote.
+mk_detector det.sh 'emit \' 'warning P4 SRC "message"' 'emit error P1 SRC "message"'
+mk_evals evals.json "$(evals_json 'exercises P1 classification')"
+run_gate "$(pair det.sh evals.json)" --check
+if [[ $RC -eq 1 && "$ERR" == *"UNCOVERED CHECK ID: P4"* && "$ERR" != *"emit call site"* ]]; then
+  ok "N2: a backslash-continued call is one site and resolves"
+else
+  fail "N2 line continuation: rc=$RC out='$OUT' err='$ERR'"
+fi
+rm -rf "$root"
+
+# A WRAPPER DEFINITION forwards its caller's arguments; it carries no literal
+# id and is not a call site. Its own CALL SITES still are, which is what keeps
+# this a narrowing rather than a hole: P4 below is still found and reported.
+mk_tree
+# shellcheck disable=SC2016  # the unexpanded "$@" IS the fixture
+mk_detector det.sh 'emit_x() { emit error "$@"; }' 'emit_x error P4 SRC "message"' 'emit warning P1 SRC "message"'
+mk_evals evals.json "$(evals_json 'exercises P1 classification')"
+run_gate "$(pair det.sh evals.json)" --check
+if [[ $RC -eq 1 && "$ERR" == *"UNCOVERED CHECK ID: P4"* && "$ERR" != *"emit call site"* ]]; then
+  ok "N2: an emit* wrapper DEFINITION is not a call site, while its call sites still are"
+else
+  fail "N2 wrapper definition: rc=$RC out='$OUT' err='$ERR'"
+fi
+rm -rf "$root"
+
+# The same definition spelled across lines, which is how one is usually written.
+mk_tree
+# shellcheck disable=SC2016  # see above
+mk_detector det.sh 'emit_x() {' '  emit error "$@"' '}' 'emit warning P1 SRC "message"'
+mk_evals evals.json "$(evals_json 'exercises P1 classification')"
+run_gate "$(pair det.sh evals.json)" --check
+if [[ $RC -eq 0 && -z "$ERR" ]]; then
+  ok "N2: a multi-line emit* wrapper definition is not a call site"
+else
+  fail "N2 multi-line wrapper definition: rc=$RC out='$OUT' err='$ERR'"
+fi
+rm -rf "$root"
+
+# A BARE IDENTIFIER that merely begins with `emit` is a variable, not a call.
+mk_tree
+# shellcheck disable=SC2016  # the literal $emit_count is part of the fixture
+mk_detector det.sh 'local emit_count' 'declare -i emit_total' 'emit_count=0' \
+  'echo "$emit_count"' 'emit warning P1 SRC "message"'
+mk_evals evals.json "$(evals_json 'exercises P1 classification')"
+run_gate "$(pair det.sh evals.json)" --check
+if [[ $RC -eq 0 && -z "$ERR" ]]; then
+  ok "N2: an identifier beginning with emit (local emit_count) is not a call site"
+else
+  fail "N2 bare emit-prefixed identifier: rc=$RC out='$OUT' err='$ERR'"
+fi
+rm -rf "$root"
+
+# The other half of reading quoted words: a quoted word may be an argument
+# VALUE but never an emitter NAME, or `echo "emit"` would become a call site
+# and re-open the false failure P3 closed.
+mk_tree
+mk_detector det.sh 'echo "emit"' 'emit warning P1 SRC "message"'
+mk_evals evals.json "$(evals_json 'exercises P1 classification')"
+run_gate "$(pair det.sh evals.json)" --check
+if [[ $RC -eq 0 && -z "$ERR" ]]; then
+  ok "N2: a quoted word is a value, never an emitter name"
+else
+  fail "N2 quoted emitter name counted: rc=$RC out='$OUT' err='$ERR'"
+fi
+rm -rf "$root"
+
+# THE PROPERTY THE ACCOUNTING EXISTS FOR, restated after the narrowing: a call
+# site that DOES carry a literal id this scanner cannot read is still exit 2.
+# (The P2 block above proves the same for `"$sev"` and `"$id"` separately; this
+# one guards the specific risk that reading quoted words made every quoted
+# argument look resolvable.)
+mk_tree
+# shellcheck disable=SC2016  # the unexpanded "$sev" is the defect under test
+mk_detector det.sh 'emit warning P1 SRC "message"' 'emit "$sev" P4 SRC "message"'
+mk_evals evals.json "$(evals_json 'exercises P1 classification')"
+run_gate "$(pair det.sh evals.json)" --check
+if [[ $RC -eq 2 && "$ERR" == *"emit call site"* && -z "$OUT" ]]; then
+  ok "N2: a quoted EXPANSION is still unreadable, so a genuine partial loss still exits 2"
+else
+  fail "N2 quoted expansion wrongly resolved: rc=$RC out='$OUT' err='$ERR'"
 fi
 rm -rf "$root"
 
