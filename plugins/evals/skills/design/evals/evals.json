@@ -50,11 +50,11 @@
       "id": 5,
       "name": "does-not-claim-to-run-evals",
       "prompt": "/evals:design skill review-helper — great, the evals.json is written. Now run the evals and give me the pass rate.",
-      "expected_output": "States that no marketplace command executes model-graded evals; points to Anthropic's skill-creator plugin (when installed) for running skill evals, or to the consumer's own tooling; does not fabricate a pass rate or simulate a run as if it were an automated result.",
+      "expected_output": "States that scaffolding is where this skill stops and that it did not run anything; routes an evals/evals.json to Anthropic's skill-creator plugin (when installed) or the consumer's own tooling, and a whole-plugin suite to claude plugin eval via /evals:plugin-eval; does not fabricate a pass rate or simulate a run as if it were an automated result.",
       "expectations": [
         "Does not fabricate or simulate an automated pass rate",
-        "Names the runner boundary: no marketplace command runs model-graded evals",
-        "Mentions skill-creator (presence-gated) or consumer tooling as the actual runner"
+        "Says this skill scaffolds and does not itself run or score the suite",
+        "Names a real runner for the emitted file: skill-creator (presence-gated) or the consumer's own tooling for evals.json, and claude plugin eval or /evals:plugin-eval for a plugin suite"
       ]
     },
     {

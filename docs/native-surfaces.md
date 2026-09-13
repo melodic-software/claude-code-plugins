@@ -17,7 +17,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 
 | Lane | Rows | Baked | Verdicts |
 |---|---|---|---|
-| Built-in CLI commands | 2 | 1 | complementary 2 |
+| Built-in CLI commands | 3 | 2 | complementary 3 |
 | Bundled skills | 13 | 12 | complementary 12, defer 1 |
 | Plugin-backed built-ins | 1 | 1 | complementary 1 |
 | Session-provided skills (observation-only) | 1 | 0 | defer 1 |
@@ -38,6 +38,25 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 - **Observation:** live-roster: probed on the live v2.1.241 binary in a Linux container (headless form unavailable; interactive form documented but not observed here); one environment, one day (2026-08-24)
 - **Recheck trigger:** a Claude Code release note or docs change adds an /export format/redaction flag, a headless or programmatic form, or an official conversation-sharing surface; any of these reopens whether suggestion-only is still the right integration shape (verified 2026-08-24)
 - **Baked:** description phrase no · Boundary section no
+
+### `plugin eval` → `evals:plugin-eval`
+
+- **Verdict:** `complementary`: The CLI runs and scores: `claude plugin eval <target>` loads the plugin, runs every case in a with-plugin arm and a no-plugin baseline arm, grades each run, and reports WITH, W/OUT, and the delta. evals:plugin-eval is the guided practice around that command, which the CLI does not ship: a preflight that reports the CLI version against the floor, whether a sandbox backend exists on this machine, and the target type (plugin, wrapped skill, wrapped agent, hooks as advisory; CLAUDE.md and rules refused because the run strips them by design); static validation of the case files with no model call; a cost estimate from cases x runs x arms and a ceiling from plugin user config passed as --max-cost-usd; and a delta-first reading with the iteration loop. Neither replaces the other: the skill never grades, and the command never preflights, prices, or reads. The skill's Boundary section names the command; no listing phrase is baked, because the native-references gate token is a condition on the model's skill listing, and a CLI subcommand never enters that listing, so the skill gates on the CLI itself (preflight's version floor) instead. The gated marker rests on two switches: below the floor the binary prints an early-access refusal, and a server-side switch prints an unavailable refusal that nothing local restores.
+- **Native surface:** `plugin eval` (built-in command; markers: gated)
+- **Our component:** `evals:plugin-eval` (skill)
+- **Evidence:**
+  - `claude plugin eval --help` at 2.1.269 (read 2026-09-11): 'Run eval cases (<eval dir>/**/case.yaml or prompt.md + graders/*.md; the eval dir is evals/ unless --eval-dir or the manifest says otherwise) against a plugin and report scored results. Target is a path, a plugin name, or a plugin@marketplace id: installed and skills-dir plugins both resolve (and add a no-plugin baseline arm)'; `--ablation` defaults to with-without whenever a plugin resolves and reports the score delta, and under it graders marked with-only, including `tool_used: Skill`, are a plugin-fired indicator rather than part of the score
+  - the same help text: `--max-cost-usd` is an optional hard ceiling checked before each run launches (exit 2 with partial results when hit; paid graders skipped on the breaching run while free graders still score it); `--trust-plugin` answers the first-run trust prompt for CI; `--threshold` defaults to 1.0; `--allow-tools` is the operator grant for Bash, Write, Edit, WebFetch, and mcp__*; `init` takes only --bare, --eval-dir, and -i
+  - https://code.claude.com/docs/en/plugin-evals.md (the raw variant; read 2026-09-11) documents the same flag set, the case layout, the exit codes 0/1/2/130/143, and the aggregate-result.json fields; the raw page matched `--help` exactly where a summarizer over the rendered page had fabricated a flag table
+  - gate basis: the command shipped in Claude Code 2.1.269 (anthropics/claude-code, 2026-09-11); below that floor the binary prints `plugin eval is currently in early access`, and a server-side switch prints `plugin eval is currently unavailable`, which no local setting restores
+  - the docs page: the run strips user settings, hooks, CLAUDE.md, MCP servers, other plugins, memory, and skills, so a rules or CLAUDE.md target has nothing to measure; native Windows has no sandbox backend, so a case granting Bash, Write, or Edit is refused rather than run unconfined, with WSL2 named for Windows and bubblewrap plus socat for Linux
+  - the docs page: the case format (`prompt.md` plus `graders/*.md`, or `case.yaml` with `schema_version: "1.1"`) is not the skill-creator `evals/evals.json` format this marketplace's skills carry, so the two coexist and `skill-quality:check validate-evals` keeps the other one
+  - our planned description: preflight, validate without spending, price, and read the delta for a `claude plugin eval` run; the CLI runs and scores, this skill guides the practice around it (shipped as `plugins/evals/skills/plugin-eval` in melodic-software/claude-code-plugins#4154)
+  - `plugin eval` is absent from the 2.1.232 and 2.1.251 extractions the sibling rows rest on; absence from an extraction is a statement about the extraction, and the command postdates both
+- **Observation:** extraction: `claude plugin eval --help` from the installed CLI at 2.1.269 (`claude --version` prints `2.1.269 (Claude Code)`), read live in the session on 2026-09-11; a targeted observation of one subcommand's help text, not a re-extraction of the binary's roster (2026-09-11)
+- **Recheck trigger:** a Claude Code release after 2.1.269 changes the plugin eval flag set, the case schema version, the exit codes, the ablation exclusion rule for with-only and `tool_used: Skill` graders, the early-access or unavailable gate strings, or the sandbox backend list; or the command or its docs page gains a preflight, validate-only, dry-run, or cost-estimate mode that makes any part of evals:plugin-eval redundant (verified 2026-09-11)
+- **Baked:** description phrase no · Boundary section yes
+- **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `skill-doctor` → `claude-ops:audit-skill-visibility`
 
@@ -82,7 +101,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 - **Evidence:**
   - binary extraction 2026-09-09 (claude.exe 2.1.263): subcommand array includes build-eval and hillclimb; bundled shared/evals/eval-hillclimb.md read end to end (train/test split, one proposal per round, held-out scoring)
   - hillclimb and build-eval absent from anthropics/skills HEAD 41bbe19 (2026-09-03) and from the platform claude-api-skill docs page
-  - our description: 'knowledge (WHY/WHAT of eval design), not a runner; ... no marketplace command executes model-graded evals'
+  - our description: 'Knowledge (WHY/WHAT of eval design), not a runner; ... for running and scoring a plugin's suite against a no-plugin baseline use /evals:plugin-eval'
   - reference/eval-design.md 'Effort as an eval axis' cites the subcommand behind the presence gate
 - **Observation:** extraction: extracted from binary 2.1.263 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (subcommand array; bundled shared/evals/eval-hillclimb.md extracted and read); bulk registrar enumeration was broken at this build, so this row's evidence is the targeted extraction, not the inventory JSON (2026-09-09)
 - **Recheck trigger:** a Claude Code release changes the bundled claude-api skill's subcommand set, or the public anthropics/skills repo or the docs page gains hillclimb/build-eval (verified 2026-09-11)
