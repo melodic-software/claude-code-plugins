@@ -7,7 +7,7 @@
 # behind each verdict, or the implementation plans a PASS carries. An audit run
 # and the implement run that acts on it are two sessions, so without a durable
 # artifact `--implement` has nothing to read and the operator re-runs the whole
-# audit to recover what was already decided (issue #4146, item 5).
+# audit to recover what was already decided.
 #
 # NAMING. `findings-state.sh`, not `findings.sh`: this is the state store for one
 # component, the same role `audit-pass`'s `scripts/run-state.sh` fills for that
@@ -747,6 +747,15 @@ cmd_read() {
   fi
   if [[ ! -s "$target" ]]; then
     die_state "the findings file for run id $run_id is empty, so there is nothing to serve (a write may be in flight, or it was truncated): $target"
+  fi
+  # PARSED BEFORE IT IS SERVED, even though this script wrote it. Publication is
+  # staged and renamed, so this script cannot leave a corrupt file behind, but
+  # the tree is an ordinary directory that a foreign writer or a stray editor
+  # can reach. Serving bytes that do not parse would hand the caller something
+  # unusable under exit 0, which is the opposite of the promise exit 5 makes:
+  # state that exists but cannot be trusted is reported, never returned.
+  if ! jq -e 'type == "object"' "$target" >/dev/null 2>&1; then
+    die_state "the findings file for run id $run_id is not a JSON object, so it cannot be trusted (something outside this script wrote it): $target"
   fi
   cat "$target"
 }

@@ -310,7 +310,7 @@ assert_eq "the envelope records the state key it was written under" "$A_KEY" \
 assert_eq "counts are derived from the verdict column" "2 1 0 1" \
   "$(printf '%s' "$ENVELOPE" | jq -r '[.counts.total, .counts.pass, .counts.conditional, .counts.reject] | join(" ")')"
 
-# The three payload halves issue #4146 asks to persist: the verdict table, the
+# The three payload parts this store exists to persist: the verdict table, the
 # evidence behind each verdict, and the implementation plans.
 assert_eq "the verdict table survives the round trip" "PASS REJECT" \
   "$(printf '%s' "$ENVELOPE" | jq -r '[.findings.candidates[].verdict] | join(" ")')"
@@ -674,6 +674,22 @@ assert_exit "read exits 5 when the keyed directory is a regular file" 5 "$rc"
 rc=0
 OUT=$(run list --plugin-data "$FDATA" --root "$REPO_A" 2>&1) || rc=$?
 assert_exit "list exits 5 when the keyed directory is a regular file" 5 "$rc"
+
+# A payload that exists, is readable, is not empty, and still does not parse.
+# Publication stages and renames, so this script cannot leave one behind; a
+# foreign writer or a stray editor can. Serving those bytes under exit 0 would
+# hand the caller something unusable, which is what exit 5 exists to prevent.
+CDATA="$TEST_TMPDIR/corrupt-payload-data"
+CDIR="$CDATA/audit-automation-gaps/$A_KEY"
+mkdir -p "$CDIR"
+printf 'corrupt-not-json\n' >"$CDIR/findings-c1.json"
+printf 'c1\n' >"$CDIR/latest"
+printf '{"run_id":"c1"}\n' >"$CDIR/history.jsonl"
+rc=0
+OUT=$(run read --plugin-data "$CDATA" --root "$REPO_A" 2>&1) || rc=$?
+assert_exit "read exits 5 when the findings payload does not parse" 5 "$rc"
+assert_contains "the report says the payload cannot be trusted" "$OUT" "cannot be trusted"
+assert_not_contains "the corrupt bytes are never served" "$OUT" "corrupt-not-json"
 
 # --- Case 15: the suffix cap is state exhaustion, not a usage error -----------
 

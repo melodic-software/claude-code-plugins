@@ -244,8 +244,8 @@ gates, not passed.
    already runs suppresses its own incidents, so zero incidents in history is evidence about the
    incumbent check, not about the concern. Sample instead: run the check over a stated N of files
    or of recent edits and report hits over that N. Falsified when the sampled hit rate is under
-   5 percent and severity is low, which is the **YAGNI** threshold read against the sampled
-   denominator.
+   5 percent, which is the **YAGNI** threshold read against the sampled denominator. State N and
+   the hit count, so the arithmetic is checkable rather than asserted.
 2. **Advisory and non-blocking.** The hook exits `0` on every path, surfaces findings as context
    rather than rejecting the edit, and its own documentation names a commit hook or a CI lane as
    the hard gate. Falsified by any exit path that blocks the tool call, or by documentation

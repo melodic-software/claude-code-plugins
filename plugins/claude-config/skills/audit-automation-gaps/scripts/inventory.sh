@@ -5,7 +5,7 @@
 # a COUNT TABLE and never a row dump. An all-scope enumerator that emitted one
 # line per hook would spend more of the window than the audit it feeds.
 #
-# WHAT CHANGED AND WHY (issue #4146). The previous revision read only
+# WHAT CHANGED AND WHY. The previous revision read only
 # .claude/hooks, .claude/skills and .claude/agents, so on a repository carrying
 # 77 plugins, 271 SKILL.md files and 137 hook files it reported 3 hook scripts, 0
 # skills, 0 agents and 1 plugin. Every number was a zero produced by not looking,
