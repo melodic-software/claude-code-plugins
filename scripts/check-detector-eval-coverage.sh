@@ -492,7 +492,11 @@ advisories=0
 # qualifying_detectors -- every non-test skill script that carries a check-id
 # vocabulary next to an eval suite. The greedy `.*` keeps only the LAST call
 # site per line, which is fine here and nowhere else: this only has to find two
-# distinct ids somewhere in the file, not the whole set.
+# distinct ids somewhere in the file, not the whole set. Quotes around the
+# severity and the id are optional for the same reason the scanner reads them:
+# a detector written as `emit error "P1"` must still be RECOGNIZED as a
+# qualifying pair, or the stopping rule would silently skip exactly the
+# spelling the scanner was just taught.
 qualifying_detectors() {
   local evals_path skill script ids count
   for evals_path in plugins/*/skills/*/evals/evals.json; do
@@ -506,7 +510,7 @@ qualifying_detectors() {
       *) ;;
       esac
       ids="$(grep -vE '^[[:space:]]*#' "$script" |
-        sed -nE "s/.*(^|[^A-Za-z0-9_])emit[A-Za-z0-9_]*[[:space:]]+[A-Za-z][A-Za-z0-9_]*[[:space:]]+(${QUALIFYING_ID_ERE})([^A-Za-z0-9_].*)?\$/\\2/p" |
+        sed -nE "s/.*(^|[^A-Za-z0-9_])emit[A-Za-z0-9_]*[[:space:]]+[\"']?[A-Za-z][A-Za-z0-9_]*[\"']?[[:space:]]+[\"']?(${QUALIFYING_ID_ERE})([^A-Za-z0-9_].*)?\$/\\2/p" |
         sort -u)"
       count="$(printf '%s' "$ids" | grep -c .)"
       [[ "$count" -ge 2 ]] && printf '%s\n' "$script"

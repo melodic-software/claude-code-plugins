@@ -732,6 +732,28 @@ else
 fi
 rm -rf "$root"
 
+# The stopping rule must recognize the spellings the scanner was taught, or a
+# detector written with quoted arguments is skipped by the discovery half while
+# the scan half reads it perfectly well.
+mk_tree
+mkdir -p "$root/plugins/demo/skills/quoted/scripts" "$root/plugins/demo/skills/quoted/evals"
+mk_detector det.sh 'emit warning P1 SRC "message"'
+mk_evals evals.json "$(evals_json 'exercises P1 classification')"
+{
+  printf '#!/usr/bin/env bash\n'
+  printf 'emit() { return 0; }\n'
+  printf 'emit "warning" "Q1" SRC "message"\n'
+  printf 'emit error "Q2" SRC "message"\n'
+} >"$root/plugins/demo/skills/quoted/scripts/quoted-check.sh"
+evals_json 'exercises Q1 and Q2' >"$root/plugins/demo/skills/quoted/evals/evals.json"
+run_gate "$(pair det.sh evals.json)" --check
+if [[ $RC -eq 1 && "$ERR" == *"UNREGISTERED PAIR: plugins/demo/skills/quoted/scripts/quoted-check.sh"* ]]; then
+  ok "N2: a detector spelled with quoted arguments still qualifies for the stopping rule"
+else
+  fail "N2 quoted detector invisible to the stopping rule: rc=$RC out='$OUT' err='$ERR'"
+fi
+rm -rf "$root"
+
 # A skill whose script prints `emit <scope> <kind>` records rather than check
 # ids is not a candidate: two DISTINCT check-id-shaped tokens is the bar.
 mk_tree
