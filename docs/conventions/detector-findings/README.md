@@ -11,6 +11,7 @@
 - [When the remediation is not at `Location`](#when-the-remediation-is-not-at-location)
 - [When the remediation is owned by the producer's own skill](#when-the-remediation-is-owned-by-the-producers-own-skill)
 - [Auto-applicability is settled per rule, at contract time](#auto-applicability-is-settled-per-rule-at-contract-time)
+- [The remedy is pinned by an assertion, in every scope it fires in](#the-remedy-is-pinned-by-an-assertion-in-every-scope-it-fires-in)
 - [A candidate that is not a finding](#a-candidate-that-is-not-a-finding)
 - [Coexisting with other producers](#coexisting-with-other-producers)
 - [Emitting more than once](#emitting-more-than-once)
@@ -470,6 +471,55 @@ actually describe, or lowering `Confidence` to trip the escape clause, each defe
 appears to satisfy, and the second buries a real finding beneath one nobody reported, per
 `Confidence` above.
 
+## The remedy is pinned by an assertion, in every scope it fires in
+
+A detector's detection is the part its tests are about. Whether a rule fires on a fixture is a value
+a test can compare, so it gets compared, often exhaustively. What the fired row then tells an author
+to **do** leaves the same run as prose nothing reads back. That asymmetry is not one suite's lapse.
+It is what a fixture makes cheap, and its consequence is that a remedy can be wrong on the day it is
+written, and can drift into being wrong when the surface it names moves, with a green suite either
+way.
+
+**This contract is where that costs something, because the remedy is the part it hands onward.** The
+`Action` cell and the `Auto-applicable` declaration are what a consumer acts on, and it acts on them
+without re-deriving them: a contained fix is applied, a producer-owned row is routed to the
+producer's own surface, an off-site row is surfaced with the target `Action` names. Nothing between
+the detector and the edit reads a remedy for correctness. A wrong detection costs a row a human
+dismisses; a wrong remedy costs the edit.
+
+**Producer obligation: every remedy a rule emits is pinned by at least one assertion, FOR THE SCOPE
+IT FIRES IN.**
+
+**Scope is the bar, and the wording is not.** An assertion that a remedy is present, or that it
+carries some expected token, passes on the defect this bar exists for. The case it is written from
+is a remedy naming a substitution token that resolves in one scope, offered in scopes where that
+same token is inert, so an author following it traded a working rule for a broken one: the exact
+failure the check existed to report, re-emitted as advice. Both that defect and the first fix for it
+were remedies that were present, well formed, and correct somewhere. What separates a correct remedy
+from either of them is the scope it is offered in, so scope is what an assertion has to pin for the
+assertion to tell them apart at all.
+
+**A negative assertion carries the same weight as a positive one**: that the remedy is NOT offered
+where it would not work. A rule whose assertions are all positive is satisfied by a remedy offered
+everywhere, which is the failure above read from the other side, and a suite built out of fixtures
+that fire never has an occasion to add the withheld half. That half was the wrong one in both the
+bug and its first fix.
+
+**This binds an outcome, not a harness**, on the same reading the crosswalk's fall-through criterion
+already states of itself: one remedy, pinned in the scopes it is offered in, by whatever assertion
+form the producer already runs, a test case, an eval case, or a golden file. What must be checkable
+is the claim; the shape of the check is the producer's. **It is per rule and per scope, never per
+finding**, which is "Auto-applicability is settled per rule, at contract time" above applied rather
+than restated: a remedy's correctness in a scope does not vary run to run, so a per-run check is the
+same check taken repeatedly with less evidence.
+
+**As stated here the bar is instruction-strength**: nothing computes whether a producer's assertions
+reach the remedies it emits, so the obligation is stated imperatively and is met by an author who
+reads it. Saying so is the point rather than a caveat on it, because a bar claiming more than its
+mechanism delivers would be this section's own defect one level up, a remedy asserted rather than
+pinned. The half a gate can take and the half that stays judgment are split in
+[Enforceability](#enforceability) below, on the same line that section's `Tier` row already draws.
+
 ## A candidate that is not a finding
 
 A detector examines more than it reports, and the examined-but-not-reportable outcome needs a home or
@@ -603,6 +653,7 @@ Classified per `melodic-software/standards` `conventions/engineering/enforceabil
 | Every crosswalk row argues its disposition from a stated test | **Detect-then-judge**, and **BUILT**: [`scripts/check-detector-findings-crosswalk.sh`](../../../scripts/check-detector-findings-crosswalk.sh) `--check` runs in CI, failing an empty or prose-free test cell, an unqualified or duplicated rule id, and a row whose cells an unescaped pipe has shifted. Whether an argument is *sound* stays judgment. That is what the admission test carries, and no gate replaces it. |
 | A row whose remediation is off-site is surfaced, not applied | **Detect-then-judge** when built. The consumption record names every surfaced row, so an off-site row appearing in the applied list is detectable; whether the fixer surfaced for the right reason is judgment. |
 | An `Auto-applicable` cell uses one of the four leading forms | **Deterministic when built.** A literal-prefix read of a cell the crosswalk gate already parses, and the one that matters most is ``No, remediated by `<invocation>` ``, whose invocation must be a runnable `/plugin:skill` form rather than a doc path. **The gate strips the code-span delimiters before matching**, per the grammar paragraph above; a gate written against the bare form would reject every conforming row, which is exactly the contract-versus-rows divergence this row exists to catch. A cell that names an owner only in trailing prose is the other drift it catches. Unbuilt; it is one condition away in that gate. |
+| Every remedy a rule emits is pinned by an assertion for the scope it fires in | **Detect-then-judge** when built, on the same split the `Tier` row draws. The mechanical half is a pairing check inside one producer: where its emit sites and its assertion set both carry the scope, those are two enumerable id-and-scope sets and a remedy no assertion names in the scope it fires in is their difference. Where either side leaves the scope unlabelled the difference is not computable at all, which is a producer-side fact rather than a gate this table can promise. What no gate can compute is whether the pinned remedy is the RIGHT one for that scope, which is the half the originating bug got wrong twice: the defect and its first fix were both remedies that were present, well formed, and correct in some scope. **Unbuilt, and not buildable in the conformance gate's shape**: a producer's assertions live in its own tree rather than in what it emits, so a gate reading emitted files sees every remedy and none of their assertions. |
 | A producer-owned row is routed to its named surface, not to `/simplify` | **Reasoning-only.** The consumption record states what the cleanup route changed, not which skill the fixer invoked, so nothing outside the session can tell a routed row from one `/simplify` silently declined to touch. This is the honest limit of the disposition: the declaration is checkable, the honoring is not. |
 | A declined candidate is reported as a count rather than dropped | **Reasoning-only.** A count in `## Surfaces` is greppable, but nothing outside the producer knows what the run examined, so no gate can tell a declined candidate from one never generated. |
 | A producer's coexistence behavior (own file, self-named surface) | **Detect-then-judge** when built. Appending into another producer's file is detectable; whether a `Surface(s)` value identifies the producer usefully is judgment. |
@@ -615,6 +666,12 @@ event triggers rather than dates:
   What that unblocks: the shape and `Confidence` judgments above are both a mechanical read of a file
   this repository can produce on demand. No gate is written here. Naming the trigger as fired is
   what stops the deferral from reading as permanent.
+- **Recheck trigger (remedy assertions): a producer declaring where its assertion set lives**, in
+  its adopter row or anywhere else a gate could read it. The pairing check above is writable per
+  producer today, against that producer's own layout, and is not writable fleet-wide while the
+  contract has no way to find the assertions. The first adopter row that says where they are is
+  what makes one gate reach every producer, so the trigger arrives at the table rather than needing
+  to be remembered.
 - **Recheck trigger (this doc's depth): MET.** The pilot ran, and both gaps it surfaced are closed
   here: a producer whose remediation site is not its `Location` now has a disposition, and an
   examined-but-not-reportable candidate now has a home. This doc is no longer a stub, and what
@@ -641,6 +698,17 @@ adopter asserts what a reader cannot rely on.
 `review:fanout` is not an adopter and is deliberately absent from the table: it is the **reference
 writer** whose file format this contract points at, and it sits on the other side of the boundary
 this doc draws.
+
+**`claude-config:audit-permission-grants` is a second absence, recorded here rather than tabled**,
+because a row asserts conformance today and this producer does not conform. It is a detector that
+emits remedies, its sibling `claude-config:audit-instructions` is tabled above, and it reports to a
+human rather than persisting, which puts it in the Boundary's "findings that never reach a relay"
+case. Nothing in this contract reaches it, the remedy bar included, and that is the structural
+finding worth recording: its remedies were never held to any bar of this contract's, not because a
+bar excused them but because it is not a producer under it.
+[#4149](https://github.com/melodic-software/claude-code-plugins/issues/4149) holds the adoption
+question and this version does not answer it. **The trigger is that skill gaining a persist path**,
+which is the moment its remedies reach a relay and the Boundary stops holding them out.
 
 ## Versioning
 

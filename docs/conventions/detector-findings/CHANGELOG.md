@@ -4,6 +4,57 @@ Notable changes to the detector-findings contract (SemVer). Changing a producer-
 the coexistence obligations, or an enforceability verdict is a major bump; additive guidance or a new
 adopter row is a minor bump; docs-only clarification is a patch.
 
+## [3.0.0] - 2026-09-13
+
+**Major under this contract's own rule, on 2.0.0's shape.** A producer-owned obligation is added,
+and an existing producer that ignores it stops conforming: a rule emitting a remedy no assertion
+pins to the scope it fires in is non-conforming under 3.0.0 and was conforming under 2.9.0. Nothing
+already written moves. No coexistence obligation changes, and no existing enforceability verdict
+changes.
+
+- **New section, "The remedy is pinned by an assertion, in every scope it fires in"
+  ([#4149](https://github.com/melodic-software/claude-code-plugins/issues/4149) Q2).** Every remedy
+  a rule emits carries at least one assertion pinning it for the scope it fires in. The section
+  argues the bar rather than stating it: a detector's detection is a value a fixture can compare, so
+  it gets compared, often exhaustively, while what the fired row tells an author to do leaves the
+  same run as prose nothing reads back. A remedy can therefore be wrong on the day it is written and
+  can drift into being wrong afterwards, with a green suite either way. This contract is where that
+  costs an edit rather than a dismissed row, because the `Action` cell and the `Auto-applicable`
+  declaration are exactly what a consumer acts on without re-deriving them.
+- **Scope is the bar, and the wording is not.** An assertion that a remedy is present, or carries an
+  expected token, passes on the defect the bar exists for. The originating case
+  ([#4134](https://github.com/melodic-software/claude-code-plugins/pull/4134)) is a remedy naming a
+  substitution token that resolves in one scope, offered in scopes where the same token is inert, so
+  following it traded a working rule for a broken one, which is the failure the check existed to
+  report re-emitted as advice. The defect and the first fix for it were both present, well formed,
+  and correct somewhere; only the scope each was offered in separates them from a correct remedy.
+- **A negative assertion carries the same weight as a positive one**, that the remedy is NOT offered
+  where it would not work. An all-positive assertion set is satisfied by a remedy offered
+  everywhere, and the withheld half was the wrong half in both the bug and its first fix.
+- **The obligation binds an outcome, not a harness**, on the reading the crosswalk's fall-through
+  criterion already states of itself: any assertion form the producer already runs satisfies it. It
+  is **per rule and per scope, never per finding**, which is "Auto-applicability is settled per
+  rule, at contract time" applied rather than restated.
+- **One Enforceability row, with the split stated rather than blurred.** **Detect-then-judge when
+  built**, on the same line the `Tier` row draws: where a producer's emit sites and assertion set
+  both carry the scope, the pairing is a set difference over two enumerable id-and-scope sets, while
+  whether the pinned remedy is the RIGHT one for that scope is the half the originating bug got
+  wrong twice and is not a machine question. **Unbuilt**, and deliberately not claimed
+  otherwise; it is also not buildable in the conformance gate's shape, because a producer's
+  assertions live in its own tree rather than in what it emits.
+- **One recheck trigger added, event-named like its siblings:** a producer declaring where its
+  assertion set lives. The pairing check is writable per producer today against that producer's own
+  layout; it is not writable fleet-wide while the contract has no way to find the assertions, so the
+  first adopter row that says where they are is what makes one gate reach every producer.
+- **`claude-config:audit-permission-grants` is recorded as a non-adopter, not tabled.** The
+  Adopters section already carries a prose absence for `review:fanout`, and this is the second one,
+  sited there because a row asserts conformance today and this producer does not conform. It emits
+  remedies and reports to a human rather than persisting, which puts it in the Boundary's "findings
+  that never reach a relay" case, so nothing in this contract reaches it, the new bar included. That
+  is #4149's structural finding: its remedies were never held to any bar of this contract's, not
+  because a bar excused them but because it is not a producer under it. The adoption question is
+  open and unanswered here; the trigger is that skill gaining a persist path.
+
 ## [2.9.0] - 2026-08-28
 
 **Minor under this contract's own rule.** A new producer's rows are added; no producer-owned
