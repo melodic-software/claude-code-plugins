@@ -40,7 +40,7 @@ pad_kinds() {
 }
 
 write_collector() {
-  local repo="$1"
+  local repo="$1" kind
   shift
   {
     pad_kinds

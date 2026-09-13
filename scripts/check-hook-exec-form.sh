@@ -205,6 +205,16 @@ JQ_EXEC_FORM='
   | $file + "\t" + ($p | render) + "\t" + ($o.command | gsub("\r"; ""))
 '
 
+# _consume_json_rows <path-prefix> <rows>: apply the rule to every
+# `<file>\t<jq-path>\t<command>` row the jq program emitted.
+_consume_json_rows() {
+  local prefix="$1" file path cmd
+  while IFS=$'\t' read -r file path cmd; do
+    [[ -n "$cmd" || -n "$path" || -n "$file" ]] || continue
+    consider "$file" "${prefix}${path}" "$cmd"
+  done <<<"$2"
+}
+
 # scan_json_files <jq-root> <path-prefix> <file...>
 #
 # One jq over the files, same rule as a per-file scan. Fail closed on an
@@ -216,13 +226,10 @@ scan_json_files() {
   local root="$1" prefix="$2"
   shift 2
   (($#)) || return 0
-  local prog out file path cmd f
+  local prog out f
   prog="${JQ_EXEC_FORM//__ROOT__/$root}"
   if out="$(jq -r "$prog" "$@" 2>/dev/null)"; then
-    while IFS=$'\t' read -r file path cmd; do
-      [[ -n "$cmd" || -n "$path" || -n "$file" ]] || continue
-      consider "$file" "${prefix}${path}" "$cmd"
-    done <<<"$out"
+    _consume_json_rows "$prefix" "$out"
     return 0
   fi
   for f in "$@"; do
@@ -232,10 +239,7 @@ scan_json_files() {
       errors=$((errors + 1))
       continue
     fi
-    while IFS=$'\t' read -r file path cmd; do
-      [[ -n "$cmd" || -n "$path" || -n "$file" ]] || continue
-      consider "$file" "${prefix}${path}" "$cmd"
-    done <<<"$out"
+    _consume_json_rows "$prefix" "$out"
   done
 }
 

@@ -176,11 +176,22 @@ mapfile -t guards < <(printf '%s\n' "${guards[@]}" | sort -u)
 SWITCH_RE='^\[\[ "\$\{CLAUDE_PLUGIN_OPTION_[A-Z0-9_]+_ENABLED:-(true|false)\}" == "(true|false)" \]\] (\|\| exit 0|&& exit 0)$'
 SOURCE_RE='^[[:space:]]*(source|\.)[[:space:]]+'
 
+# The remedy template every "fix it this way" finding prints, so the two that
+# quote it cannot drift apart.
+# shellcheck disable=SC2016  # a template for the reader to paste, meant literally
+HOIST_TEMPLATE='    [[ "${CLAUDE_PLUGIN_OPTION_<NAME>_ENABLED:-true}" == "true" ]] || exit 0'
+
 violations=0
+
+# violation <line>...: one finding on stderr, counted.
+violation() {
+  printf '%s\n' "$@" >&2
+  violations=$((violations + 1))
+}
+
 for guard in "${guards[@]}"; do
   if [[ ! -f "$guard" ]]; then
-    echo "VIOLATION: $guard — registered on PreToolUse or PostToolUse but missing from the tree" >&2
-    violations=$((violations + 1))
+    violation "VIOLATION: $guard — registered on PreToolUse or PostToolUse but missing from the tree"
     continue
   fi
 
@@ -206,35 +217,23 @@ for guard in "${guards[@]}"; do
   # names the fix; "no kill switch found" would read as though the guard had none
   # at all and send the reader looking for the wrong thing.
   if ((legacy_line > 0)); then
-    {
-      echo "VIOLATION: $guard:$legacy_line — calls hook::check_enabled."
-      echo "  That helper only exists after the library is sourced, which is the cost"
-      echo "  the hoist exists to avoid. Inline the predicate above the source instead:"
-      # shellcheck disable=SC2016  # a template for the reader to paste, meant literally
-      echo '    [[ "${CLAUDE_PLUGIN_OPTION_<NAME>_ENABLED:-true}" == "true" ]] || exit 0'
-    } >&2
-    violations=$((violations + 1))
+    violation "VIOLATION: $guard:$legacy_line — calls hook::check_enabled." \
+      "  That helper only exists after the library is sourced, which is the cost" \
+      "  the hoist exists to avoid. Inline the predicate above the source instead:" \
+      "$HOIST_TEMPLATE"
     continue
   fi
 
   if ((switch_line == 0)); then
-    {
-      echo "VIOLATION: $guard — no inlined kill switch found."
-      echo "  Expected, above the first source line:"
-      # shellcheck disable=SC2016  # a template for the reader to paste, meant literally
-      echo '    [[ "${CLAUDE_PLUGIN_OPTION_<NAME>_ENABLED:-true}" == "true" ]] || exit 0'
-    } >&2
-    violations=$((violations + 1))
+    violation "VIOLATION: $guard — no inlined kill switch found." \
+      "  Expected, above the first source line:" \
+      "$HOIST_TEMPLATE"
     continue
   fi
 
   if ((source_line > 0 && switch_line > source_line)); then
-    {
-      echo "VIOLATION: $guard — kill switch at line $switch_line is BELOW the source at line $source_line."
-      echo "  A disabled guard must not pay to parse a library before finding out it is off."
-    } >&2
-    violations=$((violations + 1))
-    continue
+    violation "VIOLATION: $guard — kill switch at line $switch_line is BELOW the source at line $source_line." \
+      "  A disabled guard must not pay to parse a library before finding out it is off."
   fi
 done
 
