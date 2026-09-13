@@ -222,7 +222,7 @@ rm -rf "$f"
 # code-metrics plugin. This check keys clusters by path-within-plugin, so the
 # line must be skipped: registering it would report it REGISTRY STALE on every
 # run, since no plugin carries a path spelled `lib/... -> ...`.
-f="$(new_fixture)"
+new_fixture f
 plugin_file "$f" alpha hooks/shared.sh "same"
 plugin_file "$f" beta hooks/shared.sh "same"
 registry "$f" "hooks/shared.sh" "lib/shared.sh -> plugins/*/hooks/shared.sh"
