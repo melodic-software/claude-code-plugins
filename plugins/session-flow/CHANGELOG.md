@@ -1,5 +1,30 @@
 # Changelog: session-flow plugin
 
+## [0.36.0]
+
+### Added
+
+- **`save_point.py fill <file> --slots <json>`: one call replaces every reasoning slot.** The
+  handoff write procedure was one Edit per `<!-- FILL: ... -->` slot, up to twenty-two of them on
+  a first hop, so an interrupt mid-batch left a partly filled skeleton. `fill` reads one JSON
+  object keyed by slot name and applies every value in a single write, after every check has
+  passed. An inline prefix on a slot's line is preserved, a multi-line value lands as those lines
+  in place, and an optional slot left out of the object has its line deleted. A closing handoff is
+  written by giving the `next` slot the value `Next: none (closed)` exactly, which `fill` moves
+  onto the `Next:` line above before deleting the slot line, since that is the only shape the
+  validator accepts as closed. A required slot absent, a key naming no slot in the file, a slot
+  name occurring twice, a value that itself carries a `FILL` slot marker, and a target with no
+  slot left are each refused by name with the file left byte-identical. A missing or unreadable
+  target, and a slots file that is missing, unreadable, not a JSON object, or holds a non-string
+  or non-UTF-8-encodable value, exit 2, as does a target that is not a handoff file, the same
+  `type: handoff` guard `validate` and `emit` apply, and a target whose shape is not 2, since
+  substitutions belong to the shape this engine writes. A shape newer than 2 exits 3 with
+  `validate`'s wording, read it and do not rewrite it, so version skew cannot corrupt a
+  future-format handoff. The write goes to a temporary file in the target's own directory and is
+  replaced into place, so an interrupted write cannot truncate the handoff. The target's own line
+  endings survive, so a CRLF handoff stays CRLF. `new`, `validate`, and `emit` keep their behavior
+  and exit codes, and the Edit tool is now only the repair path after a failed `validate`.
+
 ## [0.35.10]
 
 ### Changed

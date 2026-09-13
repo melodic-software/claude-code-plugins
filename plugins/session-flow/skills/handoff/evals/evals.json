@@ -219,25 +219,26 @@
     },
     {
       "id": 16,
-      "name": "skeleton-comes-from-new-and-only-fill-slots-are-edited",
+      "name": "skeleton-comes-from-new-and-slots-are-filled-in-one-call",
       "prompt": "Handoff. This is the first save-point of this task; python3 is on PATH.",
-      "expected_output": "The full path runs the shape-2 procedure: memory_dir resolved through parse-concern-value.sh, the guards run, then `save_point.py new --topic <slug> --memory-dir <root> --no-previous` invoked through the interpreter ladder with `-X utf8`. The path `new` prints is reused for every later step. The model edits only the `<!-- FILL: … -->` slots, deleting the optional ones (goal-rearm, below-rail, <section>-new) that do not apply, and leaves every deterministic field (frontmatter, chain, the 17 headings, the rails block minus `Next:`) exactly as written. `save_point.py validate` exits 0, the outcome is quoted in the checklist, and the rails block on screen is the `save_point.py emit` output pasted verbatim.",
+      "expected_output": "The full path runs the shape-2 procedure: memory_dir resolved through parse-concern-value.sh, the guards run, then `save_point.py new --topic <slug> --memory-dir <root> --no-previous` invoked through the interpreter ladder with `-X utf8`. The path `new` prints is reused for every later step. The model writes ONE JSON object holding the values for the `<!-- FILL: … -->` slots that skeleton actually carries, leaving the optional ones (goal-rearm, below-rail, <section>-new) that do not apply out of it, and applies them all with a single `save_point.py fill <file> --slots <json>` call, so every deterministic field (frontmatter, chain, the 17 headings, the rails block minus `Next:`) stays exactly as written. `save_point.py validate` exits 0, the outcome is quoted in the checklist, and the rails block on screen is the `save_point.py emit` output pasted verbatim.",
       "files": [],
       "expectations": [
         "`save_point.py new` is invoked (with `--no-previous`, since no prior handoff of this task exists) rather than the file being written from scratch by Write or Edit",
-        "The absolute path `new` printed is the one path used for the Edit calls, `validate`, `emit`, and the directive — never recomputed or re-derived in bash",
-        "Only `<!-- FILL: … -->` slots are edited; deterministic fields such as `handoff_shape`, `session_id`, `transcript`, `chain:`, the heading scaffold, `Prior session:`, and `Handoff origin:` are left as the script wrote them",
-        "Optional slots that do not apply are deleted so no `FILL` text remains, and `validate` is run and reported as `validate: exit 0` before the rails are printed",
+        "The absolute path `new` printed is the one path used for `fill`, `validate`, `emit`, and the directive, never recomputed or re-derived in bash",
+        "The slots are applied by one `save_point.py fill <file> --slots <json>` call over a JSON object written beside the handoff, not by a run of Edit calls; deterministic fields such as `handoff_shape`, `session_id`, `transcript`, `chain:`, the heading scaffold, `Prior session:`, and `Handoff origin:` are left as the script wrote them",
+        "The slot names come from the skeleton `new` just wrote rather than a remembered template, optional slots that do not apply are left OUT of the object so `fill` deletes their lines, `fill` exits 0 so no `FILL` text remains, and `validate` is run and reported as `validate: exit 0` before the rails are printed",
         "The on-screen rails block is the `emit` output pasted verbatim, and the `Next:` line carries one to five plain headline lines with no bullets"
       ]
     },
     {
       "id": 17,
       "name": "validator-failure-is-fixed-then-loud-never-silent",
-      "prompt": "Handoff. (Note: after you fill the skeleton, `save_point.py validate` exits 1 reporting a leftover FILL slot in Open questions and six lines under Next:; suppose that after three fix attempts it is still failing on something you cannot resolve.)",
-      "expected_output": "The first failure is fixed, not ignored: the named slot is filled, `Next:` is cut to five headlines, and `validate` is re-run. When the file still fails after three attempts, the skill neither withholds the resume prompt nor claims success: it prints an `UNVALIDATED: <validator output>` banner ABOVE the copy instruction (outside the copy region), marks the checklist box `validate: FAILED`, and still emits the rails from the file's `## Resume prompt` section verbatim. It never regenerates a prompt by hand to route around the validator, and never presents the file as validated.",
+      "prompt": "Handoff. (Note: `save_point.py fill` exits 1 saying the required slot 'open-questions' is absent from your slots JSON; then, once that is keyed and `fill` exits 0, `save_point.py validate` exits 1 reporting six lines under Next:; suppose that after three fix attempts it is still failing on something you cannot resolve.)",
+      "expected_output": "The `fill` refusal is read and fixed at its source: the named slot is added to the slots JSON and `fill` re-run, never worked around with an Edit, and the target was left byte-identical so the re-run is clean. The `validate` failure is then repaired with Edit on the line it names, since a filled file carries no slot left for `fill` to re-apply: `Next:` is cut to five headlines and `validate` re-run. When the file still fails after three attempts, the skill neither withholds the resume prompt nor claims success: it prints an `UNVALIDATED: <validator output>` banner ABOVE the copy instruction (outside the copy region), marks the checklist box `validate: FAILED`, and still emits the rails from the file's `## Resume prompt` section verbatim. It never regenerates a prompt by hand to route around the validator, and never presents the file as validated.",
       "files": [],
       "expectations": [
+        "The `fill` exit 1 is treated as a defect in the slots JSON: the named slot is keyed and `fill` re-run, rather than the slot being hand-edited into the file or the refusal ignored",
         "A non-zero `validate` exit is treated as a defect to fix: the slots the FAIL lines name are corrected and `validate` is re-run, up to three attempts, rather than the failure being ignored or the rails printed immediately",
         "After three failed attempts the rails are STILL emitted (a resume prompt is always emitted), taken from the file's `## Resume prompt` section, not retyped from memory",
         "An `UNVALIDATED: <validator output>` banner appears above the copy instruction, outside the region between the rails, and the checklist box reads `validate: FAILED` rather than a ticked pass",
