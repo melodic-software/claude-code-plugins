@@ -1,4 +1,4 @@
-# Hook timing — resolving a budget and judging a candidate against it
+# Hook timing: resolving a budget and judging a candidate against it
 
 Read when a candidate is a hook and the `Too slow` gate needs a threshold, or when a verdict is
 about to state a timing number.
