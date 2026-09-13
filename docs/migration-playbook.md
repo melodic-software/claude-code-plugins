@@ -393,24 +393,41 @@ the `evals` plugin distills it). The rich form is that guidance's eval anatomy w
 answer in its rubric-instructions form (`expected_output` + `expectations` are what a grader is
 told to look for), and every case must carry one. The schema rejects a case with no
 `expected_output`, `expectations`, or `assertions`, because a case that cannot be graded is not an
-eval. Two deliberate divergences from the guidance, both consequences of the deferred runner
-(medley#1418): case volume stays low (the guidance's volume-over-polish principle assumes cheap
-automated grading, which does not exist here yet), and grading is a human judgment pass (the
-method the guidance ranks last). Both revisit when the runner lands.
+eval. Two deliberate divergences from the guidance hold for this corpus, and the adoption record
+below says why a shipped runner does not close them: nothing grades an `evals/evals.json` case in
+this repository, so case volume stays low (the guidance's volume-over-polish principle assumes
+cheap automated grading) and grading is a human judgment pass (the method the guidance ranks last).
+A behavioral contract that warrants a measured number instead of a reviewed fixture gets a
+`claude plugin eval` suite, which is a different format and a different decision.
 
-**Which eval format this is, and why it is not `claude plugin eval`'s.** Two Anthropic-owned eval
-formats exist and they are not the same. The one shipped here is **`skill-creator`'s**:
+**Adoption record: `claude plugin eval`, and which eval format is which.** Two Anthropic-owned eval
+formats exist and they are not the same. The one this per-skill corpus uses is **`skill-creator`'s**:
 `evals/evals.json` inside the skill directory, cases carrying `id` / `prompt` / `expected_output` /
 `files` / `expectations`, which is why the schema's own `description` notes that upstream names that
 last field `assertions`. It is the ecosystem-wide shape: a public code search returns thousands of
 `evals.json` files in that form against a handful in any other. **`claude plugin eval` consumes a
-different layout** (`<eval dir>/**/case.yaml`, or `prompt.md` plus `graders/*.md`, with
-`experimental.evals` naming the directory). This repo has none of it, deliberately: the command is
-**early access** and refuses to run (`plugin eval is currently in early access`), so adopting its
-format would trade a corpus CI checks on every PR for one nobody here can execute. Adoption stays
-deferred behind the same `melodic-software/medley#1418` tracker as the runner; revisit when the
-command leaves early access. **The consequence for authors:** no command in *this* marketplace and
-nothing in *this* CI executes a prompt, since the gates only lint and schema-check them, so a case must be
+different layout**: a plugin's `evals/` tree of `<case>/prompt.md` plus `graders/*.md`, or
+`<case>/case.yaml`, with `experimental.evals` naming a directory elsewhere.
+
+**What shipped.** The command shipped in Claude Code 2.1.269 on 2026-09-11 and this marketplace
+has adopted it.
+Before this adoption the binary answered `plugin eval is currently in early access` and refused to
+run, which is why taking on the format would then have traded a corpus CI checks on every PR for one
+nobody here could execute. That reason is spent, so the deferral is reopened.
+`melodic-software/medley#1418` is the tracker that carried it and stays open on its own terms: this
+record supersedes the deferral, it does not close the ticket. The adopted surface is the `evals`
+plugin, whose `/evals:plugin-eval` guides a run of the command and whose `/evals:validate` checks
+case files with no model call, over the pilot suite at `plugins/evals/evals/`.
+
+**Both formats stay, and neither migrates into the other.** Anthropic states the separation from
+both sides, and they answer different questions. The per-skill `evals/evals.json` corpus remains
+the default and the gated one: `scripts/check-changed-skills.sh` requires it and
+`/skill-quality:check validate-evals` schema-checks it on every PR. A `prompt.md` plus `graders/*.md`
+suite is warranted where a plugin's contribution needs a measured with-versus-without number rather
+than a reviewed fixture; it runs on demand rather than in CI, because every run and every judge
+grader is a metered model call, and its only static gate here is `/evals:validate`.
+**The consequence for authors of an `evals.json` case is unchanged:** nothing in *this* CI executes
+that prompt, since the gates only lint and schema-check it, so a case must be
 readable and followable by a human or an agent working by hand, and must not depend on a runner
 having been invoked. That is not the same as no runner existing: a consumer with Anthropic's
 `skill-creator` installed can run these suites, which is the format's own runner and which stages a
@@ -418,9 +435,8 @@ case's `files[]` for it. So use `files[]` to declare fixtures and reference them
 path; do not hand-roll staging inside the `prompt` string. A prompt that builds its own workspace is
 neither followable by hand nor compatible with the runner that would otherwise stage it.
 
-**Consumer-verify recipe: "verify this plugin in MY repo".** There is **no first-party command that
-executes model-graded evals today**. Automated eval *running* is a deferred surface (owned by
-`melodic-software/medley#1418`); `skill-quality` only checks presence and schema, and it resolves
+**Consumer-verify recipe: "verify this plugin in MY repo".** Steps 1-2 are static:
+`skill-quality` only checks presence and schema, and it resolves
 skills under `${user_config.skills_root}` → `${CLAUDE_PROJECT_DIR}/.claude/skills` only. It does
 **not** discover an installed marketplace plugin's skills by plugin name. So the static checks below run
 against the plugin's **source tree**, not against a bare `/plugin install`; the exercise step is the
@@ -446,17 +462,21 @@ against the plugin you actually invoked. Then:
    fixtures, empty or vague grading criteria, advisory set-coverage warnings). Still static: it
    does not run the cases, and it treats an absent file as "not a failure", so it is a
    schema-and-content gate, not a presence gate.
-3. **Exercise (manual), the real consumer check.** Enable the plugin in your repo (`/plugin install
-   <plugin>@<marketplace>`), then read the eval cases **from the copy you actually enabled**, not from
-   `<root>`: the enabled version lives in the version-keyed cache under `~/.claude/plugins/cache`, and
-   reading cases from a source checkout that has drifted from it would exercise the installed plugin
-   against a different version's prompts/fixtures. To use the source evals *as* the enabled plugin
-   instead, load that source directory with `--plugin-dir` (the local copy then takes session
-   precedence, per "Local development loop" below). For each case paste its `prompt` into a fresh session and read
-   the result against that case's `expected_output` / `expectations`; cases with a `files` list need
-   those fixtures present relative to the skill directory. This is a human judgment pass, not an
-   automated pass/fail, until the deferred runner lands, at which point it becomes a single command and
-   this recipe is revised.
+3. **Exercise, the real consumer check.** For a plugin that ships a `claude plugin eval` suite, this
+   step is the validator plus the command: `/evals:validate <plugin>/evals` checks the case files
+   with no model call, then `/evals:plugin-eval` prices the suite, runs it with the plugin and again
+   with nothing loaded, and reports the delta. Point it at the directory you actually enabled and it
+   is the definitive as-enabled check; `claude plugin eval init` writes a suite for a plugin that has
+   none. For a plugin whose only cases are per-skill `evals/evals.json` files, the exercise is still
+   a hand pass, because that format has no runner here: enable the plugin (`/plugin install
+   <plugin>@<marketplace>`), then read the cases **from the copy you actually enabled**, not from
+   `<root>`, since the enabled version lives in the version-keyed cache under
+   `~/.claude/plugins/cache` and a drifted source checkout would exercise different prompts and
+   fixtures. To use the source evals *as* the enabled plugin instead, load that source directory with
+   `--plugin-dir` (the local copy then takes session precedence; see "Local development loop" below).
+   Paste each case's `prompt` into a fresh session and read the result against its `expected_output`
+   / `expectations`; cases with a `files` list need those fixtures present relative to the skill
+   directory.
 
 ## Shared tools and scripts seam
 
