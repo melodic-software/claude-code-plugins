@@ -85,6 +85,13 @@
 # (`audit/scripts/*.sh`, `audit-permission-state/scripts/permission-state.sh`): a
 # findings payload is a JSON document, and a half-checked document in an artifact
 # `--implement` is the only reader of is worse than a refusal naming the tool.
+# The requirement is checked by the two subcommands that touch a payload, `write`
+# and `read`, and by neither `paths` nor `list`, which compute a path and serve
+# the history file with `cat`. Checking it is not optional in `read`: it parses
+# the stored envelope before serving it, so an absent `jq` is a failed command
+# that a caller cannot tell from a document that did not parse, and reporting
+# that as exit 5 tells an operator their verdicts were corrupted when the
+# artifact is intact and the machine is short a tool.
 #
 # Usage:
 #   findings-state.sh paths --plugin-data <dir> [--root <path>]
@@ -703,6 +710,14 @@ require_readable_file() {
 
 cmd_read() {
   parse_common_args "read" "$@"
+  # THE SAME PREREQUISITE CHECK `write` USES, and for a sharper reason here.
+  # `read` parses the stored envelope with `jq` before serving it, and a machine
+  # without `jq` fails that command with exit 127. Without this gate the failure
+  # is indistinguishable from a document that did not parse, so a perfectly
+  # valid persisted run is reported as damaged state under exit 5 and the
+  # operator is told an external writer corrupted their verdicts. A missing tool
+  # is a missing prerequisite: it exits 2 and names `jq`.
+  require_jq
   if [[ "$ARG_FINDINGS_GIVEN" -eq 1 ]]; then
     die "read does not take --findings"
   fi

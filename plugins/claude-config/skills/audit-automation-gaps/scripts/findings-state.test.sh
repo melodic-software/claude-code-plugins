@@ -790,6 +790,72 @@ fi
 assert_eq "no staged pointer temporary is left behind" "0" \
   "$(find "$PTRDIR" -name 'latest.*' | wc -l | tr -d ' ')"
 
+# --- Case 17: A MISSING TOOL IS NOT A DAMAGED ARTIFACT ------------------------
+#
+# `read` parses the stored envelope with `jq` before serving it. On a host with
+# no `jq` that command fails with exit 127, which is indistinguishable from a
+# document that did not parse unless the prerequisite is checked first. Without
+# the check a perfectly valid persisted run is reported under exit 5 as state an
+# external writer corrupted, which is the script lying about the operator's
+# data: the artifact is fine, the machine is missing a tool. The contract puts a
+# missing prerequisite at exit 2, so that is what this asserts.
+#
+# `jq` is made unavailable by running the script under a PATH holding symlinks
+# to the tools it needs and nothing else. Uninstalling `jq` is not an option and
+# a wrapper that fails would still satisfy `command -v`.
+
+NOJQ_BIN="$TEST_TMPDIR/nojq-bin"
+mkdir -p "$NOJQ_BIN"
+for tool in bash sh git date sha256sum shasum tr sed cut head cat mv rm mkdir find wc ln chmod grep; do
+  tool_path="$(command -v "$tool" 2>/dev/null)" || continue
+  ln -s "$tool_path" "$NOJQ_BIN/$tool" 2>/dev/null || true
+done
+# Probe the shim rather than trust it: a host where `ln -s` copies, or where a
+# needed tool is a shell function or builtin alias, would otherwise turn this
+# case into a meaningless failure.
+if PATH="$NOJQ_BIN" bash -c 'command -v git >/dev/null 2>&1 && ! command -v jq >/dev/null 2>&1' 2>/dev/null; then
+  NOJQ_DATA="$TEST_TMPDIR/nojq-data"
+  run write --plugin-data "$NOJQ_DATA" --root "$REPO_A" --run-id nojq --findings "$GOOD" >/dev/null 2>&1
+  rc=0
+  OUT=$(run read --plugin-data "$NOJQ_DATA" --root "$REPO_A" 2>&1) || rc=$?
+  assert_exit "the stored run this case reads back is valid while jq is present" 0 "$rc"
+
+  rc=0
+  OUT=$(PATH="$NOJQ_BIN" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" bash "$SCRIPT" \
+    read --plugin-data "$NOJQ_DATA" --root "$REPO_A" 2>&1) || rc=$?
+  assert_exit "read exits 2 with no jq, the prerequisite code and not the damaged-state one" 2 "$rc"
+  assert_contains "the refusal names jq as the missing prerequisite" "$OUT" "jq is required"
+  assert_not_contains "a valid stored run is never blamed for a missing jq" \
+    "$OUT" "cannot be trusted"
+  assert_not_contains "and nothing claims an outside writer touched the artifact" \
+    "$OUT" "something outside this script wrote it"
+
+  # The gate belongs only where jq is actually used. `list` serves the history
+  # file with `cat` and `paths` computes a path, so requiring jq for either
+  # would break a host that can still answer both.
+  rc=0
+  OUT=$(PATH="$NOJQ_BIN" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" bash "$SCRIPT" \
+    list --plugin-data "$NOJQ_DATA" --root "$REPO_A" 2>&1) || rc=$?
+  assert_exit "list still answers with no jq, because it uses none" 0 "$rc"
+  assert_contains "and it serves the recorded run" "$OUT" '"run_id":"nojq"'
+
+  rc=0
+  OUT=$(PATH="$NOJQ_BIN" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" bash "$SCRIPT" \
+    paths --plugin-data "$NOJQ_DATA" --root "$REPO_A" 2>&1) || rc=$?
+  assert_exit "paths still answers with no jq, because it uses none" 0 "$rc"
+
+  # `write` composes the envelope with jq and already gated on it. Asserted here
+  # so the three subcommands are judged against one another in one place.
+  rc=0
+  OUT=$(PATH="$NOJQ_BIN" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" bash "$SCRIPT" \
+    write --plugin-data "$NOJQ_DATA" --root "$REPO_A" --run-id nojq-2 --findings "$GOOD" 2>&1) || rc=$?
+  assert_exit "write exits 2 with no jq" 2 "$rc"
+  assert_contains "write names jq too" "$OUT" "jq is required"
+else
+  skip "read exits 2 with no jq, the prerequisite code and not the damaged-state one" \
+    "a jq-free PATH could not be built here"
+fi
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed (%d skipped for host capability).\n' "$CASE_NUM" "$SKIPPED"
   exit 0
