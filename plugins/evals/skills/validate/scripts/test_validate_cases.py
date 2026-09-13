@@ -338,14 +338,14 @@ class UnknownGraderOptionFixture(ValidatorTestCase):
                 "criteria": """\
                 ---
                 type: regex
-                patern: "thing"
+                patterns: "thing"
                 ---
                 """
             },
         )
         result = self.validate()
         self.assertEqual(1, result.returncode, result.stdout)
-        self.assertIn('unknown grader option "patern"', result.stdout)
+        self.assertIn('unknown grader option "patterns"', result.stdout)
 
     def test_missing_type_reports_the_binary_message(self):
         self.case(

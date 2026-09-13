@@ -148,7 +148,10 @@ plugin as it was.
 | `docs/specs/prompt-audit-skills-2026-09.md` (~L614), `docs/specs/provenance-capability-matrix.md` (~L201), `docs/specs/write-for-agents-brief.md` (~L57), `docs/specs/provenance-design-threads.md` (~L107) | Modify | one dated note each pointing at the adoption record |
 | `docs/catalog.md` | Regenerate | `node scripts/generate-catalog.mjs` after the manifest change |
 | `plugins/playbooks/skills/skill-authoring/reference/authoring-guidance.md` L221-234, `plugins/playbooks/CHANGELOG.md`, `plugins/playbooks/.claude-plugin/plugin.json` | Modify | the fired recheck trigger ("the docs page documents the command") is honored: fact restated, as-of refreshed, patch bump |
-| `docs/upstream/aihero-course.md` L314, `package.json` | Keep | upstream digest; the pin only serves cloud-bootstrap marketplace registration, never evals |
+| `docs/upstream/aihero-shipping-course.md` L314 | Modify | the fifth dated adoption note (the digest quoted the old README line; recorded under Phase 5) |
+| `package.json` | Keep | the pin only serves cloud-bootstrap marketplace registration, never evals |
+| `docs/topics/plugin-evals/design/design-resolution.md` | Create | the Tier B early-exit type sketch (validator CLI contract, the two `userConfig` keys, the preflight report fields, the pilot case shape) |
+| `docs/skill-cheat-sheet.md` | Regenerate | `node scripts/generate-cheatsheet.mjs` after the two new skills land |
 
 #### Dependencies
 
@@ -463,7 +466,7 @@ chose / revisit:
   chose to leave it, since it records what that engagement did not do and stays true. Found the
   Files affected table omits `docs/upstream/aihero-shipping-course.md` (the fifth adoption note,
   recorded under Phase 5), `design/design-resolution.md`, and the regenerated
-  `docs/skill-cheat-sheet.md`; left for close-out.
+  `docs/skill-cheat-sheet.md`; folded into the table at close-out.
 - The draft-PR clause of the sanity check is discharged by melodic-software/claude-code-plugins#4154
   (`isDraft: true`, body carries `No linked issue` and the four sections). `scripts/affected-tests.sh
   --run` runs in CI once it flips to ready.
@@ -677,3 +680,16 @@ what you found, what the brief expected, and the exact state of your work
   PowerShell tool.
 - Pre-PR order per `docs/conventions/pre-pr-ordering/README.md`; close-out per `/planning:plan close-out`
   before merge (paste the plan and verification into the PR, prune the contract slice with a pointer).
+
+## Close-out (2026-09-13)
+
+- The Brief, `verification/preflight.md`, and `design/design-resolution.md` are pasted into
+  melodic-software/claude-code-plugins#4154 inside `<details>` blocks; the full plan exceeds the body
+  cap, so the PR names the pre-prune commit instead.
+- Graduated: `verification/pilot.md` moves history-preserving to
+  `docs/specs/plugin-evals-pilot-measurement.md`, the measured baseline later runs compare against.
+- No ADR: the plugin-only unit, the wrap route, and the rules refusal are each documented in the runner
+  skill, easily reversed, and unsurprising given the command's own docs; none passes the admission test.
+- Follow-ups (the Q12 sandbox gap, the upstream spoke-Read report, the standards inference) stay in the
+  PR body's Related section; none is filed without the user's word.
+- Then the contract slice `docs/topics/plugin-evals/` is pruned.
