@@ -1,5 +1,5 @@
 ---
-description: "Audit Claude Code permission GRANTS for portability and auto-mode durability. Scans skill/command/agent frontmatter allowed-tools and settings.json/settings.local.json/user-global permissions.allow for interpreter-wildcard rules dropped in auto mode, hardcoded machine/user paths, and inert plugin self-grants. Use when: 'check permission rules', 'why was my allowed-tools grant ignored', 'audit allow rules', 'is this permission portable', after authoring a code-execution grant, or when a guarded helper is denied despite an allow rule. Report-only."
+description: "Audit Claude Code permission GRANTS for portability and auto-mode durability. Scans skill/command/agent frontmatter allowed-tools and settings.json/settings.local.json/user-global permissions.allow for interpreter-wildcard rules dropped in auto mode, hardcoded machine/user paths, tilde-user paths, substitution tokens that stay literal in the scope they are written in, and inert plugin self-grants. Use when: 'check permission rules', 'why was my allowed-tools grant ignored', 'audit allow rules', 'is this permission portable', after authoring a code-execution grant, or when a guarded helper is denied despite an allow rule. Report-only."
 argument-hint: "[scope]: frontmatter|settings|plugins|all (default: all)"
 user-invocable: true
 disable-model-invocation: false
@@ -62,10 +62,11 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-permission-grants/scripts/permission-ru
 It scans frontmatter `allowed-tools` and settings `permissions.allow` across the consuming repo and
 the user-global settings file (`${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json`), and prints one
 finding per fragile grant (`<severity> [<check>] <source>: <detail>`). `--count` prints the count.
-**Exit 2 is the environment-gap channel: report the gap rather than a clean bill.** Three things
-raise it: a missing `jq`, a scan root that resolves to neither a git toplevel nor
-`$CLAUDE_PROJECT_DIR`, and an unresolvable user scope when the user-global scan cannot locate
-`${CLAUDE_CONFIG_DIR:-$HOME/.claude}`. On an unresolvable project root, say the scan did not run and
+**Exit 2 is the environment-gap channel: report the gap rather than a clean bill.** It is raised by a
+missing `jq`, a missing shared pattern library, a scan root that resolves to neither a git toplevel
+nor `$CLAUDE_PROJECT_DIR`, and any argument the script does not recognise. An unresolvable **user**
+scope is not one of them: the run records it in the coverage block, says so on stderr, and continues.
+On an unresolvable project root, say the scan did not run and
 give the fix: run from inside the repository you mean to scan, or set
 `$PERMISSION_HYGIENE_SCAN_ROOT` explicitly. That variable is a supported operator lever, not a
 test-only seam; `$PERMISSION_HYGIENE_FIXTURE_DIR` still works as a back-compatible alias and the new
@@ -81,6 +82,11 @@ result readable. Carry its numbers into the report:
   only when the run actually parsed at least one `allowed-tools` block or allow rule. When it parsed
   none the detector prints `NOTHING TO AUDIT` instead. **Relay that as the outcome; never soften it
   into a clean bill.** A scan of nothing is not evidence about grants.
+- **A clean bill also needs every input to have been readable.** When the run found no findings but
+  failed to open or parse at least one input, it prints `INCOMPLETE SCAN, NOT A CLEAN BILL` with the
+  audited and blocked counts. Relay that as the outcome too. The rule is the same one the denominator
+  serves: the run cannot speak for a scope it never read, and the violation it missed may be sitting
+  in the file it could not parse.
 - **Say what was not read.** The block counts paths the walk could not open, settings files present
   but not valid JSON (whose rules were skipped entirely), and files an exclusion rule removed. Each
   of those is a hole in the denominator, and each belongs in the report next to the finding count.
@@ -93,8 +99,27 @@ A user-global finding is reported the same as any other, but its remediation is 
 skill cannot write that file. Expect this scope to carry the most findings on a long-lived machine.
 "Always allow" writes there, and nothing prunes it.
 
-If a scope filter was given, run the full detector and present only the matching checks (P1/P2 map to
-`frontmatter`/`settings` sources; P3 to `plugins`).
+If a scope filter was given, run the full detector and present only the matching checks. P1, P2, P2b
+and P4 are all emitted by the same rule scan, which runs over frontmatter `allowed-tools` and over
+settings allow rules alike, so each of those four maps to `frontmatter` or `settings` by the source
+the finding names rather than by its check id. P3 maps to `plugins`.
+
+### Gate modes
+
+The detector is advisory by default and a gate on request:
+
+- `--check` exits 1 when any error-tier finding fired (P2, P2b, P4), and 0 when none did.
+- `--strict` does the same and adds the warning tier (P1, P3).
+- Under either flag a `NOTHING TO AUDIT` result exits 2 rather than 0, and so does a run that saw no
+  gate-firing finding but could not read one of its inputs. A scan that could not look is never a pass.
+- Combining flags applies the strictest, whatever the order. An unrecognised argument prints usage on
+  stderr and exits 2 without scanning, because a one-character typo in a CI invocation would otherwise
+  leave the gate exiting 0 forever on a tree full of findings.
+- The default report mode and `--count` are unchanged and always exit 0, however many findings print.
+
+**A gate flag does not make this skill a fixer.** The skill stays report-only for the reason stated
+above: the operative rule has to land in a user-global settings file a skill cannot write, and the P1
+and P2 rewrites are judgement calls an operator confirms.
 
 ## Phase 2: Report
 
