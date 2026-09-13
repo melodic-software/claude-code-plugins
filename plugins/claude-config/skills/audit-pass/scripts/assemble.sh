@@ -330,6 +330,10 @@ comparability = doc.get("comparability", {}) or {}
 
 TIERS = [("mechanical", "derived tier"), ("behavioral", "judged tier")]
 ORDER = ["notes", "suppressed", "delegated", "skipped", "verification", "inventory"]
+# Most severe first. A severity outside this ladder is still counted, sorted in
+# after it, rather than dropped: a headline that silently omits a count is the
+# defect this ordering exists to avoid.
+SEVERITY_ORDER = ["blocker", "error", "warn", "info", "unspecified"]
 
 out = []
 # The ownership line is FIRST, because §2 decides whether a destination path is
@@ -373,11 +377,28 @@ else:
 out.append("")
 
 counts = {name: len(sections.get(name, []) or []) for name in sections}
+
+# §7 requires the headline to carry counts per tier AND per severity. This line
+# is what the run prints inline, so a severity distribution missing from it is a
+# distribution nobody sees without opening the report and recounting it. The
+# order is the known ladder first, then any severity a lane emitted that is not
+# on it, sorted, so an unrecognized value is still counted and still stable.
+by_severity = {}
+for tier_key, _label in TIERS:
+    for row in sections.get(tier_key) or []:
+        name = row.get("severity") or "unspecified"
+        by_severity[name] = by_severity.get(name, 0) + 1
+ranked = [s for s in SEVERITY_ORDER if s in by_severity]
+ranked += sorted(s for s in by_severity if s not in SEVERITY_ORDER)
+severity_part = ", ".join("%d %s" % (by_severity[s], s) for s in ranked) or "none"
+
 headline = (
-    "%d derived, %d judged, %d notes, %d suppressed, %d skipped, across %d lanes"
+    "%d derived, %d judged (by severity: %s), %d notes, %d suppressed, "
+    "%d skipped, across %d lanes"
     % (
         counts.get("mechanical", 0),
         counts.get("behavioral", 0),
+        severity_part,
         counts.get("notes", 0),
         counts.get("suppressed", 0),
         counts.get("skipped", 0),

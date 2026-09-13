@@ -181,6 +181,39 @@ MUTATED=$(bash "$COPY" dirty --target "$REPO")
 assert_not_contains "without --untracked-files=all the file inside it is not listed" \
   "$MUTATED" "nested/untracked.md"
 
+# A failing `git status` must never read as a clean tree. Consumed through a
+# process substitution the exit status is hidden, the loop reads nothing, and the
+# caller digests a dirty set that is EMPTY rather than unknown — so the
+# comparability gate evaluates against incomplete input and still returns a
+# verdict. Both shapes below reach `git status` and fail there.
+
+BARE="$TEST_TMPDIR/bare.git"
+git init --bare --quiet "$BARE" >/dev/null 2>&1
+rc=0
+OUT=$(run dirty --target "$BARE" 2>/dev/null) || rc=$?
+assert_ne "a bare repo does not report a clean dirty set" 0 "$rc"
+assert_eq "and prints no entries a digest could consume" "" "$OUT"
+ERR=$(run dirty --target "$BARE" 2>&1 >/dev/null) || true
+assert_contains "the refusal names the failing git status" "$ERR" "git status failed"
+
+NOTREPO="$TEST_TMPDIR/not-a-repo"
+mkdir -p "$NOTREPO"
+rc=0
+OUT=$(GIT_CEILING_DIRECTORIES="$TEST_TMPDIR" run dirty --target "$NOTREPO" 2>/dev/null) || rc=$?
+assert_ne "a directory that is not a work tree does not report a clean dirty set" 0 "$rc"
+assert_eq "and prints nothing there either" "" "$OUT"
+
+# NEGATIVE: delete the status check and the same bare repo reports success with
+# an empty set, which is the defect. A guard whose removal changes nothing is
+# not a guard.
+COPY_ST="$TEST_TMPDIR/no-status-check.sh"
+# shellcheck disable=SC2016  # the $rc is literal script text being matched, not an expansion
+sed '/if \[\[ "\$rc" -ne 0 \]\]; then/,+5d' "$SCRIPT" >"$COPY_ST"
+rc=0
+MUTATED=$(bash "$COPY_ST" dirty --target "$BARE" 2>/dev/null) || rc=$?
+assert_exit "without the status check a bare repo exits 0" 0 "$rc"
+assert_eq "with an empty dirty set indistinguishable from a clean tree" "" "$MUTATED"
+
 # NEGATIVE: remove the LC_ALL=C pin and the sort inherits the caller's collation.
 # Under a locale that ignores punctuation, `a-b.md` and `ab.md` swap places
 # against byte order, so the digest moves. Where no such locale is installed the

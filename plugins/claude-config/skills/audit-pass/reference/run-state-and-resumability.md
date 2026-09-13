@@ -241,9 +241,10 @@ crash. Restarting from zero wastes the run and tempts an operator to narrow the 
 
 - Findings persist **incrementally, per lane**, as each lane completes, never buffered to the end.
   The write is
-  `scripts/run-state.sh partial append --run-dir <run-dir> --record '<json-line>' --epoch <held>`,
-  which appends one line to `findings.partial.<epoch>.jsonl`. A lease must exist, so the partial
-  cannot outlive the thing that classifies it.
+  `scripts/finding-identity.sh guarded-append --run-dir <run-dir> --record '<json-line>' --epoch <held>`,
+  which runs the §1 emitter guard and then calls `run-state.sh partial append` with those same
+  arguments, appending one line to `findings.partial.<epoch>.jsonl`. A lease must exist, so the
+  partial cannot outlive the thing that classifies it.
 
   **Pass the epoch you hold.** The filename is the *writer's* epoch, never whatever the lease
   currently carries: a stale holder that wakes after an adopter incremented it would otherwise read

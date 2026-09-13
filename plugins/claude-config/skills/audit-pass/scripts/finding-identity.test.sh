@@ -78,6 +78,32 @@ assert_eq "1.8: an HTML comment outside a fence does not change the anchor" "$PL
 IN_FENCE=$(run anchor --excerpt 'rule <!-- note to self --> text' --in-fence)
 assert_ne "1.8: inside a fence the same comment is content and does change it" "$PLAIN" "$IN_FENCE"
 
+# 1.8: the WHOLE whitespace class collapses, not just tab and newline. A set
+# missing `\r` leaves `a\r\nb` as `a\r b` where `a\nb` becomes `a b`, so two
+# checkouts differing only in line-ending handling anchor differently and their
+# suppression ids stop matching. Compared as ANCHORS, which is where the
+# divergence would be permanent.
+LF_ANCHOR=$(run anchor --excerpt "$(printf 'a\nb')")
+CRLF_ANCHOR=$(run anchor --excerpt "$(printf 'a\r\nb')")
+CR_ANCHOR=$(run anchor --excerpt "$(printf 'a\rb')")
+assert_eq "1.8: a CRLF excerpt anchors identically to the same LF excerpt" \
+  "$LF_ANCHOR" "$CRLF_ANCHOR"
+assert_eq "1.8: a bare CR collapses like any other whitespace run" \
+  "$LF_ANCHOR" "$CR_ANCHOR"
+assert_eq "1.8: a form feed and a vertical tab collapse too" \
+  "$LF_ANCHOR" "$(run anchor --excerpt "$(printf 'a\f\vb')")"
+assert_eq "1.8: a mixed whitespace run still collapses to exactly one space" \
+  "a b" "$(run normalize --excerpt "$(printf 'a \r\n\t\v\f  b')")"
+
+# NEGATIVE: narrow the set back to tab and newline and the CRLF excerpt anchors
+# differently from the LF one. A class whose narrowing changes nothing is not
+# doing the collapsing.
+COPY_WS="$TEST_TMPDIR/partial-ws-class.sh"
+sed "s/tr '\\\\t\\\\n\\\\v\\\\f\\\\r' '     '/tr '\\\\n\\\\t' '  '/" "$SCRIPT" >"$COPY_WS"
+assert_ne "without the full class CRLF and LF anchor differently" \
+  "$(bash "$COPY_WS" anchor --excerpt "$(printf 'a\nb')")" \
+  "$(bash "$COPY_WS" anchor --excerpt "$(printf 'a\r\nb')")"
+
 assert_eq "surrounding emphasis markers are stripped, nested ones too" \
   "emphasized" "$(run normalize --excerpt '***emphasized***')"
 assert_eq "an emphasis marker inside the excerpt is content and stays" \
@@ -257,6 +283,145 @@ else
   OUT=$(bash "$COPY2" validate-record --record '{"record":"finding","identity":null}' 2>&1) || rc=$?
   assert_ne "without the identity check the null record no longer hits that refusal" \
     "invalid: a finding record requires an identity block; identity was absent or null" "$OUT"
+
+  # --- The anchor grammar, in full --------------------------------------------
+  # A prefix test on `e:` accepts any non-empty string starting with it, so
+  # `e:garbage` reaches an id derived from a string no anchor version produces.
+  mk_anchor_record() {
+    printf '{"record":"finding","identity":{"check":"p/s/c","claim":"claim.one","pairwise":false,"sites":[{"surface":"a.md","anchor":"%s"}]},"finding_id/v1":"0000000000000000"}' "$1"
+  }
+  for BAD_ANCHOR in 'e:garbage' 'e:' 'e:aaaaaaaaaaaa' 'e:aaaaaaaaaaaa:bbbbbbb' \
+    'e:aaaaaaaaaaaa:bbbbbbbbb' 'e:AAAAAAAAAAAA:bbbbbbbb' 'e:zzzzzzzzzzzz:bbbbbbbb' \
+    'e:aaaaaaaaaaaa:bbbbbbbb:cc' 's:something' 's' 'x:aaaaaaaaaaaa:bbbbbbbb'; do
+    rc=0
+    OUT=$(run validate-record --record "$(mk_anchor_record "$BAD_ANCHOR")" 2>&1) || rc=$?
+    assert_exit "an anchor outside the grammar is refused: $BAD_ANCHOR" 4 "$rc"
+  done
+  rc=0
+  OUT=$(run validate-record --record "$(mk_anchor_record 'e:garbage')" 2>&1) || rc=$?
+  assert_contains "and the refusal names the grammar" "$OUT" 'e:<12hex>:<8hex>'
+
+  # Both legal forms still pass, so the grammar narrowed nothing it should not.
+  rc=0
+  run validate-record --record "$(mk_record p/s/c claim.one 'a.md=e:0123456789ab:0a1b2c3d')" \
+    >/dev/null 2>&1 || rc=$?
+  assert_exit "a full e: anchor still passes" 0 "$rc"
+  rc=0
+  run validate-record --record "$(mk_record p/s/c claim.one 'a.md=s:')" >/dev/null 2>&1 || rc=$?
+  assert_exit "the bare whole-surface anchor still passes" 0 "$rc"
+
+  # NEGATIVE: restore the prefix test and `e:garbage` is accepted again.
+  COPY3="$TEST_TMPDIR/prefix-anchor-check.sh"
+  sed 's/if not ANCHOR_RE.match(anchor):/if not (anchor == "s:" or anchor.startswith("e:")):/' \
+    "$SCRIPT" >"$COPY3"
+  GARBAGE_ID=$(run finding-id --check p/s/c --claim claim.one --site 'a.md=e:garbage')
+  GARBAGE_REC="{\"record\":\"finding\",\"identity\":{\"check\":\"p/s/c\",\"claim\":\"claim.one\",\"pairwise\":false,\"sites\":[{\"surface\":\"a.md\",\"anchor\":\"e:garbage\"}]},\"finding_id/v1\":\"$GARBAGE_ID\"}"
+  rc=0
+  bash "$COPY3" validate-record --record "$GARBAGE_REC" >/dev/null 2>&1 || rc=$?
+  assert_exit "with only the prefix test e:garbage is accepted" 0 "$rc"
+  rc=0
+  run validate-record --record "$GARBAGE_REC" >/dev/null 2>&1 || rc=$?
+  assert_exit "and the real guard refuses the same record" 4 "$rc"
+fi
+
+# --- guarded-append: the guard is ON the append path ------------------------
+# A guard a lane can complete the documented steps without invoking is a guard
+# that does not exist, and the record it would have refused is permanent.
+
+if ! command -v python3 >/dev/null 2>&1; then
+  printf 'SKIP: python3 absent, guarded-append cannot run its guard\n'
+else
+  GA_DATA="$TEST_TMPDIR/ga-data"
+  GA_RUN="$GA_DATA/runs/demo/run-ga"
+  bash "$SCRIPT_DIR/run-state.sh" lease acquire \
+    --run-dir "$GA_RUN" --run-id run-ga --epoch 2 --plugin-data "$GA_DATA" >/dev/null 2>&1
+
+  # A stub appender that records being reached. The guard must refuse BEFORE it.
+  STUB="$TEST_TMPDIR/stub-appender.sh"
+  STUB_LOG="$TEST_TMPDIR/stub.log"
+  {
+    printf '#!/usr/bin/env bash\n'
+    printf 'printf "reached %%s\\n" "$*" >>"%s"\n' "$STUB_LOG"
+  } >"$STUB"
+
+  GA_BAD='{"record":"finding","identity":null,"lane":"skills"}'
+  rc=0
+  OUT=$(run guarded-append --run-dir "$GA_RUN" --record "$GA_BAD" --epoch 2 \
+    --appender "$STUB" 2>&1) || rc=$?
+  assert_exit "guarded-append refuses an invalid record with the record verdict" 4 "$rc"
+  assert_contains "and names what was wrong" "$OUT" "identity was absent or null"
+  assert_eq "and the appender was never reached" "0" \
+    "$(if [[ -f "$STUB_LOG" ]]; then wc -l <"$STUB_LOG" | tr -d ' '; else printf '0'; fi)"
+
+  # The same record through the real append path: refused, and no partial exists
+  # for a bare `partial append` to have written into.
+  GA_PARTIAL="$GA_RUN/findings.partial.2.jsonl"
+  rc=0
+  run guarded-append --run-dir "$GA_RUN" --record "$GA_BAD" --epoch 2 >/dev/null 2>&1 || rc=$?
+  assert_exit "the default appender is the sibling run-state.sh, and the guard still refuses" 4 "$rc"
+  assert_eq "no partial was written by the refused append" "" \
+    "$(ls "$GA_RUN"/findings.partial.*.jsonl 2>/dev/null || true)"
+
+  # NEGATIVE: a bare `partial append`, which is what the skill used to prescribe,
+  # accepts the very same record. That is the defect the guard closes.
+  rc=0
+  bash "$SCRIPT_DIR/run-state.sh" partial append --run-dir "$GA_RUN" \
+    --record "$GA_BAD" --epoch 2 >/dev/null 2>&1 || rc=$?
+  assert_exit "a bare partial append accepts the null-identity record" 0 "$rc"
+  rm -f "$GA_RUN"/findings.partial.*.jsonl
+
+  # A valid record goes all the way through and lands in the writer's epoch file.
+  GA_GOOD=$(mk_record p/s/c claim.one 'a.md=e:aaaaaaaaaaaa:bbbbbbbb')
+  rc=0
+  run guarded-append --run-dir "$GA_RUN" --record "$GA_GOOD" --epoch 2 >/dev/null 2>&1 || rc=$?
+  assert_exit "a valid record is appended" 0 "$rc"
+  assert_eq "into the file named for the epoch the writer holds" "$GA_GOOD" \
+    "$(cat "$GA_PARTIAL" 2>/dev/null)"
+
+  # The half that proves the guard is ON the path rather than beside it: against
+  # a partial that ALREADY has rows, a refused record leaves the artifact
+  # byte-for-byte and line-for-line what it was.
+  GA_BYTES_BEFORE=$(wc -c <"$GA_PARTIAL" | tr -d ' ')
+  GA_LINES_BEFORE=$(wc -l <"$GA_PARTIAL" | tr -d ' ')
+  # Each rejection carries its OWN label. Three assertions sharing one name make
+  # a failure report ambiguous about which input regressed, and a reader
+  # comparing two runs by counting FAIL lines rather than reading their names
+  # cannot tell a fixed case from a newly broken one.
+  GA_REJECT_CASES=(
+    "null identity:$GA_BAD"
+    "an anchor outside the grammar:$(mk_anchor_record 'e:garbage')"
+    'a finding_id disagreeing with its constituents:{"record":"finding","identity":{"check":"p/s/c","claim":"claim.one","pairwise":false,"sites":[{"surface":"a.md","anchor":"s:"}]},"finding_id/v1":"deadbeefdeadbeef"}'
+  )
+  for GA_CASE in "${GA_REJECT_CASES[@]}"; do
+    GA_LABEL="${GA_CASE%%:*}"
+    GA_REJECT="${GA_CASE#*:}"
+    rc=0
+    run guarded-append --run-dir "$GA_RUN" --record "$GA_REJECT" --epoch 2 >/dev/null 2>&1 || rc=$?
+    assert_exit "$GA_LABEL is refused with exit 4 against a non-empty partial" 4 "$rc"
+  done
+  assert_eq "and the partial is unchanged in bytes" \
+    "$GA_BYTES_BEFORE" "$(wc -c <"$GA_PARTIAL" | tr -d ' ')"
+  assert_eq "and unchanged in lines" \
+    "$GA_LINES_BEFORE" "$(wc -l <"$GA_PARTIAL" | tr -d ' ')"
+
+  # FENCED reaches the caller as 3. Collapsing it to 0 would let a superseded run
+  # keep dispatching lanes whose output nothing will assemble. The lease holds
+  # epoch 2, so an append declaring epoch 1 is a fenced writer.
+  rc=0
+  OUT=$(run guarded-append --run-dir "$GA_RUN" --record "$GA_GOOD" --epoch 1 2>&1 >/dev/null) || rc=$?
+  assert_exit "a fenced append exits 3 through the guard, not 0" 3 "$rc"
+  assert_contains "and the fence is still said in words" "$OUT" "FENCED"
+  assert_eq "the fenced row went to the writer's own epoch file" "$GA_GOOD" \
+    "$(cat "$GA_RUN/findings.partial.1.jsonl" 2>/dev/null)"
+
+  # The appender's own refusals still reach the caller unchanged.
+  rc=0
+  run guarded-append --run-dir "$TEST_TMPDIR/no-such-run" --record "$GA_GOOD" --epoch 2 \
+    >/dev/null 2>&1 || rc=$?
+  assert_ne "an appender refusal is not swallowed" 0 "$rc"
+  rc=0
+  run guarded-append --run-dir "$GA_RUN" --epoch 2 >/dev/null 2>&1 || rc=$?
+  assert_exit "guarded-append without --record exits 2" 2 "$rc"
 fi
 
 # --- Usage ------------------------------------------------------------------

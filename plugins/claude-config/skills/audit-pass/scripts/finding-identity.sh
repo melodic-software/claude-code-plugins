@@ -39,8 +39,16 @@
 # granularity are the lane's work. A guard that silently fixed them would hide
 # the delegate that needs the fix.
 #
-# SCOPE OF WRITES: none. Every subcommand reads its arguments and prints to
-# stdout.
+# THE GUARD IS ON THE APPEND PATH, not beside it. `guarded-append` runs
+# `validate-record` and only then hands the record to `run-state.sh partial
+# append`, and it is the form the skill prescribes: a guard the documented steps
+# can complete without invoking is a guard that does not exist, and the record
+# it would have refused is permanent in an append-only artifact. Its exit codes
+# are the union of both halves, so a FENCED append still reaches the caller as 3.
+#
+# SCOPE OF WRITES: none of its own. Every subcommand reads its arguments and
+# prints to stdout; `guarded-append` delegates the one write to `run-state.sh`,
+# which owns the partial artifact and every rule about writing to it.
 #
 # PORTABILITY. coreutils plus one of `sha256sum` / `shasum`. `validate-record`
 # additionally needs `python3` for a definitive JSON parse, and says so rather
@@ -56,18 +64,25 @@
 #                                       --site <surface>=<anchor> [--site ...]
 #   finding-identity.sh group-id        --check <id> --claim <id>
 #   finding-identity.sh validate-record --record <json-line>
+#   finding-identity.sh guarded-append  --run-dir <dir> --record <json-line>
+#                                       [--epoch <n>]
 #
 # Exit codes:
-#   0  the derivation is on stdout, or the record passed the guard
+#   0  the derivation is on stdout, or the record passed the guard and (for
+#      `guarded-append`) was appended
 #   2  usage error, rejected argument, or a missing prerequisite
-#   4  `validate-record` only — the record VIOLATES §1 and must not be appended.
-#      Distinct from 2 so a caller can tell "you called me wrong" from "the
-#      record is bad", which are different failures with different remedies.
+#   3  `guarded-append` only — FENCED, passed through from `partial append`. The
+#      record is safe in the writer's own epoch file and the run is superseded.
+#   4  `validate-record` and `guarded-append` — the record VIOLATES §1 and was
+#      NOT appended. Distinct from 2 so a caller can tell "you called me wrong"
+#      from "the record is bad", which have different remedies.
 
 set -uo pipefail
 
 PROG="finding-identity.sh"
 EXIT_INVALID_RECORD=4
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+APPENDER="$SCRIPT_DIR/run-state.sh"
 
 US=$'\x1f'
 
@@ -86,9 +101,10 @@ finding-identity.sh — anchor/v1, finding_id/v1, group/v1, and the emitter guar
   finding-identity.sh finding-id      --check <id> --claim <id> --site <surface>=<anchor> ...
   finding-identity.sh group-id        --check <id> --claim <id>
   finding-identity.sh validate-record --record <json-line>
+  finding-identity.sh guarded-append  --run-dir <dir> --record <json-line> [--epoch <n>]
 
-Exit 2 is a usage error. Exit 4 is validate-record's verdict that the record
-violates §1 and must not be appended.
+Exit 2 is a usage error. Exit 4 is the guard's verdict that the record violates
+§1 and must not be appended. Exit 3 is FENCED, passed through from the append.
 EOF
 }
 
@@ -136,9 +152,12 @@ normalize_v1() {
     done
   fi
 
-  # Collapse every whitespace run (spaces, tabs, newlines) to one space, then
-  # trim the ends.
-  text="$(printf '%s' "$text" | tr '\n\t' '  ' | tr -s ' ')"
+  # Collapse every whitespace run to one space, then trim the ends. The first
+  # `tr` set is the WHOLE class — tab, newline, vertical tab, form feed, and
+  # carriage return — not just tab and newline: a set missing `\r` leaves
+  # `a\r\nb` as `a\r b` where `a\nb` becomes `a b`, so two checkouts differing
+  # only in line-ending handling anchor differently and suppress differently.
+  text="$(printf '%s' "$text" | tr '\t\n\v\f\r' '     ' | tr -s ' ')"
   text="${text#"${text%%[![:space:]]*}"}"
   text="${text%"${text##*[![:space:]]}"}"
 
@@ -370,9 +389,15 @@ cmd_validate_record() {
 import hashlib
 import json
 import os
+import re
 import sys
 
 US = "\x1f"
+# The anchor grammar in full. `startswith("e:")` alone accepts `e:garbage`, whose
+# id then derives from a string no anchor version can produce, leaving an invalid
+# unstable identity in an append-only artifact. `s:` is content-free and exact:
+# no suffix, so a whole-surface finding cannot be retired by editing one line.
+ANCHOR_RE = re.compile(r"^(?:s:|e:[0-9a-f]{12}:[0-9a-f]{8})$")
 raw = os.environ["FI_RECORD"]
 
 
@@ -448,7 +473,7 @@ for site in sites:
         reject("each site requires an anchor")
     if anchor.startswith("s:") and len(sites) == 2:
         reject("an s: anchor in a two-site finding is a hard error (1.6)")
-    if not (anchor == "s:" or anchor.startswith("e:")):
+    if not ANCHOR_RE.match(anchor):
         reject("an anchor is `s:` or `e:<12hex>:<8hex>`: %r" % anchor)
     pairs.append(surface + US + anchor)
 
@@ -485,6 +510,47 @@ PY
   printf '%s\n' "$out"
 }
 
+# Guard-then-append, in one call, because two calls are one call a lane can skip.
+# Nothing is repaired here and nothing is appended on a refusal: `cmd_validate_record`
+# exits this process with 4 before the appender is reached.
+cmd_guarded_append() {
+  local record="" have=0 forward=() arg
+  while [[ $# -gt 0 ]]; do
+    arg="$1"
+    case "$arg" in
+    --record)
+      [[ $# -ge 2 ]] || die "--record needs a value"
+      record="$2"
+      have=1
+      forward+=("--record" "$2")
+      shift 2
+      ;;
+    --run-dir | --epoch)
+      [[ $# -ge 2 ]] || die "$arg needs a value"
+      forward+=("$arg" "$2")
+      shift 2
+      ;;
+    --appender)
+      # The sibling by default. Overridable only so a test can prove the guard
+      # refuses BEFORE the appender is reached, which needs an appender that
+      # reports being reached.
+      [[ $# -ge 2 ]] || die "--appender needs a value"
+      APPENDER="$2"
+      shift 2
+      ;;
+    *) die "unknown argument: $arg" ;;
+    esac
+  done
+  [[ "$have" -eq 1 ]] || die "--record is required"
+  [[ -r "$APPENDER" ]] || die "the appender is not readable: $APPENDER"
+
+  cmd_validate_record --record "$record" >/dev/null
+
+  # Its exit code is this command's: 0 appended, 2 refused by the appender,
+  # 3 FENCED. Collapsing 3 to 0 would let a superseded run keep dispatching.
+  bash "$APPENDER" partial append "${forward[@]}"
+}
+
 main() {
   [[ $# -ge 1 ]] || {
     usage >&2
@@ -498,6 +564,7 @@ main() {
   finding-id) cmd_finding_id "$@" ;;
   group-id) cmd_group_id "$@" ;;
   validate-record) cmd_validate_record "$@" ;;
+  guarded-append) cmd_guarded_append "$@" ;;
   --help | -h | help)
     usage
     exit 0

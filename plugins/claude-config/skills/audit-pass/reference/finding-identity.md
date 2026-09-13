@@ -236,8 +236,12 @@ state that nothing downstream can repair. A pass has already shipped a record ty
 carrying `"identity": null` and no `finding_id/v1`, which 1.3 makes a hard error and which a
 validating emitter would have refused at the append.
 
-So the checks run in [`scripts/finding-identity.sh validate-record`](../scripts/finding-identity.sh)
-before `partial append`, and a record failing any of them is **refused rather than downgraded**:
+So the checks run in [`scripts/finding-identity.sh validate-record`](../scripts/finding-identity.sh),
+and the write path the skill prescribes is `finding-identity.sh guarded-append`, which runs them and
+hands the record to `run-state.sh partial append` only if they pass. **The guard is on the append
+path, not beside it**: a guard a lane can complete the documented steps without invoking is a guard
+that does not exist. A record failing any check is **refused rather than downgraded**, `guarded-append`
+exits 4, and nothing is written:
 
 - `identity` is present and is an object. A finding record with `identity` absent or `null` is
   refused; there is no null identity a later reader could reconstruct.
@@ -249,6 +253,10 @@ before `partial append`, and a record failing any of them is **refused rather th
 - Two sites are accepted **only** when the record declares its claim pairwise; otherwise it is
   refused naming the split.
 - An `s:` anchor together with two sites is refused, which is 1.6.
+- Every anchor matches the versioned grammar **in full**: exactly `s:`, or `e:` plus 12 lowercase
+  hex, a colon, and 8 lowercase hex. A prefix test alone admits `e:garbage`, whose id then derives
+  from a string no anchor version can produce, leaving an invalid unstable identity in an
+  append-only artifact.
 - `finding_id/v1` is present and equals the value derived from `check`, `claim`, and the sorted
   sites. A record whose stored id disagrees with its own constituents is refused, since a
   suppression keyed to the stored id would then never match the finding it names.
@@ -273,4 +281,4 @@ delegate that needs the fix.
 | 1.10b | Deleting an identical excerpt under a *different* heading path does not change the surviving one's anchor or `finding_id`, and a suppression keyed to the deleted one is reported stale rather than applied to the survivor. |
 | 1.11 | A delegate returning one non-pairwise claim at *n* sites yields *n* findings, each with one site and its own `finding_id`, all carrying one `group`. Fixing one site removes exactly that finding and leaves the other *n*-1 ids and their suppressions unchanged. |
 | 1.12 | `group` is unchanged by adding, removing, or fixing any site, and changing or dropping `group` leaves every `finding_id` unchanged. |
-| 1.13 | A record with `identity` absent or `null`, with three or more sites, with two sites and no pairwise-claim declaration, or with a `finding_id/v1` that disagrees with its own constituents, is refused by the emitter guard and never reaches the partial artifact. |
+| 1.13 | A record with `identity` absent or `null`, with three or more sites, with two sites and no pairwise-claim declaration, with an anchor outside the `s:` / `e:<12hex>:<8hex>` grammar, or with a `finding_id/v1` that disagrees with its own constituents, is refused by the emitter guard and never reaches the partial artifact. The guard sits **on** the append path, so refusal is the only way such a record fails to be written. |

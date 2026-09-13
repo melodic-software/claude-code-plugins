@@ -67,7 +67,9 @@
 #
 # Exit codes:
 #   0  the digest (or the dirty listing) is on stdout
-#   2  usage error, rejected argument, or a missing prerequisite
+#   2  usage error, rejected argument, a missing prerequisite, or a `git status`
+#      that did not succeed. An empty dirty set means a clean tree and nothing
+#      else, so a failing `git status` is refused rather than reported as clean.
 
 set -uo pipefail
 
@@ -304,6 +306,24 @@ cmd_dirty() {
   [[ -d "$target" ]] || die "--target is not a directory: $target"
   command -v git >/dev/null 2>&1 || die "git is required for the dirty path set"
 
+  # The output is captured and the STATUS CHECKED BEFORE anything parses it.
+  # Consumed through a process substitution instead, a failing `git status` is
+  # indistinguishable from a clean tree: the loop reads nothing, completes, and
+  # the caller computes baseline and endpoint digests that omit every worktree
+  # change, with the comparability gate then evaluating against incomplete input
+  # instead of failing. A bare repo and an unreadable index both take that path.
+  local raw err rc=0
+  raw=$(mktemp) || die "could not create a temporary file"
+  err=$(mktemp) || die "could not create a temporary file"
+  git -C "$target" status --porcelain -z --untracked-files=all >"$raw" 2>"$err" || rc=$?
+  if [[ "$rc" -ne 0 ]]; then
+    local detail
+    detail=$(tr '\n' ' ' <"$err")
+    rm -f "$raw" "$err"
+    die "git status failed in $target (exit $rc): ${detail% }"
+  fi
+  rm -f "$err"
+
   local field status path expect_rename_src=0
   while IFS= read -r -d '' field; do
     if [[ "$expect_rename_src" -eq 1 ]]; then
@@ -320,7 +340,8 @@ cmd_dirty() {
     R* | C* | *R | *C) expect_rename_src=1 ;;
     *) : ;;
     esac
-  done < <(git -C "$target" status --porcelain -z --untracked-files=all 2>/dev/null)
+  done <"$raw"
+  rm -f "$raw"
 }
 
 cmd_hash_file() {

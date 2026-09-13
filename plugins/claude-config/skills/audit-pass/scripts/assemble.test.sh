@@ -161,6 +161,50 @@ assert_contains "the verdict block carries the gate" "$REPORT" "indeterminate"
 assert_contains "and names the comparability input that moved" "$REPORT" "--lanes"
 assert_contains "a property with no verdict renders as not evaluated" "$REPORT" "not evaluated"
 assert_contains "the headline counts the tiers" "$REPORT" "## Headline"
+
+# §7 requires the headline to carry counts per tier AND per severity. This is the
+# line the run prints inline, so a missing severity distribution is one an
+# operator cannot see without opening the report and recounting it. The winning
+# epoch leaves one derived `warn` and one judged `info`.
+assert_contains "the headline carries the per-severity counts, not just the tiers" \
+  "$REPORT" "1 derived, 1 judged (by severity: 1 warn, 1 info), 1 notes, 0 suppressed, 1 skipped, across 3 lanes"
+
+# A severity outside the known ladder is still counted and sorted in AFTER it,
+# never dropped; a row with no severity at all counts as `unspecified` rather
+# than vanishing from the total.
+SEV_DIR="$TEST_TMPDIR/sev"
+mkdir -p "$SEV_DIR"
+cat >"$SEV_DIR/findings.partial.1.jsonl" <<'EOF'
+{"record":"start","attempt":{"lane":"skills","ordinal":1}}
+{"record":"finding","attempt":{"lane":"skills","ordinal":1},"lane":"skills","tier":"derived","severity":"info","finding_id/v1":"s000000000000001","identity":{"check":"p/s/c","claim":"claim.a","sites":[{"surface":"a.md","anchor":"s:"}]}}
+{"record":"finding","attempt":{"lane":"skills","ordinal":1},"lane":"skills","tier":"derived","severity":"blocker","finding_id/v1":"s000000000000002","identity":{"check":"p/s/c","claim":"claim.b","sites":[{"surface":"b.md","anchor":"s:"}]}}
+{"record":"finding","attempt":{"lane":"skills","ordinal":1},"lane":"skills","tier":"derived","severity":"zebra","finding_id/v1":"s000000000000003","identity":{"check":"p/s/c","claim":"claim.c","sites":[{"surface":"c.md","anchor":"s:"}]}}
+{"record":"finding","attempt":{"lane":"skills","ordinal":1},"lane":"skills","tier":"judged","severity":"aardvark","finding_id/v1":"s000000000000004","identity":{"check":"p/s/c","claim":"claim.d","sites":[{"surface":"d.md","anchor":"s:"}]}}
+{"record":"finding","attempt":{"lane":"skills","ordinal":1},"lane":"skills","tier":"judged","severity":"error","finding_id/v1":"s000000000000005","identity":{"check":"p/s/c","claim":"claim.e","sites":[{"surface":"e.md","anchor":"s:"}]}}
+{"record":"finding","attempt":{"lane":"skills","ordinal":1},"lane":"skills","tier":"judged","finding_id/v1":"s000000000000006","identity":{"check":"p/s/c","claim":"claim.f","sites":[{"surface":"f.md","anchor":"s:"}]}}
+{"record":"terminator","attempt":{"lane":"skills","ordinal":1},"state":"complete","verification":"verified"}
+EOF
+run assemble --run-dir "$SEV_DIR" >/dev/null 2>&1
+SEV_REPORT=$(cat "$SEV_DIR/report.md")
+assert_contains "the ladder orders the known severities and sorts unknown ones in after it" \
+  "$SEV_REPORT" \
+  "3 derived, 3 judged (by severity: 1 blocker, 1 error, 1 info, 1 unspecified, 1 aardvark, 1 zebra), 0 notes, 0 suppressed, 0 skipped, across 1 lanes"
+
+# NEGATIVE: drop the severity half of the headline and the distribution is gone
+# from the one line the run prints inline. A count whose removal changes nothing
+# is not being rendered.
+COPY_SEV="$TEST_TMPDIR/no-severity-headline.sh"
+sed 's/ (by severity: %s)//; /^        severity_part,$/d' "$SCRIPT" >"$COPY_SEV"
+rc=0
+bash "$COPY_SEV" render --findings "$SEV_DIR/findings.json" --out "$TEST_TMPDIR/no-sev.md" \
+  >/dev/null 2>&1 || rc=$?
+NO_SEV=$(cat "$TEST_TMPDIR/no-sev.md" 2>/dev/null || printf '')
+# The mutated copy must still RUN and still render a headline, or the assertion
+# below would pass on an empty file and prove nothing.
+assert_exit "the mutated copy still renders" 0 "$rc"
+assert_contains "and still counts the tiers" "$NO_SEV" "3 derived, 3 judged, 0 notes"
+assert_not_contains "but without the severity half the headline names no severity" \
+  "$NO_SEV" "by severity"
 assert_contains "a finding renders its group" "$REPORT" "g:1111111111111111"
 
 # Every section renders, including the empty ones: an absent section and an

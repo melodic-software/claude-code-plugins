@@ -121,12 +121,17 @@ completes. Append-only is what makes §5 real: a single JSON document would be r
 every append, which is exactly the operation an interrupted run leaves half-done. A lane's final
 record is its terminating record.
 
-**The append is `scripts/run-state.sh partial append`, not a hand-rolled redirection**, and its full
-form carries the writer's epoch:
+**The append is `scripts/finding-identity.sh guarded-append`, not a hand-rolled redirection and not a
+bare `partial append`**, and its full form carries the writer's epoch:
 
 ```
-run-state.sh partial append --run-dir <run-dir> --record '<json-line>' --epoch <held>
+finding-identity.sh guarded-append --run-dir <run-dir> --record '<json-line>' --epoch <held>
 ```
+
+It runs the §1 emitter guard and, only on a pass, calls `run-state.sh partial append` with the same
+arguments. `run-state.sh` still owns the partial and every rule below about writing to it; what
+changes is that the guard cannot be skipped by following the documented steps. A refusal exits 4 and
+appends nothing.
 
 **`--epoch` is not optional in practice.** The file is named for the epoch **the writer holds**, never
 whatever the lease currently carries: omit it after an adoption and the fallback selects the

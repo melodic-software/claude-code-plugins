@@ -53,7 +53,7 @@ presence-gated with its fallback stated:
   scope and no surface filter**, so it is **exactly one lane** covering its whole catalog. Its
   engine persists a findings document whose rows already carry this pass's identity tuple
   (`check`, `claim`, `sites` of `surface` plus `anchor/v1`) with `lane` and `tier` set, so the lane
-  appends each row of that document through `partial append` **unchanged**, adding only the
+  appends each row of that document through `guarded-append` **unchanged**, adding only the
   `attempt` id; a row is never re-derived, re-hashed, or re-severed here. Engine rows are
   derived-tier; the rows the audit's model adds for its judgment categories are judged-tier, and
   the document marks each. Its own suppression handling reads the same `.claude/audit-pass.md`

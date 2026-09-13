@@ -66,7 +66,7 @@ determinism property unfalsifiable.
 |---|---|
 | `scripts/run-state.sh` | The run directory, the lease and its verdict, and the append-only partial. |
 | `scripts/state-digest.sh` | `state-digest/v1` and `input-digest/v1`: the comparability input and every lane's resume digest. |
-| `scripts/finding-identity.sh` | `anchor/v1` normalization, `finding_id/v1`, `group/v1`, and the emitter guard every record passes before it is appended. |
+| `scripts/finding-identity.sh` | `anchor/v1` normalization, `finding_id/v1`, `group/v1`, and `guarded-append`: the guard, on the append path rather than beside it, so no record reaches the partial without passing it. |
 | `scripts/assemble.sh` | Partial-to-report assembly, and the `report.md` rendering of the assembled document. |
 
 They read and write nothing inside the target: the digest scripts hash files the run names and print
@@ -245,12 +245,23 @@ answering what a `--lanes` id covers, and before assuming a lane can verify itse
 Persist each lane's findings to the partial artifact **as that lane completes**, never buffered to
 the end. A lane is complete when its terminating record is in the partial, and every record carries
 its attempt id so an abandoned re-attempt is discardable rather than merely older. The write is one
-call per record, `bash "$S" partial append --run-dir "<run-dir>" --record '<json-line>' --epoch
-"<held>"`, and the lease is refreshed at the same boundary. A lease must exist, so a record resume
-could not attribute to a live-or-abandoned run is never written. **Pass the epoch you hold**: the
-filename is the writer's epoch, not whatever the lease now carries, which keeps a fenced writer's rows
-out of its adopter's file. The record is validated as well-formed single-line JSON rather than sniffed
-by its first character, because a malformed row here is permanent and resume is its only reader.
+call per record, and it goes through the guard rather than past it:
+
+```bash
+FI="${CLAUDE_PLUGIN_ROOT}/skills/audit-pass/scripts/finding-identity.sh"
+bash "$FI" guarded-append --run-dir "<run-dir>" --record '<json-line>' --epoch "<held>"
+```
+
+`guarded-append` runs `validate-record` and appends only if it passes, so **no record reaches the
+partial without clearing §1**; `run-state.sh partial append` is what it calls and is never the call a
+lane makes itself. **Exit 4 is the guard's refusal and nothing was written**: a null identity, three
+or more sites, two sites with no pairwise declaration, an anchor outside the grammar, or a
+`finding_id/v1` disagreeing with its constituents. Fix the lane, never the record. The lease is
+refreshed at the same boundary; a lease must exist, so a record resume could not attribute to a
+live-or-abandoned run is never written. **Pass the epoch you hold**: the filename is the writer's
+epoch, not whatever the lease now carries, which keeps a fenced writer's rows out of its adopter's
+file. The record is also validated as well-formed single-line JSON rather than sniffed by its first
+character, because a malformed row here is permanent and resume is its only reader.
 
 **Exit 3 means FENCED: stop this run.** The record was written safely to your own epoch file, but the
 lease has moved on and another run has adopted the artifact, so continuing dispatches lanes whose
@@ -265,7 +276,7 @@ delegated catalogs spawn their own subagents, and this pass cannot reach inside 
 concurrency at 3–5 lanes and let incremental persistence carry the rest. It is what degrades a blown
 session ceiling into a resumed run.
 
-The `partial append` call above bounds nothing inside a lane; what it buys is that an intra-lane
+The guarded-append call above bounds nothing inside a lane; what it buys is that an intra-lane
 overrun costs the lanes still running rather than the whole pass.
 
 ## Phase 4: The `/doctor` handoff
