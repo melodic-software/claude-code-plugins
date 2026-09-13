@@ -313,10 +313,13 @@ for shape in dangling file; do
   done
 done
 
-# managed-settings.d is the fourth directory scope. It feeds no row and no
-# Components figure, only a note, so the note is the only place its status can
-# land: drop-in files merge on top of managed-settings.json, so a drop-in
-# directory this run could not read may be adding hooks to the policy in force.
+# managed-settings.d is the fourth directory scope, and its drop-ins are PART OF
+# the managed policy rather than a footnote beside it: the merge lays them on top
+# of managed-settings.json. A managed-policy row that counted only the base file
+# therefore published an exact-looking handler count with the standing managed
+# hooks missing from it, which is the same shape as the zeros this script exists
+# to stop printing. The row covers base plus readable drop-ins, and a drop-in
+# this run could not read turns the figures into the add_counts floor form.
 PLAINROOT="$WORK/plainroot"
 MD="$WORK/managed-dropin"
 mkdir -p "$PLAINROOT" "$MD/managed-settings.d"
@@ -327,6 +330,55 @@ md_ok_out="$(INVENTORY_PROJECT_DIR="$PLAINROOT" INVENTORY_USER_SETTINGS="$WORK/n
   INVENTORY_MANAGED_PATH="$MD/managed-settings.json" bash "$INVENTORY" 2>/dev/null)"
 assert_contains "a readable managed-settings.d reports its exact file count" "$md_ok_out" \
   "managed-settings.d exists at $MD/managed-settings.d with 2 drop-in file(s)"
+assert_eq "readable drop-ins are probed by the managed-policy row" \
+  "managed-policy present standing 3 0 0" "$(row6 managed-policy "$md_ok_out")"
+
+# The case the row used to get wrong: the policy's hooks live in the drop-ins.
+# Base 1 handler, drop-ins 2 and 1, so the row is 3 files, 3 declaring, 4
+# handlers. Counting the base file alone published "1 1 1" here, an exact-looking
+# figure that omits three standing managed handlers.
+MDH="$WORK/managed-dropin-hooks"
+mkdir -p "$MDH/managed-settings.d"
+printf '%s\n' '{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"base"}]}]}}' \
+  >"$MDH/managed-settings.json"
+printf '%s\n' '{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"a"},{"type":"command","command":"b"}]}]}}' \
+  >"$MDH/managed-settings.d/10-a.json"
+printf '%s\n' '{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"c"}]}]}}' \
+  >"$MDH/managed-settings.d/20-b.json"
+mdh_out="$(INVENTORY_PROJECT_DIR="$PLAINROOT" INVENTORY_USER_SETTINGS="$WORK/none.json" \
+  INVENTORY_MANAGED_PATH="$MDH/managed-settings.json" bash "$INVENTORY" 2>/dev/null)"
+assert_eq "drop-in handlers reach the managed-policy row" \
+  "managed-policy present standing 3 3 4" "$(row6 managed-policy "$mdh_out")"
+assert_contains "the drop-in note says the row counts them" "$mdh_out" \
+  "counted in the managed-policy row above"
+
+# A policy whose base file is missing but whose drop-in directory is not: the
+# drop-ins are still in force, so the row is present with their counts rather
+# than absent with none.
+MDNB="$WORK/managed-dropin-nobase"
+mkdir -p "$MDNB/managed-settings.d"
+printf '%s\n' '{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"a"},{"type":"command","command":"b"}]}]}}' \
+  >"$MDNB/managed-settings.d/10-a.json"
+mdnb_out="$(INVENTORY_PROJECT_DIR="$PLAINROOT" INVENTORY_USER_SETTINGS="$WORK/none.json" \
+  INVENTORY_MANAGED_PATH="$MDNB/managed-settings.json" bash "$INVENTORY" 2>/dev/null)"
+assert_eq "drop-ins without a base file are still counted" \
+  "managed-policy present standing 2 1 2" "$(row6 managed-policy "$mdnb_out")"
+
+# One malformed drop-in does not sink the readable ones, and does not let the
+# row present what is left as a total: the two count columns become floors while
+# PROBED stays exact, because that file WAS examined.
+MDMAL="$WORK/managed-dropin-malformed"
+mkdir -p "$MDMAL/managed-settings.d"
+printf '%s\n' '{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"base"}]}]}}' \
+  >"$MDMAL/managed-settings.json"
+printf '%s\n' '{"hooks":"oops"}' >"$MDMAL/managed-settings.d/10-a.json"
+mdmal_out="$(INVENTORY_PROJECT_DIR="$PLAINROOT" INVENTORY_USER_SETTINGS="$WORK/none.json" \
+  INVENTORY_MANAGED_PATH="$MDMAL/managed-settings.json" bash "$INVENTORY" 2>/dev/null)"
+assert_eq "a malformed drop-in makes the managed counts floors" \
+  "managed-policy present standing 2 1+invalid-json 1+invalid-json" \
+  "$(row6 managed-policy "$mdmal_out")"
+assert_contains "a malformed drop-in is named" "$mdmal_out" \
+  "managed drop-in $MDMAL/managed-settings.d/10-a.json is invalid-json"
 
 MDBAD="$WORK/managed-dropin-bad"
 mkdir -p "$MDBAD"
@@ -338,6 +390,11 @@ assert_contains "an unreadable managed-settings.d is named, not passed over" "$m
   "managed-settings.d exists at $MDBAD/managed-settings.d but could not be traversed (unreadable)"
 assert_not_contains "an unreadable managed-settings.d publishes no file count" "$md_bad_out" \
   "drop-in file(s)"
+# An unreadable drop-in directory is the one case where PROBED is a floor too:
+# how many files it holds is exactly what could not be established.
+assert_eq "an unreadable managed-settings.d makes every managed figure a floor" \
+  "managed-policy present standing 1+unreadable 0+unreadable 0+unreadable" \
+  "$(row6 managed-policy "$md_bad_out")"
 
 # A readable scope still counts: the status-word path must not swallow the
 # normal one. The golden fixture above already pins that for every scope, and
@@ -438,6 +495,50 @@ assert_contains "a wrong-typed enabledPlugins is invalid-json" "$bad_ep_out" \
   "enabledPlugins holds string, not an object"
 assert_not_contains "a wrong-typed enabledPlugins is not 0 true, 0 false" "$bad_ep_out" \
   "project    present      0 true, 0 false"
+
+# --- An unreadable .mcp.json is never a plain 0 -------------------------------
+#
+# The MCP loop used to drop any .mcp.json it could not parse and leave both
+# figures at a numeric zero, so a repository shipping an MCP configuration that
+# could not be measured reported "0 across 0 .mcp.json file(s)": the exact shape
+# of confident wrong number the directory scopes were already fixed for. The file
+# is counted as examined, and the server figure carries the floor form instead.
+
+MCPBAD="$WORK/mcp-badtype"
+mkdir -p "$MCPBAD"
+printf '%s\n' '{"mcpServers":"oops"}' >"$MCPBAD/.mcp.json"
+mcp_bad_out="$(INVENTORY_PROJECT_DIR="$MCPBAD" INVENTORY_USER_SETTINGS="$WORK/none.json" \
+  INVENTORY_MANAGED_PATH="$WORK/managed-absent/managed-settings.json" bash "$INVENTORY" 2>/dev/null)"
+assert_line "a wrong-typed mcpServers key is a floor, not a zero" "$mcp_bad_out" \
+  "  mcp servers          0+invalid-json across 1 .mcp.json file(s)"
+assert_not_contains "a wrong-typed mcpServers key never reports 0 across 0" "$mcp_bad_out" \
+  "0 across 0 .mcp.json file(s)"
+
+# A .mcp.json that is a directory: the -f gate that used to select the project
+# file dropped this one before json_status could call it unreadable, so the row
+# reported the absence of a path that is right there.
+MCPDIR="$WORK/mcp-notafile"
+mkdir -p "$MCPDIR/.mcp.json"
+mcp_dir_out="$(INVENTORY_PROJECT_DIR="$MCPDIR" INVENTORY_USER_SETTINGS="$WORK/none.json" \
+  INVENTORY_MANAGED_PATH="$WORK/managed-absent/managed-settings.json" bash "$INVENTORY" 2>/dev/null)"
+assert_line "an unreadable .mcp.json is examined and reported unreadable" "$mcp_dir_out" \
+  "  mcp servers          0+unreadable across 1 .mcp.json file(s)"
+assert_contains "an unreadable .mcp.json is explained" "$mcp_dir_out" \
+  "is unreadable, so the MCP servers it configures could not be counted"
+
+# The same rule inside a plugin root, and with a readable file beside it: the
+# measured servers survive, and only the unmeasured part shows as a status word.
+MCPMIX="$WORK/mcp-mixed"
+mkdir -p "$MCPMIX/p/.claude-plugin"
+printf '%s\n' '{"name":"p"}' >"$MCPMIX/p/.claude-plugin/plugin.json"
+printf '%s\n' 'not json at all' >"$MCPMIX/p/.mcp.json"
+printf '%s\n' '{"mcpServers":{"alpha":{},"beta":{}}}' >"$MCPMIX/.mcp.json"
+mcp_mix_out="$(INVENTORY_PROJECT_DIR="$MCPMIX" INVENTORY_USER_SETTINGS="$WORK/none.json" \
+  INVENTORY_MANAGED_PATH="$WORK/managed-absent/managed-settings.json" bash "$INVENTORY" 2>/dev/null)"
+assert_line "a broken plugin .mcp.json floors the total without losing the read one" \
+  "$mcp_mix_out" "  mcp servers          2+invalid-json across 2 .mcp.json file(s)"
+assert_contains "the broken plugin .mcp.json is named" "$mcp_mix_out" \
+  "./p/.mcp.json is invalid-json"
 
 # --- A newline inside a path counts once, and is still read --------------------
 #

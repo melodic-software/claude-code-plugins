@@ -399,28 +399,130 @@ row() {
 
 # --- Hook locations -----------------------------------------------------------
 
-settings_row() {
-  local label="$1" file="$2" status events handlers declaring hooks_type
-  status="$(json_status "$file")"
-  if [[ "$status" != "present" ]]; then
-    row "$label" "$status" standing 1 - - "$file"
-    return
-  fi
+# Reads one settings-shaped file's hook block into three globals instead of
+# printing them. note() appends to an array, and a command substitution would run
+# it in a subshell whose appends die with it, so a file that could not be read
+# would lose its explanation on the way back to the caller. shc_status is one
+# vocabulary word; shc_events and shc_handlers are numbers only when it is
+# present, and are zero otherwise so no caller can add a count nothing measured.
+shc_status=""
+shc_events=0
+shc_handlers=0
+settings_hook_counts() {
+  local file="$1" hooks_type
+  shc_events=0
+  shc_handlers=0
+  shc_status="$(json_status "$file")"
+  [[ "$shc_status" == "present" ]] || return 0
   hooks_type="$(jq_type '(.hooks // {})' "$file")"
   if [[ "$hooks_type" != "object" ]]; then
     note "$file is valid JSON, but its hooks key holds ${hooks_type:-a value jq could not type} rather than an object, so no hook entry could be read from it. A malformed hooks block is not an absence of hooks."
-    row "$label" invalid-json standing 1 - - "$file"
-    return
+    shc_status=invalid-json
+    return 0
   fi
-  if ! events="$(jq_num "$SETTINGS_EVENTS_JQ" "$file")" ||
-    ! handlers="$(jq_num "$SETTINGS_HANDLERS_JQ" "$file")"; then
+  if ! shc_events="$(jq_num "$SETTINGS_EVENTS_JQ" "$file")" ||
+    ! shc_handlers="$(jq_num "$SETTINGS_HANDLERS_JQ" "$file")"; then
     note "$file parses as JSON, but the hook query over it failed, so its hook entries are counted nowhere in this table."
-    row "$label" unreadable standing 1 - - "$file"
+    shc_status=unreadable
+    shc_events=0
+    shc_handlers=0
+    return 0
+  fi
+  return 0
+}
+
+settings_row() {
+  local label="$1" file="$2" declaring
+  settings_hook_counts "$file"
+  if [[ "$shc_status" != "present" ]]; then
+    row "$label" "$shc_status" standing 1 - - "$file"
     return
   fi
   declaring=0
-  [[ "$events" -gt 0 ]] && declaring=1
-  row "$label" "$status" standing 1 "$declaring" "$handlers" "$file"
+  [[ "$shc_events" -gt 0 ]] && declaring=1
+  row "$label" "$shc_status" standing 1 "$declaring" "$shc_handlers" "$file"
+}
+
+# The managed-policy row covers managed-settings.json TOGETHER WITH the readable
+# managed-settings.d drop-ins, because those drop-ins merge on top of the base
+# file rather than sitting beside it. Counting only the base file published an
+# exact-looking handler figure for a policy whose standing hooks may live
+# entirely in the drop-ins, which is the same confident wrong number this script
+# exists to stop printing. A drop-in that could not be read contributes its
+# status word instead of a count, so the figures render in the add_counts floor
+# form rather than as a total nobody measured.
+#
+# Registrations, not the de-duplicated effective set: the merge concatenates and
+# de-duplicates arrays, so a handler registered identically in the base file and
+# in a drop-in is one entry in force and two here. The drop-in note says so.
+managed_policy_row() {
+  local base="$1" dropin_dir="$2" dropin_status="$3"
+  local drops=() f base_status floor="" probed_floor=""
+  local probed=1 declaring=0 handlers=0 read_any=0
+  local probed_out declaring_out handlers_out source_label
+
+  settings_hook_counts "$base"
+  base_status="$shc_status"
+  case "$base_status" in
+  present)
+    read_any=1
+    [[ "$shc_events" -gt 0 ]] && declaring=$((declaring + 1))
+    handlers=$((handlers + shc_handlers))
+    ;;
+  absent) ;;
+  *) floor="$base_status" ;;
+  esac
+
+  case "$dropin_status" in
+  present)
+    while IFS= read -r -d '' f; do
+      [[ -n "$f" ]] || continue
+      drops+=("$f")
+    done < <(find0 "$dropin_dir" -- -maxdepth 1 -type f -name '*.json')
+    ;;
+  absent | not-probed) ;;
+  *)
+    probed_floor="$dropin_status"
+    [[ -n "$floor" ]] || floor="$dropin_status"
+    note "managed-settings.d exists at $dropin_dir but could not be traversed ($dropin_status), so how many drop-in files it holds is unknown to this run. They merge on top of managed-settings.json, so the managed policy in force may carry hooks nothing above accounts for, and the managed-policy row is a floor rather than a total."
+    ;;
+  esac
+
+  for f in ${drops[@]+"${drops[@]}"}; do
+    probed=$((probed + 1))
+    settings_hook_counts "$f"
+    if [[ "$shc_status" != "present" ]]; then
+      [[ -n "$floor" ]] || floor="$shc_status"
+      note "managed drop-in $f is $shc_status, so whatever it registers is missing from the managed-policy row, which is therefore a floor rather than a total."
+      continue
+    fi
+    read_any=1
+    [[ "$shc_events" -gt 0 ]] && declaring=$((declaring + 1))
+    handlers=$((handlers + shc_handlers))
+  done
+
+  if [[ "${#drops[@]}" -gt 0 ]]; then
+    note "managed-settings.d exists at $dropin_dir with ${#drops[@]} drop-in file(s); they merge on top of managed-settings.json and are counted in the managed-policy row above. That row counts registrations read, so a handler written identically in two of these files is one entry in force and two there."
+  fi
+
+  # Nothing was read, so there is nothing to count and the row carries the base
+  # file's status word exactly as a single-file row would.
+  if [[ "$read_any" -eq 0 ]]; then
+    row managed-policy "$base_status" standing "$probed" - - "$base"
+    return
+  fi
+
+  probed_out="$probed"
+  [[ -n "$probed_floor" ]] && probed_out="$(add_counts "$probed" "$probed_floor")"
+  declaring_out="$declaring"
+  handlers_out="$handlers"
+  if [[ -n "$floor" ]]; then
+    declaring_out="$(add_counts "$declaring" "$floor")"
+    handlers_out="$(add_counts "$handlers" "$floor")"
+  fi
+  source_label="$base"
+  [[ "${#drops[@]}" -gt 0 ]] && source_label="$base + ${#drops[@]} drop-in(s)"
+  row managed-policy present standing "$probed_out" "$declaring_out" "$handlers_out" "$source_label"
 }
 
 plugin_hook_row() {
@@ -525,18 +627,7 @@ settings_row user-settings "$user_settings"
 settings_row project-settings "$project_settings"
 settings_row local-settings "$local_settings"
 if [[ "$have_managed_lib" -eq 1 ]]; then
-  settings_row managed-policy "$managed_file"
-  dropin_status="$(dir_status "$managed_dropin")"
-  case "$dropin_status" in
-  present)
-    dropin_n="$(count_dir present "$managed_dropin" -maxdepth 1 -type f -name '*.json')"
-    note "managed-settings.d exists at $managed_dropin with $dropin_n drop-in file(s); they merge on top of managed-settings.json and are not counted in the managed-policy row."
-    ;;
-  absent | not-probed) ;;
-  *)
-    note "managed-settings.d exists at $managed_dropin but could not be traversed ($dropin_status), so how many drop-in files it holds is unknown to this run. They merge on top of managed-settings.json, so the managed policy in force may carry hooks nothing above accounts for."
-    ;;
-  esac
+  managed_policy_row "$managed_file" "$managed_dropin" "$(dir_status "$managed_dropin")"
 else
   row managed-policy not-probed standing - - - "managed-scope library unavailable"
   note "Managed policy was NOT probed: $managed_lib could not be read, so no per-OS path was available. This is not evidence that no policy is deployed."
@@ -552,28 +643,52 @@ project_hook_scripts="$(count_dir "$hooks_dir_status" .claude/hooks -type f ! -n
 hook_tests="$(add_counts \
   "$(count_in_plugin_roots -type f -path '*/hooks/*' -name '*.test.sh')" \
   "$(count_dir "$hooks_dir_status" .claude/hooks -type f -name '*.test.sh')")"
+# Every .mcp.json this run will look at. The project-root file is emitted
+# whenever anything is THERE, a directory or a dangling symlink included, so
+# json_status gets to call it unreadable: the -f test that used to gate it
+# dropped such a file before any status could be assigned, and the row then
+# reported the absence of a configuration that exists.
+mcp_candidates() {
+  [[ -e .mcp.json || -L .mcp.json ]] && printf '%s\0' .mcp.json
+  find0_plugin_roots -maxdepth 1 -type f -name '.mcp.json'
+}
+
+# mcp_files counts the .mcp.json files this run EXAMINED, readable or not, and
+# mcp_floor carries the status word of the first one it could not measure. A
+# file that exists and could not be parsed therefore leaves the server figure in
+# the add_counts floor form rather than at a numeric 0: "0 across 0 .mcp.json
+# file(s)" for a repository that ships an MCP configuration was the same
+# confident wrong number the directory scopes already stopped printing.
 mcp_servers=0
 mcp_files=0
+mcp_floor=""
 if [[ "$have_jq" -eq 1 ]]; then
   while IFS= read -r -d '' f; do
     [[ -n "$f" ]] || continue
-    [[ "$(json_status "$f")" == "present" ]] || continue
+    mcp_files=$((mcp_files + 1))
+    f_status="$(json_status "$f")"
+    if [[ "$f_status" != "present" ]]; then
+      [[ -n "$mcp_floor" ]] || mcp_floor="$f_status"
+      note "$f is $f_status, so the MCP servers it configures could not be counted; the mcp server figure is a floor."
+      continue
+    fi
     if [[ "$(jq_type '(.mcpServers // {})' "$f")" != "object" ]]; then
+      [[ -n "$mcp_floor" ]] || mcp_floor=invalid-json
       note "$f is valid JSON, but its mcpServers key is not an object, so its servers could not be counted; the mcp server figure is a floor."
       continue
     fi
     if ! n="$(jq_num '(.mcpServers // {}) | length' "$f")"; then
+      [[ -n "$mcp_floor" ]] || mcp_floor=unreadable
       note "$f parses as JSON, but its mcpServers count could not be read; the mcp server figure is a floor."
       continue
     fi
-    mcp_files=$((mcp_files + 1))
     mcp_servers=$((mcp_servers + n))
-  done < <(
-    [[ -f .mcp.json ]] && printf '%s\0' .mcp.json
-    find0_plugin_roots -maxdepth 1 -type f -name '.mcp.json'
-  )
+  done < <(mcp_candidates)
+  [[ -n "$mcp_floor" ]] && mcp_servers="$(add_counts "$mcp_servers" "$mcp_floor")"
 else
-  note "MCP server counts were skipped: jq is not on PATH. The count below is not a measurement."
+  mcp_files="$(mcp_candidates | count0)"
+  mcp_servers=skipped
+  note "MCP server counts were skipped: jq is not on PATH. The count below is not a measurement. The .mcp.json files beside it were found and tallied, but nothing was read from them."
 fi
 
 printf '\nComponents in this repository\n'
