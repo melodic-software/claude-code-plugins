@@ -3,6 +3,13 @@
 All notable changes to the `codebase-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.5]
+
+### Changed
+
+- **The Phase 1 scope gate states its requirement instead of shouting it.** "Scope first (MANDATORY. Cost gate)" is now "Scope first (cost gate)"; the sentences after it already stated the filter requirement, the roughly-20-file confirmation threshold, and the token-cost reason, all unchanged.
+- **Phase 0 no longer instructs a re-read of always-loaded instructions.** The root `CLAUDE.md` / `AGENTS.md` reach this skill, and each dispatched agent, at startup. The step now reads the `.claude/rules/` files, which do not: those reach a context only when a file they cover is read, and Phase 0 needs the whole convention set as its lens before any file is opened. The lens the phase establishes is the same.
+
 ## [0.9.4]
 
 ### Changed

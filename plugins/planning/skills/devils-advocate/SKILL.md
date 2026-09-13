@@ -108,7 +108,7 @@ Check for:
 - **Undocumented behavior** that the plan relies on
 - **Version-specific changes** that may have broken assumptions since training cutoff
 - **Cross-platform issues** (Windows/Git Bash, macOS, Linux)
-- **Conflicts with the consuming project's conventions** (check its `CLAUDE.md` and project rules)
+- **Conflicts with the consuming project's conventions** (the always-loaded `CLAUDE.md` is already in context; read the path-scoped rule files under `.claude/rules/`, which reach a context only when a file they cover is read, and a plan review may open none)
 
 Present findings:
 

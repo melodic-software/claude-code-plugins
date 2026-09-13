@@ -3,6 +3,12 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.32]
+
+### Changed
+
+- **The profile-variable prohibition in `skills/generate/SKILL.md` states its reason and its positive form.** It read only "Never ask the consumer to export the variable globally", a bare prohibition with neither. It now says to set the selection on each launched process and why a global export is the wrong shape: it pins one profile for every session and every other tool on that machine, including runs that asked for a different one. Same rule, no behavior change.
+
 ## [0.7.31]
 
 ### Changed

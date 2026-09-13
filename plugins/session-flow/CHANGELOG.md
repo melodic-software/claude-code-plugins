@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [0.35.12]
+
+### Fixed
+
+- **Both restated external numeric anchors in `skills/orchestrate/SKILL.md` now carry a recheck trigger.** The workflow size figures (fewer than 5 agents for small, 15 for medium, 50 for large, with the large-workflow warning above 25) and the roughly 1,000 to 2,000 token return range each cited a source and a fetch date but named no event that obliges re-deriving them, leaving them half-conforming records under the upstream-drift convention. Each now fires on its own source no longer carrying those figures. The figures, their sources, and their dates are unchanged, and the third anchor on the page already carried a trigger.
+
 ## [0.35.11]
 
 ### Changed

@@ -101,9 +101,11 @@ Re-running `apply` after everything passes changes nothing and reports "already 
   observation.** The hook disables actionlint's external run-block linters primarily for
   edit-time latency; the additional "ShellCheck deadlocks on large blocks under the Windows
   subprocess IPC path in actionlint 1.7.x" rationale is the hook author's own reproduction.
-  No matching upstream rhysd/actionlint issue as of 2026-07-23. The latency rationale alone
-  justifies the flags for an advisory edit-time hook; deep run-block linting belongs in a
-  commit hook or CI.
+  No matching upstream rhysd/actionlint issue as of 2026-07-23; recheck when a rhysd/actionlint
+  issue or release note reports ShellCheck hanging or deadlocking under the Windows subprocess
+  path, which would replace the local reproduction with an upstream-confirmed cause and a fixed
+  version to pin against. The latency rationale alone justifies the flags for an advisory
+  edit-time hook; deep run-block linting belongs in a commit hook or CI.
 
 ## What this skill does NOT do
 

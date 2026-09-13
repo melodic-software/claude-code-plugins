@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [0.19.14]
+
+### Changed
+
+- **`explore`'s convention-files dimension no longer instructs a re-read of always-loaded instructions.** The root `CLAUDE.md` and the files it imports reach the exploration at startup, a dispatched run included, so re-reading them buys nothing. The bullet now points at the path-scoped `.claude/rules/` files and any nested `AGENTS.md` covering the target area, which reach a context only when a file they cover is read, something an exploration may never do for the area a rule governs. The conventions the dimension is meant to surface are the same.
+
 ## [0.19.13]
 
 ### Fixed
