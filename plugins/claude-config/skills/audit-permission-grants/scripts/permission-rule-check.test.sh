@@ -618,7 +618,13 @@ mkdir -p "$D8F/.claude"
 jq -n '{permissions:{allow:["Bash(~kyle/scripts/x.sh:*)"]}}' >"$D8F/.claude/settings.json"
 OUT_TILDE=$(run "$D8F")
 assert_contains "flags tilde-user Bash path" "$OUT_TILDE" "~kyle"
-assert_contains "tilde-user finding is P2" "$OUT_TILDE" "[P2]"
+# #4149 defect 3: P2b is a documented check with its own `### P2b` section in
+# criteria.md and its own row in SKILL.md's severity table, but the detector
+# emitted it as `P2` — so no report could ever contain a P2b row and a reader
+# could not tell which of the two error-tier checks fired.
+assert_contains "tilde-user finding is emitted under its own id P2b" "$OUT_TILDE" "[P2b]"
+assert_not_contains "tilde-user finding is no longer mislabelled P2" "$OUT_TILDE" "[P2] "
+assert_eq "the tilde-user rule produces exactly one finding" "1" "$(run "$D8F" --count)"
 assert_eq "portable ~/ anchor in Read is not flagged" "0" \
   "$(jq -n '{permissions:{allow:["Read(~/notes.md)"]}}' >"$D8F/.claude/settings.json" && run "$D8F" --count)"
 D8F_URL="$TEST_TMPDIR/issue-2397-tilde-url"
@@ -746,6 +752,344 @@ EOF
 OUT_PR_PROJECT=$(run "$D8G8")
 assert_eq "plugin-data token in a project skill is P4-flagged" "1" "$(run "$D8G8" --count)"
 assert_contains "project-skill remedy offers CLAUDE_SKILL_DIR" "$OUT_PR_PROJECT" "CLAUDE_SKILL_DIR"
+
+# --- Case 14: #4149 Q2 — every emitted remedy is pinned, per scope ------------
+#
+# WHY THIS SECTION EXISTS. The bug that produced #4149: P4's remedy told authors
+# to make a change that would BREAK a working grant, and the first fix for it
+# reproduced the identical bug class by hardcoding ${CLAUDE_SKILL_DIR} for every
+# non-plugin-skill scope, where that token is equally inert. A 148-check suite
+# caught neither, because it tested WHICH findings fire and never tested WHAT
+# THEY TELL YOU TO DO.
+#
+# So: every `emit` call site in the detector, in every scope it can fire in, has
+# its remedy text asserted below. The emit sites are, in source order —
+#   scan_rule:      P1 (interpreter/runner-led), P2 (machine path),
+#                   P2b (tilde-user), P4 (always-inert token),
+#                   P4 (plugin-scoped token outside a plugin skill)
+#   scan_bare_tool: P1 (bare whole-tool grant)
+#   scan_agent:     P1 (Agent allow rule)
+#   plugin walk:    P3 (plugin settings.json declaring `permissions`)
+# — eight sites, and the five scopes a rule can sit in are a plugin skill, a
+# project/personal skill, an agent, a command, and a settings file.
+#
+# NEGATIVE assertions carry as much weight as positive ones: a remedy naming a
+# token that is inert in the scope it was printed for is the defect, so each
+# non-skill scope asserts the skill-scoped token is ABSENT rather than merely
+# that some correct advice is also present.
+REMEDY_MP="${SL}Users${SL}remy${SL}bin${SL}x.sh"
+
+finding_for() {
+  # finding_for <output> <source-substring> <rule-or-detail-substring> — the one
+  # finding line whose SOURCE names this scope and whose detail names this rule.
+  # Asserting against whole-run output instead would let a remedy correctly
+  # printed for some OTHER scope satisfy this scope's assertion — which is
+  # precisely the confusion these cases exist to remove.
+  printf '%s\n' "$1" | grep -F -- "$2" | grep -F -- "$3" | head -n1
+}
+
+remedy_frontmatter() {
+  # remedy_frontmatter <file> <name> — one frontmatter file carrying one rule per
+  # emit site, so a single run produces every finding class in this scope.
+  # The machine path is interpolated from runtime-assembled fragments (see the
+  # top of this file) so no contiguous machine-path literal appears here; the
+  # single-quoted formats keep `%USERPROFILE%` and `${CLAUDE_PLUGIN_ROOT}`
+  # literal, which is the whole point of the fixture.
+  # shellcheck disable=SC2016  # tokens are deliberately unexpanded fixture text
+  {
+    printf -- '---\nname: %s\nallowed-tools:\n' "$2"
+    printf -- '  - Bash(python*)\n'
+    printf -- '  - Bash\n'
+    printf -- '  - Agent\n'
+    printf -- '  - Bash(%s:*)\n' "$REMEDY_MP"
+    printf -- '  - Bash(~remy/x.sh:*)\n'
+    printf -- '  - Bash(%%USERPROFILE%%/x.sh:*)\n'
+    printf -- '  - Bash(${CLAUDE_PLUGIN_ROOT}/x.sh:*)\n'
+    printf -- '---\nbody\n'
+  } >"$1"
+}
+
+assert_scope_remedies() {
+  # assert_scope_remedies <scope-label> <output> <source-substring> <skill-dir-ok>
+  #
+  # <skill-dir-ok> is `yes` only where ${CLAUDE_SKILL_DIR} actually substitutes:
+  # a SKILL.md's allowed-tools Bash rules, plugin or not. Everywhere else it is
+  # `no` and the token must not appear in ANY remedy this scope prints.
+  local scope="$1" out="$2" src="$3" skilldir="$4" line
+
+  # --- scan_rule, P1: interpreter/runner-led grant ---------------------------
+  line="$(finding_for "$out" "$src" "Bash(python*)")"
+  assert_contains "$scope: P1 interpreter finding fires" "$line" "[P1]"
+  assert_contains "$scope: P1 interpreter remedy is the bare-PATH command" "$line" \
+    "Expose the guarded script as a bare PATH command and allow that"
+  assert_not_contains "$scope: P1 interpreter remedy names no scope-specific token" "$line" \
+    "CLAUDE_"
+
+  # --- scan_bare_tool, P1: bare whole-tool grant -----------------------------
+  line="$(finding_for "$out" "$src" "bare 'Bash'")"
+  assert_contains "$scope: bare-tool finding fires" "$line" "[P1]"
+  assert_contains "$scope: bare-tool remedy names a specific bare-name command" "$line" \
+    "Allow a specific bare-name command instead"
+  assert_not_contains "$scope: bare-tool remedy names no scope-specific token" "$line" "CLAUDE_"
+
+  # --- scan_agent, P1: Agent allow rule --------------------------------------
+  line="$(finding_for "$out" "$src" "Agent allow rules are dropped")"
+  assert_contains "$scope: Agent finding fires" "$line" "[P1]"
+  assert_contains "$scope: Agent remedy states the no-PATH-analog reason" "$line" \
+    "no PATH-durable analog — remove/re-scope, or run outside auto mode"
+  assert_not_contains "$scope: Agent remedy offers no bare-command rewrite it has no analog for" \
+    "$line" "CLAUDE_"
+
+  # --- scan_rule, P2: hardcoded machine path ---------------------------------
+  line="$(finding_for "$out" "$src" "$REMEDY_MP")"
+  assert_contains "$scope: P2 finding fires" "$line" "[P2]"
+  assert_contains "$scope: P2 remedy offers the bare-name PATH command" "$line" \
+    "a bare-name command on PATH"
+  if [[ "$skilldir" == "yes" ]]; then
+    assert_contains "$scope: P2 remedy offers CLAUDE_SKILL_DIR (it substitutes here)" "$line" \
+      "\${CLAUDE_SKILL_DIR} for this skill's own bundled script"
+  else
+    assert_not_contains "$scope: P2 remedy does NOT offer CLAUDE_SKILL_DIR (inert here)" "$line" \
+      "CLAUDE_SKILL_DIR"
+  fi
+
+  # --- scan_rule, P2b: tilde-user path ---------------------------------------
+  line="$(finding_for "$out" "$src" "~remy/x.sh")"
+  assert_contains "$scope: P2b fires under its own id" "$line" "[P2b]"
+  assert_contains "$scope: P2b remedy offers the bare-name PATH command" "$line" \
+    "a bare-name command on PATH"
+  if [[ "$skilldir" == "yes" ]]; then
+    assert_contains "$scope: P2b remedy offers CLAUDE_SKILL_DIR (it substitutes here)" "$line" \
+      "\${CLAUDE_SKILL_DIR} for this skill's own bundled script"
+  else
+    assert_not_contains "$scope: P2b remedy does NOT offer CLAUDE_SKILL_DIR (inert here)" "$line" \
+      "CLAUDE_SKILL_DIR"
+  fi
+
+  # --- scan_rule, P4: always-inert token (%USERPROFILE%) ---------------------
+  # Fires in EVERY scope, plugin skill included — the plugin carve-out covers
+  # only the two plugin-scoped tokens.
+  line="$(finding_for "$out" "$src" "%USERPROFILE%")"
+  assert_contains "$scope: P4 always-inert finding fires" "$line" "[P4]"
+  if [[ "$skilldir" == "yes" ]]; then
+    assert_contains "$scope: P4 always-inert remedy offers CLAUDE_SKILL_DIR" "$line" \
+      "replace with \${CLAUDE_SKILL_DIR} for a script bundled in this skill"
+  else
+    assert_not_contains "$scope: P4 always-inert remedy does NOT offer CLAUDE_SKILL_DIR" "$line" \
+      "CLAUDE_SKILL_DIR"
+    assert_contains "$scope: P4 always-inert remedy is the bare-PATH relocation" "$line" \
+      "relocate the helper to a stable bare command on PATH"
+    assert_contains "$scope: P4 always-inert remedy refuses to prescribe plugin bin/" "$line" \
+      "do not prescribe plugin bin/"
+  fi
+}
+
+# 14a: a PLUGIN skill — the one scope where ${CLAUDE_PLUGIN_ROOT} substitutes, so
+# that finding must NOT fire, while every other site does and the skill-dir
+# remedy is the correct one.
+D14_PLUGIN="$TEST_TMPDIR/remedy-plugin-skill"
+mkdir -p "$D14_PLUGIN/plugins/demo/.claude-plugin" "$D14_PLUGIN/plugins/demo/skills/thing"
+jq -n '{name:"demo"}' >"$D14_PLUGIN/plugins/demo/.claude-plugin/plugin.json"
+remedy_frontmatter "$D14_PLUGIN/plugins/demo/skills/thing/SKILL.md" thing
+OUT_14P=$(run "$D14_PLUGIN")
+assert_scope_remedies "plugin skill" "$OUT_14P" "plugins/demo/skills/thing/SKILL.md" yes
+assert_not_contains "plugin skill: the plugin-root grant is not flagged at all" "$OUT_14P" \
+  "plugin-scoped substitution token"
+
+# 14b: a PROJECT skill — ${CLAUDE_PLUGIN_ROOT} is inert here, so that site fires,
+# and ${CLAUDE_SKILL_DIR} is still the right remedy because this is a SKILL.md.
+D14_PROJ="$TEST_TMPDIR/remedy-project-skill"
+mkdir -p "$D14_PROJ/.claude/skills/proj"
+remedy_frontmatter "$D14_PROJ/.claude/skills/proj/SKILL.md" proj
+OUT_14S=$(run "$D14_PROJ")
+assert_scope_remedies "project skill" "$OUT_14S" ".claude/skills/proj/SKILL.md" yes
+line_14s="$(finding_for "$OUT_14S" ".claude/skills/proj/SKILL.md" "plugin-scoped substitution token")"
+assert_contains "project skill: P4 plugin-scoped finding fires" "$line_14s" "[P4]"
+assert_contains "project skill: plugin-scoped remedy offers CLAUDE_SKILL_DIR" "$line_14s" \
+  "replace with \${CLAUDE_SKILL_DIR} for a script bundled in this skill"
+
+# 14c: an AGENT — not a SKILL.md, so ${CLAUDE_SKILL_DIR} is inert and must not be
+# offered by ANY remedy this scope prints. This scope had no remedy assertion at
+# all before #4149.
+D14_AGENT="$TEST_TMPDIR/remedy-agent"
+mkdir -p "$D14_AGENT/.claude/agents"
+remedy_frontmatter "$D14_AGENT/.claude/agents/runner.md" runner
+OUT_14A=$(run "$D14_AGENT")
+assert_scope_remedies "agent" "$OUT_14A" ".claude/agents/runner.md" no
+line_14a="$(finding_for "$OUT_14A" ".claude/agents/runner.md" "plugin-scoped substitution token")"
+assert_contains "agent: P4 plugin-scoped finding fires" "$line_14a" "[P4]"
+assert_contains "agent: plugin-scoped remedy is the bare-PATH relocation" "$line_14a" \
+  "relocate the helper to a stable bare command on PATH"
+assert_not_contains "agent: plugin-scoped remedy does NOT offer CLAUDE_SKILL_DIR" "$line_14a" \
+  "CLAUDE_SKILL_DIR"
+
+# 14d: a COMMAND — same reasoning as the agent scope, and likewise unasserted
+# before #4149.
+D14_CMD="$TEST_TMPDIR/remedy-command"
+mkdir -p "$D14_CMD/.claude/commands"
+remedy_frontmatter "$D14_CMD/.claude/commands/do.md" "run"
+OUT_14C=$(run "$D14_CMD")
+assert_scope_remedies "command" "$OUT_14C" ".claude/commands/do.md" no
+line_14c="$(finding_for "$OUT_14C" ".claude/commands/do.md" "plugin-scoped substitution token")"
+assert_contains "command: P4 plugin-scoped finding fires" "$line_14c" "[P4]"
+assert_contains "command: plugin-scoped remedy is the bare-PATH relocation" "$line_14c" \
+  "relocate the helper to a stable bare command on PATH"
+assert_not_contains "command: plugin-scoped remedy does NOT offer CLAUDE_SKILL_DIR" "$line_14c" \
+  "CLAUDE_SKILL_DIR"
+
+# 14e: a SETTINGS file — no ${CLAUDE_*} substitution is documented for a
+# permissions.allow array at all, so every remedy here must be scope-free.
+D14_SET="$TEST_TMPDIR/remedy-settings"
+mkdir -p "$D14_SET/.claude"
+jq -n --arg mp "Bash(${REMEDY_MP}:*)" '{permissions:{allow:[
+  "Bash(python*)","Bash","Agent",$mp,"Bash(~remy/x.sh:*)",
+  "Bash(%USERPROFILE%/x.sh:*)","Bash(${CLAUDE_PLUGIN_ROOT}/x.sh:*)"
+]}}' >"$D14_SET/.claude/settings.json"
+OUT_14SET=$(run "$D14_SET")
+assert_scope_remedies "settings" "$OUT_14SET" ".claude/settings.json permissions.allow" no
+line_14set="$(finding_for "$OUT_14SET" ".claude/settings.json permissions.allow" "plugin-scoped substitution token")"
+assert_contains "settings: P4 plugin-scoped finding fires" "$line_14set" "[P4]"
+assert_contains "settings: plugin-scoped remedy is the bare-PATH relocation" "$line_14set" \
+  "relocate the helper to a stable bare command on PATH"
+assert_not_contains "settings: plugin-scoped remedy does NOT offer CLAUDE_SKILL_DIR" "$line_14set" \
+  "CLAUDE_SKILL_DIR"
+assert_not_contains "settings: no remedy in this scope mentions CLAUDE_SKILL_DIR" "$OUT_14SET" \
+  "CLAUDE_SKILL_DIR"
+
+# 14f: the DERIVED scopes — a plugin's own agents/ and commands/, .claude/
+# settings.local.json, and the user-global settings file. None is a SKILL.md, so
+# every remedy in them must be scope-free; they reach the same remedy branches by
+# fallthrough, which is exactly why a refactor could regress them silently while
+# the five headline scopes stayed green.
+D14_PAC="$TEST_TMPDIR/remedy-plugin-agent-command"
+mkdir -p "$D14_PAC/plugins/demo/.claude-plugin" "$D14_PAC/plugins/demo/agents" \
+  "$D14_PAC/plugins/demo/commands"
+jq -n '{name:"demo"}' >"$D14_PAC/plugins/demo/.claude-plugin/plugin.json"
+remedy_frontmatter "$D14_PAC/plugins/demo/agents/x.md" "x"
+remedy_frontmatter "$D14_PAC/plugins/demo/commands/y.md" "y"
+OUT_14PAC=$(run "$D14_PAC")
+assert_scope_remedies "plugin agent" "$OUT_14PAC" "plugins/demo/agents/x.md" no
+assert_scope_remedies "plugin command" "$OUT_14PAC" "plugins/demo/commands/y.md" no
+assert_not_contains "plugin agents/commands: no remedy in this tree mentions CLAUDE_SKILL_DIR" \
+  "$OUT_14PAC" "CLAUDE_SKILL_DIR"
+
+D14_LOCAL="$TEST_TMPDIR/remedy-settings-local"
+mkdir -p "$D14_LOCAL/.claude"
+cp "$D14_SET/.claude/settings.json" "$D14_LOCAL/.claude/settings.local.json"
+OUT_14LOCAL=$(run "$D14_LOCAL")
+assert_scope_remedies "settings.local" "$OUT_14LOCAL" ".claude/settings.local.json permissions.allow" no
+assert_not_contains "settings.local: no remedy in this scope mentions CLAUDE_SKILL_DIR" \
+  "$OUT_14LOCAL" "CLAUDE_SKILL_DIR"
+
+D14_UG="$TEST_TMPDIR/remedy-user-global-project"
+mkdir -p "$D14_UG/.claude"
+D14_UG_HOME="$TEST_TMPDIR/remedy-user-global-home"
+mkdir -p "$D14_UG_HOME/.claude"
+cp "$D14_SET/.claude/settings.json" "$D14_UG_HOME/.claude/settings.json"
+OUT_14UG=$(run_with_home "$D14_UG" "$D14_UG_HOME")
+assert_scope_remedies "user-global" "$OUT_14UG" \
+  "$D14_UG_HOME/.claude/settings.json permissions.allow" no
+assert_not_contains "user-global: no remedy in this scope mentions CLAUDE_SKILL_DIR" \
+  "$OUT_14UG" "CLAUDE_SKILL_DIR"
+
+# 14g: the eighth emit site — P3, which fires only against a plugin settings.json
+# and whose remedy is the only one that routes the fix to a DIFFERENT file than
+# the one the finding names.
+D14_P3="$TEST_TMPDIR/remedy-p3"
+mkdir -p "$D14_P3/plugins/foo/.claude-plugin"
+jq -n '{name:"foo"}' >"$D14_P3/plugins/foo/.claude-plugin/plugin.json"
+jq -n '{permissions:{allow:["Bash(x.sh:*)"]}}' >"$D14_P3/plugins/foo/settings.json"
+line_14p3="$(finding_for "$(run "$D14_P3")" "plugins/foo/settings.json" "[P3]")"
+assert_contains "P3 remedy routes the operative rule to the user-global settings file" \
+  "$line_14p3" "must be added by the operator to ~/.claude/settings.json"
+assert_not_contains "P3 remedy does not tell the author to edit the inert file in place" \
+  "$line_14p3" "CLAUDE_SKILL_DIR"
+
+# --- Case 15: #4149 Q1 — the exit-code gate ----------------------------------
+# Five documented outcomes. Default and --count keep their advisory contract in
+# every one of them; only --check and --strict change the exit code.
+gate_rc() {
+  # gate_rc <root> <flag> — the exit code, with output discarded.
+  local rc=0
+  run "$1" "$2" >/dev/null 2>&1 || rc=$?
+  printf '%s' "$rc"
+}
+
+# 15a: an ERROR-tier finding (P2) fails both gates and neither default mode.
+D15_ERR="$TEST_TMPDIR/gate-error"
+mkdir -p "$D15_ERR/.claude"
+jq -n --arg mp "Bash(${REMEDY_MP}:*)" '{permissions:{allow:[$mp]}}' >"$D15_ERR/.claude/settings.json"
+assert_exit "error-tier finding: --check exits 1" 1 "$(gate_rc "$D15_ERR" --check)"
+assert_exit "error-tier finding: --strict exits 1" 1 "$(gate_rc "$D15_ERR" --strict)"
+assert_exit "error-tier finding: default mode still exits 0" 0 "$(gate_rc "$D15_ERR" "")"
+assert_exit "error-tier finding: --count still exits 0" 0 "$(gate_rc "$D15_ERR" --count)"
+OUT_15ERR=$(run "$D15_ERR" --check 2>&1) || true
+assert_contains "gate mode still prints the finding" "$OUT_15ERR" "[P2]"
+assert_contains "gate mode still prints the coverage block" "$OUT_15ERR" "Scan coverage"
+
+# 15a2: P2b and P4 are error-tier too — a gate that only knew P2 would pass a
+# tree whose only defects were the two checks #4149 found unsurfaced.
+D15_P2B="$TEST_TMPDIR/gate-error-p2b"
+mkdir -p "$D15_P2B/.claude"
+jq -n '{permissions:{allow:["Bash(~remy/x.sh:*)"]}}' >"$D15_P2B/.claude/settings.json"
+assert_exit "P2b alone fails --check" 1 "$(gate_rc "$D15_P2B" --check)"
+D15_P4="$TEST_TMPDIR/gate-error-p4"
+mkdir -p "$D15_P4/.claude"
+jq -n '{permissions:{allow:["Bash(%USERPROFILE%/x.sh:*)"]}}' >"$D15_P4/.claude/settings.json"
+assert_exit "P4 alone fails --check" 1 "$(gate_rc "$D15_P4" --check)"
+
+# 15b/15c: WARNING-tier findings only (P1 here) pass --check and fail --strict.
+# That difference is the entire reason the two flags exist.
+D15_WARN="$TEST_TMPDIR/gate-warning"
+mkdir -p "$D15_WARN/.claude"
+jq -n '{permissions:{allow:["Bash(python*)"]}}' >"$D15_WARN/.claude/settings.json"
+assert_exit "warnings only: --check exits 0" 0 "$(gate_rc "$D15_WARN" --check)"
+assert_exit "warnings only: --strict exits 1" 1 "$(gate_rc "$D15_WARN" --strict)"
+OUT_15W=$(run "$D15_WARN" --check)
+assert_contains "a passing --check still prints its warning finding" "$OUT_15W" "[P1]"
+
+# P3 is the other warning-tier check and must gate identically.
+assert_exit "P3 alone passes --check" 0 "$(gate_rc "$D14_P3" --check)"
+assert_exit "P3 alone fails --strict" 1 "$(gate_rc "$D14_P3" --strict)"
+
+# 15d: a CLEAN tree with a real denominator passes both gates.
+D15_CLEAN="$TEST_TMPDIR/gate-clean"
+mkdir -p "$D15_CLEAN/.claude"
+jq -n '{permissions:{allow:["Bash(npm test)"]}}' >"$D15_CLEAN/.claude/settings.json"
+assert_exit "clean tree: --check exits 0" 0 "$(gate_rc "$D15_CLEAN" --check)"
+assert_exit "clean tree: --strict exits 0" 0 "$(gate_rc "$D15_CLEAN" --strict)"
+assert_contains "clean tree under --check still prints the clean bill" \
+  "$(run "$D15_CLEAN" --check)" "No fragile permission grants found."
+
+# 15e: NOTHING TO AUDIT exits 2 under both gates, NOT 0. A scan that examined
+# nothing on any axis has no denominator, so "0 findings" is not a statement
+# about the grants and must never pass a gate — the finding-side limb of the same
+# fail-closed judgment the missing-jq and unresolvable-root refusals already make.
+assert_exit "NOTHING TO AUDIT: --check exits 2, not 0" 2 "$(gate_rc "$D10A" --check)"
+assert_exit "NOTHING TO AUDIT: --strict exits 2, not 0" 2 "$(gate_rc "$D10A" --strict)"
+assert_exit "NOTHING TO AUDIT: default mode is unchanged at 0" 0 "$(gate_rc "$D10A" "")"
+assert_exit "NOTHING TO AUDIT: --count is unchanged at 0" 0 "$(gate_rc "$D10A" --count)"
+OUT_15E=$(run "$D10A" --check 2>&1) || true
+assert_contains "the exit-2 gate still prints NOTHING TO AUDIT" "$OUT_15E" "NOTHING TO AUDIT"
+assert_not_contains "the exit-2 gate is not a clean bill" "$OUT_15E" "No fragile permission grants found."
+
+# 15f: the environment-gap channel keeps exit 2 under the gate flags — a gate
+# that reported 1 (or 0) for an unresolvable root would collapse "found problems"
+# into "could not look".
+rc=0
+(cd "$nonrepo" && env -u PERMISSION_HYGIENE_FIXTURE_DIR -u PERMISSION_HYGIENE_SCAN_ROOT \
+  -u CLAUDE_PROJECT_DIR GIT_CEILING_DIRECTORIES="$TEST_TMPDIR" bash "$SCRIPT" --check) >/dev/null 2>&1 || rc=$?
+assert_exit "--check on an unresolvable root still exits 2" 2 "$rc"
+rc=0
+PERMISSION_HYGIENE_FIXTURE_DIR="$TEST_TMPDIR/does-not-exist" bash "$SCRIPT" --strict >/dev/null 2>&1 || rc=$?
+assert_exit "--strict on a nonexistent root still exits 2" 2 "$rc"
+
+# 15g: --help and an unrecognised argument keep the pre-gate behavior.
+rc=0
+bash "$SCRIPT" --help >/dev/null 2>&1 || rc=$?
+assert_exit "--help is unaffected by the gate flags" 0 "$rc"
+assert_exit "an unrecognised flag still falls through to the advisory report" 0 \
+  "$(gate_rc "$D15_ERR" --not-a-flag)"
 
 # --- Case 9: missing jq exits 2 ---------------------------------------------
 real_bash=$(command -v bash)

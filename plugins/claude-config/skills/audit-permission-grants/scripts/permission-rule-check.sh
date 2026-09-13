@@ -35,11 +35,23 @@
 #       The grant never matches where flagged.
 #   P2b `~username/…` in a Bash rule — the portable `~/` home anchor is exempt
 #       (Read/Edit resolve it per user); `~user` is not portable, names a
-#       specific account, and is not expanded in Bash rules.
+#       specific account, and is not expanded in Bash rules. Emitted under the
+#       id `P2b`, not `P2`: criteria.md gives it its own `### P2b` section with
+#       its own detection rule and SKILL.md's severity table names the error
+#       tier `(P2, P2b)`, so a report that labelled it `P2` left the reader
+#       unable to tell which of the two documented checks fired, and a grep for
+#       `P2b` returned nothing (#4149 defect 3).
 #
-# Advisory about FINDINGS: they never fail the run, so a scan that completes exits 0
-# whether or not it found anything. Environment gaps are the exception and exit 2 —
-# missing jq, and an unresolvable scan root (below).
+# CHECK ID -> SEVERITY, the whole mapping in one place (it is what the gate modes
+# below partition on): error = P2, P2b, P4; warning = P1, P3.
+#
+# Advisory about FINDINGS by DEFAULT: they never fail the run, so a scan that
+# completes exits 0 in report and `--count` mode whether or not it found anything.
+# `--check` and `--strict` are the opt-in gate modes — see Usage. Environment gaps
+# exit 2 in EVERY mode: missing jq, a missing shared pattern library, and an
+# unresolvable (or non-directory) scan root — see below. An unresolvable USER
+# scope is a narrower gap: it is announced on stderr and recorded in the coverage
+# block, and it does not by itself change the exit code in any mode.
 #
 # Every run reports a DENOMINATOR — the coverage block. Without it "no fragile
 # permission grants found" is the same string whether forty allowed-tools blocks
@@ -71,6 +83,8 @@
 # Usage:
 #   permission-rule-check.sh            # human-readable findings, one per line
 #   permission-rule-check.sh --count    # integer finding count only
+#   permission-rule-check.sh --check    # gate: error-tier findings exit 1
+#   permission-rule-check.sh --strict   # gate: any finding exits 1
 #   permission-rule-check.sh --help
 
 set -uo pipefail
@@ -79,17 +93,22 @@ usage() {
   cat <<'EOF'
 permission-rule-check.sh — flag fragile Claude Code permission grants.
 
-Usage: permission-rule-check.sh [--count|--help]
+Usage: permission-rule-check.sh [--count|--check|--strict|--help]
 
   (no arg)   print one finding line per fragile grant, then the coverage block; exit 0
   --count    print the integer finding count on stdout, coverage block on stderr; exit 0
+  --check    gate mode: print findings and the coverage block exactly as the
+             default does, then exit 1 if any ERROR-tier finding (P2, P2b, P4)
+             was emitted, else 0
+  --strict   gate mode: as --check, and WARNING-tier findings (P1, P3) also exit 1
   --help     this message
 
 Scans skill/command/agent frontmatter `allowed-tools` and the `permissions.allow`
 arrays of .claude/settings.json, .claude/settings.local.json, and the user-global
 settings file (${CLAUDE_CONFIG_DIR:-~/.claude}/settings.json) for P1 (auto-mode
--dropped interpreter/blanket rules), P2 (hardcoded machine paths), and plugin
-settings.json for P3 (unsupported self-granted `permissions`).
+-dropped interpreter/blanket rules), P2 (hardcoded machine paths), P2b (tilde-user
+paths) and P4 (inert substitution tokens), and plugin settings.json for P3
+(unsupported self-granted `permissions`).
 
 Every run ends with a COVERAGE BLOCK giving the denominator: how many
 allowed-tools blocks and allow rules were actually read, per settings scope; how
@@ -99,9 +118,14 @@ settings scopes this detector never opens. "No fragile permission grants found."
 means the denominator was non-zero and clean. A run that read nothing says so in a
 different string and never claims a clean bill.
 
-Findings are advisory and never fail the run, so a completed scan exits 0 in both
-modes. Environment gaps exit 2 instead of reporting a clean bill: missing jq, and a
-scan root that resolves to neither a git toplevel nor $CLAUDE_PROJECT_DIR. Set
+Findings are advisory in the default and --count modes, which always exit 0 however
+many findings they print. --check and --strict are the opt-in gate: they print the
+same findings and the same coverage block, and only the exit code differs. In BOTH
+gate modes a NOTHING TO AUDIT result exits 2, never 0 — a scan that examined nothing
+on any axis has no denominator, so it may not pass a gate.
+
+Environment gaps exit 2 in every mode instead of reporting a clean bill: missing jq,
+and a scan root that resolves to neither a git toplevel nor $CLAUDE_PROJECT_DIR. Set
 $PERMISSION_HYGIENE_SCAN_ROOT to scan an explicit directory — a supported operator
 lever, not a test-only seam. $PERMISSION_HYGIENE_FIXTURE_DIR remains as a
 back-compatible alias; the new name wins when both are set.
@@ -130,8 +154,17 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 2
 fi
 
+# Mode selection keeps the existing single-flag style: one recognised flag, and an
+# unrecognised argument falls through to the default report exactly as before.
+# `report` and `count` always exit 0; `check` and `strict` are the gate modes and
+# differ from `report` ONLY in the exit code — same findings, same coverage block.
 mode="report"
-[[ "${1:-}" == "--count" ]] && mode="count"
+case "${1:-}" in
+--count) mode="count" ;;
+--check) mode="check" ;;
+--strict) mode="strict" ;;
+*) ;;
+esac
 
 ROOT_SOURCE=""
 if [[ -n "${PERMISSION_HYGIENE_SCAN_ROOT:-}" ]]; then
@@ -244,6 +277,12 @@ P4_PLUGIN_ONLY_TOKEN_ERE='\$\{CLAUDE_PLUGIN_ROOT\}|\$\{CLAUDE_PLUGIN_DATA\}'
 P4_BASH_PLUGIN_ONLY_ERE="Bash\\([^)]*(${P4_PLUGIN_ONLY_TOKEN_ERE})[^)]*\\)"
 
 findings=()
+# Severity tallies, kept by `emit` so the gate modes partition on the SAME
+# severity every finding line prints rather than re-deriving a check-id -> tier
+# map at exit time. A second mapping is a second thing to drift: adding a check
+# and forgetting to list its id in the gate would silently make it ungated.
+error_findings=0
+warning_findings=0
 
 # --- Denominator ---------------------------------------------------------------
 # What the coverage block reports. Successes and non-successes are counted
@@ -274,6 +313,16 @@ trap 'rm -f "$WALK_ERR"' EXIT
 
 emit() {
   # emit <severity> <check> <source> <detail>
+  case "$1" in
+  error) error_findings=$((error_findings + 1)) ;;
+  warning) warning_findings=$((warning_findings + 1)) ;;
+  *)
+    # A severity outside the two documented tiers cannot be gated on, so it is a
+    # defect in this script rather than a property of the scanned tree — say so
+    # instead of letting it slip past the gate as neither error nor warning.
+    printf 'DENOMINATOR BUG: emit() called with unknown severity %s for check %s — this is a defect in permission-rule-check.sh; the finding is reported but cannot be gated.\n' "$1" "$2" >&2
+    ;;
+  esac
   findings+=("$1 [$2] $3: $4")
 }
 
@@ -286,6 +335,28 @@ inert_grant_remedy() {
     ;;
   *)
     printf '%s' "relocate the helper to a stable bare command on PATH and allow that name narrowly — do not prescribe plugin bin/ (see permission-rule-hygiene convention known gap)"
+    ;;
+  esac
+}
+
+portable_path_remedy() {
+  # portable_path_remedy <source-file-path> — the portable-form menu P2 and P2b
+  # offer, branched per scope for the SAME reason inert_grant_remedy branches.
+  # ${CLAUDE_SKILL_DIR} is substituted in a SKILL.md's markdown body and in its
+  # allowed-tools Bash rules (skills page, "Available string substitutions") and
+  # NOWHERE else — not in an agent, not in a command, and not in a settings
+  # permissions.allow array. Offering it unconditionally would tell the author of
+  # a settings rule to swap one inert grant for another, which is exactly the
+  # remedy bug #4134 fixed for P4 and #4149 asks every emitted remedy to be
+  # pinned against. A plugin skill IS a SKILL.md, and the skill-dir token
+  # substitutes there too, so both skill shapes take the first branch.
+  local file="$1"
+  case "$file" in
+  */skills/*/SKILL.md)
+    printf '%s' "Portable forms: \${CLAUDE_SKILL_DIR} for this skill's own bundled script (substituted in allowed-tools Bash rules), a bare-name command on PATH, or the ~/ home anchor for Read/Edit rules."
+    ;;
+  *)
+    printf '%s' "Portable forms: a bare-name command on PATH, or the ~/ home anchor for Read/Edit rules."
     ;;
   esac
 }
@@ -320,7 +391,8 @@ rule_matches() {
 scan_rule() {
   # scan_rule <rule-string> <source-label> [<source-file>] — one allow rule or
   # one frontmatter token region. source-file enables the P4 remedy branch.
-  local text="$1" src="$2" file="${3:-}" m remedy
+  local text="$1" src="$2" file="${3:-}" m remedy path_remedy
+  path_remedy="$(portable_path_remedy "$file")"
   while IFS= read -r m; do
     [[ -n "$m" ]] && emit warning P1 "$src" "'$m' is an interpreter/runner-led grant, not the portable bare-name pattern; Claude Code drops the broad forms of this shape (blanket, package-manager runners, and wildcarded/globbed-target interpreters) on entering auto mode. Expose the guarded script as a bare PATH command and allow that, e.g. Bash(babysit_merge.sh:*)."
   done < <(rule_matches "$text" "$P1_ERE")
@@ -332,11 +404,14 @@ scan_rule() {
     # So `//Users/<name>/…` names a concrete user home and leaks the username,
     # exactly like `/Users/<name>/…`. `~/…` and `${CLAUDE_PROJECT_DIR}/…` are the
     # genuinely portable forms and are already excluded by `_seg` above.
-    emit error P2 "$src" "hardcoded machine path in '$m' — the rule names a concrete user home, so it breaks on other machines and usernames and leaks a username into source control. Portable forms: \${CLAUDE_SKILL_DIR} for a skill's own bundled script (substituted in allowed-tools Bash rules), a bare-name command on PATH, or the ~/ home anchor for Read/Edit rules."
+    emit error P2 "$src" "hardcoded machine path in '$m' — the rule names a concrete user home, so it breaks on other machines and usernames and leaks a username into source control. $path_remedy"
   done < <(rule_matches "$text" "$P2_RULE_ERE")
   while IFS= read -r m; do
     [[ -z "$m" ]] && continue
-    emit error P2 "$src" "tilde-user path in '$m' — Bash rules match literally and do not expand ~username forms, so the rule names a specific account, leaks a username into version control, and breaks on other machines. Use \${CLAUDE_SKILL_DIR} for a skill's own script, a bare-name command on PATH, or the ~/ home anchor for Read/Edit rules."
+    # P2b, not P2 — see the header. criteria.md documents this as its own check
+    # with its own detection rule, and emitting it under P2 made the id
+    # unreportable (#4149 defect 3).
+    emit error P2b "$src" "tilde-user path in '$m' — Bash rules match literally and do not expand ~username forms, so the rule names a specific account, leaks a username into version control, and breaks on other machines. $path_remedy"
   done < <(rule_matches "$text" "$P2_TILDE_USER_RULE_ERE")
   while IFS= read -r m; do
     [[ -z "$m" ]] && continue
@@ -691,4 +766,33 @@ else
   printf '%s\n' "${findings[@]}"
 fi
 coverage_block
+
+# --- Gate exit -----------------------------------------------------------------
+# Report and --count already returned above / fall through to exit 0: their
+# contract is that findings are advisory and a completed scan always exits 0.
+# The gate modes print IDENTICAL output — findings and coverage block, nothing
+# silenced — and differ only here.
+#
+#   NOTHING TO AUDIT (audited == 0) -> 2, never 0. A scan that examined nothing on
+#     any of the three axes has no denominator, so "no findings" is not a
+#     statement about the grants and must not pass a gate. This is the same
+#     judgment the fail-closed half of the house pattern already makes for a
+#     missing jq or an unresolvable root; it is the finding-side limb of it.
+#   any error-tier finding (P2, P2b, P4)          -> 1 in both gate modes
+#   any warning-tier finding (P1, P3)             -> 1 in --strict only
+#   otherwise                                     -> 0
+case "$mode" in
+check | strict)
+  if [[ "$audited" -eq 0 ]]; then
+    exit 2
+  fi
+  if [[ "$error_findings" -gt 0 ]]; then
+    exit 1
+  fi
+  if [[ "$mode" == "strict" && "$warning_findings" -gt 0 ]]; then
+    exit 1
+  fi
+  ;;
+*) ;;
+esac
 exit 0
