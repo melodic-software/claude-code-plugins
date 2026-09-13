@@ -13,8 +13,8 @@ frontmatter. Every deterministic field of a shape-2 file is written by the engin
 slots from one JSON object, `validate` gates it, `emit` prints its resume prompt); the model
 supplies only the reasoning slots the skeleton leaves as
 `<!-- FILL: <name> — <instruction> -->`, as the values in that object. The write procedure below
-is the one path that produces a shape-2 file. Files written before shape 2 (no `handoff_shape` key) are shape 1: read normally,
-tolerated by the validator with one WARN, and never rewritten.
+is the one path that produces a shape-2 file. Files written before shape 2 (no `handoff_shape`
+key) are shape 1: read normally, tolerated by the validator with one WARN, and never rewritten.
 
 ## Contents
 
@@ -570,10 +570,13 @@ every other refusal names its fix.
 file does not carry. It exits 1 when it refuses: a required slot absent from the JSON, a key
 naming no slot in the file, a slot name occurring twice in the file, a value that itself carries a
 `FILL` slot marker, no slot in the file at all, or a closing `next` value whose line above is not
-exactly `Next:`. It exits 2 on usage, on a missing or unreadable target, and on a slots file that is
-missing, unreadable, not valid JSON, not a JSON object, or holds a non-string value. Every refusal
-names the offending slot or key and leaves the target byte-identical, so a corrected JSON re-runs
-cleanly; nothing is half-applied.
+exactly `Next:`. It exits 2 on usage, on a target that is missing, unreadable, or not a handoff
+file (no `type: handoff` frontmatter, the same guard `validate` and `emit` apply), and on a slots
+file that is missing, unreadable, not valid JSON, not a JSON object, or holds a value that is not a
+string or not encodable as UTF-8. Every refusal names the offending slot or key and leaves the
+target byte-identical, so a corrected JSON re-runs cleanly; nothing is half-applied. The write
+itself goes to a temporary file in the target's own directory and is then replaced into place, so
+an interrupted write cannot leave a truncated handoff.
 
 **Python-absent fallback.** When the ladder finds no Python 3.10+, say so in one line
 (`validator unavailable: no python3/python on PATH`), write the shape-2 file by hand from this
