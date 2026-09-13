@@ -78,7 +78,7 @@ The workspace `assets/` directory (SKILL.md "Workspace layout") holds the shared
 - `lesson.css`: the shared stylesheet, created with the workspace's first HTML lesson.
 - `quiz.js`: the quiz component (contract below), created with the first lesson carrying a quiz block.
 
-**Splice is a MUST:** the coach authors only the lesson body; a bash splice step injects the asset files into the self-contained page. Assets never re-pass through model output after first authoring. Re-emitting them per lesson burns tokens and drifts copies. To change shared look or behavior, edit the asset file once; already-written lessons pick it up only if regenerated (lessons are regenerable, rarely revisited).
+**Splice is a MUST:** the coach authors only the lesson body; a bash splice step injects the asset files into the self-contained page. Assets never re-pass through model output after first authoring. The one exception is a host where the shipped splice script cannot run: then inline both assets into that lesson's Write call once, say so in the lesson log, and keep `assets/` as the source of truth. Re-emitting them per lesson burns tokens and drifts copies. To change shared look or behavior, edit the asset file once; already-written lessons pick it up only if regenerated (lessons are regenerable, rarely revisited).
 
 Author the lesson with marker lines inside otherwise-empty tags:
 
@@ -91,17 +91,15 @@ Author the lesson with marker lines inside otherwise-empty tags:
 </script>
 ```
 
-Then assemble in place:
+Each marker line is replaced whole, so it must hold the marker alone, whitespace aside: indentation is fine, and a marker sharing its line with its tags, with prose, or with the other marker is refused rather than half-applied.
+
+Then assemble in place with the shipped script:
 
 ```bash
-awk -v A="<workspace>/assets" '
-  /\/\* SPLICE:STYLE \*\// { while ((getline l < (A "/lesson.css")) > 0) print l; close(A "/lesson.css"); next }
-  /\/\* SPLICE:QUIZ \*\//  { while ((getline l < (A "/quiz.js"))   > 0) print l; close(A "/quiz.js");   next }
-  { print }
-' lesson.html > lesson.html.tmp && mv lesson.html.tmp lesson.html
+bash "${CLAUDE_PLUGIN_ROOT}/skills/teach/scripts/splice-assets.sh" "<workspace>/concepts/<concept>/lesson.html" "<workspace>/assets"
 ```
 
-Omit a marker (with its tag pair) when the lesson doesn't need that asset; the splice replaces only the markers present. The `<workspace>` path substituted into `-v A=` is a ladder-resolved root already validated per SKILL.md "The ladder" (resolved roots are inert data). Never substitute an unvalidated repo-declared string here.
+`<workspace>` there is `<workspace-root>/<project-slug>/<mode>/<topic>/`, the workspace directory SKILL.md "Workspace layout" defines. Omit a marker (with its tag pair) when the lesson does not need that asset: the script replaces only the markers present, and an absent marker makes no demand on its asset file. It refuses without touching the lesson when a marker occurs more than once, when a marker shares its line with anything other than whitespace, when a present marker's asset file is missing, unreadable, or empty, or when reading an asset fails during the build, and names what it refused on. Both arguments are ladder-resolved paths already validated per SKILL.md "The ladder" (resolved roots are inert data), and they reach the script as literal argv, never substituted into a hand-composed shell string. Never pass an unvalidated repo-declared string here. The splice logic lives in the script file and is never retyped into the command.
 
 ## Quiz component contract
 
