@@ -884,6 +884,29 @@ assert_scope_remedies() {
   fi
 }
 
+assert_plugin_scoped_remedy() {
+  # assert_plugin_scoped_remedy <scope-label> <output> <source-substring> <skill-dir-ok>
+  #
+  # The fifth emit site: a plugin-scoped token OUTSIDE a plugin skill. It is kept
+  # out of assert_scope_remedies because it is the one site a plugin skill
+  # suppresses, so every OTHER scope asserts it here — with a per-line POSITIVE
+  # anchoring the negative. A whole-output `not_contains` alone would keep
+  # passing if the site quietly stopped firing in this scope, which is a negative
+  # that cannot fail: the exact shape #4149 is about.
+  local scope="$1" out="$2" src="$3" skilldir="$4" line
+  line="$(finding_for "$out" "$src" "plugin-scoped substitution token")"
+  assert_contains "$scope: P4 plugin-scoped finding fires" "$line" "[P4]"
+  if [[ "$skilldir" == "yes" ]]; then
+    assert_contains "$scope: plugin-scoped remedy offers CLAUDE_SKILL_DIR" "$line" \
+      "replace with \${CLAUDE_SKILL_DIR} for a script bundled in this skill"
+  else
+    assert_contains "$scope: plugin-scoped remedy is the bare-PATH relocation" "$line" \
+      "relocate the helper to a stable bare command on PATH"
+    assert_not_contains "$scope: plugin-scoped remedy does NOT offer CLAUDE_SKILL_DIR" "$line" \
+      "CLAUDE_SKILL_DIR"
+  fi
+}
+
 # 14a: a PLUGIN skill — the one scope where ${CLAUDE_PLUGIN_ROOT} substitutes, so
 # that finding must NOT fire, while every other site does and the skill-dir
 # remedy is the correct one.
@@ -903,10 +926,7 @@ mkdir -p "$D14_PROJ/.claude/skills/proj"
 remedy_frontmatter "$D14_PROJ/.claude/skills/proj/SKILL.md" proj
 OUT_14S=$(run "$D14_PROJ")
 assert_scope_remedies "project skill" "$OUT_14S" ".claude/skills/proj/SKILL.md" yes
-line_14s="$(finding_for "$OUT_14S" ".claude/skills/proj/SKILL.md" "plugin-scoped substitution token")"
-assert_contains "project skill: P4 plugin-scoped finding fires" "$line_14s" "[P4]"
-assert_contains "project skill: plugin-scoped remedy offers CLAUDE_SKILL_DIR" "$line_14s" \
-  "replace with \${CLAUDE_SKILL_DIR} for a script bundled in this skill"
+assert_plugin_scoped_remedy "project skill" "$OUT_14S" ".claude/skills/proj/SKILL.md" yes
 
 # 14c: an AGENT — not a SKILL.md, so ${CLAUDE_SKILL_DIR} is inert and must not be
 # offered by ANY remedy this scope prints. This scope had no remedy assertion at
@@ -916,12 +936,7 @@ mkdir -p "$D14_AGENT/.claude/agents"
 remedy_frontmatter "$D14_AGENT/.claude/agents/runner.md" runner
 OUT_14A=$(run "$D14_AGENT")
 assert_scope_remedies "agent" "$OUT_14A" ".claude/agents/runner.md" no
-line_14a="$(finding_for "$OUT_14A" ".claude/agents/runner.md" "plugin-scoped substitution token")"
-assert_contains "agent: P4 plugin-scoped finding fires" "$line_14a" "[P4]"
-assert_contains "agent: plugin-scoped remedy is the bare-PATH relocation" "$line_14a" \
-  "relocate the helper to a stable bare command on PATH"
-assert_not_contains "agent: plugin-scoped remedy does NOT offer CLAUDE_SKILL_DIR" "$line_14a" \
-  "CLAUDE_SKILL_DIR"
+assert_plugin_scoped_remedy "agent" "$OUT_14A" ".claude/agents/runner.md" no
 
 # 14d: a COMMAND — same reasoning as the agent scope, and likewise unasserted
 # before #4149.
@@ -930,12 +945,7 @@ mkdir -p "$D14_CMD/.claude/commands"
 remedy_frontmatter "$D14_CMD/.claude/commands/do.md" "run"
 OUT_14C=$(run "$D14_CMD")
 assert_scope_remedies "command" "$OUT_14C" ".claude/commands/do.md" no
-line_14c="$(finding_for "$OUT_14C" ".claude/commands/do.md" "plugin-scoped substitution token")"
-assert_contains "command: P4 plugin-scoped finding fires" "$line_14c" "[P4]"
-assert_contains "command: plugin-scoped remedy is the bare-PATH relocation" "$line_14c" \
-  "relocate the helper to a stable bare command on PATH"
-assert_not_contains "command: plugin-scoped remedy does NOT offer CLAUDE_SKILL_DIR" "$line_14c" \
-  "CLAUDE_SKILL_DIR"
+assert_plugin_scoped_remedy "command" "$OUT_14C" ".claude/commands/do.md" no
 
 # 14e: a SETTINGS file — no ${CLAUDE_*} substitution is documented for a
 # permissions.allow array at all, so every remedy here must be scope-free.
@@ -947,12 +957,7 @@ jq -n --arg mp "Bash(${REMEDY_MP}:*)" '{permissions:{allow:[
 ]}}' >"$D14_SET/.claude/settings.json"
 OUT_14SET=$(run "$D14_SET")
 assert_scope_remedies "settings" "$OUT_14SET" ".claude/settings.json permissions.allow" no
-line_14set="$(finding_for "$OUT_14SET" ".claude/settings.json permissions.allow" "plugin-scoped substitution token")"
-assert_contains "settings: P4 plugin-scoped finding fires" "$line_14set" "[P4]"
-assert_contains "settings: plugin-scoped remedy is the bare-PATH relocation" "$line_14set" \
-  "relocate the helper to a stable bare command on PATH"
-assert_not_contains "settings: plugin-scoped remedy does NOT offer CLAUDE_SKILL_DIR" "$line_14set" \
-  "CLAUDE_SKILL_DIR"
+assert_plugin_scoped_remedy "settings" "$OUT_14SET" ".claude/settings.json permissions.allow" no
 assert_not_contains "settings: no remedy in this scope mentions CLAUDE_SKILL_DIR" "$OUT_14SET" \
   "CLAUDE_SKILL_DIR"
 
@@ -969,7 +974,9 @@ remedy_frontmatter "$D14_PAC/plugins/demo/agents/x.md" "x"
 remedy_frontmatter "$D14_PAC/plugins/demo/commands/y.md" "y"
 OUT_14PAC=$(run "$D14_PAC")
 assert_scope_remedies "plugin agent" "$OUT_14PAC" "plugins/demo/agents/x.md" no
+assert_plugin_scoped_remedy "plugin agent" "$OUT_14PAC" "plugins/demo/agents/x.md" no
 assert_scope_remedies "plugin command" "$OUT_14PAC" "plugins/demo/commands/y.md" no
+assert_plugin_scoped_remedy "plugin command" "$OUT_14PAC" "plugins/demo/commands/y.md" no
 assert_not_contains "plugin agents/commands: no remedy in this tree mentions CLAUDE_SKILL_DIR" \
   "$OUT_14PAC" "CLAUDE_SKILL_DIR"
 
@@ -978,6 +985,7 @@ mkdir -p "$D14_LOCAL/.claude"
 cp "$D14_SET/.claude/settings.json" "$D14_LOCAL/.claude/settings.local.json"
 OUT_14LOCAL=$(run "$D14_LOCAL")
 assert_scope_remedies "settings.local" "$OUT_14LOCAL" ".claude/settings.local.json permissions.allow" no
+assert_plugin_scoped_remedy "settings.local" "$OUT_14LOCAL" ".claude/settings.local.json permissions.allow" no
 assert_not_contains "settings.local: no remedy in this scope mentions CLAUDE_SKILL_DIR" \
   "$OUT_14LOCAL" "CLAUDE_SKILL_DIR"
 
@@ -988,6 +996,8 @@ mkdir -p "$D14_UG_HOME/.claude"
 cp "$D14_SET/.claude/settings.json" "$D14_UG_HOME/.claude/settings.json"
 OUT_14UG=$(run_with_home "$D14_UG" "$D14_UG_HOME")
 assert_scope_remedies "user-global" "$OUT_14UG" \
+  "$D14_UG_HOME/.claude/settings.json permissions.allow" no
+assert_plugin_scoped_remedy "user-global" "$OUT_14UG" \
   "$D14_UG_HOME/.claude/settings.json permissions.allow" no
 assert_not_contains "user-global: no remedy in this scope mentions CLAUDE_SKILL_DIR" \
   "$OUT_14UG" "CLAUDE_SKILL_DIR"
