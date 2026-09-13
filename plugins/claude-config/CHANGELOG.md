@@ -3,6 +3,26 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.44.1]
+
+### Fixed
+
+- **`audit-automation-gaps`**: the `Too slow` gate required the hook to block, which `PostToolUse`
+  never does, so a `PostToolUse` candidate cleared it at any latency. The gate now judges each
+  event against its actual cost: a blocked call where the event can block, turn latency on
+  `PostToolUse`.
+- **`audit-automation-gaps`**: the fixed 15-30 second threshold had no upstream basis and was
+  removed from `SKILL.md`, `context/gap-analysis.md` and the first eval's expected output. Timing
+  now resolves the consuming repository's own documented hook budget first and labels any supplied
+  fallback a house rule.
+
+### Added
+
+- **`audit-automation-gaps`**: `context/hook-timing.md`, carrying the budget-resolution ladder, the
+  per-event cost table, the documented levers (matcher, `if`, `async`, `timeout`), and dated
+  upstream-fact records for the 600-second command-hook `timeout` default and the `PostToolUse`
+  no-block behavior.
+
 ## [0.44.0]
 
 ### Fixed
