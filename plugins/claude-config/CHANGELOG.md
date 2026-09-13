@@ -30,7 +30,7 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 - **`audit-permission-grants`**: every emit site carries assertions pinning the remedy it offers for
   each scope it fires in, negative ones included, so advice that would be inert where it is printed
-  fails a test rather than reaching an operator. The suite grows from 148 checks to 373.
+  fails a test rather than reaching an operator. The suite grows from 148 checks to 402.
 
 ## [0.44.1]
 
