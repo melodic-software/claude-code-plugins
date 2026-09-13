@@ -14,6 +14,7 @@ version-less measurement cannot be re-verified or aged out.
 
 - [The surface table](#the-surface-table)
 - [First-party measurements](#first-party-measurements)
+- [Subagent visibility, re-measured on 2.1.268](#subagent-visibility-re-measured-on-21268)
 - [The three gaps that constrain the rubric](#the-three-gaps-that-constrain-the-rubric)
 - [Glob semantics and their budgets](#glob-semantics-and-their-budgets)
 - [Re-verification](#re-verification)
@@ -27,20 +28,26 @@ whether a move is safe.
 |---|---|---|---|
 | Root `CLAUDE.md` (cwd + ancestors) | Session start, in full *(doc)* | Re-read from disk and re-injected *(doc)* | **Yes** *(measured)* |
 | `@import` from root `CLAUDE.md` | Session start, inlined *(doc)* | With its parent *(inferred)* | **Yes** *(measured)* |
-| Unscoped `.claude/rules/*.md` | Session start, "same priority as `.claude/CLAUDE.md`" *(doc)* | Re-injected *(doc)* | **No** *(measured)* |
-| Path-scoped rule (`paths:`) | On **read** of a matching file *(doc, measured)* | Re-injected when a match recurs *(doc)* | **No** *(measured)* |
-| Nested `CLAUDE.md` | On read of a file in that subtree *(doc, measured)* | Reloads when the subtree is touched again *(doc)* | **No** *(measured)* |
-| `@import` from a **nested** `CLAUDE.md` | With its parent, deferred *(measured)* | With its parent *(inferred)* | **No** *(measured)* |
-| Bare nested `AGENTS.md` (no shim) | **Never** *(doc, measured)* | n/a | No *(measured)* |
+| Unscoped `.claude/rules/*.md` | Session start, "same priority as `.claude/CLAUDE.md`" *(doc)* | Re-injected *(doc)* | Unmeasured at 2.1.268; was **No** *(measured 2.1.238)* |
+| Path-scoped rule (`paths:`) | On **read** of a matching file *(doc, measured)* | Re-injected when a match recurs *(doc)* | **Yes, on a matching read inside the subagent itself** *(measured 2.1.268)* |
+| Nested `CLAUDE.md` | On read of a file in that subtree *(doc, measured)* | Reloads when the subtree is touched again *(doc)* | **Yes, on a matching read inside the subagent itself** *(measured 2.1.268)* |
+| `@import` from a **nested** `CLAUDE.md` | With its parent, deferred *(measured)* | With its parent *(inferred)* | **Yes, with its parent, inside the subagent itself** *(measured 2.1.268)* |
+| Bare nested `AGENTS.md` (no shim) | **Never** *(doc, measured)* | n/a | No, it loads nowhere *(measured 2.1.238)* |
 | Skill body | On invocation *(doc)* | Listing re-injected; body on re-invoke *(doc)* | Discovered via the Skill tool *(doc)* |
 
-Two rows carry the whole design:
+Three facts from that table carry the whole design:
 
 - **An unscoped rule costs exactly what `CLAUDE.md` costs.** Moving a section from `CLAUDE.md` into
   `.claude/rules/` without `paths:` frontmatter saves nothing at all. The glob is the product; the
   file move is bookkeeping.
-- **Everything that defers is invisible to subagents.** That is not a path-scoping quirk. It is
-  every on-demand surface, which is why the always-loaded index exists.
+- **A deferred surface does reach a subagent, but nothing is inherited.** The subagent starts
+  without the parent's on-demand loads, and acquires a surface only by itself reading a path the
+  surface covers. Delegation therefore does not put a demoted rule out of reach, but it does reset
+  the trigger.
+- **No deferred surface announces that it exists.** An agent working on something a rule covers,
+  in any context, learns nothing about that rule until a read happens to match it. That is the
+  residual the always-loaded index exists to close: the index supplies the knowledge, and an
+  ordinary `Read` supplies the content.
 
 ## First-party measurements
 
@@ -74,9 +81,14 @@ Four findings follow, each of which a rubric rule depends on:
    requirement of the portable destination, not a stylistic nicety. This is what the docs mean by
    "Claude Code reads `CLAUDE.md`, not `AGENTS.md`" *(doc)*, confirmed to hold at every level of the
    tree, not only the root.
-4. **A subagent saw only the root pair.** Dispatched *after* the parent had already loaded all five
-   surfaces, a general-purpose subagent reported exactly `ROOT_CLAUDE_CANARY, ROOT_AGENTS_CANARY`.
-   It inherited none of the parent's on-demand loads and re-triggered none of them.
+4. **A subagent inherits none of the parent's on-demand loads.** Dispatched *after* the parent had
+   already loaded all five surfaces, a general-purpose subagent reported exactly
+   `ROOT_CLAUDE_CANARY, ROOT_AGENTS_CANARY`. It inherited none of the parent's deferred loads.
+   *This finding was originally written as "deferred surfaces do not load inside subagents at
+   all", and that generalization is wrong: the run never had the subagent read a covered path, so
+   it measured non-inheritance and not non-triggering.* See
+   [Subagent visibility, re-measured on 2.1.268](#subagent-visibility-re-measured-on-21268), which
+   supersedes the wider reading.
 
 ## Two claims this plugin makes, now measured
 
@@ -91,18 +103,70 @@ Both were asserted in 0.1.0 on documentation and inference. Both were re-run fir
   which is what lets the generated index use HTML comment markers at zero context cost. A canary
   inside a comment was absent while the surrounding body was present.
 
+## Subagent visibility, re-measured on 2.1.268
+
+The 2.1.238 run measured what a subagent **inherits**, and this plugin read that as what a subagent
+can **receive**. Those are different questions, and on **2.1.268** the second one answers the other
+way: a deferred surface loads inside a subagent, on that subagent's own read.
+
+**The repro.** A general-purpose subagent dispatched into this repository, which carries a
+path-scoped rule globbing `**/*.py` (`.claude/rules/ruff-pin.md`) and a nested
+`plugins/autonomy/CLAUDE.md` shim importing `plugins/autonomy/AGENTS.md`. No canary scaffolding is
+needed: the surfaces arrive as a labelled `Contents of <repo-root>/<path>:` block appended to the
+triggering tool result, so their presence is read straight off the transcript.
+
+1. **Absent before the read.** At dispatch the subagent held the root `CLAUDE.md`/`AGENTS.md` pair
+   only. Neither rule body was present, which reproduces finding 4's non-inheritance unchanged.
+2. **Present after a matching read.** A `Read` of a `.py` path under `docs/specs/` returned with
+   `Contents of <repo-root>/.claude/rules/ruff-pin.md:` and the rule's full body appended to the
+   result. A `Read` of `plugins/autonomy/CLAUDE.md` likewise returned with
+   `plugins/autonomy/AGENTS.md` appended, so the nested-shim `@import` hop defers and fires inside
+   the subagent too.
+3. **The match is on the requested path, not on a successful read.** The `.py` path used in step 2
+   **did not exist**; the `Read` failed with `File does not exist` and the rule body was injected
+   onto that failed result anyway. The glob is evaluated against the path the tool was *asked for*.
+
+Two boundaries this measurement does **not** cross, stated so nothing generalizes past them:
+
+- It covers the `Read` tool. It says nothing about whether a `Write` to a covered path that has
+  never been read fires the same match, so the write-trigger gap below is unchanged.
+- It covers deferred surfaces. Whether an **unscoped** rule reaches a subagent was measured only on
+  2.1.238, and this repository has no unscoped rule to re-measure it with, so that table row is
+  marked unmeasured rather than carried forward.
+
+### Verification record
+
+- **Claim.** On Claude Code 2.1.268, a path-scoped `.claude/rules/` file and a nested
+  `CLAUDE.md`/`AGENTS.md` pair are injected inside a general-purpose subagent when that subagent
+  reads a path the surface covers, and the glob matches the requested path whether or not the file
+  exists. A subagent still inherits none of its parent's deferred loads.
+- **Basis.** First-party probe run inside a subagent dispatched into this repository on the harness
+  reported by `claude --version` as `2.1.268 (Claude Code)`, observing the `Contents of <path>:`
+  blocks appended to `Read` results for one nonexistent `**/*.py` path and one existing
+  `plugins/autonomy/CLAUDE.md`, against the rules and shims tracked at commit `49912c63`.
+- **As of.** 2026-09-13.
+- **Recheck trigger.** The consuming repository's Claude Code minor version moves past 2.1.268; or
+  a Claude Code release note touches subagent context inheritance, memory loading, or path-scoped
+  rule triggering; or a real session observes a covered `Read` inside a subagent that injects
+  nothing. Any of these obliges re-running the three steps above and refreshing this record with
+  the outcome, drift or no drift.
+
 ## The three gaps that constrain the rubric
 
 Each gap is a place where a naive migration silently loses coverage. The rubric's hard rules exist
 to close them; none of them is a reason not to migrate.
 
-**The subagent gap.** Demoted content is invisible inside every non-fork subagent. In a repo whose
-work is routinely delegated to a reviewer agent or an implementer agent, demoting a convention can
-put it out of reach of the exact agent that edits the files it governs. *Closed by:* the always-loaded
-generated index, which reaches subagents (finding 4) and makes every rule reachable by an ordinary
-`Read`. The index guarantees **availability**, not attention: injection is automatic and a pointer is
-discretionary. It therefore mitigates rather than erases, which is why the hard-deny class below is
-not also delegated to it.
+**The subagent gap.** Demoted content is not inherited by a non-fork subagent: the subagent starts
+without every on-demand surface the parent had already loaded, and re-acquires one only by reading
+a path that surface covers, inside its own context. So the gap is narrower than "invisible to
+subagents" but it is real, and it has two live shapes. A worker briefed to edit files it has *not*
+been told to read first can act before the governing rule ever fires; and any agent, in a subagent
+or in the main session, that never touches a covered path is never told the rule exists at all.
+*Closed by:* the always-loaded generated index, which is inherited (it is part of the root pair,
+finding 4) and names every deferred surface, so an ordinary `Read` reaches its content from any
+context. The index guarantees **availability**, not attention: injection is automatic and a pointer
+is discretionary. It therefore mitigates rather than erases, which is why the hard-deny class below
+is not also delegated to it.
 
 **The write-trigger gap.** "Path-scoped rules trigger when Claude reads files matching the pattern,
 not on every tool use" *(doc)*. Editing an existing file implies reading it, so the common case

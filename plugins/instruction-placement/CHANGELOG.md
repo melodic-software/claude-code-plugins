@@ -3,6 +3,16 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.5]
+
+### Fixed
+
+- **The generated rules index no longer tells every session that on-demand loading skips subagents.** The always-loaded preamble `render-index.sh` renders stated that the read trigger "does **not** fire inside subagents". A first-party probe on Claude Code **2.1.268** shows it does: a general-purpose subagent that reads a path a surface covers receives that surface, for a path-scoped `.claude/rules/` file and for a nested `CLAUDE.md`/`AGENTS.md` shim pair alike, and the glob is matched against the **requested** path, so a read of a covered path that does not exist injects the rule onto the failed tool result. The preamble now states that, keeps the compaction half unchanged, and keeps the standing advice to read a covered surface directly when its content is not already in context. Consuming repositories pick the correction up by re-rendering their index.
+
+- **`context/verified-mechanics.md` records what the 2.1.238 run actually measured.** Finding 4 observed that a subagent inherits none of its parent's deferred loads and was read as "deferred surfaces do not load inside subagents at all"; the run never had the subagent read a covered path, so it measured non-inheritance and not non-triggering. The finding is corrected in place, the surface table's subagent column is re-stated per row, and a new `Subagent visibility, re-measured on 2.1.268` section carries the repro, the two boundaries the measurement does not cross (it covers `Read` and says nothing about `Write`; the unscoped-rule row stays unmeasured at 2.1.268 for want of an unscoped rule to probe), and the four-part verification record the upstream-drift convention requires.
+
+- **The subagent gap is re-stated rather than dropped.** Demotion still costs something real: a subagent starts without every surface the parent had loaded and re-acquires one only by reading a covered path, and no deferred surface announces that it exists to any context that has not touched one. The always-loaded index is still the mitigation, now for discoverability rather than for reachability. The manifest description and the generator's `WHY` comment carry the same correction.
+
 ## [0.13.4]
 
 ### Changed
