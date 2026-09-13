@@ -29,10 +29,12 @@ Exit codes:
                 value carrying the literal `<!-- FILL`, no slot in the file at
                 all, or a closing `next` value whose line above is not bare
                 `Next:`
-              2 usage, target missing or unreadable or not a handoff file,
-                slots file missing or unreadable or not a JSON object, a
-                non-string or non-UTF-8-encodable value (names the key), or a
-                failed write
+              2 usage, target missing or unreadable, not a handoff file, or not
+                shape 2 (only shape-2 skeletons are ever filled), slots file
+                missing or unreadable or not a JSON object, a non-string or
+                non-UTF-8-encodable value (names the key), or a failed write
+              3 `handoff_shape` newer than `fill` knows: read it, do not
+                rewrite it
     validate  0 pass (shape 1, no `handoff_shape` key: one WARN, checks skipped)
               1 validation failure
               2 usage / unreadable / not a handoff file
@@ -935,9 +937,9 @@ def cmd_fill(args: argparse.Namespace) -> int:
 
     The write path reuses neither `_read_lines` nor `parse_doc`: both apply
     universal-newline translation and would rewrite a CRLF target to LF.
-    `parse_doc` serves the `type: handoff` guard alone, read-only, mirroring
-    `cmd_validate` and `cmd_emit`. Every refusal happens before the write, so a
-    refused target is byte-identical.
+    `parse_doc` serves the `type: handoff` and shape guards alone, read-only,
+    mirroring `cmd_validate` and `cmd_emit`. Every refusal happens before the
+    write, so a refused target is byte-identical.
     """
     path = Path(args.file)
     if not path.is_file():
@@ -949,6 +951,19 @@ def cmd_fill(args: argparse.Namespace) -> int:
         return _die(2, f"cannot read {path}: {exc}")
     if not doc.has_frontmatter or doc.frontmatter.get("type") != "handoff":
         return _die(2, f"not a handoff file (no 'type: handoff' frontmatter): {path}")
+    # `validate_doc`'s shape ladder, in its order and for its reason: a newer
+    # shape is read, never rewritten, and `_UnparsableShape` is tested first so
+    # no later comparison meets a non-integer.
+    shape = doc.shape
+    unsupported = f"fill only writes shape-{HANDOFF_SHAPE} skeletons: {path}"
+    if isinstance(shape, _UnparsableShape):
+        return _die(2, f"handoff_shape {doc.frontmatter.get('handoff_shape')!r} is not an integer; {unsupported}")
+    if shape is None or shape == 1:
+        return _die(2, f"shape 1 handoff ({'no handoff_shape key' if shape is None else 'handoff_shape 1'}), never rewritten; {unsupported}")
+    if shape < 1:
+        return _die(2, f"handoff_shape {shape} is not a shape: shapes are integers from 1 up; {unsupported}")
+    if shape > HANDOFF_SHAPE:
+        return _die(3, f"handoff_shape {shape} is newer than fill knows ({HANDOFF_SHAPE}): read it, do not rewrite it: {path}")
 
     slots_path = Path(args.slots)
     try:

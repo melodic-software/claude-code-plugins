@@ -1259,6 +1259,35 @@ def test_fill_refuses_a_file_that_is_not_a_handoff(tmp_path):
     assert target.read_bytes() == before
 
 
+@pytest.mark.parametrize(
+    ("line", "expected", "needle"),
+    [
+        ("handoff_shape: 3\n", 3, "read it, do not rewrite it"),
+        ("handoff_shape: 1\n", 2, "handoff_shape 1"),
+        ("", 2, "no handoff_shape key"),
+        ("handoff_shape: 0\n", 2, "handoff_shape 0 is not a shape"),
+        ("handoff_shape: -1\n", 2, "handoff_shape -1 is not a shape"),
+        ("handoff_shape: two\n", 2, "handoff_shape 'two' is not an integer"),
+    ],
+)
+def test_fill_refuses_a_shape_that_is_not_two(tmp_path, line, expected, needle):
+    """A newer shape is read and never rewritten, as `validate` says; every
+    other shape that is not 2 is refused beside the `type: handoff` guard. Both
+    refusals land before the write, so the target stays byte-identical."""
+    target = new_skeleton(tmp_path)
+    text = target.read_text(encoding="utf-8")
+    payload = required_slots(text)
+    assert "handoff_shape: 2\n" in text
+    target.write_text(
+        text.replace("handoff_shape: 2\n", line, 1), encoding="utf-8", newline="\n"
+    )
+    before = target.read_bytes()
+    result = run("fill", str(target), "--slots", slots_file(tmp_path, payload))
+    assert result.returncode == expected, out(result) + err(result)
+    assert needle in err(result), err(result)
+    assert target.read_bytes() == before
+
+
 def test_fill_refuses_an_unreadable_slots_file(tmp_path):
     target = new_skeleton(tmp_path)
     before = target.read_bytes()

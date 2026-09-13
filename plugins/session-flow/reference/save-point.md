@@ -219,9 +219,12 @@ ladder the structure doc's write procedure shows (`"$PY" -X utf8 …`, Python 3.
   required slot absent from the object, a key naming no slot in this file, a slot name occurring
   twice in the file, a value that itself carries a `FILL` slot marker, a file with no slot left to
   fill, and a closing `next` value whose line above is not exactly `Next:`; 2 on a target that is
-  missing, unreadable, or not a handoff file (no `type: handoff` frontmatter, the same guard
-  `validate` and `emit` apply) and on a slots file that is missing, unreadable, not valid JSON, not
-  a JSON object, or holding a value that is not a string or not encodable as UTF-8. Every refusal
+  missing, unreadable, not a handoff file (no `type: handoff` frontmatter, the same guard
+  `validate` and `emit` apply), or not shape 2 (shape 1, no `handoff_shape` key, a shape below 1,
+  or a `handoff_shape` that is not an integer), and on a slots file that is missing, unreadable,
+  not valid JSON, not a JSON object, or holding a value that is not a string or not encodable as
+  UTF-8; 3 on a `handoff_shape` newer than the engine knows, `validate`'s own verdict, read it and
+  do not rewrite it. Every refusal
   names the slot or key and leaves the file byte-identical, and the write itself goes to a
   temporary file in the target's own directory replaced into place, so nothing is ever
   half-applied. The slots JSON lives beside the handoff as
