@@ -18,9 +18,19 @@ entirely. So the property is stated over the part of the run that genuinely is d
 | **Derived** | three-scope surface inventory, exclusion set, shadowed-definition findings, raw script candidate rows | enumeration and scripts only, with no model in the path | **exact equality** |
 | **Judged** | every finding from a delegated catalog check, whatever that catalog calls it | a model | **stability tolerance** |
 | **Delegated** | `/doctor`'s output | a prompt-based bundled skill | **none**, diffed by nobody |
+| **Note** | cross-catalog overlap notes, and nothing else | set comparison over **judged** findings | **none**, excluded from the derived identity set and from P1-P3 |
 
 The derived tier is not a consolation prize. It answers "did the pass look at the same things", which
 is the question an operator asks first, and it is where a silent scope regression shows up.
+
+**The note tier is not a fourth kind of finding, and its exclusion is load-bearing.** An overlap note
+observes that two catalogs independently flagged the same site, so its *inputs* are judged findings,
+held only to P4's `max(2, 10%)` tolerance. Placing it in the derived tier, whose property is exact
+equality, would make a judged wobble inside that tolerance add or drop a note and so fail P1 and P3a
+for behavior P4 already licenses: the gate would fire on the one tier it was built to leave alone,
+through a derived-looking artifact. So the tier is excluded the way P5 excludes the delegated tier,
+and a note carries a `note_id` rather than a `finding_id` so it cannot enter an identity set by
+accident. **A note never merges the two findings it names**; the reasoning for that is `§1`'s.
 
 Stated over two runs `R1` then `R2`; `D(R)` is the derived-tier identity set, `J(R)` the judged-tier
 set.
@@ -39,18 +49,62 @@ So the run **measures** its own precondition:
 - At the **scan baseline**, with Phase 1's inventory frozen and before any lane reads, and again at
   the **audit endpoint**, the moment the last lane completes and *before* any Phase 5 mutation,
   capture the target's **HEAD commit** and the run's **state digest**.
-- **State digest** = `sha256` over the inventoried surfaces in sorted order, each paired with the
-  content hash of its current bytes, plus every dirty path in the target worktree on the same terms:
-  path set from **`git status --porcelain --untracked-files=all`**, content hash from
-  `git hash-object`, a deleted path paired with a fixed deletion sentinel.
-- **`--untracked-files=all` is required, not a preference.** Bare `git status --porcelain` collapses
-  an untracked directory to a single `?? dir/` entry rather than listing its files, and
-  `git hash-object` on a directory fails. So on the ordinary worktree state of having one untracked
-  directory, the baseline digest cannot be computed at all and the determinism gate does not merely
-  degrade, it fails to run. `all` yields file paths, which is what the digest hashes. Parse the
-  porcelain **paths**, not the status letters: a rename entry carries `orig -> new` and a path with
-  unusual bytes is emitted quoted, so both need decoding before hashing. Prefer `-z` where available,
-  which sidesteps the quoting entirely.
+
+### State digest, pinned
+
+**The state digest is the first input to comparability, so P1 is only as falsifiable as this
+derivation is exact.** An ordering, a separator, or a hash left to the implementation is a different
+digest per implementation, so two runs that read the same tree would compare unequal and P1 would
+assert nothing that could be checked. It is therefore pinned here in full, the way `§1` pins
+`anchor/v1` rather than deferring it, and computed by
+[`scripts/state-digest.sh`](../scripts/state-digest.sh) rather than by hand.
+
+The digest is `state-digest/v1`, and the field name carries that version so a later derivation ships
+alongside rather than silently replacing it, on the same versioned-comparison rule `§1` states for
+anchors.
+
+```text
+entry       = <surface> 0x1F <content-hash>
+digest-body = entry 0x1E entry 0x1E …          # entries joined by 0x1E, no trailing separator
+state-digest/v1 = lowercase hex sha256(digest-body), all 64 characters
+```
+
+- **The entry set.** One entry per **surface token**, in the exact `surface` form `§1` defines:
+  repo-relative POSIX for project scope, scope-prefixed for user scope and managed policy. The set
+  is every surface Phase 1 inventoried, **plus** every dirty path in the target worktree, **minus**
+  the run's own class-4 artifacts. A path reached by both routes contributes **one** entry:
+  deduplication is on the surface token and happens before sorting, so a dirty inventoried file
+  cannot be hashed twice into one digest.
+- **Ordering.** Ascending byte order of the surface token under `LC_ALL=C`, never a locale collation
+  and never the order Phase 1 happened to walk. A locale-sensitive sort reorders the same set on a
+  different machine and changes the digest with no change to the tree.
+- **Separators.** `0x1F` (unit separator) between an entry's two fields and `0x1E` (record
+  separator) between entries, both of which no surface token and no hex hash can contain, so the
+  body is unambiguously parseable back into its entries. Reusing `0x1F` for both would let a
+  surface token carrying a separator-shaped substring restructure the body.
+- **Content hash.** Lowercase hex `sha256` over the file's **raw bytes**, all 64 characters, never a
+  truncation and never `git hash-object`. One algorithm across all three scopes is the point: user
+  scope and managed policy sit outside any worktree, so a git object id is not uniformly available
+  to them, and a digest that switched algorithms by scope would make the two halves of the same
+  comparison incomparable. Git still supplies the dirty path **set** (below); it does not supply the
+  hashes.
+- **The two sentinels.** A path in the set that does not exist pairs with the literal token
+  `deleted`; one that exists and cannot be read pairs with `unreadable`. Both are chosen to be
+  unrepresentable as a content hash, which is 64 lowercase hex characters, so neither can be
+  confused with a real one. `unreadable` is a value rather than a failure because a permission-denied
+  user-scope file is an ordinary state, and failing the digest there would take the whole gate down
+  with it.
+- **The empty set.** A digest over no entries is `sha256` of the empty byte string, not an empty
+  string and not a sentinel. Stated because the two readers of a digest have to agree on it before
+  they can agree on anything else.
+- **The dirty path set comes from `git status --porcelain -z --untracked-files=all`.**
+  `--untracked-files=all` is required, not a preference: bare `git status --porcelain` collapses an
+  untracked directory to a single `?? dir/` entry rather than listing its files, so on the ordinary
+  worktree state of having one untracked directory the digest cannot be computed at all and the
+  determinism gate does not merely degrade, it fails to run. `all` yields file paths, which is what
+  the digest hashes. Parse the porcelain **paths**, not the status letters: a rename entry carries
+  both paths, and without `-z` a path with unusual bytes is emitted quoted. `-z` sidesteps the
+  quoting entirely and is what the script uses.
 - **Its scope is every inventoried scope, not the target repository alone.** Restricting it to the
   target worktree leaves the user-global and managed-policy surfaces outside the measurement, and
   those are read by the lanes exactly like project files: editing `~/.claude/CLAUDE.md` between runs
@@ -63,8 +117,9 @@ So the run **measures** its own precondition:
   evaluate P1–P3 as though the tree held still while different lanes in fact read different states.
   Pairing each path with its content is what makes both movements visible.
 - **The run's own artifacts are excluded from the digest, on the same list that excludes them from
-  the scan.** A report path inside the target appears in `git status --porcelain` the moment the report
-  is written, which is between the scan-baseline and audit-endpoint captures. So a digest over *every*
+  the scan.** A report path inside the target appears in `git status --porcelain` the moment that artifact
+  is written, which is between the scan-baseline and audit-endpoint captures, and a run writes two of
+  them. So a digest over *every*
   dirty path makes that run fail its own determinism gate as `indeterminate`, every time, purely
   because it did what it was asked to do. Recording the path in the scan exclusion set does
   not reach the digest; the exclusion has to apply to both, and it is one list precisely so the two
@@ -136,6 +191,15 @@ version, the same declaration `claim` templates already ask of it.
 **Behavior-affecting arguments belong here too, not only in the resume digest.** Two completed
 runs differing only in `--opinion` are not comparable: one deliberately ran additional checks, so
 treating them as comparable would fail P4 as audit instability on a documented flag.
+
+**A scope-narrowing argument is behavior-affecting, and that is the whole answer to what a narrowed
+run may claim.** A run carrying `--lanes` dispatched a subset of the lanes and therefore inventoried
+the same surfaces while producing findings over fewer of them, so it is **non-comparable with a full
+run** and with any run naming a different lane set. It cannot satisfy the determinism gate against
+either, and P1-P3 are reported as **not evaluated** naming `--lanes` as the input that differs,
+never as satisfied. Two narrowed runs naming the *same* lane set are comparable with each other on
+the ordinary terms, which is what makes a narrowed run useful for iterating on one lane. The report
+header marks such a run **partial-scope** so no later reader mistakes it for a full pass.
 
 **The first input is the state digest, not the target tree.** "Target tree" covers only the
 repository, so a changed `~/.claude/CLAUDE.md` or managed-policy file would leave two runs
@@ -221,6 +285,12 @@ detection-behavior input not covered by the digest is a defect in the digest.
   explicit, recorded decision citing the observed distribution.
 - **P5, the delegated tier is excluded from both properties.** A prompt-based delegate cannot
   contribute to a determinism gate.
+- **P5a, the note tier is excluded from P1-P3 on the same terms, and from `D(R)` itself.** An
+  overlap note is a function of the judged sets, so its stability is already bounded by P4 and
+  cannot be bounded twice. A note appearing or disappearing between two comparable runs is neither a
+  determinism defect nor an instability finding on its own; what is judged is the judged findings it
+  names. A note that persists while **both** findings it names are gone is a defect in the note, and
+  is reported as one against `audit-pass` itself.
 - **P6, an unestablished precondition yields `indeterminate`.** A run whose start and end captures
   of HEAD and state digest disagree, or whose per-lane input digests disagree on a shared path,
   reports the determinism gate as `indeterminate` and does not
@@ -237,6 +307,11 @@ detection-behavior input not covered by the digest is a defect in the digest.
 | 6.2a | Changing a dirty file's contents during a run, or replacing one dirty path with another, changes the state digest and yields `indeterminate`, even though HEAD and the number of dirty files are unchanged. |
 | 6.2b | Two lanes whose inputs overlap record the same content hash for every shared path; a disagreement yields `indeterminate`. |
 | 6.3 | An `indeterminate` gate is visibly distinct from a passing one in the report, and P1–P3 are reported as not evaluated rather than as satisfied. |
+| 6.4 | Two runs over one unchanged tree compute the same `state-digest/v1` on machines whose locale collation differs, because the entry sort is byte order under `LC_ALL=C`. |
+| 6.4a | A surface that is both inventoried and dirty contributes exactly one entry to the digest, and the digest equals the one computed from the deduplicated set. |
+| 6.4b | A digest over an empty entry set is `sha256` of the empty byte string; a digest over one entry whose path was deleted pairs that surface with `deleted`, and one whose path cannot be read pairs it with `unreadable`. Neither sentinel is 64 lowercase hex characters, so neither collides with a content hash. |
+| 6.5 | A run carrying `--lanes` reports P1-P3 as not evaluated against a full run, names `--lanes` as the differing comparability input, and marks itself partial-scope in the report header. Two runs naming the same lane set are comparable with each other. |
+| 6.6 | An overlap note appearing in `R2` and not in `R1` over an unchanged tree fails neither P1 nor P3a: notes are outside `D(R)`. A note whose two named findings are both absent from `R2` is reported as a defect against `audit-pass`. |
 
 The floor of 2 exists because with a small judged set a pure percentage rounds to zero, making P4
 identity by the back door, which P4 exists to deny. With a large set the percentage dominates and

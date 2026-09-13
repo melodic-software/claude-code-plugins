@@ -34,7 +34,7 @@
     {
       "id": 7,
       "prompt": "You just wrote the config and arid record. Confirm they're team-shared.",
-      "expected_output": "Runs BOTH probes per file -- `git ls-files --error-unmatch` for tracked and `git check-ignore -v` for ignored -- and reports untracked as FAIL with the git add that fixes it. Does not report success from a silent check-ignore alone: immediately after apply the files are untracked but not ignored, so check-ignore says nothing while no teammate will ever receive them. Offers the git add without committing on the user's behalf.",
+      "expected_output": "Runs BOTH probes per file -- `git ls-files --error-unmatch` for tracked and `git check-ignore -v` for ignored -- and reports untracked as FAIL with the git add that fixes it. Does not report success from a silent check-ignore alone: immediately after apply the files are untracked but not ignored, so check-ignore says nothing while no teammate will ever receive them. Offers the git add AND the commit that follows it, running neither without the user's explicit acceptance and never committing unasked, and does not stop at staging as a matter of course. Says so when the user declines, so the dirty tree they are left with is a choice rather than a surprise.",
       "files": []
     },
     {

@@ -190,8 +190,9 @@ Every recommendation states its cost alongside its benefit. A proposal that name
 incomplete, and the operator cannot gate what they cannot see.
 
 State, for each candidate: the destination and its trigger; roughly what leaves the always-loaded
-budget; that the content is absent from subagents unless reached through the index; and, for
-path-scoped destinations, that it returns after compaction only when a matching file is read again.
+budget; that the content is not inherited by a subagent and announces itself nowhere, so it arrives
+only once some context reads a covered path or reaches it through the index; and, for path-scoped
+destinations, that it returns after compaction only when a matching file is read again.
 
 ## What this rubric does not decide
 

@@ -139,9 +139,13 @@ unambiguous; ask only where the answer is genuinely the user's.
    mapping, a **mapping, never a list**, since a list is taken whole and one personal entry would
    discard the team's entire accepted set. An empty record makes the first suppression an edit to a
    reviewed file rather than the creation of a new one.
-9. **Stage both files for commit and say so.** They are team-shared surfaces; leaving them untracked
-   is the failure probe 9 exists to catch, and `apply` is where it is cheapest to fix. Offer the
-   `git add`; never commit on the user's behalf.
+9. **Get both files tracked and committed, and say so.** They are team-shared surfaces; leaving them
+   untracked is the failure probe 9 exists to catch, and `apply` is where it is cheapest to fix.
+   Offer the `git add` and the commit that follows it, and run each only on the user's explicit
+   acceptance; never commit unasked. Do not stop at staging as a matter of course: staged and
+   unstaged both leave a dirty working tree, and a session-end gate that refuses a dirty tree holds
+   the session open until these two files are committed and pushed. Say so when the user declines,
+   so the tree they are left with is a choice rather than a surprise.
 10. **Verify after remediation.** Re-run the `check` probes on what was written, including both
     halves of probe 9, tracked *and* not-ignored, then offer the overlay convention: personal
     config overrides in `.claude/mutation-testing.local.md`, and recommend the recursive

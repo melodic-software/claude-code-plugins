@@ -47,6 +47,49 @@ separate results for "distinct occurrences … which could be corrected independ
 A contradiction between two instruction surfaces is retired by fixing *either* side, so the two sides
 are not independently correctable and are not two results.
 
+### One site per finding, and the one exemption
+
+**A finding carries exactly one site, unless its claim is pairwise.** A check that found the same
+defect at several sites emits **one finding per site**, split mechanically, each carrying the same
+non-identity `group` value. The only exemption is a claim whose truth is a *relation between two
+sites* and which is retired by fixing **either** side, of which the cross-surface conflict check is
+the one this pass dispatches. Those stay two-sited and are never split, because splitting them would
+assert two independently correctable defects where there is one contradiction.
+
+The rule has the same source as the two-site exemption, read the other way. SARIF reserves separate
+results for "distinct occurrences … which could be corrected independently"
+([§3.27.12](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html), verified 2026-07-24),
+and twenty-one sites of one over-prescriptive instruction are twenty-one independently correctable
+occurrences. GitHub's consumer settles the practical half: it keys on `locations[0]` and ignores
+every location past it, so a multi-site finding is already carried as its first site by the
+ecosystem's most common reader.
+
+**What the split protects is the suppression record, and that is why it is a correctness bug rather
+than a presentation preference.** `finding_id` hashes every site, so an unsplit twenty-one-site
+finding has one id derived from all twenty-one. Fixing one site changes the tuple, changes the id,
+strands the operator's suppression as stale, and lets P2 read the old id's disappearance as
+convergence while twenty sites remain unfixed. Split, each site is its own id: fixing one retires
+exactly one finding, and the other twenty keep both their ids and their suppressions.
+
+**`group` is outside the hash, and is stable under fixing any one site.**
+
+```text
+group/v1 = "g:" + sha256(check 0x1F claim) truncated to 16 hex
+```
+
+It is derived from `check` and `claim` alone, never from the sites, which is the property that makes
+it useful: it is the same value before and after any site is fixed, added, or removed, so a report
+can keep presenting one claim's occurrences together across runs without the grouping renaming
+itself on every partial fix. Hashing the site set instead would put the churn the split removes back
+into the field meant to survive it. `group` is a presentation and remediation field on the same
+footing as `primary_site`: changing it, or dropping it, leaves `finding_id` untouched.
+
+**Residual, stated rather than hidden.** Under the claim-unqualified fallback a check's distinct
+claims collapse onto its own id, so split findings from one check land under one coarse `group` even
+where the underlying claims differ. That is the same precision loss the fallback already declares,
+arriving in a second field; the report's coverage notes name it there too, and it closes when the
+delegate declares its claim templates.
+
 **`primary_site` and `related_site` are presentation and remediation fields, OUTSIDE the hash.**
 Which side a report leads with, and which side a `--fix` proposes editing, is a routing judgement:
 project scope is editable, user scope is routed, managed policy never. Routing must be free to
@@ -184,6 +227,36 @@ emits, named for that version. **A suppression entry's key is the `finding_id` c
 anchor versions that entry itself stores**, which is what gives assertion 4.5 a single referent;
 1.9's greatest-common-version rule then selects which of a run's ids is compared against it.
 
+### The emitter guard
+
+**Every one of the hard errors above is checked where the record is written, not where it is read.**
+A partial artifact is append-only and permanent, and `--resume` and assembly are its only readers, so
+a record that violates identity is not a report defect the next run can shrug off: it is persisted
+state that nothing downstream can repair. A pass has already shipped a record typed as a finding
+carrying `"identity": null` and no `finding_id/v1`, which 1.3 makes a hard error and which a
+validating emitter would have refused at the append.
+
+So the checks run in [`scripts/finding-identity.sh validate-record`](../scripts/finding-identity.sh)
+before `partial append`, and a record failing any of them is **refused rather than downgraded**:
+
+- `identity` is present and is an object. A finding record with `identity` absent or `null` is
+  refused; there is no null identity a later reader could reconstruct.
+- `check` is present and non-empty; `claim` is present and matches a claim-id grammar rather than
+  free prose, which is 1.3 made mechanical.
+- `sites` is a non-empty array of `(surface, anchor)` objects. **Three or more sites is a hard
+  error**, because past two there is no relation the pairwise exemption could be about, only
+  independently correctable occurrences the emitter was supposed to split.
+- Two sites are accepted **only** when the record declares its claim pairwise; otherwise it is
+  refused naming the split.
+- An `s:` anchor together with two sites is refused, which is 1.6.
+- `finding_id/v1` is present and equals the value derived from `check`, `claim`, and the sorted
+  sites. A record whose stored id disagrees with its own constituents is refused, since a
+  suppression keyed to the stored id would then never match the finding it names.
+
+The guard validates; it does not repair. Splitting a multi-site return, binding a claim id, and
+choosing the granularity are the lane's work, and a guard that silently fixed them would hide the
+delegate that needs the fix.
+
 | # | Assertion |
 |---|---|
 | 1.1 | For a fixed tree **and a fixed live surface set**, `finding_id` is stable across runs, working directories, operating systems, and path separators. Liveness is named because it can change with no tree change at all, and an identity claim that ignored it would be false the first time a run started from a different directory. |
@@ -198,3 +271,6 @@ anchor versions that entry itself stores**, which is what gives assertion 4.5 a 
 | 1.10 | Two identical normalized excerpts under **different** heading paths in one surface produce two distinct anchors, differing in `<n>`. |
 | 1.10a | Two identical normalized excerpts under the **same** heading path produce the **same** anchor: the finding is reported once, the collision is named with its occurrence count, and no suppression carries forward across it. Deleting one of them leaves the anchor unchanged. |
 | 1.10b | Deleting an identical excerpt under a *different* heading path does not change the surviving one's anchor or `finding_id`, and a suppression keyed to the deleted one is reported stale rather than applied to the survivor. |
+| 1.11 | A delegate returning one non-pairwise claim at *n* sites yields *n* findings, each with one site and its own `finding_id`, all carrying one `group`. Fixing one site removes exactly that finding and leaves the other *n*-1 ids and their suppressions unchanged. |
+| 1.12 | `group` is unchanged by adding, removing, or fixing any site, and changing or dropping `group` leaves every `finding_id` unchanged. |
+| 1.13 | A record with `identity` absent or `null`, with three or more sites, with two sites and no pairwise-claim declaration, or with a `finding_id/v1` that disagrees with its own constituents, is refused by the emitter guard and never reaches the partial artifact. |

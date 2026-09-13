@@ -59,8 +59,9 @@ it is presented.** Say so in the run's opening line, then hold it literally.
   walk the findings one at a time. This is not pedantry: the whole value of the gate is that a human
   looked at each destination, and a blanket yes means nobody did.
 - **Present before asking.** The source and its line range, the destination, the exact `paths:` glob
-  with its validated match count, what leaves the always-loaded budget, and the cost: subagent
-  invisibility, and post-compaction behavior for that destination.
+  with its validated match count, what leaves the always-loaded budget, and the cost: that the
+  content is not inherited by a subagent and announces itself nowhere, and post-compaction behavior
+  for that destination.
 - **A decline is recorded, not argued.** Write `declined` into the artifact and move on. A declined
   finding is not re-proposed by a later audit.
 
@@ -191,9 +192,10 @@ Observed failure modes. Every one leaves a repository that looks migrated and is
 - **Writing the nested `AGENTS.md` without the `CLAUDE.md` shim.** The most likely mistake in this
   whole plugin, because the result reviews as correct: a well-written conventions file, in the
   right directory, that Claude Code never loads at any level of the tree. Measured, not inferred.
-- **Forgetting the index regeneration.** The move succeeds, the rule fires on read, and the content
-  is invisible to every subagent, which in a delegation-heavy repo is most of the work. The index
-  is part of the move, not a follow-up task.
+- **Forgetting the index regeneration.** The move succeeds, the rule fires on read, and nothing
+  tells any agent the rule exists until a read happens to match its glob. In a delegation-heavy
+  repo a worker briefed to edit files it was never told to read first acts before the rule can
+  fire. The index is part of the move, not a follow-up task.
 - **Excising before creating.** An interruption between the two then deletes the only copy. The
   ordering is not stylistic; it is the difference between a recoverable and an unrecoverable
   failure.

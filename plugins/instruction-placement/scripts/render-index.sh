@@ -2,11 +2,15 @@
 # render-index.sh — generate the always-loaded index of deferred instruction surfaces.
 #
 # WHY. Every instruction surface that loads on demand — a path-scoped rule, a
-# nested CLAUDE.md/AGENTS.md — is invisible inside subagents, and returns after
-# compaction only when its trigger recurs (see context/verified-mechanics.md).
-# An always-loaded index converts those surfaces from INVISIBLE to DISCOVERABLE:
-# the agent learns the surface exists and can reach it with an ordinary Read from
-# any context, including a subagent that would never have received the injection.
+# nested CLAUDE.md/AGENTS.md — arrives only when a read matches it, and returns
+# after compaction only when its trigger recurs (see
+# context/verified-mechanics.md). The injection itself does reach subagents: a
+# subagent that reads a covered path receives the surface exactly as the main
+# session does (measured on 2.1.268). What no deferred surface supplies is the
+# knowledge that it exists, to any context that has not happened to touch a
+# covered path. An always-loaded index converts those surfaces from INVISIBLE to
+# DISCOVERABLE: the agent learns the surface exists and can reach it with an
+# ordinary Read before any covered file is touched.
 #
 # This is the same trade Claude Code already makes for skills — the listing is
 # always in context, the body loads on demand. The index is the listing for rules.
@@ -211,10 +215,11 @@ render_block() {
 
 ## Conventions that load on demand
 
-Each surface below enters context automatically when Claude reads a file it covers. That trigger
-does **not** fire inside subagents, and after a compaction it fires again only when a covered file
-is read again. When you are working on something an entry covers and its content is not already in
-context, read the file directly.
+Each surface below enters context automatically when Claude reads a file it covers, in subagents
+as well as in the main session. The match is on the requested path, so even a read that finds no
+file fires it. A surface whose trigger has not fired is simply absent, and after a compaction it
+returns only when a covered file is read again. When you are working on something an entry covers
+and its content is not already in context, read the file directly.
 
 | Surface | Covers | Topic |
 |---|---|---|

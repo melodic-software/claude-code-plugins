@@ -141,7 +141,9 @@ a tree rather than authoring one.
 rationalizable either way. Not thresholds to enforce, the judgment still runs on context
 boundaries, not head-count, but the platform's own numbers anchor it: the workflow size guideline
 aims at fewer than 5 agents for `small`, 15 for `medium`, 50 for `large`, and flags a run above 25
-as `Large workflow` ([workflows](https://code.claude.com/docs/en/workflows), fetched 2026-08-10). So
+as `Large workflow` ([workflows](https://code.claude.com/docs/en/workflows), fetched 2026-08-10;
+recheck when that page changes any of those size figures or the threshold its large-workflow warning
+fires at). So
 fewer than 5 is small, 5–14 medium, and anything tripping that warning is a size to justify out
 loud, and an order-of-magnitude disagreement with this anchor is one to name, not skip.
 
@@ -163,8 +165,8 @@ can act without re-reading the work. A return that narrates cannot be summarized
 it has already been paid for. A useful magnitude for "compressed": a sub-agent may explore across
 tens of thousands of tokens and still return roughly 1,000 to 2,000 ([Effective context engineering
 for AI agents](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents),
-2025-09-29, fetched 2026-09-01). Treat it as the shape a return should aim for, never a budget to
-spend up to.
+2025-09-29, fetched 2026-09-01; recheck when a fetch of that post no longer carries that range).
+Treat it as the shape a return should aim for, never a budget to spend up to.
 
 **Workers are ephemeral, and the deeper the tier the shorter the life.** A worker that finishes and
 stays alive keeps costing the tier above, notifications, status, re-acknowledgement, for zero

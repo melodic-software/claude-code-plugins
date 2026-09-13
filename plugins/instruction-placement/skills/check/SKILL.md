@@ -44,7 +44,7 @@ Wire it into CI beside the linters. It is fast, deterministic, and has no judgme
 | Bracket expressions valid | same | The pattern silently matches nothing |
 | Brace budget respected | same | The pattern is used unexpanded; its braces match nothing |
 | Glob not over-broad | same | Advisory. The rule loads so often it saves nothing |
-| Index in sync | `render-index.sh check` | Deferred surfaces are unreachable from subagents |
+| Index in sync | `render-index.sh check` | Deferred surfaces go unnamed: nothing tells an agent they exist |
 | Index target loaded at all | `render-index.sh reachable` | The index exists and Claude Code never reads it |
 | Nested AGENTS.md wired | `render-index.sh wiring` | An indexed nested surface never loads: no sibling `CLAUDE.md` imports it |
 
@@ -86,8 +86,9 @@ checks still decide the verdict.
 
 **A repository with no index block yet is not a failure.** `render-index.sh check` exits 3 for that
 case, and 3 means "nothing to compare", not "broken". Report it as a recommendation. The index is
-what makes deferred rules reachable from subagents. Leave the gate's verdict to the glob
-checks. Only a repository that *has* an index and has let it drift fails on that check.
+what names every deferred rule, since no deferred surface announces that it exists. Leave the
+gate's verdict to the glob checks. Only a repository that *has* an index and has let it drift
+fails on that check.
 
 ### Escalating to empirical verification
 

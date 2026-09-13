@@ -3,6 +3,18 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.32]
+
+### Changed
+
+- **The profile-variable prohibition in `skills/generate/SKILL.md` states its reason and its positive form.** It read only "Never ask the consumer to export the variable globally", a bare prohibition with neither. It now says to set the selection on each launched process and why a global export is the wrong shape: it pins one profile for every session and every other tool on that machine, including runs that asked for a different one. Same rule, no behavior change.
+
+## [0.7.31]
+
+### Changed
+
+- **`setup`: the `apply install-build-deps` runtime stamp is a copied manifest, not a shell redirect.** The step ended by composing `.version` with `printf '%s' "$VER" > .version`, and an `echo`/`printf`/`cat` redirect into a file is the shape a write-gating hook blocks, so the step could not be carried out where such a hook is on. The staged runtime now records its version by copying the plugin manifest to `.plugin-version.json`, which composes no content and needs no gated write; the `check` build-toolchain probe reads the version out of that stamp with `node -p "require(...)"`, which is why the stamp carries a `.json` suffix. Staleness semantics are unchanged: the runtime is rebuilt when its recorded version does not match `plugin.json`.
+
 ## [0.7.30]
 
 ### Changed

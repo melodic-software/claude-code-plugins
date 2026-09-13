@@ -99,7 +99,7 @@ fi
 out="$(run_hook "$(payload_for "$repo/.claude/rules/csharp.md")")"
 expect_has "a rules-tree write on a drifted index reports drift" "$out" "stale"
 expect_has "the notice names the rule that changed" "$out" "csharp.md"
-expect_has "the notice says why it matters" "$out" "subagents"
+expect_has "the notice says why it matters" "$out" "goes unnamed"
 
 run_hook "$(payload_for "$repo/.claude/rules/csharp.md")" >/dev/null
 expect_eq "the hook is advisory — it exits 0 even on drift" "0" "$?"

@@ -2355,6 +2355,6 @@ assert_eq "two blocking guards dispatched: exactly one JSON document on stdout" 
 assert_contains "two blocking guards dispatched: this guard's reason survives" \
   "$GUARD_ERR" "bypasses Write/Edit hooks"
 assert_contains "two blocking guards dispatched: the sibling guard's reason survives" \
-  "$GUARD_ERR" "--no-verify / -n flags are not allowed"
+  "$GUARD_ERR" "--no-verify / -n skips the hooks"
 
 report

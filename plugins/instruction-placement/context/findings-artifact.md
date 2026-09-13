@@ -100,8 +100,9 @@ as `—` rather than omitted, so a diff between runs stays aligned.
 - **Glob validation:** 412 tracked files matched; 3.1% of tracked files; budget ok; brackets ok
 - **Ladder rung:** 4 — scope narrower than the repo, keyed to a file kind
 - **Denied classes:** none
-- **Cost:** ~34 always-loaded lines released; absent from subagents except via the index; returns
-  after compaction only when a `.cs` file is read again
+- **Cost:** ~34 always-loaded lines released; not inherited by a subagent and announced nowhere, so
+  it arrives only on a `.cs` read or through the index; returns after compaction only when a `.cs`
+  file is read again
 - **Confidence:** high
 ```
 

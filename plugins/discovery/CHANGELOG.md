@@ -1,5 +1,30 @@
 # Changelog: discovery plugin
 
+## [0.19.14]
+
+### Changed
+
+- **`explore`'s convention-files dimension no longer instructs a re-read of always-loaded instructions.** The root `CLAUDE.md` and the files it imports reach the exploration at startup, a dispatched run included, so re-reading them buys nothing. The bullet now points at the path-scoped `.claude/rules/` files and any nested `AGENTS.md` covering the target area, which reach a context only when a file they cover is read, something an exploration may never do for the area a rule governs. The conventions the dimension is meant to surface are the same.
+- **`explore`'s eval stops contradicting the agent body it grades.** The expectation justified reading the rule files "since a subagent does not auto-load them", which stopped matching once `explorer`'s own step was corrected. It now gives the reason that holds, that a subagent inherits none of them and one arrives only on a read matching its glob. The graded behavior is identical: the dispatched run still Reads the scope-relevant rule files explicitly and still skips any that do not exist.
+
+## [0.19.13]
+
+### Fixed
+
+- **`explorer`'s Step 0 no longer says path-scoped rules cannot reach a dispatched run.** The step opened with "A subagent does **not** auto-load path-scoped project rules", and a first-party probe on Claude Code **2.1.268** shows a non-fork subagent does receive a path-scoped `.claude/rules/` file, or a nested `CLAUDE.md` and the `AGENTS.md` its shim imports, when it reads a path that surface covers, with the glob matched against the requested path so even a read that finds no file fires it. What holds is the narrower claim: nothing is inherited, and no deferred surface announces that it exists. The step now says that, which keeps the same instruction (Read the scope-relevant rule files first) resting on a reason that is true, and it carries the four-part verification record the upstream-drift convention requires for a restated harness specific. No dimension, payload field, write boundary, or tool grant changed.
+
+### Changed
+
+- **Three bare prohibitions in the agent definitions now carry the reason or the alternative these
+  files pair with every other "never".** `explorer`'s "do not reconstruct the workflow from memory"
+  now says what stopping buys and what a remembered set of dimensions produces (the well-formed but
+  undisciplined artifact the preload check exists to catch), matching how `researcher` and
+  `intent-tracer` already state the same rule. `researcher` and `intent-tracer`'s "never copy the
+  tool list out of it" now gives the positive alternative first, read the parent-contract record at
+  the moment it is needed, and the reason: that record is a dated snapshot of a harness surface that
+  moves, and a copy carried in an agent body would have no date of its own to age against. No rule,
+  payload field, write boundary, or tool grant changed.
+
 ## [0.19.11]
 
 ### Changed

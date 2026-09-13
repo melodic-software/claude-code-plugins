@@ -169,8 +169,10 @@ delegated to the `implementation`/`verification` lanes and is not part of this c
 
 Before auditing, load what "correct" looks like in this repo:
 
-1. **Read the consuming repo's `CLAUDE.md` / `AGENTS.md` and `.claude/rules/` files** (where
-   present). Conventions, naming rules, enforcement expectations.
+1. **Read the consuming repo's `.claude/rules/` files** (where present). Conventions, naming rules,
+   enforcement expectations. The root `CLAUDE.md` / `AGENTS.md` are always loaded and already in
+   context, in each dispatched agent too; the rule files are not, they reach a context only when a
+   file they cover is read, and this phase needs the whole convention set before any file is opened.
 2. **Resolve the audit config** per the dimension seam above; read the convention files its
    `verification-sources` name.
 
@@ -191,7 +193,7 @@ misses drift; a fresh context per file does not. Each agent applies the claim-ex
 (read top-to-bottom → extract every factual claim → verify each independently → record), fenced per
 the scope-fencing rules in [`${CLAUDE_PLUGIN_ROOT}/skills/audit/context/discovery-method.md`](context/discovery-method.md).
 
-**Scope first (MANDATORY. Cost gate):** require a `[scope]` or dimension filter (`--docs-only`
+**Scope first (cost gate):** require a `[scope]` or dimension filter (`--docs-only`
 etc.) for large targets; if the enumerated list exceeds ~20 files, confirm with the user before
 dispatching. Never fan out the whole repo unprompted: one subagent per doc, config, and source
 file is a very large token cost.

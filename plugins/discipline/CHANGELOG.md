@@ -5,6 +5,12 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.14.6]
+
+### Fixed
+
+- **The skill-listing claim in `skills/use-your-skills/SKILL.md` now carries a recheck trigger.** The restated claim about what the listing carries (every model-invocable skill's name, its description subject to the listing budget, the body only on invocation) cited the Skills docs and a fetch date but named no event that obliges re-deriving it, leaving it a half-conforming record under the upstream-drift convention. It now fires on that page no longer describing the listing that way, or on a release note changing what the listing carries. The claim, its basis, and its date are unchanged, as is the sibling subagent claim that already carried a trigger.
+
 ## [0.14.5]
 
 ### Changed
