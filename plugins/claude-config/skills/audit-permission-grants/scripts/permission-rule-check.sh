@@ -48,10 +48,13 @@
 # Advisory about FINDINGS by DEFAULT: they never fail the run, so a scan that
 # completes exits 0 in report and `--count` mode whether or not it found anything.
 # `--check` and `--strict` are the opt-in gate modes — see Usage. Environment gaps
-# exit 2 in EVERY mode: missing jq, a missing shared pattern library, and an
-# unresolvable (or non-directory) scan root — see below. An unresolvable USER
-# scope is a narrower gap: it is announced on stderr and recorded in the coverage
-# block, and it does not by itself change the exit code in any mode.
+# exit 2 in EVERY mode: missing jq, a missing shared pattern library, an
+# unrecognised argument, and an unresolvable (or non-directory) scan root — see
+# below. An unresolvable USER scope is a narrower gap: it is announced on stderr
+# and recorded in the coverage block, and it does not by itself change the exit
+# code in any mode. In the GATE modes the blind-scan limb joins them: a run whose
+# coverage block counts any input under "NOT read" exits 2, because a gate cannot
+# pass a tree whose inputs it could not open.
 #
 # Every run reports a DENOMINATOR — the coverage block. Without it "no fragile
 # permission grants found" is the same string whether forty allowed-tools blocks
@@ -103,6 +106,16 @@ Usage: permission-rule-check.sh [--count|--check|--strict|--help]
   --strict   gate mode: as --check, and WARNING-tier findings (P1, P3) also exit 1
   --help     this message
 
+ARGUMENTS. Flags may appear in any order and may be combined; the STRICTEST one
+wins, ordered (no arg) < --count < --check < --strict. So `--check --strict` and
+`--strict --check` both run as --strict; neither flag is silently discarded. An
+ARGUMENT THAT IS NOT A RECOGNISED FLAG IS REFUSED: this message goes to stderr and
+the run exits 2 (cannot determine) without scanning. It never falls through to the
+advisory report, because a typo'd flag in a CI invocation would otherwise leave the
+gate exiting 0 forever on a tree full of findings. A literal empty argument (what a
+quoted-but-unset "$MODE" expands to) is the sole exception: it is ignored, so
+`"" --check` runs as --check.
+
 Scans skill/command/agent frontmatter `allowed-tools` and the `permissions.allow`
 arrays of .claude/settings.json, .claude/settings.local.json, and the user-global
 settings file (${CLAUDE_CONFIG_DIR:-~/.claude}/settings.json) for P1 (auto-mode
@@ -122,7 +135,13 @@ Findings are advisory in the default and --count modes, which always exit 0 howe
 many findings they print. --check and --strict are the opt-in gate: they print the
 same findings and the same coverage block, and only the exit code differs. In BOTH
 gate modes a NOTHING TO AUDIT result exits 2, never 0 — a scan that examined nothing
-on any axis has no denominator, so it may not pass a gate.
+on any axis has no denominator, so it may not pass a gate. For the same reason a
+PARTIALLY BLIND scan — anything counted under "NOT read" in the coverage block:
+an unopenable frontmatter file, a settings.json that is not valid JSON, a walk
+error — exits 2 rather than 0 in both gate modes, and the default mode reports it
+as an INCOMPLETE SCAN rather than as a clean bill. A gate may not pass while its
+own inputs were unreadable, and an unreadable input is exactly where a fragile
+grant sits unexamined.
 
 Environment gaps exit 2 in every mode instead of reporting a clean bill: missing jq,
 and a scan root that resolves to neither a git toplevel nor $CLAUDE_PROJECT_DIR. Set
@@ -132,13 +151,54 @@ back-compatible alias; the new name wins when both are set.
 EOF
 }
 
-case "${1:-}" in
--h | --help)
-  usage
-  exit 0
-  ;;
-*) ;;
-esac
+# --- Argument handling ---------------------------------------------------------
+# EVERY argument is read, and an argument that is not a recognised flag is a hard
+# refusal — usage on stderr, exit 2 — never something silently ignored. This
+# script is a CI gate: a one-character typo in the flag falling through to the
+# advisory report left the invocation exiting 0 on a tree full of error-tier
+# findings, i.e. a gate quietly turned into a permanent no-op that nobody sees
+# fail. An argument the script cannot honour means it cannot establish what was
+# asked of it, which is the same "cannot determine" channel a missing jq and an
+# unresolvable root already take.
+#
+# Flags may appear in ANY ORDER and may be COMBINED; the STRICTEST one wins,
+# ordered report < --count < --check < --strict. Reading only "$1" meant
+# `--check --strict` silently ran as `--check` (passing a warning-only tree) while
+# `--strict --check` ran as `--strict` (failing it) — one command line gating two
+# different ways depending on argument order, with the discarded flag never
+# mentioned.
+#
+# A literal EMPTY argument is the one thing ignored rather than refused: it is
+# what a quoted-but-unset shell variable ("$MODE") expands to, it carries no
+# intent, and it cannot be a misspelling of a flag. So `"" --check` is `--check`,
+# not a report run that never saw the gate flag.
+mode="report"
+mode_rank=0
+raise_mode() {
+  # raise_mode <name> <rank> — move to <name> only when it is stricter than the
+  # mode already selected, so order cannot downgrade a gate.
+  if [[ "$2" -gt "$mode_rank" ]]; then
+    mode_rank="$2"
+    mode="$1"
+  fi
+}
+for arg in "$@"; do
+  case "$arg" in
+  -h | --help)
+    usage
+    exit 0
+    ;;
+  --count) raise_mode count 1 ;;
+  --check) raise_mode check 2 ;;
+  --strict) raise_mode strict 3 ;;
+  "") ;;
+  *)
+    printf 'ERROR: unrecognised argument: %s\n\n' "$arg" >&2
+    usage >&2
+    exit 2
+    ;;
+  esac
+done
 
 canonical_path() {
   local p="$1"
@@ -153,18 +213,6 @@ if ! command -v jq >/dev/null 2>&1; then
   echo "ERROR: jq required" >&2
   exit 2
 fi
-
-# Mode selection keeps the existing single-flag style: one recognised flag, and an
-# unrecognised argument falls through to the default report exactly as before.
-# `report` and `count` always exit 0; `check` and `strict` are the gate modes and
-# differ from `report` ONLY in the exit code — same findings, same coverage block.
-mode="report"
-case "${1:-}" in
---count) mode="count" ;;
---check) mode="check" ;;
---strict) mode="strict" ;;
-*) ;;
-esac
 
 ROOT_SOURCE=""
 if [[ -n "${PERMISSION_HYGIENE_SCAN_ROOT:-}" ]]; then
@@ -759,6 +807,17 @@ if [[ "${#findings[@]}" -eq 0 ]]; then
     else
       echo "NOTHING TO AUDIT: 0 frontmatter file(s), 0 settings scope(s) and 0 plugin settings.json were successfully read under this root, so this run has no denominator on any of the three axes. That is a scan of nothing, not a clean bill — do not report it as one. See the coverage block below for what was and was not read."
     fi
+  elif [[ "$blocked" -gt 0 ]]; then
+    # audited > 0 AND blocked > 0: a PARTIALLY BLIND scan. The clean-bill string
+    # was printed here too, which claimed health for inputs this run never read —
+    # and the input it could not read is exactly where a fragile grant sits
+    # unexamined (the fixture that found this had the violation inside the
+    # settings.json that would not parse). The doctrine this detector states
+    # everywhere else — an unreadable input is a hole in the denominator, never a
+    # clean bill — applies to every non-zero `blocked`, not only to the
+    # `audited == 0` corner where it happened to be implemented.
+    printf 'INCOMPLETE SCAN, NOT A CLEAN BILL: no fragile permission grants were found in the %d input(s) this run successfully examined, but %d input(s) could not be read or parsed and were NOT audited. A fragile grant inside an input the run could not open is precisely what it could not see, so this is not a statement about the grants in this tree. See the coverage block below for which inputs were not read.\n' \
+      "$audited" "$blocked"
   else
     echo "No fragile permission grants found."
   fi
@@ -780,7 +839,19 @@ coverage_block
 #     missing jq or an unresolvable root; it is the finding-side limb of it.
 #   any error-tier finding (P2, P2b, P4)          -> 1 in both gate modes
 #   any warning-tier finding (P1, P3)             -> 1 in --strict only
+#   a PARTIALLY BLIND scan (blocked > 0)          -> 2, never 0
 #   otherwise                                     -> 0
+#
+# The blind-scan limb is the same rule as NOTHING TO AUDIT, applied where it was
+# missing: `audited == 0` is only the total case of it. With `audited > 0` and
+# `blocked > 0` the gate passed a tree whose unreadable input CONTAINED a
+# violation. A gate may not pass while its own inputs were unreadable.
+#
+# It is ordered AFTER the finding limbs on purpose. Exit 2 means "cannot
+# determine"; when a gate-firing finding was actually seen, the gate CAN
+# determine the answer — it is FAIL — and 1 is the more precise and more
+# actionable code. Exit 2 is for the runs where no gate-firing finding was seen
+# and the absence of one cannot be trusted.
 case "$mode" in
 check | strict)
   if [[ "$audited" -eq 0 ]]; then
@@ -791,6 +862,9 @@ check | strict)
   fi
   if [[ "$mode" == "strict" && "$warning_findings" -gt 0 ]]; then
     exit 1
+  fi
+  if [[ "$blocked" -gt 0 ]]; then
+    exit 2
   fi
   ;;
 *) ;;

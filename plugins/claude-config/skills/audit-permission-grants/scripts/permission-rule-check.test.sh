@@ -1094,12 +1094,142 @@ rc=0
 PERMISSION_HYGIENE_FIXTURE_DIR="$TEST_TMPDIR/does-not-exist" bash "$SCRIPT" --strict >/dev/null 2>&1 || rc=$?
 assert_exit "--strict on a nonexistent root still exits 2" 2 "$rc"
 
-# 15g: --help and an unrecognised argument keep the pre-gate behavior.
+# 15g: --help keeps the pre-gate behavior. The unrecognised-argument row moved to
+# Case 16a and INVERTED: falling through to the advisory report is what made a
+# typo'd flag a silent no-op gate, so it is now a refusal.
 rc=0
 bash "$SCRIPT" --help >/dev/null 2>&1 || rc=$?
 assert_exit "--help is unaffected by the gate flags" 0 "$rc"
-assert_exit "an unrecognised flag still falls through to the advisory report" 0 \
-  "$(gate_rc "$D15_ERR" --not-a-flag)"
+
+# --- Case 16: argv handling, and the blind-scan limb of the gate ---------------
+# Four false-passes a blind verifier reproduced against the gate as first shipped.
+# Each one exited 0 on a tree the gate existed to fail; each row below asserts the
+# CORRECT outcome, not the shipped one.
+gate_args_rc() {
+  # gate_args_rc <root> [args...] — exit code for an arbitrary argv, output discarded.
+  # `run`/`gate_rc` can only pass ONE argument, which is precisely how the
+  # multi-argument defects below went unnoticed.
+  local root="$1" rc=0
+  shift
+  env -u CLAUDE_CONFIG_DIR -u PERMISSION_HYGIENE_SCAN_ROOT HOME="$ISOLATED_HOME" \
+    PERMISSION_HYGIENE_FIXTURE_DIR="$root" bash "$SCRIPT" "$@" >/dev/null 2>&1 || rc=$?
+  printf '%s' "$rc"
+}
+run_args() {
+  # run_args <root> [args...] — merged stdout+stderr for an arbitrary argv.
+  local root="$1"
+  shift
+  env -u CLAUDE_CONFIG_DIR -u PERMISSION_HYGIENE_SCAN_ROOT HOME="$ISOLATED_HOME" \
+    PERMISSION_HYGIENE_FIXTURE_DIR="$root" bash "$SCRIPT" "$@" 2>&1
+}
+
+# 16a: an UNRECOGNISED ARGUMENT is refused, never silently ignored. A typo'd
+# `--check` against an error-tier tree exited 0: the gate had become a permanent
+# no-op and the CI lane that invoked it never failed again.
+assert_exit "a typo'd gate flag exits 2, never 0" 2 "$(gate_args_rc "$D15_ERR" --chek)" # spellchecker:disable-line
+OUT_16A=$(run_args "$D15_ERR" --chek)                                                   # spellchecker:disable-line
+assert_contains "the refusal names the offending argument" "$OUT_16A" "unrecognised argument"
+assert_contains "the refusal prints usage" "$OUT_16A" "Usage:"
+# The refusal happens BEFORE any scanning, so no report is produced at all —
+# neither findings nor the coverage block. (The usage text quotes the clean-bill
+# string while explaining it, so its absence is asserted via the report surfaces.)
+assert_not_contains "a refused argument produces no findings" "$OUT_16A" "[P2b]"
+assert_not_contains "a refused argument produces no coverage block" "$OUT_16A" "Scan coverage"
+assert_exit "an unrecognised flag on a CLEAN tree also exits 2" 2 \
+  "$(gate_args_rc "$D15_CLEAN" --not-a-flag)"
+assert_exit "an unrecognised argument alongside a good flag still exits 2" 2 \
+  "$(gate_args_rc "$D15_ERR" --check --verbose)"
+assert_contains "usage documents the refusal" "$(bash "$SCRIPT" --help)" \
+  "NOT A RECOGNISED FLAG IS REFUSED"
+
+# 16b: COMBINED flags apply the STRICTEST, in either order. Reading only "$1" ran
+# `--check --strict` as --check (passing a warning-only tree) and
+# `--strict --check` as --strict (failing it) — one command line, two verdicts,
+# decided by argument order, with the discarded flag never mentioned.
+assert_exit "warnings only: --check --strict exits 1 (strictest wins)" 1 \
+  "$(gate_args_rc "$D15_WARN" --check --strict)"
+assert_exit "warnings only: --strict --check exits 1 (order-independent)" 1 \
+  "$(gate_args_rc "$D15_WARN" --strict --check)"
+assert_exit "a clean tree still passes the combined form" 0 \
+  "$(gate_args_rc "$D15_CLEAN" --check --strict)"
+assert_exit "a repeated flag is not an error" 1 "$(gate_args_rc "$D15_ERR" --check --check)"
+assert_exit "a gate flag outranks --count in the combined form" 1 \
+  "$(gate_args_rc "$D15_ERR" --count --check)"
+assert_contains "usage documents the strictest-wins rule" "$(bash "$SCRIPT" --help)" \
+  "the STRICTEST one"
+
+# 16c: a POSITIONAL argument must not shift the flag out of view. `"" --check`
+# read only "$1", saw an empty string, and ran the advisory report — exiting 0 on
+# an error-tier tree. An empty argument is what a quoted-but-unset "$MODE"
+# expands to, so it is ignored rather than refused, and the flag after it is
+# honoured.
+assert_exit "'' --check still gates an error-tier tree" 1 \
+  "$(gate_args_rc "$D15_ERR" "" --check)"
+assert_exit "'' --strict still gates a warning-only tree" 1 \
+  "$(gate_args_rc "$D15_WARN" "" --strict)"
+assert_exit "--check '' gates from the other side too" 1 \
+  "$(gate_args_rc "$D15_ERR" --check "")"
+assert_exit "an empty argument alone is still the advisory report" 0 \
+  "$(gate_args_rc "$D15_ERR" "")"
+
+# 16d: a PARTIALLY BLIND scan may not pass the gate. The fixture is one clean,
+# loadable SKILL.md (so `audited` > 0) beside a settings.json that is NOT valid
+# JSON — and that unreadable file CONTAINS a P2b violation. The gate exited 0 and
+# printed the clean-bill string while its own `blocked` counter was 1: it passed a
+# tree that has a violation in it. The doctrine the skill body states — an
+# unreadable input is a hole in the denominator and never a clean bill — was
+# applied only when `audited == 0`, which is merely the total case of it.
+D16_BLIND="$TEST_TMPDIR/gate-blind"
+mkdir -p "$D16_BLIND/.claude/skills/ok"
+printf -- '---\nname: ok\nallowed-tools: Bash(npm test)\n---\nbody\n' \
+  >"$D16_BLIND/.claude/skills/ok/SKILL.md"
+printf '{ "permissions": { "allow": [ "Bash(~mallory/x.sh:*)"\n' >"$D16_BLIND/.claude/settings.json"
+assert_exit "a partially blind scan exits 2 under --check, not 0" 2 \
+  "$(gate_args_rc "$D16_BLIND" --check)"
+assert_exit "a partially blind scan exits 2 under --strict, not 0" 2 \
+  "$(gate_args_rc "$D16_BLIND" --strict)"
+OUT_16D=$(run_args "$D16_BLIND")
+assert_exit "the default mode's exit code is unchanged at 0" 0 "$(gate_args_rc "$D16_BLIND" "")"
+assert_not_contains "a partially blind scan is NOT reported as a clean bill" "$OUT_16D" \
+  "No fragile permission grants found."
+assert_contains "a partially blind scan says so in its own string" "$OUT_16D" "INCOMPLETE SCAN"
+assert_contains "the blind input is named in the coverage block" "$OUT_16D" "project: NOT VALID JSON"
+assert_contains "a partially blind scan still prints the coverage block" "$OUT_16D" "Scan coverage"
+assert_contains "the blind scan still reports a non-zero denominator" "$OUT_16D" \
+  "DENOMINATOR = 1 input(s) successfully examined"
+assert_eq "--count over a blind scan keeps the bare integer contract" "0" \
+  "$(run "$D16_BLIND" --count)"
+assert_exit "--count over a blind scan still exits 0" 0 "$(gate_args_rc "$D16_BLIND" --count)"
+
+# 16d2: an unreadable FRONTMATTER candidate blocks the gate the same way — the
+# blind-scan limb keys on the coverage block's "NOT read" total, not on which axis
+# produced it.
+D16_UNREADABLE="$TEST_TMPDIR/gate-blind-frontmatter"
+mkdir -p "$D16_UNREADABLE/.claude/skills/ok" "$D16_UNREADABLE/.claude/skills/u"
+printf -- '---\nname: ok\nallowed-tools: Bash(npm test)\n---\nbody\n' \
+  >"$D16_UNREADABLE/.claude/skills/ok/SKILL.md"
+printf -- '---\nname: u\nallowed-tools: Bash(python*)\n---\nbody\n' \
+  >"$D16_UNREADABLE/.claude/skills/u/SKILL.md"
+chmod 000 "$D16_UNREADABLE/.claude/skills/u/SKILL.md" 2>/dev/null
+if [[ -r "$D16_UNREADABLE/.claude/skills/u/SKILL.md" ]]; then
+  printf 'SKIP: unreadable-frontmatter gate arm not exercised — this platform still grants read after chmod 000. Exercised on POSIX CI.\n' >&2
+else
+  assert_exit "an unreadable frontmatter candidate also exits 2 under --check" 2 \
+    "$(gate_args_rc "$D16_UNREADABLE" --check)"
+fi
+chmod u+rw "$D16_UNREADABLE/.claude/skills/u/SKILL.md" 2>/dev/null
+
+# 16d3: PRECEDENCE. Exit 2 means "cannot determine"; when a gate-firing finding
+# was actually SEEN the gate can determine the answer, so the more precise 1 wins
+# over the blind-scan 2. Both are failures — this pins which one is reported.
+D16_BOTH="$TEST_TMPDIR/gate-blind-and-finding"
+mkdir -p "$D16_BOTH/.claude"
+printf '{ "permissions": { "allow": [ "Bash(python*)"\n' >"$D16_BOTH/.claude/settings.json"
+jq -n '{permissions:{allow:["Bash(~mallory/x.sh:*)"]}}' >"$D16_BOTH/.claude/settings.local.json"
+assert_exit "a visible error-tier finding still exits 1 on a blind scan" 1 \
+  "$(gate_args_rc "$D16_BOTH" --check)"
+assert_contains "the blind-and-finding run prints the finding, not the clean bill" \
+  "$(run_args "$D16_BOTH" --check)" "[P2b]"
 
 # --- Case 9: missing jq exits 2 ---------------------------------------------
 real_bash=$(command -v bash)
