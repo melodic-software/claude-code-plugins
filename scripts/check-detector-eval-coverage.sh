@@ -204,6 +204,33 @@
 # repo (permission-state.sh, discover-instruction-surfaces.sh,
 # file-provenance.sh) pass none and are correctly not candidates.
 #
+# Discovery finds those call sites with THE SAME scanner the verdict path uses,
+# widened only in the id pattern. It used to have a greedy sed of its own, which
+# kept one id per line and so missed a detector spelling two emits as
+# `emit warning Q1 ...; emit error Q2 ...` -- the stopping rule defeated by
+# ordinary shell that the verdict scanner beside it read correctly. A fix
+# applied at one call site and missed at its sibling is the defect class this
+# whole gate is about, so the two extractors are now one.
+#
+# RESIDUE of the stopping rule, both directions:
+#   - MISSED (false pass): the shapes the scanner reports UNRESOLVED contribute
+#     no id here. A candidate whose ids are computed or quoted-with-expansion
+#     (`emit "$sev" Q1`, a lookup table) can sit below the two-distinct-ids bar
+#     and never be reported as unregistered. The verdict path answers that shape
+#     with exit 2; discovery cannot, because a stranger's unreadable shell is
+#     not this run's environment, so it under-counts instead. The same is true
+#     of the scanner's own misses: an emitter renamed to something not beginning
+#     with `emit`, or reached through a variable, is invisible to both halves.
+#   - MISSED (narrowed by this change, deliberately): a candidate whose only
+#     check-id-shaped tokens sit inside a quoted string or a heredoc -- help
+#     text, a usage block -- used to qualify, because the old sed grepped prose.
+#     It no longer does. That is the verdict scanner's reading, and a pair whose
+#     detector emits nothing real is not a pair worth a registry row.
+#   - SPURIOUS (false failure, exit 1): a script that really does pass two
+#     distinct check-id-shaped tokens through an `emit`-prefixed command while
+#     being something other than a detector is reported as unregistered. The
+#     remedy is the registry-row conversation the rule exists to force.
+#
 # Registry row: <detector script>|<evals.json>|<check-id ERE>
 #
 # The ERE matches WHOLE word tokens on both sides: the detector's resolved
@@ -490,15 +517,29 @@ total_named=0
 advisories=0
 
 # qualifying_detectors -- every non-test skill script that carries a check-id
-# vocabulary next to an eval suite. The greedy `.*` keeps only the LAST call
-# site per line, which is fine here and nowhere else: this only has to find two
-# distinct ids somewhere in the file, not the whole set. Quotes around the
-# severity and the id are optional for the same reason the scanner reads them:
-# a detector written as `emit error "P1"` must still be RECOGNIZED as a
-# qualifying pair, or the stopping rule would silently skip exactly the
-# spelling the scanner was just taught.
+# vocabulary next to an eval suite. It runs THE SAME scanner the verdict path
+# runs (EMIT_SCAN_AWK, under the wider QUALIFYING_ID_ERE rather than a row's
+# own pattern), so a spelling one half of this gate can read is a spelling the
+# other half can read.
+#
+# It did not always. An earlier revision kept a second extractor here, one
+# greedy sed whose `.*` retained only the LAST call site on a line. A new
+# detector spelling two emits as `emit warning Q1 ...; emit error Q2 ...`
+# resolved to ONE id, fell short of the two-distinct-ids bar, and was never
+# reported as unregistered -- the stopping rule that exists so the next
+# detector cannot be silently unenforced, silently defeated by ordinary shell,
+# while the verdict scanner beside it read that same line as two call sites
+# correctly. Two extractors that must agree is how that happened; one
+# extractor with one behavior is why it cannot happen again.
+#
+# Discovery reads the scanner's `ID` lines and NOTHING else. Its UNRESOLVED
+# lines and its candidate count belong to the verdict path: an unreadable call
+# site in a script nobody registered is not this run's environment answer, so
+# discovery under-counts (see the stopping rule's residue in the header) rather
+# than exiting 2 over a stranger's shell. An awk that cannot run at all is the
+# same answer -- no ids, no candidate, no exit code of its own.
 qualifying_detectors() {
-  local evals_path skill script ids count
+  local evals_path skill script count
   for evals_path in plugins/*/skills/*/evals/evals.json; do
     [[ -f "$evals_path" ]] || continue
     skill="${evals_path%/evals/evals.json}"
@@ -509,10 +550,8 @@ qualifying_detectors() {
       *.test.sh) continue ;;
       *) ;;
       esac
-      ids="$(grep -vE '^[[:space:]]*#' "$script" |
-        sed -nE "s/.*(^|[^A-Za-z0-9_])emit[A-Za-z0-9_]*[[:space:]]+[\"']?[A-Za-z][A-Za-z0-9_]*[\"']?[[:space:]]+[\"']?(${QUALIFYING_ID_ERE})([^A-Za-z0-9_].*)?\$/\\2/p" |
-        sort -u)"
-      count="$(printf '%s' "$ids" | grep -c .)"
+      count="$(awk -v idre="$QUALIFYING_ID_ERE" "$EMIT_SCAN_AWK" "$script" 2>/dev/null |
+        sed -n 's/^ID //p' | sort -u | grep -c .)" || count=0
       [[ "$count" -ge 2 ]] && printf '%s\n' "$script"
     done
   done

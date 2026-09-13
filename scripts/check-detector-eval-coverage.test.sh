@@ -32,6 +32,16 @@
 # before an exit 2, and ignored trailing argv. Each of those cases FAILS
 # against that revision and passes against this one; that is what makes them
 # regression tests rather than restatements of current behavior.
+#
+# P7 is the same shape one revision later: the stopping rule had an extractor of
+# its own, and its greedy `.*` kept only the LAST id on a line, so a detector
+# spelling two emits as `emit warning Q1 ...; emit error Q2 ...` never reached
+# the two-distinct-ids bar and was silently unenforced -- the same defect class
+# (a fix applied at one call site and missed at its sibling) the verdict scanner
+# beside it had already been hardened against. Its first case FAILS against
+# adcbb777; the two beside it are preservation guards that keep the wider
+# extraction from being bought with a false positive or a lowered threshold, and
+# pass on both sides.
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -774,6 +784,71 @@ if [[ $RC -eq 0 && "$ERR" != *"UNREGISTERED"* ]]; then
   ok "P4: an emit-<scope>-<kind> printer is not mistaken for a check-id vocabulary"
 else
   fail "P4 false candidate: rc=$RC out='$OUT' err='$ERR'"
+fi
+rm -rf "$root"
+
+# ===== P7: the stopping rule scans EVERY emit call site on a line ==========
+# The discovery half kept a greedy sed of its own, which retained only the LAST
+# id on a line. A detector spelling its two emits as
+# `emit warning Q1 ...; emit error Q2 ...` therefore resolved to one id, fell
+# short of the two-distinct-ids bar, and was silently unenforced -- while the
+# verdict scanner beside it read that same line as two call sites correctly.
+# Discovery now runs that same scanner, so the two cannot disagree.
+
+mk_tree
+mkdir -p "$root/plugins/demo/skills/oneline/scripts" "$root/plugins/demo/skills/oneline/evals"
+mk_detector det.sh 'emit warning P1 SRC "message"'
+mk_evals evals.json "$(evals_json 'exercises P1 classification')"
+{
+  printf '#!/usr/bin/env bash\n'
+  printf 'emit() { return 0; }\n'
+  printf 'emit warning Q1 SRC "message"; emit error Q2 SRC "message"\n'
+} >"$root/plugins/demo/skills/oneline/scripts/oneline-check.sh"
+evals_json 'exercises Q1 and Q2' >"$root/plugins/demo/skills/oneline/evals/evals.json"
+run_gate "$(pair det.sh evals.json)" --check
+if [[ $RC -eq 1 && "$ERR" == *"UNREGISTERED PAIR: plugins/demo/skills/oneline/scripts/oneline-check.sh"* ]]; then
+  ok "P7: two emits on ONE line qualify a pair, so an unregistered one still fails"
+else
+  fail "P7 one-line emit pair escaped the stopping rule: rc=$RC out='$OUT' err='$ERR'"
+fi
+rm -rf "$root"
+
+# The other direction of the same line: registering it must silence the rule
+# and pass, so the wider extraction cannot be bought with a false positive.
+mk_tree
+mkdir -p "$root/plugins/demo/skills/oneline/scripts" "$root/plugins/demo/skills/oneline/evals"
+{
+  printf '#!/usr/bin/env bash\n'
+  printf 'emit() { return 0; }\n'
+  printf 'emit warning Q1 SRC "message"; emit error Q2 SRC "message"\n'
+} >"$root/plugins/demo/skills/oneline/scripts/oneline-check.sh"
+evals_json 'exercises Q1 and Q2 classification' >"$root/plugins/demo/skills/oneline/evals/evals.json"
+run_gate 'plugins/demo/skills/oneline/scripts/oneline-check.sh|plugins/demo/skills/oneline/evals/evals.json|Q[0-9]+' --check
+if [[ $RC -eq 0 && "$ERR" != *"UNREGISTERED"* && "$OUT" == *"2 emitted id(s)"* ]]; then
+  ok "P7: a REGISTERED pair with two emits on one line passes, both ids resolved"
+else
+  fail "P7 registered one-line pair wrongly flagged: rc=$RC out='$OUT' err='$ERR'"
+fi
+rm -rf "$root"
+
+# The threshold is two DISTINCT ids, and the wider extraction must not lower
+# it: two call sites on one line naming the SAME id is still one vocabulary
+# entry, which is not a check-id vocabulary.
+mk_tree
+mkdir -p "$root/plugins/demo/skills/single/scripts" "$root/plugins/demo/skills/single/evals"
+mk_detector det.sh 'emit warning P1 SRC "message"'
+mk_evals evals.json "$(evals_json 'exercises P1 classification')"
+{
+  printf '#!/usr/bin/env bash\n'
+  printf 'emit() { return 0; }\n'
+  printf 'emit warning Q1 SRC "one"; emit error Q1 SRC "two"\n'
+} >"$root/plugins/demo/skills/single/scripts/single-check.sh"
+evals_json 'exercises Q1' >"$root/plugins/demo/skills/single/evals/evals.json"
+run_gate "$(pair det.sh evals.json)" --check
+if [[ $RC -eq 0 && "$ERR" != *"UNREGISTERED"* ]]; then
+  ok "P7: one DISTINCT emitted id does not qualify, however many call sites carry it"
+else
+  fail "P7 single-id script wrongly qualified: rc=$RC out='$OUT' err='$ERR'"
 fi
 rm -rf "$root"
 
