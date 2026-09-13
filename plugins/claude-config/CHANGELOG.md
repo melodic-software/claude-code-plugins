@@ -3,6 +3,205 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.46.1]
+
+### Added
+
+- **`audit-pass`: `state-digest.sh`, the pinned `state-digest/v1` and `input-digest/v1`.** The state
+  digest is the first comparability input, and it shipped as one sentence with no ordering, no
+  separator, and no statement of which hash over what, so P1 was unfalsifiable across
+  implementations: two runs over one tree could legitimately compute different digests. The
+  derivation is now pinned in `reference/determinism-tiers.md` (deduplicate on the surface token,
+  sort by byte order under `LC_ALL=C`, join `surface 0x1F hash` with `0x1E`, take the full 64-hex
+  `sha256`, with `deleted` and `unreadable` as the two non-hex sentinels and `sha256` of the empty
+  byte string for an empty set) and computed by the script. The per-lane input digest reuses the same
+  construction, with the detection configuration entering as reserved `cfg:` pseudo-surface entries
+  sorted in with the files. Content hashing is uniform `sha256` over raw bytes rather than
+  `git hash-object`, because user-scope and managed-policy surfaces sit outside any worktree.
+- **`audit-pass`: `finding-identity.sh`, `anchor/v1` and `finding_id/v1` as a script, plus the
+  emitter guard.** A pass had emitted a record typed as a finding carrying `"identity": null` and no
+  `finding_id/v1`, which assertion 1.3 already made a hard error and which nothing checked at the
+  append. Every hard error in §1 is now checked where the record is written: null or absent identity,
+  an empty site list, three or more sites, two sites without a pairwise-claim declaration, an `s:`
+  anchor in a two-site finding, free prose in `claim`, and a stored `finding_id/v1` that disagrees
+  with its own constituents. The guard refuses rather than repairs.
+- **`audit-pass`: `assemble.sh`, partial-to-report assembly and the `report.md` rendering.** Assembly
+  decides which rows reach the report and was prose for the run to perform, which put the selection
+  rule every determinism property is stated over into the class of steps a run improvises.
+- **`audit-pass`: a second report artifact, `report.md`, beside `findings.json`.** A run's only
+  output was a large JSON document at a nine-segment key-derived path under the plugin data
+  directory, which a remote session cannot open. The run now prints the rendering's headline inline
+  and offers the file. `report.md` is a rendering and never a source: `--resume` still reads the
+  partial.
+- **`audit-pass`: `--lanes <list>`.** Narrows dispatch, never the inventory. An unknown lane id is
+  refused non-zero naming the accepted set, an unselected lane appears in `skipped` with its reason,
+  and a narrowed run is non-comparable with a full run, reports P1-P3 as not evaluated, and is marked
+  partial-scope in the report header.
+- **`audit-pass`: `--postures`, dispatching `audit-prompting-postures` as an opt-in lane.** That
+  skill's body states that the coordinated pass composes it, and `audit-pass` named it only where it
+  derives its report path and never in its dispatch list, so the composition it claimed had no
+  invocation behind it. Opt-in because it is the additive catalog with the largest fan-out in the
+  pass.
+- **`audit-pass`: `audit-permission-grants` at its `frontmatter` scope as a lane.** A deterministic
+  script over frontmatter the Phase 1 inventory already enumerates, and the first lane to add
+  derived-tier volume, which matters because the determinism gate's P1 is defined over that tier. Its
+  settings-file scope is not dispatched: the permission plane in effect is `audit-permission-state`'s
+  lane here. The in-or-out criterion is now written down: a lane must produce findings over surfaces
+  the Phase 1 inventory already enumerates, keyed to a site the pass can anchor, which is why
+  `audit-automation-gaps` stays routed out.
+- **`audit-pass`: a note tier for cross-catalog overlap notes, and a main-session verification phase
+  after assembly.** An overlap note names both findings and never merges them, carries a `note_id`
+  rather than a `finding_id`, and is excluded from the derived identity set and from P1-P3, because
+  its inputs are judged findings held only to P4's tolerance. The verification phase is justified by
+  scope rather than by inability: only the assembled set exposes cross-catalog and cross-lane
+  relations.
+
+### Changed
+
+- **`audit-pass`: a finding carries one site, and a multi-site return is split per site.** Delegates
+  returned single findings carrying up to twenty-one sites against a contract admitting one, or two
+  for a pairwise conflict. `finding_id` hashes every site, so fixing one of twenty-one renamed the
+  finding, stranded its suppression, and let P2 read a false convergence. Split findings carry a
+  non-identity `group` field derived from `check` and `claim` alone, so it survives fixing any one
+  site. Conflict checks stay pairwise and exempt: a contradiction is retired by fixing either side,
+  so its sides are not independently correctable.
+- **`audit-pass`: `--report-to` takes a DIRECTORY and redirects both artifacts.** It was specified
+  over "the report" singular. A file path names one artifact and would force the flag to invent the
+  other's destination; redirecting only the JSON leaves the operator with exactly the artifact the
+  flag exists to rescue them from. The destination gate is evaluated over both resolved paths inside
+  the directory, and Class 4 self-exclusion covers both.
+- **`audit-pass`: the dispatch substrate is probed, never asserted.** Whether a lane can spawn its own
+  verifier depends on this host's depth budget, which `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` sets.
+  Writing either shape into the body as harness behavior would be the surface-misstates-the-harness
+  defect this plugin's own catalog flags. The run probes once, records `verified` / `inline` /
+  `skipped` per lane, and treats an inconclusive probe as no nesting.
+- **`audit-pass`: the Phase 1 liveness sources no longer require commands a run cannot invoke.**
+  `/context`, `/memory`, `/skills`, `/hooks`, `/permissions`, and `/status` are built-in interactive
+  commands with no model-invocable form, so every one of them resolved to unavailable and the
+  two-source rule was ceremonial while every memory-layer claim was single-sourced anyway. Replaced
+  by the harness-injected instruction block (the loaded text rather than a summary of it), the
+  settings cascade read directly, and `claude mcp list` for MCP server status. `/mcp` is explicitly
+  **not** swept in with the interactive six: its subcommand group is non-interactive. The three
+  genuine coverage losses (per-skill listing-budget drops, custom-agent registration liveness, and
+  the clean-room attribution of behavior to local config versus harness default) are named in
+  `skipped` rather than absorbed.
+- **`audit-pass`: `InstructionsLoaded` is more available than the body claimed.** The
+  events-already-fired reason is true only of `load_reason: session_start`; a wired hook still
+  observes lazy loads (`nested_traversal`, `path_glob_match`, `include`, `compact`) for the rest of
+  the session, inside subagents included. The probe now has three outcomes rather than two.
+- **`audit-pass` moves its Phase 3 lane catalog and its Phase 1 liveness sources into spokes.** `SKILL.md` had grown to 635 lines, past this repository's 500-line hard cap for a skill body, so the two largest blocks of detail now load on demand instead of on every invocation. `reference/lane-catalog.md` carries the per-lane dispatch entries, the statement of what is deliberately left undispatched, and the substrate probe that decides whether a lane can spawn its own verifier; `reference/liveness-sources.md` carries the per-source liveness detail with both of its verification records and the three coverage losses named in `skipped`. Each is a row in the reference index with its own load-when condition, and each is pointed at from the phase it came out of. Every rule moved verbatim: Phase 3 keeps what a lane is, what earns one, the `--lanes` id set, per-lane persistence with the exit-3 fence, and the concurrency cap, and Phase 1 keeps the liveness rule itself, the single-sourced marking, output-style resolution, and shadowed definitions. No check, argument, threshold, or report field changed.
+- **`audit` states the category H documentation gate instead of shouting it.** The step opened with an all-caps `**MANDATORY**`; it now reads "Any category H finding requires a fetch of `code.claude.com/docs/en/model-config` confirming the behavior the finding rests on", above the sentence that already carried the prohibition and its reason. The requirement is unchanged, and no finding category, threshold, or report field moved.
+- **`audit-permission-grants` gives its quoted upstream span a recheck trigger.** The quoted review-before-trusting warning carried a URL and a fetch date but no event that obliges re-deriving it; it now fires on a fetch of that page no longer carrying the warning, which completes the four-part record the upstream-drift convention requires.
+- **`audit-prompting-postures` gives both of its restated upstream behaviors a recheck trigger.** The `disallowed-tools` scoping claim and the quoted `plugin uninstall` data-retention sentence each carried a URL and a fetch date only. Each now names the observable event that obliges re-deriving it. Quoted wording, bases, and dates are unchanged.
+
+### Fixed
+
+- **`audit-instructions`'s split-destination eval stops grading a rationale that is no longer true.** Case 13's expected output and its third expectation rejected a `paths:`-scoped destination for agent-originated content "because path-scoped rules are invisible inside a subagent context". A first-party probe on Claude Code **2.1.268** shows a non-fork subagent does receive a path-scoped rule once it reads a path the glob covers, with the glob matched against the requested path so even a read that finds no file fires it. Both now give the reason that holds: a path-scoped rule is not inherited by a dispatched agent and announces itself nowhere, so it reaches a dispatch only if that dispatch happens to read a covered path, which trades guaranteed presence for a deferral the agent cannot rely on. The graded behavior is unchanged: the `@path` import is still refused, a `paths:`-scoped rule is still rejected, and an agent-reachable deferring destination is still what the case expects.
+- **The criterion that eval grades stops carrying the same superseded reason.** `reference/criteria.md`'s agent-reachable-destination rule stated that path-scoped rules "are invisible there" for a subagent, which left the body and its eval disagreeing once the eval was corrected. It now states the inheritance and announcement halves that hold, and the verdict is unchanged: an agent-reachable destination is still required and a `paths:`-scoped rule is still never one.
+- **`audit-pass` puts the emitter guard ON the append path instead of beside it.** The contract said every persisted record passes the guard, but Phase 3 prescribed a bare `run-state.sh partial append`, which only checks the input is a single-line JSON object, so a delegated lane returning a null identity, three or more sites, or a mismatched `finding_id/v1` was appended permanently and assembled. `finding-identity.sh guarded-append --run-dir <dir> --record <json-line> [--epoch <n>]` now runs `validate-record` and calls `partial append` only if it passes, and it is the form `SKILL.md`, `reference/report-location-and-schema.md`, `reference/run-state-and-resumability.md`, `reference/finding-identity.md`, and `reference/lane-catalog.md` all prescribe. A refusal exits 4 and writes nothing; a FENCED append still reaches the caller as exit 3. `run-state.sh` is unchanged and still owns the partial.
+- **`audit-pass`'s state digest stops reading a failed `git status` as a clean tree.** `state-digest.sh dirty` consumed `git status` through a process substitution with stderr discarded, so in a bare repository or with an unreadable index the loop completed with an EMPTY dirty set and exit 0. The caller then computed baseline and endpoint digests omitting every worktree change, and the comparability gate returned a verdict over input it had not actually read. The output and exit status are now captured and checked before anything parses them, and a non-zero status exits 2 naming the failure.
+- **`audit-pass`'s `anchor/v1` normalization collapses the whole whitespace class.** The transformation collapsed only tab and newline, leaving carriage returns, form feeds, and vertical tabs in place, so `a\r\nb` normalized to `a\r b` where `a\nb` became `a b`. Two checkouts differing only in line-ending handling produced different anchors and therefore different `finding_id`s, and a suppression written from one stopped matching the other.
+- **`audit-pass`'s emitter guard matches the full anchor grammar.** Anchor validation accepted any non-empty string beginning with `e:`, so `e:garbage` passed and had an id derived from it, leaving an invalid unstable identity in an append-only artifact. An anchor must now be exactly `s:` or `e:` plus 12 lowercase hex, a colon, and 8 lowercase hex. The whole-surface form already required exact equality and is unchanged.
+- **`audit-pass`'s report headline carries the per-severity counts the schema requires.** §7 requires one line with counts per tier AND per severity; the renderer emitted tier and auxiliary-section totals only. Since that line is what the run prints inline, the severity distribution was invisible without opening the report and recounting it. The headline now reads `<n> derived, <n> judged (by severity: ...), ...`, ordered blocker, error, warn, info, unspecified, with any severity outside that ladder still counted and sorted in after it.
+- **`audit-pass`'s anchor-grammar tests stop passing with the grammar bug present.** The eleven-case loop built each record with a hardcoded `"finding_id/v1": "0000000000000000"`, which never matches the derived id, so every record was refused by the finding_id consistency check before its anchor was examined. All eleven assertions passed against the pre-fix source, and a regression loosening the pattern to accept uppercase hex or the wrong segment widths would not have been caught. The id is derived per anchor now, leaving the anchor the only thing that can refuse these records: eight of the eleven cases fail against the pre-fix source where none did.
+- **`audit-pass`'s Phase 4 stops contradicting Phase 3 about which command writes a record.** Phase 3 states that `run-state.sh partial append` is never the call a lane makes itself, while Phase 4 still prescribed writing the `open` terminator through it. The guard short-circuits on any record that is not a `finding`, so guarding a terminator costs nothing, and one write command for the whole skill is what keeps Phase 3's rule from reading as advice a coordinator may opt out of.
+- **`audit-pass`'s `guarded-append` no longer takes an appender path as an argument.** The guard runs first, so an override could never smuggle an invalid record past it, but the value is a path the script hands to `bash` and these arguments are composed from lane output. The one caller that needs to redirect the write sets `AUDIT_PASS_APPENDER` in its own environment instead.
+- **`audit-pass`'s `state-digest.sh` removes every temporary file it creates, however it exits.** One `mktemp` was already leaked when a second failed, and a fresh-context verifier then found three more of the same shape: `--config` with no equals sign and `--config` with a token missing the `cfg:` prefix each abandon two live temp files, and a malformed list entry abandons one. Those two `--config` refusals are the realistic case, because the value is composed per lane on the hot path. The fix is a registry and an `EXIT` trap rather than an `rm` before each `die`: a per-site removal is a rule that has to be re-obeyed every time a `die` is added, and it had already been missed four times. The one refusal that runs inside a command substitution, where the trap cannot reach, removes its own file by hand.
+- **`audit-pass`'s `guarded-append` runs the guard before the appender's own precondition.** The appender-readable check ran first, so an invalid record combined with an unreadable appender exited 2 naming the operator's environment instead of 4 naming the record. Nothing was written on either ordering, so only the exit code and the message distinguished them, and both pointed at the wrong fault.
+
+## [0.46.0]
+
+### Added
+
+- **`audit-automation-gaps`**: `scripts/findings-state.sh` persists a run's verdict table, evidence
+  and implementation plans, so `--implement` has something to read in a later session. Keyed per
+  project through the shared `lib/state-key.sh`, so one checkout never reads another's verdicts,
+  and `--plugin-data` is required because `${CLAUDE_PLUGIN_DATA}` is absent from the Bash tool
+  environment.
+- **`audit-automation-gaps`**: a Gotchas surface built from observed failures, a `## Next` section,
+  and presence-gated routing to `overengineering:audit` in both directions.
+- **`audit-automation-gaps`**: eval cases covering the persisted artifact and the revised
+  `Already enforced` gate.
+
+### Changed
+
+- **`audit-automation-gaps`**: `scripts/inventory.sh` counts all seven documented hook locations
+  instead of the project `.claude` tree alone, which had it reporting 3 hook scripts and 0 skills
+  for a repository carrying 93 wired handlers and 271 skills. An unreadable scope now reports
+  `unreadable` rather than zero, conditional scopes are split from the standing set, and enablement
+  inputs are emitted with a pointer instead of a computed verdict.
+- **`audit-automation-gaps`**: a `git log --grep` count is now treated as a ceiling rather than a
+  frequency in both gates that consumed it. A frequency claim requires a sample, reported with its
+  denominator and sample size; a ceiling already under 5 percent still settles YAGNI without one.
+- **`audit-automation-gaps`**: the `Already enforced` gate takes a shift-left carve-out with three
+  falsifiable conjuncts, keeping the hook budget a hard gate, so a consumer documenting a budget
+  with no headroom left keeps the REJECT.
+- **`audit-automation-gaps`**: one batched docs fetch is mandatory for any candidate whose mechanism
+  is a Claude Code surface; conditionality survives only for non-harness facts, and a skip records
+  how the fact was settled.
+- **`audit-automation-gaps`**: the refusal gate and the implementation review both dispatch a
+  fresh-context judge, degrading to an inline review that records itself as same-context.
+- **`audit-automation-gaps`**: the findings store reports state it cannot trust separately from
+  state that is absent. A history file, pointer or payload that exists but is unreadable, an
+  incomplete publish, or a payload that does not parse, all exit 5; nothing stored still exits 4.
+  A missing `jq` is the prerequisite it is, exit 2, rather than a corruption claim about the
+  operator's artifact.
+- **`audit-automation-gaps`**: the audit writes twice, once when verdicts are presented and once
+  after the human selects, so `--implement` acts on what was chosen rather than on every candidate
+  the skill happened to pass.
+- **`audit-automation-gaps`**: `scripts/inventory.sh` exits 2 on a usage error or a project root it
+  cannot enter, where it previously always exited 0. Its only consumer already falls back to
+  `inventory unavailable`, so a nonzero exit degrades rather than injecting wrong numbers.
+
+## [0.45.0]
+
+### Added
+
+- **`audit-permission-grants`**: the detector gains two gate modes. `--check` exits 1 when any
+  error-tier finding fires (P2, P2b, P4) and `--strict` adds the warning tier (P1, P3). Under both,
+  a `NOTHING TO AUDIT` result exits 2 rather than 0, because a scan of nothing must never pass a
+  gate. The default report mode and `--count` are unchanged and still always exit 0, and the skill
+  itself stays report-only: the operative rule still has to land in a user-global settings file a
+  skill cannot write.
+
+### Fixed
+
+- **`audit-permission-grants`**: the tilde-user finding is emitted under `P2b`, the id its own
+  criteria section and the severity table already gave it. It was labelled `P2`, so a reader could
+  not tell which of the two documented checks had fired and a search for `P2b` in a report found
+  nothing.
+- **`audit-permission-grants`**: the P2 and P2b remedy no longer offers `${CLAUDE_SKILL_DIR}` in
+  scopes where that token stays literal. It was offered unconditionally, so a settings rule, an
+  agent or a command was advised to swap one inert rule for another. A `portable_path_remedy()`
+  branches by scope the way `inert_grant_remedy()` already did, and non-skill scopes now get the
+  bare-name-on-PATH form or the `~/` home anchor.
+
+### Changed
+
+- **`audit-permission-grants`**: every emit site carries assertions pinning the remedy it offers for
+  each scope it fires in, negative ones included, so advice that would be inert where it is printed
+  fails a test rather than reaching an operator. The suite grows from 148 checks to 402.
+
+## [0.44.1]
+
+### Fixed
+
+- **`audit-automation-gaps`**: the `Too slow` gate required the hook to block, which `PostToolUse`
+  never does, so a `PostToolUse` candidate cleared it at any latency. The gate now judges each
+  event against its actual cost: a blocked call where the event can block, turn latency on
+  `PostToolUse`.
+- **`audit-automation-gaps`**: the fixed 15-30 second threshold had no upstream basis and was
+  removed from `SKILL.md`, `context/gap-analysis.md` and the first eval's expected output. Timing
+  now resolves the consuming repository's own documented hook budget first and labels any supplied
+  fallback a house rule.
+
+### Added
+
+- **`audit-automation-gaps`**: `context/hook-timing.md`, carrying the budget-resolution ladder, the
+  per-event cost table, the documented levers (matcher, `if`, `async`, `timeout`), and dated
+  upstream-fact records for the 600-second command-hook `timeout` default and the `PostToolUse`
+  no-block behavior.
+
 ## [0.44.0]
 
 ### Fixed

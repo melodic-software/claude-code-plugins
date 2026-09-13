@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.78]
+
+### Changed
+
+- **`pull-request`'s C4 review-comment step states the subagent-dispatch requirement instead of shouting it.** "For >=3 findings, MANDATORY subagent dispatch" now reads "For >=3 findings, dispatch a subagent", followed by the same two reasons it already gave: it preserves main session context and structurally enforces the per-finding ledger shape. The threshold, the requirement, and the review-discipline reference are unchanged.
+
 ## [0.55.77]
 
 ### Changed

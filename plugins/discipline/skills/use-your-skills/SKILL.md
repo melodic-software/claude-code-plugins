@@ -23,7 +23,10 @@ skills already available.
 A skill listing is loaded into context so the model knows what is available:
 every **model-invocable** skill's name (always) and its description (subject to
 the listing budget), with the full body loading only when the skill is invoked
-([Skills docs](https://code.claude.com/docs/en/skills), fetched 2026-08-10).
+([Skills docs](https://code.claude.com/docs/en/skills), fetched 2026-08-10;
+recheck when that page stops describing the listing as name-plus-description
+with the body loaded on invocation, or when a release note changes what the
+skill listing carries).
 The listing covers only what the MODEL can reach, a skill set to
 `disable-model-invocation: true` is **manual-only**: its description is not in
 the model's context and the model never auto-invokes it, so it surfaces only

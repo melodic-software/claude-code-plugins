@@ -3,6 +3,19 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.27]
+
+### Changed
+
+- **`object-writer` drops the self-review pass over the pivot-chain rule.** The pivot-chain section
+  stated the rule and then instructed a check of the same rule two paragraphs later, which is a
+  writer grading itself against text still on the screen. The agent is dispatched blind by design,
+  so there is no independent reviewer to route the check to and none was added. The discriminating
+  content is kept where it is usable, folded into the rule itself: a handoff phrased as "and also
+  there was…" is topical and is the failure, a handoff where the sense channel changes is the
+  mechanism running. The write's disqualifier list still covers a chain that reads as scene
+  description, so nothing is now unchecked.
+
 ## [1.4.26]
 
 ### Changed

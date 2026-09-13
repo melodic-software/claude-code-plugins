@@ -78,8 +78,9 @@ The plugin's justification now rests on the three things that **are** demonstrab
    stated per proposal rather than assumed.
 2. **The promote lane**: conventions Claude currently loads *never* have no presence to lose, so
    any working destination is a strict improvement. No adherence claim is needed for this to hold.
-3. **Reachability**: the generated index makes deferred surfaces reachable from subagents, which is
-   a measured mechanic, not an inference.
+3. **Discoverability**: no deferred surface announces that it exists, and the generated index names
+   every one of them so an ordinary `Read` can fetch it, which is a measured mechanic, not an
+   inference.
 
 Anyone weighing whether to run a migration should weigh it on context cost and on the promote lane,
 not on an expectation that their instructions will be followed better.

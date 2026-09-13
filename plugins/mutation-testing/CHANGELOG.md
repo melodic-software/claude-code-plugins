@@ -3,6 +3,12 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.25]
+
+### Changed
+
+- **`setup`: `apply` step 9 drives the config and suppression record to a committed state instead of forbidding the commit.** The step staged both files and then forbade committing them, which leaves a dirty working tree; a session-end gate that refuses a dirty tree holds the session open until those files are committed and pushed, so a run that followed the step could not finish. Step 9 now offers the `git add` and the commit that follows it, runs each only on the user's explicit acceptance, and states the consequence when the user declines. Nothing is committed unasked, and probe 9's tracked-and-not-ignored checks are unchanged.
+
 ## [0.3.24]
 
 ### Changed

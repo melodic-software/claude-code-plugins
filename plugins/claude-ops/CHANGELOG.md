@@ -3,6 +3,12 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.56.2]
+
+### Fixed
+
+- **The user-configuration contract stamp in `skills/setup/SKILL.md` now carries a recheck trigger.** "Official contract (verified 2026-07-18)" named a basis and a date but no event that obliges re-deriving it, so it was a half-conforming record under the upstream-drift convention. It now fires on that section no longer stating that Claude Code prompts for `userConfig` values and stores non-sensitive ones in user settings, on the `#user-configuration` anchor ceasing to resolve, or on a release note changing how `pluginConfigs` entries in project and local settings are treated. No option, default, or containment rule changed.
+
 ## [0.56.1]
 
 ### Changed

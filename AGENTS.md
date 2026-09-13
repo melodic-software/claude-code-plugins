@@ -9,10 +9,11 @@ test lanes and both AI review lanes, and the flip to ready is what asks for them
 
 ## Conventions that load on demand
 
-Each surface below enters context automatically when Claude reads a file it covers. That trigger
-does **not** fire inside subagents, and after a compaction it fires again only when a covered file
-is read again. When you are working on something an entry covers and its content is not already in
-context, read the file directly.
+Each surface below enters context automatically when Claude reads a file it covers, in subagents
+as well as in the main session. The match is on the requested path, so even a read that finds no
+file fires it. A surface whose trigger has not fired is simply absent, and after a compaction it
+returns only when a covered file is read again. When you are working on something an entry covers
+and its content is not already in context, read the file directly.
 
 | Surface | Covers | Topic |
 |---|---|---|

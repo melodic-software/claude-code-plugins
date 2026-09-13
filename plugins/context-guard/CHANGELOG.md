@@ -5,6 +5,12 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.58]
+
+### Fixed
+
+- **The dated statusline measurement in `skills/setup/SKILL.md` now carries a recheck trigger.** The 2026-08-21 measurement that a configured `statusLine` is never invoked on the web or under `claude -p` stated a claim, a probe, and a date but no event that obliges re-deriving it. It now fires on a release note or the statusline docs describing a statusline running without a terminal interface, or on a re-measurement observing a configured `statusLine` being invoked. The measurement and its date are unchanged, and the INFO classification it supports is untouched.
+
 ## [0.7.57]
 
 ### Changed

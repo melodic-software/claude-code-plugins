@@ -3,6 +3,36 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.0]
+
+### Added
+
+- **Five per-ecosystem security checklists as on-demand context files:**
+  `context/security-dotnet.md`, `context/security-python.md`, `context/security-typescript.md`,
+  `context/security-shell.md`, and `context/security-web-api.md`. Content is moved from the
+  `security-reviewer` agent body unchanged; no check was added, dropped, or reworded.
+
+### Changed
+
+- **`security-reviewer` loads per-ecosystem detail on demand instead of on every dispatch.** The
+  five checklists above previously sat inline in the agent body, so a review of one ecosystem paid
+  the full context cost of all five. The body now carries a routing table naming each file, the
+  ecosystem or surface that selects it, and what it adds, so a dispatch reads only the rows its
+  change set touches. The cross-ecosystem list and the OWASP table stay inline because they are the
+  floor for every review, and an unlisted ecosystem or an unresolvable checklist file both fall back
+  to that floor with the gap named in the report. Frontmatter, tool list, output format, and
+  severity tiers are unchanged.
+- **`code-reviewer`, `architecture-guardian`, `ecosystem-specialist` stop instructing a read of
+  `CLAUDE.md`.** A subagent starts with the consuming project's always-loaded instructions already
+  in its context, so the read was a re-fetch of content it holds. The sources that do not arrive on
+  their own (`REVIEW.md` and review-criteria docs, contributing guides, architecture docs, ADRs,
+  `docs/architecture*`, `ARCHITECTURE.md`, `package.json` scripts, `Makefile`/`justfile` targets,
+  CI workflow files) are still read. `code-reviewer` and `architecture-guardian` also drop their
+  separate "project rules" read, since a path-scoped rule is delivered when they read a file it
+  covers and reading the changed files is their whole job; `ecosystem-specialist` keeps its rules
+  read, because it resolves commands and runs them without necessarily opening a covered file, so
+  nothing guarantees the delivery fires for it.
+
 ## [0.28.2]
 
 ### Changed

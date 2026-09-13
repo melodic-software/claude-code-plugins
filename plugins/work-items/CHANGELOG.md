@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.9]
+
+### Changed
+
+- **`decompose` and `triage` drop their `## Purpose` sections.** Each restated the skill's own frontmatter `description`, which is already in context when the skill runs: `decompose`'s Purpose was a strict substring of the description's capability sentence, and `triage`'s repeated it word for word apart from bold markup. Nothing either section carried is lost, and no step, label, or seam verb changed.
+
 ## [0.40.8]
 
 ### Changed
