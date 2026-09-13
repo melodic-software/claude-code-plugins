@@ -15,16 +15,20 @@ about to state a timing number.
 There is no upstream hook latency budget. The hooks documentation has no performance section, so
 any fixed number is a house rule and must be labelled as one wherever a verdict cites it.
 
-Resolve in this order and name which rung applied:
+The measurement from Phase 2.1 is the left side of the comparison, never a source of the budget
+itself. The budget is the right side, and it resolves in two rungs:
 
 1. **The consuming repository's own documented budget.** Search its convention docs and rules for a
    stated per-tool-call or per-turn hook ceiling. Where one exists it is authoritative, including
    when it is far stricter than any default you would otherwise pick, and including when it says it
    never relaxes to absorb an overage.
-2. **A measured local baseline.** With no documented budget, time the tool on a representative file
-   and state the measurement rather than a threshold.
-3. **The fallback.** Absent both, treat roughly one second per tool call as the working ceiling and
-   say in the verdict that this is this skill's house rule, not upstream guidance.
+2. **The house-rule fallback.** Where the repository documents no ceiling, treat roughly one second
+   per tool call as the working one, and say in the verdict that this is this skill's number rather
+   than upstream guidance.
+
+Name which rung applied in every verdict that cites a threshold. A measurement with no budget on the
+other side yields no verdict, so rung 2 always supplies one rather than leaving the gate unable to
+decide.
 
 A consuming repository that documents a budget and has no headroom left turns a duplicate-hook
 candidate into a REJECT, whatever its latency in isolation.
@@ -68,4 +72,4 @@ date is not authority.
 |---|---|---|---|
 | `timeout` defaults to 600 seconds for `command`, `http` and `mcp_tool` hooks, lowered to 30 on `UserPromptSubmit` and the model-switch events and 10 on `MessageDisplay`, with `SessionEnd` hooks sharing a 1.5-second budget | [Claude Code hooks reference](https://code.claude.com/docs/en/hooks), common fields | 2026-09-12 | A re-fetch finds the defaults no longer matching this row |
 | `PostToolUse` cannot block: exit code 2 shows stderr to Claude and the tool has already run | [Claude Code hooks reference](https://code.claude.com/docs/en/hooks), exit-code-2 behavior per event | 2026-09-12 | A re-fetch finds the per-event table no longer matching this row |
-| No official page states a hook latency budget or compares a check in CI against the same check in a hook | Searched the hooks, hooks-guide, best-practices and features-overview pages | 2026-09-12 | A re-fetch finds a performance or placement section added |
+| No official page states a hook latency budget or compares a check in CI against the same check in a hook | Absence checked by reading each page end to end for a performance, latency or placement section: [hooks](https://code.claude.com/docs/en/hooks), [hooks guide](https://code.claude.com/docs/en/hooks-guide), [best practices](https://code.claude.com/docs/en/best-practices), [features overview](https://code.claude.com/docs/en/features-overview). The nearest statements are event-scoped ("SessionStart runs on every session, so keep these hooks fast") and the `SessionEnd` 1.5-second budget, neither of which is a fleet-wide ceiling | 2026-09-12 | A re-fetch of any of the four finds a performance or placement section added |
