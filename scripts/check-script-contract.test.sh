@@ -68,6 +68,7 @@ REGISTRY=(
   "check-changelog-parity.sh|-|--check|changelog_parity"
   "check-contract-slice-prune.sh|-|-|-"
   "check-cross-plugin-source-drift.sh|-|-|-"
+  "check-detector-eval-coverage.sh|jq|-|-"
   "check-detector-findings-crosswalk.sh|-|-|-"
   "check-discriminating-test-skips.sh|-|-|-"
   "check-docs-naming.sh|git|-|docs_naming"

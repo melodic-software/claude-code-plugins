@@ -3,6 +3,16 @@
 All notable changes to the `overengineering` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.12]
+
+### Added
+
+- **`audit`**: a presence-gated boundary line naming `claude-config:audit-automation-gaps` as the
+  owner of the additive direction. This skill says it is not for proposing new automation, which is
+  that skill's whole job, and neither named the other, so a reader arriving with the opposite
+  question had nowhere to be sent. Body only: the description is already over the spec field
+  maximum and sits in a shrink-only baseline.
+
 ## [0.4.11]
 
 ### Changed
