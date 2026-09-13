@@ -17,11 +17,13 @@
   slot left are each refused by name with the file left byte-identical. A missing or unreadable
   target, and a slots file that is missing, unreadable, not a JSON object, or holds a non-string
   or non-UTF-8-encodable value, exit 2, as does a target that is not a handoff file, the same
-  `type: handoff` guard `validate` and `emit` apply. The write goes to a temporary file in the
-  target's own directory and is replaced into place, so an interrupted write cannot truncate the
-  handoff. The target's own line endings survive, so a CRLF handoff stays CRLF. `new`, `validate`,
-  and `emit` keep their behavior and exit codes, and the Edit tool is now only the repair path
-  after a failed `validate`.
+  `type: handoff` guard `validate` and `emit` apply, and a target whose shape is not 2, since
+  substitutions belong to the shape this engine writes. A shape newer than 2 exits 3 with
+  `validate`'s wording, read it and do not rewrite it, so version skew cannot corrupt a
+  future-format handoff. The write goes to a temporary file in the target's own directory and is
+  replaced into place, so an interrupted write cannot truncate the handoff. The target's own line
+  endings survive, so a CRLF handoff stays CRLF. `new`, `validate`, and `emit` keep their behavior
+  and exit codes, and the Edit tool is now only the repair path after a failed `validate`.
 
 ## [0.35.10]
 
