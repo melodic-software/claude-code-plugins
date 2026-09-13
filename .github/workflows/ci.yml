@@ -607,6 +607,19 @@ jobs:
         continue-on-error: true
         run: scripts/check-detector-findings-crosswalk.sh --check
 
+      # Both directions of the detector/eval check-id crosswalk: every id a
+      # detector emits must be named by an eval case, and every id an eval case
+      # names must be one the detector can emit. The second direction is what
+      # catches a suite asserting a scope the detector outgrew (#4149).
+      # Self-test first, so a broken detector cannot mask a regression.
+      - name: Run detector-eval-coverage tests
+        if: needs.changes.outputs.run_shell == 'true'
+        run: bash scripts/check-detector-eval-coverage.test.sh
+      - name: Check every emitted check id has an eval case, and every eval-named id is emittable
+        id: detector_eval_coverage
+        continue-on-error: true
+        run: scripts/check-detector-eval-coverage.sh --check
+
       # Self-test first, so a broken detector cannot mask a regression.
       - name: Run skill-leaf-name tests
         if: needs.changes.outputs.run_shell == 'true'
@@ -1287,6 +1300,7 @@ jobs:
             purged-em-dashes=${{ steps.purged_em_dashes.outcome }}
             zizmor=${{ needs.changes.outputs.run_workflows == 'false' && 'success' || steps.zizmor.outcome }}
             loop-lane-floor-drift=${{ steps.loop_lane_floor_drift.outcome }}
+            detector-eval-coverage=${{ steps.detector_eval_coverage.outcome }}
             detector-findings-crosswalk=${{ steps.detector_findings_crosswalk.outcome }}
             skill-leaf-names=${{ steps.skill_leaf_names.outcome }}
             docs-naming=${{ steps.docs_naming.outcome }}

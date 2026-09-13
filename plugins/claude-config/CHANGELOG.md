@@ -3,6 +3,35 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.45.0]
+
+### Added
+
+- **`audit-permission-grants`**: the detector gains two gate modes. `--check` exits 1 when any
+  error-tier finding fires (P2, P2b, P4) and `--strict` adds the warning tier (P1, P3). Under both,
+  a `NOTHING TO AUDIT` result exits 2 rather than 0, because a scan of nothing must never pass a
+  gate. The default report mode and `--count` are unchanged and still always exit 0, and the skill
+  itself stays report-only: the operative rule still has to land in a user-global settings file a
+  skill cannot write.
+
+### Fixed
+
+- **`audit-permission-grants`**: the tilde-user finding is emitted under `P2b`, the id its own
+  criteria section and the severity table already gave it. It was labelled `P2`, so a reader could
+  not tell which of the two documented checks had fired and a search for `P2b` in a report found
+  nothing.
+- **`audit-permission-grants`**: the P2 and P2b remedy no longer offers `${CLAUDE_SKILL_DIR}` in
+  scopes where that token stays literal. It was offered unconditionally, so a settings rule, an
+  agent or a command was advised to swap one inert rule for another. A `portable_path_remedy()`
+  branches by scope the way `inert_grant_remedy()` already did, and non-skill scopes now get the
+  bare-name-on-PATH form or the `~/` home anchor.
+
+### Changed
+
+- **`audit-permission-grants`**: every emit site carries assertions pinning the remedy it offers for
+  each scope it fires in, negative ones included, so advice that would be inert where it is printed
+  fails a test rather than reaching an operator. The suite grows from 148 checks to 402.
+
 ## [0.44.1]
 
 ### Fixed

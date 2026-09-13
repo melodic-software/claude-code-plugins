@@ -4,6 +4,92 @@ Notable changes to the detector-findings contract (SemVer). Changing a producer-
 the coexistence obligations, or an enforceability verdict is a major bump; additive guidance or a new
 adopter row is a minor bump; docs-only clarification is a patch.
 
+## [3.0.0] - 2026-09-13
+
+**Major under this contract's own rule, on 2.0.0's shape.** A producer-owned obligation is added,
+and an existing producer that ignores it stops conforming: a rule emitting a remedy no assertion
+pins to the scope it fires in is non-conforming under 3.0.0 and was conforming under 2.9.0. **All
+five tabled adopter rows therefore move, and four of them record a shortfall**, which the preceding
+sentence entails rather than contradicts: the new obligation reaches producers already tabled, so
+every row now states how far its remedies are pinned and a grandfather clause says what such a row
+still asserts. No coexistence obligation changes, and no existing enforceability verdict changes.
+
+**Still major with the grandfather clause in it, not minor.** The clause suspends the retrofit, not
+the obligation: a producer that edits a remedy after 3.0.0 without pinning it is non-conforming
+where 2.9.0 would have held it conforming. What defines the bump is the redefinition of
+conformance, which this version makes, and a transitional reading of it does not undo.
+
+- **New section, "The remedy is pinned by an assertion, in every scope it fires in"
+  ([#4149](https://github.com/melodic-software/claude-code-plugins/issues/4149) Q2).** Every remedy
+  a rule emits carries at least one assertion pinning it for the scope it fires in. The section
+  argues the bar rather than stating it: a detector's detection is a value a fixture can compare, so
+  it gets compared, often exhaustively, while what the fired row tells an author to do leaves the
+  same run as prose nothing reads back. That is named as the default a fixture-built suite falls
+  into rather than as a law, because `claude-config:audit-instructions` already pins both halves of
+  both its remedies and did so before this bar existed. A remedy can therefore be wrong on the day
+  it is written and can drift into being wrong afterwards, with a green suite either way. This contract is where that
+  costs an edit rather than a dismissed row, and the premise is not that any consumer route is
+  automatic, which this document bounds carefully elsewhere: `Yes` buys a MAY, a producer-owned row
+  is routed only when its surface is available, and a cleanup-class row reaches a route that reads
+  no `Auto-applicable` cell at all and applies the row from the file. What none of those routes
+  contains is a step that reads a remedy for correctness.
+- **Scope is the bar, and the wording is not.** An assertion that a remedy is present, or carries an
+  expected token, passes on the defect the bar exists for. The originating case
+  ([#4134](https://github.com/melodic-software/claude-code-plugins/pull/4134)) is a remedy naming a
+  substitution token that resolves in one scope, offered in scopes where the same token is inert, so
+  following it traded a working rule for a broken one, which is the failure the check existed to
+  report re-emitted as advice. The defect and the first fix for it were both present, well formed,
+  and correct somewhere; only the scope each was offered in separates them from a correct remedy.
+- **A negative assertion carries the same weight as a positive one**, that the remedy is NOT offered
+  where it would not work. An all-positive assertion set is satisfied by a remedy offered
+  everywhere, and the withheld half was the wrong half in both the bug and its first fix.
+- **The obligation binds an outcome, not a harness**, on the reading the crosswalk's fall-through
+  criterion already states of itself: any assertion form the producer runs satisfies it, a test
+  case, an eval case, or a golden file. **The freedom is over the form and is not a claim that a
+  form is in place**: two of the five tabled adopters run no assertion reaching a remedy at all, a
+  third pins only an `Action` cell's shape, and a fourth pins two of its fifteen. It is **per rule
+  and per scope, never per
+  finding**, which is "Auto-applicability is settled per rule, at contract time" applied rather than
+  restated.
+- **One Enforceability row, with the split stated rather than blurred.** **Detect-then-judge when
+  built**, on the same line the `Tier` row draws: where a producer's emit sites and assertion set
+  both carry the scope, the pairing is a set difference over two enumerable id-and-scope sets, while
+  whether the pinned remedy is the RIGHT one for that scope is the half the originating bug got
+  wrong twice and is not a machine question. **Unbuilt**, and deliberately not claimed
+  otherwise; it is also not buildable in the conformance gate's shape, because a producer's
+  assertions live in its own tree rather than in what it emits.
+- **Two recheck triggers added, event-named like their siblings, and the first has not fired.** A
+  producer labelling the scope on both sides, then a producer declaring where its assertion set
+  lives. Every tabled producer keys its emit sites on a rule id alone and matches remedies by
+  substring where it matches them, so no side carries a scope and the pairing check is not writable
+  against any producer yet; claiming it was writable "per producer today" would have asserted of the
+  fleet what no row in it supports. Scope labelling makes the check writable against one producer's
+  layout; a declared assertion location is what lets one gate reach every producer.
+- **A third trigger closes the grandfather clause:** a grandfathered producer's next change to a
+  rule's remedy set, adding a rule or editing an emitted remedy's wording or scope. The clause ends
+  for the fleet when the last row's annotation goes.
+- **Every Adopters row now states how far its remedies are pinned, and a grandfather clause says
+  what such a row asserts.** Leaving the rows untouched would have been this document's own named
+  defect one level up: a row asserting conformance a reader cannot rely on. Untabling the four would
+  have been worse, deleting every other true claim those rows make to report one false one. So the
+  Status cells narrow instead, per row and with the count each falls short by:
+  `mutation-testing:audit` pins no remedy (its eval fixes the off-site `Action` shape, not a remedy
+  per scope), `testing:audit` 0 of 3, `ai-slop:audit` 2 of 15 with the auto-applicable
+  `rule-utm-params` unpinned, `docs-hygiene:audit-noise` 0 of 1, and
+  `claude-config:audit-instructions` 2 of 2 positive and negative, the one row meeting the bar
+  today. The clause reaches only remedies shipped before 3.0.0; every rule added after it and every
+  edit to an emitted remedy's wording or scope is held in full.
+- **`claude-config:audit-permission-grants` is recorded as a non-adopter, not tabled.** The
+  Adopters section already carries a prose absence for `review:fanout`, and this is the second one,
+  sited there because a row asserts conformance today and this producer does not conform. **The line
+  is the absence of any persist path, not report-and-stop**, since four tabled adopters also report
+  and stop on a bare invocation and are producers by the opt-in behind it; this skill has no flag,
+  no mode, and no writer, so no run of it reaches the decision to persist where the Boundary places
+  this contract's start, and nothing in this contract reaches it, the new bar included. That
+  is #4149's structural finding: its remedies were never held to any bar of this contract's, not
+  because a bar excused them but because it is not a producer under it. The adoption question is
+  open and unanswered here; the trigger is that skill gaining a persist path.
+
 ## [2.9.0] - 2026-08-28
 
 **Minor under this contract's own rule.** A new producer's rows are added; no producer-owned
