@@ -11,14 +11,13 @@
 #   scripts/sync-resolve-convention-pattern.sh --print-manifest     emit src and copies as data (for affected-tests)
 #
 # Like sync-parse-concern-value.sh, the copies are consumed at DIFFERENT paths,
-# so the destinations are an explicit list. The list started EMPTY and grows as
-# each consumer vendors the resolver: the guardrails CC-layer content gate (#914)
-# added the copy below, and the opt-in commit-msg hook (#919) adds its own copy
-# path here and bumps the guardrails manifest in the same change.
+# so the destinations are an explicit list. A consumer that vendors the resolver
+# adds its copy path here and bumps its manifest in the same change.
 #
 # The three modes live in scripts/lib/sync-cluster.sh, shared with the sibling
-# sync-*.sh gates; this file supplies this cluster's parameters. The list having
-# started empty is why this one still prints a copy-count summary after a sync.
+# sync-*.sh gates; this file supplies this cluster's parameters. This cluster's
+# list may be empty, which is why this one prints a copy-count summary after a
+# sync.
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

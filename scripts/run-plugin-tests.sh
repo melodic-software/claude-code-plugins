@@ -150,16 +150,13 @@ if [[ -f "$SERIAL_LIST" ]]; then
     serial_entries+=("$line")
   done <"$SERIAL_LIST"
 fi
+declare -A discovered=()
+for t in "${tests[@]}"; do
+  discovered["$t"]=1
+done
 declare -A is_serial=()
 for s in ${serial_entries[@]+"${serial_entries[@]}"}; do
-  found=0
-  for t in "${tests[@]}"; do
-    if [[ "$t" == "$s" ]]; then
-      found=1
-      break
-    fi
-  done
-  if ((found == 0)); then
+  if [[ -z "${discovered[$s]+x}" ]]; then
     echo "error: $SERIAL_LIST names '$s', which matches no discovered suite; remove the stale entry" >&2
     exit 2
   fi
