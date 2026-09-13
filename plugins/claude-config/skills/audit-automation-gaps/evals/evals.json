@@ -18,6 +18,18 @@
       "prompt": "Our repo has grown to 50+ .NET projects and builds are getting slow. Someone suggested a build cache hook, a parallel test runner subagent, and a dependency graph skill. Deep-dive these — which add real value?",
       "expected_output": "Should research each recommendation against current .NET capabilities (incremental build, static-graph restore where already enabled). Should time actual build performance. Should check if dotnet test already runs in parallel. Should reject recommendations covered by existing MSBuild features and only pass genuinely novel automation.",
       "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "Last week you audited our automation and I picked two items to build. Run --implement and pick up where we left off.",
+      "expected_output": "Should read the stored findings back via findings-state.sh read, passing the substituted ${CLAUDE_PLUGIN_DATA} as --plugin-data rather than assuming the variable is present in the shell, and should implement from the recovered plan rather than re-deriving verdicts from memory. Should implement only the candidates whose approved field is true; where no candidate is approved the stored run predates the human's selection, so it should ask which items to implement rather than treating every PASS as chosen, since a PASS is the skill's judgment and not the operator's consent. If the script exits 4, that means this project has no stored run, and the correct response is to say so and offer to audit first, never to implement from recollection or to read another project's artifact. Exit 5 is different from exit 4 and means stored state exists but cannot be trusted, which is a state to repair or re-audit rather than an absence.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "We already lint markdown in CI, but I want a PostToolUse hook that runs markdownlint on every edit too so I get told immediately. Is that worth adding?",
+      "expected_output": "Should NOT reject this on the Already enforced gate merely because CI covers it, and should NOT accept it merely because the hook is faster than CI, since no official documentation addresses CI-versus-hook placement. Should work the shift-left carve-out's three conjuncts explicitly: whether the concern clears the incident and YAGNI gates on a SAMPLED count rather than a raw git log --grep count, which is a ceiling and not a frequency; whether the proposed hook is advisory and non-blocking; and whether its measured cost fits the consuming repo's remaining hook-budget headroom. Should state that the budget is a hard gate, so a repo that documents a budget with no headroom left keeps the REJECT even when the first two conjuncts hold. Should name which budget source applied.",
+      "files": []
     }
   ]
 }

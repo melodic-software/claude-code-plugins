@@ -29,6 +29,13 @@ Walk the enforcement surface that governs work in this repository and report whi
 earn their carry cost. The posture is the inverse of a gap audit: every incumbent is a retirement
 candidate until evidence earns its keep, and silence is not evidence in either direction.
 
+The mirrored question, which automation this repository is MISSING, is owned by
+`/claude-config:audit-automation-gaps`, whose gap audit runs REJECT-by-default gates over proposed
+hooks, MCP servers, skills, subagents and scheduled tasks. Route a gap that surfaces mid-walk there
+when the `claude-config` plugin is installed; when it is not, record the gap in the findings
+artifact as an observation and leave it for the human, because this walk never proposes new
+automation.
+
 **The surface is everything that governs work here, wherever it is registered**. Settings scopes the
 harness merges from outside the tree (user, machine, organization level) and forge controls living in
 a control plane included. Such an item is audited like any other; what changes is only the
