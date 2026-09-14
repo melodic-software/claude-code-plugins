@@ -1479,6 +1479,36 @@ jobs:
       # The UNMAPPED fallback runs the full corpus, and run-plugin-tests.sh
       # takes no shard, so it is confined to leg 0 rather than run four times.
       # No run in the 23-run step-level capture hit that path.
+      - name: PROBE 3694 single-CPU repro (temporary, reverted before review)
+        id: probe_3694
+        if: needs.changes.outputs.run_tests == 'true'
+        continue-on-error: true
+        env:
+          LEG: ${{ strategy.job-index }}
+        run: |
+          [ "$LEG" = 0 ] || exit 0
+          for s in plugins/discovery/agents/tool-honesty.test.sh \
+            plugins/work-items/tools/work-item-tracker/adapters/local-markdown/list-sub-items.test.sh \
+            plugins/work-items/tools/work-item-tracker/conformance/bindings/jira.test.sh; do
+            for mode in unpinned pinned; do
+              fails=0
+              for i in 1 2 3 4 5 6 7 8 9 10; do
+                if [ "$mode" = pinned ]; then
+                  taskset -c 0 bash "$s" >"$RUNNER_TEMP/probe.log" 2>&1
+                else
+                  bash "$s" >"$RUNNER_TEMP/probe.log" 2>&1
+                fi
+                rc=$?
+                if [ "$rc" != 0 ]; then
+                  fails=$((fails + 1))
+                  if [ "$fails" = 1 ]; then
+                    grep -E 'FAIL|not found|prerequisite|Broken pipe|rror|cannot' "$RUNNER_TEMP/probe.log" | head -12
+                  fi
+                fi
+              done
+              echo "PROBE $s $mode fails=$fails/10"
+            done
+          done
       - name: Run plugin contract tests
         if: needs.changes.outputs.run_tests == 'true'
         env:
