@@ -31,43 +31,40 @@ ok() {
   PASS=$((PASS + 1))
 }
 
+# sweep <ok-message> <failure-prefix> <grep arg>... -> pass when the grep finds
+# nothing, fail with the hits listed under the prefix otherwise.
+sweep() {
+  local ok_msg="$1" fail_msg="$2" hits
+  shift 2
+  hits=$(grep "$@" || true)
+  if [[ -z "$hits" ]]; then
+    ok "$ok_msg"
+  else
+    fail "$fail_msg"$'\n'"$hits"
+  fi
+}
+
 # --- D4 sweep: no baked endpoints anywhere in the plugin --------------------
 # This file holds the very patterns it hunts, so the tree sweeps exclude it.
 SELF_EXCLUDE=(--exclude="$(basename "${BASH_SOURCE[0]}")")
-hits=$(grep -rEn "${SELF_EXCLUDE[@]}" "api\.github\.com|/orgs/\{|/repos/\{|/enterprises/" "$PLUGIN_DIR" || true)
-if [[ -z "$hits" ]]; then
-  ok "D4: no baked API endpoints"
-else
-  fail "D4 endpoint pattern found:"$'\n'"$hits"
-fi
+sweep "D4: no baked API endpoints" "D4 endpoint pattern found:" \
+  -rEn "${SELF_EXCLUDE[@]}" "api\.github\.com|/orgs/\{|/repos/\{|/enterprises/" "$PLUGIN_DIR"
 
 # --- D4 sweep: no dollar prices anywhere in the plugin ----------------------
-hits=$(grep -rEn "${SELF_EXCLUDE[@]}" '\$[0-9]' "$PLUGIN_DIR" || true)
-if [[ -z "$hits" ]]; then
-  ok "D4: no shipped prices"
-else
-  fail "D4 price pattern found:"$'\n'"$hits"
-fi
+sweep "D4: no shipped prices" "D4 price pattern found:" \
+  -rEn "${SELF_EXCLUDE[@]}" '\$[0-9]' "$PLUGIN_DIR"
 
 # --- D4 sweep: no scope names shipped as guidance ---------------------------
 # Scope tokens in shipped prose (*.md) would be a vendored mechanics table; eval
 # scenario prompts (*.json) may legitimately posit a scope by name.
-hits=$(grep -r -E -i -n "admin:(org|enterprise)|read:(org|user|packages)|write:(org|packages)|manage_billing|repo:status" \
-  "$PLUGIN_DIR" --include='*.md' || true)
-if [[ -z "$hits" ]]; then
-  ok "D4: no scope names in shipped prose"
-else
-  fail "scope token in shipped prose:"$'\n'"$hits"
-fi
+sweep "D4: no scope names in shipped prose" "scope token in shipped prose:" \
+  -r -E -i -n "admin:(org|enterprise)|read:(org|user|packages)|write:(org|packages)|manage_billing|repo:status" \
+  "$PLUGIN_DIR" --include='*.md'
 
 # --- agnostic conformance: no publisher/org/tool assumptions in prose -------
 # plugin.json author metadata is the sanctioned exception (json excluded by the glob).
-hits=$(grep -riEn "melodic|medley|github-iac|pulumi" "$PLUGIN_DIR" --include='*.md' || true)
-if [[ -z "$hits" ]]; then
-  ok "agnosticism: no publisher/org/tool assumptions in prose"
-else
-  fail "agnosticism violation:"$'\n'"$hits"
-fi
+sweep "agnosticism: no publisher/org/tool assumptions in prose" "agnosticism violation:" \
+  -riEn "melodic|medley|github-iac|pulumi" "$PLUGIN_DIR" --include='*.md'
 
 # --- area-coverage oracle ---------------------------------------------------
 # Canonical area keys from the Brief coverage matrix. This fixture is the
@@ -109,8 +106,7 @@ else
   # Router rows are "| `key` | tier | ..." — extract the backticked key column.
   # shellcheck disable=SC2016  # literal backtick/$ in the patterns, no expansion wanted
   mapfile -t router_areas < <(grep -oE '^\| `[a-z0-9-]+`' "$AREAS" | sed 's/^| `//; s/`$//' | sort)
-  mapfile -t expected < <(printf '%s\n' "${canonical_areas[@]}" | sort)
-  diff_out=$(diff <(printf '%s\n' "${expected[@]}") <(printf '%s\n' "${router_areas[@]}") || true)
+  diff_out=$(diff <(printf '%s\n' "${canonical_areas[@]}" | sort) <(printf '%s\n' "${router_areas[@]}") || true)
   if [[ -z "$diff_out" ]]; then
     ok "area oracle: areas.md rows match the ${#canonical_areas[@]} canonical keys exactly"
   else

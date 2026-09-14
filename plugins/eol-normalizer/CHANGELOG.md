@@ -3,6 +3,12 @@
 All notable changes to the `eol-normalizer` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.48]
+
+### Changed
+
+- The desktop-notification, eol-normalizer, go-format, and github test suites route repeated invocations through shared runner and counter helpers, the eol-normalizer hook derives its status from the taken message directly, and the education workspace lister and firecrawl updater drop a redundant subshell and conjunct, with identical output.
+
 ## [0.6.47]
 
 ### Changed

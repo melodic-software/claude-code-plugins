@@ -139,7 +139,7 @@ run_check() {
   if [[ -n "$current" && "$current" != "$latest" ]]; then
     log "→ CLI upgrade available: $current → $latest"
     drift=1
-  elif [[ -n "$current" && "$current" == "$latest" ]]; then
+  elif [[ -n "$current" ]]; then
     log "→ CLI at latest"
   fi
 
