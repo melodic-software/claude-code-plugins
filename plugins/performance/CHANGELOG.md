@@ -3,6 +3,12 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.8]
+
+### Changed
+
+- The nine performance script suites source one test-helpers.sh for their pass, fail, assert and capture helpers instead of nine inline copies. Case numbering, output and exit codes are unchanged.
+
 ## [0.1.7]
 
 ### Changed

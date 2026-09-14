@@ -19,37 +19,15 @@ harness_require_python
 DIFFERENTIAL="$SCRIPT_DIR/differential.py"
 readonly DIFFERENTIAL
 
-# Inline test helpers: self-contained, no external test lib (ships with the plugin).
-FAILED=0
-CASE_NUM=0
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: [%d] %s\n' "$CASE_NUM" "$1"
-}
-fail() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'FAIL: [%d] %s - expected %q got %q\n' "$CASE_NUM" "$1" "$2" "$3" >&2
-  FAILED=$((FAILED + 1))
-}
-assert_eq() { if [[ "$3" == "$2" ]]; then pass "$1"; else fail "$1" "$2" "$3"; fi; }
-assert_contains() {
-  if [[ "$3" == *"$2"* ]]; then pass "$1"; else fail "$1" "*$2*" "$3"; fi
-}
-assert_not_contains() {
-  if [[ "$3" != *"$2"* ]]; then pass "$1"; else fail "$1" "no *$2*" "$3"; fi
-}
+# shellcheck source=test-helpers.sh
+source "$SCRIPT_DIR/test-helpers.sh"
 
 WORK="$(mktemp -d)"
 readonly WORK
 trap 'rm -rf "$WORK"' EXIT
 mkdir -p "$WORK/base" "$WORK/cand"
 
-RUN_OUT=""
-RUN_RC=0
-run_differential() {
-  RUN_OUT="$("$HARNESS_PYTHON" "$DIFFERENTIAL" "$@" 2>&1)"
-  RUN_RC=$?
-}
+run_differential() { capture "$HARNESS_PYTHON" "$DIFFERENTIAL" "$@"; }
 
 # A subject whose verdict depends on the mode it was given and the command it
 # was handed on stdin. The optional-group form in the config is what lets the

@@ -15,25 +15,8 @@ harness_require_python
 RATIO="$SCRIPT_DIR/ratio.py"
 readonly RATIO
 
-# Inline test helpers: self-contained, no external test lib (ships with the plugin).
-FAILED=0
-CASE_NUM=0
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: [%d] %s\n' "$CASE_NUM" "$1"
-}
-fail() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'FAIL: [%d] %s - expected %q got %q\n' "$CASE_NUM" "$1" "$2" "$3" >&2
-  FAILED=$((FAILED + 1))
-}
-assert_eq() { if [[ "$3" == "$2" ]]; then pass "$1"; else fail "$1" "$2" "$3"; fi; }
-assert_contains() {
-  if [[ "$3" == *"$2"* ]]; then pass "$1"; else fail "$1" "*$2*" "$3"; fi
-}
-assert_not_contains() {
-  if [[ "$3" != *"$2"* ]]; then pass "$1"; else fail "$1" "no *$2*" "$3"; fi
-}
+# shellcheck source=test-helpers.sh
+source "$SCRIPT_DIR/test-helpers.sh"
 
 WORK="$(mktemp -d)"
 readonly WORK
@@ -49,12 +32,7 @@ write_samples() {
   done
 }
 
-RUN_OUT=""
-RUN_RC=0
-run_ratio() {
-  RUN_OUT="$(env "$@" "$HARNESS_PYTHON" "$RATIO" 2>&1)"
-  RUN_RC=$?
-}
+run_ratio() { capture env "$@" "$HARNESS_PYTHON" "$RATIO"; }
 
 write_samples "$WORK/old" 40 40 40 40
 write_samples "$WORK/new" 10 10 10 10
@@ -154,9 +132,8 @@ assert_contains "the suppression states the reason" "never shared conditions" "$
 # --- 3. an unset BENCH_CONC FAILS rather than defaulting to serial ---
 # Defaulting would silently re-enable the paired ratio under concurrency for
 # any caller who forgot to pass it.
-RUN_OUT="$(env -u BENCH_CONC BENCH_OLD="$WORK/old" BENCH_NEW="$WORK/new" \
-  "$HARNESS_PYTHON" "$RATIO" 2>&1)"
-RUN_RC=$?
+capture env -u BENCH_CONC BENCH_OLD="$WORK/old" BENCH_NEW="$WORK/new" \
+  "$HARNESS_PYTHON" "$RATIO"
 assert_eq "an unset BENCH_CONC is refused" "2" "$RUN_RC"
 assert_contains "the refusal explains the danger of defaulting" "re-enable the paired ratio" "$RUN_OUT"
 
