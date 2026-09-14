@@ -30,13 +30,12 @@
 
 set -euo pipefail
 
-# The default is the ratified list in .github/claude-skip-actors, read through
-# its one parser — never a restated literal: the sibling security guard's
-# literal drifted behind the workflow lines exactly that way (2b4d8abf added
-# cursor[bot] everywhere but there).
-if [[ -z "${SKIP_ACTORS:-}" ]]; then
-  SKIP_ACTORS="$("$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/read-skip-actors.sh")" || exit 2
-fi
+# The SKIP_ACTORS default read and the entry gates below are shared with the
+# sibling security guard.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
+# shellcheck source=lib/review-lane-guard.sh
+. "$SCRIPT_DIR/lib/review-lane-guard.sh" || exit 2
+
 REVIEWER_LOGINS="${REVIEWER_LOGINS:-claude[bot]}"
 
 usage() {
@@ -119,35 +118,9 @@ main() {
   *) ;;
   esac
 
-  [[ "${GITHUB_EVENT_NAME:-}" == "pull_request" ]] || {
-    echo "not a pull_request event — guard not applicable"
-    exit 0
-  }
-
-  if [[ ",${SKIP_ACTORS}," == *",${GITHUB_ACTOR:-},"* ]]; then
-    echo "actor ${GITHUB_ACTOR} is skip-listed — guard not applicable"
-    exit 0
-  fi
-
-  case "${LANE_RESULT:-}" in
-  skipped)
-    echo "review job skipped — guard not applicable"
-    exit 0
-    ;;
-  cancelled)
-    echo "review job cancelled — guard not applicable"
-    exit 0
-    ;;
-  "")
-    echo "ERROR: LANE_RESULT is empty — this guard is not wired to the review job, so it can determine nothing about it (#3147)" >&2
-    exit 1
-    ;;
-  success) ;;
-  *)
-    echo "review job result=${LANE_RESULT} — lane already failed loudly; guard not applicable"
-    exit 0
-    ;;
-  esac
+  review_lane_guard::require_pull_request_event
+  review_lane_guard::require_unskipped_actor
+  review_lane_guard::triage_lane_result review '#3147' 'lane already failed loudly; guard not applicable'
 
   if [[ -z "${GITHUB_REPOSITORY:-}" || -z "${PR_NUMBER:-}" ]]; then
     echo "ERROR: GITHUB_REPOSITORY and PR_NUMBER are required to read the posted review (#3147)" >&2
