@@ -3,6 +3,12 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.6]
+
+### Changed
+
+- The two stateless memory scripts count topic files through one plugin-level library helper instead of two verbatim null-delimited loops, with identical counts including dotfile and newline-named topics.
+
 ## [0.12.5]
 
 ### Changed

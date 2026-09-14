@@ -61,6 +61,10 @@ row() { printf '%-10s %-8s %s\n' "$1" "$2" "$3"; }
 plugin_root="${CLAUDE_PLUGIN_ROOT:-$(cd "$script_dir/../../.." && pwd)}"
 # shellcheck source=../../../lib/managed-scope.sh
 source "$plugin_root/lib/managed-scope.sh"
+# The topic-file counting rule is shared with the sibling enumerate-all-projects.sh,
+# whose printed count is a contract of its own.
+# shellcheck source=../../../lib/topic-count.sh
+source "$plugin_root/lib/topic-count.sh"
 managed="$(mscope::base_file)"
 managed_dropin="$(mscope::dropin_dir)"
 
@@ -113,11 +117,7 @@ fi
 echo "$mem_dir"
 if [[ -f "$mem_dir/MEMORY.md" ]]; then
   lines=$(wc -l <"$mem_dir/MEMORY.md" | tr -d ' \r')
-  # Null-delimited count — a filename with an embedded newline must count once.
-  topics=0
-  while IFS= read -r -d '' _; do topics=$((topics + 1)); done < <(
-    find "$mem_dir" -maxdepth 1 -name '*.md' ! -name 'MEMORY.md' -print0 2>/dev/null
-  )
+  topics=$(mtopics::count "$mem_dir")
   echo "MEMORY.md: PRESENT (${lines} lines); topic files: ${topics}"
 else
   echo "MEMORY.md: absent (no auto-memory written to the default location for this project)"
