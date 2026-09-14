@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.13.57]
+
+### Changed
+
+- Resolve the video-player selector and subtitle language through one helper each, inline the date patterns and fold the preflight and resource probes into returned object literals in the course-digest adapters (behavior unchanged).
+
 ## [0.13.56]
 
 ### Changed

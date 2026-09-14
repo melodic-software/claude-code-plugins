@@ -92,15 +92,17 @@ export function resolveVideoPlayerSelector(platformCfg) {
   return platformCfg?.videoPlayerSelector ?? defaults.videoPlayerSelector;
 }
 
+/** The configured subtitle language, falling back to the adapter default. */
+function resolveSubtitleLanguage(platformCfg) {
+  return platformCfg.subtitleLanguage ?? defaults.subtitleLanguage;
+}
+
 /**
  * Detect available resources on the current Teachable lesson page.
  * Reads .lecture-attachment-type-* CSS classes from the DOM.
  */
 export async function detectResources(page, platformCfg) {
   return timed("detect-resources", null, async () => {
-    const selectors = resolveResourceSelectors(platformCfg);
-    const videoPlayerSelector = resolveVideoPlayerSelector(platformCfg);
-
     return page.evaluate(
       ({ sel, attachmentTypeSource, videoSel }) => {
         const has = (s) => !!document.querySelector(s);
@@ -123,9 +125,9 @@ export async function detectResources(page, platformCfg) {
         };
       },
       {
-        sel: selectors,
+        sel: resolveResourceSelectors(platformCfg),
         attachmentTypeSource: LECTURE_ATTACHMENT_TYPE_SOURCE,
-        videoSel: videoPlayerSelector,
+        videoSel: resolveVideoPlayerSelector(platformCfg),
       },
     );
   });
@@ -148,8 +150,7 @@ export function deriveLandingUrl(courseUrl, platformCfg) {
  * Delegates to hotmart.installInterceptors().
  */
 export async function setupSession(page, platformCfg) {
-  const subtitleLang = platformCfg.subtitleLanguage ?? defaults.subtitleLanguage;
-  installInterceptors(page, subtitleLang);
+  installInterceptors(page, resolveSubtitleLanguage(platformCfg));
 }
 
 /**
@@ -158,7 +159,7 @@ export async function setupSession(page, platformCfg) {
  */
 export async function prepareLessonPage(page, platformCfg, lesson) {
   return timed("prepare-lesson-page", { lesson: lesson?.title }, async () => {
-    const subtitleLang = platformCfg.subtitleLanguage ?? defaults.subtitleLanguage;
+    const subtitleLang = resolveSubtitleLanguage(platformCfg);
     const manifestTimeout = platformCfg.manifestTimeoutMs ?? defaults.manifestTimeoutMs;
     const videoSelector = resolveVideoPlayerSelector(platformCfg);
 
@@ -256,12 +257,14 @@ export async function extractFramesCanvas({ page, duration, outputDir, options =
  * Pre-flight check: verify Hotmart iframe loads and Teachable API responds.
  */
 export async function preflight(page, platformCfg) {
-  const checks = await page.evaluate((videoSel) => {
-    const hotmartEl = !!document.querySelector(videoSel);
-    const lectureContent = !!document.querySelector(".lecture-content");
-    const attachments = document.querySelectorAll(".lecture-attachment").length;
-    return { hotmart: hotmartEl, lectureContent, attachments };
-  }, resolveVideoPlayerSelector(platformCfg));
+  const checks = await page.evaluate(
+    (videoSel) => ({
+      hotmart: !!document.querySelector(videoSel),
+      lectureContent: !!document.querySelector(".lecture-content"),
+      attachments: document.querySelectorAll(".lecture-attachment").length,
+    }),
+    resolveVideoPlayerSelector(platformCfg),
+  );
 
   const failures = Object.entries(checks)
     .filter(([key, val]) => key !== "attachments" && !val)

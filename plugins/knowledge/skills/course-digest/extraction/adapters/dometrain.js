@@ -28,11 +28,13 @@ const NO_TRANSCRIPT_SUFFIX = /No transcript available for this lesson\.\s*$/m;
 const TRANSCRIPT_TIMESTAMP_LINE = /^\d+:\d{2}$/;
 const TRAILING_LESSON_SLUG = /\/[^/]+\/$/;
 const TRAILING_COURSE_ID_SUFFIX = /-\d+\/$/;
-const DATE_LAST_UPDATED = /last\s+updated[:\s]+(\w+\s+\d{1,2},?\s+\d{4})/i;
-const DATE_UPDATED = /updated[:\s]+(\w+\s+\d{1,2},?\s+\d{4})/i;
-const DATE_PUBLISHED = /published[:\s]+(\w+\s+\d{1,2},?\s+\d{4})/i;
-const DATE_RELEASED = /released[:\s]+(\w+\s+\d{1,2},?\s+\d{4})/i;
-const VISIBLE_DATE_PATTERNS = [DATE_LAST_UPDATED, DATE_UPDATED, DATE_PUBLISHED, DATE_RELEASED];
+// Most specific first: "last updated" must win over the bare "updated" pattern.
+const VISIBLE_DATE_PATTERNS = [
+  /last\s+updated[:\s]+(\w+\s+\d{1,2},?\s+\d{4})/i,
+  /updated[:\s]+(\w+\s+\d{1,2},?\s+\d{4})/i,
+  /published[:\s]+(\w+\s+\d{1,2},?\s+\d{4})/i,
+  /released[:\s]+(\w+\s+\d{1,2},?\s+\d{4})/i,
+];
 // Dometrain also publishes its dates through non-og meta properties.
 const DOMETRAIN_META_SUBSTRINGS = ["date", "time", "modified", "published"];
 
@@ -60,6 +62,11 @@ export const defaults = {
 // ---------------------------------------------------------------------------
 // Required adapter methods
 // ---------------------------------------------------------------------------
+
+/** The configured video-player selector, falling back to the adapter default. */
+function resolveVideoPlayerSelector(platformCfg) {
+  return platformCfg.videoPlayerSelector ?? defaults.videoPlayerSelector;
+}
 
 /**
  * Extract transcript from the Dometrain transcript panel.
@@ -113,8 +120,7 @@ export async function extractTranscript(page, _platformCfg) {
 export async function extractHlsUrl(page, platformCfg) {
   return timed("extract-hls-url", null, async () => {
     await page.waitForTimeout(2000);
-    const selector = platformCfg.videoPlayerSelector ?? defaults.videoPlayerSelector;
-    return getHlsUrl(page, selector);
+    return getHlsUrl(page, resolveVideoPlayerSelector(platformCfg));
   });
 }
 
@@ -127,8 +133,6 @@ export async function detectResources(page, platformCfg) {
       ...defaults.resourceButtons,
       ...platformCfg.resourceButtons,
     };
-    const videoSelector = platformCfg.videoPlayerSelector ?? defaults.videoPlayerSelector;
-
     return page.evaluate(
       ({ labels: l, videoSel }) => {
         const buttons = Array.from(document.querySelectorAll("button"));
@@ -147,7 +151,7 @@ export async function detectResources(page, platformCfg) {
           hasVideo: !!document.querySelector(`${videoSel}, video`),
         };
       },
-      { labels, videoSel: videoSelector },
+      { labels, videoSel: resolveVideoPlayerSelector(platformCfg) },
     );
   });
 }
@@ -158,18 +162,18 @@ export async function detectResources(page, platformCfg) {
  * all lessons. Catches platform UI changes early — saves 45+ wasted navigations.
  */
 export async function preflight(page, platformCfg) {
-  const videoSel = platformCfg.videoPlayerSelector ?? defaults.videoPlayerSelector;
-
   const checks = await page.evaluate(
-    ({ videoSel: vs, panelSelector }) => {
-      const videoPlayer = !!document.querySelector(`${vs}, video`);
-      const transcriptButton = Array.from(document.querySelectorAll("button")).some(
+    ({ videoSel, panelSelector }) => ({
+      videoPlayer: !!document.querySelector(`${videoSel}, video`),
+      transcriptButton: Array.from(document.querySelectorAll("button")).some(
         (b) => b.textContent.trim() === "Transcript",
-      );
-      const transcriptPanel = !!document.querySelector(panelSelector);
-      return { videoPlayer, transcriptButton, transcriptPanel };
+      ),
+      transcriptPanel: !!document.querySelector(panelSelector),
+    }),
+    {
+      videoSel: resolveVideoPlayerSelector(platformCfg),
+      panelSelector: TRANSCRIPT_PANEL_SELECTOR,
     },
-    { videoSel, panelSelector: TRANSCRIPT_PANEL_SELECTOR },
   );
 
   const failures = Object.entries(checks)
@@ -325,9 +329,8 @@ export async function extractMetadata(page, courseUrl, platformCfg) {
 export async function authenticate({ context, page, course, storageStatePath, platformCfg }) {
   const baseUrl = courseBaseUrl(course.url);
   const firstLesson = course.modules[0].lessons[0];
-  const videoSelector = platformCfg.videoPlayerSelector ?? defaults.videoPlayerSelector;
+  const videoSelector = resolveVideoPlayerSelector(platformCfg);
   const envPrefix = platformCfg.authEnvPrefix ?? "COURSE";
-  const loginUrl = platformCfg.loginUrl;
 
   await page
     .goto(`${baseUrl}${firstLesson.slug}/`, {
@@ -352,7 +355,7 @@ export async function authenticate({ context, page, course, storageStatePath, pl
     page,
     storageStatePath,
     envPrefix,
-    loginUrl,
+    loginUrl: platformCfg.loginUrl,
     login: clerkLogin,
   });
 
