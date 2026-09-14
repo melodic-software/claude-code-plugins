@@ -12,6 +12,7 @@ import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/termin
 
 import { isMainModule } from "../lib/cli-entrypoint.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
+import { readLaneJson } from "../lib/watch-frame-index.js";
 
 /**
  * @param {string} sliceDir
@@ -19,8 +20,7 @@ import { LANES, lanePath } from "../lib/slice-lanes.js";
  */
 export function renderTriageLog(sliceDir) {
   const absSlice = path.resolve(sliceDir);
-  const manifestPath = lanePath(absSlice, LANES.keyFrames, "triage", "manifest.json");
-  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  const manifest = readLaneJson(absSlice, LANES.keyFrames, "triage", "manifest.json");
 
   const lines = [
     "# Frame triage log",
@@ -49,9 +49,8 @@ export function renderTriageLog(sliceDir) {
   return outPath;
 }
 
-const sliceDir = process.argv[2];
-
 if (isMainModule(import.meta.url)) {
+  const sliceDir = process.argv[2];
   if (!sliceDir) {
     writeStderr("Usage: node watch/render-triage-log.js <slice-dir>");
     process.exit(2);

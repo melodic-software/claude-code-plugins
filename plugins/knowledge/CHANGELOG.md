@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.13.69]
+
+### Changed
+
+- The video-digest watch scripts read argv only under their main-module guard and share the selected-frame index and lane JSON reads through one library helper, with identical output and exit codes.
+
 ## [0.13.68]
 
 ### Changed

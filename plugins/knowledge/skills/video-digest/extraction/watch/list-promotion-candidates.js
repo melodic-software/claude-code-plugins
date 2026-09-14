@@ -12,6 +12,7 @@ import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/termin
 
 import { isMainModule } from "../lib/cli-entrypoint.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
+import { indexSelectedFrames, readLaneJson } from "../lib/watch-frame-index.js";
 import { parseSessionsFromClaimInventory } from "../lib/watch-slice-sessions.js";
 
 const MIN_CANDIDATES_PER_SESSION = 3;
@@ -31,18 +32,14 @@ const MIN_CANDIDATES_PER_SESSION = 3;
  */
 export function listPromotionCandidates(sliceDir) {
   const absSlice = path.resolve(sliceDir);
-  const manifest = JSON.parse(
-    fs.readFileSync(lanePath(absSlice, LANES.keyFrames, "triage", "manifest.json"), "utf8"),
-  );
-  const selection = JSON.parse(
-    fs.readFileSync(lanePath(absSlice, LANES.keyFrames, "selection.json"), "utf8"),
-  );
+  const manifest = readLaneJson(absSlice, LANES.keyFrames, "triage", "manifest.json");
+  const selection = readLaneJson(absSlice, LANES.keyFrames, "selection.json");
   const claimBody = fs.readFileSync(
     lanePath(absSlice, LANES.research, "claim-inventory.md"),
     "utf8",
   );
   const sessions = parseSessionsFromClaimInventory(claimBody);
-  const byFile = Object.fromEntries(selection.selectedFrames.map((f) => [f.file, f]));
+  const byFile = indexSelectedFrames(selection);
   const durationSec = selection.durationSec;
 
   /** @type {Map<string, PromotionCandidate>} */
@@ -104,9 +101,8 @@ export function listPromotionCandidates(sliceDir) {
   return [...candidates.values()].sort((a, b) => (a.timestampSec ?? 0) - (b.timestampSec ?? 0));
 }
 
-const sliceDir = process.argv[2];
-
 if (isMainModule(import.meta.url)) {
+  const sliceDir = process.argv[2];
   if (!sliceDir) {
     writeStderr("Usage: node watch/list-promotion-candidates.js <slice-dir>");
     process.exit(2);
