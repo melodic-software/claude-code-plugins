@@ -1491,7 +1491,7 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          if true; then # PROBE (#3705): take the push branch on this PR; reverted before merge
+          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             scripts/run-plugin-tests.sh --jobs 3 --shard "$LEG/$LEGS"
             exit 0
           fi
