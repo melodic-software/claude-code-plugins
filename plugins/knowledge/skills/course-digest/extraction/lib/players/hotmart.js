@@ -249,7 +249,7 @@ async function readHlsJsData(hotmartFrame, subtitleLang) {
         result.masterUrl = hlsInstance.url.split("?")[0];
       }
       for (const track of hlsInstance.subtitleTracks || []) {
-        if (track.lang?.includes(lang) || track.name?.toLowerCase()?.includes(lang)) {
+        if (track.lang?.includes(lang) || track.name?.toLowerCase().includes(lang)) {
           result.subtitlePlaylistUrlFull = track.url;
           result.subtitlePlaylistUrl = track.url?.split("?")[0];
           break;

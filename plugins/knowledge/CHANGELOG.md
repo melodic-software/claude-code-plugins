@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.13.54]
+
+### Changed
+
+- course-digest extraction: validators.js counts schema keys with one Map instead of a two-pass scan, meta-tags.js skips a missing property attribute once instead of guarding every test, hotmart.js drops a redundant optional chain, and hotmart.test.js shares its page builders. No behavior change.
+
 ## [0.13.53]
 
 ### Changed

@@ -11,10 +11,11 @@ export async function fetchMetaTags(page, extraSubstrings = []) {
       const tags = {};
       for (const meta of document.querySelectorAll("meta")) {
         const prop = meta.getAttribute("property") || meta.getAttribute("name");
+        if (prop === null) continue;
         if (
-          prop?.startsWith("og:") ||
-          prop?.startsWith("twitter:") ||
-          extra.some((s) => prop?.includes(s))
+          prop.startsWith("og:") ||
+          prop.startsWith("twitter:") ||
+          extra.some((s) => prop.includes(s))
         ) {
           tags[prop] = meta.getAttribute("content");
         }
