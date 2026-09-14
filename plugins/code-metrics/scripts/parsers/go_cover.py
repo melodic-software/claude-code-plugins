@@ -116,12 +116,9 @@ def parse(path: str) -> dict[str, dict]:
             statements = int(match.group("statements"))
             count = int(match.group("count"))
             per_file = blocks.setdefault(_norm(match.group("file")), {})
-            record = per_file.get(key)
-            if record is None:
-                per_file[key] = [statements, count]
-            else:
-                record[0] = max(record[0], statements)
-                record[1] = max(record[1], count)
+            record = per_file.setdefault(key, [statements, count])
+            record[0] = max(record[0], statements)
+            record[1] = max(record[1], count)
     if not seen_mode:
         raise ValueError("not a Go cover profile (no `mode:` header)")
     return {

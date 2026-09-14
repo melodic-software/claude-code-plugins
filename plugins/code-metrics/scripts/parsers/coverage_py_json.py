@@ -41,7 +41,7 @@ FORMAT = "coverage_py_json"
 
 
 def _norm(path: str) -> str:
-    path = str(path).strip().replace("\\", "/")
+    path = path.strip().replace("\\", "/")
     while path.startswith("./"):
         path = path[2:]
     return path
@@ -87,10 +87,9 @@ def parse(path: str) -> dict[str, dict]:
                         "lines": region_lines or None,
                     }
                 )
-            functions.sort(
-                key=lambda f: (f["start_line"] is None, f["start_line"] or 0)
+            section["functions"] = sorted(
+                functions, key=lambda f: (f["start_line"] is None, f["start_line"] or 0)
             )
-            section["functions"] = functions
         files[_norm(name)] = section
     return files
 

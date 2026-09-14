@@ -3,6 +3,12 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.4]
+
+### Changed
+
+- coverage parsers: lcov.py builds and folds function records in one loop and guards malformed DA lines like its sibling branches, coverage_py_json.py sorts its function list in place of a two-step sort, and go_cover.py inserts block records through setdefault. Output byte-identical on every fixture.
+
 ## [0.3.3]
 
 ### Changed
