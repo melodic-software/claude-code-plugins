@@ -95,8 +95,6 @@ assert_contains "the corpus and matrix produced distinct results" "baseline=4 ca
 # discriminating-skip-required: this case is the only thing standing between a
 # narrow verdict and a reader who believes it was a broad one.
 cat >"$WORK/base/noisy.py" <<'QUIET'
-import sys
-
 print("same stdout")
 QUIET
 cat >"$WORK/cand/noisy.py" <<'NOISY'
@@ -155,8 +153,6 @@ assert_not_contains "a never-exercised run never claims parity" "PARITY:" "$RUN_
 
 # --- 4. an arm that discloses its own path invalidates byte-exactness ---
 cat >"$WORK/base/leaky.py" <<'LEAKY'
-import sys
-
 print(__file__)
 LEAKY
 cp "$WORK/base/leaky.py" "$WORK/cand/leaky.py"
