@@ -6,13 +6,13 @@
 // block between the catalog markers is generated, never hand-edited. Run with no
 // argument to rewrite the block; run with --check to fail on drift (CI gate).
 
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { dirname, join, relative, sep } from "node:path";
 import process from "node:process";
 
-// scripts/lib/report-first-difference.mjs — the drift detail shared with
-// scripts/generate-cheatsheet.mjs, whose suite exercises it.
-import { reportFirstDifference } from "./lib/report-first-difference.mjs";
+// scripts/lib/marker-block.mjs: the locate / compare / report-drift-or-write
+// flow shared with scripts/generate-cheatsheet.mjs, whose suite exercises it.
+import { findMarkerBlock, syncMarkerBlock } from "./lib/marker-block.mjs";
 
 // Paths render with forward slashes on every platform, in messages and in
 // generated links alike.
@@ -140,13 +140,13 @@ function buildBlock() {
 }
 
 function currentBlock(content) {
-  const match = content.match(new RegExp(`${START}[\\s\\S]*?${END}`));
-  if (!match) {
+  const block = findMarkerBlock(content, START, END);
+  if (block === null) {
     throw new Error(
       `${outputLabel} is missing the catalog markers (${START} … ${END}); add them once.`,
     );
   }
-  return match[0];
+  return block;
 }
 
 const check = process.argv.includes("--check");
@@ -154,22 +154,17 @@ const content = readFileSync(outputPath, "utf8");
 const expected = buildBlock();
 const existing = currentBlock(content);
 
-if (check) {
-  if (existing === expected) {
-    console.log("Catalog is in sync with the manifests.");
-    process.exit(0);
-  }
-  console.error(`Catalog drift: ${outputLabel} catalog block is stale.`);
-  console.error(`Run \`node scripts/generate-catalog.mjs\` and commit ${outputLabel}.`);
-  reportFirstDifference(expected, existing);
-  process.exit(1);
-}
-
-if (existing === expected) {
-  console.log(`Catalog already in sync; ${outputLabel} unchanged.`);
-  process.exit(0);
-}
-// Function replacer: a string replacement would reinterpret `$`-sequences
-// (`$&`, `$'`, ...) inside the generated block.
-writeFileSync(outputPath, content.replace(existing, () => expected));
-console.log(`Catalog regenerated in ${outputLabel}.`);
+syncMarkerBlock({
+  path: outputPath,
+  content,
+  existing,
+  expected,
+  check,
+  messages: {
+    inSync: "Catalog is in sync with the manifests.",
+    drift: `Catalog drift: ${outputLabel} catalog block is stale.`,
+    rerun: `Run \`node scripts/generate-catalog.mjs\` and commit ${outputLabel}.`,
+    unchanged: `Catalog already in sync; ${outputLabel} unchanged.`,
+    regenerated: `Catalog regenerated in ${outputLabel}.`,
+  },
+});

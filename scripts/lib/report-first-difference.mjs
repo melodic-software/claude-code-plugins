@@ -1,12 +1,12 @@
-// Shared drift detail for the generated-block CI generators
-// (scripts/generate-catalog.mjs, scripts/generate-cheatsheet.mjs). Both compare a
-// freshly generated block against the committed one and, on drift, point the
-// reader at the first generated line where the two part company -- the header
-// message ("<thing> drift: ...") stays with each generator, because it names that
-// generator's output file and rerun command.
+// Drift detail for the generated-block CI generators
+// (scripts/generate-catalog.mjs, scripts/generate-cheatsheet.mjs), reached
+// through the shared flow in scripts/lib/marker-block.mjs. On drift it points the
+// reader at the first generated line where the committed and freshly generated
+// blocks part company; the header message ("<thing> drift: ...") stays with each
+// generator, because it names that generator's output file and rerun command.
 //
 // Emits nothing when findIndex finds no differing line (the blocks differ only in
-// lines past the end of the generated one), exactly as both call sites did inline.
+// lines past the end of the generated one).
 export function reportFirstDifference(expected, existing) {
   const expectedLines = expected.split("\n");
   const existingLines = existing.split("\n");
