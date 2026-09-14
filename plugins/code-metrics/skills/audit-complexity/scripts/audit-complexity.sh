@@ -17,7 +17,6 @@ SCRIPT_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
 DISPATCH="$PLUGIN_ROOT/scripts/dispatch.sh"
 REPORT="$PLUGIN_ROOT/scripts/report.py"
-MEASURES="cyclomatic,cognitive,halstead"
 
 JSON=0
 ARGS=()
@@ -47,7 +46,7 @@ if ! cm_resolve_python; then
   exit 2
 fi
 
-bash "$DISPATCH" audit-complexity --measures "$MEASURES" "${ARGS[@]}" >"$WORK/report.json"
+bash "$DISPATCH" audit-complexity --measures cyclomatic,cognitive,halstead "${ARGS[@]}" >"$WORK/report.json"
 rc=$?
 [[ $rc -eq 0 || $rc -eq 3 ]] || exit "$rc"
 if [[ $JSON -eq 1 ]]; then

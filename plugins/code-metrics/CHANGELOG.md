@@ -3,6 +3,12 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.5]
+
+### Changed
+
+- skill entry scripts: audit-size.sh and audit-type-debt.sh extract --config by shifting the positional list instead of hand-indexing, audit-complexity.sh passes its measure list as a literal, and the size and type-debt suites drop a no-op PATH prefix and emit their mypy stubs through one helper. No behavior change.
+
 ## [0.3.4]
 
 ### Changed

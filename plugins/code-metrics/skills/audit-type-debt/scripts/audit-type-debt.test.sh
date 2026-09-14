@@ -87,7 +87,12 @@ cat >"$STUBS/type-coverage" <<EOF
 if [[ "\${1:-}" == "--version" ]]; then printf 'Version: 2.30.1\n'; exit 0; fi
 cat "$TC_CAPTURE"
 EOF
-cat >"$STUBS/mypy" <<EOF
+# The body every mypy stub shares: it answers --version and copies the capture
+# it is given into the --any-exprs-report directory. Cases 3b and 3c append
+# their own stderr and exit status to it.
+mypy_stub() {
+  # mypy_stub <capture>
+  cat <<EOF
 #!/usr/bin/env bash
 if [[ "\${1:-}" == "--version" ]]; then printf 'mypy 1.19.1 (compiled: yes)\n'; exit 0; fi
 dir=""
@@ -97,8 +102,10 @@ for arg in "\$@"; do
   prev="\$arg"
 done
 [[ -n "\$dir" ]] && mkdir -p "\$dir"
-cp "$MYPY_CAPTURE" "\$dir/any-exprs.txt"
+cp "$1" "\$dir/any-exprs.txt"
 EOF
+}
+mypy_stub "$MYPY_CAPTURE" >"$STUBS/mypy"
 # The type-coverage adapter reads the tsconfig program through `node` and the
 # project's typescript; this stub stands in for that listing, and fails the
 # way node does when the working directory has no typescript, so the probe's
@@ -193,20 +200,13 @@ assert_doc "the python lane still reports while typescript cannot" "$out" \
 ABORT_STUBS="$WORK/abort-stubs"
 mkdir -p "$ABORT_STUBS"
 cp "$STUBS/type-coverage" "$STUBS/node" "$ABORT_STUBS/"
-cat >"$ABORT_STUBS/mypy" <<EOF
-#!/usr/bin/env bash
-if [[ "\${1:-}" == "--version" ]]; then printf 'mypy 1.19.1 (compiled: yes)\n'; exit 0; fi
-dir=""
-prev=""
-for arg in "\$@"; do
-  [[ "\$prev" == "--any-exprs-report" ]] && dir="\$arg"
-  prev="\$arg"
-done
-[[ -n "\$dir" ]] && mkdir -p "\$dir"
-cp "$MYPY_ABORTED" "\$dir/any-exprs.txt"
+{
+  mypy_stub "$MYPY_ABORTED"
+  cat <<'EOF'
 printf '%s\n' 'b/lib/x.py: error: Duplicate module named "lib.x" (also at "a/lib/x.py")' >&2
 exit 2
 EOF
+} >"$ABORT_STUBS/mypy"
 chmod +x "$ABORT_STUBS/mypy"
 out="$(cd "$PROJECT" && PATH="$ABORT_STUBS:$EMPTY_PATH" CODE_METRICS_HOME="$HOME_DIR" bash "$SCRIPT" --json --all "$SCOPE")"
 rc=$?
@@ -224,20 +224,13 @@ assert_doc "the typescript lane still reports while mypy cannot" "$out" \
 ERROR_STUBS="$WORK/error-stubs"
 mkdir -p "$ERROR_STUBS"
 cp "$STUBS/type-coverage" "$STUBS/node" "$ERROR_STUBS/"
-cat >"$ERROR_STUBS/mypy" <<EOF
-#!/usr/bin/env bash
-if [[ "\${1:-}" == "--version" ]]; then printf 'mypy 1.19.1 (compiled: yes)\n'; exit 0; fi
-dir=""
-prev=""
-for arg in "\$@"; do
-  [[ "\$prev" == "--any-exprs-report" ]] && dir="\$arg"
-  prev="\$arg"
-done
-[[ -n "\$dir" ]] && mkdir -p "\$dir"
-cp "$MYPY_CAPTURE" "\$dir/any-exprs.txt"
+{
+  mypy_stub "$MYPY_CAPTURE"
+  cat <<'EOF'
 printf '%s\n' 'cm_sample.py:1: error: Library stubs not installed for "yaml"  [import-untyped]' 'cm_sample.py:9: error: Incompatible return value type  [return-value]'
 exit 1
 EOF
+} >"$ERROR_STUBS/mypy"
 chmod +x "$ERROR_STUBS/mypy"
 out="$(cd "$PROJECT" && PATH="$ERROR_STUBS:$EMPTY_PATH" CODE_METRICS_HOME="$HOME_DIR" bash "$SCRIPT" --json --all "$SCOPE")"
 rc=$?

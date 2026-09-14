@@ -54,7 +54,7 @@ assert_contains "markdown carries the run table" "$out" "## Coverage of this run
 assert_contains "markdown carries the plugin-default reference" "$out" "| file_lines | 1000 |"
 assert_contains "markdown lists the python fixture" "$out" "cm_sample.py"
 
-out="$(CODE_METRICS_DISABLE_BUNDLED=1 PATH="$(mktemp -d):$PATH" bash "$SCRIPT" --all "$SOURCES" 2>/dev/null || true)"
+out="$(CODE_METRICS_DISABLE_BUNDLED=1 bash "$SCRIPT" --all "$SOURCES" 2>/dev/null || true)"
 assert_contains "all-unavailable run renders the Measured nothing headline" "$out" "Measured nothing"
 
 bash "$SCRIPT" "$SOURCES/does-not-exist.py" >/dev/null 2>&1

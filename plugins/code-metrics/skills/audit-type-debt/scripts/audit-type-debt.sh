@@ -52,15 +52,15 @@ fi
 # measured against.
 CONFIG=""
 PASS_ARGS=()
-i=0
-while [[ $i -lt ${#ARGS[@]} ]]; do
-  if [[ "${ARGS[$i]}" == "--config" && $((i + 1)) -lt ${#ARGS[@]} ]]; then
-    CONFIG="${ARGS[$((i + 1))]}"
-    i=$((i + 2))
+set -- "${ARGS[@]}"
+while [[ $# -gt 0 ]]; do
+  if [[ "$1" == "--config" && $# -gt 1 ]]; then
+    CONFIG="$2"
+    shift 2
     continue
   fi
-  PASS_ARGS+=("${ARGS[$i]}")
-  i=$((i + 1))
+  PASS_ARGS+=("$1")
+  shift
 done
 if [[ -z "$CONFIG" ]]; then
   CONFIG="$WORK/config.json"
