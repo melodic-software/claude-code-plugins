@@ -3,6 +3,12 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.9]
+
+### Changed
+
+- setup skill: python3_alias_probe.py reports a stat failure through one call that varies only the detail text, and the kill-switch probe suite writes its toggle settings through one helper. Output byte-identical.
+
 ## [0.23.8]
 
 ### Changed
