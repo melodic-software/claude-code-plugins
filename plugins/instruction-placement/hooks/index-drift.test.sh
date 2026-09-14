@@ -40,6 +40,14 @@ expect_lacks() {
 payload_for() { printf '{"tool_name":"Write","tool_input":{"file_path":"%s"}}' "$1"; }
 run_hook() { printf '%s' "$1" | bash "$HOOK" 2>&1; }
 
+# Commit a fixture tree under a throwaway identity. The hook resolves the repo
+# root from the written file, so every fixture has to be a real repository.
+init_repo() {
+  git -C "$1" init -q .
+  git -C "$1" -c user.email=t@t -c user.name=t add -A >/dev/null 2>&1
+  git -C "$1" -c user.email=t@t -c user.name=t commit -qm t >/dev/null 2>&1
+}
+
 # A repo with an index that is deliberately stale: a rule exists which the
 # committed index block does not mention.
 build_drifted() {
@@ -55,9 +63,7 @@ build_drifted() {
     printf '%s\n' "<!-- END GENERATED: instruction-placement rules index -->"
   } >"$dir/AGENTS.md"
   printf -- '---\npaths:\n  - "**/*.cs"\n---\n\n# C# rule\n' >"$dir/.claude/rules/csharp.md"
-  git -C "$dir" init -q .
-  git -C "$dir" -c user.email=t@t -c user.name=t add -A >/dev/null 2>&1
-  git -C "$dir" -c user.email=t@t -c user.name=t commit -qm t >/dev/null 2>&1
+  init_repo "$dir"
   printf '%s' "$dir"
 }
 
@@ -115,9 +121,7 @@ noindex="$(mktemp -d)"
 mkdir -p "$noindex/.claude/rules"
 printf '# Project\n' >"$noindex/CLAUDE.md"
 printf -- '---\npaths: ["**/*.cs"]\n---\n\n# Rule\n' >"$noindex/.claude/rules/r.md"
-git -C "$noindex" init -q .
-git -C "$noindex" -c user.email=t@t -c user.name=t add -A >/dev/null 2>&1
-git -C "$noindex" -c user.email=t@t -c user.name=t commit -qm t >/dev/null 2>&1
+init_repo "$noindex"
 out="$(run_hook "$(payload_for "$noindex/.claude/rules/r.md")")"
 expect_eq "a repo that never adopted an index is not nagged" "" "$out"
 
@@ -155,7 +159,7 @@ expect_eq "a path outside any repository produces no output" "" "$out"
 killrepo="$(build_drifted)"
 kill_payload="$(payload_for "$killrepo/.claude/rules/csharp.md")"
 
-out="$(printf '%s' "$kill_payload" | bash "$HOOK" 2>&1)"
+out="$(run_hook "$kill_payload")"
 expect_has "control: the fixture really is drifted with no switch set" "$out" "stale"
 
 out="$(printf '%s' "$kill_payload" |

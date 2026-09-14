@@ -3,6 +3,12 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.9]
+
+### Changed
+
+- Merge the trials and filler parse arms, accumulate adherence results per arm and route index-drift through the shared hook path helpers and fixture setup (behavior unchanged).
+
 ## [0.13.8]
 
 ### Changed
