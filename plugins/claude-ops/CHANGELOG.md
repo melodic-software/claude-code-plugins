@@ -3,6 +3,12 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.56.8]
+
+### Changed
+
+- lanes skill: lane-launcher.sh derives absolute-or-anchored paths through one path_under helper, machine-behavior.sh checks value flags through one helper, probe-lane-config.sh folds a never-looping argument loop and its repo-root fallback, restart-consumer.sh composes the ledger path from its existing helpers, and telemetry-upsert.sh spells two inverted glob tests as conditionals. No behavior change.
+
 ## [0.56.7]
 
 ### Changed
