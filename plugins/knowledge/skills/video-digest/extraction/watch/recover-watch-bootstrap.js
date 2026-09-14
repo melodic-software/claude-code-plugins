@@ -12,19 +12,17 @@ import path from "node:path";
 
 import { probeVideoDuration } from "@melodic/video-digestion/media/ffprobe-duration";
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
-import { parseVttSegment } from "@melodic/video-digestion/transcript/vtt-parser";
 
 import { resolveSourceAdapter } from "../adapters/registry.js";
 import { parseVideoMetadata } from "../acquisition/video-metadata.js";
 import { harvestMetadataLinks } from "../harvesting/harvest-links.js";
 import { isMainModule } from "../lib/cli-entrypoint.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
-import { computeCoveragePlan } from "../watching/compute-coverage-plan.js";
-import { findDensificationWindows, scoreFramePriority } from "../watching/densification.js";
-import { summarizeFrameSelection } from "../watching/frame-budget.js";
+import { planFrameCoverage } from "../watching/compute-coverage-plan.js";
+import { normalizeVttCues } from "../watching/cue-normalize.js";
+import { isHighVolume, selectFramesForCoverage } from "../watching/frame-budget.js";
 import { mergeFrameCandidates } from "../watching/merge-frame-candidates.js";
 import { assignFrameTimestamps } from "../watching/orchestrate-watching.js";
-import { toSelectedFrame } from "../watching/read-policy.js";
 import {
   batchFramesForContactSheets,
   interleaveTranscriptAndFrames,
@@ -200,34 +198,24 @@ export async function recoverWatchBootstrapCli(argv) {
   const { videoPath, vttPath, infoPath } = resolveWorkArtifacts(workDir);
   const metadata = parseVideoMetadata(JSON.parse(fs.readFileSync(infoPath, "utf8")));
   const vttText = fs.readFileSync(vttPath, "utf8");
-  const cues = parseVttSegment(vttText).map((cue) => ({
-    startSec: cue.startSec,
-    endSec: cue.endSec,
-    text: cue.text,
-  }));
+  const cues = normalizeVttCues(vttText);
 
   const probe = await probeVideoDuration(videoPath);
-  const durationSec = probe?.durationSec ?? cues[cues.length - 1]?.endSec ?? 0;
+  const durationSec = probe?.durationSec ?? cues.at(-1)?.endSec ?? 0;
 
   const rawFrames = loadFramesFromDir(framesDir);
   const merged = mergeFrameCandidates(rawFrames);
   assignFrameTimestamps(merged, durationSec);
 
-  const windows = findDensificationWindows(cues);
-  const coveragePlan = computeCoveragePlan({
+  const { windows, coveragePlan } = planFrameCoverage(cues, {
     durationSec,
-    densificationWindows: windows,
     sceneCandidateCount: merged.length,
   });
 
-  const scored = merged.map((frame, index) =>
-    toSelectedFrame(frame, scoreFramePriority(frame, index, windows), windows),
-  );
-
-  let selection = summarizeFrameSelection(scored, {
+  let selection = selectFramesForCoverage(merged, {
+    windows,
     targetMinFrames: coveragePlan.targetMinFrames,
     durationSec,
-    densificationWindowCount: windows.length,
   });
 
   const sheetFiles = listExistingSheetFiles(contactSheetsDir);
@@ -247,12 +235,13 @@ export async function recoverWatchBootstrapCli(argv) {
   const batches = batchFramesForContactSheets(selection.selected, FRAMES_PER_CONTACT_SHEET);
   const contactSheets = loadExistingContactSheets(contactSheetsDir, sheetFiles, batches);
 
-  const highVolume = summarizeFrameSelection(selection.selected, {
+  const highVolume = isHighVolume({
+    candidateCount: selection.selected.length,
     targetMinFrames: coveragePlan.targetMinFrames,
     contactSheetCount: contactSheets.length,
     durationSec,
     densificationWindowCount: windows.length,
-  }).highVolume;
+  });
 
   const watching = {
     sceneFrames: [],

@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.13.70]
+
+### Changed
+
+- The watching pipeline and the watch bootstrap recovery normalize VTT cues through one helper, and the coverage-plan and frame-selection sequences are exposed as named functions instead of being repeated at each call site. Plans, selections, and manifests are unchanged.
+
 ## [0.13.69]
 
 ### Changed

@@ -2,6 +2,8 @@
  * Dynamic per-video frame coverage plan — no hard cap.
  */
 
+import { findDensificationWindows } from "./densification.js";
+
 /** @typedef {import('./models.js').TranscriptCue} TranscriptCue */
 /** @typedef {import('./models.js').DensificationWindow} DensificationWindow */
 
@@ -104,6 +106,28 @@ export function computeCoveragePlan({
     targetMaxFrames: null,
     forceStratifiedPass,
     rationale,
+  };
+}
+
+/**
+ * Densification windows plus the coverage plan they feed, for callers that
+ * need both from the same cue list.
+ *
+ * @param {TranscriptCue[]} cues
+ * @param {object} input
+ * @param {number} input.durationSec
+ * @param {number} [input.sceneCandidateCount=0]
+ * @returns {{ windows: DensificationWindow[], coveragePlan: CoveragePlan }}
+ */
+export function planFrameCoverage(cues, { durationSec, sceneCandidateCount = 0 }) {
+  const windows = findDensificationWindows(cues);
+  return {
+    windows,
+    coveragePlan: computeCoveragePlan({
+      durationSec,
+      densificationWindows: windows,
+      sceneCandidateCount,
+    }),
   };
 }
 
