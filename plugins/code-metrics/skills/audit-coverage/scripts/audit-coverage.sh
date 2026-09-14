@@ -132,13 +132,10 @@ fi
 detect_format() {
   local artifact="$1" first
   first="$(grep -v '^[[:space:]]*$' "$artifact" 2>/dev/null | head -n 1)"
-  case "$first" in
-  mode:*)
+  if [[ "$first" == mode:* ]]; then
     printf 'go_cover\n'
     return 0
-    ;;
-  *) ;;
-  esac
+  fi
   if head -n 200 "$artifact" | grep -q '^SF:' || head -n 200 "$artifact" | grep -q '^TN:'; then
     printf 'lcov\n'
     return 0

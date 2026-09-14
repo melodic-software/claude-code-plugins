@@ -3,6 +3,12 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.9]
+
+### Changed
+
+- audit-coverage: join.py builds each function row's identity keys once, drops an unused unmatched list from the artifact merge and a self-assigning status branch; crap.py drops a dead rstrip; audit-coverage.sh probes the Go profile format with an if like its sibling probes. Output byte-identical on every fixture.
+
 ## [0.3.8]
 
 ### Changed

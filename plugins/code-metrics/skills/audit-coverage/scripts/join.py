@@ -260,12 +260,11 @@ def _statement_totals(statements: dict[str, Any] | None) -> dict[str, int] | Non
 
 def merge_artifacts(
     artifacts: list[dict[str, Any]], scope: list[str], root: str, prefixes: list[str]
-) -> tuple[dict[str, dict], list[str]]:
+) -> dict[str, dict]:
     """Fold every parsed artifact onto the files in scope. A file covered by
     two artifacts keeps the larger hit count per line, so a line is never
     counted twice."""
     merged: dict[str, dict] = {}
-    unmatched: list[str] = []
     # Basenames that more than one distinct path claims WITHIN one format,
     # gathered across every artifact of that format before any is folded. The
     # coverage skill discovers one artifact per coverage file, so two services
@@ -305,7 +304,6 @@ def merge_artifacts(
                 raw_path, scope, root, prefixes, ambiguous_by_format.get(fmt)
             )
             if target is None:
-                unmatched.append(normalize(raw_path))
                 continue
             entry = merged.setdefault(
                 target, {"lines": {}, "functions": [], "formats": [], "statements": {}}
@@ -342,7 +340,7 @@ def merge_artifacts(
                     },
                     claimed.setdefault(target, set()),
                 )
-    return merged, unmatched
+    return merged
 
 
 def _fold_function(
@@ -646,6 +644,13 @@ def _function_row(
     row: dict[str, Any], entry: dict[str, Any], siblings: list[dict[str, Any]]
 ) -> dict[str, Any]:
     start, end = row["start_line"], row["end_line"]
+    identity = {
+        "file": row["file"],
+        "function": row["function"],
+        "start_line": start,
+        "end_line": end,
+        "lane": row.get("lane"),
+    }
     tail = _tail(row.get("function"))
     # Whether another measured function in this file ends in the same name. A
     # short name in the artifact is only ambiguous when there is a second
@@ -660,11 +665,7 @@ def _function_row(
         # why through its label, and the lane's run row carries the reason, so
         # the gap is visible in the markdown as well as in the JSON.
         return {
-            "file": row["file"],
-            "function": row["function"],
-            "start_line": start,
-            "end_line": end,
-            "lane": row.get("lane"),
+            **identity,
             "values": {
                 "coverage_pct": None,
                 "lines_executable": None,
@@ -708,11 +709,7 @@ def _function_row(
     comp = row["values"]["cyclomatic"]
     score = crap_module.crap(comp, percent)
     return {
-        "file": row["file"],
-        "function": row["function"],
-        "start_line": start,
-        "end_line": end,
-        "lane": row.get("lane"),
+        **identity,
         "values": {
             "coverage_pct": percent,
             "lines_executable": executable,
@@ -737,7 +734,7 @@ def join(
     """The whole join: coverage rows plus the run rows that explain them."""
     prefixes = prefixes or []
     scope = [normalize(path) for path in scope]
-    merged, _ = merge_artifacts(artifacts, scope, root, prefixes)
+    merged = merge_artifacts(artifacts, scope, root, prefixes)
     cyclomatic = _cyclomatic_rows(complexity)
     # The dispatcher's own lane assignment leads: it covers every file in scope,
     # including the ones no complexity collector produced a row for. The
@@ -866,7 +863,8 @@ def join(
             if len(detail) > 3:
                 shown += f"; and {len(detail) - 3} more"
             note = f"{len(ambiguous)} function(s) left unjoined: {shown}"
-            status = "partial" if status == "ok" else status
+            if status == "ok":
+                status = "partial"
             reason = f"{reason}; {note}" if reason else note
         collector = (
             ", ".join(
