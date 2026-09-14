@@ -124,10 +124,11 @@
 set -uo pipefail
 
 # The header comment block above IS the --help text. Print from line 2 to the
-# last consecutive `#` line rather than a hardcoded range, so editing the
-# header can never again silently clip or overrun the help output.
+# last consecutive `#` line rather than a hardcoded range (the same idiom as the
+# sibling checkers), so editing the header can never again silently clip or
+# overrun the help output.
 usage() {
-  awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' "${BASH_SOURCE[0]}"
+  awk 'NR > 1 && !/^#/ { exit } NR > 1 { sub(/^# ?/, ""); print }' "${BASH_SOURCE[0]}"
 }
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
