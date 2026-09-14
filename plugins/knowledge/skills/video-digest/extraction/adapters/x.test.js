@@ -7,7 +7,6 @@ import { describe, expect, it, vi } from "vitest";
 import { adapterSourceDeclarations } from "../acquisition/acquire.js";
 import { PREFLIGHT_FIELD_SEP, preflightVideo } from "../acquisition/preflight-metadata.js";
 import { spawnYtDlpWithAuthFallback } from "../acquisition/spawn-yt-dlp-with-auth-fallback.js";
-import { harvestMetadataLinks } from "../harvesting/harvest-links.js";
 import { writeEnvelopeTranscriptArtifacts } from "../transcript/write-transcript.js";
 import { classifyErrorDetail } from "./adapter-contract.js";
 import { acquireMedia } from "./registry.js";
@@ -546,7 +545,7 @@ describe("acquireXMedia (fixture-driven, offline)", () => {
     ]);
 
     // Blocked link lands in harvested links (provenance).
-    const links = harvestMetadataLinks(envelope.metadata, adapter);
+    const links = adapter.harvestLinks(envelope.metadata);
     expect(links.map((link) => link.url)).toContain(REFUSED_URL);
   });
 
@@ -638,7 +637,7 @@ describe("acquireXMedia (fixture-driven, offline)", () => {
         const readme = await fs.readFile(path.join(sliceDir, "README.md"), "utf8");
         expect(readme, testCase.name).toContain(TWID);
         expect(readme, testCase.name).toContain(STATUS_URL);
-        const links = harvestMetadataLinks(result.data.metadata, adapter);
+        const links = adapter.harvestLinks(result.data.metadata);
         expect(links.map((link) => link.url), testCase.name).toContain(testCase.expectedLink);
       } finally {
         await fs.rm(sliceDir, { recursive: true, force: true });

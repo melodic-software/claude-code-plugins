@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.13.74]
+
+### Changed
+
+- The harvest, transcript, watch and bootstrap-recovery entry points call the adapter's harvestLinks directly instead of through a one-line wrapper, and the harvest-links suite exercises the same behavior through the adapter. Output is unchanged.
+
 ## [0.13.73]
 
 ### Changed

@@ -1,12 +1,12 @@
 /**
- * Link-harvest utilities shared across source adapters, plus the delegation
- * entry that routes metadata harvest to the owning adapter's `harvestLinks`.
+ * Link-harvest utilities shared across source adapters. Metadata harvest itself
+ * is adapter-owned: callers invoke the owning adapter's `harvestLinks`, which
+ * composes these utilities for its source's metadata shape.
  *
  * On-screen URLs are captured during skill-side frame reads and merged separately.
  * Heatmap is null-tolerant — optional context only, never required.
  */
 
-/** @typedef {import('../adapters/adapter-contract.js').SourceAdapter} SourceAdapter */
 /** @typedef {import('./models.js').HarvestedLink} HarvestedLink */
 /** @typedef {import('./models.js').HarvestSource} HarvestSource */
 
@@ -45,19 +45,6 @@ export function linksFromText(text, source, { context = "", timestampSec = null 
     }
     return link;
   });
-}
-
-/**
- * Harvest reference links from source metadata by delegating to the owning
- * adapter's `harvestLinks` (which composes the utilities above for its
- * source's metadata shape).
- *
- * @param {import('../adapters/adapter-contract.js').SourceMetadata} metadata
- * @param {SourceAdapter} adapter
- * @returns {HarvestedLink[]}
- */
-export function harvestMetadataLinks(metadata, adapter) {
-  return adapter.harvestLinks(metadata);
 }
 
 /**

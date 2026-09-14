@@ -17,7 +17,7 @@ import { isMainModule } from "../lib/cli-entrypoint.js";
 import { UnsupportedSourceError } from "../adapters/adapter-contract.js";
 import { resolveSourceAdapter, supportedHosts } from "../adapters/registry.js";
 import { parseVideoMetadata } from "../acquisition/video-metadata.js";
-import { harvestMetadataLinks, summarizeHeatmap } from "./harvest-links.js";
+import { summarizeHeatmap } from "./harvest-links.js";
 
 /**
  * @param {string[]} argv
@@ -70,7 +70,7 @@ export async function runHarvestCli(argv) {
     throw error;
   }
 
-  const links = harvestMetadataLinks(metadata, adapter);
+  const links = adapter.harvestLinks(metadata);
   const heatmap = summarizeHeatmap(metadata.heatmap);
 
   writeStdout(

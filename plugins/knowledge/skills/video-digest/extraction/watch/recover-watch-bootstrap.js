@@ -15,7 +15,6 @@ import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/termin
 
 import { resolveSourceAdapter } from "../adapters/registry.js";
 import { parseVideoMetadata } from "../acquisition/video-metadata.js";
-import { harvestMetadataLinks } from "../harvesting/harvest-links.js";
 import { isMainModule } from "../lib/cli-entrypoint.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 import { planFrameCoverage } from "../watching/compute-coverage-plan.js";
@@ -141,10 +140,8 @@ const FRAMES_PER_CONTACT_SHEET = 16;
  * Stratified downsample of a frame selection to the frame count the contact
  * sheets already on disk can hold.
  *
- * Split out so the WARN reports the count it downsampled FROM: reassigning
- * `selection` before reading `selection.selected.length` printed the
- * post-downsample count on both sides of the arrow, so the log claimed
- * "N → N" and hid how many frames were dropped.
+ * Split out so the WARN can report the count it downsampled FROM: the caller
+ * reassigns `selection` only after this has returned both counts.
  *
  * @param {import('../watching/models.js').SelectedFrame[]} selected
  * @param {number} targetFrameCount
@@ -173,8 +170,7 @@ export function downsampleSelectedFrames(selected, targetFrameCount) {
  */
 export async function recoverWatchBootstrapCli(argv) {
   // Validate BEFORE resolving: `path.resolve(undefined)` throws a TypeError,
-  // so resolving first made this usage branch unreachable and turned a bad
-  // invocation into a stack trace.
+  // so resolving first would make this usage branch unreachable.
   const [sliceDirArg, workDirArg, framesDirArg, contactSheetsDirArg] = argv.slice(2, 6);
   if (!sliceDirArg || !workDirArg || !framesDirArg || !contactSheetsDirArg) {
     writeStderr(RECOVER_USAGE);
@@ -300,7 +296,7 @@ export async function recoverWatchBootstrapCli(argv) {
     recovered: true,
   });
 
-  const harvestedLinks = harvestMetadataLinks(metadata, adapter);
+  const harvestedLinks = adapter.harvestLinks(metadata);
   await fsPromises.mkdir(lanePath(sliceDir, LANES.source), { recursive: true });
   const harvestPath = lanePath(sliceDir, LANES.source, "harvested-links.json");
   await fsPromises.writeFile(harvestPath, `${JSON.stringify(harvestedLinks, null, 2)}\n`, "utf8");
