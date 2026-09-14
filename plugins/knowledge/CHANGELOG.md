@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.13.67]
+
+### Changed
+
+- Merge the proper-noun repair branches behind one guard, hoist the ASR runnable check, return the auto-caption flag directly and share the io stub in the video-digest transcript suite (behavior unchanged).
+
 ## [0.13.66]
 
 ### Changed

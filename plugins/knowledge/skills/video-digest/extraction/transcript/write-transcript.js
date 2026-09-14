@@ -42,14 +42,11 @@ function countParagraphs(transcript) {
  * @returns {{ transcript: string, cueCount: number, paragraphCount: number, cleanedAutoCaptions: boolean, cleanedManualCaptions: boolean, repairedTermCount: number }}
  */
 export function buildTranscriptText(vttText, isAutoCaption, { repairLexicon = null } = {}) {
-  let cleanedAutoCaptions = false;
   let cleanedManualCaptions = false;
   let cues;
 
   if (isAutoCaption) {
-    const cleaned = cleanAutoCaptions(vttText);
-    cues = cleaned.cues;
-    cleanedAutoCaptions = true;
+    cues = cleanAutoCaptions(vttText).cues;
   } else {
     const cleaned = cleanManualCaptions(vttText);
     cues = cleaned.cues;
@@ -69,7 +66,7 @@ export function buildTranscriptText(vttText, isAutoCaption, { repairLexicon = nu
     transcript,
     cueCount: cues.length,
     paragraphCount: countParagraphs(transcript),
-    cleanedAutoCaptions,
+    cleanedAutoCaptions: isAutoCaption,
     cleanedManualCaptions,
     repairedTermCount,
   };

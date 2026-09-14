@@ -93,19 +93,31 @@ describe("writeEnvelopeTranscriptArtifacts", () => {
     detail: "test",
   });
 
+  /**
+   * Fake io stubs: every write lands in `files`, keyed by path. `overrides`
+   * supplies the per-case caption text and ASR doubles.
+   *
+   * @param {Record<string, string>} files
+   * @param {object} [overrides]
+   */
+  function fakeIo(files, overrides = {}) {
+    return {
+      mkdir: async () => {},
+      readFile: async () => SAMPLE_VTT,
+      writeFile: async (/** @type {unknown} */ filePath, /** @type {unknown} */ content) => {
+        files[String(filePath)] = String(content);
+      },
+      ...overrides,
+    };
+  }
+
   /** @param {import('../adapters/adapter-contract.js').AcquisitionEnvelope} envelope */
   async function writeWithFakeFs(envelope) {
     /** @type {Record<string, string>} */
     const files = {};
     const result = await writeEnvelopeTranscriptArtifacts(
       { sliceDir, envelope, sourceUrl: "https://www.youtube.com/watch?v=abc", sliceKey: "urlKey0" },
-      {
-        mkdir: async () => {},
-        readFile: async () => SAMPLE_VTT,
-        writeFile: async (filePath, content) => {
-          files[String(filePath)] = String(content);
-        },
-      },
+      fakeIo(files),
     );
     return { files, result };
   }
@@ -145,13 +157,7 @@ so I opened clawed code today
         sliceKey: "urlKey0",
         transcriptStrategy: "captions+repair",
       },
-      {
-        mkdir: async () => {},
-        readFile: async () => corruptedVtt,
-        writeFile: async (filePath, content) => {
-          files[String(filePath)] = String(content);
-        },
-      },
+      fakeIo(files, { readFile: async () => corruptedVtt }),
     );
 
     expect(result.transcripts).toHaveLength(1);
@@ -174,15 +180,14 @@ so I opened clawed code today
         words: [],
       };
     };
-    const result = await writeEnvelopeTranscriptArtifacts(asrCandidateOptions(), {
-      mkdir: async () => {},
-      readFile: async () => "",
-      writeFile: async (filePath, content) => {
-        files[String(filePath)] = String(content);
-      },
-      detectAsr: asrDetected,
-      runAsr: runAsrMock,
-    });
+    const result = await writeEnvelopeTranscriptArtifacts(
+      asrCandidateOptions(),
+      fakeIo(files, {
+        readFile: async () => "",
+        detectAsr: asrDetected,
+        runAsr: runAsrMock,
+      }),
+    );
 
     expect(result.transcripts).toHaveLength(1);
     expect(result.transcripts[0].strategy).toBe("asr");
@@ -192,17 +197,18 @@ so I opened clawed code today
   });
 
   it("caption-absent + capability absent degrades explicitly in the named provenance field", async () => {
-    const result = await writeEnvelopeTranscriptArtifacts(asrCandidateOptions(), {
-      mkdir: async () => {},
-      readFile: async () => "",
-      writeFile: async () => {},
-      detectAsr: async () => ({
-        available: false,
-        python: null,
-        version: null,
-        detail: "not installed",
+    const result = await writeEnvelopeTranscriptArtifacts(
+      asrCandidateOptions(),
+      fakeIo({}, {
+        readFile: async () => "",
+        detectAsr: async () => ({
+          available: false,
+          python: null,
+          version: null,
+          detail: "not installed",
+        }),
       }),
-    });
+    );
 
     expect(result.transcripts).toHaveLength(0);
     expect(result.transcriptDegradation).toContain("faster-whisper");
@@ -230,11 +236,7 @@ so I opened clawed code today
         transcriptStrategy: "captions+repair",
         strategyOverride: "captions",
       },
-      {
-        mkdir: async () => {},
-        readFile: async () => SAMPLE_VTT,
-        writeFile: async () => {},
-      },
+      fakeIo({}),
     );
 
     expect(result.transcripts[0].strategy).toBe("captions");
@@ -242,13 +244,14 @@ so I opened clawed code today
   });
 
   it("an ASR failure degrades the entry explicitly instead of failing the digest", async () => {
-    const result = await writeEnvelopeTranscriptArtifacts(asrCandidateOptions(), {
-      mkdir: async () => {},
-      readFile: async () => "",
-      writeFile: async () => {},
-      detectAsr: asrDetected,
-      runAsr: async () => ({ success: false, error: "ASR transcription failed: boom" }),
-    });
+    const result = await writeEnvelopeTranscriptArtifacts(
+      asrCandidateOptions(),
+      fakeIo({}, {
+        readFile: async () => "",
+        detectAsr: asrDetected,
+        runAsr: async () => ({ success: false, error: "ASR transcription failed: boom" }),
+      }),
+    );
 
     expect(result.transcripts).toHaveLength(0);
     expect(result.transcriptDegradation).toContain("boom");
