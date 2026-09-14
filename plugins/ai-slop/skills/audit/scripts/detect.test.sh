@@ -1108,6 +1108,12 @@ emit_branch_line() {
   }
   LC_ALL=C grep -m1 '^branch:' "$out" </dev/null || true
 }
+assert_branch_line() {
+  # assert_branch_line <branch> <expected `branch:` line> <case name>
+  local got
+  got="$(emit_branch_line "$1")"
+  if [[ "$got" == "$2" ]]; then pass "$3"; else fail "$3" "$2" "$got"; fi
+}
 
 # EVERY character in the predicate's indicator class is asserted, not a sample.
 # A five-name sample stayed green after `|`, `>`, `%`, backtick, `"` and `'`
@@ -1116,55 +1122,30 @@ emit_branch_line() {
 # missing option value (exit 2), so no caller can reach the predicate with it.
 for b in '?foo' ':foo' ',foo' '[foo' ']foo' '{foo' '}foo' '#foo' \
   '&foo' '*foo' '!foo' '|foo' '>foo' '%foo' '@foo' '`foo' "'foo"; do
-  got="$(emit_branch_line "$b")"
-  want="branch: \"$b\""
-  if [[ "$got" == "$want" ]]; then
-    pass "emit: indicator branch '$b' is emitted as a quoted scalar"
-  else
-    fail "emit: indicator branch '$b' is emitted as a quoted scalar" "$want" "$got"
-  fi
+  assert_branch_line "$b" "branch: \"$b\"" \
+    "emit: indicator branch '$b' is emitted as a quoted scalar"
 done
 
 # The double-quote indicator, whose expected form carries an escape.
-got="$(emit_branch_line '"foo')"
-if [[ "$got" == 'branch: "\"foo"' ]]; then
-  pass 'emit: indicator branch (leading double quote) is quoted and escaped'
-else
-  fail 'emit: indicator branch (leading double quote) is quoted and escaped' 'branch: "\"foo"' "$got"
-fi
+assert_branch_line '"foo' 'branch: "\"foo"' \
+  'emit: indicator branch (leading double quote) is quoted and escaped'
 
 # Non-leading `: ` and ` #` also force quoting: both end a plain scalar early.
 for b in 'has: colon' 'has #hash'; do
-  got="$(emit_branch_line "$b")"
-  want="branch: \"$b\""
-  if [[ "$got" == "$want" ]]; then
-    pass "emit: branch '$b' is quoted (plain scalar would end early)"
-  else
-    fail "emit: branch '$b' is quoted (plain scalar would end early)" "$want" "$got"
-  fi
+  assert_branch_line "$b" "branch: \"$b\"" \
+    "emit: branch '$b' is quoted (plain scalar would end early)"
 done
 
 for b in 'main' 'feat/3179-slug' 'release-1.2_x'; do
-  got="$(emit_branch_line "$b")"
-  want="branch: $b"
-  if [[ "$got" == "$want" ]]; then
-    pass "emit: ordinary branch '$b' stays an unquoted plain scalar"
-  else
-    fail "emit: ordinary branch '$b' stays an unquoted plain scalar" "$want" "$got"
-  fi
+  assert_branch_line "$b" "branch: $b" \
+    "emit: ordinary branch '$b' stays an unquoted plain scalar"
 done
 
 # YAML implicit types: git accepts these as branch names, but a bare scalar
 # becomes a boolean, null, or number and the consumer's exact-match drops
 # every finding.
 for b in true null 123 yes FALSE '~'; do
-  got="$(emit_branch_line "$b")"
-  want="branch: \"$b\""
-  if [[ "$got" == "$want" ]]; then
-    pass "emit: implicit-type branch '$b' is quoted"
-  else
-    fail "emit: implicit-type branch '$b' is quoted" "$want" "$got"
-  fi
+  assert_branch_line "$b" "branch: \"$b\"" "emit: implicit-type branch '$b' is quoted"
 done
 
 # The quoting must survive a branch name carrying the quote character itself —
@@ -1174,12 +1155,8 @@ done
 # awk consumes it as an escape at the -v assignment boundary before the helper
 # ever runs, so an assertion here would pin an awk -v artifact on an input that
 # cannot occur rather than this producer's quoting.
-got="$(emit_branch_line '@with"quote')"
-if [[ "$got" == 'branch: "@with\"quote"' ]]; then
-  pass "emit: a quote character inside an indicator branch is escaped"
-else
-  fail "emit: a quote character inside an indicator branch is escaped" 'branch: "@with\"quote"' "$got"
-fi
+assert_branch_line '@with"quote' 'branch: "@with\"quote"' \
+  "emit: a quote character inside an indicator branch is escaped"
 
 # --- Roster agreement: every rule's tier is asserted -----------------------------
 #
@@ -1220,20 +1197,17 @@ TIEROUT="$TEST_TMPDIR/findings/tiers.md"
 bash "$EMIT" --from "$TIERSRC" --out "$TIEROUT" --branch test-branch >/dev/null 2>&1
 tier_content="$(cat "$TIEROUT")"
 
-for slug in $EXPECTED_IMPORTANT; do
-  row="$(LC_ALL=C grep -m1 "ai-slop/audit/$slug " "$TIEROUT")"
+assert_tier() {
+  # assert_tier <slug> <tier>: the emitted row for <slug> carries <tier>
+  local row
+  row="$(LC_ALL=C grep -m1 "ai-slop/audit/$1 " "$TIEROUT")"
   case "$row" in
-  *"| IMPORTANT |"*) pass "tier mirror: $slug is IMPORTANT" ;;
-  *) fail "tier mirror: $slug is IMPORTANT" "IMPORTANT" "$row" ;;
+  *"| $2 |"*) pass "tier mirror: $1 is $2" ;;
+  *) fail "tier mirror: $1 is $2" "$2" "$row" ;;
   esac
-done
-for slug in $EXPECTED_SUGGESTION; do
-  row="$(LC_ALL=C grep -m1 "ai-slop/audit/$slug " "$TIEROUT")"
-  case "$row" in
-  *"| SUGGESTION |"*) pass "tier mirror: $slug is SUGGESTION" ;;
-  *) fail "tier mirror: $slug is SUGGESTION" "SUGGESTION" "$row" ;;
-  esac
-done
+}
+for slug in $EXPECTED_IMPORTANT; do assert_tier "$slug" IMPORTANT; done
+for slug in $EXPECTED_SUGGESTION; do assert_tier "$slug" SUGGESTION; done
 
 # F5 regression guard: both owner docs say this producer omits `tier:`.
 assert_not_contains "frontmatter: no uncomputed tier: field" "$tier_content" "tier:"

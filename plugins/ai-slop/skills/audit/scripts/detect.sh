@@ -294,28 +294,26 @@ if [[ "$HAVE_JQ" -eq 1 && "${#CFG_LAYERS[@]}" -gt 0 ]]; then
   # revision silently overrode. CR stripped by expansion, not a pipe, for the
   # same reason. The winning layer is kept so hygiene warnings below can name
   # where a bad fragment came from.
+  #
+  # read_phrase_list <layer> <key> <dest array>: nonzero when the layer does not
+  # define the key or jq refused it, so the caller leaves the inherited list
+  # (and the recorded layer) standing.
+  read_phrase_list() {
+    local layer="$1" key="$2" dest="$3" v
+    jq -e "has(\"$key\")" "$layer" >/dev/null 2>&1 || return 1
+    v="$(jq -r ".$key | .[]" "$layer" 2>/dev/null)" || return 1
+    v="${v//$'\r'/}"
+    if [[ -n "${v//[[:space:]]/}" ]]; then
+      mapfile -t "$dest" <<<"$v"
+    else
+      local -n dest_ref="$dest"
+      # shellcheck disable=SC2034  # nameref: this assignment clears the caller's array without a null device
+      dest_ref=()
+    fi
+  }
   for layer in "${CFG_LAYERS[@]}"; do
-    if jq -e 'has("phrase_add")' "$layer" >/dev/null 2>&1; then
-      if v="$(jq -r '.phrase_add | .[]' "$layer" 2>/dev/null)"; then
-        v="${v//$'\r'/}"
-        if [[ -n "${v//[[:space:]]/}" ]]; then
-          mapfile -t PHRASE_ADD <<<"$v"
-        else
-          PHRASE_ADD=()
-        fi
-        PHRASE_ADD_LAYER="$layer"
-      fi
-    fi
-    if jq -e 'has("phrase_remove")' "$layer" >/dev/null 2>&1; then
-      if v="$(jq -r '.phrase_remove | .[]' "$layer" 2>/dev/null)"; then
-        v="${v//$'\r'/}"
-        if [[ -n "${v//[[:space:]]/}" ]]; then
-          mapfile -t PHRASE_REMOVE <<<"$v"
-        else
-          PHRASE_REMOVE=()
-        fi
-      fi
-    fi
+    read_phrase_list "$layer" phrase_add PHRASE_ADD && PHRASE_ADD_LAYER="$layer"
+    read_phrase_list "$layer" phrase_remove PHRASE_REMOVE
   done
 elif [[ "$HAVE_JQ" -eq 0 && "${#CFG_LAYERS[@]}" -gt 0 ]]; then
   echo "Note: jq not found; config layers present but unread, using defaults" >&2

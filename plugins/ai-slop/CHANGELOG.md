@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.1]
+
+### Changed
+
+- The ai-slop audit detector reads its phrase_add and phrase_remove config keys through one helper, its suite shares the branch-line and tier assertions, and the context7 updater drops a dead echo fallback, with identical output.
+
 ## [0.6.0]
 
 ### Fixed

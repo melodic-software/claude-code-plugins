@@ -76,7 +76,7 @@ install_and_verify() {
 # --- CLI version check ---
 echo "=== Context7 CLI version ==="
 INSTALLED=$(verify_ctx7_callable) || INSTALLED="not-installed"
-LATEST=$(npm view ctx7 version 2>/dev/null | tr -d '\r' || echo "")
+LATEST=$(npm view ctx7 version 2>/dev/null | tr -d '\r')
 echo "  installed: $INSTALLED"
 echo "  latest:    ${LATEST:-unknown}"
 
