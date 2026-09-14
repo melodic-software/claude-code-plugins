@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.15]
+
+### Changed
+
+- Collapse the schema and variable error lists in the linear schema validator and merge the two field-extraction sed passes in its fidelity check (behavior unchanged).
+
 ## [0.40.14]
 
 ### Changed
