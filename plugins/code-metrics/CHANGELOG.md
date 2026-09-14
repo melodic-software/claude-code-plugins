@@ -3,6 +3,12 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.13]
+
+### Changed
+
+- The five audit skill suites source one bundled test-helpers.sh for their pass, fail, assert and assert_doc helpers, the Python resolution and the tool-free-PATH assertion instead of five inline copies; audit-duplication and audit-size now assert JSON documents through the same assert_doc. Green-path output, case labels and exit codes are byte-identical; only red-path excerpts change shape.
+
 ## [0.3.12]
 
 ### Changed
