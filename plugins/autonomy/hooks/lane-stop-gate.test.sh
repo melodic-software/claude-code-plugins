@@ -213,7 +213,6 @@ if is_block "$OUT"; then fail "custom sentinel → still blocked: $OUT"; else ok
 FAKEBIN="$(mktemp -d "$WORK/fakebin.XXXXXX")"
 for t in bash dirname cat env printf mktemp mkdir find tr grep sed uname sleep git awk date; do
   real_t="$(command -v "$t" 2>/dev/null)" || continue
-  [[ -n "$real_t" ]] || continue
   printf '#!/bin/sh\nexec "%s" "$@"\n' "$real_t" >"$FAKEBIN/$t"
   chmod +x "$FAKEBIN/$t"
 done
