@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [0.35.17]
+
+### Changed
+
+- The three test wrappers and the observer-arm hook find a Python 3.10+ interpreter through one probe library instead of four identical loops. Skip messages, exit codes and the launcher argv are unchanged.
+
 ## [0.35.16]
 
 ### Changed
