@@ -1651,8 +1651,7 @@ HOOK_EFFECTIVE_BASE="$gitinv_saved_base"
 # the same FIFO for write, which it does once it has its verdict. Both sides are
 # builtins with redirects; a `cat` would put a spawn back on the very path this
 # exists to keep spawns off. Measured: the pipeline ends at consumer completion
-# (2271 ms for a 2000 ms consumer) where a fixed 8 s hold cost 8180 ms — so this
-# is also what makes the repeated sampling further down affordable.
+# (2271 ms for a 2000 ms consumer) where a fixed 8 s hold cost 8180 ms.
 bs_release_fifo="$(mktemp -u)"
 bs_mkfifo_err=$(mkfifo "$bs_release_fifo" 2>&1)
 if [[ -z "$bs_mkfifo_err" ]] && [[ -p "$bs_release_fifo" ]]; then
@@ -1668,15 +1667,15 @@ else
   printf 'WARNING: mkfifo unavailable (%s); buffer_stdin cases fall back to a fixed hold, which is slower and less precise.\n' \
     "${bs_mkfifo_err:-no FIFO created}" >&2
   # No FIFO on this host: fall back to a fixed hold. It has to clear the WORST
-  # case any call site can reach, and the worst is the stall comparison's
-  # unsliced arm. That arm pays TWO whole bounds, not one: unsliced, the first
+  # case any call site can reach, and the worst is the unsliced run of the stall
+  # read-count probe. That run pays TWO whole bounds, not one: unsliced, the first
   # 3.6 s read returns WITH the early bytes and only the second empty one
   # declares the stall (which is the overshoot the sliced form exists to cap —
   # see Test 18g). So 7.2 s of bounds plus three sequential forks, which at the
-  # 3.2 s per-fork figure measured above is ~16.8 s; a measured pass of that arm
+  # 3.2 s per-fork figure measured above is ~16.8 s; a measured unsliced run
   # came in at 10593 ms on a box that was not at its worst. A hold derived from
   # ONE bound (~13.2 s, or a 12 s constant) would sit under that worst case and
-  # truncate the slow arm. 60 s is ~3.5x the derived worst case, so it stays
+  # truncate that run. 60 s is ~3.5x the derived worst case, so it stays
   # adequate. The honest trade: a too-short hold turns a should-pass into a
   # false fail, and a long one costs wall time on a host that reaches it.
   # This path is best-effort — Linux and MSYS both provide mkfifo, so it is not
