@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.13.73]
+
+### Changed
+
+- The two docpage-digest gate test wrappers run through one sourced library and the two Python gate suites share one harness module. Collected case counts, messages and exit codes are unchanged.
+
 ## [0.13.72]
 
 ### Changed
