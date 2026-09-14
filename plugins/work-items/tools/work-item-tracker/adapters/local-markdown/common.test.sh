@@ -70,7 +70,7 @@ assert_eq "next number after one item" "2" "$(wit_next_number)"
 touch "$WIT_STORAGE_DIR/2.md" "$WIT_STORAGE_DIR/10.md" "$WIT_STORAGE_DIR/notes.md"
 assert_eq "item numbers ascend and skip non-numeric names" "1,2,10," "$(wit_item_numbers | tr '\n' ',')"
 assert_eq "next number is max+1 across a gap" "11" "$(wit_next_number)"
-rm -f "$WIT_STORAGE_DIR/7.md" "$WIT_STORAGE_DIR/notes.md"
+rm -f "$WIT_STORAGE_DIR/notes.md"
 
 wit_fm_set "$WIT_STORAGE_DIR/1.md" assignees '["me"]'
 assert_eq "fm_set replaces in place" '["me"]' "$(wit_fm_field "$WIT_STORAGE_DIR/1.md" assignees)"

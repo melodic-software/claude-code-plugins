@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.16]
+
+### Changed
+
+- Normalise the storage guard spelling and drop dead cleanup, a single-use helper and a redundant path re-canonicalisation in the local-markdown adapter suites (behavior unchanged).
+
 ## [0.40.15]
 
 ### Changed
