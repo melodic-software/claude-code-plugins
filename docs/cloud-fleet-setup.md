@@ -1,6 +1,6 @@
 # Cloud fleet setup: one shared environment for every melodic-software repo
 
-The goal-oriented companion to [cloud-sessions.md](cloud-sessions.md): that doc explains the
+The goal-focused companion to [cloud-sessions.md](cloud-sessions.md): that doc explains the
 mechanics and this repo's own setup; this one gets **the whole fleet** runnable in Claude Code
 cloud sessions (web, `claude --cloud`, mobile, desktop, and routines) with warm-boot startup.
 Account context this plan is built for: a personal (Max) claude.ai account. Organization-shared
