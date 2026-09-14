@@ -104,19 +104,18 @@ slice() {
   printf '%s' "$path"
 }
 
-# index <slice-dir> <body...> — write the family's index into a directory.
-index() {
-  local dir="$1"
-  shift
-  mkdir -p "$dir"
-  printf '%s\n' "$@" >"$dir/$INDEX_NAME"
-}
-
 sidecar() {
   local dir="$1" name="$2"
   shift 2
   mkdir -p "$dir"
   printf '%s\n' "$@" >"$dir/$name"
+}
+
+# index <slice-dir> <body...> — write the family's index into a directory.
+index() {
+  local dir="$1"
+  shift
+  sidecar "$dir" "$INDEX_NAME" "$@"
 }
 
 # ============================================================================

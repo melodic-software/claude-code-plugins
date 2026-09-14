@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [0.19.17]
+
+### Changed
+
+- Fold the usage extraction into one sed, merge the cell edge guards and share the ledger and sidecar fixture helpers in the coverage-complete and dispatch-artifact gate suites (behavior unchanged).
+
 ## [0.19.16]
 
 ### Changed

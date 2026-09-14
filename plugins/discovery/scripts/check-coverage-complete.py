@@ -51,17 +51,14 @@ def cells(line: str) -> list[str]:
     out: list[str] = []
     for i, part in enumerate(raw):
         text = part.strip()
-        if i == 0 and text == "":
-            continue
-        if i == len(raw) - 1 and text == "":
+        if text == "" and i in (0, len(raw) - 1):
             continue
         out.append(text.replace("\x1e", "|"))
     return out
 
 
 def is_separator(line: str) -> bool:
-    probe = re.sub(r"[ \t|:\-]", "", line)
-    return probe == ""
+    return re.sub(r"[ \t|:\-]", "", line) == ""
 
 
 def grade(ledger_path: Path) -> int:
@@ -119,10 +116,10 @@ def grade(ledger_path: Path) -> int:
             return 2
 
         rows += 1
-        for i in range(1, header_cols + 1):
+        for i, cell in enumerate(row_cells, start=1):
             if i == done_col:
                 continue
-            if row_cells[i - 1] == "":
+            if cell == "":
                 print(
                     f"error: row {rows} has an empty {header_name[i]} cell — "
                     f"a marked row must say what covering it meant: {line}",

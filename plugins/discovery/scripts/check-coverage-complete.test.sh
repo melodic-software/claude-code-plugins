@@ -135,12 +135,8 @@ run 0 "a real ledger after an unrelated table is still graded" "$foreign_then_re
 # A backslash-escaped pipe is content, not a delimiter. A corpus item carrying a
 # TypeScript union must not be unparsable — the alternative is rewriting the
 # ledger to say something less accurate so the gate will read it.
-escaped_pipe="$WORK/escaped-pipe.md"
-{
-  printf '| # | Corpus item | Depth criterion | Done |\n'
-  printf '|---|-------------|-----------------|------|\n'
-  printf '%s\n' '| 1 | the read \| grep \| inferred union | every member documented | [x] |'
-} >"$escaped_pipe"
+escaped_pipe="$(ledger escaped-pipe.md \
+  '| 1 | the read \| grep \| inferred union | every member documented | [x] |')"
 run 0 "escaped pipes inside a cell are content, not delimiters" "$escaped_pipe"
 
 no_hash="$WORK/no-hash-column.md"
@@ -175,60 +171,32 @@ no_done_col="$WORK/no-done-column.md"
 } >"$no_done_col"
 run 2 "table without a Done column fails closed" "$no_done_col"
 
-mangled="$WORK/mangled.md"
-{
-  printf '| # | Corpus item | Depth criterion | Done |\n'
-  printf '|---|-------------|-----------------|------|\n'
-  printf '| 1 | alpha | criterion | [x] |\n'
-  printf '| 2 | beta | criterion |\n'
-} >"$mangled"
+mangled="$(ledger mangled.md \
+  '| 1 | alpha | criterion | [x] |' \
+  '| 2 | beta | criterion |')"
 run 2 "row with too few columns fails closed" "$mangled"
 
 # A stray pipe inside a cell shifts every column after it, so the cell read as
 # Done is some other cell — an extra column is as ungradeable as a missing one.
-wide="$WORK/too-wide.md"
-{
-  printf '| # | Corpus item | Depth criterion | Done |\n'
-  printf '|---|-------------|-----------------|------|\n'
-  printf '| 1 | alpha | criterion with a stray | pipe | [x] |\n'
-} >"$wide"
+wide="$(ledger too-wide.md \
+  '| 1 | alpha | criterion with a stray | pipe | [x] |')"
 run 2 "row with too many columns fails closed" "$wide"
 
 # A marked box on a row with no depth criterion certifies nothing — there is no
 # statement of what covering that item meant. Criterion 11 reads exit 0 as proof
 # of coverage, so this must never be one.
-no_criterion="$WORK/no-criterion.md"
-{
-  printf '| # | Corpus item | Depth criterion | Done |\n'
-  printf '|---|-------------|-----------------|------|\n'
-  printf '| 1 | alpha |  | [x] |\n'
-} >"$no_criterion"
+no_criterion="$(ledger no-criterion.md '| 1 | alpha |  | [x] |')"
 run 2 "marked row with an empty depth criterion fails closed" "$no_criterion"
 
-no_item="$WORK/no-item.md"
-{
-  printf '| # | Corpus item | Depth criterion | Done |\n'
-  printf '|---|-------------|-----------------|------|\n'
-  printf '| 1 |  | criterion | [x] |\n'
-} >"$no_item"
+no_item="$(ledger no-item.md '| 1 |  | criterion | [x] |')"
 run 2 "marked row with an empty corpus item fails closed" "$no_item"
 
 # The same emptiness on an UNMARKED row is still ungradeable — a ledger cannot be
 # completed later against a criterion nobody wrote.
-unmarked_no_criterion="$WORK/unmarked-no-criterion.md"
-{
-  printf '| # | Corpus item | Depth criterion | Done |\n'
-  printf '|---|-------------|-----------------|------|\n'
-  printf '| 1 | alpha |  | [ ] |\n'
-} >"$unmarked_no_criterion"
+unmarked_no_criterion="$(ledger unmarked-no-criterion.md '| 1 | alpha |  | [ ] |')"
 run 2 "unmarked row with an empty depth criterion fails closed" "$unmarked_no_criterion"
 
-junk_cell="$WORK/junk-cell.md"
-{
-  printf '| # | Corpus item | Depth criterion | Done |\n'
-  printf '|---|-------------|-----------------|------|\n'
-  printf '| 1 | alpha | criterion | done? |\n'
-} >"$junk_cell"
+junk_cell="$(ledger junk-cell.md '| 1 | alpha | criterion | done? |')"
 run 2 "Done cell that is neither marked nor unmarked fails closed" "$junk_cell"
 
 empty="$WORK/empty.md"
@@ -265,17 +233,12 @@ run_one "$PY_SUT" 2 "non-UTF-8 ledger fails closed as ungradeable" "$bad_utf8"
 # when the host actually denies the read, and prints a visible SKIP when the
 # file stays readable. A skip there is acceptable because the simulated case
 # has already exercised the exception-to-exit-2 contract on every host.
-unreadable="$WORK/unreadable.md"
-{
-  printf '| # | Corpus item | Depth criterion | Done |\n'
-  printf '|---|-------------|-----------------|------|\n'
-  printf '| 1 | alpha | criterion | [x] |\n'
-} >"$unreadable"
+unreadable="$(ledger unreadable.md '| 1 | alpha | criterion | [x] |')"
 
 sim_out="$(
   PY_TWIN="$SCRIPT_DIR/check-coverage-complete.py" \
-  LEDGER="$unreadable" \
-  python3 - <<'PY' 2>&1
+    LEDGER="$unreadable" \
+    python3 - <<'PY' 2>&1
 import contextlib
 import errno
 import importlib.util
