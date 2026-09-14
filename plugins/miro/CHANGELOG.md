@@ -3,6 +3,12 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.6]
+
+### Changed
+
+- The frames and tags tool handlers test for an optional SDK method through one typed capability predicate instead of two inline in-and-typeof checks. Responses and the built bundle behave the same.
+
 ## [0.4.5]
 
 ### Changed
