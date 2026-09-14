@@ -111,8 +111,7 @@ function scrapeCurriculumInBrowser({ sources, instructorFragment }) {
       const h3 = el.querySelector("h3");
       if (lectureId && h3 && !currentModule.lessons.some((l) => l.lectureId === lectureId)) {
         const fullText = el.textContent.trim();
-        const durationMatch = fullText.match(durationPattern);
-        const rawDuration = durationMatch ? durationMatch[1] : "";
+        const rawDuration = fullText.match(durationPattern)?.[1] ?? "";
         const title = h3.textContent.trim();
 
         let duration = "";
@@ -166,10 +165,9 @@ async function main() {
 
   mkdirSync(outputDir, { recursive: true });
 
-  const { browser, context, page, authDir, cookieCount } = await launchBrowser({
+  const { browser, context, page, cookieCount } = await launchBrowser({
     headless: false,
     storageStatePath: authStatePath,
-    profilePrefix: "build-course-json",
   });
   if (cookieCount > 0) {
     writeStdout(`Injected ${cookieCount} cookies.`);
@@ -240,7 +238,7 @@ async function main() {
   writeStdout(`\n✓ course.json written to: ${outputPath}`);
   writeStdout(`  ${totalLessons} lessons, ${hours}h ${mins}m total`);
 
-  await closeBrowser(context, authDir, browser);
+  await closeBrowser(context, browser);
 }
 
 main().catch((e) => {

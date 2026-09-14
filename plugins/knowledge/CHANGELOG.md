@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.13.71]
+
+### Changed
+
+- The course-digest browser helper no longer creates and removes a temporary profile directory that nothing read; launch and close keep their call order and every caller passes two arguments. A duration match in build-course-json uses optional chaining for the same result.
+
 ## [0.13.70]
 
 ### Changed
