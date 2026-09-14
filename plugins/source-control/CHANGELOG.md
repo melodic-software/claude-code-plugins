@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.85]
+
+### Changed
+
+- The exec-bit-check script appends the arguments after a double dash in one step, and its tests and the worktree nesting-invariant test read files and pad fixtures with builtins instead of extra subprocesses, with byte-identical output.
+
 ## [0.55.84]
 
 ### Changed
