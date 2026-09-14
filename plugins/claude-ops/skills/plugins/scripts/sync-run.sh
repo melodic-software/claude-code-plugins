@@ -110,6 +110,20 @@ CACHE_CHECK="${SYNC_RUN_CACHE_CHECK:-$SCRIPT_DIR/cache-content-check.sh}"
 NORMALIZE="${SYNC_RUN_NORMALIZE:-$SCRIPT_DIR/normalize-enabled-plugins.sh}"
 CLAUDE_BIN="${SYNC_RUN_CLAUDE_BIN:-claude}"
 
+# jq-capture.sh is this script's own fixed sibling, carrying the `jq_to` capture
+# every jq call here goes through, shared with fleet-state.sh and
+# cache-content-check.sh. Resolved from this script's own location, never from a
+# SYNC_RUN_* override, so nothing a caller sets can redirect `source` at an
+# arbitrary file.
+JQ_CAPTURE="$SCRIPT_DIR/jq-capture.sh"
+if [[ -f "$JQ_CAPTURE" ]]; then
+  # shellcheck source=jq-capture.sh
+  source "$JQ_CAPTURE"
+else
+  echo "ERROR: jq-capture.sh not found at $JQ_CAPTURE" >&2
+  exit 2
+fi
+
 # fleet-state.sh resolves the DEFAULT marketplace by joining CLAUDE_PLUGIN_ROOT
 # against the install records, so a headless run that never had it set still gets a
 # target instead of an error. This script's own location is inside the plugin root
@@ -302,22 +316,6 @@ elif [[ "$MODE" == "sync" && -z "$JOURNAL_ROOT" ]]; then
   echo "  a context/*.md spoke is read raw and cannot substitute it." >&2
   exit 2
 fi
-
-# --- jq capture ---------------------------------------------------------------
-# Some native-Windows jq builds CRLF-terminate every line, including single-line
-# compact output. `$(...)` strips only the trailing LF, so a stray CR survives at
-# the end of a captured value and corrupts it once re-parsed as JSON, and every id
-# but the last in a line-oriented output arrives as `<name>@<marketplace>\r`. Every
-# jq call goes through this helper, which strips ALL carriage returns in the shell
-# and stores the result in the named variable.
-jq_to() {
-  local __jq_var="$1"
-  shift
-  local __jq_out __jq_rc=0
-  __jq_out=$(command jq "$@") || __jq_rc=$?
-  printf -v "$__jq_var" '%s' "${__jq_out//$'\r'/}"
-  return "$__jq_rc"
-}
 
 # JSON array of the non-empty lines of a file, CR-stripped. Used for every id list
 # in the digest, so a `\r` can never ride into a report row or a later CLI call.
@@ -668,22 +666,26 @@ persist_first_pass_rows() {
   printf '%s\n' "$persisted" >"$RUN_DIR/first-pass.$mp.json"
 }
 
+# Append the sidecar's $3 array, read with jq flag $4, to the shell array named
+# by $1, so the three restores below share one reader and cannot drift on the
+# empty-line skip that keeps a blank row out of the digest.
+append_sidecar_rows() {
+  local -n __asr_rows="$1"
+  local sidecar="$2" filter="$3" flag="$4" lines="" line
+  jq_to lines "$flag" "$filter" "$sidecar"
+  while IFS= read -r line; do
+    [[ -n "$line" ]] && __asr_rows+=("$line")
+  done <<<"$lines"
+  return 0
+}
+
 restore_first_pass_rows() {
   local mp="$1"
-  local sidecar="$RUN_DIR/first-pass.$mp.json" lines line
+  local sidecar="$RUN_DIR/first-pass.$mp.json"
   [[ -f "$sidecar" ]] || return 0
-  jq_to lines -r '.errors[]?' "$sidecar"
-  while IFS= read -r line; do
-    [[ -n "$line" ]] && MP_ERRORS+=("$line")
-  done <<<"$lines"
-  jq_to lines -c '.ir_failed[]?' "$sidecar"
-  while IFS= read -r line; do
-    [[ -n "$line" ]] && IR_FAILED+=("$line")
-  done <<<"$lines"
-  jq_to lines -c '.us_failed[]?' "$sidecar"
-  while IFS= read -r line; do
-    [[ -n "$line" ]] && US_FAILED+=("$line")
-  done <<<"$lines"
+  append_sidecar_rows MP_ERRORS "$sidecar" '.errors[]?' -r
+  append_sidecar_rows IR_FAILED "$sidecar" '.ir_failed[]?' -c
+  append_sidecar_rows US_FAILED "$sidecar" '.us_failed[]?' -c
   # Digest fields only. `REFRESH_FAILED` stays 0 so the re-entry can still run
   # Steps 4 and 5: that flag is the first-pass defer gate, and restoring it
   # would skip the install the caller just confirmed.

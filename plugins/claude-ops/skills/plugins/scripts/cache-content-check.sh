@@ -213,24 +213,27 @@ if ! command -v git >/dev/null 2>&1; then
   exit 2
 fi
 
-# --- jq capture ---------------------------------------------------------------
-# Some native-Windows jq builds CRLF-terminate every line, including single-line
-# compact output. `$(...)` strips only the trailing LF, so a stray CR survives
-# and corrupts the value once re-parsed as JSON — and every id but the last in a
-# line-oriented output arrives as `<name>@<marketplace>\r`. Every jq call goes
-# through this helper, which strips ALL carriage returns in the shell (no `tr`
-# process). Identical to fleet-state.sh's; see context/gotchas.md.
-jq_to() {
-  local __jq_var="$1"
-  shift
-  local __jq_out __jq_rc=0
-  __jq_out=$(command jq "$@") || __jq_rc=$?
-  printf -v "$__jq_var" '%s' "${__jq_out//$'\r'/}"
-  return "$__jq_rc"
-}
+# jq-capture.sh is this script's own fixed sibling, carrying the `jq_to` capture
+# and the `json_string_to` encoder that fleet-state.sh and sync-run.sh share.
+# Resolved from this script's own location with parameter expansion and no
+# external process, never from a caller-supplied env var, so a stray
+# CACHE_CONTENT_* override cannot redirect `source` at an arbitrary file.
+script_src="${BASH_SOURCE[0]}"
+case "$script_src" in
+*/*) script_src_dir="${script_src%/*}" ;;
+*) script_src_dir="." ;;
+esac
+JQ_CAPTURE="$script_src_dir/jq-capture.sh"
+if [[ -f "$JQ_CAPTURE" ]]; then
+  # shellcheck source=jq-capture.sh
+  builtin source "$JQ_CAPTURE"
+else
+  echo "ERROR: jq-capture.sh not found at $JQ_CAPTURE" >&2
+  exit 2
+fi
 
-# git output gets the same treatment, for the same reason: a Windows git build
-# writing CRLF would put a CR inside a path or a blob id.
+# git output gets the same CR strip as `jq_to`'s, for the same reason: a Windows
+# git build writing CRLF would put a CR inside a path or a blob id.
 git_to() {
   local __g_var="$1"
   shift
@@ -238,32 +241,6 @@ git_to() {
   __g_out=$(command git "$@") || __g_rc=$?
   printf -v "$__g_var" '%s' "${__g_out//$'\r'/}"
   return "$__g_rc"
-}
-
-# JSON string literal built with builtins, so the strings this shell assembles
-# (paths, ids, verdicts) get the same escaping jq's own encoder applies.
-json_string_to() {
-  local __js_s="$2" __js_i __js_c __js_hex __js_out=""
-  __js_s="${__js_s//\\/\\\\}"
-  __js_s="${__js_s//\"/\\\"}"
-  __js_s="${__js_s//$'\n'/\\n}"
-  __js_s="${__js_s//$'\r'/\\r}"
-  __js_s="${__js_s//$'\t'/\\t}"
-  __js_s="${__js_s//$'\b'/\\b}" # portability-ok: JSON short escape for U+0008 in a parameter expansion, not a regex word boundary
-  __js_s="${__js_s//$'\f'/\\f}"
-  if [[ "$__js_s" == *[$'\x01'-$'\x1f']* ]]; then
-    for ((__js_i = 0; __js_i < ${#__js_s}; __js_i++)); do
-      __js_c="${__js_s:__js_i:1}"
-      if [[ "$__js_c" == [$'\x01'-$'\x1f'] ]]; then
-        printf -v __js_hex '\\u%04x' "'$__js_c"
-        __js_out+="$__js_hex"
-      else
-        __js_out+="$__js_c"
-      fi
-    done
-    __js_s="$__js_out"
-  fi
-  printf -v "$1" '"%s"' "$__js_s"
 }
 
 # Native Windows paths (`C:\Users\<user>\…`) come out of installed_plugins.json and
@@ -628,7 +605,7 @@ check_marketplace() {
       [[ "${g_sha[gi]}" == "$s" ]] || continue
       specs+=("${g_dir[gi]}")
     done
-    # ponytail: one pathspec per distinct source directory at this sha, in one
+    # One pathspec per distinct source directory at this sha, in one
     # argv. A marketplace would need thousands of DISTINCT source directories
     # sharing a single commit to approach the argv ceiling; chunk here if one
     # ever does.
@@ -838,7 +815,7 @@ check_marketplace() {
   # contract rather than an expected branch — and the answer to a broken
   # contract is to say so, not to compare a table that may be shifted.
   #
-  # ponytail: one batch for the whole marketplace, so a truncation lands on the
+  # One batch for the whole marketplace, so a truncation lands on the
   # install that owns the gap AND on every install after it, where a per-install
   # batch would have confined it to one. Both are the same unexpected
   # contract break, and the reported verdict is still "refused to compare";

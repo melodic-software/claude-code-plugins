@@ -3,6 +3,12 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.56.12]
+
+### Changed
+
+- The three plugins-skill scripts source one jq-capture library for their jq_to and json_string_to helpers instead of carrying private copies, and sync-run appends its sidecar rows through one helper. Output and exit codes are unchanged.
+
 ## [0.56.11]
 
 ### Changed

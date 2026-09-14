@@ -146,7 +146,7 @@
 #   see the process's exit status and would otherwise read the error JSON as an
 #   id. This mode exists so a caller never hand-writes `jq -r ... | while read`
 #   — on Windows that reintroduces a CR and corrupts every id but the last. See
-#   the jq_to comment and context/gotchas.md.
+#   the `jq_to` comment in scripts/jq-capture.sh and context/gotchas.md.
 #
 # Exit codes:
 #   0  ran to completion (individual marketplace failures are reported in the
@@ -252,60 +252,23 @@ else
   exit 2
 fi
 
+# jq-capture.sh is this script's own fixed sibling, carrying the `jq_to` capture
+# and the `json_string_to` encoder that cache-content-check.sh and sync-run.sh
+# share. Resolved and sourced exactly like hook-utils.sh above, for the same
+# reasons.
+JQ_CAPTURE="$script_src_dir/jq-capture.sh"
+if [[ -f "$JQ_CAPTURE" ]]; then
+  # shellcheck source=jq-capture.sh
+  builtin source "$JQ_CAPTURE"
+else
+  echo "ERROR: jq-capture.sh not found at $JQ_CAPTURE" >&2
+  exit 2
+fi
+
 if ! command -v jq >/dev/null 2>&1; then
   echo "ERROR: jq required (install with: winget install jqlang.jq | apt install jq | brew install jq)" >&2
   exit 2
 fi
-
-# --- jq capture ---------------------------------------------------------------
-# Some native-Windows jq builds CRLF-terminate every line, including
-# single-line compact output. `$(...)` strips only the trailing LF, so a
-# stray CR survives at the end of a captured value and corrupts it once
-# re-parsed as JSON, and every id but the last in a line-oriented output
-# arrives as `<name>@<marketplace>\r`. Every jq call goes through this helper,
-# which strips ALL carriage returns in the shell (no `tr` process) and stores
-# the result in the named variable. Callers never pipe jq to anything: the
-# pipeline would fork a second process for the consumer, and a `while read`
-# over a here-string of the captured value costs nothing.
-jq_to() {
-  local __jq_var="$1"
-  shift
-  local __jq_out __jq_rc=0
-  __jq_out=$(command jq "$@") || __jq_rc=$?
-  printf -v "$__jq_var" '%s' "${__jq_out//$'\r'/}"
-  return "$__jq_rc"
-}
-
-# --- JSON string literal, built with builtins ----------------------------------
-# The --all envelope and the per-marketplace error blocks are assembled in the
-# shell around jq's own compact output, so the two strings the shell itself
-# has to encode (a marketplace name, a lastUpdated stamp) get the same
-# escaping jq's encoder applies: `\"`, `\\`, the five short control escapes,
-# `\u00XX` for every other C0 byte, everything else (including non-ASCII and
-# DEL) verbatim.
-json_string_to() {
-  local __js_s="$2" __js_i __js_c __js_hex __js_out=""
-  __js_s="${__js_s//\\/\\\\}"
-  __js_s="${__js_s//\"/\\\"}"
-  __js_s="${__js_s//$'\n'/\\n}"
-  __js_s="${__js_s//$'\r'/\\r}"
-  __js_s="${__js_s//$'\t'/\\t}"
-  __js_s="${__js_s//$'\b'/\\b}" # portability-ok: JSON short escape for U+0008 in a parameter expansion, not a regex word boundary
-  __js_s="${__js_s//$'\f'/\\f}"
-  if [[ "$__js_s" == *[$'\x01'-$'\x1f']* ]]; then
-    for ((__js_i = 0; __js_i < ${#__js_s}; __js_i++)); do
-      __js_c="${__js_s:__js_i:1}"
-      if [[ "$__js_c" == [$'\x01'-$'\x1f'] ]]; then
-        printf -v __js_hex '\\u%04x' "'$__js_c"
-        __js_out+="$__js_hex"
-      else
-        __js_out+="$__js_c"
-      fi
-    done
-    __js_s="$__js_out"
-  fi
-  printf -v "$1" '"%s"' "$__js_s"
-}
 
 INSTALLED_JSON="${FLEET_STATE_INSTALLED_JSON:-$HOME/.claude/plugins/installed_plugins.json}"
 MARKETPLACES_JSON="${FLEET_STATE_MARKETPLACES_JSON:-$HOME/.claude/plugins/known_marketplaces.json}"
