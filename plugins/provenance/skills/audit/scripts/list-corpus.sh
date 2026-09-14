@@ -102,9 +102,9 @@ fi
 anchor_dir() {
   # The directory the corpus root is resolved from: the target itself when it is
   # a directory, its parent when it is a file, the cwd otherwise.
-  if [[ -d "${TARGET:-}" ]]; then
+  if [[ -d "$TARGET" ]]; then
     printf '%s' "$TARGET"
-  elif [[ -n "${TARGET:-}" && -f "$TARGET" ]]; then
+  elif [[ -f "$TARGET" ]]; then
     printf '%s' "$(dirname "$TARGET")"
   else
     printf '%s' "$PWD"

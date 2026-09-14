@@ -390,10 +390,7 @@ write_report withheld-llm.json '{
 for wcase in "nf:not-found:LEAKCANARY.example" \
   "sfs:source-fetched-similar:LEAKCANARY-SFS" \
   "llm:llm-suspected:LEAKCANARY-LLM"; do
-  wname="${wcase%%:*}"
-  wrest="${wcase#*:}"
-  wtier="${wrest%%:*}"
-  wcanary="${wrest#*:}"
+  IFS=: read -r wname wtier wcanary <<<"$wcase"
   WOUT="$OUTDIR/withheld-$wname.md"
   run --report "$REPORTS/withheld-$wname.json" --out "$WOUT" >/dev/null 2>&1
   assert_exit "a rule-less $wtier finding still exits 0" "$?" "0"
@@ -460,10 +457,7 @@ write_report withheld-capkey.json '{
 
 for scase in "padded:not-found:PADCANARY" "arraytier:not-found:ARRCANARY" \
   "objtier:llm-suspected:OBJCANARY" "capkey:not-found:CAPCANARY"; do
-  sname="${scase%%:*}"
-  srest="${scase#*:}"
-  sverdict="${srest%%:*}"
-  scanary="${srest#*:}"
+  IFS=: read -r sname sverdict scanary <<<"$scase"
   SOUT="$OUTDIR/withheld-$sname.md"
   run --report "$REPORTS/withheld-$sname.json" --out "$SOUT" >/dev/null 2>&1
   SBODY="$(cat "$SOUT")"
@@ -594,10 +588,7 @@ write_report verdict-on-stamp.json '{
 for vc in "string:not-found:VSTRCANARY" "array:llm-suspected:VARRCANARY" \
   "deep:llm-suspected:VDEEPCANARY" "cased:llm-suspected:VCASECANARY" \
   "on-stamp:llm-suspected:none"; do
-  vn="${vc%%:*}"
-  vr="${vc#*:}"
-  vv="${vr%%:*}"
-  vk="${vr#*:}"
+  IFS=: read -r vn vv vk <<<"$vc"
   VO="$OUTDIR/verdict-$vn.md"
   run --report "$REPORTS/verdict-$vn.json" --out "$VO" >/dev/null 2>&1
   VB="$(cat "$VO")"
@@ -680,10 +671,7 @@ write_report tier-unusable-word.json '{
 }'
 for uu in "null:not-found:UNUSABLENULL" "empty:source-fetched-similar:UNUSABLEEMPTY" \
   "word:llm-suspected:UNUSABLEWORD"; do
-  un="${uu%%:*}"
-  ur="${uu#*:}"
-  uv="${ur%%:*}"
-  uk="${ur#*:}"
+  IFS=: read -r un uv uk <<<"$uu"
   UO="$OUTDIR/tier-unusable-$un.md"
   run --report "$REPORTS/tier-unusable-$un.json" --out "$UO" >/dev/null 2>&1
   UB="$(cat "$UO")"
@@ -724,10 +712,7 @@ write_report verdict-tier-unusable-sni.json '{
 for vu in "word:not-found:VUWORDCANARY" "null:llm-suspected:VUNULLCANARY" \
   "blank:source-fetched-similar:VUBLANKCANARY" \
   "sni:source-not-identified:VUSNICANARY"; do
-  vun="${vu%%:*}"
-  vur="${vu#*:}"
-  vuv="${vur%%:*}"
-  vuk="${vur#*:}"
+  IFS=: read -r vun vuv vuk <<<"$vu"
   VUO="$OUTDIR/verdict-tier-unusable-$vun.md"
   run --report "$REPORTS/verdict-tier-unusable-$vun.json" --out "$VUO" >/dev/null 2>&1
   VUB="$(cat "$VUO")"
@@ -813,10 +798,7 @@ write_report record-nested-array.json '{
 }'
 for rw in "wrapped-object:not-found:WRAPOBJCANARY" "bare-string:not-found:none" \
   "nested-array:llm-suspected:none"; do
-  rn="${rw%%:*}"
-  rr="${rw#*:}"
-  rv="${rr%%:*}"
-  rk="${rr#*:}"
+  IFS=: read -r rn rv rk <<<"$rw"
   RO="$OUTDIR/record-$rn.md"
   run --report "$REPORTS/record-$rn.json" --out "$RO" >/dev/null 2>&1
   RB="$(cat "$RO")"
@@ -1051,10 +1033,7 @@ for iv in "zwsp:not-found:INVIS-ZWSP" "zwnj:not-found:INVIS-ZWNJ" \
   "nbsp:not-found:INVIS-NBSP" "interior:not-found:INVIS-INTERIOR" \
   "interior2:source-fetched-similar:INVIS-INTERIOR2" \
   "vs16:not-found:INVIS-VS16" "cgj:not-found:INVIS-CGJ"; do
-  ivn="${iv%%:*}"
-  ivr="${iv#*:}"
-  ivv="${ivr%%:*}"
-  ivk="${ivr#*:}"
+  IFS=: read -r ivn ivv ivk <<<"$iv"
   IVO="$OUTDIR/tier-invisible-$ivn.md"
   run --report "$REPORTS/tier-invisible-$ivn.json" --out "$IVO" >/dev/null 2>&1
   IVB="$(cat "$IVO")"
@@ -1081,10 +1060,7 @@ write_report tier-dash-minus.json '{
 }'
 for dc in "u2010:not-found:DASH2010CANARY" "u2011:llm-suspected:DASH2011CANARY" \
   "minus:not-found:DASHMINUSCANARY"; do
-  dcn="${dc%%:*}"
-  dcr="${dc#*:}"
-  dcv="${dcr%%:*}"
-  dck="${dcr#*:}"
+  IFS=: read -r dcn dcv dck <<<"$dc"
   DCO="$OUTDIR/tier-dash-$dcn.md"
   run --report "$REPORTS/tier-dash-$dcn.json" --out "$DCO" >/dev/null 2>&1
   DCB="$(cat "$DCO")"
@@ -1113,10 +1089,7 @@ write_report record-key-name.json '{
 for kc in "tier-key-name:not-found:KEYNAMECANARY" \
   "tier-key-wrapped:llm-suspected:KEYWRAPCANARY" \
   "record-key-name:not-found:RECORDKEYCANARY"; do
-  kcn="${kc%%:*}"
-  kcr="${kc#*:}"
-  kcv="${kcr%%:*}"
-  kck="${kcr#*:}"
+  IFS=: read -r kcn kcv kck <<<"$kc"
   KCO="$OUTDIR/$kcn.md"
   run --report "$REPORTS/$kcn.json" --out "$KCO" >/dev/null 2>&1
   KCB="$(cat "$KCO")"
@@ -1155,8 +1128,7 @@ write_report tier-visible-accent.json '{
   "findings": [{"tier": "not-fóund", "file": "x.md", "note": "VISIBLEACCENTCANARY"}]
 }'
 for vz in "space:VISIBLESPACECANARY" "accent:VISIBLEACCENTCANARY"; do
-  vzn="${vz%%:*}"
-  vzk="${vz#*:}"
+  IFS=: read -r vzn vzk <<<"$vz"
   VZO="$OUTDIR/tier-visible-$vzn.md"
   run --report "$REPORTS/tier-visible-$vzn.json" --out "$VZO" >/dev/null 2>&1
   assert_exit "a rendering character inside the name is not stripped ($vzn)" "$?" "0"
@@ -1235,10 +1207,7 @@ write_report eligible-verdict.json '{
   }]
 }'
 for ecase in "capkey:ec.md:41" "verdict:ev.md:42"; do
-  ename="${ecase%%:*}"
-  erest="${ecase#*:}"
-  efile="${erest%%:*}"
-  eline="${erest#*:}"
+  IFS=: read -r ename efile eline <<<"$ecase"
   EOUT="$OUTDIR/eligible-$ename.md"
   run --report "$REPORTS/eligible-$ename.json" --out "$EOUT" >/dev/null 2>&1
   EBODY="$(cat "$EOUT")"
@@ -1358,12 +1327,7 @@ for vcase in "nested-history:rule-verbatim-copy:s1.md:11" \
   "review:rule-verbatim-copy:s4.md:14" \
   "stamp-review:rule-stamp-expired:s5.md:15" \
   "xref:rule-trigger-less-stamp:s6.md:16"; do
-  vname="${vcase%%:*}"
-  vrest="${vcase#*:}"
-  vrule="${vrest%%:*}"
-  vrest="${vrest#*:}"
-  vfile="${vrest%%:*}"
-  vline="${vrest#*:}"
+  IFS=: read -r vname vrule vfile vline <<<"$vcase"
   VOUT="$OUTDIR/survive-$vname.md"
   run --report "$REPORTS/survive-$vname.json" --out "$VOUT" >/dev/null 2>&1
   assert_exit "a relay-eligible finding with an unrelated nested tier exits 0 ($vname)" \

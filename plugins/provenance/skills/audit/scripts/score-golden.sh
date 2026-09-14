@@ -205,6 +205,14 @@ def overlaps($e; $a):
 
 def matched($e; $a): ($e.class == $a.class) and overlaps($e; $a);
 
+# Does any expectation for this case match the actual finding in `.`? The hit and
+# miss readings are this one question and its complement.
+def has_match($ef): . as $a | [$ef[] | select(matched(.; $a))] | length > 0;
+
+# Sum one confusion-matrix cell over a list of cases. An empty list is 0, never
+# null, so an unpopulated class still reports a number.
+def tally($k): [.[] | .[$k]] | add // 0;
+
 def ratio($n; $d): if $d == 0 then null else ($n / $d) end;
 
 ($actual[0] // {}) as $act
@@ -224,8 +232,8 @@ def ratio($n; $d): if $d == 0 then null else ($n / $d) end;
     | (($byc[$id]) // []) as $aa
     | (if $covdecl and ((($run | any(. == $id))) | not)
        then "declined" else "scored" end) as $state
-    | ([$aa[] | . as $a | select([$ef[] | select(matched(.; $a))] | length > 0)]) as $hit
-    | ([$aa[] | . as $a | select([$ef[] | select(matched(.; $a))] | length == 0)]) as $miss
+    | ([$aa[] | select(has_match($ef))]) as $hit
+    | ([$aa[] | select(has_match($ef) | not)]) as $miss
     | {
         case: $id,
         class: $cls,
@@ -245,10 +253,10 @@ def ratio($n; $d): if $d == 0 then null else ($n / $d) end;
   ] as $cases
 
 | ([$cases[] | select(.state == "scored")]) as $scored
-| ([$scored[] | .tp] | add // 0) as $tp
-| ([$scored[] | .fn] | add // 0) as $fn
-| ([$scored[] | .fp] | add // 0) as $fp
-| ([$scored[] | .tn] | add // 0) as $tn
+| ($scored | tally("tp")) as $tp
+| ($scored | tally("fn")) as $fn
+| ($scored | tally("fp")) as $fp
+| ($scored | tally("tn")) as $tn
 
 | ([$cases[] | select(.state == "declined") | .case]) as $notrun
 | ([$af[] | .case // "(unnamed)"] | unique
@@ -267,11 +275,11 @@ def ratio($n; $d): if $d == 0 then null else ($n / $d) end;
     },
     by_class: (
       $scored | group_by(.class) | map(
-        (. | length) as $n
-        | ([.[] | .tp] | add // 0) as $ctp
-        | ([.[] | .fp] | add // 0) as $cfp
-        | ([.[] | .fn] | add // 0) as $cfn
-        | ([.[] | .tn] | add // 0) as $ctn
+        length as $n
+        | tally("tp") as $ctp
+        | tally("fp") as $cfp
+        | tally("fn") as $cfn
+        | tally("tn") as $ctn
         | ratio($ctp; $ctp + $cfp) as $cp
         | ratio($ctp; $ctp + $cfn) as $cr
         | {

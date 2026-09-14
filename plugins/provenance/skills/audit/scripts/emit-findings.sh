@@ -273,14 +273,12 @@ def declared_tiers:
   . as $rec | narrow([ tier_slot ]; [ $rec | verdict_declared ] | add // []);
 def declared_names:
   declared_tiers | names_in;
-def declares($name):
-  declared_names | index($name) != null;
 def withheld_verdict:
   declared_names | any(is_verdict_name);
 def declares_not_found:
   declared_names | any(is_neutral_name);
 def declares_confirmed:
-  declares("fingerprint-confirmed");
+  declared_names | index("fingerprint-confirmed") != null;
 # A stamp rule fires on a date arithmetic that owes the tier nothing, so it relays
 # whatever the record does or does not declare — with TWO exceptions, and the one
 # below is the second of them to be evaluated.

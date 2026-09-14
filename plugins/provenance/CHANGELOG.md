@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.12]
+
+### Changed
+
+- The provenance audit scripts split test case specs with a single read instead of parameter-expansion chains, inline a single-use jq helper in emit-findings, and drop dead default guards in list-corpus and score-golden, with byte-identical findings and scores.
+
 ## [0.5.11]
 
 ### Changed
