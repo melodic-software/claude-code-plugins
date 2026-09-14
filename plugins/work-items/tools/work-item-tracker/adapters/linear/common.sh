@@ -742,7 +742,7 @@ wit_linear_activity_since() {
 # tiebreak would let two racers each believe they won. The comment UUID is arbitrary but
 # identical for both observers, which is all arbitration needs.
 wit_linear_lease_comments() {
-  local issue_id="$1" cursor="" has_next="true" all='[]' q page
+  local issue_id="$1" cursor="" has_next="true" all='[]' q page node body lease handle cid
   q='query($id: String!, $first: Int!, $after: String) {
     issue(id: $id) {
       comments(first: $first, after: $after) {
@@ -757,7 +757,6 @@ wit_linear_lease_comments() {
         '{id: $id, first: $f, after: (if ($a | length) > 0 then $a else null end)}')" \
       "listing comments on $issue_id"
     page="$(jq -c '.issue.comments // {nodes: [], pageInfo: {hasNextPage: false}}' <<<"$WIT_LINEAR_DATA")"
-    local node body lease handle cid
     while IFS= read -r node; do
       [[ -n "$node" ]] || continue
       body="$(jq -r '.body // ""' <<<"$node")"

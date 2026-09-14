@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.14]
+
+### Changed
+
+- Hoist the lease-comment loop locals, collapse the reclaim activity guard and share the issue seed and lease node builders across the linear adapter suites (behavior unchanged).
+
 ## [0.40.13]
 
 ### Changed

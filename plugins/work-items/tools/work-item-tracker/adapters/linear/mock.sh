@@ -184,3 +184,13 @@ lin_lease_body() {
      + (if ($sup | length) > 0 then {superseded_at: $sup} else {} end)')"
   printf '<!-- work-item-lease v1 %s -->' "$marker"
 }
+
+# lin_lease_node <handle> [holder] <renewed-at> [ttl-hours] [superseded-at]: the same
+# marker as a one-element comments-connection node list, which is the shape the lease
+# verbs read. Shared by every suite that drives the lease protocol.
+lin_lease_node() {
+  local body
+  body="$(lin_lease_body "$1" "${2:-kyle}" "$3" "${4:-24}" "${5:-}")"
+  jq -cn --arg b "$body" \
+    '[{id: "uuid-comment-mine", body: $b, createdAt: "2026-08-20T12:00:00.500Z"}]'
+}
