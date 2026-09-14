@@ -4,7 +4,7 @@
 
 ### Fixed
 
-- **`save_point.py new` no longer drops the predecessor's amendment bullets that sit below its `Opening ask:` line.** The carry skipped every line after `Opening ask:` until one starting with `**`, so a bullet (`- **Amended (verbatim, ...)`) below the ask was swallowed and the successor lost it; two real chains had to re-add those bullets by hand. The skip now ends at any structural marker, a `**` line or a bullet, which keeps the multi-paragraph verbatim ask out of the successor as before. The same boundary is used by both of the validator's reads of the section, including the hop-1 ask-length cap, so all three agree.
+- **`save_point.py new` no longer drops the predecessor's amendment bullets that sit below its `Opening ask:` line.** The carry skipped every line after `Opening ask:` until one starting with `**`, so a bullet (`- **Amended (verbatim, ...)`) below the ask was swallowed and the successor lost it; two hops of one real chain had to re-add those bullets by hand. The skip now ends at any structural marker, a `**` line or a bullet, which keeps the multi-paragraph verbatim ask out of the successor as before. The same boundary is used by both of the validator's reads of the section, including the hop-1 ask-length cap, so all three agree.
 
 ## [0.35.17]
 
