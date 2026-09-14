@@ -3,6 +3,12 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.1]
+
+### Changed
+
+- The wizard template shares one prompt line and one gh set helper between its ask and set functions, the testing cant-fail scanner folds its readability guards, config dedupe, and C# body-start detection into helpers, its suite gains run and count helpers, and the songwriting datamuse comments are trimmed, with byte-identical output.
+
 ## [0.9.0]
 
 ### Added

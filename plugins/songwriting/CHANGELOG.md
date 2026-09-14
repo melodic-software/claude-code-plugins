@@ -3,6 +3,12 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.28]
+
+### Changed
+
+- The wizard template shares one prompt line and one gh set helper between its ask and set functions, the testing cant-fail scanner folds its readability guards, config dedupe, and C# body-start detection into helpers, its suite gains run and count helpers, and the songwriting datamuse comments are trimmed, with byte-identical output.
+
 ## [1.4.27]
 
 ### Changed
