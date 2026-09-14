@@ -3,6 +3,12 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.6]
+
+### Changed
+
+- Enumerate census lines directly, total dedupe drops from the record counts, unpack tree-sitter points and collapse the census exit-code branches in the comment scripts (behavior unchanged).
+
 ## [0.19.5]
 
 ### Changed

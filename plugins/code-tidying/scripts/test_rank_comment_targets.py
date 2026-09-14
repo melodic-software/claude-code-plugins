@@ -28,6 +28,16 @@ del _leaked_git_var
 SCRIPT = Path(__file__).with_name("rank-comment-targets.py")
 
 
+def load_script():
+    """The hyphenated subject loaded as a module, for its internal helpers."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("rank_targets", SCRIPT)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
 def pygments_present() -> bool:
     try:
         import pygments  # noqa: F401
@@ -278,12 +288,7 @@ class RankNormalisation(unittest.TestCase):
 
     @staticmethod
     def rank_norm():
-        import importlib.util
-
-        spec = importlib.util.spec_from_file_location("rank_targets", SCRIPT)
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-        return mod.rank_norm
+        return load_script().rank_norm
 
     def test_all_equal_values_share_the_midpoint(self):
         self.assertEqual(
@@ -309,11 +314,7 @@ class CommentLineNumbers(unittest.TestCase):
 
     @unittest.skipUnless(pygments_present(), "pygments not installed")
     def test_docstring_lines_count_ordinary_strings_do_not(self):
-        import importlib.util
-
-        spec = importlib.util.spec_from_file_location("rank_targets", SCRIPT)
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
+        mod = load_script()
         tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
         src = tmp / "mixed.py"
