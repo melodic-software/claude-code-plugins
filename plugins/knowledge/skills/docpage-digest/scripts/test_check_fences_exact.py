@@ -41,10 +41,15 @@ class GateHarness(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.dir, ignore_errors=True)
 
+    def invoke(self, source: str, digest: str):
+        return subprocess.run(
+            [sys.executable, GATE, "--source", source, "--digest", digest],
+            capture_output=True,
+        )
+
     def run_gate(self, digest_text: str, expect_code: int):
         digest = write(self.dir, "digest.md", digest_text)
-        cmd = [sys.executable, GATE, "--source", self.source, "--digest", digest]
-        proc = subprocess.run(cmd, capture_output=True)
+        proc = self.invoke(self.source, digest)
         if proc.returncode != expect_code:
             raise AssertionError(
                 f"exit {proc.returncode}, expected {expect_code}; "
@@ -107,10 +112,7 @@ class TestFailLoudZeroParse(GateHarness):
     def test_empty_source_is_unusable(self):
         empty = write(self.dir, "empty.md", "")
         digest = write(self.dir, "d.md", CLEAN)
-        proc = subprocess.run(
-            [sys.executable, GATE, "--source", empty, "--digest", digest],
-            capture_output=True,
-        )
+        proc = self.invoke(empty, digest)
         self.assertEqual(proc.returncode, 2)
         self.assertIn(b"empty", proc.stderr)
 
@@ -235,10 +237,7 @@ this was never in the source
 none
 """
         digest = write(self.dir, "d2.md", text)
-        proc = subprocess.run(
-            [sys.executable, GATE, "--source", source, "--digest", digest],
-            capture_output=True,
-        )
+        proc = self.invoke(source, digest)
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertIn(b"PASS", proc.stdout)
 
@@ -262,10 +261,7 @@ none
 ````
 """
         digest = write(self.dir, "d-nested.md", text)
-        proc = subprocess.run(
-            [sys.executable, GATE, "--source", source, "--digest", digest],
-            capture_output=True,
-        )
+        proc = self.invoke(source, digest)
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertIn(b"PASS", proc.stdout)
         self.assertIn(b"1 **CN.**", proc.stdout)
@@ -284,10 +280,7 @@ none
 ````
 """
         digest = write(self.dir, "d-immediate.md", text)
-        proc = subprocess.run(
-            [sys.executable, GATE, "--source", source, "--digest", digest],
-            capture_output=True,
-        )
+        proc = self.invoke(source, digest)
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertIn(b"PASS", proc.stdout)
 

@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.13.58]
+
+### Changed
+
+- Share the gate argument parser and runner between the docpage-digest fence and snippet checks and route their suites through one invoke helper (behavior unchanged).
+
 ## [0.13.57]
 
 ### Changed

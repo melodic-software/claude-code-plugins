@@ -22,10 +22,7 @@ GATE = os.path.join(HERE, "check-snippets.py")
 
 KEEP = "keep me "
 SOURCE = (
-    "Intro line.\n"
-    + KEEP + "\n"
-    "You are a helpful assistant.\n"
-    "prompt example here\n"
+    "Intro line.\n" + KEEP + "\nYou are a helpful assistant.\nprompt example here\n"
 )
 
 
@@ -44,16 +41,20 @@ class GateHarness(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.dir, ignore_errors=True)
 
+    def invoke(self, source: str, digest: str):
+        return subprocess.run(
+            [sys.executable, GATE, "--source", source, "--digest", digest],
+            capture_output=True,
+        )
+
     def run_gate(self, digest_text: str, expect_code: int):
         digest = write(self.dir, "digest.md", digest_text)
-        proc = subprocess.run(
-            [sys.executable, GATE, "--source", self.source,
-             "--digest", digest],
-            capture_output=True)
+        proc = self.invoke(self.source, digest)
         if proc.returncode != expect_code:
             raise AssertionError(
                 f"exit {proc.returncode}, expected {expect_code}; "
-                f"stdout={proc.stdout!r} stderr={proc.stderr!r}")
+                f"stdout={proc.stdout!r} stderr={proc.stderr!r}"
+            )
         return proc
 
 
@@ -102,8 +103,8 @@ none
 class TestFailLoudUnparsed(GateHarness):
     def test_no_digest_arg_is_unusable(self):
         proc = subprocess.run(
-            [sys.executable, GATE, "--source", self.source],
-            capture_output=True)
+            [sys.executable, GATE, "--source", self.source], capture_output=True
+        )
         self.assertEqual(proc.returncode, 2)
         self.assertIn(b"no --digest", proc.stderr)
 
@@ -178,9 +179,7 @@ this prompt was recalled, not copied
 ````
 """
         digest = write(self.dir, "d-nested.md", text)
-        proc = subprocess.run(
-            [sys.executable, GATE, "--source", source, "--digest", digest],
-            capture_output=True)
+        proc = self.invoke(source, digest)
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertIn(b"PASS", proc.stdout)
         self.assertIn(b"1 Prompt-snippets", proc.stdout)
