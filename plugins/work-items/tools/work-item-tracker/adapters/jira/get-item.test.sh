@@ -19,10 +19,8 @@ FIX="$(mktemp -d)"
 trap 'rm -rf "$FIX"' EXIT
 
 # A mock curl: drains the -K stdin config, returns the Nth seeded "<body>\n<status>"
-# by call count (so pagination tests can seed a sequence). Lives in its own dir.
-write_mock_curl() {
-  local dir="$1"
-  cat >"$dir/curl" <<'MOCK'
+# by call count. Lives in its own dir.
+cat >"$FIX/curl" <<'MOCK'
 #!/usr/bin/env bash
 cat >/dev/null 2>&1  # drain the -K - config on stdin
 d="$(cd "$(dirname "$0")" && pwd)"
@@ -32,19 +30,13 @@ st="$(cat "$d/$n.status" 2>/dev/null || echo 200)"
 b="$(cat "$d/$n.body" 2>/dev/null || echo '{}')"
 printf '%s\n%s' "$b" "$st"
 MOCK
-  chmod +x "$dir/curl"
-}
+chmod +x "$FIX/curl"
 
-write_binding() {
-  # write_binding <dir> — a valid jira binding at <dir>/binding.json.
-  jq -cn '{schema_version:"1.0", provider:"jira",
-    config:{lease_ttl_hours:24,
-      jira:{site:"test.atlassian.net", project_keys:["SW2"],
-        auth_email:"ci@test.example", auth_env:"JIRA_TEST_TOKEN"}}}' >"$1/binding.json"
-}
-
-write_mock_curl "$FIX"
-write_binding "$FIX"
+# A valid jira binding for the fixture.
+jq -cn '{schema_version:"1.0", provider:"jira",
+  config:{lease_ttl_hours:24,
+    jira:{site:"test.atlassian.net", project_keys:["SW2"],
+      auth_email:"ci@test.example", auth_env:"JIRA_TEST_TOKEN"}}}' >"$FIX/binding.json"
 
 # A Jira issue with one OPEN blocker (SW2-9, new) and one CLOSED blocker (SW2-8, done)
 # under the standard "Blocks" link type, plus a parent — exercises the OPEN-only
@@ -141,9 +133,8 @@ run_get "jira:test.atlassian.net/SW2#5"
 assert_eq "un-normalizable issue key → unavailable (8)" "8" "$RC"
 
 # Missing token env var → auth (4), before any curl call.
-rm -f "$FIX/.counter"
-OUT="$(WORK_ITEM_TRACKER_BINDING="$FIX/binding.json" WIT_JIRA_CURL="$FIX/curl" \
-  bash "$S" "jira:test.atlassian.net/SW2#1" 2>/dev/null)"
+WORK_ITEM_TRACKER_BINDING="$FIX/binding.json" WIT_JIRA_CURL="$FIX/curl" \
+  bash "$S" "jira:test.atlassian.net/SW2#1" >/dev/null 2>&1
 assert_eq "unset token env → auth (4)" "4" "$?"
 
 # Binding missing required jira config (no project_keys) → config (3).

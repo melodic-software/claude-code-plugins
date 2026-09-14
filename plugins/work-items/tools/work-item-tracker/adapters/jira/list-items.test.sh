@@ -109,27 +109,6 @@ else
   fail "out-of-scope --repo made no HTTP call" "no curl call" "curl invoked"
 fi
 
-# HOSTILE config: a configured project key with an embedded quote is a config error
-# (exit 3), caught at config load before any query is assembled.
-jq -cn '{schema_version:"1.0", provider:"jira",
-  config:{lease_ttl_hours:24,
-    jira:{site:"test.atlassian.net", project_keys:["SW2\") OR (1=1) OR (\"x"],
-      auth_email:"ci@test.example", auth_env:"JIRA_TEST_TOKEN"}}}' >"$FIX/evil-binding.json"
-WORK_ITEM_TRACKER_BINDING="$FIX/evil-binding.json" WIT_JIRA_CURL="$FIX/curl" \
-  JIRA_TEST_TOKEN="dummy" bash "$S" --state open >/dev/null 2>&1
-assert_eq "injection project_keys config → config (3)" "3" "$?"
-
-# MALFORMED config: project_keys as a scalar string (not an array) passes a naive
-# length>0 check but must be rejected as a type error (exit 3) — never assembled into
-# `project in ()`. Regression guard for the config-load type check.
-jq -cn '{schema_version:"1.0", provider:"jira",
-  config:{lease_ttl_hours:24,
-    jira:{site:"test.atlassian.net", project_keys:"ABC",
-      auth_email:"ci@test.example", auth_env:"JIRA_TEST_TOKEN"}}}' >"$FIX/scalar-binding.json"
-WORK_ITEM_TRACKER_BINDING="$FIX/scalar-binding.json" WIT_JIRA_CURL="$FIX/curl" \
-  JIRA_TEST_TOKEN="dummy" bash "$S" --state open >/dev/null 2>&1
-assert_eq "non-array project_keys → config (3)" "3" "$?"
-
 # rc_for_jira <case-label> <expected-rc> <jira-config-literal> — write a binding whose
 # config.jira is the given jq object literal (jq syntax, interpolated into the jq
 # program — not --argjson, which would demand strict JSON) and assert list-items
@@ -142,6 +121,17 @@ rc_for_jira() {
     JIRA_TEST_TOKEN="dummy" bash "$S" --state open >/dev/null 2>&1
   assert_eq "$label" "$want" "$?"
 }
+
+# HOSTILE config: a configured project key with an embedded quote is a config error
+# (exit 3), caught at config load before any query is assembled.
+rc_for_jira "injection project_keys config → config (3)" "3" \
+  '{site:"test.atlassian.net", project_keys:["SW2\") OR (1=1) OR (\"x"], auth_email:"ci@test.example", auth_env:"JIRA_TEST_TOKEN"}'
+
+# MALFORMED config: project_keys as a scalar string (not an array) passes a naive
+# length>0 check but must be rejected as a type error (exit 3) — never assembled into
+# `project in ()`. Regression guard for the config-load type check.
+rc_for_jira "non-array project_keys → config (3)" "3" \
+  '{site:"test.atlassian.net", project_keys:"ABC", auth_email:"ci@test.example", auth_env:"JIRA_TEST_TOKEN"}'
 
 # CREDENTIAL-EGRESS guard: site is the host the token is sent to. A site carrying URL
 # structure, or a non-atlassian.net host without the explicit opt-in, is a config error
@@ -195,7 +185,6 @@ rc_for_jira "valid blocked_by_link_type accepted" "0" \
   '{site:"test.atlassian.net", project_keys:["SW2"], auth_email:"a@b", auth_env:"JIRA_TEST_TOKEN", blocked_by_link_type:"Blocked By"}'
 
 # A single empty page (no token) terminates cleanly with an empty envelope.
-rm -f "$FIX/1.body" "$FIX/2.body" "$FIX/1.status" "$FIX/2.status" "$FIX/.counter"
 printf '{"issues":[],"nextPageToken":null,"isLast":true}' >"$FIX/1.body"
 printf '200' >"$FIX/1.status"
 run_list --state all

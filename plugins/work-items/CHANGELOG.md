@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.11]
+
+### Changed
+
+- jira adapter: get-item.test.sh writes its mock curl and binding fixtures inline instead of through single-call helpers, list-items.test.sh routes two config cases through its existing rc_for_jira helper and drops a redundant cleanup, and two header comments drop stale narration. Same cases, same output.
+
 ## [0.40.10]
 
 ### Changed
