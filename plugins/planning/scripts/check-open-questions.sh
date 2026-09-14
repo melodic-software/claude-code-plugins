@@ -228,6 +228,11 @@ seen_ids=" "
 deferred_ids=""
 expected=1
 
+# What counts as a CANDIDATE register row, defined once. The fenced branch and
+# the live branch below both test it, and they must agree: a shape skipped as
+# documentation has to be the same shape that would have been graded as data.
+row_candidate_re='^[[:space:]]*-[[:space:]]+[Qq][0-9]+([^0-9]|$)'
+
 skipped_fenced_row=0
 while IFS= read -r line; do
   # extract_section prefixes every line with its fence state; strip the marker
@@ -237,19 +242,19 @@ while IFS= read -r line; do
   marker="${line%%$'\t'*}"
   line="${line#*$'\t'}"
   if [[ "$marker" == "f" ]]; then
-    if [[ "$line" =~ ^[[:space:]]*-[[:space:]]+[Qq][0-9]+([^0-9]|$) ]]; then
+    if [[ "$line" =~ $row_candidate_re ]]; then
       skipped_fenced_row=1
     fi
     continue
   fi
 
-  # Any non-fenced `- Q<N>` line is a CANDIDATE row; its shape is validated
-  # below. The prefilter deliberately does not require the first pipe: a row
-  # that lost it (`- Q2 open | round 1 | ...`) would otherwise be skipped
-  # silently, the contiguity check would never see the id, and a register with a
-  # dropped question would grade clean — the exact silent drop this gate exists
-  # to refuse. Rows are model-written, so malformed is a real state; it exits 2.
-  [[ "$line" =~ ^[[:space:]]*-[[:space:]]+[Qq][0-9]+([^0-9]|$) ]] || continue
+  # A candidate row's shape is validated below. The prefilter deliberately does
+  # not require the first pipe: a row that lost it (`- Q2 open | round 1 | ...`)
+  # would otherwise be skipped silently, the contiguity check would never see
+  # the id, and a register with a dropped question would grade clean — the exact
+  # silent drop this gate exists to refuse. Rows are model-written, so malformed
+  # is a real state; it exits 2.
+  [[ "$line" =~ $row_candidate_re ]] || continue
 
   if ! [[ "$line" =~ ^[[:space:]]*-[[:space:]]+[Qq][0-9]+[[:space:]]*\| ]]; then
     die_ungradeable "malformed register row (needs 'Q<N> | status | round | question'): $line ($where)"
@@ -343,28 +348,26 @@ elif [[ "$brief_named" -eq 1 ]]; then
   elif [[ "$brief_matches_status" -ne 0 ]]; then
     die_ungradeable "could not read the headings of: $brief"
   fi
-  brief_where=""
+  # This branch is reached only with rows retired, so a Brief that carries no
+  # deferred-questions section cannot satisfy the lookup.
   if [[ -z "$brief_matches" ]]; then
-    if [[ -n "$deferred_ids" ]]; then
-      die_ungradeable "no '### Deferred questions' section in: $brief (register retires:${deferred_ids% })"
-    fi
-    deferred_section=""
-  else
-    # Same one-section rule as the register: two matches are a refusal, not a guess.
-    brief_count="$(match_count "$brief_matches")"
-    if [[ "$brief_count" -gt 1 ]]; then
-      die_ungradeable "$brief_count headings match 'deferred questions' in: $brief (lines $(match_lines "$brief_matches")); the gate reads exactly one section"
-    fi
-    brief_line="${brief_matches%%$'\t'*}"
-    brief_heading="${brief_matches#*$'\t'}"
-    brief_where=" (deferred questions '$brief_heading' at line $brief_line)"
-    deferred_section="$(extract_section "$brief_line" "$brief")"
-    brief_extract_status=$?
-    if [[ "$brief_extract_status" -eq 4 ]]; then
-      die_ungradeable "unterminated fenced block in the deferred-questions section of: $brief$brief_where"
-    elif [[ "$brief_extract_status" -ne 0 ]]; then
-      die_ungradeable "could not read the deferred-questions section from: $brief$brief_where"
-    fi
+    die_ungradeable "no '### Deferred questions' section in: $brief (register retires:${deferred_ids% })"
+  fi
+
+  # Same one-section rule as the register: two matches are a refusal, not a guess.
+  brief_count="$(match_count "$brief_matches")"
+  if [[ "$brief_count" -gt 1 ]]; then
+    die_ungradeable "$brief_count headings match 'deferred questions' in: $brief (lines $(match_lines "$brief_matches")); the gate reads exactly one section"
+  fi
+  brief_line="${brief_matches%%$'\t'*}"
+  brief_heading="${brief_matches#*$'\t'}"
+  brief_where=" (deferred questions '$brief_heading' at line $brief_line)"
+  deferred_section="$(extract_section "$brief_line" "$brief")"
+  brief_extract_status=$?
+  if [[ "$brief_extract_status" -eq 4 ]]; then
+    die_ungradeable "unterminated fenced block in the deferred-questions section of: $brief$brief_where"
+  elif [[ "$brief_extract_status" -ne 0 ]]; then
+    die_ungradeable "could not read the deferred-questions section from: $brief$brief_where"
   fi
 
   missing=""
