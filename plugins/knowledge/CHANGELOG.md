@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.13.62]
+
+### Changed
+
+- Fold the duplicated auth-fallback spawn into one call, share the captions-only pass, staged-failure and metadata entry parsers and hoist the title fallback in video-digest acquisition (behavior unchanged).
+
 ## [0.13.61]
 
 ### Changed
