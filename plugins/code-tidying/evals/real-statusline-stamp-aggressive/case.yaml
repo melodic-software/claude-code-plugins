@@ -1,0 +1,51 @@
+schema_version: "1.1"
+name: real-statusline-stamp-aggressive
+description: aggressive on the statusline-tee.sh stamp reader keeps only a terse security warning and leaves the code intact
+tags: [calibration, aggressive, real]
+expected_outcome: The contract, single-reader rationale, and render-path comments are deleted with their narrative staged; the arithmetic-injection warning survives in at most two comment lines; the function body is unchanged.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: /code-tidying:dissolve-comments aggressive statusline-stamp.sh
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write]
+  max_turns: 80
+  timeout_seconds: 1200
+graders:
+  - name: contract-deleted
+    type: regex
+    pattern: '#[^\n]*epoch-second stamp'
+    match: not_contains
+    target: { source: file, path: statusline-stamp.sh }
+  - name: injection-warning-kept
+    type: regex
+    pattern: '#[^\n]*arithmetic'
+    flags: i
+    target: { source: file, path: statusline-stamp.sh }
+  - name: single-reader-rationale-deleted
+    type: regex
+    pattern: '#[^\n]*(spelled identically|_rlg_bash_at_least)'
+    match: not_contains
+    target: { source: file, path: statusline-stamp.sh }
+  - name: render-path-deleted
+    type: regex
+    pattern: '#[^\n]*render path'
+    match: not_contains
+    target: { source: file, path: statusline-stamp.sh }
+  - name: kept-comment-succinct
+    type: regex
+    pattern: '(^#[^\n]*\n){3}'
+    flags: m
+    match: not_contains
+    target: { source: file, path: statusline-stamp.sh }
+  - name: code-intact
+    type: regex
+    pattern: '_rlg_read_stamp\(\) \{\n  local _var="\$1" _val=0\n  if \[\[ -f "\$2" \]\]; then\n    IFS= read -r _val <"\$2" \|\| _val=0\n    \[\[ "\$_val" =~ \^\[0-9\]\+\$ \]\] \|\| _val=0\n  fi\n  printf -v "\$_var" ''%s'' "\$_val"\n  return 0\n\}'
+    target: { source: file, path: statusline-stamp.sh }
+  - name: proof-ran
+    type: tool_used
+    tool: Bash
+    input_match: change-shape
+    arm: both
+  - name: narrative-staged
+    type: llm
+    criteria: PASS when the final report contains a proposed commit-message block that preserves the removed rationale, namely that one reader serves five call sites and that the reader uses builtins only because it runs on every status-line render. FAIL when the removed rationale appears nowhere in the report.

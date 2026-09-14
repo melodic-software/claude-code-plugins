@@ -296,6 +296,64 @@ comment-hygiene scan do not lint deliberately commented fixtures.
 8. Whole-file record (amendment 1): one `--runs 1` run on all of `lib/hook-utils.sh`; record the
    outcome, turns, and cost here.
 
+**Phase 2 record:**
+
+- Owner rule (round 1, applies to every mode and every case): a comment that is kept must be
+  succinct, clear, and justified. Graders enforce it as no kept comment block longer than
+  `class_c_max_lines` (2) plus a key phrase naming the consequence; Phase 3 writes the rule into
+  `SKILL.md`.
+- Shared fixtures live in `plugins/code-tidying/evals/fixtures/`, seeded by `fixtures/seed.sh`,
+  which each case's one-line `scaffold.sh` calls.
+- Round 1, `statusline-tee.sh` lines 308-324 (`real-statusline-stamp-aggressive`,
+  `real-statusline-stamp-strip`):
+
+  | Part | `aggressive` | `strip` |
+  |---|---|---|
+  | (a) contract: reads a stamp or 0 | delete, staged | delete, staged |
+  | (b) arithmetic-injection warning | keep, at most 2 lines | delete, staged |
+  | (c) single-reader rationale | delete, staged | delete, staged |
+  | (d) builtins-only render-path constraint | delete, staged | delete, staged |
+
+  Expected red on the unchanged skill: `aggressive` graders `contract-deleted`,
+  `single-reader-rationale-deleted`, `render-path-deleted`; `strip` graders `no-comments-left`,
+  `narrative-staged`.
+- Round 2, `scripts/check-silent-revert.sh` lines 73-106 plus `die()` from lines 368-371
+  (`real-silent-revert-design-aggressive`, `real-silent-revert-design-strip`): the heading, the
+  three rejected designs, and the measured result are deleted and staged in both modes; the
+  no-threshold warning is kept at most 2 lines under `aggressive` and deleted under `strip`. No
+  sentence is a paired record. Expected red: `aggressive` `design-history-deleted`; `strip`
+  `no-comments-left`, `narrative-staged`.
+- Owner restatement (round 2): the default answer is delete, or refactor the code until the comment
+  is unnecessary; every survivor must be justified in the report.
+- Rounds 3-9, approved by the owner as one batch (2026-09-14), with the note that a kept line must be
+  as succinct as the round-3 SSOT line (`# SSOT: edit lib/hook-utils.sh, then run
+  scripts/sync-hook-utils.sh; CI rejects drifted copies.`):
+
+  | # | Fixture | `aggressive` | `strip` |
+  |---|---|---|---|
+  | 3 | `lib/hook-utils.sh` lines 1-59 | keep the one-line SSOT warning and a one-line `_to` calling convention; delete the rest, including the `hook::is_enabled` comment | delete all but the `shellcheck shell=bash` directive |
+  | 4 | class A: restating comment, commented-out code | delete | delete |
+  | 5 | class B: `86400` literal, vague `n`, `Makefile` test net | `SECONDS_PER_DAY`, `display_name`, comments deleted | comments deleted, no code change |
+  | 6 | class C: warning, rationale absent from history, rationale in the commit message, one class-A line | warning kept at most 2 lines; the rest deleted and staged; report names the next commit | delete all |
+  | 7 | exempt: shebang, license, `# noqa` with reason, `TODO(#12)`, `dissolve-comments-ignore`, one rationale | exempt kept, rationale deleted | same |
+  | 8 | marker-row identifier, private Python docstring, paired record | comment deleted and identifier never renamed; docstring proposed; paired record kept | same |
+  | 9 | interactions on the class-C fixture: `safe aggressive`, `safe strip`, `./aggressive`, `--notes` untracked and tracked, non-interactive run with no target; UNPROVABLE `hook-utils.sh` excerpt | `safe` wins; `./aggressive` is a path; untracked notes written, tracked refused; no-target run is safe mode; UNPROVABLE named first, proposals only | same |
+
+- Cases authored for rounds 3-9: 19 case directories and 15 fixtures, 25 cases in the suite with the
+  probes. Verified: `validate-cases.py` exit 0; real fixtures byte-identical to their `0a676a578`
+  slices; every `.sh.txt` fixture passes `bash -n` and self-certifies COMMENT-ONLY, except
+  `hook-utils-unprovable.sh.txt` (`hook::resolve_read_timeout_to`, lines 1570-1593), which exits 21;
+  both `.py.txt` fixtures compile and self-certify; the class-B test net passes under `make test` in
+  WSL2; every comment-deletion `not_contains` grader matches the unedited fixture (red before);
+  scaffolds pass shellcheck and carry mode 100755.
+- Grader decisions: the succinct grader is `(^[ \t]*#(?!!| shellcheck )[^\n]*\n){3}` with `m`,
+  because JS `\s` spans newlines and the approved hook-utils result is a directive plus two kept
+  lines; `fork-cost-deleted` anchors on `CreateProcess|copy-on-write|forks a subshell` so a kept
+  `_to` line may mention forks; `interaction-notes-tracked-refused` has no `proof-ran` grader,
+  because a refusal before triage is a correct outcome.
+- Baseline (`comment-census.sh --json`, before value): `hook-utils-header.sh` 46 of 59 lines are
+  comment; `silent-revert-design.sh` 34 of 39; `statusline-stamp.sh` 8 of 17; 88 of 115 in total.
+
 **Sanity Check:**
 
 - `validate-cases.py plugins/code-tidying/evals` exits 0.

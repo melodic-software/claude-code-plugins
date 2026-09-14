@@ -1,0 +1,45 @@
+schema_version: "1.1"
+name: invented-class-b-aggressive
+description: aggressive on an invented script with a Makefile test net dissolves a magic-literal comment and a vague-local comment into names
+tags: [calibration, aggressive, invented]
+expected_outcome: 86400 becomes a SECONDS_PER_DAY name and n becomes display_name behind the discovered make test net, then both comments are deleted; the untouched lines are unchanged.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: /code-tidying:dissolve-comments aggressive class-b.sh
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write]
+  max_turns: 80
+  timeout_seconds: 1200
+graders:
+  - name: magic-literal-named
+    type: regex
+    pattern: 'SECONDS_PER_DAY'
+    target: { source: file, path: class-b.sh }
+  - name: vague-local-renamed
+    type: regex
+    pattern: 'display_name'
+    target: { source: file, path: class-b.sh }
+  - name: seconds-comment-deleted
+    type: regex
+    pattern: '#[^\n]*seconds per day'
+    match: not_contains
+    target: { source: file, path: class-b.sh }
+  - name: display-name-comment-deleted
+    type: regex
+    pattern: '#[^\n]*display name'
+    match: not_contains
+    target: { source: file, path: class-b.sh }
+  - name: code-intact
+    type: regex
+    pattern: 'cache_ttl_seconds\(\) \{\n  local days="\$1"\n'
+    target: { source: file, path: class-b.sh }
+  - name: test-net-ran
+    type: tool_used
+    tool: Bash
+    input_match: make test|class-b\.test
+    arm: both
+  - name: proof-ran
+    type: tool_used
+    tool: Bash
+    input_match: change-shape
+    arm: both
