@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.87]
+
+### Changed
+
+- The babysit-prs scripts parse comma-separated owner lists and look up a PR's state record through helpers in babysit_util and babysit_state instead of four private copies. Error text and return types are unchanged.
+
 ## [0.55.86]
 
 ### Changed

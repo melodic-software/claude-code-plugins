@@ -16,6 +16,7 @@ import babysit_lease as leases
 from babysit_gh import parse_repo_number
 from babysit_state import (
     load_state,
+    require_pr_state,
     resolve_expected_head_sha,
     resolve_state_dir,
     state_lock,
@@ -171,9 +172,7 @@ def run_locked(
     key = f"{repo}#{number}"
     require_worker_lease(args, state_dir, repo, number)
     state = load_state(state_path)
-    pr_state = cast(Any, state.get("prs") or {}).get(key)
-    if not is_json_object(pr_state):
-        raise RuntimeError(f"missing snapshot state for {key}; run --write-state first")
+    pr_state = require_pr_state(state, key)
     head_sha = resolve_expected_head_sha(
         str(pr_state.get("head_sha") or ""), args.expected_head_sha
     )

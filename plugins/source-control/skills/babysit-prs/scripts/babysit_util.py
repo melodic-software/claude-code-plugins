@@ -2,9 +2,10 @@
 """Shared low-level primitives for the babysit-prs engine and CLIs.
 
 Deliberately small mixed-utility module: stdio configuration, JSON narrowing
-helpers, timestamp parsing, the head-SHA pin floor, and the single subprocess
-core every script funnels through. Splitting these tiny concerns into separate
-modules would cost more coupling than it buys cohesion.
+helpers, timestamp parsing, comma-separated option parsing, the head-SHA pin
+floor, and the single subprocess core every script funnels through. Splitting
+these tiny concerns into separate modules would cost more coupling than it buys
+cohesion.
 """
 
 from __future__ import annotations
@@ -102,6 +103,27 @@ def parse_timestamp(value: Any) -> datetime | None:
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=UTC)
     return parsed.astimezone(UTC)
+
+
+def parse_csv_set(raw: str | None) -> set[str]:
+    """Split a comma-separated option value into its non-empty trimmed tokens."""
+    if not raw:
+        return set()
+    return {part.strip() for part in raw.split(",") if part.strip()}
+
+
+def parse_allowed_owners(raw: str | None) -> set[str]:
+    """Casefolded owner allowlist parsed from a comma-separated option value.
+
+    Owner comparison is case-insensitive everywhere the guarded CLIs test scope,
+    so the allowlist is folded once here rather than at each membership test.
+    """
+    return {owner.casefold() for owner in parse_csv_set(raw)}
+
+
+def split_owner(repo: str) -> str:
+    """The owner half of an `owner/repo` pair."""
+    return repo.split("/", 1)[0]
 
 
 def run_command(

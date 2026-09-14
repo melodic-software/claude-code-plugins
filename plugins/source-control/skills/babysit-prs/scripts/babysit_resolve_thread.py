@@ -200,7 +200,14 @@ from babysit_gh import (
     parse_repo_number,
     resolve_authors,
 )
-from babysit_util import configure_stdio, dig, is_json_object
+from babysit_util import (
+    configure_stdio,
+    dig,
+    is_json_object,
+    parse_allowed_owners,
+    parse_csv_set,
+    split_owner,
+)
 
 
 def resolve_thread_audit_log_path() -> Path:
@@ -824,16 +831,8 @@ def verify_disposition(
     return False, "refused-evidence-unverifiable"
 
 
-def parse_allowed_owners(raw: str | None) -> set[str]:
-    if not raw:
-        return set()
-    return {part.strip().casefold() for part in raw.split(",") if part.strip()}
-
-
 def parse_extra_bot_logins(raw: str | None) -> frozenset[str]:
-    if not raw:
-        return frozenset()
-    return frozenset(part.strip() for part in raw.split(",") if part.strip())
+    return frozenset(parse_csv_set(raw))
 
 
 def main() -> int:
@@ -1138,7 +1137,7 @@ def main() -> int:
                 "--allow-unpinned-thread to override interactively"
             )
 
-    owner = repo.split("/", 1)[0]
+    owner = split_owner(repo)
     if owner not in allowed:
         return _refuse(
             f"owner {owner!r} out of scope; allowed: {sorted(allowed)}",
