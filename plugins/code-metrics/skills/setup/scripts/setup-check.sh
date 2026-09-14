@@ -81,9 +81,14 @@ check_layer() {
     row FAIL "layer $name" "$path is outside the YAML subset: ${err#*: }"
     return
   fi
-  if [[ "$tracked" == "yes" ]] && git -C "$REPO_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    local rel ignore
-    rel="${path#"$REPO_ROOT"/}"
+  case "$tracked" in
+  yes | no) ;;
+  *) return 0 ;;
+  esac
+  git -C "$REPO_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 0
+  local rel ignore
+  rel="${path#"$REPO_ROOT"/}"
+  if [[ "$tracked" == "yes" ]]; then
     if ignore="$(git -C "$REPO_ROOT" check-ignore -v "$rel" 2>/dev/null)"; then
       row FAIL "layer $name tracked" "the team file is ignored by ${ignore%%:*}; a team layer must be committed to reach the team"
     elif git -C "$REPO_ROOT" ls-files --error-unmatch "$rel" >/dev/null 2>&1; then
@@ -91,14 +96,10 @@ check_layer() {
     else
       row WARN "layer $name tracked" "written but untracked: commit it to share with the team"
     fi
-  elif [[ "$tracked" == "no" ]] && git -C "$REPO_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    local rel
-    rel="${path#"$REPO_ROOT"/}"
-    if git -C "$REPO_ROOT" check-ignore -q "$rel" 2>/dev/null; then
-      row PASS "layer $name ignored" "the local overlay is gitignored"
-    else
-      row WARN "layer $name ignored" "the local overlay is NOT gitignored; recommended consumer .gitignore line: .claude/**/*.local.* (the plugin never edits your .gitignore)"
-    fi
+  elif git -C "$REPO_ROOT" check-ignore -q "$rel" 2>/dev/null; then
+    row PASS "layer $name ignored" "the local overlay is gitignored"
+  else
+    row WARN "layer $name ignored" "the local overlay is NOT gitignored; recommended consumer .gitignore line: .claude/**/*.local.* (the plugin never edits your .gitignore)"
   fi
 }
 check_layer "user-global" "$HOME_DIR/.claude/code-metrics.yaml" n/a

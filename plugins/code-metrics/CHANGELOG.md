@@ -3,6 +3,12 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.7]
+
+### Changed
+
+- setup skill: setup-apply.py always writes the header plus body instead of rebuilding a header that the following override replaced anyway, and setup-check.sh probes the work tree and relative path once per layer before branching on tracked state. No behavior change.
+
 ## [0.3.6]
 
 ### Changed
