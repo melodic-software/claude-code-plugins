@@ -76,7 +76,7 @@ function Get-DetailPair {
         foreach ($key in $Detail.Keys) {
             $pairs.Add([pscustomobject]@{ Key = "$key"; Value = $Detail[$key] })
         }
-    } elseif ($Detail -is [pscustomobject] -or $Detail.PSObject.Properties) {
+    } else {
         foreach ($prop in $Detail.PSObject.Properties) {
             $pairs.Add([pscustomobject]@{ Key = $prop.Name; Value = $prop.Value })
         }

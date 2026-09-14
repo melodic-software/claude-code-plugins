@@ -89,10 +89,9 @@ source "$HOOK_DIR/hook-utils.sh"
 source "$HOOK_DIR/lane-notify.sh"
 # shellcheck source=lane-stop-gate-lib.sh
 source "$HOOK_DIR/lane-stop-gate-lib.sh"
-case "$HOOK_DIR" in
-/* | ?:[/\\]*) gate_resolve_install "$HOOK_DIR/.." || true ;;
-*) gate_resolve_install "$(cd "$HOOK_DIR/.." 2>/dev/null && pwd)" || true ;;
-esac
+_gate_root=""
+gate_plugin_root_to _gate_root "$HOOK_DIR"
+gate_resolve_install "$_gate_root" || true
 
 # High-res start stamp for the telemetry envelope. EPOCHREALTIME is Bash 5.0+;
 # on an older host it is empty and hook::emit_telemetry skips fail-open.
@@ -229,14 +228,11 @@ SESSION_ID="${GATE_PAYLOAD_FIELDS[1]-}"
 CWD="${GATE_PAYLOAD_FIELDS[2]-}"
 STOP_ACTIVE="${GATE_PAYLOAD_FIELDS[3]-}"
 LAST="${GATE_PAYLOAD_FIELDS[4]-}"
-strip_cr EVENT
-strip_cr SESSION_ID
-strip_cr CWD
-strip_cr STOP_ACTIVE
-chomp_nl EVENT
-chomp_nl SESSION_ID
-chomp_nl CWD
-chomp_nl STOP_ACTIVE
+for _gate_field in EVENT SESSION_ID CWD STOP_ACTIVE; do
+  strip_cr "$_gate_field"
+  chomp_nl "$_gate_field"
+done
+unset -v _gate_field
 chomp_nl LAST
 
 # Fire ONLY on a true top-level session stop. A subagent finishing is delivered
@@ -344,7 +340,7 @@ gate_load_arm_record() {
   [[ -f "$rec" ]] || return 1
   {
     while IFS= read -r -d '' f; do
-      while [[ "$f" == *$'\n' ]]; do f="${f%$'\n'}"; done
+      chomp_nl f
       fields+=("$f")
     done < <(jq -j '
       [ (.armed_at // "" | tostring),
@@ -537,11 +533,11 @@ fi
 # permitted to write, and a delete the OS refuses would otherwise leave a file
 # that satisfies `[[ -f ]]` on a later, unrelated lane run — the cross-run
 # bypass consuming the marker exists to close. The durable record therefore
-# lives under this plugin's own data directory (gate_data_dir: install-derived
+# lives under this plugin's own data directory (gate_data_dir_to: install-derived
 # first, CLAUDE_PLUGIN_DATA fallback only on an unanchored install). The
 # fallback reaches nothing but THIS ledger — enablement and the arm record use
-# the install-anchored gate_trusted_data_dir — and the marker it gates is an
-# agent-writable declaration in the checkout anyway; see gate_data_dir in the
+# the install-anchored gate_trusted_data_dir_to — and the marker it gates is an
+# agent-writable declaration in the checkout anyway; see gate_data_dir_to in the
 # lib for why a redirected/unwritable fallback degrades to the documented
 # "deletion is the only latch" behavior rather than opening a new hole.
 

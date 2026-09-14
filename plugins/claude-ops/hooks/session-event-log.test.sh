@@ -249,7 +249,7 @@ assert_eq "512 KB payload → spine written" "PostToolUse" "$(jq -r .hook_event_
 
 # --- 33 parallel fires on one session produce 33 intact lines --------------------
 P=$(project parallel)
-for i in $(seq 1 33); do
+for i in {1..33}; do
   run "$P" "$(payload s12 PostToolUse "\"tool_name\":\"T$i\"")" "$ON" >/dev/null &
 done
 wait

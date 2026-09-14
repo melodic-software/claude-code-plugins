@@ -1070,6 +1070,17 @@ def _settings_layer(scope: str, path: str) -> dict:
     }
 
 
+def _stub_layer(scope: str, path: str | None, status: str, note: str | None) -> dict:
+    """A scope that carries no settings, only the reason it carries none."""
+    return {
+        "scope": scope,
+        "path": path,
+        "status": status,
+        "settings": None,
+        "note": note,
+    }
+
+
 # The bash shim the managed-scope enumeration runs. `$1` is the vendored
 # library, `$2` an optional base-file override (the library's own test seam,
 # passed through so a fixture can relocate the whole managed tree). The three
@@ -1111,12 +1122,12 @@ def enumerate_managed_scope(
     `status: "unreadable"` with the reason, so the settings merge can say the
     policy scope was NOT read rather than reporting it absent.
     """
+
+    def _unreadable(reason: str) -> dict:
+        return {"status": "unreadable", "lib": lib_path, "reason": reason}
+
     if not os.path.isfile(lib_path):
-        return {
-            "status": "unreadable",
-            "lib": lib_path,
-            "reason": "vendored lib/managed-scope.sh is missing",
-        }
+        return _unreadable("vendored lib/managed-scope.sh is missing")
     try:
         result = subprocess.run(
             [bash, "-c", MANAGED_SCOPE_SHIM, "managed-scope", lib_path, override or ""],
@@ -1126,26 +1137,14 @@ def enumerate_managed_scope(
             timeout=15,
         )
     except OSError as exc:
-        return {
-            "status": "unreadable",
-            "lib": lib_path,
-            "reason": f"{bash} could not be run: {exc.strerror or exc}",
-        }
+        return _unreadable(f"{bash} could not be run: {exc.strerror or exc}")
     except subprocess.TimeoutExpired:
-        return {
-            "status": "unreadable",
-            "lib": lib_path,
-            "reason": f"{bash} did not finish enumerating managed scope",
-        }
+        return _unreadable(f"{bash} did not finish enumerating managed scope")
     if result.returncode != 0:
-        return {
-            "status": "unreadable",
-            "lib": lib_path,
-            "reason": (
-                f"{bash} exited {result.returncode} sourcing the lib: "
-                f"{result.stderr.strip() or 'no stderr'}"
-            ),
-        }
+        return _unreadable(
+            f"{bash} exited {result.returncode} sourcing the lib: "
+            f"{result.stderr.strip() or 'no stderr'}"
+        )
     groups: list[list[str]] = [[]]
     for line in result.stdout.splitlines():
         line = line.rstrip("\r")
@@ -1154,11 +1153,7 @@ def enumerate_managed_scope(
         elif line:
             groups[-1].append(line)
     if len(groups) != 3 or len(groups[0]) != 2:
-        return {
-            "status": "unreadable",
-            "lib": lib_path,
-            "reason": "managed-scope output was not the expected shape",
-        }
+        return _unreadable("managed-scope output was not the expected shape")
     return {
         "status": "read",
         "lib": lib_path,
@@ -1188,24 +1183,16 @@ def settings_layers(project_root: str, config_root: str, managed: dict) -> list[
         _settings_layer(
             "local", os.path.join(project_root, ".claude", "settings.local.json")
         ),
-        {
-            "scope": "flag",
-            "path": "--settings",
-            "status": "unread",
-            "settings": None,
-            "note": FLAG_SCOPE_NOTE,
-        },
+        _stub_layer("flag", "--settings", "unread", FLAG_SCOPE_NOTE),
     ]
     if managed.get("status") != "read":
         layers.append(
-            {
-                "scope": "policy",
-                "path": None,
-                "status": "unreadable",
-                "settings": None,
-                "note": managed.get("reason")
-                or "managed scope could not be enumerated",
-            }
+            _stub_layer(
+                "policy",
+                None,
+                "unreadable",
+                managed.get("reason") or "managed scope could not be enumerated",
+            )
         )
         return layers
     layers.append(_settings_layer("policy", managed["base_file"]))
@@ -1220,33 +1207,17 @@ def settings_layers(project_root: str, config_root: str, managed: dict) -> list[
             layers.append(_settings_layer("policy", os.path.join(dropin, name)))
         if not names:
             layers.append(
-                {
-                    "scope": "policy",
-                    "path": dropin,
-                    "status": "absent",
-                    "settings": None,
-                    "note": "drop-in directory holds no *.json",
-                }
+                _stub_layer(
+                    "policy", dropin, "absent", "drop-in directory holds no *.json"
+                )
             )
     else:
-        layers.append(
-            {
-                "scope": "policy",
-                "path": dropin,
-                "status": "absent",
-                "settings": None,
-                "note": None,
-            }
-        )
+        layers.append(_stub_layer("policy", dropin, "absent", None))
     for surface in managed.get("unread_surfaces") or []:
         layers.append(
-            {
-                "scope": "policy",
-                "path": surface,
-                "status": "unread",
-                "settings": None,
-                "note": "policy surface this reader does not open",
-            }
+            _stub_layer(
+                "policy", surface, "unread", "policy surface this reader does not open"
+            )
         )
     return layers
 
@@ -1317,15 +1288,15 @@ def resolve_windows(pin: int | None, env: Mapping[str, str]) -> dict:
             }
         )
     if disable_1m is not None:
-        if _env_truthy(disable_1m):
-            effect = "window 200,000"
-        else:
-            effect = "not truthy: no effect"
         consulted.append(
             {
                 "name": "CLAUDE_CODE_DISABLE_1M_CONTEXT",
                 "value": disable_1m,
-                "effect": effect,
+                "effect": (
+                    "window 200,000"
+                    if _env_truthy(disable_1m)
+                    else "not truthy: no effect"
+                ),
             }
         )
     else:
@@ -1774,9 +1745,7 @@ def starvation_withheld(listing: dict) -> bool:
     sort leaves, and catalog position is not a preference. Reads the same for a
     pinned single row and for a band, where one overflowing row is enough.
     """
-    if listing.get("score_basis") != "unscored":
-        return False
-    return listing_overflows(listing)
+    return listing.get("score_basis") == "unscored" and listing_overflows(listing)
 
 
 def listing_overflows(listing: dict) -> bool:
@@ -2205,13 +2174,11 @@ def _render_markdown(model: dict) -> str:
     listing = model.get("listing", {})
     if listing:
         lines += ["## Listing budget", ""]
-        band = listing.get("band")
-        if band:
+        if listing.get("band"):
             lines += _render_band(listing)
-            any_overflow = any(r["overflow_chars"] > 0 for r in band)
         else:
             lines += _render_single_budget(listing)
-            any_overflow = listing["overflow_chars"] > 0
+        any_overflow = listing_overflows(listing)
         if any_overflow:
             # An unscored run has no usage behind its ordering at all. Saying
             # "inferential" there would repeat the exact defect this report
@@ -2500,34 +2467,30 @@ def _render_next_actions(model: dict) -> list[str]:
 
 def _render_single_budget(listing: dict) -> list[str]:
     """The pinned single-row paragraph."""
-    if listing["overflow_chars"] > 0 and listing.get("score_basis") == "unscored":
-        # The count is the whole claim here. Saying which skills are running
-        # name-only would name the ones the catalog happens to list last.
-        return [
+    if listing["overflow_chars"] > 0:
+        over_budget = (
             f"**Your skill listing is over budget by "
             f"{listing['overflow_chars']:,} characters** at "
             f"{listing['label']} (window {listing['context_window_tokens']:,} "
             f"tokens, {listing['bytes_per_token']} bytes per token). "
             f"{listing['competing_count']} skills compete for "
             f"{listing['budget_chars']:,} characters of description budget, "
-            f"and **{listing['starved_count']}** of "
-            f"{listing['competing_count']} competing descriptions cannot fit; "
-            f"which ones is withheld because no usage has been observed, so "
-            f"the ordering is catalog position, not preference.",
-            "",
-        ]
-    if listing["overflow_chars"] > 0:
+        )
+        if listing.get("score_basis") == "unscored":
+            # The count is the whole claim here. Saying which skills are running
+            # name-only would name the ones the catalog happens to list last.
+            return [
+                over_budget + f"and **{listing['starved_count']}** of "
+                f"{listing['competing_count']} competing descriptions cannot fit; "
+                f"which ones is withheld because no usage has been observed, so "
+                f"the ordering is catalog position, not preference.",
+                "",
+            ]
         # The certain half: documented settings vs summed description
         # lengths. No undocumented constant is involved, so this is stated
         # plainly rather than hedged.
         return [
-            f"**Your skill listing is over budget by "
-            f"{listing['overflow_chars']:,} characters** at "
-            f"{listing['label']} (window {listing['context_window_tokens']:,} "
-            f"tokens, {listing['bytes_per_token']} bytes per token). "
-            f"{listing['competing_count']} skills compete for "
-            f"{listing['budget_chars']:,} characters of description budget, "
-            f"and descriptions are shed lowest-score-first, so roughly "
+            over_budget + f"and descriptions are shed lowest-score-first, so roughly "
             f"**{listing['starved_count']}** of them are running name-only, "
             f"which is why the model stops matching requests to those.",
             "",
@@ -2579,9 +2542,7 @@ def _render_inputs(inputs: dict) -> list[str]:
 
     def _prov(row: dict) -> str:
         provenance = row.get("provenance", "")
-        if provenance == "default":
-            return "documented default"
-        if provenance == "fraction":
+        if provenance in ("default", "fraction"):
             return "documented default"
         return provenance
 

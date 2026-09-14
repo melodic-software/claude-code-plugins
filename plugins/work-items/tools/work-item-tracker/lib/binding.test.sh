@@ -93,11 +93,7 @@ fi
 assert_rejected() {
   local label="$1" content="$2"
   write_binding "$BINDING" "$content"
-  if wit_read_binding "$BINDING"; then
-    fail "$label" "failure" "success"
-  else
-    pass "$label"
-  fi
+  assert_fails "$label" "failure" "success" wit_read_binding "$BINDING"
 }
 
 assert_rejected "non-JSON rejected" 'not json'
@@ -179,6 +175,24 @@ mkdir -p "$OROOT"
 OBINDING="$OROOT/.work-item-tracker.json"
 OVERLAY="$OROOT/.work-item-tracker.local.json"
 
+# Overlay cases write the overlay and re-read the team binding through it. A
+# rejection prints a diagnostic these cases do not assert, so stderr is muted.
+assert_overlay_accepted() {
+  local label="$1" content="$2"
+  write_binding "$OVERLAY" "$content"
+  assert_succeeds "$label" "success" "failure" wit_read_binding "$OBINDING"
+}
+
+assert_overlay_rejected() {
+  local label="$1" content="$2"
+  write_binding "$OVERLAY" "$content"
+  if wit_read_binding "$OBINDING" 2>/dev/null; then
+    fail "$label" "failure" "success"
+  else
+    pass "$label"
+  fi
+}
+
 write_binding "$OBINDING" "$VALID"
 write_binding "$OVERLAY" '{"config":{"lease_ttl_hours":2,"lease_ttl_minutes":30}}'
 if wit_read_binding "$OBINDING"; then
@@ -205,26 +219,11 @@ assert_eq "overlay jira auth_env wins" "MY_TOKEN" "$(jq -r '.config.jira.auth_en
 assert_eq "team jira site survives the merge" "a.atlassian.net" "$(jq -r '.config.jira.site' <<<"$EJ")"
 
 # The optional self-describing docs pointer is allowed in either layer.
-write_binding "$OVERLAY" '{"docs":"see CONTRACT.md"}'
-if wit_read_binding "$OBINDING"; then
-  pass "docs key allowed in the overlay"
-else
-  fail "docs key allowed in the overlay" "success" "failure"
-fi
+assert_overlay_accepted "docs key allowed in the overlay" '{"docs":"see CONTRACT.md"}'
 
 # Empty scaffolding on an allowlisted prefix is inert, not an error.
-write_binding "$OVERLAY" '{"config":{}}'
-if wit_read_binding "$OBINDING"; then
-  pass "empty overlay scaffolding is inert"
-else
-  fail "empty overlay scaffolding is inert" "success" "failure"
-fi
-write_binding "$OVERLAY" '{"config":{"jira":{}}}'
-if wit_read_binding "$OBINDING"; then
-  pass "empty jira scaffolding is inert"
-else
-  fail "empty jira scaffolding is inert" "success" "failure"
-fi
+assert_overlay_accepted "empty overlay scaffolding is inert" '{"config":{}}'
+assert_overlay_accepted "empty jira scaffolding is inert" '{"config":{"jira":{}}}'
 
 # An explicitly null allowlisted value MERGES (presence, not non-null) and is
 # judged by normal binding validation — never a silent fallback to team values.
@@ -239,16 +238,6 @@ else
 fi
 
 # Deny-by-default: any key outside the allowlist is a configuration error, not a merge.
-assert_overlay_rejected() {
-  local label="$1" content="$2"
-  write_binding "$OVERLAY" "$content"
-  if wit_read_binding "$OBINDING" 2>/dev/null; then
-    fail "$label" "failure" "success"
-  else
-    pass "$label"
-  fi
-}
-
 assert_overlay_rejected "overlay provider override rejected" '{"provider":"local-markdown"}'
 assert_overlay_rejected "overlay role_labels rejected" '{"config":{"role_labels":{"human-gated":"x"}}}'
 assert_overlay_rejected "overlay container_label rejected" '{"config":{"container_label":"my-map"}}'

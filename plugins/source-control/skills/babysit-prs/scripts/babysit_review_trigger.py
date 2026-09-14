@@ -93,13 +93,14 @@ def is_review_bot_item(item: dict[str, Any], config: ReviewTriggerConfig) -> boo
     if not is_json_object(author):
         return False
     reviewer_logins = normalize_login_set(config.reviewer_logins)
-    if author_login(item).casefold().removesuffix("[bot]") not in reviewer_logins:
+    login = author_login(item)
+    if login.casefold().removesuffix("[bot]") not in reviewer_logins:
         return False
     # `is_bot` reads GraphQL's `__typename` only, so the REST `type` key is
     # normalized into it here: the reaction and review-comment paths carry raw
     # REST author objects that have no `__typename` at all.
     return author.get("is_bot") is True or is_bot(
-        author_login(item),
+        login,
         str(author.get("__typename") or author.get("type") or ""),
         config.extra_bot_logins,
     )

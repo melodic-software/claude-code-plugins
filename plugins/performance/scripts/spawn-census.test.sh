@@ -12,32 +12,10 @@ readonly SCRIPT_DIR
 CENSUS="$SCRIPT_DIR/spawn-census.sh"
 readonly CENSUS
 
-# Inline test helpers: self-contained, no external test lib (ships with the plugin).
-FAILED=0
-CASE_NUM=0
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: [%d] %s\n' "$CASE_NUM" "$1"
-}
-fail() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'FAIL: [%d] %s - expected %q got %q\n' "$CASE_NUM" "$1" "$2" "$3" >&2
-  FAILED=$((FAILED + 1))
-}
-assert_eq() { if [[ "$3" == "$2" ]]; then pass "$1"; else fail "$1" "$2" "$3"; fi; }
-assert_contains() {
-  if [[ "$3" == *"$2"* ]]; then pass "$1"; else fail "$1" "*$2*" "$3"; fi
-}
-assert_not_contains() {
-  if [[ "$3" != *"$2"* ]]; then pass "$1"; else fail "$1" "no *$2*" "$3"; fi
-}
+# shellcheck source=test-helpers.sh
+source "$SCRIPT_DIR/test-helpers.sh"
 
-RUN_OUT=""
-RUN_RC=0
-run_census() {
-  RUN_OUT="$(bash "$CENSUS" "$@" 2>&1)"
-  RUN_RC=$?
-}
+run_census() { capture bash "$CENSUS" "$@"; }
 
 # The workspace must NOT sit under the system temporary root: the script rejects
 # a temp-rooted shim directory by design, so a mktemp workspace here would make

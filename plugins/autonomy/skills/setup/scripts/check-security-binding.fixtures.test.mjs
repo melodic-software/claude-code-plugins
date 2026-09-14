@@ -18,6 +18,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import process from "node:process";
+import { createFixtureHarness } from "./fixture-harness.mjs";
 
 const scriptsDir = dirname(fileURLToPath(import.meta.url));
 const checker = join(scriptsDir, "check-security-binding.mjs");
@@ -28,17 +29,7 @@ const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
 const fixtures = manifest.fixtures ?? {};
 const quarantined = manifest.quarantined ?? {};
 
-let failed = 0;
-let cases = 0;
-const pass = (name) => {
-  cases += 1;
-  process.stdout.write(`PASS: ${name}\n`);
-};
-const fail = (name, detail) => {
-  cases += 1;
-  failed += 1;
-  process.stderr.write(`FAIL: ${name}\n  detail: ${detail}\n`);
-};
+const { counts, pass, fail, finish } = createFixtureHarness();
 
 // --- Self-policing: every top-level fixture is graded or quarantined ---------
 const topLevelFixtures = readdirSync(fixturesDir, { withFileTypes: true })
@@ -117,9 +108,7 @@ for (const [name, entry] of Object.entries(fixtures)) {
   pass(`grade: ${name}`);
 }
 
-if (failed === 0) {
-  process.stdout.write(`\nAll ${cases} checks passed (${Object.keys(fixtures).length} fixtures graded, ${Object.keys(quarantined).length} quarantined).\n`);
-  process.exit(0);
-}
-process.stderr.write(`\n${failed}/${cases} checks failed.\n`);
-process.exit(1);
+finish(
+  `\nAll ${counts.cases} checks passed (${Object.keys(fixtures).length} fixtures graded, ${Object.keys(quarantined).length} quarantined).\n`,
+  `\n${counts.failed}/${counts.cases} checks failed.\n`,
+);

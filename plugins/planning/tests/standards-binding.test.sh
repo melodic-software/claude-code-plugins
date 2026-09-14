@@ -29,9 +29,12 @@ else
   fail "expected exactly 1 'Ground in consumer standards' in plan SKILL.md, got $count"
 fi
 
-step2=$(grep -n "^### Step 2: Formulate the Plan" "$ARCHITECT" | cut -d: -f1 | head -1)
-step3=$(grep -n "^### Step 3:" "$ARCHITECT" | cut -d: -f1 | head -1)
-ground=$(grep -n "Ground in consumer standards" "$ARCHITECT" | cut -d: -f1 | head -1)
+# First 1-based line number in the plan SKILL.md matching <pattern>, or empty.
+first_line() { grep -n "$1" "$ARCHITECT" | cut -d: -f1 | head -1; }
+
+step2=$(first_line "^### Step 2: Formulate the Plan")
+step3=$(first_line "^### Step 3:")
+ground=$(first_line "Ground in consumer standards")
 if [[ -n "$step2" && -n "$step3" && -n "$ground" && "$ground" -gt "$step2" && "$ground" -lt "$step3" ]]; then
   ok "grounding heading sits inside Step 2 (line $ground, between $step2 and $step3)"
 else

@@ -142,7 +142,7 @@ fi
 new_fixture f
 odd="$(mktemp)"
 FIXTURES+=("$odd")
-{ cat "$TABLE"; } >"$odd"
+cp "$TABLE" "$odd"
 # shellcheck disable=SC2016  # the backticks are markdown table text, not a substitution
 sed 's/^| `SessionEnd`  *|/| `MysteryEvent`        |/' "$odd" >"$odd.2" && mv "$odd.2" "$odd"
 out=$(bash "$SCRIPT" --from "$odd" --root "$f" 2>&1)

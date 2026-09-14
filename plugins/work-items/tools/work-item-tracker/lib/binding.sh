@@ -129,7 +129,7 @@ wit_role_label() {
 # REQUIRED (all defaults live in the binding, never in code). storage_dir is
 # required only for provider local-markdown.
 wit_read_binding() {
-  local path="$1" json version provider ttl storage human_gated autonomous_eligible recurring_maintenance container minutes
+  local path="$1" json version provider ttl storage human_gated autonomous_eligible recurring_maintenance container container_type minutes
   # The effective view: team file merged with the allowlisted overlay keys
   # (lease TTL, jira/linear/gitea auth identity). Team-only keys read identically
   # from either view; the reads below use the merged JSON so overlayable keys
@@ -171,7 +171,6 @@ wit_read_binding() {
   # configuration error, not a fallback: jq -r would stringify a number/bool/
   # object into a label no item carries, silently letting containers onto the
   # frontier (label-taxonomy.md: malformed entries stop, never default).
-  local container_type
   container_type="$(jq -r '.config.container_label | type' "$path")"
   [[ "$container_type" == "null" || "$container_type" == "string" ]] || return 1
   container="$(jq -r '.config.container_label // empty' "$path")"

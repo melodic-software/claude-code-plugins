@@ -66,7 +66,6 @@ fi
 # 2b. A missing explicit root is rejected even when ANOTHER root is valid.
 #     Silently skipping it would omit a whole plugin subtree and report a
 #     falsely low aggregate under an "OK" — the failure mode this guards.
-mkdir -p "$TMP/valid-root/only-skill"
 make_skill "$TMP/valid-root" only-skill "A fixture."
 out="$(run "$TMP/valid-root" "$TMP/does-not-exist" 2>&1)"
 rc=$?
@@ -123,7 +122,6 @@ fi
 #    DESC_LEN + 3 + WTU_LEN, not DESC_LEN + WTU_LEN (item 2's fix, mirrored
 #    here since the aggregate must match what check-skill.sh's check 2 now
 #    computes, or the two checks would disagree on the same entry's size).
-mkdir -p "$TMP/joiner-root"
 desc_40='1234567890123456789012345678901234567890'
 wtu_10='1234567890'
 make_skill "$TMP/joiner-root" joiner-skill "$desc_40" "$wtu_10"
@@ -140,7 +138,6 @@ fi
 #    before summing — mirrors the harness's own per-entry truncation, so one
 #    already-failing (check 2) entry cannot silently inflate the aggregate
 #    past what Claude Code would actually load.
-mkdir -p "$TMP/cap-root"
 long_desc="$(printf 'x%.0s' {1..200})"
 make_skill "$TMP/cap-root" cap-skill "$long_desc"
 out="$(cd "$TMP" && CHECK_SKILL_LISTING_MAX_DESC_CHARS=50 CHECK_SKILL_LISTING_BUDGET_CHARS=1000 bash "$SUT" "$TMP/cap-root" 2>&1)"
@@ -152,7 +149,6 @@ fi
 
 # 8. Multiple roots pool into ONE shared aggregate (the marketplace-repo use
 #    case: plugins/*/skills passed as separate positional roots).
-mkdir -p "$TMP/root-x" "$TMP/root-y"
 make_skill "$TMP/root-x" x-skill "12345"
 make_skill "$TMP/root-y" y-skill "67890"
 out="$(run "$TMP/root-x" "$TMP/root-y" 2>&1)"
@@ -166,7 +162,6 @@ fi
 #    Their descriptions are never loaded into the model-visible listing
 #    (https://code.claude.com/docs/en/skills — "Description not in context"),
 #    so counting them would overstate the shared budget.
-mkdir -p "$TMP/dmi-root"
 make_skill "$TMP/dmi-root" eligible-skill "12345"
 make_skill "$TMP/dmi-root" manual-skill "9999999999999999999999999" "" "true"
 make_skill "$TMP/dmi-root" explicit-false-skill "67890" "" "false"
@@ -184,7 +179,6 @@ fi
 #     requires preceding whitespace), surrounding whitespace, quoted forms,
 #     and ASCII case variants. A `false` carrying a comment must still be
 #     counted — that is what stops the normalization from over-matching.
-mkdir -p "$TMP/dmi-norm-root"
 make_skill "$TMP/dmi-norm-root" norm-inline-comment "12345" "" "true # manual-only"
 make_skill "$TMP/dmi-norm-root" norm-quoted "12345" "" '"true"'
 make_skill "$TMP/dmi-norm-root" norm-single-quoted "12345" "" "'true'"
@@ -302,7 +296,6 @@ fi
 
 # 14c. The per-entry cap takes the same normalization — a zero-padded `010` cap
 #      truncated entries at 8 chars instead of the requested 10.
-mkdir -p "$TMP/pad-cap-root"
 make_skill "$TMP/pad-cap-root" pad-cap-skill "123456789012345"
 out="$(cd "$TMP" && CHECK_SKILL_LISTING_MAX_DESC_CHARS=010 bash "$SUT" "$TMP/pad-cap-root" 2>&1)"
 rc=$?
@@ -455,7 +448,6 @@ fi
 #     timing assertion is a flaky gate, which is worse than the defect it
 #     guards. It fails only on a return to per-file process spawning, which is
 #     two orders of magnitude away.
-mkdir -p "$TMP/perf-root"
 i=0
 while ((i < 200)); do
   mkdir -p "$TMP/perf-root/skill-$i"

@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.6.2]
+
+### Changed
+
+- detect.sh and emit-findings.sh validate option values through one sourced helper instead of two identical copies; detect.sh also folds its threshold default and merges two rule loops. Diagnostics, exit codes and findings output are unchanged.
+
+## [0.6.1]
+
+### Changed
+
+- The ai-slop audit detector reads its phrase_add and phrase_remove config keys through one helper, its suite shares the branch-line and tier assertions, and the context7 updater drops a dead echo fallback, with identical output.
+
 ## [0.6.0]
 
 ### Fixed

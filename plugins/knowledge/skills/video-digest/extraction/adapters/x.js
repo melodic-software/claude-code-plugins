@@ -195,6 +195,24 @@ const SNOWFLAKE_ALIAS_THRESHOLD_MS = 60 * 60 * 1000;
  */
 
 /**
+ * Parse a value as an http(s) URL: null for unparsable input and for every
+ * other scheme (never `javascript:`, `file:`, or a malformed string).
+ *
+ * @param {string} value
+ * @returns {URL|null}
+ */
+function parseHttpUrl(value) {
+  /** @type {URL} */
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    return null;
+  }
+  return parsed.protocol === "https:" || parsed.protocol === "http:" ? parsed : null;
+}
+
+/**
  * Parse an x.com / twitter.com status URL. Pure; returns null for anything
  * that is not a status URL on an owned host (profiles, spaces, foreign hosts,
  * unparsable input).
@@ -203,14 +221,8 @@ const SNOWFLAKE_ALIAS_THRESHOLD_MS = 60 * 60 * 1000;
  * @returns {XStatusUrlParts|null}
  */
 export function parseXStatusUrl(url) {
-  /** @type {URL} */
-  let parsed;
-  try {
-    parsed = new URL(url);
-  } catch {
-    return null;
-  }
-  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+  const parsed = parseHttpUrl(url);
+  if (!parsed) {
     return null;
   }
   const hostname = parsed.hostname.toLowerCase().replace(/\.$/, "");
@@ -960,12 +972,7 @@ const spec = /** @satisfies {SourceAdapterSpec} */ ({
       : null;
   },
 
-  /**
-   * @param {string} url
-   * @param {AcquireContext} context
-   * @returns {Promise<AcquireOutcome>}
-   */
-  acquire: (url, context) => acquireXMedia(url, context),
+  acquire: acquireXMedia,
 
   /**
    * Post-text links only (reply-chain harvest is the optional agent-lane
@@ -991,14 +998,7 @@ const spec = /** @satisfies {SourceAdapterSpec} */ ({
         // Same invariant the text path enforces by its URL pattern: only
         // parseable http(s) URLs enter the harvest (never javascript:, file:,
         // or malformed strings from a stderr echo).
-        /** @type {URL} */
-        let parsed;
-        try {
-          parsed = new URL(delegationUrl);
-        } catch {
-          continue;
-        }
-        if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+        if (!parseHttpUrl(delegationUrl)) {
           continue;
         }
         links.push({

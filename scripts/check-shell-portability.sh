@@ -233,17 +233,17 @@ if [[ ! -f "$SCAN_AWK" ]]; then
   exit 2
 fi
 
-# require_token_file carries the same awk operand disambiguation the scanned
-# file gets below, and for a worse reason: a token path shaped like
-# identifier=value (`tokens=custom.txt`) is parsed by awk as a variable
-# assignment rather than opened, so the `FNR == NR` loading pass never runs, NO
-# patterns are active, and every file reports clean while awk still exits 0 — a
-# silent fail-open in the gate itself, invisible to the scanner-fault check.
-# See #1513; shared with check-skill-portability.sh, which was missing it
-# entirely until #2914.
+# A missing token list fails the gate closed, and it fails HERE with a path in
+# the diagnostic rather than later as an empty pattern set: no list means no
+# patterns, and a scan with no patterns is not a clean scan. The awk operand
+# disambiguation that keeps a path shaped like identifier=value
+# (`tokens=custom.txt`) from being parsed as a variable assignment rather than
+# opened (which would leave the `FNR == NR` loading pass unrun, no patterns
+# active, and every file reporting clean while awk still exits 0) is applied
+# below, to the active-pattern file that is what actually reaches awk. Both live
+# in the library shared with check-skill-portability.sh.
 TOKENS_SRC="${SHELL_PORTABILITY_TOKENS:-scripts/shell-portability-tokens.txt}"
-TOKENS="" # assigned through the nameref below; declared so shellcheck sees it
-if ! token_scan::require_token_file TOKENS "$TOKENS_SRC"; then
+if ! token_scan::require_token_file "$TOKENS_SRC"; then
   exit 2
 fi
 

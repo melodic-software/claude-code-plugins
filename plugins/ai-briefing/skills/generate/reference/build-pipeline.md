@@ -44,7 +44,7 @@ This file documents the working pipeline schema + commands. For brand spec, slid
 | `build-pdf.js` | Playwright headless chromium prints `?print=1` HTML to Letter landscape, 0-margin, one slide per page | `../meetings/ai-meeting-{N}.pdf` |
 | `validate.js` | Multi-gate validator. The gate list and which gates block live in the script's own header comment; read it rather than restating it here. Screenshots every section | `shots/section-*.png` + `shots/responsive-*.png` + `shots/audit.json` |
 | `assets/` | Bundled org logos (PNG) + provider logos (SVG) | n/a |
-| `package.json` | `playwright` + `pptxgenjs` + `remark-parse` + `remark-gfm` + `unified` + `unist-util-visit` + `zod` + `date-holidays` + `linkinator` + `unpdf` + `node-pptx-parser` | n/a |
+| `package.json` | `playwright` + `pptxgenjs` + `remark-parse` + `remark-gfm` + `unified` + `unist-util-visit` + `zod` + `linkinator` + `unpdf` + `node-pptx-parser` | n/a |
 
 ## Prerequisites, one-time setup (in-repo maintainer form)
 

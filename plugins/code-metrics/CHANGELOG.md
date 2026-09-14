@@ -3,6 +3,78 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.14]
+
+### Changed
+
+- The fourteen collector suites build their tool stubs and run the adapter through one shared harness module under collectors/harness, and the four parser suites share a conftest for running and parsing. Collected case counts, stub bytes and the setup check output are unchanged.
+
+## [0.3.13]
+
+### Changed
+
+- The five audit skill suites source one bundled test-helpers.sh for their pass, fail, assert and assert_doc helpers, the Python resolution and the tool-free-PATH assertion instead of five inline copies; audit-duplication and audit-size now assert JSON documents through the same assert_doc. Green-path output, case labels and exit codes are byte-identical; only red-path excerpts change shape.
+
+## [0.3.12]
+
+### Changed
+
+- The fifteen collectors resolve paths, versions and verbs through adapter_paths and the four coverage parsers through a new parser_paths module instead of per-file copies; the redundant JSONDecodeError clauses are dropped. Envelopes, usage text and exit codes are byte-identical.
+
+## [0.3.11]
+
+### Changed
+
+- The five audit entry scripts and the dispatch and lane-detection scripts print their usage banner, split the config option, resolve the config ladder and emit the rendered document through one entry-common library instead of seven copies. Help text, exit codes and reports are byte-identical.
+
+## [0.3.10]
+
+### Changed
+
+- Share the capped stderr note and line counter in dispatch, the lane measure helpers in the report, the path normaliser in pathglob and the config error clauses in resolve-config (behavior unchanged).
+
+## [0.3.9]
+
+### Changed
+
+- audit-coverage: join.py builds each function row's identity keys once, drops an unused unmatched list from the artifact merge and a self-assigning status branch; crap.py drops a dead rstrip; audit-coverage.sh probes the Go profile format with an if like its sibling probes. Output byte-identical on every fixture.
+
+## [0.3.8]
+
+### Changed
+
+- audit-duplication: registry-filter.py finds a row's sanctioning registry through one helper and drops a one-line wrapper, and its shell and pytest suites share a JSON assertion helper and one subprocess runner. Output byte-identical.
+
+## [0.3.7]
+
+### Changed
+
+- setup skill: setup-apply.py always writes the header plus body instead of rebuilding a header that the following override replaced anyway, and setup-check.sh probes the work tree and relative path once per layer before branching on tracked state. No behavior change.
+
+## [0.3.6]
+
+### Changed
+
+- collectors: scc.py builds its rows through one helper, normalizes each filled path once and reads its chunk budget with an empty default; type-coverage.py spells its node-failure fallback explicitly and drops translate defaults no caller used; the scc, shellmetrics, sonarjs and type-coverage suites share their stub and project builders. Output byte-identical.
+
+## [0.3.5]
+
+### Changed
+
+- skill entry scripts: audit-size.sh and audit-type-debt.sh extract --config by shifting the positional list instead of hand-indexing, audit-complexity.sh passes its measure list as a literal, and the size and type-debt suites drop a no-op PATH prefix and emit their mypy stubs through one helper. No behavior change.
+
+## [0.3.4]
+
+### Changed
+
+- coverage parsers: lcov.py builds and folds function records in one loop and guards malformed DA lines like its sibling branches, coverage_py_json.py sorts its function list in place of a two-step sort, and go_cover.py inserts block records through setdefault. Output byte-identical on every fixture.
+
+## [0.3.3]
+
+### Changed
+
+- collectors: jscpd.py drops a dead pre-initialization, an unused command default pair and an inert empty-string fallback, lizard.py looks up wanted paths once, dupl.py tests the probe result directly, gocognit.py's docstring matches its probe output, and the dupl and jscpd suites read one instance and one reason file once. No behavior change.
+
 ## [0.3.2]
 
 ### Fixed

@@ -4,6 +4,138 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.13.75]
+
+### Changed
+
+- The repair and vision-gated promotion scripts share one synthesis destination-name normalizer in lib, and the two slice validators report through one shared wrapper. Messages, exit codes and written artifacts are unchanged.
+
+## [0.13.74]
+
+### Changed
+
+- The harvest, transcript, watch and bootstrap-recovery entry points call the adapter's harvestLinks directly instead of through a one-line wrapper, and the harvest-links suite exercises the same behavior through the adapter. Output is unchanged.
+
+## [0.13.73]
+
+### Changed
+
+- The two docpage-digest gate test wrappers run through one sourced library and the two Python gate suites share one harness module. Collected case counts, messages and exit codes are unchanged.
+
+## [0.13.72]
+
+### Changed
+
+- The mux, hotmart, dometrain and teachable adapters resolve their video player selector and probe for the player element through one shared helper instead of four inline copies. Dometrain keeps its non-optional config access, now pinned by a test.
+
+## [0.13.71]
+
+### Changed
+
+- The course-digest browser helper no longer creates and removes a temporary profile directory that nothing read; launch and close keep their call order and every caller passes two arguments. A duration match in build-course-json uses optional chaining for the same result.
+
+## [0.13.70]
+
+### Changed
+
+- The watching pipeline and the watch bootstrap recovery normalize VTT cues through one helper, and the coverage-plan and frame-selection sequences are exposed as named functions instead of being repeated at each call site. Plans, selections, and manifests are unchanged.
+
+## [0.13.69]
+
+### Changed
+
+- The video-digest watch scripts read argv only under their main-module guard and share the selected-frame index and lane JSON reads through one library helper, with identical output and exit codes.
+
+## [0.13.68]
+
+### Changed
+
+- Round seconds through one helper, merge overlapping windows in a single pass and iterate contact-sheet batches by entries in video-digest watching (behavior unchanged).
+
+## [0.13.67]
+
+### Changed
+
+- Merge the proper-noun repair branches behind one guard, hoist the ASR runnable check, return the auto-caption flag directly and share the io stub in the video-digest transcript suite (behavior unchanged).
+
+## [0.13.66]
+
+### Changed
+
+- Index sheet frames by the frame object, drop the single-group dedupe fast path, inline the session end lookup, name the frames-per-sheet constant and return the claim parse directly in the video-digest watch scripts (behavior unchanged).
+
+## [0.13.65]
+
+### Changed
+
+- Share the optional text read, count regex matches through one helper, derive the session frame counts once and collapse the golden part matcher in the video-digest evals (behavior unchanged).
+
+## [0.13.64]
+
+### Changed
+
+- Hoist the transcript degradation metric and the phase order, nest the anchor-name scoring guard, merge the triage-log pushes and share the talk fixture and temp-dir cleanup in the video-digest watch scripts (behavior unchanged).
+
+## [0.13.63]
+
+### Changed
+
+- Inline the single-use file reads, drop the redundant object check on the parsed info and share the fetch stub in video-digest harvesting (behavior unchanged).
+
+## [0.13.62]
+
+### Changed
+
+- Fold the duplicated auth-fallback spawn into one call, share the captions-only pass, staged-failure and metadata entry parsers and hoist the title fallback in video-digest acquisition (behavior unchanged).
+
+## [0.13.61]
+
+### Changed
+
+- Parse http urls through one helper, pass the acquire function directly, hoist the stderr default in the liveness classifier and share the spawn-result stub across the video-digest x adapter and liveness suites (behavior unchanged).
+
+## [0.13.60]
+
+### Changed
+
+- Derive the video-digest run and setup-deps entry-point directory from import.meta.dirname and drop the unused url import (behavior unchanged).
+
+## [0.13.59]
+
+### Changed
+
+- Share the integer check across the map-corpus gates, fold the three link scans into one loop, hoist the fence match and read manifest keys directly after the missing-key gate (behavior unchanged).
+
+## [0.13.58]
+
+### Changed
+
+- Share the gate argument parser and runner between the docpage-digest fence and snippet checks and route their suites through one invoke helper (behavior unchanged).
+
+## [0.13.57]
+
+### Changed
+
+- Resolve the video-player selector and subtitle language through one helper each, inline the date patterns and fold the preflight and resource probes into returned object literals in the course-digest adapters (behavior unchanged).
+
+## [0.13.56]
+
+### Changed
+
+- Share the validation check logger, the href dedup helper and the lesson-failure record, narrow the frame-extraction result to its two read fields and inline the lesson position in course-digest extraction (behavior unchanged).
+
+## [0.13.55]
+
+### Changed
+
+- video-digest extraction: watch-vision-validation.js reads the triage manifest's sheets array through one helper and finds records by key through another, dropping an unused typedef; temp-session-paths.js names its separator normalizer once and drops the unused resolveFramePath export. No behavior change.
+
+## [0.13.54]
+
+### Changed
+
+- course-digest extraction: validators.js counts schema keys with one Map instead of a two-pass scan, meta-tags.js skips a missing property attribute once instead of guarding every test, hotmart.js drops a redundant optional chain, and hotmart.test.js shares its page builders. No behavior change.
+
 ## [0.13.53]
 
 ### Changed

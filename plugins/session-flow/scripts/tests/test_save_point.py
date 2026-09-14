@@ -90,9 +90,7 @@ def rail_lines(text: str) -> int:
 
 def test_fixture_manifest_is_complete():
     on_disk = sorted(
-        p.relative_to(FIXTURES).as_posix()
-        for p in FIXTURES.rglob("*")
-        if p.is_file()
+        p.relative_to(FIXTURES).as_posix() for p in FIXTURES.rglob("*") if p.is_file()
     )
     assert on_disk == sorted(FIXTURE_MANIFEST)
 
@@ -118,7 +116,9 @@ def _save_point_module():
     return module
 
 
-def run(*args: str, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[bytes]:
+def run(
+    *args: str, env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess[bytes]:
     return subprocess.run(
         [sys.executable, str(SCRIPT), *args],
         capture_output=True,
@@ -241,7 +241,11 @@ def test_validate_tolerates_crlf_line_endings(tmp_path):
 
 def test_validate_shape1_predecessor_chain_passes(tmp_path):
     handoffs = materialize(tmp_path, "shape1-predecessor")
-    result = run("validate", str(handoffs / "20260902T100000Z-handoff-legacy.md"), "--strict-transcript")
+    result = run(
+        "validate",
+        str(handoffs / "20260902T100000Z-handoff-legacy.md"),
+        "--strict-transcript",
+    )
     assert result.returncode == 0, out(result) + err(result)
     assert "FAIL" not in out(result)
 
@@ -264,7 +268,9 @@ def test_validate_unresolved_transcript_warns_by_default_fails_strict(tmp_path):
     strict = run("validate", str(handoffs / HOP1), "--strict-transcript")
     assert strict.returncode == 1, out(strict)
     assert "FAIL: transcript: unresolved" in out(strict)
-    located = run("validate", str(handoffs / HOP1), "--projects-root", projects_root(tmp_path))
+    located = run(
+        "validate", str(handoffs / HOP1), "--projects-root", projects_root(tmp_path)
+    )
     assert located.returncode == 0, out(located)
     expected = real_posix(tmp_path / "projects" / "-work-repo" / (SID_A + ".jsonl"))
     assert f"present now at {expected}" in out(located)
@@ -274,7 +280,10 @@ def test_validate_chain_longer_than_predecessor_plus_self_fails(tmp_path):
     handoffs = materialize(tmp_path, "good-chain")
     target = handoffs / HOP2
     text = target.read_text(encoding="utf-8")
-    text = text.replace(f"chain:\n  - {HOP1}\n", f"chain:\n  - 20260831T100000Z-handoff-widget.md\n  - {HOP1}\n")
+    text = text.replace(
+        f"chain:\n  - {HOP1}\n",
+        f"chain:\n  - 20260831T100000Z-handoff-widget.md\n  - {HOP1}\n",
+    )
     target.write_text(text, encoding="utf-8", newline="\n")
     result = run("validate", str(target), "--strict-transcript")
     assert result.returncode == 1, out(result)
@@ -356,7 +365,9 @@ def test_validate_rejects_a_read_at_naming_a_different_basename(tmp_path):
     stored = f"Read @{real_posix(target)},"
     assert stored in text
     target.write_text(
-        text.replace(stored, "Read @/work/elsewhere/20260101T000000Z-handoff-other.md,"),
+        text.replace(
+            stored, "Read @/work/elsewhere/20260101T000000Z-handoff-other.md,"
+        ),
         encoding="utf-8",
         newline="\n",
     )
@@ -377,7 +388,11 @@ def test_validate_secret_shape_is_warn_only(tmp_path):
     target.write_text(text, encoding="utf-8", newline="\n")
     result = run("validate", str(target), "--strict-transcript")
     assert result.returncode == 0, out(result)
-    assert "WARN" in out(result) and "secret-shaped" in out(result) and "GitHub token" in out(result)
+    assert (
+        "WARN" in out(result)
+        and "secret-shaped" in out(result)
+        and "GitHub token" in out(result)
+    )
 
 
 @pytest.mark.parametrize("marker", ["- ", "* ", "+ ", "1. ", "2) "])
@@ -387,7 +402,11 @@ def test_validate_refuses_a_bulleted_next_headline(tmp_path, marker):
     text = target.read_text(encoding="utf-8")
     headline = "Add the re-run test to tests/test_importer.py"
     assert f"\n{headline}\n" in text
-    target.write_text(text.replace(f"\n{headline}\n", f"\n{marker}{headline}\n"), encoding="utf-8", newline="\n")
+    target.write_text(
+        text.replace(f"\n{headline}\n", f"\n{marker}{headline}\n"),
+        encoding="utf-8",
+        newline="\n",
+    )
     result = run("validate", str(target), "--strict-transcript")
     assert result.returncode == 1, out(result) + err(result)
     assert "headline must not be a bullet" in out(result), out(result)
@@ -398,8 +417,15 @@ def _blank_section(path: Path, title: str) -> None:
     """Leave the heading in place with a body of blank lines only."""
     lines = path.read_text(encoding="utf-8").split("\n")
     start = lines.index(f"## {title}")
-    end = next((i for i in range(start + 1, len(lines)) if lines[i].startswith("## ")), len(lines))
-    path.write_text("\n".join(lines[: start + 1] + ["", ""] + lines[end:]), encoding="utf-8", newline="\n")
+    end = next(
+        (i for i in range(start + 1, len(lines)) if lines[i].startswith("## ")),
+        len(lines),
+    )
+    path.write_text(
+        "\n".join(lines[: start + 1] + ["", ""] + lines[end:]),
+        encoding="utf-8",
+        newline="\n",
+    )
 
 
 @pytest.mark.parametrize(
@@ -426,7 +452,11 @@ def test_validate_refuses_a_shape_below_one(tmp_path, value):
     target = handoffs / HOP1
     text = target.read_text(encoding="utf-8")
     assert "handoff_shape: 2\n" in text
-    target.write_text(text.replace("handoff_shape: 2\n", f"handoff_shape: {value}\n", 1), encoding="utf-8", newline="\n")
+    target.write_text(
+        text.replace("handoff_shape: 2\n", f"handoff_shape: {value}\n", 1),
+        encoding="utf-8",
+        newline="\n",
+    )
     result = run("validate", str(target), "--strict-transcript")
     assert result.returncode == 1, out(result) + err(result)
     assert f"handoff_shape {value} is not a shape" in out(result), out(result)
@@ -438,7 +468,11 @@ def test_validate_reports_a_non_integer_shape_as_not_an_integer(tmp_path):
     handoffs = materialize(tmp_path, "good-chain")
     target = handoffs / HOP1
     text = target.read_text(encoding="utf-8")
-    target.write_text(text.replace("handoff_shape: 2\n", "handoff_shape: two\n", 1), encoding="utf-8", newline="\n")
+    target.write_text(
+        text.replace("handoff_shape: 2\n", "handoff_shape: two\n", 1),
+        encoding="utf-8",
+        newline="\n",
+    )
     result = run("validate", str(target), "--strict-transcript")
     assert result.returncode == 1, out(result) + err(result)
     assert "handoff_shape 'two' is not an integer" in out(result), out(result)
@@ -462,10 +496,14 @@ def test_emit_prints_resume_prompt_section_verbatim(tmp_path):
     handoffs = materialize(tmp_path, "good-chain")
     result = run("emit", str(handoffs / HOP2))
     assert result.returncode == 0, err(result)
-    assert result.stdout.decode("utf-8") == _section_body(handoffs / HOP2, "Resume prompt")
+    assert result.stdout.decode("utf-8") == _section_body(
+        handoffs / HOP2, "Resume prompt"
+    )
     assert b"\r" not in result.stdout
     assert rail_lines(out(result)) == 2
-    assert result.stdout.decode("utf-8").startswith("`/clear`, then copy everything between the dashed lines:")
+    assert result.stdout.decode("utf-8").startswith(
+        "`/clear`, then copy everything between the dashed lines:"
+    )
 
 
 def test_emit_shape1_legacy_says_so_and_exits_one(tmp_path):
@@ -511,21 +549,37 @@ def test_emit_and_validate_survive_cp1252_pipe(tmp_path):
 # --- new ------------------------------------------------------------------------------
 
 
-def make_repo(tmp_path: Path, remote: str | None = "ssh://git@github.com/example/repo") -> Path:
+def make_repo(
+    tmp_path: Path, remote: str | None = "ssh://git@github.com/example/repo"
+) -> Path:
     repo = tmp_path / "repo"
     repo.mkdir(parents=True)
-    subprocess.run(["git", "-c", "init.defaultBranch=main", "init", "-q", str(repo)], check=True)
-    subprocess.run(["git", "-C", str(repo), "config", "commit.gpgsign", "false"], check=True)
-    subprocess.run(["git", "-C", str(repo), "config", "core.autocrlf", "false"], check=True)
+    subprocess.run(
+        ["git", "-c", "init.defaultBranch=main", "init", "-q", str(repo)], check=True
+    )
+    subprocess.run(
+        ["git", "-C", str(repo), "config", "commit.gpgsign", "false"], check=True
+    )
+    subprocess.run(
+        ["git", "-C", str(repo), "config", "core.autocrlf", "false"], check=True
+    )
     if remote:
-        subprocess.run(["git", "-C", str(repo), "remote", "add", "origin", remote], check=True)
+        subprocess.run(
+            ["git", "-C", str(repo), "remote", "add", "origin", remote], check=True
+        )
     (repo / ".work").mkdir()
     (repo / ".work" / ".gitignore").write_text("*\n", encoding="utf-8")
     shutil.copytree(FIXTURES / "projects", tmp_path / "projects", dirs_exist_ok=True)
     return repo
 
 
-def new_args(repo: Path, tmp_path: Path, *extra: str, sid: str = SID_A, now: str = "2026-09-01T10:00:00Z") -> list[str]:
+def new_args(
+    repo: Path,
+    tmp_path: Path,
+    *extra: str,
+    sid: str = SID_A,
+    now: str = "2026-09-01T10:00:00Z",
+) -> list[str]:
     return [
         "new",
         "--topic",
@@ -545,34 +599,40 @@ def new_args(repo: Path, tmp_path: Path, *extra: str, sid: str = SID_A, now: str
 def fill(text: str) -> str:
     """Fill every reasoning slot the way a well-behaved model would: optional
     slots deleted, cumulative slots given one tagged entry, the rest prose."""
+
+    def repl(m: re.Match[str]) -> str:
+        name = m.group(1)
+        return {
+            "goal": "> Do the thing.",
+            "amended": "None.",
+            "opening-ask": "Do the thing please.",
+            "next": "Do the next thing",
+            "did": "did the thing",
+            "left": "the rest",
+            "constraints": "- [h1] The thing must stay green.",
+            "side-effects": "- [h1] The thing was applied once.",
+            "decisions": "- [h1] The thing over the other thing.",
+            "abandoned": "- [h1] The other thing, which broke.",
+            "findings": "- [h1] The thing takes a minute.",
+        }.get(name, f"Filled {name}.")
+
     filled: list[str] = []
     for line in text.split("\n"):
         whole = FILL_RE.fullmatch(line.strip())
-        if whole and (whole.group(1) in ("goal-rearm", "below-rail") or whole.group(1).endswith("-new")):
+        if whole and (
+            whole.group(1) in ("goal-rearm", "below-rail")
+            or whole.group(1).endswith("-new")
+        ):
             continue
-
-        def repl(m: re.Match[str]) -> str:
-            name = m.group(1)
-            return {
-                "goal": "> Do the thing.",
-                "amended": "None.",
-                "opening-ask": "Do the thing please.",
-                "next": "Do the next thing",
-                "did": "did the thing",
-                "left": "the rest",
-                "constraints": "- [h1] The thing must stay green.",
-                "side-effects": "- [h1] The thing was applied once.",
-                "decisions": "- [h1] The thing over the other thing.",
-                "abandoned": "- [h1] The other thing, which broke.",
-                "findings": "- [h1] The thing takes a minute.",
-            }.get(name, f"Filled {name}.")
-
         filled.append(FILL_RE.sub(repl, line))
     return "\n".join(filled)
 
 
 def test_new_hop1_writes_skeleton_and_prints_path(tmp_path):
-    repo = make_repo(tmp_path, remote="https://x-access-token:ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123@github.com/example/repo.git")
+    repo = make_repo(
+        tmp_path,
+        remote="https://x-access-token:ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123@github.com/example/repo.git",
+    )
     result = run(*new_args(repo, tmp_path, "--no-previous"))
     assert result.returncode == 0, err(result)
     target = repo / ".work" / "handoffs" / HOP1
@@ -582,12 +642,21 @@ def test_new_hop1_writes_skeleton_and_prints_path(tmp_path):
     assert "\r" not in text
     assert "handoff_shape: 2" in text
     assert f"session_id: {SID_A}" in text
-    assert f"transcript: {real_posix(tmp_path / 'projects' / '-work-repo' / (SID_A + '.jsonl'))}" in text
+    assert (
+        f"transcript: {real_posix(tmp_path / 'projects' / '-work-repo' / (SID_A + '.jsonl'))}"
+        in text
+    )
     assert "previous_handoff" not in text
     assert f"chain:\n  - {HOP1}\n---" in text
     assert f"Read @{real_posix(target)}, confirm its Original goal" in text
-    assert "invoke /session-flow:handoff via the Skill tool; never write a handoff file free-hand." in text
-    assert f"Handoff origin: https://github.com/example/repo.git .work/handoffs/{HOP1}" in text
+    assert (
+        "invoke /session-flow:handoff via the Skill tool; never write a handoff file free-hand."
+        in text
+    )
+    assert (
+        f"Handoff origin: https://github.com/example/repo.git .work/handoffs/{HOP1}"
+        in text
+    )
     assert "ghp_" not in text
     assert "None (first hop)." in text
     assert f"claude --resume {SID_A}" in text
@@ -604,7 +673,9 @@ def test_new_hop1_filled_skeleton_validates_clean(tmp_path):
     repo = make_repo(tmp_path)
     run(*new_args(repo, tmp_path, "--no-previous")).check_returncode()
     target = repo / ".work" / "handoffs" / HOP1
-    target.write_text(fill(target.read_text(encoding="utf-8")), encoding="utf-8", newline="\n")
+    target.write_text(
+        fill(target.read_text(encoding="utf-8")), encoding="utf-8", newline="\n"
+    )
     result = run("validate", str(target), "--strict-transcript")
     assert result.returncode == 0, out(result) + err(result)
     assert "FAIL" not in out(result) and "WARN" not in out(result)
@@ -618,8 +689,19 @@ def test_new_hop2_from_shape2_carries_chain_rows_and_tags(tmp_path):
     handoffs = repo / ".work" / "handoffs"
     run(*new_args(repo, tmp_path, "--no-previous")).check_returncode()
     hop1 = handoffs / HOP1
-    hop1.write_text(fill(hop1.read_text(encoding="utf-8")), encoding="utf-8", newline="\n")
-    result = run(*new_args(repo, tmp_path, "--previous", str(hop1), sid=SID_B, now="2026-09-02T10:00:00Z"))
+    hop1.write_text(
+        fill(hop1.read_text(encoding="utf-8")), encoding="utf-8", newline="\n"
+    )
+    result = run(
+        *new_args(
+            repo,
+            tmp_path,
+            "--previous",
+            str(hop1),
+            sid=SID_B,
+            now="2026-09-02T10:00:00Z",
+        )
+    )
     assert result.returncode == 0, err(result)
     hop2 = handoffs / HOP2
     text = hop2.read_text(encoding="utf-8")
@@ -629,7 +711,10 @@ def test_new_hop2_from_shape2_carries_chain_rows_and_tags(tmp_path):
     assert "> Do the thing." in text
     assert "- [h1] The thing must stay green." in text
     assert "<!-- FILL: constraints-new" in text and "[h2]" in text
-    assert f"| 2026-09-01T10:00:00Z | {SID_A} | " in text and f"| did: did the thing · left: the rest | {HOP1} |" in text
+    assert (
+        f"| 2026-09-01T10:00:00Z | {SID_A} | " in text
+        and f"| did: did the thing · left: the rest | {HOP1} |" in text
+    )
     assert "None (first hop)." not in text
     hop2.write_text(fill(text), encoding="utf-8", newline="\n")
     validated = run("validate", str(hop2), "--strict-transcript")
@@ -643,17 +728,44 @@ def test_new_hop2_from_shape1_legacy_tags_and_points(tmp_path):
     handoffs.mkdir()
     legacy = handoffs / LEGACY
     shutil.copy(FIXTURES / "legacy-14" / "handoffs" / LEGACY, legacy)
-    result = run(*new_args(repo, tmp_path, "--previous", str(legacy), sid=SID_B, now="2026-09-02T10:00:00Z"))
+    result = run(
+        *new_args(
+            repo,
+            tmp_path,
+            "--previous",
+            str(legacy),
+            sid=SID_B,
+            now="2026-09-02T10:00:00Z",
+        )
+    )
     assert result.returncode == 0, err(result)
     hop2 = handoffs / HOP2
     text = hop2.read_text(encoding="utf-8")
     assert f"chain:\n  - {LEGACY}\n  - {HOP2}\n---" in text
-    assert f"Opening ask: see {LEGACY} § Original goal (shape-1 root, no verbatim ask recorded)" in text
-    assert "> Make the widget importer idempotent so a re-run never duplicates rows." in text
-    assert "- [h1] The public `WidgetReader` signature is frozen; two downstream repos compile against it." in text
-    assert "- [h1] Migration `20260901_add_widget_index` is APPLIED to the local database; do not re-run." in text
-    assert "UNVERIFIED (shape-1 predecessor; brief: Purpose: finish the importer dedup key." in text
-    assert "| 11111111-1111-4111-8111-111111111111 | unresolved (session 11111111-1111-4111-8111-111111111111" in text
+    assert (
+        f"Opening ask: see {LEGACY} § Original goal (shape-1 root, no verbatim ask recorded)"
+        in text
+    )
+    assert (
+        "> Make the widget importer idempotent so a re-run never duplicates rows."
+        in text
+    )
+    assert (
+        "- [h1] The public `WidgetReader` signature is frozen; two downstream repos compile against it."
+        in text
+    )
+    assert (
+        "- [h1] Migration `20260901_add_widget_index` is APPLIED to the local database; do not re-run."
+        in text
+    )
+    assert (
+        "UNVERIFIED (shape-1 predecessor; brief: Purpose: finish the importer dedup key."
+        in text
+    )
+    assert (
+        "| 11111111-1111-4111-8111-111111111111 | unresolved (session 11111111-1111-4111-8111-111111111111"
+        in text
+    )
     hop2.write_text(fill(text), encoding="utf-8", newline="\n")
     validated = run("validate", str(hop2), "--strict-transcript")
     assert validated.returncode == 0, out(validated) + err(validated)
@@ -665,13 +777,27 @@ def test_new_hop2_from_seven_section_legacy_maps_absent_sections(tmp_path):
     handoffs.mkdir()
     legacy = handoffs / LEGACY7
     shutil.copy(FIXTURES / "legacy-7" / "handoffs" / LEGACY7, legacy)
-    result = run(*new_args(repo, tmp_path, "--previous", str(legacy), sid=SID_B, now="2026-09-02T10:00:00Z"))
+    result = run(
+        *new_args(
+            repo,
+            tmp_path,
+            "--previous",
+            str(legacy),
+            sid=SID_B,
+            now="2026-09-02T10:00:00Z",
+        )
+    )
     assert result.returncode == 0, err(result)
     text = (handoffs / HOP2).read_text(encoding="utf-8")
     assert "<!-- FILL: goal — RECONSTRUCTED from the transcript" in text
     assert "None. (shape-1 predecessor had no Constraints that must hold)" in text
-    assert "None. (shape-1 predecessor had no Findings that cost effort to discover)" in text
-    assert "UNVERIFIED (shape-1 predecessor; brief: no Resumption brief section)" in text
+    assert (
+        "None. (shape-1 predecessor had no Findings that cost effort to discover)"
+        in text
+    )
+    assert (
+        "UNVERIFIED (shape-1 predecessor; brief: no Resumption brief section)" in text
+    )
     unfinished = run("validate", str(handoffs / HOP2))
     assert unfinished.returncode == 1
     hop2 = handoffs / HOP2
@@ -686,11 +812,26 @@ def test_new_hop2_from_malformed_shape2_marks_carried_rows_unverified(tmp_path):
     handoffs.mkdir()
     bad = handoffs / HOP1
     shutil.copy(FIXTURES / "malformed-predecessor" / "handoffs" / HOP1, bad)
-    result = run(*new_args(repo, tmp_path, "--previous", str(bad), sid=SID_B, now="2026-09-02T10:00:00Z"))
+    result = run(
+        *new_args(
+            repo,
+            tmp_path,
+            "--previous",
+            str(bad),
+            sid=SID_B,
+            now="2026-09-02T10:00:00Z",
+        )
+    )
     assert result.returncode == 0, err(result)
     text = (handoffs / HOP2).read_text(encoding="utf-8")
-    assert "- [h1] UNVERIFIED (predecessor failed validation): The public `WidgetReader` signature is frozen." in text
-    assert bad.read_bytes() == (FIXTURES / "malformed-predecessor" / "handoffs" / HOP1).read_bytes()
+    assert (
+        "- [h1] UNVERIFIED (predecessor failed validation): The public `WidgetReader` signature is frozen."
+        in text
+    )
+    assert (
+        bad.read_bytes()
+        == (FIXTURES / "malformed-predecessor" / "handoffs" / HOP1).read_bytes()
+    )
 
 
 def test_new_hop2_from_relocated_predecessor_carries_rows_verified(tmp_path):
@@ -705,12 +846,23 @@ def test_new_hop2_from_relocated_predecessor_carries_rows_verified(tmp_path):
     assert stored in text
     # Same basename under a root that no longer exists: what copying a chain
     # out of a removed worktree leaves behind.
-    text = text.replace(stored, f"Read @/work/elsewhere/removed-worktree/.work/handoffs/{HOP1},")
+    text = text.replace(
+        stored, f"Read @/work/elsewhere/removed-worktree/.work/handoffs/{HOP1},"
+    )
     hop1.write_text(text, encoding="utf-8", newline="\n")
     relocated = run("validate", str(hop1), "--projects-root", projects_root(tmp_path))
     assert relocated.returncode == 0, out(relocated) + err(relocated)
     assert "WARN" in out(relocated)
-    result = run(*new_args(repo, tmp_path, "--previous", str(hop1), sid=SID_B, now="2026-09-02T10:00:00Z"))
+    result = run(
+        *new_args(
+            repo,
+            tmp_path,
+            "--previous",
+            str(hop1),
+            sid=SID_B,
+            now="2026-09-02T10:00:00Z",
+        )
+    )
     assert result.returncode == 0, err(result)
     carried = (handoffs / HOP2).read_text(encoding="utf-8")
     assert "UNVERIFIED" not in carried, carried
@@ -736,7 +888,10 @@ def test_new_unresolved_transcript_is_recorded_honestly(tmp_path):
     result = run(*new_args(repo, tmp_path, "--no-previous", sid=sid))
     assert result.returncode == 0, err(result)
     text = (repo / ".work" / "handoffs" / HOP1).read_text(encoding="utf-8")
-    assert f"transcript: unresolved (session {sid}, projects-root {projects_root(tmp_path)})" in text
+    assert (
+        f"transcript: unresolved (session {sid}, projects-root {projects_root(tmp_path)})"
+        in text
+    )
 
 
 def test_new_refuses_without_session_uuid(tmp_path):
@@ -749,7 +904,9 @@ def test_new_refuses_without_session_uuid(tmp_path):
     bridge_only = dict(env, CLAUDE_CODE_BRIDGE_SESSION_ID=SID_A)
     ignored = run(*args, env=bridge_only)
     assert ignored.returncode == 1 and "CLAUDE_CODE_SESSION_ID unset" in err(ignored)
-    bridge_shaped = run(*new_args(repo, tmp_path, "--no-previous", sid="cse_0123456789abcdef"))
+    bridge_shaped = run(
+        *new_args(repo, tmp_path, "--no-previous", sid="cse_0123456789abcdef")
+    )
     assert bridge_shaped.returncode == 1 and "not a UUID" in err(bridge_shaped)
     assert not (repo / ".work" / "handoffs").exists()
 
@@ -761,7 +918,9 @@ def test_new_reads_session_id_from_env(tmp_path):
     del args[args.index("--session-id") : args.index("--session-id") + 2]
     result = run(*args, env=env)
     assert result.returncode == 0, err(result)
-    assert f"session_id: {SID_B}" in (repo / ".work" / "handoffs" / HOP1).read_text(encoding="utf-8")
+    assert f"session_id: {SID_B}" in (repo / ".work" / "handoffs" / HOP1).read_text(
+        encoding="utf-8"
+    )
 
 
 def test_new_refuses_memory_root_without_self_ignore_guard(tmp_path):
@@ -774,7 +933,9 @@ def test_new_refuses_memory_root_without_self_ignore_guard(tmp_path):
     assert not (repo / ".work" / "handoffs").exists()
 
 
-def test_new_outside_any_git_repo_still_requires_guard_and_uses_absolute_origin_path(tmp_path):
+def test_new_outside_any_git_repo_still_requires_guard_and_uses_absolute_origin_path(
+    tmp_path,
+):
     shutil.copytree(FIXTURES / "projects", tmp_path / "projects", dirs_exist_ok=True)
     memory = tmp_path / "plugin-data" / "topic-docs"
     memory.mkdir(parents=True)
@@ -832,7 +993,11 @@ def test_new_refuses_predecessor_outside_handoffs_dir(tmp_path):
     result = run(*new_args(repo, tmp_path, "--previous", str(stray)))
     assert result.returncode == 1
     assert "must live in the handoffs dir" in err(result)
-    missing = run(*new_args(repo, tmp_path, "--previous", str(repo / ".work" / "handoffs" / "nope.md")))
+    missing = run(
+        *new_args(
+            repo, tmp_path, "--previous", str(repo / ".work" / "handoffs" / "nope.md")
+        )
+    )
     assert missing.returncode == 1
 
 
@@ -845,30 +1010,53 @@ def test_new_hop2_places_the_new_slot_above_a_carried_superseded_marker(tmp_path
     live = "- [h1] The thing must stay green."
     assert live in filled
     hop1.write_text(
-        filled.replace(live, live + "\n\nSuperseded:\n- [h1] The old thing, since disproved."),
+        filled.replace(
+            live, live + "\n\nSuperseded:\n- [h1] The old thing, since disproved."
+        ),
         encoding="utf-8",
         newline="\n",
     )
     run("validate", str(hop1), "--strict-transcript").check_returncode()
 
-    run(*new_args(repo, tmp_path, "--previous", str(hop1), sid=SID_B, now="2026-09-02T10:00:00Z")).check_returncode()
+    run(
+        *new_args(
+            repo,
+            tmp_path,
+            "--previous",
+            str(hop1),
+            sid=SID_B,
+            now="2026-09-02T10:00:00Z",
+        )
+    ).check_returncode()
     hop2 = handoffs / HOP2
     section = _section_body(hop2, "Constraints that must hold").split("\n")
-    slot_index = next(i for i, line in enumerate(section) if line.startswith("<!-- FILL: constraints-new"))
-    marker_index = next(i for i, line in enumerate(section) if line.startswith("Superseded:"))
+    slot_index = next(
+        i
+        for i, line in enumerate(section)
+        if line.startswith("<!-- FILL: constraints-new")
+    )
+    marker_index = next(
+        i for i, line in enumerate(section) if line.startswith("Superseded:")
+    )
     assert slot_index < marker_index, section
 
     entry = "- [h2] A constraint this hop discovered."
     text = hop2.read_text(encoding="utf-8")
     assert section[slot_index] in text
-    hop2.write_text(fill(text.replace(section[slot_index], entry)), encoding="utf-8", newline="\n")
+    hop2.write_text(
+        fill(text.replace(section[slot_index], entry)), encoding="utf-8", newline="\n"
+    )
     validated = run("validate", str(hop2), "--strict-transcript")
     assert validated.returncode == 0, out(validated) + err(validated)
 
     # The placement is only worth anything if the parser agrees: an entry
     # filled into the slot is live, not superseded.
     body = _section_body(hop2, "Constraints that must hold").split("\n")
-    parsed = [e for e in _save_point_module().parse_entries(body) if e.normalized.endswith("A constraint this hop discovered.")]
+    parsed = [
+        e
+        for e in _save_point_module().parse_entries(body)
+        if e.normalized.endswith("A constraint this hop discovered.")
+    ]
     assert len(parsed) == 1, body
     assert not parsed[0].superseded, body
 
@@ -889,12 +1077,23 @@ def test_new_hop2_leaves_a_multi_paragraph_opening_ask_behind_the_pointer(tmp_pa
     first = run("validate", str(hop1), "--strict-transcript")
     assert first.returncode == 0, out(first) + err(first)
 
-    run(*new_args(repo, tmp_path, "--previous", str(hop1), sid=SID_B, now="2026-09-02T10:00:00Z")).check_returncode()
+    run(
+        *new_args(
+            repo,
+            tmp_path,
+            "--previous",
+            str(hop1),
+            sid=SID_B,
+            now="2026-09-02T10:00:00Z",
+        )
+    ).check_returncode()
     hop2 = handoffs / HOP2
     goal = _section_body(hop2, "Original goal")
     assert "Second paragraph of the very same opening ask." not in goal, goal
     assert f"Opening ask: see {HOP1} § Original goal" in goal, goal
-    hop2.write_text(fill(hop2.read_text(encoding="utf-8")), encoding="utf-8", newline="\n")
+    hop2.write_text(
+        fill(hop2.read_text(encoding="utf-8")), encoding="utf-8", newline="\n"
+    )
     validated = run("validate", str(hop2), "--strict-transcript")
     assert validated.returncode == 0, out(validated) + err(validated)
     assert "WARN" not in out(validated)
@@ -927,7 +1126,10 @@ def test_validate_refuses_a_predecessor_symlinked_out_of_the_handoffs_dir(tmp_pa
     shutil.move(str(handoffs / HOP1), str(real))
     try:
         (handoffs / HOP1).symlink_to(real)
-    except (OSError, NotImplementedError) as exc:  # unprivileged Windows, or a filesystem without symlinks
+    except (
+        OSError,
+        NotImplementedError,
+    ) as exc:  # unprivileged Windows, or a filesystem without symlinks
         pytest.skip(f"symlink creation unavailable: {exc}")
     result = run("validate", str(handoffs / HOP2), "--strict-transcript")
     assert result.returncode == 1, out(result) + err(result)

@@ -46,6 +46,15 @@ UNRELATED="$(mktemp -d)"
 cleanup() { rm -rf "$WORK" "$UNRELATED"; }
 trap cleanup EXIT
 
+# ctx_of <hook-stdout> / sys_of <hook-stdout> -> the one disclosure channel,
+# empty when the key is absent or the document does not parse.
+ctx_of() {
+  printf '%s' "$1" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null
+}
+sys_of() {
+  printf '%s' "$1" | jq -r '.systemMessage // empty' 2>/dev/null
+}
+
 # make_sink <body> -> path to an executable single-command stub sink running
 # <body> (which reads the envelope on stdin). HOOK_TELEMETRY_SINK must be a
 # single executable path, not a command-with-args, so tests point it at a stub.
@@ -87,24 +96,10 @@ new_typos_repo() {
   fi
 }
 
-# Invoke the hook from an unrelated cwd. CLAUDE_PROJECT_DIR is left UNSET so
-# read_file_path's membership guard is disabled (not part of the fire gate);
-# this isolates gate/fix behavior from path-form mismatch in the guard.
-# Write mode is opted IN here: these cases exercise the fix/config contract,
-# which only exists under the opt-in. The report-only DEFAULT has its own
-# cases (stub/default-report-only and the explicit-false override below).
-run_hook() {
-  local file_path="$1"
-  (
-    cd "$UNRELATED" || return 1
-    printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$file_path" |
-      env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED=true \
-        CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_WRITE_CHANGES=true \
-        PATH="$(dirname "$REAL_TYPOS"):$PATH" bash "$HOOK"
-  )
-}
-
-# Same as run_hook but with caller-supplied extra env (NAME=VALUE ...).
+# Invoke the hook from an unrelated cwd with caller-supplied env
+# (NAME=VALUE ...). CLAUDE_PROJECT_DIR is left UNSET so read_file_path's
+# membership guard is disabled (not part of the fire gate); this isolates
+# gate/fix behavior from path-form mismatch in the guard.
 run_hook_env() {
   local file_path="$1"
   shift
@@ -113,6 +108,16 @@ run_hook_env() {
     printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$file_path" |
       env -u CLAUDE_PROJECT_DIR "$@" bash "$HOOK"
   )
+}
+
+# The plain real-binary run. Write mode is opted IN here: these cases exercise
+# the fix/config contract, which only exists under the opt-in. The report-only
+# DEFAULT has its own cases (stub/default-report-only and the explicit-false
+# override below).
+run_hook() {
+  run_hook_env "$1" CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED=true \
+    CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_WRITE_CHANGES=true \
+    PATH="$(dirname "$REAL_TYPOS"):$PATH"
 }
 
 # ============================================================================
@@ -268,20 +273,29 @@ STUB
 # spellchecker:on
 chmod +x "$STUB_BIN/typos"
 
-# Invoke the hook with the stub on PATH, in opted-in write mode (the
-# disclosure contract below is about the changes write mode makes). A caller's
-# own trailing env assignments win over the opt-in (env is last-wins), so the
-# explicit-false override case can still pass WRITE_CHANGES=false here.
-run_stub() {
-  local file_path="$1"
+# Feed a ready-made payload to the hook with the stub on PATH, in opted-in
+# write mode (the disclosure contract below is about the changes write mode
+# makes). A caller's own trailing env assignments win over the opt-in (env is
+# last-wins), so the explicit-false override case can still pass
+# WRITE_CHANGES=false here.
+run_stub_payload() {
+  local payload="$1"
   shift
   (
     cd "$UNRELATED" || return 1
-    printf '{"session_id":"stub-1","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$file_path" |
+    printf '%s' "$payload" |
       env -u CLAUDE_PROJECT_DIR PATH="$STUB_BIN:$PATH" \
         CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED=true \
         CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_WRITE_CHANGES=true "$@" bash "$HOOK"
   )
+}
+
+# The Write payload carrying file_path, which most stub cases want.
+run_stub() {
+  local payload
+  payload=$(printf '{"session_id":"stub-1","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$1")
+  shift
+  run_stub_payload "$payload" "$@"
 }
 
 # Invoke the hook with the stub on PATH and NO write-mode option at all — the
@@ -321,8 +335,8 @@ if printf '%s' "$OUT_AP" | jq -e . >/dev/null 2>&1; then
 else
   fail "stub/applied: stdout is not a single JSON document: $OUT_AP"
 fi
-CTX_AP=$(printf '%s' "$OUT_AP" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
-SYS_AP=$(printf '%s' "$OUT_AP" | jq -r '.systemMessage // empty' 2>/dev/null)
+CTX_AP=$(ctx_of "$OUT_AP")
+SYS_AP=$(sys_of "$OUT_AP")
 if printf '%s' "$CTX_AP" | grep -qF '"teh" -> "the"'; then # spellchecker:disable-line
   ok "stub/applied: rewrite disclosed on the agent channel"
 else
@@ -354,13 +368,13 @@ if [[ "$(cat "$STUB_REPO/default.txt")" == "$BEFORE_DEF" ]]; then
 else
   fail "stub/default: out-of-the-box hook modified the file: $(cat "$STUB_REPO/default.txt")"
 fi
-CTX_DEF=$(printf '%s' "$OUT_DEF" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+CTX_DEF=$(ctx_of "$OUT_DEF")
 if printf '%s' "$CTX_DEF" | grep -q 'report-only' && printf '%s' "$CTX_DEF" | grep -q 'teh'; then # spellchecker:disable-line
   ok "stub/default: findings still reported in report-only default"
 else
   fail "stub/default: findings or mode statement missing: $CTX_DEF"
 fi
-if [[ -z "$(printf '%s' "$OUT_DEF" | jq -r '.systemMessage // empty' 2>/dev/null)" ]]; then
+if [[ -z "$(sys_of "$OUT_DEF")" ]]; then
   ok "stub/default: no user-channel message (nothing was mutated)"
 else
   fail "stub/default: emitted a systemMessage without mutating anything"
@@ -400,13 +414,13 @@ if [[ "$(cat "$STUB_REPO/readonly.txt")" == "$BEFORE_RO" ]]; then
 else
   fail "stub/report-only: file was modified: $(cat "$STUB_REPO/readonly.txt")"
 fi
-CTX_RO=$(printf '%s' "$OUT_RO" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+CTX_RO=$(ctx_of "$OUT_RO")
 if printf '%s' "$CTX_RO" | grep -q 'report-only' && printf '%s' "$CTX_RO" | grep -q 'NOT modified'; then
   ok "stub/report-only: mode is stated in the report"
 else
   fail "stub/report-only: mode not stated: $CTX_RO"
 fi
-if [[ -z "$(printf '%s' "$OUT_RO" | jq -r '.systemMessage // empty' 2>/dev/null)" ]]; then
+if [[ -z "$(sys_of "$OUT_RO")" ]]; then
   ok "stub/report-only: no user-channel message (nothing was mutated)"
 else
   fail "stub/report-only: emitted a systemMessage without mutating anything"
@@ -427,7 +441,7 @@ if [[ "$(cat "$STUB_REPO/fixture.snap")" == "$BEFORE_SNAP" ]]; then
 else
   fail "stub/write-ext-deny: denied extension was rewritten: $(cat "$STUB_REPO/fixture.snap")"
 fi
-CTX_SNAP=$(printf '%s' "$OUT_SNAP" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+CTX_SNAP=$(ctx_of "$OUT_SNAP")
 if printf '%s' "$CTX_SNAP" | grep -qi 'allowlist' && printf '%s' "$CTX_SNAP" | grep -q 'teh'; then # spellchecker:disable-line
   ok "stub/write-ext-deny: findings reported with write-allowlist skip note"
 else
@@ -438,7 +452,7 @@ if printf '%s' "$CTX_SNAP" | grep -q 'REWROTE'; then
 else
   ok "stub/write-ext-deny: no rewrite claimed"
 fi
-if [[ -z "$(printf '%s' "$OUT_SNAP" | jq -r '.systemMessage // empty' 2>/dev/null)" ]]; then
+if [[ -z "$(sys_of "$OUT_SNAP")" ]]; then
   ok "stub/write-ext-deny: no user-channel mutation message"
 else
   fail "stub/write-ext-deny: emitted a systemMessage without mutating anything"
@@ -455,7 +469,7 @@ if [[ "$(cat "$STUB_REPO/package-lock.json")" == "$BEFORE_LOCK" ]]; then
 else
   fail "stub/write-lockfile-deny: lockfile was rewritten: $(cat "$STUB_REPO/package-lock.json")"
 fi
-CTX_LOCK=$(printf '%s' "$OUT_LOCK" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+CTX_LOCK=$(ctx_of "$OUT_LOCK")
 if printf '%s' "$CTX_LOCK" | grep -qi 'lockfile basename' && printf '%s' "$CTX_LOCK" | grep -q 'teh'; then # spellchecker:disable-line
   ok "stub/write-lockfile-deny: findings reported with lockfile skip note"
 else
@@ -476,7 +490,7 @@ if [[ "$(cat "$STUB_REPO/LICENSE")" == "$BEFORE_LIC" ]]; then
 else
   fail "stub/write-ext-deny-extensionless: rewritten: $(cat "$STUB_REPO/LICENSE")"
 fi
-CTX_LIC=$(printf '%s' "$OUT_LIC" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+CTX_LIC=$(ctx_of "$OUT_LIC")
 if printf '%s' "$CTX_LIC" | grep -qi 'no extension' && printf '%s' "$CTX_LIC" | grep -q 'teh'; then # spellchecker:disable-line
   ok "stub/write-ext-deny-extensionless: findings reported with extensionless skip note"
 else
@@ -492,7 +506,7 @@ if grep -q ' the ' "$STUB_REPO/prose.md"; then
 else
   fail "stub/write-ext-allow: allowlisted .md not rewritten: $(cat "$STUB_REPO/prose.md")"
 fi
-CTX_MD=$(printf '%s' "$OUT_MD" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+CTX_MD=$(ctx_of "$OUT_MD")
 if printf '%s' "$CTX_MD" | grep -qF '"teh" -> "the"'; then # spellchecker:disable-line
   ok "stub/write-ext-allow: allowlisted rewrite still disclosed"
 else
@@ -502,7 +516,7 @@ fi
 # --- Applied + residual in one run: both sections, one document --------------
 printf 'this has teh typo and wnat and a disallowme term\n' >"$STUB_REPO/both.txt" # spellchecker:disable-line
 OUT_BOTH=$(run_stub "$STUB_REPO/both.txt")
-CTX_BOTH=$(printf '%s' "$OUT_BOTH" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+CTX_BOTH=$(ctx_of "$OUT_BOTH")
 if printf '%s' "$CTX_BOTH" | grep -qF '"teh" -> "the"' && # spellchecker:disable-line
   printf '%s' "$CTX_BOTH" | grep -q 'disallowme' &&
   printf '%s' "$CTX_BOTH" | grep -q 'wnat'; then # spellchecker:disable-line
@@ -524,7 +538,7 @@ fi
 # null-correction residuals stay on the disallowed arm.
 printf 'this has wnat and a disallowme term\n' >"$STUB_REPO/multi-residual.txt" # spellchecker:disable-line
 OUT_MR=$(run_stub "$STUB_REPO/multi-residual.txt")
-CTX_MR=$(printf '%s' "$OUT_MR" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+CTX_MR=$(ctx_of "$OUT_MR")
 # Exact multi-candidate shape — quoting only want (corrections[0]) is the bug.
 if printf '%s' "$CTX_MR" | grep -qF '"wnat" (line 1) should be want or what (ambiguous — typos will not auto-correct this).'; then # spellchecker:disable-line
   ok "stub/multi-candidate-residual: ambiguous findings list every candidate"
@@ -546,7 +560,7 @@ fi
 # quote the one correction as a definite suggestion (not the ambiguous form).
 printf 'this has teh typo\n' >"$STUB_REPO/single-residual.txt" # spellchecker:disable-line
 OUT_SR1=$(run_stub_default "$STUB_REPO/single-residual.txt")
-CTX_SR1=$(printf '%s' "$OUT_SR1" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+CTX_SR1=$(ctx_of "$OUT_SR1")
 if printf '%s' "$CTX_SR1" | grep -qF '"teh" (line 1) should be "the".'; then # spellchecker:disable-line
   ok "stub/single-candidate-residual: single correction still renders as a definite suggestion"
 else
@@ -581,7 +595,7 @@ if [[ "$(cat "$STUB_REPO/reflow.txt")" == "$BEFORE_RF" ]]; then
 else
   fail "stub/reflow: stub wrote to a file with no fixable finding: $(cat "$STUB_REPO/reflow.txt")"
 fi
-CTX_RF=$(printf '%s' "$OUT_RF" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+CTX_RF=$(ctx_of "$OUT_RF")
 if printf '%s' "$CTX_RF" | grep -qF '"wnat" ->'; then # spellchecker:disable-line
   fail "stub/reflow: moved residual reported as an applied rewrite: $CTX_RF"
 else
@@ -592,7 +606,7 @@ if printf '%s' "$CTX_RF" | grep -q 'wnat'; then # spellchecker:disable-line
 else
   fail "stub/reflow: moved residual vanished from the report entirely: $CTX_RF"
 fi
-if [[ -z "$(printf '%s' "$OUT_RF" | jq -r '.systemMessage // empty' 2>/dev/null)" ]]; then
+if [[ -z "$(sys_of "$OUT_RF")" ]]; then
   ok "stub/reflow: no user-channel mutation message (nothing was mutated)"
 else
   fail "stub/reflow: claimed a mutation that never happened: $(printf '%s' "$OUT_RF" | jq -r '.systemMessage')"
@@ -625,7 +639,7 @@ rm -f "$TELRF"
 # and survives. Exactly one rewrite happened, on line 1.
 printf 'this has teh typo\nkeepteh line has teh here\n' >"$STUB_REPO/mixed.txt" # spellchecker:disable-line
 OUT_MX=$(run_stub "$STUB_REPO/mixed.txt" STUB_MIXED=1)
-CTX_MX=$(printf '%s' "$OUT_MX" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+CTX_MX=$(ctx_of "$OUT_MX")
 if printf '%s' "$CTX_MX" | grep -qF '"teh" -> "the" (line 1)'; then # spellchecker:disable-line
   ok "stub/mixed: the rewrite that happened is disclosed at its own line"
 else
@@ -652,7 +666,7 @@ fi
 # reported as residual gets it right whenever nothing moved.
 printf 'a has teh one\nkeepteh has teh two\nc has teh three\n' >"$STUB_REPO/partial.txt" # spellchecker:disable-line
 OUT_PT=$(run_stub "$STUB_REPO/partial.txt" STUB_PARTIAL=1)
-CTX_PT=$(printf '%s' "$OUT_PT" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+CTX_PT=$(ctx_of "$OUT_PT")
 if printf '%s' "$CTX_PT" | grep -qF '(line 1)' && printf '%s' "$CTX_PT" | grep -qF '(line 3)'; then
   ok "stub/partial: both real rewrites are attributed to their own lines"
 else
@@ -693,7 +707,7 @@ for _i in $(seq 1 "$PARTIAL_N"); do
   fi
 done
 OUT_PS=$(run_stub "$STUB_REPO/partial-scale.txt" STUB_PARTIAL=1)
-CTX_PS=$(printf '%s' "$OUT_PS" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+CTX_PS=$(ctx_of "$OUT_PS")
 if printf '%s' "$CTX_PS" | grep -q "REWROTE $((PARTIAL_N - 2)) word"; then
   ok "stub/partial-scale: the applied count is exact across $PARTIAL_N repeats of one token"
 else
@@ -708,7 +722,7 @@ for _i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
   printf 'line with teh typo\n' >>"$STUB_REPO/many.txt" # spellchecker:disable-line
 done
 OUT_MANY=$(run_stub "$STUB_REPO/many.txt")
-CTX_MANY=$(printf '%s' "$OUT_MANY" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+CTX_MANY=$(ctx_of "$OUT_MANY")
 DETAIL_LINES=$(printf '%s' "$CTX_MANY" | grep -cF '(line ')
 if [[ "$DETAIL_LINES" -eq 10 ]]; then
   ok "stub/cap: per-word detail capped at 10 lines (got $DETAIL_LINES)"
@@ -768,7 +782,7 @@ done
 SCALE_START=$(date +%s)
 OUT_SC=$(run_stub "$STUB_REPO/scale.txt")
 SCALE_ELAPSED=$(($(date +%s) - SCALE_START))
-CTX_SC=$(printf '%s' "$OUT_SC" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+CTX_SC=$(ctx_of "$OUT_SC")
 if printf '%s' "$CTX_SC" | grep -q "REWROTE $SCALE_N word"; then
   ok "stub/scale: $SCALE_N corrections are disclosed, not dropped"
 else
@@ -839,7 +853,7 @@ done
 RES_START=$(date +%s)
 OUT_SR=$(run_stub "$STUB_REPO/scale-residual.txt")
 RES_ELAPSED=$(($(date +%s) - RES_START))
-CTX_SR=$(printf '%s' "$OUT_SR" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+CTX_SR=$(ctx_of "$OUT_SR")
 if printf '%s' "$CTX_SR" | grep -q "$((SCALE_N * 2)) finding(s)\|residual typos findings"; then
   ok "stub/scale-residual: an all-residual set of $((SCALE_N * 2)) findings is still reported"
 else
@@ -882,7 +896,7 @@ for _i in $(seq 1 "$DEEP_N"); do
   printf 'line %s has wnat here\n' "$_i" >>"$STUB_REPO/deep-residual.txt" # spellchecker:disable-line
 done
 OUT_DR=$(run_stub "$STUB_REPO/deep-residual.txt")
-CTX_DR=$(printf '%s' "$OUT_DR" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+CTX_DR=$(ctx_of "$OUT_DR")
 # The count is asserted against the overflow line, which carries the real
 # number. Grepping for the words "residual typos findings" cannot fail on it:
 # an all-residual run prints that phrase whether it carried 5000 findings or
@@ -919,8 +933,8 @@ for _i in 1 2 3 4 5 6 7 8 9 10 11 12; do
   printf 'line %s has teh typo\n' "$_i" >>"$STUB_REPO/longtok.txt" # spellchecker:disable-line
 done
 OUT_LT=$(run_stub "$STUB_REPO/longtok.txt" STUB_LONG=1)
-SYS_LT=$(printf '%s' "$OUT_LT" | jq -r '.systemMessage // empty' 2>/dev/null)
-CTX_LT=$(printf '%s' "$OUT_LT" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+SYS_LT=$(sys_of "$OUT_LT")
+CTX_LT=$(ctx_of "$OUT_LT")
 if [[ -n "$SYS_LT" && "${#SYS_LT}" -lt 10000 ]]; then
   ok "stub/long: systemMessage stays under the 10,000-character channel cap (${#SYS_LT})"
 else
@@ -981,15 +995,10 @@ fi
 # notebook_path must produce the byte-identical disclosure a Write carrying
 # file_path does.
 run_stub_notebook() {
-  local notebook_path="$1"
+  local payload
+  payload=$(printf '{"session_id":"stub-1","tool_input":{"notebook_path":"%s","new_source":"x"},"tool_name":"NotebookEdit"}' "$1")
   shift
-  (
-    cd "$UNRELATED" || return 1
-    printf '{"session_id":"stub-1","tool_input":{"notebook_path":"%s","new_source":"x"},"tool_name":"NotebookEdit"}' "$notebook_path" |
-      env -u CLAUDE_PROJECT_DIR PATH="$STUB_BIN:$PATH" \
-        CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED=true \
-        CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_WRITE_CHANGES=true "$@" bash "$HOOK"
-  )
+  run_stub_payload "$payload" "$@"
 }
 
 NB="$STUB_REPO/notebook.ipynb"
@@ -997,9 +1006,9 @@ printf '{"cells":[{"source":["this has teh typo"]}]}\n' >"$NB" # spellchecker:di
 NB_BEFORE="$(cat "$NB")"
 OUT_NB=$(run_stub_notebook "$NB")
 RC_NB=$?
-CTX_NB=$(printf '%s' "$OUT_NB" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+CTX_NB=$(ctx_of "$OUT_NB")
 OUT_NBW=$(run_stub "$NB")
-CTX_NBW=$(printf '%s' "$OUT_NBW" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+CTX_NBW=$(ctx_of "$OUT_NBW")
 if [[ $RC_NB -eq 0 ]]; then
   ok "notebook/payload: exit 0 (advisory)"
 else
@@ -1035,7 +1044,7 @@ OUT_BOTH=$(
       CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED=true \
       CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_WRITE_CHANGES=true bash "$HOOK"
 )
-CTX_BOTH=$(printf '%s' "$OUT_BOTH" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+CTX_BOTH=$(ctx_of "$OUT_BOTH")
 if printf '%s' "$CTX_BOTH" | grep -qF 'both.txt' && ! printf '%s' "$CTX_BOTH" | grep -qF 'notebook.ipynb'; then
   ok "notebook/precedence: an explicit file_path wins over notebook_path"
 else
@@ -1046,7 +1055,7 @@ fi
 printf 'this has teh typo and wnat too\n' >"$STUB_REPO/break.txt" # spellchecker:disable-line
 OUT_BR=$(run_stub "$STUB_REPO/break.txt" STUB_BREAK=1)
 RC_BR=$?
-CTX_BR=$(printf '%s' "$OUT_BR" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+CTX_BR=$(ctx_of "$OUT_BR")
 if [[ $RC_BR -eq 0 ]] && printf '%s' "$CTX_BR" | grep -q 'tool break'; then
   ok "stub/write-break: exit 2 with empty output is reported as a tool break"
 else
@@ -1057,7 +1066,7 @@ if printf '%s' "$CTX_BR" | grep -q 'REWROTE'; then
 else
   ok "stub/write-break: no rewrite is claimed when the write never completed"
 fi
-if [[ -z "$(printf '%s' "$OUT_BR" | jq -r '.systemMessage // empty' 2>/dev/null)" ]]; then
+if [[ -z "$(sys_of "$OUT_BR")" ]]; then
   ok "stub/write-break: no user-channel mutation notice for a write that broke"
 else
   fail "stub/write-break: emitted a mutation notice for a broken write"
@@ -1497,7 +1506,7 @@ if printf '%s' "$CTX_MIXED" | grep -q 'disallowme' && printf '%s' "$CTX_MIXED" |
 else
   fail "mixed case: reporting wrong: $CTX_MIXED"
 fi
-SYS_MIXED=$(printf '%s' "$OUT" | jq -r '.systemMessage // empty' 2>/dev/null)
+SYS_MIXED=$(sys_of "$OUT")
 if printf '%s' "$SYS_MIXED" | grep -qF "\"$FIXED_TYPO\" -> \"the\""; then
   ok "mixed fixable+unfixable -> applied rewrite also disclosed on the user channel"
 else
@@ -1651,7 +1660,6 @@ rm -f "$TELS"
 FAKEBIN="$(mktemp -d "$WORK/fakebin.XXXXXX")"
 for t in bash jq git dirname basename cat env printf mktemp mkdir find tr awk grep sed uname sleep cygpath realpath readlink; do
   real_t="$(command -v "$t" 2>/dev/null)" || continue
-  [[ -n "$real_t" ]] || continue
   printf '#!/bin/sh\nexec "%s" "$@"\n' "$real_t" >"$FAKEBIN/$t"
   chmod +x "$FAKEBIN/$t"
 done

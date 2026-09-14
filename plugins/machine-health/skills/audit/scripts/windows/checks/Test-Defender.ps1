@@ -27,7 +27,6 @@ try {
             -Severity 'UNKNOWN' -Summary 'Defender cmdlets unavailable.' -Commands $commands `
             -RanSuccessfully $false `
             -ErrorMessage 'Get-MpComputerStatus not found. Is the Defender PowerShell module present?' `
-            -DurationMs ([int]$sw.ElapsedMilliseconds) `
             -Notes 'Module may be blocked by policy or absent on Windows Server Core.'
     } else {
         $status = Get-MpComputerStatus -ErrorAction Stop
@@ -143,16 +142,11 @@ try {
         $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
             -Severity $severity -Summary $summary -Detail $detail -Commands $commands `
             -NeedsAdmin $false -RanSuccessfully $true `
-            -DurationMs ([int]$sw.ElapsedMilliseconds) `
             -Notes $noteAppend
     }
 } catch {
-    $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
-        -Severity 'UNKNOWN' -Summary 'Defender check failed.' -Commands $commands `
-        -RanSuccessfully $false -ErrorMessage $_.Exception.Message `
-        -DurationMs ([int]$sw.ElapsedMilliseconds)
+    $result = New-HealthFailureResult -Id $id -Category $category `
+        -Summary 'Defender check failed.' -Commands $commands -ErrorRecord $_
 }
 
-$sw.Stop()
-$result.duration_ms = [int]$sw.ElapsedMilliseconds
-$result | Write-HealthResult -Human:$Human
+Complete-HealthCheck -Result $result -Stopwatch $sw -Human:$Human

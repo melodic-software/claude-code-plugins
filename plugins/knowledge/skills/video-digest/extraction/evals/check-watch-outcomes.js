@@ -75,7 +75,8 @@ export function loadPromotedTimestampsSec(sliceDir) {
   for (const file of fs.readdirSync(synthesisDir)) {
     if (!file.endsWith(".png")) continue;
     const source = resolveSourceFile(file, promotionMap);
-    const ts = source && byFile[source] ? byFile[source].timestampSec : null;
+    const selected = source ? byFile[source] : null;
+    const ts = selected ? selected.timestampSec : null;
     if (ts !== null && ts !== undefined) timestamps.push(ts);
   }
   return timestamps;
@@ -196,6 +197,14 @@ export function densificationCoverage({ windows, promotedTimestampsSec, visualGa
  */
 
 /**
+ * @param {string} filePath
+ * @returns {string}
+ */
+function readTextIfExists(filePath) {
+  return fs.existsSync(filePath) ? fs.readFileSync(filePath, "utf8") : "";
+}
+
+/**
  * @param {string} sliceDir
  * @returns {WatchOutcomeSlice|null}
  */
@@ -224,15 +233,10 @@ function loadWatchOutcomeSlice(sliceDir) {
   const synthesisCount = fs.existsSync(synthesisDir)
     ? fs.readdirSync(synthesisDir).filter((f) => f.endsWith(".png")).length
     : 0;
-  const visionPlanBody = fs.existsSync(visionPlanPath)
-    ? fs.readFileSync(visionPlanPath, "utf8")
-    : "";
+  const visionPlanBody = readTextIfExists(visionPlanPath);
   const contentClass = detectContentClass(visionPlanBody);
-  const claimBody = fs.existsSync(claimInventoryPath)
-    ? fs.readFileSync(claimInventoryPath, "utf8")
-    : "";
-  const sessions = parseSessionsFromClaimInventory(claimBody);
-  const triageBody = fs.existsSync(triageLogPath) ? fs.readFileSync(triageLogPath, "utf8") : "";
+  const sessions = parseSessionsFromClaimInventory(readTextIfExists(claimInventoryPath));
+  const triageBody = readTextIfExists(triageLogPath);
 
   return {
     sliceDir,
@@ -249,7 +253,7 @@ function loadWatchOutcomeSlice(sliceDir) {
     triageBody,
     triageSheets: countTriageSheetsLogged(triageBody),
     promotedTs: loadPromotedTimestampsSec(sliceDir),
-    visualGapsBody: fs.existsSync(visualGapsPath) ? fs.readFileSync(visualGapsPath, "utf8") : "",
+    visualGapsBody: readTextIfExists(visualGapsPath),
     claimInventoryPath,
     manifestPath,
     qualityAuditPath,
@@ -274,17 +278,19 @@ function pushArtifactAndFloorChecks(checks, slice) {
     contactSheetCount,
   } = slice;
 
+  const visionPlanPresent = visionPlanBody.length > 100;
   checks.push({
     id: "vision-plan",
-    pass: visionPlanBody.length > 100,
-    actual: visionPlanBody.length > 100 ? "present" : "missing",
+    pass: visionPlanPresent,
+    actual: visionPlanPresent ? "present" : "missing",
     expected: "key-frames/vision-plan.md before fan-out",
     severity: "fail",
   });
+  const claimInventoryPresent = fs.existsSync(claimInventoryPath);
   checks.push({
     id: "claim-inventory",
-    pass: fs.existsSync(claimInventoryPath),
-    actual: fs.existsSync(claimInventoryPath) ? "present" : "missing",
+    pass: claimInventoryPresent,
+    actual: claimInventoryPresent ? "present" : "missing",
     expected: "research/claim-inventory.md before research",
     severity: "fail",
   });
@@ -333,10 +339,15 @@ function pushSessionCoverageChecks(checks, slice) {
     severity: "fail",
   });
 
-  const sessionsWithoutFrame = sessions.filter((session) => {
+  const sessionFrameCounts = sessions.map((session) => {
     const end = session.endSec ?? durationSec;
-    return !promotedTs.some((ts) => ts >= session.startSec && ts <= end);
+    return {
+      name: session.name,
+      frameCount: promotedTs.filter((ts) => ts >= session.startSec && ts <= end).length,
+    };
   });
+
+  const sessionsWithoutFrame = sessionFrameCounts.filter((s) => s.frameCount === 0);
   checks.push({
     id: "session-visual-coverage",
     pass: sessionsWithoutFrame.length === 0,
@@ -348,11 +359,7 @@ function pushSessionCoverageChecks(checks, slice) {
     severity: "fail",
   });
 
-  const sessionsBelowFloor = sessions.filter((session) => {
-    const end = session.endSec ?? durationSec;
-    const count = promotedTs.filter((ts) => ts >= session.startSec && ts <= end).length;
-    return count < floors.minPerSession;
-  });
+  const sessionsBelowFloor = sessionFrameCounts.filter((s) => s.frameCount < floors.minPerSession);
   checks.push({
     id: "session-synthesis-depth",
     pass: sessionsBelowFloor.length === 0,
@@ -461,12 +468,11 @@ function pushTriageManifestChecks(checks, slice) {
 function pushPromotionChecks(checks, slice) {
   const { sliceDir, synthesisPngs } = slice;
   const promotionDecisionsPath = lanePath(sliceDir, LANES.keyFrames, "promotion-decisions.json");
+  const promotionDecisionsExist = fs.existsSync(promotionDecisionsPath);
   const promotionValidation = validatePromotionDecisionsForSlice(sliceDir);
   checks.push({
     id: "promotion-decisions-present",
-    pass:
-      synthesisPngs.length === 0 ||
-      (fs.existsSync(promotionDecisionsPath) && promotionValidation.valid),
+    pass: synthesisPngs.length === 0 || (promotionDecisionsExist && promotionValidation.valid),
     actual:
       synthesisPngs.length === 0
         ? "no synthesis pngs"
@@ -494,7 +500,7 @@ function pushPromotionChecks(checks, slice) {
 
   let traceabilityPass = synthesisPngs.length === 0;
   let traceabilityActual = "no synthesis pngs";
-  if (synthesisPngs.length > 0 && fs.existsSync(promotionDecisionsPath)) {
+  if (synthesisPngs.length > 0 && promotionDecisionsExist) {
     const decisions = JSON.parse(fs.readFileSync(promotionDecisionsPath, "utf8"));
     const promotionMap = readPromotionMap(sliceDir);
     const promoteByDest = new Map(
@@ -544,16 +550,15 @@ function pushQualityAuditChecks(checks, slice) {
       : [];
   const auditFailures = auditFiles.filter((f) => !f.pass);
 
-  let manifestRowCount = 0;
   const manifestExists = fs.existsSync(manifestPath);
-  if (manifestExists) {
-    manifestRowCount = fs
-      .readFileSync(manifestPath, "utf8")
-      .split("\n")
-      .filter(
-        (line) => line.startsWith("| ") && !line.includes("---") && !line.includes("Filename"),
-      ).length;
-  }
+  const manifestRowCount = manifestExists
+    ? fs
+        .readFileSync(manifestPath, "utf8")
+        .split("\n")
+        .filter(
+          (line) => line.startsWith("| ") && !line.includes("---") && !line.includes("Filename"),
+        ).length
+    : 0;
 
   const auditRowCount = auditFiles.length;
   const parityPass =
@@ -643,7 +648,7 @@ function writeWatchOutcomeReport(sliceDir, checks, pass) {
   fs.mkdirSync(verificationDir, { recursive: true });
   // Latest report is authoritative: clear prior outcome reports before writing this run's.
   for (const name of fs.readdirSync(verificationDir)) {
-    if (/-watch-outcomes\.md$/.test(name)) {
+    if (name.endsWith("-watch-outcomes.md")) {
       fs.rmSync(path.join(verificationDir, name));
     }
   }

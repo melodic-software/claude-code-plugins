@@ -14,32 +14,10 @@ readonly SCRIPT_DIR
 AB="$SCRIPT_DIR/ab.sh"
 readonly AB
 
-# Inline test helpers: self-contained, no external test lib (ships with the plugin).
-FAILED=0
-CASE_NUM=0
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: [%d] %s\n' "$CASE_NUM" "$1"
-}
-fail() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'FAIL: [%d] %s - expected %q got %q\n' "$CASE_NUM" "$1" "$2" "$3" >&2
-  FAILED=$((FAILED + 1))
-}
-assert_eq() { if [[ "$3" == "$2" ]]; then pass "$1"; else fail "$1" "$2" "$3"; fi; }
-assert_contains() {
-  if [[ "$3" == *"$2"* ]]; then pass "$1"; else fail "$1" "*$2*" "$3"; fi
-}
-assert_not_contains() {
-  if [[ "$3" != *"$2"* ]]; then pass "$1"; else fail "$1" "no *$2*" "$3"; fi
-}
+# shellcheck source=test-helpers.sh
+source "$SCRIPT_DIR/test-helpers.sh"
 
-RUN_OUT=""
-RUN_RC=0
-run_ab() {
-  RUN_OUT="$(bash "$AB" "$@" 2>&1)"
-  RUN_RC=$?
-}
+run_ab() { capture bash "$AB" "$@"; }
 
 # Measurable no-op: `printf` often records 0ms on CI, and ratio.py fail-closes
 # when every comparison-arm sample is zero milliseconds.
@@ -105,8 +83,7 @@ assert_contains "the refusal names the false-green shape" "classic false green" 
 # --- 5. a missing high-resolution clock FAILS, it never falls back to date ---
 # PERF_AB_SIMULATE_NO_CLOCK can only force the failure, never suppress it, so
 # it cannot turn a genuinely broken host green.
-RUN_OUT="$(PERF_AB_SIMULATE_NO_CLOCK=1 bash "$AB" --a "$NOOP" --b "$NOOP" --iterations 2 2>&1)"
-RUN_RC=$?
+capture env PERF_AB_SIMULATE_NO_CLOCK=1 bash "$AB" --a "$NOOP" --b "$NOOP" --iterations 2
 assert_eq "a missing EPOCHREALTIME is refused" "2" "$RUN_RC"
 assert_contains "the refusal rejects a date(1) fallback" "Refusing to fall back" "$RUN_OUT"
 
@@ -116,8 +93,7 @@ assert_contains "the refusal rejects a date(1) fallback" "Refusing to fall back"
 # reads "arm a holds 1 samples" and nothing mentions locale.
 # discriminating-skip-required: this case is the only cover for the decimal
 # separator, and the simulate seam can only force the failure, never hide one.
-RUN_OUT="$(PERF_AB_SIMULATE_COMMA_CLOCK=1 bash "$AB" --a "$NOOP" --b "$NOOP" --iterations 2 2>&1)"
-RUN_RC=$?
+capture env PERF_AB_SIMULATE_COMMA_CLOCK=1 bash "$AB" --a "$NOOP" --b "$NOOP" --iterations 2
 assert_eq "the simulated comma clock is refused" "2" "$RUN_RC"
 # The forced branch must say it is SIMULATING, not assert a locale defect the
 # host does not have. A false observation in a test log sends the next reader
@@ -138,8 +114,7 @@ for candidate in de_DE.UTF-8 de_DE.utf8 de_DE fr_FR.UTF-8 fr_FR.utf8 fr_FR; do
   fi
 done
 if [[ -n "$COMMA_LOCALE" ]]; then
-  RUN_OUT="$(LC_ALL="$COMMA_LOCALE" bash "$AB" --a "$NOOP" --b "$NOOP" --iterations 2 2>&1)"
-  RUN_RC=$?
+  capture env LC_ALL="$COMMA_LOCALE" bash "$AB" --a "$NOOP" --b "$NOOP" --iterations 2
   assert_eq "a real comma-decimal locale is refused" "2" "$RUN_RC"
   assert_contains "the real refusal declines to change the subject's environment" \
     "alter the environment the SUBJECT runs in" "$RUN_OUT"
@@ -150,21 +125,18 @@ if [[ -n "$COMMA_LOCALE" ]]; then
   # is worse than no remedy, and only this case proves the remedy is right.
   assert_contains "the refusal names LC_ALL as the overriding variable" \
     "it OVERRIDES LC_NUMERIC" "$RUN_OUT"
-  RUN_OUT="$(LC_ALL=C bash "$AB" --a "$NOOP" --b "$NOOP" \
-    --iterations 2 --warmup 0 --min-pairs 2 2>&1)"
-  RUN_RC=$?
+  capture env LC_ALL=C bash "$AB" --a "$NOOP" --b "$NOOP" \
+    --iterations 2 --warmup 0 --min-pairs 2
   assert_eq "the remedy the refusal names actually runs" "0" "$RUN_RC"
 
   # And with only LANG set, LC_NUMERIC=C IS the right remedy, so the other
   # branch of the advice must be exercised too.
-  RUN_OUT="$(env -u LC_ALL LANG="$COMMA_LOCALE" bash "$AB" --a "$NOOP" --b "$NOOP" \
-    --iterations 2 2>&1)"
-  RUN_RC=$?
+  capture env -u LC_ALL LANG="$COMMA_LOCALE" bash "$AB" --a "$NOOP" --b "$NOOP" \
+    --iterations 2
   if [[ "$RUN_RC" == "2" ]]; then
     assert_contains "with LANG only, the refusal names LC_NUMERIC" "LC_NUMERIC=C" "$RUN_OUT"
-    RUN_OUT="$(env -u LC_ALL LANG="$COMMA_LOCALE" LC_NUMERIC=C bash "$AB" --a "$NOOP" \
-      --b "$NOOP" --iterations 2 --warmup 0 --min-pairs 2 2>&1)"
-    RUN_RC=$?
+    capture env -u LC_ALL LANG="$COMMA_LOCALE" LC_NUMERIC=C bash "$AB" --a "$NOOP" \
+      --b "$NOOP" --iterations 2 --warmup 0 --min-pairs 2
     assert_eq "the LANG-only remedy actually runs" "0" "$RUN_RC"
   else
     printf 'SKIP: LANG alone did not produce a comma clock on this host\n' >&2

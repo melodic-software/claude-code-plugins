@@ -474,9 +474,11 @@ class NoParserResolvesAnAbbreviation(unittest.TestCase):
         lenient = argparse.ArgumentParser(prog="probe")
         lenient.add_argument("--required-thing", required=True)
         # The resolved `--help` prints to stdout; keep it out of the test log.
-        with contextlib.redirect_stdout(io.StringIO()):
-            with self.assertRaises(SystemExit) as resolved:
-                lenient.parse_args([self.ABBREVIATION_PROBE])
+        with (
+            contextlib.redirect_stdout(io.StringIO()),
+            self.assertRaises(SystemExit) as resolved,
+        ):
+            lenient.parse_args([self.ABBREVIATION_PROBE])
         self.assertEqual(resolved.exception.code, 0)
 
 

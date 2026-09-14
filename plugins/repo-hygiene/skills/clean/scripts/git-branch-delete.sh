@@ -228,23 +228,18 @@ fi
 
 DEFAULT_BRANCH="$(clean_default_branch "$REPO_ROOT")"
 CURRENT_BRANCH="$(git -C "$REPO_ROOT" branch --show-current 2>/dev/null | tr -d '\r')"
-WORKTREE_BRANCHES="$(git -C "$REPO_ROOT" worktree list --porcelain 2>/dev/null | grep '^branch' | sed 's|^branch refs/heads/||' | tr -d '\r')"
+WORKTREE_BRANCHES="$(clean_worktree_branches "$REPO_ROOT")"
 
 live_tip() {
   git -C "$REPO_ROOT" rev-parse --verify --quiet "refs/heads/$1" 2>/dev/null | tr -d '\r'
 }
 
-# live_loss_count <branch> -> prints the number of commits on refs/heads/<branch>
-# reachable from no remote-tracking ref and no tag; exit non-zero when git could
-# not count. Same idiom as git-branch-audit.sh: `--not --remotes --tags` so
-# another local branch is not a place the work is considered to persist.
-live_loss_count() {
-  local n
-  n="$(git -C "$REPO_ROOT" rev-list --count "refs/heads/$1" --not --remotes --tags 2>/dev/null)" || return 1
-  n="${n%$'\r'}"
-  [[ "$n" =~ ^[0-9]+$ ]] || return 1
-  printf '%s' "$n"
-}
+# The audit's exact merged-PR spellings, as the capture records them. Both the
+# force-delete decision and the live-reachability re-check below gate on them,
+# so they are written once: a substring containing MERGED (a forged or edited
+# capture) must satisfy neither.
+PR_MERGED_RE='^#[0-9]+ MERGED( \(tip drift\))?$'
+PR_OPEN_RE='^#[0-9]+ OPEN$'
 
 # delete_mode <tier> <pr> -> safe or force. Mirrors §4.7: SAFE by ancestry is a
 # safe delete, admitted only when its tip is merged into MERGE_TARGET (the check
@@ -259,10 +254,9 @@ live_loss_count() {
 # not enough: that would skip the ancestry check on a forged or edited capture.
 delete_mode() {
   local tier="$1" pr="$2"
-  local pr_merged_re='^#[0-9]+ MERGED( \(tip drift\))?$'
   case "$tier" in
   SAFE)
-    if [[ "$pr" =~ $pr_merged_re ]]; then printf 'force'; else printf 'safe'; fi
+    if [[ "$pr" =~ $PR_MERGED_RE ]]; then printf 'force'; else printf 'safe'; fi
     ;;
   *) printf 'force' ;;
   esac
@@ -357,15 +351,13 @@ for branch in "${BRANCHES[@]}"; do
   # rows stay REVIEW under a positive count, matching the audit.
   if [[ "$tier" != "LOSSY" ]]; then
     live_lost=""
-    if ! live_lost="$(live_loss_count "$branch")"; then
+    if ! live_lost="$(clean_loss_count "$REPO_ROOT" "$branch")"; then
       refuse "$branch (could not count commits absent from every remote ref and tag; re-run git-branch-audit.sh before deleting)"
       continue
     fi
     if [[ "$live_lost" -gt 0 ]]; then
       pr="${CAP_PR[$branch]:-none}"
-      pr_open_re='^#[0-9]+ OPEN$'
-      pr_merged_re='^#[0-9]+ MERGED( \(tip drift\))?$'
-      if [[ ! "$pr" =~ $pr_open_re && ! "$pr" =~ $pr_merged_re ]]; then
+      if [[ ! "$pr" =~ $PR_OPEN_RE && ! "$pr" =~ $PR_MERGED_RE ]]; then
         refuse "$branch (live reachability now loses $live_lost commits that exist on no remote ref and no tag; captured as $tier; re-run git-branch-audit.sh before deleting)"
         continue
       fi
@@ -386,7 +378,7 @@ fi
 # rather than pointing back at the audit. Empty for every other tier.
 loss_note() {
   local n
-  n="$(live_loss_count "$1")" || n=""
+  n="$(clean_loss_count "$REPO_ROOT" "$1")" || n=""
   if [[ "$n" =~ ^[0-9]+$ ]]; then
     printf ', loses %s commits only on this branch' "$n"
   else

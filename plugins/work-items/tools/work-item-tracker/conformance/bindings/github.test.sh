@@ -15,11 +15,7 @@ source "$SCRIPT_DIR/../../tests/lib.sh"
 source "$SCRIPT_DIR/github.sh"
 
 for fn in cb_setup cb_teardown; do
-  if declare -F "$fn" >/dev/null; then
-    pass "github binding exposes $fn"
-  else
-    fail "github binding exposes $fn" "declared" "missing"
-  fi
+  assert_succeeds "github binding exposes $fn" "declared" "missing" declare -F "$fn"
 done
 
 # No retained default: cb_setup refuses when the target is unset (the guard fires

@@ -3,6 +3,18 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.5]
+
+### Changed
+
+- The allowed-tools pairing suite now prints a NOTE line for any skill that names no expected-granted arm instead of silently skipping the granted-set comparison. Exit codes and every PASS and FAIL string are unchanged.
+
+## [0.11.4]
+
+### Changed
+
+- Route the ecosystem-detector smoke invocations in the root and wrapper suites through shared run helpers (behavior unchanged).
+
 ## [0.11.3]
 
 ### Changed

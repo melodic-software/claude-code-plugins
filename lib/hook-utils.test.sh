@@ -57,6 +57,23 @@ wait_for_sink() {
   return 1
 }
 
+# make_logging_shim <dir> <tool> → write an executable <dir>/<tool> that appends
+# one line to <dir>/log per invocation and then execs the real tool, for the
+# spawn-census cases that assert a helper no longer forks it. Returns 1 when
+# there is no real tool on PATH to wrap, so a census can say so rather than
+# assert nothing.
+make_logging_shim() {
+  local dir="$1" tool="$2" real
+  real=$(type -P "$2") || real=""
+  [[ -n "$real" ]] || return 1
+  cat >"$dir/$tool" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "$tool" >>"$dir/log"
+exec "$real" "\$@"
+EOF
+  chmod +x "$dir/$tool"
+}
+
 # --- Test 1: HOOK_TELEMETRY_SINK unset → returns 0, no output ----------------
 unset HOOK_TELEMETRY_SINK 2>/dev/null || true
 out=$(hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write","file":"foo.py","findings":[]}' 2>/dev/null)
@@ -3801,14 +3818,7 @@ fi
 # --- hook::json_escape / notice_once no longer exec tr ----------------------
 tr_shim="$(mktemp -d)"
 tr_log="$tr_shim/log"
-real_tr=$(type -P tr) || real_tr=""
-if [[ -n "$real_tr" ]]; then
-  cat >"$tr_shim/tr" <<EOF
-#!/usr/bin/env bash
-printf 'TR\\n' >>"$tr_log"
-exec "$real_tr" "\$@"
-EOF
-  chmod +x "$tr_shim/tr"
+if make_logging_shim "$tr_shim" tr; then
   PATH="$tr_shim:$PATH" hook::json_escape $'a\001b"c' >/dev/null
   if [[ -f "$tr_log" ]]; then
     fail "json_escape spawned tr ($(wc -l <"$tr_log") times)"
@@ -3855,14 +3865,7 @@ rm -rf "$hu_scratch"
 # --- hook::repo_root no longer execs tr --------------------------------------
 tr_shim="$(mktemp -d)"
 tr_log="$tr_shim/log"
-real_tr=$(type -P tr) || real_tr=""
-if [[ -n "$real_tr" ]]; then
-  cat >"$tr_shim/tr" <<EOF
-#!/usr/bin/env bash
-printf 'TR\\n' >>"$tr_log"
-exec "$real_tr" "\$@"
-EOF
-  chmod +x "$tr_shim/tr"
+if make_logging_shim "$tr_shim" tr; then
   PATH="$tr_shim:$PATH" hook::repo_root /workspace >/dev/null
   if [[ -f "$tr_log" ]]; then
     fail "repo_root spawned tr ($(wc -l <"$tr_log") times)"
@@ -4205,7 +4208,6 @@ fi
 
 # The post-read half, table-driven over path shapes no fixture can create.
 # Columns: label | file_path | want FILE_DIR | want FILE_BASE.
-bg_env=(CLAUDE_PROJECT_DIR="$BG_REPO")
 while IFS='|' read -r bg_label bg_path bg_want_dir bg_want_base; do
   [[ -n "$bg_label" ]] || continue
   bg_env=(CLAUDE_PROJECT_DIR="$BG_REPO" BG_STUB_FILE="$bg_path")
@@ -4317,14 +4319,7 @@ rm -rf "$BG_DATA" "$BG_NOJQ"
 # jq beyond hook::buffer_stdin_to's own payload validation, and the unwired
 # path must not spend one to build a telemetry value nothing will read.
 BG_SHIM="$(mktemp -d)"
-bg_real_jq=$(type -P jq) || bg_real_jq=""
-if [[ -n "$bg_real_jq" ]]; then
-  cat >"$BG_SHIM/jq" <<EOF
-#!/usr/bin/env bash
-printf 'JQ\\n' >>"$BG_SHIM/log"
-exec "$bg_real_jq" "\$@"
-EOF
-  chmod +x "$BG_SHIM/jq"
+if make_logging_shim "$BG_SHIM" jq; then
   bg_jq_count() {
     : >"$BG_SHIM/log"
     bg_env=(CLAUDE_PROJECT_DIR="$BG_REPO" PATH="$BG_SHIM:$PATH")
@@ -4450,14 +4445,7 @@ fi
 # emitter already builds, on hooks that run on every edit.
 cf_shim="$(mktemp -d)"
 cf_log="$cf_shim/log"
-cf_real_jq=$(command -v jq) || cf_real_jq=""
-if [[ -n "$cf_real_jq" ]]; then
-  cat >"$cf_shim/jq" <<EOF
-#!/usr/bin/env bash
-printf 'JQ\\n' >>"$cf_log"
-exec "$cf_real_jq" "\$@"
-EOF
-  chmod +x "$cf_shim/jq"
+if make_logging_shim "$cf_shim" jq; then
   hook::ctx_reset
   hook::ctx_append "census line"
   PATH="$cf_shim:$PATH" hook::ctx_flush PostToolUse >/dev/null

@@ -22,14 +22,15 @@
 // scripts/check-summary-reader-parity.test.sh holds the two readers to one
 // value on a shared case table and on every SKILL.md in the tree (#3189).
 
-import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import process from "node:process";
 
-// scripts/lib/report-first-difference.mjs — the drift detail shared with
-// scripts/generate-catalog.mjs; exercised through this file's --check path.
-import { reportFirstDifference } from "./lib/report-first-difference.mjs";
+// scripts/lib/marker-block.mjs: the locate / compare / report-drift-or-write
+// flow shared with scripts/generate-catalog.mjs; exercised through this file's
+// --check path.
+import { findMarkerBlock, syncMarkerBlock } from "./lib/marker-block.mjs";
 
 const argv = process.argv.slice(2);
 const check = argv.includes("--check");
@@ -51,7 +52,7 @@ const {
   STAGES, CADENCES, EXCLUDED_PLUGINS, EXCLUDED_SKILL_NAME, EXCLUDED_SKILLS,
   summaryError,
 } = config;
-const stageBySlug = new Map(STAGES.map((s) => [s.slug, s]));
+const stageSlugs = new Set(STAGES.map((s) => s.slug));
 
 function fail(messages) {
   for (const m of messages) console.error(`generate-cheatsheet: ${m}`);
@@ -175,7 +176,7 @@ for (const s of skills) {
     errors.push(`${key}: no workflow-stage and no exclusion entry`);
     continue;
   }
-  if (!stageBySlug.has(stage)) {
+  if (!stageSlugs.has(stage)) {
     errors.push(`${key}: unknown workflow-stage "${stage}"`);
     continue;
   }
@@ -288,28 +289,22 @@ if (!existsSync(OUTPUT_PATH)) {
   fail([`${OUTPUT_PATH} is missing; create it once with the markers (${START} ... ${END})`]);
 }
 const sheet = readFileSync(OUTPUT_PATH, "utf8");
-const match = sheet.match(new RegExp(`${START}[\\s\\S]*?${END}`));
-if (!match) {
+const existing = findMarkerBlock(sheet, START, END);
+if (existing === null) {
   fail([`${OUTPUT_PATH} is missing the cheatsheet markers (${START} ... ${END})`]);
 }
-const existing = match[0];
 
-if (check) {
-  if (existing === block) {
-    console.log("Cheat sheet is in sync with skill frontmatter.");
-    process.exit(0);
-  }
-  console.error("Cheat sheet drift: docs/skill-cheat-sheet.md block is stale.");
-  console.error("Run `node scripts/generate-cheatsheet.mjs` and commit the sheet.");
-  reportFirstDifference(block, existing);
-  process.exit(1);
-}
-
-if (existing === block) {
-  console.log("Cheat sheet already in sync; output unchanged.");
-  process.exit(0);
-}
-// Function replacer: a string replacement would reinterpret `$`-sequences
-// (`$&`, `$'`, ...) inside the generated block.
-writeFileSync(OUTPUT_PATH, sheet.replace(existing, () => block));
-console.log(`Cheat sheet regenerated (${mapped.length} skills).`);
+syncMarkerBlock({
+  path: OUTPUT_PATH,
+  content: sheet,
+  existing,
+  expected: block,
+  check,
+  messages: {
+    inSync: "Cheat sheet is in sync with skill frontmatter.",
+    drift: "Cheat sheet drift: docs/skill-cheat-sheet.md block is stale.",
+    rerun: "Run `node scripts/generate-cheatsheet.mjs` and commit the sheet.",
+    unchanged: "Cheat sheet already in sync; output unchanged.",
+    regenerated: `Cheat sheet regenerated (${mapped.length} skills).`,
+  },
+});

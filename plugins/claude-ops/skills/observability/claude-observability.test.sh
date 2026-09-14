@@ -252,15 +252,17 @@ else
   OLD_5=$(date -u -v-5d +%Y-%m-%dT%H:%M:%SZ)
 fi
 HOOK_FX="$clean_test_dir/.claude/observability/hook-events.jsonl"
-for _ in 1 2 3; do
-  printf '{"ts":"%s","event":"Test","hook":"x","duration_ms":0,"exit_code":0,"subject":"a","status":"success"}\n' "$OLD_45" >>"$HOOK_FX"
-done
-for _ in 1 2; do
-  printf '{"ts":"%s","event":"Test","hook":"x","duration_ms":0,"exit_code":0,"subject":"a","status":"success"}\n' "$OLD_5" >>"$HOOK_FX"
-done
-for _ in 1 2; do
-  printf '{"ts":"%s","event":"Test","hook":"x","duration_ms":0,"exit_code":0,"subject":"a","status":"success"}\n' "$TODAY" >>"$HOOK_FX"
-done
+# Append <count> identical hook-event rows stamped <ts> to <file>.
+emit_hook_rows() { # <file> <count> <ts>
+  local i
+  for ((i = 0; i < $2; i++)); do
+    printf '{"ts":"%s","event":"Test","hook":"x","duration_ms":0,"exit_code":0,"subject":"a","status":"success"}\n' \
+      "$3" >>"$1"
+  done
+}
+emit_hook_rows "$HOOK_FX" 3 "$OLD_45"
+emit_hook_rows "$HOOK_FX" 2 "$OLD_5"
+emit_hook_rows "$HOOK_FX" 2 "$TODAY"
 
 # 9a: dry-run does not modify
 before_hook=$(lines_in "$HOOK_FX")
@@ -373,8 +375,9 @@ assert_eq "clean --dry-run leaves OTEL store unchanged" "$otel_before" "$otel_af
 NEW_ROOT="$clean_test_dir/.observability/claude"
 mkdir -p "$NEW_ROOT/sessions" "$NEW_ROOT/prune-pending/1000-old" "$NEW_ROOT/prune-pending/2000-fresh"
 printf '*\n' >"$NEW_ROOT/.gitignore"
-printf '{"ts":"%s","event":"Test","hook":"x","duration_ms":0,"exit_code":0,"subject":"a","status":"success"}\n' "$OLD_45" >"$NEW_ROOT/hook-events.jsonl"
-printf '{"ts":"%s","event":"Test","hook":"x","duration_ms":0,"exit_code":0,"subject":"a","status":"success"}\n' "$TODAY" >>"$NEW_ROOT/hook-events.jsonl"
+: >"$NEW_ROOT/hook-events.jsonl"
+emit_hook_rows "$NEW_ROOT/hook-events.jsonl" 1 "$OLD_45"
+emit_hook_rows "$NEW_ROOT/hook-events.jsonl" 1 "$TODAY"
 printf '{"a":1}\n' >"$NEW_ROOT/sessions/stale.jsonl"
 printf '{"a":1}\n' >"$NEW_ROOT/sessions/live.jsonl"
 touch -t 202601010000 "$NEW_ROOT/sessions/stale.jsonl" "$NEW_ROOT/prune-pending/1000-old"

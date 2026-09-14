@@ -51,7 +51,6 @@ const overlaySchema = z
   .strict();
 
 function resolveLogo(configDir, value) {
-  if (!value) return value;
   if (path.isAbsolute(value) || /^[A-Za-z]:/.test(value)) {
     throw new Error("brand.json logo paths must be relative to the profile directory");
   }

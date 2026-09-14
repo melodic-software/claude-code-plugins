@@ -5,6 +5,36 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.63]
+
+### Changed
+
+- The formatter and lint hook suites fold run_hook onto run_hook_env, drop a dead tool-probe guard line, and extract their repeated jq context reads and trace counts into small helpers; the statusline suites share one run_env; stale narration is trimmed from four hook comments. Every suite's output is byte-identical apart from timings, and the context-zone twins stay identical.
+
+## [0.7.62]
+
+### Changed
+
+- The context-guard statusline, compose-wiring, and context-zone test suites route repeated invocations through their existing run helpers, and the registered rate-limit-guard and plugin-quality twins of the two canonical suites carry the same change.
+
+## [0.7.61]
+
+### Changed
+
+- hooks: zone-crossing-inject.sh reads its zone and armed markers through one read_marker helper, post-compact-mark.sh collapses its three-arm marker rename into one guarded mv with a single cleanup, and zone-gate.sh drops a redundant empty-target test from the handoff exemption. Process budgets unchanged. No behavior change.
+
+## [0.7.60]
+
+### Changed
+
+- compose-statusline-wiring.sh reuses its shim-prefix recognizer when peeling a prefix and returns its syntax and shell tests directly; the compose, context-zone and statusline test suites read fixture files without a cat fork and share the mv shim builder; rate-limit-guard's statusline-tee.sh resolves the tee enablement verdict once instead of in three branches. Synced copies refreshed. No behavior change.
+
+## [0.7.59]
+
+### Changed
+
+- Refreshes this plugin's vendored copy of the shared shell library from the marketplace's canonical lib/ source after a behavior-preserving simplification: hook-utils.sh folds two identical path-probe guards into one and shares the orphaned-redirect handling across the bash segment parser; index-regen.sh folds two identical frontmatter skip guards; resolve-convention-pattern.sh drops a redundant quote-match clause. Parser output, hook JSON, and every resolver result are byte-identical before and after.
+
 ## [0.7.58]
 
 ### Fixed

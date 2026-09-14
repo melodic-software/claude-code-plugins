@@ -134,7 +134,7 @@ while (($# > 0)); do
 done
 
 # Compose marker regex based on flags. ERRORS_ONLY suppresses warning;
-# NOTICES adds notice. Default = error + warning (preserving v1 behavior).
+# NOTICES adds notice. Default = error + warning.
 if [[ "$ERRORS_ONLY" -eq 1 && "$NOTICES" -eq 1 ]]; then
   MARKER_RE='##\[(error|notice)\]'
 elif [[ "$ERRORS_ONLY" -eq 1 ]]; then
@@ -236,7 +236,7 @@ else
   REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null | tr -d '\r\n')
 fi
 
-if [[ -z "$REPO" || "$REPO" != */* ]]; then
+if [[ "$REPO" != */* ]]; then
   printf 'fetch-failed-logs: cannot resolve owner/repo (set FETCH_LOGS_REPO=owner/name)\n' >&2
   exit 2
 fi

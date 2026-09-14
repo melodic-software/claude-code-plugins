@@ -3,6 +3,24 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.58]
+
+### Changed
+
+- The formatter and lint hook suites fold run_hook onto run_hook_env, drop a dead tool-probe guard line, and extract their repeated jq context reads and trace counts into small helpers; the statusline suites share one run_env; stale narration is trimmed from four hook comments. Every suite's output is byte-identical apart from timings, and the context-zone twins stay identical.
+
+## [0.11.57]
+
+### Changed
+
+- The markdown-format hook uses the shared hook-utils git-tree and dirname helpers instead of local copies, its suite and the powershell-format suite route repeated invocations through shared runners, and the mcp-tools discover, mutation-testing suppression-lint, and playwright update scripts fold duplicated blocks into helpers, with identical output.
+
+## [0.11.56]
+
+### Changed
+
+- Refreshes this plugin's vendored copy of the shared shell library from the marketplace's canonical lib/ source after a behavior-preserving simplification: hook-utils.sh folds two identical path-probe guards into one and shares the orphaned-redirect handling across the bash segment parser; index-regen.sh folds two identical frontmatter skip guards; resolve-convention-pattern.sh drops a redundant quote-match clause. Parser output, hook JSON, and every resolver result are byte-identical before and after.
+
 ## [0.11.55]
 
 ### Changed

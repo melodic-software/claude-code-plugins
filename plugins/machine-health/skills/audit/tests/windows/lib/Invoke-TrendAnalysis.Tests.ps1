@@ -2,12 +2,10 @@
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
 
 BeforeAll {
-    $script:TestsRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $script:LibRoot = Join-Path (Split-Path -Parent $script:TestsRoot) 'scripts\windows\lib'
-    . (Join-Path $script:LibRoot 'Invoke-TrendAnalysis.ps1')
     # New-HealthResult builds a full schema-valid result and dot-sources
     # Assert-CheckResult -- both used by the schema-conformance test below.
-    . (Join-Path $script:LibRoot 'Write-HealthResult.ps1')
+    . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" `
+        -LibScript 'Invoke-TrendAnalysis.ps1', 'Write-HealthResult.ps1'
 
     function New-HistoryEntry {
         param(

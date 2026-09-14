@@ -166,6 +166,20 @@ ensure_tracked_files() {
   fi
 }
 
+# The tracked files whose basename equals <base>, into the caller's $matches.
+# Returns 1 when no tracked-file list could be read, leaving $matches empty; both
+# callers admit the citation in that case rather than judge it on a list they do
+# not have.
+#
+# Call as: tracked_basename_matches <base> -> $matches
+# shellcheck disable=SC2154  # matches is the caller's frame, per the call contract
+tracked_basename_matches() {
+  matches=()
+  ensure_tracked_files
+  [[ -n "$TRACKED_FILES" ]] || return 1
+  mapfile -t matches < <(printf '%s\n' "$TRACKED_FILES" | awk -F/ -v b="$1" '$NF == b')
+}
+
 # Root-level inline-code tokens (no '/') are admitted only when the basename is
 # referentially unambiguous — not when it names a class of file every repo has.
 # The discriminator is two-part, not a length or extension heuristic:
@@ -175,15 +189,14 @@ ensure_tracked_files() {
 #       makes a bare `` `name` `` referentially opaque even inside a code span.
 # Returns 0 (ambiguous → reject) or 1 (unambiguous → admit).
 root_basename_is_ambiguous() {
-  local base="$1" count
+  local base="$1"
+  local -a matches=()
   case "$base" in
   README.md | README | package.json | package-lock.json | LICENSE | LICENCE | CHANGELOG.md | Makefile | GNUmakefile | .gitignore | .gitattributes | .editorconfig) return 0 ;;
   *) ;;
   esac
-  ensure_tracked_files
-  [[ -n "$TRACKED_FILES" ]] || return 1
-  count=$(printf '%s\n' "$TRACKED_FILES" | awk -F/ -v b="$base" '$NF == b { c++ } END { print c + 0 }')
-  ((count > 1))
+  tracked_basename_matches "$base" || return 1
+  ((${#matches[@]} > 1))
 }
 
 # Reduce a raw token to a repo-relative path candidate, or nothing.
@@ -455,10 +468,8 @@ build_deleted_set() {
 # but once history has established the path was removed, a UNIQUE surviving
 # basename is very likely where it went.
 moved_hint() {
-  local base="${1##*/}" matches=()
-  ensure_tracked_files
-  [[ -n "$TRACKED_FILES" ]] || return 1
-  mapfile -t matches < <(printf '%s\n' "$TRACKED_FILES" | awk -F/ -v b="$base" '$NF == b')
+  local -a matches=()
+  tracked_basename_matches "${1##*/}" || return 1
   ((${#matches[@]} == 1)) && printf '%s' "${matches[0]}"
 }
 

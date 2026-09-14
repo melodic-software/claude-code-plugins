@@ -2287,7 +2287,7 @@ fi
 # 29. Check 2 counts the 3-char " - " joiner: desc(1500) + wtu(34) = 1534,
 #     under the 1536 cap WITHOUT the joiner (the pre-fix bug would pass this),
 #     but + the 3-char joiner = 1537 — one char over. FAILing here proves
-#     item 2's fix (check-skill.sh:227) at the exact boundary, not merely an
+#     item 2's fix (check-skill.sh check 2) at the exact boundary, not merely an
 #     already-overflowing entry that would fail either way.
 desc_1500="$(printf 'd%.0s' $(seq 1 1500))"
 wtu_34="$(printf 'w%.0s' $(seq 1 34))"
@@ -3080,7 +3080,6 @@ fi
 
 # 24c. Inside plugins/*/skills/* the same omission FAILs — the rubric is this
 #      fleet's convention and the fleet is normalized to it.
-PLUGIN_SKILLS="$TMP/plugins/demo/skills"
 mkdir -p "$PLUGIN_SKILLS/dmi-plugin-missing"
 printf '%s' '---
 name: dmi-plugin-missing

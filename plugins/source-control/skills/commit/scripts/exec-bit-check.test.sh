@@ -51,13 +51,25 @@ mkrepo() {
 write_padded_script() {
   {
     printf '#!/usr/bin/env bash\n'
-    for _ in $(seq 1 30); do printf 'echo line\n'; done
+    for _ in {1..30}; do printf 'echo line\n'; done
   } >"$1"
 }
 
 # staged_mode <repo> <path> — the mode git recorded in the index for <path>.
 staged_mode() {
   (cd "$1" && git ls-files --stage -- "$2" 2>/dev/null | head -n 1 | cut -d' ' -f1)
+}
+
+# copy_records <repo> — how many `C` (copy) records git pairs in <repo>'s staged
+# diff. A git that declines to pair a copy fixture reports 0.
+copy_records() {
+  (cd "$1" && git diff --cached --name-status | grep -c '^C') | tr -d ' \r'
+}
+
+# copy_unpaired_skip <fixture-label> <observed-C-count> — the discriminating
+# skip every copy fixture shares when git declined to pair it.
+copy_unpaired_skip() {
+  fail_discriminating_skip "$1 unpaired on $(git --version 2>/dev/null): git diff --cached --name-status has ${2:-0} C record(s), expected 1 — copy-arm discriminating coverage did not run"
 }
 
 # --- Case group 1: detection scope -------------------------------------------
@@ -473,7 +485,7 @@ repo16="$(mkrepo)"
   git add orig.sh dup.sh
 ) >/dev/null 2>&1
 
-copy_status="$(cd "$repo16" && git diff --cached --name-status | grep -c '^C' | tr -d ' \r')"
+copy_status="$(copy_records "$repo16")"
 if [[ "$copy_status" == "1" ]]; then
   copy_out="$(bash "$HELPER" --repo-dir "$repo16" --list 2>/dev/null)"
   assert_contains "a copy destination that dropped the bit is reported" "$copy_out" "dup.sh"
@@ -481,7 +493,7 @@ if [[ "$copy_status" == "1" ]]; then
   bash "$HELPER" --repo-dir "$repo16" --fix -- dup.sh >/dev/null 2>&1
   assert_eq "--fix corrects a copy destination" "100755" "$(staged_mode "$repo16" dup.sh)"
 else
-  fail_discriminating_skip "copy-arm fixture unpaired on $(git --version 2>/dev/null): git diff --cached --name-status has ${copy_status:-0} C record(s), expected 1 — copy-arm discriminating coverage did not run"
+  copy_unpaired_skip "copy-arm fixture" "$copy_status"
 fi
 
 # A pathspec that names only the SOURCE side breaks the pairing back into D/M,
@@ -687,7 +699,7 @@ repo21="$(mkrepo)"
   git add tpl.sh tpl-copy.sh
 ) >/dev/null 2>&1
 
-nonexec_copy_status="$(cd "$repo21" && git diff --cached --name-status | grep -c '^C' | tr -d ' \r')"
+nonexec_copy_status="$(copy_records "$repo21")"
 if [[ "$nonexec_copy_status" == "1" ]]; then
   assert_contains "the fixture really is a copy off a 100644 source" \
     "$(cd "$repo21" && git diff --cached --raw | grep 'tpl-copy\.sh')" ":100644 100644"
@@ -712,7 +724,7 @@ if [[ "$nonexec_copy_status" == "1" ]]; then
   assert_eq "the copy SOURCE is not itself admitted by the copy arm" \
     "100644" "$(staged_mode "$repo21" tpl.sh)"
 else
-  fail_discriminating_skip "non-executable copy fixture unpaired on $(git --version 2>/dev/null): git diff --cached --name-status has ${nonexec_copy_status:-0} C record(s), expected 1 — copy-arm discriminating coverage did not run"
+  copy_unpaired_skip "non-executable copy fixture" "$nonexec_copy_status"
 fi
 
 # --- Case group 21b: the two diff.renames configurations AGREE ----------------
@@ -759,7 +771,7 @@ agree_off_status="$(cd "$repo22" && git diff --cached --name-status | grep -c '^
 agree_off="$(bash "$HELPER" --repo-dir "$repo22" --list 2>/dev/null | sort | tr '\n' ' ')"
 
 (cd "$repo22" && git config diff.renames copies) >/dev/null 2>&1
-agree_on_status="$(cd "$repo22" && git diff --cached --name-status | grep -c '^C' | tr -d ' \r')"
+agree_on_status="$(copy_records "$repo22")"
 agree_on="$(bash "$HELPER" --repo-dir "$repo22" --list 2>/dev/null | sort | tr '\n' ' ')"
 
 if [[ "$agree_off_status" == "1" ]] && [[ "$agree_on_status" == "1" ]]; then
@@ -826,12 +838,12 @@ repo23="$(mkrepo)"
   git add "tpl lib.sh" "tpl copy.sh"
 ) >/dev/null 2>&1
 
-spaced_copy_status="$(cd "$repo23" && git diff --cached --name-status | grep -c '^C' | tr -d ' \r')"
+spaced_copy_status="$(copy_records "$repo23")"
 if [[ "$spaced_copy_status" == "1" ]]; then
   assert_eq "a copy destination is reported when BOTH paths contain spaces" \
     "tpl copy.sh" "$(bash "$HELPER" --repo-dir "$repo23" --list 2>/dev/null)"
 else
-  fail_discriminating_skip "spaced copy fixture unpaired on $(git --version 2>/dev/null): git diff --cached --name-status has ${spaced_copy_status:-0} C record(s), expected 1 — copy-arm discriminating coverage did not run"
+  copy_unpaired_skip "spaced copy fixture" "$spaced_copy_status"
 fi
 
 printf '\n%d case(s), %d failure(s), %d optional skip(s), %d discriminating skip(s)\n' \

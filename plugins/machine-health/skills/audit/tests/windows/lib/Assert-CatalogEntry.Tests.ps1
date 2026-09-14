@@ -11,11 +11,8 @@ so any drift between the schema and the shipped catalog fails CI.
 #>
 
 BeforeAll {
-    $script:TestsRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $script:SkillRoot = Split-Path -Parent $script:TestsRoot
-    $script:LibRoot = Join-Path $script:SkillRoot 'scripts\windows\lib'
-    . (Join-Path $script:LibRoot 'ConvertFrom-Jsonc.ps1')
-    . (Join-Path $script:LibRoot 'Assert-CatalogEntry.ps1')
+    . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" `
+        -LibScript 'ConvertFrom-Jsonc.ps1', 'Assert-CatalogEntry.ps1'
 
     function New-ValidEntry {
         param([hashtable] $Overrides = @{})

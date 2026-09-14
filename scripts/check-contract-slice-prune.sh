@@ -253,10 +253,7 @@ slug_of() {
     *) ;; # not under this root; try the next
     esac
   done
-  if [[ -z "$best" ]]; then
-    printf ''
-    return 0
-  fi
+  [[ -n "$best" ]] || return 0
   rest="${path#"$best"/}"
   printf '%s' "${rest%%/*}"
 }

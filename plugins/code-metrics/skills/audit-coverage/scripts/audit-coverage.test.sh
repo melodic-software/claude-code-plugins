@@ -28,43 +28,17 @@ CAPTURES="$PLUGIN_ROOT/scripts/fixtures/tool-output"
 COVERAGE="$PLUGIN_ROOT/scripts/fixtures/coverage"
 cd "$REPO_ROOT" || exit 2
 
-PY=python3
-command -v python3 >/dev/null 2>&1 || PY=python
-
 FAILED=0
 CASE_NUM=0
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: %s\n' "$1"
-}
-fail() {
-  CASE_NUM=$((CASE_NUM + 1))
-  FAILED=$((FAILED + 1))
-  printf 'FAIL: %s\n  expected: %s\n  actual:   %s\n' "$1" "$2" "$3" >&2
-}
-assert_eq() {
-  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "$2" "$3"; fi
-}
-assert_contains() {
-  case "$2" in
-  *"$3"*) pass "$1" ;;
-  *) fail "$1" "contains: $3" "$(printf '%s' "$2" | head -c 400)" ;;
-  esac
-}
+# shellcheck source=../../../scripts/test-helpers.sh
+source "$PLUGIN_ROOT/scripts/test-helpers.sh"
+
 assert_matches() {
   # assert_matches <name> <text> <extended regex>
   if printf '%s' "$2" | grep -Eq "$3"; then
     pass "$1"
   else
     fail "$1" "matches: $3" "$(printf '%s' "$2" | head -c 400)"
-  fi
-}
-# jq-free JSON assertions: a Python expression over the parsed document `d`.
-assert_doc() {
-  if printf '%s' "$2" | "$PY" -c "import json,sys; d=json.load(sys.stdin); raise SystemExit(0 if ($3) else 1)" 2>/dev/null; then
-    pass "$1"
-  else
-    fail "$1" "$3" "$(printf '%s' "$2" | head -c 600)"
   fi
 }
 
@@ -91,14 +65,7 @@ chmod +x "$STUBS"/*
 # assertions read. The excluded set is the ladder, not a second list.
 # shellcheck source=../../../scripts/tool-free-path.sh
 source "$PLUGIN_ROOT/scripts/tool-free-path.sh"
-cm_fill_tool_free_path "$EMPTY_PATH"
-leftover="$(cm_resolvable_ladder_collectors "$EMPTY_PATH" | sort -u | tr '\n' ' ')"
-leftover="${leftover% }"
-if [[ -z "$leftover" ]]; then
-  pass "no ladder collector is resolvable on the tool-free PATH"
-else
-  fail "no ladder collector is resolvable on the tool-free PATH" "none" "$leftover"
-fi
+cm_assert_tool_free_path "$EMPTY_PATH"
 unset CODE_METRICS_DISABLE_BUNDLED
 
 run_json() {

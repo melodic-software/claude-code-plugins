@@ -12,53 +12,37 @@ adapter's path mapping has to survive.
 from __future__ import annotations
 
 import json
-import os
-import stat
 import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
+from harness.stub_harness import (
+    SOURCES,
+    TOOL_OUTPUT,
+    run_adapter,
+    version_gate,
+    write_stub,
+)
+
 SCRIPT_DIR = Path(__file__).resolve().parent
 SCRIPT = SCRIPT_DIR / "multimetric.py"
-CAPTURE = SCRIPT_DIR.parent / "fixtures" / "tool-output" / "multimetric.json"
-SOURCES = "plugins/code-metrics/scripts/fixtures/sources"
-REPO_ROOT = SCRIPT_DIR.parents[3]
+CAPTURE = TOOL_OUTPUT / "multimetric.json"
 
 
 def make_stub(
     directory: Path, version_line: str = "2.4.4", capture: Path | None = CAPTURE
 ) -> None:
-    stub = directory / "multimetric"
-    stub.write_text(
-        "#!/usr/bin/env bash\n"
-        'if [[ "${1:-}" == "--version" ]]; then printf \'%s\\n\' "'
-        + version_line
-        + '"; exit 0; fi\n'
+    write_stub(
+        directory / "multimetric",
+        version_gate(version_line)
         + (f'cat "{capture}"\n' if capture else "")
         + "exit 0\n",
-        encoding="utf-8",
     )
-    stub.chmod(stub.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 
 def run(*args: str, path_prefix: Path | None = None) -> subprocess.CompletedProcess:
-    env = dict(os.environ)
-    if path_prefix is not None:
-        env["PATH"] = f"{path_prefix}{os.pathsep}{env.get('PATH', '')}"
-    else:
-        env["PATH"] = str(
-            Path(tempfile.gettempdir()) / "definitely-empty-path-for-multimetric-tests"
-        )
-    return subprocess.run(
-        [sys.executable, str(SCRIPT), *args],
-        capture_output=True,
-        text=True,
-        env=env,
-        cwd=REPO_ROOT,
-        check=False,
-    )
+    return run_adapter(SCRIPT, "multimetric", *args, path_prefix=path_prefix)
 
 
 class MultimetricAdapterTests(unittest.TestCase):

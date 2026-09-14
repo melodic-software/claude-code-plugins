@@ -110,15 +110,14 @@ while IFS= read -r _line || [[ -n "$_line" ]]; do
   # still counts as "still within the leading comment block") — the marker
   # regex itself stays column-0-anchored, matching Go's own convention.
   _trimmed="${_line#"${_line%%[![:space:]]*}"}"
-  if [[ "$_line" == //* ]]; then
+  if [[ "$_trimmed" == //* ]]; then
+    # The regex is anchored at column 0, so an indented `//` line can never
+    # match it; either way the leading block continues.
     if [[ "$_line" =~ ^//\ Code\ generated\ .*\ DO\ NOT\ EDIT\.$ ]]; then
       GENERATED=1
       break
     fi
     continue # a different // comment line: still within the leading block
-  fi
-  if [[ "$_trimmed" == //* ]]; then
-    continue # an indented // comment line: still within the leading block
   fi
   if [[ "$_trimmed" == /\** ]]; then
     [[ "$_trimmed" == *'*/'* ]] || IN_BLOCK=1 # opens a block comment spanning further lines
@@ -128,13 +127,10 @@ while IFS= read -r _line || [[ -n "$_line" ]]; do
 done <"$FILE"
 [[ $GENERATED -eq 1 ]] && emit_skipped
 
-# Resolve the goimports binary from PATH — never downloaded.
-# `command -v` is a builtin; capturing it with `$( )` was a leftover subshell
-# just to learn the path. The later exec looks the name up on PATH itself.
-GOIMPORTS_BIN=""
-command -v goimports >/dev/null 2>&1 && GOIMPORTS_BIN=goimports
-
-if [[ -z "$GOIMPORTS_BIN" ]]; then
+# Resolve the goimports binary from PATH — never downloaded. `command -v` is a
+# builtin, and the exec below looks the name up on PATH itself, so nothing here
+# needs the resolved path.
+if ! command -v goimports >/dev/null 2>&1; then
   if hook::notice_once "go-format-goimports" "$INPUT"; then
     GO_NOTICE=""
     hook::tool_missing_notice_to GO_NOTICE \
@@ -185,7 +181,7 @@ hook::rewrite_guard_begin "$FILE"
 # hook in this repo captures tool output, rather than a temp file. `--`
 # ends flag parsing before $FILE — defense-in-depth against a path that
 # happens to start with `-` being misread as a flag by Go's flag package.
-STDERR=$("$GOIMPORTS_BIN" "${GOIMPORTS_ARGS[@]}" -- "$FILE" 2>&1 >/dev/null)
+STDERR=$(goimports "${GOIMPORTS_ARGS[@]}" -- "$FILE" 2>&1 >/dev/null)
 RC=$?
 
 if [[ $RC -eq 0 ]]; then

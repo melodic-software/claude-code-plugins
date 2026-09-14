@@ -54,8 +54,7 @@ pr_activity="$(jq -s 'add // 0' <<<"$WIT_GH_OUT")"
 now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 if ((comment_activity > 0 || pr_activity > 0)); then
   renewed="$(jq -c --arg ts "$now" '. + {renewed_at: $ts}' <<<"$lease_json")"
-  wit_run_gh write api --method PATCH "repos/$owner/$repo/issues/comments/$lease_comment_id" \
-    -f body="${WIT_LEASE_MARKER}${renewed} -->" --jq '.id'
+  wit_patch_lease_comment "$owner" "$repo" "$lease_comment_id" "$renewed"
   emit false "activity detected; lease renewed"
 fi
 
@@ -86,8 +85,7 @@ if jq -e --arg h "$holder" 'any(.[]; . == $h)' <<<"$WIT_GH_OUT" >/dev/null; then
 fi
 
 superseded="$(jq -c --arg ts "$now" '. + {superseded_at: $ts}' <<<"$lease_json")"
-wit_run_gh write api --method PATCH "repos/$owner/$repo/issues/comments/$lease_comment_id" \
-  -f body="${WIT_LEASE_MARKER}${superseded} -->" --jq '.id'
+wit_patch_lease_comment "$owner" "$repo" "$lease_comment_id" "$superseded"
 wit_run_gh write api "repos/$owner/$repo/issues/$number/comments" \
   -f body="work-item-lease reclaimed: lease expired (renewed_at $renewed_at) with no activity." --jq '.id'
 

@@ -3,6 +3,72 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.56.13]
+
+### Changed
+
+- inventory.py and overlap.py read plugin registration shapes through one lib helper instead of two private copies, and overlap.py validates native and component rows through shared helpers with the original messages and order. Envelopes and exit codes are unchanged.
+
+## [0.56.12]
+
+### Changed
+
+- The three plugins-skill scripts source one jq-capture library for their jq_to and json_string_to helpers instead of carrying private copies. sync-run keeps its three sidecar-row restores spelled out, since a shared array appender would need a bash 4.3 nameref that the stock bash 3.2 on macOS lacks. Output and exit codes are unchanged.
+
+## [0.56.11]
+
+### Changed
+
+- The claude-ops test wrappers share one plugin-level Python-floor probe library for the floor parse, interpreter discovery, and floor test, keeping each wrapper's own skip and error messages.
+
+## [0.56.10]
+
+### Changed
+
+- plugins skill: sync-run.sh reads fleet state at five steps through one helper, encodes string arrays and installs each plugin through shared helpers, and initializes its per-marketplace accumulators through the existing reset function; cache-content-check.sh walks cache roots through one find invocation; fleet-state.sh and normalize-enabled-plugins.sh drop a duplicate initialization and an unreachable guard. Same digests, same output.
+
+## [0.56.9]
+
+### Changed
+
+- audit-skill-visibility: audit_skill_visibility.py builds its unreadable-lib and settings-stub records through shared helpers, reuses listing_overflows and one budget prefix in the renderer, and folds three conditionals; skill-pair-cooccurrence.sh checks value flags through one helper; the suites share their fixture and fleet builders. Output byte-identical.
+
+## [0.56.8]
+
+### Changed
+
+- lanes skill: lane-launcher.sh derives absolute-or-anchored paths through one path_under helper, machine-behavior.sh checks value flags through one helper, probe-lane-config.sh folds a never-looping argument loop and its repo-root fallback, restart-consumer.sh composes the ledger path from its existing helpers, and telemetry-upsert.sh spells two inverted glob tests as conditionals. No behavior change.
+
+## [0.56.7]
+
+### Changed
+
+- observability skill: clean.sh validates both retention windows through one helper, probe-observability-state.sh folds its repo-root fallback and prune-pending line into single expressions, the prune filter inlines its prefix length, the collector lifecycle cleanup inverts one conditional, and the observability suite emits its hook-event fixture rows through one helper. No behavior change.
+
+## [0.56.6]
+
+### Changed
+
+- hooks: hook-telemetry-sink.sh drops an unreachable exit-code default (mirrored into the repo-local sink), claude-ops-paths.sh and session-event-log.sh drop array re-initializations already made at declaration, and the emitter, failure-audit, event-log and retention suites use the shared sink wait, brace ranges and a single printf per fixture file. No behavior change.
+
+## [0.56.5]
+
+### Changed
+
+- skill scripts: audit_performance.py names its ISO timestamp helper once, registry_manager.py shares its across-repos ambiguity error, overlap.py normalizes a malformed integrity block once, inventory.py and install_state.py drop unreachable guards and re-assignments, changelog-status.sh reuses the repo toplevel it already captured, morning-brief.sh collects PR numbers once, and the inventory and check-all suites share their imports and case runner. No behavior change.
+
+## [0.56.4]
+
+### Changed
+
+- Refreshes this plugin's vendored copy of the shared check-retirements.sh helper from the canonical claude-config source after a behavior-preserving simplification: the dead top-level record field pre-initialization is gone (reset_record assigns every field before the first read), the unreachable length guards in strip_quotes are gone, and its test suite gained a shared fixture helper. Output, exit codes, and all 194 suite checks are unchanged.
+
+## [0.56.3]
+
+### Changed
+
+- Refreshes this plugin's vendored copy of the shared shell library from the marketplace's canonical lib/ source after a behavior-preserving simplification: hook-utils.sh folds two identical path-probe guards into one and shares the orphaned-redirect handling across the bash segment parser; index-regen.sh folds two identical frontmatter skip guards; resolve-convention-pattern.sh drops a redundant quote-match clause. Parser output, hook JSON, and every resolver result are byte-identical before and after.
+
 ## [0.56.2]
 
 ### Fixed

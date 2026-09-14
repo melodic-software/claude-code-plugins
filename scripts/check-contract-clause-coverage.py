@@ -102,6 +102,7 @@ DEFAULT_REGISTRY = "scripts/contract-clause-registry.json"
 
 CLAUSE_ID = r"[A-Za-z0-9][A-Za-z0-9._-]*"
 
+
 # A marker is a COMPLETE comment, never a loose substring: an HTML comment that
 # closes on the same line, or a `#`/`//` line comment that runs to end of line.
 # Anchoring this way keeps a prose mention of the vocabulary ("tag the passage
@@ -200,12 +201,16 @@ def load_registry(path: Path) -> tuple[Clause, ...]:
         except (KeyError, TypeError) as exc:
             raise GateError(f"registry {path}: malformed clause entry ({exc})") from exc
         if not re.fullmatch(CLAUSE_ID, str(clause_id)):
-            raise GateError(f"registry {path}: clause id {clause_id!r} is not a marker-safe token")
+            raise GateError(
+                f"registry {path}: clause id {clause_id!r} is not a marker-safe token"
+            )
         if clause_id in seen:
             raise GateError(f"registry {path}: duplicate clause id {clause_id!r}")
         seen.add(clause_id)
         if not qualifiers:
-            raise GateError(f"registry {path}: clause {clause_id} declares no qualifiers")
+            raise GateError(
+                f"registry {path}: clause {clause_id} declares no qualifiers"
+            )
         clauses.append(
             Clause(
                 id=clause_id,
@@ -216,7 +221,9 @@ def load_registry(path: Path) -> tuple[Clause, ...]:
                 qualifiers=tuple(
                     Qualifier(
                         name=q["name"],
-                        pattern=_compile(q["pattern"], f"clause {clause_id} qualifier {q['name']}"),
+                        pattern=_compile(
+                            q["pattern"], f"clause {clause_id} qualifier {q['name']}"
+                        ),
                         hint=q["hint"],
                     )
                     for q in qualifiers
@@ -322,7 +329,7 @@ def collect_spans(path: str, lines: list[str], known: set[str]) -> list[Span]:
                     )
                 spans.append(Span(clause_id=clause_id, start=start, end=index))
     if open_spans:
-        clause_id, start = sorted(open_spans.items())[0]
+        clause_id, start = min(open_spans.items())
         raise GateError(
             f"{path}:{start}: contract-restatement-begin for {clause_id!r} is never closed"
         )
@@ -498,8 +505,14 @@ def run(root: Path, registry_path: Path, excludes: tuple[str, ...]) -> Report:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--root", default=None, help="repository root (default: this checkout)")
-    parser.add_argument("--registry", default=None, help=f"clause registry (default: {DEFAULT_REGISTRY})")
+    parser.add_argument(
+        "--root", default=None, help="repository root (default: this checkout)"
+    )
+    parser.add_argument(
+        "--registry",
+        default=None,
+        help=f"clause registry (default: {DEFAULT_REGISTRY})",
+    )
     parser.add_argument(
         "--exclude",
         action="append",
@@ -508,7 +521,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    root = Path(args.root).resolve() if args.root else Path(__file__).resolve().parent.parent
+    root = (
+        Path(args.root).resolve()
+        if args.root
+        else Path(__file__).resolve().parent.parent
+    )
     registry_path = Path(args.registry) if args.registry else root / DEFAULT_REGISTRY
 
     try:
@@ -526,9 +543,14 @@ def main(argv: list[str] | None = None) -> int:
             f"Contract-clause coverage gate FAILED — {len(report.findings)} gap(s):",
             file=sys.stderr,
         )
-        for finding in sorted(report.findings, key=lambda f: (f.path, f.line, f.clause)):
+        for finding in sorted(
+            report.findings, key=lambda f: (f.path, f.line, f.clause)
+        ):
             print("", file=sys.stderr)
-            print(f"  {finding.path}:{finding.line}  [{finding.clause}] {finding.kind}", file=sys.stderr)
+            print(
+                f"  {finding.path}:{finding.line}  [{finding.clause}] {finding.kind}",
+                file=sys.stderr,
+            )
             print(f"    {finding.detail}", file=sys.stderr)
             print(f"    fix: {finding.remedy}", file=sys.stderr)
         print("", file=sys.stderr)

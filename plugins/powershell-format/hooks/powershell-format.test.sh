@@ -84,18 +84,9 @@ new_repo() {
   fi
 }
 
-# Invoke the hook from an unrelated cwd. CLAUDE_PROJECT_DIR is left UNSET so
-# read_file_path's membership guard is disabled (not part of the fire gate).
-run_hook() {
-  local file_path="$1"
-  (
-    cd "$UNRELATED" || return 1
-    printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$file_path" |
-      env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true bash "$HOOK"
-  )
-}
-
-# Same as run_hook but with caller-supplied extra env (NAME=VALUE or -u NAME ...).
+# Invoke the hook from an unrelated cwd with caller-supplied env (NAME=VALUE or
+# -u NAME ...). CLAUDE_PROJECT_DIR is left UNSET so read_file_path's membership
+# guard is disabled (not part of the fire gate).
 run_hook_env() {
   local file_path="$1"
   shift
@@ -106,17 +97,40 @@ run_hook_env() {
   )
 }
 
+# The plain enabled-hook invocation.
+run_hook() {
+  run_hook_env "$1" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true
+}
+
+# Same, with an explicit session id: consecutive runs in one session dedupe the
+# once-per-session notice, so a case that reads the notice needs its own.
+run_hook_session() {
+  local session_id="$1" file_path="$2"
+  shift 2
+  (
+    cd "$UNRELATED" || return 1
+    printf '{"session_id":"%s","tool_input":{"file_path":"%s"},"tool_name":"Write"}' \
+      "$session_id" "$file_path" |
+      env -u CLAUDE_PROJECT_DIR "$@" bash "$HOOK"
+  )
+}
+
+# write_stub <path> <body> -> an executable bash script at <path> running <body>.
+write_stub() {
+  {
+    printf '#!/usr/bin/env bash\n'
+    printf '%s\n' "$2"
+  } >"$1"
+  chmod +x "$1"
+}
+
 # make_sink <body> -> path to an executable single-command stub sink running
 # <body> (which reads the envelope on stdin). HOOK_TELEMETRY_SINK must be a
 # single executable path, not a command-with-args, so tests point it at a stub.
 make_sink() {
   local s
   s="$(mktemp "$WORK/sink.XXXXXX")"
-  {
-    printf '#!/usr/bin/env bash\n'
-    printf '%s\n' "$1"
-  } >"$s"
-  chmod +x "$s"
+  write_stub "$s" "$1"
   printf '%s' "$s"
 }
 
@@ -175,11 +189,7 @@ fi
 STUB_BIN="$WORK/stub-bin"
 mkdir -p "$STUB_BIN"
 make_stub_pwsh() {
-  {
-    printf '#!/usr/bin/env bash\n'
-    printf '%s\n' "$1"
-  } >"$STUB_BIN/pwsh"
-  chmod +x "$STUB_BIN/pwsh"
+  write_stub "$STUB_BIN/pwsh" "$1"
 }
 REPO_STUB="$WORK/stub-repo"
 new_repo "$REPO_STUB"
@@ -338,11 +348,8 @@ mkdir -p "$REPO_CEIL/proj/sub"
 # shellcheck disable=SC2016
 printf '%s\n' '$global:c = 1' >"$REPO_CEIL/proj/sub/c.ps1"
 BEFORE_CEIL="$(cat "$REPO_CEIL/proj/sub/c.ps1")"
-OUT=$(
-  cd "$UNRELATED" || exit 1
-  printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO_CEIL/proj/sub/c.ps1" |
-    CLAUDE_PROJECT_DIR="$REPO_CEIL/proj" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true bash "$HOOK"
-)
+OUT=$(run_hook_env "$REPO_CEIL/proj/sub/c.ps1" \
+  CLAUDE_PROJECT_DIR="$REPO_CEIL/proj" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true)
 RC=$?
 if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "settings above CLAUDE_PROJECT_DIR ceiling -> not found, silent skip"; else fail "ceiling not respected (rc=$RC out=$OUT)"; fi
 if [[ "$(cat "$REPO_CEIL/proj/sub/c.ps1")" == "$BEFORE_CEIL" ]]; then ok "ceiling -> file left untouched"; else fail "ceiling -> file was rewritten"; fi
@@ -754,14 +761,14 @@ for target in \
   # the previous one ended in, so a shared session would dedupe the notice and
   # the marker extraction would read an empty payload as a missing gate.
   printf "%s\n" "get-childitem -Path '.'" >"$REPO_CRP/crp-ext$n-a.ps1"
-  OUT_EXT1="$(cd "$UNRELATED" && printf '{"session_id":"dep-%s-a","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$n" "$REPO_CRP/crp-ext$n-a.ps1" |
-    env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true bash "$HOOK")"
+  OUT_EXT1="$(run_hook_session "dep-$n-a" "$REPO_CRP/crp-ext$n-a.ps1" \
+    CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true)"
   E_MARKER="$(printf '%s' "$OUT_EXT1" | jq -r '.systemMessage' | sed -n "s/.*mkdir -p '\([^']*\)'.*/\1/p")"
   mkdir -p "$E_MARKER"
   printf '%s\n' '# unreviewed dependency revision' >>"$target"
   printf "%s\n" "get-childitem -Path '.'" >"$REPO_CRP/crp-ext$n-b.ps1"
-  OUT_EXT2="$(cd "$UNRELATED" && printf '{"session_id":"dep-%s-b","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$n" "$REPO_CRP/crp-ext$n-b.ps1" |
-    env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true bash "$HOOK")"
+  OUT_EXT2="$(run_hook_session "dep-$n-b" "$REPO_CRP/crp-ext$n-b.ps1" \
+    CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true)"
   if [[ -n "$E_MARKER" ]] && printf '%s' "$OUT_EXT2" | jq -e '.hookSpecificOutput.additionalContext | contains("trust gate")' >/dev/null 2>&1 &&
     grep -q 'get-childitem' "$REPO_CRP/crp-ext$n-b.ps1"; then
     ok "host-module dependency $(basename "$target") is pinned; its change revokes"
@@ -783,8 +790,8 @@ printf '%s\n' 'not-a-real-assembly' >"$REPO_CRP/rules/deps/UsingAsm.dll"
   cat "$WORK/LoadHost.psm1.bak"
 } >"$REPO_CRP/rules/LoadHost.psm1"
 printf "%s\n" "get-childitem -Path '.'" >"$REPO_CRP/crp-asm.ps1"
-OUT_ASM="$(cd "$UNRELATED" && printf '{"session_id":"using-assembly","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO_CRP/crp-asm.ps1" |
-  env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true bash "$HOOK")"
+OUT_ASM="$(run_hook_session using-assembly "$REPO_CRP/crp-asm.ps1" \
+  CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true)"
 if printf '%s' "$OUT_ASM" | jq -e '(.systemMessage | contains("trust gate")) and (.systemMessage | contains("mkdir -p") | not)' >/dev/null 2>&1 &&
   grep -q 'get-childitem' "$REPO_CRP/crp-asm.ps1"; then
   ok "using assembly naming an unloadable DLL refuses approval"
@@ -867,8 +874,8 @@ EOF
   # A distinct session per form: every unpinnable state shares one notice key
   # (it carries no signature), so a single session would dedupe all but the
   # first and the assertion would read an empty payload as a missing gate.
-  OUT_UNPIN="$(cd "$UNRELATED" && printf '{"session_id":"unpin-%s","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$form" "$REPO_CRP/crp-$form.ps1" |
-    env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true bash "$HOOK")"
+  OUT_UNPIN="$(run_hook_session "unpin-$form" "$REPO_CRP/crp-$form.ps1" \
+    CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true)"
   if printf '%s' "$OUT_UNPIN" | jq -e '(.systemMessage | contains("trust gate") and contains("cannot pin")) and (.systemMessage | contains("mkdir -p") | not)' >/dev/null 2>&1 &&
     grep -q 'get-childitem' "$REPO_CRP/crp-$form.ps1"; then
     ok "unpinnable load target ($form) gates and refuses approval"

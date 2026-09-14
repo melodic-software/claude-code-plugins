@@ -407,7 +407,7 @@ command -v git >/dev/null 2>&1 || die "git is required"
 declares_removal() {
   local sha="$1" msg subject
   msg="$(git log -1 --no-show-signature --format=%B "$sha")" || return 1
-  subject="$(printf '%s\n' "$msg" | head -n 1)"
+  subject="${msg%%$'\n'*}"
 
   case "$subject" in
   'Revert "'*)
@@ -432,17 +432,22 @@ declares_removal() {
   # `(scope)` and/or `!`, its colon, and a non-empty description. Never a
   # substring search for "revert" -- `feat: do not revert the guard` must still
   # fire, which is what the FALSE-POSITIVE STRATEGY note above is protecting.
-  if printf '%s\n' "$subject" | grep -Eq '^revert(\([^()]+\))?!?:[[:space:]]*[^[:space:]]'; then
+  #
+  # Each grep reads a here-string rather than a pipe, for the reason
+  # marker_present records: under `set -o pipefail` a `grep -q` that exits
+  # early on a match SIGPIPEs the upstream and the pipeline status becomes
+  # 141, which would read as "no match" on the very message that matched.
+  if grep -Eq '^revert(\([^()]+\))?!?:[[:space:]]*[^[:space:]]' <<<"$subject"; then
     printf 'the subject carries the Conventional-Commits revert type\n'
     return 0
   fi
-  if printf '%s\n' "$msg" | grep -Eq '^This reverts commit [0-9a-f]{7,40}'; then
+  if grep -Eq '^This reverts commit [0-9a-f]{7,40}' <<<"$msg"; then
     printf 'the body carries a "This reverts commit <sha>" line\n'
     return 0
   fi
   # The explicit ack. Requires a non-empty reason so an empty trailer cannot be
   # pasted in as a blanket mute.
-  if printf '%s\n' "$msg" | grep -Eq '^Intentional-removal:[[:space:]]*[^[:space:]]'; then
+  if grep -Eq '^Intentional-removal:[[:space:]]*[^[:space:]]' <<<"$msg"; then
     printf 'the body carries an Intentional-removal trailer\n'
     return 0
   fi
@@ -513,6 +518,26 @@ old_side_deleted_ranges() {
          count = (length(a) > 1) ? a[2] + 0 : 1
          if (start > 0) print start, count
        }' "$1"
+}
+
+# append_deleted_ranges <out-array> <diff-file>
+#
+# Append one `-L <first>,<last>` blame argument per old-side hunk in
+# <diff-file> to the named array. Shared by the path-limited content diff and
+# the blob-to-blob recovery, which derive their ranges identically.
+#
+# Every internal name carries the `_adr_` prefix for the reason
+# scripts/lib/changed-files.sh records: a nameref resolves in the scope where
+# it is used, so an unprefixed local sharing the caller's out-var name would
+# shadow it and the ranges would be written where nobody reads them.
+append_deleted_ranges() {
+  local -n _adr_ranges_out="$1"
+  local _adr_start _adr_count
+  while read -r _adr_start _adr_count; do
+    [[ -n "$_adr_start" ]] || continue
+    [[ "$_adr_count" -gt 0 ]] || continue
+    _adr_ranges_out+=(-L "$_adr_start,$((_adr_start + _adr_count - 1))")
+  done < <(old_side_deleted_ranges "$2")
 }
 
 attribute_file() {
@@ -618,11 +643,7 @@ attribute_file() {
     diff --no-ext-diff --no-textconv --unified=0 --no-color \
     --diff-algorithm=myers -M "$parent" "$commit" -- "$file"
 
-  while read -r start count; do
-    [[ -n "$start" ]] || continue
-    [[ "$count" -gt 0 ]] || continue
-    ranges+=(-L "$start,$((start + count - 1))")
-  done < <(old_side_deleted_ranges "$diff_out")
+  append_deleted_ranges ranges "$diff_out"
 
   # `-diff` / `binary` attributes make the path-limited diff emit
   # "Binary files differ" and no @@ hunks (gitattributes(5): Unset on
@@ -672,11 +693,7 @@ attribute_file() {
             "git diff failed attributing blobs of $file in $commit" \
             diff --no-ext-diff --no-textconv --unified=0 --no-color \
             --diff-algorithm=myers "$old_blob" "$new_blob"
-          while read -r start count; do
-            [[ -n "$start" ]] || continue
-            [[ "$count" -gt 0 ]] || continue
-            ranges+=(-L "$start,$((start + count - 1))")
-          done < <(old_side_deleted_ranges "$blob_out")
+          append_deleted_ranges ranges "$blob_out"
           rm -f "$blob_out"
         fi
         ;;
@@ -1377,8 +1394,7 @@ parse_incidents_file() {
           die "unterminated disposition on the marker row for $sha in $INCIDENTS_FILE (no closing ']'): $rest"
         local disposition="${rest%%\]*}"
         disposition="${disposition#\[}"
-        printf '%s\n' "$disposition" |
-          grep -Eq '^not-restored:[[:space:]]*[^[:space:]]' ||
+        grep -Eq '^not-restored:[[:space:]]*[^[:space:]]' <<<"$disposition" ||
           die "disposition '[$disposition]' on the marker row for $sha in $INCIDENTS_FILE must be [not-restored: <non-empty reason>]"
         reason="${disposition#not-restored:}"
         reason="${reason#"${reason%%[![:space:]]*}"}"

@@ -19,11 +19,7 @@ CB_REPO=""
 source "$SCRIPT_DIR/gitea.sh"
 
 for fn in cb_setup cb_teardown; do
-  if declare -F "$fn" >/dev/null; then
-    pass "gitea binding exposes $fn"
-  else
-    fail "gitea binding exposes $fn" "declared" "missing"
-  fi
+  assert_succeeds "gitea binding exposes $fn" "declared" "missing" declare -F "$fn"
 done
 
 # No retained default for either half of the target. Conformance creates, claims, and

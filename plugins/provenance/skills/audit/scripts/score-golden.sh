@@ -36,6 +36,10 @@
 # directory holds no scoreable case, 4 when jq is absent.
 set -uo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib.sh
+source "$SCRIPT_DIR/lib.sh"
+
 GOLDEN=""
 ACTUAL=""
 SHOW_CONFIG=0
@@ -59,23 +63,15 @@ by_class, by_case, declined}. Diagnostics go to stderr.
 EOF
 }
 
-require_opt_value() {
-  local opt="$1"
-  if [[ $# -lt 2 || -z "${2:-}" || "$2" == -* ]]; then
-    echo "score-golden.sh: $opt requires a value" >&2
-    exit 2
-  fi
-}
-
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --golden)
-    require_opt_value "$@"
+    require_opt_value "score-golden.sh" "$@"
     GOLDEN="$2"
     shift 2
     ;;
   --actual)
-    require_opt_value "$@"
+    require_opt_value "score-golden.sh" "$@"
     ACTUAL="$2"
     shift 2
     ;;
@@ -105,10 +101,7 @@ command -v jq >/dev/null 2>&1 || {
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 CONFIG_ROOT="${CLAUDE_PROJECT_DIR:-$REPO_ROOT}"
 
-CFG_LAYERS=()
-[[ -f "${HOME:-/nonexistent}/.claude/provenance.json" ]] && CFG_LAYERS+=("$HOME/.claude/provenance.json")
-[[ -f "$CONFIG_ROOT/.claude/provenance.json" ]] && CFG_LAYERS+=("$CONFIG_ROOT/.claude/provenance.json")
-[[ -f "$CONFIG_ROOT/.claude/provenance.local.json" ]] && CFG_LAYERS+=("$CONFIG_ROOT/.claude/provenance.local.json")
+cfg_layers_init "$CONFIG_ROOT"
 
 # cfg_num <jq-path> <default>: last layer that defines the key wins (per-key
 # override). A non-numeric value is ignored rather than propagated, so a typo in
@@ -129,12 +122,7 @@ REPORT_RECALL_FLOOR="$(cfg_num '.gates.report_recall_floor' 0.8)"
 MIN_N_PER_CLASS="$(cfg_num '.gates.min_n_per_class' 10)"
 
 if [[ "$SHOW_CONFIG" -eq 1 ]]; then
-  echo "Config layers (later refines earlier):"
-  if [[ "${#CFG_LAYERS[@]}" -eq 0 ]]; then
-    echo "  (none; bundled defaults)"
-  else
-    for layer in "${CFG_LAYERS[@]}"; do echo "  $layer"; done
-  fi
+  cfg_layers_print
   echo "Effective: gates.fix_precision_bar=$FIX_PRECISION_BAR"
   echo "Effective: gates.report_recall_floor=$REPORT_RECALL_FLOOR"
   echo "Effective: gates.min_n_per_class=$MIN_N_PER_CLASS"
@@ -205,6 +193,14 @@ def overlaps($e; $a):
 
 def matched($e; $a): ($e.class == $a.class) and overlaps($e; $a);
 
+# Does any expectation for this case match the actual finding in `.`? The hit and
+# miss readings are this one question and its complement.
+def has_match($ef): . as $a | [$ef[] | select(matched(.; $a))] | length > 0;
+
+# Sum one confusion-matrix cell over a list of cases. An empty list is 0, never
+# null, so an unpopulated class still reports a number.
+def tally($k): [.[] | .[$k]] | add // 0;
+
 def ratio($n; $d): if $d == 0 then null else ($n / $d) end;
 
 ($actual[0] // {}) as $act
@@ -224,8 +220,8 @@ def ratio($n; $d): if $d == 0 then null else ($n / $d) end;
     | (($byc[$id]) // []) as $aa
     | (if $covdecl and ((($run | any(. == $id))) | not)
        then "declined" else "scored" end) as $state
-    | ([$aa[] | . as $a | select([$ef[] | select(matched(.; $a))] | length > 0)]) as $hit
-    | ([$aa[] | . as $a | select([$ef[] | select(matched(.; $a))] | length == 0)]) as $miss
+    | ([$aa[] | select(has_match($ef))]) as $hit
+    | ([$aa[] | select(has_match($ef) | not)]) as $miss
     | {
         case: $id,
         class: $cls,
@@ -245,10 +241,10 @@ def ratio($n; $d): if $d == 0 then null else ($n / $d) end;
   ] as $cases
 
 | ([$cases[] | select(.state == "scored")]) as $scored
-| ([$scored[] | .tp] | add // 0) as $tp
-| ([$scored[] | .fn] | add // 0) as $fn
-| ([$scored[] | .fp] | add // 0) as $fp
-| ([$scored[] | .tn] | add // 0) as $tn
+| ($scored | tally("tp")) as $tp
+| ($scored | tally("fn")) as $fn
+| ($scored | tally("fp")) as $fp
+| ($scored | tally("tn")) as $tn
 
 | ([$cases[] | select(.state == "declined") | .case]) as $notrun
 | ([$af[] | .case // "(unnamed)"] | unique
@@ -267,11 +263,11 @@ def ratio($n; $d): if $d == 0 then null else ($n / $d) end;
     },
     by_class: (
       $scored | group_by(.class) | map(
-        (. | length) as $n
-        | ([.[] | .tp] | add // 0) as $ctp
-        | ([.[] | .fp] | add // 0) as $cfp
-        | ([.[] | .fn] | add // 0) as $cfn
-        | ([.[] | .tn] | add // 0) as $ctn
+        length as $n
+        | tally("tp") as $ctp
+        | tally("fp") as $cfp
+        | tally("fn") as $cfn
+        | tally("tn") as $ctn
         | ratio($ctp; $ctp + $cfp) as $cp
         | ratio($ctp; $ctp + $cfn) as $cr
         | {

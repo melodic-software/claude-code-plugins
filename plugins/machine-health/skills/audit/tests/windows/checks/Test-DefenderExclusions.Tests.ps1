@@ -2,18 +2,11 @@
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
 
 BeforeAll {
-    $script:TestsRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $script:SkillRoot = Split-Path -Parent $script:TestsRoot
-    $script:ScriptPath = Join-Path $script:SkillRoot 'scripts\windows\checks\Test-DefenderExclusions.ps1'
-    $script:LibRoot = Join-Path $script:SkillRoot 'scripts\windows\lib'
-    . (Join-Path $script:LibRoot 'Assert-CheckResult.ps1')
-    # Dot-source Test-IsElevated so Pester's Mock can intercept it. The check
+    # Test-IsElevated is dot-sourced so Pester's Mock can intercept it. The check
     # script itself imports the file from its own scope, but that doesn't make
     # the function visible here; we need our own copy to mock against.
-    . (Join-Path $script:LibRoot 'Test-IsElevated.ps1')
-    . (Join-Path $script:TestsRoot 'helpers\Invoke-CheckScript.ps1')
-
-    function Invoke-DefenderExclusionsAsObject { Invoke-CheckScriptAsObject $script:ScriptPath }
+    . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -Check 'Test-DefenderExclusions' `
+        -AsObject 'Invoke-DefenderExclusionsAsObject' -LibScript 'Test-IsElevated.ps1'
 }
 
 Describe 'Test-DefenderExclusions -- elevation gate' -Tag 'check' {

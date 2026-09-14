@@ -162,12 +162,13 @@ declare -a inc_conds=() inc_paths=() inc_origins=() inc_resolved=()
 declare -A contributing_origin=()
 
 while IFS= read -r -d '' origin && IFS= read -r -d '' kv; do
-  key="${kv%%$'\n'*}"
-  val="${kv#*$'\n'}"
-  [[ "$kv" == *$'\n'* ]] || {
+  if [[ "$kv" == *$'\n'* ]]; then
+    key="${kv%%$'\n'*}"
+    val="${kv#*$'\n'}"
+  else
     key="$kv"
     val=""
-  }
+  fi
   # Origin is `file:<path>` for file-backed config; other origin types
   # (blob:, command line:) are not include machinery.
   ofile=""

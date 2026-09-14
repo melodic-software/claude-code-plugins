@@ -4,6 +4,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import { errorResponse, jsonResponse } from "../response.js";
+import { hasCapability } from "./capability.js";
 
 export function registerFrameTools(server: McpServer, api: MiroApi): void {
   server.tool(
@@ -52,7 +53,7 @@ export function registerFrameTools(server: McpServer, api: MiroApi): void {
     async ({ board_id, frame_id, limit }) => {
       const board = await api.getBoard(board_id);
       const frame = await board.getItem(frame_id);
-      if (!("getAllItems" in frame) || typeof frame.getAllItems !== "function") {
+      if (!hasCapability(frame, "getAllItems")) {
         return errorResponse(`Item ${frame_id} is not a frame. Only frames contain child items.`);
       }
       const items: Array<Record<string, unknown>> = [];

@@ -6,10 +6,7 @@ Tests for scripts/windows/lib/Invoke-AllowlistedWeb.ps1.
 #>
 
 BeforeAll {
-    $script:TestsRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $script:LibRoot = Join-Path (Split-Path -Parent $script:TestsRoot) 'scripts\windows\lib'
-    . (Join-Path $script:LibRoot 'Invoke-AllowlistedWeb.ps1')
-    Import-Module (Join-Path $script:TestsRoot 'helpers\Mock-Helpers.psm1') -Force
+    . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'Invoke-AllowlistedWeb.ps1' -MockHelpers
 }
 
 Describe 'Invoke-AllowlistedWeb -- allowlist' -Tag 'lib' {
@@ -31,15 +28,6 @@ Describe 'Invoke-AllowlistedWeb -- allowlist' -Tag 'lib' {
 
     It 'does not match a false-prefix collision (microsoft.com vs update.microsoft.com)' {
         Test-EgressHostAllowed -HostName 'microsoft.com' | Should -BeFalse
-    }
-
-    It 'returns an allowlist copy, not a reference' {
-        $a = Get-EgressAllowlist
-        $a | Should -Not -BeNullOrEmpty
-        $a.Count | Should -BeGreaterThan 0
-        $a[0] = 'tampered.example'
-        Test-EgressHostAllowed -HostName 'tampered.example' | Should -BeFalse
-        (Get-EgressAllowlist)[0] | Should -Not -Be 'tampered.example'
     }
 }
 

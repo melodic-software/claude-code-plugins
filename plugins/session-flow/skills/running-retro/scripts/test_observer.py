@@ -16,6 +16,7 @@ import io
 import json
 import os
 import shutil
+import signal
 import sys
 import tempfile
 import threading
@@ -1035,12 +1036,9 @@ class LedgerAndRetention(unittest.TestCase):
     def test_other_session_ledger_not_matched(self):
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
-            (tmp / "ledger" / "20260101T000000Z-running-retro-x.md").parent.mkdir(
-                parents=True, exist_ok=True
-            )
-            (tmp / "ledger" / "20260101T000000Z-running-retro-x.md").write_text(
-                "---\nsession_id: other\n---\n", encoding="utf-8"
-            )
+            other = tmp / "ledger" / "20260101T000000Z-running-retro-x.md"
+            other.parent.mkdir(parents=True, exist_ok=True)
+            other.write_text("---\nsession_id: other\n---\n", encoding="utf-8")
             ob = make_observer(tmp, session_id="mine")
             self.assertIsNone(ob._find_session_ledger())
 
@@ -1281,12 +1279,10 @@ class LedgerAndRetention(unittest.TestCase):
     def test_retention_rule(self):
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
-            # Collect-only (analysis off): observations retained.
+            # Collect-only (analysis off): run() never consumes, so it never
+            # calls _cleanup_observations and the observations stay.
             ob = make_observer(tmp, analysis=False)
             ob.obs_path.write_text('{"t":"user"}\n', encoding="utf-8")
-            consumed = False  # mirrors run(): no analysis -> not consumed -> retained
-            if consumed:
-                ob._cleanup_observations()
             self.assertTrue(
                 ob.obs_path.exists(), "collect-only must retain observations"
             )
@@ -1366,8 +1362,6 @@ class ArmLauncher(unittest.TestCase):
         as soon as the child dies and reaps it in the same call. Windows has
         no zombie state and no `waitpid`, so liveness polling stays.
         """
-        import signal
-
         with contextlib.suppress(OSError, ProcessLookupError):
             os.kill(pid, signal.SIGTERM)
         deadline = time.time() + timeout

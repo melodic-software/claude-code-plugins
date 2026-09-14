@@ -38,6 +38,7 @@ import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from shutil import which
 
 
 def now_iso() -> str:
@@ -425,8 +426,7 @@ class Observer:
                 # They never leave the machine-local work dir regardless.
                 if state != "ended-idle" or not self.analysis:
                     return 0
-                consumed = self._run_analysis()
-                if consumed:
+                if self._run_analysis():
                     self._cleanup_observations()
                 if self._transcript_byte_size() <= tail_end_offset:
                     return 0
@@ -632,10 +632,9 @@ class Observer:
             # Verify a bare `*`/`**` line is present -- not merely that the file
             # exists (a repo-created .gitignore may hold only comments/exceptions).
             if not any(ln.strip() in ("*", "**") for ln in content.splitlines()):
-                prefix = (
-                    content if content.endswith("\n") or not content else content + "\n"
-                )
-                gi.write_text(prefix + "*\n", encoding="utf-8")
+                if content and not content.endswith("\n"):
+                    content += "\n"
+                gi.write_text(content + "*\n", encoding="utf-8")
                 self.log(f"ensured memory-root self-ignore '*' in {gi}")
         except OSError as e:
             self.log(
@@ -871,8 +870,6 @@ def _pid_alive(pid: int) -> bool:
 
 
 def _find_claude() -> str | None:
-    from shutil import which
-
     for name in ("claude", "claude.cmd", "claude.exe"):
         found = which(name)
         if found:

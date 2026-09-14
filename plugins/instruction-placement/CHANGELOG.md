@@ -3,6 +3,24 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.10]
+
+### Changed
+
+- Merge the exclusion and tier case arms, share the skip-row writer and the language-hint scan in detect, fold the brace-split and escape arms in glob-tools and share the first-heading read in render-index (behavior unchanged).
+
+## [0.13.9]
+
+### Changed
+
+- Merge the trials and filler parse arms, accumulate adherence results per arm and route index-drift through the shared hook path helpers and fixture setup (behavior unchanged).
+
+## [0.13.8]
+
+### Changed
+
+- Refreshes this plugin's vendored copy of the shared shell library from the marketplace's canonical lib/ source after a behavior-preserving simplification: hook-utils.sh folds two identical path-probe guards into one and shares the orphaned-redirect handling across the bash segment parser; index-regen.sh folds two identical frontmatter skip guards; resolve-convention-pattern.sh drops a redundant quote-match clause. Parser output, hook JSON, and every resolver result are byte-identical before and after.
+
 ## [0.13.7]
 
 ### Fixed

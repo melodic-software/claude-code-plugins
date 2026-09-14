@@ -3,6 +3,12 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.2]
+
+### Changed
+
+- map-landscape scripts: landscape-record.sh and render-landscape.sh select their usage header by comment marker like the sibling collectors, the markdown pipe escaper lives once in the shared awk prelude, portfolio-facts.sh drops dead guards and single-use intermediates, and the test fixture generator emits its last entry without a per-iteration branch. Output byte-identical.
+
 ## [0.9.1]
 
 ### Changed

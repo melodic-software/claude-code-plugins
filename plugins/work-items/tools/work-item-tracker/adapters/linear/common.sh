@@ -522,12 +522,12 @@ readonly WIT_LINEAR_NORMALIZE_PROGRAM='
   }'
 
 # wit_linear_scope_parts <workspace/TEAM> — split a scope entry, setting
-# WIT_LINEAR_WS and WIT_LINEAR_TEAM. The entry has already passed
+# WIT_LINEAR_TEAM to the team half. The entry has already passed
 # WIT_LINEAR_SCOPE_RE, which guarantees exactly one slash and a strict charset on both
-# halves, so neither is escaped again downstream.
-# shellcheck disable=SC2034  # WIT_LINEAR_WS/TEAM are read by the verb scripts
+# halves, so it is not escaped again downstream. The workspace half is read through
+# wit_linear_workspace, which takes it from the validated scopes list.
+# shellcheck disable=SC2034  # WIT_LINEAR_TEAM is read by the verb scripts
 wit_linear_scope_parts() {
-  WIT_LINEAR_WS="${1%%/*}"
   WIT_LINEAR_TEAM="${1#*/}"
 }
 
@@ -572,7 +572,7 @@ wit_linear_fetch_issue() {
 # require its workspace/team be in the declared scope list. The scope list is the
 # authorization boundary, not a filter: a bound workflow must not touch an item in a
 # team it never declared, even when the API key can see it. Sets the WIT_ID_* globals
-# plus WIT_LINEAR_WS / WIT_LINEAR_TEAM.
+# plus WIT_LINEAR_TEAM.
 wit_linear_require_scoped_id() {
   wit_require_linear_id "$1" || wit_usage_error "not a linear item id: $1"
   wit_linear_scope_in_scope "$WIT_ID_OWNER/$WIT_ID_REPO" ||
@@ -742,7 +742,7 @@ wit_linear_activity_since() {
 # tiebreak would let two racers each believe they won. The comment UUID is arbitrary but
 # identical for both observers, which is all arbitration needs.
 wit_linear_lease_comments() {
-  local issue_id="$1" cursor="" has_next="true" all='[]' q page
+  local issue_id="$1" cursor="" has_next="true" all='[]' q page node body lease handle cid
   q='query($id: String!, $first: Int!, $after: String) {
     issue(id: $id) {
       comments(first: $first, after: $after) {
@@ -757,7 +757,6 @@ wit_linear_lease_comments() {
         '{id: $id, first: $f, after: (if ($a | length) > 0 then $a else null end)}')" \
       "listing comments on $issue_id"
     page="$(jq -c '.issue.comments // {nodes: [], pageInfo: {hasNextPage: false}}' <<<"$WIT_LINEAR_DATA")"
-    local node body lease handle cid
     while IFS= read -r node; do
       [[ -n "$node" ]] || continue
       body="$(jq -r '.body // ""' <<<"$node")"

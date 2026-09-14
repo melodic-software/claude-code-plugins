@@ -87,15 +87,12 @@ shift || true
 MODE=unknown
 case "$SCRIPT" in
 *guard_launch_monitor.py*) MODE=monitor ;;
-*destructive_guard.py*) MODE=guard ;;
 *) ;;
 esac
 
 # Portable WindowsApps path-component check (case-insensitive).
 _under_windowsapps() {
-  local path_lower
-  path_lower="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
-  [[ "$path_lower" == *windowsapps* ]]
+  [[ "${1,,}" == *windowsapps* ]]
 }
 
 # True when `path` names a zero-length Windows App Execution Alias stub.

@@ -7,7 +7,6 @@ import { describe, expect, it, vi } from "vitest";
 import { adapterSourceDeclarations } from "../acquisition/acquire.js";
 import { PREFLIGHT_FIELD_SEP, preflightVideo } from "../acquisition/preflight-metadata.js";
 import { spawnYtDlpWithAuthFallback } from "../acquisition/spawn-yt-dlp-with-auth-fallback.js";
-import { harvestMetadataLinks } from "../harvesting/harvest-links.js";
 import { writeEnvelopeTranscriptArtifacts } from "../transcript/write-transcript.js";
 import { classifyErrorDetail } from "./adapter-contract.js";
 import { acquireMedia } from "./registry.js";
@@ -83,6 +82,15 @@ const SINGLE_VIDEO_PROBE_PASS = {
 };
 
 /**
+ * The spawn envelope every yt-dlp stub in this file returns.
+ *
+ * @param {{success?: boolean, stdout?: string, stderr?: string}} [result]
+ */
+function spawnResult({ success = true, stdout = "", stderr = "" } = {}) {
+  return { success, code: success ? 0 : 1, signal: null, stdout, stderr, timedOut: false };
+}
+
+/**
  * In-memory acquisition fixture: each spawn call applies the next pass's
  * stderr + files, listFiles/readFile/writeFile/removeFile all resolve against
  * the same map.
@@ -98,15 +106,7 @@ function createFixtureDeps(workDir, passes) {
     for (const [name, content] of Object.entries(pass.addFiles ?? {})) {
       files.set(path.join(workDir, name), content);
     }
-    const success = pass.success !== false;
-    return {
-      success,
-      code: success ? 0 : 1,
-      signal: null,
-      stdout: "",
-      stderr: pass.stderr ?? "",
-      timedOut: false,
-    };
+    return spawnResult({ success: pass.success !== false, stderr: pass.stderr });
   });
   return {
     files,
@@ -352,14 +352,12 @@ describe("x error-pattern taxonomy", () => {
   });
 
   it("cookie fallback gating: a login-required X failure never iterates browser profiles", async () => {
-    const spawn = vi.fn(async () => ({
-      success: false,
-      code: 1,
-      signal: null,
-      stdout: "",
-      stderr: `ERROR: [twitter] ${TWID}: NSFW tweet requires authentication. Use --cookies for the authentication.`,
-      timedOut: false,
-    }));
+    const spawn = vi.fn(async () =>
+      spawnResult({
+        success: false,
+        stderr: `ERROR: [twitter] ${TWID}: NSFW tweet requires authentication. Use --cookies for the authentication.`,
+      }),
+    );
     const result = await spawnYtDlpWithAuthFallback(spawn, () => ["--version"], {
       env: {},
       source: adapterSourceDeclarations(adapter),
@@ -547,7 +545,7 @@ describe("acquireXMedia (fixture-driven, offline)", () => {
     ]);
 
     // Blocked link lands in harvested links (provenance).
-    const links = harvestMetadataLinks(envelope.metadata, adapter);
+    const links = adapter.harvestLinks(envelope.metadata);
     expect(links.map((link) => link.url)).toContain(REFUSED_URL);
   });
 
@@ -639,7 +637,7 @@ describe("acquireXMedia (fixture-driven, offline)", () => {
         const readme = await fs.readFile(path.join(sliceDir, "README.md"), "utf8");
         expect(readme, testCase.name).toContain(TWID);
         expect(readme, testCase.name).toContain(STATUS_URL);
-        const links = harvestMetadataLinks(result.data.metadata, adapter);
+        const links = adapter.harvestLinks(result.data.metadata);
         expect(links.map((link) => link.url), testCase.name).toContain(testCase.expectedLink);
       } finally {
         await fs.rm(sliceDir, { recursive: true, force: true });
@@ -867,14 +865,11 @@ describe("canonicalization reaches every entry path by construction", () => {
   });
 
   it("queue entry: preflight probes the canonical URL and keys the row by status id", async () => {
-    const spawn = vi.fn(async () => ({
-      success: true,
-      code: 0,
-      signal: null,
-      stdout: `${[TWID, "Fixture Post", "Some User", "@someuser"].join(PREFLIGHT_FIELD_SEP)}\n`,
-      stderr: "",
-      timedOut: false,
-    }));
+    const spawn = vi.fn(async () =>
+      spawnResult({
+        stdout: `${[TWID, "Fixture Post", "Some User", "@someuser"].join(PREFLIGHT_FIELD_SEP)}\n`,
+      }),
+    );
     const result = await preflightVideo(RAW_URL, { spawn, env: {} });
 
     expect(result.ok).toBe(true);
@@ -897,14 +892,9 @@ describe("canonicalization reaches every entry path by construction", () => {
   });
 
   it("queue entry: stderr-derived note/reason are markdown-escaped (no table injection)", async () => {
-    const spawn = vi.fn(async () => ({
-      success: false,
-      code: 1,
-      signal: null,
-      stdout: "",
-      stderr: "ERROR: transient thing | with pipes | in it",
-      timedOut: false,
-    }));
+    const spawn = vi.fn(async () =>
+      spawnResult({ success: false, stderr: "ERROR: transient thing | with pipes | in it" }),
+    );
     const result = await preflightVideo(RAW_URL, { spawn, env: {} });
 
     expect(result.ok).toBe(false);

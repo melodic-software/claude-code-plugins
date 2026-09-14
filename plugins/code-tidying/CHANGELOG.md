@@ -3,6 +3,36 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.8]
+
+### Changed
+
+- The allowed-tools pairing suite now prints a NOTE line for any skill that names no expected-granted arm instead of silently skipping the granted-set comparison. Exit codes and every PASS and FAIL string are unchanged.
+
+## [0.19.7]
+
+### Changed
+
+- Merge the line-comment leader branches in the comment-shapes library, drop the redundant target array copy in the detector and hoist the tab fixture name in its suite (behavior unchanged).
+
+## [0.19.6]
+
+### Changed
+
+- Enumerate census lines directly, total dedupe drops from the record counts, unpack tree-sitter points and collapse the census exit-code branches in the comment scripts (behavior unchanged).
+
+## [0.19.5]
+
+### Changed
+
+- Anchor scope targets in one loop, count owned files from the collected list and fold the vulture input-error match in the dead-code scan (behavior unchanged).
+
+## [0.19.4]
+
+### Changed
+
+- dissolve-comments wrappers: scope-code-files.sh points at the allowed-tools verification record that change-shape.sh carries instead of repeating it, comment-tooling-probe.sh points at the same anchor, and the six wrapper headers drop their em dashes. Comment-only; every wrapper still execs the same target.
+
 ## [0.19.3]
 
 ### Changed

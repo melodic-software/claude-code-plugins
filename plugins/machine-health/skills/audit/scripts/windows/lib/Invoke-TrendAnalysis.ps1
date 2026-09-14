@@ -16,12 +16,11 @@ For each current check result:
  3. Apply the one severity adjustment this engine makes: upgrade WARN -> CRIT
     when the trend-relevant metric worsens by >= 5 (raw units or percentage
     points) against that baseline.
- 4. Record the adjustment reason in `notes` ("trend upgrade: X crossed
-    threshold last week too").
+ 4. Record the adjustment reason in `notes` ("trend upgrade: <metric>: +N vs
+    prior").
 
-Upgrades only. A revert-downgrade was described here before it existed and was
-never built; severity only ever moves up, so callers must not rely on this
-engine to walk one back down.
+Upgrades only: severity never moves back down, so callers must not rely on this
+engine to walk an adjustment back.
 
 Conservative defaults: when in doubt, do not adjust. The rubric explicitly
 prefers the lower severity on ambiguity and relies on trend upgrades to
@@ -70,8 +69,7 @@ function Invoke-TrendAnalysis {
         # Only the most recent qualifying value is ever compared against, so the
         # walk overwrites rather than accumulating: the tail is in file order
         # (oldest -> newest), so the last assignment is the newest baseline.
-        # Reading [0] would compare today against the STALEST entry, which is
-        # the bug the ordering note guards.
+        # Reading [0] would compare today against the stalest entry instead.
         $lastMetric = $null
         if ($relevantKey) {
             $fullKey = "$($r.id).$relevantKey"

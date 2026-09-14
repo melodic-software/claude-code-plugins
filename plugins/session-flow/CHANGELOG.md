@@ -1,5 +1,35 @@
 # Changelog: session-flow plugin
 
+## [0.35.17]
+
+### Changed
+
+- The three test wrappers and the observer-arm hook find a Python 3.10+ interpreter through one probe library instead of four identical loops. Skip messages, exit codes and the launcher argv are unchanged. The probe writes through `printf -v`, so the hook still finds its interpreter on the stock bash 3.2 that macOS ships.
+
+## [0.35.16]
+
+### Changed
+
+- hop_chain and save_point reconfigure stdout and stderr for UTF-8 through one io_streams module instead of two identical private functions.
+
+## [0.35.15]
+
+### Changed
+
+- The session-flow save-point and hop-chain scripts drop dead constants, unread return values, and a redundant predecessor guard, hoist loop-invariant path lookups, and compile a repeated chain-item regex, with byte-identical handoff output.
+
+## [0.35.14]
+
+### Changed
+
+- Fold the chain-coverage note into one branch, drop a redundant staging guard and share the event runner and script-dir binding in the retro and keep-going suites (behavior unchanged).
+
+## [0.35.13]
+
+### Changed
+
+- Forward the observer timing options without redundant string wrapping, simplify the memory-root ignore append, hoist the module-level imports and drop a dead test branch in running-retro (behavior unchanged).
+
 ## [0.35.12]
 
 ### Fixed

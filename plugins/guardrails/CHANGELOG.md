@@ -3,6 +3,42 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.33.11]
+
+### Changed
+
+- The formatter and lint hook suites fold run_hook onto run_hook_env, drop a dead tool-probe guard line, and extract their repeated jq context reads and trace counts into small helpers; the statusline suites share one run_env; stale narration is trimmed from four hook comments. Every suite's output is byte-identical apart from timings, and the context-zone twins stay identical.
+
+## [0.33.10]
+
+### Changed
+
+- The skill-reference-verify and stale-path-verify suites take their run wrappers, parity check, FILE_DIR seam assertion and exit-propagation self-test from guardrails-test-helpers.sh instead of two verbatim copies. Case labels, order and output are byte-identical.
+
+## [0.33.9]
+
+### Changed
+
+- Share the alias recheck, dangerous-git wrappers, msys token helpers, multiline message and git-dir resolvers and the hardcoded-path label builder across the first half of the enforcement guards (behavior unchanged).
+
+## [0.33.8]
+
+### Changed
+
+- hooks: secret-pattern-detection.sh scans content and refuses NUL bytes through shared helpers at both lanes, stale-path-verify.sh looks up tracked files by basename through one helper, skill-reference-verify.sh reads a SKILL.md name with one sed program, and the run-guards, skill-reference and stale-path suites drop a dead assignment, a duplicated skip-worktree call and one status intermediate. No behavior change.
+
+## [0.33.7]
+
+### Changed
+
+- lib: ps-command.sh's blank and opaque quoted-span walkers share one walker with a mode argument, pre-commit-content-invariants.sh's secret allowlist delegates to the path allowlist and names the chained hook once, and verify-cli-flag.sh captures --help through one timeout-prefix array instead of two branches. No behavior change.
+
+## [0.33.6]
+
+### Changed
+
+- Refreshes this plugin's vendored copy of the shared shell library from the marketplace's canonical lib/ source after a behavior-preserving simplification: hook-utils.sh folds two identical path-probe guards into one and shares the orphaned-redirect handling across the bash segment parser; index-regen.sh folds two identical frontmatter skip guards; resolve-convention-pattern.sh drops a redundant quote-match clause. Parser output, hook JSON, and every resolver result are byte-identical before and after.
+
 ## [0.33.5]
 
 ### Changed

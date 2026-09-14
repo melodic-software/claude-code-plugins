@@ -2,15 +2,23 @@
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
 
 BeforeAll {
-    $script:TestsRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $script:SkillRoot = Split-Path -Parent $script:TestsRoot
-    $script:ScriptPath = Join-Path $script:SkillRoot 'scripts\windows\checks\Test-TpmBitLocker.ps1'
-    $script:LibRoot = Join-Path $script:SkillRoot 'scripts\windows\lib'
-    . (Join-Path $script:LibRoot 'Assert-CheckResult.ps1')
-    . (Join-Path $script:LibRoot 'Test-IsElevated.ps1')
-    . (Join-Path $script:TestsRoot 'helpers\Invoke-CheckScript.ps1')
+    . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -Check 'Test-TpmBitLocker' `
+        -AsObject 'Invoke-TpmBitLockerAsObject' -LibScript 'Test-IsElevated.ps1'
 
-    function Invoke-TpmBitLockerAsObject { Invoke-CheckScriptAsObject $script:ScriptPath }
+    function New-MockBitLockerVolume {
+        param(
+            [string] $ProtectionStatus = 'On',
+            [string] $EncryptionMethod = 'XtsAes256',
+            [string] $VolumeStatus = 'FullyEncrypted'
+        )
+        [pscustomobject]@{
+            MountPoint       = 'C:'
+            VolumeType       = 'OperatingSystem'
+            ProtectionStatus = $ProtectionStatus
+            EncryptionMethod = $EncryptionMethod
+            VolumeStatus     = $VolumeStatus
+        }
+    }
 }
 
 Describe 'Test-TpmBitLocker -- elevation gate' -Tag 'check' {
@@ -29,15 +37,7 @@ Describe 'Test-TpmBitLocker -- severity rubric (elevated)' -Tag 'check' {
     It 'reports OK when TPM is owned+enabled and system volume is protected' {
         Mock Test-IsElevated { $true }
         Mock Get-Tpm { [pscustomobject]@{ TpmOwned = $true; TpmEnabled = $true } }
-        Mock Get-BitLockerVolume {
-            @([pscustomobject]@{
-                    MountPoint       = 'C:'
-                    VolumeType       = 'OperatingSystem'
-                    ProtectionStatus = 'On'
-                    EncryptionMethod = 'XtsAes256'
-                    VolumeStatus     = 'FullyEncrypted'
-                })
-        }
+        Mock Get-BitLockerVolume { @(New-MockBitLockerVolume) }
         $result = Invoke-TpmBitLockerAsObject
         $result.severity | Should -Be 'OK' -Because $result.error
     }
@@ -45,15 +45,7 @@ Describe 'Test-TpmBitLocker -- severity rubric (elevated)' -Tag 'check' {
     It 'reports WARN when TPM is not owned' {
         Mock Test-IsElevated { $true }
         Mock Get-Tpm { [pscustomobject]@{ TpmOwned = $false; TpmEnabled = $true } }
-        Mock Get-BitLockerVolume {
-            @([pscustomobject]@{
-                    MountPoint       = 'C:'
-                    VolumeType       = 'OperatingSystem'
-                    ProtectionStatus = 'On'
-                    EncryptionMethod = 'XtsAes256'
-                    VolumeStatus     = 'FullyEncrypted'
-                })
-        }
+        Mock Get-BitLockerVolume { @(New-MockBitLockerVolume) }
         $result = Invoke-TpmBitLockerAsObject
         $result.severity | Should -Be 'WARN' -Because $result.error
     }
@@ -62,13 +54,8 @@ Describe 'Test-TpmBitLocker -- severity rubric (elevated)' -Tag 'check' {
         Mock Test-IsElevated { $true }
         Mock Get-Tpm { [pscustomobject]@{ TpmOwned = $true; TpmEnabled = $true } }
         Mock Get-BitLockerVolume {
-            @([pscustomobject]@{
-                    MountPoint       = 'C:'
-                    VolumeType       = 'OperatingSystem'
-                    ProtectionStatus = 'Off'
-                    EncryptionMethod = 'None'
-                    VolumeStatus     = 'FullyDecrypted'
-                })
+            @(New-MockBitLockerVolume -ProtectionStatus 'Off' `
+                    -EncryptionMethod 'None' -VolumeStatus 'FullyDecrypted')
         }
         $result = Invoke-TpmBitLockerAsObject
         $result.severity | Should -Be 'WARN' -Because $result.error

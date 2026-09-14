@@ -29,6 +29,15 @@ function saveLessonResources(lessonDir, res) {
   }
 }
 
+function recordLessonFailure(ctx, lesson, error, lessonStart) {
+  ctx.stats.failed++;
+  ctx.tracker.item(ctx.stats.lessonIndex, lesson.title, {
+    success: false,
+    error,
+    durationMs: performance.now() - lessonStart,
+  });
+}
+
 async function extractLessonFrames({ ctx, lesson, lessonDir, url, durationSec }) {
   const { adapter, page, platformCfg, frameConfig, log, ffmpegReferer, extractFramesFn, stats } =
     ctx;
@@ -112,12 +121,7 @@ async function extractLessonTranscript({
   log.logResult(transcriptResult);
 
   if (!transcriptResult.success) {
-    stats.failed++;
-    tracker.item(stats.lessonIndex, lesson.title, {
-      success: false,
-      error: transcriptResult.error,
-      durationMs: performance.now() - lessonStart,
-    });
+    recordLessonFailure(ctx, lesson, transcriptResult.error, lessonStart);
     return false;
   }
 
@@ -148,7 +152,6 @@ async function processLesson(module, lesson, ctx) {
     platformCfg,
     skipTitles,
     stats,
-    tracker,
   } = ctx;
 
   // These two joins run BEFORE the skip guard on purpose: they are what makes a
@@ -183,12 +186,7 @@ async function processLesson(module, lesson, ctx) {
   const url = adapter.buildLessonUrl(course, lesson, platformCfg);
 
   if (!(await navigateWithFallback(page, url))) {
-    stats.failed++;
-    tracker.item(stats.lessonIndex, lesson.title, {
-      success: false,
-      error: "nav error",
-      durationMs: performance.now() - lessonStart,
-    });
+    recordLessonFailure(ctx, lesson, "nav error", lessonStart);
     return;
   }
   await page.waitForTimeout(1500);

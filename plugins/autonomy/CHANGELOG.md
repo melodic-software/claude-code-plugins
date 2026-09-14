@@ -3,6 +3,30 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.12]
+
+### Changed
+
+- The emission-conformance and signal-envelope checkers share one canonical-URL predicate module, and the two fixture suites share one pass/fail harness with their own summary wording kept. Findings, messages and exit codes are unchanged.
+
+## [0.23.11]
+
+### Changed
+
+- setup scripts: apply-prerequisite-resolution.mjs walks identity rows through one generator and a prose-rule table, resolve-prerequisites.mjs finds the first existing candidate through one helper and drops unused probe parameters, generate-identity-prerequisites.mjs merges inherited needs once, check-security-binding.mjs names its bare-host and admission vocabularies once, and the emission and envelope checkers drop an out-parameter and a repeated identity test. Output byte-identical.
+
+## [0.23.10]
+
+### Changed
+
+- hooks: lane-stop-gate-lib.sh gains gate_plugin_root_to, the one spelling of the plugin-root derivation both entry scripts carried, and drops three print-form helpers with no callers (gate_data_dir, gate_trusted_data_dir, gate_user_settings_file; the `_to` forms remain); lane-stop-gate.sh strips and chomps its payload fields in one loop and reuses chomp_nl when loading the arm record. Process budgets unchanged. No behavior change.
+
+## [0.23.9]
+
+### Changed
+
+- Refreshes this plugin's vendored copy of the shared shell library from the marketplace's canonical lib/ source after a behavior-preserving simplification: hook-utils.sh folds two identical path-probe guards into one and shares the orphaned-redirect handling across the bash segment parser; index-regen.sh folds two identical frontmatter skip guards; resolve-convention-pattern.sh drops a redundant quote-match clause. Parser output, hook JSON, and every resolver result are byte-identical before and after.
+
 ## [0.23.8]
 
 ### Changed

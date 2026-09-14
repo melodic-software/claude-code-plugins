@@ -286,30 +286,38 @@ classify_json_file() {
   printf 'present\n'
 }
 
+# emit_rules_of_kind <scope> <surface> <source-noun> <kind>, settings JSON on
+# stdin. The settings file and the Windows registry payload both come through
+# here, so the two readers cannot drift apart in how they render a rule.
+#
+# These records are line-oriented, so a rule carrying a literal newline cannot
+# be represented in one -- and reading it line by line silently turned ONE rule
+# into two bogus records, each a rule string that is not in any settings file.
+# A rule the reader cannot represent is reported as unrepresentable; inventing
+# two is strictly worse than admitting one.
+emit_rules_of_kind() {
+  local scope="$1" surface="$2" noun="$3" kind="$4" rule
+  while IFS= read -r rule; do
+    [[ -n "$rule" ]] || continue
+    case "$rule" in
+    *"$NL_SENTINEL"*)
+      printf 'NOTE: %s %s %s rule contains a literal newline or carriage return and cannot be represented as one record; reported here rather than split or silently stripped into text that matches no rule in the %s: %s\n' \
+        "$scope" "$surface" "$kind" "$noun" "${rule#"$NL_SENTINEL"}"
+      ;;
+    *) printf 'rule %s %s %s %s\n' "$scope" "$surface" "$kind" "$rule" ;;
+    esac
+    # jq emits CRLF on Windows; a trailing \r would corrupt every rule string,
+    # so the stream is stripped of them before the loop reads it.
+  done < <(jq -r --arg k "$kind" --arg nl "$NL_SENTINEL" "$RULES_JQ" 2>/dev/null |
+    tr -d '\r')
+}
+
 emit_file_rules() {
   # emit_file_rules <scope> <surface> <path>
   [[ "$mode" == "full" ]] || return 0
   local scope="$1" surface="$2" path="$3" kind
   for kind in allow ask deny; do
-    while IFS= read -r rule; do
-      [[ -n "$rule" ]] || continue
-      # These records are line-oriented, so a rule carrying a literal newline
-      # cannot be represented in one -- and reading it line by line silently
-      # turned ONE rule into two bogus records, each a rule string that is not
-      # in any settings file. A rule the reader cannot represent is reported as
-      # unrepresentable; inventing two is strictly worse than admitting one.
-      case "$rule" in
-      *"$NL_SENTINEL"*)
-        printf 'NOTE: %s %s %s rule contains a literal newline or carriage return and cannot be represented as one record; reported here rather than split or silently stripped into text that matches no rule in the file: %s\n' \
-          "$scope" "$surface" "$kind" "${rule#"$NL_SENTINEL"}"
-        ;;
-      *) printf 'rule %s %s %s %s\n' "$scope" "$surface" "$kind" "$rule" ;;
-      esac
-      # jq emits CRLF on Windows; a trailing \r would corrupt every rule string,
-      # so the stream is stripped of them before the loop reads it.
-    done < <(crlf_strip <"$path" |
-      jq -r --arg k "$kind" --arg nl "$NL_SENTINEL" "$RULES_JQ" 2>/dev/null |
-      tr -d '\r')
+    emit_rules_of_kind "$scope" "$surface" file "$kind" < <(crlf_strip <"$path")
   done
 }
 
@@ -447,18 +455,7 @@ else
       # where a phantom rule would do the most damage, so it gets the same
       # treatment rather than the older splitting read.
       for kind in allow ask deny; do
-        while IFS= read -r rule; do
-          [[ -n "$rule" ]] || continue
-          case "$rule" in
-          *"$NL_SENTINEL"*)
-            printf 'NOTE: managed registry %s rule contains a literal newline or carriage return and cannot be represented as one record; reported here rather than split or silently stripped into text that matches no rule in the policy: %s\n' \
-              "$kind" "${rule#"$NL_SENTINEL"}"
-            ;;
-          *) printf 'rule managed registry %s %s\n' "$kind" "$rule" ;;
-          esac
-        done < <(printf '%s' "$reg_json" |
-          jq -r --arg k "$kind" --arg nl "$NL_SENTINEL" "$RULES_JQ" 2>/dev/null |
-          tr -d '\r')
+        emit_rules_of_kind managed registry policy "$kind" < <(printf '%s' "$reg_json")
       done
       emit_file_conf managed registry < <(printf '%s' "$reg_json")
     fi

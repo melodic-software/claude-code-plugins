@@ -35,6 +35,29 @@ function makeMockPage(url = "https://example.com") {
   };
 }
 
+/**
+ * Runs the evaluate callback the way Playwright does — serialized, with the
+ * argument handed across the boundary — against a fake `document` whose only
+ * matching selector is `presentSelector`.
+ */
+function makeDomPage(presentSelector) {
+  return {
+    evaluate: async (fn, arg) => {
+      // Rebuild the callback from source so it cannot reach any binding in
+      // this module — the same isolation page.evaluate imposes.
+      const detached = new Function("document", "arg", `return (${fn.toString()})(arg);`);
+      const document = {
+        querySelector: (s) => (s === presentSelector ? { tag: "div" } : null),
+      };
+      return detached(document, structuredClone(arg));
+    },
+  };
+}
+
+function makeDetectionPage(presentSelector, url = "https://example.com/lesson/1") {
+  return { ...makeDomPage(presentSelector), url: () => url, frames: () => [] };
+}
+
 describe("hotmart player module", () => {
   beforeEach(() => {
     resetState();
@@ -235,25 +258,6 @@ describe("hotmart player module", () => {
   });
 
   describe("hasHotmartPlayer", () => {
-    /**
-     * Runs the evaluate callback the way Playwright does — serialized, with the
-     * argument handed across the boundary — against a fake `document` whose
-     * only matching selector is `presentSelector`.
-     */
-    function makeDomPage(presentSelector) {
-      return {
-        evaluate: async (fn, arg) => {
-          // Rebuild the callback from source so it cannot reach any binding in
-          // this module — the same isolation page.evaluate imposes.
-          const detached = new Function("document", "arg", `return (${fn.toString()})(arg);`);
-          const document = {
-            querySelector: (s) => (s === presentSelector ? { tag: "div" } : null),
-          };
-          return detached(document, structuredClone(arg));
-        },
-      };
-    }
-
     it("should return true when the default selector matches", async () => {
       expect(await hasHotmartPlayer(makeDomPage(DEFAULT_VIDEO_PLAYER_SELECTOR))).toBe(true);
     });
@@ -300,20 +304,6 @@ describe("hotmart player module", () => {
   });
 
   describe("preparePage selector threading", () => {
-    function makeDetectionPage(presentSelector, url = "https://example.com/lesson/1") {
-      return {
-        url: () => url,
-        evaluate: async (fn, arg) => {
-          const detached = new Function("document", "arg", `return (${fn.toString()})(arg);`);
-          const document = {
-            querySelector: (s) => (s === presentSelector ? { tag: "div" } : null),
-          };
-          return detached(document, structuredClone(arg));
-        },
-        frames: () => [],
-      };
-    }
-
     it("should detect no video when the configured selector is absent", async () => {
       const page = makeDetectionPage(DEFAULT_VIDEO_PLAYER_SELECTOR);
 

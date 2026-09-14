@@ -117,7 +117,7 @@ done
 # --- stdin once, fields once --------------------------------------------------
 # Keep the library's jq_fields reachable under another name so the cache-miss
 # path is the library's own code. `declare -f` is a builtin; wrapping it in
-# $( ) is one subshell. Piping that through `sed` was an extra exec on every
+# $( ) is one subshell. Piping that through `sed` would add an exec on every
 # dispatcher fire. Parameter expansion renames the first occurrence — the
 # `name ()` header — and leaves the body untouched. Copied BEFORE the fused
 # stdin read so the miss path is ready when hook::jq_fields is overridden.

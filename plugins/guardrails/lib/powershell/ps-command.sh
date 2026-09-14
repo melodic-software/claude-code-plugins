@@ -238,9 +238,14 @@ ps::blank_herestrings() {
   PS_BLANKED="${out%$'\n'}"
 }
 
-# Crude, SCAN-ONLY strip of single- and double-quoted spans, so that structural
-# detection and commit/push shaping ignore characters inside message text. Never
-# fed to a parser.
+# The single left-to-right quoted-span walk behind ps::blank_quoted_spans and
+# ps::opaque_quoted_spans. MODE is `blank` (a found span is deleted) or `opaque`
+# (a found span becomes a classified placeholder, per the classification the
+# opaque wrapper documents). WHERE a span starts and ends, and every ambiguity
+# resolution, is identical for both and therefore stated once here: two
+# hand-maintained copies of this pairing walk are exactly the drift this file's
+# other SSOT notes warn about, and a copy that silently stopped pairing the same
+# way would fail OPEN in one lane while the other stayed closed.
 #
 # LEFT TO RIGHT, FIRST OPENER OWNS ITS SPAN. Two independent per-style strips
 # (`s/'[^']*'//g` then `s/"[^"]*"//g`) have no notion of which quote style
@@ -302,8 +307,8 @@ ps::blank_herestrings() {
 # deleted, which is the deeper reason this branch exists. SINGLE-quoted spans are
 # exempt: PowerShell gives them no escape at all, so a backtick inside one is an
 # ordinary character and the pairing is genuinely unambiguous.
-ps::blank_quoted_spans() {
-  local text="$1" out="" i=0 n j q found c
+ps::_walk_quoted_spans() {
+  local text="$1" mode="$2" out="" i=0 n j q found c inner
   n=${#text}
   while ((i < n)); do
     q="${text:i:1}"
@@ -331,6 +336,18 @@ ps::blank_quoted_spans() {
         fi
       done
       if ((found)); then
+        if [[ "$mode" == "opaque" ]]; then
+          inner="${text:i+1:j-i-1}"
+          if [[ -n "$inner" ]]; then
+            if [[ "$inner" == -* && "$q" == '"' && "$inner" == *'$'* ]]; then
+              out+='-_q_'
+            elif [[ "$q" == '"' && "$inner" == *'$'* ]]; then
+              out+="\$q"
+            else
+              out+='_q_'
+            fi
+          fi
+        fi
         i=$((j + 1))
         continue
       fi
@@ -345,6 +362,13 @@ ps::blank_quoted_spans() {
     i=$((i + 1))
   done
   printf '%s' "$out"
+}
+
+# Crude, SCAN-ONLY strip of single- and double-quoted spans, so that structural
+# detection and commit/push shaping ignore characters inside message text. Never
+# fed to a parser.
+ps::blank_quoted_spans() {
+  ps::_walk_quoted_spans "$1" blank
 }
 
 # Sibling of ps::blank_quoted_spans for ONE consumer:
@@ -380,50 +404,7 @@ ps::blank_quoted_spans() {
 # `& $py $script ""` must stay allowed (#2965); counting the empty string as a
 # literal would turn that pin into an over-block.
 ps::opaque_quoted_spans() {
-  local text="$1" out="" i=0 n j q found c inner
-  n=${#text}
-  while ((i < n)); do
-    q="${text:i:1}"
-    if [[ "$q" == "'" || "$q" == '"' ]]; then
-      found=0
-      for ((j = i + 1; j < n; j++)); do
-        c="${text:j:1}"
-        [[ "$c" == $'\n' ]] && break
-        if [[ "$q" == '"' && "$c" == '`' ]]; then
-          for (( ; j < n; j++)); do [[ "${text:j:1}" == $'\n' ]] && break; done
-          break
-        fi
-        if [[ "$c" == "$q" ]]; then
-          if [[ "${text:j+1:1}" == "$q" ]]; then
-            for (( ; j < n; j++)); do [[ "${text:j:1}" == $'\n' ]] && break; done
-            break
-          fi
-          found=1
-          break
-        fi
-      done
-      if ((found)); then
-        inner="${text:i+1:j-i-1}"
-        if [[ -n "$inner" ]]; then
-          if [[ "$inner" == -* && "$q" == '"' && "$inner" == *'$'* ]]; then
-            out+='-_q_'
-          elif [[ "$q" == '"' && "$inner" == *'$'* ]]; then
-            out+="\$q"
-          else
-            out+='_q_'
-          fi
-        fi
-        i=$((j + 1))
-        continue
-      fi
-      out+="${text:i:j-i}"
-      i=$j
-      continue
-    fi
-    out+="$q"
-    i=$((i + 1))
-  done
-  printf '%s' "$out"
+  ps::_walk_quoted_spans "$1" opaque
 }
 
 # Fold a BACKTICK-ESCAPED closing brace to `_`, left to right, BEFORE any caller
@@ -841,23 +822,11 @@ ps::computed_call_has_positional_write_signal() {
 # is not a splat, and it sits before the call site besides.
 ps::computed_call_has_splat_operand() {
   local lc="$1" rest scan
-  # The BRACED spelling of a variable reference (`& ${env:w} …`, `${my name}`)
-  # is matched alongside the bare one. PowerShell's about_Variables makes them the
-  # same reference — `${env:t} -eq $env:t` is True — and `ps::call_target_is_bare_computed`
-  # admits both, since it only looks for the `$`. Recognizing just the bare form
-  # here let a braced target ENTER the computed-target gate and then match no call
-  # site at all, so every arm stayed silent and the command fell through allowed:
-  # `& ${env:w} f.txt x` was waved past while the identical `& $env:w f.txt x`
-  # blocked. The gate entry is deliberately NOT narrowed to match — teaching the
-  # measuring probes closes the hole, narrowing entry would open a second one.
-  # The braced alternative is listed FIRST so it wins on a `${…}` target, and it
-  # allows NON-SPACE text glued after the closing brace (`[^[:space:]]*`). A target
-  # token does not have to end at the brace: `& ${my``}writer} f.txt x` closes the
-  # reference at the escaped-backtick name `my``` and carries `writer}` on the same
-  # token, and `& ${py}script.py` concatenates. Requiring whitespace immediately
-  # after `}` made the whole call site disappear on those, which is a fail-OPEN —
-  # the operands are still measured normally once the site is found, so widening
-  # the TARGET token only decides where measuring starts, never the verdict.
+  # Same call-site pattern as ps::computed_call_has_positional_write_signal,
+  # including why the BRACED target spelling is matched alongside the bare one
+  # and why it allows text glued after the closing brace; see the note there.
+  # The two must widen together: this is a MEASURING probe, and a probe that
+  # cannot see a shape the gate admits is a fail-OPEN.
   local re_var='(^|[[:space:]\;\{\}\(\|\&=])[.\&][[:space:]]*(\$\{[^}]*\}[^[:space:]]*|\$[a-z0-9_:?]+)([[:space:]]+|$)(.*)'
   lc="${lc//\`/}"
   lc="${lc,,}"

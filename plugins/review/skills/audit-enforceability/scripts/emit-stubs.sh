@@ -184,16 +184,16 @@ normalize_path() {
   local p="$1" prefix="/" rest seg
   local -a stack=()
   p="${p//\\//}"
+  # $PWD is prepended only to a path that is absolute under neither spelling,
+  # and the drive prefix is read once afterwards, so a relative path whose $PWD
+  # carries one is handled by the same branch as a path that carried it itself.
+  if [[ "$p" != /* && ! "$p" =~ ^[A-Za-z]:/ ]]; then
+    p="${PWD%/}/$p"
+    p="${p//\\//}"
+  fi
   if [[ "$p" =~ ^([A-Za-z]:)/ ]]; then
     prefix="${BASH_REMATCH[1]}/"
     p="${p:2}"
-  elif [[ "$p" != /* ]]; then
-    p="${PWD%/}/$p"
-    p="${p//\\//}"
-    if [[ "$p" =~ ^([A-Za-z]:)/ ]]; then
-      prefix="${BASH_REMATCH[1]}/"
-      p="${p:2}"
-    fi
   fi
   rest="$p"
   while [[ -n "$rest" ]]; do
@@ -221,6 +221,22 @@ normalize_path() {
   [[ -n "$NORM" ]] || NORM="/"
 }
 
+# path_parent <path>: the parent of <path>, in PARENT. A bare drive prefix
+# renders as its ROOT, and an empty result as `/`: neither names a directory to
+# test, and without that a drive-letter path whose whole chain is absent never
+# folds while its other spelling does, so the two never compare equal. The
+# status is non-zero when <path> is already its own parent, which is how every
+# upward walk below stops. Result in PARENT rather than on stdout: same
+# spawn-avoidance as normalize_path.
+PARENT=""
+path_parent() {
+  local p="${1%/*}"
+  [[ "$p" =~ ^[A-Za-z]:$ ]] && p="$p/"
+  [[ -n "$p" ]] || p="/"
+  PARENT="$p"
+  [[ "$p" != "$1" ]]
+}
+
 # canonicalize_dir: fold NORM to the filesystem's own spelling of the deepest
 # ancestor that exists, then re-attach the part that does not.
 #
@@ -236,17 +252,11 @@ normalize_path() {
 # leaves the tree exactly as it found it. When nothing resolves, the lexical
 # value stands.
 canonicalize_dir() {
-  local p="$NORM" tail="" prev phys
+  local p="$NORM" tail="" phys
   while [[ ! -d "$p" ]]; do
-    prev="$p"
     tail="${p##*/}${tail:+/$tail}"
-    p="${p%/*}"
-    # A bare drive prefix is not a directory to test; its ROOT is. Without this
-    # a drive-letter path whose whole chain is absent never folds, while its
-    # other spelling does, and the two never compare equal.
-    [[ "$p" =~ ^[A-Za-z]:$ ]] && p="$p/"
-    [[ -n "$p" ]] || p="/"
-    [[ "$p" != "$prev" ]] || return 0
+    path_parent "$p" || return 0
+    p="$PARENT"
   done
   phys="$(cd -- "$p" 2>/dev/null && pwd -P)" || return 0
   [[ -n "$phys" ]] || return 0
@@ -261,8 +271,9 @@ canonicalize_dir() {
 # under it. The trailing slash is what keeps `reviews-archive` from reading as a
 # child of `reviews`; stripping it off the ancestor first is what lets the
 # filesystem root be an ancestor at all.
-# is_within <candidate> <ancestor>: comparison is CASE-INSENSITIVE, and that is
-# the fail-closed direction rather than an assumption about the filesystem. On a
+#
+# The comparison is CASE-INSENSITIVE, and that is the fail-closed direction
+# rather than an assumption about the filesystem. On a
 # case-insensitive volume `.../REVIEWS` and `.../reviews` are one directory that
 # a case-sensitive compare calls two, which writes stubs into the very directory
 # the fence protects; `pwd -P` does not fold segment case, so canonicalization
@@ -286,7 +297,7 @@ canonicalize_dir() {
 # fences want the opposite default, since for them a positive answer is a
 # refusal, and they call may_be_within below instead.
 is_within() {
-  local candidate="$1" ancestor="$2" had_nocase=0 rc=1 probe prev
+  local candidate="$1" ancestor="$2" had_nocase=0 rc=1 probe
   shopt -q nocasematch && had_nocase=1
   shopt -s nocasematch
   if [[ "$candidate" == "$ancestor" || "$candidate" == "${ancestor%/}"/* ]]; then
@@ -303,11 +314,8 @@ is_within() {
     if [[ -e "$probe" ]] && [[ "$probe" -ef "$ancestor" ]]; then
       return 0
     fi
-    prev="$probe"
-    probe="${probe%/*}"
-    [[ "$probe" =~ ^[A-Za-z]:$ ]] && probe="$probe/"
-    [[ -n "$probe" ]] || probe="/"
-    [[ "$probe" != "$prev" ]] || return 1
+    path_parent "$probe" || return 1
+    probe="$PARENT"
   done
 }
 
@@ -397,18 +405,15 @@ fold_path() {
 SPLIT_BASE=""
 SPLIT_TAIL=""
 split_existing() {
-  local p="$1" tail="" prev
+  local p="$1" tail=""
   while [[ ! -e "$p" ]]; do
-    prev="$p"
     tail="${p##*/}${tail:+/$tail}"
-    p="${p%/*}"
-    [[ "$p" =~ ^[A-Za-z]:$ ]] && p="$p/"
-    [[ -n "$p" ]] || p="/"
-    if [[ "$p" == "$prev" ]]; then
+    if ! path_parent "$p"; then
       SPLIT_BASE=""
       SPLIT_TAIL=""
       return 1
     fi
+    p="$PARENT"
   done
   SPLIT_BASE="$p"
   SPLIT_TAIL="$tail"
@@ -440,7 +445,7 @@ split_existing() {
 #      exists on neither side, is settled by the fold. That is the only arm
 #      that pays the coarse-fold over-refusal (`révu` vs `rêvu` as tails).
 may_be_within() {
-  local candidate="$1" ancestor="$2" tail="" probe prev
+  local candidate="$1" ancestor="$2" tail="" probe
   local c_folded a_folded a_base a_tail c_ascii a_ascii
   fold_ascii_case "$candidate"
   c_ascii="$ASCII_FOLDED"
@@ -464,12 +469,9 @@ may_be_within() {
       [[ "$c_folded" == "$a_folded" || "$c_folded" == "${a_folded%/}/"* ]]
       return $?
     fi
-    prev="$probe"
     tail="${probe##*/}${tail:+/$tail}"
-    probe="${probe%/*}"
-    [[ "$probe" =~ ^[A-Za-z]:$ ]] && probe="$probe/"
-    [[ -n "$probe" ]] || probe="/"
-    [[ "$probe" != "$prev" ]] || return 1
+    path_parent "$probe" || return 1
+    probe="$PARENT"
   done
 }
 
@@ -491,8 +493,7 @@ has_dotdot_segment() {
 # unequal to the same name without the suffix, which is how it slips a fence.
 # Directory arguments only: a file name legitimately ends in `.md`.
 has_unaddressable_segment() {
-  local p="${1//\\//}" seg rest
-  rest="$p"
+  local rest="${1//\\//}" seg
   while [[ -n "$rest" ]]; do
     seg="${rest%%/*}"
     if [[ "$rest" == */* ]]; then rest="${rest#*/}"; else rest=""; fi
@@ -674,12 +675,8 @@ canonicalize_dir
 scan_abs="$NORM"
 normalize_path "$findings"
 findings_abs="$NORM"
-findings_dir_abs="${findings_abs%/*}"
-[[ -n "$findings_dir_abs" ]] || findings_dir_abs="/"
-# A file directly under a drive root leaves a bare drive prefix, which names no
-# directory; its root does.
-[[ "$findings_dir_abs" =~ ^[A-Za-z]:$ ]] && findings_dir_abs="$findings_dir_abs/"
-NORM="$findings_dir_abs"
+path_parent "$findings_abs"
+NORM="$PARENT"
 canonicalize_dir
 findings_dir_abs="$NORM"
 
@@ -797,7 +794,6 @@ sanitize_slug() {
 # --- Plan, then write ----------------------------------------------------------
 
 declare -a written=()
-declare -a table_ranks=()
 count=0
 malformed=0
 
@@ -819,17 +815,15 @@ while IFS= read -r record; do
   # row while the summary still counted only what it wrote), so it takes a
   # placeholder and falls through to the unclassified defaults.
   [[ -n "$r_rank" ]] || r_rank="unranked"
-  table_ranks+=("$r_rank")
   seen_rank["$r_rank"]=1
 
+  # `:-` covers an empty cell as well as an absent rank, so a TSV row whose
+  # class, basis, rung or owner is blank falls to the same default an unlisted
+  # rank does.
   f_class="${class_of[$r_rank]:-unclassified}"
   f_basis="${basis_of[$r_rank]:-unresolved}"
   f_rung="${rung_of[$r_rank]:-llm-only}"
   f_owner="${owner_of[$r_rank]:-none}"
-  [[ -n "$f_class" ]] || f_class="unclassified"
-  [[ -n "$f_basis" ]] || f_basis="unresolved"
-  [[ -n "$f_rung" ]] || f_rung="llm-only"
-  [[ -n "$f_owner" ]] || f_owner="none"
 
   if [[ "$r_rank" =~ ^[0-9]+$ ]]; then
     printf -v rank_seg '%02d' "$((10#$r_rank))"
@@ -871,11 +865,8 @@ while IFS= read -r record; do
     mk_probe="$out_abs"
     while [[ ! -d "$mk_probe" ]]; do
       created_dirs+=("$mk_probe")
-      mk_prev="$mk_probe"
-      mk_probe="${mk_probe%/*}"
-      [[ "$mk_probe" =~ ^[A-Za-z]:$ ]] && mk_probe="$mk_probe/"
-      [[ -n "$mk_probe" ]] || mk_probe="/"
-      [[ "$mk_probe" != "$mk_prev" ]] || break
+      path_parent "$mk_probe" || break
+      mk_probe="$PARENT"
     done
     if ! mkdir -p "$out"; then
       printf 'refusing: could not create the stub home %s.\n' "$out" >&2
@@ -961,7 +952,9 @@ fi
 has_forbidden_marker() {
   local chunk line
   while IFS= read -r chunk || [[ -n "$chunk" ]]; do
-    while [[ -n "$chunk" || -n "${chunk+x}" ]]; do
+    # An empty chunk is still one line to test, so the walk over the CR-split
+    # pieces runs at least once and leaves through the break below.
+    while :; do
       line="${chunk%%$'\r'*}"
       line="${line#"${line%%[![:space:]]*}"}"
       case "$line" in

@@ -38,7 +38,7 @@ if [[ $# -eq 0 ]]; then
   usage >&2
   exit 2
 fi
-if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+if [[ "$1" == "--help" || "$1" == "-h" ]]; then
   usage
   exit 0
 fi
@@ -80,9 +80,6 @@ for arg in "$@"; do
       TARGETS+=("$f")
       TROOTS+=("$arg")
     done < <(collect "$arg" '*.md')
-    while IFS= read -r hub; do
-      HUB_ROOTS+=("$(dirname "$hub")")
-    done < <(collect "$arg" 'SKILL.md')
   else
     echo "detect.sh: no such file or directory: $arg" >&2
     exit 2
@@ -94,7 +91,8 @@ if [[ ${#TARGETS[@]} -eq 0 ]]; then
   exit 0
 fi
 
-# A file passed directly that IS a SKILL.md also registers its hub root.
+# Every SKILL.md among the collected targets registers its hub root, whether it
+# arrived as a directory scan or as a directly passed file.
 for t in "${TARGETS[@]}"; do
   if [[ "$(basename "$t")" == "SKILL.md" ]]; then
     HUB_ROOTS+=("$(dirname "$t")")

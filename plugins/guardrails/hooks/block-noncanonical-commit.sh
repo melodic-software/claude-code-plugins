@@ -186,16 +186,25 @@ allowed() {
   [[ "$list" == *,"$tok",* ]]
 }
 
-# Effective repo directory for a segment: the hook payload's cwd, with any
-# `git -C <path>` applied (last wins, relative joined onto cwd). Without this a
-# conflict resolution driven at another repo via `-C` reads the WRONG repo's
-# state — the sequencer probe and the alias lookup would both answer for the
-# session cwd instead of the repo actually being committed to.
-# Value of a named git global (attached `--opt=v` or separated `--opt v`), empty
-# when absent. One extractor for every locating global rather than a loop per
-# option — `explicit_git_dir` below is the original caller, and the alias-identity
-# probe needs `--work-tree` through the same shape.
-# Call as: explicit_global_to <var> <option-name-without-dashes> <invocation-prefix words...>
+# 0 when a `-m` value <$1> is the mangling hazard this guard blocks: it actually
+# carries a newline, or it is a blanked PowerShell here-string, whose content is
+# multi-line by construction of the form and uninspectable here (fail closed).
+# One predicate for every message spelling the scan recognizes: separated,
+# attached, `--message=`, and the short-option cluster all ask this same
+# question, and four copies of it can disagree on the placeholder arm.
+# PS_HERESTRING_PLACEHOLDER is defined by ps-command.sh; on Bash it is unset,
+# and `set -u` must not abort the allow path of a single-line `-m`.
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+msg_value_is_multiline() {
+  [[ "$1" == *$'\n'* ||
+    (-n "${PS_HERESTRING_PLACEHOLDER+x}" && "$1" == "$PS_HERESTRING_PLACEHOLDER") ]]
+}
+
+# Value of an explicit `--git-dir` (attached `--git-dir=v` or separated
+# `--git-dir v`) into the variable named by $1, empty when absent. A commit
+# driven with --git-dir concludes a sequencer in THAT git dir, so probing the
+# cwd's state would refuse to exempt a real in-progress merge.
+# Call as: explicit_git_dir_to <var> <invocation-prefix words...>
 # The value lands in the variable named by $1 rather than on stdout: the body
 # is builtins only, so the `$(explicit_git_dir …)` this replaced on the block
 # path was a fork spent on nothing but carrying a string out of a subshell
@@ -205,35 +214,23 @@ allowed() {
 # The LAST occurrence wins, as git itself does — scanning does not stop at the
 # first match. A repeated `--git-dir` otherwise aimed the sequencer probe at the
 # wrong git dir, which decides an exemption.
-explicit_global_to() {
-  local -n _eg_out="$1"
-  local opt="--$2"
-  shift 2
+explicit_git_dir_to() {
+  local -n _egd_out="$1"
+  shift
   local i n=$# arg found=""
   local -a a=("$@")
   for ((i = 0; i < n; i++)); do
     arg="${a[i]}"
     case "$arg" in
-    "$opt")
+    --git-dir)
       ((i + 1 < n)) && found="${a[i + 1]}"
       ((i++))
       ;;
-    "$opt"=*) found="${arg#"$opt"=}" ;;
+    --git-dir=*) found="${arg#--git-dir=}" ;;
     *) ;;
     esac
   done
-  _eg_out="$found"
-}
-
-# Value of an explicit `--git-dir` (attached or separated) into the variable
-# named by $1, empty when absent. A commit driven with --git-dir concludes a
-# sequencer in THAT git dir, so probing the cwd's state would refuse to exempt
-# a real in-progress merge.
-# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
-explicit_git_dir_to() {
-  local _egd_out="$1"
-  shift
-  explicit_global_to "$_egd_out" git-dir "$@"
+  _egd_out="$found"
 }
 
 # The directory git launches a `!` shell-alias body in, which is also the hop
@@ -830,19 +827,8 @@ check_segment() {
     -F- | --file=-)
       stdin_form=1
       ;;
-    --file=*)
-      exempt=1
-      ;;
-    -F*)
-      exempt=1
-      ;;
-    --amend | --fixup | --squash | -C | -c | --reuse-message | --reedit-message)
-      exempt=1
-      ;;
-    --fixup=* | --squash=* | --reuse-message=* | --reedit-message=*)
-      exempt=1
-      ;;
-    -C* | -c*)
+    --file=* | -F* | --amend | --fixup | --squash | -C | -c | --reuse-message | --reedit-message | \
+      --fixup=* | --squash=* | --reuse-message=* | --reedit-message=* | -C* | -c*)
       exempt=1
       ;;
     -m | --m | --me | --mes | --mess | --messa | --messag | --message) # spellchecker:disable-line
@@ -852,27 +838,25 @@ check_segment() {
       # as --message. Verified empirically on git 2.55: `git commit --dry-run
       # --mess=x` (and each shorter prefix) parses, while a non-option like
       # --mainline errors — so an abbreviated spelling must hit this gate
-      # exactly as the full one does. PS_HERESTRING_PLACEHOLDER is defined by
-      # ps-command.sh; on Bash it is unset, and `set -u` must not abort the
-      # allow path of a single-line `-m`.
-      [[ "$next" == *$'\n'* || (-n "${PS_HERESTRING_PLACEHOLDER+x}" && "$next" == "$PS_HERESTRING_PLACEHOLDER") ]] && msg_newline=1
+      # exactly as the full one does.
+      msg_value_is_multiline "$next" && msg_newline=1
       ((k++))
       ;;
     --m=* | --me=* | --mes=* | --mess=* | --messa=* | --messag=* | --message=*) # spellchecker:disable-line
       word="${word#*=}"
-      [[ "$word" == *$'\n'* || (-n "${PS_HERESTRING_PLACEHOLDER+x}" && "$word" == "$PS_HERESTRING_PLACEHOLDER") ]] && msg_newline=1
+      msg_value_is_multiline "$word" && msg_newline=1
       ;;
     -m*)
       # Attached value (`-m"multi<NL>line"` tokenizes to one -m-prefixed word).
       word="${word#-m}"
-      [[ "$word" == *$'\n'* || (-n "${PS_HERESTRING_PLACEHOLDER+x}" && "$word" == "$PS_HERESTRING_PLACEHOLDER") ]] && msg_newline=1
+      msg_value_is_multiline "$word" && msg_newline=1
       ;;
     -[!-]*m)
       # Short-option cluster whose LAST letter is m (`-am`, `-sam`): git binds
       # the NEXT word as the message. Which earlier cluster letters themselves
       # take values is per-option knowledge this scan does not model; misreading
       # one costs at most a newline probe of the following word.
-      [[ "$next" == *$'\n'* || (-n "${PS_HERESTRING_PLACEHOLDER+x}" && "$next" == "$PS_HERESTRING_PLACEHOLDER") ]] && msg_newline=1
+      msg_value_is_multiline "$next" && msg_newline=1
       ((k++))
       ;;
     *)

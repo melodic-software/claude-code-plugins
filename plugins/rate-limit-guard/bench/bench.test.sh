@@ -28,8 +28,7 @@ ok() {
 }
 
 WORK="$(mktemp -d)"
-cleanup() { rm -rf "$WORK"; }
-trap cleanup EXIT
+trap 'rm -rf "$WORK"' EXIT
 
 # Small spawn floors everywhere: the floor's VALUE is irrelevant here, only
 # that the lanes run end to end.

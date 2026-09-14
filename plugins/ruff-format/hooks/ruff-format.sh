@@ -66,9 +66,8 @@ emit_skipped() {
   hook::finish skipped findings array '[]'
 }
 
-# Existence check is a builtin; the previous `$(cd && pwd)` forked a subshell
-# (and pwd) on every fire to canonicalize a path git already answered as
-# absolute, or a fallback hint that `cd "$RUN_DIR"` already accepts relative.
+# Existence check only, no canonicalization: git already answers an absolute
+# path, and `cd "$RUN_DIR"` accepts a relative fallback hint as it stands.
 FILE_DIR_POSIX=""
 [[ -d "$FILE_DIR" ]] && FILE_DIR_POSIX="$FILE_DIR"
 root=""
@@ -131,8 +130,8 @@ ruff_venv_bin_here() {
 venv_dir=""
 hook::walk_up_to venv_dir "$FILE_DIR_POSIX" "$root" ruff_venv_bin_here || true
 if [[ -z "$RUFF_BIN" ]]; then
-  # `command -v` is a builtin; capturing it with `$( )` was a leftover subshell
-  # just to learn the path. The later exec looks the name up on PATH itself.
+  # `command -v` is a builtin; the resolved path is not captured because the
+  # later exec looks the name up on PATH itself.
   command -v ruff >/dev/null 2>&1 && RUFF_BIN=ruff
 fi
 

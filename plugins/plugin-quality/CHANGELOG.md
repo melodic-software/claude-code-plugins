@@ -5,6 +5,42 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.21]
+
+### Changed
+
+- The citation and zones drift suites and the packet prune and seal contract suites source one scripts/test-helpers.sh with a lane initializer per assertion shape instead of four inline copies; context-zone.test.sh stays the registered twin of its context-guard canonical. Output and exit codes are byte-identical.
+
+## [0.7.20]
+
+### Changed
+
+- The formatter and lint hook suites fold run_hook onto run_hook_env, drop a dead tool-probe guard line, and extract their repeated jq context reads and trace counts into small helpers; the statusline suites share one run_env; stale narration is trimmed from four hook comments. Every suite's output is byte-identical apart from timings, and the context-zone twins stay identical.
+
+## [0.7.19]
+
+### Changed
+
+- The context-guard statusline, compose-wiring, and context-zone test suites route repeated invocations through their existing run helpers, and the registered rate-limit-guard and plugin-quality twins of the two canonical suites carry the same change.
+
+## [0.7.18]
+
+### Changed
+
+- Probe the digest tool once at startup and inline the symlink test in packet-seal, merge the escaped-path guard in packet-prune and trim the drift suites (behavior unchanged).
+
+## [0.7.17]
+
+### Changed
+
+- compose-statusline-wiring.sh reuses its shim-prefix recognizer when peeling a prefix and returns its syntax and shell tests directly; the compose, context-zone and statusline test suites read fixture files without a cat fork and share the mv shim builder; rate-limit-guard's statusline-tee.sh resolves the tee enablement verdict once instead of in three branches. Synced copies refreshed. No behavior change.
+
+## [0.7.16]
+
+### Changed
+
+- Refreshes this plugin's vendored copy of the shared check-retirements.sh helper from the canonical claude-config source after a behavior-preserving simplification: the dead top-level record field pre-initialization is gone (reset_record assigns every field before the first read), the unreachable length guards in strip_quotes are gone, and its test suite gained a shared fixture helper. Output, exit codes, and all 194 suite checks are unchanged.
+
 ## [0.7.15]
 
 ### Changed

@@ -37,6 +37,28 @@ run_check() (
   cd "$1" && bash scripts/check-discriminating-test-skips.sh
 )
 
+# write_runtime_suite <path> <call>: a suite that loads the shared helpers and
+# runs exactly one case, for the runtime half of the contract. The counters are
+# the ones the helpers expect to find initialized.
+write_runtime_suite() {
+  cat >"$1" <<EOF
+#!/usr/bin/env bash
+set -uo pipefail
+FAILED=0
+CASE_NUM=0
+SKIP_CASES=0
+DISCRIMINATING_SKIP_CASES=0
+unset _TESTS_LIB_LOADED
+# shellcheck source=/dev/null
+source "$HELPERS"
+$2
+printf '\n%d case(s), %d failure(s), %d optional skip(s), %d discriminating skip(s)\n' \\
+  "\$CASE_NUM" "\$FAILED" "\$SKIP_CASES" "\$DISCRIMINATING_SKIP_CASES"
+[[ \$FAILED -eq 0 ]] || exit 1
+EOF
+  chmod +x "$1"
+}
+
 # --- copy-pairing skip_case fails the static gate ---------------------------
 new_fixture f
 test_file "$f" alpha/skills/demo/scripts/demo.test.sh \
@@ -77,22 +99,8 @@ rm -rf "$f"
 
 # --- runtime: fail_discriminating_skip fails the suite with marker -----------
 tmp_test="$(mktemp --suffix=.test.sh)"
-cat >"$tmp_test" <<EOF
-#!/usr/bin/env bash
-set -uo pipefail
-FAILED=0
-CASE_NUM=0
-SKIP_CASES=0
-DISCRIMINATING_SKIP_CASES=0
-unset _TESTS_LIB_LOADED
-# shellcheck source=/dev/null
-source "$HELPERS"
-fail_discriminating_skip "synthetic: git diff --cached --name-status has 0 C record(s), expected 1"
-printf '\n%d case(s), %d failure(s), %d optional skip(s), %d discriminating skip(s)\n' \\
-  "\$CASE_NUM" "\$FAILED" "\$SKIP_CASES" "\$DISCRIMINATING_SKIP_CASES"
-[[ \$FAILED -eq 0 ]] || exit 1
-EOF
-chmod +x "$tmp_test"
+write_runtime_suite "$tmp_test" \
+  'fail_discriminating_skip "synthetic: git diff --cached --name-status has 0 C record(s), expected 1"'
 if out="$(bash "$tmp_test" 2>&1)"; then
   fail "fail_discriminating_skip should fail the suite, got success: $out"
 elif echo "$out" | grep -q '^DISCRIMINATING SKIP:'; then
@@ -136,22 +144,7 @@ rm -rf "$f"
 
 # --- runtime: optional skip_case still passes --------------------------------
 tmp_test="$(mktemp --suffix=.test.sh)"
-cat >"$tmp_test" <<EOF
-#!/usr/bin/env bash
-set -uo pipefail
-FAILED=0
-CASE_NUM=0
-SKIP_CASES=0
-DISCRIMINATING_SKIP_CASES=0
-unset _TESTS_LIB_LOADED
-# shellcheck source=/dev/null
-source "$HELPERS"
-skip_case "symlinks unsupported on this platform"
-printf '\n%d case(s), %d failure(s), %d optional skip(s), %d discriminating skip(s)\n' \\
-  "\$CASE_NUM" "\$FAILED" "\$SKIP_CASES" "\$DISCRIMINATING_SKIP_CASES"
-[[ \$FAILED -eq 0 ]] || exit 1
-EOF
-chmod +x "$tmp_test"
+write_runtime_suite "$tmp_test" 'skip_case "symlinks unsupported on this platform"'
 if out="$(bash "$tmp_test" 2>&1)"; then
   if echo "$out" | grep -q '^SKIP:' && ! echo "$out" | grep -q '^DISCRIMINATING SKIP:'; then
     ok "optional skip_case still passes the suite"

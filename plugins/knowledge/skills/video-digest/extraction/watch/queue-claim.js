@@ -113,9 +113,7 @@ export function claimRow(epicDir, row, { videoId = null, claimedBy = defaultClai
  * @returns {QueueClaim}
  */
 export function readClaimFile(filePath) {
-  const raw = fs.readFileSync(filePath, "utf8");
-  const parsed = JSON.parse(raw);
-  return /** @type {QueueClaim} */ (parsed);
+  return /** @type {QueueClaim} */ (JSON.parse(fs.readFileSync(filePath, "utf8")));
 }
 
 /**

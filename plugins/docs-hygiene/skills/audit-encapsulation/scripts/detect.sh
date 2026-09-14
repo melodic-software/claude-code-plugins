@@ -267,13 +267,6 @@ while IFS= read -r line; do
   printf '%s:%s:%s\n' "$file" "$line_no" "$text" >>"$HITS_FILE"
 done <"$DOTDOT_RAW"
 
-if [[ ! -s "$HITS_FILE" ]]; then
-  if [[ "$APPLY_FILTERS" -eq 1 ]]; then
-    printf 'Summary: raw=0 mech-filtered=0 candidates=0\n' >&2
-  fi
-  exit 0
-fi
-
 # Convert grep "file:line:match" → "file<TAB>line<TAB>match". The `-o` scan
 # emits only the matched path text, which contains no colons, so colon
 # splitting is unambiguous. Under --apply-filters, drop the known

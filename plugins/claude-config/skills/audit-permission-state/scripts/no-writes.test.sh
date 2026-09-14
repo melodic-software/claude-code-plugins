@@ -27,20 +27,8 @@ FIXTURES="$SCRIPT_DIR/../evals/fixtures"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
-FAILED=0
-CASE_NUM=0
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: %s\n' "$1"
-}
-fail() {
-  CASE_NUM=$((CASE_NUM + 1))
-  FAILED=$((FAILED + 1))
-  printf 'FAIL: %s\n  detail: %s\n' "$1" "$2" >&2
-}
-assert_eq() {
-  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected: $2, actual: $3"; fi
-}
+# shellcheck source=test-helpers.sh
+source "$SCRIPT_DIR/test-helpers.sh"
 
 if ! command -v jq >/dev/null 2>&1; then
   echo "SKIP: jq not installed" >&2
@@ -62,7 +50,6 @@ jq -n '{permissions:{allow:["Bash(ls)"]}}' >"$FX/startdir/.claude/settings.local
 # oracle chose — proving the capture lands there and nowhere else.
 STUB="$TEST_TMPDIR/stub-bin"
 mkdir -p "$STUB"
-real_bash="$(command -v bash)"
 printf '#!%s\n' "$real_bash" >"$STUB/claude"
 # A quoted heredoc: the body is the STUB's source, so its parameters must reach
 # the file verbatim rather than expanding against this harness's values.
@@ -222,9 +209,4 @@ assert_eq "every one of the ten actions ran" 10 "$CASE_NUM_ACTIONS"
 assert_eq "the oracle wrote no debug file under the fixture HOME" 0 \
   "$(find "$FX/home" -name '*.log' -o -name 'debug*' 2>/dev/null | wc -l | tr -d ' ')"
 
-if [[ "$FAILED" -eq 0 ]]; then
-  printf '\nAll %d checks passed.\n' "$CASE_NUM"
-  exit 0
-fi
-printf '\n%d/%d checks failed.\n' "$FAILED" "$CASE_NUM" >&2
-exit 1
+report_and_exit

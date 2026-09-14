@@ -12,6 +12,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import process from "node:process";
+import { createFixtureHarness } from "./fixture-harness.mjs";
 
 const scriptsDir = dirname(fileURLToPath(import.meta.url));
 const resolver = join(scriptsDir, "resolve-prerequisites.mjs");
@@ -24,17 +25,7 @@ const manifestPath = join(
 const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
 const fixtures = manifest.fixtures ?? {};
 
-let failed = 0;
-let cases = 0;
-const pass = (name) => {
-  cases += 1;
-  process.stdout.write(`PASS: ${name}\n`);
-};
-const fail = (name, detail) => {
-  cases += 1;
-  failed += 1;
-  process.stderr.write(`FAIL: ${name}\n  detail: ${detail}\n`);
-};
+const { counts, pass, fail, finish } = createFixtureHarness();
 
 function runResolver(repoDir, surface) {
   return spawnSync(
@@ -58,6 +49,12 @@ function parseOut(result) {
 
 function byIdentity(output) {
   return new Map(output.identities.map((row) => [row.identity, row]));
+}
+
+function requireRow(output, identity) {
+  const row = byIdentity(output).get(identity);
+  if (!row) throw new Error(`missing ${identity}`);
+  return row;
 }
 
 // --- Self-policing: every fixture directory is graded ----------------------
@@ -98,8 +95,7 @@ function assertBareRepo(output) {
 }
 
 function assertFailClosed(output) {
-  const row = byIdentity(output).get("issue-triage-sweep");
-  if (!row) throw new Error("missing issue-triage-sweep");
+  const row = requireRow(output, "issue-triage-sweep");
   if (row.verdict === "supported" || row.verdict === "conditional") {
     throw new Error(`issue-triage-sweep must not clear; got ${row.verdict}`);
   }
@@ -109,8 +105,7 @@ function assertFailClosed(output) {
 }
 
 function assertDeclaredAbsentNarrows(output) {
-  const row = byIdentity(output).get("issue-triage-sweep");
-  if (!row) throw new Error("missing issue-triage-sweep");
+  const row = requireRow(output, "issue-triage-sweep");
   if (row.verdict !== "unsupported") {
     throw new Error(`expected unsupported, got ${row.verdict}`);
   }
@@ -126,8 +121,7 @@ function assertDeclaredAbsentNarrows(output) {
 }
 
 function assertProbeNegativeCaps(output) {
-  const row = byIdentity(output).get("issue-triage-sweep");
-  if (!row) throw new Error("missing issue-triage-sweep");
+  const row = requireRow(output, "issue-triage-sweep");
   if (row.verdict !== "unsupported") {
     throw new Error(`expected unsupported, got ${row.verdict}`);
   }
@@ -138,8 +132,7 @@ function assertProbeNegativeCaps(output) {
 }
 
 function assertProbeCouldNotRun(output) {
-  const row = byIdentity(output).get("advisory-cve-triage");
-  if (!row) throw new Error("missing advisory-cve-triage");
+  const row = requireRow(output, "advisory-cve-triage");
   if (row.verdict !== "conditional") {
     throw new Error(`expected conditional (declaration stands), got ${row.verdict}`);
   }
@@ -169,8 +162,7 @@ function assertPostureDivergence(output) {
 }
 
 function assertPositiveVerdict(output) {
-  const row = byIdentity(output).get("issue-triage-sweep");
-  if (!row) throw new Error("missing issue-triage-sweep");
+  const row = requireRow(output, "issue-triage-sweep");
   if (row.verdict !== "supported") {
     throw new Error(`expected supported, got ${row.verdict}`);
   }
@@ -224,9 +216,7 @@ for (const [name, entry] of Object.entries(fixtures)) {
   }
 }
 
-if (failed === 0) {
-  process.stdout.write(`\nAll ${cases} checks passed.\n`);
-  process.exit(0);
-}
-process.stderr.write(`\n${failed} of ${cases} checks failed.\n`);
-process.exit(1);
+finish(
+  `\nAll ${counts.cases} checks passed.\n`,
+  `\n${counts.failed} of ${counts.cases} checks failed.\n`,
+);

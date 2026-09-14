@@ -4,6 +4,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import { errorResponse, jsonResponse } from "../response.js";
+import { hasCapability } from "./capability.js";
 
 // The Miro create-tag API accepts exactly these fillColor values.
 // Ref: https://developers.miro.com/reference/create-tag
@@ -51,7 +52,7 @@ export function registerTagTools(server: McpServer, api: MiroApi): void {
     async ({ board_id, item_id, tag_id }) => {
       const board = await api.getBoard(board_id);
       const item = await board.getItem(item_id);
-      if (!item || !("attachTag" in item) || typeof item.attachTag !== "function") {
+      if (!hasCapability(item, "attachTag")) {
         return errorResponse(
           `Item ${item_id} does not support tags. Only sticky notes, cards, and similar items can have tags attached.`,
         );

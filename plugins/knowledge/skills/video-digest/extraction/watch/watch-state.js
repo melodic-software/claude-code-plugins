@@ -125,6 +125,17 @@ export function markPhaseComplete(state, phase, metrics = {}) {
   };
 }
 
+/** Sequential phase walk; `companion` is an optional side-marker and stays out of it. */
+const PHASE_ORDER = /** @type {(keyof WatchPhases)[]} */ ([
+  "acquire",
+  "transcript",
+  "watching",
+  "vision",
+  "harvest",
+  "research",
+  "synthesis",
+]);
+
 /**
  * Resolve the next incomplete phase name.
  *
@@ -132,17 +143,7 @@ export function markPhaseComplete(state, phase, metrics = {}) {
  * @returns {keyof WatchPhases|null}
  */
 export function findNextPhase(phases) {
-  const order = /** @type {(keyof WatchPhases)[]} */ ([
-    "acquire",
-    "transcript",
-    "watching",
-    "vision",
-    "harvest",
-    "research",
-    "synthesis",
-  ]);
-
-  for (const phase of order) {
+  for (const phase of PHASE_ORDER) {
     if (phases[phase] === null) return phase;
   }
   return null;

@@ -68,7 +68,7 @@ hook::begin eol-normalizer PostToolUse
 # rewrite the user did not request; name what changed on the user channel and
 # stay silent on skip/no-op paths. Snapshot lifecycle lives in the shared
 # rewrite-guard lib (#3409); the taken message doubles as the changed/unchanged
-# verdict EFFECTIVE_ACTION needs.
+# verdict the hook status needs.
 #
 # The library's decision is taken FIRST, and the rewrite runs only when that
 # decision says the file has work to do. That ordering is what lets the
@@ -83,7 +83,7 @@ hook::begin eol-normalizer PostToolUse
 # ACTION keeps its old meaning and its old value: it names the arm that APPLIES
 # to this file, not whether bytes moved. An already-LF file under `eol=lf` still
 # reports `lf`, and the emptiness of HOOK_REWRITE_MESSAGE is still the only thing
-# that decides EFFECTIVE_ACTION and the telemetry status.
+# that decides the telemetry status.
 #
 # ONE DELIBERATE DEVIATION, and it is not a content or message difference: a file
 # that needs no rewrite is no longer opened for writing, so its mtime is no
@@ -103,18 +103,17 @@ crlf) EOL_MSG="eol-normalizer: normalized line endings to CRLF in ${FILE##*/}." 
 *) EOL_MSG="" ;;
 esac
 hook::rewrite_take_disclosure "$FILE" "$EOL_MSG"
-if [[ -n "$HOOK_REWRITE_MESSAGE" ]]; then
-  EFFECTIVE_ACTION="$ACTION"
-else
-  EFFECTIVE_ACTION="skip"
-fi
 
 # status "ok" when the file was actually normalized (lf/crlf); "skipped" when the
 # attr was unspecified, the path is -text, content sniffed binary, or idempotent.
-case "$EFFECTIVE_ACTION" in
-lf | crlf) status="ok" ;;
-*) status="skipped" ;;
-esac
+# The message is non-empty only when the take found changed bytes, and EOL_MSG
+# above is non-empty only for the lf and crlf arms, so its emptiness is the whole
+# verdict.
+if [[ -n "$HOOK_REWRITE_MESSAGE" ]]; then
+  status="ok"
+else
+  status="skipped"
+fi
 
 emit_tel "$status" "$ACTION"
 

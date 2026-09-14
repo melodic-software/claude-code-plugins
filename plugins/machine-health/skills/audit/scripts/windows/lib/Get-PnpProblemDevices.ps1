@@ -5,8 +5,8 @@
 Parse pnputil /enum-devices /problem output into structured device records.
 
 .DESCRIPTION
-Returns an array of { instance_id, device_description, problem_code,
-problem_status, class_name }. Output format differs slightly between
+Returns an array of { instance_id, device_description, class_name,
+manufacturer, problem_code, problem_status }. Output format differs between
 Windows 10 2004 and Windows 11 23H2+; this parser tolerates both.
 
 Admin strongly preferred -- non-elevated runs get incomplete output. The

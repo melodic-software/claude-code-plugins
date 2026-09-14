@@ -22,10 +22,10 @@
 # runtime on every host, and this repo does not ship a grant on docs alone
 # (`plugins/discovery/reference/parent-contract.md`). Until a runtime check
 # exists, the skill-local path is the exercised shape — reachable from a shared
-# `scripts/` location through a thin exec wrapper. dissolve-comments ships four
+# `scripts/` location through a thin exec wrapper. dissolve-comments ships six
 # of those wrappers beside the skill, named so this suite covers them:
-# change-shape.sh, comment-census.sh, commented-out-code.sh,
-# rank-comment-targets.sh.
+# change-shape.sh, comment-census.sh, comment-tooling-probe.sh,
+# commented-out-code.sh, rank-comment-targets.sh, scope-code-files.sh.
 #
 # SC2016 is disabled file-wide on purpose. Every single-quoted `${…}` here is a
 # fixed string searched for VERBATIM in markdown and frontmatter, where those
@@ -43,7 +43,8 @@ SKILLS=(tidy audit-comment-residue audit-dead-code dissolve-comments)
 # deliberate narrowing decision, which the pairing checks below cannot catch on
 # their own: a script that is bundled, executable, and mentioned in the body
 # "pairs" fine, so a later edit could re-widen the grant to cover it and every
-# other assertion here would still pass green.
+# other assertion here would still pass green. A skill with no arm reports a
+# NOTE at the comparison site rather than comparing nothing.
 expected_granted() {
   case "$1" in
   *) echo "" ;;
@@ -56,6 +57,9 @@ fail() {
   echo "FAIL: $1" >&2
   fails=1
 }
+# Not `SKIP:`: scripts/run-plugin-tests.sh counts that prefix as an absent-tool
+# skip, and this path is a declared absence of an allowlist, not of a tool.
+note() { echo "NOTE: $1"; }
 
 # Frontmatter is the leading `---`-delimited block; the allowed-tools value runs
 # to the next top-level key so a YAML list is captured whole.
@@ -140,6 +144,8 @@ for skill in "${SKILLS[@]}"; do
     expected: $expected
     actual:   $actual"
     fi
+  else
+    note "$skill: names no allowlist, so the granted-set comparison did not run"
   fi
 done
 

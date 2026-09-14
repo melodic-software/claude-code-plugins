@@ -83,27 +83,16 @@ function tierSlides({ items, tier, providerKey, label }) {
 
   const MAX_HIGH = 5;
   const MAX_MED = 14;
-  if (tier === "high" && items.length > MAX_HIGH) {
-    for (let i = 0; i < items.length; i += MAX_HIGH) {
-      const chunk = items.slice(i, i + MAX_HIGH);
-      const part = Math.floor(i / MAX_HIGH) + 1;
+  const cap = tier === "high" ? MAX_HIGH : MAX_MED;
+  if (items.length > cap) {
+    for (let i = 0; i < items.length; i += cap) {
+      const chunk = items.slice(i, i + cap);
+      const part = Math.floor(i / cap) + 1;
       slides.push({
         type: slideType,
         provider: providerKey,
         tier,
-        title: `${label} — part ${part}`,
-        bullets: chunk.map(toBullet),
-      });
-    }
-  } else if (tier !== "high" && items.length > MAX_MED) {
-    for (let i = 0; i < items.length; i += MAX_MED) {
-      const chunk = items.slice(i, i + MAX_MED);
-      const part = Math.floor(i / MAX_MED) + 1;
-      slides.push({
-        type: slideType,
-        provider: providerKey,
-        tier,
-        title: `${baseTitle} (${part})`,
+        title: tier === "high" ? `${label} — part ${part}` : `${baseTitle} (${part})`,
         bullets: chunk.map(toBullet),
       });
     }
@@ -209,7 +198,7 @@ function buildDevToolSlides(buckets) {
     if (tier === "_items") continue; // bare-bullets fallback (no H3) — ignored for dev-tools
     for (const tool of DEV_TOOL_PRIORITY) {
       if (tool.re.test(tier) && !matched[tool.key]) {
-        matched[tool.key] = { tool, items, heading: tier };
+        matched[tool.key] = { items, heading: tier };
         break;
       }
     }
@@ -222,8 +211,8 @@ function buildDevToolSlides(buckets) {
       type: "news",
       provider: tool.provider,
       tier: "high",
-      title: `Dev Tools — ${m.tool.label}`,
-      subtitle: m.heading.replace(new RegExp(m.tool.label, "i"), "").replace(/^[\s—-]+|[\s—-]+$/g, "") || undefined,
+      title: `Dev Tools — ${tool.label}`,
+      subtitle: m.heading.replace(new RegExp(tool.label, "i"), "").replace(/^[\s—-]+|[\s—-]+$/g, "") || undefined,
       bullets: m.items.map(toBullet),
     });
   }
@@ -275,15 +264,9 @@ function balanceTiers(normalized) {
     const high = data.high || [];
     const med = data.med || [];
     // Demote weakest from HIGH when over-saturated
-    while (high.length > 7) {
-      const moved = high.pop();
-      med.unshift(moved);
-    }
+    while (high.length > 7) med.unshift(high.pop());
     // Promote strongest from MED when HIGH is under-saturated
-    while (med.length >= 5 && high.length < 3) {
-      const moved = med.shift();
-      high.push(moved);
-    }
+    while (med.length >= 5 && high.length < 3) high.push(med.shift());
     data.high = high;
     data.med = med;
   }

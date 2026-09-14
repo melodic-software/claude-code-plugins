@@ -71,11 +71,9 @@ if [[ ! -f "$MANIFEST" ]]; then
 fi
 
 FIXTURE_DIR="${SETTINGS_AUDIT_DOCS_FIXTURE_DIR:-}"
-if [[ -z "$FIXTURE_DIR" ]] && ! command -v curl >/dev/null 2>&1; then
-  if [[ -z "$DOCS_DIR" ]]; then
-    echo "ERROR: curl required to fetch pages (or pass --docs-dir with the pages on disk)" >&2
-    exit 2
-  fi
+if [[ -z "$FIXTURE_DIR" && -z "$DOCS_DIR" ]] && ! command -v curl >/dev/null 2>&1; then
+  echo "ERROR: curl required to fetch pages (or pass --docs-dir with the pages on disk)" >&2
+  exit 2
 fi
 
 FETCH_DIR="$(mktemp -d)"

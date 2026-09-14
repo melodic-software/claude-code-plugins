@@ -20,6 +20,8 @@ import {
   processSubtitleSegments,
 } from "@melodic/video-digestion/transcript/vtt-parser";
 
+import { hasPlayerElement } from "../player-presence.js";
+
 /**
  * Selector for the Hotmart player element as Teachable renders it by default.
  * Callers override it through `platformConfig.videoPlayerSelector`; this is the
@@ -249,7 +251,7 @@ async function readHlsJsData(hotmartFrame, subtitleLang) {
         result.masterUrl = hlsInstance.url.split("?")[0];
       }
       for (const track of hlsInstance.subtitleTracks || []) {
-        if (track.lang?.includes(lang) || track.name?.toLowerCase()?.includes(lang)) {
+        if (track.lang?.includes(lang) || track.name?.toLowerCase().includes(lang)) {
           result.subtitlePlaylistUrlFull = track.url;
           result.subtitlePlaylistUrl = track.url?.split("?")[0];
           break;
@@ -595,18 +597,12 @@ export function clearCapturedData(page) {
 /**
  * Check if the video player element exists on the page.
  *
- * `videoPlayerSelector` is handed to `page.evaluate` as an argument rather than
- * closed over: the callback is serialized into the browser context, where this
- * module's bindings do not exist.
- *
  * @param {import('playwright').Page} page
  * @param {string} [videoPlayerSelector] defaults to {@link DEFAULT_VIDEO_PLAYER_SELECTOR}
  * @returns {Promise<boolean>}
  */
 export async function hasHotmartPlayer(page, videoPlayerSelector = DEFAULT_VIDEO_PLAYER_SELECTOR) {
-  return page
-    .evaluate((selector) => !!document.querySelector(selector), videoPlayerSelector)
-    .catch(() => false);
+  return hasPlayerElement(page, videoPlayerSelector);
 }
 
 // ---------------------------------------------------------------------------

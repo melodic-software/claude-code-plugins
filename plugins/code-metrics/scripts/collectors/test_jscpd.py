@@ -17,20 +17,25 @@ from __future__ import annotations
 import glob
 import json
 import os
-import stat
 import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
+from harness.stub_harness import (
+    REPO_ROOT,
+    TOOL_OUTPUT,
+    run_adapter,
+    version_gate,
+    write_stub,
+)
+
 SCRIPT_DIR = Path(__file__).resolve().parent
 SCRIPT = SCRIPT_DIR / "jscpd.py"
-CAPTURE = SCRIPT_DIR.parent / "fixtures" / "tool-output" / "jscpd.json"
+CAPTURE = TOOL_OUTPUT / "jscpd.json"
 CLUSTER = "plugins/code-metrics/scripts/fixtures/sources/cluster"
 ALPHA = f"{CLUSTER}/alpha/shared/shared-utils.sh"
 BETA = f"{CLUSTER}/beta/shared/shared-utils.sh"
-REPO_ROOT = SCRIPT_DIR.parents[3]
 
 
 def make_stub(
@@ -40,15 +45,10 @@ def make_stub(
     exit_code: int = 0,
     argv_log: Path | None = None,
 ) -> None:
-    stub = directory / "jscpd"
     log = f'printf \'%s\\n\' "$*" >>"{argv_log}"\n' if argv_log else ""
-    stub.write_text(
-        "#!/usr/bin/env bash\n"
-        'if [[ "${1:-}" == "--version" ]]; then printf \'%s\\n\' "'
-        + version_line
-        + '"; exit 0; fi\n'
-        + log
-        + "out=''\n"
+    write_stub(
+        directory / "jscpd",
+        version_gate(version_line) + log + "out=''\n"
         "while [[ $# -gt 0 ]]; do\n"
         '  if [[ "$1" == "--output" ]]; then out="$2"; shift 2; continue; fi\n'
         "  shift\n"
@@ -56,29 +56,14 @@ def make_stub(
         'mkdir -p "$out"\n'
         f'cp "{capture}" "$out/jscpd-report.json"\n'
         f"exit {exit_code}\n",
-        encoding="utf-8",
     )
-    stub.chmod(stub.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 
 def run(
     *args: str, path_prefix: Path | None = None, env_extra: dict | None = None
 ) -> subprocess.CompletedProcess:
-    env = dict(os.environ)
-    if path_prefix is not None:
-        env["PATH"] = f"{path_prefix}{os.pathsep}{env.get('PATH', '')}"
-    else:
-        env["PATH"] = str(
-            Path(tempfile.gettempdir()) / "definitely-empty-path-for-jscpd-tests"
-        )
-    env.update(env_extra or {})
-    return subprocess.run(
-        [sys.executable, str(SCRIPT), *args],
-        capture_output=True,
-        text=True,
-        env=env,
-        cwd=REPO_ROOT,
-        check=False,
+    return run_adapter(
+        SCRIPT, "jscpd", *args, path_prefix=path_prefix, env_extra=env_extra
     )
 
 
@@ -184,15 +169,11 @@ class JscpdAdapterTests(unittest.TestCase):
 
     def test_no_report_file_is_exit_3_with_the_tool_stderr(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            stub = Path(tmp) / "jscpd"
-            stub.write_text(
-                "#!/usr/bin/env bash\n"
-                'if [[ "${1:-}" == "--version" ]]; then printf \'jscpd 5.2.0\\n\'; exit 0; fi\n'
-                "printf 'jscpd: unsupported format\\n' >&2\n"
-                "exit 1\n",
-                encoding="utf-8",
+            write_stub(
+                Path(tmp) / "jscpd",
+                version_gate("jscpd 5.2.0")
+                + "printf 'jscpd: unsupported format\\n' >&2\nexit 1\n",
             )
-            stub.chmod(stub.stat().st_mode | stat.S_IXUSR)
             result = run("collect", "bash", "duplication", ALPHA, path_prefix=Path(tmp))
             self.assertEqual(result.returncode, 3)
             self.assertIn("jscpd-report.json", result.stderr)
@@ -320,11 +301,12 @@ class JscpdAdapterTests(unittest.TestCase):
             )
             self.assertEqual((result.returncode, result.stdout), (0, ""), result.stderr)
             self.assertFalse(log.exists(), "jscpd was invoked with no files")
+            reason = note.read_text(encoding="utf-8")
             self.assertTrue(
-                note.read_text(encoding="utf-8").startswith(
+                reason.startswith(
                     "2 of 2 files skipped by duplication.max_size 10 / max_lines none"
                 ),
-                note.read_text(encoding="utf-8"),
+                reason,
             )
 
     def test_the_skip_reason_goes_to_stderr_when_no_reason_file_is_set(self) -> None:

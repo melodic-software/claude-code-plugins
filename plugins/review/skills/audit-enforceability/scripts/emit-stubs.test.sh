@@ -83,6 +83,24 @@ count_files() {
   printf '%d' "$n"
 }
 
+# path_exists <path>... / dir_exists <dir>: 1 when any argument exists (as a
+# directory, for dir_exists), 0 when none does. Probes that PRINT rather than
+# set an exit code, like count_files above: every call site compares the answer
+# as assert_eq's actual value.
+path_exists() {
+  local p
+  for p in "$@"; do
+    if [[ -e "$p" ]]; then
+      printf '1'
+      return
+    fi
+  done
+  printf '0'
+}
+dir_exists() {
+  if [[ -d "$1" ]]; then printf '1'; else printf '0'; fi
+}
+
 # --- Case 1: seven-row fixture -> seven stubs, one per rank, exit 0 ------------
 
 OUT1="$TEST_TMPDIR/memory/enforceability/fixture"
@@ -132,7 +150,7 @@ assert_eq "case 4: --out equal to --scan-dir wrote nothing" "0" "$(count_files "
 
 bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" --out "$SCAN_DIR/nested" --scan-dir "$SCAN_DIR" >/dev/null 2>&1
 assert_eq "case 4: --out under --scan-dir exits 3" "3" "$?"
-assert_eq "case 4: --out under --scan-dir created no directory" "0" "$([[ -e "$SCAN_DIR/nested" ]] && echo 1 || echo 0)"
+assert_eq "case 4: --out under --scan-dir created no directory" "0" "$(path_exists "$SCAN_DIR/nested")"
 
 bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" --out "$INPUT_DIR" --scan-dir "$SCAN_DIR" >/dev/null 2>&1
 assert_eq "case 4: --out equal to the findings file's own directory exits 3" "3" "$?"
@@ -140,7 +158,7 @@ assert_eq "case 4: the findings directory gained no stub" "1" "$(count_files "$I
 
 bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" --out "$INPUT_DIR/stubs" --scan-dir "$SCAN_DIR" >/dev/null 2>&1
 assert_eq "case 4: --out under the findings file's own directory exits 3" "3" "$?"
-assert_eq "case 4: --out under the findings directory created no directory" "0" "$([[ -e "$INPUT_DIR/stubs" ]] && echo 1 || echo 0)"
+assert_eq "case 4: --out under the findings directory created no directory" "0" "$(path_exists "$INPUT_DIR/stubs")"
 
 # A sibling whose name merely prefixes the scan directory is NOT under it.
 SIBLING_OUT="${SCAN_DIR}-archive"
@@ -165,7 +183,7 @@ NONCONFORMING="$TEST_TMPDIR/nonconforming.md"
 } >"$NONCONFORMING"
 bash "$EMIT" --findings "$NONCONFORMING" --classes "$CLASSES" --out "$TEST_TMPDIR/c5c" --scan-dir "$SCAN_DIR" >/dev/null 2>&1
 assert_eq "case 5: a file without type: review-findings exits 2" "2" "$?"
-assert_eq "case 5: the non-conforming input produced no stub home" "0" "$([[ -e "$TEST_TMPDIR/c5c" ]] && echo 1 || echo 0)"
+assert_eq "case 5: the non-conforming input produced no stub home" "0" "$(path_exists "$TEST_TMPDIR/c5c")"
 
 NOTABLE="$TEST_TMPDIR/no-table.md"
 {
@@ -177,7 +195,7 @@ assert_eq "case 5: a file whose Findings table does not parse exits 2" "2" "$?"
 
 bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" --out "$TEST_TMPDIR/c5e" >/dev/null 2>&1
 assert_eq "case 5: missing --scan-dir exits 2" "2" "$?"
-assert_eq "case 5: missing --scan-dir wrote nothing" "0" "$([[ -e "$TEST_TMPDIR/c5e" ]] && echo 1 || echo 0)"
+assert_eq "case 5: missing --scan-dir wrote nothing" "0" "$(path_exists "$TEST_TMPDIR/c5e")"
 
 # --- Case 6: an escaped pipe reaches the stub unescaped and unsplit ------------
 
@@ -221,7 +239,7 @@ assert_eq "case 8: the second run added seven siblings rather than overwriting" 
 assert_eq "case 8: the first run's stub is byte-identical after the re-run" "$before_first" \
   "$(cat "$OUT1"/01-editorconfig-severity-src-api-ordering.cs-14.md)"
 assert_eq "case 8: the collision took the -2 suffix" "1" \
-  "$([[ -e "$OUT1/01-editorconfig-severity-src-api-ordering.cs-14-2.md" ]] && echo 1 || echo 0)"
+  "$(path_exists "$OUT1/01-editorconfig-severity-src-api-ordering.cs-14-2.md")"
 
 # --- Case 9: the By dimension re-render produces no extra stubs ---------------
 #
@@ -302,7 +320,7 @@ if ln -s "$CANON/reviews" "$CANON/link" 2>/dev/null && [[ -L "$CANON/link" ]]; t
   assert_eq "case 12b: the symlinked spelling wrote nothing into the scan directory" "0" \
     "$(count_files "$CANON/reviews")"
   assert_eq "case 12b: the symlinked spelling created no stub directory" "0" \
-    "$([[ -e "$CANON/reviews/stubs" ]] && echo 1 || echo 0)"
+    "$(path_exists "$CANON/reviews/stubs")"
 fi
 
 if [[ $canon_arms -eq 0 ]]; then
@@ -342,7 +360,7 @@ bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" --out "$ESCAPED" \
   --scan-dir "$SCAN_DIR" >/dev/null 2>&1
 assert_eq "case 14: a home carrying a .. segment is refused" "3" "$?"
 assert_eq "case 14: the escape target was never created" "0" \
-  "$([[ -e "$TEST_TMPDIR/../../../escape" || -e "$TEST_TMPDIR/escape" ]] && echo 1 || echo 0)"
+  "$(path_exists "$TEST_TMPDIR/../../../escape" "$TEST_TMPDIR/escape")"
 
 escape_err="$(bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" --out "$ESCAPED" \
   --scan-dir "$SCAN_DIR" 2>&1 >/dev/null)"
@@ -355,7 +373,7 @@ bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" --out "$OUTSIDE" \
   --scan-dir "$SCAN_DIR" --memory-root "$MEM_ROOT" >/dev/null 2>&1
 assert_eq "case 14: a home outside --memory-root is refused" "3" "$?"
 assert_eq "case 14: the outside home was never created" "0" \
-  "$([[ -e "$OUTSIDE" ]] && echo 1 || echo 0)"
+  "$(path_exists "$OUTSIDE")"
 
 bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" --out "$MEM_ROOT" \
   --scan-dir "$SCAN_DIR" --memory-root "$MEM_ROOT" >/dev/null 2>&1
@@ -385,7 +403,7 @@ bash "$EMIT" --findings "$DOTDOT_IN" --classes "$CLASSES" --out "$INPUT_DIR/stub
   --scan-dir "$SCAN_DIR" >/dev/null 2>&1
 assert_eq "case 15: a findings path carrying a .. segment is refused" "3" "$?"
 assert_eq "case 15: the refused input path created no stub home" "0" \
-  "$([[ -e "$INPUT_DIR/stubs15" ]] && echo 1 || echo 0)"
+  "$(path_exists "$INPUT_DIR/stubs15")"
 
 # --- Case 16: a write that fails is detected and taken back ------------------
 #
@@ -428,7 +446,7 @@ bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" \
 assert_eq "case 17: a case-different spelling of --scan-dir is refused" "3" "$?"
 assert_eq "case 17: nothing landed in the scan directory" "0" "$(count_files "$CASEDIR/reviews/feat-x")"
 assert_eq "case 17: the case-different home was not created" "0" \
-  "$([[ -e "$CASEDIR/REVIEWS/FEAT-X/stubs" ]] && echo 1 || echo 0)"
+  "$(path_exists "$CASEDIR/REVIEWS/FEAT-X/stubs")"
 
 bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" \
   --out "$(printf '%s' "$INPUT_DIR" | tr '[:lower:]' '[:upper:]')/stubs17" \
@@ -443,14 +461,14 @@ bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" \
   --out "$TEST_TMPDIR/out18" --scan-dir "//localhost/share/reviews" >/dev/null 2>&1
 assert_eq "case 18: a UNC --scan-dir is refused" "3" "$?"
 assert_eq "case 18: the UNC run created no stub home" "0" \
-  "$([[ -e "$TEST_TMPDIR/out18" ]] && echo 1 || echo 0)"
+  "$(path_exists "$TEST_TMPDIR/out18")"
 
 # --- Case 19: an empty --memory-root does not silently disable the anchor ----
 bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" --out "$TEST_TMPDIR/out19" \
   --scan-dir "$SCAN_DIR" --memory-root "" >/dev/null 2>&1
 assert_eq "case 19: an explicitly empty --memory-root is a usage refusal" "2" "$?"
 assert_eq "case 19: the empty-root run wrote nothing" "0" \
-  "$([[ -e "$TEST_TMPDIR/out19" ]] && echo 1 || echo 0)"
+  "$(path_exists "$TEST_TMPDIR/out19")"
 
 # --- Case 20: the rollback survives an option-shaped stub home ---------------
 #
@@ -467,10 +485,7 @@ mkdir -p "$OUT20"
 )
 dash_exit=$?
 assert_eq "case 20: the option-shaped home still exits 4 on a forbidden marker" "4" "$dash_exit"
-dash_left=0
-for f in "$OUT20"/-/*.md; do
-  [[ -f "$f" ]] && dash_left=$((dash_left + 1))
-done
+dash_left="$(count_files "$OUT20/-")"
 assert_eq "case 20: the rollback removed every stub despite the option-shaped path" "0" "$dash_left"
 
 # --- Case 21: the last path segment must match the branch-slug charset -----
@@ -486,7 +501,7 @@ bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" --out "$CHARSET_BAD" \
   --scan-dir "$SCAN_DIR" --memory-root "$CHARSET_ROOT" >/dev/null 2>&1
 assert_eq "case 21: an uppercase last segment under --memory-root is refused" "3" "$?"
 assert_eq "case 21: the uppercase home was never created" "0" \
-  "$([[ -e "$CHARSET_BAD" ]] && echo 1 || echo 0)"
+  "$(path_exists "$CHARSET_BAD")"
 
 charset_err="$(bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" --out "$CHARSET_BAD" \
   --scan-dir "$SCAN_DIR" --memory-root "$CHARSET_ROOT" 2>&1 >/dev/null)"
@@ -498,7 +513,7 @@ bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" --out "$CHARSET_SPACE" 
   --scan-dir "$SCAN_DIR" >/dev/null 2>&1
 assert_eq "case 21: a last segment with a space is refused without --memory-root" "3" "$?"
 assert_eq "case 21: the spaced home was never created" "0" \
-  "$([[ -e "$CHARSET_SPACE" ]] && echo 1 || echo 0)"
+  "$(path_exists "$CHARSET_SPACE")"
 
 CHARSET_OK="$CHARSET_ROOT/enforceability/feat-x"
 bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" --out "$CHARSET_OK" \
@@ -525,10 +540,7 @@ if mkdir -p "$UNI/réviews/feat-x" 2>/dev/null && [[ -d "$UNI/réviews/feat-x" ]
   bash "$EMIT" --findings "$UNI/réviews/feat-x/review-findings.md" --classes "$CLASSES" \
     --out "$UNI/RÉVIEWS/feat-x/stubs" --scan-dir "$UNI/réviews/feat-x" >/dev/null 2>&1
   uni_exit=$?
-  uni_landed=0
-  for f in "$UNI/réviews/feat-x/stubs"/*.md; do
-    [[ -f "$f" ]] && uni_landed=$((uni_landed + 1))
-  done
+  uni_landed="$(count_files "$UNI/réviews/feat-x/stubs")"
   if [[ "$uni_landed" -gt 0 ]]; then
     fail "case 22: a non-ASCII case variant is fenced" "no stub inside --scan-dir" "$uni_landed stubs landed there"
   else
@@ -578,7 +590,7 @@ bash "$EMIT" --findings "$FINDINGS" --classes - --out "$OUT24" --scan-dir "$SCAN
   <"$TEST_TMPDIR/classes-poison.tsv" >/dev/null 2>&1
 assert_eq "case 25: the marker refusal still exits 4" "4" "$?"
 assert_eq "case 25: a home the run did NOT create survives its rollback" "1" \
-  "$([[ -d "$OUT24" ]] && echo 1 || echo 0)"
+  "$(dir_exists "$OUT24")"
 assert_eq "case 25: but it holds no stub" "0" "$(count_files "$OUT24")"
 
 # --- Case 26: a row with an empty Rank is stubbed, not lost ------------------
@@ -614,9 +626,9 @@ if [[ "$UNI_OK" -eq 1 ]]; then
     --memory-root "$ABSENT" >/dev/null 2>&1
   assert_eq "case 27: an absent non-ASCII case variant of --scan-dir is refused" "3" "$?"
   assert_eq "case 27: the stub home was never created" "0" \
-    "$([[ -e "$ABSENT/réviews/feat-x" ]] && echo 1 || echo 0)"
+    "$(path_exists "$ABSENT/réviews/feat-x")"
   assert_eq "case 27: the scan directory was never created either" "0" \
-    "$([[ -e "$ABSENT/RÉVIEWS/feat-x" ]] && echo 1 || echo 0)"
+    "$(path_exists "$ABSENT/RÉVIEWS/feat-x")"
   absent_left=0
   for f in "$ABSENT"/*; do
     [[ -e "$f" ]] && absent_left=$((absent_left + 1))
@@ -645,7 +657,7 @@ if [[ "$UNI_OK" -eq 1 ]]; then
   if [[ -d "$UNIF/caseprobe/REVIEWS" ]]; then
     assert_eq "case 28: a folding volume refuses a non-ASCII case variant of the findings directory" "3" "$unif_exit"
     assert_eq "case 28: the case-variant stub home was never created" "0" \
-      "$([[ -e "$UNIF/RÉVIEWS/feat-x/stubs" ]] && echo 1 || echo 0)"
+      "$(path_exists "$UNIF/RÉVIEWS/feat-x/stubs")"
   else
     assert_eq "case 28: a case-sensitive volume writes into the distinct findings-dir spelling" "0" "$unif_exit"
     assert_eq "case 28: the distinct home received stubs" "7" "$(count_files "$UNIF/RÉVIEWS/feat-x/stubs")"
@@ -673,10 +685,7 @@ if [[ "$UNI_OK" -eq 1 ]]; then
       --out "$SIB/rêvu/feat-x/stubs" --scan-dir "$SIB/révu/feat-x" >/dev/null 2>&1
     assert_eq "case 30: existing non-ASCII siblings the fold would collide still write" "0" "$?"
     assert_eq "case 30: the sibling home received stubs" "7" "$(count_files "$SIB/rêvu/feat-x/stubs")"
-    sib_landed=0
-    for f in "$SIB/révu/feat-x/stubs"/*.md; do
-      [[ -f "$f" ]] && sib_landed=$((sib_landed + 1))
-    done
+    sib_landed="$(count_files "$SIB/révu/feat-x/stubs")"
     assert_eq "case 30: nothing landed in the scan directory" "0" "$sib_landed"
   else
     skip_case "case 30: this filesystem does not keep révu and rêvu as distinct directories"
@@ -697,11 +706,11 @@ bash "$EMIT" --findings "$FINDINGS" --classes - --out "$RB/a/b" --scan-dir "$SCA
   <"$TEST_TMPDIR/classes-poison.tsv" >/dev/null 2>&1
 assert_eq "case 29: a two-level home still exits 4 on a forbidden marker" "4" "$?"
 assert_eq "case 29: the innermost created level is gone" "0" \
-  "$([[ -e "$RB/a/b" ]] && echo 1 || echo 0)"
+  "$(path_exists "$RB/a/b")"
 assert_eq "case 29: the parent level the same mkdir created is gone too" "0" \
-  "$([[ -e "$RB/a" ]] && echo 1 || echo 0)"
+  "$(path_exists "$RB/a")"
 assert_eq "case 29: the level the run did not create survives" "1" \
-  "$([[ -d "$RB" ]] && echo 1 || echo 0)"
+  "$(dir_exists "$RB")"
 
 RB2="$TEST_TMPDIR/rollback2/kept"
 mkdir -p "$RB2"
@@ -709,9 +718,9 @@ bash "$EMIT" --findings "$FINDINGS" --classes - --out "$RB2/made" --scan-dir "$S
   <"$TEST_TMPDIR/classes-poison.tsv" >/dev/null 2>&1
 assert_eq "case 29: a home whose parent already existed still exits 4" "4" "$?"
 assert_eq "case 29: the one level this run created is gone" "0" \
-  "$([[ -e "$RB2/made" ]] && echo 1 || echo 0)"
+  "$(path_exists "$RB2/made")"
 assert_eq "case 29: the prepared parent survives the rollback" "1" \
-  "$([[ -d "$RB2" ]] && echo 1 || echo 0)"
+  "$(dir_exists "$RB2")"
 
 # Spellings of the SAME home that a raw-string walk reads as a different chain.
 # A trailing slash makes the first step up yield the same directory twice, and a
@@ -723,7 +732,7 @@ bash "$EMIT" --findings "$FINDINGS" --classes - --out "$RB3/a/b/" --scan-dir "$S
   <"$TEST_TMPDIR/classes-poison.tsv" >/dev/null 2>&1
 assert_eq "case 29: a trailing-slash home still exits 4" "4" "$?"
 assert_eq "case 29: a trailing slash does not strand the parent level" "0" \
-  "$([[ -e "$RB3/a" ]] && echo 1 || echo 0)"
+  "$(path_exists "$RB3/a")"
 
 RB4="$TEST_TMPDIR/rollback4"
 mkdir -p "$RB4"
@@ -731,14 +740,14 @@ bash "$EMIT" --findings "$FINDINGS" --classes - --out "$RB4/a/./b" --scan-dir "$
   <"$TEST_TMPDIR/classes-poison.tsv" >/dev/null 2>&1
 assert_eq "case 29: a home with a dot segment still exits 4" "4" "$?"
 assert_eq "case 29: a dot segment does not strand the parent level" "0" \
-  "$([[ -e "$RB4/a" ]] && echo 1 || echo 0)"
+  "$(path_exists "$RB4/a")"
 
 # --- Dry run ------------------------------------------------------------------
 
 OUTDRY="$TEST_TMPDIR/outdry"
 dry_out="$(bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" --out "$OUTDRY" --scan-dir "$SCAN_DIR" --dry-run 2>&1)"
 assert_eq "dry run: exits 0" "0" "$?"
-assert_eq "dry run: wrote nothing" "0" "$([[ -e "$OUTDRY" ]] && echo 1 || echo 0)"
+assert_eq "dry run: wrote nothing" "0" "$(path_exists "$OUTDRY")"
 assert_contains "dry run: printed a planned filename" "$dry_out" "01-editorconfig-severity-"
 
 # --- Final report --------------------------------------------------------------
