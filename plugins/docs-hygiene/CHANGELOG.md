@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [0.22.2]
+
+### Changed
+
+- The `apply-rename.sh` suite builds and audits its fixture tree once and copies the result into each case that starts from the untouched tree, instead of rebuilding the repository and re-running the three audit stages per case. Cases that change the tree before the audit still audit their own tree. The assertions and the executor are unchanged; the suite's wall time on Windows Git Bash drops because most of it was process spawns in the repeated audits.
+
 ## [0.22.1]
 
 ### Changed
