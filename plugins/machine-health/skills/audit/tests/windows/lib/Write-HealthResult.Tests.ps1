@@ -19,12 +19,14 @@ BeforeAll {
 }
 
 Describe 'New-HealthResult' -Tag 'lib' {
+    BeforeEach {
+        $script:result = New-HealthResult -Id 'disk-space' -Category 'storage' -Os 'windows' `
+            -Severity 'OK' -Summary 's'
+    }
+
     Context 'defaults' {
         It 'produces a CheckResult with the canonical field set' {
-            $result = New-HealthResult -Id 'disk-space' -Category 'storage' -Os 'windows' `
-                -Severity 'OK' -Summary 'all good'
-
-            $names = $result.PSObject.Properties.Name
+            $names = $script:result.PSObject.Properties.Name
             $canonicalFields = @(
                 'id', 'category', 'os', 'ran_at', 'severity', 'summary', 'detail',
                 'commands', 'needs_admin', 'ran_successfully', 'duration_ms',
@@ -34,25 +36,18 @@ Describe 'New-HealthResult' -Tag 'lib' {
         }
 
         It 'defaults detail and commands to empty collections' {
-            $result = New-HealthResult -Id 'disk-space' -Category 'storage' -Os 'windows' `
-                -Severity 'OK' -Summary 's'
-
-            $result.detail | Should -BeOfType [hashtable]
-            @($result.detail.Keys).Count | Should -Be 0
-            @($result.commands).Count | Should -Be 0
+            $script:result.detail | Should -BeOfType [hashtable]
+            @($script:result.detail.Keys).Count | Should -Be 0
+            @($script:result.commands).Count | Should -Be 0
         }
 
         It 'defaults needs_admin and ran_successfully sensibly' {
-            $result = New-HealthResult -Id 'disk-space' -Category 'storage' -Os 'windows' `
-                -Severity 'OK' -Summary 's'
-            $result.needs_admin | Should -BeFalse
-            $result.ran_successfully | Should -BeTrue
+            $script:result.needs_admin | Should -BeFalse
+            $script:result.ran_successfully | Should -BeTrue
         }
 
         It 'stamps ran_at in ISO 8601 with offset' {
-            $result = New-HealthResult -Id 'disk-space' -Category 'storage' -Os 'windows' `
-                -Severity 'OK' -Summary 's'
-            $result.ran_at | Should -Match '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?[+-]\d{2}:\d{2}$'
+            $script:result.ran_at | Should -Match '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?[+-]\d{2}:\d{2}$'
         }
     }
 
@@ -70,10 +65,8 @@ Describe 'New-HealthResult' -Tag 'lib' {
 
     Context 'mutability after construction' {
         It 'allows duration_ms to be set after construction (caller pattern)' {
-            $result = New-HealthResult -Id 'disk-space' -Category 'storage' -Os 'windows' `
-                -Severity 'OK' -Summary 's'
-            $result.duration_ms = 42
-            $result.duration_ms | Should -Be 42
+            $script:result.duration_ms = 42
+            $script:result.duration_ms | Should -Be 42
         }
     }
 }
@@ -162,8 +155,8 @@ Describe 'Write-HealthResult' -Tag 'lib' {
 
     Context '-Human mode' {
         It 'emits a "[SEV] id - summary" line' {
-            $out = $script:validResult | Write-HealthResult -Human
-            ($out -join "`n") | Should -Match '\[OK\] disk-space - all good'
+            $text = ($script:validResult | Write-HealthResult -Human) -join "`n"
+            $text | Should -Match '\[OK\] disk-space - all good'
         }
 
         It 'appends note and error lines when present' {
@@ -171,9 +164,9 @@ Describe 'Write-HealthResult' -Tag 'lib' {
                 -Severity 'UNKNOWN' -Summary 'cmdlet unavailable' `
                 -RanSuccessfully $false -ErrorMessage 'Get-MpComputerStatus missing' `
                 -Notes 'fallback engaged' -DurationMs 1
-            $out = $full | Write-HealthResult -Human
-            ($out -join "`n") | Should -Match 'note: fallback engaged'
-            ($out -join "`n") | Should -Match 'error: Get-MpComputerStatus missing'
+            $text = ($full | Write-HealthResult -Human) -join "`n"
+            $text | Should -Match 'note: fallback engaged'
+            $text | Should -Match 'error: Get-MpComputerStatus missing'
         }
     }
 }

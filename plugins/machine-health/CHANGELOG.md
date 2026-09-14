@@ -3,6 +3,12 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.23]
+
+### Changed
+
+- Hoist the redaction cycle guard, drop redundant replace pre-checks and unreachable null branches, and simplify the banner capture and health-result fixtures in the test helpers (behavior unchanged).
+
 ## [0.12.22]
 
 ### Changed

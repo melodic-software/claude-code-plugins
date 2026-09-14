@@ -15,12 +15,14 @@ BeforeAll {
     # bypasses PowerShell's error stream, so `2>&1` captures nothing.
     # Swap in a StringWriter around the call to capture real stderr text.
     function Invoke-BannerCapture {
-        param([Parameter(Mandatory)] [scriptblock] $Call)
+        param([Parameter(Mandatory)] [bool] $Elevated, [switch] $Quiet)
         $writer = [System.IO.StringWriter]::new()
         $saved = [Console]::Error
         try {
             [Console]::SetError($writer)
-            & $Call
+            Write-ElevationBanner -Elevated $Elevated -HostName 'HOST' `
+                -UserName 'DOMAIN\user' -OutputBase 'C:\out' `
+                -SkillRoot 'C:\skill' -Matrix @(Get-ElevationMatrix) -Quiet:$Quiet
         } finally {
             [Console]::SetError($saved)
         }
@@ -30,31 +32,19 @@ BeforeAll {
 
 Describe 'Write-ElevationBanner' -Tag 'lib' {
     It 'emits the banner to stderr when non-elevated' {
-        $err = Invoke-BannerCapture {
-            Write-ElevationBanner -Elevated $false -HostName 'HOST' `
-                -UserName 'DOMAIN\user' -OutputBase 'C:\out' `
-                -SkillRoot 'C:\skill' -Matrix @(Get-ElevationMatrix)
-        }
+        $err = Invoke-BannerCapture -Elevated $false
         $err | Should -Match 'NON-ELEVATED'
         $err | Should -Match ([regex]::Escape('Running as DOMAIN\user'))
         $err | Should -Match 'Suppress this banner with -SkipBanner'
     }
 
     It 'emits nothing when elevated' {
-        $err = Invoke-BannerCapture {
-            Write-ElevationBanner -Elevated $true -HostName 'HOST' `
-                -UserName 'DOMAIN\user' -OutputBase 'C:\out' `
-                -SkillRoot 'C:\skill' -Matrix @(Get-ElevationMatrix)
-        }
+        $err = Invoke-BannerCapture -Elevated $true
         $err | Should -BeNullOrEmpty
     }
 
     It 'emits nothing when -Quiet even if non-elevated' {
-        $err = Invoke-BannerCapture {
-            Write-ElevationBanner -Elevated $false -HostName 'HOST' `
-                -UserName 'DOMAIN\user' -OutputBase 'C:\out' `
-                -SkillRoot 'C:\skill' -Matrix @(Get-ElevationMatrix) -Quiet
-        }
+        $err = Invoke-BannerCapture -Elevated $false -Quiet
         $err | Should -BeNullOrEmpty
     }
 }

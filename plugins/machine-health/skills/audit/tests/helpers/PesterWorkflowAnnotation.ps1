@@ -28,13 +28,11 @@ Write-Output "::error title=${safeTitle}::${safeMessage}"
 
 function ConvertTo-WorkflowCommandMessage {
     param([string] $Value)
-    if ($null -eq $Value) { return '' }
     return ($Value -replace '%', '%25' -replace "`r", '%0D' -replace "`n", '%0A')
 }
 
 function ConvertTo-WorkflowCommandProperty {
     param([string] $Value)
-    if ($null -eq $Value) { return '' }
     return ((ConvertTo-WorkflowCommandMessage $Value) -replace ':', '%3A' -replace ',', '%2C')
 }
 

@@ -59,10 +59,10 @@ function Edit-RedactedValue {
 
     if ($Value -is [string]) {
         $out = $Value
-        if ($Context.UsernamePattern -and $out.Contains($Context.UsernamePattern)) {
+        if ($Context.UsernamePattern) {
             $out = $out.Replace($Context.UsernamePattern, $Context.UsernameReplace)
         }
-        if ($Context.HostnamePattern -and $out.Contains($Context.HostnamePattern)) {
+        if ($Context.HostnamePattern) {
             $out = $out.Replace($Context.HostnamePattern, $Context.HostnameReplace)
         }
         $out = [regex]::Replace($out, $Context.MacRegex, $Context.MacReplace)
@@ -78,9 +78,15 @@ function Edit-RedactedValue {
         return $out
     }
 
-    if ($Value -is [System.Collections.IDictionary]) {
+    # Containers are the only values that can form a cycle; guard them once.
+    if ($Value -is [System.Collections.IDictionary] -or
+        $Value -is [System.Collections.IList] -or
+        $Value -is [pscustomobject]) {
         if ($Visited.Contains($Value)) { return $Value }
         [void]$Visited.Add($Value)
+    }
+
+    if ($Value -is [System.Collections.IDictionary]) {
         $out = [ordered]@{}
         foreach ($k in $Value.Keys) {
             $out[$k] = Edit-RedactedValue -Value $Value[$k] -Context $Context -Visited $Visited
@@ -89,14 +95,10 @@ function Edit-RedactedValue {
     }
 
     if ($Value -is [System.Collections.IList]) {
-        if ($Visited.Contains($Value)) { return $Value }
-        [void]$Visited.Add($Value)
         return @($Value | ForEach-Object { Edit-RedactedValue -Value $_ -Context $Context -Visited $Visited })
     }
 
     if ($Value -is [pscustomobject]) {
-        if ($Visited.Contains($Value)) { return $Value }
-        [void]$Visited.Add($Value)
         $props = [ordered]@{}
         foreach ($p in $Value.PSObject.Properties) {
             $props[$p.Name] = Edit-RedactedValue -Value $p.Value -Context $Context -Visited $Visited
