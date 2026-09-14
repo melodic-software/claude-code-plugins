@@ -3,6 +3,12 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.46.9]
+
+### Changed
+
+- The five audit scripts resolve the project root, user config dir and installed-plugin registry through one resolve-scopes library instead of five hand-written ladders. Overrides and environment values still land verbatim, and the sibling-script and missing-library diagnostics are unchanged.
+
 ## [0.46.8]
 
 ### Changed

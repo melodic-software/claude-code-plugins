@@ -246,27 +246,29 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
 
-if [[ -n "${SETTINGS_AUDIT_ENGINE_FIXTURE_DIR:-}" ]]; then
-  PROJECT_ROOT="$SETTINGS_AUDIT_ENGINE_FIXTURE_DIR"
-else
-  PROJECT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
-  [[ -n "$PROJECT_ROOT" ]] || PROJECT_ROOT="${CLAUDE_PROJECT_DIR:-$PWD}"
+# The project-root, user-dir and registry ladders are shared vocabulary
+# (lib/resolve-scopes.sh), not this script's to restate. Fail loudly rather than
+# fall through: an unsourced library leaves every root empty and the audit would
+# report a machine it never looked at.
+RESOLVE_SCOPES_LIB="$PLUGIN_ROOT/lib/resolve-scopes.sh"
+if [[ ! -r "$RESOLVE_SCOPES_LIB" ]]; then
+  echo "ERROR: cannot read $RESOLVE_SCOPES_LIB; the plugin's shared scope-resolution library is missing" >&2
+  exit 2
 fi
+# shellcheck source=../../../lib/resolve-scopes.sh
+source "$RESOLVE_SCOPES_LIB"
+
+# Initialized here so ShellCheck SC2154 sees the assignment; the ladder fills it in.
+PROJECT_ROOT=""
+scopes::project_root_to PROJECT_ROOT "${SETTINGS_AUDIT_ENGINE_FIXTURE_DIR:-}"
 PROJECT_ROOT="${PROJECT_ROOT//\\//}"
 PROJECT_ROOT="${PROJECT_ROOT%/}"
 
-if [[ -n "${SETTINGS_AUDIT_ENGINE_USER_DIR:-}" ]]; then
-  USER_DIR="$SETTINGS_AUDIT_ENGINE_USER_DIR"
-elif [[ -n "${CLAUDE_CONFIG_DIR:-}" ]]; then
-  USER_DIR="$CLAUDE_CONFIG_DIR"
-elif [[ -n "${HOME:-}" ]]; then
-  USER_DIR="$HOME/.claude"
-else
-  USER_DIR=""
-fi
+USER_DIR=""
+scopes::user_dir_to USER_DIR "${SETTINGS_AUDIT_ENGINE_USER_DIR:-}"
 
-INSTALLED_JSON="${SETTINGS_AUDIT_ENGINE_INSTALLED_JSON:-}"
-[[ -z "$INSTALLED_JSON" && -n "$USER_DIR" ]] && INSTALLED_JSON="$USER_DIR/plugins/installed_plugins.json"
+INSTALLED_JSON=""
+scopes::installed_registry_to INSTALLED_JSON "${SETTINGS_AUDIT_ENGINE_INSTALLED_JSON:-}" "$USER_DIR"
 
 BASELINE_FILE="${SETTINGS_AUDIT_ENGINE_BASELINE_FILE:-$PLUGIN_ROOT/skills/audit/reference/required-permissions.md}"
 
