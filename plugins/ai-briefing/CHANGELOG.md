@@ -3,6 +3,12 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.33]
+
+### Changed
+
+- generate build: emit-slides.js chunks every tier through one cap loop and reads tool labels from the matched tool, parse-briefing.js flattens a nested URL test, build-pptx.js drops single-column ternaries that always resolved the same way, brand-overlay.js and run.js drop unreachable guards, build-client-js.js drops an unused chip query and a dead scroll default, and build-css.js drops an empty ruleset and two selectors no DOM can match. Slide data and deck bytes identical apart from the removed dead source.
+
 ## [0.7.32]
 
 ### Changed
