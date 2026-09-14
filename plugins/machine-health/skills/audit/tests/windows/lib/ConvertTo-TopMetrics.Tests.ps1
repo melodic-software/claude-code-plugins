@@ -7,10 +7,7 @@ BeforeAll {
     . (Join-Path $script:LibRoot 'ConvertTo-TopMetrics.ps1')
 
     function New-CheckStub {
-        param(
-            [string] $Id = 'foo',
-            $Detail = @{}
-        )
+        param([string] $Id, $Detail)
         [pscustomobject]@{ id = $Id; detail = $Detail }
     }
 }

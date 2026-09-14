@@ -5,6 +5,18 @@ BeforeAll {
     $script:TestsRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
     $script:LibRoot = Join-Path (Split-Path -Parent $script:TestsRoot) 'scripts\windows\lib'
     . (Join-Path $script:LibRoot 'Get-RunDelta.ps1')
+
+    # Builds the JSON-round-tripped history shape Get-RunDelta reads: every
+    # category map is a pscustomobject, because the function walks
+    # severity_counts via PSObject.Properties.
+    function New-PriorRun {
+        param([string] $RunId, [hashtable] $SeverityCountsByCategory)
+        $byCategory = [ordered]@{}
+        foreach ($category in $SeverityCountsByCategory.Keys) {
+            $byCategory[$category] = [pscustomobject]$SeverityCountsByCategory[$category]
+        }
+        [pscustomobject]@{ run_id = $RunId; severity_counts = [pscustomobject]$byCategory }
+    }
 }
 
 Describe 'Get-RunDelta' -Tag 'lib' {
@@ -14,23 +26,17 @@ Describe 'Get-RunDelta' -Tag 'lib' {
     }
 
     It 'reports "no change" when totals match' {
-        $prior = [pscustomobject]@{
-            run_id          = '2026-04-22T00:00:00-04:00'
-            severity_counts = [pscustomobject]@{
-                storage = [pscustomobject]@{ OK = 1; WARN = 0; INFO = 0; CRIT = 0; UNKNOWN = 0 }
-            }
+        $prior = New-PriorRun -RunId '2026-04-22T00:00:00-04:00' -SeverityCountsByCategory @{
+            storage = @{ OK = 1; WARN = 0; INFO = 0; CRIT = 0; UNKNOWN = 0 }
         }
         $current = @{ storage = @{ OK = 1; WARN = 0; INFO = 0; CRIT = 0; UNKNOWN = 0 } }
         Get-RunDelta -HistoryTail @($prior) -CurrentSeverityCounts $current | Should -Match 'no change'
     }
 
     It 'reports deltas when totals change' {
-        $prior = [pscustomobject]@{
-            run_id          = '2026-04-22T00:00:00-04:00'
-            severity_counts = [pscustomobject]@{
-                storage  = [pscustomobject]@{ OK = 1; WARN = 0; INFO = 0; CRIT = 0; UNKNOWN = 0 }
-                security = [pscustomobject]@{ OK = 1; WARN = 0; INFO = 0; CRIT = 0; UNKNOWN = 0 }
-            }
+        $prior = New-PriorRun -RunId '2026-04-22T00:00:00-04:00' -SeverityCountsByCategory @{
+            storage  = @{ OK = 1; WARN = 0; INFO = 0; CRIT = 0; UNKNOWN = 0 }
+            security = @{ OK = 1; WARN = 0; INFO = 0; CRIT = 0; UNKNOWN = 0 }
         }
         $current = @{
             storage  = @{ OK = 0; WARN = 1; INFO = 0; CRIT = 0; UNKNOWN = 0 }
@@ -46,17 +52,11 @@ Describe 'Get-RunDelta' -Tag 'lib' {
         # With 2+ entries, the baseline must be the LAST element, not [0].
         # Here: oldest had WARN=2, newest had WARN=0; current has WARN=0.
         # Correct: no change (vs newest). Wrong: WARN -2 (vs oldest).
-        $oldest = [pscustomobject]@{
-            run_id          = '2026-04-20T00:00:00-04:00'
-            severity_counts = [pscustomobject]@{
-                storage = [pscustomobject]@{ OK = 0; WARN = 2; INFO = 0; CRIT = 0; UNKNOWN = 0 }
-            }
+        $oldest = New-PriorRun -RunId '2026-04-20T00:00:00-04:00' -SeverityCountsByCategory @{
+            storage = @{ OK = 0; WARN = 2; INFO = 0; CRIT = 0; UNKNOWN = 0 }
         }
-        $newest = [pscustomobject]@{
-            run_id          = '2026-04-23T00:00:00-04:00'
-            severity_counts = [pscustomobject]@{
-                storage = [pscustomobject]@{ OK = 2; WARN = 0; INFO = 0; CRIT = 0; UNKNOWN = 0 }
-            }
+        $newest = New-PriorRun -RunId '2026-04-23T00:00:00-04:00' -SeverityCountsByCategory @{
+            storage = @{ OK = 2; WARN = 0; INFO = 0; CRIT = 0; UNKNOWN = 0 }
         }
         $current = @{ storage = @{ OK = 2; WARN = 0; INFO = 0; CRIT = 0; UNKNOWN = 0 } }
         $delta = Get-RunDelta -HistoryTail @($oldest, $newest) -CurrentSeverityCounts $current
@@ -67,11 +67,8 @@ Describe 'Get-RunDelta' -Tag 'lib' {
         # Prior run counted a check (OK) that this weekly run cadence-deferred, so
         # the OK total drops purely from the skip -- disclose it rather than imply
         # health changed.
-        $prior = [pscustomobject]@{
-            run_id          = '2026-04-22T00:00:00-04:00'
-            severity_counts = [pscustomobject]@{
-                security = [pscustomobject]@{ OK = 2; WARN = 0; INFO = 0; CRIT = 0; UNKNOWN = 0 }
-            }
+        $prior = New-PriorRun -RunId '2026-04-22T00:00:00-04:00' -SeverityCountsByCategory @{
+            security = @{ OK = 2; WARN = 0; INFO = 0; CRIT = 0; UNKNOWN = 0 }
         }
         $current = @{ security = @{ OK = 1; WARN = 0; INFO = 0; CRIT = 0; UNKNOWN = 0 } }
         $delta = Get-RunDelta -HistoryTail @($prior) -CurrentSeverityCounts $current -SkippedCount 1
@@ -80,11 +77,8 @@ Describe 'Get-RunDelta' -Tag 'lib' {
     }
 
     It 'adds no disclosure when nothing was cadence-deferred' {
-        $prior = [pscustomobject]@{
-            run_id          = '2026-04-22T00:00:00-04:00'
-            severity_counts = [pscustomobject]@{
-                storage = [pscustomobject]@{ OK = 1; WARN = 0; INFO = 0; CRIT = 0; UNKNOWN = 0 }
-            }
+        $prior = New-PriorRun -RunId '2026-04-22T00:00:00-04:00' -SeverityCountsByCategory @{
+            storage = @{ OK = 1; WARN = 0; INFO = 0; CRIT = 0; UNKNOWN = 0 }
         }
         $current = @{ storage = @{ OK = 1; WARN = 0; INFO = 0; CRIT = 0; UNKNOWN = 0 } }
         $delta = Get-RunDelta -HistoryTail @($prior) -CurrentSeverityCounts $current -SkippedCount 0

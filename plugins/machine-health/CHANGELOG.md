@@ -3,6 +3,12 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.19]
+
+### Changed
+
+- audit Windows lib suites: Get-RunDelta and Get-CisaKevCache share their prior-run and KEV payload builders, Get-ApprovalState computes its approvals path once, and the Merge-CatalogOverlay, ConvertTo-TopMetrics and Read-HistoryJsonl suites drop unused builder parameters and a dead warning-variable seed. Same tests, same assertions.
+
 ## [0.12.18]
 
 ### Changed
