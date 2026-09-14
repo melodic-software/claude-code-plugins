@@ -170,7 +170,7 @@ for file in "${FILES[@]}"; do
     lane_for_extension "$ext"
     lane="$LANE"
     # A lane the consumer redefined by globs no longer claims files by extension.
-    [[ -n "$lane" && -n "${LANE_GLOBS[$lane]:-}" ]] && lane=""
+    [[ -n "${LANE_GLOBS[$lane]:-}" ]] && lane=""
   fi
   [[ -n "$lane" ]] || continue
   [[ -n "${DISABLED[$lane]:-}" ]] && continue

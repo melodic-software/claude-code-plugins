@@ -176,6 +176,20 @@ json_str() {
   "${PY[@]}" -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$1"
 }
 
+count_lines() {
+  # Lines in a file, without the padding BSD wc prints around the count.
+  wc -l <"$1" | tr -d ' '
+}
+
+capped_line() {
+  # capped_line <file> <characters>
+  #
+  # What a tool wrote on stderr, as the single capped line a run row's reason
+  # is: the table has one row per lane and measure, and a collector that
+  # printed a stack trace must not take the report over with it.
+  tr '\n' ' ' <"$1" | cut -c1-"$2"
+}
+
 # Progress goes to stderr, and only for a run long enough to wonder about: a
 # whole tree of a few thousand files runs for a minute or more, while the
 # change scope finishes in a second or two and would only gain noise.
@@ -439,7 +453,7 @@ if [[ ${#EXCLUDE_GLOBS[@]} -gt 0 && -s "$SCOPED" ]]; then
       die_usage "scope.exclude: the glob $pattern could not be used (see the message above)"
     fi
     if [[ -s "$WORK/excluded-hits" ]]; then
-      hits="$(wc -l <"$WORK/excluded-hits" | tr -d ' ')"
+      hits="$(count_lines "$WORK/excluded-hits")"
       EXCLUSION_ROWS+=("$(printf '{"pattern": %s, "files": %s}' "$(json_str "$pattern")" "$hits")")
       cat "$WORK/excluded-hits" >>"$WORK/excluded-rootrel"
     fi
@@ -448,14 +462,14 @@ if [[ ${#EXCLUDE_GLOBS[@]} -gt 0 && -s "$SCOPED" ]]; then
     "$WORK/excluded-rootrel" "$WORK/scope-map" >"$WORK/excluded"
   if [[ -s "$WORK/excluded" ]]; then
     sort -u "$WORK/excluded" >"$WORK/excluded.sorted"
-    EXCLUDED="$(wc -l <"$WORK/excluded.sorted" | tr -d ' ')"
+    EXCLUDED="$(count_lines "$WORK/excluded.sorted")"
     sort "$SCOPED" | comm -23 - "$WORK/excluded.sorted" >"$WORK/kept"
     # comm sorted the list; restore the scope order.
     awk 'NR == FNR { keep[$0] = 1; next } keep[$0]' "$WORK/kept" "$SCOPED" >"$WORK/scoped.kept"
     mv "$WORK/scoped.kept" "$SCOPED"
   fi
 fi
-FILE_COUNT="$(wc -l <"$SCOPED" | tr -d ' ')"
+FILE_COUNT="$(count_lines "$SCOPED")"
 if [[ "${CODE_METRICS_PROGRESS:-}" == "1" || ("${CODE_METRICS_PROGRESS:-}" != "0" && "$FILE_COUNT" -gt 200) ]]; then
   PROGRESS=1
 fi
@@ -634,7 +648,7 @@ for lane in "${LANES[@]}"; do
       probe_err="$WORK/probe.$lane.$measure.$tool"
       if ! version="$("${PY[@]}" "$adapter" probe 2>"$probe_err")"; then
         hint="$("${PY[@]}" "$adapter" install_hint 2>/dev/null || true)"
-        why="$(tr '\n' ' ' <"$probe_err" | cut -c1-200)"
+        why="$(capped_line "$probe_err" 200)"
         why="${why% }"
         reasons+="${reasons:+; }$tool: ${why:-not found}${hint:+ ($hint)}"
         [[ -n "$first_hint" || -z "$hint" ]] || first_hint="$hint"
@@ -673,16 +687,16 @@ for slot in "${COLLECT_SLOTS[@]}"; do
       # What an adapter said on stderr while succeeding (mypy's error count,
       # a module the scope did not cover) is the ok row's reason; an adapter
       # that said nothing leaves it null.
-      note="$(tr '\n' ' ' <"$WORK/err.$slot" | cut -c1-500)"
+      note="$(capped_line "$WORK/err.$slot" 500)"
       run_row "$slot" "$lane" "$measure" "$tool $version" ok "${note% }"
     fi
-    progress "$lane/$measure: $tool finished in ${elapsed:-?}s, $(wc -l <"$WORK/out.$slot" | tr -d ' ') row(s)"
+    progress "$lane/$measure: $tool finished in ${elapsed:-?}s, $(count_lines "$WORK/out.$slot") row(s)"
   elif [[ "${rc:-1}" -eq 4 ]]; then
-    run_row "$slot" "$lane" "$measure" "$tool $version" unavailable "$(tr '\n' ' ' <"$WORK/err.$slot" | cut -c1-500)"
+    run_row "$slot" "$lane" "$measure" "$tool $version" unavailable "$(capped_line "$WORK/err.$slot" 500)"
     progress "$lane/$measure: $tool cannot run here (see the run table)"
   else
     COLLECT_FAILED=1
-    run_row "$slot" "$lane" "$measure" "$tool $version" unavailable "collect failed (exit $rc): $(tr '\n' ' ' <"$WORK/err.$slot" | cut -c1-500)"
+    run_row "$slot" "$lane" "$measure" "$tool $version" unavailable "collect failed (exit $rc): $(capped_line "$WORK/err.$slot" 500)"
     progress "$lane/$measure: $tool failed (exit $rc) after ${elapsed:-?}s"
   fi
 done

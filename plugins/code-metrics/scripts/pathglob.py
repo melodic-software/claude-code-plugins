@@ -54,12 +54,10 @@ def root_relative(path: str, root: str) -> str:
     if root:
         absolute = path if os.path.isabs(path) else os.path.join(os.getcwd(), path)
         try:
-            path = os.path.relpath(absolute, root).replace("\\", "/")
+            path = os.path.relpath(absolute, root)
         except ValueError:
             pass
-    while path.startswith("./"):
-        path = path[2:]
-    return path
+    return _normalize(path)
 
 
 def translate(pattern: str) -> str:
@@ -81,7 +79,7 @@ def translate(pattern: str) -> str:
     for index, segment in enumerate(segments):
         last = index == len(segments) - 1
         if segment == "**":
-            parts.append("(?:.*/)?" if not last else ".*")
+            parts.append(".*" if last else "(?:.*/)?")
             continue
         piece = ""
         i = 0

@@ -3,6 +3,12 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.10]
+
+### Changed
+
+- Share the capped stderr note and line counter in dispatch, the lane measure helpers in the report, the path normaliser in pathglob and the config error clauses in resolve-config (behavior unchanged).
+
 ## [0.3.9]
 
 ### Changed

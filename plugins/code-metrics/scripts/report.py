@@ -84,6 +84,11 @@ def _read_jsonl(path: str | None) -> list[dict[str, Any]]:
     return rows
 
 
+def _lane_measure(row: dict[str, Any]) -> str:
+    """The `lane/measure` name a run row is listed under."""
+    return f"{row.get('lane', '*')}/{row.get('measure', '*')}"
+
+
 def _dig(config: dict[str, Any], dotted: str) -> Any:
     node: Any = config
     for part in dotted.split("."):
@@ -114,14 +119,11 @@ def thresholds(config: dict[str, Any], measures: list[str]) -> list[dict[str, An
 
 
 def _over(threshold: dict[str, Any], value: Any) -> bool:
+    # A value that was not measured is never over a reference, and a reference
+    # that is not a number (a quoted number that reached a pre-resolved
+    # --config document) is no threshold at all.
     reference = threshold.get("reference")
-    if reference is None or value is None:
-        return False
-    if not isinstance(value, (int, float)) or isinstance(value, bool):
-        return False
-    # A reference that is not a number (a quoted number that reached a
-    # pre-resolved --config document) is no threshold at all.
-    if not isinstance(reference, (int, float)) or isinstance(reference, bool):
+    if not _is_number(value) or not _is_number(reference):
         return False
     if threshold.get("direction") == "below":
         return value < reference
@@ -185,7 +187,7 @@ def summarize(measures: list[dict[str, Any]], root: str = "") -> dict[str, Any]:
                 (row.get("file") or "", row["function"]), set()
             )
             start = row.get("start_line")
-            if isinstance(start, int) and not isinstance(start, bool):
+            if _is_line(start):
                 starts.add(start)
         for measure in row.get("over_reference", []):
             over_counts[measure] = over_counts.get(measure, 0) + 1
@@ -193,9 +195,7 @@ def summarize(measures: list[dict[str, Any]], root: str = "") -> dict[str, Any]:
         if instances:
             clone_groups += 1
             lines = (row.get("values") or {}).get("lines")
-            counted = 0
-            if isinstance(lines, (int, float)) and not isinstance(lines, bool):
-                counted = int(lines)
+            counted = int(lines) if _is_number(lines) else 0
             duplicated_lines += counted
             for instance in instances:
                 if instance.get("file"):
@@ -271,9 +271,7 @@ def assemble(
         "summary": summarize(measures, root),
         "excluded": excluded,
         "unavailable": [
-            f"{row.get('lane', '*')}/{row.get('measure', '*')}"
-            for row in run
-            if row.get("status") == "unavailable"
+            _lane_measure(row) for row in run if row.get("status") == "unavailable"
         ],
     }
 
@@ -369,6 +367,11 @@ def _is_number(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
+def _is_line(value: Any) -> bool:
+    """A reported line number: an int, and not a bool arriving as one."""
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
 def _merge_into(target: dict[str, Any], row: dict[str, Any]) -> bool:
     """Fold `row` into `target` when their values do not disagree.
 
@@ -427,7 +430,7 @@ def join_rows(measures: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if row.get("function") and row.get("instances") is None:
             key = (row.get("file") or "", row["function"])
             start = row.get("start_line")
-            if isinstance(start, int) and not isinstance(start, bool):
+            if _is_line(start):
                 starts.setdefault(key, set()).add(start)
     joined: list[dict[str, Any]] = []
     by_key: dict[tuple[Any, ...], list[dict[str, Any]]] = {}
@@ -438,7 +441,7 @@ def join_rows(measures: list[dict[str, Any]]) -> list[dict[str, Any]]:
         file = row.get("file") or ""
         function = row.get("function")
         start = row.get("start_line")
-        if function and (not isinstance(start, int) or isinstance(start, bool)):
+        if function and not _is_line(start):
             known = starts.get((file, function), set())
             start = next(iter(known)) if len(known) == 1 else None
         # The lane is part of the identity: two lane rows (`file` null) from
@@ -745,14 +748,14 @@ def render(
         for row in failed:
             reason = row.get("reason") or ""
             label = row.get("collector") or reason.split(":", 1)[0]
-            named.append(f"{row.get('lane', '*')}/{row.get('measure', '*')} ({label})")
+            named.append(f"{_lane_measure(row)} ({label})")
         lines.append(
             "Exit 3: a collector ran and produced nothing parseable: "
             + "; ".join(named)
             + ". The run table carries its output."
         )
     partial = [
-        f"{row.get('lane', '*')}/{row.get('measure', '*')}"
+        _lane_measure(row)
         for row in doc.get("run", [])
         if row.get("status") == "partial"
     ]
@@ -816,7 +819,7 @@ def main(argv: list[str]) -> int:
         doc["summary"] = summarize(doc.get("measures", []), args.root)
         print(json.dumps(doc, indent=2))
         return 0
-    sys.stdout.write(render(doc, getattr(args, "document", None), args.rollup_depth))
+    sys.stdout.write(render(doc, args.document, args.rollup_depth))
     return 0
 
 
