@@ -197,14 +197,19 @@ run_case() {
 
   local default_settings='{"enabledPlugins":{"alpha@melodic-software":true,"beta@melodic-software":true}}'
   printf '%s\n' "${CASE_SETTINGS:-$default_settings}" >"$fx/.claude/settings.json"
-  # A fleet list for the case, handed to the block through its test seam. The
-  # default points at a path that does not exist, so the settings file stays
-  # the only source, as on a machine outside the managed environment, and no
-  # case ever reads a real /opt or /tmp list from the host.
-  local fleet_env=(CLOUD_BOOTSTRAP_FLEET_LIST="$fx/no-fleet-list.json")
-  if [[ -n "${CASE_FLEET:-}" ]]; then
-    printf '%s\n' "$CASE_FLEET" >"$fx/fleet.json"
-    fleet_env=(CLOUD_BOOTSTRAP_FLEET_LIST="$fx/fleet.json")
+  # A fleet list for the case, handed to the block through its test seam, so no
+  # case ever reads a real /opt or /tmp list from the host. The plugin stage
+  # runs only when the list is present and settings-shaped, so the default is
+  # an empty but valid list: the settings block then supplies the whole set, as
+  # before, and the merge cases below vary the list themselves.
+  # CASE_FLEET=ABSENT points the seam at a path that does not exist, which is
+  # the snapshot-without-a-list shape the stage now refuses.
+  local empty_fleet='{"enabledPlugins":{}}'
+  local fleet_env=(CLOUD_BOOTSTRAP_FLEET_LIST="$fx/fleet.json")
+  if [[ "${CASE_FLEET:-}" == ABSENT ]]; then
+    fleet_env=(CLOUD_BOOTSTRAP_FLEET_LIST="$fx/no-fleet-list.json")
+  else
+    printf '%s\n' "${CASE_FLEET:-$empty_fleet}" >"$fx/fleet.json"
   fi
   # The catalog the block reads for `defaultEnabled`. Absent by default, which
   # is the pre-existing shape every case below was written against: no catalog
@@ -489,30 +494,43 @@ CASE_SETTINGS='{"enabledPlugins":{"alpha@melodic-software":true,"beta@melodic-so
 expect "a settings false opts out of a fleet entry" \
   "plugins 1 declared, 0 newly installed, 0 refreshed, 0 failed"
 
+# No usable list ends the stage instead of falling back to the settings block.
+# The settings block declares this repo's DELTAS from the fleet, not the whole
+# set, so a settings-only run installs a near-empty catalog and prints a
+# healthy-looking summary over it. Since standards #562 the snapshot writes the
+# list before either caller runs, so no list is a broken snapshot, and the four
+# cases below hold the stage to saying so and installing nothing.
+
 CASE_SETTINGS='{"enabledPlugins":{"alpha@melodic-software":true}}' \
+  CASE_FLEET=ABSENT \
   run_case fleet_absent "$BOTH_USER" "$BOTH_USER" "$REG_BOTH_HEAD" NONE
-expect "without a fleet list the settings block is the only source" \
-  "plugins 1 declared, 0 newly installed, 0 refreshed, 0 failed"
+expect "without a fleet list the plugin stage is skipped, loudly" \
+  "cloud-bootstrap: no fleet plugin list in this snapshot; plugin install skipped"
+refute "and nothing is installed off the settings block alone" \
+  "newly installed"
 
 CASE_SETTINGS='{"enabledPlugins":{"alpha@melodic-software":true}}' \
   CASE_FLEET='not json at all' \
   run_case fleet_malformed "$BOTH_USER" "$BOTH_USER" "$REG_BOTH_HEAD" NONE
-expect "a malformed fleet list degrades to the settings block, not to an empty set" \
-  "plugins 1 declared, 0 newly installed, 0 refreshed, 0 failed"
+expect "a malformed fleet list skips the stage, it does not degrade to the settings block" \
+  "is not a settings-shaped object; plugin install skipped"
+refute "and installs nothing" "newly installed"
 
 # Valid JSON of the wrong shape (an error body, an array where the object
 # should be) would break the merge the same way a parse failure does.
 CASE_SETTINGS='{"enabledPlugins":{"alpha@melodic-software":true}}' \
   CASE_FLEET='{"enabledPlugins":["alpha@melodic-software"]}' \
   run_case fleet_wrong_shape "$BOTH_USER" "$BOTH_USER" "$REG_BOTH_HEAD" NONE
-expect "a wrong-shaped fleet list degrades to the settings block, not to an empty set" \
-  "plugins 1 declared, 0 newly installed, 0 refreshed, 0 failed"
+expect "a wrong-shaped fleet list skips the stage" \
+  "is not a settings-shaped object; plugin install skipped"
+refute "and installs nothing" "newly installed"
 
 CASE_SETTINGS='{"enabledPlugins":{"alpha@melodic-software":true}}' \
   CASE_FLEET='[]' \
   run_case fleet_array "$BOTH_USER" "$BOTH_USER" "$REG_BOTH_HEAD" NONE
-expect "a fleet list that is a bare array degrades to the settings block" \
-  "plugins 1 declared, 0 newly installed, 0 refreshed, 0 failed"
+expect "a fleet list that is a bare array skips the stage" \
+  "is not a settings-shaped object; plugin install skipped"
+refute "and installs nothing" "newly installed"
 
 # --- the marketplace a snapshot pre-registers is not this checkout -----------
 # A cloud snapshot arrives with a marketplace of this name registered from

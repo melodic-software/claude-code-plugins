@@ -141,11 +141,13 @@ carry, because Ubuntu's archive `gh` is years stale) and PowerShell (apt), the .
 cache build rather than unioning with it, so a repo that pins one .NET SDK does not also
 receive the other fallback SDK. The fleet pins cover whichever of those two the repo does
 not pin. The env copy is still a warm cache: each repo's bootstrap installs its exact pins
-repo-locally. The script then runs that repo's own `.claude/cloud-bootstrap.sh`, baking its
-results into the snapshot; and then it fetches the standards fleet plugin list to
-`/opt/melodic-fleet-plugins.json` and installs every `true` entry in it at user scope. That
-plugin install is what makes the fleet's plugins live at turn one, because it runs before
-the session process launches and the plugin registry is read at process start. Every step logs with a timestamp to
+repo-locally. The script then fetches the standards fleet plugin list to
+`/opt/melodic-fleet-plugins.json` and installs every `true` entry in it at user scope; only
+then does it run that repo's own `.claude/cloud-bootstrap.sh`, baking its results into the
+snapshot. That plugin install is what makes the fleet's plugins live at turn one, because it
+runs before the session process launches and the plugin registry is read at process start,
+and that order is what lets the repo bootstrap read the list the snapshot already carries.
+Every step logs with a timestamp to
 `/var/log/melodic-env-setup.log`, and `/opt/melodic-env-setup.done` (version + timestamp) is
 written strictly last, so a missing stamp is the signature of an interrupted cache build
 ([#2654](https://github.com/melodic-software/claude-code-plugins/issues/2654) Blocker 2), fixed
@@ -201,7 +203,10 @@ a `true` for a plugin beyond the fleet. The overlay is settings-wins: where both
 same plugin the repo's value takes precedence, which is what makes the `false` an opt-out. A
 block that mirrors the whole catalog still works, since a repeated `true` agrees with the fleet
 entry it overrides, but writes one project-scope install record per entry per checkout
-on every local session start, which is the accumulation #3688 removed.
+on every local session start, which is the accumulation #3688 removed. A snapshot carrying no
+usable list at `/opt/melodic-fleet-plugins.json` gets no plugin stage at all: the bootstrap
+says so on stderr and installs nothing, because a deltas-only block is not a stand-in for the
+fleet set, and the rest of the bootstrap still runs.
 
 **`.claude/cloud-bootstrap.sh`**: do not author one. The canonical script is generic and
 manifest-driven (it carries no repo names, no marketplace identifiers, and no pinned versions),
