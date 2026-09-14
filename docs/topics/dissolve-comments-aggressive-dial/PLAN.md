@@ -177,7 +177,7 @@ The skill is prose, so its tests are eval cases, written red first.
   --check`, `allowed-tools-pairing.test.sh`, `check-purged-em-dashes.sh`. The paid suite does not
   run in CI.
 
-### Phase 1: Eval harness tracer in WSL2 [TODO]
+### Phase 1: Eval harness tracer in WSL2 [DONE]
 
 Proves the runner mechanics every later phase depends on, against the unchanged skill. All WSL2
 commands run in the main checkout at `/mnt/d/repos/github.com/melodic-software/claude-code-plugins`
@@ -216,10 +216,33 @@ holds a `D:/` path. `$TEMP` is unset in WSL2; WSL2 commands use `${TMPDIR:-/tmp}
    - the scaffold cannot resolve its own directory: each scaffold embeds its fixture as a quoted
      heredoc.
 
+**Phase 1 record (2026-09-14):**
+
+- Wheels installed into `~/.venvs/code-tidying` with `uv pip install --require-hashes`; imports of
+  pygments, tree_sitter, tree_sitter_bash, tree_sitter_python, tree_sitter_toml succeed.
+- First eval attempt refused every Bash-granting run before turn 1: `~/.docker` in the distro holds
+  two symlinks into `/mnt/c/Users/.../.docker` (Docker Desktop WSL integration), and the sandbox
+  refuses a credential store containing a link. `DOCKER_CONFIG` pointing at a plain directory did
+  not clear it.
+- Workaround, no change to the owner's files: run `claude plugin eval` with
+  `HOME=/var/tmp/dc-evalhome`, a directory holding only symlinks to `~/.claude`, `~/.claude.json`,
+  and `~/.config`. Every WSL2 eval command in this plan runs that way. WSL2 scratch paths use
+  `/var/tmp`, because this repository's drive-root temp guard rejects `/tmp` in a command string.
+- `probe-environment` passed under that HOME (2 turns, 0.17 USD): the sandboxed Bash resolved a
+  `python3` that imports the wheels.
+- `probe-explicit-target` passed 4 of 4 graders (15 turns, 107 s, 0.54 USD). Confirmed from the
+  trace and the kept workspace: the slash invocation fired the skill; `change-shape.sh` executed in
+  the with-arm with tree-sitter and returned `COMMENT-ONLY`; `comment-census.sh` ran; the
+  `{ source: file }` graders read the post-edit `app.sh` (the class-A comment present at scaffold
+  time was absent); the scaffold resolved its own directory and copied the fixture, so the heredoc
+  fallback is not needed and was removed. No stop condition fired.
+- Sanity results: `validate-cases.py` exit 0 (WARN lines only, for tools granted by
+  `--allow-tools`); the grader `jq` check printed `true`.
+
 **Sanity Check:**
 
 - `python3 plugins/evals/skills/validate/scripts/validate-cases.py plugins/code-tidying/evals` exits 0.
-- `jq '[.cases[].arms.with[0].graders[] | .passed] | all' "${TMPDIR:-/tmp}/dc-probe.json"` prints
+- `jq '[.cases[].arms.with[0].graders[] | .passed] | all' /var/tmp/dc-probe.json` prints
   `true`, or this file records the failing grader and the stop condition taken.
 - `git log --oneline main..HEAD -- docs/topics/dissolve-comments-aggressive-dial/PLAN.md` lists at
   least one commit.
