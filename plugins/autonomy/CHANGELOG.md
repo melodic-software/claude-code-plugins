@@ -7,7 +7,7 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 
 ### Changed
 
-- hooks: lane-stop-gate-lib.sh gains gate_plugin_root_to, the one spelling of the plugin-root derivation both entry scripts carried, and drops three print-form helpers with no callers (gate_data_dir, gate_trusted_data_dir, gate_user_settings_file; the _to forms remain); lane-stop-gate.sh strips and chomps its payload fields in one loop and reuses chomp_nl when loading the arm record. Process budgets unchanged. No behavior change.
+- hooks: lane-stop-gate-lib.sh gains gate_plugin_root_to, the one spelling of the plugin-root derivation both entry scripts carried, and drops three print-form helpers with no callers (gate_data_dir, gate_trusted_data_dir, gate_user_settings_file; the `_to` forms remain); lane-stop-gate.sh strips and chomps its payload fields in one loop and reuses chomp_nl when loading the arm record. Process budgets unchanged. No behavior change.
 
 ## [0.23.9]
 
