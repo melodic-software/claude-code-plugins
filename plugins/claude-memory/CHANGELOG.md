@@ -3,6 +3,12 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.5]
+
+### Changed
+
+- audit skill: instruction-load-stats.sh prints uncommented lines directly instead of through an identity awk wrapper and drops a dead root reset after its walk loop, and nested-agents-check.sh returns its wiring test's status directly. No behavior change.
+
 ## [0.12.4]
 
 ### Changed

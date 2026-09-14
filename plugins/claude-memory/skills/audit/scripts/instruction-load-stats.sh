@@ -107,7 +107,6 @@ export IL_ROOT
 # opener that never closes is content, so it is flushed at EOF rather than eaten.
 loaded_content() {
   tr -d '\r' <"$1" | LC_ALL=C awk '
-    function emit(s) { print s }
     function uncomment(s,   p, q, out) {
       while ((p = index(s, "<!--")) > 0) {
         out = out substr(s, 1, p - 1)
@@ -122,12 +121,12 @@ loaded_content() {
       close_at = index($0, "-->")
       if (close_at == 0) next
       incomment = 0; pending = ""
-      emit(uncomment(substr($0, close_at + 3)))
+      print uncomment(substr($0, close_at + 3))
       next
     }
     /^[[:space:]]*```/ { fence = !fence; print; next }
     fence { print; next }
-    /<!--/ { emit(uncomment($0)); next }
+    /<!--/ { print uncomment($0); next }
     { print }
     END { printf "%s", pending }
   '
@@ -244,7 +243,6 @@ while IFS=$'\t' read -r scope root; do
     esac
   done < <(il_walk "$root")
 done < <(always_loaded_roots)
-IL_ROOT="$PROJECT_ROOT"
 
 tokens=$((bytes_total / 4))
 if [[ "$mode" == "--tokens" ]]; then
