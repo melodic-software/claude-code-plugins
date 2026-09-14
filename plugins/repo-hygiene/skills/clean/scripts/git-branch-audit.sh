@@ -163,7 +163,7 @@ capture_line "# common_dir: ${COMMON_DIR:-unknown}"
 capture_line "# default_branch: $DEFAULT_BRANCH"
 capture_line "# captured_at: $CAPTURED_AT"
 capture_line "# restore: git branch <branch> <tip>"
-capture_line "$(printf '# columns: branch\ttip\ttier\tpr\tupstream\tahead\tbehind\tnot_on_default\tcaptured_at')"
+capture_line $'# columns: branch\ttip\ttier\tpr\tupstream\tahead\tbehind\tnot_on_default\tcaptured_at'
 
 # PR map: branch → state, the mitigation for squash merges that `git --merged`
 # cannot see. clean_pr_map emits PRCount / PRDataTruncated / PRDataUnavailable
@@ -184,7 +184,7 @@ if [[ -f "$PR_MAP_FILE" ]]; then
   done <"$PR_MAP_FILE"
 fi
 
-WORKTREE_BRANCHES="$(git -C "$REPO_ROOT" worktree list --porcelain 2>/dev/null | grep '^branch' | sed 's|^branch refs/heads/||' | tr -d '\r')"
+WORKTREE_BRANCHES="$(clean_worktree_branches "$REPO_ROOT")"
 GONE_BRANCHES="$(git -C "$REPO_ROOT" branch -vv 2>/dev/null | grep ': gone]' | awk '{print $1}' | tr -d '\r')"
 MERGED_BRANCHES="$(git -C "$REPO_ROOT" branch --merged "origin/${DEFAULT_BRANCH}" 2>/dev/null | sed 's/^[ *]*//' | grep -v "^${DEFAULT_BRANCH}$" | tr -d '\r' || true)"
 
@@ -199,20 +199,6 @@ LOSSY_REASONS=()
 LOSSY_TIPS=()
 LOSS_COMMITS_SHOWN="${CLEAN_LOSS_COMMITS_SHOWN:-10}"
 [[ "$LOSS_COMMITS_SHOWN" =~ ^[0-9]+$ ]] || LOSS_COMMITS_SHOWN=10
-
-# loss_count <branch> -> prints the number of commits on refs/heads/<branch>
-# reachable from no remote-tracking ref and no tag; exit non-zero when git could
-# not count. `--not --remotes --tags` is git's own idiom for "unpushed anywhere":
-# it negates every ref under refs/remotes/ and refs/tags/, and nothing else, so
-# another local branch, HEAD, and the refs/repo-hygiene/deleted/ pins are not
-# places the work is considered to persist.
-loss_count() {
-  local n
-  n="$(git -C "$REPO_ROOT" rev-list --count "refs/heads/$1" --not --remotes --tags 2>/dev/null)" || return 1
-  n="${n%$'\r'}"
-  [[ "$n" =~ ^[0-9]+$ ]] || return 1
-  printf '%s' "$n"
-}
 
 classify_branch() {
   local branch="$1" age_days="$2" tier reason pr_line="none" local_tip
@@ -320,7 +306,7 @@ classify_branch() {
       loss_line="undetermined (tip unresolved)"
     elif [[ -z "$ahead_default" ]]; then
       loss_line="undetermined (no origin/${DEFAULT_BRANCH} to compare against)"
-    elif ! lost="$(loss_count "$branch")"; then
+    elif ! lost="$(clean_loss_count "$REPO_ROOT" "$branch")"; then
       lost=""
       loss_line="undetermined (could not count commits absent from every remote ref and tag)"
     elif [[ "$lost" -eq 0 ]]; then

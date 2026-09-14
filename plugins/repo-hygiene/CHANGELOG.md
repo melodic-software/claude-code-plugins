@@ -3,6 +3,12 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.44]
+
+### Changed
+
+- The repo-hygiene clean scripts share worktree-branch listing and loss counting through clean-common.sh, hoist the merged and open PR regexes into constants, select the manifest child through one helper in both batch loops, and fold the tree-reset success and failure tails behind one flag, with identical output and exit codes.
+
 ## [0.10.43]
 
 ### Changed
