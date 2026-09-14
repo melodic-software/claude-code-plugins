@@ -40,6 +40,12 @@ build_input() {
   printf '{"session_id":"%s","hook_event_name":"StopFailure","cwd":"/tmp/x"}' "$session"
 }
 
+# Records in a JSONL file, with the blanks a BSD wc pads its count with and a CR
+# from a Windows toolchain stripped.
+count_records() {
+  wc -l <"$1" | tr -d ' \r'
+}
+
 # Runner: fresh-HOME-scoped hook invocation with the kill switch enabled unless
 # the caller overrides it. Output and exit code are captured even though the
 # harness ignores them — the hook must still be silent and exit 0.
@@ -69,7 +75,7 @@ RC=$?
 EVENTS="$HOME2/$EVENTS_REL"
 if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "payload run → silent exit 0"; else fail "payload run (rc=$RC out=$OUT)"; fi
 if [[ -f "$EVENTS" ]]; then ok "record file created at contract path"; else fail "record file missing: $EVENTS"; fi
-LINES=$(wc -l <"$EVENTS" | tr -d ' \r')
+LINES=$(count_records "$EVENTS")
 if [[ "$LINES" == "1" ]]; then ok "exactly one record appended"; else fail "record count $LINES, want 1"; fi
 if jq -e . <"$EVENTS" >/dev/null 2>&1; then ok "record is valid JSON"; else fail "record not valid JSON: $(cat "$EVENTS")"; fi
 if [[ "$(jq -r '.session_id' <"$EVENTS")" == "s-abc-123" ]]; then ok "session_id recorded"; else fail "session_id = $(jq -r '.session_id' <"$EVENTS")"; fi
@@ -83,7 +89,7 @@ fi
 
 # --- Case 3: second invocation appends ---------------------------------------
 run "$HOME2" "$(build_input s-second)" >/dev/null
-LINES=$(wc -l <"$EVENTS" | tr -d ' \r')
+LINES=$(count_records "$EVENTS")
 if [[ "$LINES" == "2" ]]; then ok "second invocation appends (2 records)"; else fail "record count $LINES, want 2"; fi
 if [[ "$(tail -n 1 "$EVENTS" | jq -r '.session_id')" == "s-second" ]]; then ok "newest record last"; else fail "newest record wrong: $(tail -n 1 "$EVENTS")"; fi
 
@@ -118,7 +124,7 @@ mkdir -p "$HOME6/.claude/rate-limit-guard"
 EVENTS6="$HOME6/$EVENTS_REL"
 for ((i = 0; i < 250; i++)); do printf '{"detected_at":"old-%s"}\n' "$i"; done >"$EVENTS6"
 run "$HOME6" "$(build_input s-rotated)" >/dev/null
-LINES=$(wc -l <"$EVENTS6" | tr -d ' \r')
+LINES=$(count_records "$EVENTS6")
 if [[ "$LINES" =~ ^[0-9]+$ ]] && ((LINES <= 150)); then ok "rotation bounds the file ($LINES lines)"; else fail "rotation did not bound the file ($LINES lines)"; fi
 if grep -q 's-rotated' "$EVENTS6"; then ok "rotation keeps the newest record"; else fail "rotation dropped the newest record"; fi
 

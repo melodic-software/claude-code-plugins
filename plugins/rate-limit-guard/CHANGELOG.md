@@ -3,6 +3,12 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.16]
+
+### Changed
+
+- The rate-limit-guard statusline and record-rate-limit-stop test suites route their repeated tee, CRLF shim, and config-dir invocations through shared run helpers and a record counter, with no change to any assertion.
+
 ## [0.8.15]
 
 ### Changed

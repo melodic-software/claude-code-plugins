@@ -115,7 +115,7 @@ if [[ "$(jq -r '.session_name' <"$TEEFILE3")" == "lane-1" ]]; then ok "session_n
 # --- Case 4: rate_limits absent → snapshot still written, key absent ---------
 HOME4="$WORK/home4"
 mkdir -p "$HOME4"
-printf '{"session_id":"s-api-key","model":{"display_name":"Opus"}}' | HOME="$HOME4" bash "$TEE" cat >/dev/null
+run "$HOME4" '{"session_id":"s-api-key","model":{"display_name":"Opus"}}' cat >/dev/null
 TEEFILE4="$HOME4/$TEE_REL"
 if [[ -f "$TEEFILE4" ]] && jq -e '.captured_at' <"$TEEFILE4" >/dev/null 2>&1; then
   ok "no rate_limits → snapshot still written (staleness signal stays fresh)"
@@ -193,7 +193,6 @@ FAKEBIN="$WORK/fakebin"
 mkdir -p "$FAKEBIN"
 for t in bash sh cat date dirname basename mktemp mkdir rm mv sleep tr grep sed find wc tail printf env; do
   real_t="$(command -v "$t" 2>/dev/null)" || continue
-  [[ -n "$real_t" ]] || continue
   printf '#!/bin/sh\nexec "%s" "$@"\n' "$real_t" >"$FAKEBIN/$t"
   chmod +x "$FAKEBIN/$t"
 done
@@ -226,7 +225,7 @@ if [[ $RC -eq 0 && "$OUT" == *jq* ]]; then ok "standalone, jq absent → visible
 # --- Case 11: malformed stdin → passthrough intact, no snapshot update -------
 HOME11="$WORK/home11"
 mkdir -p "$HOME11"
-OUT="$(printf 'not json at all' | HOME="$HOME11" bash "$TEE" cat)"
+OUT="$(run "$HOME11" 'not json at all' cat)"
 RC=$?
 if [[ $RC -eq 0 && "$OUT" == "not json at all" ]]; then ok "malformed stdin → bytes pass through"; else fail "malformed stdin (rc=$RC out=$OUT)"; fi
 if [[ ! -e "$HOME11/$TEE_REL" ]]; then ok "malformed stdin → no snapshot written"; else fail "malformed stdin wrote a snapshot"; fi
@@ -257,7 +256,7 @@ mkdir -p "$HOME12B"
 HUGE_FILLER="$(head -c 1500000 /dev/zero | tr '\0' 'y')"
 HUGE_INPUT="$(printf '{"session_id":"sess-huge","filler":"%s","rate_limits":{"five_hour":{"used_percentage":6,"resets_at":1738425600}}}' "$HUGE_FILLER")"
 WANT_BYTES=${#HUGE_INPUT}
-GOT_BYTES=$(printf '%s' "$HUGE_INPUT" | HOME="$HOME12B" bash "$TEE" wc -c | tr -d ' \r\n')
+GOT_BYTES=$(run "$HOME12B" "$HUGE_INPUT" wc -c | tr -d ' \r\n')
 if [[ "$GOT_BYTES" == "$WANT_BYTES" ]]; then
   ok ">1MiB payload → wrapped command receives every byte ($GOT_BYTES)"
 else
@@ -271,8 +270,7 @@ fi
 
 # --- Case 13: newest write wins (last-writer-wins contract) ------------------
 run "$HOME1" "$(build_input)" cat >/dev/null
-printf '{"session_id":"sess-later","rate_limits":{"five_hour":{"used_percentage":91,"resets_at":1738425600}}}' |
-  HOME="$HOME1" bash "$TEE" cat >/dev/null
+run "$HOME1" '{"session_id":"sess-later","rate_limits":{"five_hour":{"used_percentage":91,"resets_at":1738425600}}}' cat >/dev/null
 if [[ "$(jq -r '.session_id' <"$TEEFILE")" == "sess-later" ]]; then ok "snapshot is last-writer-wins"; else fail "stale snapshot retained: $(jq -c . <"$TEEFILE")"; fi
 
 # --- Case 14: cancellation mid-window leaves no temp behind ------------------
@@ -331,8 +329,7 @@ HOME16="$WORK/home16"
 mkdir -p "$HOME16"
 run "$HOME16" "$(build_input)" cat >/dev/null
 BEFORE16="$(jq -r '.captured_at' <"$HOME16/$TEE_REL")"
-printf '{"session_id":"sess-no-windows","model":{"display_name":"Opus"}}' |
-  HOME="$HOME16" bash "$TEE" cat >/dev/null
+run "$HOME16" '{"session_id":"sess-no-windows","model":{"display_name":"Opus"}}' cat >/dev/null
 if jq -e '.rate_limits' <"$HOME16/$TEE_REL" >/dev/null 2>&1; then
   ok "windowless session does not clobber windows"
 else
@@ -348,8 +345,7 @@ fi
 # machine with no window-bearing session keeps its staleness signal honest.
 HOME17="$WORK/home17"
 mkdir -p "$HOME17"
-printf '{"session_id":"sess-no-windows","model":{"display_name":"Opus"}}' |
-  HOME="$HOME17" bash "$TEE" cat >/dev/null
+run "$HOME17" '{"session_id":"sess-no-windows","model":{"display_name":"Opus"}}' cat >/dev/null
 if [[ -e "$HOME17/$TEE_REL" ]]; then
   ok "windowless session still writes when the target has no windows"
 else
@@ -363,8 +359,7 @@ fi
 HOME18="$WORK/home18"
 mkdir -p "$HOME18"
 run "$HOME18" "$(build_input)" cat >/dev/null
-printf '{"session_id":"sess-imposter","session_name":"rate_limits"}' |
-  HOME="$HOME18" bash "$TEE" cat >/dev/null
+run "$HOME18" '{"session_id":"sess-imposter","session_name":"rate_limits"}' cat >/dev/null
 if jq -e '.rate_limits' <"$HOME18/$TEE_REL" >/dev/null 2>&1; then
   ok "substring imposter payload stays windowless — windows preserved"
 else
@@ -382,7 +377,7 @@ run "$HOME19" "$(build_input)" cat >/dev/null
 OLD19="$DIR19/.rate-limits.json.tmp.555.666"
 printf 'orphan\n' >"$OLD19"
 touch -t 200001010000 "$OLD19"
-printf '{"session_id":"sess-no-windows"}' | HOME="$HOME19" bash "$TEE" cat >/dev/null
+run "$HOME19" '{"session_id":"sess-no-windows"}' cat >/dev/null
 if [[ ! -e "$OLD19" ]]; then
   ok "sweep reclaims the orphan on a skipped windowless refresh"
 else
@@ -403,7 +398,7 @@ HOME20="$WORK/home20"
 DIR20="$HOME20/.claude/rate-limit-guard"
 LOCK20="$DIR20/.rate-limits.json.lock"
 mkdir -p "$LOCK20"
-printf '{"session_id":"sess-no-windows"}' | HOME="$HOME20" bash "$TEE" cat >/dev/null
+run "$HOME20" '{"session_id":"sess-no-windows"}' cat >/dev/null
 if [[ ! -e "$HOME20/$TEE_REL" ]]; then
   ok "held lock → windowless writer skips its write"
 else
@@ -421,7 +416,7 @@ DIR21="$HOME21/.claude/rate-limit-guard"
 LOCK21="$DIR21/.rate-limits.json.lock"
 mkdir -p "$LOCK21"
 touch -t 200001010000 "$LOCK21"
-printf '{"session_id":"sess-no-windows"}' | HOME="$HOME21" bash "$TEE" cat >/dev/null
+run "$HOME21" '{"session_id":"sess-no-windows"}' cat >/dev/null
 if [[ -e "$HOME21/$TEE_REL" ]]; then
   ok "stale lock is stolen — windowless writer proceeds on a fresh machine"
 else
@@ -771,7 +766,7 @@ if [[ "$DIS_SPOOLED" == "0" ]]; then
 else
   fail "disabled: $DIS_SPOOLED spool record(s) retained while disabled"
 fi
-printf '%s' "$GATE_INPUT" | HOME="$HOME_DIS" bash "$TEE" cat >/dev/null
+run "$HOME_DIS" "$GATE_INPUT" cat >/dev/null
 DIS_SPOOLED2="$(count_spool_records "$HOME_DIS/$SPOOL_REL")"
 if [[ "$DIS_SPOOLED2" == "0" ]]; then
   ok "disabled: a fresh marker stops the render spooling at all"
@@ -1069,6 +1064,14 @@ done
 exit "\${PIPESTATUS[0]}"
 EOF
 chmod +x "$CRLF_SHIM/jq"
+
+# One build_input render through the CRLF jq shim, stdout discarded (every
+# caller below asserts on the snapshot, never on the wrapped output).
+#   $1 = HOME
+run_crlf() {
+  printf '%s' "$(build_input)" | HOME="$1" PATH="$CRLF_SHIM:$PATH" bash "$TEE" cat >/dev/null
+}
+
 # `od -c`, not a grep for a CR: MSYS grep opens its input in text mode and
 # drops the CR before matching, so a grep would report none on the one
 # platform where the real jq emits them.
@@ -1086,7 +1089,7 @@ CR1_SENTINEL="$WORK/cr1-sentinel"
 run "$HOME_CR1" "$(build_input)" cat >/dev/null
 touch -t 200001010000 "$CR1_SNAP"
 touch "$CR1_SENTINEL"
-printf '%s' "$(build_input)" | HOME="$HOME_CR1" PATH="$CRLF_SHIM:$PATH" bash "$TEE" cat >/dev/null
+run_crlf "$HOME_CR1"
 if [[ "$CR1_SNAP" -ot "$CR1_SENTINEL" ]]; then
   ok "crlf: a CR-terminated payload against a snapshot without one still skips"
 else
@@ -1098,7 +1101,7 @@ HOME_CR2="$WORK/home-crlf-disk"
 mkdir -p "$HOME_CR2"
 CR2_SNAP="$HOME_CR2/$TEE_REL"
 CR2_SENTINEL="$WORK/cr2-sentinel"
-printf '%s' "$(build_input)" | HOME="$HOME_CR2" PATH="$CRLF_SHIM:$PATH" bash "$TEE" cat >/dev/null
+run_crlf "$HOME_CR2"
 if [[ -f "$CR2_SNAP" ]] && od -c "$CR2_SNAP" | grep -q '\\r'; then
   ok "crlf: the shim landed a CR-terminated snapshot"
 else
@@ -1136,7 +1139,7 @@ fi
 HOME_CRW="$WORK/home-crlf-windows"
 CRW_DIR="$HOME_CRW/.claude/rate-limit-guard"
 mkdir -p "$CRW_DIR/.rate-limits.json.lock"
-printf '%s' "$(build_input)" | HOME="$HOME_CRW" PATH="$CRLF_SHIM:$PATH" bash "$TEE" cat >/dev/null
+run_crlf "$HOME_CRW"
 if jq -e '.rate_limits' <"$HOME_CRW/$TEE_REL" >/dev/null 2>&1; then
   ok "crlf: the window-bearing verdict survives CRLF (writes through a held lock)"
 else
@@ -1146,7 +1149,7 @@ rmdir "$CRW_DIR/.rate-limits.json.lock" 2>/dev/null || true
 HOME_CRG="$WORK/home-crlf-gate"
 mkdir -p "$HOME_CRG"
 write_settings "$HOME_CRG/.claude/settings.json" "$USER_FALSE"
-printf '%s' "$(build_input)" | HOME="$HOME_CRG" PATH="$CRLF_SHIM:$PATH" bash "$TEE" cat >/dev/null
+run_crlf "$HOME_CRG"
 if [[ ! -e "$HOME_CRG/$TEE_REL" ]]; then
   ok "crlf: the enablement verdict survives CRLF (a configured false still gates)"
 else
@@ -1243,7 +1246,7 @@ for bad in \
   HOME_BAD="$WORK/home-account-bad-$ACCT_BAD_N"
   mkdir -p "$HOME_BAD"
   write_old_state "$HOME_BAD/.claude.json" "$bad"
-  BAD_OUT="$(printf '%s' "$ACCT_INPUT" | HOME="$HOME_BAD" bash "$TEE" cat)"
+  BAD_OUT="$(run "$HOME_BAD" "$ACCT_INPUT" cat)"
   if ! jq -e 'has("account") | not' <"$HOME_BAD/$TEE_REL" >/dev/null 2>&1; then
     ACCT_BAD_FAILS=$((ACCT_BAD_FAILS + 1))
     fail "account: malformed value admitted: $bad -> $(jq -c '.account' <"$HOME_BAD/$TEE_REL")"
@@ -1261,7 +1264,7 @@ fi
 HOME_BAD_CTL="$WORK/home-account-bad-control"
 mkdir -p "$HOME_BAD_CTL"
 write_old_state "$HOME_BAD_CTL/.claude.json" "$STATE_EMAIL"
-printf '%s' "$ACCT_INPUT" | HOME="$HOME_BAD_CTL" bash "$TEE" cat >/dev/null
+run "$HOME_BAD_CTL" "$ACCT_INPUT" cat >/dev/null
 if [[ "$(jq -r '.account.email' <"$HOME_BAD_CTL/$TEE_REL")" == "lane@example.com" ]]; then
   ok "account: the malformed-value control confirms the same harness does inject"
 else
@@ -1310,7 +1313,7 @@ write_settings "$HOME_STALE/$SPOOL_REL/sess-old.json" \
   "{\"e\":$STALE_E,\"p\":{\"session_id\":\"sess-old\",\"rate_limits\":{\"five_hour\":{\"used_percentage\":31,\"resets_at\":1738425600}}}}"
 touch -d "@$((STALE_NOW - 300))" "$HOME_STALE/$SPOOL_REL/sess-old.json"
 write_settings "$HOME_STALE/.claude.json" "$STATE_EMAIL" # left at "now": NEWER than the record
-printf '{"session_id":"sess-drainer"}' | HOME="$HOME_STALE" bash "$TEE" cat >/dev/null
+run "$HOME_STALE" '{"session_id":"sess-drainer"}' cat >/dev/null
 STALE_FILE="$HOME_STALE/$TEE_REL"
 if [[ "$(jq -r '.session_id' <"$STALE_FILE")" == "sess-old" ]]; then
   ok "account: the pre-seeded record was the chosen one (case is on the right file)"
@@ -1326,7 +1329,7 @@ fi
 # attribute. This is what proves the case above tests the guard rather than some
 # unrelated reason the key could be missing.
 touch -t 200001010000 "$HOME_STALE/.claude.json"
-printf '{"session_id":"sess-drainer"}' | HOME="$HOME_STALE" bash "$TEE" cat >/dev/null
+run "$HOME_STALE" '{"session_id":"sess-drainer"}' cat >/dev/null
 if [[ "$(jq -r '.account.email' <"$STALE_FILE")" == "lane@example.com" ]]; then
   ok "account: backdating the state file alone restores account.email"
 else
@@ -1354,7 +1357,7 @@ if [[ ! "$HOME_EQ/.claude.json" -nt "$HOME_EQ/$SPOOL_REL/sess-old.json" ]] &&
 else
   fail "account: touch -r did not equalize the mtimes, so the equal case is vacuous"
 fi
-printf '{"session_id":"sess-drainer"}' | HOME="$HOME_EQ" bash "$TEE" cat >/dev/null
+run "$HOME_EQ" '{"session_id":"sess-drainer"}' cat >/dev/null
 EQ_FILE="$HOME_EQ/$TEE_REL"
 if [[ "$(jq -r '.session_id' <"$EQ_FILE")" == "sess-old" ]]; then
   ok "account: the equal-mtime case ran against the pre-seeded record"
@@ -1369,7 +1372,7 @@ fi
 # Same fixtures, one second of separation added to the record: it must attribute.
 # Without this the case above could pass for any reason the key goes missing.
 touch -d "@$((EQ_NOW - 299))" "$HOME_EQ/$SPOOL_REL/sess-old.json"
-printf '{"session_id":"sess-drainer"}' | HOME="$HOME_EQ" bash "$TEE" cat >/dev/null
+run "$HOME_EQ" '{"session_id":"sess-drainer"}' cat >/dev/null
 if [[ "$(jq -r '.account.email' <"$EQ_FILE")" == "lane@example.com" ]]; then
   ok "account: one second of separation alone restores account.email"
 else
