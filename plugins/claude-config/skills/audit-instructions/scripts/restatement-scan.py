@@ -70,7 +70,6 @@ SENTENCE_RE = re.compile(r"(?<=[.!?])\s+(?=[A-Z*\"'`])")
 
 @dataclass
 class Section:
-    heading: str
     heading_norm: str
     line: int  # 1-based heading line
     body: str
@@ -208,10 +207,8 @@ def parse_sections(lines: list[str], body_start: int) -> list[Section]:
         m = HEADING_RE.match(raw)
         if m and len(m.group(1)) == 2:
             close()
-            heading = m.group(2).strip()
             current = Section(
-                heading=heading,
-                heading_norm=normalize(heading),
+                heading_norm=normalize(m.group(2).strip()),
                 line=idx + 1,
                 body="",
             )

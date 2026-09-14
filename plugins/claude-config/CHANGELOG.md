@@ -3,6 +3,12 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.46.6]
+
+### Changed
+
+- Drop the alias offset in conflict-scan, the dead frontmatter tail loop, the unreachable second is_absolute argument and the unused Section heading field in the audit-instructions scanners (behavior unchanged).
+
 ## [0.46.5]
 
 ### Changed

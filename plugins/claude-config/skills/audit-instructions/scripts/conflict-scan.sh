@@ -171,24 +171,22 @@ mapfile -t rows < <(
     # Contrastives and sentence marks are consumed whole; a coordinated directive
     # is consumed only up to its coordinator, leaving its polarity token in the
     # returned text because that token is what governs this entity.
-    function cut_lead(t,   cut, off, tail, cs, hl) {
-      cut = 0; off = 0; tail = t
+    function cut_lead(t,   off, tail, cs, hl) {
+      off = 0; tail = t
       while (match(tail, bnd)) {
         off += RSTART + RLENGTH - 1
-        cut = off
         tail = substr(tail, RSTART + RLENGTH)
       }
-      if (cut > 0) t = substr(t, cut + 1)
-      cut = 0; off = 0; tail = t
+      if (off > 0) t = substr(t, off + 1)
+      off = 0; tail = t
       while (match(tail, coord)) {
         cs = RSTART
         match(substr(tail, cs), coordhead)
         hl = RLENGTH
         off += cs + hl - 1
-        cut = off
         tail = substr(tail, cs + hl)
       }
-      if (cut > 0) t = substr(t, cut + 1)
+      if (off > 0) t = substr(t, off + 1)
       return t
     }
     function classify(file, lineno, ent, prewindow, postwindow, window,   pol, exc, key) {

@@ -173,11 +173,10 @@ if [[ -n "$REPO_ROOT" ]]; then
   [[ "$REPO_ROOT_ALT" == "$REPO_ROOT" ]] && REPO_ROOT_ALT=""
   git_prefix="$(git rev-parse --show-prefix 2>/dev/null || true)"
   git_prefix="${git_prefix%/}"
-  cwd_now="$(pwd)"
   if [[ -z "$git_prefix" ]]; then
-    REPO_ROOT_PWD="$cwd_now"
-  elif [[ "$cwd_now" == */"$git_prefix" ]]; then
-    REPO_ROOT_PWD="${cwd_now%/"$git_prefix"}"
+    REPO_ROOT_PWD="$CALLER_PWD"
+  elif [[ "$CALLER_PWD" == */"$git_prefix" ]]; then
+    REPO_ROOT_PWD="${CALLER_PWD%/"$git_prefix"}"
   fi
   [[ "$REPO_ROOT_PWD" == "$REPO_ROOT" || "$REPO_ROOT_PWD" == "$REPO_ROOT_ALT" ]] && REPO_ROOT_PWD=""
 fi
@@ -276,17 +275,11 @@ LC_ALL=C awk \
   # --show-toplevel` answers under Git Bash, so it is the form the anchors
   # themselves are written in. Testing only the leading `/` would read
   # `D:/repo/doc.md` as relative and join it to the calling directory,
-  # declining a row that relativizes correctly today.
-  #
-  # Written with substr rather than a bracket expression holding `/` and `\`:
-  # the runner awk is mawk (see the 0.39.3 changelog entry), and an unescaped
-  # delimiter inside a bracketed regex literal is where the dialects part.
-  function is_absolute(p,   c1) {
-    c1 = substr(p, 1, 1)
-    if (c1 == "/" || c1 == "\\") return 1
-    if (c1 !~ /^[A-Za-z]$/) return 0
-    if (substr(p, 2, 1) != ":") return 0
-    return (substr(p, 3, 1) == "/" || substr(p, 3, 1) == "\\")
+  # declining a row that relativizes correctly today. The `\`-rooted and
+  # drive-letter half is is_win_absolute; only the POSIX root is added here.
+  function is_absolute(p) {
+    if (substr(p, 1, 1) == "/") return 1
+    return is_win_absolute(p)
   }
 
   # Prefer the caller pwd spelling, then git toplevel, then cd-then-pwd.
@@ -331,6 +324,10 @@ LC_ALL=C awk \
   # short names. A POSIX path is deliberately excluded: on Linux a backslash is
   # an ordinary filename byte, and rewriting it there would corrupt a Location
   # rather than repair one.
+  #
+  # Written with substr rather than a bracket expression holding `/` and `\`:
+  # the runner awk is mawk (see the 0.39.3 changelog entry), and an unescaped
+  # delimiter inside a bracketed regex literal is where the dialects part.
   function is_win_absolute(p,   c1) {
     c1 = substr(p, 1, 1)
     if (c1 == "\\") return 1
@@ -395,6 +392,12 @@ LC_ALL=C awk \
   }
   function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
 
+  # One Declined line per check id in <counts>, carrying <reason> verbatim.
+  function report_declined(counts, reason,   k) {
+    for (k in counts)
+      printf "Declined candidates: %s count=%d reason=%s\n", k, counts[k], reason
+  }
+
   # Frontmatter close line for <file>, or 0 when there is none. Recomputed here
   # rather than trusted from the caller (header comment: BODY-SCOPE FENCE).
   # An unclosed leading `---` fences the whole file, the fail-safe direction.
@@ -418,7 +421,8 @@ LC_ALL=C awk \
       if (n == 1) { if (!is_fence(line)) { fmclose = 0; break } ; continue }
       if (is_fence(line)) { fmclose = n; break }
     }
-    while ((getline line < file) > 0) n++
+    # fmclose == -1 only when the loop ran to EOF, so n is already the line
+    # count there: an unclosed leading `---` fences the whole file.
     result = (fmclose == -1) ? n : fmclose
     close(file)
     fmcache[file] = result
@@ -454,7 +458,7 @@ LC_ALL=C awk \
   }
 
   # Which marker fired, in the run own values (never the rule definition restated).
-  function fired_marker(id, text,   i, m, pats_a, pats_b, n) {
+  function fired_marker(id, text,   i, pats_a, pats_b, n) {
     if (id == "I28-a") {
       n = split("CRITICAL:|IMPORTANT:|You MUST|you MUST|MANDATORY|ALWAYS use|NEVER skip", pats_a, "|")
       for (i = 1; i <= n; i++) if (index(text, pats_a[i]) > 0) return "marker=\"" pats_a[i] "\""
@@ -557,18 +561,12 @@ LC_ALL=C awk \
     if (zero != "") ran = ran " Returned no result: [" zero "]."
     print ran
     printf "Scan rows read: %d. Emitted: %d.\n", nrows, nemit
-    for (k in declined_nocrosswalk)
-      printf "Declined candidates: %s count=%d reason=no-severity-crosswalk-row (human report only)\n", k, declined_nocrosswalk[k]
-    for (k in declined_frontmatter)
-      printf "Declined candidates: %s count=%d reason=frontmatter (body-scope fence)\n", k, declined_frontmatter[k]
-    for (k in declined_trigger)
-      printf "Declined candidates: %s count=%d reason=quoted-trigger-phrase (body-scope fence)\n", k, declined_trigger[k]
-    for (k in declined_outofrepo)
-      printf "Declined candidates: %s count=%d reason=outside-repo-root (Location must be repo-relative; human report only)\n", k, declined_outofrepo[k]
-    for (k in declined_unreadable)
-      printf "Declined candidates: %s count=%d reason=source-line-unreadable\n", k, declined_unreadable[k]
-    for (k in declined_unparsable)
-      printf "Declined candidates: %s count=%d reason=unparsable-row\n", k, declined_unparsable[k]
+    report_declined(declined_nocrosswalk, "no-severity-crosswalk-row (human report only)")
+    report_declined(declined_frontmatter, "frontmatter (body-scope fence)")
+    report_declined(declined_trigger, "quoted-trigger-phrase (body-scope fence)")
+    report_declined(declined_outofrepo, "outside-repo-root (Location must be repo-relative; human report only)")
+    report_declined(declined_unreadable, "source-line-unreadable")
+    report_declined(declined_unparsable, "unparsable-row")
     # The model lane drops carve-out candidates (destructive/security gate,
     # stated hard precondition, document about the pattern) before this script
     # sees them, so it reports their count here rather than letting the
