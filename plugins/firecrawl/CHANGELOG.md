@@ -3,12 +3,6 @@
 All notable changes to the `firecrawl` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.5.14]
-
-### Changed
-
-- The github plugin test suite spells its agnosticism grep out literally again so the plugin-contract validator can keep its regex aligned with the org-agnosticism token list.
-
 ## [0.5.13]
 
 ### Changed

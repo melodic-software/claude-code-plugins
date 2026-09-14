@@ -48,6 +48,7 @@ require_tool() {
     err "$tool not on PATH — cannot continue"
     return 1
   fi
+  return 0
 }
 
 check_prereqs() {
@@ -98,7 +99,9 @@ latest_cli_version() {
 # UPSTREAM.md on --apply and masking real drift on --check.
 fetch_upstream_sha() {
   local out="${TMPDIR_RUN}/upstream-skill.md"
-  curl -sSL --fail --max-time 15 "$UPSTREAM_URL" -o "$out" 2>/dev/null || return 1
+  if ! curl -sSL --fail --max-time 15 "$UPSTREAM_URL" -o "$out" 2>/dev/null; then
+    return 1
+  fi
   [[ -s "$out" ]] || return 1
   sha256 "$out" | awk '{print $1}'
 }
