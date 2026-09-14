@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.33.9]
+
+### Changed
+
+- Share the alias recheck, dangerous-git wrappers, msys token helpers, multiline message and git-dir resolvers and the hardcoded-path label builder across the first half of the enforcement guards (behavior unchanged).
+
 ## [0.33.8]
 
 ### Changed
