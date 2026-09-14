@@ -63,8 +63,15 @@ sweep "D4: no scope names in shipped prose" "scope token in shipped prose:" \
 
 # --- agnostic conformance: no publisher/org/tool assumptions in prose -------
 # plugin.json author metadata is the sanctioned exception (json excluded by the glob).
-sweep "agnosticism: no publisher/org/tool assumptions in prose" "agnosticism violation:" \
-  -riEn "melodic|medley|github-iac|pulumi" "$PLUGIN_DIR" --include='*.md'
+# Spelled out rather than routed through sweep: scripts/validate-plugin-contracts.mjs
+# reads this literal grep to keep the regex aligned with
+# scripts/org-agnosticism-tokens.txt class github.
+hits=$(grep -riEn "melodic|medley|github-iac|pulumi" "$PLUGIN_DIR" --include='*.md' || true)
+if [[ -z "$hits" ]]; then
+  ok "agnosticism: no publisher/org/tool assumptions in prose"
+else
+  fail "agnosticism violation:"$'\n'"$hits"
+fi
 
 # --- area-coverage oracle ---------------------------------------------------
 # Canonical area keys from the Brief coverage matrix. This fixture is the
