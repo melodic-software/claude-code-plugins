@@ -281,8 +281,7 @@ sbx="$(make_sandbox present)"
 before="$(snapshot "${sbx}")"
 out="$(
   unset LOCALAPPDATA APPDATA USERPROFILE
-  : >"${CALL_LOG}"
-  PATH="${SHIM_DIR}:${PATH}" bash "${sbx}/sync-prep.sh" 2>&1
+  run_sut "${sbx}"
 )"
 rc=$?
 
