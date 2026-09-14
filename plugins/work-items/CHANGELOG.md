@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.12]
+
+### Changed
+
+- gitea adapter: create-item.sh reads the repo-label page length with the same failure fallback its sibling reads use, mock.sh drops two single-use intermediates in its curl stand-in, and list-items.test.sh corrects a comment about the seeded total-count header. Same requests, same output.
+
 ## [0.40.11]
 
 ### Changed
