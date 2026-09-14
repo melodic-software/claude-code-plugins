@@ -55,10 +55,12 @@ cache build rather than adding to it, so a snapshot need not hold all of them at
 
 Pinned toolchains found:
 
-- **.NET SDK 10.0.400**, pinned by github-iac, medley and claude-code-account-rotation, which set
+- **.NET SDK 10.0.400**, pinned by medley and claude-code-account-rotation, which set
   `rollForward: disable`, so the exact patch is required, and by ci-workflows without a
-  `rollForward`. The fallback list is still `10.0.302 10.0.400`, so **10.0.302** is installed even
-  though no fleet repo pins it any more.
+  `rollForward`. **10.0.401** (github-iac, also `rollForward: disable`) is in neither fallback
+  slot, so that repo depends entirely on the per-repo-pin path reading its `global.json`. The
+  fallback list is still `10.0.302 10.0.400`, so **10.0.302** is installed even though no fleet
+  repo pins it any more.
 - **Node 24.20.0**, the fleet fallback the setup script installs when the checked-out repo pins no
   `.node-version`; nine repos pin that exact version and codex-plugins pins major 24. The cloud VM
   ships Node 20/21/22 only, so this is always an install.
