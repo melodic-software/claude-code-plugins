@@ -3,6 +3,12 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.14]
+
+### Changed
+
+- The fourteen collector suites build their tool stubs and run the adapter through one shared harness module under collectors/harness, and the four parser suites share a conftest for running and parsing. Collected case counts, stub bytes and the setup check output are unchanged.
+
 ## [0.3.13]
 
 ### Changed

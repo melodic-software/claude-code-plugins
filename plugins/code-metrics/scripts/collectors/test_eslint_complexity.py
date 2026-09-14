@@ -11,19 +11,22 @@ succeeds when it produced parseable output).
 from __future__ import annotations
 
 import json
-import os
-import stat
 import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
+from harness.stub_harness import (
+    SOURCES,
+    TOOL_OUTPUT,
+    run_adapter,
+    version_gate,
+    write_stub,
+)
+
 SCRIPT_DIR = Path(__file__).resolve().parent
 SCRIPT = SCRIPT_DIR / "eslint-complexity.py"
-CAPTURE = SCRIPT_DIR.parent / "fixtures" / "tool-output" / "eslint.json"
-SOURCES = "plugins/code-metrics/scripts/fixtures/sources"
-REPO_ROOT = SCRIPT_DIR.parents[3]
+CAPTURE = TOOL_OUTPUT / "eslint.json"
 
 
 def make_stub(
@@ -36,17 +39,10 @@ def make_stub(
     body = f'cat "{capture}"\n' if capture else ""
     if stderr_line is not None:
         body += "printf '%s\\n' " + json.dumps(stderr_line) + " >&2\n"
-    stub = directory / "eslint"
-    stub.write_text(
-        "#!/usr/bin/env bash\n"
-        'if [[ "${1:-}" == "--version" ]]; then printf \'%s\\n\' "'
-        + version_line
-        + '"; exit 0; fi\n'
-        + body
-        + f"exit {exit_code}\n",
-        encoding="utf-8",
+    write_stub(
+        directory / "eslint",
+        version_gate(version_line) + body + f"exit {exit_code}\n",
     )
-    stub.chmod(stub.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 
 # ESLint's own wording, verbatim from a live run with no configuration file
@@ -57,21 +53,7 @@ NO_CONFIG_LINE = "ESLint couldn't find an eslint.config.(js|mjs|cjs) file."
 def run(
     *args: str, path_prefix: Path | None = None, cwd: Path | str | None = None
 ) -> subprocess.CompletedProcess:
-    env = dict(os.environ)
-    if path_prefix is not None:
-        env["PATH"] = f"{path_prefix}{os.pathsep}{env.get('PATH', '')}"
-    else:
-        env["PATH"] = str(
-            Path(tempfile.gettempdir()) / "definitely-empty-path-for-eslint-tests"
-        )
-    return subprocess.run(
-        [sys.executable, str(SCRIPT), *args],
-        capture_output=True,
-        text=True,
-        env=env,
-        cwd=cwd or REPO_ROOT,
-        check=False,
-    )
+    return run_adapter(SCRIPT, "eslint", *args, path_prefix=path_prefix, cwd=cwd)
 
 
 class EslintComplexityAdapterTests(unittest.TestCase):

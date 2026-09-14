@@ -10,19 +10,22 @@ executable is committed).
 from __future__ import annotations
 
 import json
-import os
-import stat
 import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
+from harness.stub_harness import (
+    SOURCES,
+    TOOL_OUTPUT,
+    run_adapter,
+    version_gate,
+    write_stub,
+)
+
 SCRIPT_DIR = Path(__file__).resolve().parent
 SCRIPT = SCRIPT_DIR / "scc.py"
-CAPTURE = SCRIPT_DIR.parent / "fixtures" / "tool-output" / "scc.json"
-SOURCES = "plugins/code-metrics/scripts/fixtures/sources"
-REPO_ROOT = SCRIPT_DIR.parents[3]
+CAPTURE = TOOL_OUTPUT / "scc.json"
 
 
 def make_stub(
@@ -30,16 +33,11 @@ def make_stub(
 ) -> None:
     """A `scc` stub replaying `capture`; with `calls_log` it also appends the
     number of arguments it received, one line per call."""
-    stub = directory / "scc"
     log = f'printf \'%s\\n\' "$#" >>"{calls_log}"\n' if calls_log is not None else ""
-    stub.write_text(
-        "#!/usr/bin/env bash\n"
-        'if [[ "${1:-}" == "--version" ]]; then printf \'%s\\n\' "scc version 3.7.0"; exit 0; fi\n'
-        + log
-        + f'cat "{capture}"\n',
-        encoding="utf-8",
+    write_stub(
+        directory / "scc",
+        version_gate("scc version 3.7.0") + log + f'cat "{capture}"\n',
     )
-    stub.chmod(stub.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 
 def run(
@@ -47,21 +45,8 @@ def run(
     path_prefix: Path | None = None,
     env_extra: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess:
-    env = dict(os.environ)
-    if path_prefix is not None:
-        env["PATH"] = f"{path_prefix}{os.pathsep}{env.get('PATH', '')}"
-    else:
-        env["PATH"] = str(
-            Path(tempfile.gettempdir()) / "definitely-empty-path-for-scc-tests"
-        )
-    env.update(env_extra or {})
-    return subprocess.run(
-        [sys.executable, str(SCRIPT), *args],
-        capture_output=True,
-        text=True,
-        env=env,
-        cwd=REPO_ROOT,
-        check=False,
+    return run_adapter(
+        SCRIPT, "scc", *args, path_prefix=path_prefix, env_extra=env_extra
     )
 
 

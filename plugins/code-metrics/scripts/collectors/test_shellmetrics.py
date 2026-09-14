@@ -11,49 +11,33 @@ committed).
 from __future__ import annotations
 
 import json
-import os
-import stat
 import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
+from harness.stub_harness import (
+    SOURCES,
+    TOOL_OUTPUT,
+    run_adapter,
+    version_gate,
+    write_stub,
+)
+
 SCRIPT_DIR = Path(__file__).resolve().parent
 SCRIPT = SCRIPT_DIR / "shellmetrics.py"
-CAPTURE = SCRIPT_DIR.parent / "fixtures" / "tool-output" / "shellmetrics.csv"
-SOURCES = "plugins/code-metrics/scripts/fixtures/sources"
-REPO_ROOT = SCRIPT_DIR.parents[3]
+CAPTURE = TOOL_OUTPUT / "shellmetrics.csv"
 
 
 def make_stub(directory: Path, capture: Path | None = CAPTURE) -> None:
-    stub = directory / "shellmetrics"
-    stub.write_text(
-        "#!/usr/bin/env bash\n"
-        'if [[ "${1:-}" == "--version" ]]; then printf \'%s\\n\' "0.5.0"; exit 0; fi\n'
-        + (f'cat "{capture}"\n' if capture else "")
-        + "exit 0\n",
-        encoding="utf-8",
+    write_stub(
+        directory / "shellmetrics",
+        version_gate("0.5.0") + (f'cat "{capture}"\n' if capture else "") + "exit 0\n",
     )
-    stub.chmod(stub.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 
 def run(*args: str, path_prefix: Path | None = None) -> subprocess.CompletedProcess:
-    env = dict(os.environ)
-    if path_prefix is not None:
-        env["PATH"] = f"{path_prefix}{os.pathsep}{env.get('PATH', '')}"
-    else:
-        env["PATH"] = str(
-            Path(tempfile.gettempdir()) / "definitely-empty-path-for-shellmetrics-tests"
-        )
-    return subprocess.run(
-        [sys.executable, str(SCRIPT), *args],
-        capture_output=True,
-        text=True,
-        env=env,
-        cwd=REPO_ROOT,
-        check=False,
-    )
+    return run_adapter(SCRIPT, "shellmetrics", *args, path_prefix=path_prefix)
 
 
 class ShellmetricsAdapterTests(unittest.TestCase):
