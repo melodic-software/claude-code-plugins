@@ -3,6 +3,12 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.56.9]
+
+### Changed
+
+- audit-skill-visibility: audit_skill_visibility.py builds its unreadable-lib and settings-stub records through shared helpers, reuses listing_overflows and one budget prefix in the renderer, and folds three conditionals; skill-pair-cooccurrence.sh checks value flags through one helper; the suites share their fixture and fleet builders. Output byte-identical.
+
 ## [0.56.8]
 
 ### Changed
