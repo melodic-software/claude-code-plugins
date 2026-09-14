@@ -5,6 +5,12 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.61]
+
+### Changed
+
+- hooks: zone-crossing-inject.sh reads its zone and armed markers through one read_marker helper, post-compact-mark.sh collapses its three-arm marker rename into one guarded mv with a single cleanup, and zone-gate.sh drops a redundant empty-target test from the handoff exemption. Process budgets unchanged. No behavior change.
+
 ## [0.7.60]
 
 ### Changed

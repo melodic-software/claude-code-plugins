@@ -254,6 +254,13 @@ else
 fi
 STATE_FILE="$STATE_DIR/$SESSION.zone"
 ARMED_FILE="$STATE_DIR/$SESSION.armed"
+# One reader for both markers. It sets REPLY (the raw bytes on disk) and
+# REPLY_NORM (the normalized zone word) rather than printing them, the same
+# reason rank/unrank below do: a command substitution forks a subshell, and
+# both markers are read on every fire. REPLY is what the write block compares
+# the new value against, so a marker in a legacy format is still rewritten in
+# the current one even when its normalized zone is unchanged.
+#
 # `$(<file)` plus parameter expansion instead of `tr -cd | head -c`, which cost
 # two processes per marker and four per fire. Same result on every input this
 # hook can see: `$(<f)` strips trailing newlines and keeps embedded ones, so a
@@ -267,32 +274,27 @@ ARMED_FILE="$STATE_DIR/$SESSION.armed"
 # swallowed. `$(<file 2>/dev/null)` cannot take its place, because a second
 # redirection turns the fast-path read back into a null command and the
 # marker reads as empty on every fire.
-last=""
-zone_on_disk=""
-if [[ -r "$STATE_FILE" ]]; then
-  { last=$(<"$STATE_FILE"); } 2>/dev/null || last=""
-  # The raw bytes, before normalization. The write block compares the new
-  # value against these, so a marker in a legacy format is still rewritten in
-  # the current one even when its normalized zone is unchanged.
-  zone_on_disk="$last"
-  last=${last//[^[:lower:]]/}
-  last=${last:0:16}
-fi
-armed=""
-armed_on_disk=""
-if [[ -r "$ARMED_FILE" ]]; then
-  { armed=$(<"$ARMED_FILE"); } 2>/dev/null || armed=""
-  armed_on_disk="$armed"
-  armed=${armed//[^[:lower:]]/}
-  armed=${armed:0:16}
-fi
-# A SIBLING file, not a second line in the existing one: `last` is read with
-# `tr -cd '[:lower:]'`, which strips the newline too, so a two-line state file
-# would fuse into "dumbacceptable" and rank as smart. Sessions already running
-# when this version lands have a `.zone` file and no `.armed` file; seeding the
-# armed rank from the last-seen zone reproduces the pre-hysteresis decision for
-# exactly one call, after which the marker latches normally. No migration step
-# and no state-format version are needed for that.
+read_marker() {
+  REPLY=""
+  if [[ -r "$1" ]]; then
+    { REPLY=$(<"$1"); } 2>/dev/null || REPLY=""
+  fi
+  REPLY_NORM=${REPLY//[^[:lower:]]/}
+  REPLY_NORM=${REPLY_NORM:0:16}
+}
+read_marker "$STATE_FILE"
+zone_on_disk=$REPLY
+last=$REPLY_NORM
+read_marker "$ARMED_FILE"
+armed_on_disk=$REPLY
+armed=$REPLY_NORM
+# A SIBLING file, not a second line in the existing one: `last` is normalized
+# with `${last//[^[:lower:]]/}`, which strips the newline too, so a two-line
+# state file would fuse into "dumbacceptable" and rank as smart. Sessions
+# already running when this version lands have a `.zone` file and no `.armed`
+# file; seeding the armed rank from the last-seen zone reproduces the
+# pre-hysteresis decision for exactly one call, after which the marker latches
+# normally. No migration step and no state-format version are needed for that.
 [[ -n "$armed" ]] || armed="$last"
 
 # Both set REPLY rather than printing their answer: a command substitution
