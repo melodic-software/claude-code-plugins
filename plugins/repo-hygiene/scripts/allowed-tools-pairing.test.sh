@@ -47,7 +47,8 @@ SKILLS=(clean)
 # deliberate narrowing decision, which the pairing checks below cannot catch on
 # their own: a script that is bundled, executable, and mentioned in the body
 # "pairs" fine, so a later edit could re-widen the grant to cover it and every
-# other assertion here would still pass green.
+# other assertion here would still pass green. A skill with no arm reports a
+# NOTE at the comparison site rather than comparing nothing.
 # `clean` names one because its grant scope carries real blast radius: only the
 # READ-ONLY scripts are pre-approved. The mutating ones (clean-caches,
 # clean-build, git-prune, git-tree-reset[-batch], remove-path, clean-batch) must
@@ -71,6 +72,9 @@ fail() {
   echo "FAIL: $1" >&2
   fails=1
 }
+# Not `SKIP:`: scripts/run-plugin-tests.sh counts that prefix as an absent-tool
+# skip, and this path is a declared absence of an allowlist, not of a tool.
+note() { echo "NOTE: $1"; }
 
 # Frontmatter is the leading `---`-delimited block; the allowed-tools value runs
 # to the next top-level key so a YAML list is captured whole.
@@ -201,6 +205,8 @@ for skill in "${SKILLS[@]}"; do
     expected: $expected
     actual:   $actual"
     fi
+  else
+    note "$skill: names no allowlist, so the granted-set comparison did not run"
   fi
 done
 

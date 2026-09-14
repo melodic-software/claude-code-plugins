@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [0.22.5]
+
+### Changed
+
+- The allowed-tools pairing suite now prints a NOTE line for any skill that names no expected-granted arm instead of silently skipping the granted-set comparison. Exit codes and every PASS and FAIL string are unchanged.
+
 ## [0.22.4]
 
 ### Changed
