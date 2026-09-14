@@ -26,6 +26,10 @@
 # \xE2\x80[\x98\x99\x9C\x9D\x8B] and \xC2\xA0.
 set -u
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/opt-value.sh
+source "$SCRIPT_DIR/lib/opt-value.sh"
+
 # All text processing runs in the C locale: the byte-sequence rules require it,
 # and word counts diverge between UTF-8 and C locales (caught by the CI
 # portability probe — a UTF-8 default runner counted 12 words where C counted
@@ -134,28 +138,20 @@ Exit: 0 on audit, 2 on unknown arguments or unreadable --paths-file.
 EOF
 }
 
-require_opt_value() {
-  local opt="$1"
-  if [[ $# -lt 2 || -z "${2:-}" || "$2" == -* ]]; then
-    echo "detect.sh: $opt requires a value" >&2
-    exit 2
-  fi
-}
-
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --paths-file)
-    require_opt_value "$@"
+    require_opt_value "detect.sh" "$@"
     PATHS_FILE="$2"
     shift 2
     ;;
   --offset)
-    require_opt_value "$@"
+    require_opt_value "detect.sh" "$@"
     OFFSET="$2"
     shift 2
     ;;
   --limit)
-    require_opt_value "$@"
+    require_opt_value "detect.sh" "$@"
     LIMIT="$2"
     shift 2
     ;;
@@ -254,7 +250,7 @@ cfg_array() {
 threshold_for() {
   local key="$1" default="$2" v
   v="$(cfg_scalar ".thresholds.${key}")"
-  [[ -n "$v" ]] && printf '%s' "$v" || printf '%s' "$default"
+  printf '%s' "${v:-$default}"
 }
 
 if [[ "$HAVE_JQ" -eq 1 && "${#CFG_LAYERS[@]}" -gt 0 ]]; then
@@ -666,8 +662,7 @@ truncate_excerpt() {
 # --- Scan ------------------------------------------------------------------------
 
 ALL_RULES=()
-for entry in "${PATTERN_RULES[@]}"; do ALL_RULES+=("${entry%%|*}"); done
-for entry in "${DENSITY_RULES[@]}"; do ALL_RULES+=("${entry%%|*}"); done
+for entry in "${PATTERN_RULES[@]}" "${DENSITY_RULES[@]}"; do ALL_RULES+=("${entry%%|*}"); done
 
 # Declined counts are kept per rule AND per cause, because one total tells a
 # reader nothing about what was exempted: `marker` is in-file ignore markers

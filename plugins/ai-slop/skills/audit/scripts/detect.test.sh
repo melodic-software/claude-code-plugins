@@ -690,8 +690,7 @@ assert_contains "crlf jq: scalar threshold parses without the carriage return" "
 # file caught mid-write looks like.
 truncdir="$TEST_TMPDIR/trunc-repo/.claude"
 mkdir -p "$truncdir"
-printf '%s
-' '{ "thresholds": { "ai_vocabulary": 999 } }' '{bad' >"$truncdir/ai-slop.json"
+printf '%s\n' '{ "thresholds": { "ai_vocabulary": 999 } }' '{bad' >"$truncdir/ai-slop.json"
 
 out="$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR/trunc-repo" bash "$DETECT" --show-config 2>&1)"
 assert_contains "malformed layer: the partially parsed threshold is refused" "$out" "threshold_ai_vocabulary=3.0 (rule"
@@ -706,8 +705,7 @@ assert_contains "malformed layer: refused under a CRLF-emitting jq too" "$out" "
 # on the key going unread for some unrelated reason.
 okdir="$TEST_TMPDIR/trunc-ok-repo/.claude"
 mkdir -p "$okdir"
-printf '%s
-' '{ "thresholds": { "ai_vocabulary": 999 } }' >"$okdir/ai-slop.json"
+printf '%s\n' '{ "thresholds": { "ai_vocabulary": 999 } }' >"$okdir/ai-slop.json"
 out="$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR/trunc-ok-repo" bash "$DETECT" --show-config 2>&1)"
 assert_contains "malformed layer: the same value from a well-formed layer still applies" "$out" "threshold_ai_vocabulary=999 (rule"
 
