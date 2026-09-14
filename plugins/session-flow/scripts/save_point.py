@@ -343,6 +343,14 @@ def _trim_blank(lines: list[str]) -> list[str]:
     return lines[start:end]
 
 
+def _ends_opening_ask(line: str) -> bool:
+    """True when `line` resumes Original-goal content below an `Opening ask:`
+    line. A verbatim ask may run several paragraphs, so prose does not end it,
+    but the ask carries no bullets: a bullet below the ask is an amendment, and
+    a `**` line is the next structural marker."""
+    return line.startswith("**") or bool(BULLET_RE.match(line))
+
+
 # --- Cumulative-section entries ---------------------------------------------------
 
 
@@ -626,7 +634,7 @@ def _check_original_goal(doc: Doc, f: Findings, hop: int) -> None:
         # line: a verbatim opening ask may run several paragraphs, and every
         # one of them belongs to the ask rather than to the goal quote.
         if skip:
-            if line.startswith("**"):
+            if _ends_opening_ask(line):
                 skip = False
             else:
                 continue
@@ -1241,7 +1249,7 @@ def build_skeleton(
             # and copying it here would smuggle it into the successor's
             # immutable goal block instead of leaving the pointer to stand.
             if skip:
-                if line.startswith("**"):
+                if _ends_opening_ask(line):
                     skip = False
                 else:
                     continue

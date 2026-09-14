@@ -722,6 +722,31 @@ def test_new_hop2_from_shape2_carries_chain_rows_and_tags(tmp_path):
     assert "WARN" not in out(validated)
 
 
+def test_new_hop2_carries_amendments_below_the_opening_ask(tmp_path):
+    """An amendment bullet sitting BELOW the predecessor's 'Opening ask:' line
+    is still part of the goal and must survive the carry: the skip that drops
+    the ask runs to the next structural marker, and a bullet is one."""
+    repo = make_repo(tmp_path)
+    handoffs = repo / ".work" / "handoffs"
+    run(*new_args(repo, tmp_path, "--no-previous")).check_returncode()
+    hop1 = handoffs / HOP1
+    text = fill(hop1.read_text(encoding="utf-8"))
+    amendment = '- **Amended (verbatim, 2026-09-01):** "Also do the other thing."'
+    anchor = "Opening ask:\nDo the thing please.\n"
+    assert anchor in text
+    hop1.write_text(text.replace(anchor, f"{anchor}\n{amendment}\n"), encoding="utf-8", newline="\n")
+    result = run(*new_args(repo, tmp_path, "--previous", str(hop1), sid=SID_B, now="2026-09-02T10:00:00Z"))
+    assert result.returncode == 0, err(result)
+    hop2 = handoffs / HOP2
+    carried = hop2.read_text(encoding="utf-8")
+    assert amendment in carried, carried
+    # Carried above the pointer, where an amendment belongs.
+    assert carried.index(amendment) < carried.index(f"Opening ask: see {HOP1} § Original goal")
+    hop2.write_text(fill(carried), encoding="utf-8", newline="\n")
+    validated = run("validate", str(hop2), "--strict-transcript")
+    assert validated.returncode == 0, out(validated) + err(validated)
+
+
 def test_new_hop2_from_shape1_legacy_tags_and_points(tmp_path):
     repo = make_repo(tmp_path)
     handoffs = repo / ".work" / "handoffs"
