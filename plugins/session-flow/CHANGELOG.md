@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [0.35.15]
+
+### Changed
+
+- The session-flow save-point and hop-chain scripts drop dead constants, unread return values, and a redundant predecessor guard, hoist loop-invariant path lookups, and compile a repeated chain-item regex, with byte-identical handoff output.
+
 ## [0.35.14]
 
 ### Changed
