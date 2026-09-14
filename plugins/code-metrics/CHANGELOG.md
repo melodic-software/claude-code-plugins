@@ -3,6 +3,12 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.8]
+
+### Changed
+
+- audit-duplication: registry-filter.py finds a row's sanctioning registry through one helper and drops a one-line wrapper, and its shell and pytest suites share a JSON assertion helper and one subprocess runner. Output byte-identical.
+
 ## [0.3.7]
 
 ### Changed

@@ -48,14 +48,21 @@ def document(*instance_sets: list[str]) -> dict:
     }
 
 
-def run(doc: dict, *args: str) -> subprocess.CompletedProcess:
+def run_text(
+    payload: str, *args: str, cwd: Path | None = None
+) -> subprocess.CompletedProcess:
     return subprocess.run(
         [sys.executable, str(SCRIPT), *args],
-        input=json.dumps(doc),
+        input=payload,
         capture_output=True,
         text=True,
+        cwd=cwd,
         check=False,
     )
+
+
+def run(doc: dict, *args: str, cwd: Path | None = None) -> subprocess.CompletedProcess:
+    return run_text(json.dumps(doc), *args, cwd=cwd)
 
 
 class RegistryFilterTests(unittest.TestCase):
@@ -235,21 +242,7 @@ class RegistryFilterTests(unittest.TestCase):
             "lib/hook-utils.sh -> plugins/*/hooks/hook-utils.sh\n"
         )
         doc = document(["../../lib/hook-utils.sh", "../one/hooks/hook-utils.sh"])
-        result = subprocess.run(
-            [
-                sys.executable,
-                str(SCRIPT),
-                "--root",
-                str(root),
-                "--registry",
-                str(registry),
-            ],
-            input=json.dumps(doc),
-            capture_output=True,
-            text=True,
-            cwd=sub,
-            check=False,
-        )
+        result = run(doc, "--root", str(root), "--registry", str(registry), cwd=sub)
         self.assertEqual(result.returncode, 0, result.stderr)
         out = json.loads(result.stdout)
         self.assertEqual(out["measures"], [])
@@ -311,13 +304,7 @@ class RegistryFilterTests(unittest.TestCase):
         self.assertIn("registry not found", result.stderr)
 
     def test_a_non_json_document_is_a_usage_error(self) -> None:
-        result = subprocess.run(
-            [sys.executable, str(SCRIPT), "--root", "."],
-            input="not json",
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        result = run_text("not json", "--root", ".")
         self.assertEqual(result.returncode, 2)
         self.assertIn("not a JSON document", result.stderr)
 
