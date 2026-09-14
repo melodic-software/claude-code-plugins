@@ -3,6 +3,12 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.11]
+
+### Changed
+
+- The four disk-hygiene Python test wrappers parse the MIN_PYTHON floor, build the floor probe and pick an interpreter through one sourced test-wrapper library instead of four inline copies. Skip messages, argv and exit codes are unchanged.
+
 ## [0.23.10]
 
 ### Changed
