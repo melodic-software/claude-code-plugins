@@ -88,6 +88,6 @@
     {"from":"claude-code-plugins","to":"actions/setup-node","type":"uses-workflow","relation":"external","count":5,"files":[".github/workflows/ci.yml",".github/workflows/dependabot-miro-bundle.yml",".github/workflows/video-digest-source-liveness.yml"]},
     {"from":"claude-code-plugins","to":"actions/setup-python","type":"uses-workflow","relation":"external","count":3,"files":[".github/workflows/ci.yml"]},
     {"from":"claude-code-plugins","to":"actions/upload-artifact","type":"uses-workflow","relation":"external","count":1,"files":[".github/workflows/video-digest-source-liveness.yml"]},
-    {"from":"claude-code-plugins","to":"melodic-software/ci-workflows","type":"uses-workflow","relation":"internal","count":23,"files":[".github/workflows/ci.yml",".github/workflows/claude-review.yml",".github/workflows/claude-security-review.yml",".github/workflows/issue-triage-label.yml"]}
+    {"from":"claude-code-plugins","to":"melodic-software/ci-workflows","type":"uses-workflow","relation":"internal","count":23,"files":[".github/workflows/ci.yml",".github/workflows/claude-review.yml",".github/workflows/claude-security-review.yml",".github/workflows/issue-triage-label.yml",".github/workflows/managed-files-guard.yml"]}
   ]
 }
