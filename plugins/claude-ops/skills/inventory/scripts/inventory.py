@@ -798,7 +798,7 @@ def extract_bundled_skills(
     # object carries no `name:` is another module's function that happens to
     # share the minified identifier, not a registration, so it is counted
     # apart and never inflates the resolved-versus-seen gap.
-    calls: list[tuple[int, str, re.Match[str] | None]] = []
+    calls: list[tuple[int, str, re.Match[str]]] = []
     unbounded = 0
     same_ident_calls = 0
     name_re = re.compile(r"\bname:(?:" + _STR + r"|(" + _IDENT + r")|(`[^`]*`))")
@@ -817,7 +817,7 @@ def extract_bundled_skills(
             continue
         calls.append((m.start(), body, nm))
 
-    idents = {nm.group(2) for _, _, nm in calls if nm is not None and nm.group(2)}
+    idents = {nm.group(2) for _, _, nm in calls if nm.group(2)}
     index = build_const_index(src, idents)
     out: dict[str, Any] = {}
     unresolved: list[str] = []
@@ -828,7 +828,6 @@ def extract_bundled_skills(
 
     for call_start, body, nm in calls:
         seen += 1
-        assert nm is not None
         if nm.group(1) is not None:
             name = _unescape(nm.group(1))
         elif nm.group(3) is not None:
@@ -1121,11 +1120,12 @@ def scan_disk(root: Path) -> dict[str, Any]:
     if not isinstance(known, dict):
         known = {}
     marketplaces: dict[str, Any] = {}
-    for name, meta in known.items():
-        loc = (meta or {}).get("installLocation")
+    for name, entry in known.items():
+        meta = entry or {}
+        loc = meta.get("installLocation")
         marketplaces[name] = {
             "install_location": loc,
-            "last_updated": (meta or {}).get("lastUpdated"),
+            "last_updated": meta.get("lastUpdated"),
             "plugins": scan_marketplace(Path(loc)) if loc else {},
         }
     out["marketplaces"] = marketplaces

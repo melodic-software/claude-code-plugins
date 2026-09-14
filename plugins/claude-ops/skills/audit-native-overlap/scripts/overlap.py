@@ -888,14 +888,16 @@ def cmd_detect(args: argparse.Namespace) -> int:
             _fail(problem)
         return 1
 
+    # A malformed integrity block reads as an empty one: every field below then
+    # falls back to the same "unknown" it would have reported field by field.
     integrity = inventory["integrity"]
-    status = (
-        integrity.get("status", "unknown") if isinstance(integrity, dict) else "unknown"
-    )
+    if not isinstance(integrity, dict):
+        integrity = {}
+    status = integrity.get("status", "unknown")
     # Per-lane floors, when the extractor reports them. An older inventory
     # without `lanes` is read through the top-level status alone, so a
     # consumer on a newer plugin against an older extraction still parses.
-    lanes = integrity.get("lanes") if isinstance(integrity, dict) else None
+    lanes = integrity.get("lanes")
     if not isinstance(lanes, dict):
         lanes = None
 
@@ -1014,12 +1016,8 @@ def cmd_detect(args: argparse.Namespace) -> int:
 
     report_integrity: dict[str, Any] = {
         "status": status,
-        "cli_version": integrity.get("cli_version")
-        if isinstance(integrity, dict)
-        else None,
-        "validated_against": (
-            integrity.get("validated_against") if isinstance(integrity, dict) else None
-        ),
+        "cli_version": integrity.get("cli_version"),
+        "validated_against": integrity.get("validated_against"),
         "counts_are": "floors" if status != "ok" else "totals",
     }
     if lanes is not None:

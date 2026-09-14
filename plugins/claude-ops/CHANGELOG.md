@@ -3,6 +3,12 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.56.5]
+
+### Changed
+
+- skill scripts: audit_performance.py names its ISO timestamp helper once, registry_manager.py shares its across-repos ambiguity error, overlap.py normalizes a malformed integrity block once, inventory.py and install_state.py drop unreachable guards and re-assignments, changelog-status.sh reuses the repo toplevel it already captured, morning-brief.sh collects PR numbers once, and the inventory and check-all suites share their imports and case runner. No behavior change.
+
 ## [0.56.4]
 
 ### Changed
