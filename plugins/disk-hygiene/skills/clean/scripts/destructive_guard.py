@@ -1230,7 +1230,7 @@ def is_exact_readonly_supporting_command(command: str) -> bool:
     if _parse_bracket_test_words(command) is not None:
         return False
     tokens = _literal_shell_words(command)
-    if tokens is None or not tokens:
+    if not tokens:
         return False
     head = tokens[0]
     basename = _readonly_supporting_basename(head)
@@ -1448,8 +1448,7 @@ def powershell_decision(command: str, enabled: bool) -> tuple[str, str] | None:
             enabled,
             f'disk-hygiene flagged the mutation spelling "{match.group(0)}".',
         )
-    new_item_force = _POWERSHELL_NEW_ITEM_FORCE.search(command)
-    if new_item_force:
+    if _POWERSHELL_NEW_ITEM_FORCE.search(command):
         return _powershell_mutation_verdict(
             enabled,
             "disk-hygiene flagged New-Item -Force (truncates an existing file).",
@@ -2020,6 +2019,33 @@ def _watchdog_fire(deadline: float) -> None:
         _EMIT_LOCK.release()
 
 
+def _settle(
+    command: str,
+    tool_name: str,
+    start: float,
+    decision_value: str,
+    rule: str,
+    reason: str,
+) -> int:
+    """Deliver one verdict: emit it, then report and record it, in that order.
+
+    Every adjudicated branch of ``_decide`` ends here, so the three cannot
+    disagree about ordering, about the telemetry status a permission maps to,
+    or about which of them may run without the others. The record comes last on
+    purpose: `_record_decision` is total and its result is discarded, so no
+    audit-write outcome can reach the verdict already on stdout.
+    """
+    _emit_decision(decision(decision_value, reason))
+    _emit_guard_telemetry(
+        start,
+        tool_name,
+        _telemetry_status_for_permission(decision_value),
+        decision_value=decision_value,
+    )
+    _record_decision(command, tool_name, decision_value, rule, reason)
+    return 0
+
+
 def _decide(command: str, tool_name: str, start: float) -> int:
     """The guard's decision logic once the JSON payload has parsed cleanly.
 
@@ -2040,16 +2066,10 @@ def _decide(command: str, tool_name: str, start: float) -> int:
     if tool_name == "PowerShell":
         verdict = powershell_decision(command, enabled)
         if verdict:
-            _emit_decision(decision(*verdict))
-            _emit_guard_telemetry(
-                start,
-                tool_name,
-                _telemetry_status_for_permission(verdict[0]),
-                decision_value=verdict[0],
-            )
-            _record_decision(
+            _settle(
                 command,
                 tool_name,
+                start,
                 verdict[0],
                 "powershell-deletion-spelling",
                 verdict[1],
@@ -2072,70 +2092,61 @@ def _decide(command: str, tool_name: str, start: float) -> int:
 
     authority = resolve_authorized_data_root()
     if is_exact_kill_switch_probe(command):
-        reason = "Exact bundled disk-hygiene kill-switch probe (read-only report)."
-        _emit_decision(decision("allow", reason))
-        _emit_guard_telemetry(start, tool_name, "ok", decision_value="allow")
-        _record_decision(command, tool_name, "allow", "kill-switch-probe", reason)
-        return 0
+        return _settle(
+            command,
+            tool_name,
+            start,
+            "allow",
+            "kill-switch-probe",
+            "Exact bundled disk-hygiene kill-switch probe (read-only report).",
+        )
     if is_exact_readonly_supporting_command(command):
         # Engine-gate mode runs in every consumer session. A hard `allow` here
         # would bypass the user's permission prompt for an allowlisted command
         # that also names the engine path (#2774). `ask` keeps the ergonomic
         # win while preserving the prompt for sessions that never invoked clean.
         permission = "ask" if resolve_mode() == _MODE_ENGINE_GATE else "allow"
-        reason = (
-            "Exact literal-form read-only supporting Bash command "
-            "(disk-hygiene belt inspection allowlist)."
-        )
-        _emit_decision(decision(permission, reason))
-        _emit_guard_telemetry(start, tool_name, "ok", decision_value=permission)
-        _record_decision(
+        return _settle(
             command,
             tool_name,
+            start,
             permission,
             "readonly-supporting-allowlist",
-            reason,
+            "Exact literal-form read-only supporting Bash command "
+            "(disk-hygiene belt inspection allowlist).",
         )
-        return 0
     command_kind = classify_exact_engine_command(command, authority)
     if command_kind in {"scan", "preview", "handoff-verify"}:
-        reason = "Exact bundled disk-hygiene read-only gate invocation."
-        _emit_decision(decision("allow", reason))
-        _emit_guard_telemetry(start, tool_name, "ok", decision_value="allow")
-        _record_decision(
+        return _settle(
             command,
             tool_name,
+            start,
             "allow",
             f"exact-engine-{command_kind}",
-            reason,
+            "Exact bundled disk-hygiene read-only gate invocation.",
         )
-        return 0
     if command_kind == "apply" and enabled:
-        reason = "disk-hygiene is ready to apply one exact, previewed tier. Confirm this final mutation prompt only if it matches the tier and paths you just approved."
-        _emit_decision(decision("ask", reason))
-        _emit_guard_telemetry(start, tool_name, "ok", decision_value="ask")
-        _record_decision(command, tool_name, "ask", "exact-engine-apply", reason)
-        return 0
+        return _settle(
+            command,
+            tool_name,
+            start,
+            "ask",
+            "exact-engine-apply",
+            "disk-hygiene is ready to apply one exact, previewed tier. Confirm this final mutation prompt only if it matches the tier and paths you just approved.",
+        )
     denied_by_kill_switch = command_kind == "apply"
-    reason = (
-        "Disk-hygiene execution is disabled; only exact bundled scan, preview, and handoff-verify invocations are permitted."
-        if denied_by_kill_switch
-        else _bash_denial_guidance(authority)
-    )
-    _emit_decision(decision("deny", reason))
-    _emit_guard_telemetry(start, tool_name, "blocked", decision_value="deny")
-    _record_decision(
+    return _settle(
         command,
         tool_name,
+        start,
         "deny",
-        (
-            "kill-switch-disabled-apply"
-            if denied_by_kill_switch
-            else "not-exact-engine-command"
-        ),
-        reason,
+        "kill-switch-disabled-apply"
+        if denied_by_kill_switch
+        else "not-exact-engine-command",
+        "Disk-hygiene execution is disabled; only exact bundled scan, preview, and handoff-verify invocations are permitted."
+        if denied_by_kill_switch
+        else _bash_denial_guidance(authority),
     )
-    return 0
 
 
 def main() -> int:

@@ -3,6 +3,12 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.10]
+
+### Changed
+
+- Settle destructive-guard verdicts through one helper, share the handle-contest and accepted-path overlap checks and the scan-complete payload in the clean engine, inline the monitor tail read and lowercase the launcher path in bash (behavior unchanged).
+
 ## [0.23.9]
 
 ### Changed
