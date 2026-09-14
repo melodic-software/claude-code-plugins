@@ -69,6 +69,11 @@ if [[ ${#agents[@]} -eq 0 ]]; then
 fi
 
 for agent in "${agents[@]}"; do
+  # Read once and matched from a here-string. `body | grep -q` under pipefail
+  # fails whenever grep exits on its match before awk finishes writing: awk
+  # takes SIGPIPE, the pipeline returns 141, and the check reports a field
+  # that is present as missing. Scheduling decides the race (#3694).
+  agent_body="$(body "$agent")"
   tools="$(fm_value "$agent" tools)"
   denied="$(fm_value "$agent" disallowedTools)"
 
@@ -144,7 +149,7 @@ for agent in "${agents[@]}"; do
   # ---------------------------------------------------------------------------
   # 5. The by-value recovery rung only exists if the payload can express it.
   # ---------------------------------------------------------------------------
-  if body "$agent" | grep -q '^persistence: '; then
+  if grep -q '^persistence: ' <<<"$agent_body"; then
     pass "$agent: the return payload carries a \`persistence:\` axis"
   else
     fail "$agent: the return payload has no \`persistence:\` field — a completed run whose write was refused cannot be told apart from one that never ran"
@@ -155,7 +160,7 @@ for agent in "${agents[@]}"; do
   #    absence; this is the only one that can fire on an input that is present
   #    and wrong.
   # ---------------------------------------------------------------------------
-  if body "$agent" | grep -qE '^(scope|topic)_as_received: '; then
+  if grep -qE '^(scope|topic)_as_received: ' <<<"$agent_body"; then
     pass "$agent: the return payload echoes back the scope/topic as received"
   else
     fail "$agent: the return payload has no \`scope_as_received:\`/\`topic_as_received:\` field — a corrupted input passes every gate"
