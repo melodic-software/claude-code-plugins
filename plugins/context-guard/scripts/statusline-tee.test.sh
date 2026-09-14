@@ -177,18 +177,16 @@ make_mv_shim() {
   # $1 = shim dir, $2 = failure count file, $3 = failures before delegating
   local dir="$1" counter="$2" fails="$3"
   mkdir -p "$dir"
-  {
-    printf '#!/usr/bin/env bash\n'
-    # shellcheck disable=SC2016  # $n must appear LITERALLY in the emitted shim, not expand here
-    printf 'n=$(cat "%s" 2>/dev/null || echo 0)\n' "$counter"
-    # shellcheck disable=SC2016
-    printf 'n=$((n + 1))\n'
-    # shellcheck disable=SC2016
-    printf 'printf %%s "$n" >"%s"\n' "$counter"
-    # shellcheck disable=SC2016
-    printf 'if [ "$n" -le %s ]; then exit 1; fi\n' "$fails"
-    printf 'exec "%s" "$@"\n' "$REAL_MV"
-  } >"$dir/mv"
+  # Escaped `\$` keeps the shim's own expansions literal; the unescaped values
+  # are this function's arguments, substituted here by design.
+  cat >"$dir/mv" <<EOF
+#!/usr/bin/env bash
+n=\$(cat "$counter" 2>/dev/null || echo 0)
+n=\$((n + 1))
+printf %s "\$n" >"$counter"
+if [ "\$n" -le $fails ]; then exit 1; fi
+exec "$REAL_MV" "\$@"
+EOF
   chmod +x "$dir/mv"
 }
 

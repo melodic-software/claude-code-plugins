@@ -135,7 +135,7 @@ write_snapshot "$HO" o25 25 && expect "override 30/60: used=25" smart "$HO" o25
 write_snapshot "$HO" o61 61 && expect "override 30/60: used=61" dumb "$HO" o61
 
 # --- zones.json preserves unrecognized keys' file (read-only resolver) -------
-if [[ "$(cat "$HO/.claude/context-guard/zones.json")" == '{"smart_max_used_percentage":30,"acceptable_max_used_percentage":60}' ]]; then
+if [[ "$(<"$HO/.claude/context-guard/zones.json")" == '{"smart_max_used_percentage":30,"acceptable_max_used_percentage":60}' ]]; then
   ok "resolver never rewrites zones.json"
 else
   fail "resolver mutated zones.json"

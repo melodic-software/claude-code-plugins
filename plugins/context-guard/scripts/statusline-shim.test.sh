@@ -118,7 +118,7 @@ run() {
   local errfile="$WORK/stderr.$$"
   OUT="$(printf '%s' "$INPUT" | env -u CLAUDE_CONFIG_DIR HOME="$home" bash "$SHIM" "$@" 2>"$errfile")"
   RC=$?
-  ERR="$(cat "$errfile")"
+  ERR="$(<"$errfile")"
   rm -f "$errfile"
 }
 
@@ -232,7 +232,7 @@ make_wrapped "$WORK/render-cfg.sh" 0
 errfile="$WORK/stderr.cfg"
 OUT="$(printf '%s' "$INPUT" | HOME="$H7" CLAUDE_CONFIG_DIR="$CFG" bash "$SHIM" bash "$WORK/render-cfg.sh" 2>"$errfile")"
 RC=$?
-ERR="$(cat "$errfile")"
+ERR="$(<"$errfile")"
 assert_contains "$ERR" "TEE:reloc" "CLAUDE_CONFIG_DIR anchors the cache when HOME holds no cache"
 assert_contains "$OUT" "RENDER" "relocated config dir stays transparent"
 assert_eq "0" "$RC" "relocated config dir preserves the wrapped exit code"
@@ -241,14 +241,14 @@ assert_eq "0" "$RC" "relocated config dir preserves the wrapped exit code"
 plant_tee "$H7" "some-marketplace" "context-guard" "0.1.0" "home" >/dev/null
 OUT="$(printf '%s' "$INPUT" | HOME="$H7" CLAUDE_CONFIG_DIR="$CFG" bash "$SHIM" bash "$WORK/render-cfg.sh" 2>"$errfile")"
 RC=$?
-ERR="$(cat "$errfile")"
+ERR="$(<"$errfile")"
 assert_contains "$ERR" "TEE:reloc" "an explicit CLAUDE_CONFIG_DIR overrides the HOME default"
 assert_not_contains "$ERR" "TEE:home" "the HOME cache is not consulted when CLAUDE_CONFIG_DIR is set"
 
 # --- 14. empty CLAUDE_CONFIG_DIR falls back to HOME -------------------------
 OUT="$(printf '%s' "$INPUT" | HOME="$H7" CLAUDE_CONFIG_DIR="" bash "$SHIM" bash "$WORK/render-cfg.sh" 2>"$errfile")"
 RC=$?
-ERR="$(cat "$errfile")"
+ERR="$(<"$errfile")"
 rm -f "$errfile"
 assert_contains "$ERR" "TEE:home" "an empty CLAUDE_CONFIG_DIR falls back to \$HOME/.claude"
 

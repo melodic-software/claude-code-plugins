@@ -121,7 +121,7 @@ compose_cmd() {
   done
   ERR="$(bash "$COMPOSE" "${args[@]}" 2>&1 >"$WORK/out")"
   STATUS=$?
-  OUT="$(cat "$WORK/out")"
+  OUT="$(<"$WORK/out")"
   # The script's documented codes are 0-4. Anything above that is the process
   # failing to run at all, so say so rather than letting an empty OUT surface as
   # an ordinary value mismatch.
@@ -298,7 +298,7 @@ ERR="$(bash "$COMPOSE" --command "my-statusline" --command-only 2>&1 >"$WORK/out
 STATUS=$?
 assert_status "13 refusal: missing --wrap exits 2" 2 "$STATUS"
 assert_contains "13 refusal: missing --wrap names the missing argument" "--wrap" "$ERR"
-assert_eq "13 refusal: missing --wrap prints nothing on stdout" "" "$(cat "$WORK/out")"
+assert_eq "13 refusal: missing --wrap prints nothing on stdout" "" "$(<"$WORK/out")"
 
 # --- 14. refusal: a --wrap prefix the peel would not recognize ---------------
 # An unrecognized prefix would survive the peel on the next run and stack a
