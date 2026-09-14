@@ -3,6 +3,12 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.4]
+
+### Changed
+
+- dissolve-comments wrappers: scope-code-files.sh points at the allowed-tools verification record that change-shape.sh carries instead of repeating it, comment-tooling-probe.sh points at the same anchor, and the six wrapper headers drop their em dashes. Comment-only; every wrapper still execs the same target.
+
 ## [0.19.3]
 
 ### Changed
