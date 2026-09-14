@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.33.10]
+
+### Changed
+
+- The skill-reference-verify and stale-path-verify suites take their run wrappers, parity check, FILE_DIR seam assertion and exit-propagation self-test from guardrails-test-helpers.sh instead of two verbatim copies. Case labels, order and output are byte-identical.
+
 ## [0.33.9]
 
 ### Changed
