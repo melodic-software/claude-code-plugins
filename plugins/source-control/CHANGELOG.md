@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.82]
+
+### Changed
+
+- hooks: pr-linkage-validator.sh and pr-body-linkage-gate.sh iterate the shared split-line array directly instead of copying it per call and name the CommonMark fence pattern once, and worktree-create-gate.sh spells its hook-utils source like its siblings. No behavior change.
+
 ## [0.55.81]
 
 ### Changed
