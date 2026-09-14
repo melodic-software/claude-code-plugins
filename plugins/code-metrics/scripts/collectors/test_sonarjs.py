@@ -28,18 +28,13 @@ REPO_ROOT = SCRIPT_DIR.parents[3]
 
 
 def make_stub(
-    directory: Path,
-    version_line: str = "v10.1.0",
-    capture: Path | None = CAPTURE,
-    exit_code: int = 1,
+    directory: Path, capture: Path | None = CAPTURE, exit_code: int = 1
 ) -> None:
     body = f'cat "{capture}"\n' if capture else ""
     stub = directory / "eslint"
     stub.write_text(
         "#!/usr/bin/env bash\n"
-        'if [[ "${1:-}" == "--version" ]]; then printf \'%s\\n\' "'
-        + version_line
-        + '"; exit 0; fi\n'
+        'if [[ "${1:-}" == "--version" ]]; then printf \'%s\\n\' "v10.1.0"; exit 0; fi\n'
         + body
         + f"exit {exit_code}\n",
         encoding="utf-8",

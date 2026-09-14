@@ -72,8 +72,11 @@ def write_node_stub(
     path.chmod(path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 
-def make_project(root: Path, with_typescript: bool = True, local_stub: bool = False):
+def make_project(
+    root: Path, with_typescript: bool = True, local_stub: bool = False
+) -> None:
     """A scratch cwd: optional node_modules/typescript and a local binary."""
+    root.mkdir(parents=True, exist_ok=True)
     if with_typescript:
         package = root / "node_modules" / "typescript" / "package.json"
         package.parent.mkdir(parents=True, exist_ok=True)
@@ -116,7 +119,6 @@ class TypeCoverageProbeTests(unittest.TestCase):
             stubs = Path(tmp) / "bin"
             write_stub(stubs / "type-coverage")
             project = Path(tmp) / "project"
-            project.mkdir()
             make_project(project, with_typescript=False)
             result = run("probe", path_prefix=stubs, cwd=project)
             self.assertEqual(result.returncode, 1)
@@ -127,7 +129,6 @@ class TypeCoverageProbeTests(unittest.TestCase):
             stubs = Path(tmp) / "bin"
             write_stub(stubs / "type-coverage")
             project = Path(tmp) / "project"
-            project.mkdir()
             make_project(project)
             result = run("probe", path_prefix=stubs, cwd=project)
             self.assertEqual((result.returncode, result.stdout.strip()), (0, "2.30.1"))
@@ -137,7 +138,6 @@ class TypeCoverageProbeTests(unittest.TestCase):
             empty = Path(tmp) / "bin"
             empty.mkdir()
             project = Path(tmp) / "project"
-            project.mkdir()
             make_project(project, local_stub=True)
             result = run("probe", path_prefix=empty, cwd=project)
             self.assertEqual((result.returncode, result.stdout.strip()), (0, "2.30.1"))

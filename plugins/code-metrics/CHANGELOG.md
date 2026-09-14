@@ -3,6 +3,12 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.6]
+
+### Changed
+
+- collectors: scc.py builds its rows through one helper, normalizes each filled path once and reads its chunk budget with an empty default; type-coverage.py spells its node-failure fallback explicitly and drops translate defaults no caller used; the scc, shellmetrics, sonarjs and type-coverage suites share their stub and project builders. Output byte-identical.
+
 ## [0.3.5]
 
 ### Changed

@@ -62,8 +62,8 @@ ARGV_BUDGET = 24000
 
 def _chunks(files: list[str]) -> list[list[str]]:
     budget = ARGV_BUDGET
-    override = os.environ.get("CODE_METRICS_ARGV_BUDGET")
-    if override and override.isdigit() and int(override) > 0:
+    override = os.environ.get("CODE_METRICS_ARGV_BUDGET", "")
+    if override.isdigit() and int(override) > 0:
         budget = int(override)
     chunks: list[list[str]] = []
     current: list[str] = []
@@ -103,6 +103,19 @@ def _count_lines(path: str) -> dict[str, int | None]:
     }
 
 
+def _row(
+    lane: str, path: str, values: dict[str, int | None], labels: list[str]
+) -> dict:
+    return {
+        "file": path.replace("\\", "/"),
+        "function": None,
+        "lane": lane,
+        "values": values,
+        "collector": NAME,
+        "labels": labels,
+    }
+
+
 def translate(raw: str, lane: str, wanted: list[str]) -> list[dict]:
     """Rows for `wanted`, in scc's output order, from one scc document."""
     wanted_norm = {_normalize(p): p for p in wanted}
@@ -115,20 +128,18 @@ def translate(raw: str, lane: str, wanted: list[str]) -> list[dict]:
             lines = int(entry.get("Lines", 0))
             blank = int(entry.get("Blank", 0))
             rows.append(
-                {
-                    "file": wanted_norm[location].replace("\\", "/"),
-                    "function": None,
-                    "lane": lane,
-                    "values": {
+                _row(
+                    lane,
+                    wanted_norm[location],
+                    {
                         "lines_total": lines,
                         "lines_blank": blank,
                         "lines_comment": int(entry.get("Comment", 0)),
                         "lines_code": int(entry.get("Code", 0)),
                         "lines_non_blank": lines - blank,
                     },
-                    "collector": NAME,
-                    "labels": [],
-                }
+                    [],
+                )
             )
     return rows
 
@@ -139,19 +150,11 @@ def fill_missing(rows: list[dict], lane: str, wanted: list[str]) -> list[dict]:
     seen = {_normalize(row["file"]) for row in rows}
     filled = list(rows)
     for path in wanted:
-        if _normalize(path) in seen:
+        key = _normalize(path)
+        if key in seen:
             continue
-        seen.add(_normalize(path))
-        filled.append(
-            {
-                "file": path.replace("\\", "/"),
-                "function": None,
-                "lane": lane,
-                "values": _count_lines(path),
-                "collector": NAME,
-                "labels": ["comment-agnostic"],
-            }
-        )
+        seen.add(key)
+        filled.append(_row(lane, path, _count_lines(path), ["comment-agnostic"]))
     return filled
 
 

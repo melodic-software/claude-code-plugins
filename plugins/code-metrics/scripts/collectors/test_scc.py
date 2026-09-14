@@ -26,21 +26,27 @@ REPO_ROOT = SCRIPT_DIR.parents[3]
 
 
 def make_stub(
-    directory: Path, version_line: str = "scc version 3.7.0", capture: Path = CAPTURE
+    directory: Path, capture: Path = CAPTURE, calls_log: Path | None = None
 ) -> None:
+    """A `scc` stub replaying `capture`; with `calls_log` it also appends the
+    number of arguments it received, one line per call."""
     stub = directory / "scc"
+    log = f'printf \'%s\\n\' "$#" >>"{calls_log}"\n' if calls_log is not None else ""
     stub.write_text(
         "#!/usr/bin/env bash\n"
-        'if [[ "${1:-}" == "--version" ]]; then printf \'%s\\n\' "'
-        + version_line
-        + '"; exit 0; fi\n'
-        f'cat "{capture}"\n',
+        'if [[ "${1:-}" == "--version" ]]; then printf \'%s\\n\' "scc version 3.7.0"; exit 0; fi\n'
+        + log
+        + f'cat "{capture}"\n',
         encoding="utf-8",
     )
     stub.chmod(stub.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 
-def run(*args: str, path_prefix: Path | None = None) -> subprocess.CompletedProcess:
+def run(
+    *args: str,
+    path_prefix: Path | None = None,
+    env_extra: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess:
     env = dict(os.environ)
     if path_prefix is not None:
         env["PATH"] = f"{path_prefix}{os.pathsep}{env.get('PATH', '')}"
@@ -48,6 +54,7 @@ def run(*args: str, path_prefix: Path | None = None) -> subprocess.CompletedProc
         env["PATH"] = str(
             Path(tempfile.gettempdir()) / "definitely-empty-path-for-scc-tests"
         )
+    env.update(env_extra or {})
     return subprocess.run(
         [sys.executable, str(SCRIPT), *args],
         capture_output=True,
@@ -161,37 +168,19 @@ class SccAdapterTests(unittest.TestCase):
         # budget forced to one character, every path is its own chunk.
         with tempfile.TemporaryDirectory() as tmp:
             calls = Path(tmp) / "calls"
-            stub = Path(tmp) / "scc"
-            stub.write_text(
-                "#!/usr/bin/env bash\n"
-                'if [[ "${1:-}" == "--version" ]]; then printf \'scc version 3.7.0\\n\'; exit 0; fi\n'
-                f'printf \'%s\\n\' "$#" >>"{calls}"\n'
-                f'cat "{CAPTURE}"\n',
-                encoding="utf-8",
-            )
-            stub.chmod(stub.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+            make_stub(Path(tmp), calls_log=calls)
             listing = Path(tmp) / "files"
             listing.write_text(
                 f"{SOURCES}/cm_sample.py\n{SOURCES}/cm-sample.sh\n", encoding="utf-8"
             )
-            env = dict(os.environ)
-            env["PATH"] = f"{tmp}{os.pathsep}{env.get('PATH', '')}"
-            env["CODE_METRICS_ARGV_BUDGET"] = "1"
-            result = subprocess.run(
-                [
-                    sys.executable,
-                    str(SCRIPT),
-                    "collect",
-                    "python",
-                    "file_lines",
-                    "--paths-from",
-                    str(listing),
-                ],
-                capture_output=True,
-                text=True,
-                env=env,
-                cwd=REPO_ROOT,
-                check=False,
+            result = run(
+                "collect",
+                "python",
+                "file_lines",
+                "--paths-from",
+                str(listing),
+                path_prefix=Path(tmp),
+                env_extra={"CODE_METRICS_ARGV_BUDGET": "1"},
             )
             self.assertEqual(result.returncode, 0, result.stderr)
             # Two invocations, each carrying the four fixed arguments plus one path.

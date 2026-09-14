@@ -168,10 +168,9 @@ def program_files() -> tuple[set[str] | None, str]:
     except OSError as exc:
         return None, f"node failed to start: {exc}"
     if result.returncode != 0:
-        said = result.stderr.strip().splitlines() or [
-            "node exited " + str(result.returncode)
-        ]
-        return None, said[-1][:200]
+        said = result.stderr.strip().splitlines()
+        reason = said[-1] if said else f"node exited {result.returncode}"
+        return None, reason[:200]
     try:
         listed = json.loads(result.stdout)
     except json.JSONDecodeError:
@@ -186,9 +185,9 @@ def program_files() -> tuple[set[str] | None, str]:
 def translate(
     raw: str,
     lane: str,
-    files: list[str] | None = None,
-    program: set[str] | None = None,
-    why_no_program: str = "",
+    files: list[str],
+    program: set[str] | None,
+    why_no_program: str,
 ) -> tuple[list[dict], list[str]]:
     """The rows for one capture, the lane row first, and the notes for
     stderr: a row per scope file in the tsconfig program when the tool counted
@@ -205,7 +204,7 @@ def translate(
             key = _key(str(entry.get("filePath", "")))
             listed[key] = listed.get(key, 0) + 1
         outside: list[str] = []
-        for path in files or []:
+        for path in files:
             key = _key(path)
             if program is None:
                 if key not in listed:

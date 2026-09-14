@@ -26,15 +26,11 @@ SOURCES = "plugins/code-metrics/scripts/fixtures/sources"
 REPO_ROOT = SCRIPT_DIR.parents[3]
 
 
-def make_stub(
-    directory: Path, version_line: str = "0.5.0", capture: Path | None = CAPTURE
-) -> None:
+def make_stub(directory: Path, capture: Path | None = CAPTURE) -> None:
     stub = directory / "shellmetrics"
     stub.write_text(
         "#!/usr/bin/env bash\n"
-        'if [[ "${1:-}" == "--version" ]]; then printf \'%s\\n\' "'
-        + version_line
-        + '"; exit 0; fi\n'
+        'if [[ "${1:-}" == "--version" ]]; then printf \'%s\\n\' "0.5.0"; exit 0; fi\n'
         + (f'cat "{capture}"\n' if capture else "")
         + "exit 0\n",
         encoding="utf-8",
