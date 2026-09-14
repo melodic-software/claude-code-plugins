@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.13.65]
+
+### Changed
+
+- Share the optional text read, count regex matches through one helper, derive the session frame counts once and collapse the golden part matcher in the video-digest evals (behavior unchanged).
+
 ## [0.13.64]
 
 ### Changed
