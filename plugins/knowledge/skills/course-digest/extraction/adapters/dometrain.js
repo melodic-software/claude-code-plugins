@@ -16,6 +16,7 @@ import { writeStdout } from "@melodic/video-digestion/shared/terminal";
 import { login as clerkLogin } from "../lib/auth/clerk.js";
 import { loginOrPromptManual } from "../lib/auth/manual-login.js";
 import { fetchMetaTags } from "../lib/meta-tags.js";
+import { hasPlayerElement, resolvePlayerSelector } from "../lib/player-presence.js";
 import { getHlsUrl } from "../lib/players/mux.js";
 import {
   DESCRIPTION_META_SELECTOR,
@@ -63,9 +64,14 @@ export const defaults = {
 // Required adapter methods
 // ---------------------------------------------------------------------------
 
-/** The configured video-player selector, falling back to the adapter default. */
+/**
+ * The configured video-player selector, falling back to the adapter default.
+ * Reads the config directly: a nullish `platformCfg` is a caller error here.
+ */
 function resolveVideoPlayerSelector(platformCfg) {
-  return platformCfg.videoPlayerSelector ?? defaults.videoPlayerSelector;
+  return resolvePlayerSelector(platformCfg, defaults.videoPlayerSelector, {
+    optionalConfig: false,
+  });
 }
 
 /**
@@ -341,9 +347,7 @@ export async function authenticate({ context, page, course, storageStatePath, pl
   await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
   await page.waitForTimeout(2000);
 
-  const hasPlayer = await page
-    .evaluate((sel) => !!document.querySelector(sel), videoSelector)
-    .catch(() => false);
+  const hasPlayer = await hasPlayerElement(page, videoSelector);
 
   if (hasPlayer) {
     writeStdout("  Already authenticated.\n");

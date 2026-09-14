@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.13.72]
+
+### Changed
+
+- The mux, hotmart, dometrain and teachable adapters resolve their video player selector and probe for the player element through one shared helper instead of four inline copies. Dometrain keeps its non-optional config access, now pinned by a test.
+
 ## [0.13.71]
 
 ### Changed

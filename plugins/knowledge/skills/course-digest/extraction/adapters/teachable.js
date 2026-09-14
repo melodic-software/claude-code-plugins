@@ -22,6 +22,7 @@ import { writeStdout } from "@melodic/video-digestion/shared/terminal";
 import { loginOrPromptManual } from "../lib/auth/manual-login.js";
 import { login as teachableLogin } from "../lib/auth/teachable-sso.js";
 import { fetchMetaTags } from "../lib/meta-tags.js";
+import { hasPlayerElement, resolvePlayerSelector } from "../lib/player-presence.js";
 import {
   DEFAULT_VIDEO_PLAYER_SELECTOR,
   extractFrames as extractHotmartFrames,
@@ -87,9 +88,14 @@ function resolveResourceSelectors(platformCfg) {
   return { ...defaults.resourceSelectors, ...platformCfg.resourceSelectors };
 }
 
-/** The configured video-player selector, falling back to the adapter default. */
+/**
+ * The configured video-player selector, falling back to the adapter default.
+ * Reads the config optionally: a nullish `platformCfg` yields the default.
+ */
 export function resolveVideoPlayerSelector(platformCfg) {
-  return platformCfg?.videoPlayerSelector ?? defaults.videoPlayerSelector;
+  return resolvePlayerSelector(platformCfg, defaults.videoPlayerSelector, {
+    optionalConfig: true,
+  });
 }
 
 /** The configured subtitle language, falling back to the adapter default. */
@@ -302,9 +308,7 @@ export async function authenticate({ context, page, course, storageStatePath, pl
   await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
   await page.waitForTimeout(2000);
 
-  const hasPlayer = await page
-    .evaluate((sel) => !!document.querySelector(sel), videoSelector)
-    .catch(() => false);
+  const hasPlayer = await hasPlayerElement(page, videoSelector);
 
   if (hasPlayer) {
     writeStdout("  Already authenticated.\n");
