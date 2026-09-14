@@ -148,12 +148,13 @@ assert_not_contains "old synced removed" "$mutated" "2025-01-01"
 
 # --- 7. Cross-platform SHA helper picks an available impl ---------------------------
 
-echo "boris test" >"$TEST_TMPDIR/sha-fixture.txt"
-sha_via_helper=$(sha256 "$TEST_TMPDIR/sha-fixture.txt" | awk '{print $1}' | tr -d '\r')
+FIXTURE_SHA="$TEST_TMPDIR/sha-fixture.txt"
+echo "boris test" >"$FIXTURE_SHA"
+sha_via_helper=$(sha256 "$FIXTURE_SHA" | awk '{print $1}' | tr -d '\r')
 if command -v sha256sum >/dev/null 2>&1; then
-  sha_direct=$(sha256sum "$TEST_TMPDIR/sha-fixture.txt" | awk '{print $1}' | tr -d '\r')
+  sha_direct=$(sha256sum "$FIXTURE_SHA" | awk '{print $1}' | tr -d '\r')
 else
-  sha_direct=$(shasum -a 256 "$TEST_TMPDIR/sha-fixture.txt" | awk '{print $1}' | tr -d '\r')
+  sha_direct=$(shasum -a 256 "$FIXTURE_SHA" | awk '{print $1}' | tr -d '\r')
 fi
 assert_eq "sha256 helper matches direct call" "$sha_direct" "$sha_via_helper"
 

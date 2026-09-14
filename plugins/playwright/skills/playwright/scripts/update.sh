@@ -49,7 +49,6 @@ require_tool() {
     err "$tool not on PATH — cannot continue"
     return 1
   fi
-  return 0
 }
 
 check_prereqs() {
@@ -66,7 +65,7 @@ read_metadata_field() {
   [[ -f "$FRONTMATTER_FILE" ]] || return 0
   awk -v key="$field" \
     '/^metadata:/{m=1;next} m && /^[a-zA-Z]/{m=0} m && $1 == key":"{print $2;exit}' \
-    "$FRONTMATTER_FILE" | tr -d '"' | tr -d "'" | tr -d '\r'
+    "$FRONTMATTER_FILE" | tr -d "\"'\r"
 }
 
 # Read one field of the latest published release from the npm registry
