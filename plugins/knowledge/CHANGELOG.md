@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.13.60]
+
+### Changed
+
+- Derive the video-digest run and setup-deps entry-point directory from import.meta.dirname and drop the unused url import (behavior unchanged).
+
 ## [0.13.59]
 
 ### Changed
