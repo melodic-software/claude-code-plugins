@@ -18,8 +18,9 @@ TypeScript's `eslint-plugin-sonarjs`; Python and Bash report the gap instead
 threshold for it.
 
 v1.2.1 understands no version flag, so `probe` tries `-version` and then
-`--version`, prints `unknown-version` when neither answers, and still exits 0
-because the tool itself resolved.
+`--version`, falls back to the version `go install` stamped into the binary
+(`go version -m`), prints `version unavailable (gocognit has no version flag)`
+when nothing answers, and still exits 0 because the tool itself resolved.
 """
 
 from __future__ import annotations

@@ -177,7 +177,6 @@ def prefilter(
         except OSError:
             kept.append(path)
             continue
-        lines: int | None = None
         if size_cap is not None and size > size_cap:
             skipped.append((path, size, None))
             continue
@@ -203,8 +202,7 @@ def report_skips(
     """One line naming how many files a cap left out, and the largest one."""
     if not skipped:
         return
-    largest = max(skipped, key=lambda entry: entry[1])
-    path, size, lines = largest
+    path, size, lines = max(skipped, key=lambda entry: entry[1])
     if lines is None:
         try:
             lines = count_lines(path)
@@ -215,7 +213,7 @@ def report_skips(
         f"{size_text or 'none'} / max_lines {lines_text or 'none'}; "
         f"largest: {_normalize(path)} ({size} bytes, {lines} lines)"
     )
-    target = os.environ.get("CODE_METRICS_PARTIAL_REASON_FILE") or ""
+    target = os.environ.get("CODE_METRICS_PARTIAL_REASON_FILE")
     if target:
         try:
             with open(target, "w", encoding="utf-8") as handle:
@@ -266,8 +264,8 @@ def _command(
     exe: str,
     output: str,
     files: list[str],
-    size_cap: int | None = None,
-    line_cap: int | None = None,
+    size_cap: int | None,
+    line_cap: int | None,
 ) -> list[str]:
     command = [
         exe,

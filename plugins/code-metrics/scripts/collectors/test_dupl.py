@@ -111,7 +111,7 @@ class DuplAdapterTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             rows = [json.loads(line) for line in result.stdout.splitlines()]
             self.assertEqual([len(r["instances"]) for r in rows], [2, 3])
-            self.assertEqual([i["file"] for i in rows[1]["instances"]][2], GAMMA)
+            self.assertEqual(rows[1]["instances"][2]["file"], GAMMA)
 
     def test_the_token_threshold_reaches_the_command_line(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

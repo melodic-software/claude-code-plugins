@@ -3,6 +3,12 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.3]
+
+### Changed
+
+- collectors: jscpd.py drops a dead pre-initialization, an unused command default pair and an inert empty-string fallback, lizard.py looks up wanted paths once, dupl.py tests the probe result directly, gocognit.py's docstring matches its probe output, and the dupl and jscpd suites read one instance and one reason file once. No behavior change.
+
 ## [0.3.2]
 
 ### Fixed

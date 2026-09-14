@@ -320,11 +320,12 @@ class JscpdAdapterTests(unittest.TestCase):
             )
             self.assertEqual((result.returncode, result.stdout), (0, ""), result.stderr)
             self.assertFalse(log.exists(), "jscpd was invoked with no files")
+            reason = note.read_text(encoding="utf-8")
             self.assertTrue(
-                note.read_text(encoding="utf-8").startswith(
+                reason.startswith(
                     "2 of 2 files skipped by duplication.max_size 10 / max_lines none"
                 ),
-                note.read_text(encoding="utf-8"),
+                reason,
             )
 
     def test_the_skip_reason_goes_to_stderr_when_no_reason_file_is_set(self) -> None:

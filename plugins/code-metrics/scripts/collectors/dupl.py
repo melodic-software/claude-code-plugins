@@ -76,8 +76,7 @@ def _int_or_none(value: str | None) -> int | None:
 
 
 def probe() -> int:
-    exe = shutil.which(NAME)
-    if not exe:
+    if not shutil.which(NAME):
         print("dupl not on PATH", file=sys.stderr)
         return 1
     print("unknown-version")

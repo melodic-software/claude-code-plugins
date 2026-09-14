@@ -90,10 +90,9 @@ def translate(raw: str, lane: str, measure: str, wanted: list[str]) -> list[dict
         except ValueError:
             continue
         parsed += 1
-        location = _normalize(record[6])
-        if location not in wanted_norm:
+        path = wanted_norm.get(_normalize(record[6]))
+        if path is None:
             continue
-        path = wanted_norm[location]
         if measure == "cyclomatic":
             values: dict = {"cyclomatic": ccn}
         else:
