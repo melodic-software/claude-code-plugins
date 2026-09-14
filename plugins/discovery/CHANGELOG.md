@@ -1,5 +1,15 @@
 # Changelog: discovery plugin
 
+## [0.19.16]
+
+### Fixed
+
+- **`agents/tool-honesty.test.sh`:** the `persistence:` and `scope_as_received:`/`topic_as_received:`
+  checks no longer report a present field as missing when the suite runs beside other suites. Under
+  `set -o pipefail`, `body "$agent" | grep -q` returned 141 whenever `grep` exited on its match before
+  `awk` finished writing the agent body. Each body is now read once and matched from a here-string,
+  and the suite comes off `scripts/run-plugin-tests-serial.txt`.
+
 ## [0.19.15]
 
 ### Fixed
