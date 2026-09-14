@@ -48,6 +48,11 @@ HERE = Path(__file__).resolve().parent
 SAVE_POINT = HERE.parent / "save_point.py"
 DEFAULT_PLUGIN_DIR = HERE.parents[1]
 
+if str(HERE.parent) not in sys.path:
+    sys.path.insert(0, str(HERE.parent))
+
+from io_streams import utf8_streams  # noqa: E402  (io_streams.py in the parent dir)
+
 RAIL_RE = re.compile("^─{10,}$")
 FILL_RE = re.compile(r"<!-- FILL: ([a-z0-9-]+) .*?-->")
 HANDOFF_GLOB = "*-handoff-*.md"
@@ -184,12 +189,6 @@ TSV_HEADER = (
 # different clocks; the ordering claim is "the Skill call came first", not a
 # sub-second race, so the disk comparison carries this slack.
 DISK_ORDER_GRACE_SECONDS = 2.0
-
-
-def _utf8_streams() -> None:
-    for stream in (sys.stdout, sys.stderr):
-        if isinstance(stream, io.TextIOWrapper):
-            stream.reconfigure(encoding="utf-8", newline="\n")
 
 
 # --- small helpers ----------------------------------------------------------
@@ -2024,7 +2023,7 @@ def main(argv: list[str] | None = None, runner_factory=live_runner) -> int:
     function with the `claude` subprocess swapped out: every other step, the
     argument parsing, the run loop, row aggregation, the kept-files copy, the
     report write, and cleanup, is then the same code a live run executes."""
-    _utf8_streams()
+    utf8_streams()
     cfg = build_parser().parse_args(argv)
     if not SAVE_POINT.is_file():
         print(

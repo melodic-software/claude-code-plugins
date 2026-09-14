@@ -41,7 +41,6 @@ UTF-8 so the U+2500 rails survive a cp1252 pipe on Windows.
 from __future__ import annotations
 
 import argparse
-import io
 import os
 import re
 import shlex
@@ -50,6 +49,12 @@ import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
+
+_SCRIPTS_DIR = Path(__file__).resolve().parent
+if str(_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_DIR))
+
+from io_streams import utf8_streams  # noqa: E402  (io_streams.py beside this script)
 
 HANDOFF_SHAPE = 2
 
@@ -198,12 +203,6 @@ SECRET_SHAPES: tuple[tuple[re.Pattern[str], str], ...] = (
 
 
 # --- I/O ----------------------------------------------------------------------
-
-
-def _utf8_streams() -> None:
-    for stream in (sys.stdout, sys.stderr):
-        if isinstance(stream, io.TextIOWrapper):
-            stream.reconfigure(encoding="utf-8", newline="\n")
 
 
 def _die(code: int, message: str) -> int:
@@ -1569,7 +1568,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
-    _utf8_streams()
+    utf8_streams()
     args = build_parser().parse_args(argv)
     return int(args.func(args))
 

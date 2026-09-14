@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [0.35.16]
+
+### Changed
+
+- hop_chain and save_point reconfigure stdout and stderr for UTF-8 through one io_streams module instead of two identical private functions.
+
 ## [0.35.15]
 
 ### Changed
