@@ -3,6 +3,12 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.34]
+
+### Changed
+
+- Share the host normaliser, dotted-quad and ip-literal helpers in the url policy, merge the section overflow filters in validate and drop two producer-less ignore rules (behavior unchanged).
+
 ## [0.7.33]
 
 ### Changed
