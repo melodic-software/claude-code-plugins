@@ -3,6 +3,12 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.10]
+
+### Changed
+
+- Merge the exclusion and tier case arms, share the skip-row writer and the language-hint scan in detect, fold the brace-split and escape arms in glob-tools and share the first-heading read in render-index (behavior unchanged).
+
 ## [0.13.9]
 
 ### Changed
