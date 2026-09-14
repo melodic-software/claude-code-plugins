@@ -541,6 +541,23 @@ mapping_note_for() {
   esac
 }
 
+# opt_loop <flag>=<VAR>… emits the generated option-parsing loop for one verb. Every
+# adapter flag takes a value, so its arm differs from every other only in the flag name
+# and the variable it fills; emitting all fifteen of them from here keeps them
+# identical, including the unknown-argument arm that closes each loop.
+# shellcheck disable=SC2016  # $#/$1/$2 belong to the GENERATED script's own argument
+# loop; single quotes are what keeps them unexpanded on their way into the output.
+opt_loop() {
+  printf 'while [[ $# -gt 0 ]]; do\n  case "$1" in\n'
+  local opt flag
+  for opt in "$@"; do
+    flag="${opt%%=*}"
+    printf '  --%s)\n    [[ $# -ge 2 ]] || wit_usage_error "--%s needs a value"\n    %s="$2"\n    shift 2\n    ;;\n' \
+      "$flag" "$flag" "${opt#*=}"
+  done
+  printf '  *) wit_usage_error "unexpected argument: $1" ;;\n  esac\ndone\n'
+}
+
 # parse_block_for <verb> — the generated argument-parsing code for that verb.
 parse_block_for() {
   local verb="$1"
@@ -561,21 +578,9 @@ ID="\${1:-}"
 shift
 TTL_HOURS=""
 SESSION_ID=""
-while [[ \$# -gt 0 ]]; do
-  case "\$1" in
-  --ttl-hours)
-    [[ \$# -ge 2 ]] || wit_usage_error "--ttl-hours needs a value"
-    TTL_HOURS="\$2"
-    shift 2
-    ;;
-  --session-id)
-    [[ \$# -ge 2 ]] || wit_usage_error "--session-id needs a value"
-    SESSION_ID="\$2"
-    shift 2
-    ;;
-  *) wit_usage_error "unexpected argument: \$1" ;;
-  esac
-done
+EOF
+    opt_loop ttl-hours=TTL_HOURS session-id=SESSION_ID
+    cat <<EOF
 wit_require_${PROVIDER_FUNC}_id "\$ID" || wit_usage_error "not a @@PROVIDER@@ item id: \$ID"
 [[ -z "\$TTL_HOURS" || "\$TTL_HOURS" =~ ^[0-9]+\$ ]] || wit_usage_error "--ttl-hours must be a non-negative integer"
 EOF
@@ -586,16 +591,9 @@ ID="\${1:-}"
 [[ -n "\$ID" ]] || wit_usage_error "\$USAGE"
 shift
 LEASE_COMMENT_ID=""
-while [[ \$# -gt 0 ]]; do
-  case "\$1" in
-  --lease-comment-id)
-    [[ \$# -ge 2 ]] || wit_usage_error "--lease-comment-id needs a value"
-    LEASE_COMMENT_ID="\$2"
-    shift 2
-    ;;
-  *) wit_usage_error "unexpected argument: \$1" ;;
-  esac
-done
+EOF
+    opt_loop lease-comment-id=LEASE_COMMENT_ID
+    cat <<EOF
 wit_require_${PROVIDER_FUNC}_id "\$ID" || wit_usage_error "not a @@PROVIDER@@ item id: \$ID"
 [[ "\$LEASE_COMMENT_ID" =~ ^[0-9]+\$ ]] || wit_usage_error "--lease-comment-id is required and must be numeric"
 EOF
@@ -606,16 +604,9 @@ ID="\${1:-}"
 [[ -n "\$ID" ]] || wit_usage_error "\$USAGE"
 shift
 BLOCKED_BY=""
-while [[ \$# -gt 0 ]]; do
-  case "\$1" in
-  --blocked-by)
-    [[ \$# -ge 2 ]] || wit_usage_error "--blocked-by needs a value"
-    BLOCKED_BY="\$2"
-    shift 2
-    ;;
-  *) wit_usage_error "unexpected argument: \$1" ;;
-  esac
-done
+EOF
+    opt_loop blocked-by=BLOCKED_BY
+    cat <<EOF
 wit_require_${PROVIDER_FUNC}_id "\$ID" || wit_usage_error "not a @@PROVIDER@@ item id: \$ID"
 [[ -n "\$BLOCKED_BY" ]] || wit_usage_error "--blocked-by is required"
 wit_require_${PROVIDER_FUNC}_id "\$BLOCKED_BY" || wit_usage_error "not a @@PROVIDER@@ item id: \$BLOCKED_BY"
@@ -627,16 +618,9 @@ ID="\${1:-}"
 [[ -n "\$ID" ]] || wit_usage_error "\$USAGE"
 shift
 PARENT=""
-while [[ \$# -gt 0 ]]; do
-  case "\$1" in
-  --parent)
-    [[ \$# -ge 2 ]] || wit_usage_error "--parent needs a value"
-    PARENT="\$2"
-    shift 2
-    ;;
-  *) wit_usage_error "unexpected argument: \$1" ;;
-  esac
-done
+EOF
+    opt_loop parent=PARENT
+    cat <<EOF
 wit_require_${PROVIDER_FUNC}_id "\$ID" || wit_usage_error "not a @@PROVIDER@@ item id: \$ID"
 [[ -n "\$PARENT" ]] || wit_usage_error "--parent is required"
 wit_require_${PROVIDER_FUNC}_id "\$PARENT" || wit_usage_error "not a @@PROVIDER@@ item id: \$PARENT"
@@ -651,46 +635,10 @@ TYPE=""
 PARENT=""
 BLOCKED_BY=""
 REPO=""
-while [[ \$# -gt 0 ]]; do
-  case "\$1" in
-  --title)
-    [[ \$# -ge 2 ]] || wit_usage_error "--title needs a value"
-    TITLE="\$2"
-    shift 2
-    ;;
-  --body)
-    [[ \$# -ge 2 ]] || wit_usage_error "--body needs a value"
-    BODY="\$2"
-    shift 2
-    ;;
-  --labels)
-    [[ \$# -ge 2 ]] || wit_usage_error "--labels needs a value"
-    LABELS="\$2"
-    shift 2
-    ;;
-  --type)
-    [[ \$# -ge 2 ]] || wit_usage_error "--type needs a value"
-    TYPE="\$2"
-    shift 2
-    ;;
-  --parent)
-    [[ \$# -ge 2 ]] || wit_usage_error "--parent needs a value"
-    PARENT="\$2"
-    shift 2
-    ;;
-  --blocked-by)
-    [[ \$# -ge 2 ]] || wit_usage_error "--blocked-by needs a value"
-    BLOCKED_BY="\$2"
-    shift 2
-    ;;
-  --repo)
-    [[ \$# -ge 2 ]] || wit_usage_error "--repo needs a value"
-    REPO="\$2"
-    shift 2
-    ;;
-  *) wit_usage_error "unexpected argument: \$1" ;;
-  esac
-done
+EOF
+    opt_loop title=TITLE body=BODY labels=LABELS type=TYPE parent=PARENT \
+      blocked-by=BLOCKED_BY repo=REPO
+    cat <<EOF
 [[ -n "\$TITLE" ]] || wit_usage_error "--title is required"
 [[ -z "\$PARENT" ]] || wit_require_${PROVIDER_FUNC}_id "\$PARENT" || wit_usage_error "not a @@PROVIDER@@ item id: \$PARENT"
 EOF
@@ -699,21 +647,9 @@ EOF
     cat <<EOF
 STATE="open"
 REPO=""
-while [[ \$# -gt 0 ]]; do
-  case "\$1" in
-  --state)
-    [[ \$# -ge 2 ]] || wit_usage_error "--state needs a value"
-    STATE="\$2"
-    shift 2
-    ;;
-  --repo)
-    [[ \$# -ge 2 ]] || wit_usage_error "--repo needs a value"
-    REPO="\$2"
-    shift 2
-    ;;
-  *) wit_usage_error "unexpected argument: \$1" ;;
-  esac
-done
+EOF
+    opt_loop state=STATE repo=REPO
+    cat <<EOF
 case "\$STATE" in
 open | closed | all) ;;
 *) wit_usage_error "--state must be one of: open, closed, all" ;;
@@ -726,16 +662,9 @@ PARENT_ID="\${1:-}"
 [[ -n "\$PARENT_ID" ]] || wit_usage_error "\$USAGE"
 shift
 STATE="all"
-while [[ \$# -gt 0 ]]; do
-  case "\$1" in
-  --state)
-    [[ \$# -ge 2 ]] || wit_usage_error "--state needs a value"
-    STATE="\$2"
-    shift 2
-    ;;
-  *) wit_usage_error "unexpected argument: \$1" ;;
-  esac
-done
+EOF
+    opt_loop state=STATE
+    cat <<EOF
 wit_require_${PROVIDER_FUNC}_id "\$PARENT_ID" || wit_usage_error "not a @@PROVIDER@@ item id: \$PARENT_ID"
 case "\$STATE" in
 open | closed | all) ;;
@@ -794,7 +723,7 @@ quote_safe() {
 # still reached.
 readonly RENDER_KEYS=(
   SHEBANG
-  PROVIDER_UPPER PROVIDER_FUNC DISPLAY_NAME CONFIG_KEY SCHEMA_VERSION
+  PROVIDER_UPPER PROVIDER_FUNC DISPLAY_NAME CONFIG_KEY
   HOST_SUFFIX_DOC HOST_PIN_POSTURE HOST_SUFFIX BASE_PATH SCOPE_PATTERN
   SAMPLE_AUTH_EXTRA_DOC SAMPLE_AUTH_EXTRA SAMPLE_SCOPE SAMPLE_HOST SAMPLE_ENV
   SAMPLE_ID_NUMBER SAMPLE_ID

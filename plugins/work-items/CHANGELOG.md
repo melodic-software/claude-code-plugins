@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.19]
+
+### Changed
+
+- The onboard-adapter generator emits its per-verb option-parsing arms through one helper instead of seven near-identical heredocs, drops a render key no template references, and tidies its templates and test suite, with byte-identical generated adapters.
+
 ## [0.40.18]
 
 ### Changed

@@ -83,6 +83,15 @@ gen_err() {
 # with <jq-filter> — BASE_SPEC transformed.
 with() { jq -c "$1" <<<"$BASE_SPEC"; }
 
+# assert_file <label> <path> scores one case per file the generator must have written.
+assert_file() {
+  if [[ -f "$2" ]]; then
+    pass "$1"
+  else
+    fail "$1" "present" "missing"
+  fi
+}
+
 # --- argument handling ---
 
 bash "$S" --help >/dev/null 2>&1
@@ -120,15 +129,11 @@ B="$HAPPY_ROOT/tools/work-item-tracker/conformance/bindings"
 
 for f in capabilities.json capabilities.sh capabilities.test.sh common.sh common.test.sh README.md \
   create-item.sh get-item.sh list-items.sh; do
-  if [[ -f "$A/$f" ]]; then pass "generated $f"; else fail "generated $f" "present" "missing"; fi
+  assert_file "generated $f" "$A/$f"
 done
 # #2950 requires the conformance binding be generated alongside the adapter — without
 # it the generated adapter cannot be conformance-verified at all.
-if [[ -f "$B/acmetracker.sh" ]]; then
-  pass "generated the conformance binding"
-else
-  fail "generated the conformance binding" "present" "missing"
-fi
+assert_file "generated the conformance binding" "$B/acmetracker.sh"
 
 # Declared-false verbs get NO script: the core capability gate answers them with
 # exit 6 before any script would run, and shipping an inert file invites someone to
@@ -482,7 +487,7 @@ FULL_B="$FULL_ROOT/tools/work-item-tracker/conformance/bindings/acmetracker.sh"
 
 # Every verb of the adapter surface is emitted when all are declared.
 for v in create-item get-item claim renew-lease reclaim link-blocks add-sub-item list-items list-sub-items; do
-  if [[ -f "$FULL_A/$v.sh" ]]; then pass "full surface emits $v.sh"; else fail "full surface emits $v.sh" "present" "missing"; fi
+  assert_file "full surface emits $v.sh" "$FULL_A/$v.sh"
 done
 
 SC_RC="$SCRIPT_DIR/../../../../../.shellcheckrc"
