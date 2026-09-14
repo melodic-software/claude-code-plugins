@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.33.7]
+
+### Changed
+
+- lib: ps-command.sh's blank and opaque quoted-span walkers share one walker with a mode argument, pre-commit-content-invariants.sh's secret allowlist delegates to the path allowlist and names the chained hook once, and verify-cli-flag.sh captures --help through one timeout-prefix array instead of two branches. No behavior change.
+
 ## [0.33.6]
 
 ### Changed
