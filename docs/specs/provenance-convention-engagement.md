@@ -65,6 +65,12 @@ is recorded in the build plan's Phase 7 as scheduled, not drifted.
   findings over pointers this plugin wrote route to the demotion path
   (`reference/dispositions.md`: pointer demotes to stamped record or archived-snapshot
   citation). Recorded here because it is consuming-repo wiring, not plugin machinery.
+  Dated note, 2026-09-14: this repository's own weekly online link-check lane
+  (`.github/workflows/link-check.yml`) was removed in #4166 under the
+  no-auto-issue-filing owner decision, since its only output was a tracking
+  issue. The dead-pointer trigger this wiring fed is dormant here until a
+  non-issue-filing replacement lane is wired; other consuming repos are
+  unaffected.
 - **Adopters table.** If the sweep leaves this repository conforming (no unstamped carriers in
   scope), the fleet's open-carriers issue (#2297) gets its closure evidence; rows are added
   only for surfaces that actually conform, per the table's own admission rule.
