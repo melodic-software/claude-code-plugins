@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.20]
+
+### Changed
+
+- The work preflight script accepts a verified main worktree through one helper and drops two mirror variables, the tracker test library reuses its pass helper in the contains assertions, and two suites fold a chained exclusion and drop needless subshells, with byte-identical output.
+
 ## [0.40.19]
 
 ### Changed

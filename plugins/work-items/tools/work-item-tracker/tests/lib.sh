@@ -63,11 +63,11 @@ assert_eq() {
 
 # assert_contains <label> <haystack> <needle> — substring match.
 assert_contains() {
-  CASE_NUM=$((CASE_NUM + 1))
   local label="$1" haystack="$2" needle="$3"
   if [[ "$haystack" == *"$needle"* ]]; then
-    printf 'PASS: [%d] %s\n' "$CASE_NUM" "$label"
+    pass "$label"
   else
+    CASE_NUM=$((CASE_NUM + 1))
     printf 'FAIL: [%d] %s — expected %q in: %s\n' \
       "$CASE_NUM" "$label" "$needle" "$haystack" >&2
     FAILED=$((FAILED + 1))
@@ -76,11 +76,11 @@ assert_contains() {
 
 # assert_not_contains <label> <haystack> <needle> — substring absence.
 assert_not_contains() {
-  CASE_NUM=$((CASE_NUM + 1))
   local label="$1" haystack="$2" needle="$3"
   if [[ "$haystack" != *"$needle"* ]]; then
-    printf 'PASS: [%d] %s\n' "$CASE_NUM" "$label"
+    pass "$label"
   else
+    CASE_NUM=$((CASE_NUM + 1))
     printf 'FAIL: [%d] %s — forbidden %q present in: %s\n' \
       "$CASE_NUM" "$label" "$needle" "$haystack" >&2
     FAILED=$((FAILED + 1))
