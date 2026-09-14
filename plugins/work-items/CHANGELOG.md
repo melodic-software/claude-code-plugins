@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.22]
+
+### Changed
+
+- The tracker test library gains assert_succeeds, assert_fails and a shared blocking-network shim writer, and fifteen suites plus the common test template collapse their if-then-fail-else-pass blocks onto them; generate-adapter.test.sh hoists its duplicated generation prologue. Every suite's output and exit code are byte-identical, and the templates still render with the same divergence set as before.
+
 ## [0.40.21]
 
 ### Changed

@@ -28,13 +28,11 @@ assert_eq "marker with no close → empty" "" \
   "$(wit_lease_json '<!-- work-item-lease v1 {"holder":"me"}')"
 
 assert_live() {
-  local label="$1"
-  if wit_lease_is_live "$2" "$3"; then pass "$label"; else fail "$label" "live" "not live"; fi
+  assert_succeeds "$1" "live" "not live" wit_lease_is_live "$2" "$3"
 }
 
 assert_not_live() {
-  local label="$1"
-  if wit_lease_is_live "$2" "$3"; then fail "$label" "not live" "live"; else pass "$label"; fi
+  assert_fails "$1" "not live" "live" wit_lease_is_live "$2" "$3"
 }
 
 # Lease liveness with DETERMINISTIC timestamps (no now-boundary flake — see #1424):

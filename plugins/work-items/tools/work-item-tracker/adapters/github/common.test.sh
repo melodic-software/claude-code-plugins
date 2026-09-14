@@ -12,11 +12,7 @@ source "$SCRIPT_DIR/common.sh"
 for fn in gh_write wit_run_gh wit_resolve_repo wit_emit_item wit_lease_json \
   wit_lease_is_live wit_list_lease_comments wit_help_if_requested wit_map_gh_error \
   wit_gh_issue_view_json_fields; do
-  if declare -F "$fn" >/dev/null; then
-    pass "common.sh exposes $fn"
-  else
-    fail "common.sh exposes $fn" "declared" "missing"
-  fi
+  assert_succeeds "common.sh exposes $fn" "declared" "missing" declare -F "$fn"
 done
 
 assert_eq "lease marker constant" "<!-- work-item-lease v1 " "$WIT_LEASE_MARKER"

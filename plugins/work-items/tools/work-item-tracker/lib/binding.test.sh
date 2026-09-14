@@ -93,11 +93,7 @@ fi
 assert_rejected() {
   local label="$1" content="$2"
   write_binding "$BINDING" "$content"
-  if wit_read_binding "$BINDING"; then
-    fail "$label" "failure" "success"
-  else
-    pass "$label"
-  fi
+  assert_fails "$label" "failure" "success" wit_read_binding "$BINDING"
 }
 
 assert_rejected "non-JSON rejected" 'not json'
@@ -184,11 +180,7 @@ OVERLAY="$OROOT/.work-item-tracker.local.json"
 assert_overlay_accepted() {
   local label="$1" content="$2"
   write_binding "$OVERLAY" "$content"
-  if wit_read_binding "$OBINDING"; then
-    pass "$label"
-  else
-    fail "$label" "success" "failure"
-  fi
+  assert_succeeds "$label" "success" "failure" wit_read_binding "$OBINDING"
 }
 
 assert_overlay_rejected() {
