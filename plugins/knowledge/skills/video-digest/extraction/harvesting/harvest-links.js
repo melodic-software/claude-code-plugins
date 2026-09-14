@@ -71,9 +71,8 @@ export function summarizeHeatmap(heatmap) {
     return { present: false, peakCount: 0 };
   }
 
-  const record = /** @type {Record<string, unknown>} */ (heatmap);
-  const values = Array.isArray(record.values) ? record.values : [];
-  return { present: true, peakCount: values.length };
+  const values = /** @type {Record<string, unknown>} */ (heatmap).values;
+  return { present: true, peakCount: Array.isArray(values) ? values.length : 0 };
 }
 
 /**

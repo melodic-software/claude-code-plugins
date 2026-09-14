@@ -46,15 +46,11 @@ export async function runHarvestCli(argv) {
     return 1;
   }
 
-  const raw = await fs.readFile(infoPath, "utf8");
-  const rawInfo = JSON.parse(raw);
+  const rawInfo = JSON.parse(await fs.readFile(infoPath, "utf8"));
   const metadata = parseVideoMetadata(rawInfo);
 
   const sourceUrl =
-    urlFlag ??
-    (rawInfo && typeof rawInfo === "object" && typeof rawInfo.webpage_url === "string"
-      ? rawInfo.webpage_url
-      : null);
+    urlFlag ?? (rawInfo && typeof rawInfo.webpage_url === "string" ? rawInfo.webpage_url : null);
   if (!sourceUrl) {
     writeStderr(
       `Cannot resolve the source adapter: the info JSON has no webpage_url — pass --url <source-url>. Supported sources: ${supportedHosts().join(", ")}`,

@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.13.63]
+
+### Changed
+
+- Inline the single-use file reads, drop the redundant object check on the parsed info and share the fetch stub in video-digest harvesting (behavior unchanged).
+
 ## [0.13.62]
 
 ### Changed
