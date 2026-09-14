@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [0.22.3]
+
+### Changed
+
+- Drop the duplicate SKILL.md hub pass in audit-progressive-disclosure and the redundant empty-hits early exit in audit-encapsulation (behavior unchanged).
+
 ## [0.22.2]
 
 ### Changed
