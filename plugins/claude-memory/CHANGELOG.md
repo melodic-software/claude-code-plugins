@@ -3,6 +3,12 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.8]
+
+### Changed
+
+- The ten claude-memory shell suites source one scripts/test-helpers.sh for their counters, asserts, fixture repo and report tail instead of ten inline copies; three suites keep their local assert_contains detail wording. Output and exit codes are byte-identical.
+
 ## [0.12.7]
 
 ### Changed
