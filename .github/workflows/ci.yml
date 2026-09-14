@@ -365,6 +365,8 @@ jobs:
       # harness, which the composite cannot see is load-bearing outside the
       # list, or this workflow, which pins the composite and so the ShellCheck
       # version. Deletions stay in the diff so removing a library still counts.
+      # A path git prints quoted (non-ASCII, tab, newline) or that holds a space
+      # cannot survive the whitespace-separated list, so it full-scans too.
       # This branches in the shell rather than in `if:` because a step cannot
       # carry both a resolver gate and an event gate.
       #
@@ -383,7 +385,7 @@ jobs:
           if [ -n "$BASE_REF" ]; then
             files=$(git diff --name-only "origin/$BASE_REF...HEAD")
             if printf '%s\n' "$files" |
-              grep -qE '^\.shellcheckrc$|(^|/)lib/|-(harness|helpers)\.sh$|^\.github/workflows/ci\.yml$'; then
+              grep -qE '^\.shellcheckrc$|(^|/)lib/|-(harness|helpers)\.sh$|^\.github/workflows/ci\.yml$|^"| '; then
               files=''
             fi
           fi
