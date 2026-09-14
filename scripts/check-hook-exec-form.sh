@@ -68,6 +68,8 @@
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 2
+# shellcheck source=lib/manifest-path-guard.sh
+. scripts/lib/manifest-path-guard.sh || exit 2
 
 if ! command -v jq >/dev/null 2>&1; then
   echo "check-hook-exec-form: jq is required but not installed" >&2
@@ -313,19 +315,12 @@ _consume_manifest_rows() {
   done <<<"$rows"
 }
 
-# Trust boundary, same rule the sibling gate applies: a manifest-pointed hook
-# config must stay inside its own plugin directory. Reject absolute paths and
-# any `..` segment (portable string check — no realpath dependency) with a
-# visible skip, so a crafted manifest cannot point this gate at files outside
-# the tree it claims to scan.
+# Trust boundary, the same rule the sibling gate applies: scripts/lib/manifest-
+# path-guard.sh holds it, and hands back an empty path for a value that leaves
+# the plugin directory.
 _queue_manifest_path() {
   local plugin="$1" manifest="$2" rel="$3" path
-  [[ -n "$rel" ]] || return 0
-  if [[ "$rel" == /* || "$rel" =~ ^[A-Za-z]: || "/$rel/" == *"/../"* ]]; then
-    echo "check-hook-exec-form: skipping out-of-tree hooks path in $manifest: $rel" >&2
-    return 0
-  fi
-  path="$plugin/${rel#./}"
+  manifest_path_guard::resolve_to path check-hook-exec-form "$manifest" "$plugin" "$rel"
   [[ -f "$path" ]] || return 0
   MANIFEST_EXTRA+=("$path")
 }
