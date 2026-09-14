@@ -3,6 +3,12 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.56.6]
+
+### Changed
+
+- hooks: hook-telemetry-sink.sh drops an unreachable exit-code default (mirrored into the repo-local sink), claude-ops-paths.sh and session-event-log.sh drop array re-initializations already made at declaration, and the emitter, failure-audit, event-log and retention suites use the shared sink wait, brace ranges and a single printf per fixture file. No behavior change.
+
 ## [0.56.5]
 
 ### Changed

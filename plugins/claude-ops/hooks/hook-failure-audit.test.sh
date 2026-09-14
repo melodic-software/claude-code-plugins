@@ -279,7 +279,7 @@ DATA3="$TEST_TMPDIR/data3"
 {
   failure_record "PreToolUse:OutOfWindow" "cmd-a"
   # Pad well past the small test cap so the record above falls outside it.
-  for _ in $(seq 1 200); do
+  for _ in {1..200}; do
     printf '{"type":"assistant","message":{"content":[{"type":"text","text":"%s"}]},"uuid":"pad","session_id":"s"}\n' \
       "pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad"
   done
