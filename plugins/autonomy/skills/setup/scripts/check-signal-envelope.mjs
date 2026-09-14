@@ -35,6 +35,7 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import process from "node:process";
+import { isNormalizedCanonicalUrl, parseUrl } from "./canonical-url.mjs";
 
 const MARKER = "<!-- autonomy:signal:v1 -->";
 // Each supported minor version is added here together with its validation
@@ -63,15 +64,6 @@ const REQUIRED_KEYS = [
 const TRACEPARENT = /^00-(?!0{32})[0-9a-f]{32}-(?!0{16})[0-9a-f]{16}-0[01]$/;
 
 const findings = [];
-
-function parseUrl(value) {
-  if (typeof value !== "string" || /\s/.test(value) || value.length === 0) return null;
-  try {
-    return new URL(value);
-  } catch {
-    return null;
-  }
-}
 
 // Absolute https URL with a host; query and fragment PRESERVED (permalinks and
 // comment anchors need them — the telemetry strip rule is the join key's, not
@@ -165,23 +157,6 @@ function gateSecurityBinding(securityBinding) {
     }
   }
   return violations;
-}
-
-// The normalized canonical item URL per the telemetry contract's strip rule:
-// https, non-empty host, no query/fragment/trailing slash, parser round-trip.
-function isNormalizedCanonicalUrl(value) {
-  const url = parseUrl(value);
-  return (
-    url !== null &&
-    url.protocol === "https:" &&
-    url.hostname.length > 0 &&
-    url.search === "" &&
-    url.hash === "" &&
-    url.href === value &&
-    !value.includes("?") &&
-    !value.includes("#") &&
-    !value.endsWith("/")
-  );
 }
 
 function extractEnvelope(body, where) {
