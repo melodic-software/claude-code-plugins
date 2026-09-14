@@ -53,13 +53,6 @@ function Test-EgressHostAllowed {
     return $false
 }
 
-function Get-EgressAllowlist {
-    [CmdletBinding()]
-    [OutputType([object[]])]
-    param()
-    return , ([string[]]@($script:EgressAllowlist))
-}
-
 function Invoke-AllowlistedWeb {
     [CmdletBinding()]
     [OutputType([Microsoft.PowerShell.Commands.BasicHtmlWebResponseObject])]

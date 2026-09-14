@@ -20,9 +20,7 @@ Pins three behaviors of the service-restart remediation:
 #>
 
 BeforeAll {
-    $script:TestsRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $script:SkillRoot = Split-Path -Parent $script:TestsRoot
-    $script:ScriptPath = Join-Path $script:SkillRoot 'scripts\windows\remediations\Restart-StoppedService.ps1'
+    . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -Remediation 'Restart-StoppedService'
 
     # Get-Service/Start-Service are Windows-only cmdlets, absent in Linux
     # pwsh, and Pester cannot mock a nonexistent command. Define stubs so
@@ -60,9 +58,7 @@ BeforeAll {
         } else {
             & $script:ScriptPath -Finding $Finding
         }
-        $json = ($raw | Where-Object { $_ }) -join "`n"
-        if (-not $json) { return @() }
-        return $json | ConvertFrom-Json
+        return ConvertFrom-CheckOutput $raw
     }
 }
 

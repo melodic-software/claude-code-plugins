@@ -12,10 +12,7 @@ throwing. JSONL is append-only so read-side robustness is the correctness bar.
 #>
 
 BeforeAll {
-    $script:TestsRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $script:LibRoot = Join-Path (Split-Path -Parent $script:TestsRoot) 'scripts\windows\lib'
-    . (Join-Path $script:LibRoot 'Read-HistoryJsonl.ps1')
-    Import-Module (Join-Path $script:TestsRoot 'helpers\Mock-Helpers.psm1') -Force
+    . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'Read-HistoryJsonl.ps1' -MockHelpers
 }
 
 Describe 'Read-HistoryJsonl' -Tag 'lib' {

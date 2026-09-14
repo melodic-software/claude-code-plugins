@@ -13,10 +13,7 @@ directories and Pester mocks.
 #>
 
 BeforeAll {
-    $script:TestsRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $script:LibRoot = Join-Path (Split-Path -Parent $script:TestsRoot) 'scripts\windows\lib'
-    . (Join-Path $script:LibRoot 'Get-CisaKevCache.ps1')
-    Import-Module (Join-Path $script:TestsRoot 'helpers\Mock-Helpers.psm1') -Force
+    . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'Get-CisaKevCache.ps1' -MockHelpers
 
     # The one-vulnerability KEV document the fetch mock and every cache seed share.
     function ConvertTo-KevCacheJson {

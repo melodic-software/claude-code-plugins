@@ -3,6 +3,12 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.25]
+
+### Changed
+
+- The fifty Windows Pester suites derive their roots, dot-source the helpers and build their as-object wrapper through one Initialize-CheckSuite preamble; the unused Get-EgressAllowlist and Get-ElevationMatrixByCheckId functions and their three tests are removed. The remaining 445 results match the previous run exactly.
+
 ## [0.12.24]
 
 ### Changed

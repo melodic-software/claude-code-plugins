@@ -20,10 +20,7 @@ Pins three safety behaviors of the temp-file remediation:
 #>
 
 BeforeAll {
-    $script:TestsRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $script:SkillRoot = Split-Path -Parent $script:TestsRoot
-    $script:ScriptPath = Join-Path $script:SkillRoot 'scripts\windows\remediations\Clear-TempFiles.ps1'
-    . (Join-Path $script:TestsRoot 'helpers\Invoke-CheckScript.ps1')
+    . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -Remediation 'Clear-TempFiles'
 
     function New-MockTempFile {
         param(

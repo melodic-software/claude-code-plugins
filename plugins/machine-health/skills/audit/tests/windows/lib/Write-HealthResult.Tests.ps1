@@ -13,9 +13,7 @@ enforcement at emit time, human-readable fallback).
 #>
 
 BeforeAll {
-    $script:TestsRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $script:LibRoot = Join-Path (Split-Path -Parent $script:TestsRoot) 'scripts\windows\lib'
-    . (Join-Path $script:LibRoot 'Write-HealthResult.ps1')
+    . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'Write-HealthResult.ps1'
 }
 
 Describe 'New-HealthResult' -Tag 'lib' {

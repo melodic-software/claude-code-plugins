@@ -10,12 +10,8 @@ check-specific tests exist. If these fail, nothing else can run.
 #>
 
 BeforeAll {
-    $script:TestsRoot = Split-Path -Parent $PSScriptRoot
-    $script:SkillRoot = Split-Path -Parent $script:TestsRoot
-    $script:LibRoot = Join-Path $script:SkillRoot 'scripts\windows\lib'
-    . (Join-Path $script:LibRoot 'Assert-CheckResult.ps1')
+    . "$PSScriptRoot\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'Assert-CheckResult.ps1' -MockHelpers
     . (Join-Path $script:TestsRoot 'helpers\Invoke-FixtureRedaction.ps1')
-    Import-Module (Join-Path $script:TestsRoot 'helpers\Mock-Helpers.psm1') -Force
 
     # USERNAME/COMPUTERNAME are usually unset on non-Windows hosts. The
     # redaction tests build their payloads from these variables and the

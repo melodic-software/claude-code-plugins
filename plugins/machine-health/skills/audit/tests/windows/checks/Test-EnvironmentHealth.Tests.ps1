@@ -13,14 +13,9 @@ and the host PATH cannot leak into the result.
 #>
 
 BeforeAll {
-    $script:TestsRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $script:SkillRoot = Split-Path -Parent $script:TestsRoot
-    $script:ScriptPath = Join-Path $script:SkillRoot 'scripts\windows\checks\Test-EnvironmentHealth.ps1'
-    $script:LibRoot = Join-Path $script:SkillRoot 'scripts\windows\lib'
+    . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -Check 'Test-EnvironmentHealth' `
+        -AsObject 'Invoke-EnvironmentHealthAsObject' -MockHelpers
     $script:FixtureRoot = Join-Path $script:TestsRoot 'fixtures\windows\Environment'
-    . (Join-Path $script:LibRoot 'Assert-CheckResult.ps1')
-    Import-Module (Join-Path $script:TestsRoot 'helpers\Mock-Helpers.psm1') -Force
-    . (Join-Path $script:TestsRoot 'helpers\Invoke-CheckScript.ps1')
 
     function Expand-FixtureToken {
         param([string] $Value, [hashtable] $TokenMap)
@@ -108,10 +103,8 @@ BeforeAll {
         )
     }
 
-    function Invoke-EnvironmentHealthAsObject { Invoke-CheckScriptAsObject $script:ScriptPath }
-
     function Invoke-EnvironmentHealthRaw {
-        return ((& $script:ScriptPath) | Where-Object { $_ }) -join "`n"
+        return Join-CheckOutput (& $script:ScriptPath)
     }
 }
 

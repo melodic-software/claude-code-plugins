@@ -73,12 +73,3 @@ function Get-ElevationMatrix {
         }
     )
 }
-
-function Get-ElevationMatrixByCheckId {
-    [CmdletBinding()]
-    [OutputType([object[]])]
-    param(
-        [Parameter(Mandatory = $true)] [string] $CheckId
-    )
-    return @(Get-ElevationMatrix | Where-Object { $_.CheckId -eq $CheckId })
-}

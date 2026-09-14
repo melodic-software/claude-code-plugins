@@ -6,10 +6,8 @@ Tests for scripts/windows/lib/Write-ElevationBanner.ps1.
 #>
 
 BeforeAll {
-    $script:TestsRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $script:LibRoot = Join-Path (Split-Path -Parent $script:TestsRoot) 'scripts\windows\lib'
-    . (Join-Path $script:LibRoot 'Write-ElevationBanner.ps1')
-    . (Join-Path $script:LibRoot 'Get-ElevationMatrix.ps1')
+    . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" `
+        -LibScript 'Write-ElevationBanner.ps1', 'Get-ElevationMatrix.ps1'
 
     # Write-ElevationBanner writes via [Console]::Error.WriteLine, which
     # bypasses PowerShell's error stream, so `2>&1` captures nothing.

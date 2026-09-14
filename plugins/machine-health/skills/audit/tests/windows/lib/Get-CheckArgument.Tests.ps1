@@ -7,9 +7,7 @@ splat the orchestrator injects when dispatching a check.
 #>
 
 BeforeAll {
-    $script:TestsRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $script:LibRoot = Join-Path (Split-Path -Parent $script:TestsRoot) 'scripts\windows\lib'
-    . (Join-Path $script:LibRoot 'Get-CheckArgument.ps1')
+    . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'Get-CheckArgument.ps1'
 }
 
 Describe 'Get-CheckArgument' -Tag 'lib' {

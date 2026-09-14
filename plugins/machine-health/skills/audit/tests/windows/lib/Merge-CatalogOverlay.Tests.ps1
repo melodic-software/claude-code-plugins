@@ -6,10 +6,7 @@ Unit tests for Merge-CatalogOverlay (machine-local catalog overlay merge).
 #>
 
 BeforeAll {
-    $script:TestsRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $script:SkillRoot = Split-Path -Parent $script:TestsRoot
-    $script:LibRoot = Join-Path $script:SkillRoot 'scripts\windows\lib'
-    . (Join-Path $script:LibRoot 'Merge-CatalogOverlay.ps1')
+    . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'Merge-CatalogOverlay.ps1'
 
     function New-BaseEntry {
         return [pscustomobject]@{
