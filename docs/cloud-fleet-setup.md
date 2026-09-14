@@ -12,9 +12,9 @@ Basis and freshness: the toolchain inventory below was re-verified on 2026-09-14
 repos/melodic-software/<repo>/contents/<path>`), together with `DOTNET_FALLBACK_VERSIONS` and
 `NODE_FALLBACK_VERSION` in standards `components/cloud-environment/setup.sh` at its default
 branch; the platform claims in that section (the VM's stock Node and Go, `uv`, the absence of
-`pwsh`) were not re-checked and still rest on the 2026-08-13 pass over shallow clones. Bootstrap
-adoption was re-verified on 2026-08-16 by
-reading each repo's `.claude/` contents and `settings.json` at `origin/main` (`gh api
+`pwsh`) were not part of that pass and keep the basis stated next. Bootstrap adoption was
+re-verified on 2026-08-16 by reading each repo's `.claude/` contents and `settings.json` at
+`origin/main` (`gh api
 repos/melodic-software/<repo>/contents/.claude`); platform claims rest on the rung-1 doc fetches
 recorded in [cloud-sessions.md](cloud-sessions.md); the environment itself was verified live on
 2026-08-14 from a cloud session inside it. Results are in
