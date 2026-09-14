@@ -525,8 +525,6 @@ assert_exit "skip-worktree + assume-unchanged → exit 0" 0 "$RC"
 assert_silent "lowercase s still carries the skip-worktree exemption → silent" "$OUT"
 git -C "$SPARSE" update-index --no-assume-unchanged docs/restored.md >/dev/null 2>&1
 
-git -C "$SPARSE" update-index --skip-worktree docs/restored.md >/dev/null 2>&1
-
 # The index check must not swallow a genuine removal. Same repo, same absence from
 # disk — the only difference is that this one is in no index entry either.
 OUT=$(CLAUDE_PROJECT_DIR="$SPARSE" bash "$HOOK" \

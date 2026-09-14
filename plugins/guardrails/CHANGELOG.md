@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.33.8]
+
+### Changed
+
+- hooks: secret-pattern-detection.sh scans content and refuses NUL bytes through shared helpers at both lanes, stale-path-verify.sh looks up tracked files by basename through one helper, skill-reference-verify.sh reads a SKILL.md name with one sed program, and the run-guards, skill-reference and stale-path suites drop a dead assignment, a duplicated skip-worktree call and one status intermediate. No behavior change.
+
 ## [0.33.7]
 
 ### Changed

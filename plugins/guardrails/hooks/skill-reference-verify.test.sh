@@ -771,8 +771,7 @@ MSYS_NO_PATHCONV=1 jq -n '{name:"gamma",version:"0.1.0",skills:["./custom/extras
   >"$REPO/plugins/gamma/.claude-plugin/plugin.json"
 
 run 'Run `/gamma:declared`.'
-RC=$?
-assert_exit "manifest-declared skill path → exit 0" 0 "$RC"
+assert_exit "manifest-declared skill path → exit 0" 0 "$?"
 assert_silent "skill under a manifest-declared path resolves" "$OUT"
 
 run 'Run `/gamma:solo-command`.'
