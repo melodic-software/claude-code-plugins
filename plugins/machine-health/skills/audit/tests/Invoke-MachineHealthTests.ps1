@@ -53,13 +53,6 @@ function New-DirectoryIfMissing {
     }
 }
 
-# Collapse multi-line text to one line so it survives as a single
-# GitHub Actions annotation (CR/LF would terminate the workflow command).
-function ConvertTo-SingleLine {
-    param([Parameter(Mandatory)] [AllowEmptyString()] [string] $Text)
-    $Text -replace "`r?`n", ' | '
-}
-
 function Get-ErrorRecordMessage {
     param([Parameter(Mandatory)] $ErrorRecord)
     if ($ErrorRecord.Exception) { $ErrorRecord.Exception.Message } else { "$ErrorRecord" }
@@ -67,13 +60,14 @@ function Get-ErrorRecordMessage {
 
 # Emit one workflow-command annotation. Collapsing and escaping live here so no
 # call site can emit a raw message that terminates or injects a workflow command.
+# The message is collapsed to one line first: a CR/LF would end the command.
 function Write-WorkflowError {
     param(
         [Parameter(Mandatory)] [string] $Title,
         [Parameter(Mandatory)] [AllowEmptyString()] [string] $Message
     )
     $safeTitle = ConvertTo-WorkflowCommandProperty $Title
-    $safeMessage = ConvertTo-WorkflowCommandMessage (ConvertTo-SingleLine $Message)
+    $safeMessage = ConvertTo-WorkflowCommandMessage ($Message -replace "`r?`n", ' | ')
     Write-Output("::error title=${safeTitle}::${safeMessage}")
 }
 

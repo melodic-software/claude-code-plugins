@@ -158,7 +158,7 @@ Describe 'Scaffold -- Invoke-FixtureRedaction' {
     It 'replaces username inside string values' {
         $payload = [pscustomobject]@{ Path = "C:\Users\$env:USERNAME\Documents\foo.txt" }
         $out = Invoke-FixtureRedaction -InputObject $payload
-        $out.Path | Should -Not -Match ([regex]::Escape("$env:USERNAME"))
+        $out.Path | Should -Not -Match ([regex]::Escape($env:USERNAME))
         $out.Path | Should -Match '__USERNAME__'
     }
 

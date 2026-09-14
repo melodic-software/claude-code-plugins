@@ -7,11 +7,10 @@ Tests for scripts/windows/remediations/Restart-StoppedService.ps1.
 .DESCRIPTION
 Pins three behaviors of the service-restart remediation:
 
-1. Stdin contract replaced with a -Finding parameter. The previous
-   code used [System.Console]::In.ReadToEnd() which is unreliable
-   under Start-Job isolation and certain PowerShell hosts. The
-   orchestrator now passes findings explicitly as either a JSON
-   string or a PSCustomObject.
+1. Findings arrive through the -Finding parameter, as either a JSON
+   string or a PSCustomObject. Reading them from
+   [System.Console]::In.ReadToEnd() is unreliable under Start-Job
+   isolation and certain PowerShell hosts.
 
 2. Each target gets exactly one Start-Service attempt; already-
    running services are treated as success (idempotent).
@@ -33,6 +32,21 @@ BeforeAll {
     function Get-Service { }
     function Start-Service { }
 
+    # Get-Service mock body reporting the queried service Stopped for its
+    # first $StoppedCalls calls and Running afterwards, so the remediation's
+    # before/after reads straddle the restart. Pester mock bodies execute in
+    # a scope where $script:* from the test file isn't visible under strict
+    # mode, so the call counter rides along in a closure.
+    function Get-StoppedThenRunningMock {
+        param([Parameter(Mandatory)] [int] $StoppedCalls)
+        $state = @{ count = 0; stopped = $StoppedCalls }
+        return {
+            $state.count++
+            $status = if ($state.count -le $state.stopped) { 'Stopped' } else { 'Running' }
+            [pscustomobject]@{ Name = $Name; Status = $status; StartType = 'Automatic' }
+        }.GetNewClosure()
+    }
+
     function Invoke-RestartAsObject {
         param(
             [string]$ServiceName,
@@ -43,10 +57,8 @@ BeforeAll {
             & $script:ScriptPath -ServiceName $ServiceName
         } elseif ($FindingJson) {
             & $script:ScriptPath -Finding $FindingJson
-        } elseif ($Finding) {
-            & $script:ScriptPath -Finding $Finding
         } else {
-            & $script:ScriptPath
+            & $script:ScriptPath -Finding $Finding
         }
         $json = ($raw | Where-Object { $_ }) -join "`n"
         if (-not $json) { return @() }
@@ -61,18 +73,7 @@ Describe 'Restart-StoppedService -- -ServiceName parameter' -Tag 'remediation' {
     }
 
     It 'starts a stopped service and reports success' {
-        # Closure-captured counter: Pester mock bodies execute in a scope where
-        # $script:* from the test file isn't visible under strict mode, so use
-        # a hashtable captured via GetNewClosure() instead.
-        $state = @{ count = 0 }
-        Mock Get-Service ({
-                $state.count++
-                if ($state.count -le 1) {
-                    [pscustomobject]@{ Name = 'Spooler'; Status = 'Stopped'; StartType = 'Automatic' }
-                } else {
-                    [pscustomobject]@{ Name = 'Spooler'; Status = 'Running'; StartType = 'Automatic' }
-                }
-            }.GetNewClosure())
+        Mock Get-Service (Get-StoppedThenRunningMock -StoppedCalls 1)
 
         $attempts = @(Invoke-RestartAsObject -ServiceName 'Spooler')
         @($attempts).Count | Should -Be 1
@@ -117,15 +118,7 @@ Describe 'Restart-StoppedService -- -Finding parameter contract' -Tag 'remediati
     }
 
     It 'accepts a finding as JSON string and targets each stopped service' {
-        $state = @{ count = 0 }
-        Mock Get-Service ({
-                $state.count++
-                if ($state.count -le 2) {
-                    [pscustomobject]@{ Name = $Name; Status = 'Stopped'; StartType = 'Automatic' }
-                } else {
-                    [pscustomobject]@{ Name = $Name; Status = 'Running'; StartType = 'Automatic' }
-                }
-            }.GetNewClosure())
+        Mock Get-Service (Get-StoppedThenRunningMock -StoppedCalls 2)
 
         $finding = @{
             id     = 'services'
@@ -143,15 +136,7 @@ Describe 'Restart-StoppedService -- -Finding parameter contract' -Tag 'remediati
     }
 
     It 'accepts a finding as a PSCustomObject directly' {
-        $state = @{ count = 0 }
-        Mock Get-Service ({
-                $state.count++
-                if ($state.count -le 1) {
-                    [pscustomobject]@{ Name = $Name; Status = 'Stopped'; StartType = 'Automatic' }
-                } else {
-                    [pscustomobject]@{ Name = $Name; Status = 'Running'; StartType = 'Automatic' }
-                }
-            }.GetNewClosure())
+        Mock Get-Service (Get-StoppedThenRunningMock -StoppedCalls 1)
 
         $finding = [pscustomobject]@{
             id     = 'services'

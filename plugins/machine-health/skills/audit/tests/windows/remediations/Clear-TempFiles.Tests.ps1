@@ -7,12 +7,10 @@ Tests for scripts/windows/remediations/Clear-TempFiles.ps1.
 .DESCRIPTION
 Pins three safety behaviors of the temp-file remediation:
 
-1. Reparse-point safety. Get-ChildItem -Recurse follows directory
-   junctions and symlinks by default on PowerShell 5.1. A malicious
-   or misconfigured symlink under %TEMP% could point outside the
-   temp tree (or at critical system paths), and the previous
-   remediation would happily scan through it and delete files there.
-   The fix: skip any file or directory with the ReparsePoint attribute.
+1. Reparse-point safety. A malicious or misconfigured junction or
+   symlink under %TEMP% can point outside the temp tree (or at
+   critical system paths), so any file or directory carrying the
+   ReparsePoint attribute is skipped instead of scanned through.
 
 2. Age filter: only files older than -AgeDays are eligible; newer
    files are preserved regardless of location.
@@ -48,8 +46,7 @@ BeforeAll {
     }
 
     function Invoke-ClearTempFilesAsObject {
-        param([int]$AgeDays = 7)
-        return ConvertFrom-CheckOutput (& $script:ScriptPath -AgeDays $AgeDays)
+        return ConvertFrom-CheckOutput (& $script:ScriptPath -AgeDays 7)
     }
 }
 

@@ -3,6 +3,12 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.21]
+
+### Changed
+
+- Fold the single-line error helper into the workflow error writer, share the stopped-then-running service mock factory, collapse the dead remediation else-arm and drop an unused wrapper parameter in the test runner and remediation suites (behavior unchanged).
+
 ## [0.12.20]
 
 ### Changed
