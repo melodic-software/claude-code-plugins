@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [0.22.4]
+
+### Changed
+
+- Merge the preamble and ticket regexes, hoist the prohibition cues, drop the dead stdout twins and the extra frontmatter tail loop, and share the fixture and runner helpers in audit-noise (behavior unchanged).
+
 ## [0.22.3]
 
 ### Changed
