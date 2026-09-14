@@ -172,10 +172,10 @@ fleet_list="${CLOUD_BOOTSTRAP_FLEET_LIST:-/opt/melodic-fleet-plugins.json}"
 # it as a healthy run. Since standards #562 the snapshot installs the fleet
 # list before this script runs, so an absent list means a broken snapshot and
 # is worth saying out loud. Skipping leaves the rest of the bootstrap (Node,
-# npm ci, CI deps, hygiene binaries) to run, as the CLI guard below does.
-# Each reason for not running the stage says its own name: a missing CLI or jq
-# is a broken VM, an unusable list is a broken snapshot, and diagnosing one as
-# the other sends an operator after the wrong thing.
+# npm ci, CI deps, hygiene binaries) to run, exactly as the missing-CLI branch
+# always has. Each reason for not running the stage says its own name: a
+# missing CLI or jq is a broken VM, an unusable list is a broken snapshot, and
+# diagnosing one as the other sends an operator after the wrong thing.
 plugin_stage=0
 if [[ ! -x "$claude_bin" ]] || ! command -v jq >/dev/null 2>&1; then
   echo "cloud-bootstrap: warning: claude CLI or jq unavailable; plugins will not load" >&2
