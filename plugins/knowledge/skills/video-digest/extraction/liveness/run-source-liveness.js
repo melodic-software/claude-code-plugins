@@ -87,7 +87,8 @@ export function resolveCookiesFile(env = process.env) {
  * @returns {boolean}
  */
 export function isLoginRequiredStderr(stderr) {
-  return LOGIN_REQUIRED_PATTERNS.some((pattern) => pattern.test(stderr ?? ""));
+  const text = stderr ?? "";
+  return LOGIN_REQUIRED_PATTERNS.some((pattern) => pattern.test(text));
 }
 
 /**

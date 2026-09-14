@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.13.61]
+
+### Changed
+
+- Parse http urls through one helper, pass the acquire function directly, hoist the stderr default in the liveness classifier and share the spawn-result stub across the video-digest x adapter and liveness suites (behavior unchanged).
+
 ## [0.13.60]
 
 ### Changed

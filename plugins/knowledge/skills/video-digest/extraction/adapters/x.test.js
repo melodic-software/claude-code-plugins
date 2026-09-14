@@ -83,6 +83,15 @@ const SINGLE_VIDEO_PROBE_PASS = {
 };
 
 /**
+ * The spawn envelope every yt-dlp stub in this file returns.
+ *
+ * @param {{success?: boolean, stdout?: string, stderr?: string}} [result]
+ */
+function spawnResult({ success = true, stdout = "", stderr = "" } = {}) {
+  return { success, code: success ? 0 : 1, signal: null, stdout, stderr, timedOut: false };
+}
+
+/**
  * In-memory acquisition fixture: each spawn call applies the next pass's
  * stderr + files, listFiles/readFile/writeFile/removeFile all resolve against
  * the same map.
@@ -98,15 +107,7 @@ function createFixtureDeps(workDir, passes) {
     for (const [name, content] of Object.entries(pass.addFiles ?? {})) {
       files.set(path.join(workDir, name), content);
     }
-    const success = pass.success !== false;
-    return {
-      success,
-      code: success ? 0 : 1,
-      signal: null,
-      stdout: "",
-      stderr: pass.stderr ?? "",
-      timedOut: false,
-    };
+    return spawnResult({ success: pass.success !== false, stderr: pass.stderr });
   });
   return {
     files,
@@ -352,14 +353,12 @@ describe("x error-pattern taxonomy", () => {
   });
 
   it("cookie fallback gating: a login-required X failure never iterates browser profiles", async () => {
-    const spawn = vi.fn(async () => ({
-      success: false,
-      code: 1,
-      signal: null,
-      stdout: "",
-      stderr: `ERROR: [twitter] ${TWID}: NSFW tweet requires authentication. Use --cookies for the authentication.`,
-      timedOut: false,
-    }));
+    const spawn = vi.fn(async () =>
+      spawnResult({
+        success: false,
+        stderr: `ERROR: [twitter] ${TWID}: NSFW tweet requires authentication. Use --cookies for the authentication.`,
+      }),
+    );
     const result = await spawnYtDlpWithAuthFallback(spawn, () => ["--version"], {
       env: {},
       source: adapterSourceDeclarations(adapter),
@@ -867,14 +866,11 @@ describe("canonicalization reaches every entry path by construction", () => {
   });
 
   it("queue entry: preflight probes the canonical URL and keys the row by status id", async () => {
-    const spawn = vi.fn(async () => ({
-      success: true,
-      code: 0,
-      signal: null,
-      stdout: `${[TWID, "Fixture Post", "Some User", "@someuser"].join(PREFLIGHT_FIELD_SEP)}\n`,
-      stderr: "",
-      timedOut: false,
-    }));
+    const spawn = vi.fn(async () =>
+      spawnResult({
+        stdout: `${[TWID, "Fixture Post", "Some User", "@someuser"].join(PREFLIGHT_FIELD_SEP)}\n`,
+      }),
+    );
     const result = await preflightVideo(RAW_URL, { spawn, env: {} });
 
     expect(result.ok).toBe(true);
@@ -897,14 +893,9 @@ describe("canonicalization reaches every entry path by construction", () => {
   });
 
   it("queue entry: stderr-derived note/reason are markdown-escaped (no table injection)", async () => {
-    const spawn = vi.fn(async () => ({
-      success: false,
-      code: 1,
-      signal: null,
-      stdout: "",
-      stderr: "ERROR: transient thing | with pipes | in it",
-      timedOut: false,
-    }));
+    const spawn = vi.fn(async () =>
+      spawnResult({ success: false, stderr: "ERROR: transient thing | with pipes | in it" }),
+    );
     const result = await preflightVideo(RAW_URL, { spawn, env: {} });
 
     expect(result.ok).toBe(false);

@@ -10,6 +10,15 @@ import {
   runProbe,
 } from "./run-source-liveness.js";
 
+/**
+ * The spawn envelope every yt-dlp stub in this file returns.
+ *
+ * @param {{success?: boolean, stdout?: string, stderr?: string}} [result]
+ */
+function spawnResult({ success = true, stdout = "", stderr = "" } = {}) {
+  return { success, code: success ? 0 : 1, signal: null, stdout, stderr, timedOut: false };
+}
+
 describe("resolveCookiesFile", () => {
   it("prefers VIDEO_DIGEST_ over legacy YOUTUBE_ env", () => {
     expect(
@@ -147,14 +156,12 @@ describe("runProbe live auth skip", () => {
   it("classifies login-required stderr from a live spawn", async () => {
     const { probes } = await loadProbes();
     const authProbe = probes.find((p) => p.id === "x-login-required-shape");
-    const spawn = vi.fn(async () => ({
-      success: false,
-      code: 1,
-      signal: null,
-      stdout: "",
-      stderr: "ERROR: [twitter] 1: NSFW tweet requires authentication. Use --cookies.",
-      timedOut: false,
-    }));
+    const spawn = vi.fn(async () =>
+      spawnResult({
+        success: false,
+        stderr: "ERROR: [twitter] 1: NSFW tweet requires authentication. Use --cookies.",
+      }),
+    );
     const result = await runProbe(authProbe, {
       mode: "live",
       spawn,
@@ -171,20 +178,17 @@ describe("runProbe live shape check", () => {
   it("passes when injected spawn returns matching metadata", async () => {
     const { probes } = await loadProbes();
     const yt = probes.find((p) => p.id === "youtube-canonical");
-    const spawn = vi.fn(async () => ({
-      success: true,
-      code: 0,
-      signal: null,
-      stdout: JSON.stringify({
-        extractor: "youtube",
-        extractor_key: "Youtube",
-        id: "7zZy1QTvokM",
-        display_id: "7zZy1QTvokM",
-        formats: [{ format_id: "18" }],
+    const spawn = vi.fn(async () =>
+      spawnResult({
+        stdout: JSON.stringify({
+          extractor: "youtube",
+          extractor_key: "Youtube",
+          id: "7zZy1QTvokM",
+          display_id: "7zZy1QTvokM",
+          formats: [{ format_id: "18" }],
+        }),
       }),
-      stderr: "",
-      timedOut: false,
-    }));
+    );
     const result = await runProbe(yt, {
       mode: "live",
       spawn,
@@ -198,18 +202,15 @@ describe("runProbe live shape check", () => {
   it("fails when extractor drifts", async () => {
     const { probes } = await loadProbes();
     const yt = probes.find((p) => p.id === "youtube-canonical");
-    const spawn = vi.fn(async () => ({
-      success: true,
-      code: 0,
-      signal: null,
-      stdout: JSON.stringify({
-        extractor_key: "generic",
-        id: "7zZy1QTvokM",
-        formats: [{ format_id: "18" }],
+    const spawn = vi.fn(async () =>
+      spawnResult({
+        stdout: JSON.stringify({
+          extractor_key: "generic",
+          id: "7zZy1QTvokM",
+          formats: [{ format_id: "18" }],
+        }),
       }),
-      stderr: "",
-      timedOut: false,
-    }));
+    );
     const result = await runProbe(yt, {
       mode: "live",
       spawn,
