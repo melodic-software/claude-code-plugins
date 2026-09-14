@@ -3,6 +3,12 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.35]
+
+### Changed
+
+- The slide build pipeline no longer declares date-holidays, which nothing imported; the lockfile is regenerated with npm and the pipeline reference lists the remaining dependencies.
+
 ## [0.7.34]
 
 ### Changed
