@@ -51,7 +51,7 @@ export function registerTagTools(server: McpServer, api: MiroApi): void {
     async ({ board_id, item_id, tag_id }) => {
       const board = await api.getBoard(board_id);
       const item = await board.getItem(item_id);
-      if (!item || !("attachTag" in item) || typeof item.attachTag !== "function") {
+      if (!("attachTag" in item) || typeof item.attachTag !== "function") {
         return errorResponse(
           `Item ${item_id} does not support tags. Only sticky notes, cards, and similar items can have tags attached.`,
         );

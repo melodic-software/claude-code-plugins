@@ -19,10 +19,9 @@
 
 import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 
-const root = dirname(fileURLToPath(import.meta.url));
+const root = import.meta.dirname;
 const outfile = join(root, "dist", "index.min.js");
 const checkOnly = process.argv.includes("--check");
 

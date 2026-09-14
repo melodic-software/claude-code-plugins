@@ -3,6 +3,12 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.5]
+
+### Changed
+
+- Spread the parsed sticky note into the bulk payload, drop the dead item guard in the tag capability check and derive the build root from import.meta.dirname in the server (behavior unchanged; bundle regenerated).
+
 ## [0.4.4]
 
 ### Changed
