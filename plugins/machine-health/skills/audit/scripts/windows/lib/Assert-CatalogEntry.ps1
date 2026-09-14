@@ -80,11 +80,9 @@ function Assert-CatalogEntry {
         throw "CatalogEntry '$($Entry.id)' identical_streak is negative$ctx."
     }
 
-    if ($Entry.deprecated) {
-        if ($null -eq $Entry.PSObject.Properties['deprecation_reason'] -or
-            [string]::IsNullOrWhiteSpace($Entry.deprecation_reason)) {
-            throw "CatalogEntry '$($Entry.id)' is deprecated but has no deprecation_reason$ctx."
-        }
+    if ($Entry.deprecated -and ($null -eq $Entry.PSObject.Properties['deprecation_reason'] -or
+            [string]::IsNullOrWhiteSpace($Entry.deprecation_reason))) {
+        throw "CatalogEntry '$($Entry.id)' is deprecated but has no deprecation_reason$ctx."
     }
 
     if ($Entry.PSObject.Properties['cadence'] -and $Entry.cadence -and

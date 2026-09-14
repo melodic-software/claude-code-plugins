@@ -98,8 +98,7 @@ function Invoke-AllowlistedWeb {
     try {
         return Invoke-WebRequest @webParams
     } catch {
-        $msg = $_.Exception.Message
-        Write-EgressLogLine -LogPath $LogPath -Kind 'FAIL' -Uri $Uri -Message $msg
+        Write-EgressLogLine -LogPath $LogPath -Kind 'FAIL' -Uri $Uri -Message $_.Exception.Message
         throw
     }
 }

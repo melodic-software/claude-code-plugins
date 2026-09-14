@@ -3,6 +3,12 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.18]
+
+### Changed
+
+- audit Windows lib: ConvertTo-TopMetrics.ps1 drops an always-true property-collection guard, Assert-CatalogEntry.ps1 flattens a nested deprecation check, Get-ApprovalState.ps1 inlines a single-use splat, two verbose messages are inlined, and six files correct stale help text and change narration in comments. No behavior change.
+
 ## [0.12.17]
 
 ### Changed
