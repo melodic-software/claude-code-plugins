@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.10]
+
+### Changed
+
+- work-item-tracker lib: frontier.sh builds its floor label array with one jq invocation, lease.sh prints its TTL through printf, binding.sh declares its locals in one place, and the binding, frontier, lease and gh-version suites share their overlay, frontier-id and liveness assertions with one exit trap covering both temp dirs. Same cases, same output.
+
 ## [0.40.9]
 
 ### Changed

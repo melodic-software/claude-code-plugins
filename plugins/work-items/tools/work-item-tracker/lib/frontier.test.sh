@@ -7,6 +7,18 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/frontier.sh"
 source "$SCRIPT_DIR/../tests/lib.sh"
 
+# frontier_ids <wit_filter_frontier args…>: stdin is an envelope, stdout the
+# surviving item ids comma-joined (the shape nearly every case asserts).
+frontier_ids() {
+  wit_filter_frontier "$@" | jq -r '[.items[].id] | join(",")'
+}
+
+# frontier_count <wit_filter_frontier args…>: stdin is an envelope, stdout how
+# many items survived.
+frontier_count() {
+  wit_filter_frontier "$@" | jq '.items | length'
+}
+
 FIXTURE='{
   "schema_version": "1.0",
   "items": [
@@ -18,13 +30,12 @@ FIXTURE='{
   ]
 }'
 
-OUT="$(wit_filter_frontier false <<<"$FIXTURE")"
-IDS="$(jq -r '[.items[].id] | join(",")' <<<"$OUT")"
+IDS="$(frontier_ids false <<<"$FIXTURE")"
 assert_eq "default frontier keeps open+unblocked+unassigned" "github:o/r#1,github:o/r#5" "$IDS"
-assert_eq "schema_version passthrough" "1.0" "$(jq -r '.schema_version' <<<"$OUT")"
+SCHEMA="$(wit_filter_frontier false <<<"$FIXTURE" | jq -r '.schema_version')"
+assert_eq "schema_version passthrough" "1.0" "$SCHEMA"
 
-OUT="$(wit_filter_frontier true <<<"$FIXTURE")"
-IDS="$(jq -r '[.items[].id] | join(",")' <<<"$OUT")"
+IDS="$(frontier_ids true <<<"$FIXTURE")"
 assert_eq "autonomous frontier drops needs-human (default label)" "github:o/r#1" "$IDS"
 
 # A repo that remaps config.role_labels["human-gated"] away from the default
@@ -37,19 +48,18 @@ REMAPPED='{
     {"id":"github:o/r#6","state":"open","assignees":[],"labels":["do-not-auto-pick"],"blocked_by_count":0}
   ]
 }'
-OUT="$(wit_filter_frontier true "do-not-auto-pick" <<<"$REMAPPED")"
-IDS="$(jq -r '[.items[].id] | join(",")' <<<"$OUT")"
+IDS="$(frontier_ids true "do-not-auto-pick" <<<"$REMAPPED")"
 assert_eq "autonomous frontier drops the configured remap, not the stale default" \
   "github:o/r#1,github:o/r#5" "$IDS"
 
 EMPTY='{"schema_version":"1.0","items":[]}'
-OUT="$(wit_filter_frontier false <<<"$EMPTY")"
-assert_eq "empty input yields empty frontier" "0" "$(jq '.items | length' <<<"$OUT")"
+COUNT="$(frontier_count false <<<"$EMPTY")"
+assert_eq "empty input yields empty frontier" "0" "$COUNT"
 
 # Missing optional arrays tolerated (labels/assignees absent).
 SPARSE='{"schema_version":"1.0","items":[{"id":"github:o/r#9","state":"open","blocked_by_count":0}]}'
-OUT="$(wit_filter_frontier true <<<"$SPARSE")"
-assert_eq "sparse item survives filters" "1" "$(jq '.items | length' <<<"$OUT")"
+COUNT="$(frontier_count true <<<"$SPARSE")"
+assert_eq "sparse item survives filters" "1" "$COUNT"
 
 # Container exclusion: a container item (default work-map
 # label) that is itself open/unassigned/unblocked must never surface as its own
@@ -61,11 +71,9 @@ CONTAINERS='{
     {"id":"github:o/r#10","state":"open","assignees":[],"labels":["work-map"],"blocked_by_count":0}
   ]
 }'
-OUT="$(wit_filter_frontier false <<<"$CONTAINERS")"
-IDS="$(jq -r '[.items[].id] | join(",")' <<<"$OUT")"
+IDS="$(frontier_ids false <<<"$CONTAINERS")"
 assert_eq "default frontier excludes the container (work-map)" "github:o/r#1" "$IDS"
-OUT="$(wit_filter_frontier true <<<"$CONTAINERS")"
-IDS="$(jq -r '[.items[].id] | join(",")' <<<"$OUT")"
+IDS="$(frontier_ids true <<<"$CONTAINERS")"
 assert_eq "autonomous frontier also excludes the container" "github:o/r#1" "$IDS"
 
 # A non-default container label passed explicitly is honored (parity with the
@@ -78,8 +86,7 @@ REMAP_CONTAINER='{
     {"id":"github:o/r#11","state":"open","assignees":[],"labels":["decision-map"],"blocked_by_count":0}
   ]
 }'
-OUT="$(wit_filter_frontier false "needs-human" "decision-map" <<<"$REMAP_CONTAINER")"
-IDS="$(jq -r '[.items[].id] | join(",")' <<<"$OUT")"
+IDS="$(frontier_ids false "needs-human" "decision-map" <<<"$REMAP_CONTAINER")"
 assert_eq "explicit container label excludes the remap, not the stale default" \
   "github:o/r#1,github:o/r#10" "$IDS"
 
@@ -98,15 +105,13 @@ WORK_CLASS='{
     {"id":"github:o/r#5","state":"open","assignees":[],"labels":["work-class: mechanical"],"blocked_by_count":0}
   ]
 }'
-OUT="$(wit_filter_frontier true <<<"$WORK_CLASS")"
-IDS="$(jq -r '[.items[].id] | join(",")' <<<"$OUT")"
+IDS="$(frontier_ids true <<<"$WORK_CLASS")"
 assert_eq "autonomous frontier drops C4/C5 even when agent-ready is present" \
   "github:o/r#1,github:o/r#4,github:o/r#5" "$IDS"
 
 # The floor is an AUTONOMOUS-only exclusion: the attended lane must still see
 # these items, otherwise a human-gated item becomes unreachable by every view.
-OUT="$(wit_filter_frontier false <<<"$WORK_CLASS")"
-IDS="$(jq -r '[.items[].id] | join(",")' <<<"$OUT")"
+IDS="$(frontier_ids false <<<"$WORK_CLASS")"
 assert_eq "default frontier still surfaces C4/C5 for the attended lane" \
   "github:o/r#1,github:o/r#2,github:o/r#3,github:o/r#4,github:o/r#5" "$IDS"
 
@@ -115,14 +120,14 @@ assert_eq "default frontier still surfaces C4/C5 for the attended lane" \
 # admission gate owns and no label carries. It must survive this filter.
 SCOPED='{"schema_version":"1.0","items":[
   {"id":"github:o/r#7","state":"open","assignees":[],"labels":["work-class: scoped"],"blocked_by_count":0}]}'
-assert_eq "C3 scoped is not floored by the frontier" "1" \
-  "$(jq '.items | length' <<<"$(wit_filter_frontier true <<<"$SCOPED")")"
+COUNT="$(frontier_count true <<<"$SCOPED")"
+assert_eq "C3 scoped is not floored by the frontier" "1" "$COUNT"
 
 # Exact-match, not substring: a label that merely CONTAINS a floor member's text
 # is a different label and must not be floored.
 NEARMISS='{"schema_version":"1.0","items":[
   {"id":"github:o/r#8","state":"open","assignees":[],"labels":["work-class: structural-lite"],"blocked_by_count":0}]}'
-assert_eq "floor matching is exact, not substring" "1" \
-  "$(jq '.items | length' <<<"$(wit_filter_frontier true <<<"$NEARMISS")")"
+COUNT="$(frontier_count true <<<"$NEARMISS")"
+assert_eq "floor matching is exact, not substring" "1" "$COUNT"
 
 [[ $FAILED -eq 0 ]] || exit 1
