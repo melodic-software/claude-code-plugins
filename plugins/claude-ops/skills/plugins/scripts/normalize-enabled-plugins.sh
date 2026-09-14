@@ -129,11 +129,6 @@ fi
 
 FILE="${FILE:-${FLEET_STATE_USER_SETTINGS:-$HOME/.claude/settings.json}}"
 
-if [[ -z "$FILE" ]]; then
-  echo "normalize-enabled-plugins.sh: no settings file resolved" >&2
-  exit 2
-fi
-
 if [[ ! -f "$FILE" ]]; then
   echo "already-sorted keys=0"
   exit 0

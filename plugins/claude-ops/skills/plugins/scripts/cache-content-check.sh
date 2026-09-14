@@ -411,6 +411,14 @@ marketplaces_bad() {
 
 # --- Per-marketplace check -----------------------------------------------------
 
+# NUL-separated enumeration of every comparable file under the install roots
+# given as arguments. One definition for both flushes of the chunked walk below,
+# so the two can never disagree on what the cache side contains.
+walk_cache_roots() {
+  find "$@" \( -type f -o -type l \) \
+    -not -path '*/.git/*' -not -path '*/.in_use/*' -print0 2>/dev/null
+}
+
 # Emits, on stdout, the single-marketplace JSON body for $1 whose resolved
 # installLocation is $2. Returns non-zero with a message on stderr only for a
 # marketplace that cannot be named at all.
@@ -725,8 +733,7 @@ check_marketplace() {
         chunk_len=0
         for rt in "${roots[@]}"; do
           if [[ ${#chunk[@]} -gt 0 ]] && ((chunk_len + ${#rt} + 1 > 16000)); then
-            find "${chunk[@]}" \( -type f -o -type l \) \
-              -not -path '*/.git/*' -not -path '*/.in_use/*' -print0 2>/dev/null
+            walk_cache_roots "${chunk[@]}"
             chunk=()
             chunk_len=0
           fi
@@ -734,8 +741,7 @@ check_marketplace() {
           chunk_len=$((chunk_len + ${#rt} + 1))
         done
         if [[ ${#chunk[@]} -gt 0 ]]; then
-          find "${chunk[@]}" \( -type f -o -type l \) \
-            -not -path '*/.git/*' -not -path '*/.in_use/*' -print0 2>/dev/null
+          walk_cache_roots "${chunk[@]}"
         fi
       } | sort -z
     )
@@ -1009,7 +1015,6 @@ check_marketplace() {
 
 mp_loc=""
 mp_pairs=""
-envelope=""
 j_name=""
 j_err=""
 

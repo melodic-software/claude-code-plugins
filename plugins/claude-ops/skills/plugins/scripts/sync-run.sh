@@ -341,6 +341,18 @@ json_array_of() {
   jq_to "$__var" -c -s '.' <<<"$(printf '%s\n' "$@")"
 }
 
+# JSON array of STRING literals from the shell array named by $2 onward: the
+# message arrays, whose elements are prose rather than JSON.
+json_strings_of() {
+  local __var="$1"
+  shift
+  if (($# == 0)); then
+    printf -v "$__var" '%s' '[]'
+    return 0
+  fi
+  jq_to "$__var" -c -R -s 'split("\n") | map(select(length > 0))' <<<"$(printf '%s\n' "$@")"
+}
+
 RUN_ERRORS=()
 MP_ERRORS=()
 
@@ -353,7 +365,7 @@ mp_error() { MP_ERRORS+=("$1"); }
 # pair is reported as such rather than assumed forward.
 version_direction() {
   local old="$1" new="$2"
-  local ore ore_ok=0 nre_ok=0
+  local ore_ok=0 nre_ok=0
   local o1 o2 o3 n1 n2 n3
   if [[ "$old" =~ ^v?([0-9]+)\.([0-9]+)\.([0-9]+) ]]; then
     o1=${BASH_REMATCH[1]}
@@ -367,8 +379,7 @@ version_direction() {
     n3=${BASH_REMATCH[3]}
     nre_ok=1
   fi
-  ore="$ore_ok$nre_ok"
-  if [[ "$ore" != "11" ]]; then
+  if [[ "$ore_ok$nre_ok" != "11" ]]; then
     echo "unknown"
     return 0
   fi
@@ -483,7 +494,6 @@ cli_move_result() {
 project_ids() {
   local selector="$1" from="$2" out="$3"
   "$FLEET_STATE" --ids "$selector" --from "$from" >"$out" 2>"$RUN_DIR/.proj-err"
-  return $?
 }
 
 # The digest is read by a model in one turn, so no single field may run away with
@@ -613,20 +623,8 @@ divergence_block() {
 
 # --- per-marketplace accumulators ----------------------------------------------
 # Script-scope rather than `local`, because the step helpers below append to them
-# and a `local` array is invisible to a function the step calls.
-IR_UPDATED=() IR_FAILED=() IR_WOULD=()
-US_UPDATED=() US_FAILED=() US_WOULD=()
-WITHHELD=() DOWNGRADED=() INSTALLED_ROWS=() ENABLED_ROWS=() PROJECT_ROWS=()
-INSTALL_GAP="[]" ENABLE_GAP="[]" NORMALIZE_JSON="null" CACHE_JSON="null"
-SELF_UPDATED="false" INSTALL_DEFERRED="false" STOPPED_BEFORE_INSTALL="false"
-REFRESH_RC="null" REFRESH_OUT="" REFRESH_PREDICTED="false" REFRESH_FAILED=0
-CATALOG_LAST_UPDATED="" PROJECT_ROOT_JSON="null"
-# Step stamps (start, end) for this marketplace; an empty pair is a step this
-# invocation did not run and reads `null` in the digest, never 0.
-T_PRR_S="" T_PRR_E="" T_MU_S="" T_MU_E="" T_IR_S="" T_IR_E="" T_US_S="" T_US_E=""
-T_IE_S="" T_IE_E="" T_CC_S="" T_CC_E="" T_PR_S="" T_PR_E="" T_MP_S="" T_MP_E=""
-CACHE_CHECK_RAN=0
-
+# and a `local` array is invisible to a function the step calls. The initial
+# values ARE the per-marketplace reset, so both come from this one function.
 reset_marketplace_state() {
   MP_ERRORS=()
   IR_UPDATED=() IR_FAILED=() IR_WOULD=()
@@ -636,10 +634,13 @@ reset_marketplace_state() {
   SELF_UPDATED="false" INSTALL_DEFERRED="false" STOPPED_BEFORE_INSTALL="false"
   REFRESH_RC="null" REFRESH_OUT="" REFRESH_PREDICTED="false" REFRESH_FAILED=0
   CATALOG_LAST_UPDATED="" PROJECT_ROOT_JSON="null"
+  # Step stamps (start, end) for this marketplace; an empty pair is a step this
+  # invocation did not run and reads `null` in the digest, never 0.
   T_PRR_S="" T_PRR_E="" T_MU_S="" T_MU_E="" T_IR_S="" T_IR_E="" T_US_S="" T_US_E=""
   T_IE_S="" T_IE_E="" T_CC_S="" T_CC_E="" T_PR_S="" T_PR_E="" T_MP_S="" T_MP_E=""
   CACHE_CHECK_RAN=0
 }
+reset_marketplace_state
 
 # First-pass result rows that live only in these arrays. Successful moves ride
 # `moves.<mp>.tsv` and withheld downgrades ride `downgrades.<mp>.txt`, so an
@@ -650,11 +651,7 @@ persist_first_pass_rows() {
   local mp="$1" ir_f us_f errs persisted
   json_array_of ir_f ${IR_FAILED[@]+"${IR_FAILED[@]}"}
   json_array_of us_f ${US_FAILED[@]+"${US_FAILED[@]}"}
-  if ((${#MP_ERRORS[@]} == 0)); then
-    errs='[]'
-  else
-    jq_to errs -c -R -s 'split("\n") | map(select(length > 0))' <<<"$(printf '%s\n' "${MP_ERRORS[@]}")"
-  fi
+  json_strings_of errs ${MP_ERRORS[@]+"${MP_ERRORS[@]}"}
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
   jq_to persisted -c -n \
     --argjson errors "$errs" \
@@ -695,6 +692,22 @@ restore_first_pass_rows() {
   jq_to REFRESH_RC -r 'if .refresh.rc == null then "null" else (.refresh.rc | tostring) end' "$sidecar"
 }
 
+# --- one snapshot read ----------------------------------------------------------
+# `fleet-state.sh --marketplace <mp>` into $2, with its stderr captured and, on a
+# non-zero exit, recorded as a per-marketplace error named for the step ($3).
+# Returns the reader's own status, so a caller that must abandon the marketplace
+# still branches on it.
+fleet_read() {
+  local mp="$1" out="$2" label="$3" rc=0 text
+  "$FLEET_STATE" --marketplace "$mp" >"$out" 2>"$RUN_DIR/.fs-err"
+  rc=$?
+  if ((rc != 0)); then
+    text=$(<"$RUN_DIR/.fs-err")
+    mp_error "$label fleet-state read failed (exit $rc): ${text//$'\r'/}"
+  fi
+  return "$rc"
+}
+
 # --- the per-marketplace loop body (Steps 2-5b, plus Step 1's own refresh) -------
 run_marketplace() {
   local mp="$1"
@@ -706,7 +719,7 @@ run_marketplace() {
   # that updated plugins.
   ((ONLY_INSTALL_MODE == 1)) || : >"$RUN_DIR/moves.$mp.tsv"
 
-  local rc dg_rc id scope old new result row text out
+  local rc dg_rc id scope old new result row out
 
   local pre_refresh="$RUN_DIR/pre-refresh.$mp.json"
 
@@ -717,12 +730,10 @@ run_marketplace() {
   if ((ONLY_INSTALL_MODE == 0)); then
     if [[ ! -f "$pre_refresh" ]]; then
       clock_into T_PRR_S
-      "$FLEET_STATE" --marketplace "$mp" >"$pre_refresh" 2>"$RUN_DIR/.fs-err"
+      fleet_read "$mp" "$pre_refresh" pre-refresh
       rc=$?
       clock_into T_PRR_E
       if ((rc != 0)); then
-        text=$(<"$RUN_DIR/.fs-err")
-        mp_error "pre-refresh fleet-state read failed (exit $rc): ${text//$'\r'/}"
         emit_marketplace_block "$mp"
         return 0
       fi
@@ -772,11 +783,9 @@ run_marketplace() {
   # ---- Step 2 — in-repo update (the primary value path) ------------------------
   if ((ONLY_INSTALL_MODE == 0)); then
     clock_into T_IR_S
-    "$FLEET_STATE" --marketplace "$mp" >"$RUN_DIR/pre.$mp.json" 2>"$RUN_DIR/.fs-err"
+    fleet_read "$mp" "$RUN_DIR/pre.$mp.json" pre
     rc=$?
     if ((rc != 0)); then
-      text=$(<"$RUN_DIR/.fs-err")
-      mp_error "pre fleet-state read failed (exit $rc): ${text//$'\r'/}"
       emit_marketplace_block "$mp"
       return 0
     fi
@@ -819,11 +828,9 @@ run_marketplace() {
   # ---- Step 3 — user-scope update sweep ----------------------------------------
   if ((ONLY_INSTALL_MODE == 0)); then
     clock_into T_US_S
-    "$FLEET_STATE" --marketplace "$mp" >"$RUN_DIR/mid.$mp.json" 2>"$RUN_DIR/.fs-err"
+    fleet_read "$mp" "$RUN_DIR/mid.$mp.json" mid
     rc=$?
     if ((rc != 0)); then
-      text=$(<"$RUN_DIR/.fs-err")
-      mp_error "mid fleet-state read failed (exit $rc): ${text//$'\r'/}"
       emit_marketplace_block "$mp"
       return 0
     fi
@@ -899,12 +906,9 @@ run_marketplace() {
   fi
 
   # ---- Steps 4 and 5 — install and enable, gated on the FRESH pre-install read ---
-  "$FLEET_STATE" --marketplace "$mp" >"$RUN_DIR/pre-install.$mp.json" 2>"$RUN_DIR/.fs-err"
+  fleet_read "$mp" "$RUN_DIR/pre-install.$mp.json" pre-install
   rc=$?
-  if ((rc != 0)); then
-    text=$(<"$RUN_DIR/.fs-err")
-    mp_error "pre-install fleet-state read failed (exit $rc): ${text//$'\r'/}"
-  else
+  if ((rc == 0)); then
     project_ids missing-user-install "$RUN_DIR/pre-install.$mp.json" "$RUN_DIR/ids.pre-install.$mp.txt"
     rc=$?
     if ((rc != 0)); then
@@ -955,13 +959,8 @@ run_marketplace() {
 
   # ---- post re-read, then the report inputs Step 6 reads back --------------------
   clock_into T_PR_S
-  "$FLEET_STATE" --marketplace "$mp" >"$RUN_DIR/post.$mp.json" 2>"$RUN_DIR/.fs-err"
-  rc=$?
+  fleet_read "$mp" "$RUN_DIR/post.$mp.json" post
   clock_into T_PR_E
-  if ((rc != 0)); then
-    text=$(<"$RUN_DIR/.fs-err")
-    mp_error "post fleet-state read failed (exit $rc): ${text//$'\r'/}"
-  fi
 
   finalize_moves "$mp"
 
@@ -983,10 +982,22 @@ run_marketplace() {
   emit_marketplace_block "$mp"
 }
 
+# Installs one id at user scope and appends its digest row. `CLI_RC` is the
+# caller's success test, so the row shape lives in one place across both entry
+# paths below.
+install_one() {
+  local id="$1" out unset_cfg="null"
+  run_cli "claude plugin install $id -s user" plugin install "$id" -s user
+  trunc out "$CLI_OUT"
+  unset_user_config_of unset_cfg "$CLI_OUT"
+  INSTALLED_ROWS+=("$(jq -c -n --arg id "$id" --argjson rc "$CLI_RC" --arg out "$out" \
+    --argjson unset "$unset_cfg" '{id: $id, rc: $rc, output: $out, unset_user_config: $unset}')")
+}
+
 # --- Step 4 — install new catalog plugins, per the caller's rendered policy -------
 run_install_step() {
   local mp="$1" gap_count="$2"
-  local id out installed_any=0 wanted="" unset_cfg="null"
+  local id installed_any=0 wanted=""
 
   if ((ONLY_INSTALL_MODE == 1)); then
     # The narrow re-entry installs exactly the ids the caller's prompt returned,
@@ -994,11 +1005,7 @@ run_install_step() {
     wanted=$(printf '%s' "${ONLY_INSTALL//,/ }")
     for id in $wanted; do
       [[ "$id" == *"@$mp" ]] || continue
-      run_cli "claude plugin install $id -s user" plugin install "$id" -s user
-      trunc out "$CLI_OUT"
-      unset_user_config_of unset_cfg "$CLI_OUT"
-      INSTALLED_ROWS+=("$(jq -c -n --arg id "$id" --argjson rc "$CLI_RC" --arg out "$out" \
-        --argjson unset "$unset_cfg" '{id: $id, rc: $rc, output: $out, unset_user_config: $unset}')")
+      install_one "$id"
       ((CLI_RC == 0)) && installed_any=1
     done
   elif ((gap_count > 0)) && [[ "$INSTALL_NEW" == "all" ]]; then
@@ -1010,11 +1017,7 @@ run_install_step() {
         installed_any=1
         continue
       fi
-      run_cli "claude plugin install $id -s user" plugin install "$id" -s user
-      trunc out "$CLI_OUT"
-      unset_user_config_of unset_cfg "$CLI_OUT"
-      INSTALLED_ROWS+=("$(jq -c -n --arg id "$id" --argjson rc "$CLI_RC" --arg out "$out" \
-        --argjson unset "$unset_cfg" '{id: $id, rc: $rc, output: $out, unset_user_config: $unset}')")
+      install_one "$id"
       ((CLI_RC == 0)) && installed_any=1
     done <"$RUN_DIR/ids.pre-install.$mp.txt"
   fi
@@ -1339,12 +1342,7 @@ emit_marketplace_block() {
   json_array_of inst ${INSTALLED_ROWS[@]+"${INSTALLED_ROWS[@]}"}
   json_array_of en ${ENABLED_ROWS[@]+"${ENABLED_ROWS[@]}"}
   json_array_of pr ${PROJECT_ROWS[@]+"${PROJECT_ROWS[@]}"}
-
-  if ((${#MP_ERRORS[@]} == 0)); then
-    errs='[]'
-  else
-    jq_to errs -c -R -s 'split("\n") | map(select(length > 0))' <<<"$(printf '%s\n' "${MP_ERRORS[@]}")"
-  fi
+  json_strings_of errs ${MP_ERRORS[@]+"${MP_ERRORS[@]}"}
 
   catalog_regression_rows reg_interval reg_rows "$mp"
   divergence_block div "$mp"
@@ -1529,11 +1527,10 @@ done
 BLOCKS='[]'
 [[ -s "$RUN_DIR/.blocks.jsonl" ]] && jq_to BLOCKS -c -s '.' "$RUN_DIR/.blocks.jsonl"
 
-if ((${#RUN_ERRORS[@]} == 0)); then
-  RUN_ERRS='[]'
-else
-  jq_to RUN_ERRS -c -R -s 'split("\n") | map(select(length > 0))' <<<"$(printf '%s\n' "${RUN_ERRORS[@]}")"
-fi
+# Declared here as well as filled below, so the lint can see the assignment the
+# write-into-variable helper makes.
+RUN_ERRS='[]'
+json_strings_of RUN_ERRS ${RUN_ERRORS[@]+"${RUN_ERRORS[@]}"}
 
 DIGEST=""
 ALLOW_DOWNGRADE_JSON="false"

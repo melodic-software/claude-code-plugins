@@ -682,7 +682,6 @@ home_native=""
 phys_tmp=""
 cwd_norm=""
 home_norm=""
-norm_root=""
 key_json=""
 plugin_root="${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT_DEFAULT}"
 prime_paths=()

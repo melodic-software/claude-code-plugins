@@ -3,6 +3,12 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.56.10]
+
+### Changed
+
+- plugins skill: sync-run.sh reads fleet state at five steps through one helper, encodes string arrays and installs each plugin through shared helpers, and initializes its per-marketplace accumulators through the existing reset function; cache-content-check.sh walks cache roots through one find invocation; fleet-state.sh and normalize-enabled-plugins.sh drop a duplicate initialization and an unreachable guard. Same digests, same output.
+
 ## [0.56.9]
 
 ### Changed
