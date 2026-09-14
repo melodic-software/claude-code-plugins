@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.13]
+
+### Changed
+
+- The five provenance audit scripts source one lib.sh for require_opt_value, json_str and the config-layer cascade instead of carrying private copies. Diagnostics, JSON output and exit codes are unchanged.
+
 ## [0.5.12]
 
 ### Changed

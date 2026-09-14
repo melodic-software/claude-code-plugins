@@ -36,6 +36,10 @@
 # directory holds no scoreable case, 4 when jq is absent.
 set -uo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib.sh
+source "$SCRIPT_DIR/lib.sh"
+
 GOLDEN=""
 ACTUAL=""
 SHOW_CONFIG=0
@@ -59,23 +63,15 @@ by_class, by_case, declined}. Diagnostics go to stderr.
 EOF
 }
 
-require_opt_value() {
-  local opt="$1"
-  if [[ $# -lt 2 || -z "${2:-}" || "$2" == -* ]]; then
-    echo "score-golden.sh: $opt requires a value" >&2
-    exit 2
-  fi
-}
-
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --golden)
-    require_opt_value "$@"
+    require_opt_value "score-golden.sh" "$@"
     GOLDEN="$2"
     shift 2
     ;;
   --actual)
-    require_opt_value "$@"
+    require_opt_value "score-golden.sh" "$@"
     ACTUAL="$2"
     shift 2
     ;;
@@ -105,10 +101,7 @@ command -v jq >/dev/null 2>&1 || {
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 CONFIG_ROOT="${CLAUDE_PROJECT_DIR:-$REPO_ROOT}"
 
-CFG_LAYERS=()
-[[ -f "${HOME:-/nonexistent}/.claude/provenance.json" ]] && CFG_LAYERS+=("$HOME/.claude/provenance.json")
-[[ -f "$CONFIG_ROOT/.claude/provenance.json" ]] && CFG_LAYERS+=("$CONFIG_ROOT/.claude/provenance.json")
-[[ -f "$CONFIG_ROOT/.claude/provenance.local.json" ]] && CFG_LAYERS+=("$CONFIG_ROOT/.claude/provenance.local.json")
+cfg_layers_init "$CONFIG_ROOT"
 
 # cfg_num <jq-path> <default>: last layer that defines the key wins (per-key
 # override). A non-numeric value is ignored rather than propagated, so a typo in
@@ -129,12 +122,7 @@ REPORT_RECALL_FLOOR="$(cfg_num '.gates.report_recall_floor' 0.8)"
 MIN_N_PER_CLASS="$(cfg_num '.gates.min_n_per_class' 10)"
 
 if [[ "$SHOW_CONFIG" -eq 1 ]]; then
-  echo "Config layers (later refines earlier):"
-  if [[ "${#CFG_LAYERS[@]}" -eq 0 ]]; then
-    echo "  (none; bundled defaults)"
-  else
-    for layer in "${CFG_LAYERS[@]}"; do echo "  $layer"; done
-  fi
+  cfg_layers_print
   echo "Effective: gates.fix_precision_bar=$FIX_PRECISION_BAR"
   echo "Effective: gates.report_recall_floor=$REPORT_RECALL_FLOOR"
   echo "Effective: gates.min_n_per_class=$MIN_N_PER_CLASS"
