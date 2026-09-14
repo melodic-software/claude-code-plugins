@@ -3,6 +3,12 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.7]
+
+### Changed
+
+- Merge the line-comment leader branches in the comment-shapes library, drop the redundant target array copy in the detector and hoist the tab fixture name in its suite (behavior unchanged).
+
 ## [0.19.6]
 
 ### Changed

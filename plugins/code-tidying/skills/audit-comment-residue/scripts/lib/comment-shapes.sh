@@ -66,18 +66,15 @@ cr_comment_text() {
     *) ;;
     esac
     nx="${line:i+1:1}"
-    if [[ "$ch" == '/' && "$nx" == '/' ]]; then
+    if [[ "$ch$nx" == '//' || "$ch$nx" == '--' ]]; then
       printf '%s' "${line:i+2}"
       return 0
-    elif [[ "$ch" == '/' && "$nx" == '*' ]]; then
+    elif [[ "$ch$nx" == '/*' ]]; then
       rest="${line:i+2}"
       printf '%s' "${rest%%\*/*}"
       return 0
     elif [[ "$ch" == '#' ]]; then
       printf '%s' "${line:i+1}"
-      return 0
-    elif [[ "$ch" == '-' && "$nx" == '-' ]]; then
-      printf '%s' "${line:i+2}"
       return 0
     fi
   done
