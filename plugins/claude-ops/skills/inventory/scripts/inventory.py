@@ -31,6 +31,16 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+_LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+# Re-exported, not merely used: `registrations_of` is part of this extractor's
+# surface (its own tests read it from here), and `lib/registrations.py` is
+# shared with the sibling overlap consumer so the registration-shape rule the
+# extractor writes and the consumer reads has exactly one home.
+from registrations import registrations_of  # noqa: E402  (path set above; plugin-bundled module)
+
 MIN_PYTHON = (3, 11)
 
 # The CLI release this extractor was last verified against by a human running
@@ -756,20 +766,6 @@ def read_invocation_fields(body: str) -> dict[str, Any]:
     return out
 
 
-def registrations_of(entry: Any) -> list[dict[str, Any]]:
-    """Every registration behind one bundled-skill name.
-
-    A name maps to one registration object, or to a list when two distinct
-    registrations share the name (a collision). Consumers read through this
-    helper so neither shape is a special case.
-    """
-    if isinstance(entry, list):
-        return [e for e in entry if isinstance(e, dict)]
-    if isinstance(entry, dict):
-        return [entry]
-    return []
-
-
 def extract_bundled_skills(
     src: str, braces: BraceMap
 ) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -1230,11 +1226,7 @@ def _scan_component(
         target = root / spec["file"]
         return [spec["file"]] if target.is_file() else []
 
-    targets: list[Path]
-    if declared:
-        targets = [root / d for d in declared]
-    else:
-        targets = [root / spec["dir"]]
+    targets = [root / d for d in declared] if declared else [root / spec["dir"]]
 
     out: list[str] = []
     for target in targets:

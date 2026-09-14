@@ -47,6 +47,14 @@ import sys
 from pathlib import Path
 from typing import Any
 
+_LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+# `lib/registrations.py` is shared with the sibling extractor that writes the
+# shape, so a consumer can never read it by a rule of its own.
+from registrations import registrations_of  # noqa: E402  (path set above; plugin-bundled module)
+
 MIN_PYTHON = (3, 11)
 
 STORE_SCHEMA = 1
@@ -80,15 +88,6 @@ LANE_OF_CLASS = {
     "bundled-skill": "bundled_skills",
     "plugin-backed-builtin": "plugin_backed",
 }
-
-
-def _registrations(entry: Any) -> list[dict[str, Any]]:
-    """Every registration behind one native name (a list on a name collision)."""
-    if isinstance(entry, list):
-        return [item for item in entry if isinstance(item, dict)]
-    if isinstance(entry, dict):
-        return [entry]
-    return []
 
 
 # Lane order in the generated view: (class, section heading, singular noun used
@@ -366,6 +365,57 @@ def _row_label(row: Any, index: int) -> str:
         return f"row {index}"
 
 
+def _native_problems(native: Any, label: str, *, markers: bool) -> list[str]:
+    """Well-formedness of a `native` block. A store row also carries markers."""
+    if not isinstance(native, dict):
+        return [f"{label}: missing or malformed `native`"]
+    problems: list[str] = []
+    if not isinstance(native.get("name"), str) or not native.get("name"):
+        problems.append(f"{label}: `native.name` must be a non-empty string")
+    if native.get("class") not in NATIVE_CLASSES:
+        problems.append(
+            f"{label}: `native.class` must be one of {', '.join(NATIVE_CLASSES)}"
+        )
+    if markers:
+        recorded = native.get("markers", [])
+        if not isinstance(recorded, list) or any(
+            m not in NATIVE_MARKERS for m in recorded
+        ):
+            problems.append(
+                f"{label}: `native.markers` must be a list drawn from "
+                f"{', '.join(NATIVE_MARKERS)}"
+            )
+    return problems
+
+
+def _component_problems(
+    component: Any, label: str, *, kind_required: bool
+) -> list[str]:
+    """Well-formedness of a `component` block.
+
+    A store row must name its kind; a seeded pair need not, because the detect
+    loop defaults it to "skill" - but a kind present in either must name a kind
+    this repo actually has.
+    """
+    if not isinstance(component, dict):
+        return [f"{label}: missing or malformed `component`"]
+    problems: list[str] = []
+    for key in ("plugin", "skill"):
+        if not isinstance(component.get(key), str) or not component.get(key):
+            problems.append(f"{label}: `component.{key}` must be a non-empty string")
+    if kind_required:
+        if component.get("kind") not in COMPONENT_KINDS:
+            problems.append(
+                f"{label}: `component.kind` must be one of {', '.join(COMPONENT_KINDS)}"
+            )
+    elif "kind" in component and component.get("kind") not in COMPONENT_KINDS:
+        problems.append(
+            f"{label}: `component.kind` must be one of "
+            f"{', '.join(COMPONENT_KINDS)} when present"
+        )
+    return problems
+
+
 def validate_row(row: Any, index: int) -> list[str]:
     """Well-formedness of one store row. Returns a list of problems."""
     label = _row_label(row, index)
@@ -373,38 +423,10 @@ def validate_row(row: Any, index: int) -> list[str]:
     if not isinstance(row, dict):
         return [f"{label}: not an object"]
 
-    native = row.get("native")
-    if not isinstance(native, dict):
-        problems.append(f"{label}: missing or malformed `native`")
-    else:
-        if not isinstance(native.get("name"), str) or not native.get("name"):
-            problems.append(f"{label}: `native.name` must be a non-empty string")
-        if native.get("class") not in NATIVE_CLASSES:
-            problems.append(
-                f"{label}: `native.class` must be one of {', '.join(NATIVE_CLASSES)}"
-            )
-        markers = native.get("markers", [])
-        if not isinstance(markers, list) or any(
-            m not in NATIVE_MARKERS for m in markers
-        ):
-            problems.append(
-                f"{label}: `native.markers` must be a list drawn from "
-                f"{', '.join(NATIVE_MARKERS)}"
-            )
-
-    component = row.get("component")
-    if not isinstance(component, dict):
-        problems.append(f"{label}: missing or malformed `component`")
-    else:
-        for key in ("plugin", "skill"):
-            if not isinstance(component.get(key), str) or not component.get(key):
-                problems.append(
-                    f"{label}: `component.{key}` must be a non-empty string"
-                )
-        if component.get("kind") not in COMPONENT_KINDS:
-            problems.append(
-                f"{label}: `component.kind` must be one of {', '.join(COMPONENT_KINDS)}"
-            )
+    problems.extend(_native_problems(row.get("native"), label, markers=True))
+    problems.extend(
+        _component_problems(row.get("component"), label, kind_required=True)
+    )
 
     verdict = row.get("verdict")
     if verdict not in VERDICTS:
@@ -547,34 +569,10 @@ def validate_pairs(pairs_data: dict[str, Any]) -> list[str]:
         if not isinstance(pair, dict):
             problems.append(f"{label}: not an object")
             continue
-
-        native = pair.get("native")
-        if not isinstance(native, dict):
-            problems.append(f"{label}: missing or malformed `native`")
-        else:
-            if not isinstance(native.get("name"), str) or not native.get("name"):
-                problems.append(f"{label}: `native.name` must be a non-empty string")
-            if native.get("class") not in NATIVE_CLASSES:
-                problems.append(
-                    f"{label}: `native.class` must be one of {', '.join(NATIVE_CLASSES)}"
-                )
-
-        component = pair.get("component")
-        if not isinstance(component, dict):
-            problems.append(f"{label}: missing or malformed `component`")
-        else:
-            for key in ("plugin", "skill"):
-                if not isinstance(component.get(key), str) or not component.get(key):
-                    problems.append(
-                        f"{label}: `component.{key}` must be a non-empty string"
-                    )
-            # `kind` is optional here - the detect loop defaults it to "skill" -
-            # but a present one must name a kind this repo actually has.
-            if "kind" in component and component.get("kind") not in COMPONENT_KINDS:
-                problems.append(
-                    f"{label}: `component.kind` must be one of "
-                    f"{', '.join(COMPONENT_KINDS)} when present"
-                )
+        problems.extend(_native_problems(pair.get("native"), label, markers=False))
+        problems.extend(
+            _component_problems(pair.get("component"), label, kind_required=False)
+        )
     return problems
 
 
@@ -938,7 +936,7 @@ def cmd_detect(args: argparse.Namespace) -> int:
             evidence.append(
                 f"`{native.get('name')}` present in the extraction as {seen['class']}"
             )
-            registrations = _registrations(seen["entry"])
+            registrations = registrations_of(seen["entry"])
             if len(registrations) > 1:
                 evidence.append(
                     f"name collision: {len(registrations)} distinct registrations share "

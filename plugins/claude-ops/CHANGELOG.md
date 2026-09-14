@@ -3,6 +3,12 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.56.13]
+
+### Changed
+
+- inventory.py and overlap.py read plugin registration shapes through one lib helper instead of two private copies, and overlap.py validates native and component rows through shared helpers with the original messages and order. Envelopes and exit codes are unchanged.
+
 ## [0.56.12]
 
 ### Changed
