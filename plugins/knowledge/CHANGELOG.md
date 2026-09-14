@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.13.55]
+
+### Changed
+
+- video-digest extraction: watch-vision-validation.js reads the triage manifest's sheets array through one helper and finds records by key through another, dropping an unused typedef; temp-session-paths.js names its separator normalizer once and drops the unused resolveFramePath export. No behavior change.
+
 ## [0.13.54]
 
 ### Changed

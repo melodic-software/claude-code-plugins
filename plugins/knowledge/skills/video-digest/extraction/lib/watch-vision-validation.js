@@ -12,8 +12,6 @@ import {
   isStubQualityAuditNote,
 } from "./synthesis-filename.js";
 
-/** @typedef {'keep-detail'|'promote-key-frame'|'duplicate'|'blur'|'talking-head-only'|'skip'} TriageVerdict */
-
 export const FORBIDDEN_TRIAGE_MODELS = new Set(["selection-signals", "heuristic", "prng"]);
 
 export const TRIAGE_VERDICTS = new Set([
@@ -78,6 +76,41 @@ function readSheetId(sheet) {
 }
 
 /**
+ * A manifest's `sheets` entries, or the shape error that stands in for them.
+ *
+ * @param {unknown} manifest
+ * @returns {{ sheets: unknown[], errors: null } | { sheets: null, errors: string[] }}
+ */
+function readManifestSheets(manifest) {
+  const m = asRecord(manifest);
+  if (!m) {
+    return { sheets: null, errors: ["manifest must be an object"] };
+  }
+  if (!Array.isArray(m.sheets)) {
+    return { sheets: null, errors: ["sheets array required"] };
+  }
+  return { sheets: m.sheets, errors: null };
+}
+
+/**
+ * First entry of `candidates` that is a record whose `key` equals `value`, else null.
+ *
+ * @param {unknown[]} candidates
+ * @param {string} key
+ * @param {unknown} value
+ * @returns {Record<string, unknown> | null}
+ */
+function findRecordBy(candidates, key, value) {
+  for (const candidate of candidates) {
+    const record = asRecord(candidate);
+    if (record && record[key] === value) {
+      return record;
+    }
+  }
+  return null;
+}
+
+/**
  * @param {unknown} sheet
  * @param {number} [expectedCellCount=16]
  * @returns {string[]}
@@ -134,18 +167,18 @@ export function validateTriageSheet(sheet, expectedCellCount = 16) {
  * @returns {string[]}
  */
 export function validateTriageManifest(manifest, expectedCounts = new Map()) {
-  const m = asRecord(manifest);
-  if (!m) {
-    return ["manifest must be an object"];
+  const { sheets, errors: shapeErrors } = readManifestSheets(manifest);
+  if (!sheets) {
+    return shapeErrors;
   }
-  if (!Array.isArray(m.sheets) || m.sheets.length === 0) {
+  if (sheets.length === 0) {
     return ["sheets array required"];
   }
   /** @type {string[]} */
   const errors = [];
   const seenIds = new Set();
 
-  for (const sheet of m.sheets) {
+  for (const sheet of sheets) {
     const sheetId = readSheetId(sheet);
     const expected = expectedCounts.get(sheetId ?? "") ?? 16;
     const sheetErrors = validateTriageSheet(sheet, expected);
@@ -164,17 +197,13 @@ export function validateTriageManifest(manifest, expectedCounts = new Map()) {
  * @returns {string[]}
  */
 export function validateTriageBatchFiles(sliceDir, manifest) {
+  const { sheets, errors: shapeErrors } = readManifestSheets(manifest);
+  if (!sheets) {
+    return shapeErrors;
+  }
   /** @type {string[]} */
   const errors = [];
-  const m = asRecord(manifest);
-  if (!m) {
-    return ["manifest must be an object"];
-  }
   const batchesDir = lanePath(path.resolve(sliceDir), LANES.keyFrames, "triage", "batches");
-  const sheets = m.sheets;
-  if (!Array.isArray(sheets)) {
-    return ["sheets array required"];
-  }
   for (const sheet of sheets) {
     const record = asRecord(sheet);
     if (!record) continue;
@@ -192,16 +221,12 @@ export function validateTriageBatchFiles(sliceDir, manifest) {
  * @returns {string[]}
  */
 export function validateTriageAgentic(manifest) {
+  const { sheets, errors: shapeErrors } = readManifestSheets(manifest);
+  if (!sheets) {
+    return shapeErrors;
+  }
   /** @type {string[]} */
   const errors = [];
-  const m = asRecord(manifest);
-  if (!m) {
-    return ["manifest must be an object"];
-  }
-  const sheets = m.sheets;
-  if (!Array.isArray(sheets)) {
-    return ["sheets array required"];
-  }
   for (const sheet of sheets) {
     const record = asRecord(sheet);
     if (!record) continue;
@@ -403,12 +428,7 @@ function validateIndexSheetParity(indexSheet, manifestSheets) {
   const sheet = asRecord(indexSheet);
   if (!sheet) return [];
   const sheetId = String(sheet.sheetId ?? "?");
-  const manifestSheet = asRecord(
-    manifestSheets.find((candidate) => {
-      const record = asRecord(candidate);
-      return record !== null && record.sheetId === sheet.sheetId;
-    }),
-  );
+  const manifestSheet = findRecordBy(manifestSheets, "sheetId", sheet.sheetId);
   if (!manifestSheet) {
     return [`missing manifest sheet ${sheetId}`];
   }
@@ -421,12 +441,7 @@ function validateIndexSheetParity(indexSheet, manifestSheets) {
     const indexCell = asRecord(indexCellRaw);
     if (!indexCell) continue;
     const cellId = String(indexCell.cell ?? "?");
-    const manifestCell = asRecord(
-      manifestCells.find((candidate) => {
-        const record = asRecord(candidate);
-        return record !== null && record.cell === indexCell.cell;
-      }),
-    );
+    const manifestCell = findRecordBy(manifestCells, "cell", indexCell.cell);
     if (!manifestCell) {
       errors.push(`${sheetId} missing cell ${cellId}`);
       continue;
