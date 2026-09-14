@@ -84,10 +84,9 @@
     {"from":"claude-code-plugins","to":"anthropics/claude-plugins-official","type":"installs-plugin","relation":"external","count":1,"files":["plugins/playgrounds/skills/use/SKILL.md"]},
     {"from":"claude-code-plugins","to":"dometrain/mcp","type":"installs-plugin","relation":"external","count":1,"files":["plugins/dometrain/README.md"]},
     {"from":"claude-code-plugins","to":"trailofbits/skills","type":"installs-plugin","relation":"external","count":1,"files":["plugins/review/skills/audit-enforceability/SKILL.md"]},
-    {"from":"claude-code-plugins","to":"actions/checkout","type":"uses-workflow","relation":"external","count":15,"files":[".github/workflows/ci.yml",".github/workflows/claude-review.yml",".github/workflows/claude-security-review.yml",".github/workflows/dependabot-miro-bundle.yml",".github/workflows/hook-utils-timing.yml"]},
-    {"from":"claude-code-plugins","to":"actions/setup-node","type":"uses-workflow","relation":"external","count":5,"files":[".github/workflows/ci.yml",".github/workflows/dependabot-miro-bundle.yml",".github/workflows/video-digest-source-liveness.yml"]},
+    {"from":"claude-code-plugins","to":"actions/checkout","type":"uses-workflow","relation":"external","count":11,"files":[".github/workflows/ci.yml",".github/workflows/claude-review.yml",".github/workflows/claude-security-review.yml",".github/workflows/dependabot-miro-bundle.yml",".github/workflows/managed-files-guard.yml"]},
+    {"from":"claude-code-plugins","to":"actions/setup-node","type":"uses-workflow","relation":"external","count":3,"files":[".github/workflows/ci.yml",".github/workflows/dependabot-miro-bundle.yml"]},
     {"from":"claude-code-plugins","to":"actions/setup-python","type":"uses-workflow","relation":"external","count":3,"files":[".github/workflows/ci.yml"]},
-    {"from":"claude-code-plugins","to":"actions/upload-artifact","type":"uses-workflow","relation":"external","count":1,"files":[".github/workflows/video-digest-source-liveness.yml"]},
     {"from":"claude-code-plugins","to":"melodic-software/ci-workflows","type":"uses-workflow","relation":"internal","count":23,"files":[".github/workflows/ci.yml",".github/workflows/claude-review.yml",".github/workflows/claude-security-review.yml",".github/workflows/issue-triage-label.yml",".github/workflows/managed-files-guard.yml"]}
   ]
 }

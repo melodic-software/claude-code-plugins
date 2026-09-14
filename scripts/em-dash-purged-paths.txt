@@ -314,7 +314,6 @@ plugins/knowledge/skills/*/templates/*/*.md
 plugins/knowledge/skills/map-corpus/discovery/*.md
 plugins/knowledge/skills/map-corpus/extraction/*.md
 plugins/knowledge/skills/map-corpus/verification/*.md
-plugins/knowledge/skills/video-digest/extraction/liveness/*.md
 # The machine-health plugin was purged whole, including the report template the audit
 # orchestrator extracts by regex and the Windows fixture README.
 plugins/mcp-tools/README.md
