@@ -173,16 +173,19 @@ fleet_list="${CLOUD_BOOTSTRAP_FLEET_LIST:-/opt/melodic-fleet-plugins.json}"
 # list before this script runs, so an absent list means a broken snapshot and
 # is worth saying out loud. Skipping leaves the rest of the bootstrap (Node,
 # npm ci, CI deps, hygiene binaries) to run, as the CLI guard below does.
+# Each reason for not running the stage says its own name: a missing CLI or jq
+# is a broken VM, an unusable list is a broken snapshot, and diagnosing one as
+# the other sends an operator after the wrong thing.
 plugin_stage=0
-if [[ -x "$claude_bin" ]] && command -v jq >/dev/null 2>&1; then
-  if [[ ! -f "$fleet_list" ]]; then
-    echo 'cloud-bootstrap: no fleet plugin list in this snapshot; plugin install skipped' >&2
-  elif ! jq -e 'type == "object" and ((.enabledPlugins // {}) | type == "object")' \
-    "$fleet_list" >/dev/null 2>&1; then
-    echo "cloud-bootstrap: fleet plugin list $fleet_list is not a settings-shaped object; plugin install skipped" >&2
-  else
-    plugin_stage=1
-  fi
+if [[ ! -x "$claude_bin" ]] || ! command -v jq >/dev/null 2>&1; then
+  echo "cloud-bootstrap: warning: claude CLI or jq unavailable; plugins will not load" >&2
+elif [[ ! -f "$fleet_list" ]]; then
+  echo 'cloud-bootstrap: no fleet plugin list in this snapshot; plugin install skipped' >&2
+elif ! jq -e 'type == "object" and ((.enabledPlugins // {}) | type == "object")' \
+  "$fleet_list" >/dev/null 2>&1; then
+  echo "cloud-bootstrap: fleet plugin list $fleet_list is not a settings-shaped object; plugin install skipped" >&2
+else
+  plugin_stage=1
 fi
 if ((plugin_stage)); then
   if ! "$claude_bin" plugin marketplace list --json 2>/dev/null |
@@ -449,8 +452,6 @@ if ((plugin_stage)); then
     plugin_summary="$plugin_summary: ${failed_list%, }"
   fi
   echo "$plugin_summary"
-else
-  echo "cloud-bootstrap: warning: claude CLI or jq unavailable; plugins will not load" >&2
 fi
 
 # --- Python CI deps (required) -------------------------------------------------

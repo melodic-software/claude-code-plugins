@@ -508,6 +508,10 @@ expect "without a fleet list the plugin stage is skipped, loudly" \
   "cloud-bootstrap: no fleet plugin list in this snapshot; plugin install skipped"
 refute "and nothing is installed off the settings block alone" \
   "newly installed"
+# The stage has two reasons to not run, and each says its own name: a snapshot
+# with no list must not be diagnosed as a VM with no CLI.
+refute "and the skip is not misreported as a missing CLI or jq" \
+  "claude CLI or jq unavailable"
 
 CASE_SETTINGS='{"enabledPlugins":{"alpha@melodic-software":true}}' \
   CASE_FLEET='not json at all' \
