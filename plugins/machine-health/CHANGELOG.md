@@ -3,6 +3,12 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.17]
+
+### Changed
+
+- audit Windows lib: Write-ElevationBanner.ps1 builds the rerun command once and appends the state base when present, New-InvalidCatalogEntryResult.ps1 drops a redundant parenthesis pair, and Merge-CatalogOverlay.ps1 trims stale change narration from a comment. No behavior change.
+
 ## [0.12.16]
 
 ### Changed
