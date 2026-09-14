@@ -149,10 +149,9 @@ RESOLVER="$CG_DIR/../scripts/context-zone.sh"
 # PostToolBatch payloads carry every serialized tool result and routinely
 # exceed what a single bounded read survives on Windows pipes.
 #
-# The `_to` form assigns INPUT in this process. `INPUT=$(cg::read_payload)`
-# forked a subshell to capture output the reader had already assembled in a
-# variable — a whole process, on a host where one costs hundreds of
-# milliseconds, spent moving a string between two copies of the same shell.
+# The `_to` form assigns INPUT in this process. A `$( )` capture would fork a
+# whole subshell, on a host where one costs hundreds of milliseconds, only to
+# move a string the reader already holds between two copies of the same shell.
 INPUT=""
 cg::read_payload_to INPUT || exit 0
 

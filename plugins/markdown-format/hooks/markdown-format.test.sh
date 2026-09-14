@@ -38,6 +38,12 @@ UNRELATED="$(mktemp -d)"
 cleanup() { rm -rf "$WORK" "$UNRELATED"; }
 trap cleanup EXIT
 
+# ctx_of <hook-stdout> -> the additionalContext channel, empty when the key is
+# absent or the document does not parse.
+ctx_of() {
+  printf '%s' "$1" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null
+}
+
 # Keep the success-path contract test independent of tools installed on the
 # runner. markdownlint-cli2's documented CLI contract is an executable invoked
 # as `markdownlint-cli2 --fix <file>`: it applies fixable changes, exits 0 when
@@ -2270,7 +2276,7 @@ printf '# Noisy\n\nbody\n' >"$FN"
 
 # --- 50 findings: capped detail, but the count and the rules always survive ---
 OUT_N=$(run_noisy "$FN" STUB_FINDINGS=50)
-CTX_N=$(printf '%s' "$OUT_N" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+CTX_N=$(ctx_of "$OUT_N")
 DETAIL_N=$(printf '%s' "$CTX_N" | grep -c 'error MD')
 if [[ "$DETAIL_N" -eq 20 ]]; then
   ok "bounded/cap: per-finding detail capped at the 20-line default (got $DETAIL_N)"
@@ -2352,7 +2358,7 @@ else
 fi
 rm -f "$TELS"
 OUT_SCALE=$(run_noisy "$FS" STUB_FINDINGS=601)
-CTX_SCALE=$(printf '%s' "$OUT_SCALE" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+CTX_SCALE=$(ctx_of "$OUT_SCALE")
 if printf '%s' "$CTX_SCALE" | grep -q '601 markdownlint finding'; then
   ok "bounded/scale: the report still states the true count at 601 findings"
 else
@@ -2423,7 +2429,7 @@ rm -f "$TELCR"
 FRULES="$REPO/manyrules.md"
 printf '# Rules\n\nbody\n' >"$FRULES"
 OUT_RK=$(run_noisy "$FRULES" STUB_FINDINGS=40 STUB_RULE_KINDS=8)
-CTX_RK=$(printf '%s' "$OUT_RK" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+CTX_RK=$(ctx_of "$OUT_RK")
 if printf '%s' "$CTX_RK" | grep -q '+3 more rule(s)'; then
   ok "bounded/rules: eight rule kinds report the three the histogram omitted"
 else
@@ -2441,14 +2447,14 @@ fi
 # the finding set alone would make that advice impossible to act on. Run against
 # the same file and the same 50 findings the capped run above already digested.
 OUT_C=$(run_noisy "$FN" STUB_FINDINGS=50 CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_MAX_FINDINGS=3)
-CTX_C=$(printf '%s' "$OUT_C" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+CTX_C=$(ctx_of "$OUT_C")
 if [[ "$(printf '%s' "$CTX_C" | grep -c 'error MD')" -eq 3 ]]; then
   ok "bounded/config: markdown_format_max_findings lowers the cap, and a cap change defeats the delta gate"
 else
   fail "bounded/config: cap not honored: $CTX_C"
 fi
 OUT_U=$(run_noisy "$FN" STUB_FINDINGS=50 CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_MAX_FINDINGS=0)
-CTX_U=$(printf '%s' "$OUT_U" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+CTX_U=$(ctx_of "$OUT_U")
 if [[ "$(printf '%s' "$CTX_U" | grep -c 'error MD')" -eq 50 ]]; then
   ok "bounded/config: 0 means unlimited"
 else
@@ -2457,7 +2463,7 @@ fi
 FG="$REPO/garbage.md"
 printf '# Garbage\n\nbody\n' >"$FG"
 OUT_G=$(run_noisy "$FG" STUB_FINDINGS=5 CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_MAX_FINDINGS="not-a-number; rm -rf /")
-CTX_G=$(printf '%s' "$OUT_G" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+CTX_G=$(ctx_of "$OUT_G")
 if [[ "$(printf '%s' "$CTX_G" | grep -c 'error MD')" -eq 5 ]]; then
   ok "bounded/config: a non-integer value falls back to the default, never interpolated"
 else
@@ -2470,9 +2476,9 @@ fi
 FD="$REPO/delta.md"
 printf '# Delta\n\nbody\n' >"$FD"
 OUT_D1=$(run_noisy "$FD" STUB_FINDINGS=30)
-CTX_D1=$(printf '%s' "$OUT_D1" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+CTX_D1=$(ctx_of "$OUT_D1")
 OUT_D2=$(run_noisy "$FD" STUB_FINDINGS=30)
-CTX_D2=$(printf '%s' "$OUT_D2" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+CTX_D2=$(ctx_of "$OUT_D2")
 if [[ "$(printf '%s' "$CTX_D1" | grep -c 'error MD')" -eq 20 ]]; then
   ok "bounded/delta: first run carries the (capped) detail"
 else
@@ -2490,7 +2496,7 @@ else
   fail "bounded/delta: repeat went silent — that is the defect, not the fix: $CTX_D2"
 fi
 OUT_D3=$(run_noisy "$FD" STUB_FINDINGS=31)
-CTX_D3=$(printf '%s' "$OUT_D3" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+CTX_D3=$(ctx_of "$OUT_D3")
 if [[ "$(printf '%s' "$CTX_D3" | grep -c 'error MD')" -eq 20 ]]; then
   ok "bounded/delta: a changed finding set brings the detail back"
 else
@@ -2501,7 +2507,7 @@ fi
 FF="$REPO/fixed.md"
 printf '# Fixed\n\nbody\n' >"$FF"
 OUT_F=$(run_noisy "$FF" STUB_FIX_COUNT=7)
-CTX_F=$(printf '%s' "$OUT_F" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+CTX_F=$(ctx_of "$OUT_F")
 SYS_F=$(printf '%s' "$OUT_F" | jq -r '.systemMessage // empty' 2>/dev/null)
 if printf '%s' "$CTX_F" | grep -q 'Attempted: 7 fixes'; then
   ok "bounded/fixes: a clean-after-fix run no longer stays silent about the rewrite"
@@ -2608,7 +2614,7 @@ fi
 SC_TRK="$SCOPE/tracked.md"
 printf '%s' "$SCOPE_BODY" >"$SC_TRK"
 OUT_ST=$(run_scope "$SC_TRK")
-CTX_ST=$(printf '%s' "$OUT_ST" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+CTX_ST=$(ctx_of "$OUT_ST")
 if grep -q '^- star item$' "$SC_TRK"; then
   ok "scope: a non-ignored file is still rewritten"
 else
@@ -2629,8 +2635,7 @@ printf '%s' "$SCOPE_BODY" >"$SC_FORCED"
 git -C "$SCOPE" add -f .work/tracked-scratch.md 2>/dev/null
 OUT_SF=$(run_scope "$SC_FORCED")
 if grep -q '^- star item$' "$SC_FORCED" &&
-  printf '%s' "$OUT_SF" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null |
-  grep -q 'MD024'; then
+  ctx_of "$OUT_SF" | grep -q 'MD024'; then
   ok "scope: a tracked file under an ignored path is still linted"
 else
   fail "scope: tracked-but-ignore-matching file was skipped: $(cat "$SC_FORCED")"
@@ -2642,8 +2647,7 @@ SC_OPT="$SCOPE/.work/optin.md"
 printf '%s' "$SCOPE_BODY" >"$SC_OPT"
 OUT_SO=$(run_scope "$SC_OPT" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_LINT_GITIGNORED=true)
 if grep -q '^- star item$' "$SC_OPT" &&
-  printf '%s' "$OUT_SO" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null |
-  grep -q 'MD024'; then
+  ctx_of "$OUT_SO" | grep -q 'MD024'; then
   ok "scope: markdown_format_lint_gitignored=true lints the ignored file anyway"
 else
   fail "scope: opt-out did not restore linting: $OUT_SO"

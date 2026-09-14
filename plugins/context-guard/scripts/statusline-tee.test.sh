@@ -234,7 +234,6 @@ FAKEBIN="$WORK/fakebin"
 mkdir -p "$FAKEBIN"
 for t in bash sh cat date dirname basename mktemp mkdir rm mv sleep tr grep sed find wc tail printf env touch; do
   real_t="$(command -v "$t" 2>/dev/null)" || continue
-  [[ -n "$real_t" ]] || continue
   printf '#!/bin/sh\nexec "%s" "$@"\n' "$real_t" >"$FAKEBIN/$t"
   chmod +x "$FAKEBIN/$t"
 done

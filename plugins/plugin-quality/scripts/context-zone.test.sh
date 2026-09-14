@@ -272,7 +272,6 @@ FAKEBIN="$WORK/fakebin"
 mkdir -p "$FAKEBIN"
 for t in bash sh cat date dirname basename mktemp mkdir rm mv sleep tr grep sed find wc tail printf env; do
   real_t="$(command -v "$t" 2>/dev/null)" || continue
-  [[ -n "$real_t" ]] || continue
   printf '#!/bin/sh\nexec "%s" "$@"\n' "$real_t" >"$FAKEBIN/$t"
   chmod +x "$FAKEBIN/$t"
 done
@@ -296,21 +295,26 @@ write_snapshot_tok "$TRACE_H" strace 40 90000 5000 200000
 TRACE_LOG="$WORK/zone-xtrace.log"
 HOME="$TRACE_H" BASH_XTRACEFD=9 bash -x "$ZONE" strace >/dev/null 2>/dev/null 9>"$TRACE_LOG"
 TRACE_PAT='^\++ (jq|git|date|mktemp|sed|grep|awk|cat|mkdir|mv|rm|tr|head|tail|cut|wc|uname|dirname|basename|readlink|sort|find|chmod|touch|sleep|expr|stat|cygpath|bash) '
+# trace_count <ERE> <xtrace-log> -> the match count as a bare integer
+# portability-ok: the command words inside the caller's ERE are grep patterns over an xtrace log, not calls; -cd is tr's flag
+trace_count() {
+  grep -cE "$1" "$2" 2>/dev/null | tr -cd '0-9'
+}
 if [[ -s "$TRACE_LOG" ]]; then ok "trace: the resolve path was traced"; else fail "trace: no usable xtrace captured"; fi
-T_ALL=$(grep -cE "$TRACE_PAT" "$TRACE_LOG" 2>/dev/null | tr -cd '0-9')
+T_ALL=$(trace_count "$TRACE_PAT" "$TRACE_LOG")
 T_DETAIL=$(grep -oE "$TRACE_PAT" "$TRACE_LOG" 2>/dev/null | sed -E 's/^\++ //; s/ $//' | sort | uniq -c | tr -d '\n')
 if [[ "$T_ALL" == "1" ]]; then
   ok "trace: a zero-config resolve spawns exactly 1 process"
 else
   fail "trace: zero-config resolve spawns $T_ALL processes, budget is 1: $T_DETAIL"
 fi
-T_JQ=$(grep -cE '^\++ jq ' "$TRACE_LOG" 2>/dev/null | tr -cd '0-9')
+T_JQ=$(trace_count '^\++ jq ' "$TRACE_LOG")
 if [[ "$T_JQ" == "1" ]]; then
   ok "trace: exactly one jq pass over the snapshot"
 else
   fail "trace: $T_JQ jq processes on a zero-config resolve, budget is 1"
 fi
-T_GONE=$(grep -cE '^\++ (date|awk) ' "$TRACE_LOG" 2>/dev/null | tr -cd '0-9')
+T_GONE=$(trace_count '^\++ (date|awk) ' "$TRACE_LOG")
 if [[ "$T_GONE" == "0" ]]; then
   ok "trace: no date or awk on the resolve path"
 else
@@ -321,7 +325,7 @@ printf '{"smart_max_used_percentage":30,"acceptable_max_used_percentage":60}\n' 
   >"$TRACE_H/.claude/context-guard/zones.json"
 TRACE_LOG2="$WORK/zone-xtrace-zones.log"
 HOME="$TRACE_H" BASH_XTRACEFD=9 bash -x "$ZONE" strace >/dev/null 2>/dev/null 9>"$TRACE_LOG2"
-T_JQ2=$(grep -cE '^\++ jq ' "$TRACE_LOG2" 2>/dev/null | tr -cd '0-9')
+T_JQ2=$(trace_count '^\++ jq ' "$TRACE_LOG2")
 if [[ "$T_JQ2" == "2" ]]; then
   ok "trace: a zones.json override costs exactly one additional jq"
 else
@@ -362,7 +366,7 @@ if [[ "$FB_OUT" == "smart" ]]; then
 else
   fail "fallback: want smart without %()T, got '$FB_OUT'"
 fi
-FB_DATE=$(grep -cE '^\++ date ' "$FB_LOG" 2>/dev/null | tr -cd '0-9') # portability-ok: the word date is a grep pattern over an xtrace log, not a date call; -cd is tr's flag
+FB_DATE=$(trace_count '^\++ date ' "$FB_LOG") # portability-ok: the word date is a grep pattern over an xtrace log, not a date call
 if [[ "$FB_DATE" == "1" ]]; then
   ok "fallback: the clock comes from exactly one date process there"
 else

@@ -105,21 +105,26 @@ EOF
   chmod +x "$path"
 }
 
-# Runner: HOME-scoped invocation; remaining args are the wrapped command.
-# CLAUDE_CONFIG_DIR is cleared so an ambient relocated config dir on the
-# developer's machine cannot leak into the HOME-anchored cases.
-# Captures stdout, stderr, and the exit code.
+# Runner core: feed INPUT on stdin to `env <args>`, capturing stdout, stderr,
+# and the exit code.
 OUT=""
 ERR=""
 RC=0
-run() {
-  local home="$1"
-  shift
+run_env() {
   local errfile="$WORK/stderr.$$"
-  OUT="$(printf '%s' "$INPUT" | env -u CLAUDE_CONFIG_DIR HOME="$home" bash "$SHIM" "$@" 2>"$errfile")"
+  OUT="$(printf '%s' "$INPUT" | env "$@" 2>"$errfile")"
   RC=$?
   ERR="$(<"$errfile")"
   rm -f "$errfile"
+}
+
+# HOME-scoped invocation; remaining args are the wrapped command.
+# CLAUDE_CONFIG_DIR is cleared so an ambient relocated config dir on the
+# developer's machine cannot leak into the HOME-anchored cases.
+run() {
+  local home="$1"
+  shift
+  run_env -u CLAUDE_CONFIG_DIR "HOME=$home" bash "$SHIM" "$@"
 }
 
 # Same capture with CLAUDE_CONFIG_DIR SET rather than cleared, for the relocated
@@ -128,11 +133,7 @@ run() {
 run_cfg() {
   local home="$1" cfg="$2"
   shift 2
-  local errfile="$WORK/stderr.cfg"
-  OUT="$(printf '%s' "$INPUT" | HOME="$home" CLAUDE_CONFIG_DIR="$cfg" bash "$SHIM" "$@" 2>"$errfile")"
-  RC=$?
-  ERR="$(<"$errfile")"
-  rm -f "$errfile"
+  run_env "HOME=$home" "CLAUDE_CONFIG_DIR=$cfg" bash "$SHIM" "$@"
 }
 
 # --- 1. single installed tee: resolved, and the chain stays transparent -----
