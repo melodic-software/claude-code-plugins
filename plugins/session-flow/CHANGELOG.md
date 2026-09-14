@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [0.35.13]
+
+### Changed
+
+- Forward the observer timing options without redundant string wrapping, simplify the memory-root ignore append, hoist the module-level imports and drop a dead test branch in running-retro (behavior unchanged).
+
 ## [0.35.12]
 
 ### Fixed
