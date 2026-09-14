@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [0.22.2]
+
+### Changed
+
+- Emit the compress audit-scan rows and the detect-caveman states through one helper each, expand the basename inline and share the fixture and stub setup in their suites (behavior unchanged).
+
 ## [0.22.1]
 
 ### Changed
