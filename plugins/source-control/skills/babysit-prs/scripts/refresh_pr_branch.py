@@ -27,7 +27,12 @@ from babysit_state import (
     state_path_for,
     write_state,
 )
-from babysit_util import MIN_HEAD_SHA_PREFIX_LENGTH, configure_stdio, json_object
+from babysit_util import (
+    MIN_HEAD_SHA_PREFIX_LENGTH,
+    configure_stdio,
+    is_json_object,
+    json_object,
+)
 
 
 def allowed_owners_from_policy(policy: dict[str, Any]) -> frozenset[str]:
@@ -107,10 +112,9 @@ def run_locked(
     key = f"{repo}#{number}"
     require_worker_lease(args, state_dir, repo, number)
     state = load_state(state_path)
-    pr_state_value: Any = cast(Any, state.get("prs") or {}).get(key)
-    if not isinstance(pr_state_value, dict):
+    pr_state = cast(Any, state.get("prs") or {}).get(key)
+    if not is_json_object(pr_state):
         raise RuntimeError(f"missing snapshot state for {key}; run --write-state first")
-    pr_state = cast(dict[str, Any], pr_state_value)
     expected_head_sha = resolve_expected_head_sha(
         str(pr_state.get("head_sha") or ""), args.expected_head_sha
     )

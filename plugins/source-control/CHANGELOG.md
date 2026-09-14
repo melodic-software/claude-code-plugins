@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.83]
+
+### Changed
+
+- The babysit-prs ledger, refresh, and request-review scripts narrow their snapshot lookups with the shared JSON-object guard instead of casts, hoist a loop-invariant known-id set, and merge nested with-blocks in their tests, with identical errors and outputs.
+
 ## [0.55.82]
 
 ### Changed
