@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.84]
+
+### Changed
+
+- The babysit-prs engine delegates its HTTP status parsing to the shared gh helper, drops constant-true guards and runtime-no-op casts, hoists a pure login normalization out of a loop, and uses the datetime UTC alias, with identical outputs.
+
 ## [0.55.83]
 
 ### Changed

@@ -59,7 +59,7 @@ import argparse
 import json
 import re
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, cast
 
 from babysit_checks import check_identity_key, classify_checks
@@ -436,14 +436,15 @@ def find_distinct_bot_approval(
         typename = (
             review_author.get("__typename") if is_json_object(review_author) else None
         )
-        if normalize_login_set([login]) & author_norm:
+        login_norm = normalize_login_set([login])
+        if login_norm & author_norm:
             continue  # same identity as the PR author -- not a distinct approver
         if not is_bot(login, typename, approver_bot_logins):
             continue
         # A bot, but it must be the configured approver identity: `is_bot` accepts
         # any `[bot]`/Bot-typed login, so without this an arbitrary installed
         # App's approval would authorize a tier merge past the configured boundary.
-        if not (normalize_login_set([login]) & approver_norm):
+        if not (login_norm & approver_norm):
             continue
         commit = review.get("commit")
         commit_oid = commit.get("oid") if is_json_object(commit) else None
@@ -756,7 +757,7 @@ def parse_github_timestamp(raw: str) -> datetime | None:
         parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
     except ValueError:
         return None
-    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
 
 
 def head_committed_at(repo: str, head_sha: str) -> datetime | None:
@@ -912,9 +913,7 @@ def evaluate_review_settle(
             "clock; re-run to retry"
         ], result
 
-    age_seconds = int(
-        ((now or datetime.now(timezone.utc)) - appeared_at).total_seconds()
-    )
+    age_seconds = int(((now or datetime.now(UTC)) - appeared_at).total_seconds())
     result["headAgeSeconds"] = age_seconds
     if age_seconds < settle.settle_seconds:
         result["state"] = "settling"

@@ -195,6 +195,7 @@ from babysit_gh import (
     fetch_pull_request_author,
     fetch_review_threads,
     gh_capture,
+    gh_http_status as http_status_from_text,
     is_owner_repo_pair,
     parse_repo_number,
     resolve_authors,
@@ -622,30 +623,23 @@ DISPOSITION_EVIDENCE: dict[str, str] = {
 }
 
 FIX_COMMIT_RE = re.compile(r"\A[0-9a-fA-F]{7,40}\Z")
-# `gh api` reports the HTTP status in its stderr message, e.g.
-# `gh: Not Found (HTTP 404)` (verified against gh 2.95.0). The exit code alone is
-# 1 for every failure, so this is the only signal that separates "the world
-# answered no" from "the world could not be reached".
-GH_HTTP_STATUS_RE = re.compile(r"\(HTTP (\d{3})\)")
 
 
 def gh_http_status(proc: subprocess.CompletedProcess[str]) -> int | None:
-    """The HTTP status `gh` reported, or None when it reported none.
+    """The HTTP status `gh` reported on stderr, or None when it reported none.
+
+    `gh api` states it in its own message, e.g. `gh: Not Found (HTTP 404)`, and
+    the exit code alone is 1 for every failure, so this is the only signal that
+    separates "the world answered no" from "the world could not be reached". The
+    parse itself lives once, in `babysit_gh`; this reads it off the captured
+    stderr of a `CompletedProcess`.
 
     None covers every operational failure that never reached an HTTP response --
     a timeout, an unreachable API, an expired credential, a `gh` that failed
     before dispatching -- and callers must treat it as "unverifiable", never as a
-    negative answer. The LAST status in the stream wins: a retried request prints
-    one line per attempt, and the final one is the outcome.
-
-    This parses another tool's message text, so it is deliberately unparsable-safe
-    rather than robust: if `gh` ever reformats or localizes that string, every
-    failure returns None and every caller degrades to "unverifiable". That is the
-    recoverable direction, so the coupling costs accuracy on a format change and
-    never correctness.
+    negative answer.
     """
-    matches = GH_HTTP_STATUS_RE.findall(proc.stderr or "")
-    return int(matches[-1]) if matches else None
+    return http_status_from_text(proc.stderr or "")
 
 
 # owner/repo#N, #N, or a bare N (bare and #N default to the PR's own repo).
@@ -1342,7 +1336,7 @@ def main() -> int:
                     1
                     for row in results
                     if isinstance(row["action"], str)
-                    and cast(str, row["action"]).startswith("refused-")
+                    and row["action"].startswith("refused-")
                     and row["action"] != "refused-stale-pin"
                 ),
                 "humanThreads": acted("skipped-human-thread"),
