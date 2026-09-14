@@ -666,26 +666,25 @@ persist_first_pass_rows() {
   printf '%s\n' "$persisted" >"$RUN_DIR/first-pass.$mp.json"
 }
 
-# Append the sidecar's $3 array, read with jq flag $4, to the shell array named
-# by $1, so the three restores below share one reader and cannot drift on the
-# empty-line skip that keeps a blank row out of the digest.
-append_sidecar_rows() {
-  local -n __asr_rows="$1"
-  local sidecar="$2" filter="$3" flag="$4" lines="" line
-  jq_to lines "$flag" "$filter" "$sidecar"
-  while IFS= read -r line; do
-    [[ -n "$line" ]] && __asr_rows+=("$line")
-  done <<<"$lines"
-  return 0
-}
-
+# The three array restores stay spelled out: appending to a caller-named array
+# needs a `local -n` nameref (bash 4.3), and this script runs in Claude Code's
+# Bash-tool shell on every platform, which on macOS is the stock bash 3.2.
 restore_first_pass_rows() {
   local mp="$1"
-  local sidecar="$RUN_DIR/first-pass.$mp.json"
+  local sidecar="$RUN_DIR/first-pass.$mp.json" lines line
   [[ -f "$sidecar" ]] || return 0
-  append_sidecar_rows MP_ERRORS "$sidecar" '.errors[]?' -r
-  append_sidecar_rows IR_FAILED "$sidecar" '.ir_failed[]?' -c
-  append_sidecar_rows US_FAILED "$sidecar" '.us_failed[]?' -c
+  jq_to lines -r '.errors[]?' "$sidecar"
+  while IFS= read -r line; do
+    [[ -n "$line" ]] && MP_ERRORS+=("$line")
+  done <<<"$lines"
+  jq_to lines -c '.ir_failed[]?' "$sidecar"
+  while IFS= read -r line; do
+    [[ -n "$line" ]] && IR_FAILED+=("$line")
+  done <<<"$lines"
+  jq_to lines -c '.us_failed[]?' "$sidecar"
+  while IFS= read -r line; do
+    [[ -n "$line" ]] && US_FAILED+=("$line")
+  done <<<"$lines"
   # Digest fields only. `REFRESH_FAILED` stays 0 so the re-entry can still run
   # Steps 4 and 5: that flag is the first-pass defer gate, and restoring it
   # would skip the install the caller just confirmed.

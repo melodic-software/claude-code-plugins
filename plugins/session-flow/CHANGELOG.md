@@ -4,7 +4,7 @@
 
 ### Changed
 
-- The three test wrappers and the observer-arm hook find a Python 3.10+ interpreter through one probe library instead of four identical loops. Skip messages, exit codes and the launcher argv are unchanged.
+- The three test wrappers and the observer-arm hook find a Python 3.10+ interpreter through one probe library instead of four identical loops. Skip messages, exit codes and the launcher argv are unchanged. The probe writes through `printf -v`, so the hook still finds its interpreter on the stock bash 3.2 that macOS ships.
 
 ## [0.35.16]
 

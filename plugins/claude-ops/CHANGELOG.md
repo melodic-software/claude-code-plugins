@@ -13,7 +13,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 
 ### Changed
 
-- The three plugins-skill scripts source one jq-capture library for their jq_to and json_string_to helpers instead of carrying private copies, and sync-run appends its sidecar rows through one helper. Output and exit codes are unchanged.
+- The three plugins-skill scripts source one jq-capture library for their jq_to and json_string_to helpers instead of carrying private copies. sync-run keeps its three sidecar-row restores spelled out, since a shared array appender would need a bash 4.3 nameref that the stock bash 3.2 on macOS lacks. Output and exit codes are unchanged.
 
 ## [0.56.11]
 

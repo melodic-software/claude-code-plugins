@@ -10,6 +10,13 @@
 # substitution, as it always did. Callers own presentation, normalization
 # (backslash folding, trailing-slash stripping) and exit-code mapping.
 #
+# The write is `printf -v "$1"`, not a `local -n` nameref: namerefs arrived in
+# bash 4.3, and these scripts run in Claude Code's Bash-tool shell on every
+# platform, which on macOS is the stock bash 3.2. There a failed `local -n`
+# would leave the caller's variable empty and the audit reading `/.claude/...`
+# as the project. Every local carries the `_scopes_` prefix so a caller's
+# out-var name can never be shadowed by one of them.
+#
 # WHY THIS EXISTS: five audit scripts resolved the same three ladders by hand.
 # A hand-written copy drifts the moment one of them learns a new fallback, and
 # a scope resolved two ways inside one audit reports the same machine twice.
@@ -22,15 +29,14 @@
 # Git for Windows reports the toplevel with a trailing CR; it is stripped in the
 # shell rather than through `tr` so the ladder costs no extra process.
 scopes::project_root_to() {
-  local -n _scopes_out="$1"
-  local override="${2:-}" root
-  if [[ -n "$override" ]]; then
-    _scopes_out="$override"
+  local _scopes_override="${2:-}" _scopes_root
+  if [[ -n "$_scopes_override" ]]; then
+    printf -v "$1" '%s' "$_scopes_override"
     return 0
   fi
-  root="$(git rev-parse --show-toplevel 2>/dev/null)"
-  root="${root//$'\r'/}"
-  _scopes_out="${root:-${CLAUDE_PROJECT_DIR:-$PWD}}"
+  _scopes_root="$(git rev-parse --show-toplevel 2>/dev/null)"
+  _scopes_root="${_scopes_root//$'\r'/}"
+  printf -v "$1" '%s' "${_scopes_root:-${CLAUDE_PROJECT_DIR:-$PWD}}"
 }
 
 # scopes::user_dir_to <var> [override] - the user config dir: a non-empty
@@ -38,16 +44,15 @@ scopes::project_root_to() {
 # when HOME is unset too, which callers read as "this machine has no user
 # scope to read".
 scopes::user_dir_to() {
-  local -n _scopes_out="$1"
-  local override="${2:-}"
-  if [[ -n "$override" ]]; then
-    _scopes_out="$override"
+  local _scopes_override="${2:-}"
+  if [[ -n "$_scopes_override" ]]; then
+    printf -v "$1" '%s' "$_scopes_override"
   elif [[ -n "${CLAUDE_CONFIG_DIR:-}" ]]; then
-    _scopes_out="$CLAUDE_CONFIG_DIR"
+    printf -v "$1" '%s' "$CLAUDE_CONFIG_DIR"
   elif [[ -n "${HOME:-}" ]]; then
-    _scopes_out="$HOME/.claude"
+    printf -v "$1" '%s' "$HOME/.claude"
   else
-    _scopes_out=""
+    printf -v "$1" '%s' ""
   fi
 }
 
@@ -56,13 +61,12 @@ scopes::user_dir_to() {
 # non-empty <user-dir>. Leaves <var> empty when neither is known, which callers
 # read as "no registry to consult".
 scopes::installed_registry_to() {
-  local -n _scopes_out="$1"
-  local override="${2:-}" user_dir="${3:-}"
-  if [[ -n "$override" ]]; then
-    _scopes_out="$override"
-  elif [[ -n "$user_dir" ]]; then
-    _scopes_out="$user_dir/plugins/installed_plugins.json"
+  local _scopes_override="${2:-}" _scopes_user_dir="${3:-}"
+  if [[ -n "$_scopes_override" ]]; then
+    printf -v "$1" '%s' "$_scopes_override"
+  elif [[ -n "$_scopes_user_dir" ]]; then
+    printf -v "$1" '%s' "$_scopes_user_dir/plugins/installed_plugins.json"
   else
-    _scopes_out=""
+    printf -v "$1" '%s' ""
   fi
 }

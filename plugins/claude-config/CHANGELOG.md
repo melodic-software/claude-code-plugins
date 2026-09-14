@@ -7,7 +7,7 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 ### Changed
 
-- The five audit scripts resolve the project root, user config dir and installed-plugin registry through one resolve-scopes library instead of five hand-written ladders. Overrides and environment values still land verbatim, and the sibling-script and missing-library diagnostics are unchanged.
+- The five audit scripts resolve the project root, user config dir and installed-plugin registry through one resolve-scopes library instead of five hand-written ladders. Overrides and environment values still land verbatim, and the sibling-script and missing-library diagnostics are unchanged. The library writes through `printf -v`, so it resolves the same scopes on the stock bash 3.2 that macOS ships.
 
 ## [0.46.8]
 
