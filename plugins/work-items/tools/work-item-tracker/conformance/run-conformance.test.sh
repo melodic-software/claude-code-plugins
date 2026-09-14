@@ -42,14 +42,16 @@ assert_contains "traversing name rejected as invalid, not as not-found" \
 TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
 mkdir -p "$TMP_ROOT/bindings"
-cat >"$TMP_ROOT/bindings/marker.sh" <<'EOF'
-# shellcheck shell=bash
-cb_setup() {
-  echo "MARKER-BINDING-SOURCED" >&2
-  exit 42
+
+# write_marker_binding <file> <marker> <exit-code>: a stub binding whose cb_setup
+# announces itself on stderr and exits, so reaching it at all proves which bindings
+# root the runner sourced.
+write_marker_binding() {
+  printf '# shellcheck shell=bash\ncb_setup() {\n  echo "%s" >&2\n  exit %s\n}\ncb_teardown() { :; }\n' \
+    "$2" "$3" >"$1"
 }
-cb_teardown() { :; }
-EOF
+
+write_marker_binding "$TMP_ROOT/bindings/marker.sh" "MARKER-BINDING-SOURCED" 42
 
 override_err="$(WIT_CONFORMANCE_BINDINGS_DIR="$TMP_ROOT/bindings" bash "$S" --binding marker 2>&1 >/dev/null)"
 override_rc=$?
@@ -68,14 +70,9 @@ assert_eq "override root does not fall back to bundled" "2" "$?"
 # a consuming repo without needing a git fixture.
 CONSUMER_ROOT="$TMP_ROOT/consumer"
 mkdir -p "$CONSUMER_ROOT/tools/work-item-tracker/conformance/bindings"
-cat >"$CONSUMER_ROOT/tools/work-item-tracker/conformance/bindings/local-markdown.sh" <<'EOF'
-# shellcheck shell=bash
-cb_setup() {
-  echo "CONSUMER-LOCAL-SHADOW" >&2
-  exit 43
-}
-cb_teardown() { :; }
-EOF
+write_marker_binding \
+  "$CONSUMER_ROOT/tools/work-item-tracker/conformance/bindings/local-markdown.sh" \
+  "CONSUMER-LOCAL-SHADOW" 43
 
 shadow_err="$(CLAUDE_PROJECT_DIR="$CONSUMER_ROOT" bash "$S" --binding local-markdown 2>&1 >/dev/null)"
 shadow_rc=$?

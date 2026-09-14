@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.17]
+
+### Changed
+
+- The work-item-tracker conformance suite loops its three label-creation calls, writes the schema-skew manifest through one helper, and generates its marker bindings from a shared writer, with byte-identical files and argv.
+
 ## [0.40.16]
 
 ### Changed

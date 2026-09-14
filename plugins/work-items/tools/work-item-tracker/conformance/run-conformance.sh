@@ -175,18 +175,24 @@ wit_case "overlay removal restores the team binding" 0 capabilities
 
 SKEW_ROOT="$(mktemp -d)"
 mkdir -p "$SKEW_ROOT/$PROVIDER"
-printf '%s\n' "{\"schema_version\":\"99.0\",\"provider\":\"$PROVIDER\",\"verbs\":{\"capabilities\":true}}" \
-  >"$SKEW_ROOT/$PROVIDER/capabilities.json"
+SKEW_MANIFEST="$SKEW_ROOT/$PROVIDER/capabilities.json"
+
+# write_skew_manifest <schema-version>: the synthetic shadow manifest for $PROVIDER.
+write_skew_manifest() {
+  printf '{"schema_version":"%s","provider":"%s","verbs":{"capabilities":true}}\n' \
+    "$1" "$PROVIDER" >"$SKEW_MANIFEST"
+}
+
+write_skew_manifest "99.0"
 SKEW_ERR="$(WIT_ADAPTERS_DIR="$SKEW_ROOT" bash "$TRACKER" capabilities 2>&1 >/dev/null)"
 assert_eq "major-skew manifest refused (exit code)" "3" "$?"
 assert_contains "major-skew stderr names both versions" "$SKEW_ERR" "99.0"
 
 cat >"$SKEW_ROOT/$PROVIDER/capabilities.sh" <<EOF
 #!/usr/bin/env bash
-jq -c . "$SKEW_ROOT/$PROVIDER/capabilities.json"
+jq -c . "$SKEW_MANIFEST"
 EOF
-printf '%s\n' "{\"schema_version\":\"1.99\",\"provider\":\"$PROVIDER\",\"verbs\":{\"capabilities\":true}}" \
-  >"$SKEW_ROOT/$PROVIDER/capabilities.json"
+write_skew_manifest "1.99"
 WIT_OUT="$(WIT_ADAPTERS_DIR="$SKEW_ROOT" bash "$TRACKER" capabilities 2>/dev/null)"
 assert_eq "newer-minor manifest proceeds (exit code)" "0" "$?"
 SKEW_ERR="$(WIT_ADAPTERS_DIR="$SKEW_ROOT" bash "$TRACKER" capabilities 2>&1 >/dev/null)"
