@@ -5,6 +5,8 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
+
 import { LANES, lanePath } from "./slice-lanes.js";
 import {
   forbiddenSynthesisFileNameReason,
@@ -519,6 +521,26 @@ export function validatePromotionDecisionsForSlice(sliceDir) {
   const doc = JSON.parse(fs.readFileSync(decisionsPath, "utf8"));
   const errors = validatePromotionDecisions(doc);
   return { valid: errors.length === 0, errors };
+}
+
+/**
+ * Report a slice validation result on the CLI streams: the "valid" line on stdout,
+ * one line per error on stderr. The label is each validator script's own contract,
+ * so it stays the caller's to supply.
+ *
+ * @param {{ valid: boolean, errors: string[] }} result
+ * @param {string} label
+ * @returns {number} 0 when valid, 1 when errors were reported
+ */
+export function reportSliceValidation(result, label) {
+  if (result.valid) {
+    writeStdout(`${label}: valid`);
+    return 0;
+  }
+  for (const error of result.errors) {
+    writeStderr(`${label}: ${error}`);
+  }
+  return 1;
 }
 
 /**

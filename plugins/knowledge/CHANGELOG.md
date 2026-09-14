@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.13.75]
+
+### Changed
+
+- The repair and vision-gated promotion scripts share one synthesis destination-name normalizer in lib, and the two slice validators report through one shared wrapper. Messages, exit codes and written artifacts are unchanged.
+
 ## [0.13.74]
 
 ### Changed
