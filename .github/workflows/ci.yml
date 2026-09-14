@@ -474,7 +474,6 @@ jobs:
             .github/workflows/claude-security-review.yml
             .github/workflows/dependabot-miro-bundle.yml
             .github/workflows/hook-utils-timing.yml
-            .github/workflows/link-check.yml
             .github/workflows/silent-revert-canary.yml
 
       - name: Verify shebang files are executable

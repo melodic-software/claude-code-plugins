@@ -5,15 +5,14 @@ name: video-digest-source-liveness
 # upstream drift (yt-dlp / YouTube / X). It is deliberately NOT in ci.yml and
 # NOT in the ci-status aggregate — a red run annotates the job, writes a step
 # summary, and uploads the probe report as an artifact. It never opens or
-# updates GitHub issues (drain forbids filing). Same non-blocking posture as
-# link-check.yml, without the tracker-item side effect.
+# updates GitHub issues (drain forbids filing).
 #
 # pull_request: hermetic --offline self-test only (no network).
 # schedule / workflow_dispatch: live yt-dlp probes + annotate/upload on failure.
 
 on:
   schedule:
-    # Weekly Monday 07:17 UTC — staggered off the link-check Monday 06:23 slot.
+    # Weekly Monday 07:17 UTC.
     - cron: '17 7 * * 1'
   workflow_dispatch:
   pull_request:
