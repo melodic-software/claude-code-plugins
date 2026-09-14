@@ -352,37 +352,39 @@ jobs:
         with:
           config: .editorconfig-checker.json
 
+      # ON A PULL REQUEST THE COMPOSITE GETS THE RAW DIFF. It keeps only listed
+      # paths that still exist and end in .sh or .bash, so a diff with no shell
+      # file is a non-blank list that keeps nothing: a notice and exit 0, not a
+      # scan. The filtering is left to the composite so there is one rule.
+      #
       # A BLANK LIST IS A WHOLE-REPOSITORY SCAN, NOT AN EMPTY ONE: the composite
       # cannot tell a blank input from an unset one, so it falls back to its own
       # discovery. That is the wanted answer on push, where there is no base to
       # diff against, and on any diff that changes what every script is judged
-      # against rather than a script: the rcfile, or a sourced library or test
+      # against rather than a script: the rcfile, a sourced library or test
       # harness, which the composite cannot see is load-bearing outside the
-      # list. This branches in the shell rather than in `if:` because a step
-      # cannot carry both a resolver gate and an event gate.
+      # list, or this workflow, which pins the composite and so the ShellCheck
+      # version. Deletions stay in the diff so removing a library still counts.
+      # This branches in the shell rather than in `if:` because a step cannot
+      # carry both a resolver gate and an event gate.
       #
       # THE LANE IS SCOPED, NEVER SKIPPED. A resolver gate here would be
       # `run_shell`, and `run_shell` carries the docs-only term: a pull request
       # whose only change is a shell script under a docs-only prefix such as
       # `docs/topics/` resolves docs-only, and the gate would skip ShellCheck on
       # the very file it should read while the aggregator override recorded that
-      # skip as success. So the step always runs. The accepted cost is the other
-      # side of the same coin: a diff that changes no shell file at all gets a
-      # blank list and pays the whole-repository scan, which is what every run
-      # paid before this step existed. The saving is on diffs that do change
-      # shell files, which is where the lane's cost was being spent.
+      # skip as success. So the step always runs and lets the composite decide.
       - name: Select the changed shell scripts
         id: changed_shell
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          changed=''
           files=''
           if [ -n "$BASE_REF" ]; then
-            changed=$(git diff --name-only --diff-filter=d "origin/$BASE_REF...HEAD")
-            if ! printf '%s\n' "$changed" |
-              grep -qE '^\.shellcheckrc$|(^|/)lib/|-(harness|helpers)\.sh$'; then
-              files=$(printf '%s\n' "$changed" | grep -E '\.(sh|bash)$' || true)
+            files=$(git diff --name-only "origin/$BASE_REF...HEAD")
+            if printf '%s\n' "$files" |
+              grep -qE '^\.shellcheckrc$|(^|/)lib/|-(harness|helpers)\.sh$|^\.github/workflows/ci\.yml$'; then
+              files=''
             fi
           fi
           {
