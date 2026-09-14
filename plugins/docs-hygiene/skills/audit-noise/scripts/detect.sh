@@ -9,6 +9,8 @@ set -u
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/noise-shapes.sh
 source "$SCRIPT_DIR/lib/noise-shapes.sh"
+# shellcheck source=lib/opt-value.sh
+source "$SCRIPT_DIR/lib/opt-value.sh"
 
 PATHS_FILE=""
 TARGETS=()
@@ -34,28 +36,20 @@ invoke one detect.sh process per chunk without a per-file shell loop.
 EOF
 }
 
-require_opt_value() {
-  local opt="$1"
-  if [[ $# -lt 2 || -z "${2:-}" || "$2" == -* ]]; then
-    echo "detect.sh: $opt requires a value" >&2
-    exit 2
-  fi
-}
-
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --paths-file)
-    require_opt_value "$@"
+    require_opt_value "detect.sh" "$@"
     PATHS_FILE="$2"
     shift 2
     ;;
   --offset)
-    require_opt_value "$@"
+    require_opt_value "detect.sh" "$@"
     OFFSET="$2"
     shift 2
     ;;
   --limit)
-    require_opt_value "$@"
+    require_opt_value "detect.sh" "$@"
     LIMIT="$2"
     shift 2
     ;;

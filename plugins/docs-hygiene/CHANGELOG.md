@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [0.22.6]
+
+### Changed
+
+- detect.sh and emit-findings.sh in the audit-noise skill validate option values through one sourced lib helper instead of two private copies. Diagnostics, findings and exit codes are unchanged.
+
 ## [0.22.5]
 
 ### Changed

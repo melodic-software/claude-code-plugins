@@ -41,6 +41,10 @@
 # is the payload.
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/opt-value.sh
+source "$SCRIPT_DIR/lib/opt-value.sh"
+
 FROM=""
 OUT=""
 BRANCH=""
@@ -67,33 +71,25 @@ row); all other shapes are counted as declined and left to the human report.
 EOF
 }
 
-require_opt_value() {
-  local opt="$1"
-  if [[ $# -lt 2 || -z "${2:-}" || "$2" == -* ]]; then
-    echo "emit-findings.sh: $opt requires a value" >&2
-    exit 2
-  fi
-}
-
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --from)
-    require_opt_value "$@"
+    require_opt_value "emit-findings.sh" "$@"
     FROM="$2"
     shift 2
     ;;
   --out)
-    require_opt_value "$@"
+    require_opt_value "emit-findings.sh" "$@"
     OUT="$2"
     shift 2
     ;;
   --branch)
-    require_opt_value "$@"
+    require_opt_value "emit-findings.sh" "$@"
     BRANCH="$2"
     shift 2
     ;;
   --declined-carveout)
-    require_opt_value "$@"
+    require_opt_value "emit-findings.sh" "$@"
     CARVEOUT="$2"
     shift 2
     ;;
