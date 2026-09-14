@@ -598,32 +598,26 @@ wit_require_${PROVIDER_FUNC}_id "\$ID" || wit_usage_error "not a @@PROVIDER@@ it
 [[ "\$LEASE_COMMENT_ID" =~ ^[0-9]+\$ ]] || wit_usage_error "--lease-comment-id is required and must be numeric"
 EOF
     ;;
-  link-blocks)
+  link-blocks | add-sub-item)
+    # Both edge verbs are `<id> --<flag> <id>`, differing only in the flag and the
+    # variable it fills; emitting them from one arm keeps the two identical.
+    local flag var
+    if [[ "$verb" == "link-blocks" ]]; then
+      flag="blocked-by" var="BLOCKED_BY"
+    else
+      flag="parent" var="PARENT"
+    fi
     cat <<EOF
 ID="\${1:-}"
 [[ -n "\$ID" ]] || wit_usage_error "\$USAGE"
 shift
-BLOCKED_BY=""
+$var=""
 EOF
-    opt_loop blocked-by=BLOCKED_BY
+    opt_loop "$flag=$var"
     cat <<EOF
 wit_require_${PROVIDER_FUNC}_id "\$ID" || wit_usage_error "not a @@PROVIDER@@ item id: \$ID"
-[[ -n "\$BLOCKED_BY" ]] || wit_usage_error "--blocked-by is required"
-wit_require_${PROVIDER_FUNC}_id "\$BLOCKED_BY" || wit_usage_error "not a @@PROVIDER@@ item id: \$BLOCKED_BY"
-EOF
-    ;;
-  add-sub-item)
-    cat <<EOF
-ID="\${1:-}"
-[[ -n "\$ID" ]] || wit_usage_error "\$USAGE"
-shift
-PARENT=""
-EOF
-    opt_loop parent=PARENT
-    cat <<EOF
-wit_require_${PROVIDER_FUNC}_id "\$ID" || wit_usage_error "not a @@PROVIDER@@ item id: \$ID"
-[[ -n "\$PARENT" ]] || wit_usage_error "--parent is required"
-wit_require_${PROVIDER_FUNC}_id "\$PARENT" || wit_usage_error "not a @@PROVIDER@@ item id: \$PARENT"
+[[ -n "\$$var" ]] || wit_usage_error "--$flag is required"
+wit_require_${PROVIDER_FUNC}_id "\$$var" || wit_usage_error "not a @@PROVIDER@@ item id: \$$var"
 EOF
     ;;
   create-item)

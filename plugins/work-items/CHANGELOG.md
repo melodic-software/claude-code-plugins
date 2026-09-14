@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.21]
+
+### Changed
+
+- The github edge verbs parse and validate their arguments through one wit_parse_edge_args helper, generate-adapter merges its two identical parse arms, the linear scope parser drops a write-only variable, and the two jira verb suites share a mock helper like the gitea and linear suites. Adapter output, usage text and exit codes are unchanged, and the templates still render byte-identically.
+
 ## [0.40.20]
 
 ### Changed
