@@ -3,6 +3,12 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.4]
+
+### Changed
+
+- stateless scripts: scope-report.sh prints its scope table through one row helper instead of six inline printf calls, and enumerate-all-projects.sh substitutes the absent-index marker with a parameter default. Output byte-identical.
+
 ## [0.12.3]
 
 ### Fixed
