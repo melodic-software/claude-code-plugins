@@ -16,7 +16,8 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
 DISPATCH="$PLUGIN_ROOT/scripts/dispatch.sh"
-REPORT="$PLUGIN_ROOT/scripts/report.py"
+# shellcheck source=../../../scripts/entry-common.sh
+source "$PLUGIN_ROOT/scripts/entry-common.sh"
 
 JSON=0
 ARGS=()
@@ -27,7 +28,7 @@ while [[ $# -gt 0 ]]; do
     shift
     ;;
   --help | -h)
-    sed -n '2,13p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2
+    cm_usage_banner "${BASH_SOURCE[0]}" 13
     exit 0
     ;;
   *)
@@ -49,15 +50,5 @@ fi
 bash "$DISPATCH" audit-complexity --measures cyclomatic,cognitive,halstead "${ARGS[@]}" >"$WORK/report.json"
 rc=$?
 [[ $rc -eq 0 || $rc -eq 3 ]] || exit "$rc"
-if [[ $JSON -eq 1 ]]; then
-  cat "$WORK/report.json"
-else
-  # shellcheck source=../../../scripts/persist-report.sh
-  source "$PLUGIN_ROOT/scripts/persist-report.sh"
-  render_args=()
-  if document="$(cm_persist_report audit-complexity "$WORK/report.json")"; then
-    render_args=(--document "$document")
-  fi
-  "${PY[@]}" "$REPORT" render "${render_args[@]}" <"$WORK/report.json" || exit 2
-fi
+cm_emit_document audit-complexity "$JSON" "$WORK/report.json" || exit 2
 exit "$rc"

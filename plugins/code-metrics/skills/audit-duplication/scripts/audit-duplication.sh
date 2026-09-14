@@ -25,6 +25,8 @@ DISPATCH="$PLUGIN_ROOT/scripts/dispatch.sh"
 REPORT="$PLUGIN_ROOT/scripts/report.py"
 CLUSTER="$SCRIPT_DIR/cluster-clones.py"
 FILTER="$SCRIPT_DIR/registry-filter.py"
+# shellcheck source=../../../scripts/entry-common.sh
+source "$PLUGIN_ROOT/scripts/entry-common.sh"
 
 JSON=0
 CONFIG=""
@@ -53,7 +55,7 @@ while [[ $# -gt 0 ]]; do
     shift 2
     ;;
   --help | -h)
-    sed -n '2,19p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2
+    cm_usage_banner "${BASH_SOURCE[0]}" 19
     exit 0
     ;;
   *)
@@ -80,8 +82,7 @@ ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 # the same document the dispatcher measures against.
 if [[ -z "$CONFIG" ]]; then
   CONFIG="$WORK/config.json"
-  "${PY[@]}" "$PLUGIN_ROOT/scripts/resolve-config.py" --ladder "$PLUGIN_ROOT/scripts/collector-ladder.tsv" \
-    --home "${CODE_METRICS_HOME:-${HOME:-/}}" >"$CONFIG" || exit 2
+  cm_resolve_config "$CONFIG" || exit 2
 fi
 
 # Six tunables (a cap of null or 0 is exported empty, which the adapter reads
@@ -165,15 +166,5 @@ rc=$?
 "${PY[@]}" "$REPORT" resummarize --root "$ROOT" <"$WORK/filtered.json" >"$WORK/summed.json" || exit 2
 "${PY[@]}" "$FILTER" --zero-floor --root "$ROOT" <"$WORK/summed.json" >"$WORK/final.json" || exit 2
 
-if [[ $JSON -eq 1 ]]; then
-  cat "$WORK/final.json"
-else
-  # shellcheck source=../../../scripts/persist-report.sh
-  source "$PLUGIN_ROOT/scripts/persist-report.sh"
-  render_args=(--rollup-depth "$ROLLUP_DEPTH")
-  if document="$(cm_persist_report audit-duplication "$WORK/final.json")"; then
-    render_args+=(--document "$document")
-  fi
-  "${PY[@]}" "$REPORT" render "${render_args[@]}" <"$WORK/final.json" || exit 2
-fi
+cm_emit_document audit-duplication "$JSON" "$WORK/final.json" --rollup-depth "$ROLLUP_DEPTH" || exit 2
 exit "$rc"

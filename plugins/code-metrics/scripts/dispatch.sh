@@ -52,7 +52,7 @@ SCOPE_FILTER="$PLUGIN_ROOT/scripts/scope-filter.py"
 CONFIG=""
 
 usage() {
-  sed -n '2,25p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2
+  cm_usage_banner "${BASH_SOURCE[0]}" 25
 }
 
 die_usage() {
@@ -62,6 +62,8 @@ die_usage() {
 
 # shellcheck source=python-resolve.sh
 source "$PLUGIN_ROOT/scripts/python-resolve.sh"
+# shellcheck source=entry-common.sh
+source "$PLUGIN_ROOT/scripts/entry-common.sh"
 
 SKILL=""
 MEASURES=""
@@ -203,7 +205,7 @@ progress() {
 # ---- configuration -----------------------------------------------------------
 if [[ -z "$CONFIG" ]]; then
   CONFIG="$WORK/config.json"
-  "${PY[@]}" "$RESOLVER" --ladder "$LADDER" --home "${CODE_METRICS_HOME:-${HOME:-/}}" >"$CONFIG" ||
+  cm_resolve_config "$CONFIG" "$LADDER" ||
     die_usage "the configuration could not be resolved (see the message above)"
 fi
 # Ecosystem globs and lane opt-outs from the resolved document come first, so

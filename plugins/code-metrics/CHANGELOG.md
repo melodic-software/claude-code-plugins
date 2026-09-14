@@ -3,6 +3,12 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.11]
+
+### Changed
+
+- The five audit entry scripts and the dispatch and lane-detection scripts print their usage banner, split the config option, resolve the config ladder and emit the rendered document through one entry-common library instead of seven copies. Help text, exit codes and reports are byte-identical.
+
 ## [0.3.10]
 
 ### Changed
