@@ -292,6 +292,9 @@ function checkEnvelope(envelope, where, { surfaces, sections, duplicates, routin
   const sourceSurface = envelope["signal.source_surface"];
   const routine = envelope["signal.routine"];
   const producerIdentity = envelope["signal.producer_identity"];
+  // A claim that is a routine identity at all; the temporal branches below
+  // validate what it must then agree with.
+  const routineIsIdentity = typeof routine === "string" && ROUTINE_IDENTITY.test(routine);
   let localScheduler = false;
   let surfaceEntry = null;
   let sourceSection = null;
@@ -386,7 +389,7 @@ function checkEnvelope(envelope, where, { surfaces, sections, duplicates, routin
       // human-gated downstream. The association check runs only once the
       // source surface RESOLVED — an unresolved surface already carries its
       // own finding above.
-      if (typeof routine === "string" && ROUTINE_IDENTITY.test(routine)) {
+      if (routineIsIdentity) {
         const enabledEntry =
           routinesEnabled !== null && typeof routinesEnabled[routine] === "object" && routinesEnabled[routine] !== null
             ? routinesEnabled[routine]
@@ -418,7 +421,7 @@ function checkEnvelope(envelope, where, { surfaces, sections, duplicates, routin
           `${where}: signal.work_class ${JSON.stringify(workClass)} cannot be verified without --security-binding — the class association lives in the protected security binding, and an unverifiable class fails closed rather than certifying`,
         );
       }
-      if (stampedClass && securityBindingSupplied && typeof routine === "string" && ROUTINE_IDENTITY.test(routine)) {
+      if (stampedClass && securityBindingSupplied && routineIsIdentity) {
         const temporalHome = securityBinding?.admission?.classification?.temporal;
         const classificationEntry =
           typeof temporalHome === "object" && temporalHome !== null ? temporalHome[routine] : undefined;
@@ -475,12 +478,14 @@ function checkEnvelope(envelope, where, { surfaces, sections, duplicates, routin
       );
     }
   }
-  if (typeof rawLink === "string" && rawLink.length > 0) {
-    if (localScheduler ? !isDurableLocalUri(rawLink, surfaceEntry) : !isAbsoluteHttpsUrl(rawLink)) {
-      findings.push(
-        `${where}: signal.raw_link ${JSON.stringify(rawLink)} is not a durable absolute reference (${localScheduler ? "local-scheduler origin allows file:, https:, or a binding-declared artifact scheme" : "this origin requires an absolute https URL"})`,
-      );
-    }
+  if (
+    typeof rawLink === "string" &&
+    rawLink.length > 0 &&
+    (localScheduler ? !isDurableLocalUri(rawLink, surfaceEntry) : !isAbsoluteHttpsUrl(rawLink))
+  ) {
+    findings.push(
+      `${where}: signal.raw_link ${JSON.stringify(rawLink)} is not a durable absolute reference (${localScheduler ? "local-scheduler origin allows file:, https:, or a binding-declared artifact scheme" : "this origin requires an absolute https URL"})`,
+    );
   }
 }
 

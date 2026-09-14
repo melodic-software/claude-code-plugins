@@ -47,10 +47,12 @@ function isNormalizedCanonicalUrl(value) {
   );
 }
 
-function checkAttributeList(attributes, where, hits) {
+// Returns how many join-attribute occurrences this list carried.
+function checkAttributeList(attributes, where) {
+  let hits = 0;
   for (const attribute of attributes ?? []) {
     if (attribute.key !== JOIN_ATTRIBUTE) continue;
-    hits.count += 1;
+    hits += 1;
     const value = attribute.value?.stringValue;
     if (!isNormalizedCanonicalUrl(value)) {
       findings.push(
@@ -58,6 +60,7 @@ function checkAttributeList(attributes, where, hits) {
       );
     }
   }
+  return hits;
 }
 
 function checkSchemaUrl(declared, where, tally) {
@@ -82,19 +85,18 @@ function checkResourceBlocks(blocks, file, line, tally) {
     block.forEach((entry, entryIndex) => {
       result.entries += 1;
       const where = `${file}:${line} ${signalKey}[${entryIndex}]`;
-      const hits = { count: 0 };
       checkSchemaUrl(entry.schemaUrl, where, tally);
-      checkAttributeList(entry.resource?.attributes, `${where} resource`, hits);
+      let hits = checkAttributeList(entry.resource?.attributes, `${where} resource`);
       for (const scope of entry.scopeSpans ?? entry.scopeMetrics ?? entry.scopeLogs ?? []) {
         checkSchemaUrl(scope.schemaUrl, `${where} scope`, tally);
         for (const item of scope.spans ?? scope.metrics ?? scope.logRecords ?? []) {
-          checkAttributeList(item.attributes, `${where} ${item.name ?? "record"}`, hits);
+          hits += checkAttributeList(item.attributes, `${where} ${item.name ?? "record"}`);
         }
       }
-      if (hits.count === 0) {
+      if (hits === 0) {
         findings.push(`${where}: resource entry carries no ${JOIN_ATTRIBUTE} attribute`);
       }
-      result.hits += hits.count;
+      result.hits += hits;
     });
   }
   return result;

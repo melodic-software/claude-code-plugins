@@ -75,6 +75,11 @@ const ROUTINE_IDENTITY = /^[a-z][a-z0-9-]*(\/[a-z][a-z0-9-]*)?$/;
 const NON_DURABLE_PREFIX_SCHEMES = new Set(["data", "javascript", "blob", "about", "http", "mailto", "tel", "vbscript"]);
 const SURFACE_CLASSES = ["tracker-vcs-event", "temporal", "agent-internal", "channel-feed"];
 const PROVENANCES = ["human", "agent", "system"];
+// Admission-rule axis vocabularies: the class tokens plus the "*" wildcard a
+// rule may bind an axis to.
+const RULE_SIGNAL_CLASSES = [...SURFACE_CLASSES, "*"];
+const RULE_PROVENANCES = [...PROVENANCES, "*"];
+const RULE_WORK_CLASSES = [...WORK_CLASSES, "*"];
 const DISPOSITIONS = ["autonomous-eligible", "human-gated", "audited-rejection"];
 const EVENT_CLASSES = [
   "gate-failure",
@@ -432,6 +437,10 @@ function isPlainObject(value) {
 function isNonEmptyString(value) {
   return typeof value === "string" && value.length > 0;
 }
+
+// The comparison form of a probed host: lowercased, with the optional DNS root
+// dot dropped, so a trailing-dot spelling never reads as a distinct target.
+const bareHost = (host) => host.toLowerCase().replace(/\.$/, "");
 
 // A transcript's paired evidence lists are recorded as ONE comma-separated
 // string per field, positionally paired with the probed targets. A non-string
@@ -861,9 +870,9 @@ function validateAdmissionStructure(admission) {
           ["signal_class", "provenance", "work_class", "disposition", "override_justification"],
           where,
         );
-        checkEnum(rule.signal_class, [...SURFACE_CLASSES, "*"], `${where}.signal_class`);
-        checkEnum(rule.provenance, [...PROVENANCES, "*"], `${where}.provenance`);
-        checkEnum(rule.work_class, [...WORK_CLASSES, "*"], `${where}.work_class`);
+        checkEnum(rule.signal_class, RULE_SIGNAL_CLASSES, `${where}.signal_class`);
+        checkEnum(rule.provenance, RULE_PROVENANCES, `${where}.provenance`);
+        checkEnum(rule.work_class, RULE_WORK_CLASSES, `${where}.work_class`);
         checkEnum(rule.disposition, DISPOSITIONS, `${where}.disposition`);
         if (Object.hasOwn(rule, "override_justification") && !isNonEmptyString(rule.override_justification)) {
           findings.push(`${where}.override_justification: must be a non-empty string when present`);
@@ -1370,6 +1379,10 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, subs
   if (transcript.assertions?.credentials_absent?.outcome !== "absent-or-denied") {
     return `transcript ${path} does not record the credential-absence assertion with outcome "absent-or-denied"`;
   }
+  // Both assertion objects exist from here on: the outcome gates above return
+  // otherwise.
+  const egress = transcript.assertions.egress_denied;
+  const credentials = transcript.assertions.credentials_absent;
   // The probe contract is expected-FAILURE: every check asserts a NON-zero
   // exit inside the boundary, so a recorded exit_code of "0" contradicts the
   // outcome it sits next to — the transcript is internally inconsistent and
@@ -1379,7 +1392,7 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, subs
   // An assertion without its recorded target proves nothing about the
   // boundary: a failing run against no named host/path could be any failing
   // command, not the probe.
-  const rawEgressHost = transcript.assertions.egress_denied.host;
+  const rawEgressHost = egress.host;
   if (typeof rawEgressHost !== "string" || rawEgressHost.length === 0) {
     return `transcript ${path} records assertions.egress_denied.host ${JSON.stringify(rawEgressHost)} — a proven egress-denial requires the probed external host (non-empty; comma-separated entries when several targets were probed)`;
   }
@@ -1396,7 +1409,7 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, subs
   // The inner exit codes pair with the probed hosts like the per-target
   // credential codes: one non-zero code per host — a single code cannot
   // prove denial toward every listed target.
-  const rawEgressCodes = transcript.assertions.egress_denied.exit_code;
+  const rawEgressCodes = egress.exit_code;
   const egressCodes = splitRecordedList(rawEgressCodes);
   if (egressCodes.length !== egressHosts.length) {
     return `transcript ${path} records assertions.egress_denied.exit_code ${JSON.stringify(rawEgressCodes)} for ${egressHosts.length} probed host entr${egressHosts.length === 1 ? "y" : "ies"} — one recorded exit code per probed host is required, comma-separated and positionally paired with host: a single code cannot prove denial toward every listed target`;
@@ -1409,7 +1422,7 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, subs
   // and buys nothing on its own: a zero exit is tolerated only where the entry
   // claims "peer-substituted", and that same entry must then survive the
   // fingerprint comparison below, which is the actual evidence.
-  const rawTransportForExit = transcript.assertions.egress_denied.transport_outcome;
+  const rawTransportForExit = egress.transport_outcome;
   const transportForExit = splitRecordedList(rawTransportForExit);
   for (const [index, code] of egressCodes.entries()) {
     if (nonzeroExit(code)) continue;
@@ -1435,7 +1448,7 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, subs
       return `transcript ${path} records assertions.egress_denied.host ${JSON.stringify(host)} — a loopback/private/link-local or otherwise non-external target (after normalizing encoded forms) cannot prove EXTERNAL egress denial; probe a genuine external host (multi-label DNS name or public IP)`;
     }
     if (egressAllowList !== null) {
-      if (!egressAllowList.includes(host.toLowerCase().replace(/\.$/, ""))) {
+      if (!egressAllowList.includes(bareHost(host))) {
         return `transcript ${path} records assertions.egress_denied.host ${JSON.stringify(host)} — not in the configured egress-probe allow-list (--egress-hosts ${egressAllowList.join(",")})`;
       }
     } else {
@@ -1443,7 +1456,7 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, subs
       // public egress (a DNS failure with open egress also "denies"). A
       // static checker cannot resolve DNS; the --egress-hosts allow-list
       // seam plus the live probe recipe close the residual.
-      const bare = host.toLowerCase().replace(/\.$/, "");
+      const bare = bareHost(host);
       const specialTld = SPECIAL_USE_TLDS.find((tld) => bare === tld.slice(1) || bare.endsWith(tld));
       if (specialTld !== undefined) {
         return `transcript ${path} records assertions.egress_denied.host ${JSON.stringify(host)} — the special-use/reserved TLD ${JSON.stringify(specialTld)} can never demonstrate public egress; probe a resolvable public host, or pass the org's configured target via --egress-hosts`;
@@ -1459,7 +1472,7 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, subs
   // ("0") makes the inner failure evidence of the boundary. Required with or
   // without --egress-hosts: reachability evidence is orthogonal to which
   // targets are trusted.
-  const rawOuterCodes = transcript.assertions.egress_denied.outer_exit_code;
+  const rawOuterCodes = egress.outer_exit_code;
   const outerCodes = splitRecordedList(rawOuterCodes);
   if (outerCodes.length !== egressHosts.length) {
     return `transcript ${path} records assertions.egress_denied.outer_exit_code ${JSON.stringify(rawOuterCodes)} for ${egressHosts.length} probed host entr${egressHosts.length === 1 ? "y" : "ies"} — one recorded outer-context exit code per probed host is required, comma-separated and positionally paired with host: a failed inner probe proves an egress boundary only when the outer context proves the target was reachable`;
@@ -1469,8 +1482,8 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, subs
       return `transcript ${path} records assertions.egress_denied.outer_exit_code entry ${JSON.stringify(code)} for host ${JSON.stringify(egressHosts[index])} — the outer-context fetch of the same target must succeed (exit "0"): a failed inner probe proves an egress boundary only when the outer context proves the target was reachable`;
     }
   }
-  if (!isNonEmptyString(transcript.assertions.credentials_absent.path)) {
-    return `transcript ${path} records assertions.credentials_absent.path ${JSON.stringify(transcript.assertions.credentials_absent.path)} — a proven credential-absence requires the probed host-credential path`;
+  if (!isNonEmptyString(credentials.path)) {
+    return `transcript ${path} records assertions.credentials_absent.path ${JSON.stringify(credentials.path)} — a proven credential-absence requires the probed host-credential path`;
   }
   // The path value is a comma-separated list of probed locations, and
   // exit_code is the comma-separated list of their recorded exit codes,
@@ -1479,8 +1492,8 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, subs
   // (readable) path leaks. Every path entry must be recognizably a
   // host-credential location (case-insensitive, path-separator-agnostic,
   // matched per component).
-  const credentialPaths = splitRecordedList(transcript.assertions.credentials_absent.path);
-  const rawCredentialCodes = transcript.assertions.credentials_absent.exit_code;
+  const credentialPaths = splitRecordedList(credentials.path);
+  const rawCredentialCodes = credentials.exit_code;
   const credentialCodes = splitRecordedList(rawCredentialCodes);
   if (credentialCodes.length !== credentialPaths.length) {
     return `transcript ${path} records assertions.credentials_absent.exit_code ${JSON.stringify(rawCredentialCodes)} for ${credentialPaths.length} probed path entr${credentialPaths.length === 1 ? "y" : "ies"} — one recorded exit code per probed credential path is required, comma-separated and positionally paired with path: a single code cannot prove absence on every listed location`;
@@ -1489,7 +1502,7 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, subs
   // probed path (validated per entry below): an in-shell home token expands
   // to the boundary's OWN home, so only a recorded host-side expansion names
   // the host credential location.
-  const rawHostExpanded = transcript.assertions.credentials_absent.host_expanded;
+  const rawHostExpanded = credentials.host_expanded;
   const hostExpanded = splitRecordedList(rawHostExpanded);
   if (hostExpanded.length !== credentialPaths.length) {
     return `transcript ${path} records assertions.credentials_absent.host_expanded ${JSON.stringify(rawHostExpanded)} for ${credentialPaths.length} probed path entr${credentialPaths.length === 1 ? "y" : "ies"} — one recorded host-side expansion per probed credential path is required, comma-separated and positionally paired with path: an in-shell home token expands to the boundary's own home, so only a recorded host-side expansion names the host credential location`;
@@ -1504,7 +1517,7 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, subs
   // completeness since no request semantics matter when the connection
   // itself must fail; "read-denied" for filesystem and env-token entries,
   // where no connection exists to fail.
-  const rawTransportOutcomes = transcript.assertions.credentials_absent.transport_outcome;
+  const rawTransportOutcomes = credentials.transport_outcome;
   const transportOutcomes = splitRecordedList(rawTransportOutcomes);
   if (transportOutcomes.length !== credentialPaths.length) {
     return `transcript ${path} records assertions.credentials_absent.transport_outcome ${JSON.stringify(rawTransportOutcomes)} for ${credentialPaths.length} probed path entr${credentialPaths.length === 1 ? "y" : "ies"} — one recorded transport outcome per probed credential path is required ("connect-failed" for a metadata URL, "read-denied" for a filesystem or env-token entry), comma-separated and positionally paired with path: without it a reachable metadata service's HTTP error is indistinguishable from a denied connection`;
@@ -1518,7 +1531,7 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, subs
   // env var set and non-empty, metadata service reachable) and records its
   // exit as outer_exit_code, comma-separated and positionally paired with
   // path; every entry must be "0".
-  const rawCredentialOuterCodes = transcript.assertions.credentials_absent.outer_exit_code;
+  const rawCredentialOuterCodes = credentials.outer_exit_code;
   const credentialOuterCodes = splitRecordedList(rawCredentialOuterCodes);
   if (credentialOuterCodes.length !== credentialPaths.length) {
     return `transcript ${path} records assertions.credentials_absent.outer_exit_code ${JSON.stringify(rawCredentialOuterCodes)} for ${credentialPaths.length} probed path entr${credentialPaths.length === 1 ? "y" : "ies"} — one recorded outer-context exit code per probed credential path is required, comma-separated and positionally paired with path: a failed inner read proves a credential boundary only when the outer context proves the target exists on the host`;
@@ -1553,7 +1566,7 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, subs
   // pre-existing probe-evidence fixture pins the specific reason its own
   // transcript is rejected for. A hardened check placed earlier would answer
   // for all of them, silently rewriting what those cases prove.
-  const egress = transcript.assertions.egress_denied;
+  //
   // A boundary with no working client denies nothing. Without this leg a
   // missing or broken fetch tool is indistinguishable from a sealed network,
   // and the emptiest possible boundary would score best.
@@ -1568,7 +1581,7 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, subs
   // Counting entries is not counting targets. The same host listed twice
   // measures exactly one policy decision while presenting as two, which is
   // precisely the evidence this leg exists to refuse.
-  const distinctEgressHosts = new Set(egressHosts.map((host) => host.toLowerCase().replace(/\.$/, "")));
+  const distinctEgressHosts = new Set(egressHosts.map(bareHost));
   if (distinctEgressHosts.size < 2) {
     return `transcript ${path} records ${egressHosts.length} egress entries naming only ${distinctEgressHosts.size} distinct target — repeating one host measures a single policy decision while presenting as several; probe at least two distinct external targets under different operators`;
   }
@@ -1606,7 +1619,7 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, subs
       return `transcript ${path} records assertions.egress_denied.inner_peer_fingerprint entry ${JSON.stringify(innerFingerprints[index])} for host ${JSON.stringify(egressHosts[index])} whose transport_outcome is ${JSON.stringify(outcome)} — an outcome other than "peer-substituted" asserts that no peer completed a handshake, so its fingerprint must be the literal "none"; a recorded peer contradicts the outcome beside it`;
     }
   }
-  const rawAddressFamilies = transcript.assertions.egress_denied.address_families;
+  const rawAddressFamilies = egress.address_families;
   const addressFamilies = splitRecordedList(rawAddressFamilies);
   if (addressFamilies.length === 0 || addressFamilies.some((family) => !ADDRESS_FAMILIES.has(family))) {
     return `transcript ${path} records assertions.egress_denied.address_families ${JSON.stringify(rawAddressFamilies)} — required, a non-empty comma-separated list drawn from ${[...ADDRESS_FAMILIES].join(" | ")}: a boundary sealed on one address family and open on the other passes an unrecorded probe, so the exercised families are recorded rather than inferred`;
@@ -1634,7 +1647,7 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, subs
   // Coverage, never a count: each ratified destination is a separate policy
   // decision, so probing one says nothing about the rest.
   const uncoveredRatified = componentReachableHosts
-    .map((host) => host.trim().toLowerCase().replace(/\.$/, ""))
+    .map((host) => bareHost(host.trim()))
     .filter((host) => !distinctEgressHosts.has(host));
   if (uncoveredRatified.length > 0) {
     return `transcript ${path} probes ${[...distinctEgressHosts].join(", ")}, leaving ratified component_reachable_hosts ${uncoveredRatified.join(", ")} unprobed — each ratified destination is a separate policy decision, so covering one says nothing about the rest; probe every ratified component-reachable destination in the configuration the run will actually use`;
@@ -1669,9 +1682,7 @@ function verifyWorkspaceContainment(transcript, path) {
   if (workspace.checked_after_teardown !== true) {
     return `transcript ${path} does not record assertions.workspace_host_write_contained.checked_after_teardown true — a caching or asynchronously-flushed mount can propagate an inner write after an immediate check, so the host-side re-check runs after the boundary is torn down`;
   }
-  const canaries = isNonEmptyString(workspace.canaries)
-    ? workspace.canaries.split(",").map((entry) => entry.trim())
-    : [];
+  const canaries = splitRecordedList(workspace.canaries);
   if (canaries.length < WORKSPACE_CANARY_MINIMUM || canaries.some((entry) => entry.length === 0)) {
     return `transcript ${path} records assertions.workspace_host_write_contained.canaries ${JSON.stringify(workspace.canaries)} — at least ${WORKSPACE_CANARY_MINIMUM} non-empty canary paths are required (an ordinary file, a dotfile, and a VCS-control-plane path), because a single literal path proves nothing about hidden-file handling, case folding, or the control plane that executes host code`;
   }
@@ -1712,9 +1723,7 @@ function verifyWorkspaceContainment(transcript, path) {
       }
     }
   }
-  const innerCodes = isNonEmptyString(workspace.inner_exit_code)
-    ? workspace.inner_exit_code.split(",").map((entry) => entry.trim())
-    : [];
+  const innerCodes = splitRecordedList(workspace.inner_exit_code);
   // Recorded for the reviewer, never asserted on: constraining it would grade
   // clone-mode substrates wrongly, since they legitimately accept the write.
   if (innerCodes.length !== canaries.length) {
@@ -2026,9 +2035,9 @@ function checkAdmissionSemantics(rules) {
   const validRules = rules.filter(
     (rule) =>
       isPlainObject(rule) &&
-      [...SURFACE_CLASSES, "*"].includes(rule.signal_class) &&
-      [...PROVENANCES, "*"].includes(rule.provenance) &&
-      [...WORK_CLASSES, "*"].includes(rule.work_class) &&
+      RULE_SIGNAL_CLASSES.includes(rule.signal_class) &&
+      RULE_PROVENANCES.includes(rule.provenance) &&
+      RULE_WORK_CLASSES.includes(rule.work_class) &&
       DISPOSITIONS.includes(rule.disposition),
   );
 
@@ -2453,7 +2462,7 @@ if (
 const egressAllowList =
   egressHostsArg === null
     ? null
-    : egressHostsArg.split(",").map((host) => host.trim().toLowerCase().replace(/\.$/, "")).filter((host) => host.length > 0);
+    : egressHostsArg.split(",").map((host) => bareHost(host.trim())).filter((host) => host.length > 0);
 // Credential roots are trimmed only; normalizeHostPath collapses each root and
 // candidate consistently at containment time (preserving POSIX case, folding
 // only case-insensitive drive paths). An arg that parses to zero roots (e.g.

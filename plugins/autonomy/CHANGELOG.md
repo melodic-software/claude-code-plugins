@@ -3,6 +3,12 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.11]
+
+### Changed
+
+- setup scripts: apply-prerequisite-resolution.mjs walks identity rows through one generator and a prose-rule table, resolve-prerequisites.mjs finds the first existing candidate through one helper and drops unused probe parameters, generate-identity-prerequisites.mjs merges inherited needs once, check-security-binding.mjs names its bare-host and admission vocabularies once, and the emission and envelope checkers drop an out-parameter and a repeated identity test. Output byte-identical.
+
 ## [0.23.10]
 
 ### Changed
