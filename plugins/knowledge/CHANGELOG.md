@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.13.56]
+
+### Changed
+
+- Share the validation check logger, the href dedup helper and the lesson-failure record, narrow the frame-extraction result to its two read fields and inline the lesson position in course-digest extraction (behavior unchanged).
+
 ## [0.13.55]
 
 ### Changed

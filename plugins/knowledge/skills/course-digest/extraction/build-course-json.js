@@ -121,9 +121,8 @@ function scrapeCurriculumInBrowser({ sources, instructorFragment }) {
           duration = `${parts[0]}m ${parts[1]}s`;
         }
 
-        const pos = currentModule.lessons.length + 1;
         currentModule.lessons.push({
-          position: pos,
+          position: currentModule.lessons.length + 1,
           title,
           duration,
           lectureId,

@@ -59,7 +59,7 @@ async function navigateWithFallback(page, url) {
 }
 
 async function extractFrames(hlsUrl, outputDir, referer, frameConfig = {}) {
-  const result = await extractSceneFrames(
+  const { method, count } = await extractSceneFrames(
     hlsUrl,
     outputDir,
     {
@@ -71,12 +71,7 @@ async function extractFrames(hlsUrl, outputDir, referer, frameConfig = {}) {
     { log },
   );
 
-  return {
-    method: result.method,
-    sceneCount: result.sceneCount,
-    intervalCount: result.intervalCount,
-    count: result.count,
-  };
+  return { method, count };
 }
 
 function ensureFfmpegAvailable() {
