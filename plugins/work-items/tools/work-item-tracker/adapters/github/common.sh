@@ -190,8 +190,7 @@ wit_remove_assignee() {
 }
 
 # wit_try_remove_assignee <owner> <repo> <number> <login> — best-effort rollback
-# on the session identity; never fails the caller (mirrors the bare-gh `|| true`
-# rollback calls this replaces).
+# on the session identity; never fails the caller.
 wit_try_remove_assignee() {
   gh api --method DELETE "repos/$1/$2/issues/$3/assignees" \
     -f "assignees[]=$4" >/dev/null 2>&1 || true
@@ -242,6 +241,14 @@ wit_emit_item() {
   fields="$(wit_gh_issue_view_json_fields)"
   wit_run_gh read issue view "$number" -R "$owner/$repo" --json "$fields"
   jq -c --arg sv "$WIT_SCHEMA_VERSION" --arg or "$owner/$repo" "$WIT_ITEM_JQ" <<<"$WIT_GH_OUT"
+}
+
+# wit_patch_lease_comment <owner> <repo> <comment-id> <lease-json>: rewrite a
+# lease comment in place. The marker wrapper is the single lease-body format
+# this adapter writes. WIT_GH_OUT = the patched comment id.
+wit_patch_lease_comment() {
+  wit_run_gh write api --method PATCH "repos/$1/$2/issues/comments/$3" \
+    -f body="${WIT_LEASE_MARKER}$4 -->" --jq '.id'
 }
 
 # wit_list_lease_comments <owner> <repo> <number> — JSON array of

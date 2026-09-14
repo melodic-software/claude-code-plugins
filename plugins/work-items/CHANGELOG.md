@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.13]
+
+### Changed
+
+- github adapter: common.sh gains wit_patch_lease_comment, the one lease-comment PATCH shape reclaim.sh and renew-lease.sh spelled three times; claim.sh reads the winning comment id only once; two suites read fixture files without a cat fork; list-sub-items.test.sh writes its gh stub through one helper. Same requests, same output.
+
 ## [0.40.12]
 
 ### Changed
