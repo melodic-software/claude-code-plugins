@@ -3,6 +3,12 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.15]
+
+### Changed
+
+- Drop the unused positional floor override and the redundant array seed in the bench library and replace the single-use cleanup wrapper with an exit trap in its suite (behavior unchanged).
+
 ## [0.8.14]
 
 ### Changed
