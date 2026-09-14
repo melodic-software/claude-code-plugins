@@ -242,6 +242,43 @@ PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 0 "a path containing a colon ru
 assert_output_has "the colon path is reported whole" "PASS: plugins/od:d/name.test.sh"
 assert_output_has "the colon path keeps its output" "marker from the colon path"
 
+# --- --shard partitions the corpus --------------------------------------------
+#
+# Sorted, the seven suites are a..g at indexes 0..6, so of three legs leg 0
+# draws a, d, g; leg 1 draws b, e; leg 2 draws c, f. The allowlist names b and
+# c, neither of which is on leg 0: the stale guard must still read the full
+# discovery there rather than call both entries stale.
+r="$(make_root shard)"
+for name in a b c d e f g; do
+  write_suite "$r" "plugins/$name/$name.test.sh" 'echo ok'
+done
+shard_list="$scratch/shard-serial.txt"
+printf 'plugins/b/b.test.sh\nplugins/c/c.test.sh\n' >"$shard_list"
+PLUGIN_TEST_SERIAL_LIST="$shard_list" run_runner 0 "unsharded reference run" --root "$r"
+whole="$(grep '^PASS: ' <<<"$RUN_OUTPUT" | sort)"
+legs=""
+for leg in 0 1 2; do
+  PLUGIN_TEST_SERIAL_LIST="$shard_list" run_runner 0 "leg $leg of 3 exits 0" --root "$r" --jobs 2 --shard "$leg/3"
+  legs+="$(grep '^PASS: ' <<<"$RUN_OUTPUT")"$'\n'
+  [[ "$leg" == 1 ]] && assert_output_has "leg 1 runs its own serial subset" "Suites: 2 (1 serial, 1 across up to 2 job(s))"
+done
+assert_output_has "the leg reports what it kept" "shard: leg 2 of 3 keeps 2 of 7 suite(s)."
+if [[ "$(grep . <<<"$legs" | sort)" == "$whole" ]]; then
+  ok "the legs are disjoint and their union is the unsharded corpus"
+else
+  fail "legs do not partition the corpus; unsharded: $whole; legs: $legs"
+fi
+
+r="$(make_root shard-empty)"
+write_suite "$r" plugins/a/a.test.sh 'echo ok'
+PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 0 "a leg that draws nothing exits 0" --root "$r" --shard 1/2
+assert_output_lacks "the empty leg runs nothing" "=== plugins/"
+
+for spec in 2/2 x 1 1/0 ''; do
+  PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 2 "--shard '$spec' is rejected" --root "$r" --shard "$spec"
+done
+assert_output_has "the bad shard spec is named" "--shard wants <index>/<total>"
+
 # --- the shipped allowlist against the shipped corpus --------------------------
 #
 # Every entry in scripts/run-plugin-tests-serial.txt must name a suite that

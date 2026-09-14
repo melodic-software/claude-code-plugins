@@ -1,16 +1,26 @@
 # Changelog: discovery plugin
 
-## [0.19.17]
+## [0.19.18]
 
 ### Changed
 
 - Fold the usage extraction into one sed, merge the cell edge guards and share the ledger and sidecar fixture helpers in the coverage-complete and dispatch-artifact gate suites (behavior unchanged).
 
-## [0.19.16]
+## [0.19.17]
 
 ### Changed
 
 - Refreshes this plugin's vendored copy of the shared shell library from the marketplace's canonical lib/ source after a behavior-preserving simplification: hook-utils.sh folds two identical path-probe guards into one and shares the orphaned-redirect handling across the bash segment parser; index-regen.sh folds two identical frontmatter skip guards; resolve-convention-pattern.sh drops a redundant quote-match clause. Parser output, hook JSON, and every resolver result are byte-identical before and after.
+
+## [0.19.16]
+
+### Fixed
+
+- **`agents/tool-honesty.test.sh`:** the `persistence:` and `scope_as_received:`/`topic_as_received:`
+  checks no longer report a present field as missing when the suite runs beside other suites. Under
+  `set -o pipefail`, `body "$agent" | grep -q` returned 141 whenever `grep` exited on its match before
+  `awk` finished writing the agent body. Each body is now read once and matched from a here-string,
+  and the suite comes off `scripts/run-plugin-tests-serial.txt`.
 
 ## [0.19.15]
 

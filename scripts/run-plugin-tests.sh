@@ -3,7 +3,7 @@
 # hook tests (.claude/hooks/*.test.sh) and fail if any fails. The repo-local
 # hooks are tracked policy with the same test conventions as plugin hooks.
 #
-#   scripts/run-plugin-tests.sh [--strict-skips] [--jobs N] [--root DIR]
+#   scripts/run-plugin-tests.sh [--strict-skips] [--jobs N] [--root DIR] [--shard I/N]
 #
 # Each test is self-contained and cwd-independent; an individual test SKIPs
 # (exit 0) when an optional tool it needs (shellcheck, shfmt, ...) is absent, so
@@ -27,6 +27,12 @@
 # and never overlap anything. An entry there that matches no discovered suite
 # is an error rather than an ignored line: an allowlist must not outlive what
 # it excuses.
+#
+# SHARDING. --shard I/N keeps leg I of N of the sorted discovered suites, by
+# index modulo N, with scripts/affected-tests.sh's semantics: the union of legs
+# 0..N-1 is the whole corpus and no two legs share a suite, so N runners run it
+# once between them. The allowlist's stale guard still reads the full discovery,
+# each leg runs its own serial subset first, and a leg that draws nothing exits 0.
 #
 # Output stays readable under parallelism. Every suite's output is captured to
 # a file and replayed as one block under a lock (`=== path ===`, the suite's own
@@ -59,8 +65,22 @@ runner="$script_dir/${BASH_SOURCE[0]##*/}"
 SERIAL_LIST="${PLUGIN_TEST_SERIAL_LIST:-$script_dir/run-plugin-tests-serial.txt}"
 
 usage() {
-  echo "usage: run-plugin-tests.sh [--strict-skips] [--jobs N] [--root DIR]" >&2
+  echo "usage: run-plugin-tests.sh [--strict-skips] [--jobs N] [--root DIR] [--shard I/N]" >&2
   exit 2
+}
+
+# parse_shard <spec>: accept exactly `<i>/<n>` with n >= 1 and 0 <= i < n,
+# mirroring scripts/affected-tests.sh. The default is 0/1 rather than unset, so
+# an explicit `--shard ""` (an environment variable that expanded to nothing)
+# is rejected instead of silently running every suite on every leg.
+parse_shard() {
+  local spec="$1" i n
+  [[ "$spec" =~ ^[0-9]+/[0-9]+$ ]] || return 1
+  i=$((10#${spec%%/*}))
+  n=$((10#${spec##*/}))
+  ((n >= 1 && i < n)) || return 1
+  shard_index="$i"
+  shard_total="$n"
 }
 
 # --worker <NNNNNN:suite>: internal. Runs ONE suite with its output captured
@@ -101,6 +121,7 @@ fi
 strict_skips=0
 jobs="${PLUGIN_TEST_JOBS:-1}"
 root=""
+shard_spec="0/1"
 while (($# > 0)); do
   case "$1" in
   --strict-skips) strict_skips=1 ;;
@@ -115,12 +136,22 @@ while (($# > 0)); do
     root="$2"
     shift
     ;;
+  --shard)
+    [[ $# -ge 2 ]] || usage
+    shard_spec="$2"
+    shift
+    ;;
+  --shard=*) shard_spec="${1#--shard=}" ;;
   *) usage ;;
   esac
   shift
 done
 if [[ ! "$jobs" =~ ^[1-9][0-9]*$ ]]; then
   echo "error: --jobs must be a positive integer (got '$jobs')" >&2
+  exit 2
+fi
+if ! parse_shard "$shard_spec"; then
+  echo "error: --shard wants <index>/<total> with total >= 1 and 0 <= index < total (got '$shard_spec')" >&2
   exit 2
 fi
 
@@ -162,6 +193,20 @@ for s in ${serial_entries[@]+"${serial_entries[@]}"}; do
   fi
   is_serial["$s"]=1
 done
+# The partition, AFTER the stale guard so an allowlist entry that lands on
+# another leg is still matched against the full discovery.
+if ((shard_total > 1)); then
+  leg=()
+  for ((si = shard_index; si < ${#tests[@]}; si += shard_total)); do
+    leg+=("${tests[$si]}")
+  done
+  echo "shard: leg $shard_index of $shard_total keeps ${#leg[@]} of ${#tests[@]} suite(s)."
+  if ((${#leg[@]} == 0)); then
+    echo "This leg has no suites to run; the other legs carry the corpus."
+    exit 0
+  fi
+  tests=("${leg[@]}")
+fi
 serial_suites=()
 parallel_suites=()
 suite_keys=()

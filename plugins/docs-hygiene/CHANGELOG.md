@@ -1,34 +1,40 @@
 # Changelog: docs-hygiene plugin
 
-## [0.22.6]
+## [0.22.7]
 
 ### Changed
 
 - detect.sh and emit-findings.sh in the audit-noise skill validate option values through one sourced lib helper instead of two private copies. Diagnostics, findings and exit codes are unchanged.
 
-## [0.22.5]
+## [0.22.6]
 
 ### Changed
 
 - The allowed-tools pairing suite now prints a NOTE line for any skill that names no expected-granted arm instead of silently skipping the granted-set comparison. Exit codes and every PASS and FAIL string are unchanged.
 
-## [0.22.4]
+## [0.22.5]
 
 ### Changed
 
 - Merge the preamble and ticket regexes, hoist the prohibition cues, drop the dead stdout twins and the extra frontmatter tail loop, and share the fixture and runner helpers in audit-noise (behavior unchanged).
 
-## [0.22.3]
+## [0.22.4]
 
 ### Changed
 
 - Drop the duplicate SKILL.md hub pass in audit-progressive-disclosure and the redundant empty-hits early exit in audit-encapsulation (behavior unchanged).
 
-## [0.22.2]
+## [0.22.3]
 
 ### Changed
 
 - Emit the compress audit-scan rows and the detect-caveman states through one helper each, expand the basename inline and share the fixture and stub setup in their suites (behavior unchanged).
+
+## [0.22.2]
+
+### Changed
+
+- The `apply-rename.sh` suite builds and audits its fixture tree once and copies the result into each case that starts from the untouched tree, instead of rebuilding the repository and re-running the three audit stages per case. Cases that change the tree before the audit still audit their own tree. The assertions and the executor are unchanged; the suite's wall time on Windows Git Bash drops because most of it was process spawns in the repeated audits.
 
 ## [0.22.1]
 
