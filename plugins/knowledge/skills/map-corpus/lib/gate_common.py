@@ -9,6 +9,11 @@ from __future__ import annotations
 import sys
 
 
+def is_int(value) -> bool:
+    """True for a real int; JSON booleans are ints in Python and are not."""
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
 def reject_duplicate_keys(pairs):
     """object_pairs_hook: json.loads is last-wins on duplicate keys, so a
     duplicated field would let unvalidated bytes ride under a validated name
