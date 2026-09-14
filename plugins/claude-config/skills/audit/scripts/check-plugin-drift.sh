@@ -77,7 +77,7 @@ fi
 
 # --- Output helpers ----------------------------------------------------------
 
-if [[ -n "${NO_COLOR:-}" ]] || [[ ! -t 1 ]]; then
+if [[ -n "${NO_COLOR:-}" || ! -t 1 ]]; then
   RED="" YELLOW="" GREEN="" CYAN="" RESET=""
 else
   RED=$'\033[31m' YELLOW=$'\033[33m' GREEN=$'\033[32m' CYAN=$'\033[36m' RESET=$'\033[0m'
@@ -100,10 +100,7 @@ JSON_BUFFER='[]'
 # (human reviews) so over-matching is safer than under-matching.
 similar_names() {
   local a="$1" b="$2"
-  local prefix_a="${a:0:4}" prefix_b="${b:0:4}"
-  local suffix_a="${a: -4}" suffix_b="${b: -4}"
-  if [[ ${#a} -ge 4 && ${#b} -ge 4 && "$prefix_a" == "$prefix_b" ]]; then return 0; fi
-  if [[ ${#a} -ge 4 && ${#b} -ge 4 && "$suffix_a" == "$suffix_b" ]]; then return 0; fi
+  if [[ ${#a} -ge 4 && ${#b} -ge 4 && ("${a:0:4}" == "${b:0:4}" || "${a: -4}" == "${b: -4}") ]]; then return 0; fi
   if [[ ${#a} -ge 5 && "$b" == *"$a"* ]]; then return 0; fi
   if [[ ${#b} -ge 5 && "$a" == *"$b"* ]]; then return 0; fi
   return 1

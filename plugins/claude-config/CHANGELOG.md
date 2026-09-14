@@ -3,6 +3,12 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.46.3]
+
+### Changed
+
+- audit skill: audit-engine.sh reuses the hook and matcher it already derived per coverage-manifest entry, sorts the MCP server lists once for both comm passes, drops an unused resolver parameter and a dead exit initializer; check-doc-citations.sh flattens its curl gate; check-plugin-drift.sh and fix-plugin-drift.sh merge their similar-name guards and colour tests. No behavior change.
+
 ## [0.46.2]
 
 ### Changed

@@ -95,7 +95,7 @@ fi
 
 # --- Output helpers ----------------------------------------------------------
 
-if [[ -n "${NO_COLOR:-}" ]] || [[ ! -t 1 ]]; then
+if [[ -n "${NO_COLOR:-}" || ! -t 1 ]]; then
   RED="" YELLOW="" GREEN="" CYAN="" RESET=""
 else
   RED=$'\033[31m' YELLOW=$'\033[33m' GREEN=$'\033[32m' CYAN=$'\033[36m' RESET=$'\033[0m'

@@ -435,7 +435,7 @@ parse_suppressions() {
 declare -A TEAM_IDS=()
 load_suppression_layer() {
   # load_suppression_layer <layer> <file>
-  local layer="$1" file="$2" line id check claim sites reason date rec_id
+  local layer="$1" file="$2" id check claim sites reason date rec_id
   [[ -f "$file" ]] || return 0
   while IFS=$'\t' read -r id check claim sites reason date; do
     [[ -n "$id" ]] || continue
@@ -535,13 +535,12 @@ fi
 # --- Hook inventory (delegated to check-hook-coverage.sh) ---------------------
 
 INVENTORY_JSON='{"inventory":"none","hooks":[],"plugins":[],"levers":[],"unreadable":[],"divergence":[]}'
-INVENTORY_EXIT=2
 if [[ -x "$SCRIPT_DIR/check-hook-coverage.sh" || -f "$SCRIPT_DIR/check-hook-coverage.sh" ]]; then
   inv_out="$(HOOK_COVERAGE_FIXTURE_DIR="$PROJECT_ROOT" HOOK_COVERAGE_USER_DIR="$USER_DIR" \
     HOOK_COVERAGE_INSTALLED_JSON="$INSTALLED_JSON" HOOK_COVERAGE_MANAGED_JSON="${SETTINGS_AUDIT_MANAGED_PATH:-}" \
     bash "$SCRIPT_DIR/check-hook-coverage.sh" --json 2>/dev/null)"
-  INVENTORY_EXIT=$?
-  if [[ $INVENTORY_EXIT -ne 2 ]] && jq empty <<<"$inv_out" 2>/dev/null; then
+  inventory_exit=$?
+  if [[ $inventory_exit -ne 2 ]] && jq empty <<<"$inv_out" 2>/dev/null; then
     INVENTORY_JSON="$(tr -d '\r' <<<"$inv_out")"
   fi
 fi
@@ -600,20 +599,18 @@ while IFS=$'\t' read -r pkey pstatus ppath; do
       row D coverage-manifest finding warning "plugin:$pkey" "manifest-hook-not-inventoried:$m_hook:$m_matcher" "coverage.json names $m_hook on PreToolUse/$m_matcher, but no enumerated hook of this plugin matches; no narrowing taken from this entry" hooks/coverage.json
       continue
     fi
+    levers="$(jqs -r '[.levers[]? | .name] | join(", ")' <<<"$entry")"
     while IFS= read -r pat; do
       [[ -n "$pat" ]] || continue
       # The tool surface the pattern defends must be on the matcher: a Read
       # pattern is never covered by a Bash hook.
       tool="${pat%%(*}"
-      matcher="$(jqs -r '.matcher' <<<"$entry")"
-      case "|$matcher|" in
+      case "|$m_matcher|" in
       *"|$tool|"*) ;;
       *"*"*) ;;
       *) continue ;;
       esac
-      levers="$(jqs -r '[.levers[]? | .name] | join(", ")' <<<"$entry")"
-      hook="$(jqs -r '.hook' <<<"$entry")"
-      COVERED_BY[$pat]="$pkey $hook (levers: ${levers:-none})"
+      COVERED_BY[$pat]="$pkey $m_hook (levers: ${levers:-none})"
     done < <(jqs -r '.patterns[]?' <<<"$entry")
   done <<<"$entries"
 done < <(jqs -r '.plugins[]? | [.plugin, .status, (.path // "")] | @tsv' <<<"$INVENTORY_JSON")
@@ -720,12 +717,14 @@ if [[ $MCP_OK -eq 1 ]]; then
     if [[ "$(jqf "$SETTINGS" -r '.enableAllProjectMcpServers // false')" == "true" ]]; then
       row C enable-all finding error "$SURF_SETTINGS" "enableAllProjectMcpServers:true" "every .mcp.json server is auto-approved; use the enabled/disabled allowlists instead" /enableAllProjectMcpServers
     fi
-    uncovered="$(comm -23 <(printf '%s\n' "$servers" | sort) <(jqf "$SETTINGS" -r '((.enabledMcpjsonServers // []) + (.disabledMcpjsonServers // []))[]' | sort) | grep -v '^$' || true)"
+    sorted_servers="$(printf '%s\n' "$servers" | sort)"
+    listed_servers="$(jqf "$SETTINGS" -r '((.enabledMcpjsonServers // []) + (.disabledMcpjsonServers // []))[]' | sort)"
+    uncovered="$(comm -23 <(printf '%s\n' "$sorted_servers") <(printf '%s\n' "$listed_servers") | grep -v '^$' || true)"
     while IFS= read -r u; do
       [[ -n "$u" ]] || continue
       row C server-coverage finding error "$SURF_SETTINGS" "unlisted-server:$u" "$u is in .mcp.json but in neither enabledMcpjsonServers nor disabledMcpjsonServers" /enabledMcpjsonServers
     done <<<"$uncovered"
-    unknown="$(comm -13 <(printf '%s\n' "$servers" | sort) <(jqf "$SETTINGS" -r '((.enabledMcpjsonServers // []) + (.disabledMcpjsonServers // []))[]' | sort) | grep -v '^$' || true)"
+    unknown="$(comm -13 <(printf '%s\n' "$sorted_servers") <(printf '%s\n' "$listed_servers") | grep -v '^$' || true)"
     while IFS= read -r u; do
       [[ -n "$u" ]] || continue
       row C server-names finding error "$SURF_SETTINGS" "unknown-server:$u" "$u is listed in settings.json but is not a server in .mcp.json" /disabledMcpjsonServers
@@ -740,8 +739,8 @@ fi
 SECRET_RE='ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|eyJ[A-Za-z0-9_-]{15,}\.[A-Za-z0-9_-]{5,}|sk-[A-Za-z0-9_-]{16,}|AKIA[0-9A-Z]{16}|xox[abp]-[A-Za-z0-9-]{10,}'
 
 resolve_hook_path() {
-  # resolve_hook_path <source> <command> <plugin-path> -> the first token with placeholders expanded
-  local src="$1" cmd="$2" ppath="$3" first="" c i inq=0
+  # resolve_hook_path <command> <plugin-path> -> the first token with placeholders expanded
+  local cmd="$1" ppath="$2" first="" c i inq=0
   # The first shell word, read the way the shell would: whitespace ends it
   # only outside quotes, so "$CLAUDE_PROJECT_DIR/my hooks/x.sh" and the
   # common "${CLAUDE_PLUGIN_ROOT}"/hooks/x.sh both stay whole, and the quote
@@ -820,7 +819,7 @@ while IFS=$'\t' read -r src event matcher cmd timeout htype hif hargs; do
   fi
   # Path resolution for the first token when it is a path.
   ppath="${PLUGIN_PATH[$src]:-}"
-  first="$(resolve_hook_path "$src" "$cmd" "$ppath")"
+  first="$(resolve_hook_path "$cmd" "$ppath")"
   first_shown="$first"
   [[ $cmd_public -eq 1 ]] || first_shown="the resolved first token"
   case "$first" in
