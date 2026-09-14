@@ -11,55 +11,27 @@ GUARD_SCRIPT="$SCRIPT_DIR/verify-claude-review-skill.sh"
 # shellcheck source=lib/test-harness.sh
 . "$SCRIPT_DIR/lib/test-harness.sh"
 
-pass() { ok "$1"; }
-# Two-argument shape: a label plus the detail that explains the failure. The
-# harness owns the counter and the exit contract.
-bad() { fail "$1${2:+: $2}"; }
+# shellcheck disable=SC2016  # literal source for the child shell; expanding $1
+# here would substitute this suite's own args.
+CHILD_PROGRAM='
+  source "$1"
+  fetch_review_bodies() {
+    _b64() { printf "%s" "$1" | base64 | tr -d "\n"; printf "\n"; }
+    _b64 "${REVIEW_BODY_STUB}"
+    if [[ -n "${REVIEW_BODY_STUB2:-}" ]]; then
+      _b64 "${REVIEW_BODY_STUB2}"
+    fi
+  }
+  main
+'
 
 # run_guard <expected-exit> <name> <body-stub> [VAR=value ...]
 # Optional REVIEW_BODY_STUB2 in the env list adds a second independent record.
 run_guard() {
   local expected="$1" name="$2" body_stub="$3"
   shift 3
-  local output status
-  # shellcheck disable=SC2016  # the bash -c body is literal source for the
-  # child shell; expanding $1 here would substitute this harness's own args.
-  output="$(
-    env -i \
-      PATH="$PATH" \
-      HOME="${HOME:-/tmp}" \
-      REVIEW_BODY_STUB="$body_stub" \
-      "$@" \
-      bash -c '
-      source "$1"
-      fetch_review_bodies() {
-        _b64() { printf "%s" "$1" | base64 | tr -d "\n"; printf "\n"; }
-        _b64 "${REVIEW_BODY_STUB}"
-        if [[ -n "${REVIEW_BODY_STUB2:-}" ]]; then
-          _b64 "${REVIEW_BODY_STUB2}"
-        fi
-      }
-      main
-    ' harness "$GUARD_SCRIPT" 2>&1
-  )"
-  status=$?
-  if [[ "$status" -eq "$expected" ]]; then
-    pass "$name"
-    LAST_OUTPUT="$output"
-    return 0
-  fi
-  bad "$name" "expected exit $expected, got $status; output: $output"
-  LAST_OUTPUT="$output"
-  return 1
-}
-
-assert_output_contains() {
-  local name="$1" needle="$2"
-  if [[ "$LAST_OUTPUT" == *"$needle"* ]]; then
-    pass "$name"
-  else
-    bad "$name" "expected output to contain '$needle'; got: $LAST_OUTPUT"
-  fi
+  test_harness::run_guard "$expected" "$name" "$GUARD_SCRIPT" "$CHILD_PROGRAM" \
+    REVIEW_BODY_STUB="$body_stub" "$@"
 }
 
 BASE=(
@@ -152,7 +124,7 @@ REVIEWS_JSON='[
 # shellcheck source=verify-claude-review-skill.sh
 source "$GUARD_SCRIPT"
 filter_out="$(printf '%s' "$REVIEWS_JSON" | filter_review_bodies abc123 'claude[bot]')"
-filter_decoded="$(b64_decode "$(printf '%s' "$filter_out" | tr -d '\n')")"
+filter_decoded="$(b64_decode "${filter_out//$'\n'/}")"
 if [[ "$filter_decoded" == *'skill review at this head'* && "$filter_decoded" != *'prior head'* && "$filter_decoded" != *'third-party'* ]]; then
   pass "filter_review_bodies keeps only current-head reviewer records"
 else

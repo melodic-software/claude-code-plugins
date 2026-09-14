@@ -13,62 +13,34 @@ GUARD_SCRIPT="$SCRIPT_DIR/verify-security-review-evidence.sh"
 # shellcheck source=lib/test-harness.sh
 . "$SCRIPT_DIR/lib/test-harness.sh"
 
-pass() { ok "$1"; }
-# Two-argument shape: a label plus the detail that explains the failure. The
-# harness owns the counter and the exit contract.
-bad() { fail "$1${2:+: $2}"; }
+# shellcheck disable=SC2016  # literal source for the child shell; expanding $1
+# here would substitute this suite's own args.
+CHILD_PROGRAM='
+  source "$1"
+  live_head_sha() { printf "%s\n" "${LIVE_HEAD_SHA_STUB:-}"; }
+  main
+'
 
 # run_guard <expected-exit> <name> [VAR=value ...]
-#
-# Runs the guard in a separate bash process with only the named environment,
-# so one case cannot leak state into the next and so `set -e` is genuinely in
-# force — a subshell would inherit this harness's suppressed state and hide the
-# very failures these cases exist to catch.
-#
-# `$0` is deliberately NOT the guard's path: the guard runs `main` on its own
-# when `BASH_SOURCE[0]` equals `$0`, so sourcing it as `$0` would execute it
-# before the stub could replace anything.
 run_guard() {
   local expected="$1" name="$2"
   shift 2
-  local output status
-  # shellcheck disable=SC2016  # the bash -c body is literal source for the
-  # child shell; expanding $1 here would substitute this harness's own args.
-  output="$(env -i \
-    PATH="$PATH" \
-    HOME="${HOME:-/tmp}" \
-    LIVE_HEAD_SHA_STUB="${LIVE_HEAD_SHA_STUB:-}" \
-    "$@" \
-    bash -c '
-      source "$1"
-      live_head_sha() { printf "%s\n" "${LIVE_HEAD_SHA_STUB:-}"; }
-      main
-    ' harness "$GUARD_SCRIPT" 2>&1)"
-  status=$?
-  if [[ "$status" -eq "$expected" ]]; then
-    pass "$name"
-    LAST_OUTPUT="$output"
-    return 0
-  fi
-  bad "$name" "expected exit $expected, got $status; output: $output"
-  LAST_OUTPUT="$output"
-  return 1
+  test_harness::run_guard "$expected" "$name" "$GUARD_SCRIPT" "$CHILD_PROGRAM" \
+    LIVE_HEAD_SHA_STUB="${LIVE_HEAD_SHA_STUB:-}" "$@"
 }
 
-assert_output_contains() {
-  local name="$1" needle="$2"
-  if [[ "$LAST_OUTPUT" == *"$needle"* ]]; then
-    pass "$name"
-  else
-    bad "$name" "expected output to contain '$needle'; got: $LAST_OUTPUT"
-  fi
-}
-
-IN_SCOPE_RAN=(
+# The in-scope world every case below starts from. Cases that need a different
+# value for one of these spell their whole environment out instead of leaning
+# on `env`'s last-assignment-wins.
+IN_SCOPE=(
   GITHUB_EVENT_NAME=pull_request
   GITHUB_ACTOR=kyle-sexton
   LANE_RESULT=success
   LANE_RELEVANT=true
+)
+
+IN_SCOPE_RAN=(
+  "${IN_SCOPE[@]}"
   LANE_REVIEW_RAN=true
   LANE_REVIEW_FAILED=false
 )
@@ -81,10 +53,7 @@ assert_output_contains "the pass says what it read" "the lane declares a review 
 # --- the shape the guard exists to catch -------------------------------------
 
 run_guard 1 "an in-scope validation skip fails closed" \
-  GITHUB_EVENT_NAME=pull_request \
-  GITHUB_ACTOR=kyle-sexton \
-  LANE_RESULT=success \
-  LANE_RELEVANT=true \
+  "${IN_SCOPE[@]}" \
   LANE_REVIEW_RAN=false \
   LANE_REVIEW_FAILED=false
 assert_output_contains "the failure names the skip and its remedy" "workflow-validation skip"
@@ -92,10 +61,7 @@ assert_output_contains "the failure names the skip and its remedy" "workflow-val
 # --- the shapes that are not this guard's ruling to make ---------------------
 
 run_guard 0 "an external failure defers to the lane's deliberate green" \
-  GITHUB_EVENT_NAME=pull_request \
-  GITHUB_ACTOR=kyle-sexton \
-  LANE_RESULT=success \
-  LANE_RELEVANT=true \
+  "${IN_SCOPE[@]}" \
   LANE_REVIEW_RAN=false \
   LANE_REVIEW_FAILED=true \
   LANE_FAILURE_CLASS=rate-limit
@@ -135,10 +101,7 @@ run_guard 0 "a non-pull_request event is not applicable" \
 
 LIVE_HEAD_SHA_STUB=1111111111111111111111111111111111111111 \
   run_guard 0 "a retired superseded run is recognised by a moved head" \
-  GITHUB_EVENT_NAME=pull_request \
-  GITHUB_ACTOR=kyle-sexton \
-  LANE_RESULT=success \
-  LANE_RELEVANT=true \
+  "${IN_SCOPE[@]}" \
   LANE_REVIEW_RAN="" \
   GITHUB_REPOSITORY=melodic-software/claude-code-plugins \
   PR_NUMBER=1 \
@@ -147,10 +110,7 @@ assert_output_contains "the supersede pass names the move" "the head has moved"
 
 LIVE_HEAD_SHA_STUB=0000000000000000000000000000000000000000 \
   run_guard 1 "an absent verdict at an unmoved head fails closed" \
-  GITHUB_EVENT_NAME=pull_request \
-  GITHUB_ACTOR=kyle-sexton \
-  LANE_RESULT=success \
-  LANE_RELEVANT=true \
+  "${IN_SCOPE[@]}" \
   LANE_REVIEW_RAN="" \
   GITHUB_REPOSITORY=melodic-software/claude-code-plugins \
   PR_NUMBER=1 \
@@ -159,20 +119,14 @@ assert_output_contains "the failure names the stale pin as the likely cause" "pr
 
 LIVE_HEAD_SHA_STUB="" \
   run_guard 1 "an unreadable live head fails closed rather than assuming a supersede" \
-  GITHUB_EVENT_NAME=pull_request \
-  GITHUB_ACTOR=kyle-sexton \
-  LANE_RESULT=success \
-  LANE_RELEVANT=true \
+  "${IN_SCOPE[@]}" \
   LANE_REVIEW_RAN="" \
   GITHUB_REPOSITORY=melodic-software/claude-code-plugins \
   PR_NUMBER=1 \
   EVENT_HEAD_SHA=0000000000000000000000000000000000000000
 
 run_guard 1 "an absent verdict with nothing to check the head against fails closed" \
-  GITHUB_EVENT_NAME=pull_request \
-  GITHUB_ACTOR=kyle-sexton \
-  LANE_RESULT=success \
-  LANE_RELEVANT=true \
+  "${IN_SCOPE[@]}" \
   LANE_REVIEW_RAN=""
 
 run_guard 1 "a guard not wired to the lane at all fails closed" \
