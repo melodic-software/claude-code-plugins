@@ -45,6 +45,8 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/imports.sh
 source "$SCRIPT_DIR/lib/imports.sh"
+# shellcheck source=lib/rule-scope.sh
+source "$SCRIPT_DIR/lib/rule-scope.sh"
 
 usage() {
   cat <<'EOF'
@@ -168,11 +170,7 @@ always_loaded_roots() {
 
 # A rule loads unconditionally unless its frontmatter declares `paths:`.
 is_unscoped_rule() {
-  local head1
-  head1=$(head -1 "$1" | tr -d '\r')
-  [[ "$head1" == "---" ]] || return 0
-  tr -d '\r' <"$1" | awk 'NR==1{next} /^---$/{exit} {print}' | grep -q '^paths:' && return 1
-  return 0
+  ! rule_frontmatter_declares "$1" paths
 }
 
 relpath() {

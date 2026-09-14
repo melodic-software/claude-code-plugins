@@ -22,6 +22,8 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/rule-scope.sh
+source "$SCRIPT_DIR/lib/rule-scope.sh"
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
   cat <<'EOF'
@@ -46,8 +48,7 @@ if [[ -d .claude/rules ]]; then
   while IFS= read -r f; do
     [[ -n "$f" ]] || continue
     rules_total=$((rules_total + 1))
-    if [[ "$(head -1 "$f" | tr -d '\r')" == "---" ]] &&
-      tr -d '\r' <"$f" | awk 'NR==1{next} /^---$/{exit} {print}' | grep -q '^paths:'; then
+    if rule_frontmatter_declares "$f" paths; then
       rules_scoped=$((rules_scoped + 1))
     fi
   done < <(find .claude/rules -name '*.md' -type f 2>/dev/null | LC_ALL=C sort)

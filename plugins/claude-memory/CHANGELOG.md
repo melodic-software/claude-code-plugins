@@ -3,6 +3,12 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.7]
+
+### Changed
+
+- audit-spine, instruction-load-stats and orphan-rule-check decide whether a rule declares paths or a description through one rule-scope library reader. The reader captures the frontmatter before grepping it, so a rule whose body exceeds the pipe buffer is no longer misclassified as always-loaded; every tracked rule is far below that size and the reports are unchanged.
+
 ## [0.12.6]
 
 ### Changed

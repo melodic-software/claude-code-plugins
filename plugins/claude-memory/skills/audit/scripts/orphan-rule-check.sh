@@ -43,6 +43,8 @@ set -uo pipefail
 # Absolute path to this script's dir, resolved before any `cd` so the sibling
 # shared parser stays locatable regardless of how we were invoked.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/rule-scope.sh
+source "$SCRIPT_DIR/lib/rule-scope.sh"
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
   cat <<'EOF'
@@ -84,26 +86,15 @@ cd "$repo_root" || exit 1
 seam=$("$SCRIPT_DIR/parse-concern-value.sh" "${repo_root}/.claude/topic-docs.yaml" memory_dir)
 memory_dir="${seam:-.work}"
 
-# A rule is always-loaded unless its frontmatter declares `paths:`. Frontmatter is the
-# leading `---` ... `---` block.
+# A rule is always-loaded unless its frontmatter declares `paths:`.
 is_always_loaded() {
-  local file="$1" head1 fm
-  # tr -d '\r' for parity with sibling scripts — a CRLF checkout would otherwise leave
-  # `---\r` / `paths:\r`, defeating the anchored greps and misclassifying scoped rules.
-  head1=$(head -1 "$file" | tr -d '\r')
-  [[ "$head1" == "---" ]] || return 0 # no frontmatter at all => always-loaded
-  fm=$(tr -d '\r' <"$file" | awk 'NR==1{next} /^---$/{exit} {print}')
-  printf '%s' "$fm" | grep -q '^paths:' && return 1 # has paths: => path-scoped
-  return 0
+  ! rule_frontmatter_declares "$1" paths
 }
 
 # A rule that states its purpose in `description:` frontmatter is self-describing
 # and never an orphan, however unreferenced.
 has_description() {
-  local head1
-  head1=$(head -1 "$1" | tr -d '\r')
-  [[ "$head1" == "---" ]] || return 1
-  tr -d '\r' <"$1" | awk 'NR==1{next} /^---$/{exit} {print}' | grep -q '^description:'
+  rule_frontmatter_declares "$1" description
 }
 
 orphans=()
