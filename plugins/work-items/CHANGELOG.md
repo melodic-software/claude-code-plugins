@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.18]
+
+### Changed
+
+- The lane-telemetry-upsert script normalizes equals-form options in one case arm, tests the sentinel prefix with a glob, and computes its sorted comment ids once; the capability-tier backfill drops a dead array guard and its legacy signal library drops a subsumed regex alternative.
+
 ## [0.40.17]
 
 ### Changed
