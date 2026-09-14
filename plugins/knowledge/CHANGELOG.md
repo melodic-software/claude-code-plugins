@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.13.68]
+
+### Changed
+
+- Round seconds through one helper, merge overlapping windows in a single pass and iterate contact-sheet batches by entries in video-digest watching (behavior unchanged).
+
 ## [0.13.67]
 
 ### Changed

@@ -147,8 +147,7 @@ export async function orchestrateWatching(
   /** @type {import('@melodic/video-digestion/frames/models').ContactSheet[]} */
   const contactSheets = [];
 
-  for (let i = 0; i < batches.length; i++) {
-    const batch = batches[i];
+  for (const [i, batch] of batches.entries()) {
     const outputPath = `${contactSheetsDir}/sheet_${String(i + 1).padStart(3, "0")}.jpg`;
     const sheet = await runContactSheet(
       batch.map((frame) => frame.path),
