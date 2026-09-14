@@ -50,6 +50,14 @@ set -uo pipefail
 
 PROG=${0##*/}
 
+# Lexical path collapse, shared inside this plugin with the worktree gates and
+# the creation helper. Sourced for worktree_path_normalize alone: the file
+# defines functions only and pulls in no library of its own.
+SCRIPT_DIR="${BASH_SOURCE[0]%/*}"
+[[ "$SCRIPT_DIR" == "${BASH_SOURCE[0]}" ]] && SCRIPT_DIR=.
+# shellcheck source=../hooks/worktree-path-lib.sh
+source "$SCRIPT_DIR/../hooks/worktree-path-lib.sh"
+
 EX_OK=0
 EX_UNCLAIMED_REPORT=1
 EX_USAGE=2
@@ -78,39 +86,15 @@ git_unlocated() {
 }
 
 # Lexical collapse of `.` / `..` / `//`, plus trailing-slash trim. Pure
-# string work so a not-yet-existing path still compares to porcelain.
+# string work so a not-yet-existing path still compares to porcelain. The
+# collapse itself is worktree-path-lib.sh's, shared with the worktree gates and
+# the creation helper; this script's own two additions stay here: a trailing CR
+# is dropped (git porcelain read on an MSYS/Cygwin shell carries CRLF), and a
+# relative path that collapses away answers `.` rather than the empty string.
 normalize_path() {
-  local input="$1" root rest seg
-  input="${input%$'\r'}"
-  if [[ "$input" == /* ]]; then
-    root="/"
-    rest="${input#/}"
-  elif [[ "$input" =~ ^[A-Za-z]:/ ]]; then
-    root="${input:0:2}/"
-    rest="${input:3}"
-  else
-    root=""
-    rest="$input"
-  fi
-  local -a segs=() out=()
-  IFS='/' read -r -a segs <<<"$rest"
-  for seg in "${segs[@]}"; do
-    [[ -z "$seg" || "$seg" == "." ]] && continue
-    if [[ "$seg" == ".." ]]; then
-      ((${#out[@]})) && out=("${out[@]:0:${#out[@]}-1}")
-      continue
-    fi
-    out+=("$seg")
-  done
-  local IFS='/'
-  local joined="${out[*]}"
-  if [[ -n "$root" ]]; then
-    printf '%s%s' "$root" "$joined"
-  elif [[ -n "$joined" ]]; then
-    printf '%s' "$joined"
-  else
-    printf '.'
-  fi
+  local collapsed
+  collapsed=$(worktree_path_normalize "${1%$'\r'}")
+  printf '%s' "${collapsed:-.}"
 }
 
 # Make <path> absolute against <base> (default PWD), collapse `.`/`..`,

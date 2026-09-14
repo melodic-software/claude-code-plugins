@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.88]
+
+### Changed
+
+- The two worktree-add gates and the claim and create scripts collapse paths and locate the worktree add target through one worktree-path-lib instead of four inline copies. The claim script keeps working when invoked by bare filename.
+
 ## [0.55.87]
 
 ### Changed
