@@ -187,13 +187,10 @@ function Invoke-DriversCheck {
         $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
             -Severity $severity -Summary $summary -Detail $detail -Commands $commands `
             -NeedsAdmin $false -RanSuccessfully $true `
-            -DurationMs ([int]$sw.ElapsedMilliseconds) `
             -AdminFields $adminFields
     } catch {
-        $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
-            -Severity 'UNKNOWN' -Summary 'Driver inventory check failed.' -Commands $commands `
-            -RanSuccessfully $false -ErrorMessage $_.Exception.Message `
-            -DurationMs ([int]$sw.ElapsedMilliseconds)
+        $result = New-HealthFailureResult -Id $id -Category $category `
+            -Summary 'Driver inventory check failed.' -Commands $commands -ErrorRecord $_
     }
 
     $sw.Stop()

@@ -178,16 +178,11 @@ try {
     $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
         -Severity $overallSev -Summary $summary -Detail $detail -Commands $commands `
         -NeedsAdmin $false -RanSuccessfully $true `
-        -DurationMs ([int]$sw.ElapsedMilliseconds) `
         -AdminFields $adminFields `
         -Notes $adminNote
 } catch {
-    $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
-        -Severity 'UNKNOWN' -Summary 'Disk health check failed.' -Commands $commands `
-        -RanSuccessfully $false -ErrorMessage $_.Exception.Message `
-        -DurationMs ([int]$sw.ElapsedMilliseconds)
+    $result = New-HealthFailureResult -Id $id -Category $category `
+        -Summary 'Disk health check failed.' -Commands $commands -ErrorRecord $_
 }
 
-$sw.Stop()
-$result.duration_ms = [int]$sw.ElapsedMilliseconds
-$result | Write-HealthResult -Human:$Human
+Complete-HealthCheck -Result $result -Stopwatch $sw -Human:$Human

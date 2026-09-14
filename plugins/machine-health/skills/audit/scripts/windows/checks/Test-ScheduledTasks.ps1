@@ -85,15 +85,10 @@ try {
         failed_count = $failed.Count
         failed_tasks = @($failed | Select-Object -First 20)
     } `
-        -NeedsAdmin $false -RanSuccessfully $true `
-        -DurationMs ([int]$sw.ElapsedMilliseconds)
+        -NeedsAdmin $false -RanSuccessfully $true
 } catch {
-    $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
-        -Severity 'UNKNOWN' -Summary 'Scheduled task check failed.' -Commands $commands `
-        -RanSuccessfully $false -ErrorMessage $_.Exception.Message `
-        -DurationMs ([int]$sw.ElapsedMilliseconds)
+    $result = New-HealthFailureResult -Id $id -Category $category `
+        -Summary 'Scheduled task check failed.' -Commands $commands -ErrorRecord $_
 }
 
-$sw.Stop()
-$result.duration_ms = [int]$sw.ElapsedMilliseconds
-$result | Write-HealthResult -Human:$Human
+Complete-HealthCheck -Result $result -Stopwatch $sw -Human:$Human

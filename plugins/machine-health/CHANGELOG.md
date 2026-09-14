@@ -3,6 +3,12 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.24]
+
+### Changed
+
+- The nineteen Windows check scripts derive the skill root through one Resolve-SkillRoot helper and emit their result through the shared Write-HealthResult tail instead of restating both blocks locally. Output objects are unchanged.
+
 ## [0.12.23]
 
 ### Changed

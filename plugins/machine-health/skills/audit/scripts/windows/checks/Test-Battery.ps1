@@ -73,8 +73,7 @@ try {
         $detail = @{ has_battery = $false }
         $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
             -Severity 'OK' -Summary 'No battery present.' -Detail $detail -Commands $commands `
-            -NeedsAdmin $false -RanSuccessfully $true `
-            -DurationMs ([int]$sw.ElapsedMilliseconds)
+            -NeedsAdmin $false -RanSuccessfully $true
     } else {
         $fullPct = $null
         $capacity = $null
@@ -139,16 +138,11 @@ try {
         $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
             -Severity $severity -Summary $summary -Detail $detail -Commands $commands `
             -NeedsAdmin $false -RanSuccessfully $true `
-            -DurationMs ([int]$sw.ElapsedMilliseconds) `
             -Notes $reportNote
     }
 } catch {
-    $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
-        -Severity 'UNKNOWN' -Summary 'Battery check failed.' -Commands $commands `
-        -RanSuccessfully $false -ErrorMessage $_.Exception.Message `
-        -DurationMs ([int]$sw.ElapsedMilliseconds)
+    $result = New-HealthFailureResult -Id $id -Category $category `
+        -Summary 'Battery check failed.' -Commands $commands -ErrorRecord $_
 }
 
-$sw.Stop()
-$result.duration_ms = [int]$sw.ElapsedMilliseconds
-$result | Write-HealthResult -Human:$Human
+Complete-HealthCheck -Result $result -Stopwatch $sw -Human:$Human

@@ -51,8 +51,9 @@ param(
 Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Continue'
 
-$skillRoot = Split-Path -Path $PSScriptRoot -Parent | Split-Path -Parent
 $libRoot = Join-Path $PSScriptRoot 'lib'
+. (Join-Path $libRoot 'Resolve-SkillRoot.ps1')
+$skillRoot = Resolve-SkillRoot
 . (Join-Path $libRoot 'Write-MachineHealthLog.ps1')
 . (Join-Path $libRoot 'Test-IsElevated.ps1')
 . (Join-Path $libRoot 'Read-HistoryJsonl.ps1')

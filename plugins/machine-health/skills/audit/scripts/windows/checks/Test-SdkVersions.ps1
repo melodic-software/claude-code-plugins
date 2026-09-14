@@ -9,6 +9,7 @@ param([switch]$Human)
 Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Continue'
 . (Join-Path $PSScriptRoot '..\lib\Write-HealthResult.ps1')
+. (Join-Path $PSScriptRoot '..\lib\Resolve-SkillRoot.ps1')
 
 $sw = [System.Diagnostics.Stopwatch]::StartNew()
 $id = 'sdk-versions'
@@ -65,8 +66,7 @@ function Add-SdkFinding {
 }
 
 try {
-    $skillRoot = Split-Path -Path $PSScriptRoot -Parent | Split-Path -Parent | Split-Path -Parent
-    $eolPath = Join-Path $skillRoot 'reference\shared\sdk-eol-table.json'
+    $eolPath = Join-Path (Resolve-SkillRoot) 'reference\shared\sdk-eol-table.json'
     $eol = @{}
     if (Test-Path -LiteralPath $eolPath) {
         $raw = Get-Content -LiteralPath $eolPath -Raw | ConvertFrom-Json
@@ -151,15 +151,10 @@ try {
         eol_count         = $crit.Count
         eol_soon_count    = $warn.Count
     } `
-        -NeedsAdmin $false -RanSuccessfully $true `
-        -DurationMs ([int]$sw.ElapsedMilliseconds)
+        -NeedsAdmin $false -RanSuccessfully $true
 } catch {
-    $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
-        -Severity 'UNKNOWN' -Summary 'SDK version check failed.' -Commands $commands `
-        -RanSuccessfully $false -ErrorMessage $_.Exception.Message `
-        -DurationMs ([int]$sw.ElapsedMilliseconds)
+    $result = New-HealthFailureResult -Id $id -Category $category `
+        -Summary 'SDK version check failed.' -Commands $commands -ErrorRecord $_
 }
 
-$sw.Stop()
-$result.duration_ms = [int]$sw.ElapsedMilliseconds
-$result | Write-HealthResult -Human:$Human
+Complete-HealthCheck -Result $result -Stopwatch $sw -Human:$Human

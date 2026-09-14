@@ -49,7 +49,6 @@ try {
             -Commands $commands `
             -NeedsAdmin $true -RanSuccessfully $false `
             -ErrorMessage 'needs_admin' `
-            -DurationMs ([int]$sw.ElapsedMilliseconds) `
             -AdminFields $adminFieldList
     } else {
         $pref = $null
@@ -63,7 +62,6 @@ try {
                 -Commands $commands -RanSuccessfully $false `
                 -NeedsAdmin $true `
                 -ErrorMessage 'Defender preference API not accessible.' `
-                -DurationMs ([int]$sw.ElapsedMilliseconds) `
                 -AdminFields $adminFieldList
         } else {
             $paths = @($pref.ExclusionPath)
@@ -97,21 +95,15 @@ try {
                 unexpected_path_count     = $unexpectedPaths.Count
                 unexpected_paths          = @($unexpectedPaths | Select-Object -First 20)
             } `
-                -NeedsAdmin $true -RanSuccessfully $true `
-                -DurationMs ([int]$sw.ElapsedMilliseconds)
+                -NeedsAdmin $true -RanSuccessfully $true
         }
     }
 } catch {
     # Outer-catch fallback must keep admin-gate metadata so unexpected
     # failures don't get misclassified as non-admin downstream.
-    $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
-        -Severity 'UNKNOWN' -Summary 'Defender exclusion check failed.' -Commands $commands `
-        -RanSuccessfully $false -ErrorMessage $_.Exception.Message `
-        -NeedsAdmin $true `
-        -DurationMs ([int]$sw.ElapsedMilliseconds) `
-        -AdminFields $adminFieldList
+    $result = New-HealthFailureResult -Id $id -Category $category `
+        -Summary 'Defender exclusion check failed.' -Commands $commands -ErrorRecord $_ `
+        -NeedsAdmin $true -AdminFields $adminFieldList
 }
 
-$sw.Stop()
-$result.duration_ms = [int]$sw.ElapsedMilliseconds
-$result | Write-HealthResult -Human:$Human
+Complete-HealthCheck -Result $result -Stopwatch $sw -Human:$Human
