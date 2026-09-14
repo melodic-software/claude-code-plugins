@@ -3,6 +3,12 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.46.4]
+
+### Changed
+
+- audit-automation-gaps inventory.sh dispatches its arguments through one case and drops an unreachable empty-roots arm, audit-pass run-state.sh drops an unreachable no-reason branch, audit-permission-grants permission-rule-check.sh computes its inert-grant remedy once and unifies its match-loop guards, and the inventory and permission-rule suites share their runners. No behavior change.
+
 ## [0.46.3]
 
 ### Changed
